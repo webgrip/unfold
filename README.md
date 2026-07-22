@@ -1,6 +1,8 @@
 # Ploeg
 
-**An open-source, self-hostable dispatch plane that turns work items from any tracker into ephemeral, leased, audited AI-agent runs on Kubernetes.** Bring your own board, forge, and agent harness.
+**Assign a ticket on your own board and Ploeg spins up an ephemeral team of AI agents on your Kubernetes cluster that works it, opens a pull request, reports the outcome, and disappears — every run leased, audited, and crash-safe, with no lock-in on tracker, forge, or agent harness.**
+
+An open-source, self-hostable dispatch plane. Bring your own board, forge, and agent harness.
 
 *Ploeg* is Dutch for a work crew or shift. Teams of specialist agents pick up a ticket, work it, report an outcome, and disappear.
 

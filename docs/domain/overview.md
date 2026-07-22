@@ -1,0 +1,70 @@
+# Ploeg — Domain Overview
+
+Ploeg is a dispatch plane: it turns work items from any tracker into ephemeral, leased, audited AI-agent runs on Kubernetes. The tracker stays the source of truth for WHAT to do; Ploeg owns HOW work gets executed — assignment events in, ephemeral runs out. (Ploeg is Dutch for a work crew or shift.)
+
+*Model version 0.1.0. Generated from `model.yaml` — do not edit by hand.*
+
+## Bounded contexts
+
+- **Dispatch** — Core semantics owned by ploegd and Postgres: work items, leases, queues, checkpoints, outcomes, audit. Provider- and runtime-agnostic by rule.
+- **Integration** — The provider SPI boundary: tracker and forge adapters, webhook parsing, normalized events, write-backs. Everything vendor-specific lives here.
+- **Execution** — How runs happen on Kubernetes: the executor, jobs, watches, security posture. KEDA is the default implementation, not part of the language.
+- **Harness** — The contract between Ploeg and an agent container: Task Spec in, Outcome Report out. Isolates the fast-churning agent-tool boundary.
+
+## Context map
+
+Arrows point from the context that holds the reference to the context it references.
+
+```mermaid
+flowchart LR
+    Dispatch["Dispatch"]
+    Integration["Integration"]
+    Execution["Execution"]
+    Harness["Harness"]
+    Dispatch -->|has_many| Execution
+    Execution -->|belongs_to, references| Dispatch
+    Harness -->|references| Dispatch
+```
+
+## ⚠ Open ambiguities
+
+These terms are contested or vague. Resolve them before writing specs that depend on them.
+
+- **follow-up mirroring** — Follow-Ups enter at queued with no Tracker Item, which tensions with "the tracker is the source of truth for what to do" — work now exists that the board cannot see.
+  - Options: Keep Follow-Ups tracker-invisible (current), Asynchronously write a Tracker Item back for every Follow-Up, Write back only Follow-Ups that survive longer than one Run
+  - Recommendation: Revisit in roadmap phase 2 (PR-feedback ingestion); async write-back is the likely answer so the board regains full visibility without blocking dispatch.
+- **groomer run** — The design says Ploeg "can schedule a groomer run" but grooming semantics belong to the operator — it is unclear whether Groomer is Ploeg vocabulary at all, and what distinguishes a groomer run from a normal Run.
+  - Options: Keep Groomer out of the core language (operator concern), Define it as a Team with a single grooming Role, First-class GroomerRun concept
+  - Recommendation: Keep it out of the core language for now; if it lands in phase 2, model it as an ordinary Team whose single Role grooms — no new concepts.
+
+## Entity relationships
+
+```mermaid
+erDiagram
+    Work_Item {}
+    Lease {}
+    Run {}
+    Checkpoint {}
+    Team {}
+    Task_Spec {}
+    Outcome_Report {}
+    Work_Item ||--|| Lease : has_one
+    Work_Item ||--o{ Run : has_many
+    Work_Item ||--o{ Checkpoint : has_many
+    Lease }o--|| Work_Item : belongs_to
+    Lease }o..o{ Team : references
+    Run }o--|| Work_Item : belongs_to
+    Run }o..o{ Team : references
+    Checkpoint }o--|| Work_Item : belongs_to
+    Team ||--o{ Lease : has_many
+    Task_Spec }o..o{ Work_Item : references
+    Task_Spec }o..o{ Checkpoint : references
+    Outcome_Report }o..o{ Checkpoint : references
+```
+
+## Contents
+
+- [Glossary](glossary.md)
+- [Entities](entities.md)
+- [Business rules](rules.md)
+- [Domain events](events.md)

@@ -1,0 +1,614 @@
+project: Ploeg
+description: >
+  Ploeg is a dispatch plane: it turns work items from any tracker into ephemeral,
+  leased, audited AI-agent runs on Kubernetes. The tracker stays the source of
+  truth for WHAT to do; Ploeg owns HOW work gets executed — assignment events in,
+  ephemeral runs out. (Ploeg is Dutch for a work crew or shift.)
+version: 0.1.0
+
+contexts:
+  - name: Dispatch
+    description: >
+      Core semantics owned by ploegd and Postgres: work items, leases, queues,
+      checkpoints, outcomes, audit. Provider- and runtime-agnostic by rule.
+  - name: Integration
+    description: >
+      The provider SPI boundary: tracker and forge adapters, webhook parsing,
+      normalized events, write-backs. Everything vendor-specific lives here.
+  - name: Execution
+    description: >
+      How runs happen on Kubernetes: the executor, jobs, watches, security
+      posture. KEDA is the default implementation, not part of the language.
+  - name: Harness
+    description: >
+      The contract between Ploeg and an agent container: Task Spec in,
+      Outcome Report out. Isolates the fast-churning agent-tool boundary.
+
+terms:
+  - name: Work Item
+    definition: >
+      Ploeg's mirror of one Tracker Item (provider + external id + revision),
+      carrying the Dispatch lifecycle state. It never replaces the Tracker Item,
+      which remains authoritative for content; the Work Item is authoritative
+      only for how execution is going.
+    context: Dispatch
+    avoid: [task, ticket]
+    see_also: [Tracker Item, Lease, Follow-Up]
+
+  - name: Tracker Item
+    definition: >
+      The authoritative item in the external tracker (Vikunja, Jira, GitHub
+      Issues, …). Ploeg reads it via a Tracker Provider and mirrors it into a
+      Work Item; all content edits happen in the tracker, never in Ploeg.
+    context: Integration
+    synonyms: [ticket, issue]
+    see_also: [Work Item, Tracker Provider]
+
+  - name: Lease
+    definition: >
+      A Team's crash-safe hold on a Work Item: a row (team, work item,
+      expires_at), unique per Work Item, renewed on a fixed interval by the
+      running Run. Expiry releases the item mechanically — nothing depends on
+      an agent behaving well at death. "Claim" is the verb (a team claims an
+      item, acquiring a Lease); the noun is always Lease.
+    context: Dispatch
+    avoid: [claim (as a noun), lock]
+    see_also: [Team, Work Item, Run]
+
+  - name: Team
+    definition: >
+      A declarative manifest — name, Roles, harness image and model per Role,
+      run strategy (sequential or parallel), resource/token budget — that is
+      the unit of claiming. Leases are team-scoped: two Teams never hold the
+      same Work Item; any number of Roles work within one Team's Lease.
+    context: Dispatch
+    avoid: [crew]
+    examples: ["implementer + reviewer-on-a-different-model-family + tester"]
+    see_also: [Role, Lease]
+
+  - name: Role
+    definition: >
+      A named specialist function within a Team (implementer, reviewer,
+      tester), bound to a harness image and model. A Role is a slot in the
+      manifest; a Run is one execution of that slot.
+    context: Dispatch
+    synonyms: [specialist, specialist role]
+    see_also: [Team, Run]
+
+  - name: Run
+    definition: >
+      One execution of one Role against a leased Work Item, realized as
+      exactly one Kubernetes Job. A Lease may accumulate several Runs (roles,
+      retries, resumes); each Run ends in an Outcome Report or is recorded as
+      failed by the Executor's watch. "Job" is reserved for the Kubernetes
+      object and is never a domain term.
+    context: Execution
+    avoid: [job (as a domain term)]
+    see_also: [Role, Outcome, Outcome Report, Executor]
+
+  - name: Outcome
+    definition: >
+      The terminal result of a Run, one of: pr_opened, pr_updated,
+      issue_updated, follow_up_created, stuck, failed, no_change_needed.
+      A stuck Outcome carries a mandatory reason and moves the Work Item to
+      needs_human; a failed Outcome releases the Lease for retry.
+    context: Dispatch
+    see_also: [Outcome Report, Run]
+
+  - name: Checkpoint
+    definition: >
+      The small durable progress record (phase, branch, PR URL) a Run writes
+      via the report API. Resume means respawning with the last Checkpoint
+      injected; everything else is re-derived from git/forge state, which
+      stays the durable medium.
+    context: Dispatch
+    see_also: [Run, Task Spec]
+
+  - name: Follow-Up
+    definition: >
+      A Work Item created from a Forge Event (review submitted, check failed,
+      merge-state dirty) rather than from an Assignment. It references its
+      source PR and Work Item, is routed to the Team owning the source branch,
+      and enters the lifecycle directly at queued — there is no Tracker Item
+      to mirror at creation time.
+    context: Dispatch
+    see_also: [Work Item, Forge Event, Team]
+
+  - name: Assignment
+    definition: >
+      The normalized tracker event that names a Team for an ingested Work
+      Item, transitioning it to queued. Assigning in the tracker is the sole
+      human gesture that puts work in front of agents.
+    context: Dispatch
+    see_also: [Tracker Event, Team Queue]
+
+  - name: Team Queue
+    definition: >
+      The ordered set of queued Work Items for one Team — a derived view, not
+      a stored entity. Order mirrors the tracker's priority/rank, falling back
+      to oldest-first; Ploeg never owns prioritization, the board does.
+    context: Dispatch
+    synonyms: [pick-up queue]
+    see_also: [Assignment, Work Item]
+
+  - name: Tracker Provider
+    definition: >
+      The SPI adapter for one task-management system: verify and parse
+      webhooks into normalized Tracker Events, fetch items for mirroring, and
+      write back comments and status. Reference implementation: Vikunja.
+    context: Integration
+    see_also: [Forge Provider, Tracker Event]
+
+  - name: Forge Provider
+    definition: >
+      The SPI adapter for one git forge: verify and parse webhooks into
+      normalized Forge Events and write back PR comments. Reference
+      implementation: Forgejo.
+    context: Integration
+    see_also: [Tracker Provider, Forge Event]
+
+  - name: Tracker Event
+    definition: >
+      The normalized result of parsing a tracker webhook — assigned, updated,
+      or unassigned — with the external id and resolved Team. The core only
+      ever sees normalized events, never raw vendor payloads.
+    context: Integration
+    see_also: [Assignment, Tracker Provider]
+
+  - name: Forge Event
+    definition: >
+      The normalized result of parsing a forge webhook — review_submitted,
+      check_failed, or merge_state_dirty — with repo, PR, branch, and the
+      feedback body for classification. Source of every Follow-Up.
+    context: Integration
+    see_also: [Follow-Up, Forge Provider]
+
+  - name: Executor
+    definition: >
+      The pluggable component that spawns, watches, and cancels Runs. Its
+      watch — not agent goodwill — records Job termination, feeding the lease
+      manager and audit log. The default implementation is a KEDA ScaledJob
+      per Team with the Postgres scaler; KEDA is a detail, not identity.
+    context: Execution
+    see_also: [Run]
+
+  - name: Harness
+    definition: >
+      A concrete agent tool (Claude Code, opencode, …). Ploeg never talks to a
+      Harness directly — only through a Harness Adapter — because this
+      boundary churns fastest of any in the system.
+    context: Harness
+    see_also: [Harness Adapter, Agent Container]
+
+  - name: Harness Adapter
+    definition: >
+      The thin wrapper that makes one Harness satisfy the harness contract:
+      accept a Task Spec, drive the tool, emit an Outcome Report. Adapters are
+      the isolation layer for harness churn; ACP is tracked as a candidate
+      standard to adopt instead of inventing more.
+    context: Harness
+    see_also: [Harness, Task Spec, Outcome Report]
+
+  - name: Agent Container
+    definition: >
+      The container a Run executes: a Harness plus its Adapter, invoked with a
+      Task Spec and obligated to write an Outcome Report before exit.
+      Credentials arrive out-of-band as mounted secrets, never in the spec.
+    context: Harness
+    see_also: [Run, Task Spec, Outcome Report]
+
+  - name: Task Spec
+    definition: >
+      The input contract of an Agent Container: Work Item snapshot, Role,
+      optional Checkpoint, repo/forge endpoints. Injected as a file mount or
+      environment; deliberately credential-free.
+    context: Harness
+    see_also: [Outcome Report, Agent Container]
+
+  - name: Outcome Report
+    definition: >
+      The output contract of an Agent Container: Outcome, summary, links, and
+      optionally a new Checkpoint, written before exit. Exit without a report
+      is recorded as a failed Outcome by the Executor's watch.
+    context: Harness
+    see_also: [Task Spec, Outcome]
+
+entities:
+  - name: Work Item
+    description: Ploeg's mirror of one Tracker Item, carrying dispatch state.
+    context: Dispatch
+    attributes:
+      - name: id
+        type: string
+        description: Ploeg-internal id.
+        required: true
+      - name: provider
+        type: string
+        description: Tracker provider name (e.g. "vikunja"); empty for Follow-Ups.
+      - name: external_id
+        type: string
+        description: Provider-scoped id of the mirrored Tracker Item.
+      - name: revision
+        type: string
+        description: Provider revision/etag for staleness detection.
+      - name: team
+        type: string
+        description: Team the item is queued for; empty until assigned.
+      - name: state
+        type: "enum(ingested, queued, leased, needs_human, stale, done)"
+        description: Dispatch lifecycle position.
+        required: true
+      - name: origin
+        type: "enum(assignment, follow_up)"
+        description: Whether the item came from the tracker or from a Forge Event.
+        required: true
+      - name: priority
+        type: integer
+        description: Rank mirrored from the tracker; drives Team Queue order.
+    states:
+      - from: "[start]"
+        to: ingested
+        trigger: Tracker webhook received; Tracker Item mirrored
+      - from: "[start]"
+        to: queued
+        trigger: Follow-Up created from a Forge Event, routed to the owning Team
+      - from: ingested
+        to: queued
+        trigger: Assignment names a Team
+      - from: queued
+        to: leased
+        trigger: Team claims the item, acquiring a Lease
+      - from: leased
+        to: queued
+        trigger: Lease expired or Run failed, retries remaining
+      - from: leased
+        to: stale
+        trigger: Lease expired repeatedly without an Outcome (threshold reached)
+      - from: leased
+        to: needs_human
+        trigger: stuck Outcome reported (mandatory reason)
+      - from: leased
+        to: done
+        trigger: Terminal Outcome reported (pr_opened, pr_updated, issue_updated, follow_up_created, no_change_needed)
+      - from: needs_human
+        to: queued
+        trigger: Human re-queues after resolving the blocker
+      - from: needs_human
+        to: done
+        trigger: Human closes the item
+      - from: stale
+        to: queued
+        trigger: Human or explicit policy re-queues
+    relationships:
+      - to: Lease
+        kind: has_one
+        description: At most one live Lease at a time (unique per Work Item).
+      - to: Run
+        kind: has_many
+        description: All executions across roles, retries, and resumes.
+      - to: Checkpoint
+        kind: has_many
+        description: Progress records; the latest one drives resume.
+
+  - name: Lease
+    description: A Team's crash-safe, TTL-renewed hold on a Work Item.
+    context: Dispatch
+    attributes:
+      - name: work_item_id
+        type: string
+        required: true
+      - name: team
+        type: string
+        required: true
+      - name: expires_at
+        type: timestamp
+        description: Expiry releases the item mechanically.
+        required: true
+      - name: renewed_at
+        type: timestamp
+        description: Last renewal by the running Run.
+    relationships:
+      - to: Work Item
+        kind: belongs_to
+        description: Unique per Work Item.
+      - to: Team
+        kind: references
+        description: The claiming Team.
+
+  - name: Run
+    description: One execution of one Role, realized as one Kubernetes Job.
+    context: Execution
+    attributes:
+      - name: work_item_id
+        type: string
+        required: true
+      - name: team
+        type: string
+        required: true
+      - name: role
+        type: string
+        description: The Role this Run executes.
+        required: true
+      - name: job_name
+        type: string
+        description: The Kubernetes Job realizing this Run.
+      - name: outcome
+        type: "enum(pr_opened, pr_updated, issue_updated, follow_up_created, stuck, failed, no_change_needed)"
+        description: Terminal result; failed when the container exits without a report.
+      - name: started_at
+        type: timestamp
+      - name: finished_at
+        type: timestamp
+    relationships:
+      - to: Work Item
+        kind: belongs_to
+      - to: Team
+        kind: references
+
+  - name: Checkpoint
+    description: Small durable progress record enabling resume.
+    context: Dispatch
+    attributes:
+      - name: work_item_id
+        type: string
+        required: true
+      - name: phase
+        type: string
+        description: e.g. branch_created, changes_made, pr_opened.
+        required: true
+      - name: branch
+        type: string
+      - name: pr_url
+        type: string
+      - name: at
+        type: timestamp
+    relationships:
+      - to: Work Item
+        kind: belongs_to
+
+  - name: Team
+    description: Declarative manifest of Roles; the unit of claiming.
+    context: Dispatch
+    attributes:
+      - name: name
+        type: string
+        required: true
+      - name: roles
+        type: "list(Role: name, harness image, model)"
+        description: The specialist slots and their bindings.
+        required: true
+      - name: strategy
+        type: "enum(sequential, parallel)"
+        description: How Roles coordinate within one Lease, on a shared branch.
+      - name: budget
+        type: string
+        description: Resource/token budget for the Team's Runs.
+    relationships:
+      - to: Lease
+        kind: has_many
+        description: One live Lease per held Work Item.
+
+  - name: Task Spec
+    description: Input contract of an Agent Container.
+    context: Harness
+    attributes:
+      - name: work_item
+        type: Work Item snapshot
+        required: true
+      - name: role
+        type: string
+        required: true
+      - name: checkpoint
+        type: Checkpoint
+        description: Present on resume; absent on first Run.
+      - name: repo_url
+        type: string
+        required: true
+    relationships:
+      - to: Work Item
+        kind: references
+      - to: Checkpoint
+        kind: references
+
+  - name: Outcome Report
+    description: Output contract of an Agent Container; mandatory before exit.
+    context: Harness
+    attributes:
+      - name: outcome
+        type: Outcome
+        required: true
+      - name: summary
+        type: string
+        required: true
+      - name: links
+        type: "list(string)"
+        description: PRs, commits, created Follow-Ups.
+      - name: checkpoint
+        type: Checkpoint
+        description: New progress to persist.
+      - name: stuck_reason
+        type: string
+        description: Mandatory when outcome is stuck.
+    relationships:
+      - to: Checkpoint
+        kind: references
+
+rules:
+  - id: R1
+    statement: A Work Item is held by at most one Team at a time; a Lease is unique per Work Item.
+    rationale: Two Teams on one item means two writers on one branch and split accountability in the audit log.
+    applies_to: [Work Item, Lease, Team]
+    context: Dispatch
+
+  - id: R2
+    statement: A Lease must be renewed on a fixed interval by the running Run; expiry releases the Work Item mechanically.
+    rationale: Crash-safety must never depend on an agent behaving well at death — a crashed pod releases its item with no cleanup code running.
+    applies_to: [Lease, Run]
+    context: Dispatch
+
+  - id: R3
+    statement: Every Run ends with an Outcome Report; a container that exits without one is recorded as a failed Outcome by the Executor's watch.
+    rationale: Audit completeness — no Run may vanish without a queryable terminal row.
+    applies_to: [Run, Outcome Report, Executor]
+    context: Execution
+
+  - id: R4
+    statement: A stuck Outcome carries a mandatory reason and transitions the Work Item to needs_human.
+    rationale: Silent stalls are the most expensive failure mode of unattended agents; stuck must always surface to a human with context.
+    applies_to: [Outcome, Work Item]
+    context: Dispatch
+
+  - id: R5
+    statement: Lease expiry or a failed Outcome re-queues the Work Item; after the retry threshold is reached without an Outcome, the item goes stale, and only a human or explicit policy leaves stale.
+    rationale: Retrying is cheap once and ruinous forever — stale is the circuit breaker that stops burning tokens on repeatedly abandoned work.
+    applies_to: [Work Item, Lease]
+    context: Dispatch
+
+  - id: R6
+    statement: Durable state lives only in Postgres and in git/forge state — never inside an agent process.
+    rationale: Ephemerality is the design axiom; any state trapped in a long-lived process breaks crash-safety and resume.
+    applies_to: [Run, Checkpoint]
+    context: Dispatch
+
+  - id: R7
+    statement: Core semantics must never encode a provider-specific workaround; everything vendor-specific lives behind the SPI.
+    rationale: SPI stability is the project's compatibility promise; one leaked vendor detail makes every other provider carry it forever.
+    applies_to: [Tracker Provider, Forge Provider]
+    context: Integration
+
+  - id: R8
+    statement: Credentials are delivered to an Agent Container out-of-band as mounted secrets, never inside a Task Spec.
+    rationale: Task Specs are logged, audited, and checkpointed; secrets in them would leak into every one of those stores.
+    applies_to: [Task Spec, Agent Container]
+    context: Harness
+
+  - id: R9
+    statement: Follow-Ups are routed to the Team owning the source branch and never gate other Teams' new work.
+    rationale: Feedback loops must stay local — one team's red CI must not stall the whole factory.
+    applies_to: [Follow-Up, Team]
+    context: Dispatch
+
+  - id: R10
+    statement: Team Queue order mirrors the tracker's priority, falling back to oldest-first; Ploeg never owns prioritization.
+    rationale: The board is the source of truth for what matters and when; duplicating rank in Ploeg would create a second, silently diverging opinion.
+    applies_to: [Team Queue, Tracker Item]
+    context: Dispatch
+
+events:
+  - name: WorkItemIngested
+    description: A tracker webhook was mirrored into a new Work Item.
+    entity: Work Item
+    triggers: Nothing until an Assignment arrives.
+
+  - name: WorkItemAssigned
+    description: An Assignment named a Team; the Work Item is queued.
+    entity: Work Item
+    triggers: The Team Queue grows; the Executor's scaler may spawn a Run.
+
+  - name: LeaseAcquired
+    description: A Team claimed a queued Work Item.
+    entity: Lease
+    triggers: A Run is spawned with a Task Spec.
+
+  - name: LeaseExpired
+    description: A Lease TTL lapsed without renewal.
+    entity: Lease
+    triggers: Re-queue, or stale after the retry threshold (R5); reason recorded in the audit log.
+
+  - name: CheckpointWritten
+    description: A Run reported durable progress via the report API.
+    entity: Checkpoint
+    triggers: Future resumes inject this Checkpoint into the Task Spec.
+
+  - name: OutcomeReported
+    description: A Run ended with an Outcome Report.
+    entity: Run
+    triggers: Work Item transitions per the Outcome; write-back to tracker/forge through providers.
+
+  - name: FollowUpCreated
+    description: A Forge Event was classified as actionable and became a Follow-Up.
+    entity: Work Item
+    triggers: The owning Team's Queue grows; vague or security-sensitive feedback goes to needs_human instead.
+
+ambiguities:
+  - phrase: claim
+    issue: README and design used "claim" and "lease" interchangeably for the same row.
+    options: [Lease as noun + claim as verb, Lease only, Claim as the entity]
+    recommendation: Lease is the noun/entity; "claim" survives only as the verb.
+    status: resolved
+    resolution: Lease is canonical for the entity; "claim" is the verb for acquiring one; "claim" as a noun is on the avoid list. (2026-07-22)
+
+  - phrase: run vs job
+    issue: With sequential/parallel team strategies it was unclear whether a Run spans the whole lease servicing or one Kubernetes Job.
+    options: [Run = one Role + one Job, Run = whole lease servicing, separate lease-level term]
+    recommendation: Run = one execution of one Role, exactly one Kubernetes Job.
+    status: resolved
+    resolution: Run is per-Role, per-Job; "Job" stays a Kubernetes term. A lease-level grouping term is deliberately not introduced until parallel strategies demand one. (2026-07-22)
+
+  - phrase: needs_human
+    issue: The design mentioned a "human queue" and "needs_human items" but the state enum lacked the state.
+    options: [WorkItem state, outcome-only fact, separate Escalation entity]
+    recommendation: Make it a lifecycle state; the human queue is a query on it.
+    status: resolved
+    resolution: needs_human is a Work Item state, entered on a stuck Outcome or vague/security-sensitive Forge Event feedback; exits are human re-queue or human close. Distinct from stale, which means retry-exhausted. (2026-07-22)
+
+  - phrase: follow-up mirroring
+    issue: >
+      Follow-Ups enter at queued with no Tracker Item, which tensions with "the
+      tracker is the source of truth for what to do" — work now exists that the
+      board cannot see.
+    options:
+      - Keep Follow-Ups tracker-invisible (current)
+      - Asynchronously write a Tracker Item back for every Follow-Up
+      - Write back only Follow-Ups that survive longer than one Run
+    recommendation: >
+      Revisit in roadmap phase 2 (PR-feedback ingestion); async write-back is the
+      likely answer so the board regains full visibility without blocking dispatch.
+    status: open
+
+  - phrase: groomer run
+    issue: >
+      The design says Ploeg "can schedule a groomer run" but grooming semantics
+      belong to the operator — it is unclear whether Groomer is Ploeg vocabulary
+      at all, and what distinguishes a groomer run from a normal Run.
+    options:
+      - Keep Groomer out of the core language (operator concern)
+      - Define it as a Team with a single grooming Role
+      - First-class GroomerRun concept
+    recommendation: >
+      Keep it out of the core language for now; if it lands in phase 2, model it
+      as an ordinary Team whose single Role grooms — no new concepts.
+    status: open
+
+dialogues:
+  - title: Lease vs claim, and what a crash does
+    context: Dispatch
+    lines:
+      - speaker: Dev
+        text: The implementer pod got OOM-killed halfway. Who cleans up its claim?
+      - speaker: Domain expert
+        text: Nobody, and that's the point. The **Lease** just stops being renewed and expires. Per **R2**, expiry releases the **Work Item** mechanically — no cleanup code runs.
+      - speaker: Dev
+        text: So the item is lost?
+      - speaker: Domain expert
+        text: No, it goes back to queued and another **Run** picks it up with the last **Checkpoint** injected. If that keeps happening, **R5** trips it to stale so we stop burning tokens.
+      - speaker: Dev
+        text: And "claim" — is that a table?
+      - speaker: Domain expert
+        text: A verb. A **Team** claims an item, which means it acquires a **Lease**. If you're writing SQL, the noun is always Lease.
+
+  - title: stuck vs failed vs needs_human
+    context: Dispatch
+    lines:
+      - speaker: Dev
+        text: The agent container exited zero but never wrote anything. Is that stuck?
+      - speaker: Domain expert
+        text: That's failed — exit without an **Outcome Report** is recorded as a failed **Outcome** by the **Executor**'s watch (**R3**). The item re-queues for retry.
+      - speaker: Dev
+        text: Then what's stuck?
+      - speaker: Domain expert
+        text: stuck is the agent saying "I understand the task and I cannot proceed" — it must give a reason (**R4**), and the **Work Item** goes to needs_human, not back to the queue.
+      - speaker: Dev
+        text: And stale?
+      - speaker: Domain expert
+        text: stale means the machinery gave up — repeated **Lease** expiries with no Outcome at all. needs_human is the agent asking for help; stale is Ploeg refusing to retry blindly.
