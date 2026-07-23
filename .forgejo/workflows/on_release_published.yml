@@ -34,10 +34,12 @@ jobs:
           [[ -n "$created" ]] || created="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           echo "created=$created" >> "$GITHUB_OUTPUT"
 
-  # Both distribute jobs: normal job + step-level -fast composite (infra's production shape
-  # from Forgejo) — no job-level reusable chains, so no flattened-job-id collisions. The
+  # Distribute: normal job + step-level -fast composite (infra's production shape from
+  # Forgejo) — no job-level reusable chains, so no flattened-job-id collisions. The
   # composite reads REGISTRY_USERNAME/REGISTRY_TOKEN from env. Explicit platforms re-enables
   # QEMU in -fast; arm64 is cheap because the Dockerfile cross-compiles via $BUILDPLATFORM.
+  # A GHCR mirror job existed here but is parked while GitHub is out of scope — restore it
+  # from git history (ci: park GHCR publish) when public pulls are wanted again.
   release-distribute-harbor:
     name: Distribute (Harbor)
     needs: [parse-release-tag]
@@ -59,30 +61,6 @@ jobs:
             IMAGE_REVISION=${{ github.sha }}
             REGISTRY_DOCKERHUB=harbor.webgrip.dev/dockerhub
           # Owner hardcoded: github.repository_owner is EMPTY on Forgejo workflow_dispatch.
-          docker-tags: |
-            webgrip/ploegd:${{ needs.parse-release-tag.outputs.version }}
-            webgrip/ploegd:latest
-
-  release-distribute-ghcr:
-    name: Distribute (GHCR)
-    needs: [parse-release-tag]
-    runs-on: docker
-    env:
-      REGISTRY_USERNAME: ${{ secrets.GHCR_USERNAME }}
-      REGISTRY_TOKEN: ${{ secrets.GHCR_TOKEN }}
-    steps:
-      - name: Build and push (GHCR)
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/docker-build-push-registry-fast@main
-        with:
-          registry: ghcr.io
-          docker-context: "."
-          docker-file: "ops/docker/ploegd/Dockerfile"
-          platforms: "linux/amd64,linux/arm64"
-          docker-build-args: |
-            IMAGE_CREATED=${{ needs.parse-release-tag.outputs.created }}
-            IMAGE_VERSION=${{ needs.parse-release-tag.outputs.version }}
-            IMAGE_REVISION=${{ github.sha }}
-            REGISTRY_DOCKERHUB=harbor.webgrip.dev/dockerhub
           docker-tags: |
             webgrip/ploegd:${{ needs.parse-release-tag.outputs.version }}
             webgrip/ploegd:latest
