@@ -47,6 +47,26 @@ jobs:
   # QEMU in -fast; arm64 is cheap because the Dockerfile cross-compiles via $BUILDPLATFORM.
   # A GHCR mirror job existed here but is parked while GitHub is out of scope — restore it
   # from git history (ci: park GHCR publish) when public pulls are wanted again.
+  # Job-level reusable (the one reusable chain this caller allows — infra's
+  # production shape). `enabled: true` is safe because this workflow never
+  # runs without a parsed tag. `ref` decouples the v-prefixed git tag from
+  # the bare chart version.
+  release-publish-chart:
+    name: Publish Helm chart (Harbor)
+    needs: [parse-release-tag]
+    uses: webgrip/workflows/.forgejo/workflows/helm-chart-push.yml@main
+    with:
+      enabled: true
+      registry: harbor.webgrip.dev
+      path: ops/helm/ploeg
+      name: ploeg
+      version: ${{ needs.parse-release-tag.outputs.version }}
+      ref: v${{ needs.parse-release-tag.outputs.version }}
+      oci-path: webgrip/charts
+    secrets:
+      REGISTRY_USERNAME: ${{ secrets.HARBOR_ROBOT_USER }}
+      REGISTRY_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
+
   release-distribute-harbor:
     name: Distribute (Harbor)
     needs: [parse-release-tag]

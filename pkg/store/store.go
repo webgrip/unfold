@@ -120,19 +120,20 @@ func (s *Store) IngestAssigned(ctx context.Context, item work.WorkItem) (int64, 
 
 	var id int64
 	err = tx.QueryRow(ctx, `
-		INSERT INTO work_items (provider, external_id, revision, team, state, origin, priority, title, url)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO work_items (provider, external_id, revision, team, state, origin, priority, title, description, url)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		ON CONFLICT (provider, external_id) DO UPDATE SET
 			revision = EXCLUDED.revision,
 			team     = EXCLUDED.team,
 			priority = EXCLUDED.priority,
 			title    = EXCLUDED.title,
+			description = EXCLUDED.description,
 			url      = EXCLUDED.url,
 			state    = CASE WHEN work_items.state IN ('ingested', 'stale') THEN 'queued' ELSE work_items.state END,
 			updated_at = now()
 		RETURNING id`,
 		item.Provider, item.ExternalID, item.Revision, item.Team,
-		string(work.StateQueued), string(work.OriginAssignment), item.Priority, item.Title, item.URL).Scan(&id)
+		string(work.StateQueued), string(work.OriginAssignment), item.Priority, item.Title, item.Description, item.URL).Scan(&id)
 	if err != nil {
 		return 0, err
 	}
@@ -177,8 +178,8 @@ func (s *Store) Claim(ctx context.Context, team string, ttl time.Duration) (*Cla
 			FOR UPDATE SKIP LOCKED
 			LIMIT 1
 		)
-		RETURNING id, provider, external_id, revision, team, origin, priority, title, url`,
-		team).Scan(&id, &it.Provider, &it.ExternalID, &it.Revision, &it.Team, &it.Origin, &it.Priority, &it.Title, &it.URL)
+		RETURNING id, provider, external_id, revision, team, origin, priority, title, description, url`,
+		team).Scan(&id, &it.Provider, &it.ExternalID, &it.Revision, &it.Team, &it.Origin, &it.Priority, &it.Title, &it.Description, &it.URL)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNoWork
 	}
@@ -376,7 +377,7 @@ func (s *Store) ExpireLeases(ctx context.Context) ([]int64, error) {
 // operator visibility — deliberately not a board.
 func (s *Store) QueueSnapshot(ctx context.Context, team string) ([]work.WorkItem, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, provider, external_id, revision, team, state, origin, priority, title, url, created_at, updated_at
+		SELECT id, provider, external_id, revision, team, state, origin, priority, title, description, url, created_at, updated_at
 		FROM work_items
 		WHERE team = $1 AND state <> 'done'
 		ORDER BY priority DESC, created_at`, team)
@@ -389,7 +390,7 @@ func (s *Store) QueueSnapshot(ctx context.Context, team string) ([]work.WorkItem
 		var it work.WorkItem
 		var id int64
 		if err := rows.Scan(&id, &it.Provider, &it.ExternalID, &it.Revision, &it.Team, &it.State,
-			&it.Origin, &it.Priority, &it.Title, &it.URL, &it.CreatedAt, &it.UpdatedAt); err != nil {
+			&it.Origin, &it.Priority, &it.Title, &it.Description, &it.URL, &it.CreatedAt, &it.UpdatedAt); err != nil {
 			return nil, err
 		}
 		it.ID = fmt.Sprint(id)

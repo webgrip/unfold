@@ -39,9 +39,10 @@ type payload struct {
 	EventName string `json:"event_name"`
 	Data      struct {
 		Task struct {
-			ID       int64  `json:"id"`
-			Title    string `json:"title"`
-			Priority int    `json:"priority"`
+			ID          int64  `json:"id"`
+			Title       string `json:"title"`
+			Description string `json:"description"`
+			Priority    int    `json:"priority"`
 		} `json:"task"`
 		Assignee struct {
 			Username string `json:"username"`
@@ -77,12 +78,13 @@ func (p *Provider) ParseWebhook(r *http.Request) ([]provider.TrackerEvent, error
 		team = t
 	}
 	item := &work.WorkItem{
-		Provider:   p.Name(),
-		ExternalID: externalID,
-		Team:       team,
-		Origin:     work.OriginAssignment,
-		Priority:   pl.Data.Task.Priority,
-		Title:      pl.Data.Task.Title,
+		Provider:    p.Name(),
+		ExternalID:  externalID,
+		Team:        team,
+		Origin:      work.OriginAssignment,
+		Priority:    pl.Data.Task.Priority,
+		Title:       pl.Data.Task.Title,
+		Description: pl.Data.Task.Description,
 	}
 
 	switch pl.EventName {

@@ -1,0 +1,11 @@
+# CI-only values: render the executor templates (scaledjob, triggerauth) so
+# helm template exercises them on every change.
+executor:
+  enabled: true
+  teams:
+    - name: bronze
+      model: litellm_proxy/deepseek-chat
+      budget: "2"
+      repoOwner: webgrip
+      repoName: example
+      maxReplicaCount: 1

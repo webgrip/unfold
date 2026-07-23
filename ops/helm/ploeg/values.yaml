@@ -1,0 +1,78 @@
+image:
+  repository: harbor.webgrip.dev/webgrip/ploegd
+  tag: "" # empty = .Chart.AppVersion (kept in lockstep with the chart by the release train)
+imagePullSecrets: [] # homelab sets [{name: harbor-pull}]
+
+service:
+  port: 8080
+
+# Plain PLOEG_* env rendered onto the deployment.
+env:
+  PLOEG_DEFAULT_TEAM: default
+  PLOEG_TEAM_MAP: ""
+  PLOEG_LEASE_TTL: 15m
+  PLOEG_SWEEP_INTERVAL: 15s
+
+database:
+  # CNPG auto-creates <cluster>-app with a `uri` key; ploegd consumes it whole.
+  existingSecret:
+    name: ploeg-db-app
+    key: uri
+
+webhook:
+  existingSecret:
+    name: ploeg-webhook-secret
+    key: PLOEG_VIKUNJA_SECRET
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+nodeSelector:
+  node.webgrip.io/pool: worker
+
+executor:
+  # The KEDA ScaledJob executor (design §6). Disabled until the ingest path is
+  # verified in-cluster; flipping it on requires the LiteLLM + agent-builder
+  # secrets and the privileged-DinD PolicyException in the namespace.
+  enabled: false
+  # agent-runner >=1.0.1 only: 1.0.0 mints LiteLLM keys without key_alias (400).
+  runnerImage: harbor.webgrip.dev/webgrip/agent-runner:1.0.1
+  dindImage: harbor.webgrip.dev/dockerhub/library/docker:29.6.2-dind
+  workerImage: "" # empty = image.repository:tag (carries /usr/local/bin/ploeg-worker)
+  apiUrl: ""      # empty = http://<fullname>:<service.port>
+  litellm:
+    baseUrl: http://litellm.ai.svc.cluster.local:4000/v1
+    adminUrl: http://litellm.ai.svc.cluster.local:4000
+    masterKeySecret:
+      name: agent-litellm-master
+      key: LITELLM_MASTER_KEY
+    keyDuration: 4h
+  forgejo:
+    url: http://forgejo-http.forgejo.svc.cluster.local:3000
+    tokenSecret:
+      name: agent-builder-token
+      key: FORGEJO_TOKEN
+  scaler:
+    host: ploeg-db-rw
+    port: "5432"
+    dbName: app
+    sslmode: require
+    userName: ploeg_scaler
+    passwordSecret:
+      name: ploeg-scaler
+      key: password
+  pollingInterval: 30
+  # Backstop only: the DB lease always expires first, so Ploeg decides
+  # requeue/stale; this just guarantees the pod dies (backlog #52).
+  activeDeadlineSeconds: 7200
+  teams: []
+  # - name: bronze
+  #   model: litellm_proxy/deepseek-chat
+  #   budget: "2"
+  #   repoOwner: webgrip
+  #   repoName: some-repo
+  #   maxReplicaCount: 1

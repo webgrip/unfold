@@ -42,8 +42,12 @@ const exec = ['@semantic-release/exec', {
 // Commit-back + publish ONLY on Forgejo. [skip ci] keeps the release commit inert on both forges.
 const commitBack = onForgejo ? [
   ['@semantic-release/changelog', { changelogFile: 'CHANGELOG.md' }],
+  // Bumps Chart.yaml version+appVersion in lockstep with the release; must
+  // run before @semantic-release/git so the v<version> tag lands on the
+  // commit helm-chart-push checks out (common-charts precedent).
+  ['semantic-release-helm3', { chartPath: './ops/helm/ploeg' }],
   ['@semantic-release/git', {
-    assets: ['CHANGELOG.md'],
+    assets: ['CHANGELOG.md', 'ops/helm/ploeg/Chart.yaml'],
     message: 'chore(release): ${nextRelease.gitTag} [skip ci]\n\n${nextRelease.notes}',
   }],
 ] : [];

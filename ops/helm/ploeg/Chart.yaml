@@ -1,0 +1,8 @@
+apiVersion: v2
+name: ploeg
+description: Ploeg dispatch plane — webhook ingest, leases, run API, and the KEDA-scaled OpenHands executor.
+type: application
+# version/appVersion are bumped in lockstep by semantic-release-helm3 on every
+# release; the git tag v<version> is the commit helm-chart-push packages.
+version: 0.0.0
+appVersion: "0.0.0"
