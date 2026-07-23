@@ -9,11 +9,21 @@ import "time"
 type State string
 
 const (
-	StateIngested State = "ingested"
-	StateQueued   State = "queued"
-	StateLeased   State = "leased"
-	StateStale    State = "stale"
-	StateDone     State = "done"
+	StateIngested   State = "ingested"
+	StateQueued     State = "queued"
+	StateLeased     State = "leased"
+	StateNeedsHuman State = "needs_human"
+	StateStale      State = "stale"
+	StateDone       State = "done"
+)
+
+// Origin records whether a WorkItem came from the tracker (assignment) or
+// from a forge event routed back as a follow-up (R9).
+type Origin string
+
+const (
+	OriginAssignment Origin = "assignment"
+	OriginFollowUp   Origin = "follow_up"
 )
 
 // Outcome is the terminal report of a run. Stuck carries a mandatory
@@ -38,6 +48,8 @@ type WorkItem struct {
 	Revision   string // provider revision/etag for staleness detection
 	Team       string // team the item is queued for; empty until assigned
 	State      State
+	Origin     Origin
+	Priority   int // rank mirrored from the tracker; drives queue order (R10)
 	Title      string
 	URL        string
 	CreatedAt  time.Time
