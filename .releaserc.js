@@ -50,7 +50,9 @@ const commitBack = onForgejo ? [
 const publish = onForgejo ? ['@saithodev/semantic-release-gitea'] : [];
 
 module.exports = {
-  branches: ['main'],
+  // development is the working branch: every push cuts a vX.Y.Z-rc.N prerelease.
+  // Merging development -> main promotes to the stable vX.Y.Z.
+  branches: ['main', { name: 'development', prerelease: 'rc' }],
   // v-prefixed (org deviation): Go modules require vX.Y.Z tags for
   // `go install github.com/webgrip/ploeg/cmd/ploegd@vX.Y.Z`. Image tags strip the v at publish.
   tagFormat: 'v${version}',

@@ -2,7 +2,7 @@ name: On Source Change
 
 on:
   push:
-    branches: [main]
+    branches: [main, development]
 
 concurrency:
   group: release-${{ github.ref }}
