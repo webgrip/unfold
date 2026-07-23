@@ -6,7 +6,7 @@ An open-source, self-hostable dispatch plane. Bring your own board, forge, and a
 
 *Ploeg* is Dutch for a work crew or shift. Teams of specialist agents pick up a ticket, work it, report an outcome, and disappear.
 
-> **Status: pre-alpha.** Ploeg is being extracted from a running autonomous-agent setup (a "dark factory": agents working a ticket board unattended on a homelab Kubernetes cluster). Nothing here is usable yet. The design doc is real; the code is a skeleton. Watch, don't install.
+> **Status: pre-alpha.** Ploeg is being extracted from a running autonomous-agent setup (a "dark factory": agents working a ticket board unattended on a homelab Kubernetes cluster). The dispatch core runs as a local prototype (see below); the Kubernetes executor, provider write-backs, and team manifests are still to come. Watch, don't install.
 
 ## What Ploeg is
 
@@ -36,6 +36,18 @@ forge webhook  ──┼─> ploegd ─> Postgres ──┤        │ lease ren
 - **`ploegd`** — single Go binary: webhook ingest, provider SPI, lease manager, outcome ingestion.
 - **Executor** — KEDA `ScaledJob` with the Postgres scaler is the flagship default; executors are pluggable.
 - **Harness contract** — an agent container receives a `TaskSpec`, must emit an `OutcomeReport`. Harness adapters (Claude Code, opencode, …) live behind one interface.
+
+## Try the prototype
+
+```sh
+docker compose -f ops/local/docker-compose.yml up -d --build
+ops/local/demo.sh
+```
+
+The demo plays both tracker and agent: a signed Vikunja webhook queues a work item, a claim
+leases it (`FOR UPDATE SKIP LOCKED` + TTL lease), checkpoint and outcome complete it, and the
+audit trail records every step as a Postgres row. Crash-safety is real: claim an item, report
+nothing, and the sweeper releases the lease and re-queues the item when the TTL expires.
 
 ## Roadmap
 

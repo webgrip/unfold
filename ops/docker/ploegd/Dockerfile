@@ -5,7 +5,7 @@
 ARG REGISTRY_DOCKERHUB=docker.io
 ARG REGISTRY_GCR=gcr.io
 
-FROM --platform=$BUILDPLATFORM ${REGISTRY_DOCKERHUB}/golang:1.24-bookworm AS builder
+FROM --platform=$BUILDPLATFORM ${REGISTRY_DOCKERHUB}/golang:1.25-bookworm AS builder
 WORKDIR /src
 COPY go.* ./
 RUN go mod download

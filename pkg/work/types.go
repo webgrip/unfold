@@ -40,6 +40,16 @@ const (
 	OutcomeNoChangeNeeded  Outcome = "no_change_needed"
 )
 
+// Valid reports whether o is a known outcome enum value.
+func (o Outcome) Valid() bool {
+	switch o {
+	case OutcomePROpened, OutcomePRUpdated, OutcomeIssueUpdated,
+		OutcomeFollowUpCreated, OutcomeStuck, OutcomeFailed, OutcomeNoChangeNeeded:
+		return true
+	}
+	return false
+}
+
 // WorkItem mirrors one tracker item (provider + external id + revision).
 type WorkItem struct {
 	ID         string
