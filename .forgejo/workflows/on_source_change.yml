@@ -1,0 +1,71 @@
+name: On Source Change
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    runs-on: docker
+    steps:
+      - uses: actions/checkout@v5
+      # Absolute URL: data.forgejo.org (the default action resolver) has an incomplete mirror set.
+      - uses: https://github.com/actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: gofmt -l . && test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go build ./...
+      - run: go test ./...
+
+  # Normal job + step-level composite (absolute URL), NOT a job-level reusable: the dispatch
+  # step must follow semantic-release, and Forgejo v15 flattens reusable inner jobs
+  # (needs/if gating unreliable — see renovate-config/infra).
+  release:
+    name: Semantic Release
+    needs: [checks]
+    runs-on: docker
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      statuses: write
+    steps:
+      - name: Semantic Release
+        id: release
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release@main
+        with:
+          token: ${{ secrets.FORGEJO_TOKEN }}
+
+      # Forgejo emits no `release` event for CI-cut releases — dispatch explicitly.
+      # Primary tag source: composite outputs.version (bare semver via successCmd; production-
+      # proven mechanism in infra's local action). Fallback: the tag semantic-release just
+      # created on workspace HEAD (belt-and-braces for the shared composite's output plumbing).
+      # Neither present -> no release this run -> clean no-op.
+      - name: Trigger image publish (on_release_published)
+        env:
+          GITEA_URL: ${{ vars.FORGEJO_INSTANCE_URL || github.server_url }}
+          GITEA_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+          VERSION: ${{ steps.release.outputs.version }}
+          REF: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          TAG="${VERSION:+v${VERSION}}"
+          if [[ -z "$TAG" ]]; then
+            TAG="$(git describe --tags --exact-match HEAD 2>/dev/null || true)"
+          fi
+          if [[ -z "$TAG" ]]; then
+            echo "No release cut this run; skipping dispatch."; exit 0
+          fi
+          echo "Dispatching on_release_published.yml for tag=${TAG} ref=${REF}"
+          curl -fsS -X POST \
+            -H "Authorization: token ${GITEA_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "${GITEA_URL%/}/api/v1/repos/${REPO}/actions/workflows/on_release_published.yml/dispatches" \
+            -d "{\"ref\":\"${REF}\",\"inputs\":{\"tag\":\"${TAG}\"}}"

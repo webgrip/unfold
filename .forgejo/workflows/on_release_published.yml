@@ -1,0 +1,88 @@
+name: On Release Published
+
+on:
+  release:
+    types: [published]
+  # CI-cut releases emit no release event on Forgejo (loop prevention); on_source_change
+  # dispatches this explicitly. The release trigger still serves manual UI releases.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag, e.g. v0.1.0'
+        required: true
+        type: string
+
+concurrency:
+  group: release-publish-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: true
+
+jobs:
+  parse-release-tag:
+    runs-on: docker
+    outputs:
+      version: ${{ steps.parse.outputs.version }}
+      created: ${{ steps.parse.outputs.created }}
+    steps:
+      - id: parse
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag='${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}'
+          [[ "$tag" =~ ^v(.+)$ ]] || { echo "Unsupported tag: $tag (expected v<semver>)" >&2; exit 1; }
+          echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+          created='${{ github.event.release.published_at || github.event.release.created_at }}'
+          [[ -n "$created" ]] || created="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "created=$created" >> "$GITHUB_OUTPUT"
+
+  # Both distribute jobs: normal job + step-level -fast composite (infra's production shape
+  # from Forgejo) — no job-level reusable chains, so no flattened-job-id collisions. The
+  # composite reads REGISTRY_USERNAME/REGISTRY_TOKEN from env. Explicit platforms re-enables
+  # QEMU in -fast; arm64 is cheap because the Dockerfile cross-compiles via $BUILDPLATFORM.
+  release-distribute-harbor:
+    name: Distribute (Harbor)
+    needs: [parse-release-tag]
+    runs-on: docker
+    env:
+      REGISTRY_USERNAME: ${{ secrets.HARBOR_ROBOT_USER }}
+      REGISTRY_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
+    steps:
+      - name: Build and push (Harbor)
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/docker-build-push-registry-fast@main
+        with:
+          registry: harbor.webgrip.dev
+          docker-context: "."
+          docker-file: "ops/docker/ploegd/Dockerfile"
+          platforms: "linux/amd64,linux/arm64"
+          docker-build-args: |
+            IMAGE_CREATED=${{ needs.parse-release-tag.outputs.created }}
+            IMAGE_VERSION=${{ needs.parse-release-tag.outputs.version }}
+            IMAGE_REVISION=${{ github.sha }}
+            REGISTRY_DOCKERHUB=harbor.webgrip.dev/dockerhub
+          # Owner hardcoded: github.repository_owner is EMPTY on Forgejo workflow_dispatch.
+          docker-tags: |
+            webgrip/ploegd:${{ needs.parse-release-tag.outputs.version }}
+            webgrip/ploegd:latest
+
+  release-distribute-ghcr:
+    name: Distribute (GHCR)
+    needs: [parse-release-tag]
+    runs-on: docker
+    env:
+      REGISTRY_USERNAME: ${{ secrets.GHCR_USERNAME }}
+      REGISTRY_TOKEN: ${{ secrets.GHCR_TOKEN }}
+    steps:
+      - name: Build and push (GHCR)
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/docker-build-push-registry-fast@main
+        with:
+          registry: ghcr.io
+          docker-context: "."
+          docker-file: "ops/docker/ploegd/Dockerfile"
+          platforms: "linux/amd64,linux/arm64"
+          docker-build-args: |
+            IMAGE_CREATED=${{ needs.parse-release-tag.outputs.created }}
+            IMAGE_VERSION=${{ needs.parse-release-tag.outputs.version }}
+            IMAGE_REVISION=${{ github.sha }}
+            REGISTRY_DOCKERHUB=harbor.webgrip.dev/dockerhub
+          docker-tags: |
+            webgrip/ploegd:${{ needs.parse-release-tag.outputs.version }}
+            webgrip/ploegd:latest
