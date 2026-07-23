@@ -1,3 +1,9 @@
+## [0.1.0-rc.3](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0-rc.2...v0.1.0-rc.3) (2026-07-23)
+
+### Added
+
+* **executor:** OpenHands worker, Helm chart, and chart publishing ([f0956b6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f0956b6e1accc2b43ba09e849a98532ff8b8c2bc))
+
 ## [0.1.0-rc.2](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0-rc.1...v0.1.0-rc.2) (2026-07-23)
 
 ### Added
