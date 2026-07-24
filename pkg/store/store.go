@@ -261,6 +261,11 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 	if rep.Outcome == work.OutcomeStuck && rep.StuckReason == "" {
 		return errors.New("stuck outcome requires a stuck_reason (R4)")
 	}
+	if rep.Links == nil {
+		// links is NOT NULL; a linkless outcome (stuck, no_change_needed)
+		// must not be rejected — that would swallow the failure it reports.
+		rep.Links = []string{}
+	}
 	next := work.StateForOutcome(rep.Outcome)
 
 	tx, err := s.pool.Begin(ctx)

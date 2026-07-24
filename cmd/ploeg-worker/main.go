@@ -116,6 +116,9 @@ func run(log *slog.Logger) error {
 	// From here on, every terminal path must report an outcome; failing to
 	// report leaves the lease to the sweeper (recorded failed/lease expired).
 	outcome, summary, stuckReason, links, cp := execute(ctx, log, cfg, api, claimed, branch, trace)
+	// Log before reporting: if the POST fails, the pod log is the only place
+	// the run's actual result (and a stuck reason) survives.
+	log.Info("run finished", "outcome", outcome, "summary", summary, "stuck_reason", stuckReason, "links", links)
 	if cp != nil {
 		if err := api.checkpoint(claimed.RunToken, *cp); err != nil {
 			log.Warn("final checkpoint failed", "err", err)
