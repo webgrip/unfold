@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -47,6 +48,22 @@ func run(log *slog.Logger) error {
 		return err
 	}
 	defer st.Close()
+	// The database may still be bootstrapping when ploegd starts (fresh CNPG
+	// cluster, compose cold start); retry instead of crash-looping.
+	for deadline := time.Now().Add(2 * time.Minute); ; {
+		if err = st.Ping(ctx); err == nil {
+			break
+		}
+		if time.Now().After(deadline) || ctx.Err() != nil {
+			return fmt.Errorf("database unreachable after retries: %w", err)
+		}
+		log.Warn("database not ready; retrying", "err", err)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(3 * time.Second):
+		}
+	}
 	if err := st.Migrate(ctx); err != nil {
 		return err
 	}
