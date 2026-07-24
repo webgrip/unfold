@@ -161,7 +161,9 @@ spec:
   triggers:
     - type: postgresql
       metadata:
-        host: {{ $root.Values.executor.scaler.host | quote }}
+        # Resolved by the KEDA operator from ITS namespace, not this one —
+        # a bare in-namespace service name never resolves there.
+        host: {{ $root.Values.executor.scaler.host | default (printf "ploeg-db-rw.%s.svc.cluster.local" $root.Release.Namespace) | quote }}
         port: {{ $root.Values.executor.scaler.port | quote }}
         userName: {{ $root.Values.executor.scaler.userName | quote }}
         dbName: {{ $root.Values.executor.scaler.dbName | quote }}

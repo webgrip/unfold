@@ -57,7 +57,9 @@ executor:
       name: agent-builder-token
       key: FORGEJO_TOKEN
   scaler:
-    host: ploeg-db-rw
+    # Empty = ploeg-db-rw.<release namespace>.svc.cluster.local. Must be a
+    # name the KEDA operator can resolve from its own namespace (FQDN).
+    host: ""
     port: "5432"
     dbName: app
     sslmode: require
