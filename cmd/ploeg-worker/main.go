@@ -17,9 +17,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/webgrip/ploeg/pkg/litellm"
 	"github.com/webgrip/ploeg/pkg/work"
 )
 
@@ -35,6 +37,13 @@ type config struct {
 	BuilderToken string // agent-builder bot token
 	WorkDir      string
 	Entrypoint   string // the agent-runner image's baked entrypoint
+
+	// LiteLLM per-run key lifecycle: the worker mints a budgeted key before
+	// starting the agent subprocess and revokes it on every return path (defer).
+	LiteLLMAdminURL  string   // admin API base, e.g. http://litellm.ai.svc.cluster.local:4000
+	LiteLLMMasterKey string   // admin master key (secret)
+	LiteLLMKeyBudget float64  // max_budget for the per-run key
+	LLMModels        []string // model(s) to restrict the key to
 }
 
 func main() {
@@ -77,6 +86,7 @@ func installSelf(dst string) error {
 }
 
 func run(log *slog.Logger) error {
+	budget, _ := strconv.ParseFloat(os.Getenv("LITELLM_KEY_BUDGET"), 64)
 	cfg := config{
 		APIURL:       requireEnv("PLOEG_API_URL"),
 		Team:         requireEnv("PLOEG_TEAM"),
@@ -87,6 +97,11 @@ func run(log *slog.Logger) error {
 		BuilderToken: requireEnv("AGENT_BUILDER_TOKEN"),
 		WorkDir:      envOr("WORK_DIR", "/mnt/ci-shared"),
 		Entrypoint:   envOr("PLOEG_HARNESS_ENTRYPOINT", "docker-entrypoint.sh"),
+
+		LiteLLMAdminURL:  envOr("LITELLM_ADMIN_URL", ""),
+		LiteLLMMasterKey: os.Getenv("LITELLM_MASTER_KEY"),
+		LiteLLMKeyBudget: budget,
+		LLMModels:        modelList(os.Getenv("LLM_MODEL")),
 	}
 	log.Info("ploeg-worker starting", "version", version, "team", cfg.Team)
 
@@ -163,13 +178,54 @@ func execute(ctx context.Context, log *slog.Logger, cfg config, api *apiClient, 
 		return work.OutcomeStuck, "task compose failed", err.Error(), nil, nil
 	}
 
-	// The agent-runner entrypoint (>=1.0.1) mints the per-run budgeted
-	// LiteLLM key (key_alias = trace id), sets LLM_EXTRA_HEADERS, waits for
-	// the DinD daemon, and revokes the key on exit.
+	// --- Mint per-run LiteLLM key ---
+	// The key alias uses the trace ("ploeg-" + first 12 hex of run token)
+	// which is the load-bearing format Grafana joins on.
+	var (
+		llmClient *litellm.Client
+		mintedKey string
+	)
+	if cfg.LiteLLMAdminURL != "" && cfg.LiteLLMMasterKey != "" {
+		llmClient = litellm.NewClient(cfg.LiteLLMAdminURL, cfg.LiteLLMMasterKey)
+		mintCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		mintedKey, err = llmClient.Mint(mintCtx, litellm.MintRequest{
+			KeyAlias:    trace,
+			MaxBudget:   cfg.LiteLLMKeyBudget,
+			Models:      cfg.LLMModels,
+			MaxHoursTTL: 4,
+		})
+		cancel()
+		if err != nil {
+			return work.OutcomeStuck, "failed to mint per-run LiteLLM key", err.Error(), nil, nil
+		}
+		log.Info("minted per-run key", "trace", trace)
+	}
+
+	// --- Deferred revoke on EVERY return path ---
+	if mintedKey != "" {
+		defer func() {
+			revokeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := llmClient.Revoke(revokeCtx, mintedKey); err != nil {
+				log.Warn("revoke per-run key failed", "err", err, "trace", trace)
+			} else {
+				log.Info("revoked per-run key", "trace", trace)
+			}
+		}()
+	}
+
+	// The worker now owns the key lifecycle: minted above, revoked by the
+	// deferred call on every return path (agent success, agent error, context
+	// cancel). The entrypoint (>=1.0.1) skips its own mint/revoke when
+	// LLM_API_KEY is set.
 	log.Info("starting headless OpenHands run", "task", taskPath, "cwd", cloneDir)
 	agent := exec.CommandContext(ctx, cfg.Entrypoint, "--headless", "-f", taskPath)
 	agent.Dir = cloneDir
-	agent.Env = append(os.Environ(), "LLM_TRACE_ID="+trace)
+	agentEnv := append(os.Environ(), "LLM_TRACE_ID="+trace)
+	if mintedKey != "" {
+		agentEnv = append(agentEnv, "LLM_API_KEY="+mintedKey)
+	}
+	agent.Env = agentEnv
 	var logTail tailBuffer
 	agent.Stdout = io.MultiWriter(os.Stdout, &logTail)
 	agent.Stderr = io.MultiWriter(os.Stderr, &logTail)
@@ -445,4 +501,12 @@ func envOr(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// modelList returns a singleton slice containing model, or nil if empty.
+func modelList(model string) []string {
+	if model == "" {
+		return nil
+	}
+	return []string{model}
 }
