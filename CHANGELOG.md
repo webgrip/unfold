@@ -1,3 +1,14 @@
+## [0.1.0-rc.5](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0-rc.4...v0.1.0-rc.5) (2026-07-25)
+
+### Fixed
+
+* assignment webhooks revive finished work items ([30558e5](https://forgejo.webgrip.dev/webgrip/ploeg/commit/30558e5f3ff032c161d41665ae5b121f32764284))
+* worker targets a configurable base branch end to end ([18f80de](https://forgejo.webgrip.dev/webgrip/ploeg/commit/18f80de7314e11df8521f3eb5897f17924fa273c)), closes [#6](https://forgejo.webgrip.dev/webgrip/ploeg/issues/6)
+
+### Docs
+
+* AGENTS.md + team-silver repo skill — make the repo factory-workable ([c7fbfc9](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c7fbfc97335076701dbf0a307808489f3dd4839f))
+
 ## [0.1.0-rc.4](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0-rc.3...v0.1.0-rc.4) (2026-07-24)
 
 ### Fixed
