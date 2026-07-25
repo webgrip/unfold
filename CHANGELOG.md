@@ -1,3 +1,9 @@
+## [0.1.0-rc.6](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0-rc.5...v0.1.0-rc.6) (2026-07-25)
+
+### Fixed
+
+* Guaranteed QoS for every factory pod — out of the OOMController's kill zone ([cbde89d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/cbde89d4625a0e55a95673646e3a16d9caff67c2))
+
 ## [0.1.0-rc.5](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0-rc.4...v0.1.0-rc.5) (2026-07-25)
 
 ### Fixed
