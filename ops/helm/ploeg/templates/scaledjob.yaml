@@ -122,6 +122,12 @@ spec:
                 value: {{ .repoOwner | quote }}
               - name: REPO_NAME
                 value: {{ .repoName | quote }}
+              {{- if .baseBranch }}
+              # Base branch for clone/branch/PR (VIK-589). Unset = the repo's
+              # default branch on clone and the worker's historical "main".
+              - name: PLOEG_BASE_BRANCH
+                value: {{ .baseBranch | quote }}
+              {{- end }}
               - name: WORK_DIR
                 value: /mnt/ci-shared
               - name: DOCKER_HOST

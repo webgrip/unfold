@@ -77,4 +77,8 @@ executor:
   #   budget: "2"
   #   repoOwner: webgrip
   #   repoName: some-repo
+  #   # Branch the worker clones, branches from, and opens the PR against.
+  #   # Unset = the repo's default branch (which may be a stale stub — pin
+  #   # this to the repo's actual trunk; VIK-589).
+  #   baseBranch: main
   #   maxReplicaCount: 1

@@ -8,4 +8,5 @@ executor:
       budget: "2"
       repoOwner: webgrip
       repoName: example
+      baseBranch: development
       maxReplicaCount: 1

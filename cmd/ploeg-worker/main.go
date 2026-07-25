@@ -30,6 +30,7 @@ type config struct {
 	Team         string
 	RepoOwner    string
 	RepoName     string
+	BaseBranch   string // branch to clone/branch from and open the PR against; empty = repo default branch (VIK-589)
 	ForgejoURL   string // in-cluster forge base, e.g. http://forgejo-http.forgejo.svc.cluster.local:3000
 	BuilderToken string // agent-builder bot token
 	WorkDir      string
@@ -81,6 +82,7 @@ func run(log *slog.Logger) error {
 		Team:         requireEnv("PLOEG_TEAM"),
 		RepoOwner:    requireEnv("REPO_OWNER"),
 		RepoName:     requireEnv("REPO_NAME"),
+		BaseBranch:   envOr("PLOEG_BASE_BRANCH", ""),
 		ForgejoURL:   strings.TrimRight(requireEnv("FORGEJO_URL"), "/"),
 		BuilderToken: requireEnv("AGENT_BUILDER_TOKEN"),
 		WorkDir:      envOr("WORK_DIR", "/mnt/ci-shared"),
@@ -143,7 +145,7 @@ func execute(ctx context.Context, log *slog.Logger, cfg config, api *apiClient, 
 	if err != nil {
 		return work.OutcomeStuck, "invalid forge URL", err.Error(), nil, nil
 	}
-	if out, err := runCmd(ctx, "", "git", "clone", "--depth", "50", cloneURL, cloneDir); err != nil {
+	if out, err := runCmd(ctx, "", "git", cloneArgs(cfg, cloneURL, cloneDir)...); err != nil {
 		return work.OutcomeStuck, "git clone failed", tail(out, 2000), nil, nil
 	}
 	for _, kv := range [][2]string{{"user.name", "agent-builder"}, {"user.email", "agent-builder@webgrip.dev"}} {
@@ -191,9 +193,27 @@ func execute(ctx context.Context, log *slog.Logger, cfg config, api *apiClient, 
 	}
 }
 
+// cloneArgs builds the git clone invocation: a configured base branch is
+// cloned explicitly; unset means the repo's default branch — which may be a
+// stale stub, so teams should pin baseBranch (VIK-589).
+func cloneArgs(cfg config, cloneURL, cloneDir string) []string {
+	args := []string{"clone", "--depth", "50"}
+	if cfg.BaseBranch != "" {
+		args = append(args, "--branch", cfg.BaseBranch)
+	}
+	return append(args, cloneURL, cloneDir)
+}
+
 // composeTask renders the task prompt: the ticket plus the dark-factory
 // delivery contract (mirrors erfbeeld's agent-run.yml build-mode prompt).
 func composeTask(item work.WorkItem, cfg config, branch, trace string) string {
+	// Historical default: before baseBranch existed the contract said "main".
+	// The clone above used the repo default branch in that case, so keeping
+	// "main" only preserves behavior for repos where the two coincide.
+	base := cfg.BaseBranch
+	if base == "" {
+		base = "main"
+	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "# Ticket VIK-%s: %s\n\n", item.ExternalID, item.Title)
 	if item.Description != "" {
@@ -201,22 +221,33 @@ func composeTask(item work.WorkItem, cfg config, branch, trace string) string {
 	}
 	fmt.Fprintf(&b, `## Delivery contract
 
-- Work on a branch named %[1]s created from main. NEVER commit to main.
+- Work on a branch named %[1]s created from %[7]s. NEVER commit to %[7]s.
 - Follow AGENTS.md and the repository skills.
 - Run the repository's quality gates via docker run against the CI images before opening the PR.
 - Every commit message ends with the trailers:
   VIK-%[2]s
   Agent-Trace-Id: %[3]s
-- When the work is complete: push the branch and open a pull request against main
-  via the Forgejo API (%[4]s/api/v1/repos/%[5]s/%[6]s/pulls) authenticated as
-  agent-builder. Put "VIK-%[2]s" in the PR body.
+- When the work is complete: push the branch and open a pull request with base
+  branch %[7]s via the Forgejo API (%[4]s/api/v1/repos/%[5]s/%[6]s/pulls)
+  authenticated as agent-builder. Put "VIK-%[2]s" in the PR body.
 - Do NOT merge the pull request. A human merges.
 - If the ticket cannot be completed, explain why on stderr and exit non-zero.
-`, branch, item.ExternalID, trace, cfg.ForgejoURL, cfg.RepoOwner, cfg.RepoName)
+`, branch, item.ExternalID, trace, cfg.ForgejoURL, cfg.RepoOwner, cfg.RepoName, base)
 	return b.String()
 }
 
-// findPR returns the html_url of an open PR whose head branch matches.
+// prMatches reports whether an open PR is the one this run created: the head
+// branch must match, and when a base branch is configured the PR must target
+// it — an agent opening the PR against the wrong base is not "done" (VIK-589).
+func prMatches(headRef, baseRef, wantHead, wantBase string) bool {
+	if headRef != wantHead {
+		return false
+	}
+	return wantBase == "" || baseRef == wantBase
+}
+
+// findPR returns the html_url of an open PR whose head branch matches (and
+// whose base matches cfg.BaseBranch when configured).
 func findPR(cfg config, branch string) (string, error) {
 	req, err := http.NewRequest("GET",
 		fmt.Sprintf("%s/api/v1/repos/%s/%s/pulls?state=open&limit=50", cfg.ForgejoURL, cfg.RepoOwner, cfg.RepoName), nil)
@@ -237,12 +268,15 @@ func findPR(cfg config, branch string) (string, error) {
 		Head    struct {
 			Ref string `json:"ref"`
 		} `json:"head"`
+		Base struct {
+			Ref string `json:"ref"`
+		} `json:"base"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&pulls); err != nil {
 		return "", err
 	}
 	for _, p := range pulls {
-		if p.Head.Ref == branch {
+		if prMatches(p.Head.Ref, p.Base.Ref, branch, cfg.BaseBranch) {
 			return p.HTMLURL, nil
 		}
 	}
