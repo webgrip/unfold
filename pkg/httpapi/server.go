@@ -66,13 +66,19 @@ func (s *Server) handleTrackerWebhook(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		item := s.mirror(r.Context(), tp, ev)
-		id, err := s.Store.IngestAssigned(r.Context(), item)
+		id, state, err := s.Store.IngestAssigned(r.Context(), item)
 		if err != nil {
 			s.Log.Error("ingest failed", "provider", name, "external_id", ev.ExternalID, "err", err)
 			http.Error(w, "ingest failed", http.StatusInternalServerError)
 			return
 		}
-		s.Log.Info("work item queued", "id", id, "team", item.Team, "title", item.Title)
+		// Log the actual post-upsert state: a re-assignment of a live
+		// (queued/leased) item refreshes the mirror without re-queuing (VIK-588).
+		if state == work.StateQueued {
+			s.Log.Info("work item queued", "id", id, "team", item.Team, "title", item.Title)
+		} else {
+			s.Log.Info("work item refreshed, not queued", "id", id, "state", string(state), "team", item.Team, "title", item.Title)
+		}
 	}
 	w.WriteHeader(http.StatusAccepted)
 }

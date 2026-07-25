@@ -109,16 +109,20 @@ func audit(ctx context.Context, tx pgx.Tx, actor, action string, workItemID *int
 }
 
 // IngestAssigned mirrors a tracker item and queues it for a team: upsert on
-// (provider, external id), then ingested->queued. Re-assignment of a live
-// item only refreshes the mirror.
-func (s *Store) IngestAssigned(ctx context.Context, item work.WorkItem) (int64, error) {
+// (provider, external id). Re-assignment of a live item (queued/leased) only
+// refreshes the mirror; re-assignment of a finished item (done, stale,
+// needs_human) is a fresh human mandate — it re-queues the item and resets
+// the attempt budget (VIK-588). The returned state is the item's actual
+// post-upsert state so callers can log the truth.
+func (s *Store) IngestAssigned(ctx context.Context, item work.WorkItem) (int64, work.State, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
 	var id int64
+	var state string
 	err = tx.QueryRow(ctx, `
 		INSERT INTO work_items (provider, external_id, revision, team, state, origin, priority, title, description, url)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
@@ -129,19 +133,24 @@ func (s *Store) IngestAssigned(ctx context.Context, item work.WorkItem) (int64, 
 			title    = EXCLUDED.title,
 			description = EXCLUDED.description,
 			url      = EXCLUDED.url,
-			state    = CASE WHEN work_items.state IN ('ingested', 'stale') THEN 'queued' ELSE work_items.state END,
+			state    = CASE WHEN work_items.state IN ('ingested', 'stale', 'done', 'needs_human') THEN 'queued' ELSE work_items.state END,
+			attempts = CASE WHEN work_items.state IN ('stale', 'done', 'needs_human') THEN 0 ELSE work_items.attempts END,
 			updated_at = now()
-		RETURNING id`,
+		RETURNING id, state`,
 		item.Provider, item.ExternalID, item.Revision, item.Team,
-		string(work.StateQueued), string(work.OriginAssignment), item.Priority, item.Title, item.Description, item.URL).Scan(&id)
+		string(work.StateQueued), string(work.OriginAssignment), item.Priority, item.Title, item.Description, item.URL).Scan(&id, &state)
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
-	if err := audit(ctx, tx, "webhook:"+item.Provider, "work_item.queued", &id,
-		map[string]any{"external_id": item.ExternalID, "team": item.Team, "title": item.Title}); err != nil {
-		return 0, err
+	action := "work_item.refreshed"
+	if state == string(work.StateQueued) {
+		action = "work_item.queued"
 	}
-	return id, tx.Commit(ctx)
+	if err := audit(ctx, tx, "webhook:"+item.Provider, action, &id,
+		map[string]any{"external_id": item.ExternalID, "team": item.Team, "title": item.Title, "state": state}); err != nil {
+		return 0, "", err
+	}
+	return id, work.State(state), tx.Commit(ctx)
 }
 
 // Claimed is what a worker gets back from Claim: the item plus the run token
