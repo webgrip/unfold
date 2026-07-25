@@ -91,3 +91,117 @@ jobs:
           docker-tags: |
             webgrip/ploegd:${{ needs.parse-release-tag.outputs.version }}
             ${{ needs.parse-release-tag.outputs.latest_tag }}
+
+  # Forgejo registry mirror: keeps https://forgejo.webgrip.dev/webgrip/ploeg/packages
+  # populated and linked to this repo. Harbor stays the registry the cluster pulls from;
+  # these jobs are additive mirrors (same spirit as the parked GHCR mirror above).
+  # Registry host hardcoded like harbor.webgrip.dev elsewhere in this file; FORGEJO_URL
+  # only feeds API calls. Login username is derived from FORGEJO_TOKEN at runtime
+  # (/api/v1/user), so no extra registry secret is needed — the token must carry
+  # write:package scope. Forgejo packages are owner-scoped and land UNLINKED, so each
+  # job ends with an idempotent link call that pins the package to webgrip/ploeg.
+  release-distribute-forgejo:
+    name: Distribute (Forgejo)
+    needs: [parse-release-tag]
+    runs-on: docker
+    env:
+      FORGEJO_URL: ${{ vars.FORGEJO_INSTANCE_URL || github.server_url }}
+      REGISTRY_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+    steps:
+      - name: Derive registry username from token
+        shell: bash
+        run: |
+          set -euo pipefail
+          login="$(curl -fsS -H "Authorization: token ${REGISTRY_TOKEN}" "${FORGEJO_URL%/}/api/v1/user" \
+            | grep -o '"login":"[^"]*"' | head -n1 | cut -d'"' -f4)"
+          [[ -n "$login" ]] || { echo "Could not resolve FORGEJO_TOKEN owner via /api/v1/user" >&2; exit 1; }
+          echo "REGISTRY_USERNAME=$login" >> "$GITHUB_ENV"
+      - name: Build and push (Forgejo)
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/docker-build-push-registry-fast@main
+        with:
+          registry: forgejo.webgrip.dev
+          docker-context: "."
+          docker-file: "ops/docker/ploegd/Dockerfile"
+          platforms: "linux/amd64,linux/arm64"
+          docker-build-args: |
+            IMAGE_CREATED=${{ needs.parse-release-tag.outputs.created }}
+            IMAGE_VERSION=${{ needs.parse-release-tag.outputs.version }}
+            IMAGE_REVISION=${{ github.sha }}
+            REGISTRY_DOCKERHUB=harbor.webgrip.dev/dockerhub
+          docker-tags: |
+            webgrip/ploegd:${{ needs.parse-release-tag.outputs.version }}
+            ${{ needs.parse-release-tag.outputs.latest_tag }}
+      - name: Link ploegd package to repo
+        shell: bash
+        env:
+          VERSION: ${{ needs.parse-release-tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          api="${FORGEJO_URL%/}/api/v1"
+          if curl -fsS -H "Authorization: token ${REGISTRY_TOKEN}" \
+              "${api}/packages/webgrip/container/ploegd/${VERSION}" \
+              | grep -q '"full_name":"webgrip/ploeg"'; then
+            echo "Package ploegd already linked to webgrip/ploeg."
+          else
+            curl -fsS -X POST -H "Authorization: token ${REGISTRY_TOKEN}" \
+              "${api}/packages/webgrip/container/ploegd/-/link/ploeg"
+            echo "Linked package ploegd -> webgrip/ploeg."
+          fi
+
+  # Inline steps, NOT a second helm-chart-push reusable chain: two instances of the same
+  # reusable in one caller collide on flattened job ids (Forgejo v15 — see the comment on
+  # the release job in on_source_change.yml). An OCI-pushed chart lands in Forgejo's
+  # CONTAINER registry (package type `container`, named after the chart), hence the
+  # container/ploeg path in the link call.
+  release-publish-chart-forgejo:
+    name: Publish Helm chart (Forgejo)
+    needs: [parse-release-tag]
+    runs-on: docker
+    env:
+      FORGEJO_URL: ${{ vars.FORGEJO_INSTANCE_URL || github.server_url }}
+      REGISTRY_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+      VERSION: ${{ needs.parse-release-tag.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The tagged commit — Chart.yaml version is bumped in lockstep with the tag.
+          ref: v${{ needs.parse-release-tag.outputs.version }}
+      - name: Check for preinstalled helm
+        id: helm-check
+        shell: bash
+        run: |
+          if command -v helm >/dev/null 2>&1; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+      # Absolute URL + pinned version: same resolver/rate-limit constraints as
+      # on_source_change.yml.
+      - uses: https://github.com/azure/setup-helm@v4
+        if: steps.helm-check.outputs.present != 'true'
+        with:
+          version: v3.18.4
+      - name: Push chart (OCI)
+        shell: bash
+        run: |
+          set -euo pipefail
+          login="$(curl -fsS -H "Authorization: token ${REGISTRY_TOKEN}" "${FORGEJO_URL%/}/api/v1/user" \
+            | grep -o '"login":"[^"]*"' | head -n1 | cut -d'"' -f4)"
+          [[ -n "$login" ]] || { echo "Could not resolve FORGEJO_TOKEN owner via /api/v1/user" >&2; exit 1; }
+          printf '%s' "$REGISTRY_TOKEN" | helm registry login forgejo.webgrip.dev --username "$login" --password-stdin
+          helm package ops/helm/ploeg
+          helm push "./ploeg-${VERSION}.tgz" oci://forgejo.webgrip.dev/webgrip
+      - name: Link chart package to repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="${FORGEJO_URL%/}/api/v1"
+          if curl -fsS -H "Authorization: token ${REGISTRY_TOKEN}" \
+              "${api}/packages/webgrip/container/ploeg/${VERSION}" \
+              | grep -q '"full_name":"webgrip/ploeg"'; then
+            echo "Chart package ploeg already linked to webgrip/ploeg."
+          else
+            curl -fsS -X POST -H "Authorization: token ${REGISTRY_TOKEN}" \
+              "${api}/packages/webgrip/container/ploeg/-/link/ploeg"
+            echo "Linked chart package ploeg -> webgrip/ploeg."
+          fi
