@@ -83,7 +83,7 @@ func (c *Client) Mint(ctx context.Context, req MintRequest) (string, error) {
 // Revoke deletes a previously-minted key via POST /key/delete.
 // Errors are logged by the caller; the 4 h TTL is the backstop.
 func (c *Client) Revoke(ctx context.Context, key string) error {
-	body, err := json.Marshal(map[string]string{"key": key})
+	body, err := json.Marshal(map[string]any{"keys": []string{key}})
 	if err != nil {
 		return fmt.Errorf("litellm: marshal revoke request: %w", err)
 	}

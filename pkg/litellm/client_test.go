@@ -22,15 +22,33 @@ func TestMintRevoke_WithFakeServer(t *testing.T) {
 				http.Error(w, "unexpected alias", http.StatusBadRequest)
 				return
 			}
+			// Reject model names containing a "/" prefix (real LiteLLM
+			// requirement — the worker must strip proxy prefixes).
+			for _, m := range req.Models {
+				if strings.Contains(m, "/") {
+					http.Error(w, "model scope contains '/' — strip proxy prefix first", http.StatusBadRequest)
+					return
+				}
+			}
 			_ = json.NewEncoder(w).Encode(map[string]string{"key": "sk-minted"})
 		case "/key/delete":
-			var req map[string]string
+			// LiteLLM /key/delete expects {"keys": [...]}, not bare "key".
+			var req struct {
+				Keys []string `json:"keys"`
+				Key  string   `json:"key,omitempty"`
+			}
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			if req["key"] != "sk-minted" {
-				http.Error(w, "unexpected key", http.StatusBadRequest)
+			if req.Key != "" {
+				// Bare "key" field is the old wire format — reject with 422.
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				_, _ = w.Write([]byte(`{"error":"InvalidKeyFormat: use keys array, not key"}`))
+				return
+			}
+			if len(req.Keys) != 1 || req.Keys[0] != "sk-minted" {
+				http.Error(w, "unexpected keys", http.StatusBadRequest)
 				return
 			}
 			_ = json.NewEncoder(w).Encode(map[string]string{"message": "deleted"})
