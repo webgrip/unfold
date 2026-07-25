@@ -1,3 +1,9 @@
+## [0.1.0-rc.7](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0-rc.6...v0.1.0-rc.7) (2026-07-25)
+
+### Fixed
+
+* ploeg-worker owns the per-run LiteLLM key lifecycle (mint + always-revoke) ([450ec5f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/450ec5f67f821e24e7e8b20a0ea6c56d9bb7f7de))
+
 ## [0.1.0-rc.6](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0-rc.5...v0.1.0-rc.6) (2026-07-25)
 
 ### Fixed
