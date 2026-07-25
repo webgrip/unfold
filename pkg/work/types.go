@@ -9,11 +9,21 @@ import "time"
 type State string
 
 const (
-	StateIngested State = "ingested"
-	StateQueued   State = "queued"
-	StateLeased   State = "leased"
-	StateStale    State = "stale"
-	StateDone     State = "done"
+	StateIngested   State = "ingested"
+	StateQueued     State = "queued"
+	StateLeased     State = "leased"
+	StateNeedsHuman State = "needs_human"
+	StateStale      State = "stale"
+	StateDone       State = "done"
+)
+
+// Origin records whether a WorkItem came from the tracker (assignment) or
+// from a forge event routed back as a follow-up (R9).
+type Origin string
+
+const (
+	OriginAssignment Origin = "assignment"
+	OriginFollowUp   Origin = "follow_up"
 )
 
 // Outcome is the terminal report of a run. Stuck carries a mandatory
@@ -30,18 +40,33 @@ const (
 	OutcomeNoChangeNeeded  Outcome = "no_change_needed"
 )
 
+// Valid reports whether o is a known outcome enum value.
+func (o Outcome) Valid() bool {
+	switch o {
+	case OutcomePROpened, OutcomePRUpdated, OutcomeIssueUpdated,
+		OutcomeFollowUpCreated, OutcomeStuck, OutcomeFailed, OutcomeNoChangeNeeded:
+		return true
+	}
+	return false
+}
+
 // WorkItem mirrors one tracker item (provider + external id + revision).
 type WorkItem struct {
-	ID         string
-	Provider   string // tracker provider name, e.g. "vikunja"
-	ExternalID string // provider-scoped id of the tracker item
-	Revision   string // provider revision/etag for staleness detection
-	Team       string // team the item is queued for; empty until assigned
-	State      State
-	Title      string
-	URL        string
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID         string `json:"id"`
+	Provider   string `json:"provider"`   // tracker provider name, e.g. "vikunja"
+	ExternalID string `json:"externalId"` // provider-scoped id of the tracker item
+	Revision   string `json:"revision"`   // provider revision/etag for staleness detection
+	Team       string `json:"team"`       // team the item is queued for; empty until assigned
+	State      State  `json:"state"`
+	Origin     Origin `json:"origin"`
+	Priority   int    `json:"priority"` // rank mirrored from the tracker; drives queue order (R10)
+	Title      string `json:"title"`
+	// Description is the tracker item body (Vikunja sends HTML); the harness
+	// adapter composes it into the task prompt.
+	Description string    `json:"description"`
+	URL         string    `json:"url"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 // Lease is a team's crash-safe claim on a work item. Renewed by the
@@ -56,9 +81,9 @@ type Lease struct {
 // Checkpoint is the small durable progress record enabling resume.
 // Everything else is re-derived from git/forge state.
 type Checkpoint struct {
-	WorkItemID string
-	Phase      string // e.g. "branch_created", "changes_made", "pr_opened"
-	Branch     string
-	PRURL      string
-	At         time.Time
+	WorkItemID string    `json:"workItemId,omitempty"`
+	Phase      string    `json:"phase"` // e.g. "branch_created", "changes_made", "pr_opened"
+	Branch     string    `json:"branch,omitempty"`
+	PRURL      string    `json:"prUrl,omitempty"`
+	At         time.Time `json:"at,omitempty"`
 }

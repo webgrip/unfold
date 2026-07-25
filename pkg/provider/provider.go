@@ -25,6 +25,10 @@ type TrackerEvent struct {
 	Kind       TrackerEventKind
 	ExternalID string
 	Team       string // resolved assignee → team name, when applicable
+	// Item is the payload's snapshot of the tracker item — the fallback when
+	// FetchItem cannot supply authoritative state (thin-payload rule: the
+	// webhook is a trigger, the provider read is the truth).
+	Item *work.WorkItem
 }
 
 // TrackerProvider adapts one task-management system (reference: Vikunja).

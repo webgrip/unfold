@@ -15,7 +15,10 @@ ARG IMAGE_VERSION=0.0.0-dev
 ENV CGO_ENABLED=0
 RUN GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -trimpath -ldflags "-s -w -X main.version=${IMAGE_VERSION}" \
-    -o /out/ploegd ./cmd/ploegd
+    -o /out/ploegd ./cmd/ploegd && \
+    GOOS=$TARGETOS GOARCH=$TARGETARCH \
+    go build -trimpath -ldflags "-s -w -X main.version=${IMAGE_VERSION}" \
+    -o /out/ploeg-worker ./cmd/ploeg-worker
 
 FROM ${REGISTRY_GCR}/distroless/static-debian12:nonroot@sha256:f5b485ea962d9bd1186b2f6b3a061191539b905b82ec395de78cbfae51f20e35
 ARG IMAGE_CREATED=1970-01-01T00:00:00Z
@@ -30,4 +33,7 @@ LABEL org.opencontainers.image.title="ploegd" \
       org.opencontainers.image.version="${IMAGE_VERSION}" \
       org.opencontainers.image.revision="${IMAGE_REVISION}"
 COPY --from=builder /out/ploegd /usr/local/bin/ploegd
+# ploeg-worker rides along; the executor's initContainer extracts it via
+# `ploeg-worker install <dst>` (self-copy — distroless has no shell).
+COPY --from=builder /out/ploeg-worker /usr/local/bin/ploeg-worker
 ENTRYPOINT ["/usr/local/bin/ploegd"]

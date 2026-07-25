@@ -1,0 +1,31 @@
+## Local dev stack: Postgres + ploegd built from the repo Dockerfile.
+##   docker compose -f ops/local/docker-compose.yml up -d --build
+## Then drive it with ops/local/demo.sh (webhook -> claim -> outcome).
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ploeg
+      POSTGRES_PASSWORD: ploeg
+      POSTGRES_DB: ploeg
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ploeg"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  ploegd:
+    build:
+      context: ../..
+      dockerfile: ops/docker/ploegd/Dockerfile
+    environment:
+      PLOEG_DATABASE_URL: postgres://ploeg:ploeg@postgres:5432/ploeg
+      PLOEG_VIKUNJA_SECRET: local-demo-secret
+      PLOEG_DEFAULT_TEAM: alpha
+      PLOEG_LEASE_TTL: 30s
+      PLOEG_SWEEP_INTERVAL: 5s
+    ports:
+      - "18080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
