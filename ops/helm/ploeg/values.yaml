@@ -24,11 +24,16 @@ webhook:
     name: ploeg-webhook-secret
     key: PLOEG_VIKUNJA_SECRET
 
+# Guaranteed QoS: ploegd runs the sweeper — the self-heal backbone (lease
+# expiry, requeue, key revocation). It must survive the node pressure that
+# kills everything else, and only requests==limits keeps it out of the
+# burstable cgroup tree the Talos OOMController sweeps (ADR-0049).
 resources:
   requests:
-    cpu: 25m
-    memory: 64Mi
+    cpu: 100m
+    memory: 256Mi
   limits:
+    cpu: 100m
     memory: 256Mi
 
 nodeSelector:
@@ -71,6 +76,25 @@ executor:
   # Backstop only: the DB lease always expires first, so Ploeg decides
   # requeue/stale; this just guarantees the pod dies (backlog #52).
   activeDeadlineSeconds: 7200
+  # Guaranteed QoS (requests == limits on EVERY container): factory pods leave
+  # the /kubepods/burstable/ cgroup tree, which Talos's OOMController SIGKILLs
+  # wholesale under PSI memory pressure (killed runs 9+10 on 2026-07-25;
+  # ADR-0049 P1, VIK-595 S1). Under scarcity the scheduler now queues runs
+  # honestly (Pending holds no lease, burns no attempt, spends no money)
+  # instead of starting them into a death zone. Sized from run 8's measured
+  # peaks (worker 438Mi, dind 108Mi) with headroom for gate builds inside
+  # dind; a build exceeding dind's limit fails THAT build visibly, never the
+  # pod. Changing any of these away from requests==limits silently re-enters
+  # the burstable tree — don't.
+  workerBinResources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: 50m, memory: 64Mi}
+  workerResources:
+    requests: {cpu: 500m, memory: 1Gi}
+    limits: {cpu: 500m, memory: 1Gi}
+  dindResources:
+    requests: {cpu: "1", memory: 1536Mi}
+    limits: {cpu: "1", memory: 1536Mi}
   teams: []
   # - name: bronze
   #   model: litellm_proxy/deepseek-chat

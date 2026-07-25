@@ -58,6 +58,7 @@ spec:
             volumeMounts:
               - name: worker-bin
                 mountPath: /mnt/bin
+            resources: {{- toYaml $root.Values.executor.workerBinResources | nindent 14 }}
           # DinD sidecar: OpenHands' sandbox and the repo quality gates need a
           # Docker daemon. Requires the ploeg-worker PolicyException.
           - name: dind
@@ -81,12 +82,7 @@ spec:
                 mountPath: /var/lib/docker
               - name: ci-shared
                 mountPath: /mnt/ci-shared
-            resources:
-              requests:
-                cpu: 250m
-                memory: 512Mi
-              limits:
-                memory: 3Gi
+            resources: {{- toYaml $root.Values.executor.dindResources | nindent 14 }}
         containers:
           - name: worker
             image: {{ $root.Values.executor.runnerImage }}
@@ -145,12 +141,7 @@ spec:
                 readOnly: true
               - name: ci-shared
                 mountPath: /mnt/ci-shared
-            resources:
-              requests:
-                cpu: 250m
-                memory: 512Mi
-              limits:
-                memory: 2Gi
+            resources: {{- toYaml $root.Values.executor.workerResources | nindent 14 }}
         volumes:
           - name: worker-bin
             emptyDir: {}
