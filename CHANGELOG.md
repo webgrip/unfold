@@ -1,3 +1,18 @@
+## [1.0.0-rc.1](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0-rc.9...v1.0.0-rc.1) (2026-07-26)
+
+### ⚠ BREAKING CHANGES
+
+* **deps:** Update postgres Docker tag ( 17 ➔ 18 )
+
+### Added
+
+* **deps:** Update postgres Docker tag ( 17 ➔ 18 ) ([41cba65](https://forgejo.webgrip.dev/webgrip/ploeg/commit/41cba65819694ce00ed58ae7c0e764eada76d4c4))
+
+### Fixed
+
+* **deps:** update harbor.webgrip.dev/webgrip/agent-runner docker tag ( 1.0.1 ➔ 1.0.2 ) ([2cfdc01](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2cfdc01c767ff5cf9d8c87a54a210d00d3160839))
+* worker owns the per-run LiteLLM key lifecycle (mint + always-revoke) ([1edb4af](https://forgejo.webgrip.dev/webgrip/ploeg/commit/1edb4af494130c06450763dfd288d9cb283cd951))
+
 ## [0.1.0-rc.9](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0-rc.8...v0.1.0-rc.9) (2026-07-26)
 
 ### Fixed
