@@ -45,7 +45,7 @@ executor:
   # secrets and the privileged-DinD PolicyException in the namespace.
   enabled: false
   # agent-runner >=1.0.1 only: 1.0.0 mints LiteLLM keys without key_alias (400).
-  runnerImage: harbor.webgrip.dev/webgrip/agent-runner:1.0.1
+  runnerImage: harbor.webgrip.dev/webgrip/agent-runner:1.0.2@sha256:086b4bc0d3fda0e3c179f9501bb46a612f5f33e60d96405a5d94471a26279596
   dindImage: harbor.webgrip.dev/dockerhub/library/docker:29.6.2-dind
   workerImage: "" # empty = image.repository:tag (carries /usr/local/bin/ploeg-worker)
   apiUrl: ""      # empty = http://<fullname>:<service.port>
