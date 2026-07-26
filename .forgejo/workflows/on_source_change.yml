@@ -44,11 +44,15 @@ jobs:
       pull-requests: write
       statuses: write
     steps:
+      # WEBGRIP_CI_TOKEN (org secret, webgrip-ci bot) — NOT secrets.FORGEJO_TOKEN, which is
+      # the built-in per-job token (FORGEJO_ is a reserved prefix, so an org secret can never
+      # shadow it). The per-job token works for releases/dispatch but attributes everything
+      # to Ghost and cannot write org packages.
       - name: Semantic Release
         id: release
         uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release@main
         with:
-          token: ${{ secrets.FORGEJO_TOKEN }}
+          token: ${{ secrets.WEBGRIP_CI_TOKEN }}
 
       # Forgejo emits no `release` event for CI-cut releases — dispatch explicitly.
       # Primary tag source: composite outputs.version (bare semver via successCmd; production-
@@ -58,7 +62,7 @@ jobs:
       - name: Trigger image publish (on_release_published)
         env:
           GITEA_URL: ${{ vars.FORGEJO_INSTANCE_URL || github.server_url }}
-          GITEA_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+          GITEA_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
           VERSION: ${{ steps.release.outputs.version }}
           REF: ${{ github.ref_name }}
           REPO: ${{ github.repository }}

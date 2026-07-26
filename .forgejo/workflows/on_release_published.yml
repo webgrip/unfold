@@ -96,26 +96,22 @@ jobs:
   # populated and linked to this repo. Harbor stays the registry the cluster pulls from;
   # these jobs are additive mirrors (same spirit as the parked GHCR mirror above).
   # Registry host hardcoded like harbor.webgrip.dev elsewhere in this file; FORGEJO_URL
-  # only feeds API calls. Login username is derived from FORGEJO_TOKEN at runtime
-  # (/api/v1/user), so no extra registry secret is needed — the token must carry
-  # write:package scope. Forgejo packages are owner-scoped and land UNLINKED, so each
-  # job ends with an idempotent link call that pins the package to webgrip/ploeg.
+  # only feeds API calls. Credentials are the webgrip-ci bot (org secret WEBGRIP_CI_TOKEN
+  # + org var WEBGRIP_CI_BOT_NAME, published by homelab-cluster's forgejo-actions-secrets
+  # CronJob) — NOT secrets.FORGEJO_TOKEN, which Forgejo resolves to the built-in per-job
+  # token (FORGEJO_ is a reserved secret prefix) and which cannot write org packages
+  # (run 43: login OK, push 401 at reqPackageAccess). Forgejo packages are owner-scoped
+  # and land UNLINKED, so each job ends with an idempotent link call that pins the
+  # package to webgrip/ploeg.
   release-distribute-forgejo:
     name: Distribute (Forgejo)
     needs: [parse-release-tag]
     runs-on: docker
     env:
       FORGEJO_URL: ${{ vars.FORGEJO_INSTANCE_URL || github.server_url }}
-      REGISTRY_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+      REGISTRY_USERNAME: ${{ vars.WEBGRIP_CI_BOT_NAME || 'webgrip-ci' }}
+      REGISTRY_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
     steps:
-      - name: Derive registry username from token
-        shell: bash
-        run: |
-          set -euo pipefail
-          login="$(curl -fsS -H "Authorization: token ${REGISTRY_TOKEN}" "${FORGEJO_URL%/}/api/v1/user" \
-            | grep -o '"login":"[^"]*"' | head -n1 | cut -d'"' -f4)"
-          [[ -n "$login" ]] || { echo "Could not resolve FORGEJO_TOKEN owner via /api/v1/user" >&2; exit 1; }
-          echo "REGISTRY_USERNAME=$login" >> "$GITHUB_ENV"
       - name: Build and push (Forgejo)
         uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/docker-build-push-registry-fast@main
         with:
@@ -159,7 +155,8 @@ jobs:
     runs-on: docker
     env:
       FORGEJO_URL: ${{ vars.FORGEJO_INSTANCE_URL || github.server_url }}
-      REGISTRY_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+      REGISTRY_USERNAME: ${{ vars.WEBGRIP_CI_BOT_NAME || 'webgrip-ci' }}
+      REGISTRY_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
       VERSION: ${{ needs.parse-release-tag.outputs.version }}
     steps:
       - uses: actions/checkout@v5
@@ -185,10 +182,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          login="$(curl -fsS -H "Authorization: token ${REGISTRY_TOKEN}" "${FORGEJO_URL%/}/api/v1/user" \
-            | grep -o '"login":"[^"]*"' | head -n1 | cut -d'"' -f4)"
-          [[ -n "$login" ]] || { echo "Could not resolve FORGEJO_TOKEN owner via /api/v1/user" >&2; exit 1; }
-          printf '%s' "$REGISTRY_TOKEN" | helm registry login forgejo.webgrip.dev --username "$login" --password-stdin
+          printf '%s' "$REGISTRY_TOKEN" | helm registry login forgejo.webgrip.dev --username "$REGISTRY_USERNAME" --password-stdin
           helm package ops/helm/ploeg
           helm push "./ploeg-${VERSION}.tgz" oci://forgejo.webgrip.dev/webgrip
       - name: Link chart package to repo
