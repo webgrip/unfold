@@ -11,3 +11,6 @@ module.exports = makeConfig({
   chartPath: 'ops/helm/ploeg',
   prepareCmd: 'yq -i \'.appVersion = "${nextRelease.version}"\' ops/helm/ploeg/Chart.yaml',
 });
+
+// re-cut marker (2026-07-26): 1.0.0-rc.1 died in prepare on the pre-yq-fix composite;
+// re-enter the release train now that the composite installs yq.
