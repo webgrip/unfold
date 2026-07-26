@@ -1,19 +1,8 @@
 {
   "name": "ploeg-release-tooling",
   "private": true,
-  "description": "Pins the semantic-release toolchain: the shared composite installs these unpinned, and npm resolves within the ranges below. conventional-changelog-conventionalcommits@10 renders empty release notes with release-notes-generator@14 — v8 is the working line (same pins as renovate-config).",
+  "description": "Dep-less stub: the release toolchain (and its version pins) comes entirely from @webgrip/semantic-release-config, installed by the shared semantic-release composite.",
   "scripts": {
     "build": "exit 0"
-  },
-  "devDependencies": {
-    "@saithodev/semantic-release-gitea": "^2.1.0",
-    "@semantic-release/changelog": "^6.0.3",
-    "@semantic-release/commit-analyzer": "^13.0.1",
-    "@semantic-release/exec": "^6.0.3",
-    "@semantic-release/git": "^10.0.1",
-    "@semantic-release/release-notes-generator": "^14.0.3",
-    "conventional-changelog-conventionalcommits": "^8.0.0",
-    "semantic-release": "^24.2.5",
-    "semantic-release-helm3": "^2.10.0"
   }
 }
