@@ -503,10 +503,19 @@ func envOr(key, def string) string {
 	return def
 }
 
-// modelList returns a singleton slice containing model, or nil if empty.
+// modelList returns a singleton slice containing model (with common proxy
+// prefixes stripped), or nil if empty. The bash entrypoint strips these via
+// ${LLM_MODEL#litellm_proxy/} and ${LLM_MODEL#openai/}; the worker now owns
+// the key lifecycle so we must strip them here too.
 func modelList(model string) []string {
 	if model == "" {
 		return nil
+	}
+	for _, prefix := range []string{"litellm_proxy/", "openai/"} {
+		if after, ok := strings.CutPrefix(model, prefix); ok {
+			model = after
+			break
+		}
 	}
 	return []string{model}
 }

@@ -52,8 +52,35 @@ func TestRegression_AgentFailure_RevokesKey(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/key/generate":
+			var req litellm.MintRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+				for _, m := range req.Models {
+					if strings.Contains(m, "/") {
+						http.Error(w, "model scope contains '/'", http.StatusBadRequest)
+						return
+					}
+				}
+			}
 			_ = json.NewEncoder(w).Encode(map[string]string{"key": "sk-test-fake-key"})
 		case "/key/delete":
+			// Validate real LiteLLM schema: {"keys": [...]}, not bare "key".
+			var req struct {
+				Keys []string `json:"keys"`
+				Key  string   `json:"key,omitempty"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if req.Key != "" {
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				_, _ = w.Write([]byte(`{"error":"InvalidKeyFormat"}`))
+				return
+			}
+			if len(req.Keys) != 1 || req.Keys[0] != "sk-test-fake-key" {
+				http.Error(w, "unexpected keys", http.StatusBadRequest)
+				return
+			}
 			deleteCalled = true
 			_ = json.NewEncoder(w).Encode(map[string]string{"message": "deleted"})
 		default:
@@ -81,8 +108,30 @@ func TestRegression_AgentSuccess_RevokesKey(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/key/generate":
+			var req litellm.MintRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+				for _, m := range req.Models {
+					if strings.Contains(m, "/") {
+						http.Error(w, "model scope contains '/'", http.StatusBadRequest)
+						return
+					}
+				}
+			}
 			_ = json.NewEncoder(w).Encode(map[string]string{"key": "sk-test-fake-key"})
 		case "/key/delete":
+			var req struct {
+				Keys []string `json:"keys"`
+				Key  string   `json:"key,omitempty"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if req.Key != "" {
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				_, _ = w.Write([]byte(`{"error":"InvalidKeyFormat"}`))
+				return
+			}
 			deleteCalled = true
 			_ = json.NewEncoder(w).Encode(map[string]string{"message": "deleted"})
 		default:
@@ -114,6 +163,19 @@ func TestRegression_MintFailure_NoRevoke(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte(`{"error":"test error"}`))
 		case "/key/delete":
+			var req struct {
+				Keys []string `json:"keys"`
+				Key  string   `json:"key,omitempty"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if req.Key != "" {
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				_, _ = w.Write([]byte(`{"error":"InvalidKeyFormat"}`))
+				return
+			}
 			deleteCalled = true
 			_ = json.NewEncoder(w).Encode(map[string]string{"message": "deleted"})
 		default:
@@ -154,6 +216,19 @@ func TestRegression_KeyAliasFormat(t *testing.T) {
 			}
 			_ = json.NewEncoder(w).Encode(map[string]string{"key": "sk-test-fake-key"})
 		case "/key/delete":
+			var req struct {
+				Keys []string `json:"keys"`
+				Key  string   `json:"key,omitempty"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if req.Key != "" {
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				_, _ = w.Write([]byte(`{"error":"InvalidKeyFormat"}`))
+				return
+			}
 			_ = json.NewEncoder(w).Encode(map[string]string{"message": "deleted"})
 		default:
 			http.NotFound(w, r)
@@ -214,6 +289,36 @@ func runAgentAndRevoke(ctx context.Context, log *slog.Logger, llmClient *litellm
 		return work.OutcomeStuck, "run aborted (lease lost)", "context cancelled", nil, nil
 	default:
 		return work.OutcomeStuck, "agent failed", agentErr.Error(), nil, nil
+	}
+}
+
+func TestModelList_StripsProxyPrefixes(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"", ""},
+		{"claude-sonnet-5", "claude-sonnet-5"},
+		{"litellm_proxy/claude-sonnet-5", "claude-sonnet-5"},
+		{"openai/gpt-4", "gpt-4"},
+		{"litellm_proxy/gpt-4-turbo", "gpt-4-turbo"},
+		{"openai_other/gpt-4", "openai_other/gpt-4"}, // not a prefix match
+	}
+	for _, tc := range tests {
+		got := modelList(tc.input)
+		if tc.input == "" {
+			if got != nil {
+				t.Errorf("modelList(%q) = %v, want nil", tc.input, got)
+			}
+			continue
+		}
+		if len(got) != 1 {
+			t.Errorf("modelList(%q) = %v, want [%q]", tc.input, got, tc.want)
+			continue
+		}
+		if got[0] != tc.want {
+			t.Errorf("modelList(%q) = [%q], want [%q]", tc.input, got[0], tc.want)
+		}
 	}
 }
 
