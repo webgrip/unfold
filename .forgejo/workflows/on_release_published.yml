@@ -3,8 +3,9 @@ name: On Release Published
 on:
   release:
     types: [published]
-  # CI-cut releases emit no release event on Forgejo (loop prevention); on_source_change
-  # dispatches this explicitly. The release trigger still serves manual UI releases.
+  # CI-cut releases fire this natively: semantic-release publishes with the webgrip-ci
+  # bot PAT, and only same-token actions are loop-suppressed. workflow_dispatch remains
+  # for manual re-publish/backfill of an existing tag.
   workflow_dispatch:
     inputs:
       tag:

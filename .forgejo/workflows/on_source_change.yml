@@ -31,9 +31,12 @@ jobs:
       - run: helm template ploeg ops/helm/ploeg > /dev/null
       - run: helm template ploeg ops/helm/ploeg -f ops/helm/ploeg/ci/executor-values.yaml > /dev/null
 
-  # Normal job + step-level composite (absolute URL), NOT a job-level reusable: the dispatch
-  # step must follow semantic-release, and Forgejo v15 flattens reusable inner jobs
-  # (needs/if gating unreliable — see renovate-config/infra).
+  # Normal job + step-level composite (absolute URL), NOT a job-level reusable: Forgejo v15
+  # flattens reusable inner jobs (needs/if gating unreliable — see renovate-config/infra).
+  # Releases are cut with the webgrip-ci bot PAT, so Forgejo emits a native `release`
+  # event that triggers on_release_published — no manual dispatch step. (The old per-job
+  # token suppressed that event as loop prevention, which is why a dispatch step used to
+  # live here; it 403'd once the job switched tokens, run 48.)
   release:
     name: Semantic Release
     needs: [checks]
@@ -54,30 +57,3 @@ jobs:
         with:
           token: ${{ secrets.WEBGRIP_CI_TOKEN }}
 
-      # Forgejo emits no `release` event for CI-cut releases — dispatch explicitly.
-      # Primary tag source: composite outputs.version (bare semver via successCmd; production-
-      # proven mechanism in infra's local action). Fallback: the tag semantic-release just
-      # created on workspace HEAD (belt-and-braces for the shared composite's output plumbing).
-      # Neither present -> no release this run -> clean no-op.
-      - name: Trigger image publish (on_release_published)
-        env:
-          GITEA_URL: ${{ vars.FORGEJO_INSTANCE_URL || github.server_url }}
-          GITEA_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
-          VERSION: ${{ steps.release.outputs.version }}
-          REF: ${{ github.ref_name }}
-          REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          TAG="${VERSION:+v${VERSION}}"
-          if [[ -z "$TAG" ]]; then
-            TAG="$(git describe --tags --exact-match HEAD 2>/dev/null || true)"
-          fi
-          if [[ -z "$TAG" ]]; then
-            echo "No release cut this run; skipping dispatch."; exit 0
-          fi
-          echo "Dispatching on_release_published.yml for tag=${TAG} ref=${REF}"
-          curl -fsS -X POST \
-            -H "Authorization: token ${GITEA_TOKEN}" \
-            -H "Content-Type: application/json" \
-            "${GITEA_URL%/}/api/v1/repos/${REPO}/actions/workflows/on_release_published.yml/dispatches" \
-            -d "{\"ref\":\"${REF}\",\"inputs\":{\"tag\":\"${TAG}\"}}"
