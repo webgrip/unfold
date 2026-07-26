@@ -178,7 +178,7 @@ jobs:
       - uses: https://github.com/azure/setup-helm@v4
         if: steps.helm-check.outputs.present != 'true'
         with:
-          version: v3.18.4
+          version: v4.2.3
       - name: Push chart (OCI)
         shell: bash
         run: |

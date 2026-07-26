@@ -21,7 +21,7 @@ jobs:
         with:
           # Explicit version: 'latest' resolution hits api.github.com
           # unauthenticated from the runner and rate-limits.
-          version: v3.18.4
+          version: v4.2.3
       - run: helm lint ops/helm/ploeg
       - run: helm template ploeg ops/helm/ploeg > /dev/null
       - run: helm template ploeg ops/helm/ploeg -f ops/helm/ploeg/ci/executor-values.yaml > /dev/null
