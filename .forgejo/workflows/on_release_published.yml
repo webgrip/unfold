@@ -94,6 +94,34 @@ jobs:
             webgrip/ploegd:${{ needs.parse-release-tag.outputs.version }}
             ${{ needs.parse-release-tag.outputs.latest_tag }}
 
+  # ── Supply chain security ────────────────────────────────────────────────────
+  # cosign sign + CycloneDX SBOM attest by digest via the shared composite (OpenBao
+  # Transit — the key never leaves OpenBao). The per-job Forgejo OIDC token needs
+  # enable-openid-connect AND this repo listed in the OpenBao cosign-signer role's
+  # bound_claims.repository (homelab-cluster openbao bootstrap config.sh) — a missing
+  # entry 400s the token exchange. Harbor-only by design: cosign accessories are not
+  # mirrored to Forgejo (imagetools copies just the image manifest list) and Kyverno
+  # verifies against Harbor. Signs prereleases and finals alike. No checkout: the
+  # action is remote and operates on the registry image.
+  release-sign-harbor:
+    name: 'Sign & Attest (Harbor)'
+    needs: [parse-release-tag, release-distribute-harbor]
+    runs-on: docker
+    enable-openid-connect: true
+    steps:
+      - name: Sign, attest and SBOM (Harbor)
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/cosign-sign-attest@main
+        with:
+          registry: harbor.webgrip.dev
+          image-name: harbor.webgrip.dev/webgrip/ploegd
+          image-version: ${{ needs.parse-release-tag.outputs.version }}
+        env:
+          REGISTRY_USERNAME: ${{ secrets.HARBOR_ROBOT_USER }}
+          REGISTRY_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
+          # No DT_API_KEY here on purpose: the composite reads it from OpenBao KV
+          # (secret/dependency-track/api-key) with the same OIDC-exchanged token it
+          # signs with — no Forgejo org secret. Fail-soft if the read/policy lags.
+
   # Forgejo registry mirror via the shared reusable (the inline jobs that shipped
   # v0.1.0-rc.9 were extracted verbatim into webgrip/workflows forgejo-distribute.yml):
   # image + OCI chart into the Forgejo registry, LINKED to this repo so /packages stays
