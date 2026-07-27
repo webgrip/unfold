@@ -374,7 +374,7 @@ func TestIngestAssigned_ClearsParking(t *testing.T) {
 	resetTables(t)
 	ctx := context.Background()
 
-	id, _ := ingestItem(t)
+	ingestItem(t)
 
 	// Infra-fail the item to put it in parked state.
 	claimed, err := testStore.Claim(ctx, "silver", 5*time.Minute)

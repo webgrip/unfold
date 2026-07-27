@@ -33,9 +33,9 @@ var ErrUnknownRun = errors.New("unknown or finished run")
 // ExpiredLease carries the result of a single expired lease for callers
 // that need the run token for post-expiry cleanup (e.g. LiteLLM key revoke).
 type ExpiredLease struct {
-	WorkItemID   int64
-	Team         string
-	RunToken     string
+	WorkItemID    int64
+	Team          string
+	RunToken      string
 	InfraFailures int
 }
 
