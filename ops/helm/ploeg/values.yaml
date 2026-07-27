@@ -86,12 +86,16 @@ executor:
   # dind; a build exceeding dind's limit fails THAT build visibly, never the
   # pod. Changing any of these away from requests==limits silently re-enters
   # the burstable tree — don't.
+  # Worker CPU is 1 full core: at 500m the OpenHands CLI's single-threaded
+  # Python cold import alone took 2m20s before the agent did anything
+  # (measured, silver run 2026-07-27). More than 1 core buys that phase
+  # nothing; less throttles every runner-side step.
   workerBinResources:
     requests: {cpu: 50m, memory: 64Mi}
     limits: {cpu: 50m, memory: 64Mi}
   workerResources:
-    requests: {cpu: 500m, memory: 1Gi}
-    limits: {cpu: 500m, memory: 1Gi}
+    requests: {cpu: "1", memory: 1Gi}
+    limits: {cpu: "1", memory: 1Gi}
   dindResources:
     requests: {cpu: "1", memory: 1536Mi}
     limits: {cpu: "1", memory: 1536Mi}
