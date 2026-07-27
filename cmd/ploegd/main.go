@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/webgrip/ploeg/pkg/httpapi"
+	"github.com/webgrip/ploeg/pkg/litellm"
 	"github.com/webgrip/ploeg/pkg/provider"
 	"github.com/webgrip/ploeg/pkg/provider/vikunja"
 	"github.com/webgrip/ploeg/pkg/store"
@@ -75,6 +76,20 @@ func run(log *slog.Logger) error {
 		Log:         log,
 	}
 
+	// LiteLLM client for per-run key lifecycle (sweeper revocations).
+	var llClient *litellm.Client
+	if url := os.Getenv("LITELLM_ADMIN_URL"); url != "" {
+		key := os.Getenv("LITELLM_MASTER_KEY")
+		if key != "" {
+			llClient = litellm.NewClient(url, key)
+			log.Info("litellm client configured", "url", url)
+		} else {
+			log.Warn("LITELLM_ADMIN_URL set but LITELLM_MASTER_KEY is empty — key revocation disabled")
+		}
+	} else {
+		log.Info("LITELLM_ADMIN_URL not set — key revocation disabled")
+	}
+
 	srv := &httpapi.Server{
 		Store:    st,
 		Trackers: map[string]provider.TrackerProvider{vik.Name(): vik},
@@ -90,6 +105,45 @@ func run(log *slog.Logger) error {
 		_ = httpSrv.Shutdown(shutdownCtx)
 	}()
 
+	// Boot-time orphan sweep: revoke ploeg-* keys that no longer correspond to
+	// a live (unfinished) run. This clears pre-existing stragglers (e.g. run 9's
+	// leaked key) on first deploy after upgrade.
+	if llClient != nil {
+		liteKeys, err := llClient.ListKeys(ctx, litellm.AliasPrefix)
+		if err != nil {
+			log.Error("orphan sweep list failed", "err", err)
+		} else if len(liteKeys) > 0 {
+			// Build a set of active aliases from unfinished runs.
+			activeTokens, err := st.UnfinishedRunTokens(ctx)
+			if err != nil {
+				log.Error("orphan sweep: failed to query active runs", "err", err)
+			} else {
+				activeAliases := make(map[string]struct{}, len(activeTokens))
+				for _, tok := range activeTokens {
+					if alias := litellm.Alias(tok); alias != "" {
+						activeAliases[alias] = struct{}{}
+					}
+				}
+				var revokeTokens []string
+				for _, k := range liteKeys {
+					if _, live := activeAliases[k.KeyAlias]; !live {
+						revokeTokens = append(revokeTokens, k.Token)
+					}
+				}
+				if len(revokeTokens) > 0 {
+					log.Info("orphan sweep: revoking stale keys", "count", len(revokeTokens))
+					if err := llClient.DeleteKeys(ctx, revokeTokens); err != nil {
+						log.Error("orphan sweep delete failed", "err", err)
+					}
+				} else {
+					log.Info("orphan sweep: no stale keys found")
+				}
+			}
+		} else {
+			log.Info("orphan sweep: no keys to check")
+		}
+	}
+
 	// The expiry sweep is the crash-safety mechanic: nothing depends on an
 	// agent behaving well at death (design §3).
 	go func() {
@@ -100,13 +154,38 @@ func run(log *slog.Logger) error {
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				ids, err := st.ExpireLeases(ctx)
+				expired, err := st.ExpireLeases(ctx)
 				if err != nil {
 					log.Error("lease sweep failed", "err", err)
 					continue
 				}
-				for _, id := range ids {
-					log.Warn("lease expired, item released", "work_item", id)
+				for _, e := range expired {
+					log.Warn("lease expired, item released", "work_item", e.WorkItemID)
+					if llClient == nil {
+						continue
+					}
+					alias := litellm.Alias(e.RunToken)
+					if alias == "" {
+						log.Warn("skipping key revoke for short run token", "run_token", e.RunToken)
+						continue
+					}
+					// List keys by exact alias match (client-side filter).
+					keys, err := llClient.ListKeys(ctx, alias)
+					if err != nil {
+						log.Error("failed to list keys for revocation", "alias", alias, "err", err)
+						continue
+					}
+					var tokens []string
+					for _, k := range keys {
+						tokens = append(tokens, k.Token)
+					}
+					if len(tokens) == 0 {
+						continue
+					}
+					log.Info("revoking expired lease key", "alias", alias, "tokens", len(tokens))
+					if err := llClient.DeleteKeys(ctx, tokens); err != nil {
+						log.Error("key revoke failed", "alias", alias, "err", err)
+					}
 				}
 			}
 		}
