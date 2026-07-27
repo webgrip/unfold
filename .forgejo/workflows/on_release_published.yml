@@ -48,10 +48,11 @@ jobs:
   # QEMU in -fast; arm64 is cheap because the Dockerfile cross-compiles via $BUILDPLATFORM.
   # A GHCR mirror job existed here but is parked while GitHub is out of scope — restore it
   # from git history (ci: park GHCR publish) when public pulls are wanted again.
-  # Job-level reusable (the one reusable chain this caller allows — infra's
-  # production shape). `enabled: true` is safe because this workflow never
-  # runs without a parsed tag. `ref` decouples the v-prefixed git tag from
-  # the bare chart version.
+  # Job-level reusable. Two DIFFERENT reusables coexist fine in this caller
+  # (helm-chart-push here + forgejo-distribute below, proven green in run 60) —
+  # the flattened-job-id collision only bites two instances of the SAME reusable.
+  # `enabled: true` is safe because this workflow never runs without a parsed
+  # tag. `ref` decouples the v-prefixed git tag from the bare chart version.
   release-publish-chart:
     name: Publish Helm chart (Harbor)
     needs: [parse-release-tag]
