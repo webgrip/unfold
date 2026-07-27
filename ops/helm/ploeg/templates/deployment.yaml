@@ -53,6 +53,15 @@ spec:
             - name: {{ $k }}
               value: {{ $v | quote }}
             {{- end }}
+            {{- with .Values.executor.litellm }}
+            - name: LITELLM_ADMIN_URL
+              value: {{ .adminUrl | quote }}
+            - name: LITELLM_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .masterKeySecret.name }}
+                  key: {{ .masterKeySecret.key }}
+            {{- end }}
           readinessProbe:
             httpGet:
               path: /readyz

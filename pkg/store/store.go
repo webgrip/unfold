@@ -30,6 +30,14 @@ var ErrNoWork = errors.New("no claimable work item")
 // ErrUnknownRun is returned when a run token does not match a live lease/run.
 var ErrUnknownRun = errors.New("unknown or finished run")
 
+// ExpiredLease carries the result of a single expired lease for callers
+// that need the run token for post-expiry cleanup (e.g. LiteLLM key revoke).
+type ExpiredLease struct {
+	WorkItemID int64
+	Team       string
+	RunToken   string
+}
+
 // MaxAttempts is the retry threshold after which a repeatedly released item
 // goes stale instead of re-queuing (R5).
 const MaxAttempts = 3
@@ -48,6 +56,26 @@ func New(ctx context.Context, databaseURL string) (*Store, error) {
 
 func (s *Store) Close()                         { s.pool.Close() }
 func (s *Store) Ping(ctx context.Context) error { return s.pool.Ping(ctx) }
+
+// UnfinishedRunTokens returns the run tokens of all runs that have not yet
+// finished. Used by the boot-time orphan sweep to distinguish live keys from
+// leaked ones.
+func (s *Store) UnfinishedRunTokens(ctx context.Context) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `SELECT run_token FROM agent_runs WHERE finished_at IS NULL`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tokens []string
+	for rows.Next() {
+		var tok string
+		if err := rows.Scan(&tok); err != nil {
+			return nil, err
+		}
+		tokens = append(tokens, tok)
+	}
+	return tokens, rows.Err()
+}
 
 // Migrate applies embedded migrations in filename order, tracked in
 // schema_migrations. Safe to run on every boot.
@@ -335,8 +363,10 @@ func Report(outcome work.Outcome, summary, stuckReason string, links []string) h
 
 // ExpireLeases releases every overdue lease: the run is recorded as failed
 // (reason lease_expired) and the item re-queues or goes stale per the retry
-// threshold — the crash-safety mechanic (R2/R5). Returns released item ids.
-func (s *Store) ExpireLeases(ctx context.Context) ([]int64, error) {
+// threshold — the crash-safety mechanic (R2/R5). Returns expired lease info
+// including run tokens so callers can perform post-expiry cleanup (e.g.
+// LiteLLM key revoke).
+func (s *Store) ExpireLeases(ctx context.Context) ([]ExpiredLease, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -348,15 +378,10 @@ func (s *Store) ExpireLeases(ctx context.Context) ([]int64, error) {
 	if err != nil {
 		return nil, err
 	}
-	type expired struct {
-		id    int64
-		team  string
-		token string
-	}
-	var exp []expired
+	var exp []ExpiredLease
 	for rows.Next() {
-		var e expired
-		if err := rows.Scan(&e.id, &e.team, &e.token); err != nil {
+		var e ExpiredLease
+		if err := rows.Scan(&e.WorkItemID, &e.Team, &e.RunToken); err != nil {
 			return nil, err
 		}
 		exp = append(exp, e)
@@ -365,26 +390,25 @@ func (s *Store) ExpireLeases(ctx context.Context) ([]int64, error) {
 		return nil, rows.Err()
 	}
 
-	var ids []int64
-	for _, e := range exp {
+	for i := range exp {
+		e := &exp[i]
 		if _, err := tx.Exec(ctx, `
 			UPDATE agent_runs SET finished_at = now(), outcome = 'failed', summary = 'lease expired'
-			WHERE run_token = $1 AND finished_at IS NULL`, e.token); err != nil {
+			WHERE run_token = $1 AND finished_at IS NULL`, e.RunToken); err != nil {
 			return nil, err
 		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE work_items
 			SET state = CASE WHEN attempts >= $2 THEN 'stale' ELSE 'queued' END, updated_at = now()
-			WHERE id = $1 AND state = 'leased'`, e.id, MaxAttempts); err != nil {
+			WHERE id = $1 AND state = 'leased'`, e.WorkItemID, MaxAttempts); err != nil {
 			return nil, err
 		}
-		if err := audit(ctx, tx, "ploegd:sweeper", "lease.expired", &e.id,
-			map[string]any{"team": e.team}); err != nil {
+		if err := audit(ctx, tx, "ploegd:sweeper", "lease.expired", &e.WorkItemID,
+			map[string]any{"team": e.Team}); err != nil {
 			return nil, err
 		}
-		ids = append(ids, e.id)
 	}
-	return ids, tx.Commit(ctx)
+	return exp, tx.Commit(ctx)
 }
 
 // QueueSnapshot lists a team's queue (and everything else non-done) for
