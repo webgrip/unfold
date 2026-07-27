@@ -33,14 +33,20 @@ var ErrUnknownRun = errors.New("unknown or finished run")
 // ExpiredLease carries the result of a single expired lease for callers
 // that need the run token for post-expiry cleanup (e.g. LiteLLM key revoke).
 type ExpiredLease struct {
-	WorkItemID int64
-	Team       string
-	RunToken   string
+	WorkItemID   int64
+	Team         string
+	RunToken     string
+	InfraFailures int
 }
 
 // MaxAttempts is the retry threshold after which a repeatedly released item
 // goes stale instead of re-queuing (R5).
 const MaxAttempts = 3
+
+// MaxInfraFailures is the cap on consecutive infrastructure failures (lease
+// expiry without outcome). Beyond this the item goes stale with audit reason
+// infra_cap instead of re-queuing (VIK-596).
+const MaxInfraFailures = 10
 
 type Store struct {
 	pool *pgxpool.Pool
@@ -163,6 +169,8 @@ func (s *Store) IngestAssigned(ctx context.Context, item work.WorkItem) (int64, 
 			url      = EXCLUDED.url,
 			state    = CASE WHEN work_items.state IN ('ingested', 'stale', 'done', 'needs_human') THEN 'queued' ELSE work_items.state END,
 			attempts = CASE WHEN work_items.state IN ('stale', 'done', 'needs_human') THEN 0 ELSE work_items.attempts END,
+			next_eligible_at  = NULL,
+			infra_failures = CASE WHEN work_items.state IN ('stale', 'done', 'needs_human') THEN 0 ELSE work_items.infra_failures END,
 			updated_at = now()
 		RETURNING id, state`,
 		item.Provider, item.ExternalID, item.Revision, item.Team,
@@ -210,7 +218,7 @@ func (s *Store) Claim(ctx context.Context, team string, ttl time.Duration) (*Cla
 		UPDATE work_items SET state = 'leased', attempts = attempts + 1, updated_at = now()
 		WHERE id = (
 			SELECT id FROM work_items
-			WHERE team = $1 AND state = 'queued'
+			WHERE team = $1 AND state = 'queued' AND (next_eligible_at IS NULL OR next_eligible_at <= now())
 			ORDER BY priority DESC, created_at
 			FOR UPDATE SKIP LOCKED
 			LIMIT 1
@@ -397,14 +405,36 @@ func (s *Store) ExpireLeases(ctx context.Context) ([]ExpiredLease, error) {
 			WHERE run_token = $1 AND finished_at IS NULL`, e.RunToken); err != nil {
 			return nil, err
 		}
-		if _, err := tx.Exec(ctx, `
+		// Infra failure: lease expired without a reported outcome — refund the
+		// attempt that Claim already charged and apply the infra-failure backoff.
+		// Agent failures (reported outcomes) go through ReportOutcome instead.
+		var newState string
+		if err := tx.QueryRow(ctx, `
 			UPDATE work_items
-			SET state = CASE WHEN attempts >= $2 THEN 'stale' ELSE 'queued' END, updated_at = now()
-			WHERE id = $1 AND state = 'leased'`, e.WorkItemID, MaxAttempts); err != nil {
+			SET state = CASE WHEN infra_failures + 1 >= $2 THEN 'stale' ELSE 'queued' END,
+			    attempts = GREATEST(attempts - 1, 0),
+			    infra_failures = infra_failures + 1,
+			    next_eligible_at = CASE
+				WHEN infra_failures + 1 >= $2 THEN NULL
+				ELSE now() + (CASE infra_failures
+				    WHEN 0 THEN INTERVAL '1 minute'
+				    WHEN 1 THEN INTERVAL '5 minutes'
+				    WHEN 2 THEN INTERVAL '15 minutes'
+				    ELSE INTERVAL '60 minutes'
+				END)
+			    END,
+			    updated_at = now()
+			WHERE id = $1 AND state = 'leased'
+			RETURNING state, infra_failures`,
+			e.WorkItemID, MaxInfraFailures).Scan(&newState, &e.InfraFailures); err != nil {
 			return nil, err
 		}
-		if err := audit(ctx, tx, "ploegd:sweeper", "lease.expired", &e.WorkItemID,
-			map[string]any{"team": e.Team}); err != nil {
+		action := "lease.expired"
+		if newState == "stale" {
+			action = "infra_cap"
+		}
+		if err := audit(ctx, tx, "ploegd:sweeper", action, &e.WorkItemID,
+			map[string]any{"team": e.Team, "infra_failures": e.InfraFailures}); err != nil {
 			return nil, err
 		}
 	}
