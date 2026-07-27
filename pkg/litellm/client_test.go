@@ -97,7 +97,7 @@ func schemaStrictHandler() http.Handler {
 
 		// Without return_full_object, keys is a string slice (plain hashes).
 		if !fullObj {
-			var tokens []string
+			tokens := []string{} // real proxy emits [], never null
 			for _, k := range keyStore {
 				tokens = append(tokens, k.Token)
 			}
@@ -111,7 +111,7 @@ func schemaStrictHandler() http.Handler {
 		}
 
 		// With return_full_object=true, keys are objects with token/key_alias.
-		var keys []fakeKey
+		keys := []fakeKey{} // real proxy emits [], never null
 		for _, k := range keyStore {
 			keys = append(keys, k)
 		}
@@ -379,4 +379,3 @@ func TestListKeys_WithoutFullObject(t *testing.T) {
 		}
 	}
 }
-
