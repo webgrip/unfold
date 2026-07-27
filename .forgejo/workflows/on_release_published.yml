@@ -99,9 +99,12 @@ jobs:
   # image + OCI chart into the Forgejo registry, LINKED to this repo so /packages stays
   # populated. Bot identity: WEBGRIP_CI_TOKEN — never secrets.FORGEJO_TOKEN, the built-in
   # per-job token cannot write org packages (run 43: login OK, push 401).
+  # mirror-from-registry: the image is built ONCE (Harbor job above) and copied here by
+  # digest via buildx imagetools — no duplicate multi-arch build, and both registries
+  # serve the identical manifest list. Hence the needs on the Harbor job.
   release-distribute-forgejo:
     name: Distribute (Forgejo)
-    needs: [parse-release-tag]
+    needs: [parse-release-tag, release-distribute-harbor]
     uses: webgrip/workflows/.forgejo/workflows/forgejo-distribute.yml@main
     with:
       enabled: true
@@ -109,16 +112,11 @@ jobs:
       ref: v${{ needs.parse-release-tag.outputs.version }}
       link-repo: ploeg
       image-name: ploegd
-      docker-file: ops/docker/ploegd/Dockerfile
-      docker-context: "."
-      platforms: linux/amd64,linux/arm64
-      docker-build-args: |
-        IMAGE_CREATED=${{ needs.parse-release-tag.outputs.created }}
-        IMAGE_VERSION=${{ needs.parse-release-tag.outputs.version }}
-        IMAGE_REVISION=${{ github.sha }}
-        REGISTRY_DOCKERHUB=harbor.webgrip.dev/dockerhub
+      mirror-from-registry: harbor.webgrip.dev
       push-latest: ${{ needs.parse-release-tag.outputs.latest_tag != '' }}
       chart-path: ops/helm/ploeg
       chart-name: ploeg
     secrets:
       REGISTRY_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
+      SOURCE_REGISTRY_USER: ${{ secrets.HARBOR_ROBOT_USER }}
+      SOURCE_REGISTRY_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
