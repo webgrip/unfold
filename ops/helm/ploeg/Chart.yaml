@@ -4,5 +4,5 @@ description: Ploeg dispatch plane — webhook ingest, leases, run API, and the K
 type: application
 # version/appVersion are bumped in lockstep by semantic-release-helm3 on every
 # release; the git tag v<version> is the commit helm-chart-push packages.
-version: 0.2.0-rc.1
-appVersion: 0.2.0-rc.1
+version: 0.2.0-rc.2
+appVersion: 0.2.0-rc.2
