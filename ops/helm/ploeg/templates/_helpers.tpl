@@ -106,6 +106,16 @@ spec:
       image: {{ $hImage }}
       command: ["/mnt/bin/ploeg-worker"]
       env:
+        # Downward API: node+pod identity survives job/pod cleanup in logs
+        # and checkpoints (VIK-597).
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: POD_UID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
         - name: PLOEG_API_URL
           value: {{ include "ploeg.apiUrl" $root | quote }}
         - name: PLOEG_TEAM

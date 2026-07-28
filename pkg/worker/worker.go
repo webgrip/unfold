@@ -121,7 +121,12 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 		}
 	}
 
-	if err := w.API.Checkpoint(claimed.RunToken, work.Checkpoint{Phase: "branch_created", Branch: branch}); err != nil {
+	if err := w.API.Checkpoint(claimed.RunToken, work.Checkpoint{
+		Phase:    "branch_created",
+		Branch:   branch,
+		NodeName: os.Getenv("NODE_NAME"),
+		PodUID:   os.Getenv("POD_UID"),
+	}); err != nil {
 		w.Log.Warn("checkpoint failed", "err", err)
 	}
 
@@ -151,6 +156,8 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 		Stdout:     io.MultiWriter(os.Stdout, &logTail),
 		Stderr:     io.MultiWriter(os.Stderr, &logTail),
 		Checkpoint: func(cp work.Checkpoint) {
+			cp.NodeName = os.Getenv("NODE_NAME")
+			cp.PodUID = os.Getenv("POD_UID")
 			if err := w.API.Checkpoint(claimed.RunToken, cp); err != nil {
 				w.Log.Warn("checkpoint failed", "err", err)
 			}
@@ -242,6 +249,15 @@ func resolveOutcome(adapterName string, report harness.OutcomeReport, runErr, ct
 		}
 		return report
 	case runErr == nil:
+		if (report.Usage == nil || report.Usage.CostUSD == 0) && prURL == "" {
+			// VIK-586: no LLM spend + no PR means the LLM was unreachable;
+			// don't report no_change_needed — the run effectively failed.
+			return resolved(harness.OutcomeReport{
+				Outcome:       work.OutcomeFailed,
+				Summary:       adapterName + " run finished with zero LLM spend and no PR (infra_llm)",
+				FailureReason: work.FailureReasonInfraLLM,
+			})
+		}
 		return resolved(harness.OutcomeReport{
 			Outcome: work.OutcomeNoChangeNeeded,
 			Summary: adapterName + " run finished without opening a PR",

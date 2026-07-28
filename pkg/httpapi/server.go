@@ -178,7 +178,7 @@ func (s *Server) handleOutcome(w http.ResponseWriter, r *http.Request) {
 		usage, _ = json.Marshal(req.Usage)
 	}
 	err := s.Store.ReportOutcome(r.Context(), r.PathValue("token"),
-		store.Report(req.Outcome, req.Summary, req.StuckReason, req.Links, usage))
+		store.Report(req.Outcome, req.Summary, req.StuckReason, req.Links, usage, string(req.FailureReason)))
 	if err != nil {
 		if errors.Is(err, store.ErrUnknownRun) {
 			runError(w, err)

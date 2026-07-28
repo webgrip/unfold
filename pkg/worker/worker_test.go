@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -24,16 +25,17 @@ func discardLog() *slog.Logger { return slog.New(slog.DiscardHandler) }
 func TestResolveOutcome_Precedence(t *testing.T) {
 	usage := &harness.Usage{CostUSD: 0.5, SessionID: "s"}
 	tests := []struct {
-		name        string
-		report      harness.OutcomeReport
-		runErr      error
-		ctxErr      error
-		prURL       string
-		wantOutcome work.Outcome
-		wantSummary string
-		wantReason  string
-		wantLinks   []string
-		wantPhase   string
+		name             string
+		report           harness.OutcomeReport
+		runErr           error
+		ctxErr           error
+		prURL            string
+		wantOutcome      work.Outcome
+		wantSummary      string
+		wantReason       string
+		wantLinks        []string
+		wantPhase        string
+		wantFailure      work.FailureReason
 	}{
 		{
 			name:        "PR found always wins",
@@ -63,6 +65,25 @@ func TestResolveOutcome_Precedence(t *testing.T) {
 			name:        "exit 0 without PR = no_change_needed",
 			wantOutcome: work.OutcomeNoChangeNeeded,
 			wantSummary: "openhands run finished without opening a PR",
+		},
+		{
+			name:        "exit 0 with usage > 0 and no PR = no_change_needed (VIK-586 not triggered)",
+			report:      harness.OutcomeReport{Usage: &harness.Usage{CostUSD: 0.01}},
+			wantOutcome: work.OutcomeNoChangeNeeded,
+			wantSummary: "openhands run finished without opening a PR",
+		},
+		{
+			name:   "exit 0 with zero usage and no PR = failed (infra_llm / VIK-586)",
+			report: harness.OutcomeReport{Usage: &harness.Usage{CostUSD: 0}},
+			wantOutcome:      work.OutcomeFailed,
+			wantSummary:      "openhands run finished with zero LLM spend and no PR (infra_llm)",
+			wantFailure:      work.FailureReasonInfraLLM,
+		},
+		{
+			name:   "exit 0 with nil usage and no PR = failed (infra_llm / VIK-586)",
+			wantOutcome:      work.OutcomeFailed,
+			wantSummary:      "openhands run finished with zero LLM spend and no PR (infra_llm)",
+			wantFailure:      work.FailureReasonInfraLLM,
 		},
 		{
 			name:        "ctx cancelled = stuck (lease lost)",
@@ -98,6 +119,9 @@ func TestResolveOutcome_Precedence(t *testing.T) {
 			}
 			if tc.wantPhase != "" && (got.Checkpoint == nil || got.Checkpoint.Phase != tc.wantPhase) {
 				t.Errorf("checkpoint = %+v, want phase %q", got.Checkpoint, tc.wantPhase)
+			}
+			if tc.wantFailure != "" && got.FailureReason != tc.wantFailure {
+				t.Errorf("failureReason = %q, want %q", got.FailureReason, tc.wantFailure)
 			}
 		})
 	}
@@ -143,7 +167,7 @@ func (b *recordingBroker) Revoke(_ context.Context, cred llmbroker.Credential) e
 func fakeAgentAdapter(t *testing.T, exitCode int) harness.Adapter {
 	t.Helper()
 	bin := filepath.Join(t.TempDir(), "fake-agent.sh")
-	body := "#!/bin/sh\nexit " + string(rune('0'+exitCode)) + "\n"
+	body := fmt.Sprintf("#!/bin/sh\nexit %d\n", exitCode)
 	if err := os.WriteFile(bin, []byte(body), 0o755); err != nil {
 		t.Fatal(err)
 	}

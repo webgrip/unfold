@@ -40,6 +40,18 @@ const (
 	OutcomeNoChangeNeeded  Outcome = "no_change_needed"
 )
 
+// FailureReason classifies the root cause of a failed or stuck run for
+// forensics — persisted in agent_runs.failure_reason (VIK-597).
+type FailureReason string
+
+const (
+	FailureReasonInfraNode  FailureReason = "infra_node"
+	FailureReasonInfraLLM   FailureReason = "infra_llm"
+	FailureReasonAgentError FailureReason = "agent_error"
+	FailureReasonBudget     FailureReason = "budget"
+	FailureReasonLeaseLost  FailureReason = "lease_lost"
+)
+
 // Valid reports whether o is a known outcome enum value.
 func (o Outcome) Valid() bool {
 	switch o {
@@ -80,10 +92,14 @@ type Lease struct {
 
 // Checkpoint is the small durable progress record enabling resume.
 // Everything else is re-derived from git/forge state.
+// NodeName and PodUID carry the downward-API identity (VIK-597) so that
+// even after job/pod cleanup the compute identity survives in Postgres.
 type Checkpoint struct {
 	WorkItemID string    `json:"workItemId,omitempty"`
 	Phase      string    `json:"phase"` // e.g. "branch_created", "changes_made", "pr_opened"
 	Branch     string    `json:"branch,omitempty"`
 	PRURL      string    `json:"prUrl,omitempty"`
+	NodeName   string    `json:"nodeName,omitempty"`  // downward API: spec.nodeName
+	PodUID     string    `json:"podUid,omitempty"`    // downward API: metadata.uid
 	At         time.Time `json:"at,omitempty"`
 }
