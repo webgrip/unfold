@@ -1,0 +1,28 @@
+{{- if and .Values.executor.enabled (eq (.Values.executor.type | default "keda") "cronjob") }}
+{{- $root := . }}
+{{- range .Values.executor.teams }}
+---
+# The KEDA-free executor (docs/contracts/executor.md): a plain CronJob per
+# team polls by spawning a worker on a schedule. Empty-handed claim = exit 0
+# (backlog #49) makes idle ticks free; retries stay DB-side (lease expiry),
+# so concurrencyPolicy/backoffLimit mirror the ScaledJob semantics.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "ploeg.fullname" $root }}-worker-{{ .name }}
+  labels: {{- include "ploeg.labels" $root | nindent 4 }}
+spec:
+  schedule: {{ $root.Values.executor.cronjob.schedule | quote }}
+  concurrencyPolicy: Forbid # one run at a time per team; the lease is the real lock
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      parallelism: 1
+      completions: 1
+      backoffLimit: 0 # ploeg owns retries; every pod is one auditable run (backlog #51)
+      activeDeadlineSeconds: {{ $root.Values.executor.activeDeadlineSeconds }}
+      template:
+        {{- include "ploeg.workerPodTemplate" (dict "root" $root "team" .) | nindent 8 }}
+{{- end }}
+{{- end }}

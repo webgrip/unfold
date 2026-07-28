@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://webgrip.dev/ploeg/contracts/run-api.v1.schema.json",
+  "title": "Run API",
+  "description": "Message bodies of ploegd's run API — the executor contract surface (docs/contracts/executor.md). Endpoints: POST /api/v1/claim, POST /api/v1/runs/{token}/renew, POST /api/v1/runs/{token}/checkpoint, POST /api/v1/runs/{token}/outcome, GET /api/v1/queue/depth?team=.",
+  "$defs": {
+    "claimRequest": {
+      "type": "object",
+      "properties": { "team": { "type": "string", "minLength": 1 } },
+      "required": ["team"],
+      "additionalProperties": false
+    },
+    "claimResponse": {
+      "description": "HTTP 200 body; HTTP 204 = no claimable work (empty-handed convention, exit 0).",
+      "type": "object",
+      "properties": {
+        "runToken": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{48}$",
+          "description": "the run's only credential; renew/checkpoint/outcome key on it"
+        },
+        "deadline": { "type": "string", "format": "date-time" },
+        "workItem": { "$ref": "taskspec.v1.schema.json#/$defs/workItem" }
+      },
+      "required": ["runToken", "deadline", "workItem"],
+      "additionalProperties": false
+    },
+    "renewResponse": {
+      "description": "HTTP 200 body; HTTP 404 = lease no longer ours, cancel the run.",
+      "type": "object",
+      "properties": { "deadline": { "type": "string", "format": "date-time" } },
+      "required": ["deadline"],
+      "additionalProperties": false
+    },
+    "checkpointRequest": { "$ref": "checkpoint.v1.schema.json" },
+    "outcomeRequest": { "$ref": "outcomereport.v1.schema.json" },
+    "queueDepthResponse": {
+      "type": "object",
+      "properties": {
+        "team": { "type": "string" },
+        "depth": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["team", "depth"],
+      "additionalProperties": false
+    }
+  }
+}

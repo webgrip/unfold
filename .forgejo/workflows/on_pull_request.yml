@@ -25,3 +25,4 @@ jobs:
       - run: helm lint ops/helm/ploeg
       - run: helm template ploeg ops/helm/ploeg > /dev/null
       - run: helm template ploeg ops/helm/ploeg -f ops/helm/ploeg/ci/executor-values.yaml > /dev/null
+      - run: helm template ploeg ops/helm/ploeg -f ops/helm/ploeg/ci/executor-cronjob-values.yaml > /dev/null

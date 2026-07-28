@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://webgrip.dev/ploeg/contracts/taskspec.v1.schema.json",
+  "title": "TaskSpec",
+  "description": "The harness contract input (design §5, harness.TaskSpec): everything a run needs to know about the work, the repo, and its identity. Credentials are delivered out-of-band (env, mounted secrets), never here (R8).",
+  "type": "object",
+  "properties": {
+    "workItem": { "$ref": "#/$defs/workItem" },
+    "role": { "type": "string", "description": "specialist role within the team" },
+    "checkpoint": { "$ref": "checkpoint.v1.schema.json" },
+    "repo": {
+      "type": "object",
+      "properties": {
+        "forgeUrl": { "type": "string", "description": "forge base URL" },
+        "owner": { "type": "string" },
+        "name": { "type": "string" },
+        "baseBranch": {
+          "type": "string",
+          "description": "branch to clone/branch from and open the PR against; absent = repo default branch (VIK-589)"
+        }
+      },
+      "required": ["forgeUrl", "owner", "name"],
+      "additionalProperties": false
+    },
+    "branch": { "type": "string", "description": "work branch, e.g. agent/vik-<id>" },
+    "traceId": {
+      "type": "string",
+      "pattern": "^ploeg-[0-9a-f]{12}$",
+      "description": "run trace id; doubles as the LiteLLM key alias Grafana joins on"
+    }
+  },
+  "required": ["workItem", "repo", "branch", "traceId"],
+  "additionalProperties": false,
+  "$defs": {
+    "workItem": {
+      "type": "object",
+      "description": "Mirror of one tracker item (work.WorkItem).",
+      "properties": {
+        "id": { "type": "string" },
+        "provider": { "type": "string" },
+        "externalId": { "type": "string" },
+        "revision": { "type": "string" },
+        "team": { "type": "string" },
+        "state": {
+          "type": "string",
+          "enum": ["ingested", "queued", "leased", "needs_human", "stale", "done"]
+        },
+        "origin": { "type": "string", "enum": ["assignment", "follow_up"] },
+        "priority": { "type": "integer" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "url": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "provider", "externalId"],
+      "additionalProperties": false
+    }
+  }
+}

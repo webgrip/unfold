@@ -329,9 +329,9 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 		return err
 	}
 	if _, err := tx.Exec(ctx, `
-		UPDATE agent_runs SET finished_at = now(), outcome = $1, summary = $2, stuck_reason = $3, links = $4
-		WHERE run_token = $5`,
-		string(rep.Outcome), rep.Summary, rep.StuckReason, rep.Links, runToken); err != nil {
+		UPDATE agent_runs SET finished_at = now(), outcome = $1, summary = $2, stuck_reason = $3, links = $4, usage = $5
+		WHERE run_token = $6`,
+		string(rep.Outcome), rep.Summary, rep.StuckReason, rep.Links, rep.Usage, runToken); err != nil {
 		return err
 	}
 	// A failed outcome re-queues until the retry threshold, then stale (R5).
@@ -356,17 +356,19 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 }
 
 // harnessReport mirrors harness.OutcomeReport without importing the package
-// (store stays ignorant of transport shapes).
+// (store stays ignorant of transport shapes). Usage is opaque JSON
+// (harness.Usage), persisted as-is into agent_runs.usage.
 type harnessReport struct {
 	Outcome     work.Outcome
 	Summary     string
 	StuckReason string
 	Links       []string
+	Usage       json.RawMessage
 }
 
-// Report is the store-level outcome input.
-func Report(outcome work.Outcome, summary, stuckReason string, links []string) harnessReport {
-	return harnessReport{Outcome: outcome, Summary: summary, StuckReason: stuckReason, Links: links}
+// Report is the store-level outcome input. usage may be nil.
+func Report(outcome work.Outcome, summary, stuckReason string, links []string, usage json.RawMessage) harnessReport {
+	return harnessReport{Outcome: outcome, Summary: summary, StuckReason: stuckReason, Links: links, Usage: usage}
 }
 
 // ExpireLeases releases every overdue lease: the run is recorded as failed
@@ -439,6 +441,19 @@ func (s *Store) ExpireLeases(ctx context.Context) ([]ExpiredLease, error) {
 		}
 	}
 	return exp, tx.Commit(ctx)
+}
+
+// QueueDepth counts a team's claimable items — the same predicate the KEDA
+// postgresql scaler polls (served index-only by work_items_claimable). It
+// exists so alternative executors can read the scale signal over HTTP
+// without Postgres credentials (docs/contracts/executor.md).
+func (s *Store) QueueDepth(ctx context.Context, team string) (int, error) {
+	var n int
+	err := s.pool.QueryRow(ctx, `
+		SELECT COUNT(*) FROM work_items
+		WHERE team = $1 AND state = 'queued' AND (next_eligible_at IS NULL OR next_eligible_at <= now())`,
+		team).Scan(&n)
+	return n, err
 }
 
 // QueueSnapshot lists a team's queue (and everything else non-done) for

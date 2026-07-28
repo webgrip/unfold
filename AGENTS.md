@@ -25,6 +25,7 @@ go test ./...
 helm lint ops/helm/ploeg
 helm template ploeg ops/helm/ploeg > /dev/null
 helm template ploeg ops/helm/ploeg -f ops/helm/ploeg/ci/executor-values.yaml > /dev/null
+helm template ploeg ops/helm/ploeg -f ops/helm/ploeg/ci/executor-cronjob-values.yaml > /dev/null
 ```
 
 No local toolchain? Run them via the DinD daemon: `docker run --rm -v "$PWD":/src -w /src
@@ -34,12 +35,17 @@ Paste gate output in the PR body.
 ## Repo map
 
 - `cmd/ploegd/` — dispatch daemon (webhook ingest, outcome API, sweeper)
-- `cmd/ploeg-worker/` — the KEDA-spawned run harness (clone → agent run → PR → outcome report)
+- `cmd/ploeg-worker/` — thin env→config wiring; the run logic lives in `pkg/worker`
+- `pkg/worker/` — run orchestration (claim → clone → credential → harness adapter → PR → outcome)
+- `pkg/harness/` — the harness seam: TaskSpec/OutcomeReport contract + adapters
+  (`adapters/openhands`, `adapters/execbin`, `adapters/claudecode`; conformance suite in `harnesstest`)
+- `pkg/llmbroker/` — the LLM credential seam (LiteLLM per-run keys, static/BYO fallback)
 - `pkg/store/` — Postgres store: `work_items` / `leases` / `agent_runs` / `checkpoints` (+ audit)
 - `pkg/provider/vikunja/` — tracker provider (HMAC webhook, assignee→team routing)
 - `pkg/httpapi/` — HTTP surface
-- `ops/helm/ploeg/` — the chart (per-team ScaledJobs under `executor.teams`)
+- `ops/helm/ploeg/` — the chart (per-team ScaledJobs/CronJobs under `executor.teams`; per-team `harness` block swaps adapter + image)
 - `pkg/store/migrations/` — SQL migrations (append-only; never rewrite an applied migration)
+- `docs/contracts/` — published JSON Schemas + the executor SPI (change Go types and schemas together)
 
 ## Load-bearing invariants (dashboards/alerts in webgrip/homelab-cluster depend on these)
 

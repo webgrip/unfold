@@ -22,3 +22,175 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "ploeg.apiUrl" -}}
 {{ .Values.executor.apiUrl | default (printf "http://%s:%v" (include "ploeg.fullname" .) .Values.service.port) }}
 {{- end -}}
+
+{{/*
+ploeg.workerPodTemplate renders the worker pod template for one team —
+shared by every executor (ScaledJob, CronJob). Context: (dict "root" $
+"team" <team entry>). The team's optional `harness` block overrides the
+global executor.harness defaults field-by-field (explicit hasKey checks, so
+`dind: false` overrides correctly — sprig merge would drop it).
+*/}}
+{{- define "ploeg.workerPodTemplate" -}}
+{{- $root := .root }}
+{{- $team := .team }}
+{{- $gh := $root.Values.executor.harness | default dict }}
+{{- $th := $team.harness | default dict }}
+{{- $hName := $th.name | default ($gh.name | default "openhands") }}
+{{- $hImage := $th.image | default ($gh.image | default $root.Values.executor.runnerImage) }}
+{{- $hEntrypoint := $th.entrypoint | default $gh.entrypoint }}
+{{- $hArgs := $th.args | default $gh.args }}
+{{- $hOutcomeFile := $th.outcomeFile | default $gh.outcomeFile }}
+{{- $hDind := true }}
+{{- if hasKey $th "dind" }}{{- $hDind = $th.dind }}{{- else if hasKey $gh "dind" }}{{- $hDind = $gh.dind }}{{- end -}}
+metadata:
+  labels:
+    app.kubernetes.io/name: ploeg-worker
+    ploeg.webgrip.dev/team: {{ $team.name }}
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  {{- with $root.Values.imagePullSecrets }}
+  imagePullSecrets: {{- toYaml . | nindent 4 }}
+  {{- end }}
+  nodeSelector:
+    node.webgrip.io/pool: worker # never control-plane (ADR-0002: DinD beside etcd)
+  securityContext:
+    fsGroup: 1000
+  initContainers:
+    # Extracts ploeg-worker from the distroless ploegd image via
+    # self-copy (no shell in distroless).
+    - name: worker-bin
+      image: {{ $root.Values.executor.workerImage | default (include "ploeg.image" $root) }}
+      command: ["/usr/local/bin/ploeg-worker", "install", "/mnt/bin/ploeg-worker"]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+        seccompProfile:
+          type: RuntimeDefault
+      volumeMounts:
+        - name: worker-bin
+          mountPath: /mnt/bin
+      resources: {{- toYaml $root.Values.executor.workerBinResources | nindent 8 }}
+    {{- if $hDind }}
+    # DinD sidecar: the harness sandbox and the repo quality gates need a
+    # Docker daemon. Requires the ploeg-worker PolicyException. Teams whose
+    # harness needs no Docker set harness.dind: false.
+    - name: dind
+      image: {{ $root.Values.executor.dindImage }}
+      restartPolicy: Always
+      securityContext:
+        privileged: true
+      env:
+        - name: DOCKER_TLS_CERTDIR
+          value: /certs
+      startupProbe:
+        tcpSocket:
+          port: 2376
+        periodSeconds: 2
+        failureThreshold: 60
+        timeoutSeconds: 5
+      volumeMounts:
+        - name: docker-certs
+          mountPath: /certs
+        - name: docker-storage
+          mountPath: /var/lib/docker
+        - name: ci-shared
+          mountPath: /mnt/ci-shared
+      resources: {{- toYaml $root.Values.executor.dindResources | nindent 8 }}
+    {{- end }}
+  containers:
+    - name: worker
+      image: {{ $hImage }}
+      command: ["/mnt/bin/ploeg-worker"]
+      env:
+        - name: PLOEG_API_URL
+          value: {{ include "ploeg.apiUrl" $root | quote }}
+        - name: PLOEG_TEAM
+          value: {{ $team.name | quote }}
+        - name: PLOEG_HARNESS
+          value: {{ $hName | quote }}
+        {{- if $hEntrypoint }}
+        - name: PLOEG_HARNESS_ENTRYPOINT
+          value: {{ $hEntrypoint | quote }}
+        {{- end }}
+        {{- if $hArgs }}
+        - name: PLOEG_HARNESS_ARGS
+          value: {{ toJson $hArgs | quote }}
+        {{- end }}
+        {{- if $hOutcomeFile }}
+        - name: PLOEG_OUTCOME_FILE
+          value: {{ $hOutcomeFile | quote }}
+        {{- end }}
+        - name: LLM_MODEL
+          value: {{ $team.model | quote }}
+        - name: LITELLM_KEY_BUDGET
+          value: {{ $team.budget | quote }}
+        - name: LITELLM_KEY_DURATION
+          value: {{ $root.Values.executor.litellm.keyDuration | quote }}
+        - name: LLM_BASE_URL
+          value: {{ $root.Values.executor.litellm.baseUrl | quote }}
+        - name: LITELLM_ADMIN_URL
+          value: {{ $root.Values.executor.litellm.adminUrl | quote }}
+        - name: LITELLM_MASTER_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ $root.Values.executor.litellm.masterKeySecret.name }}
+              key: {{ $root.Values.executor.litellm.masterKeySecret.key }}
+        - name: FORGEJO_URL
+          value: {{ $root.Values.executor.forgejo.url | quote }}
+        - name: AGENT_BUILDER_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ $root.Values.executor.forgejo.tokenSecret.name }}
+              key: {{ $root.Values.executor.forgejo.tokenSecret.key }}
+        - name: REPO_OWNER
+          value: {{ $team.repoOwner | quote }}
+        - name: REPO_NAME
+          value: {{ $team.repoName | quote }}
+        {{- if $team.baseBranch }}
+        # Base branch for clone/branch/PR (VIK-589). Unset = the repo's
+        # default branch on clone and the worker's historical "main".
+        - name: PLOEG_BASE_BRANCH
+          value: {{ $team.baseBranch | quote }}
+        {{- end }}
+        - name: WORK_DIR
+          value: /mnt/ci-shared
+        {{- if $hDind }}
+        - name: DOCKER_HOST
+          value: tcp://localhost:2376
+        - name: DOCKER_CERT_PATH
+          value: /certs/client
+        - name: DOCKER_TLS_VERIFY
+          value: "1"
+        {{- end }}
+      volumeMounts:
+        - name: worker-bin
+          mountPath: /mnt/bin
+          readOnly: true
+        {{- if $hDind }}
+        - name: docker-certs
+          mountPath: /certs
+          readOnly: true
+        {{- end }}
+        - name: ci-shared
+          mountPath: /mnt/ci-shared
+      resources: {{- toYaml $root.Values.executor.workerResources | nindent 8 }}
+  volumes:
+    - name: worker-bin
+      emptyDir: {}
+    {{- if $hDind }}
+    - name: docker-certs
+      emptyDir: {}
+    - name: docker-storage
+      emptyDir: {}
+    {{- end }}
+    # Disk-backed (not tmpfs): repo checkout + gate builds are large.
+    # Same absolute path in worker AND dind so `docker run -v`
+    # bind-mounts resolve on the daemon's filesystem.
+    - name: ci-shared
+      emptyDir:
+        sizeLimit: 8Gi
+{{- end -}}

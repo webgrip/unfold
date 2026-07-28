@@ -1,6 +1,6 @@
 apiVersion: v2
 name: ploeg
-description: Ploeg dispatch plane — webhook ingest, leases, run API, and the KEDA-scaled OpenHands executor.
+description: Ploeg dispatch plane — webhook ingest, leases, run API, and pluggable executors (KEDA ScaledJob or CronJob) running swappable agent harnesses.
 type: application
 # version/appVersion are bumped in lockstep by semantic-release-helm3 on every
 # release; the git tag v<version> is the commit helm-chart-push packages.

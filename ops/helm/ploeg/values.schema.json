@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "ploeg chart values",
+  "type": "object",
+  "properties": {
+    "executor": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "type": { "enum": ["keda", "cronjob"] },
+        "harness": { "$ref": "#/definitions/harness" },
+        "runnerImage": { "type": "string" },
+        "dindImage": { "type": "string" },
+        "workerImage": { "type": "string" },
+        "apiUrl": { "type": "string" },
+        "cronjob": {
+          "type": "object",
+          "properties": { "schedule": { "type": "string", "minLength": 1 } }
+        },
+        "teams": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string", "minLength": 1, "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$" },
+              "model": { "type": "string", "minLength": 1 },
+              "budget": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?$" },
+              "repoOwner": { "type": "string", "minLength": 1 },
+              "repoName": { "type": "string", "minLength": 1 },
+              "baseBranch": { "type": "string" },
+              "maxReplicaCount": { "type": "integer", "minimum": 1 },
+              "harness": { "$ref": "#/definitions/harness" }
+            },
+            "required": ["name", "model", "budget", "repoOwner", "repoName"],
+            "additionalProperties": false
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "harness": {
+      "type": "object",
+      "properties": {
+        "name": { "enum": ["openhands", "exec", "claude-code"] },
+        "image": { "type": "string" },
+        "entrypoint": { "type": "string" },
+        "args": { "type": "array", "items": { "type": "string" } },
+        "outcomeFile": { "type": "string" },
+        "dind": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    }
+  }
+}
