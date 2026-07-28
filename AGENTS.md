@@ -39,7 +39,7 @@ Paste gate output in the PR body.
 - `pkg/provider/vikunja/` — tracker provider (HMAC webhook, assignee→team routing)
 - `pkg/httpapi/` — HTTP surface
 - `ops/helm/ploeg/` — the chart (per-team ScaledJobs under `executor.teams`)
-- `migrations/` — SQL migrations (append-only; never rewrite an applied migration)
+- `pkg/store/migrations/` — SQL migrations (append-only; never rewrite an applied migration)
 
 ## Load-bearing invariants (dashboards/alerts in webgrip/homelab-cluster depend on these)
 
