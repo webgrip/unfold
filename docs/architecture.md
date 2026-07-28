@@ -179,15 +179,17 @@ trailer, and Grafana joins spend ↔ run ↔ ticket on it. Do not change its sha
 flowchart TD
     M["worker mints key<br/>alias = ploeg-&lt;token12&gt; · max_budget · 4h TTL"] --> R1
     R1["Layer 1 — worker defer-revoke<br/>fires on every return path (VIK-585)"] --> R2
-    R2["Layer 2 — ploegd sweeper revoke on lease expiry<br/>+ boot-time orphan sweep of ploeg-* aliases<br/>(VIK-594 — PR #13, in review, NOT yet on development)"] --> R3
+    R2["Layer 2 — ploegd sweeper revoke on lease expiry<br/>+ boot-time orphan sweep of ploeg-* aliases<br/>(VIK-594, merged 2026-07-28)"] --> R3
     R3["Layer 3 — 4h key TTL, final net"]
 ```
 
 The worker owns mint + revoke; the runner entrypoint sees a caller-supplied
 `LLM_API_KEY` and skips its own minting (its log line says so — that is
-correct, not a bug). A SIGKILLed worker skips its defer, which is exactly the
-gap VIK-594's sweeper-side revoke closes; until PR #13 merges, a hard-killed
-run leaks its key until the TTL reaps it (alert `slo-ploeg-run-key-leak`).
+correct, not a bug). A SIGKILLed worker skips its defer — the gap VIK-594's
+sweeper-side revoke (merged 2026-07-28, `cmd/ploegd/sweep.go`) now closes: a
+hard-killed run's key survives only until its lease expires (≤15 min) and the
+next 15 s sweep revokes it, instead of until the 4 h TTL. The alert
+`slo-ploeg-run-key-leak` covers that remaining window.
 
 ## 6. The task contract
 
@@ -271,12 +273,8 @@ and the implementation (verified 2026-07-27). Aspirational ≠ implemented:
    protection) addresses this.
 10. **Unassignment** (`task.assignee.deleted`) is parsed and dropped — no run
     cancel or lease release (backlog #8).
-11. **No metrics**: no OTel/Prometheus in Go; observability = structured logs
-    + the `key_alias` join in Grafana (external dashboards in homelab-cluster).
-12. **`executor.litellm.keyDuration` is dead**: **closed 2026-07-28.** The
-    worker now parses `LITELLM_KEY_DURATION` (default 4h) and passes it to
-    the credential broker (`pkg/llmbroker`); the set-but-ignored value became
-    effective — deployments that set it get the TTL they asked for.
+11. **No metrics**: no OTel/Prometheus in Go; observability is structured logs
+    plus the `key_alias` join in Grafana (external dashboards in homelab-cluster).
 
 ## 10. Pointers
 

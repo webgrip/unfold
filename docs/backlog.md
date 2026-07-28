@@ -1,4 +1,4 @@
-# Ploeg — improvement backlog (102 items)
+# Ploeg — improvement backlog (103 items)
 
 Compiled 2026-07-22 from the design doc, the domain model, the code skeleton, and a
 research sweep of adjacent solutions (misospace/dispatch, kandev, vibe-kanban,
@@ -139,7 +139,7 @@ roadmap-phase order.
 92. **CI hardening** — golangci-lint, govulncheck, `-race`, coverage gate on `pkg/work` and the lease manager.
 93. **Release pipeline** — goreleaser: multi-arch images to Forgejo registry + GHCR mirror, signed, changelog; version stamped into `ploegd`.
 
-## K. Packaging, docs & governance — 94–102
+## K. Packaging, docs & governance — 94–103
 
 94. **Helm chart** — ploegd, migrations job, ScaledJob templates, dashboards, network policies; CNPG cluster example values.
 95. **Quickstart demo** — kind + Vikunja + Forgejo + one team in ~15 minutes; the "watch a ticket become a PR" moment that sells the elevator pitch.
@@ -150,6 +150,7 @@ roadmap-phase order.
 100. **Review-gate instrumentation** — lightweight adoption signals (stars/forks/issue authors/provider PRs) collected quarterly toward the 2027-04 "product vs personal infrastructure" gate, so the decision is made on data.
 101. **AHP watchlist — live run surface** — a Microsoft Agent Host Protocol "projector" over run events (sessions ≈ agent_runs, tool approvals ≈ needs_human, `session/inputNeeded` ≈ the human queue) as a separate service, never the worker (R6: durable state stays in Postgres + git/forge). Blocked until AHP ≥ 1.0 **and** a production non-Microsoft host exists (watch wyrd-company/ahp-server) or an OpenHands↔AHP bridge appears; the ACP adapter (64) is the prerequisite either way. *[research: 2026-07-27 AHP sweep]*
 102. **A2A watchlist — north-facing dispatch facade** — expose ploegd as an A2A remote agent (`a2a-go/v2`: signed AgentCard at `/.well-known/agent-card.json`, skills = teams; `SendMessage` → create+assign a tracker ticket via the TrackerProvider so the board stays authoritative — never a direct `work_items` insert; `GetTask`/`ListTasks`/`SubscribeToTask` project `work_items`+`agent_runs` with the ~1:1 state mapping queued→`SUBMITTED`, leased→`WORKING`, needs_human→`INPUT_REQUIRED`, done→`COMPLETED`; PR link as `Artifact`; `CancelTask` ≈ unassignment, #8) as a separate service, never the worker (R6). Prerequisites: tracker write-backs (#31) and a ploegd single-item read endpoint. Blocked until a real A2A client exists in the stack: kagent (A2A-native) deployed in homelab-cluster (watch kagent-dev/kagent#1941 spec-1.0 migration), an OpenHands reversal (OpenHands/software-agent-sdk#1060 was closed not_planned 2026-06 — they shipped ACP instead, validating #64), A2A gaining queue/pub-sub transport (a2aproject/A2A#1029 — would also make it an executor-seam candidate), or the 2027-04 review gate (#100) demanding a product-grade dispatch API. Near-term A2A experiments go through LiteLLM's Agent Gateway (already deployed; OpenAI-compat↔A2A bridge), kept away from factory credentials. Explicitly rejected: A2A between factory internals (worker↔harness, dispatcher↔worker) — one trust boundary, N² point-to-point HTTP, no lease/queue semantics. Verdict ledger: design.md §8; full dossier: [research/2026-07-28-a2a-fit.md](research/2026-07-28-a2a-fit.md). *[research: 2026-07-28 A2A sweep]*
+103. **Retire `PLOEG_TEAM_MAP`** (Teams concern, appended in number order) — resolve assignee→team from Vikunja team membership at runtime (factory-user JWT, cached) instead of the static env map; an unknown assignee drops the event, which also removes the `PLOEG_DEFAULT_TEAM` footgun that today silently routes a stranger's ticket to a real team. Depends on the Vikunja 2.4.0 upgrade (bot users are the provisioning primitive) and on the roster manifest + reconciler landing in homelab-cluster — this repo owns only the lookup. Full verdict: [research/2026-07-28-agent-roster-ssot.md](research/2026-07-28-agent-roster-ssot.md). *[research: 2026-07-28 roster SSoT sweep]*
 
 ---
 
