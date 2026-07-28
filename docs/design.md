@@ -118,6 +118,7 @@ outcomes by team, stuck queue, run durations). Trace/cost correlation via option
 | kagent / kars / agent-sandbox | Runtime & policy layers, not dispatch semantics; agent-sandbox is a planned runtime *under* Ploeg |
 | Argo Workflows as substrate | Strong exit-handler/DAG story; a second orchestration system to operate; revisit if team DAGs outgrow "sequential specialists on one branch" |
 | Forge-native (GitLab Duo, GitHub) | Serves the mainstream; structurally cannot serve self-hosted/mixed stacks — which is Ploeg's niche |
+| Microsoft AHP (agent-host-protocol, surveyed 2026-07-27) | Different layer entirely: multi-client *session-sync* above the harness ("AHP is a mutex over ACP" — their docs), no dispatch/lease/outcome semantics; draft v0.6 with breaking changes every 1–2 weeks, single-vendor (VS Code team), sole server impl is VS Code's agent host. Could someday compose *above* Ploeg as a live run surface (backlog 101); ACP remains the harness seam (§5) |
 
 ## 9. Decisions
 

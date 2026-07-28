@@ -1,4 +1,4 @@
-# Ploeg — improvement backlog (100 items)
+# Ploeg — improvement backlog (101 items)
 
 Compiled 2026-07-22 from the design doc, the domain model, the code skeleton, and a
 research sweep of adjacent solutions (misospace/dispatch, kandev, vibe-kanban,
@@ -99,7 +99,7 @@ roadmap-phase order.
 61. **Partial artifacts on every exit** — checkpoint and links populated on stuck/failed too, not just success (SWE-agent autosubmits on `exit_cost`; OpenHands pushes a progress branch on failure); make this a rule (R-candidate). *[research]*
 62. **Claude Code adapter** — `claude --bare -p --output-format json --json-schema <OutcomeReport>` with `--max-turns`, `--max-budget-usd`, `--permission-mode dontAsk` + explicit allowlist; parse cost/usage/session_id from the single JSON result. *[research]*
 63. **opencode adapter** — `opencode serve` + synchronous `POST /session/:id/message` (returns cost + token breakdown per message); locked-down `permission` block rather than blanket `--auto`; own the storage GC (no built-in pruning). *[research]*
-64. **ACP adapter** — one adapter over the Agent Client Protocol covers OpenCode, Gemini CLI, Goose, OpenHands and more; implement `session/request_permission` programmatically, map stopReason to outcomes, pin protocol v1 (v2 is draft as of 2026-07). *[research]*
+64. **ACP adapter** — one adapter over the Agent Client Protocol covers OpenCode, Gemini CLI, Goose, OpenHands and more; implement `session/request_permission` programmatically, map stopReason to outcomes, pin protocol v1 (v2 is draft as of 2026-07). *[research]* Re-confirmed 2026-07-27: the client↔agent seam has consolidated on ACP (JetBrains, Zed, AWS Kiro, Copilot CLI `--acp`, OpenHands Agent Canvas; even Microsoft's AHP docs name ACP as their downstream layer), and structured `session/update` + stopReasons would replace the PR-poll/log-tail outcome inference and fix the stuck-vs-failed inversion (architecture.md §9.9, VIK-596) at the source. *[research: AHP sweep]*
 65. **Stuck detection in the adapter** — loop heuristics (identical action-observation repeats, error repeats, ping-pong) promoting to a `stuck` outcome with reason, borrowed from OpenHands' StuckDetector thresholds. *[research]*
 66. **Usage in the OutcomeReport** — optional tokens/cost fields (both flagship harnesses emit them natively) plus the designed trace-id/ledger-key passthrough; Ploeg links, never collects.
 67. **Checkpoint tiering** — tier 1: branch + draft PR (survives everything, the Copilot-proven blueprint); tier 2: harness session state on a volume/object store for exact resume (Claude Code's cwd-scoped `~/.claude/projects`, opencode's `opencode.db`); tier 3: plan/status markdown in the branch. Each tier degrades into the next. *[research]*
@@ -139,7 +139,7 @@ roadmap-phase order.
 92. **CI hardening** — golangci-lint, govulncheck, `-race`, coverage gate on `pkg/work` and the lease manager.
 93. **Release pipeline** — goreleaser: multi-arch images to Forgejo registry + GHCR mirror, signed, changelog; version stamped into `ploegd`.
 
-## K. Packaging, docs & governance — 94–100
+## K. Packaging, docs & governance — 94–101
 
 94. **Helm chart** — ploegd, migrations job, ScaledJob templates, dashboards, network policies; CNPG cluster example values.
 95. **Quickstart demo** — kind + Vikunja + Forgejo + one team in ~15 minutes; the "watch a ticket become a PR" moment that sells the elevator pitch.
@@ -148,6 +148,7 @@ roadmap-phase order.
 98. **Contributor + provider docs** — CONTRIBUTING, provider authoring guide against the conformance kit (D33), SPI godoc examples; community-owned-providers policy stated plainly.
 99. **Domain-language enforcement** — regenerate `docs/domain/` in the same commit as model changes; CI check for `avoid`-listed terms (claim-as-noun, job-as-domain-term, crew) in code identifiers and docs.
 100. **Review-gate instrumentation** — lightweight adoption signals (stars/forks/issue authors/provider PRs) collected quarterly toward the 2027-04 "product vs personal infrastructure" gate, so the decision is made on data.
+101. **AHP watchlist — live run surface** — a Microsoft Agent Host Protocol "projector" over run events (sessions ≈ agent_runs, tool approvals ≈ needs_human, `session/inputNeeded` ≈ the human queue) as a separate service, never the worker (R6: durable state stays in Postgres + git/forge). Blocked until AHP ≥ 1.0 **and** a production non-Microsoft host exists (watch wyrd-company/ahp-server) or an OpenHands↔AHP bridge appears; the ACP adapter (64) is the prerequisite either way. *[research: 2026-07-27 AHP sweep]*
 
 ---
 
