@@ -24,18 +24,18 @@ func discardLog() *slog.Logger { return slog.New(slog.DiscardHandler) }
 func TestResolveOutcome_Precedence(t *testing.T) {
 	usage := &harness.Usage{CostUSD: 0.5, SessionID: "s"}
 	tests := []struct {
-		name           string
-		report         harness.OutcomeReport
-		runErr         error
-		ctxErr         error
-		prURL          string
-		expectsLLM     bool
-		wantOutcome    work.Outcome
-		wantSummary    string
-		wantReason     string
-		wantLinks      []string
-		wantPhase      string
-		wantFailure    string
+		name        string
+		report      harness.OutcomeReport
+		runErr      error
+		ctxErr      error
+		prURL       string
+		expectsLLM  bool
+		wantOutcome work.Outcome
+		wantSummary string
+		wantReason  string
+		wantLinks   []string
+		wantPhase   string
+		wantFailure string
 	}{
 		{
 			name:        "PR found always wins",
@@ -85,34 +85,34 @@ func TestResolveOutcome_Precedence(t *testing.T) {
 		},
 		// VIK-586: LLM adapter with zero spend and no PR → failed/infra_llm
 		{
-			name: "LLM adapter zero spend exit 0 = infra_llm",
-			report: harness.OutcomeReport{Usage: &harness.Usage{CostUSD: 0}},
-			expectsLLM: true,
+			name:        "LLM adapter zero spend exit 0 = infra_llm",
+			report:      harness.OutcomeReport{Usage: &harness.Usage{CostUSD: 0}},
+			expectsLLM:  true,
 			wantOutcome: work.OutcomeFailed,
 			wantSummary: "openhands run finished with zero LLM spend and no PR — likely LLM infra failure",
 			wantFailure: "infra_llm",
 		},
 		// nill usage = no telemetry = keep no_change_needed
 		{
-			name: "LLM adapter nil usage exit 0 = no_change_needed",
-			report: harness.OutcomeReport{Usage: nil},
-			expectsLLM: true,
+			name:        "LLM adapter nil usage exit 0 = no_change_needed",
+			report:      harness.OutcomeReport{Usage: nil},
+			expectsLLM:  true,
 			wantOutcome: work.OutcomeNoChangeNeeded,
 			wantSummary: "openhands run finished without opening a PR",
 		},
 		// exec adapter zero spend exit 0 = no_change_needed (no LLM spend expected)
 		{
-			name: "exec adapter zero spend exit 0 = no_change_needed",
-			report: harness.OutcomeReport{Usage: &harness.Usage{CostUSD: 0}},
-			expectsLLM: false,
+			name:        "exec adapter zero spend exit 0 = no_change_needed",
+			report:      harness.OutcomeReport{Usage: &harness.Usage{CostUSD: 0}},
+			expectsLLM:  false,
 			wantOutcome: work.OutcomeNoChangeNeeded,
 			wantSummary: "openhands run finished without opening a PR",
 		},
 		// LLM adapter with structured failed + zero spend → infra_llm
 		{
-			name: "LLM adapter structured failed zero spend maps failure_reason",
-			report: harness.OutcomeReport{Outcome: work.OutcomeFailed, Usage: &harness.Usage{CostUSD: 0}},
-			expectsLLM: true,
+			name:        "LLM adapter structured failed zero spend maps failure_reason",
+			report:      harness.OutcomeReport{Outcome: work.OutcomeFailed, Usage: &harness.Usage{CostUSD: 0}},
+			expectsLLM:  true,
 			wantOutcome: work.OutcomeFailed,
 			wantFailure: "infra_llm",
 		},

@@ -22,8 +22,8 @@ type Adapter struct {
 
 func New(entrypoint string) *Adapter { return &Adapter{Entrypoint: entrypoint} }
 
-func (a *Adapter) Name() string       { return "openhands" }
-func (a *Adapter) ExpectsLLM() bool   { return true }
+func (a *Adapter) Name() string     { return "openhands" }
+func (a *Adapter) ExpectsLLM() bool { return true }
 
 func (a *Adapter) Prepare(_ harness.TaskSpec, env harness.RunEnv) (harness.Invocation, error) {
 	taskPath := filepath.Join(env.ScratchDir, "task.md")

@@ -40,8 +40,8 @@ func New(args []string, outcomeFile string) (*Adapter, error) {
 	return &Adapter{Args: args, OutcomeFile: outcomeFile}, nil
 }
 
-func (a *Adapter) Name() string       { return "exec" }
-func (a *Adapter) ExpectsLLM() bool   { return false }
+func (a *Adapter) Name() string     { return "exec" }
+func (a *Adapter) ExpectsLLM() bool { return false }
 
 func (a *Adapter) Prepare(spec harness.TaskSpec, env harness.RunEnv) (harness.Invocation, error) {
 	specPath := filepath.Join(env.ScratchDir, "taskspec.json")

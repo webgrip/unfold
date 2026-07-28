@@ -56,11 +56,11 @@ func (o Outcome) Valid() bool {
 type FailureReason string
 
 const (
-	FailureInfraNode    FailureReason = "infra_node"
-	FailureInfraLLM     FailureReason = "infra_llm"
-	FailureAgentError   FailureReason = "agent_error"
-	FailureBudget       FailureReason = "budget"
-	FailureLeaseLost    FailureReason = "lease_lost"
+	FailureInfraNode  FailureReason = "infra_node"
+	FailureInfraLLM   FailureReason = "infra_llm"
+	FailureAgentError FailureReason = "agent_error"
+	FailureBudget     FailureReason = "budget"
+	FailureLeaseLost  FailureReason = "lease_lost"
 )
 
 // Valid reports whether f is a known failure reason enum value.

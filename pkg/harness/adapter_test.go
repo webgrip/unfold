@@ -21,7 +21,8 @@ type scriptAdapter struct {
 	parse       func(TaskSpec, ExecResult) (OutcomeReport, error)
 }
 
-func (s scriptAdapter) Name() string { return "script" }
+func (s scriptAdapter) Name() string     { return "script" }
+func (s scriptAdapter) ExpectsLLM() bool { return false }
 func (s scriptAdapter) Prepare(TaskSpec, RunEnv) (Invocation, error) {
 	return Invocation{Argv: s.argv, ExtraEnv: s.extraEnv, OutcomeFile: s.outcomeFile, CaptureStdout: s.capture}, nil
 }

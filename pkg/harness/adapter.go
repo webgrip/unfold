@@ -109,8 +109,8 @@ func RunCommand(ca CommandAdapter) Adapter { return commandRunner{ca} }
 
 type commandRunner struct{ ca CommandAdapter }
 
-func (r commandRunner) Name() string       { return r.ca.Name() }
-func (r commandRunner) ExpectsLLM() bool   { return r.ca.ExpectsLLM() }
+func (r commandRunner) Name() string     { return r.ca.Name() }
+func (r commandRunner) ExpectsLLM() bool { return r.ca.ExpectsLLM() }
 
 func (r commandRunner) Run(ctx context.Context, spec TaskSpec, env RunEnv) (OutcomeReport, error) {
 	inv, err := r.ca.Prepare(spec, env)

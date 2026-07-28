@@ -34,13 +34,13 @@ type RepoRef struct {
 // means "no structured signal" — the orchestrator falls back to forge
 // ground truth (PR poll) and exit-code heuristics.
 type OutcomeReport struct {
-	Outcome        work.Outcome     `json:"outcome"`
-	Summary        string           `json:"summary"`
-	Links          []string         `json:"links,omitempty"` // PRs, commits, created follow-ups
-	Checkpoint     *work.Checkpoint `json:"checkpoint,omitempty"`
-	StuckReason    string           `json:"stuckReason,omitempty"`    // mandatory when Outcome == stuck (R4)
-	Usage          *Usage           `json:"usage,omitempty"`          // reserved for backlog #66
-	FailureReason  string           `json:"failureReason,omitempty"`  // ploeg-internal failure taxonomy (VIK-597); set by the orchestrator, never by the harness
+	Outcome       work.Outcome     `json:"outcome"`
+	Summary       string           `json:"summary"`
+	Links         []string         `json:"links,omitempty"` // PRs, commits, created follow-ups
+	Checkpoint    *work.Checkpoint `json:"checkpoint,omitempty"`
+	StuckReason   string           `json:"stuckReason,omitempty"`   // mandatory when Outcome == stuck (R4)
+	Usage         *Usage           `json:"usage,omitempty"`         // reserved for backlog #66
+	FailureReason string           `json:"failureReason,omitempty"` // ploeg-internal failure taxonomy (VIK-597); set by the orchestrator, never by the harness
 }
 
 // Usage carries per-run cost/usage a harness can report (backlog #66) and
