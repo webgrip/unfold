@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://webgrip.dev/ploeg/contracts/outcomereport.v1.schema.json",
+  "title": "OutcomeReport",
+  "description": "The harness contract output (design §5, harness.OutcomeReport) and the body of POST /api/v1/runs/{token}/outcome. A stuck outcome always carries a stuckReason (R4).",
+  "type": "object",
+  "properties": {
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "pr_opened",
+        "pr_updated",
+        "issue_updated",
+        "follow_up_created",
+        "stuck",
+        "failed",
+        "no_change_needed"
+      ]
+    },
+    "summary": { "type": "string" },
+    "links": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "PRs, commits, created follow-ups"
+    },
+    "checkpoint": { "$ref": "checkpoint.v1.schema.json" },
+    "stuckReason": { "type": "string" },
+    "usage": {
+      "type": "object",
+      "description": "per-run cost/usage (backlog #66) and the harness-native resume handle (backlog #70)",
+      "properties": {
+        "inputTokens": { "type": "integer", "minimum": 0 },
+        "outputTokens": { "type": "integer", "minimum": 0 },
+        "costUsd": { "type": "number", "minimum": 0 },
+        "sessionId": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["outcome", "summary"],
+  "if": {
+    "properties": { "outcome": { "const": "stuck" } }
+  },
+  "then": {
+    "required": ["stuckReason"],
+    "properties": { "stuckReason": { "minLength": 1 } }
+  },
+  "additionalProperties": false
+}

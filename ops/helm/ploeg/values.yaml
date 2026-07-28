@@ -40,15 +40,35 @@ nodeSelector:
   node.webgrip.io/pool: worker
 
 executor:
-  # The KEDA ScaledJob executor (design §6). Disabled until the ingest path is
-  # verified in-cluster; flipping it on requires the LiteLLM + agent-builder
-  # secrets and the privileged-DinD PolicyException in the namespace.
+  # The executor (design §6, docs/contracts/executor.md). Disabled until the
+  # ingest path is verified in-cluster; flipping it on requires the LiteLLM +
+  # agent-builder secrets and (for dind harnesses) the privileged-DinD
+  # PolicyException in the namespace.
   enabled: false
+  # keda (flagship: ScaledJob + Postgres scaler) | cronjob (KEDA-free polling
+  # executor). Any other launcher can implement docs/contracts/executor.md
+  # out-of-chart against the run API.
+  type: keda
+  # Global harness defaults; a team's optional `harness:` block overrides
+  # these field-by-field (see teams below).
+  harness:
+    name: openhands # openhands | exec | claude-code (PLOEG_HARNESS)
+    image: ""       # agent image; "" = runnerImage below
+    entrypoint: ""  # binary override (PLOEG_HARNESS_ENTRYPOINT); "" = adapter default
+    args: []        # exec harness only: argv template with {taskspec}/{taskfile}
+    outcomeFile: "" # exec harness only: OutcomeReport JSON path override
+    dind: true      # privileged DinD sidecar + DOCKER_* wiring (OpenHands + gates need it)
+  # DEPRECATED in favor of harness.image (kept as the fallback so existing
+  # value overrides keep working).
   # agent-runner >=1.0.1 only: 1.0.0 mints LiteLLM keys without key_alias (400).
   runnerImage: harbor.webgrip.dev/webgrip/agent-runner:1.0.2@sha256:086b4bc0d3fda0e3c179f9501bb46a612f5f33e60d96405a5d94471a26279596
   dindImage: harbor.webgrip.dev/dockerhub/library/docker:29.6.2-dind
   workerImage: "" # empty = image.repository:tag (carries /usr/local/bin/ploeg-worker)
   apiUrl: ""      # empty = http://<fullname>:<service.port>
+  cronjob:
+    # type=cronjob only: how often each team polls for work. Idle ticks are
+    # free (empty-handed claim = exit 0).
+    schedule: "*/2 * * * *"
   litellm:
     baseUrl: http://litellm.ai.svc.cluster.local:4000/v1
     adminUrl: http://litellm.ai.svc.cluster.local:4000
@@ -110,3 +130,9 @@ executor:
   #   # this to the repo's actual trunk; VIK-589).
   #   baseBranch: main
   #   maxReplicaCount: 1
+  #   # Optional: override the executor.harness defaults for this team — the
+  #   # single axis of variation (harness AND agent image swap per team).
+  #   harness:
+  #     name: claude-code
+  #     image: harbor.webgrip.dev/webgrip/claude-runner:0.1.0
+  #     dind: false # claude-code needs no Docker daemon (PolicyException scope review!)

@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/webgrip/ploeg/pkg/harness"
 	"github.com/webgrip/ploeg/pkg/provider"
 	"github.com/webgrip/ploeg/pkg/store"
 	"github.com/webgrip/ploeg/pkg/work"
@@ -33,6 +34,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/runs/{token}/renew", s.handleRenew)
 	mux.HandleFunc("POST /api/v1/runs/{token}/checkpoint", s.handleCheckpoint)
 	mux.HandleFunc("POST /api/v1/runs/{token}/outcome", s.handleOutcome)
+	// Literal path wins over the {team} wildcard in the Go 1.22 mux.
+	mux.HandleFunc("GET /api/v1/queue/depth", s.handleQueueDepth)
 	mux.HandleFunc("GET /api/v1/queue/{team}", s.handleQueue)
 	return mux
 }
@@ -150,21 +153,32 @@ func (s *Server) handleCheckpoint(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-type outcomeRequest struct {
-	Outcome     work.Outcome `json:"outcome"`
-	Summary     string       `json:"summary"`
-	StuckReason string       `json:"stuckReason"`
-	Links       []string     `json:"links"`
-}
-
+// handleOutcome accepts the full harness.OutcomeReport shape
+// (docs/contracts/outcomereport.v1.schema.json). The historical 4-field
+// body remains valid: checkpoint and usage are additive. A final checkpoint
+// riding inline is written before the outcome ends the run.
 func (s *Server) handleOutcome(w http.ResponseWriter, r *http.Request) {
-	var req outcomeRequest
+	var req harness.OutcomeReport
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || !req.Outcome.Valid() {
 		http.Error(w, "outcome must be a known outcome enum value", http.StatusBadRequest)
 		return
 	}
+	if req.Outcome == work.OutcomeStuck && req.StuckReason == "" {
+		http.Error(w, "stuck outcome requires a stuckReason (R4)", http.StatusBadRequest)
+		return
+	}
+	if req.Checkpoint != nil && req.Checkpoint.Phase != "" {
+		if err := s.Store.Checkpoint(r.Context(), r.PathValue("token"), *req.Checkpoint); err != nil {
+			runError(w, err)
+			return
+		}
+	}
+	var usage json.RawMessage
+	if req.Usage != nil {
+		usage, _ = json.Marshal(req.Usage)
+	}
 	err := s.Store.ReportOutcome(r.Context(), r.PathValue("token"),
-		store.Report(req.Outcome, req.Summary, req.StuckReason, req.Links))
+		store.Report(req.Outcome, req.Summary, req.StuckReason, req.Links, usage))
 	if err != nil {
 		if errors.Is(err, store.ErrUnknownRun) {
 			runError(w, err)
@@ -175,6 +189,23 @@ func (s *Server) handleOutcome(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Log.Info("outcome reported", "outcome", req.Outcome, "summary", req.Summary)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleQueueDepth serves the executor scale signal over HTTP: the same
+// claimable-count the KEDA scaler reads via SQL, for executors without
+// Postgres credentials (docs/contracts/executor.md).
+func (s *Server) handleQueueDepth(w http.ResponseWriter, r *http.Request) {
+	team := r.URL.Query().Get("team")
+	if team == "" {
+		http.Error(w, "team query parameter is required", http.StatusBadRequest)
+		return
+	}
+	n, err := s.Store.QueueDepth(r.Context(), team)
+	if err != nil {
+		http.Error(w, "queue depth read failed", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"team": team, "depth": n})
 }
 
 func (s *Server) handleQueue(w http.ResponseWriter, r *http.Request) {

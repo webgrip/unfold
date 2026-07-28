@@ -86,11 +86,21 @@ summary, links, checkpoint) before exit. Adapters wrap concrete harnesses (Claud
 opencode, …) behind this contract. Candidate standard to track instead of inventing more:
 Agent Client Protocol (ACP). Exit-without-report is a `failed` outcome recorded by the watcher.
 
+*Implemented 2026-07-28:* the seam lives in `pkg/harness` (`Adapter` for session
+protocols like ACP; `CommandAdapter` for spawn-and-wait harnesses), with
+`openhands`/`exec`/`claude-code` adapters selected per team. Schemas published
+in [contracts/](contracts/) (backlog #59).
+
 ## 6. Execution
 
 - **Default executor: KEDA** `ScaledJob` per team, Postgres scaler on the queued-items query.
   Chosen because it is boring, proven, and already CNCF-maintained. KEDA is an implementation
   detail, not identity: the Executor interface is `(spawn, watch, cancel)` and pluggable.
+  *Implemented 2026-07-28 at the honest layer:* the executor SPI is the run API, formalized in
+  [contracts/executor.md](contracts/executor.md) (+ `GET /api/v1/queue/depth`); the chart gates
+  on `executor.type` (`keda` | `cronjob`, sharing one pod-template helper). A Go interface waits
+  for a controller-based executor (backlog #55/#58) — an interface with no caller is how the
+  first harness contract died.
 - Job failure/succeed events feed the lease manager and audit log (a controller watch, not
   agent goodwill).
 - **Security posture is first-class:** runtime class option for gVisor/Kata
@@ -119,6 +129,7 @@ outcomes by team, stuck queue, run durations). Trace/cost correlation via option
 | Argo Workflows as substrate | Strong exit-handler/DAG story; a second orchestration system to operate; revisit if team DAGs outgrow "sequential specialists on one branch" |
 | Forge-native (GitLab Duo, GitHub) | Serves the mainstream; structurally cannot serve self-hosted/mixed stacks — which is Ploeg's niche |
 | Microsoft AHP (agent-host-protocol, surveyed 2026-07-27) | Different layer entirely: multi-client *session-sync* above the harness ("AHP is a mutex over ACP" — their docs), no dispatch/lease/outcome semantics; draft v0.6 with breaking changes every 1–2 weeks, single-vendor (VS Code team), sole server impl is VS Code's agent host. Could someday compose *above* Ploeg as a live run surface (backlog 101); ACP remains the harness seam (§5) |
+| OmniRoute (diegosouzapw/OmniRoute, surveyed 2026-07-28) | Competitor for the *LiteLLM seam*, not a dispatch concern — and it loses that contest: no per-key budget/TTL/alias mint-revoke admin API (Ploeg's entire LLM coupling, `pkg/litellm`), local-first single-box Node/SQLite with no k8s story (its own comparison doc concedes "choose LiteLLM for k8s/Helm"), no multi-tenancy. Trust posture wrong for a credential-holding boundary in an autonomous factory: default JWT secret, plaintext keys unless opted in, fail-open guardrails, May-2026 Socket.dev npm block, and its core economics are ToS-gray free-tier farming via TLS-fingerprint (JA3/JA4) impersonation — arbitraged-and-deniable spend vs our metered-and-attributable `ploeg-<12hex>` audit chain. Solo author (~62% of commits), 5.5-month rewritten history, zero named production users. Orthogonal to Vikunja/KEDA/dispatch; its MCP/A2A endpoints serve its own tooling, not the harness seam. Fine as a *personal-workstation* router for interactive coding agents, kept away from factory credentials. Re-evaluate only if: 4.0 modular platform ships headless + k8s story; admin API reaches LiteLLM `/key/generate` parity (budget+TTL+alias); OpenHands merges provider support (two attempts closed unmerged, 2026-07); or governance matures past single-maintainer with a stable 3.9 LTS |
 
 ## 9. Decisions
 

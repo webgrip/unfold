@@ -34,8 +34,8 @@ forge webhook  ──┼─> ploegd ─> Postgres ──┤        │ lease ren
 ```
 
 - **`ploegd`** — single Go binary: webhook ingest, provider SPI, lease manager, outcome ingestion.
-- **Executor** — KEDA `ScaledJob` with the Postgres scaler is the flagship default; executors are pluggable.
-- **Harness contract** — an agent container receives a `TaskSpec`, must emit an `OutcomeReport`. Harness adapters (Claude Code, opencode, …) live behind one interface.
+- **Executor** — KEDA `ScaledJob` with the Postgres scaler is the flagship default; executors are pluggable behind the run-API contract ([docs/contracts/executor.md](docs/contracts/executor.md)) — a KEDA-free CronJob executor ships in the same chart (`executor.type`).
+- **Harness contract** — an agent container receives a `TaskSpec`, must emit an `OutcomeReport` ([schemas](docs/contracts/)). Harness adapters live behind `pkg/harness.Adapter`: `openhands` (default), `exec` (any binary), `claude-code` — selected per team, along with the agent image, via the team's `harness` block.
 
 ## Try the prototype
 

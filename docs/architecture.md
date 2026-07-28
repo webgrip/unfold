@@ -108,8 +108,12 @@ every pod is one auditable attempt). Defined in
 | Container | Kind | Purpose |
 |---|---|---|
 | `worker-bin` | init | Distroless self-copy of `ploeg-worker` into a shared emptyDir (`ploeg-worker install`) — no shell exists to `cp` |
-| `dind` | init, `restartPolicy: Always` (native sidecar) | Privileged Docker daemon; startup probe on :2376 gates the worker's start. Hosts the OpenHands sandbox and the quality gates, which run in **CI's own images** so gates match CI exactly |
-| `worker` | main | `ploeg-worker` binary running inside the `agent-runner` image: claim → clone → mint → OpenHands → PR detect → report |
+| `dind` | init, `restartPolicy: Always` (native sidecar) | Privileged Docker daemon; startup probe on :2376 gates the worker's start. Hosts the harness sandbox and the quality gates, which run in **CI's own images** so gates match CI exactly. Rendered only when the team's harness needs Docker (`harness.dind`, default true) |
+| `worker` | main | `ploeg-worker` binary running inside the team's harness image (default: `agent-runner`): claim → clone → mint → harness adapter (`PLOEG_HARNESS`) → PR detect → report |
+
+The pod template is one shared Helm helper (`ploeg.workerPodTemplate`) used
+by both executors (`executor.type: keda | cronjob`); a team's `harness`
+block swaps image, adapter, and dind without touching anything else.
 
 Load-bearing pod facts:
 
@@ -187,7 +191,10 @@ run leaks its key until the TTL reaps it (alert `slo-ploeg-run-key-leak`).
 
 ## 6. The task contract
 
-`composeTask` writes `/tmp/task.md`: the ticket title + description verbatim,
+`worker.ComposePrompt` renders the prompt every adapter delivers in its own
+native format (the `openhands` adapter writes it to `/tmp/task.md`; `exec`
+also writes a `taskspec.json` per [contracts/](contracts/); `claude-code`
+passes it inline): the ticket title + description verbatim,
 then a delivery contract — work on branch `agent/vik-<id>` from the configured
 base, never commit to base, run the quality gates via `docker run` against CI's
 images before opening a PR, end every commit with `VIK-<id>` and
@@ -210,7 +217,8 @@ fetch (VIK-590).
 | `POST /api/v1/claim` | Lease next queued item for a team (204 = empty-handed, worker exits 0) |
 | `POST /api/v1/runs/{token}/renew` | Extend lease (404 ⇒ worker aborts) |
 | `POST /api/v1/runs/{token}/checkpoint` | Record `branch_created` / `pr_opened` |
-| `POST /api/v1/runs/{token}/outcome` | Terminal report; `stuck` requires a reason |
+| `POST /api/v1/runs/{token}/outcome` | Terminal report (full `OutcomeReport`: checkpoint + usage ride inline); `stuck` requires a reason |
+| `GET /api/v1/queue/depth?team=` | Executor scale signal over HTTP (same predicate as the KEDA scaler query) |
 | `GET /api/v1/queue/{team}` | Operator snapshot |
 | `GET /healthz` · `GET /readyz` | Liveness / DB-ping readiness |
 
@@ -220,7 +228,10 @@ unguessable, but any holder can renew/checkpoint/report for that run.
 ## 8. Teams and deployment knobs
 
 A team = a Helm values entry: name, model, per-run budget, target repo, base
-branch, `maxReplicaCount` (currently 1). Assignee-username → team routing via
+branch, `maxReplicaCount` (currently 1), and optionally a `harness` block
+(adapter name, agent image, entrypoint/args, dind) overriding the global
+`executor.harness` defaults — the single axis of variation for swapping
+harness and image per team. Assignee-username → team routing via
 `PLOEG_TEAM_MAP` ("assign ticket to user `silver` = dispatch team silver");
 unmapped assignees fall to `PLOEG_DEFAULT_TEAM`. Live sizing, image pins, and
 team roster are set in `homelab-cluster`'s HelmRelease, which overrides this
@@ -234,8 +245,13 @@ and the implementation (verified 2026-07-27). Aspirational ≠ implemented:
 1. **PR follow-up ingestion** (design §3, R9): no forge webhook route, no
    `ForgeProvider` impl, `origin=follow_up` never produced. Review feedback
    re-enters via ticket re-assignment instead.
-2. **Harness contract** (design §5): `pkg/harness.TaskSpec`/`OutcomeReport`
-   are dead types; the real contract is markdown task.md + ad-hoc outcome JSON.
+2. **Harness contract** (design §5): **closed 2026-07-28.** `pkg/harness`
+   now carries the live seam: `TaskSpec`/`OutcomeReport` are the adapter I/O
+   (published schemas in [contracts/](contracts/), backlog #59), and
+   `harness.Adapter` wraps concrete harnesses — `openhands` (default),
+   `exec` (generic binary), `claude-code` (#62) — selected per team via
+   `PLOEG_HARNESS`. Outcome inference stays orchestrator-owned (PR poll is
+   ground truth) until an ACP adapter (#64) supplies structured outcomes.
 3. **"Watcher records failed on exit-without-report"**: no watcher exists;
    the DB lease sweeper is the crash detector.
 4. **Teams with roles/strategies**: no roles, no `teams` table; a team is one
@@ -257,13 +273,21 @@ and the implementation (verified 2026-07-27). Aspirational ≠ implemented:
     cancel or lease release (backlog #8).
 11. **No metrics**: no OTel/Prometheus in Go; observability = structured logs
     + the `key_alias` join in Grafana (external dashboards in homelab-cluster).
+12. **`executor.litellm.keyDuration` is dead**: **closed 2026-07-28.** The
+    worker now parses `LITELLM_KEY_DURATION` (default 4h) and passes it to
+    the credential broker (`pkg/llmbroker`); the set-but-ignored value became
+    effective — deployments that set it get the TTL they asked for.
 
 ## 10. Pointers
 
 - Dispatch plane code: [cmd/ploegd](../cmd/ploegd) ·
-  [cmd/ploeg-worker](../cmd/ploeg-worker) · [pkg/store](../pkg/store) ·
-  [pkg/httpapi](../pkg/httpapi) · [pkg/provider](../pkg/provider) ·
-  [pkg/litellm](../pkg/litellm) · [pkg/work](../pkg/work)
+  [cmd/ploeg-worker](../cmd/ploeg-worker) · [pkg/worker](../pkg/worker)
+  (run orchestration) · [pkg/harness](../pkg/harness) (adapter seam +
+  adapters) · [pkg/llmbroker](../pkg/llmbroker) (credential seam) ·
+  [pkg/store](../pkg/store) · [pkg/httpapi](../pkg/httpapi) ·
+  [pkg/provider](../pkg/provider) · [pkg/litellm](../pkg/litellm) ·
+  [pkg/work](../pkg/work)
+- Published contracts (schemas + executor SPI): [contracts/](contracts/)
 - Chart: [ops/helm/ploeg](../ops/helm/ploeg) — live values in
   `webgrip/homelab-cluster` (`kubernetes/apps/ploeg/`)
 - Runner image: `webgrip/infrastructure` → `ops/docker/agent-runner/`

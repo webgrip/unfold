@@ -78,7 +78,7 @@ roadmap-phase order.
 
 ## F. Execution (KEDA / Jobs) — 46–58
 
-46. **Executor interface + KEDA implementation** — `(spawn, watch, cancel)` with KEDA ScaledJob per team as flagship.
+46. **Executor interface + KEDA implementation** — `(spawn, watch, cancel)` with KEDA ScaledJob per team as flagship. **Done 2026-07-28 at the API/Helm layer**: the executor SPI is the run API, formalized in [contracts/executor.md](contracts/executor.md) (+ `GET /api/v1/queue/depth`); `executor.type: keda | cronjob` over one shared pod-template helper, CronJob as the working second executor. A Go interface is deferred until a controller-based executor (#55/#58) gives it a caller.
 47. **Correct scaler config** — query counts only claimable rows, `targetQueryValue: 1`, `accurate` scaling strategy; never `eager` (open over-scaling bug kedacore/keda#6416); read-only scaler DB role; partial index so the 30 s poll stays index-only. *[research]*
 48. **Worker-claims-at-startup** — KEDA cannot inject per-row payloads into Jobs (kedacore/keda#5100), so the agent container's entrypoint claims its Work Item and fetches its TaskSpec from ploegd at boot. *[research]*
 49. **Empty-handed worker = successful no-op** — entrypoint exits 0 when no claimable item exists; this single convention neutralizes every scaler-overshoot failure mode. *[research]*
@@ -94,17 +94,17 @@ roadmap-phase order.
 
 ## G. Harness contract & adapters — 59–70
 
-59. **Published JSON Schemas** — versioned schemas for TaskSpec and OutcomeReport; validation at the report API (mandatory `stuck_reason` when stuck).
+59. **Published JSON Schemas** — versioned schemas for TaskSpec and OutcomeReport; validation at the report API (mandatory `stuck_reason` when stuck). **Done 2026-07-28**: [contracts/](contracts/) v1 schemas pinned to the Go types by `pkg/harness/contract_test.go`; the outcome API accepts the full OutcomeReport (checkpoint + usage inline) and 400s stuck-without-reason.
 60. **Outcome enum refinement** — split `failed` by `failure_kind` (infra vs agent vs limits) and add `timed_out`/`budget_exceeded` as first-class terminals; the whole industry separates these (Copilot, SWE-agent, OpenHands). *[research]*
 61. **Partial artifacts on every exit** — checkpoint and links populated on stuck/failed too, not just success (SWE-agent autosubmits on `exit_cost`; OpenHands pushes a progress branch on failure); make this a rule (R-candidate). *[research]*
-62. **Claude Code adapter** — `claude --bare -p --output-format json --json-schema <OutcomeReport>` with `--max-turns`, `--max-budget-usd`, `--permission-mode dontAsk` + explicit allowlist; parse cost/usage/session_id from the single JSON result. *[research]*
+62. **Claude Code adapter** — `claude --bare -p --output-format json --json-schema <OutcomeReport>` with `--max-turns`, `--max-budget-usd`, `--permission-mode dontAsk` + explicit allowlist; parse cost/usage/session_id from the single JSON result. *[research]* **Adapter landed 2026-07-28** (`pkg/harness/adapters/claudecode`: `-p --output-format json --permission-mode bypassPermissions` by default — `dontAsk` is not a real CLI mode; override via `PLOEG_CLAUDE_PERMISSION_MODE`; envelope cost/usage/session_id → OutcomeReport.usage). Still open: `--json-schema` structured outcomes, `--max-turns`/`--max-budget-usd` plumbing (#44), and a claude-runner image in webgrip/infrastructure before a team can actually run it.
 63. **opencode adapter** — `opencode serve` + synchronous `POST /session/:id/message` (returns cost + token breakdown per message); locked-down `permission` block rather than blanket `--auto`; own the storage GC (no built-in pruning). *[research]*
 64. **ACP adapter** — one adapter over the Agent Client Protocol covers OpenCode, Gemini CLI, Goose, OpenHands and more; implement `session/request_permission` programmatically, map stopReason to outcomes, pin protocol v1 (v2 is draft as of 2026-07). *[research]* Re-confirmed 2026-07-27: the client↔agent seam has consolidated on ACP (JetBrains, Zed, AWS Kiro, Copilot CLI `--acp`, OpenHands Agent Canvas; even Microsoft's AHP docs name ACP as their downstream layer), and structured `session/update` + stopReasons would replace the PR-poll/log-tail outcome inference and fix the stuck-vs-failed inversion (architecture.md §9.9, VIK-596) at the source. *[research: AHP sweep]*
 65. **Stuck detection in the adapter** — loop heuristics (identical action-observation repeats, error repeats, ping-pong) promoting to a `stuck` outcome with reason, borrowed from OpenHands' StuckDetector thresholds. *[research]*
-66. **Usage in the OutcomeReport** — optional tokens/cost fields (both flagship harnesses emit them natively) plus the designed trace-id/ledger-key passthrough; Ploeg links, never collects.
+66. **Usage in the OutcomeReport** — optional tokens/cost fields (both flagship harnesses emit them natively) plus the designed trace-id/ledger-key passthrough; Ploeg links, never collects. **Wire format reserved 2026-07-28** (`usage` in outcomereport.v1 + `agent_runs.usage` JSONB, populated by the claude-code adapter); dashboards/consumers still open.
 67. **Checkpoint tiering** — tier 1: branch + draft PR (survives everything, the Copilot-proven blueprint); tier 2: harness session state on a volume/object store for exact resume (Claude Code's cwd-scoped `~/.claude/projects`, opencode's `opencode.db`); tier 3: plan/status markdown in the branch. Each tier degrades into the next. *[research]*
 68. **Idempotent checkpoint units** — side effect + checkpoint written as one idempotent unit keyed by (work item, phase), so resume never double-fires a side effect. *[research: Diagrid critique]*
-69. **Adapter SDK + conformance suite** — a small library (claim, heartbeat, report) plus contract tests any new adapter must pass; exit-without-report scenarios included.
+69. **Adapter SDK + conformance suite** — a small library (claim, heartbeat, report) plus contract tests any new adapter must pass; exit-without-report scenarios included. **Seeded 2026-07-28**: `pkg/harness/harnesstest` runs a conformance kernel (runnable invocation, no-fabricated-outcomes, cancel-kills) over every in-tree CommandAdapter; the out-of-process SDK remains open.
 70. **Resume mechanics per harness** — stable mount paths (Claude Code resume is cwd-scoped), `--session-id` pre-assignment, fork-on-retry semantics documented per adapter.
 
 ## H. Security — 71–80
@@ -157,7 +157,9 @@ roadmap-phase order.
 Considered and excluded as outside the accepted problem space: a web dashboard for
 queues (Grafana + `ploegctl` cover it), built-in grooming/DoR semantics (operator
 concern; open ambiguity in the domain model), an LLM gateway/cost ledger of our own
-(LiteLLM et al.; Ploeg links via trace/ledger keys), a Ploeg-maintained provider
+(LiteLLM et al.; Ploeg links via trace/ledger keys — re-confirmed 2026-07-28 against
+OmniRoute, rejected with flip triggers recorded in design.md §8 *[research: OmniRoute
+sweep]*), a Ploeg-maintained provider
 matrix beyond the two references, GKE-only Pod Snapshot fast-resume (vendor lock;
 agent-sandbox `Suspended` mode is the portable path), and Argo Workflows as the
 execution substrate (a second orchestration system to operate — its *semantics* were
