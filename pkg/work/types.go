@@ -50,6 +50,28 @@ func (o Outcome) Valid() bool {
 	return false
 }
 
+// FailureReason classifies why a run failed (agent_runs.failure_reason).
+// Set by the worker or sweeper; queried by dashboards and the run-forensics
+// view (VIK-597). The empty string means "not a failure" or "unclassified".
+type FailureReason string
+
+const (
+	FailureInfraNode  FailureReason = "infra_node"
+	FailureInfraLLM   FailureReason = "infra_llm"
+	FailureAgentError FailureReason = "agent_error"
+	FailureBudget     FailureReason = "budget"
+	FailureLeaseLost  FailureReason = "lease_lost"
+)
+
+// Valid reports whether f is a known failure reason enum value.
+func (f FailureReason) Valid() bool {
+	switch f {
+	case FailureInfraNode, FailureInfraLLM, FailureAgentError, FailureBudget, FailureLeaseLost:
+		return true
+	}
+	return false
+}
+
 // WorkItem mirrors one tracker item (provider + external id + revision).
 type WorkItem struct {
 	ID         string `json:"id"`
@@ -79,11 +101,15 @@ type Lease struct {
 }
 
 // Checkpoint is the small durable progress record enabling resume.
-// Everything else is re-derived from git/forge state.
+// Everything else is re-derived from git/forge state. NodeName and PodUID
+// are set from the downward API on the first checkpoint so forensics survive
+// pod/job cleanup (VIK-597).
 type Checkpoint struct {
 	WorkItemID string    `json:"workItemId,omitempty"`
 	Phase      string    `json:"phase"` // e.g. "branch_created", "changes_made", "pr_opened"
 	Branch     string    `json:"branch,omitempty"`
 	PRURL      string    `json:"prUrl,omitempty"`
+	NodeName   string    `json:"nodeName,omitempty"`
+	PodUID     string    `json:"podUid,omitempty"`
 	At         time.Time `json:"at,omitempty"`
 }

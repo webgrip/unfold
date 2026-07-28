@@ -288,12 +288,12 @@ func (s *Store) Checkpoint(ctx context.Context, runToken string, cp work.Checkpo
 		return err
 	}
 	if _, err := tx.Exec(ctx,
-		`INSERT INTO checkpoints (work_item_id, phase, branch, pr_url) VALUES ($1, $2, $3, $4)`,
-		id, cp.Phase, cp.Branch, cp.PRURL); err != nil {
+		`INSERT INTO checkpoints (work_item_id, phase, branch, pr_url, node_name, pod_uid) VALUES ($1, $2, $3, $4, $5, $6)`,
+		id, cp.Phase, cp.Branch, cp.PRURL, cp.NodeName, cp.PodUID); err != nil {
 		return err
 	}
 	if err := audit(ctx, tx, "team:"+team, "checkpoint.written", &id,
-		map[string]any{"phase": cp.Phase, "branch": cp.Branch, "pr_url": cp.PRURL}); err != nil {
+		map[string]any{"phase": cp.Phase, "branch": cp.Branch, "pr_url": cp.PRURL, "node_name": cp.NodeName, "pod_uid": cp.PodUID}); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -329,9 +329,9 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 		return err
 	}
 	if _, err := tx.Exec(ctx, `
-		UPDATE agent_runs SET finished_at = now(), outcome = $1, summary = $2, stuck_reason = $3, links = $4, usage = $5
-		WHERE run_token = $6`,
-		string(rep.Outcome), rep.Summary, rep.StuckReason, rep.Links, rep.Usage, runToken); err != nil {
+		UPDATE agent_runs SET finished_at = now(), outcome = $1, summary = $2, stuck_reason = $3, links = $4, usage = $5, failure_reason = $6
+		WHERE run_token = $7`,
+		string(rep.Outcome), rep.Summary, rep.StuckReason, rep.Links, rep.Usage, rep.FailureReason, runToken); err != nil {
 		return err
 	}
 	// A failed outcome re-queues until the retry threshold, then stale (R5).
@@ -357,18 +357,21 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 
 // harnessReport mirrors harness.OutcomeReport without importing the package
 // (store stays ignorant of transport shapes). Usage is opaque JSON
-// (harness.Usage), persisted as-is into agent_runs.usage.
+// (harness.Usage), persisted as-is into agent_runs.usage. FailureReason is
+// the ploeg-internal failure taxonomy (VIK-597) — never transmitted to a
+// harness.
 type harnessReport struct {
-	Outcome     work.Outcome
-	Summary     string
-	StuckReason string
-	Links       []string
-	Usage       json.RawMessage
+	Outcome       work.Outcome
+	Summary       string
+	StuckReason   string
+	Links         []string
+	Usage         json.RawMessage
+	FailureReason *string // nil = unclassified; set for failed outcomes (infra_llm, lease_lost, etc.)
 }
 
-// Report is the store-level outcome input. usage may be nil.
-func Report(outcome work.Outcome, summary, stuckReason string, links []string, usage json.RawMessage) harnessReport {
-	return harnessReport{Outcome: outcome, Summary: summary, StuckReason: stuckReason, Links: links, Usage: usage}
+// Report is the store-level outcome input. usage and failureReason may be nil.
+func Report(outcome work.Outcome, summary, stuckReason string, links []string, usage json.RawMessage, failureReason *string) harnessReport {
+	return harnessReport{Outcome: outcome, Summary: summary, StuckReason: stuckReason, Links: links, Usage: usage, FailureReason: failureReason}
 }
 
 // ExpireLeases releases every overdue lease: the run is recorded as failed
@@ -403,7 +406,7 @@ func (s *Store) ExpireLeases(ctx context.Context) ([]ExpiredLease, error) {
 	for i := range exp {
 		e := &exp[i]
 		if _, err := tx.Exec(ctx, `
-			UPDATE agent_runs SET finished_at = now(), outcome = 'failed', summary = 'lease expired'
+			UPDATE agent_runs SET finished_at = now(), outcome = 'failed', summary = 'lease expired', failure_reason = 'lease_lost'
 			WHERE run_token = $1 AND finished_at IS NULL`, e.RunToken); err != nil {
 			return nil, err
 		}

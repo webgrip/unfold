@@ -17,7 +17,7 @@ spec:
   minReplicaCount: 0
   maxReplicaCount: {{ .maxReplicaCount | default 1 }}
   successfulJobsHistoryLimit: 3
-  failedJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
   rollout:
     strategy: gradual # spec updates never kill in-flight runs (backlog #50)
   scalingStrategy:

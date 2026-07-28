@@ -23,9 +23,14 @@ import (
 // Session-protocol harnesses (ACP, backlog #64) implement Adapter
 // directly; spawn-and-wait harnesses implement CommandAdapter and are
 // lifted by RunCommand.
+//
+// ExpectsLLM distinguishes LLM-driven adapters (openhands, claude-code)
+// from exec-only adapters — used by the orchestrator's outcome heuristics
+// (VIK-586/VIK-597).
 type Adapter interface {
 	Name() string
 	Run(ctx context.Context, spec TaskSpec, env RunEnv) (OutcomeReport, error)
+	ExpectsLLM() bool
 }
 
 // RunEnv is everything the orchestrator provisions for one run.
@@ -64,6 +69,10 @@ type CommandAdapter interface {
 	// value to signal "no structured output" — the orchestrator then falls
 	// back to forge ground truth and exit-code heuristics.
 	ParseOutcome(spec TaskSpec, res ExecResult) (OutcomeReport, error)
+	// ExpectsLLM reports whether this adapter is LLM-driven (true for
+	// openhands/claudecode, false for exec). Used by the orchestrator's
+	// outcome heuristics (VIK-586/VIK-597).
+	ExpectsLLM() bool
 }
 
 // Invocation is one harness process to run.
@@ -100,7 +109,8 @@ func RunCommand(ca CommandAdapter) Adapter { return commandRunner{ca} }
 
 type commandRunner struct{ ca CommandAdapter }
 
-func (r commandRunner) Name() string { return r.ca.Name() }
+func (r commandRunner) Name() string     { return r.ca.Name() }
+func (r commandRunner) ExpectsLLM() bool { return r.ca.ExpectsLLM() }
 
 func (r commandRunner) Run(ctx context.Context, spec TaskSpec, env RunEnv) (OutcomeReport, error) {
 	inv, err := r.ca.Prepare(spec, env)

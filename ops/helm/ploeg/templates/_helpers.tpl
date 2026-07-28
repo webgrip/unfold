@@ -156,6 +156,17 @@ spec:
         - name: PLOEG_BASE_BRANCH
           value: {{ $team.baseBranch | quote }}
         {{- end }}
+        # Downward API: node+pod identity survives pod/job cleanup for
+        # run forensics (VIK-597). Logged at worker start and embedded in
+        # every checkpoint.
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: POD_UID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
         - name: WORK_DIR
           value: /mnt/ci-shared
         {{- if $hDind }}

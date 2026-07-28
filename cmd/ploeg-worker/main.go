@@ -106,7 +106,9 @@ func run(log *slog.Logger) error {
 		broker = llmbroker.NewLiteLLM(litellm.NewClient(adminURL, masterKey))
 	}
 
-	log.Info("ploeg-worker starting", "version", version, "team", cfg.Team, "harness", hc.Name)
+	nodeName := os.Getenv("NODE_NAME")
+	podUID := os.Getenv("POD_UID")
+	log.Info("ploeg-worker starting", "version", version, "team", cfg.Team, "harness", hc.Name, "node", nodeName, "pod_uid", podUID)
 	return worker.New(cfg, adapter, broker, log).Run()
 }
 
