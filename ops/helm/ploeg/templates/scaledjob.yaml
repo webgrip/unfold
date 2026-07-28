@@ -167,7 +167,7 @@ spec:
         sslmode: {{ $root.Values.executor.scaler.sslmode | quote }}
         # The one poll-query shape: served index-only by work_items_claimable
         # (backlog #24/#47).
-        query: "SELECT COUNT(*) FROM work_items WHERE team = '{{ .name }}' AND state = 'queued'"
+        query: "SELECT COUNT(*) FROM work_items WHERE team = '{{ .name }}' AND state = 'queued' AND (next_eligible_at IS NULL OR next_eligible_at <= now())"
         targetQueryValue: "1"
         activationTargetQueryValue: "0"
       authenticationRef:

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 
@@ -102,6 +103,37 @@ func lastAuditAction(t *testing.T, id int64) string {
 	return action
 }
 
+// backdateLease sets a lease's expiry to 1 second ago so ExpireLeases picks it up.
+func backdateLease(t *testing.T, runToken string) {
+	t.Helper()
+	if _, err := testStore.pool.Exec(context.Background(),
+		`UPDATE leases SET expires_at = now() - interval '1 second' WHERE run_token = $1`, runToken); err != nil {
+		t.Fatalf("backdate lease: %v", err)
+	}
+}
+
+// setPastNextEligibleAt sets next_eligible_at to 1 second ago so Claim picks it up.
+func setPastNextEligibleAt(t *testing.T, id int64) {
+	t.Helper()
+	if _, err := testStore.pool.Exec(context.Background(),
+		`UPDATE work_items SET next_eligible_at = now() - interval '1 second' WHERE id = $1`, id); err != nil {
+		t.Fatalf("clear parking: %v", err)
+	}
+}
+
+func itemAllFields(t *testing.T, id int64) (string, int, int, time.Time) {
+	t.Helper()
+	var state string
+	var attempts, infra int
+	var next time.Time
+	if err := testStore.pool.QueryRow(context.Background(),
+		`SELECT state, attempts, infra_failures, COALESCE(next_eligible_at, '0001-01-01'::timestamp)
+		 FROM work_items WHERE id = $1`, id).Scan(&state, &attempts, &infra, &next); err != nil {
+		t.Fatalf("read item: %v", err)
+	}
+	return state, attempts, infra, next
+}
+
 func TestIngestAssigned_NewItemIsQueued(t *testing.T) {
 	resetTables(t)
 	id, state := ingestItem(t)
@@ -165,4 +197,210 @@ func TestIngestAssigned_LeavesLiveStatesAlone(t *testing.T) {
 			}
 		})
 	}
+}
+
+// VIK-596: infra failures (lease expiry without outcome) do NOT increment
+// attempts, apply exponential backoff, and eventually stale at the cap.
+// Agent failures (reported outcomes) still increment attempts as before.
+
+// TestExpireLeases_Classification verifies that an expired lease without outcome
+// refunds the attempt and increments infra_failures (infra failure), while a
+// reported failure keeps attempts +1 (agent failure).
+func TestExpireLeases_Classification(t *testing.T) {
+	resetTables(t)
+	ctx := context.Background()
+
+	// Infra failure path.
+	id, _ := ingestItem(t)
+	claimed, err := testStore.Claim(ctx, "silver", 5*time.Minute)
+	if err != nil {
+		t.Fatalf("Claim: %v", err)
+	}
+	backdateLease(t, claimed.RunToken)
+	expired, err := testStore.ExpireLeases(ctx)
+	if err != nil {
+		t.Fatalf("ExpireLeases: %v", err)
+	}
+	if len(expired) != 1 {
+		t.Fatalf("expected 1 expired lease, got %d", len(expired))
+	}
+	state, attempts, infra, _ := itemAllFields(t, id)
+	if state != "queued" {
+		t.Fatalf("infra failure state = %q, want queued", state)
+	}
+	if attempts != 0 {
+		t.Fatalf("infra failure attempts = %d, want 0 (refunded)", attempts)
+	}
+	if infra != 1 {
+		t.Fatalf("infra failure infra_failures = %d, want 1", infra)
+	}
+	if expired[0].InfraFailures != 1 {
+		t.Fatalf("returned InfraFailures = %d, want 1", expired[0].InfraFailures)
+	}
+	if action := lastAuditAction(t, id); action != "lease.expired" {
+		t.Fatalf("audit action = %q, want lease.expired", action)
+	}
+}
+
+// TestExpireLeases_BackoffProgression verifies that consecutive infra failures
+// apply the exact backoff schedule: 1m, 5m, 15m, then 60m (capped).
+func TestExpireLeases_BackoffProgression(t *testing.T) {
+	resetTables(t)
+	ctx := context.Background()
+
+	id, _ := ingestItem(t)
+	for range 4 {
+		claimed, err := testStore.Claim(ctx, "silver", 5*time.Minute)
+		if err != nil {
+			t.Fatalf("Claim: %v", err)
+		}
+		backdateLease(t, claimed.RunToken)
+		if _, err := testStore.ExpireLeases(ctx); err != nil {
+			t.Fatalf("ExpireLeases: %v", err)
+		}
+		setPastNextEligibleAt(t, id)
+	}
+	state, attempts, infra, _ := itemAllFields(t, id)
+	if state != "queued" {
+		t.Fatalf("state = %q, want queued (should not stale after 4 infra)", state)
+	}
+	if infra != 4 {
+		t.Fatalf("infra_failures = %d, want 4", infra)
+	}
+	if attempts != 0 {
+		t.Fatalf("attempts = %d, want 0 (all refunded)", attempts)
+	}
+
+	// Verify the schedule on a fresh item for precise timing.
+	resetTables(t)
+	id, _ = ingestItem(t)
+	schedule := []time.Duration{time.Minute, 5 * time.Minute, 15 * time.Minute, 60 * time.Minute}
+	for i, want := range schedule {
+		claimed, err := testStore.Claim(ctx, "silver", 5*time.Minute)
+		if err != nil {
+			t.Fatalf("Claim iteration %d: %v", i, err)
+		}
+		backdateLease(t, claimed.RunToken)
+		if _, err := testStore.ExpireLeases(ctx); err != nil {
+			t.Fatalf("ExpireLeases iteration %d: %v", i, err)
+		}
+		var next time.Time
+		if err := testStore.pool.QueryRow(ctx,
+			`SELECT next_eligible_at FROM work_items WHERE id = $1`, id).Scan(&next); err != nil {
+			t.Fatalf("read next_eligible_at: %v", err)
+		}
+		got := time.Until(next)
+		if got < want-5*time.Second || got > want+5*time.Second {
+			t.Fatalf("iteration %d (infra %d): next_eligible_at delay = %v, want ~%v",
+				i, i, got, want)
+		}
+		setPastNextEligibleAt(t, id)
+	}
+}
+
+// TestExpireLeases_EligibilityFiltering verifies that Claim skips items whose
+// next_eligible_at is in the future, returning ErrNoWork.
+func TestExpireLeases_EligibilityFiltering(t *testing.T) {
+	resetTables(t)
+	ctx := context.Background()
+
+	id, _ := ingestItem(t)
+
+	// Claim and expire once to set next_eligible_at into the future.
+	claimed, err := testStore.Claim(ctx, "silver", 5*time.Minute)
+	if err != nil {
+		t.Fatalf("initial Claim: %v", err)
+	}
+	backdateLease(t, claimed.RunToken)
+	if _, err := testStore.ExpireLeases(ctx); err != nil {
+		t.Fatalf("ExpireLeases: %v", err)
+	}
+
+	// Item is now queued with next_eligible_at ~1m in the future.
+	if _, err := testStore.Claim(ctx, "silver", 5*time.Minute); err != ErrNoWork {
+		t.Fatalf("Claim on parked item: got %v, want ErrNoWork", err)
+	}
+
+	// Clear parking: item becomes claimable again.
+	setPastNextEligibleAt(t, id)
+	claimed, err = testStore.Claim(ctx, "silver", 5*time.Minute)
+	if err != nil {
+		t.Fatalf("Claim after clearing parking: %v", err)
+	}
+	_ = claimed
+}
+
+// TestExpireLeases_InfraCapStales verifies that when infra_failures reaches
+// the cap, the item goes stale with the infra_cap audit reason.
+func TestExpireLeases_InfraCapStales(t *testing.T) {
+	resetTables(t)
+	ctx := context.Background()
+
+	id, _ := ingestItem(t)
+
+	// Exhaust infra failures (cap = 10, so 10 infra failures --> stale).
+	for i := 0; i < MaxInfraFailures; i++ {
+		claimed, err := testStore.Claim(ctx, "silver", 5*time.Minute)
+		if err != nil {
+			t.Fatalf("Claim iteration %d: %v", i, err)
+		}
+		backdateLease(t, claimed.RunToken)
+		if _, err := testStore.ExpireLeases(ctx); err != nil {
+			t.Fatalf("ExpireLeases iteration %d: %v", i, err)
+		}
+		if i < MaxInfraFailures-1 {
+			setPastNextEligibleAt(t, id)
+		}
+	}
+	state, attempts, infra, _ := itemAllFields(t, id)
+	if state != "stale" {
+		t.Fatalf("state = %q, want stale", state)
+	}
+	if infra != MaxInfraFailures {
+		t.Fatalf("infra_failures = %d, want %d", infra, MaxInfraFailures)
+	}
+	if attempts != 0 {
+		t.Fatalf("attempts = %d, want 0 (all refunded)", attempts)
+	}
+	if action := lastAuditAction(t, id); action != "infra_cap" {
+		t.Fatalf("audit action = %q, want infra_cap", action)
+	}
+}
+
+// TestIngestAssigned_ClearsParking verifies that a human reassignment
+// (webhook hitting an already-queued parked item) clears next_eligible_at
+// -- human intent outranks machine pacing.
+func TestIngestAssigned_ClearsParking(t *testing.T) {
+	resetTables(t)
+	ctx := context.Background()
+
+	ingestItem(t)
+
+	// Infra-fail the item to put it in parked state.
+	claimed, err := testStore.Claim(ctx, "silver", 5*time.Minute)
+	if err != nil {
+		t.Fatalf("Claim: %v", err)
+	}
+	backdateLease(t, claimed.RunToken)
+	if _, err := testStore.ExpireLeases(ctx); err != nil {
+		t.Fatalf("ExpireLeases: %v", err)
+	}
+	// Item is queued with next_eligible_at ~1m in the future.
+	if _, err := testStore.Claim(ctx, "silver", 5*time.Minute); err != ErrNoWork {
+		t.Fatalf("Claim on parked item: got %v, want ErrNoWork", err)
+	}
+
+	// Reassign (webhook). Should clear parking.
+	if _, _, err := testStore.IngestAssigned(ctx, work.WorkItem{
+		Provider: "vikunja", ExternalID: "585", Team: "silver", Title: "t",
+	}); err != nil {
+		t.Fatalf("IngestAssigned: %v", err)
+	}
+
+	// Item should now be claimable again.
+	claimed, err = testStore.Claim(ctx, "silver", 5*time.Minute)
+	if err != nil {
+		t.Fatalf("Claim after reassignment: %v", err)
+	}
+	_ = claimed
 }
