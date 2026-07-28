@@ -293,7 +293,7 @@ func (s *Store) Checkpoint(ctx context.Context, runToken string, cp work.Checkpo
 		return err
 	}
 	if err := audit(ctx, tx, "team:"+team, "checkpoint.written", &id,
-		map[string]any{"phase": cp.Phase, "branch": cp.Branch, "pr_url": cp.PRURL}); err != nil {
+		map[string]any{"phase": cp.Phase, "branch": cp.Branch, "pr_url": cp.PRURL, "node_name": cp.NodeName, "pod_uid": cp.PodUID}); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -357,18 +357,20 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 
 // harnessReport mirrors harness.OutcomeReport without importing the package
 // (store stays ignorant of transport shapes). Usage is opaque JSON
-// (harness.Usage), persisted as-is into agent_runs.usage.
+// (harness.Usage), persisted as-is into agent_runs.usage. FailureReason is
+// the ploeg-internal failure taxonomy (VIK-597) — never transmitted to a
+// harness.
 type harnessReport struct {
 	Outcome       work.Outcome
 	Summary       string
 	StuckReason   string
 	Links         []string
 	Usage         json.RawMessage
-	FailureReason string
+	FailureReason *string // nil = unclassified; set for failed outcomes (infra_llm, lease_lost, etc.)
 }
 
-// Report is the store-level outcome input. usage may be nil.
-func Report(outcome work.Outcome, summary, stuckReason string, links []string, usage json.RawMessage, failureReason string) harnessReport {
+// Report is the store-level outcome input. usage and failureReason may be nil.
+func Report(outcome work.Outcome, summary, stuckReason string, links []string, usage json.RawMessage, failureReason *string) harnessReport {
 	return harnessReport{Outcome: outcome, Summary: summary, StuckReason: stuckReason, Links: links, Usage: usage, FailureReason: failureReason}
 }
 

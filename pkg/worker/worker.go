@@ -72,10 +72,15 @@ func (w *Worker) Run() error {
 		w.Log.Info("no claimable work item; exiting empty-handed")
 		return nil
 	}
+	// Downward API identity for run forensics (VIK-597). Empty when not
+	// running in-cluster (dev/test). Also passed via BaseEnv to the harness.
+	nodeName := os.Getenv("NODE_NAME")
+	podUID := os.Getenv("POD_UID")
+
 	item := claimed.WorkItem
 	branch := "agent/vik-" + item.ExternalID
 	trace := litellm.Alias(claimed.RunToken)
-	w.Log.Info("claimed work item", "id", item.ID, "external_id", item.ExternalID, "title", item.Title, "trace", trace, "harness", w.Adapter.Name())
+	w.Log.Info("claimed work item", "id", item.ID, "external_id", item.ExternalID, "title", item.Title, "trace", trace, "harness", w.Adapter.Name(), "node", nodeName, "pod_uid", podUID)
 
 	// Lease renewal at TTL/3; three consecutive failures (or a 404 = lease
 	// stolen) cancel the run — another worker may own the item now.
@@ -89,7 +94,7 @@ func (w *Worker) Run() error {
 
 	// From here on, every terminal path must report an outcome; failing to
 	// report leaves the lease to the sweeper (recorded failed/lease expired).
-	report := w.execute(ctx, claimed, branch, trace)
+	report := w.execute(ctx, claimed, branch, trace, nodeName, podUID)
 	// Log before reporting: if the POST fails, the pod log is the only place
 	// the run's actual result (and a stuck reason) survives.
 	w.Log.Info("run finished", "outcome", report.Outcome, "summary", report.Summary, "stuck_reason", report.StuckReason, "links", report.Links)
@@ -103,7 +108,9 @@ func (w *Worker) Run() error {
 // execute runs clone → prompt → credential mint → harness adapter → PR
 // detection and returns the report to submit. It never returns an error:
 // every failure maps to an outcome (stuck carries the mandatory reason, R4).
-func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, trace string) harness.OutcomeReport {
+// nodeName and podUID come from the downward API (VIK-597); they are embedded
+// in the first checkpoint and first log line for run forensics.
+func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, trace, nodeName, podUID string) harness.OutcomeReport {
 	item := claimed.WorkItem
 
 	cloneDir := filepath.Join(w.Cfg.WorkDir, "vik-"+item.ExternalID)
@@ -121,12 +128,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 		}
 	}
 
-	if err := w.API.Checkpoint(claimed.RunToken, work.Checkpoint{
-		Phase:    "branch_created",
-		Branch:   branch,
-		NodeName: os.Getenv("NODE_NAME"),
-		PodUID:   os.Getenv("POD_UID"),
-	}); err != nil {
+	if err := w.API.Checkpoint(claimed.RunToken, work.Checkpoint{Phase: "branch_created", Branch: branch, NodeName: nodeName, PodUID: podUID}); err != nil {
 		w.Log.Warn("checkpoint failed", "err", err)
 	}
 
@@ -156,8 +158,6 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 		Stdout:     io.MultiWriter(os.Stdout, &logTail),
 		Stderr:     io.MultiWriter(os.Stderr, &logTail),
 		Checkpoint: func(cp work.Checkpoint) {
-			cp.NodeName = os.Getenv("NODE_NAME")
-			cp.PodUID = os.Getenv("POD_UID")
 			if err := w.API.Checkpoint(claimed.RunToken, cp); err != nil {
 				w.Log.Warn("checkpoint failed", "err", err)
 			}
@@ -181,7 +181,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	if prErr != nil {
 		w.Log.Warn("PR lookup failed", "err", prErr)
 	}
-	return resolveOutcome(w.Adapter.Name(), report, runErr, ctx.Err(), prURL, item.Title, branch, logTail.Bytes())
+	return resolveOutcome(w.Adapter.Name(), report, runErr, ctx.Err(), prURL, item.Title, branch, logTail.Bytes(), w.Adapter.ExpectsLLM())
 }
 
 // runAgent mints the per-run credential, runs the harness adapter, and
@@ -226,8 +226,13 @@ func runAgent(ctx context.Context, log *slog.Logger, broker llmbroker.Broker, ad
 // forge ground truth (PR found) always wins; then a valid structured
 // harness report; then the exit-code heuristics. Usage from the harness
 // report is preserved regardless of which branch decides.
+//
+// expectsLLM is true for LLM-driven adapters (openhands, claude-code) —
+// used by the VIK-586 heuristic: zero telemetry from an LLM adapter maps
+// to failed/infra_llm; zero telemetry from exec or nil usage keeps the
+// default no_change_needed so exec-harness smoke runs do not burn attempts.
 func resolveOutcome(adapterName string, report harness.OutcomeReport, runErr, ctxErr error,
-	prURL, itemTitle, branch string, logTail []byte) harness.OutcomeReport {
+	prURL, itemTitle, branch string, logTail []byte, expectsLLM bool) harness.OutcomeReport {
 
 	resolved := func(r harness.OutcomeReport) harness.OutcomeReport {
 		if r.Usage == nil {
@@ -247,15 +252,19 @@ func resolveOutcome(adapterName string, report harness.OutcomeReport, runErr, ct
 		if report.Outcome == work.OutcomeStuck && report.StuckReason == "" {
 			report.StuckReason = tail(logTail, 2000) // R4: stuck always carries a reason
 		}
+		// VIK-586: LLM adapter with zero spend → infra_llm failure.
+		if report.Outcome == work.OutcomeFailed && expectsLLM && report.Usage != nil && report.Usage.CostUSD == 0 {
+			report.FailureReason = string(work.FailureInfraLLM)
+		}
 		return report
 	case runErr == nil:
-		if (report.Usage == nil || report.Usage.CostUSD == 0) && prURL == "" {
-			// VIK-586: no LLM spend + no PR means the LLM was unreachable;
-			// don't report no_change_needed — the run effectively failed.
+		// nil Usage = no telemetry = UNKNOWN → keep no_change_needed (VIK-586).
+		// Zero telemetry on an LLM adapter with exit 0 maps to failed/infra_llm.
+		if expectsLLM && report.Usage != nil && report.Usage.CostUSD == 0 {
 			return resolved(harness.OutcomeReport{
 				Outcome:       work.OutcomeFailed,
-				Summary:       adapterName + " run finished with zero LLM spend and no PR (infra_llm)",
-				FailureReason: work.FailureReasonInfraLLM,
+				Summary:       adapterName + " run finished with zero LLM spend and no PR — likely LLM infra failure",
+				FailureReason: string(work.FailureInfraLLM),
 			})
 		}
 		return resolved(harness.OutcomeReport{
@@ -264,16 +273,19 @@ func resolveOutcome(adapterName string, report harness.OutcomeReport, runErr, ct
 		})
 	case ctxErr != nil:
 		return resolved(harness.OutcomeReport{
-			Outcome:     work.OutcomeStuck,
-			Summary:     "run aborted (lease lost)",
-			StuckReason: "lease renewal failed; run cancelled to avoid a double claim",
+			Outcome:       work.OutcomeStuck,
+			Summary:       "run aborted (lease lost)",
+			StuckReason:   "lease renewal failed; run cancelled to avoid a double claim",
+			FailureReason: string(work.FailureLeaseLost),
 		})
 	default:
-		return resolved(harness.OutcomeReport{
+		r := resolved(harness.OutcomeReport{
 			Outcome:     work.OutcomeStuck,
 			Summary:     adapterName + " run failed",
 			StuckReason: tail(logTail, 2000),
 		})
+		r.FailureReason = string(work.FailureAgentError)
+		return r
 	}
 }
 

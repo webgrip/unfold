@@ -3,7 +3,6 @@ package worker
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -25,17 +24,18 @@ func discardLog() *slog.Logger { return slog.New(slog.DiscardHandler) }
 func TestResolveOutcome_Precedence(t *testing.T) {
 	usage := &harness.Usage{CostUSD: 0.5, SessionID: "s"}
 	tests := []struct {
-		name             string
-		report           harness.OutcomeReport
-		runErr           error
-		ctxErr           error
-		prURL            string
-		wantOutcome      work.Outcome
-		wantSummary      string
-		wantReason       string
-		wantLinks        []string
-		wantPhase        string
-		wantFailure      work.FailureReason
+		name           string
+		report         harness.OutcomeReport
+		runErr         error
+		ctxErr         error
+		prURL          string
+		expectsLLM     bool
+		wantOutcome    work.Outcome
+		wantSummary    string
+		wantReason     string
+		wantLinks      []string
+		wantPhase      string
+		wantFailure    string
 	}{
 		{
 			name:        "PR found always wins",
@@ -67,31 +67,13 @@ func TestResolveOutcome_Precedence(t *testing.T) {
 			wantSummary: "openhands run finished without opening a PR",
 		},
 		{
-			name:        "exit 0 with usage > 0 and no PR = no_change_needed (VIK-586 not triggered)",
-			report:      harness.OutcomeReport{Usage: &harness.Usage{CostUSD: 0.01}},
-			wantOutcome: work.OutcomeNoChangeNeeded,
-			wantSummary: "openhands run finished without opening a PR",
-		},
-		{
-			name:   "exit 0 with zero usage and no PR = failed (infra_llm / VIK-586)",
-			report: harness.OutcomeReport{Usage: &harness.Usage{CostUSD: 0}},
-			wantOutcome:      work.OutcomeFailed,
-			wantSummary:      "openhands run finished with zero LLM spend and no PR (infra_llm)",
-			wantFailure:      work.FailureReasonInfraLLM,
-		},
-		{
-			name:   "exit 0 with nil usage and no PR = failed (infra_llm / VIK-586)",
-			wantOutcome:      work.OutcomeFailed,
-			wantSummary:      "openhands run finished with zero LLM spend and no PR (infra_llm)",
-			wantFailure:      work.FailureReasonInfraLLM,
-		},
-		{
 			name:        "ctx cancelled = stuck (lease lost)",
 			runErr:      errors.New("signal: killed"),
 			ctxErr:      context.Canceled,
 			wantOutcome: work.OutcomeStuck,
 			wantSummary: "run aborted (lease lost)",
 			wantReason:  "lease renewal failed; run cancelled to avoid a double claim",
+			wantFailure: "lease_lost",
 		},
 		{
 			name:        "nonzero exit = stuck with log tail",
@@ -99,12 +81,46 @@ func TestResolveOutcome_Precedence(t *testing.T) {
 			wantOutcome: work.OutcomeStuck,
 			wantSummary: "openhands run failed",
 			wantReason:  "tail-of-log",
+			wantFailure: "agent_error",
+		},
+		// VIK-586: LLM adapter with zero spend and no PR → failed/infra_llm
+		{
+			name: "LLM adapter zero spend exit 0 = infra_llm",
+			report: harness.OutcomeReport{Usage: &harness.Usage{CostUSD: 0}},
+			expectsLLM: true,
+			wantOutcome: work.OutcomeFailed,
+			wantSummary: "openhands run finished with zero LLM spend and no PR — likely LLM infra failure",
+			wantFailure: "infra_llm",
+		},
+		// nill usage = no telemetry = keep no_change_needed
+		{
+			name: "LLM adapter nil usage exit 0 = no_change_needed",
+			report: harness.OutcomeReport{Usage: nil},
+			expectsLLM: true,
+			wantOutcome: work.OutcomeNoChangeNeeded,
+			wantSummary: "openhands run finished without opening a PR",
+		},
+		// exec adapter zero spend exit 0 = no_change_needed (no LLM spend expected)
+		{
+			name: "exec adapter zero spend exit 0 = no_change_needed",
+			report: harness.OutcomeReport{Usage: &harness.Usage{CostUSD: 0}},
+			expectsLLM: false,
+			wantOutcome: work.OutcomeNoChangeNeeded,
+			wantSummary: "openhands run finished without opening a PR",
+		},
+		// LLM adapter with structured failed + zero spend → infra_llm
+		{
+			name: "LLM adapter structured failed zero spend maps failure_reason",
+			report: harness.OutcomeReport{Outcome: work.OutcomeFailed, Usage: &harness.Usage{CostUSD: 0}},
+			expectsLLM: true,
+			wantOutcome: work.OutcomeFailed,
+			wantFailure: "infra_llm",
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			got := resolveOutcome("openhands", tc.report, tc.runErr, tc.ctxErr,
-				tc.prURL, "fix the thing", "agent/vik-585", []byte("tail-of-log"))
+				tc.prURL, "fix the thing", "agent/vik-585", []byte("tail-of-log"), tc.expectsLLM)
 			if got.Outcome != tc.wantOutcome {
 				t.Errorf("outcome = %q, want %q", got.Outcome, tc.wantOutcome)
 			}
@@ -120,18 +136,18 @@ func TestResolveOutcome_Precedence(t *testing.T) {
 			if tc.wantPhase != "" && (got.Checkpoint == nil || got.Checkpoint.Phase != tc.wantPhase) {
 				t.Errorf("checkpoint = %+v, want phase %q", got.Checkpoint, tc.wantPhase)
 			}
-			if tc.wantFailure != "" && got.FailureReason != tc.wantFailure {
+			if got.FailureReason != tc.wantFailure {
 				t.Errorf("failureReason = %q, want %q", got.FailureReason, tc.wantFailure)
 			}
 		})
 	}
 	t.Run("usage survives every branch", func(t *testing.T) {
 		report := harness.OutcomeReport{Usage: usage} // no structured outcome, usage only
-		got := resolveOutcome("claude-code", report, nil, nil, "http://forge/pr/8", "t", "b", nil)
+		got := resolveOutcome("claude-code", report, nil, nil, "http://forge/pr/8", "t", "b", nil, true)
 		if got.Usage != usage {
 			t.Errorf("usage lost on the PR branch: %+v", got.Usage)
 		}
-		got = resolveOutcome("claude-code", report, nil, nil, "", "t", "b", nil)
+		got = resolveOutcome("claude-code", report, nil, nil, "", "t", "b", nil, true)
 		if got.Usage != usage {
 			t.Errorf("usage lost on the no-change branch: %+v", got.Usage)
 		}
@@ -167,7 +183,7 @@ func (b *recordingBroker) Revoke(_ context.Context, cred llmbroker.Credential) e
 func fakeAgentAdapter(t *testing.T, exitCode int) harness.Adapter {
 	t.Helper()
 	bin := filepath.Join(t.TempDir(), "fake-agent.sh")
-	body := fmt.Sprintf("#!/bin/sh\nexit %d\n", exitCode)
+	body := "#!/bin/sh\nexit " + string(rune('0'+exitCode)) + "\n"
 	if err := os.WriteFile(bin, []byte(body), 0o755); err != nil {
 		t.Fatal(err)
 	}

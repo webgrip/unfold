@@ -31,7 +31,8 @@ func New(bin, permissionMode string) *Adapter {
 	return &Adapter{Bin: bin, PermissionMode: permissionMode}
 }
 
-func (a *Adapter) Name() string { return "claude-code" }
+func (a *Adapter) Name() string       { return "claude-code" }
+func (a *Adapter) ExpectsLLM() bool   { return true }
 
 func (a *Adapter) Prepare(_ harness.TaskSpec, env harness.RunEnv) (harness.Invocation, error) {
 	bin := a.Bin
