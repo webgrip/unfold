@@ -15,7 +15,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strconv"
 
 	"github.com/webgrip/ploeg/pkg/plan"
 	"github.com/webgrip/ploeg/pkg/provider"
@@ -36,6 +35,15 @@ type Engine struct {
 	// Trackers asks a person to merge when a Shift closes. Keyed by provider
 	// name, matching the Work Item's. Nil = no write-back.
 	Trackers map[string]provider.TrackerProvider
+	// Uniform gives a team with NO configured plan a synthesized one-writer
+	// plan, so every queued item gets a Shift and "what is happening with
+	// this item" has one answer instead of two.
+	//
+	// This is the one setting that changes behaviour for teams nobody
+	// reconfigured, which is why it is a switch: PLOEG_SHIFTS_UNIFORM=false
+	// restores the pre-Shift dispatch path without a rollback or a redeploy
+	// of anything but ploegd.
+	Uniform bool
 }
 
 // EnsureShift opens a Shift for a queued Work Item of a planned team, then
@@ -43,7 +51,7 @@ type Engine struct {
 // Shift is left alone, and the shifts_one_live_per_item index settles the
 // race two openers can still run into.
 func (e *Engine) EnsureShift(ctx context.Context, workItemID int64, item work.WorkItem) error {
-	tp, planned := e.Plans[item.Team]
+	tp, planned, _ := e.planFor(item.Team)
 	if !planned {
 		return nil
 	}
@@ -71,6 +79,35 @@ func (e *Engine) EnsureShift(ctx context.Context, workItemID int64, item work.Wo
 	return e.EvaluateItem(ctx, workItemID)
 }
 
+// planFor resolves a team's plan, synthesizing one when Uniform is set and
+// the team has none.
+//
+// A synthesized plan is one Round with one writing Role, no name and no cap:
+// exactly the engagement the pre-Shift path always was, now expressed as a
+// Shift so that EVERY item has one. That is what makes the Shift the single
+// answer to "what is happening with this item" — a bookkeeping change, not a
+// behavioural one.
+//
+// The Role's name is empty on purpose. It makes the synthesized Run claimable
+// by a role-less worker, which is what every plan-less team's pod still is,
+// so no chart change is needed to adopt this. The pool is zero, which
+// ClaimRole reads as unmetered, so the worker keeps minting against its env
+// budget exactly as before.
+// The second result reports whether the team is in scope at all; the third
+// reports whether the plan was SYNTHESIZED, which decides how its Shift ends
+// (see close).
+func (e *Engine) planFor(team string) (tp plan.TeamPlan, ok, synthesized bool) {
+	if tp, ok := e.Plans[team]; ok {
+		return tp, true, false
+	}
+	if !e.Uniform {
+		return plan.TeamPlan{}, false, false
+	}
+	return plan.TeamPlan{
+		Rounds: []plan.Round{{Roles: []plan.Role{{Writes: true}}}},
+	}, true, true
+}
+
 // EvaluateItem advances the live Shift on a Work Item, if any — the fast path
 // the outcome handler calls. A missing live Shift is not an error: the other
 // evaluator may have closed it first.
@@ -89,12 +126,13 @@ func (e *Engine) EvaluateItem(ctx context.Context, workItemID int64) error {
 // them has finished; the next Round comes from the plan; a stuck Run freezes
 // the plan; an exhausted plan closes the Shift and asks a person to merge.
 func (e *Engine) evaluate(ctx context.Context, si store.ShiftInfo) error {
-	tp, planned := e.Plans[si.Team]
+	tp, planned, synthesized := e.planFor(si.Team)
 	if !planned {
-		// The plan was removed while the Shift ran. Freezing silently would
-		// strand the item; close loudly and hand it to a person.
+		// The plan was removed while the Shift ran (or uniform dispatch was
+		// switched off under it). Freezing silently would strand the item;
+		// close loudly and hand it to a person.
 		return e.close(ctx, si, "plan removed from configuration",
-			"team "+si.Team+" no longer has a plan; shift closed")
+			"team "+si.Team+" no longer has a plan; shift closed", false, nil)
 	}
 
 	complete, err := e.Store.RoundComplete(ctx, si.ID)
@@ -118,9 +156,12 @@ func (e *Engine) evaluate(ctx context.Context, si store.ShiftInfo) error {
 
 	for _, r := range reports {
 		if r.Outcome == string(work.OutcomeStuck) {
+			// A stuck Outcome parks the item under BOTH dispatch shapes: R4
+			// says so, and it is what ReportOutcome would have done anyway.
 			return e.close(ctx, si,
 				fmt.Sprintf("run stuck: %s round %d", r.Role, r.Round),
-				fmt.Sprintf("shift stopped: %s reported stuck in round %d — %s", r.Role, r.Round, r.Summary))
+				fmt.Sprintf("shift stopped: %s reported stuck in round %d — %s", r.Role, r.Round, r.Summary),
+				false, reports)
 		}
 	}
 
@@ -128,7 +169,7 @@ func (e *Engine) evaluate(ctx context.Context, si store.ShiftInfo) error {
 	// Rounds, so it doubles as the index of the next one.
 	if si.Round >= len(tp.Rounds) {
 		return e.close(ctx, si, "plan_exhausted",
-			"plan complete; a person is asked to review and merge")
+			"plan complete; a person is asked to review and merge", synthesized, reports)
 	}
 	next := tp.Rounds[si.Round]
 	round, err := e.Store.OpenRound(ctx, si.ID, si.Round, storeRoles(next))
@@ -152,22 +193,55 @@ func storeRoles(r plan.Round) []store.Role {
 	return out
 }
 
-// close ends a Shift and moves its Work Item to needs_human — the engine owns
-// the item transition for Shift runs (design.md D3), and it happens exactly
-// once thanks to CloseShift's idempotency.
-func (e *Engine) close(ctx context.Context, si store.ShiftInfo, closeReason, humanReason string) error {
+// close ends a Shift and moves its Work Item — the engine owns that
+// transition for Shift runs (design.md D3), and it happens exactly once
+// thanks to CloseShift's idempotency.
+//
+// Where the item lands depends on whose plan it was. A CONFIGURED plan that
+// runs to completion parks at needs_human: several specialists worked the
+// item, and the last word is "a person is asked to merge"
+// (shift-orchestration spec).
+//
+// A SYNTHESIZED plan — uniform dispatch giving a plan-less team a Shift —
+// takes the outcome-derived state instead, which is exactly what
+// ReportOutcome would have written before Shifts existed. Uniform dispatch
+// has to be a bookkeeping change: flipping every plain team's pr_opened from
+// done to needs_human would silently rewrite what the board means, for teams
+// nobody reconfigured.
+func (e *Engine) close(ctx context.Context, si store.ShiftInfo, closeReason, humanReason string,
+	synthesized bool, reports []store.RunReport) error {
 	if err := e.Store.CloseShift(ctx, si.ID, closeReason); err != nil {
 		return err
 	}
-	if err := e.Store.MarkNeedsHuman(ctx, si.WorkItemID, humanReason); err != nil {
+
+	next := work.StateNeedsHuman
+	if synthesized {
+		if outcome, ok := terminalOutcome(reports); ok {
+			next = work.StateForOutcome(outcome)
+		}
+	}
+	if err := e.Store.SettleItem(ctx, si.WorkItemID, next, humanReason); err != nil {
 		return err
 	}
 	e.Log.Info("shift closed", "shift", si.ID, "work_item", si.WorkItemID,
-		"team", si.Team, "reason", closeReason)
+		"team", si.Team, "reason", closeReason, "item_state", string(next))
 	// After the state is durable, never before: a tracker outage must not be
 	// able to leave a Shift open or an item un-transitioned.
-	e.notifyHuman(ctx, si, humanReason)
+	if next == work.StateNeedsHuman {
+		e.notifyHuman(ctx, si, humanReason)
+	}
 	return nil
+}
+
+// terminalOutcome is the last Outcome any Run of the Shift reported — what a
+// single-writer Shift's whole engagement amounts to.
+func terminalOutcome(reports []store.RunReport) (work.Outcome, bool) {
+	for i := len(reports) - 1; i >= 0; i-- {
+		if reports[i].Outcome != "" {
+			return work.Outcome(reports[i].Outcome), true
+		}
+	}
+	return "", false
 }
 
 // EvaluateAll is the sweeper's repair pass: open the Shifts crashes left
@@ -175,25 +249,23 @@ func (e *Engine) close(ctx context.Context, si store.ShiftInfo, closeReason, hum
 // ran dry. Errors are logged, never returned — one broken Shift must not
 // stall the sweep of the rest (R2).
 func (e *Engine) EvaluateAll(ctx context.Context) {
-	// Queued items of planned teams that lack a live Shift: the crash window
-	// between IngestAssigned committing and EnsureShift running.
-	for team := range e.Plans {
-		items, err := e.Store.QueueSnapshot(ctx, team)
+	// Queued items with no live Shift: the crash window between
+	// IngestAssigned committing and EnsureShift running. Asked of the
+	// database rather than iterated per configured team, so uniform dispatch
+	// repairs items of teams that have no plan too. EnsureShift itself
+	// decides whether a given team is in scope.
+	ids, err := e.Store.QueuedWithoutShift(ctx)
+	if err != nil {
+		e.Log.Error("shift sweep: queued-without-shift read failed", "err", err)
+	}
+	for _, id := range ids {
+		item, err := e.Store.WorkItem(ctx, id)
 		if err != nil {
-			e.Log.Error("shift sweep: queue read failed", "team", team, "err", err)
+			e.Log.Error("shift sweep: work item read failed", "work_item", id, "err", err)
 			continue
 		}
-		for _, it := range items {
-			if it.State != work.StateQueued {
-				continue
-			}
-			id, err := strconv.ParseInt(it.ID, 10, 64)
-			if err != nil {
-				continue
-			}
-			if err := e.EnsureShift(ctx, id, it); err != nil {
-				e.Log.Error("shift sweep: ensure failed", "work_item", it.ID, "err", err)
-			}
+		if err := e.EnsureShift(ctx, id, item); err != nil {
+			e.Log.Error("shift sweep: ensure failed", "work_item", id, "err", err)
 		}
 	}
 
@@ -220,7 +292,9 @@ func (e *Engine) EvaluateAll(ctx context.Context) {
 		reason := fmt.Sprintf("budget exhausted: pool %.2f, spent %.2f, reserved %.2f",
 			b.Ledger.Budget, b.Ledger.Spent, b.Ledger.Reserved)
 		si := store.ShiftInfo{ID: b.ShiftID, WorkItemID: b.WorkItemID, Team: b.Team}
-		if err := e.close(ctx, si, reason, reason); err != nil {
+		// Always needs_human: running out of money is never retryable, under
+		// either dispatch shape (shift-orchestration spec).
+		if err := e.close(ctx, si, reason, reason, false, nil); err != nil {
 			e.Log.Error("shift sweep: park failed", "shift", b.ShiftID, "err", err)
 		}
 	}

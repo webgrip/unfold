@@ -143,16 +143,25 @@ func run(log *slog.Logger) error {
 	}
 	log.Info("team plans loaded", "teams", len(plans))
 
-	// The shift engine: nil when no team has a plan, and dispatch is exactly
-	// the pre-Shift path. With plans, ingest opens Shifts, outcome reports
-	// advance them, and the sweeper repairs what either fast path lost.
+	// Uniform dispatch: a team with no plan still gets a Shift — one Round,
+	// one writer — so every item has exactly one answer to "what is happening
+	// with this". Default on; PLOEG_SHIFTS_UNIFORM=false is the kill switch
+	// back to the pre-Shift path, and needs only a ploegd restart.
+	uniform := envOr("PLOEG_SHIFTS_UNIFORM", "true") != "false"
+
+	// The engine is nil only when it would have nothing to do: no plans AND
+	// no uniform dispatch. Then dispatch is exactly the pre-Shift path.
 	var engine *shiftengine.Engine
-	if len(plans) > 0 {
+	if len(plans) > 0 || uniform {
 		engine = &shiftengine.Engine{
 			Store: st, Plans: plans, Log: log,
 			Forges:   forges,
 			Trackers: map[string]provider.TrackerProvider{vik.Name(): vik},
+			Uniform:  uniform,
 		}
+		log.Info("shift engine enabled", "planned_teams", len(plans), "uniform", uniform)
+	} else {
+		log.Info("shift engine disabled (no plans, PLOEG_SHIFTS_UNIFORM=false)")
 	}
 
 	srv := &httpapi.Server{

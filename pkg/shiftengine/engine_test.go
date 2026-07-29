@@ -450,7 +450,7 @@ func TestRemandateAfterCloseOpensAFreshShift(t *testing.T) {
 	if err := testStore.CloseShift(ctx, first.ID, "operator abort"); err != nil {
 		t.Fatal(err)
 	}
-	if err := testStore.MarkNeedsHuman(ctx, id, "operator abort"); err != nil {
+	if err := testStore.SettleItem(ctx, id, work.StateNeedsHuman, "operator abort"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -482,4 +482,12 @@ func reviewPlan() plan.Plans {
 		panic(err)
 	}
 	return plans
+}
+
+func forceItemState(t *testing.T, id int64, state string, attempts int) {
+	t.Helper()
+	if _, err := testPool.Exec(context.Background(),
+		"UPDATE work_items SET state = $1, attempts = $2 WHERE id = $3", state, attempts, id); err != nil {
+		t.Fatalf("force state: %v", err)
+	}
 }

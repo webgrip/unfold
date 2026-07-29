@@ -501,22 +501,34 @@ func (s *Store) WorkItem(ctx context.Context, id int64) (work.WorkItem, error) {
 	return it, nil
 }
 
-// MarkNeedsHuman parks a Work Item for a person, with the reason on the audit
-// row. This is the shift engine's transition: for Shift runs, ReportOutcome
-// leaves the item alone and the engine moves it exactly once — at close, at a
-// terminal stuck, or when the pool runs dry (R4: the reason travels with it).
-func (s *Store) MarkNeedsHuman(ctx context.Context, workItemID int64, reason string) error {
+// SettleItem moves a Work Item to its post-Shift state, with the reason on
+// the audit row. This is the shift engine's transition: for Shift runs
+// ReportOutcome leaves the item alone, and the engine moves it exactly once —
+// at close, at a terminal stuck, or when the pool runs dry (R4: the reason
+// travels with it).
+//
+// A failed outcome still respects the retry threshold, so a Shift that ends
+// in failure re-queues and stales exactly like a legacy run (R5).
+func (s *Store) SettleItem(ctx context.Context, workItemID int64, next work.State, reason string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	if _, err := tx.Exec(ctx,
-		`UPDATE work_items SET state = 'needs_human', updated_at = now() WHERE id = $1`,
-		workItemID); err != nil {
+
+	if next == work.StateQueued {
+		if _, err := tx.Exec(ctx, `
+			UPDATE work_items
+			SET state = CASE WHEN attempts >= $2 THEN 'stale' ELSE 'queued' END, updated_at = now()
+			WHERE id = $1`, workItemID, MaxAttempts); err != nil {
+			return err
+		}
+	} else if _, err := tx.Exec(ctx,
+		`UPDATE work_items SET state = $2, updated_at = now() WHERE id = $1`,
+		workItemID, string(next)); err != nil {
 		return err
 	}
-	if err := audit(ctx, tx, "ploegd:shift-engine", "work_item.needs_human", &workItemID,
+	if err := audit(ctx, tx, "ploegd:shift-engine", "work_item."+string(next), &workItemID,
 		map[string]any{"reason": reason}); err != nil {
 		return err
 	}

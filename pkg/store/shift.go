@@ -372,6 +372,36 @@ func (s *Store) LiveShifts(ctx context.Context) ([]ShiftInfo, error) {
 	return out, rows.Err()
 }
 
+// QueuedWithoutShift lists queued Work Items that have no live Shift — the
+// sweeper's repair worklist for the window between IngestAssigned committing
+// and EnsureShift running.
+//
+// Asked of the database rather than by iterating configured teams, because
+// under uniform dispatch every team is in scope, including one whose plan was
+// removed or which never had one.
+func (s *Store) QueuedWithoutShift(ctx context.Context) ([]int64, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT w.id FROM work_items w
+		WHERE w.state = 'queued'
+		  AND NOT EXISTS (
+		      SELECT 1 FROM shifts sh
+		      WHERE sh.work_item_id = w.id AND sh.closed_at IS NULL)
+		ORDER BY w.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // LiveShiftForItem returns the live Shift on a Work Item, or nil. This is
 // what makes EnsureShift idempotent: the read answers "already open", and the
 // unique partial index settles the race two openers can still run into.

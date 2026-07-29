@@ -205,6 +205,18 @@ func (s *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 		s.claimRole(w, r, req)
 		return
 	}
+	// A role-less worker still belongs to a Shift when uniform dispatch
+	// synthesized one — its Run carries the empty role. Try that first and
+	// fall through to the pre-Shift claim when there is none, so the same
+	// pod serves both worlds and the kill switch needs no chart change.
+	if run, err := s.Store.ClaimRole(r.Context(), req.Team, "", s.LeaseTTL, 0); err == nil {
+		s.respondClaimedRun(w, r, req, run)
+		return
+	} else if !errors.Is(err, store.ErrNoWork) && !errors.Is(err, store.ErrBudgetExhausted) {
+		s.Log.Error("role-less shift claim failed", "team", req.Team, "err", err)
+		http.Error(w, "claim failed", http.StatusInternalServerError)
+		return
+	}
 	claimed, err := s.Store.Claim(r.Context(), req.Team, s.LeaseTTL)
 	if errors.Is(err, store.ErrNoWork) {
 		w.WriteHeader(http.StatusNoContent)
@@ -246,6 +258,11 @@ func (s *Server) claimRole(w http.ResponseWriter, r *http.Request, req claimRequ
 		return
 	}
 
+	s.respondClaimedRun(w, r, req, run)
+}
+
+// respondClaimedRun builds the Shift-shaped claim response, briefing and all.
+func (s *Server) respondClaimedRun(w http.ResponseWriter, r *http.Request, req claimRequest, run *store.ClaimedRun) {
 	resp := claimResponse{
 		RunToken: run.RunToken, Deadline: run.Deadline, WorkItem: run.Item,
 		Shift: run.ShiftID, Role: run.Role, Round: run.Round,
