@@ -17,6 +17,16 @@
           "type": "object",
           "properties": { "schedule": { "type": "string", "minLength": 1 } }
         },
+        "defaultTarget": {
+          "type": "object",
+          "description": "fallback repo for teams that declare none; empty = a team with no repoOwner/repoName gets no env target and relies entirely on the work item's resolved target",
+          "properties": {
+            "owner": { "type": "string" },
+            "name": { "type": "string" },
+            "baseBranch": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
         "teams": {
           "type": "array",
           "items": {
@@ -28,10 +38,12 @@
               "repoOwner": { "type": "string", "minLength": 1 },
               "repoName": { "type": "string", "minLength": 1 },
               "baseBranch": { "type": "string" },
+              "targetSource": { "enum": ["claim", "env"] },
               "maxReplicaCount": { "type": "integer", "minimum": 1 },
               "harness": { "$ref": "#/definitions/harness" }
             },
-            "required": ["name", "model", "budget", "repoOwner", "repoName"],
+            "//": "repoOwner/repoName are NOT required: the repository belongs to the work item, resolved at ingest (R11). They remain as a per-team fallback while teams migrate.",
+            "required": ["name", "model", "budget"],
             "additionalProperties": false
           }
         }

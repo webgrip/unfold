@@ -229,11 +229,21 @@ unguessable, but any holder can renew/checkpoint/report for that run.
 
 ## 8. Teams and deployment knobs
 
-A team = a Helm values entry: name, model, per-run budget, target repo, base
-branch, `maxReplicaCount` (currently 1), and optionally a `harness` block
+A team = a Helm values entry: name, model, per-run budget,
+`maxReplicaCount` (currently 1), and optionally a `harness` block
 (adapter name, agent image, entrypoint/args, dind) overriding the global
 `executor.harness` defaults — the single axis of variation for swapping
-harness and image per team. Assignee-username → team routing via
+harness and image per team.
+
+**The repository is not a team property** (R11, [ADR-0001](adr/adr-0001-work-target-is-a-work-item-attribute.md)):
+it belongs to the work item, resolved at ingest from the item's tracker scope
+via ploegd's `PLOEG_TARGET_MAP` and delivered on the claim. A team may still
+pin `repoOwner`/`repoName`/`baseBranch` as a *fallback* while the rollout
+completes — no longer required by the schema — and `targetSource: env` pins one
+team to that fallback regardless of what the claim says. See
+[§9.12](#9-where-the-code-diverges-from-designmd) for what is still open.
+
+Assignee-username → team routing via
 `PLOEG_TEAM_MAP` ("assign ticket to user `silver` = dispatch team silver");
 unmapped assignees fall to `PLOEG_DEFAULT_TEAM`. Live sizing, image pins, and
 team roster are set in `homelab-cluster`'s HelmRelease, which overrides this
@@ -242,7 +252,8 @@ chart's defaults — check there first when debugging what's actually running.
 ## 9. Where the code diverges from design.md
 
 Known gaps between [design.md](design.md) / [domain/model.yaml](domain/model.yaml)
-and the implementation (verified 2026-07-27). Aspirational ≠ implemented:
+and the implementation (1–11 verified 2026-07-27; 12–17 added 2026-07-29).
+Aspirational ≠ implemented:
 
 1. **PR follow-up ingestion** (design §3, R9): no forge webhook route, no
    `ForgeProvider` impl, `origin=follow_up` never produced. Review feedback
@@ -275,6 +286,59 @@ and the implementation (verified 2026-07-27). Aspirational ≠ implemented:
     cancel or lease release (backlog #8).
 11. **No metrics**: no OTel/Prometheus in Go; observability is structured logs
     plus the `key_alias` join in Grafana (external dashboards in homelab-cluster).
+12. **Team names the repository** (design §3, `domain/model.yaml:369-389`): the
+    Team entity's attributes are exactly name, roles, strategy, budget — no
+    repo. The chart binds one anyway: `ops/helm/ploeg/values.yaml` team entries
+    carry `repoOwner`/`repoName`/`baseBranch`, and `values.schema.json:34` makes
+    `repoOwner`/`repoName` **required**; `cmd/ploeg-worker/main.go:70-74`
+    `requireEnv`s `REPO_OWNER`/`REPO_NAME` before the worker claims anything.
+    The model's only repository is `TaskSpec.repo_url`
+    (`domain/model.yaml:391-411`), which states no derivation. Cost: onboarding
+    a repo needs a new team + KEDA ScaledJob + tracker bot user even when model,
+    budget and harness are identical. Decision to decouple:
+    [adr/adr-0001-work-target-is-a-work-item-attribute.md](adr/adr-0001-work-target-is-a-work-item-attribute.md).
+    **Partly closed 2026-07-29**: a Work Item now carries its own Target
+    (`pkg/work.Target`, migration 0007), the claim delivers it, the worker
+    prefers it (`pkg/worker/target.go`), and the chart no longer *requires* a
+    per-team repo. Still open until the rollout completes: teams may still pin
+    a fallback repo, and no live team resolves a Target yet — the map
+    (`PLOEG_TARGET_MAP`) is empty, so every run still uses its env repo.
+13. **The SPI carries a core concept** (R7): `provider.TrackerEvent.Team`
+    (`pkg/provider/provider.go:27`) puts a Ploeg-domain routing *result* in the
+    provider SPI, and the Vikunja adapter produces it from `PLOEG_TEAM_MAP` —
+    the exact shape R7 forbids ("core semantics must never encode a
+    provider-specific workaround"). Decision:
+    [adr/adr-0002-routing-is-core-policy-over-provider-opaque-scopes.md](adr/adr-0002-routing-is-core-policy-over-provider-opaque-scopes.md).
+14. **The native routing scope is discarded at the parse boundary**:
+    `pkg/provider/vikunja/vikunja.go:38-51` unmarshals only `event_name`,
+    `data.task.{id,title,description,priority}` and `data.assignee.username`.
+    Vikunja *does* send `project_id`; `encoding/json` silently drops it (zero
+    `project_id` references repo-wide). Per [ops/board.md](ops/board.md)
+    ("Dispatch topology — the trap") every team's webhook and team-user share
+    live on **Ploeg Test (project 11)**, not the planning board, so all teams
+    ingest one project and the repository is effectively chosen by which
+    persona gets assigned. **Closed 2026-07-29**: the adapter now emits the
+    project as an opaque `provider.Scope` and the core maps it to a Target; the
+    one-project topology is why the map's transitional key is `<scope>/<team>`
+    rather than scope alone.
+15. **Forge is a global singleton**: one `FORGEJO_URL` + one
+    `AGENT_BUILDER_TOKEN` (`ops/helm/ploeg/templates/_helpers.tpl:142-148`) and
+    a hardcoded `agent-builder` git identity (`pkg/worker/worker.go:118,125`).
+    `provider.ForgeProvider` (`pkg/provider/provider.go:47-70`) has **zero**
+    implementations while `pkg/worker/forge.go:22-55` hardcodes the Forgejo REST
+    dialect. Decision:
+    [adr/adr-0003-forge-registry-and-per-run-repo-scoped-credentials.md](adr/adr-0003-forge-registry-and-per-run-repo-scoped-credentials.md).
+16. **`agent/vik-<id>` embeds a vendor token and is not unique per target**:
+    `pkg/worker/worker.go:81` builds the branch as `"agent/vik-" +
+    item.ExternalID`. `vik` is a Vikunja token sitting in core semantics (R7),
+    and the same name recurs across repositories — which is why R9 ("Follow-Ups
+    are routed to the Team owning the source branch") has no implementable
+    lookup key today.
+17. **Spend attribution is only groupable by team**: `agent_runs` carries `team`
+    but no target, and with the repo fixed per team (12) cost rolls up by
+    capability tier only — never per product or repository. Since 2026-07-29 the
+    target is on `work_items` and in the `lease.acquired` audit row, so a
+    per-repo rollup is a join away; `agent_runs` still carries no target column.
 
 ## 10. Pointers
 
@@ -290,4 +354,5 @@ and the implementation (verified 2026-07-27). Aspirational ≠ implemented:
   `webgrip/homelab-cluster` (`kubernetes/apps/ploeg/`)
 - Runner image: `webgrip/infrastructure` → `ops/docker/agent-runner/`
 - Design intent: [design.md](design.md) · domain language:
-  [domain/](domain/) · roadmap: [backlog.md](backlog.md)
+  [domain/](domain/) · roadmap: [backlog.md](backlog.md) · decision records:
+  [adr/](adr/index.md)
