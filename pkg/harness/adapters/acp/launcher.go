@@ -16,7 +16,7 @@ import (
 // be driven by an in-process fake in tests, with no `go build`, no network, and
 // no real agent binary.
 type launcher interface {
-	launch(ctx context.Context, argv []string, dir string, env []string, stderr io.Writer) (*process, error)
+	launch(ctx context.Context, argv []string, dir string, env []string, stderr io.Writer, onRaw func([]byte)) (*process, error)
 }
 
 // process is a running agent, with its protocol channel already separated from
@@ -36,9 +36,12 @@ type process struct {
 	Kill func()
 }
 
+// syscallTERM is the polite stop, delivered to the whole process group.
+var syscallTERM os.Signal = syscall.SIGTERM
+
 type execLauncher struct{}
 
-func (execLauncher) launch(_ context.Context, argv []string, dir string, env []string, stderr io.Writer) (*process, error) {
+func (execLauncher) launch(_ context.Context, argv []string, dir string, env []string, stderr io.Writer, onRaw func([]byte)) (*process, error) {
 	if len(argv) == 0 {
 		return nil, errEmptyArgv
 	}
@@ -65,7 +68,7 @@ func (execLauncher) launch(_ context.Context, argv []string, dir string, env []s
 		return nil, err
 	}
 
-	protocol := newJSONLFilter(stdoutPipe, stderr)
+	protocol := newJSONLFilter(stdoutPipe, stderr, onRaw)
 	stdin := newAsyncWriter(stdinPipe)
 
 	var (
@@ -124,7 +127,14 @@ const maxProtocolLine = 8 << 20
 // subcommand (`opencode` instead of `opencode acp`) shows up as "initialize
 // never completed, and here is the human-readable text it printed instead" —
 // a diagnosable infra failure rather than a mystery.
-func newJSONLFilter(src io.Reader, noise io.Writer) io.Reader {
+// onRaw, when non-nil, receives every protocol line BEFORE the SDK parses it.
+// That ordering is load-bearing: coder/acp-go-sdk v0.13.5 is generated from
+// schema 0.13.5 and its session/update union does not carry the ACP v1 usage
+// shape ({used,size,cost}), so an agent sending v1 usage has it silently
+// dropped by the SDK's decoder. Reading semantics off the raw line is the only
+// mitigation that actually holds — a decoder placed AFTER the SDK inherits
+// whatever the SDK failed to parse.
+func newJSONLFilter(src io.Reader, noise io.Writer, onRaw func([]byte)) io.Reader {
 	pr, pw := io.Pipe()
 	go func() {
 		sc := bufio.NewScanner(src)
@@ -132,6 +142,9 @@ func newJSONLFilter(src io.Reader, noise io.Writer) io.Reader {
 		for sc.Scan() {
 			line := sc.Bytes()
 			if isJSONLine(line) {
+				if onRaw != nil {
+					onRaw(append([]byte{}, line...))
+				}
 				if _, err := pw.Write(append(append([]byte{}, line...), '\n')); err != nil {
 					// The reader went away; drain the rest into noise so the
 					// child never blocks on a full pipe.

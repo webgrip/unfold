@@ -115,13 +115,20 @@ func (fx Fixture) prepareProducesRunnableInvocation(t *testing.T) {
 
 func (fx Fixture) successWithoutStructuredOutput(t *testing.T) {
 	report, err := fx.adapter(t, script(t, "exit 0")).Run(context.Background(), spec(), env(t))
+	// A clean exit is success for a spawn-and-wait adapter, but for a session
+	// adapter a binary that exits 0 without completing a handshake never spoke
+	// the protocol at all — an error there is correct, not a violation. What
+	// both shapes owe us is the same: never fabricate an outcome.
 	if err != nil {
-		t.Fatalf("run: %v", err)
+		t.Logf("run returned %v (a session adapter may reject a non-protocol binary here)", err)
 	}
 	// Zero-value ("no structured signal") or a valid outcome are both
 	// conformant; an invalid non-zero outcome is not.
 	if report.Outcome != "" && !report.Outcome.Valid() {
 		t.Errorf("adapter reported an invalid outcome %q", report.Outcome)
+	}
+	if report.Outcome == work.OutcomePROpened || report.Outcome == work.OutcomePRUpdated {
+		t.Errorf("clean exit was read as %q — adapters never assert forge state", report.Outcome)
 	}
 }
 

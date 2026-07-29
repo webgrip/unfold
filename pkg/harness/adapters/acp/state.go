@@ -279,6 +279,14 @@ func (s *sessionState) lastThought() string {
 	return strings.TrimSpace(s.thoughts.String())
 }
 
+// eventCount is the idle watchdog's definition of progress: any protocol
+// event at all. A stuck agent emits nothing; a slow one still streams.
+func (s *sessionState) eventCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.events
+}
+
 func (s *sessionState) session() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()

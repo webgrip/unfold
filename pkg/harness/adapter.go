@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"sync"
 
 	"github.com/webgrip/ploeg/pkg/work"
 )
@@ -175,16 +176,34 @@ func nonNil(w io.Writer) io.Writer {
 }
 
 // TailBuffer keeps the last 8 KiB written — enough for a stuck reason.
-type TailBuffer struct{ buf []byte }
+//
+// Safe for concurrent use. RunCommand only reads it after cmd.Run() returns,
+// but a session adapter (ACP) pumps stderr on its own goroutine and may read
+// the tail on an early-return path while that pump is still writing. The race
+// detector found exactly that; a mutex here fixes it for every adapter rather
+// than asking each one to remember.
+type TailBuffer struct {
+	mu  sync.Mutex
+	buf []byte
+}
 
 func (t *TailBuffer) Write(p []byte) (int, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	t.buf = append(t.buf, p...)
 	if len(t.buf) > 8192 {
 		t.buf = t.buf[len(t.buf)-8192:]
 	}
 	return len(p), nil
 }
-func (t *TailBuffer) Bytes() []byte { return t.buf }
+
+// Bytes returns a COPY: handing out the live slice would let a caller read it
+// while the next Write reslices underneath them.
+func (t *TailBuffer) Bytes() []byte {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return append([]byte(nil), t.buf...)
+}
 
 // limitBuffer keeps the first max bytes written and drops the rest.
 type limitBuffer struct {
