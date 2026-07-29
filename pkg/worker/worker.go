@@ -165,6 +165,18 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 		Log: w.Log,
 	}
 
+	// A PR on this branch BEFORE the harness runs is a previous run's work:
+	// the branch name is derived from the ticket, so every retry, review round
+	// and persona turn reuses it. Without this snapshot a run that crashes
+	// instantly would inherit the earlier PR and report pr_opened → done.
+	priorPR, priorErr := findPR(w.Cfg, branch)
+	if priorErr != nil {
+		w.Log.Warn("pre-run PR lookup failed", "err", priorErr)
+	}
+	if priorPR != "" {
+		w.Log.Info("branch already has an open PR", "pr", priorPR, "branch", branch)
+	}
+
 	w.Log.Info("starting headless harness run", "harness", w.Adapter.Name(), "cwd", cloneDir)
 	report, mintErr, runErr := runAgent(ctx, w.Log, w.Broker, w.Adapter, spec, env, llmbroker.MintRequest{
 		RunToken:  claimed.RunToken,
@@ -181,7 +193,8 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	if prErr != nil {
 		w.Log.Warn("PR lookup failed", "err", prErr)
 	}
-	return resolveOutcome(w.Adapter.Name(), report, runErr, ctx.Err(), prURL, item.Title, branch, logTail.Bytes(), w.Adapter.ExpectsLLM())
+	return resolveOutcome(w.Adapter.Name(), report, runErr, ctx.Err(), prURL, priorPR != "",
+		item.Title, branch, logTail.Bytes(), w.Adapter.ExpectsLLM())
 }
 
 // runAgent mints the per-run credential, runs the harness adapter, and
@@ -222,17 +235,33 @@ func runAgent(ctx context.Context, log *slog.Logger, broker llmbroker.Broker, ad
 	return report, nil, runErr
 }
 
+// noLLMTraffic reports whether usage telemetry proves the run made no LLM
+// calls at all. Zero cost ALONE is not that proof: ACP agents report token
+// counts without a cost (UsageUpdate.cost is optional in the protocol), so
+// keying VIK-586 on cost alone would relabel a genuine agent error as an
+// infra failure. nil usage means "unknown", never "none".
+func noLLMTraffic(u *harness.Usage) bool {
+	return u != nil && u.CostUSD == 0 && u.InputTokens == 0 && u.OutputTokens == 0
+}
+
 // resolveOutcome is the orchestrator's outcome precedence (design §5):
-// forge ground truth (PR found) always wins; then a valid structured
-// harness report; then the exit-code heuristics. Usage from the harness
-// report is preserved regardless of which branch decides.
+// a NEW PR on the branch always wins; then a valid structured harness
+// report; then the exit-code heuristics. Usage from the harness report is
+// preserved regardless of which branch decides.
+//
+// prExisted says a PR was already open on this branch before the harness
+// ran. The branch is derived from the ticket, so retries, review rounds and
+// persona turns all reuse it — without this flag a run that crashed
+// instantly would inherit its predecessor's PR and report pr_opened, marking
+// the item done on work it never did.
 //
 // expectsLLM is true for LLM-driven adapters (openhands, claude-code) —
-// used by the VIK-586 heuristic: zero telemetry from an LLM adapter maps
-// to failed/infra_llm; zero telemetry from exec or nil usage keeps the
-// default no_change_needed so exec-harness smoke runs do not burn attempts.
+// used by the VIK-586 heuristic: an LLM adapter that produced no LLM
+// traffic at all maps to failed/infra_llm; exec adapters and unknown
+// telemetry keep the default no_change_needed so exec-harness smoke runs do
+// not burn attempts.
 func resolveOutcome(adapterName string, report harness.OutcomeReport, runErr, ctxErr error,
-	prURL, itemTitle, branch string, logTail []byte, expectsLLM bool) harness.OutcomeReport {
+	prURL string, prExisted bool, itemTitle, branch string, logTail []byte, expectsLLM bool) harness.OutcomeReport {
 
 	resolved := func(r harness.OutcomeReport) harness.OutcomeReport {
 		if r.Usage == nil {
@@ -241,7 +270,7 @@ func resolveOutcome(adapterName string, report harness.OutcomeReport, runErr, ct
 		return r
 	}
 	switch {
-	case prURL != "":
+	case prURL != "" && !prExisted:
 		return resolved(harness.OutcomeReport{
 			Outcome:    work.OutcomePROpened,
 			Summary:    adapterName + " run opened a PR for " + itemTitle,
@@ -252,15 +281,26 @@ func resolveOutcome(adapterName string, report harness.OutcomeReport, runErr, ct
 		if report.Outcome == work.OutcomeStuck && report.StuckReason == "" {
 			report.StuckReason = tail(logTail, 2000) // R4: stuck always carries a reason
 		}
-		// VIK-586: LLM adapter with zero spend → infra_llm failure.
-		if report.Outcome == work.OutcomeFailed && expectsLLM && report.Usage != nil && report.Usage.CostUSD == 0 {
+		// VIK-586: LLM adapter that made no LLM calls → infra_llm failure.
+		// An adapter that already classified the failure is trusted over the
+		// heuristic — a structured taxonomy beats an inference.
+		if report.Outcome == work.OutcomeFailed && expectsLLM &&
+			report.FailureReason == "" && noLLMTraffic(report.Usage) {
 			report.FailureReason = string(work.FailureInfraLLM)
 		}
 		return report
+	case runErr == nil && prURL != "":
+		// The PR predates this run and the harness exited cleanly: it pushed
+		// to an existing PR (a retry, a review round, or the next persona).
+		return resolved(harness.OutcomeReport{
+			Outcome:    work.OutcomePRUpdated,
+			Summary:    adapterName + " run updated the open PR for " + itemTitle,
+			Links:      []string{prURL},
+			Checkpoint: &work.Checkpoint{Phase: "pr_updated", Branch: branch, PRURL: prURL},
+		})
 	case runErr == nil:
 		// nil Usage = no telemetry = UNKNOWN → keep no_change_needed (VIK-586).
-		// Zero telemetry on an LLM adapter with exit 0 maps to failed/infra_llm.
-		if expectsLLM && report.Usage != nil && report.Usage.CostUSD == 0 {
+		if expectsLLM && noLLMTraffic(report.Usage) {
 			return resolved(harness.OutcomeReport{
 				Outcome:       work.OutcomeFailed,
 				Summary:       adapterName + " run finished with zero LLM spend and no PR — likely LLM infra failure",
@@ -279,10 +319,17 @@ func resolveOutcome(adapterName string, report harness.OutcomeReport, runErr, ct
 			FailureReason: string(work.FailureLeaseLost),
 		})
 	default:
+		// The run failed. A pre-existing PR is carried in Links for the
+		// reviewer's convenience but must NOT read as this run's success.
+		var links []string
+		if prURL != "" {
+			links = []string{prURL}
+		}
 		r := resolved(harness.OutcomeReport{
 			Outcome:     work.OutcomeStuck,
 			Summary:     adapterName + " run failed",
 			StuckReason: tail(logTail, 2000),
+			Links:       links,
 		})
 		r.FailureReason = string(work.FailureAgentError)
 		return r

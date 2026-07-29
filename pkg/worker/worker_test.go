@@ -29,6 +29,7 @@ func TestResolveOutcome_Precedence(t *testing.T) {
 		runErr      error
 		ctxErr      error
 		prURL       string
+		prExisted   bool
 		expectsLLM  bool
 		wantOutcome work.Outcome
 		wantSummary string
@@ -38,13 +39,47 @@ func TestResolveOutcome_Precedence(t *testing.T) {
 		wantFailure string
 	}{
 		{
-			name:        "PR found always wins",
+			name:        "new PR always wins",
 			runErr:      errors.New("exit status 1"), // even over a failed process
 			prURL:       "http://forge/pr/7",
 			wantOutcome: work.OutcomePROpened,
 			wantSummary: "openhands run opened a PR for fix the thing",
 			wantLinks:   []string{"http://forge/pr/7"},
 			wantPhase:   "pr_opened",
+		},
+		// A PR that predates the run is a previous turn's work. Crediting it
+		// to this run is how a crashed reviewer marked an item done having
+		// burned zero tokens.
+		{
+			name:        "crashed run does NOT inherit a pre-existing PR",
+			runErr:      errors.New("exit status 1"),
+			prURL:       "http://forge/pr/7",
+			prExisted:   true,
+			wantOutcome: work.OutcomeStuck,
+			wantSummary: "openhands run failed",
+			wantReason:  "tail-of-log",
+			wantLinks:   []string{"http://forge/pr/7"},
+			wantFailure: "agent_error",
+		},
+		{
+			name:        "clean run on a pre-existing PR = pr_updated",
+			prURL:       "http://forge/pr/7",
+			prExisted:   true,
+			wantOutcome: work.OutcomePRUpdated,
+			wantSummary: "openhands run updated the open PR for fix the thing",
+			wantLinks:   []string{"http://forge/pr/7"},
+			wantPhase:   "pr_updated",
+		},
+		{
+			name:        "lost lease on a pre-existing PR stays stuck",
+			runErr:      errors.New("signal: killed"),
+			ctxErr:      context.Canceled,
+			prURL:       "http://forge/pr/7",
+			prExisted:   true,
+			wantOutcome: work.OutcomeStuck,
+			wantSummary: "run aborted (lease lost)",
+			wantReason:  "lease renewal failed; run cancelled to avoid a double claim",
+			wantFailure: "lease_lost",
 		},
 		{
 			name:        "structured report beats heuristics",
@@ -116,11 +151,42 @@ func TestResolveOutcome_Precedence(t *testing.T) {
 			wantOutcome: work.OutcomeFailed,
 			wantFailure: "infra_llm",
 		},
+		// ACP reports UsageUpdate.cost as OPTIONAL, so plenty of agents send
+		// token counts and no cost. Keying VIK-586 on cost alone would
+		// relabel a real agent error as an LLM infra failure and requeue it.
+		{
+			name: "tokens without cost is NOT infra_llm",
+			report: harness.OutcomeReport{
+				Outcome: work.OutcomeFailed,
+				Usage:   &harness.Usage{InputTokens: 40000, OutputTokens: 900, CostUSD: 0},
+			},
+			expectsLLM:  true,
+			wantOutcome: work.OutcomeFailed,
+			wantFailure: "", // unclassified beats misclassified
+		},
+		{
+			name: "an adapter-set failure reason survives the heuristic",
+			report: harness.OutcomeReport{
+				Outcome:       work.OutcomeFailed,
+				FailureReason: string(work.FailureAgentError),
+				Usage:         &harness.Usage{CostUSD: 0},
+			},
+			expectsLLM:  true,
+			wantOutcome: work.OutcomeFailed,
+			wantFailure: "agent_error",
+		},
+		{
+			name:        "exit 0 with tokens but no cost = no_change_needed",
+			report:      harness.OutcomeReport{Usage: &harness.Usage{InputTokens: 1200, CostUSD: 0}},
+			expectsLLM:  true,
+			wantOutcome: work.OutcomeNoChangeNeeded,
+			wantSummary: "openhands run finished without opening a PR",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			got := resolveOutcome("openhands", tc.report, tc.runErr, tc.ctxErr,
-				tc.prURL, "fix the thing", "agent/vik-585", []byte("tail-of-log"), tc.expectsLLM)
+				tc.prURL, tc.prExisted, "fix the thing", "agent/vik-585", []byte("tail-of-log"), tc.expectsLLM)
 			if got.Outcome != tc.wantOutcome {
 				t.Errorf("outcome = %q, want %q", got.Outcome, tc.wantOutcome)
 			}
@@ -143,11 +209,15 @@ func TestResolveOutcome_Precedence(t *testing.T) {
 	}
 	t.Run("usage survives every branch", func(t *testing.T) {
 		report := harness.OutcomeReport{Usage: usage} // no structured outcome, usage only
-		got := resolveOutcome("claude-code", report, nil, nil, "http://forge/pr/8", "t", "b", nil, true)
+		got := resolveOutcome("claude-code", report, nil, nil, "http://forge/pr/8", false, "t", "b", nil, true)
 		if got.Usage != usage {
 			t.Errorf("usage lost on the PR branch: %+v", got.Usage)
 		}
-		got = resolveOutcome("claude-code", report, nil, nil, "", "t", "b", nil, true)
+		got = resolveOutcome("claude-code", report, nil, nil, "http://forge/pr/8", true, "t", "b", nil, true)
+		if got.Usage != usage {
+			t.Errorf("usage lost on the pr_updated branch: %+v", got.Usage)
+		}
+		got = resolveOutcome("claude-code", report, nil, nil, "", false, "t", "b", nil, true)
 		if got.Usage != usage {
 			t.Errorf("usage lost on the no-change branch: %+v", got.Usage)
 		}

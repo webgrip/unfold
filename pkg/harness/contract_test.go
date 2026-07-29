@@ -106,6 +106,18 @@ func TestOutcomeReport_MatchesSchema(t *testing.T) {
 	if err := validate(t, sch, stuckOK); err != nil {
 		t.Errorf("stuck-with-reason does not validate: %v", err)
 	}
+
+	// failureReason is posted by the worker and stored in agent_runs; every
+	// value of the taxonomy must be on the wire contract.
+	for _, fr := range []work.FailureReason{
+		work.FailureInfraNode, work.FailureInfraLLM,
+		work.FailureAgentError, work.FailureBudget, work.FailureLeaseLost,
+	} {
+		r := OutcomeReport{Outcome: work.OutcomeFailed, Summary: "failed", FailureReason: string(fr)}
+		if err := validate(t, sch, r); err != nil {
+			t.Errorf("failureReason %q does not validate: %v", fr, err)
+		}
+	}
 }
 
 func TestOutcomeReport_SchemaRejectsInvalid(t *testing.T) {
@@ -120,6 +132,13 @@ func TestOutcomeReport_SchemaRejectsInvalid(t *testing.T) {
 	// Unknown outcome enum.
 	if err := validate(t, sch, map[string]any{"outcome": "shipped", "summary": "x"}); err == nil {
 		t.Error("unknown outcome enum validated")
+	}
+
+	// Unknown failure taxonomy value.
+	if err := validate(t, sch, map[string]any{
+		"outcome": "failed", "summary": "x", "failureReason": "vibes",
+	}); err == nil {
+		t.Error("unknown failureReason enum validated")
 	}
 
 	// Zero-value report ("no structured signal") is an internal sentinel,
