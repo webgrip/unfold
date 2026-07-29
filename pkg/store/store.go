@@ -286,19 +286,39 @@ func (s *Store) Claim(ctx context.Context, team string, ttl time.Duration) (*Cla
 	return &Claimed{Item: it, RunToken: token, Deadline: deadline}, nil
 }
 
-// Renew extends the lease held by a run token (backlog #13).
+// Renew extends the deadline held by a run token (backlog #13).
+//
+// Two deadlines move together. The Lease is the writer's exclusivity; the
+// Run's own expires_at is its liveness (ADR-0010 — readers hold no Lease, so
+// lease expiry could never detect a dead reader). A reader renews only its
+// Run; a writer renews both, or ExpireRuns would reclaim its Run out from
+// under a perfectly live Lease. Legacy runs (no expires_at) renew only the
+// Lease, exactly as before.
 func (s *Store) Renew(ctx context.Context, runToken string, ttl time.Duration) (time.Time, error) {
 	deadline := time.Now().Add(ttl)
-	tag, err := s.pool.Exec(ctx,
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return time.Time{}, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	runTag, err := tx.Exec(ctx,
+		`UPDATE agent_runs SET expires_at = $1
+		 WHERE run_token = $2 AND state = 'running' AND expires_at IS NOT NULL`,
+		deadline, runToken)
+	if err != nil {
+		return time.Time{}, err
+	}
+	leaseTag, err := tx.Exec(ctx,
 		`UPDATE leases SET expires_at = $1, renewed_at = now() WHERE run_token = $2`,
 		deadline, runToken)
 	if err != nil {
 		return time.Time{}, err
 	}
-	if tag.RowsAffected() == 0 {
+	if runTag.RowsAffected() == 0 && leaseTag.RowsAffected() == 0 {
 		return time.Time{}, ErrUnknownRun
 	}
-	return deadline, nil
+	return deadline, tx.Commit(ctx)
 }
 
 // Checkpoint records durable progress for the item owned by the run token.
@@ -309,10 +329,19 @@ func (s *Store) Checkpoint(ctx context.Context, runToken string, cp work.Checkpo
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
+	// Resolve via the Lease when one exists; a reader holds none (ADR-0010),
+	// so fall back to its running Run — progress records must not be a
+	// writer-only privilege.
 	var id int64
 	var team string
-	if err := tx.QueryRow(ctx,
-		`SELECT work_item_id, team FROM leases WHERE run_token = $1`, runToken).Scan(&id, &team); err != nil {
+	err = tx.QueryRow(ctx,
+		`SELECT work_item_id, team FROM leases WHERE run_token = $1`, runToken).Scan(&id, &team)
+	if errors.Is(err, pgx.ErrNoRows) {
+		err = tx.QueryRow(ctx,
+			`SELECT work_item_id, team FROM agent_runs WHERE run_token = $1 AND state = 'running'`,
+			runToken).Scan(&id, &team)
+	}
+	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrUnknownRun
 		}
@@ -330,12 +359,25 @@ func (s *Store) Checkpoint(ctx context.Context, runToken string, cp work.Checkpo
 	return tx.Commit(ctx)
 }
 
-// ReportOutcome ends the run: records the outcome, releases the lease, and
-// transitions the item per StateForOutcome. A stuck outcome requires a
-// reason (R4).
-func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessReport) error {
+// OutcomeResult tells the caller what a report landed on, so the outcome
+// handler knows whether a Shift may want evaluating.
+type OutcomeResult struct {
+	WorkItemID int64
+	// ShiftID is nil for a legacy (shift-less) run.
+	ShiftID *int64
+}
+
+// ReportOutcome ends the run: records the outcome and findings, releases the
+// lease, and settles spend. A stuck outcome requires a reason (R4).
+//
+// Who moves the Work Item depends on who owns its lifecycle. A legacy run is
+// the item's whole engagement, so its report transitions the item per
+// StateForOutcome, exactly as always. A Shift run is one voice among several —
+// three readers reporting must not flip the item's state three times — so the
+// item moves only when the shift engine closes the Shift.
+func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessReport) (OutcomeResult, error) {
 	if rep.Outcome == work.OutcomeStuck && rep.StuckReason == "" {
-		return errors.New("stuck outcome requires a stuck_reason (R4)")
+		return OutcomeResult{}, errors.New("stuck outcome requires a stuck_reason (R4)")
 	}
 	if rep.Links == nil {
 		// links is NOT NULL; a linkless outcome (stuck, no_change_needed)
@@ -346,7 +388,7 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return err
+		return OutcomeResult{}, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
@@ -361,21 +403,21 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 	if err := tx.QueryRow(ctx, `
 		UPDATE agent_runs
 		SET state = 'finished', finished_at = now(), outcome = $1, summary = $2,
-		    stuck_reason = $3, links = $4, usage = $5, failure_reason = $6
-		WHERE run_token = $7 AND state = 'running'
+		    stuck_reason = $3, links = $4, usage = $5, failure_reason = $6, findings = $7
+		WHERE run_token = $8 AND state = 'running'
 		RETURNING work_item_id, team, shift_id`,
 		string(rep.Outcome), rep.Summary, rep.StuckReason, rep.Links, rep.Usage,
-		rep.FailureReason, runToken).Scan(&id, &team, &shiftID); err != nil {
+		rep.FailureReason, rep.Findings, runToken).Scan(&id, &team, &shiftID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrUnknownRun
+			return OutcomeResult{}, ErrUnknownRun
 		}
-		return err
+		return OutcomeResult{}, err
 	}
 	// Writers hold a Lease; readers do not, so zero rows here is normal rather
 	// than an error. Releasing it revokes the push credential minted with it
 	// (ADR-0013).
 	if _, err := tx.Exec(ctx, `DELETE FROM leases WHERE run_token = $1`, runToken); err != nil {
-		return err
+		return OutcomeResult{}, err
 	}
 	// Settlement (ADR-0012): record what was actually spent. The authorization
 	// needs no explicit release — `reserved` is summed over running Runs, and
@@ -384,28 +426,30 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 		if _, err := tx.Exec(ctx, `
 			UPDATE shifts SET spent = spent + COALESCE(($2::jsonb->>'costUsd')::numeric, 0)
 			WHERE id = $1`, *shiftID, rep.Usage); err != nil {
-			return err
+			return OutcomeResult{}, err
 		}
 	}
-	// A failed outcome re-queues until the retry threshold, then stale (R5).
-	if next == work.StateQueued {
-		if _, err := tx.Exec(ctx, `
-			UPDATE work_items
-			SET state = CASE WHEN attempts >= $2 THEN 'stale' ELSE 'queued' END, updated_at = now()
-			WHERE id = $1`, id, MaxAttempts); err != nil {
-			return err
-		}
-	} else {
-		if _, err := tx.Exec(ctx,
-			`UPDATE work_items SET state = $2, updated_at = now() WHERE id = $1`, id, string(next)); err != nil {
-			return err
+	if shiftID == nil {
+		// A failed outcome re-queues until the retry threshold, then stale (R5).
+		if next == work.StateQueued {
+			if _, err := tx.Exec(ctx, `
+				UPDATE work_items
+				SET state = CASE WHEN attempts >= $2 THEN 'stale' ELSE 'queued' END, updated_at = now()
+				WHERE id = $1`, id, MaxAttempts); err != nil {
+				return OutcomeResult{}, err
+			}
+		} else {
+			if _, err := tx.Exec(ctx,
+				`UPDATE work_items SET state = $2, updated_at = now() WHERE id = $1`, id, string(next)); err != nil {
+				return OutcomeResult{}, err
+			}
 		}
 	}
 	if err := audit(ctx, tx, "team:"+team, "outcome."+string(rep.Outcome), &id,
 		map[string]any{"summary": rep.Summary, "stuck_reason": rep.StuckReason, "links": rep.Links}); err != nil {
-		return err
+		return OutcomeResult{}, err
 	}
-	return tx.Commit(ctx)
+	return OutcomeResult{WorkItemID: id, ShiftID: shiftID}, tx.Commit(ctx)
 }
 
 // harnessReport mirrors harness.OutcomeReport without importing the package
@@ -420,11 +464,18 @@ type harnessReport struct {
 	Links         []string
 	Usage         json.RawMessage
 	FailureReason *string // nil = unclassified; set for failed outcomes (infra_llm, lease_lost, etc.)
+	Findings      string  // a reading Run's blackboard contribution (ADR-0011); empty for most writers
 }
 
 // Report is the store-level outcome input. usage and failureReason may be nil.
 func Report(outcome work.Outcome, summary, stuckReason string, links []string, usage json.RawMessage, failureReason *string) harnessReport {
 	return harnessReport{Outcome: outcome, Summary: summary, StuckReason: stuckReason, Links: links, Usage: usage, FailureReason: failureReason}
+}
+
+// WithFindings attaches a reading Run's findings to the report.
+func (r harnessReport) WithFindings(findings string) harnessReport {
+	r.Findings = findings
+	return r
 }
 
 // ExpireLeases releases every overdue lease: the run is recorded as failed

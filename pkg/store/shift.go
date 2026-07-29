@@ -54,7 +54,13 @@ func (s *Store) OpenShift(ctx context.Context, workItemID int64, team, branch st
 // Refuses to mix writers and readers. That rule is the whole of the
 // concurrency control, so it is enforced here rather than trusted to callers —
 // a mixed Round would put a reader beside a writer mutating the same branch.
-func (s *Store) OpenRound(ctx context.Context, shiftID int64, roles []Role) (int, error) {
+//
+// fromRound is a compare-and-swap guard: the caller names the round it
+// observed, and the advance happens only if the Shift is still there. Two
+// evaluators — the outcome fast-path and the sweeper — may both conclude a
+// Round is complete; without the guard the second would double-advance and
+// materialise a duplicate roster.
+func (s *Store) OpenRound(ctx context.Context, shiftID int64, fromRound int, roles []Role) (int, error) {
 	if len(roles) == 0 {
 		return 0, errors.New("a round needs at least one role")
 	}
@@ -81,11 +87,11 @@ func (s *Store) OpenRound(ctx context.Context, shiftID int64, roles []Role) (int
 	var workItemID int64
 	var team string
 	if err := tx.QueryRow(ctx,
-		`UPDATE shifts SET round = round + 1 WHERE id = $1 AND closed_at IS NULL
-		 RETURNING round, work_item_id, team`, shiftID).
+		`UPDATE shifts SET round = round + 1 WHERE id = $1 AND round = $2 AND closed_at IS NULL
+		 RETURNING round, work_item_id, team`, shiftID, fromRound).
 		Scan(&round, &workItemID, &team); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return 0, fmt.Errorf("shift %d is not open", shiftID)
+			return 0, fmt.Errorf("shift %d is not open at round %d", shiftID, fromRound)
 		}
 		return 0, err
 	}
@@ -210,17 +216,26 @@ func (s *Store) ClaimRole(ctx context.Context, team, role string, ttl time.Durat
 		}
 	}
 
+	// The target columns ride along exactly as in the legacy Claim: losing
+	// them here would silently fall the worker back to its env repo, undoing
+	// the Work Item's resolved Target (ADR-0014).
 	var it work.WorkItem
+	var tg work.Target
 	if err := tx.QueryRow(ctx, `
 		UPDATE work_items SET state = 'leased', attempts = attempts + 1, updated_at = now()
 		WHERE id = $1
-		RETURNING provider, external_id, revision, team, origin, priority, title, description, url`,
+		RETURNING provider, external_id, revision, team, origin, priority, title, description, url,
+			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule`,
 		workItemID).Scan(&it.Provider, &it.ExternalID, &it.Revision, &it.Team, &it.Origin,
-		&it.Priority, &it.Title, &it.Description, &it.URL); err != nil {
+		&it.Priority, &it.Title, &it.Description, &it.URL,
+		&it.ExternalScope, &tg.Forge, &tg.Owner, &tg.Repo, &tg.BaseBranch, &it.RouteRule); err != nil {
 		return nil, err
 	}
 	it.ID = fmt.Sprint(workItemID)
 	it.State = work.StateLeased
+	if tg.Resolved() {
+		it.Target = &tg
+	}
 
 	if err := audit(ctx, tx, "team:"+team, "run.claimed", &workItemID, map[string]any{
 		"shift": shiftID, "role": role, "round": round,
@@ -324,6 +339,187 @@ func (s *Store) RoundComplete(ctx context.Context, shiftID int64) (bool, error) 
 		WHERE shift_id = $1 AND round = (SELECT round FROM shifts WHERE id = $1)
 		  AND state <> 'finished'`, shiftID).Scan(&live)
 	return live == 0, err
+}
+
+// ShiftInfo identifies a live Shift for the orchestration engine.
+type ShiftInfo struct {
+	ID         int64
+	WorkItemID int64
+	Team       string
+	Round      int
+	Branch     string
+}
+
+// LiveShifts enumerates every open Shift — the sweeper's worklist. Without
+// this, RoundComplete wants a shiftID nobody has, and a crash between an
+// outcome report and its evaluation would strand the Shift forever (R2).
+func (s *Store) LiveShifts(ctx context.Context) ([]ShiftInfo, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, work_item_id, team, round, branch FROM shifts
+		WHERE closed_at IS NULL ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ShiftInfo
+	for rows.Next() {
+		var si ShiftInfo
+		if err := rows.Scan(&si.ID, &si.WorkItemID, &si.Team, &si.Round, &si.Branch); err != nil {
+			return nil, err
+		}
+		out = append(out, si)
+	}
+	return out, rows.Err()
+}
+
+// LiveShiftForItem returns the live Shift on a Work Item, or nil. This is
+// what makes EnsureShift idempotent: the read answers "already open", and the
+// unique partial index settles the race two openers can still run into.
+func (s *Store) LiveShiftForItem(ctx context.Context, workItemID int64) (*ShiftInfo, error) {
+	var si ShiftInfo
+	err := s.pool.QueryRow(ctx, `
+		SELECT id, work_item_id, team, round, branch FROM shifts
+		WHERE work_item_id = $1 AND closed_at IS NULL`, workItemID).
+		Scan(&si.ID, &si.WorkItemID, &si.Team, &si.Round, &si.Branch)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &si, nil
+}
+
+// CloseShift ends a Shift: why is recorded, so "why did this item stop" is a
+// query rather than a reconstruction, and the live-Shift slot is released for
+// a later re-mandate (shift-orchestration spec).
+//
+// Leftover pending Runs are cancelled — finished with no outcome, because they
+// never ran — so the claim predicate (and with it the KEDA scale signal) drops
+// to zero instead of spawning pods for a Shift that no longer wants them.
+// Running Runs are left to finish or expire on their own; settlement against a
+// closed Shift stays valid.
+//
+// Idempotent: closing an already-closed Shift is a no-op, because the outcome
+// fast-path and the sweeper may both conclude a Shift is done (R2).
+func (s *Store) CloseShift(ctx context.Context, shiftID int64, reason string) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	var workItemID int64
+	var team string
+	err = tx.QueryRow(ctx, `
+		UPDATE shifts SET closed_at = now(), close_reason = $2
+		WHERE id = $1 AND closed_at IS NULL
+		RETURNING work_item_id, team`, shiftID, reason).Scan(&workItemID, &team)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Already closed (idempotent), or never existed (caller bug).
+		var exists bool
+		if err := tx.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM shifts WHERE id = $1)`, shiftID).Scan(&exists); err != nil {
+			return err
+		}
+		if !exists {
+			return fmt.Errorf("shift %d does not exist", shiftID)
+		}
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	tag, err := tx.Exec(ctx, `
+		UPDATE agent_runs SET state = 'finished', finished_at = now(),
+			summary = 'cancelled: shift closed (' || $2 || ')'
+		WHERE shift_id = $1 AND state = 'pending'`, shiftID, reason)
+	if err != nil {
+		return err
+	}
+	if err := audit(ctx, tx, "team:"+team, "shift.closed", &workItemID, map[string]any{
+		"shift": shiftID, "reason": reason, "cancelled_pending": tag.RowsAffected(),
+	}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// RunReport is one finished Run's contribution to the blackboard: who said
+// what, in which Round. Serves both consumers ADR-0011 names — the PR comment
+// and the next Round's prompt.
+type RunReport struct {
+	Role     string
+	Round    int
+	Writes   bool
+	Outcome  string // empty for a cancelled Run that never ran
+	Summary  string
+	Findings string
+	Links    []string
+}
+
+// RoundReports returns every finished Run's report for a Shift, in Round then
+// claim order. Callers filter by Round: prompt injection wants rounds before
+// the one being claimed, publication wants the round that just completed.
+func (s *Store) RoundReports(ctx context.Context, shiftID int64) ([]RunReport, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT role, round, writes, COALESCE(outcome, ''), summary, findings, links
+		FROM agent_runs
+		WHERE shift_id = $1 AND state = 'finished'
+		ORDER BY round, id`, shiftID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []RunReport
+	for rows.Next() {
+		var r RunReport
+		if err := rows.Scan(&r.Role, &r.Round, &r.Writes, &r.Outcome, &r.Summary, &r.Findings, &r.Links); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// ShiftsBelowFloor finds live Shifts whose pool can no longer fund the work
+// still pending for them. Retrying cannot fix running out of money, so the
+// sweeper parks these — needs_human with a reason naming the spend, no Run
+// spawned, no key minted, no attempt burned (shift-orchestration spec).
+func (s *Store) ShiftsBelowFloor(ctx context.Context) ([]ShiftLedgerEntry, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT sh.id, sh.work_item_id, sh.team, sh.budget, sh.spent,
+		       COALESCE((SELECT SUM(authorized) FROM agent_runs
+		                 WHERE shift_id = sh.id AND state = 'running'), 0)
+		FROM shifts sh
+		WHERE sh.closed_at IS NULL AND sh.budget > 0
+		  AND EXISTS (SELECT 1 FROM agent_runs
+		              WHERE shift_id = sh.id AND state = 'pending')`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ShiftLedgerEntry
+	for rows.Next() {
+		var e ShiftLedgerEntry
+		if err := rows.Scan(&e.ShiftID, &e.WorkItemID, &e.Team,
+			&e.Ledger.Budget, &e.Ledger.Spent, &e.Ledger.Reserved); err != nil {
+			return nil, err
+		}
+		if e.Ledger.Remaining() < minViableAuthorization {
+			out = append(out, e)
+		}
+	}
+	return out, rows.Err()
+}
+
+// ShiftLedgerEntry is a Shift plus its money view, for sweeper decisions.
+type ShiftLedgerEntry struct {
+	ShiftID    int64
+	WorkItemID int64
+	Team       string
+	Ledger     ShiftLedger
 }
 
 // ShiftLedger is the money view of a Shift.
