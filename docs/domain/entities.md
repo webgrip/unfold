@@ -19,7 +19,7 @@ Ploeg's mirror of one Tracker Item, carrying dispatch state.
 | `priority` | `integer` |  | Rank mirrored from the tracker; drives Team Queue order. |
 
 **Relationships**
-- has_one **Lease** — At most one live Lease at a time (unique per Work Item).
+- has_one **Shift** — At most one live Shift at a time (unique per Work Item).
 - has_many **Run** — All executions across roles, retries, and resumes.
 - has_many **Checkpoint** — Progress records; the latest one drives resume.
 
@@ -40,21 +40,41 @@ stateDiagram-v2
     stale --> queued : Human or explicit policy re-queues
 ```
 
-## Lease
+## Shift
 *Context: Dispatch*
 
-A Team's crash-safe, TTL-renewed hold on a Work Item.
+One Team's engagement with one Work Item — owns the branch, the budget pool, the roster and the Round counter (ADR-0010).
 
 | Attribute | Type | Required | Description |
 |---|---|---|---|
-| `work_item_id` | `string` | yes |  |
+| `work_item_id` | `string` | yes | Unique among live Shifts — two Teams never work one item. |
 | `team` | `string` | yes |  |
-| `expires_at` | `timestamp` | yes | Expiry releases the item mechanically. |
+| `branch` | `string` | yes | The single branch every writing Run in this Shift pushes to. |
+| `round` | `int` | yes | Runs started together share a Round and never observe each other. |
+| `budget` | `decimal` | yes | The pool for the whole item, in USD (ADR-0012). |
+| `spent` | `decimal` | yes | Settled spend across every Run in this Shift. |
+| `reserved` | `decimal` | yes | Authorized but unsettled holds; remaining = budget - spent - reserved. |
+
+**Relationships**
+- belongs_to **Work Item** — Unique per Work Item among live Shifts.
+- has_one **Lease** — At most one live Lease — held by the writing Run, if any.
+- has_many **Run** — Readers and writers across every Round.
+
+## Lease
+*Context: Dispatch*
+
+The exclusive right to write a Shift's branch, crash-safe and TTL-renewed. Held only by a writing Run.
+
+| Attribute | Type | Required | Description |
+|---|---|---|---|
+| `shift_id` | `string` | yes | Unique per Shift — one writer at a time. |
+| `run_id` | `string` | yes | The writing Run holding it. Readers never appear here. |
+| `expires_at` | `timestamp` | yes | Expiry releases write access mechanically, and releases the Run's budget authorization in the same transaction. |
 | `renewed_at` | `timestamp` |  | Last renewal by the running Run. |
 
 **Relationships**
-- belongs_to **Work Item** — Unique per Work Item.
-- references **Team** — The claiming Team.
+- belongs_to **Shift** — Unique per Shift.
+- references **Run** — The writing Run holding write access.
 
 ## Run
 *Context: Execution*
