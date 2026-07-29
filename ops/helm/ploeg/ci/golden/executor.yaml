@@ -94,6 +94,13 @@ spec:
                   key: PLOEG_VIKUNJA_SECRET
             - name: PLOEG_TEAM_PLANS
               value: "{\"gold\":{\"pool\":\"6\",\"rounds\":[{\"roles\":[{\"cap\":\"0.50\",\"harness\":{\"dind\":false},\"name\":\"analyst\",\"writes\":false},{\"cap\":\"0.50\",\"harness\":{\"dind\":false},\"name\":\"tests\",\"writes\":false}]},{\"roles\":[{\"cap\":\"3.00\",\"model\":\"litellm_proxy/claude-sonnet-5\",\"name\":\"builder\",\"writes\":true}]},{\"roles\":[{\"cap\":\"0.75\",\"harness\":{\"dind\":false},\"model\":\"litellm_proxy/claude-sonnet-5\",\"name\":\"reviewer\",\"writes\":false}]},{\"roles\":[{\"cap\":\"3.00\",\"model\":\"litellm_proxy/claude-sonnet-5\",\"name\":\"builder\",\"writes\":true}]}]}}"
+            - name: PLOEG_FORGEJO_URL
+              value: "http://forgejo-http.forgejo.svc.cluster.local:3000"
+            - name: PLOEG_FORGEJO_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: agent-builder-token
+                  key: FORGEJO_TOKEN
             - name: PLOEG_DEFAULT_TEAM
               value: "default"
             - name: PLOEG_LEASE_TTL

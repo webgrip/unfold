@@ -478,6 +478,29 @@ func (r harnessReport) WithFindings(findings string) harnessReport {
 	return r
 }
 
+// WorkItem reads one item by id — what the shift engine needs to know where
+// to publish: the Work Target names the repository, the provider names the
+// tracker to write back to.
+func (s *Store) WorkItem(ctx context.Context, id int64) (work.WorkItem, error) {
+	var it work.WorkItem
+	var t work.Target
+	err := s.pool.QueryRow(ctx, `
+		SELECT provider, external_id, revision, team, state, origin, priority, title, description, url,
+			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule
+		FROM work_items WHERE id = $1`, id).
+		Scan(&it.Provider, &it.ExternalID, &it.Revision, &it.Team, &it.State, &it.Origin,
+			&it.Priority, &it.Title, &it.Description, &it.URL,
+			&it.ExternalScope, &t.Forge, &t.Owner, &t.Repo, &t.BaseBranch, &it.RouteRule)
+	if err != nil {
+		return work.WorkItem{}, err
+	}
+	it.ID = fmt.Sprint(id)
+	if t.Resolved() {
+		it.Target = &t
+	}
+	return it, nil
+}
+
 // MarkNeedsHuman parks a Work Item for a person, with the reason on the audit
 // row. This is the shift engine's transition: for Shift runs, ReportOutcome
 // leaves the item alone and the engine moves it exactly once — at close, at a

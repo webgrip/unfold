@@ -18,6 +18,7 @@ import (
 	"strconv"
 
 	"github.com/webgrip/ploeg/pkg/plan"
+	"github.com/webgrip/ploeg/pkg/provider"
 	"github.com/webgrip/ploeg/pkg/store"
 	"github.com/webgrip/ploeg/pkg/work"
 )
@@ -28,6 +29,13 @@ type Engine struct {
 	Store *store.Store
 	Plans plan.Plans
 	Log   *slog.Logger
+	// Forges publishes findings to the pull request (ADR-0011). Keyed by
+	// forge id, matching the Work Target's Forge. Nil or missing = findings
+	// stay in the database and the run is otherwise unaffected.
+	Forges map[string]provider.ForgeProvider
+	// Trackers asks a person to merge when a Shift closes. Keyed by provider
+	// name, matching the Work Item's. Nil = no write-back.
+	Trackers map[string]provider.TrackerProvider
 }
 
 // EnsureShift opens a Shift for a queued Work Item of a planned team, then
@@ -103,6 +111,11 @@ func (e *Engine) evaluate(ctx context.Context, si store.ShiftInfo) error {
 	if err != nil {
 		return err
 	}
+	// Findings reach the pull request as soon as their Round finishes, not at
+	// close: a human watching the thread sees the review while the writer is
+	// still working on it (ADR-0011).
+	e.publishRound(ctx, si, reports, si.Round)
+
 	for _, r := range reports {
 		if r.Outcome == string(work.OutcomeStuck) {
 			return e.close(ctx, si,
@@ -151,6 +164,9 @@ func (e *Engine) close(ctx context.Context, si store.ShiftInfo, closeReason, hum
 	}
 	e.Log.Info("shift closed", "shift", si.ID, "work_item", si.WorkItemID,
 		"team", si.Team, "reason", closeReason)
+	// After the state is durable, never before: a tracker outage must not be
+	// able to leave a Shift open or an item un-transitioned.
+	e.notifyHuman(ctx, si, humanReason)
 	return nil
 }
 

@@ -20,6 +20,7 @@ import (
 	"github.com/webgrip/ploeg/pkg/llmbroker"
 	"github.com/webgrip/ploeg/pkg/plan"
 	"github.com/webgrip/ploeg/pkg/provider"
+	"github.com/webgrip/ploeg/pkg/provider/forgejo"
 	"github.com/webgrip/ploeg/pkg/provider/vikunja"
 	"github.com/webgrip/ploeg/pkg/shiftengine"
 	"github.com/webgrip/ploeg/pkg/store"
@@ -73,11 +74,37 @@ func run(log *slog.Logger) error {
 		return err
 	}
 
+	// Tracker write-backs are opt-in by credential: without a URL and token
+	// the provider keeps its logging no-op, so a deployment that has not been
+	// given one still finishes runs — it just does not update the board.
 	vik := &vikunja.Provider{
 		Secret:      os.Getenv("PLOEG_VIKUNJA_SECRET"),
 		DefaultTeam: envOr("PLOEG_DEFAULT_TEAM", "default"),
 		TeamMap:     parseTeamMap(os.Getenv("PLOEG_TEAM_MAP")),
+		BaseURL:     trimSlash(os.Getenv("PLOEG_VIKUNJA_URL")),
+		Token:       os.Getenv("PLOEG_VIKUNJA_TOKEN"),
 		Log:         log,
+	}
+	if vik.BaseURL != "" && vik.Token != "" {
+		log.Info("vikunja write-backs enabled", "url", vik.BaseURL)
+	} else {
+		log.Info("vikunja write-backs disabled (PLOEG_VIKUNJA_URL/PLOEG_VIKUNJA_TOKEN unset)")
+	}
+
+	// The forge seam. Ploeg comments as the same bot that opens the pull
+	// requests; commenting is not pushing, so it needs no second credential.
+	forges := map[string]provider.ForgeProvider{}
+	if forgeURL := trimSlash(os.Getenv("PLOEG_FORGEJO_URL")); forgeURL != "" {
+		fj := &forgejo.Provider{
+			BaseURL: forgeURL,
+			Token:   os.Getenv("PLOEG_FORGEJO_TOKEN"),
+			Secret:  os.Getenv("PLOEG_FORGEJO_SECRET"),
+			Log:     log,
+		}
+		forges[fj.Name()] = fj
+		log.Info("forge provider configured", "forge", fj.Name(), "url", forgeURL)
+	} else {
+		log.Info("no forge provider configured (PLOEG_FORGEJO_URL unset); findings will not reach a pull request")
 	}
 
 	// Gateway credential sweeper (llmbroker.Sweeper) for per-run key
@@ -121,7 +148,11 @@ func run(log *slog.Logger) error {
 	// advance them, and the sweeper repairs what either fast path lost.
 	var engine *shiftengine.Engine
 	if len(plans) > 0 {
-		engine = &shiftengine.Engine{Store: st, Plans: plans, Log: log}
+		engine = &shiftengine.Engine{
+			Store: st, Plans: plans, Log: log,
+			Forges:   forges,
+			Trackers: map[string]provider.TrackerProvider{vik.Name(): vik},
+		}
 	}
 
 	srv := &httpapi.Server{
@@ -155,6 +186,8 @@ func run(log *slog.Logger) error {
 	log.Info("ploegd stopped")
 	return nil
 }
+
+func trimSlash(s string) string { return strings.TrimRight(s, "/") }
 
 // parseTeamMap parses "user1=teamA,user2=teamB" (usernames lowercased).
 func parseTeamMap(s string) map[string]string {

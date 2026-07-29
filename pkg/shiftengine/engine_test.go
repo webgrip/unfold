@@ -470,3 +470,16 @@ func TestRemandateAfterCloseOpensAFreshShift(t *testing.T) {
 		t.Errorf("fresh shift did not materialise its first round")
 	}
 }
+
+// reviewPlan: writer first, then a reviewer — the shape where a reader runs
+// AFTER a pull request exists, which is when findings can be published.
+func reviewPlan() plan.Plans {
+	plans, err := plan.Parse(`{"bronze": {"pool": 10, "rounds": [
+		{"roles": [{"name": "builder", "writes": true, "cap": 3}]},
+		{"roles": [{"name": "reviewer", "writes": false, "cap": 1}]}
+	]}}`)
+	if err != nil {
+		panic(err)
+	}
+	return plans
+}

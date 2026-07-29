@@ -92,6 +92,13 @@ spec:
                 secretKeyRef:
                   name: ploeg-webhook-secret
                   key: PLOEG_VIKUNJA_SECRET
+            - name: PLOEG_FORGEJO_URL
+              value: "http://forgejo-http.forgejo.svc.cluster.local:3000"
+            - name: PLOEG_FORGEJO_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: agent-builder-token
+                  key: FORGEJO_TOKEN
             - name: PLOEG_DEFAULT_TEAM
               value: "default"
             - name: PLOEG_LEASE_TTL

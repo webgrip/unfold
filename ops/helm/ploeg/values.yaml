@@ -39,6 +39,16 @@ resources:
 nodeSelector:
   node.webgrip.io/pool: worker
 
+# Tracker write-backs (backlog #31): how a closed Shift reaches a person with
+# the pull request link. Unset = the Vikunja provider keeps its logging no-op —
+# runs still finish, the board simply is not updated. Ingest (the webhook) is
+# configured separately and needs no token.
+tracker:
+  # e.g. https://vikunja.example/api/v1
+  url: ""
+  # tokenSecret: {name: agent-vikunja-token, key: VIKUNJA_API_TOKEN}
+  tokenSecret: {}
+
 executor:
   # The executor (design §6, docs/contracts/executor.md). Disabled until the
   # ingest path is verified in-cluster; flipping it on requires the LiteLLM +

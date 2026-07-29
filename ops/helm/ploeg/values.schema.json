@@ -145,6 +145,18 @@
           "additionalProperties": true
         }
       }
+    },
+    "tracker": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "tokenSecret": {
+          "$ref": "#/definitions/secretRef"
+        }
+      },
+      "additionalProperties": false
     }
   },
   "definitions": {

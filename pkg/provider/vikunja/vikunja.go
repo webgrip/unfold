@@ -1,10 +1,15 @@
-// Package vikunja is the reference TrackerProvider (design §4). The
-// prototype implements webhook verification and parsing; API write-backs
-// (Comment, SetStatus) and authoritative reads (FetchItem) log and no-op
-// until the Vikunja client lands (backlog #31).
+// Package vikunja is the reference TrackerProvider (design §4): webhook
+// verification and parsing, plus the API write-backs that let a run reach a
+// person (backlog #31).
+//
+// Write-backs are opt-in by configuration. Without BaseURL and Token the
+// provider keeps the prototype's logging no-op, because a deployment that has
+// not been given a tracker credential must degrade to "the board is not
+// updated" rather than to "the run fails".
 package vikunja
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -16,6 +21,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/webgrip/ploeg/pkg/provider"
 	"github.com/webgrip/ploeg/pkg/work"
@@ -29,7 +35,14 @@ type Provider struct {
 	DefaultTeam string
 	// TeamMap resolves tracker assignee usernames to Ploeg team names.
 	TeamMap map[string]string
-	Log     *slog.Logger
+	// BaseURL is the Vikunja API root, e.g. https://vikunja.example/api/v1.
+	// Empty disables reads and write-backs (they log and no-op).
+	BaseURL string
+	// Token is a Vikunja API token. Empty disables reads and write-backs.
+	Token string
+	// HC is optional; nil gets a 30s client.
+	HC  *http.Client
+	Log *slog.Logger
 }
 
 func (p *Provider) Name() string { return "vikunja" }
@@ -124,18 +137,117 @@ func verify(secret string, body []byte, sigHex string) bool {
 	return hmac.Equal(sig, mac.Sum(nil))
 }
 
+// configured reports whether API calls are possible at all.
+func (p *Provider) configured() bool { return p.BaseURL != "" && p.Token != "" }
+
+func (p *Provider) client() *http.Client {
+	if p.HC != nil {
+		return p.HC
+	}
+	return &http.Client{Timeout: 30 * time.Second}
+}
+
+// do issues one authenticated API call and decodes an optional result.
+func (p *Provider) do(ctx context.Context, method, path string, body, out any) error {
+	var rdr io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		rdr = bytes.NewReader(b)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(p.BaseURL, "/")+path, rdr)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+p.Token)
+	req.Header.Set("Accept", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	resp, err := p.client().Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return fmt.Errorf("vikunja: %s %s: HTTP %d: %s", method, path, resp.StatusCode, bytes.TrimSpace(snippet))
+	}
+	if out == nil {
+		return nil
+	}
+	return json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(out)
+}
+
+// FetchItem reads authoritative task state — the thin-payload rule's "truth"
+// half (backlog #7). Unconfigured, it errors so the caller falls back to the
+// webhook snapshot, which is exactly the prototype's behaviour.
 func (p *Provider) FetchItem(ctx context.Context, externalID string) (work.WorkItem, error) {
-	return work.WorkItem{}, errors.New("vikunja: FetchItem not implemented (prototype uses the webhook snapshot)")
+	if !p.configured() {
+		return work.WorkItem{}, errors.New("vikunja: no API credentials configured (falling back to the webhook snapshot)")
+	}
+	var task struct {
+		ID          int64  `json:"id"`
+		Title       string `json:"title"`
+		Description string `json:"description"`
+		Priority    int    `json:"priority"`
+		ProjectID   int64  `json:"project_id"`
+		Updated     string `json:"updated"`
+	}
+	if err := p.do(ctx, http.MethodGet, "/tasks/"+externalID, nil, &task); err != nil {
+		return work.WorkItem{}, err
+	}
+	if task.ID == 0 {
+		return work.WorkItem{}, fmt.Errorf("vikunja: task %s not found", externalID)
+	}
+	return work.WorkItem{
+		Provider:    p.Name(),
+		ExternalID:  fmt.Sprint(task.ID),
+		Revision:    task.Updated,
+		Origin:      work.OriginAssignment,
+		Priority:    task.Priority,
+		Title:       task.Title,
+		Description: task.Description,
+		// Team and ExternalScope are the caller's routing decision, not the
+		// tracker's view of the task; httpapi.mirror overwrites them.
+	}, nil
 }
 
+// Comment writes back to the task's conversation — how a finished Shift
+// reaches a person with the pull request link.
+//
+// Creation is PUT, not POST (docs/ops/board.md): Vikunja uses PUT for
+// creating assignees, labels and comments, and a POST here silently does
+// something else.
 func (p *Provider) Comment(ctx context.Context, externalID, htmlBody string) error {
-	p.log().Info("vikunja write-back (no-op in prototype)", "action", "comment", "external_id", externalID)
-	return nil
+	if !p.configured() {
+		p.log().Info("vikunja write-back skipped (no API credentials)", "action", "comment", "external_id", externalID)
+		return nil
+	}
+	return p.do(ctx, http.MethodPut, "/tasks/"+externalID+"/comments",
+		map[string]string{"comment": htmlBody}, nil)
 }
 
+// SetStatus applies Ploeg's state to the tracker.
+//
+// Only a terminal state is expressed, and only as "done or not": Vikunja has
+// no column for needs_human, and inventing a label mapping here would put a
+// Ploeg concept inside the provider (R7). The state that actually matters to
+// a human — why it stopped, and the PR to look at — travels in the comment.
 func (p *Provider) SetStatus(ctx context.Context, externalID string, state work.State) error {
-	p.log().Info("vikunja write-back (no-op in prototype)", "action", "set_status", "external_id", externalID, "state", state)
-	return nil
+	if !p.configured() {
+		p.log().Info("vikunja write-back skipped (no API credentials)", "action", "set_status", "external_id", externalID, "state", state)
+		return nil
+	}
+	// needs_human and stale are NOT done: a person still owes the item work,
+	// and marking it done would hide it from the board that raised it.
+	if state != work.StateDone {
+		return nil
+	}
+	return p.do(ctx, http.MethodPost, "/tasks/"+externalID,
+		map[string]any{"id": externalID, "done": true}, nil)
 }
 
 func (p *Provider) log() *slog.Logger {
