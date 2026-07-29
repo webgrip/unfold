@@ -12,7 +12,7 @@ tickets.
 
 | Working on | Read first |
 | --- | --- |
-| Anything non-trivial | [docs/architecture.md](docs/architecture.md) — current-state reality; §9 lists where the code diverges from design intent |
+| Anything non-trivial | [docs/architecture.md](docs/architecture.md) — current-state reality; §9 lists where the code diverges from design intent, and goes stale in both directions: check §9's claims against the code before repeating them |
 | Per-run LLM keys, budgets, spend | architecture.md §5 — the alias format and revocation rules are joined by Grafana in `webgrip/homelab-cluster` |
 | Claims, leases, retries, the sweeper | architecture.md §4 + `pkg/store` |
 | Scaling, worker pods, KEDA | architecture.md §3 + `ops/helm/ploeg` |
@@ -34,6 +34,18 @@ Run the gates from [.forgejo/workflows/on_pull_request.yml](.forgejo/workflows/o
 PR body. Without a local toolchain, run them through the DinD daemon with the `golang` and
 `alpine/helm` images. Tests fake external services with `net/http/httptest` and never need
 network; a bug fix lands with the regression test that fails against the old code.
+
+## Working alongside other sessions
+
+Several sessions share this checkout, so **stage paths, never the tree**: `git add` the files you
+wrote, never `-A`, `.`, or `commit -a`. A whole-tree commit silently absorbs another session's
+uncommitted work under your message — it happened twice on 2026-07-28, and on `development` a
+swept `feat:`/`fix:` also cuts an rc release that misdescribes its own contents. Dirt in
+`git status` that you did not create belongs to someone else; leave it. Take a worktree for
+anything longer than a couple of edits (`git worktree add ../ploeg-<slug> -b <branch>`). Before
+concluding your edits are still uncommitted, run `git log --oneline -3 -- <paths>` — another
+session may already have committed them, and on pushed `development` the fix is a follow-up
+commit, never an amend.
 
 ## Durable knowledge lives in this repo
 
