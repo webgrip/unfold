@@ -216,11 +216,12 @@ fetch (VIK-590).
 | Route | Purpose |
 |---|---|
 | `POST /webhooks/tracker/vikunja` | HMAC-verified ingest; only `task.assignee.created` does anything |
-| `POST /api/v1/claim` | Lease next queued item for a team (204 = empty-handed, worker exits 0) |
+| `POST /webhooks/forge/{provider}` | HMAC-verified forge ingest; deduplicated on the delivery id, audited, not yet acted on |
+| `POST /api/v1/claim` | Lease next queued item for a team, or — with `role` — the next pending Run of that Role (204 = empty-handed, worker exits 0; also an exhausted Shift pool) |
 | `POST /api/v1/runs/{token}/renew` | Extend lease (404 ⇒ worker aborts) |
 | `POST /api/v1/runs/{token}/checkpoint` | Record `branch_created` / `pr_opened` |
 | `POST /api/v1/runs/{token}/outcome` | Terminal report (full `OutcomeReport`: checkpoint + usage ride inline); `stuck` requires a reason |
-| `GET /api/v1/queue/depth?team=` | Executor scale signal over HTTP (same predicate as the KEDA scaler query) |
+| `GET /api/v1/queue/depth?team=&role=` | Executor scale signal over HTTP (same predicate as the KEDA scaler query; with a role, pending Runs for that `(team, role)`) |
 | `GET /api/v1/queue/{team}` | Operator snapshot |
 | `GET /healthz` · `GET /readyz` | Liveness / DB-ping readiness |
 
@@ -243,6 +244,15 @@ completes — no longer required by the schema — and `targetSource: env` pins 
 team to that fallback regardless of what the claim says. See
 [§9.12](#9-where-the-code-diverges-from-designmd) for what is still open.
 
+A team may also carry a **plan**: an ordered list of Rounds, each naming Roles
+with `writes`, a per-Run `cap`, and optionally its own model, image and harness
+(`executor.teams[].plan[]`, serialised to ploegd as `PLOEG_TEAM_PLANS`). A
+planned team renders one workload per `(team, role)` rather than one per team,
+which is what makes "different agents, different harnesses, different images"
+literally true — pod shape is fixed at render time. `maxFixRounds` bounds the
+review loop (ADR-0017). A team with no plan gets a synthesized one-writer Shift
+unless `PLOEG_SHIFTS_UNIFORM=false`.
+
 Assignee-username → team routing via
 `PLOEG_TEAM_MAP` ("assign ticket to user `silver` = dispatch team silver");
 unmapped assignees fall to `PLOEG_DEFAULT_TEAM`. Live sizing, image pins, and
@@ -255,9 +265,19 @@ Known gaps between [design.md](design.md) / [domain/model.yaml](domain/model.yam
 and the implementation (1–11 verified 2026-07-27; 12–17 added 2026-07-29).
 Aspirational ≠ implemented:
 
-1. **PR follow-up ingestion** (design §3, R9): no forge webhook route, no
-   `ForgeProvider` impl, `origin=follow_up` never produced. Review feedback
-   re-enters via ticket re-assignment instead.
+1. **PR follow-up ingestion** (design §3, R9): **partly closed 2026-07-29.**
+   `pkg/provider/forgejo` is the first `ForgeProvider` (Name, Comment,
+   ParseWebhook), and `POST /webhooks/forge/{provider}` verifies, deduplicates
+   (migration 0011) and audits inbound events. Still open: nothing ACTS on
+   them — `origin=follow_up` is still never produced. Routing a submitted
+   review into a re-mandate needs the branch → Work Item reverse lookup that
+   neutral branch naming (backlog #107) owes it, and there are now two paths
+   meaning "keep going" (a reviewer's verdict, ADR-0017, and a human's review)
+   which are deliberately not yet reconciled. **The route is also unreachable
+   in the live cluster**: forgejo→ploeg is blocked in both directions
+   (`kubernetes/apps/ploeg/.../networkpolicy.yaml` has no forgejo ingress rule,
+   and forgejo's own egress excludes the pod/service CIDRs) — ops work, not a
+   code change.
 2. **Harness contract** (design §5): **closed 2026-07-28.** `pkg/harness`
    now carries the live seam: `TaskSpec`/`OutcomeReport` are the adapter I/O
    (published schemas in [contracts/](contracts/), backlog #59), and
@@ -276,17 +296,28 @@ Aspirational ≠ implemented:
    > [ADR-0007](adrs/0007-a2a-adopt-nothing-watchlist-a-facade.md).
 3. **"Watcher records failed on exit-without-report"**: no watcher exists;
    the DB lease sweeper is the crash detector.
-4. **Teams with roles/strategies**: **half-closed 2026-07-29.** The store
-   layer for Shifts, Rounds and reader/writer Runs is built and tested
-   ([§10](#10-shifts-many-personas-on-one-item)), so roles and a parallel
-   strategy now exist in Postgres. Nothing drives them yet: no Shift is opened,
-   no Round advances, and the chart still renders one worker + one model per
-   team. There is still no `teams` table — a team remains Helm values.
+4. **Teams with roles/strategies**: **closed 2026-07-29.** `pkg/shiftengine`
+   opens a Shift when an item is queued, advances a Round when every Run in it
+   has finished, and closes on plan exhaustion, a stuck Outcome or a dry pool —
+   from the ingest/outcome fast path and repaired by the sweeper (R2). A Team
+   plan (`executor.teams[].plan[]` → `PLOEG_TEAM_PLANS`) names Rounds and
+   Roles; the chart renders one workload per `(team, role)` with its own image,
+   harness, model and dind setting. `PLOEG_SHIFTS_UNIFORM` (default on) gives a
+   plan-less team a synthesized one-writer Shift, so every item has one — and
+   settles on the run's Outcome rather than `needs_human`, which keeps that a
+   bookkeeping change. There is still no `teams` table: a team remains Helm
+   values.
 5. **Checkpoint-driven resume**: checkpoints are written, never read; every
    run starts fresh.
-6. **Tracker write-backs**: Vikunja `FetchItem`/`Comment`/`SetStatus` are
-   stubs; the thin-payload rule always falls back to the webhook snapshot, and
-   Ploeg never writes ticket status back.
+6. **Tracker write-backs**: **closed 2026-07-29.** Vikunja `FetchItem`,
+   `Comment` (PUT, not POST — see [ops/board.md](ops/board.md)) and
+   `SetStatus` are real, and a closing Shift comments the PR link and asks a
+   person to merge. They are opt-in by credential: without
+   `PLOEG_VIKUNJA_URL`/`_TOKEN` the provider keeps its logging no-op, so a
+   deployment with no tracker credential still finishes runs — it just does
+   not update the board. `SetStatus` writes only `done`; `needs_human` has no
+   Vikunja column, and inventing a label mapping would put a Ploeg concept in
+   the provider (R7).
 7. **`ingested` state**: items are inserted directly as `queued`; `ingested`
    effectively never persists.
 8. **`needs_human`/`stale` exits**: only re-assignment implements them; the
@@ -304,7 +335,8 @@ Aspirational ≠ implemented:
     cancel or lease release (backlog #8).
 11. **No metrics**: no OTel/Prometheus in Go; observability is structured logs
     plus the `key_alias` join in Grafana (external dashboards in homelab-cluster).
-12. **Team names the repository** (design §3, Team entity in `domain/model.yaml`): the
+12. **Team names the repository** [status: unchanged by the Shift work — the
+    fallback window below is still open] (design §3, Team entity in `domain/model.yaml`): the
     Team entity's attributes are exactly name, roles, strategy, budget — no
     repo. The chart binds one anyway: `ops/helm/ploeg/values.yaml` team entries
     carry `repoOwner`/`repoName`/`baseBranch`, and `values.schema.json:34` makes
