@@ -314,7 +314,46 @@ func waitCh(p *process) <-chan struct{} {
 
 // alive reports whether a pid exists. Signal 0 performs error checking without
 // actually sending anything.
-func alive(pid int) bool { return syscall.Kill(pid, 0) == nil }
+// alive reports whether pid is a running process — which is deliberately not
+// the same question as "does this pid exist".
+//
+// A grandchild killed by the group signal becomes a ZOMBIE until someone
+// reaps it. Its parent died in the same signal, so it is reparented to PID 1,
+// and PID 1 reaps it only if PID 1 is an init. Under `docker run golang go
+// test` (how this repo runs its gates without a local toolchain) and on the
+// CI runner, PID 1 is the go driver, which reaps nothing — so the corpse sits
+// in the table indefinitely and kill(pid, 0) keeps succeeding for it.
+//
+// Counting that as "survived" tested the container's init, not the launcher.
+// A zombie holds no descriptors: not the DinD socket, not the per-run LiteLLM
+// key — which is the entire property TestLauncher_KillReapsTheWholeProcessGroup
+// exists to protect.
+//
+// (Production is unaffected either way: one run per pod, and the pod exits.)
+func alive(pid int) bool {
+	if syscall.Kill(pid, 0) != nil {
+		return false
+	}
+	return !isZombie(pid)
+}
+
+// isZombie reads Linux's process state. Elsewhere — darwin, where PID 1 is
+// launchd and does reap — there is nothing to correct for, and the absence of
+// /proc reports false.
+func isZombie(pid int) bool {
+	b, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	if err != nil {
+		return false
+	}
+	// Field 2 (comm) is parenthesised and may itself contain spaces and
+	// parens, so the state character is found from the LAST ')', never by
+	// splitting on whitespace.
+	i := bytes.LastIndexByte(b, ')')
+	if i < 0 || i+2 >= len(b) {
+		return false
+	}
+	return b[i+2] == 'Z'
+}
 
 type safeBuffer struct {
 	mu sync.Mutex
