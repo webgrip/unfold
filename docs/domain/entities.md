@@ -69,7 +69,8 @@ The exclusive right to write a Shift's branch, crash-safe and TTL-renewed. Held 
 |---|---|---|---|
 | `shift_id` | `string` | yes | Unique per Shift — one writer at a time. |
 | `run_id` | `string` | yes | The writing Run holding it. Readers never appear here. |
-| `expires_at` | `timestamp` | yes | Expiry releases write access mechanically, and releases the Run's budget authorization in the same transaction. |
+| `forge_token_id` | `string` | yes | The scoped push credential minted for this Run, revoked when the Lease lapses (ADR-0013). |
+| `expires_at` | `timestamp` | yes | Expiry revokes the push credential and releases the Run's budget authorization in the same sweep. |
 | `renewed_at` | `timestamp` |  | Last renewal by the running Run. |
 
 **Relationships**

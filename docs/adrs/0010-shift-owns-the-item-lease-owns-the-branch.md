@@ -49,6 +49,11 @@ ambiguity.
 * **Avoid a second copy of the claim predicate.** The rejected design below
   required the KEDA scaler query to mirror `Claim` exactly, where undershoot
   stalls items silently and forever.
+* **A Lease must enforce what it records.** A row asserting "this Run may write"
+  while every pod holds the same static push token is ceremony, not exclusion —
+  and it would leave the writer/reader split below as a convention rather than a
+  boundary. Push rights are therefore bound to the Lease
+  ([ADR-0013](0013-push-rights-are-minted-per-run.md)).
 
 ## Considered Options
 
@@ -76,6 +81,11 @@ A reader takes none, so any number run at once. A *round* is therefore either a
 fan-out of readers or a single writer, never both — which is the entire
 concurrency control. No coordination between pods is required, because readers
 have nothing to coordinate over.
+
+That split is enforced by credentials, not only by Ploeg's scheduling: a reading
+Run receives no push credential at all, and a writing Run's expires with its
+Lease ([ADR-0013](0013-push-rights-are-minted-per-run.md)). Holding the Lease
+and being able to push are one fact rather than two that can disagree.
 
 **Agents in the same round cannot observe each other.** Runs that start together
 see the same injected state and never see each other's output; the next round

@@ -68,10 +68,10 @@ The thin wrapper that makes one Harness satisfy the harness contract: accept a T
 ## Lease
 *Context: Dispatch*
 
-The exclusive right to WRITE a Shift's branch: a row (shift, run, expires_at), unique per Shift, renewed on a fixed interval by the holding Run. Expiry releases it mechanically — nothing depends on an agent behaving well at death. Only a writing Run takes one; reading Runs take none, which is what lets any number of them run at once. "Claim" is the verb (a Run claims write access, acquiring a Lease); the noun is always Lease. Before ADR-0010 a Lease was held per Work Item and also served as the accounting and grouping boundary; those two jobs now belong to the Shift.
+The exclusive right to WRITE a Shift's branch, unique per Shift and renewed on a fixed interval by the holding Run. It is a capability rather than a note: the holder's push credential is minted with it and revoked when it lapses, so holding a Lease and being able to push are one fact. Only a writing Run takes one — reading Runs take none, which is what lets any number of them run at once.
 
 **Do not use:** claim (as a noun), lock  
-**See also:** [Shift](#shift), [Run](#run), [Work Item](#work-item)  
+**See also:** [Shift](#shift), [Run](#run), [Push Credential](#push-credential)  
 
 ## Outcome
 *Context: Dispatch*
@@ -86,6 +86,14 @@ The terminal result of a Run, one of: pr_opened, pr_updated, issue_updated, foll
 The output contract of an Agent Container: Outcome, summary, links, and optionally a new Checkpoint, written before exit. Exit without a report is recorded as a failed Outcome by the Executor's watch.
 
 **See also:** [Task Spec](#task-spec), [Outcome](#outcome)  
+
+## Push Credential
+*Context: Execution*
+
+The repository-scoped forge token minted for one writing Run and revoked when its Lease settles or lapses. What makes the Lease enforceable rather than advisory, and the reason a reading Run cannot write the branch it is reviewing. The model-provider equivalent is the per-Run LiteLLM key.
+
+**Do not use:** builder token, deploy key  
+**See also:** [Lease](#lease), [Run](#run)  
 
 ## Role
 *Context: Dispatch*

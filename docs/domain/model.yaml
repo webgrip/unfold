@@ -58,18 +58,25 @@ terms:
 
   - name: Lease
     definition: >
-      The exclusive right to WRITE a Shift's branch: a row (shift, run,
-      expires_at), unique per Shift, renewed on a fixed interval by the holding
-      Run. Expiry releases it mechanically — nothing depends on an agent
-      behaving well at death. Only a writing Run takes one; reading Runs take
-      none, which is what lets any number of them run at once. "Claim" is the
-      verb (a Run claims write access, acquiring a Lease); the noun is always
-      Lease. Before ADR-0010 a Lease was held per Work Item and also served as
-      the accounting and grouping boundary; those two jobs now belong to the
-      Shift.
+      The exclusive right to WRITE a Shift's branch, unique per Shift and
+      renewed on a fixed interval by the holding Run. It is a capability rather
+      than a note: the holder's push credential is minted with it and revoked
+      when it lapses, so holding a Lease and being able to push are one fact.
+      Only a writing Run takes one — reading Runs take none, which is what lets
+      any number of them run at once.
     context: Dispatch
     avoid: [claim (as a noun), lock]
-    see_also: [Shift, Run, Work Item]
+    see_also: [Shift, Run, Push Credential]
+
+  - name: Push Credential
+    definition: >
+      The repository-scoped forge token minted for one writing Run and revoked
+      when its Lease settles or lapses. What makes the Lease enforceable rather
+      than advisory, and the reason a reading Run cannot write the branch it is
+      reviewing. The model-provider equivalent is the per-Run LiteLLM key.
+    context: Execution
+    avoid: [builder token, deploy key]
+    see_also: [Lease, Run]
 
   - name: Round
     definition: >
@@ -374,9 +381,13 @@ entities:
         type: string
         description: The writing Run holding it. Readers never appear here.
         required: true
+      - name: forge_token_id
+        type: string
+        description: The scoped push credential minted for this Run, revoked when the Lease lapses (ADR-0013).
+        required: true
       - name: expires_at
         type: timestamp
-        description: Expiry releases write access mechanically, and releases the Run's budget authorization in the same transaction.
+        description: Expiry revokes the push credential and releases the Run's budget authorization in the same sweep.
         required: true
       - name: renewed_at
         type: timestamp
@@ -590,9 +601,14 @@ events:
     triggers: Each Run receives the same injected state; none observes the others.
 
   - name: LeaseAcquired
-    description: A writing Run took exclusive write access to its Shift's branch.
+    description: A writing Run took exclusive write access to its Shift's branch; a scoped push credential was minted for it.
     entity: Lease
-    triggers: The Run may push; no other Run in the Shift may.
+    triggers: The Run may push; no other Run in the Shift holds a push credential at all.
+
+  - name: PushRightsRevoked
+    description: A Lease settled or lapsed; the Run's scoped forge token was revoked.
+    entity: Lease
+    triggers: A zombie Run can no longer push, without any cleanup code running inside it (R2).
 
   - name: BudgetAuthorized
     description: A Run reserved min(roleCap, poolRemaining) against its Shift before spawning.

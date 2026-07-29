@@ -32,10 +32,17 @@ A set of Runs was spawned together — either a fan-out of readers or a single w
 
 ## LeaseAcquired
 
-A writing Run took exclusive write access to its Shift's branch.
+A writing Run took exclusive write access to its Shift's branch; a scoped push credential was minted for it.
 
 **Concerns:** Lease  
-**Triggers:** The Run may push; no other Run in the Shift may.  
+**Triggers:** The Run may push; no other Run in the Shift holds a push credential at all.  
+
+## PushRightsRevoked
+
+A Lease settled or lapsed; the Run's scoped forge token was revoked.
+
+**Concerns:** Lease  
+**Triggers:** A zombie Run can no longer push, without any cleanup code running inside it (R2).  
 
 ## BudgetAuthorized
 
