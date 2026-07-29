@@ -29,6 +29,10 @@ import (
 type Config struct {
 	APIURL string // ploegd base URL
 	Team   string
+	// Role is this pod's slot in a Round (PLOEG_ROLE). Empty = the pre-Shift
+	// claim over queued work items; the pod shape is fixed at render time, so
+	// one workload serves exactly one role.
+	Role string
 	// RepoOwner/RepoName/BaseBranch are the FALLBACK target, used when the
 	// claimed work item resolved none. The repository is a property of the
 	// work (R11), so these are deprecated per-team config on the way out —
@@ -72,13 +76,12 @@ func New(cfg Config, adapter harness.Adapter, broker llmbroker.Broker, log *slog
 // Run claims one work item and drives it to a reported outcome. A nil
 // claim (empty queue) is the empty-handed convention: exit 0 (backlog #49).
 func (w *Worker) Run() error {
-	// Role selection lands with the role-aware worker; a pre-Shift claim here.
-	claimed, err := w.API.Claim(w.Cfg.Team, "")
+	claimed, err := w.API.Claim(w.Cfg.Team, w.Cfg.Role)
 	if err != nil {
 		return fmt.Errorf("claim: %w", err)
 	}
 	if claimed == nil {
-		w.Log.Info("no claimable work item; exiting empty-handed")
+		w.Log.Info("no claimable work item; exiting empty-handed", "role", w.Cfg.Role)
 		return nil
 	}
 	// Downward API identity for run forensics (VIK-597). Empty when not
@@ -87,9 +90,17 @@ func (w *Worker) Run() error {
 	podUID := os.Getenv("POD_UID")
 
 	item := claimed.WorkItem
-	branch := "agent/vik-" + item.ExternalID
+	// The Shift's branch when ploegd produced one; otherwise derive it, as
+	// the pre-Shift path always has. Both yield the same string today, so a
+	// mixed-version rollout cannot split a ticket across two branches.
+	branch := claimed.Branch
+	if branch == "" {
+		branch = "agent/vik-" + item.ExternalID
+	}
 	trace := litellm.Alias(claimed.RunToken)
-	w.Log.Info("claimed work item", "id", item.ID, "external_id", item.ExternalID, "title", item.Title, "trace", trace, "harness", w.Adapter.Name(), "node", nodeName, "pod_uid", podUID)
+	w.Log.Info("claimed work item", "id", item.ID, "external_id", item.ExternalID, "title", item.Title,
+		"trace", trace, "harness", w.Adapter.Name(), "node", nodeName, "pod_uid", podUID,
+		"role", claimed.Role, "shift", claimed.Shift, "round", claimed.Round, "writes", claimed.Writes)
 
 	// Lease renewal at TTL/3; three consecutive failures (or a 404 = lease
 	// stolen) cancel the run — another worker may own the item now.
@@ -151,9 +162,26 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 
 	spec := harness.TaskSpec{
 		WorkItem: item,
+		Role:     claimed.Role,
 		Repo:     ref,
 		Branch:   branch,
 		TraceID:  trace,
+		Briefing: claimed.Briefing,
+	}
+
+	// A PR on this branch BEFORE the harness runs is a previous run's work:
+	// the branch name is derived from the ticket, so every retry, review round
+	// and persona turn reuses it. Without this snapshot a run that crashes
+	// instantly would inherit the earlier PR and report pr_opened → done.
+	//
+	// Looked up before the prompt is composed, not after: the contract has to
+	// tell a writer whether to open a PR or update the one already there.
+	priorPR, priorErr := findPR(ref, w.Cfg.BuilderToken, branch)
+	if priorErr != nil {
+		w.Log.Warn("pre-run PR lookup failed", "err", priorErr)
+	}
+	if priorPR != "" {
+		w.Log.Info("branch already has an open PR", "pr", priorPR, "branch", branch)
 	}
 
 	var logTail harness.TailBuffer
@@ -164,7 +192,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	env := harness.RunEnv{
 		RepoDir:    cloneDir,
 		ScratchDir: os.TempDir(),
-		Prompt:     ComposePrompt(spec),
+		Prompt:     ComposePrompt(spec, claimed.Writes || claimed.Role == "", priorPR),
 		BaseEnv:    os.Environ(),
 		LLM:        harness.LLMEnv{BaseURL: w.Cfg.LLMBaseURL, Model: model, TraceID: trace},
 		Stdout:     io.MultiWriter(os.Stdout, &logTail),
@@ -177,22 +205,20 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 		Log: w.Log,
 	}
 
-	// A PR on this branch BEFORE the harness runs is a previous run's work:
-	// the branch name is derived from the ticket, so every retry, review round
-	// and persona turn reuses it. Without this snapshot a run that crashes
-	// instantly would inherit the earlier PR and report pr_opened → done.
-	priorPR, priorErr := findPR(ref, w.Cfg.BuilderToken, branch)
-	if priorErr != nil {
-		w.Log.Warn("pre-run PR lookup failed", "err", priorErr)
-	}
-	if priorPR != "" {
-		w.Log.Info("branch already has an open PR", "pr", priorPR, "branch", branch)
+	// The Shift's authorization is the ceiling the credential must be minted
+	// at: min(roleCap, poolRemaining), computed under the Shift row lock
+	// (ADR-0012). Zero = no Shift authorized this run, so the env budget
+	// stands, exactly as on the pre-Shift path.
+	budget := w.Cfg.KeyBudget
+	if claimed.Authorized > 0 {
+		budget = claimed.Authorized
 	}
 
-	w.Log.Info("starting headless harness run", "harness", w.Adapter.Name(), "cwd", cloneDir)
+	w.Log.Info("starting headless harness run", "harness", w.Adapter.Name(), "cwd", cloneDir,
+		"role", claimed.Role, "budget_usd", budget, "briefing", len(claimed.Briefing))
 	report, mintErr, runErr := runAgent(ctx, w.Log, w.Broker, w.Adapter, spec, env, llmbroker.MintRequest{
 		RunToken:  claimed.RunToken,
-		BudgetUSD: w.Cfg.KeyBudget,
+		BudgetUSD: budget,
 		Models:    w.Cfg.LLMModels,
 		TTL:       w.Cfg.KeyTTL,
 	})

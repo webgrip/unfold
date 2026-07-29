@@ -67,6 +67,10 @@ func run(log *slog.Logger) error {
 	cfg := worker.Config{
 		APIURL: requireEnv("PLOEG_API_URL"),
 		Team:   requireEnv("PLOEG_TEAM"),
+		// This pod's slot in a Round. NOT boot-required: unset is the
+		// pre-Shift claim over queued work items, which is exactly what a
+		// team without a plan keeps doing.
+		Role: os.Getenv("PLOEG_ROLE"),
 		// The repository is a property of the work item, resolved at ingest and
 		// delivered on the claim (R11). These are only the fallback, so they
 		// are NOT boot-required: requiring them would crash-loop a pod that was
