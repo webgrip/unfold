@@ -34,6 +34,15 @@ type Server struct {
 	// caller — the sweeper's EvaluateAll repairs whatever a lost fast path
 	// leaves behind (R2), so a webhook or worker must never see a 5xx for it.
 	Engine ShiftEngine
+	// RoleCaps supplies the per-Run spending ceiling for a (team, role),
+	// implemented by plan.Plans. Nil = no caps, and the authorization is
+	// bounded by the Shift pool alone.
+	RoleCaps RoleCaps
+}
+
+// RoleCaps is the slice of the team-plan config the claim path needs.
+type RoleCaps interface {
+	RoleCap(team, role string) float64
 }
 
 // ShiftEngine is implemented by pkg/shiftengine. An interface here rather
@@ -160,20 +169,40 @@ func (s *Server) resolveTarget(item *work.WorkItem, ev provider.TrackerEvent) {
 
 type claimRequest struct {
 	Team string `json:"team"`
+	// Role selects which slot of a Round this worker claims. Empty = the
+	// pre-Shift claim over queued Work Items.
+	Role string `json:"role,omitempty"`
 }
 
 type claimResponse struct {
 	RunToken string        `json:"runToken"`
 	Deadline time.Time     `json:"deadline"`
 	WorkItem work.WorkItem `json:"workItem"`
+	// Shift fields; all absent on a pre-Shift claim, so an old worker sees
+	// exactly today's body.
+	Shift      int64             `json:"shift,omitempty"`
+	Role       string            `json:"role,omitempty"`
+	Round      int               `json:"round,omitempty"`
+	Writes     bool              `json:"writes,omitempty"`
+	Branch     string            `json:"branch,omitempty"`
+	Authorized float64           `json:"authorized,omitempty"`
+	Briefing   []harness.Finding `json:"briefing,omitempty"`
 }
 
-// handleClaim leases the next queued item for a team. 204 = empty-handed
+// handleClaim leases the next unit of work for a team. 204 = empty-handed
 // worker, exit 0 (backlog #49).
+//
+// With a role, the claim is Shift-scoped: the oldest pending Run for that
+// (team, role), with its budget authorized in the same transaction. Without
+// one, it is the pre-Shift claim over queued Work Items, unchanged.
 func (s *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 	var req claimRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Team == "" {
-		http.Error(w, "body must be {\"team\": \"...\"}", http.StatusBadRequest)
+		http.Error(w, "body must be {\"team\": \"...\", \"role\": \"...\"}", http.StatusBadRequest)
+		return
+	}
+	if req.Role != "" {
+		s.claimRole(w, r, req)
 		return
 	}
 	claimed, err := s.Store.Claim(r.Context(), req.Team, s.LeaseTTL)
@@ -188,6 +217,57 @@ func (s *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Log.Info("lease acquired", "team", req.Team, "work_item", claimed.Item.ID, "deadline", claimed.Deadline)
 	writeJSON(w, http.StatusOK, claimResponse{RunToken: claimed.RunToken, Deadline: claimed.Deadline, WorkItem: claimed.Item})
+}
+
+// claimRole serves a Shift-scoped claim, carrying everything the Run needs
+// that it cannot derive: its place in the Shift, the branch ploegd derived,
+// the budget ceiling its credential must be minted at, and the briefing of
+// earlier Rounds' findings (ADR-0011 — the agent fetches nothing itself).
+func (s *Server) claimRole(w http.ResponseWriter, r *http.Request, req claimRequest) {
+	cap := 0.0
+	if s.RoleCaps != nil {
+		cap = s.RoleCaps.RoleCap(req.Team, req.Role)
+	}
+	run, err := s.Store.ClaimRole(r.Context(), req.Team, req.Role, s.LeaseTTL, cap)
+	switch {
+	case errors.Is(err, store.ErrNoWork):
+		w.WriteHeader(http.StatusNoContent)
+		return
+	case errors.Is(err, store.ErrBudgetExhausted):
+		// Not an error the worker can act on: nothing is spawned, no key is
+		// minted, no attempt is burned. The sweeper parks the item with a
+		// reason naming the spend.
+		s.Log.Warn("claim refused: shift budget exhausted", "team", req.Team, "role", req.Role)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	case err != nil:
+		s.Log.Error("role claim failed", "team", req.Team, "role", req.Role, "err", err)
+		http.Error(w, "claim failed", http.StatusInternalServerError)
+		return
+	}
+
+	resp := claimResponse{
+		RunToken: run.RunToken, Deadline: run.Deadline, WorkItem: run.Item,
+		Shift: run.ShiftID, Role: run.Role, Round: run.Round,
+		Writes: run.Writes, Branch: run.Branch, Authorized: run.Authorized,
+	}
+	// Prior Rounds only: this Round's siblings are still running, and Runs in
+	// one Round never observe each other (ADR-0010).
+	reports, err := s.Store.RoundReports(r.Context(), run.ShiftID)
+	if err != nil {
+		s.Log.Error("briefing read failed; run proceeds without it", "shift", run.ShiftID, "err", err)
+	}
+	for _, rep := range reports {
+		if rep.Round < run.Round && rep.Findings != "" {
+			resp.Briefing = append(resp.Briefing, harness.Finding{
+				Role: rep.Role, Round: rep.Round, Findings: rep.Findings,
+			})
+		}
+	}
+	s.Log.Info("run claimed", "team", req.Team, "role", run.Role, "shift", run.ShiftID,
+		"round", run.Round, "writes", run.Writes, "authorized", run.Authorized,
+		"briefing", len(resp.Briefing), "deadline", run.Deadline)
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (s *Server) handleRenew(w http.ResponseWriter, r *http.Request) {
@@ -266,7 +346,8 @@ func (s *Server) handleOutcome(w http.ResponseWriter, r *http.Request) {
 		failureReason = &fr
 	}
 	res, err := s.Store.ReportOutcome(r.Context(), r.PathValue("token"),
-		store.Report(req.Outcome, req.Summary, req.StuckReason, req.Links, usage, failureReason))
+		store.Report(req.Outcome, req.Summary, req.StuckReason, req.Links, usage, failureReason).
+			WithFindings(req.Findings))
 	if err != nil {
 		if errors.Is(err, store.ErrUnknownRun) {
 			runError(w, err)
@@ -290,18 +371,34 @@ func (s *Server) handleOutcome(w http.ResponseWriter, r *http.Request) {
 // handleQueueDepth serves the executor scale signal over HTTP: the same
 // claimable-count the KEDA scaler reads via SQL, for executors without
 // Postgres credentials (docs/contracts/executor.md).
+//
+// With a role it answers from PendingRuns, which selects over the identical
+// predicate as ClaimRole — the two are tested against each other, because
+// overshoot merely wastes a pod while undershoot stalls Work Items silently
+// and forever.
 func (s *Server) handleQueueDepth(w http.ResponseWriter, r *http.Request) {
 	team := r.URL.Query().Get("team")
 	if team == "" {
 		http.Error(w, "team query parameter is required", http.StatusBadRequest)
 		return
 	}
-	n, err := s.Store.QueueDepth(r.Context(), team)
+	role := r.URL.Query().Get("role")
+	var n int
+	var err error
+	if role != "" {
+		n, err = s.Store.PendingRuns(r.Context(), team, role)
+	} else {
+		n, err = s.Store.QueueDepth(r.Context(), team)
+	}
 	if err != nil {
 		http.Error(w, "queue depth read failed", http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"team": team, "depth": n})
+	body := map[string]any{"team": team, "depth": n}
+	if role != "" {
+		body["role"] = role
+	}
+	writeJSON(w, http.StatusOK, body)
 }
 
 func (s *Server) handleQueue(w http.ResponseWriter, r *http.Request) {

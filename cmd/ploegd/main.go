@@ -130,6 +130,7 @@ func run(log *slog.Logger) error {
 		Targets:  targets,
 		LeaseTTL: leaseTTL,
 		Log:      log,
+		RoleCaps: plans,
 	}
 	if engine != nil {
 		srv.Engine = engine

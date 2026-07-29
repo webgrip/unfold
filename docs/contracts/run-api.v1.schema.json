@@ -6,12 +6,18 @@
   "$defs": {
     "claimRequest": {
       "type": "object",
-      "properties": { "team": { "type": "string", "minLength": 1 } },
+      "properties": {
+        "team": { "type": "string", "minLength": 1 },
+        "role": {
+          "type": "string",
+          "description": "claim only this Role's pending Run within the team (run-multi-agent-shifts). Absent = the pre-Shift claim, unchanged."
+        }
+      },
       "required": ["team"],
       "additionalProperties": false
     },
     "claimResponse": {
-      "description": "HTTP 200 body; HTTP 204 = no claimable work (empty-handed convention, exit 0).",
+      "description": "HTTP 200 body; HTTP 204 = no claimable work (empty-handed convention, exit 0), which also covers an exhausted Shift budget — retrying cannot fix running out of money, so the sweeper parks the item instead.",
       "type": "object",
       "properties": {
         "runToken": {
@@ -20,7 +26,24 @@
           "description": "the run's only credential; renew/checkpoint/outcome key on it"
         },
         "deadline": { "type": "string", "format": "date-time" },
-        "workItem": { "$ref": "taskspec.v1.schema.json#/$defs/workItem" }
+        "workItem": { "$ref": "taskspec.v1.schema.json#/$defs/workItem" },
+        "shift": { "type": "integer", "description": "the Shift this Run belongs to; absent on a pre-Shift claim" },
+        "role": { "type": "string" },
+        "round": { "type": "integer", "minimum": 0 },
+        "writes": {
+          "type": "boolean",
+          "description": "true = this Run holds the Shift's Lease and may push; false = a reader, which takes no Lease (ADR-0010)"
+        },
+        "branch": {
+          "type": "string",
+          "description": "the Shift's branch, derived server-side at Shift open; absent on a pre-Shift claim, where the worker derives it"
+        },
+        "authorized": {
+          "type": "number",
+          "minimum": 0,
+          "description": "USD ceiling the run's LLM credential must be minted at: min(roleCap, poolRemaining) (ADR-0012). Absent or 0 = use the worker's env budget."
+        },
+        "briefing": { "$ref": "taskspec.v1.schema.json#/$defs/briefing" }
       },
       "required": ["runToken", "deadline", "workItem"],
       "additionalProperties": false
@@ -35,9 +58,11 @@
     "checkpointRequest": { "$ref": "checkpoint.v1.schema.json" },
     "outcomeRequest": { "$ref": "outcomereport.v1.schema.json" },
     "queueDepthResponse": {
+      "description": "GET /api/v1/queue/depth?team=&role= — the executor scale signal. With a role it counts pending Runs for that (team, role), the identical predicate ClaimRole drains; without one it counts claimable Work Items. Overshoot is acceptable, undershoot stalls Work Items silently and forever.",
       "type": "object",
       "properties": {
         "team": { "type": "string" },
+        "role": { "type": "string" },
         "depth": { "type": "integer", "minimum": 0 }
       },
       "required": ["team", "depth"],

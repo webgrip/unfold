@@ -72,7 +72,8 @@ func New(cfg Config, adapter harness.Adapter, broker llmbroker.Broker, log *slog
 // Run claims one work item and drives it to a reported outcome. A nil
 // claim (empty queue) is the empty-handed convention: exit 0 (backlog #49).
 func (w *Worker) Run() error {
-	claimed, err := w.API.Claim(w.Cfg.Team)
+	// Role selection lands with the role-aware worker; a pre-Shift claim here.
+	claimed, err := w.API.Claim(w.Cfg.Team, "")
 	if err != nil {
 		return fmt.Errorf("claim: %w", err)
 	}

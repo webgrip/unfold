@@ -17,7 +17,20 @@ type TaskSpec struct {
 	Repo       RepoRef          `json:"repo"`
 	Branch     string           `json:"branch"`  // e.g. agent/vik-<id>
 	TraceID    string           `json:"traceId"` // ploeg-<12hex>; doubles as the LiteLLM key alias
+	// Briefing carries earlier Rounds' findings into this one (ADR-0011).
+	// Ploeg reads them from the Shift and injects them; the agent never calls
+	// a forge or a Ploeg API to fetch them (R6).
+	Briefing []Finding `json:"briefing,omitempty"`
 	// Credentials are delivered out-of-band (env, mounted secrets), never here (R8).
+}
+
+// Finding is one earlier Run's contribution to the blackboard, attributed to
+// the Role that made it. Prose, not structure: the same text goes to the pull
+// request and into the next Round's prompt (ADR-0011).
+type Finding struct {
+	Role     string `json:"role"`
+	Round    int    `json:"round"`
+	Findings string `json:"findings"`
 }
 
 // RepoRef names the repository a run works on.
@@ -41,6 +54,10 @@ type OutcomeReport struct {
 	StuckReason   string           `json:"stuckReason,omitempty"`   // mandatory when Outcome == stuck (R4)
 	Usage         *Usage           `json:"usage,omitempty"`         // reserved for backlog #66
 	FailureReason string           `json:"failureReason,omitempty"` // ploeg-internal failure taxonomy (VIK-597); set by the orchestrator, never by the harness
+	// Findings is a reading Run's contribution to the blackboard (ADR-0011):
+	// markdown prose Ploeg publishes to the pull request and injects into the
+	// next Round's Briefing. A writer normally leaves it empty.
+	Findings string `json:"findings,omitempty"`
 }
 
 // Usage carries per-run cost/usage a harness can report (backlog #66) and

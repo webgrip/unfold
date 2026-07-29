@@ -27,11 +27,26 @@
       "type": "string",
       "pattern": "^ploeg-[0-9a-f]{12}$",
       "description": "run trace id; doubles as the LiteLLM key alias Grafana joins on"
-    }
+    },
+    "briefing": { "$ref": "#/$defs/briefing" }
   },
   "required": ["workItem", "repo", "branch", "traceId"],
   "additionalProperties": false,
   "$defs": {
+    "briefing": {
+      "type": "array",
+      "description": "Earlier Rounds' findings, attributed per Role (ADR-0011). Ploeg injects them; the agent never fetches them itself (R6).",
+      "items": {
+        "type": "object",
+        "properties": {
+          "role": { "type": "string" },
+          "round": { "type": "integer", "minimum": 0 },
+          "findings": { "type": "string" }
+        },
+        "required": ["role", "round", "findings"],
+        "additionalProperties": false
+      }
+    },
     "workItem": {
       "type": "object",
       "description": "Mirror of one tracker item (work.WorkItem).",
