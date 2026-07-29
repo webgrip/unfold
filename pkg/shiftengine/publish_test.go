@@ -340,3 +340,49 @@ func TestPublish_SkippedWhenTargetUnresolved(t *testing.T) {
 		t.Errorf("published against an unresolved target: %+v", forge.comments)
 	}
 }
+
+// The engine looks up a forge by the ID the Work Target carries, which is an
+// INSTANCE identifier and not the provider's dialect name (ADR-0016). Keying
+// the registry by Name() would silently match nothing and skip every
+// publication — found by wiring the two ends together, not by either alone.
+func TestPublish_ForgeIsKeyedByTargetIDNotDialectName(t *testing.T) {
+	ctx := context.Background()
+	resetTables(t)
+	forge := &fakeForge{} // Name() is "webgrip" here on purpose: id != dialect
+	e := newEngine(reviewPlan())
+	// Registered under the TARGET'S id.
+	e.Forges = map[string]provider.ForgeProvider{"webgrip-forgejo": forge}
+
+	id, _, err := testStore.IngestAssigned(ctx, work.WorkItem{
+		Provider: "vikunja", ExternalID: "910", Team: "bronze", Title: "t",
+		Target: &work.Target{Forge: "webgrip-forgejo", Owner: "webgrip", Repo: "ploeg", BaseBranch: "development"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, _ := testStore.WorkItem(ctx, id)
+	if err := e.EnsureShift(ctx, id, item); err != nil {
+		t.Fatal(err)
+	}
+	rw, _ := testStore.ClaimRole(ctx, "bronze", "builder", time.Minute, 3)
+	if _, err := testStore.ReportOutcome(ctx, rw.RunToken,
+		store.Report(work.OutcomePROpened, "opened", "",
+			[]string{"https://forgejo/webgrip/ploeg/pulls/3"}, nil, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EvaluateItem(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	rr, _ := testStore.ClaimRole(ctx, "bronze", "reviewer", time.Minute, 1)
+	if _, err := testStore.ReportOutcome(ctx, rr.RunToken,
+		store.Report(work.OutcomeNoChangeNeeded, "reviewed", "", nil, nil, nil).
+			WithFindings("- something")); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EvaluateItem(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	if len(forge.comments) != 1 {
+		t.Fatalf("findings not published: the forge registry is keyed wrongly (%d comments)", len(forge.comments))
+	}
+}

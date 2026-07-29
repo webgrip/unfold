@@ -93,6 +93,15 @@ func run(log *slog.Logger) error {
 
 	// The forge seam. Ploeg comments as the same bot that opens the pull
 	// requests; commenting is not pushing, so it needs no second credential.
+	//
+	// Registered under the forge ID a Work Target carries, not under the
+	// provider's dialect name. Those are different things (ADR-0016): the id
+	// identifies an INSTANCE, the name identifies the API dialect, and one
+	// deployment could have two Forgejo instances with different ids. The
+	// engine looks up `Forges[target.Forge]`, so keying this by Name() would
+	// silently match nothing and skip every publication. The route is
+	// registered under both, since a webhook path names the dialect.
+	forgeID := envOr("PLOEG_TARGET_FORGE", "forgejo")
 	forges := map[string]provider.ForgeProvider{}
 	if forgeURL := trimSlash(os.Getenv("PLOEG_FORGEJO_URL")); forgeURL != "" {
 		fj := &forgejo.Provider{
@@ -101,8 +110,9 @@ func run(log *slog.Logger) error {
 			Secret:  os.Getenv("PLOEG_FORGEJO_SECRET"),
 			Log:     log,
 		}
+		forges[forgeID] = fj
 		forges[fj.Name()] = fj
-		log.Info("forge provider configured", "forge", fj.Name(), "url", forgeURL)
+		log.Info("forge provider configured", "forge_id", forgeID, "dialect", fj.Name(), "url", forgeURL)
 	} else {
 		log.Info("no forge provider configured (PLOEG_FORGEJO_URL unset); findings will not reach a pull request")
 	}
