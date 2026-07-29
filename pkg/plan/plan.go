@@ -141,22 +141,9 @@ func validate(tp TeamPlan) error {
 	return nil
 }
 
-// Roles returns a Round's roles in the store's shape.
-func (r Round) StoreRoles() []StoreRole {
-	out := make([]StoreRole, 0, len(r.Roles))
-	for _, role := range r.Roles {
-		out = append(out, StoreRole{Name: role.Name, Writes: role.Writes, Cap: float64(role.Cap)})
-	}
-	return out
-}
-
-// StoreRole mirrors store.Role without importing pkg/store — plan is config,
-// store is state, and neither should drag the other's dependencies.
-type StoreRole struct {
-	Name   string
-	Writes bool
-	Cap    float64
-}
+// Cap returns a role's cap as a plain float for callers converting to other
+// shapes.
+func (r Role) CapUSD() float64 { return float64(r.Cap) }
 
 // RoleCap returns a role's cap for the claim path: the per-Run ceiling the
 // authorization is bounded by. Zero (and an unknown role) mean "pool only".

@@ -248,6 +248,44 @@ func TestRoundReports(t *testing.T) {
 	}
 }
 
+// A Shift writer's expired lease belongs to ExpireRuns, not ExpireLeases: the
+// legacy sweep would bounce the item back to 'queued' mid-Shift and charge the
+// infra-failure backoff for a lifecycle the shift engine owns.
+func TestExpireLeasesSkipsShiftLeases(t *testing.T) {
+	ctx := context.Background()
+	itemID, shiftID := openShift(t, 10)
+	if _, err := testStore.OpenRound(ctx, shiftID, 0, []Role{{Name: "builder", Writes: true, Cap: 2}}); err != nil {
+		t.Fatalf("OpenRound: %v", err)
+	}
+	run, err := testStore.ClaimRole(ctx, "silver", "builder", -time.Second, 2) // already overdue
+	if err != nil {
+		t.Fatalf("ClaimRole: %v", err)
+	}
+
+	exp, err := testStore.ExpireLeases(ctx)
+	if err != nil {
+		t.Fatalf("ExpireLeases: %v", err)
+	}
+	if len(exp) != 0 {
+		t.Fatalf("ExpireLeases processed a shift lease — the item would bounce to queued mid-shift")
+	}
+	if state, _ := itemStateAttempts(t, itemID); state != "leased" {
+		t.Errorf("item state = %q after legacy sweep, want leased (untouched)", state)
+	}
+
+	// The run sweep owns it: reclaims the run AND drops the lease.
+	expired, err := testStore.ExpireRuns(ctx)
+	if err != nil {
+		t.Fatalf("ExpireRuns: %v", err)
+	}
+	if len(expired) != 1 || expired[0].RunToken != run.RunToken {
+		t.Fatalf("ExpireRuns did not reclaim the dead writer: %+v", expired)
+	}
+	if n := liveLeases(t); n != 0 {
+		t.Errorf("lease survived ExpireRuns: %d", n)
+	}
+}
+
 // An exhausted pool parks the item rather than failing it: the sweeper needs
 // to see which live Shifts cannot fund their pending work.
 func TestShiftsBelowFloor(t *testing.T) {

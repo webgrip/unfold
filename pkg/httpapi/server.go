@@ -28,6 +28,21 @@ type Server struct {
 	Targets  target.Resolver
 	LeaseTTL time.Duration
 	Log      *slog.Logger
+	// Engine is the Shift lifecycle fast path (run-multi-agent-shifts): ingest
+	// opens, an outcome report evaluates. Nil = no shift engine configured,
+	// dispatch unchanged. Engine errors are logged, never returned to the
+	// caller — the sweeper's EvaluateAll repairs whatever a lost fast path
+	// leaves behind (R2), so a webhook or worker must never see a 5xx for it.
+	Engine ShiftEngine
+}
+
+// ShiftEngine is implemented by pkg/shiftengine. An interface here rather
+// than the concrete type, so httpapi tests that never touch Shifts do not
+// need an engine, and the engine package stays free to import httpapi types
+// if it ever must.
+type ShiftEngine interface {
+	EnsureShift(ctx context.Context, workItemID int64, item work.WorkItem) error
+	EvaluateItem(ctx context.Context, workItemID int64) error
 }
 
 func (s *Server) Handler() http.Handler {
@@ -85,6 +100,13 @@ func (s *Server) handleTrackerWebhook(w http.ResponseWriter, r *http.Request) {
 		// (queued/leased) item refreshes the mirror without re-queuing (VIK-588).
 		if state == work.StateQueued {
 			s.Log.Info("work item queued", "id", id, "team", item.Team, "title", item.Title)
+			// The Shift fast path. Crash between the commit above and this call
+			// leaves a queued item with no Shift — the sweeper's repair case.
+			if s.Engine != nil {
+				if err := s.Engine.EnsureShift(r.Context(), id, item); err != nil {
+					s.Log.Error("shift open failed; sweeper will repair", "id", id, "err", err)
+				}
+			}
 		} else {
 			s.Log.Info("work item refreshed, not queued", "id", id, "state", string(state), "team", item.Team, "title", item.Title)
 		}
@@ -243,9 +265,7 @@ func (s *Server) handleOutcome(w http.ResponseWriter, r *http.Request) {
 		fr := req.FailureReason
 		failureReason = &fr
 	}
-	// The result names the Shift this report may have completed; the shift
-	// engine picks it up from here in a later change.
-	_, err := s.Store.ReportOutcome(r.Context(), r.PathValue("token"),
+	res, err := s.Store.ReportOutcome(r.Context(), r.PathValue("token"),
 		store.Report(req.Outcome, req.Summary, req.StuckReason, req.Links, usage, failureReason))
 	if err != nil {
 		if errors.Is(err, store.ErrUnknownRun) {
@@ -256,6 +276,14 @@ func (s *Server) handleOutcome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Log.Info("outcome reported", "outcome", req.Outcome, "summary", req.Summary)
+	// The Shift fast path: this report may have completed a Round. Errors are
+	// logged, never surfaced — the worker's report succeeded, and the sweeper
+	// repairs a lost evaluation (R2).
+	if s.Engine != nil && res.ShiftID != nil {
+		if err := s.Engine.EvaluateItem(r.Context(), res.WorkItemID); err != nil {
+			s.Log.Error("shift evaluate failed; sweeper will repair", "shift", *res.ShiftID, "err", err)
+		}
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

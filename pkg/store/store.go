@@ -478,11 +478,39 @@ func (r harnessReport) WithFindings(findings string) harnessReport {
 	return r
 }
 
+// MarkNeedsHuman parks a Work Item for a person, with the reason on the audit
+// row. This is the shift engine's transition: for Shift runs, ReportOutcome
+// leaves the item alone and the engine moves it exactly once — at close, at a
+// terminal stuck, or when the pool runs dry (R4: the reason travels with it).
+func (s *Store) MarkNeedsHuman(ctx context.Context, workItemID int64, reason string) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	if _, err := tx.Exec(ctx,
+		`UPDATE work_items SET state = 'needs_human', updated_at = now() WHERE id = $1`,
+		workItemID); err != nil {
+		return err
+	}
+	if err := audit(ctx, tx, "ploegd:shift-engine", "work_item.needs_human", &workItemID,
+		map[string]any{"reason": reason}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 // ExpireLeases releases every overdue lease: the run is recorded as failed
 // (reason lease_expired) and the item re-queues or goes stale per the retry
 // threshold — the crash-safety mechanic (R2/R5). Returns expired lease info
 // including run tokens so callers can perform post-expiry cleanup (e.g.
 // LiteLLM key revoke).
+//
+// Shift leases (shift_id set) are deliberately excluded: a Shift writer's
+// liveness is its Run's expires_at, reclaimed by ExpireRuns — which also
+// drops the lease — and its Work Item belongs to the shift engine. Processing
+// it here would bounce the item back to 'queued' mid-Shift and charge the
+// infra-failure backoff for a lifecycle this sweep does not own.
 func (s *Store) ExpireLeases(ctx context.Context) ([]ExpiredLease, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -491,7 +519,8 @@ func (s *Store) ExpireLeases(ctx context.Context) ([]ExpiredLease, error) {
 	defer tx.Rollback(ctx) //nolint:errcheck
 
 	rows, err := tx.Query(ctx,
-		`DELETE FROM leases WHERE expires_at < now() RETURNING work_item_id, team, run_token`)
+		`DELETE FROM leases WHERE expires_at < now() AND shift_id IS NULL
+		 RETURNING work_item_id, team, run_token`)
 	if err != nil {
 		return nil, err
 	}
