@@ -24,12 +24,30 @@ type ClaimResponse struct {
 	RunToken string        `json:"runToken"`
 	Deadline time.Time     `json:"deadline"`
 	WorkItem work.WorkItem `json:"workItem"`
+	// Shift fields, all zero on a pre-Shift claim.
+	Shift  int64  `json:"shift,omitempty"`
+	Role   string `json:"role,omitempty"`
+	Round  int    `json:"round,omitempty"`
+	Writes bool   `json:"writes,omitempty"`
+	// Branch is derived by ploegd at Shift open; empty = derive it locally.
+	Branch string `json:"branch,omitempty"`
+	// Authorized is the USD ceiling this run's LLM credential must be minted
+	// at (ADR-0012). Zero = fall back to the worker's env budget.
+	Authorized float64           `json:"authorized,omitempty"`
+	Briefing   []harness.Finding `json:"briefing,omitempty"`
 }
 
 // Claim returns nil when the queue is empty (HTTP 204) — the empty-handed
-// worker convention (backlog #49).
-func (a *APIClient) Claim(team string) (*ClaimResponse, error) {
-	body, _ := json.Marshal(map[string]string{"team": team})
+// worker convention (backlog #49). An exhausted Shift budget answers 204 too:
+// there is nothing for this pod to do, and parking the item is ploegd's job.
+//
+// An empty role is the pre-Shift claim, byte-identical to before.
+func (a *APIClient) Claim(team, role string) (*ClaimResponse, error) {
+	req := map[string]string{"team": team}
+	if role != "" {
+		req["role"] = role
+	}
+	body, _ := json.Marshal(req)
 	resp, err := a.HC.Post(a.Base+"/api/v1/claim", "application/json", bytes.NewReader(body))
 	if err != nil {
 		return nil, err

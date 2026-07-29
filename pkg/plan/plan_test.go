@@ -84,6 +84,12 @@ func TestParse_RejectsBadPlans(t *testing.T) {
 		{"negative cap",
 			`{"t": {"pool": "1", "rounds": [{"roles": [{"name": "a", "cap": "-0.5"}]}]}}`,
 			"negative"},
+		// A metered fan-out without caps does not fan out: the first claimant
+		// reserves the whole pool and its siblings get ErrBudgetExhausted.
+		{"uncapped role in a fan-out",
+			`{"t": {"pool": "6", "rounds": [{"roles": [
+				{"name": "a", "cap": "0.5"}, {"name": "b"}]}]}}`,
+			"starves its siblings"},
 		{"garbage", `not json`, "invalid JSON"},
 		{"bad money", `{"t": {"pool": "six", "rounds": [{"roles": [{"name": "a"}]}]}}`, "money value"},
 	}
@@ -97,6 +103,18 @@ func TestParse_RejectsBadPlans(t *testing.T) {
 				t.Errorf("error %q does not mention %q", err, tc.wantErr)
 			}
 		})
+	}
+}
+
+// A single-role round needs no cap (the pool alone bounds it), and an
+// unmetered plan (pool 0) needs none anywhere.
+func TestParse_CapsOnlyRequiredForMeteredFanOut(t *testing.T) {
+	if _, err := Parse(`{"t": {"pool": "6", "rounds": [{"roles": [{"name": "solo", "writes": true}]}]}}`); err != nil {
+		t.Errorf("single uncapped role rejected: %v", err)
+	}
+	if _, err := Parse(`{"t": {"pool": "0", "rounds": [{"roles": [
+		{"name": "a"}, {"name": "b"}]}]}}`); err != nil {
+		t.Errorf("uncapped fan-out on an unmetered pool rejected: %v", err)
 	}
 }
 

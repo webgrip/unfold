@@ -76,6 +76,10 @@ func fullTaskSpec() TaskSpec {
 		},
 		Branch:  "agent/vik-596",
 		TraceID: "ploeg-1cd43e1dfd6c",
+		Briefing: []Finding{
+			{Role: "analyst", Round: 1, Findings: "## analyst\n- the retry loop is unbounded"},
+			{Role: "security", Round: 1, Findings: "## security\n- the token is logged at debug"},
+		},
 	}
 }
 
@@ -103,6 +107,15 @@ func TestOutcomeReport_MatchesSchema(t *testing.T) {
 	minimal := OutcomeReport{Outcome: work.OutcomeNoChangeNeeded, Summary: "nothing to do"}
 	if err := validate(t, sch, minimal); err != nil {
 		t.Errorf("minimal OutcomeReport does not validate: %v", err)
+	}
+
+	// A reading Run's blackboard contribution (ADR-0011).
+	reader := OutcomeReport{
+		Outcome: work.OutcomeNoChangeNeeded, Summary: "reviewed",
+		Findings: "## security\n- the token is logged at debug",
+	}
+	if err := validate(t, sch, reader); err != nil {
+		t.Errorf("OutcomeReport with findings does not validate: %v", err)
 	}
 
 	stuckOK := OutcomeReport{Outcome: work.OutcomeStuck, Summary: "blocked", StuckReason: "gate failed"}

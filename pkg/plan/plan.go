@@ -137,6 +137,23 @@ func validate(tp TeamPlan) error {
 		if writers > 0 && writers != len(round.Roles) {
 			return fmt.Errorf("round %d mixes a writer with readers; a round is either readers or one writer (ADR-0010)", i+1)
 		}
+		// Checked after the structural rules, so a malformed round reports
+		// what is actually wrong with it first.
+		//
+		// A fan-out without caps does not fan out. The claim authorizes
+		// min(cap, poolRemaining) and holds it for the whole Run (ADR-0012),
+		// so an uncapped first reader reserves the ENTIRE pool and every
+		// sibling is refused ErrBudgetExhausted — the fan-out silently
+		// becomes a queue of one. Caps are what make readers concurrent, so
+		// they are required wherever a metered Round has more than one Role.
+		if tp.Pool > 0 && len(round.Roles) > 1 {
+			for _, r := range round.Roles {
+				if r.Cap == 0 {
+					return fmt.Errorf("round %d: role %q needs a cap — in a %d-role round an uncapped Run reserves the whole pool and starves its siblings (ADR-0012)",
+						i+1, r.Name, len(round.Roles))
+				}
+			}
+		}
 	}
 	return nil
 }

@@ -36,6 +36,10 @@
         "lease_lost"
       ]
     },
+    "findings": {
+      "type": "string",
+      "description": "a reading Run's contribution to the blackboard (ADR-0011): markdown prose Ploeg publishes to the pull request and injects into the next Round's briefing. Writers normally omit it."
+    },
     "usage": {
       "type": "object",
       "description": "per-run cost/usage (backlog #66) and the harness-native resume handle (backlog #70)",
