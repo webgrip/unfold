@@ -47,13 +47,15 @@ script.
 ## Validation
 
 ```sh
-python3 scripts/check_adr_consistency.py
+go test ./internal/ledger/
 ```
 
-Runs in `.forgejo/workflows/on_pull_request.yml`. It gates filename and number
-discipline, status legality, `supersedes:` integrity, file↔index parity in both
-directions, the status and date mirrors, the presence of `### Confirmation`, and
-that a dated `review-by` is backed by a `## Re-evaluation triggers` section.
+It runs inside the existing `go test ./...` step of
+`.forgejo/workflows/on_pull_request.yml` — no extra CI step, no `python3`
+dependency in the runner. It gates filename and number discipline, status
+legality, `supersedes:` integrity, file↔index parity in both directions, the
+status and date mirrors, the presence of `### Confirmation`, and that a dated
+`review-by` is backed by a `## Re-evaluation triggers` section.
 
 Adding a record means adding its row below in the same commit; the parity check
 fails otherwise.

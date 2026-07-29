@@ -17,10 +17,6 @@ lockfile = true
 node = "24"  # runtime for the openspec CLI; matches CI's node:24-alpine
 "npm:@fission-ai/openspec" = "1.6.0"  # `openspec` — the /opsx workflow (openspec/config.yaml)
 
-[tasks.adr-check]
-description = "Gate the ADR corpus against its Records index (docs/adrs/README.md)"
-run = "python3 scripts/check_adr_consistency.py"
-
 [tasks.spec-check]
 description = "Validate every OpenSpec change and spec"
 run = "openspec validate --all"

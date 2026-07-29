@@ -46,7 +46,8 @@ Chosen option: "Option A", because …
 
 **Required.** Name how compliance is actually checked: a CI gate (with the
 workflow and command), a review step, or a script. "Reviewers will notice" is
-not a confirmation. Enforced by `scripts/check_adr_consistency.py`.
+not a confirmation. The presence of this section is enforced by
+`go test ./internal/ledger/`.
 
 ## Pros and Cons of the Options
 

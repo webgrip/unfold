@@ -3,8 +3,8 @@
 ## ADR Review Completed
 
 - **Date**: YYYY-MM-DD
-- **Reviewer**: <who>
-- **Change**: <change-id>
+- **Reviewer**: `<who>`
+- **Change**: `<change-id>`
 
 ## In-Force ADR Context Reviewed
 
@@ -25,9 +25,9 @@ was relevant (or state "none" if the corpus is empty).
 
 ## Validation
 
-```
-$ python3 scripts/check_adr_consistency.py
-<paste output>
+```sh
+$ go test ./internal/ledger/
+# paste the output here
 ```
 
 ## Notes

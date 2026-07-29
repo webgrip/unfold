@@ -78,12 +78,17 @@ the working.
 
 ### Confirmation
 
-`scripts/check_adr_consistency.py`, run in
-`.forgejo/workflows/on_pull_request.yml`. It gates filename/number discipline,
-status legality, `supersedes:` integrity, file↔index parity in both directions,
-the status and date mirrors, the presence of a `### Confirmation` subsection in
-every record, and that a dated `review-by` is accompanied by a
+`internal/ledger`, which runs inside the existing `go test ./...` step of
+`.forgejo/workflows/on_pull_request.yml`. It gates filename and number
+discipline, status legality, `supersedes:` integrity, file↔index parity in both
+directions, the status and date mirrors, the presence of a `### Confirmation`
+subsection in every record, and that a dated `review-by` is accompanied by a
 `## Re-evaluation triggers` section.
+
+The gate is Go rather than the estate's usual Python script for one reason: the
+Forgejo runner is guaranteed a Go toolchain and is not guaranteed `python3`, and
+the workflow already carries two comments about network-fragile setup actions.
+One implementation, inside a step that already runs.
 
 The `adr-writer` skill's bundled `validate_adr_consistency.py` must **not** be
 used here: it assumes vanilla status-flip supersession and would reject this

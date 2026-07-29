@@ -32,8 +32,8 @@ that has not read that file will otherwise do the vanilla thing and be wrong:
 - **A decision that can change carries a dated review** — `review-by:` plus a
   `## Re-evaluation triggers` section.
 
-Both are enforced by `scripts/check_adr_consistency.py`, which is why the
-instruction ends by telling the agent to run it and paste the output. The
+Both are enforced by the `internal/ledger` Go tests, which is why the
+instruction ends by telling the agent to run them and paste the output. The
 `adr-writer` skill's own bundled validator assumes status-flip semantics and
 must not be used here.
 

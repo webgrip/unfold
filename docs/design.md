@@ -117,30 +117,34 @@ are audited with actor, before/after, success. Grafana dashboards ship as code (
 outcomes by team, stuck queue, run durations). Trace/cost correlation via optional fields
 (trace id, ledger key) — Ploeg links, it does not collect.
 
-## 8. Alternatives considered (2026-07 market survey)
+## 8. Alternatives considered
 
-| Option | Why not |
+Migrated to [docs/adrs/](adrs/) on 2026-07-29 (ADR 0001). This section was the
+decision ledger; it is now an index into one. Each record carries the verdict,
+its drivers, the options weighed, a Confirmation naming how compliance is
+checked, and — where the verdict can change — a dated `review-by` with named
+re-evaluation triggers.
+
+| Decision | Record |
 |---|---|
-| misospace/dispatch | Closest semantics (leases, lanes, audit); GitHub-only, polling model, 2★ single-maintainer |
-| kandev | Best-maintained board-orchestrator; GitHub/Jira/Linear/GitLab only, no k8s runtime, no teams/leases/audit, interactive-workspace center of gravity |
-| vibe-kanban | Company shut down 2026; community-maintained; workstation scale |
-| untra/operator | Ticket-first concept match; alpha TUI, local tmux, 33★ |
-| kagent / kars / agent-sandbox | Runtime & policy layers, not dispatch semantics; agent-sandbox is a planned runtime *under* Ploeg |
-| Argo Workflows as substrate | Strong exit-handler/DAG story; a second orchestration system to operate; revisit if team DAGs outgrow "sequential specialists on one branch" |
-| Forge-native (GitLab Duo, GitHub) | Serves the mainstream; structurally cannot serve self-hosted/mixed stacks — which is Ploeg's niche |
-| Microsoft AHP (agent-host-protocol, surveyed 2026-07-27) | Different layer entirely: multi-client *session-sync* above the harness ("AHP is a mutex over ACP" — their docs), no dispatch/lease/outcome semantics; draft v0.6 with breaking changes every 1–2 weeks, single-vendor (VS Code team), sole server impl is VS Code's agent host. Could someday compose *above* Ploeg as a live run surface (backlog 101); ACP remains the harness seam (§5) |
-| A2A / Agent2Agent (a2aproject, Linux Foundation, surveyed 2026-07-28) | Not immature — spec v1.0.0 (2026-03-12), LF TSC with 8 org seats (Google/Microsoft/AWS/Cisco/Salesforce/ServiceNow/SAP/IBM; IBM's competing "ACP" merged into A2A 2025-08-29), official Go SDK GA (`a2a-go/v2`), shipped in all three hyperscaler agent platforms — but it claims the *cross-org agent↔agent peer* seam, a layer Ploeg doesn't have. Wrong shape for every implemented seam: harness (drives opaque remote services, not local sessions; OpenHands closed A2A as not_planned mid-2026 and shipped Zed-style ACP instead — direct validation of backlog #64), executor (point-to-point RPC; A2A's own top-reacted issue a2aproject/A2A#1029 begs for the queue semantics our Postgres lease queue already has), LLM broker (orthogonal, though LiteLLM ships a full A2A Agent Gateway — a latent zero-code on/off-ramp already in the deployment). Community consensus by mid-2026: A2A pays only across organizational trust boundaries; inside one stack it's chat-shaped overhead. The one honest fit — a north-facing facade exposing ploegd as a remote agent (task lifecycle maps ~1:1: queued→SUBMITTED, leased→WORKING, needs_human→INPUT_REQUIRED, done→COMPLETED; PR link as Artifact) — is watchlisted as backlog #102 with prerequisites (#31 tracker write-backs, so the board stays authoritative) and flip triggers (kagent — A2A-native — deployed in homelab-cluster; OpenHands reversal OpenHands/software-agent-sdk#1060; A2A pub/sub transport #1029; the 2027-04 review gate demanding a product-grade dispatch API). Full dossier: [research/2026-07-28-a2a-fit.md](research/2026-07-28-a2a-fit.md) |
-| OmniRoute (diegosouzapw/OmniRoute, surveyed 2026-07-28) | Competitor for the *LiteLLM seam*, not a dispatch concern — and it loses that contest: no per-key budget/TTL/alias mint-revoke admin API (Ploeg's entire LLM coupling, `pkg/litellm`), local-first single-box Node/SQLite with no k8s story (its own comparison doc concedes "choose LiteLLM for k8s/Helm"), no multi-tenancy. Trust posture wrong for a credential-holding boundary in an autonomous factory: default JWT secret, plaintext keys unless opted in, fail-open guardrails, May-2026 Socket.dev npm block, and its core economics are ToS-gray free-tier farming via TLS-fingerprint (JA3/JA4) impersonation — arbitraged-and-deniable spend vs our metered-and-attributable `ploeg-<12hex>` audit chain. Solo author (~62% of commits), 5.5-month rewritten history, zero named production users. Orthogonal to Vikunja/KEDA/dispatch; its MCP/A2A endpoints serve its own tooling, not the harness seam. Fine as a *personal-workstation* router for interactive coding agents, kept away from factory credentials. Re-evaluate only if: 4.0 modular platform ships headless + k8s story; admin API reaches LiteLLM `/key/generate` parity (budget+TTL+alias); OpenHands merges provider support (two attempts closed unmerged, 2026-07); or governance matures past single-maintainer with a stable 3.9 LTS |
-| Paperclip (paperclipai/paperclip, surveyed 2026-07-28) | The board-first maximalist: an MIT ~1M-LOC TS control plane that *is* the tracker — tasks, org chart, budgets, approvals, skills, secrets, routines, full UI — with agents attached via per-agent scheduled heartbeats. 74,962★ five months after first commit, weekly CalVer releases, company-backed, cloud tier emerging. Wrong shape for us on all three axes: it owns dispatch itself (heartbeat scheduler + `checkoutRunId` row-locks — the polling model requirement 1 rejects, softened by typed wakes), it has no tracker seam to plug into (BYO-ticket-system is an unshipped roadmap item; zero Vikunja/Forgejo/Gitea/KEDA/LiteLLM contact in its tree — our niche is unserved by it), and fronting a 5k-LOC Go dispatcher with a 1M-LOC Node server on a weekly breaking-release train inverts the thin-glue rationale. **The uncomfortable mirror:** Paperclip has *shipped* most of our phase-2/3 list — approval gates, agent↔human interactions, watchdogs with bounded recovery, per-scope budgets enforced pre-dispatch *and* pre-invocation, a skills system, a secrets manager with audited run-bound access, sandbox providers including a production `agents.x-k8s.io` Sandbox CR builder — while our `needs_human` state has nothing behind it, checkpoints are written-never-read, the ForgeProvider this doc promises has no implementation, and the state-machine table isn't enforced. Five months of company-scale velocity beat four years of anyone's spare time; if the mainstream verdict is "the board and the control plane should be one product", our audience shrinks to operators who refuse that bundle. **Where we hold value they structurally don't:** event-driven scale-to-zero dispatch (no heartbeat crons burning tokens to discover no work), tracker/forge neutrality for self-hosted stacks, DB-lease crash-safety independent of agent goodwill, and proxy-metered per-run credentials with active revocation — their spend ledger is parsed from adapter stdout, so a compromised or lying agent skews the books; ours is metered at a LiteLLM boundary the agent cannot bypass, joined to ticket and commit by `ploeg-<12hex>`. Its `execution-semantics.md` is the best free design review this backlog has received — routable blocking, pre-dispatch config gates, fingerprint-bounded recovery, checkout-finalization CAS rules — folded into backlog #9/#10/#15/#16/#21/#44/#58/#60/#64/#86 *[research: paperclip sweep]*. Full dossier: [research/2026-07-28-paperclip-fit.md](research/2026-07-28-paperclip-fit.md). Re-evaluate if: BYO-ticket-system ships with outbound assignment events (candidate human surface *above* Ploeg, before building De Vloer equivalents); its Work Queues milestone ships claimable-queue semantics (direct layer collision); acpx reaches a stable 1.0 as a standalone ACP engine (build #64 against it); or agents.x-k8s.io graduates past alpha (accelerate #58) |
+| Build a dedicated dispatch plane rather than adopt an existing orchestrator (misospace/dispatch, kandev, vibe-kanban, untra/operator, kagent/agent-sandbox, Argo Workflows, forge-native) | [0005](adrs/0005-build-a-dedicated-dispatch-plane.md) |
+| Microsoft AHP — wrong layer; parked as a live-run surface above Ploeg | [0006](adrs/0006-ahp-is-the-wrong-layer.md) |
+| A2A — adopt nothing now; watchlist a north-facing dispatch facade | [0007](adrs/0007-a2a-adopt-nothing-watchlist-a-facade.md) |
+| OmniRoute — LiteLLM stays the per-run credential and metering seam | [0008](adrs/0008-litellm-is-the-credential-and-metering-seam.md) |
+| Paperclip — mine it for design, never depend on it | [0009](adrs/0009-paperclip-mine-for-design-never-integrate.md) |
 
-## 9. Decisions
+Evidence trails stay in [research/](research/) and are linked from each record.
 
-- **Name:** Ploeg (Dutch: work crew/shift). GitHub user `ploeg` exists (blocks a future bare
-  org, not `webgrip/ploeg`); npm free; no product collision in the niche.
-- **License:** Apache-2.0 (adoption-maximizing; patent grant for platform teams).
-- **Language:** Go (k8s contributor pool, controller-runtime path for v2, static binary).
-- **Home:** Forgejo-leading (`webgrip/ploeg`) with GitHub push-mirror; module path uses the
-  GitHub mirror so `go get` works for outsiders.
+## 9. Foundation decisions
+
+Also migrated to [docs/adrs/](adrs/) on 2026-07-29.
+
+| Decision | Record |
+|---|---|
+| Go is the implementation language | [0002](adrs/0002-go-as-the-implementation-language.md) |
+| Apache-2.0 | [0003](adrs/0003-apache-2-0-license.md) |
+| Forgejo-leading home, GitHub push-mirror, module path from the mirror (and the name) | [0004](adrs/0004-forgejo-leading-home-github-mirror-module-path.md) |
+| ADRs are the single decision ledger | [0001](adrs/0001-adrs-are-the-decision-ledger.md) |
 
 ## 10. Honest risks & review gate
 

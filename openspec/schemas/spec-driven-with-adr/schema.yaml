@@ -171,7 +171,7 @@ artifacts:
            reopen the decision. Prefer checkable facts over judgements.
       Do NOT run the skill's bundled validate_adr_consistency.py — it assumes
       status-flip supersession and rejects this corpus. Run
-      `python3 scripts/check_adr_consistency.py` instead.
+      `go test ./internal/ledger/` instead.
 
       Process:
 
@@ -210,8 +210,8 @@ artifacts:
          completed, which in-force records were reviewed, and that no new durable
          decision was introduced.
 
-      Finish by running `python3 scripts/check_adr_consistency.py` and pasting its
-      output into the manifest.
+      Finish by running `go test ./internal/ledger/` and pasting its output into
+      the manifest.
     requires:
       - design
 
@@ -247,8 +247,7 @@ artifacts:
         asserting the two agree.
       - A new store migration is a new numbered file in
         `pkg/store/migrations/`, never an edit to an applied one.
-      - If the change adds an ADR, `python3 scripts/check_adr_consistency.py`
-        passes.
+      - If the change adds an ADR, `go test ./internal/ledger/` passes.
 
       Reference specs for what needs to be built, design for how to build it.
       Each task should be verifiable - you know when it's done.

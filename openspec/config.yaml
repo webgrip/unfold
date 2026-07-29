@@ -131,4 +131,4 @@ rules:
       contract_test.go assertion
     - A schema change is a new numbered file in pkg/store/migrations/, never an
       edit to an applied one
-    - A change adding an ADR runs `python3 scripts/check_adr_consistency.py`
+    - A change adding an ADR runs `go test ./internal/ledger/`
