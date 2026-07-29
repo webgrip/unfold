@@ -165,3 +165,19 @@ executor:
   #     name: claude-code
   #     image: harbor.webgrip.dev/webgrip/claude-runner:0.1.0
   #     dind: false # claude-code needs no Docker daemon (PolicyException scope review!)
+  #   # Optional: a Shift plan (run-multi-agent-shifts). With one, this team
+  #   # runs each work item through ordered Rounds — a fan-out of readers or a
+  #   # single writer per round (ADR-0010) — and `budget` becomes the Shift
+  #   # POOL the rounds share (ADR-0012). Without one, dispatch is unchanged.
+  #   # The same plan is serialised to ploegd as PLOEG_TEAM_PLANS (validated at
+  #   # boot: a malformed plan refuses to start) and, in a later chart change,
+  #   # partitions the workloads per (team, role). Role caps are per-Run
+  #   # ceilings; a role recurring across rounds is ONE workload.
+  #   plan:
+  #     - roles:
+  #         - {name: analyst, writes: false, cap: "0.50", harness: {dind: false}}
+  #         - {name: tests,   writes: false, cap: "0.50", harness: {dind: false}}
+  #     - roles:
+  #         - {name: builder, writes: true, cap: "3.00", model: litellm_proxy/claude-sonnet-5}
+  #     - roles:
+  #         - {name: reviewer, writes: false, cap: "0.75", model: litellm_proxy/claude-sonnet-5, harness: {dind: false}}

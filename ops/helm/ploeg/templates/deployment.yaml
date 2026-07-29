@@ -49,6 +49,21 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.webhook.existingSecret.name }}
                   key: {{ .Values.webhook.existingSecret.key }}
+            {{- /* Team plans (run-multi-agent-shifts): ploegd's shift engine
+                 reads the same plan the workload templates partition on, so
+                 there is exactly one source of truth — executor.teams[].plan.
+                 The pool is the team's budget value. Only planned teams are
+                 serialised; no plans, no env, and dispatch is unchanged. */}}
+            {{- $plans := dict }}
+            {{- range .Values.executor.teams }}
+            {{- if .plan }}
+            {{- $_ := set $plans .name (dict "pool" (.budget | default "0") "rounds" .plan) }}
+            {{- end }}
+            {{- end }}
+            {{- if $plans }}
+            - name: PLOEG_TEAM_PLANS
+              value: {{ toJson $plans | quote }}
+            {{- end }}
             {{- range $k, $v := .Values.env }}
             - name: {{ $k }}
               value: {{ $v | quote }}

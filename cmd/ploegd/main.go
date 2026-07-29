@@ -18,6 +18,7 @@ import (
 	"github.com/webgrip/ploeg/pkg/httpapi"
 	"github.com/webgrip/ploeg/pkg/litellm"
 	"github.com/webgrip/ploeg/pkg/llmbroker"
+	"github.com/webgrip/ploeg/pkg/plan"
 	"github.com/webgrip/ploeg/pkg/provider"
 	"github.com/webgrip/ploeg/pkg/provider/vikunja"
 	"github.com/webgrip/ploeg/pkg/store"
@@ -102,6 +103,17 @@ func run(log *slog.Logger) error {
 		return fmt.Errorf("PLOEG_TARGET_MAP: %w", err)
 	}
 	log.Info("target map loaded", "rules", targets.Len())
+
+	// Team plans (run-multi-agent-shifts): config for the shift engine, parsed
+	// and validated at boot so a plan that could open a malformed Round never
+	// starts. Empty = every team is plan-less and dispatch is unchanged. The
+	// engine that consumes these lands in a follow-up change; parsing first
+	// means a bad values edit fails loudly at rollout, not at first dispatch.
+	plans, err := plan.Parse(os.Getenv("PLOEG_TEAM_PLANS"))
+	if err != nil {
+		return fmt.Errorf("PLOEG_TEAM_PLANS: %w", err)
+	}
+	log.Info("team plans loaded", "teams", len(plans))
 
 	srv := &httpapi.Server{
 		Store:    st,
