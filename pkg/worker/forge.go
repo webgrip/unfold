@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/webgrip/ploeg/pkg/harness"
 )
 
 // prMatches reports whether an open PR is the one this run created: the head
@@ -18,14 +20,15 @@ func prMatches(headRef, baseRef, wantHead, wantBase string) bool {
 }
 
 // findPR returns the html_url of an open PR whose head branch matches (and
-// whose base matches cfg.BaseBranch when configured).
-func findPR(cfg Config, branch string) (string, error) {
+// whose base matches the target's base branch when configured). It queries
+// only the run's own target, so it can never match a PR in another repo.
+func findPR(ref harness.RepoRef, token, branch string) (string, error) {
 	req, err := http.NewRequest("GET",
-		fmt.Sprintf("%s/api/v1/repos/%s/%s/pulls?state=open&limit=50", cfg.ForgejoURL, cfg.RepoOwner, cfg.RepoName), nil)
+		fmt.Sprintf("%s/api/v1/repos/%s/%s/pulls?state=open&limit=50", ref.ForgeURL, ref.Owner, ref.Name), nil)
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Authorization", "token "+cfg.BuilderToken)
+	req.Header.Set("Authorization", "token "+token)
 	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
 	if err != nil {
 		return "", err
@@ -47,7 +50,7 @@ func findPR(cfg Config, branch string) (string, error) {
 		return "", err
 	}
 	for _, p := range pulls {
-		if prMatches(p.Head.Ref, p.Base.Ref, branch, cfg.BaseBranch) {
+		if prMatches(p.Head.Ref, p.Base.Ref, branch, ref.BaseBranch) {
 			return p.HTMLURL, nil
 		}
 	}

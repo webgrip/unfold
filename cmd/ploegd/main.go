@@ -21,6 +21,7 @@ import (
 	"github.com/webgrip/ploeg/pkg/provider"
 	"github.com/webgrip/ploeg/pkg/provider/vikunja"
 	"github.com/webgrip/ploeg/pkg/store"
+	"github.com/webgrip/ploeg/pkg/target"
 )
 
 var version = "0.0.0-dev"
@@ -92,9 +93,20 @@ func run(log *slog.Logger) error {
 		log.Info("LITELLM_ADMIN_URL not set — key revocation disabled")
 	}
 
+	// Work Target resolution: the repository belongs to the work item, not to
+	// the team (R11). Entries are rendered from the git org.yaml roster
+	// manifest. Empty = nothing resolves and workers keep using their
+	// env-configured repo, which is exactly the pre-decoupling behavior.
+	targets, err := target.NewMapResolver(os.Getenv("PLOEG_TARGET_MAP"), os.Getenv("PLOEG_TARGET_FORGE"))
+	if err != nil {
+		return fmt.Errorf("PLOEG_TARGET_MAP: %w", err)
+	}
+	log.Info("target map loaded", "rules", targets.Len())
+
 	srv := &httpapi.Server{
 		Store:    st,
 		Trackers: map[string]provider.TrackerProvider{vik.Name(): vik},
+		Targets:  targets,
 		LeaseTTL: leaseTTL,
 		Log:      log,
 	}

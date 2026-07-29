@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -405,4 +406,136 @@ func TestIngestAssigned_ClearsParking(t *testing.T) {
 		t.Fatalf("Claim after reassignment: %v", err)
 	}
 	_ = claimed
+}
+
+// --- Work Target (R11/R12) ---
+
+func ingestTargeted(t *testing.T, scope, owner, repo, rule string) (int64, work.State) {
+	t.Helper()
+	item := work.WorkItem{
+		Provider: "vikunja", ExternalID: "585", Team: "silver", Title: "t",
+		ExternalScope: scope, RouteRule: rule,
+	}
+	if owner != "" {
+		item.Target = &work.Target{Forge: "webgrip", Owner: owner, Repo: repo, BaseBranch: "development"}
+	}
+	id, state, err := testStore.IngestAssigned(context.Background(), item)
+	if err != nil {
+		t.Fatalf("IngestAssigned: %v", err)
+	}
+	return id, state
+}
+
+func itemTarget(t *testing.T, id int64) (scope, owner, repo, rule string) {
+	t.Helper()
+	if err := testStore.pool.QueryRow(context.Background(),
+		"SELECT external_scope, target_owner, target_repo, route_rule FROM work_items WHERE id = $1",
+		id).Scan(&scope, &owner, &repo, &rule); err != nil {
+		t.Fatalf("read target: %v", err)
+	}
+	return
+}
+
+func TestIngestAssigned_PersistsTargetAndScope(t *testing.T) {
+	resetTables(t)
+	id, _ := ingestTargeted(t, "11", "webgrip", "ploeg", "11/silver")
+	scope, owner, repo, rule := itemTarget(t, id)
+	if scope != "11" || owner != "webgrip" || repo != "ploeg" || rule != "11/silver" {
+		t.Fatalf("row = (%s, %s/%s, %s), want (11, webgrip/ploeg, 11/silver)", scope, owner, repo, rule)
+	}
+}
+
+// The scope is recorded even when nothing mapped, so the unmapped-scope
+// worklist is a query rather than a log-scrape.
+func TestIngestAssigned_RecordsScopeWithoutTarget(t *testing.T) {
+	resetTables(t)
+	id, _ := ingestTargeted(t, "99", "", "", "")
+	scope, owner, _, _ := itemTarget(t, id)
+	if scope != "99" || owner != "" {
+		t.Fatalf("scope=%q owner=%q, want scope recorded and target empty", scope, owner)
+	}
+}
+
+// R12: a re-assignment must not move the repo under a running clone — the
+// worker has already cloned, and a silently re-targeted review round would
+// orphan its own branch and PR. The re-target lands on the NEXT dispatch.
+func TestIngestAssigned_NeverRetargetsLeasedItem(t *testing.T) {
+	resetTables(t)
+	id, _ := ingestTargeted(t, "11", "webgrip", "ploeg", "11/silver")
+	forceItemState(t, id, "leased", 1)
+
+	ingestTargeted(t, "11", "webgrip", "erfbeeld", "11/bronze")
+
+	_, owner, repo, rule := itemTarget(t, id)
+	if owner != "webgrip" || repo != "ploeg" || rule != "11/silver" {
+		t.Fatalf("leased item was re-targeted to %s/%s (%s) — R12 violated", owner, repo, rule)
+	}
+}
+
+func TestIngestAssigned_RetargetsQueuedItem(t *testing.T) {
+	resetTables(t)
+	id, _ := ingestTargeted(t, "11", "webgrip", "ploeg", "11/silver")
+	ingestTargeted(t, "11", "webgrip", "erfbeeld", "11/bronze")
+
+	_, owner, repo, _ := itemTarget(t, id)
+	if owner != "webgrip" || repo != "erfbeeld" {
+		t.Fatalf("queued item should re-target, got %s/%s", owner, repo)
+	}
+}
+
+func TestClaim_ReturnsTarget(t *testing.T) {
+	resetTables(t)
+	ingestTargeted(t, "11", "webgrip", "ploeg", "11/silver")
+	claimed, err := testStore.Claim(context.Background(), "silver", time.Minute)
+	if err != nil {
+		t.Fatalf("Claim: %v", err)
+	}
+	tg := claimed.Item.Target
+	if tg == nil || tg.Owner != "webgrip" || tg.Repo != "ploeg" || tg.BaseBranch != "development" {
+		t.Fatalf("claim target = %+v, want webgrip/ploeg@development", tg)
+	}
+	if claimed.Item.ExternalScope != "11" || claimed.Item.RouteRule != "11/silver" {
+		t.Fatalf("claim lost scope/rule: %+v", claimed.Item)
+	}
+}
+
+func TestClaim_UnresolvedTargetIsNil(t *testing.T) {
+	resetTables(t)
+	ingestTargeted(t, "99", "", "", "")
+	claimed, err := testStore.Claim(context.Background(), "silver", time.Minute)
+	if err != nil {
+		t.Fatalf("Claim: %v", err)
+	}
+	if claimed.Item.Target != nil {
+		t.Fatalf("unresolved target must be nil, got %+v", claimed.Item.Target)
+	}
+}
+
+// The claimable index is the only hot index AND the KEDA scaler's query.
+// Adding target columns must never push the claim off it — a seq scan here
+// degrades every poll of every team at once.
+func TestClaim_StillUsesClaimableIndex(t *testing.T) {
+	resetTables(t)
+	ingestTargeted(t, "11", "webgrip", "ploeg", "11/silver")
+
+	rows, err := testStore.pool.Query(context.Background(), `
+		EXPLAIN SELECT id FROM work_items
+		WHERE team = 'silver' AND state = 'queued' AND (next_eligible_at IS NULL OR next_eligible_at <= now())
+		ORDER BY priority DESC, created_at
+		FOR UPDATE SKIP LOCKED LIMIT 1`)
+	if err != nil {
+		t.Fatalf("EXPLAIN: %v", err)
+	}
+	defer rows.Close()
+	var plan string
+	for rows.Next() {
+		var line string
+		if err := rows.Scan(&line); err != nil {
+			t.Fatal(err)
+		}
+		plan += line + "\n"
+	}
+	if !strings.Contains(plan, "work_items_claimable") {
+		t.Fatalf("claim no longer uses work_items_claimable:\n%s", plan)
+	}
 }

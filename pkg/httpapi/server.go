@@ -15,12 +15,17 @@ import (
 	"github.com/webgrip/ploeg/pkg/harness"
 	"github.com/webgrip/ploeg/pkg/provider"
 	"github.com/webgrip/ploeg/pkg/store"
+	"github.com/webgrip/ploeg/pkg/target"
 	"github.com/webgrip/ploeg/pkg/work"
 )
 
 type Server struct {
 	Store    *store.Store
 	Trackers map[string]provider.TrackerProvider
+	// Targets resolves a tracker scope to the repository the work lands in.
+	// Nil = no mapping configured; every item stays unresolved and workers use
+	// their env-configured repo (the pre-decoupling behavior).
+	Targets  target.Resolver
 	LeaseTTL time.Duration
 	Log      *slog.Logger
 }
@@ -69,6 +74,7 @@ func (s *Server) handleTrackerWebhook(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		item := s.mirror(r.Context(), tp, ev)
+		s.resolveTarget(&item, ev)
 		id, state, err := s.Store.IngestAssigned(r.Context(), item)
 		if err != nil {
 			s.Log.Error("ingest failed", "provider", name, "external_id", ev.ExternalID, "err", err)
@@ -90,13 +96,44 @@ func (s *Server) handleTrackerWebhook(w http.ResponseWriter, r *http.Request) {
 // read, fall back to the webhook snapshot.
 func (s *Server) mirror(ctx context.Context, tp provider.TrackerProvider, ev provider.TrackerEvent) work.WorkItem {
 	if item, err := tp.FetchItem(ctx, ev.ExternalID); err == nil {
+		// The event's routing facts win over the read: FetchItem returns the
+		// tracker's view of the item, not Ploeg's dispatch decision.
 		item.Team = ev.Team
+		item.ExternalScope = ev.Scope.ID
 		return item
 	}
 	if ev.Item != nil {
 		return *ev.Item
 	}
-	return work.WorkItem{Provider: tp.Name(), ExternalID: ev.ExternalID, Team: ev.Team, Origin: work.OriginAssignment}
+	return work.WorkItem{Provider: tp.Name(), ExternalID: ev.ExternalID, Team: ev.Team,
+		ExternalScope: ev.Scope.ID, Origin: work.OriginAssignment}
+}
+
+// resolveTarget decides where this item's changes land. It runs AFTER mirror
+// so it applies to both the authoritative read and the webhook-snapshot
+// fallback — putting it inside mirror's happy path would silently drop targets
+// the day FetchItem stops being a stub (backlog #31).
+//
+// An unresolved target is not an error: the item still queues, and the worker
+// falls back to its env-configured repo. The WARN is the onboarding worklist,
+// generated from live traffic rather than guessed.
+func (s *Server) resolveTarget(item *work.WorkItem, ev provider.TrackerEvent) {
+	if s.Targets == nil {
+		return
+	}
+	if item.ExternalScope == "" {
+		s.Log.Warn("tracker event carries no scope; target unresolved",
+			"provider", item.Provider, "external_id", ev.ExternalID, "team", item.Team)
+		return
+	}
+	t, rule, ok := s.Targets.Resolve(item.ExternalScope, item.Team)
+	if !ok {
+		s.Log.Warn("no target mapping for tracker scope; worker will use its env repo",
+			"scope", item.ExternalScope, "team", item.Team, "external_id", ev.ExternalID)
+		return
+	}
+	item.Target = &t
+	item.RouteRule = rule
 }
 
 type claimRequest struct {

@@ -85,11 +85,46 @@ type WorkItem struct {
 	Title      string `json:"title"`
 	// Description is the tracker item body (Vikunja sends HTML); the harness
 	// adapter composes it into the task prompt.
-	Description string    `json:"description"`
-	URL         string    `json:"url"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	Description string `json:"description"`
+	URL         string `json:"url"`
+	// ExternalScope is the tracker's own container for this item (Vikunja
+	// project id) — the input to Target resolution. Recorded even when no
+	// mapping matched, so onboarding a repo is one query away.
+	ExternalScope string `json:"externalScope,omitempty"`
+	// Target is where this item's changes land. Nil = unresolved; the worker
+	// then falls back to its env-configured repo. Pointer because encoding/json
+	// cannot elide an empty struct.
+	Target *Target `json:"target,omitempty"`
+	// RouteRule is the id of the routing rule that decided Team and Target,
+	// recorded so an audit can answer why this item went where it went.
+	RouteRule string    `json:"routeRule,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
+
+// Target is where a Work Item's changes land: the forge coordinates a Run
+// reads, writes, and opens a PR in. It belongs to the Work Item, never to the
+// Team — a Team is a capability manifest (roles, harness, model, budget) and
+// names no repository (R11).
+//
+// A Target is a coordinate, not a connection: it carries a forge *id* to be
+// resolved against a forge registry, never a URL and never a credential (R8).
+type Target struct {
+	Forge      string `json:"forge,omitempty"` // forge registry id; empty = the default forge
+	Owner      string `json:"owner"`
+	Repo       string `json:"repo"`
+	BaseBranch string `json:"baseBranch,omitempty"` // empty = the repo's default branch (VIK-589)
+}
+
+// Resolved reports whether the Target names a repository. Owner and Repo are
+// atomic: a half-resolved Target is never blended with a fallback, because
+// cloning one repo and pushing to another is the worst failure this seam has.
+func (t Target) Resolved() bool { return t.Owner != "" && t.Repo != "" }
+
+// Key is the repo-scoped identity used for per-repo serialization (backlog
+// #42) and for the (target, branch) reverse lookup that follow-up routing
+// needs (R9).
+func (t Target) Key() string { return t.Forge + "/" + t.Owner + "/" + t.Repo }
 
 // Lease is a team's crash-safe claim on a work item. Renewed by the
 // running Job; expiry releases the item mechanically.

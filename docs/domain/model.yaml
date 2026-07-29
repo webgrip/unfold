@@ -4,7 +4,7 @@ description: >
   leased, audited AI-agent runs on Kubernetes. The tracker stays the source of
   truth for WHAT to do; Ploeg owns HOW work gets executed — assignment events in,
   ephemeral runs out. (Ploeg is Dutch for a work crew or shift.)
-version: 0.1.0
+version: 0.2.0
 
 contexts:
   - name: Dispatch
@@ -33,7 +33,19 @@ terms:
       only for how execution is going.
     context: Dispatch
     avoid: [task, ticket]
-    see_also: [Tracker Item, Lease, Follow-Up]
+    see_also: [Tracker Item, Lease, Follow-Up, Work Target]
+
+  - name: Work Target
+    definition: >
+      The forge coordinates a Work Item's Runs act on: forge, owner,
+      repository, base branch. Resolved at ingest from the Scope the item
+      arrived in, pinned on the Work Item, and independent of the Team that
+      claims it — a Team never names one. A coordinate, not a connection: it
+      carries a forge id, never a URL and never a credential (R8).
+    context: Dispatch
+    synonyms: [target]
+    avoid: [team repo, repo_url]
+    see_also: [Work Item, Forge, Routing Rule, Team]
 
   - name: Tracker Item
     definition: >
@@ -94,13 +106,16 @@ terms:
   - name: Team
     definition: >
       A declarative manifest — name, Roles, harness image and model per Role,
-      run strategy (sequential or parallel), resource/token budget — that is
-      the unit of claiming. Two Teams never hold a Shift on the same Work Item;
-      any number of Roles work within one Team's Shift.
+      run strategy (sequential or parallel), resource/token budget, concurrency
+      cap — that is the unit of claiming. Two Teams never hold a Shift on the
+      same Work Item; any number of Roles work within one Team's Shift. A Team
+      never names a repository, forge, or credential: capacity and codebase are
+      independent axes (R11) — those coordinates are the Work Item's Work
+      Target, not the Team's.
     context: Dispatch
     avoid: [crew]
     examples: ["implementer + reviewer-on-a-different-model-family + tester"]
-    see_also: [Role, Shift]
+    see_also: [Role, Shift, Work Target]
 
   - name: Role
     definition: >
@@ -146,19 +161,33 @@ terms:
     definition: >
       A Work Item created from a Forge Event (review submitted, check failed,
       merge-state dirty) rather than from an Assignment. It references its
-      source PR and Work Item, is routed to the Team owning the source branch,
-      and enters the lifecycle directly at queued — there is no Tracker Item
-      to mirror at creation time.
+      source PR and Work Item, carries that Work Item's Work Target, is routed
+      to the Team owning the source branch, and enters the lifecycle directly
+      at queued — there is no Tracker Item to mirror at creation time.
     context: Dispatch
-    see_also: [Work Item, Forge Event, Team]
+    see_also: [Work Item, Forge Event, Team, Work Target]
 
   - name: Assignment
     definition: >
-      The normalized tracker event that names a Team for an ingested Work
-      Item, transitioning it to queued. Assigning in the tracker is the sole
-      human gesture that puts work in front of agents.
+      The normalized tracker event that offers an ingested Work Item to agents,
+      transitioning it to queued. Assigning in the tracker is the sole human
+      gesture that puts work in front of agents; which Team and which Work
+      Target it resolves to is decided by the Routing Rules, never carried in
+      the event.
     context: Dispatch
-    see_also: [Tracker Event, Team Queue]
+    see_also: [Tracker Event, Routing Rule, Team Queue]
+
+  - name: Routing Rule
+    definition: >
+      The operator-declared mapping from (provider, Scope, actor, hint) to a
+      Team and a Work Target. Rules are ordered and first-match-wins, evaluated
+      once at ingest; an event that matches no rule is never dispatched. The set
+      of Work Targets reachable through the rules is closed and
+      operator-declared, so a hint selects among registered routes and can never
+      construct one (R11).
+    context: Dispatch
+    avoid: [team map]
+    see_also: [Scope, Work Target, Team, Tracker Event]
 
   - name: Team Queue
     definition: >
@@ -181,25 +210,52 @@ terms:
     definition: >
       The SPI adapter for one git forge: verify and parse webhooks into
       normalized Forge Events and write back PR comments. Reference
-      implementation: Forgejo.
+      implementation: Forgejo. The adapter, not the instance it speaks to —
+      that is a Forge.
     context: Integration
-    see_also: [Tracker Provider, Forge Event]
+    see_also: [Tracker Provider, Forge Event, Forge]
+
+  - name: Forge
+    definition: >
+      One registered git forge instance: id, endpoint, dialect, git identity,
+      credential source. A Work Target names a Forge by id and the registry
+      resolves the rest, so no Work Item ever carries a URL or a token.
+      Distinct from a Forge Provider, which is the adapter speaking one Forge's
+      dialect.
+    context: Integration
+    examples: ["the in-cluster Forgejo instance", "a second Forgejo", "github.com"]
+    see_also: [Forge Provider, Work Target]
+
+  - name: Scope
+    definition: >
+      An opaque, provider-scoped container id for a body of work (a Vikunja
+      project, a Jira project, a GitHub repository), carried on every Tracker
+      Event. Ploeg compares a Scope for equality against Routing Rule keys and
+      never parses, splits, or otherwise interprets it — equality-only is the
+      test that keeps a vendor concept out of the core (R7).
+    context: Integration
+    synonyms: [container id]
+    see_also: [Tracker Event, Routing Rule, Tracker Provider]
 
   - name: Tracker Event
     definition: >
       The normalized result of parsing a tracker webhook — assigned, updated,
-      or unassigned — with the external id and resolved Team. The core only
-      ever sees normalized events, never raw vendor payloads.
+      or unassigned — carrying the external id, the provider's Scope, the actor,
+      and normalized hints. It never carries a Ploeg Team or a repository:
+      choosing either is core policy, decided by the Routing Rules (R7). The
+      core only ever sees normalized events, never raw vendor payloads.
     context: Integration
-    see_also: [Assignment, Tracker Provider]
+    see_also: [Assignment, Tracker Provider, Scope, Routing Rule]
 
   - name: Forge Event
     definition: >
       The normalized result of parsing a forge webhook — review_submitted,
-      check_failed, or merge_state_dirty — with repo, PR, branch, and the
-      feedback body for classification. Source of every Follow-Up.
+      check_failed, or merge_state_dirty — with the Work Target, PR, branch, and
+      the feedback body for classification. Source of every Follow-Up; carrying
+      a Work Target is what lets the follow-up path and the assignment path
+      converge on one type.
     context: Integration
-    see_also: [Follow-Up, Forge Provider]
+    see_also: [Follow-Up, Forge Provider, Work Target]
 
   - name: Executor
     definition: >
@@ -238,10 +294,11 @@ terms:
   - name: Task Spec
     definition: >
       The input contract of an Agent Container: Work Item snapshot, Role,
-      optional Checkpoint, repo/forge endpoints. Injected as a file mount or
-      environment; deliberately credential-free.
+      optional Checkpoint, and the Work Item's Work Target together with the
+      forge endpoint its Forge id resolves to. Injected as a file mount or
+      environment; deliberately credential-free (R8).
     context: Harness
-    see_also: [Outcome Report, Agent Container]
+    see_also: [Outcome Report, Agent Container, Work Target, Forge]
 
   - name: Outcome Report
     definition: >
@@ -266,12 +323,25 @@ entities:
       - name: external_id
         type: string
         description: Provider-scoped id of the mirrored Tracker Item.
+      - name: external_scope
+        type: string
+        description: >
+          The tracker's own container id (its Scope) for the item; the input to
+          Work Target resolution, recorded even when no Routing Rule matched.
       - name: revision
         type: string
         description: Provider revision/etag for staleness detection.
       - name: team
         type: string
-        description: Team the item is queued for; empty until assigned.
+        description: >
+          Team the item is queued for — the claiming crew, not the codebase;
+          empty until assigned.
+      - name: target
+        type: Work Target
+        description: Forge coordinates the item's Runs act on; absent means unresolved (R11).
+      - name: route_rule
+        type: string
+        description: Id of the Routing Rule that decided team and target; recorded for audit.
       - name: state
         type: "enum(ingested, queued, leased, needs_human, stale, done)"
         description: Dispatch lifecycle position.
@@ -292,7 +362,7 @@ entities:
         trigger: Follow-Up created from a Forge Event, routed to the owning Team
       - from: ingested
         to: queued
-        trigger: Assignment names a Team
+        trigger: Assignment matches a Routing Rule, resolving a Team and a Work Target
       - from: queued
         to: leased
         trigger: Team claims the item, acquiring a Lease
@@ -321,12 +391,43 @@ entities:
       - to: Shift
         kind: has_one
         description: At most one live Shift at a time (unique per Work Item).
+      - to: Work Target
+        kind: has_one
+        description: Pinned at ingest; absent until resolved, and then not claimable (R11).
       - to: Run
         kind: has_many
         description: All executions across roles, retries, and resumes.
       - to: Checkpoint
         kind: has_many
         description: Progress records; the latest one drives resume.
+
+  - name: Work Target
+    description: >
+      Value object: the forge coordinates one Work Item's Runs act on. A
+      coordinate, not a connection — it names a Forge by id and carries no URL
+      and no credential.
+    context: Dispatch
+    attributes:
+      - name: forge
+        type: string
+        description: Id of a registered Forge; the registry resolves it, never the Work Item.
+        required: true
+      - name: owner
+        type: string
+        description: Owner or organisation on that Forge.
+        required: true
+      - name: repo
+        type: string
+        description: Repository name within the owner.
+        required: true
+      - name: base_branch
+        type: string
+        description: Branch Runs branch from and open PRs against.
+        required: true
+    relationships:
+      - to: Forge
+        kind: references
+        description: By id; the registry resolves endpoint, dialect, identity, and credential source.
 
   - name: Shift
     description: One Team's engagement with one Work Item — owns the branch, the budget pool, the roster and the Round counter (ADR-0010).
@@ -353,11 +454,7 @@ entities:
         required: true
       - name: spent
         type: decimal
-        description: Settled spend across every Run in this Shift.
-        required: true
-      - name: reserved
-        type: decimal
-        description: Authorized but unsettled holds; remaining = budget - spent - reserved.
+        description: Settled spend across every Run in this Shift. Reserved is NOT stored — it is summed over running Runs, so it cannot drift (ADR-0012).
         required: true
     relationships:
       - to: Work Item
@@ -468,7 +565,10 @@ entities:
         kind: belongs_to
 
   - name: Team
-    description: Declarative manifest of Roles; the unit of claiming.
+    description: >
+      Declarative manifest of Roles; the unit of claiming. A Team never names a
+      repository, forge, or credential — those belong to the Work Item's Work
+      Target (R11).
     context: Dispatch
     attributes:
       - name: name
@@ -484,13 +584,81 @@ entities:
       - name: budget
         type: string
         description: Resource/token budget for the Team's Runs.
+      - name: concurrency
+        type: integer
+        description: Maximum Leases the Team may hold at once.
     relationships:
       - to: Lease
         kind: has_many
         description: One live Lease per held Work Item.
 
+  - name: Routing Rule
+    description: >
+      One ordered, first-match-wins mapping from a normalized tracker event to a
+      Team and a Work Target. Operator-declared; the rules are the only source
+      of reachable Work Targets.
+    context: Dispatch
+    attributes:
+      - name: id
+        type: string
+        description: Recorded on every Work Item this rule routed, for audit.
+        required: true
+      - name: provider
+        type: string
+        description: Tracker provider whose events this rule may match.
+        required: true
+      - name: match
+        type: "(scope, actor, hint)"
+        description: Compared for equality only; never parsed or pattern-matched (R7).
+        required: true
+      - name: team
+        type: string
+        description: Team the matched work is queued for.
+        required: true
+      - name: target
+        type: Work Target
+        description: A pre-registered target; never constructed from tracker text.
+        required: true
+      - name: order
+        type: integer
+        description: Evaluation position; the first matching rule wins.
+        required: true
+    relationships:
+      - to: Work Target
+        kind: references
+      - to: Team
+        kind: references
+
+  - name: Forge
+    description: >
+      Registry entry for one git forge instance, keyed by the id a Work Target
+      carries. Configuration, not a per-Team knob and not a per-item field.
+    context: Integration
+    attributes:
+      - name: id
+        type: string
+        description: Stable key a Work Target names.
+        required: true
+      - name: base_url
+        type: string
+        description: Endpoint of this instance.
+        required: true
+      - name: dialect
+        type: string
+        description: Which Forge Provider speaks to this instance.
+        required: true
+      - name: identity
+        type: "string (git name + email)"
+        description: Identity Runs commit as on this Forge.
+      - name: credential_ref
+        type: string
+        description: Reference to the credential source — a reference only, never a value (R8).
+
   - name: Task Spec
-    description: Input contract of an Agent Container.
+    description: >
+      Input contract of an Agent Container. The harness contract already carries
+      the coordinate as a struct (harness.RepoRef: forge url, owner, name, base
+      branch); here the model catches up.
     context: Harness
     attributes:
       - name: work_item
@@ -502,11 +670,18 @@ entities:
       - name: checkpoint
         type: Checkpoint
         description: Present on resume; absent on first Run.
-      - name: repo_url
+      - name: target
+        type: Work Target
+        description: The Work Item's pinned coordinate.
+        required: true
+      - name: forge_endpoint
         type: string
+        description: Base URL the target's Forge id resolves to; never a credential (R8).
         required: true
     relationships:
       - to: Work Item
+        kind: references
+      - to: Work Target
         kind: references
       - to: Checkpoint
         kind: references
@@ -573,8 +748,8 @@ rules:
 
   - id: R7
     statement: Core semantics must never encode a provider-specific workaround; everything vendor-specific lives behind the SPI.
-    rationale: SPI stability is the project's compatibility promise; one leaked vendor detail makes every other provider carry it forever.
-    applies_to: [Tracker Provider, Forge Provider]
+    rationale: SPI stability is the project's compatibility promise; one leaked vendor detail makes every other provider carry it forever. It cuts both ways — a provider never resolves a Team or a Work Target either; it emits a Scope the core compares for equality and never interprets.
+    applies_to: [Tracker Provider, Forge Provider, Tracker Event, Scope, Routing Rule]
     context: Integration
 
   - id: R8
@@ -595,14 +770,26 @@ rules:
     applies_to: [Team Queue, Tracker Item]
     context: Dispatch
 
+  - id: R11
+    statement: A Work Item carries its own Work Target (forge, owner, repository, base branch), resolved at ingest and independent of the Team that claims it. A Team is a capability manifest and never names a repository. A Work Item without a resolved Work Target is not claimable, and the set of reachable Work Targets is closed and operator-declared.
+    rationale: A Team is a crew, not a codebase. Binding them makes every capability change a repository migration and vice versa, leaves "two Teams on one repository" and "one Team across many repositories" both unrepresentable, and makes per-Run repo-scoped credentials impossible to express. The closed set keeps tracker content — untrusted input — from pointing a write-scoped credential at an arbitrary repository.
+    applies_to: [Work Item, Work Target, Team, Routing Rule]
+    context: Dispatch
+
+  - id: R12
+    statement: A Work Target is pinned once a Run has produced durable git state for it (a Work Item with an assigned branch); re-resolution that would change it is recorded as a divergence and requires a human.
+    rationale: Re-dispatch is the review-round mechanic; silently retargeting round n+1 orphans the branch and the open PR that round n produced.
+    applies_to: [Work Target, Work Item, Run]
+    context: Dispatch
+
 events:
   - name: WorkItemIngested
-    description: A tracker webhook was mirrored into a new Work Item.
+    description: A tracker webhook was mirrored into a new Work Item, recording the Scope it arrived in.
     entity: Work Item
     triggers: Nothing until an Assignment arrives.
 
   - name: WorkItemAssigned
-    description: An Assignment named a Team; the Work Item is queued.
+    description: An Assignment matched a Routing Rule; the Work Item is queued with its Team and its pinned Work Target.
     entity: Work Item
     triggers: The Team Queue grows; the Executor's scaler may spawn a Run.
 
@@ -717,6 +904,21 @@ ambiguities:
     recommendation: Make it a lifecycle state; the human queue is a query on it.
     status: resolved
     resolution: needs_human is a Work Item state, entered on a stuck Outcome or vague/security-sensitive Forge Event feedback; exits are human re-queue or human close. Distinct from stale, which means retry-exhausted. (2026-07-22)
+
+  - phrase: forge vs forge provider
+    issue: >
+      Two near-homonyms sit one word apart: a Forge is one registered instance
+      (id, endpoint, dialect, identity, credential source) while a Forge
+      Provider is the adapter that speaks that instance's dialect. Unqualified
+      "forge" in prose or a field name reads as either.
+    options: [Forge = instance + Forge Provider = adapter, Forge Instance + Forge Provider, one term for both]
+    recommendation: Keep both terms and never let "forge" stand alone for the adapter.
+    status: resolved
+    resolution: >
+      Forge is the instance (a registry entry, named by a Work Target's forge
+      id); Forge Provider is the adapter that speaks its dialect. A bare
+      "forge" always means the instance; the adapter is always written in
+      full. (2026-07-29)
 
   - phrase: follow-up mirroring
     issue: >

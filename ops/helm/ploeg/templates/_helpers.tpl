@@ -41,7 +41,8 @@ global executor.harness defaults field-by-field (explicit hasKey checks, so
 {{- $hArgs := $th.args | default $gh.args }}
 {{- $hOutcomeFile := $th.outcomeFile | default $gh.outcomeFile }}
 {{- $hDind := true }}
-{{- if hasKey $th "dind" }}{{- $hDind = $th.dind }}{{- else if hasKey $gh "dind" }}{{- $hDind = $gh.dind }}{{- end -}}
+{{- if hasKey $th "dind" }}{{- $hDind = $th.dind }}{{- else if hasKey $gh "dind" }}{{- $hDind = $gh.dind }}{{- end }}
+{{- $dt := $root.Values.executor.defaultTarget | default dict }}
 {{/* acp harness: same field-by-field override, one level deeper. */}}
 {{- $ga := $gh.acp | default dict }}
 {{- $ta := $th.acp | default dict }}
@@ -184,15 +185,32 @@ spec:
             secretKeyRef:
               name: {{ $root.Values.executor.forgejo.tokenSecret.name }}
               key: {{ $root.Values.executor.forgejo.tokenSecret.key }}
+        # FALLBACK target only. The repository belongs to the work item,
+        # resolved at ingest from its tracker scope and delivered on the claim
+        # (R11, ADR-0001); these render only while a team still pins a repo,
+        # and a team that declares none renders no repo env at all.
+        {{- $repoOwner := $team.repoOwner | default $dt.owner }}
+        {{- $repoName := $team.repoName | default $dt.name }}
+        {{- $baseBranch := $team.baseBranch | default $dt.baseBranch }}
+        {{- if $repoOwner }}
         - name: REPO_OWNER
-          value: {{ $team.repoOwner | quote }}
+          value: {{ $repoOwner | quote }}
+        {{- end }}
+        {{- if $repoName }}
         - name: REPO_NAME
-          value: {{ $team.repoName | quote }}
-        {{- if $team.baseBranch }}
+          value: {{ $repoName | quote }}
+        {{- end }}
+        {{- if $baseBranch }}
         # Base branch for clone/branch/PR (VIK-589). Unset = the repo's
         # default branch on clone and the worker's historical "main".
         - name: PLOEG_BASE_BRANCH
-          value: {{ $team.baseBranch | quote }}
+          value: {{ $baseBranch | quote }}
+        {{- end }}
+        {{- if $team.targetSource }}
+        # env = ignore the claim's target and use this team's pinned repo.
+        # The per-team lever for rolling the decoupling forward or back.
+        - name: PLOEG_TARGET_SOURCE
+          value: {{ $team.targetSource | quote }}
         {{- end }}
         # Downward API: node+pod identity survives pod/job cleanup for
         # run forensics (VIK-597). Logged at worker start and embedded in

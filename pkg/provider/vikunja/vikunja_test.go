@@ -47,6 +47,51 @@ func TestParseWebhookAssigned(t *testing.T) {
 	if ev.Item == nil || ev.Item.Title != "Wire the lease manager" || ev.Item.Priority != 3 {
 		t.Fatalf("unexpected item snapshot: %+v", ev.Item)
 	}
+	// The fixture predates project_id; a payload without it must still parse
+	// and simply carry no scope (unresolved target ⇒ env fallback).
+	if ev.Scope.ID != "" || ev.Item.ExternalScope != "" {
+		t.Errorf("payload without project_id should carry no scope, got %+v", ev.Scope)
+	}
+}
+
+// project_id is the scope the core resolves a Work Target from. Vikunja sends
+// it on task events (verified against the live instance: tasks.project_id, and
+// the smoke-test task 611 sits on project 11); encoding/json silently dropped
+// it before this field existed.
+const assignedWithProjectBody = `{
+  "event_name": "task.assignee.created",
+  "time": "2026-07-29T10:00:00Z",
+  "data": {
+    "task": {"id": 611, "project_id": 11, "title": "SMOKE", "priority": 2},
+    "assignee": {"username": "copper"}
+  }
+}`
+
+func TestParseWebhookCarriesProjectScope(t *testing.T) {
+	p := &Provider{Secret: "s3cret", DefaultTeam: "default", TeamMap: map[string]string{"copper": "copper"}}
+	body := []byte(assignedWithProjectBody)
+	r := httptest.NewRequest("POST", "/webhooks/tracker/vikunja", bytes.NewReader(body))
+	r.Header.Set("X-Vikunja-Signature", sign("s3cret", body))
+
+	events, err := p.ParseWebhook(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("got %d events, want 1", len(events))
+	}
+	ev := events[0]
+	if ev.Scope.Kind != "project" || ev.Scope.ID != "11" {
+		t.Errorf("scope = %+v, want {project 11}", ev.Scope)
+	}
+	if ev.Item.ExternalScope != "11" {
+		t.Errorf("item.ExternalScope = %q, want 11", ev.Item.ExternalScope)
+	}
+	// The adapter reports the vendor's container id and nothing else — it must
+	// never learn what a repository is (R7).
+	if ev.Scope.Name != "" {
+		t.Errorf("scope name should stay empty; it is audit-only, never a routing key")
+	}
 }
 
 func TestParseWebhookRejectsBadSignature(t *testing.T) {

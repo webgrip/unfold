@@ -101,3 +101,8 @@
 78	P3	security	M	M	days	high
 98	P3	dx	M	S	days	low
 100	P3	dx	L	S	hours	low
+104	P1	dispatch	H	M	days	low
+105	P2	dispatch	M	M	days	med
+106	P2	dispatch	M	L	days	med
+107	P2	dispatch	L	S	hours	low
+108	P3	dispatch	L	S	hours	low

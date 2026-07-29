@@ -81,6 +81,16 @@ executor:
     # type=cronjob only: how often each team polls for work. Idle ticks are
     # free (empty-handed claim = exit 0).
     schedule: "*/2 * * * *"
+  # Fallback repository for teams that pin none. The repository belongs to the
+  # WORK ITEM — resolved at ingest from its tracker scope via ploegd's
+  # PLOEG_TARGET_MAP (rendered from the org.yaml roster manifest) and delivered
+  # on the claim (R11, ADR-0001). Leave empty once every team's work resolves a
+  # target: a run that resolves none then reports stuck instead of silently
+  # using a stale repo.
+  defaultTarget:
+    owner: ""
+    name: ""
+    baseBranch: ""
   litellm:
     baseUrl: http://litellm.ai.svc.cluster.local:4000/v1
     adminUrl: http://litellm.ai.svc.cluster.local:4000
@@ -135,12 +145,19 @@ executor:
   # - name: bronze
   #   model: litellm_proxy/deepseek-chat
   #   budget: "2"
+  #   # DEPRECATED per-team fallback. The repository belongs to the work item,
+  #   # resolved at ingest from its tracker scope (R11, ADR-0001) — omit these
+  #   # once the item's scope resolves a target, and onboarding a repo becomes
+  #   # one map entry plus a webhook instead of a whole new team.
   #   repoOwner: webgrip
   #   repoName: some-repo
   #   # Branch the worker clones, branches from, and opens the PR against.
   #   # Unset = the repo's default branch (which may be a stale stub — pin
   #   # this to the repo's actual trunk; VIK-589).
   #   baseBranch: main
+  #   # env = ignore the claim's target and use the fallback above. The
+  #   # per-team lever for rolling the decoupling forward or back.
+  #   targetSource: claim
   #   maxReplicaCount: 1
   #   # Optional: override the executor.harness defaults for this team — the
   #   # single axis of variation (harness AND agent image swap per team).

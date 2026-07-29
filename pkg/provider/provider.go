@@ -25,10 +25,24 @@ type TrackerEvent struct {
 	Kind       TrackerEventKind
 	ExternalID string
 	Team       string // resolved assignee → team name, when applicable
+	// Scope is the vendor's own container for this item — a Vikunja project
+	// id, a Jira project key, a GitHub repository. It is OPAQUE to the core,
+	// which only ever compares it for equality; interpreting it here would be
+	// the vendor leak R7 forbids. Empty when the provider has no such concept.
+	Scope Scope
 	// Item is the payload's snapshot of the tracker item — the fallback when
 	// FetchItem cannot supply authoritative state (thin-payload rule: the
 	// webhook is a trigger, the provider read is the truth).
 	Item *work.WorkItem
+}
+
+// Scope is a provider-scoped container id: the vendor's own answer to "which
+// body of work does this belong to". Ploeg compares Scopes; it never parses
+// them.
+type Scope struct {
+	Kind string // provider-defined: "project", "board", "repo", "list"
+	ID   string // provider-scoped, opaque
+	Name string // human label for audit and logs — NEVER a routing key
 }
 
 // TrackerProvider adapts one task-management system (reference: Vikunja).

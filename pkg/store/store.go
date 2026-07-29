@@ -155,11 +155,16 @@ func (s *Store) IngestAssigned(ctx context.Context, item work.WorkItem) (int64, 
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
+	var t work.Target
+	if item.Target != nil {
+		t = *item.Target
+	}
 	var id int64
 	var state string
 	err = tx.QueryRow(ctx, `
-		INSERT INTO work_items (provider, external_id, revision, team, state, origin, priority, title, description, url)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO work_items (provider, external_id, revision, team, state, origin, priority, title, description, url,
+			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		ON CONFLICT (provider, external_id) DO UPDATE SET
 			revision = EXCLUDED.revision,
 			team     = EXCLUDED.team,
@@ -167,6 +172,15 @@ func (s *Store) IngestAssigned(ctx context.Context, item work.WorkItem) (int64, 
 			title    = EXCLUDED.title,
 			description = EXCLUDED.description,
 			url      = EXCLUDED.url,
+			external_scope = EXCLUDED.external_scope,
+			-- Never re-target a live run: the worker has already cloned, and a
+			-- review round that silently moved repo would orphan its own branch
+			-- and PR (R12). A re-target takes effect on the NEXT dispatch.
+			target_forge       = CASE WHEN work_items.state = 'leased' THEN work_items.target_forge       ELSE EXCLUDED.target_forge       END,
+			target_owner       = CASE WHEN work_items.state = 'leased' THEN work_items.target_owner       ELSE EXCLUDED.target_owner       END,
+			target_repo        = CASE WHEN work_items.state = 'leased' THEN work_items.target_repo        ELSE EXCLUDED.target_repo        END,
+			target_base_branch = CASE WHEN work_items.state = 'leased' THEN work_items.target_base_branch ELSE EXCLUDED.target_base_branch END,
+			route_rule         = CASE WHEN work_items.state = 'leased' THEN work_items.route_rule         ELSE EXCLUDED.route_rule         END,
 			state    = CASE WHEN work_items.state IN ('ingested', 'stale', 'done', 'needs_human') THEN 'queued' ELSE work_items.state END,
 			attempts = CASE WHEN work_items.state IN ('stale', 'done', 'needs_human') THEN 0 ELSE work_items.attempts END,
 			next_eligible_at  = NULL,
@@ -174,7 +188,8 @@ func (s *Store) IngestAssigned(ctx context.Context, item work.WorkItem) (int64, 
 			updated_at = now()
 		RETURNING id, state`,
 		item.Provider, item.ExternalID, item.Revision, item.Team,
-		string(work.StateQueued), string(work.OriginAssignment), item.Priority, item.Title, item.Description, item.URL).Scan(&id, &state)
+		string(work.StateQueued), string(work.OriginAssignment), item.Priority, item.Title, item.Description, item.URL,
+		item.ExternalScope, t.Forge, t.Owner, t.Repo, t.BaseBranch, item.RouteRule).Scan(&id, &state)
 	if err != nil {
 		return 0, "", err
 	}
@@ -182,8 +197,13 @@ func (s *Store) IngestAssigned(ctx context.Context, item work.WorkItem) (int64, 
 	if state == string(work.StateQueued) {
 		action = "work_item.queued"
 	}
-	if err := audit(ctx, tx, "webhook:"+item.Provider, action, &id,
-		map[string]any{"external_id": item.ExternalID, "team": item.Team, "title": item.Title, "state": state}); err != nil {
+	detail := map[string]any{"external_id": item.ExternalID, "team": item.Team, "title": item.Title, "state": state,
+		"external_scope": item.ExternalScope}
+	if t.Resolved() {
+		detail["target"] = t.Key()
+		detail["route_rule"] = item.RouteRule
+	}
+	if err := audit(ctx, tx, "webhook:"+item.Provider, action, &id, detail); err != nil {
 		return 0, "", err
 	}
 	return id, work.State(state), tx.Commit(ctx)
@@ -214,6 +234,7 @@ func (s *Store) Claim(ctx context.Context, team string, ttl time.Duration) (*Cla
 
 	var it work.WorkItem
 	var id int64
+	var t work.Target
 	err = tx.QueryRow(ctx, `
 		UPDATE work_items SET state = 'leased', attempts = attempts + 1, updated_at = now()
 		WHERE id = (
@@ -223,8 +244,10 @@ func (s *Store) Claim(ctx context.Context, team string, ttl time.Duration) (*Cla
 			FOR UPDATE SKIP LOCKED
 			LIMIT 1
 		)
-		RETURNING id, provider, external_id, revision, team, origin, priority, title, description, url`,
-		team).Scan(&id, &it.Provider, &it.ExternalID, &it.Revision, &it.Team, &it.Origin, &it.Priority, &it.Title, &it.Description, &it.URL)
+		RETURNING id, provider, external_id, revision, team, origin, priority, title, description, url,
+			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule`,
+		team).Scan(&id, &it.Provider, &it.ExternalID, &it.Revision, &it.Team, &it.Origin, &it.Priority, &it.Title, &it.Description, &it.URL,
+		&it.ExternalScope, &t.Forge, &t.Owner, &t.Repo, &t.BaseBranch, &it.RouteRule)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNoWork
 	}
@@ -233,6 +256,9 @@ func (s *Store) Claim(ctx context.Context, team string, ttl time.Duration) (*Cla
 	}
 	it.ID = fmt.Sprint(id)
 	it.State = work.StateLeased
+	if t.Resolved() {
+		it.Target = &t
+	}
 
 	deadline := time.Now().Add(ttl)
 	if _, err := tx.Exec(ctx,
@@ -245,8 +271,13 @@ func (s *Store) Claim(ctx context.Context, team string, ttl time.Duration) (*Cla
 		id, team, token); err != nil {
 		return nil, err
 	}
-	if err := audit(ctx, tx, "team:"+team, "lease.acquired", &id,
-		map[string]any{"expires_at": deadline}); err != nil {
+	leaseDetail := map[string]any{"expires_at": deadline}
+	if t.Resolved() {
+		// Per-run target history without a schema change: the item may be
+		// re-targeted later, but this row records where THIS run went.
+		leaseDetail["target"] = t.Key()
+	}
+	if err := audit(ctx, tx, "team:"+team, "lease.acquired", &id, leaseDetail); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -490,7 +521,8 @@ func (s *Store) QueueDepth(ctx context.Context, team string) (int, error) {
 // operator visibility — deliberately not a board.
 func (s *Store) QueueSnapshot(ctx context.Context, team string) ([]work.WorkItem, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, provider, external_id, revision, team, state, origin, priority, title, description, url, created_at, updated_at
+		SELECT id, provider, external_id, revision, team, state, origin, priority, title, description, url, created_at, updated_at,
+			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule
 		FROM work_items
 		WHERE team = $1 AND state <> 'done'
 		ORDER BY priority DESC, created_at`, team)
@@ -502,11 +534,16 @@ func (s *Store) QueueSnapshot(ctx context.Context, team string) ([]work.WorkItem
 	for rows.Next() {
 		var it work.WorkItem
 		var id int64
+		var t work.Target
 		if err := rows.Scan(&id, &it.Provider, &it.ExternalID, &it.Revision, &it.Team, &it.State,
-			&it.Origin, &it.Priority, &it.Title, &it.Description, &it.URL, &it.CreatedAt, &it.UpdatedAt); err != nil {
+			&it.Origin, &it.Priority, &it.Title, &it.Description, &it.URL, &it.CreatedAt, &it.UpdatedAt,
+			&it.ExternalScope, &t.Forge, &t.Owner, &t.Repo, &t.BaseBranch, &it.RouteRule); err != nil {
 			return nil, err
 		}
 		it.ID = fmt.Sprint(id)
+		if t.Resolved() {
+			it.Target = &t
+		}
 		items = append(items, it)
 	}
 	return items, rows.Err()
