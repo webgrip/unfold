@@ -191,9 +191,11 @@ func (s *Store) ClaimRole(ctx context.Context, team, role string, ttl time.Durat
 	}
 
 	deadline := time.Now().Add(ttl)
+	// expires_at is the Run's own liveness deadline. It is not the Lease's:
+	// readers hold no Lease, so lease expiry could never detect a dead reader.
 	if _, err := tx.Exec(ctx, `
-		UPDATE agent_runs SET state = 'running', started_at = now(), authorized = $2
-		WHERE id = $1`, runID, authorized); err != nil {
+		UPDATE agent_runs SET state = 'running', started_at = now(), authorized = $2, expires_at = $3
+		WHERE id = $1`, runID, authorized, deadline); err != nil {
 		return nil, err
 	}
 
@@ -247,6 +249,81 @@ func (s *Store) PendingRuns(ctx context.Context, team, role string) (int, error)
 		`SELECT count(*) FROM agent_runs WHERE team = $1 AND role = $2 AND state = 'pending'`,
 		team, role).Scan(&n)
 	return n, err
+}
+
+// ExpiredRun is a Run the sweeper reclaimed.
+type ExpiredRun struct {
+	WorkItemID int64
+	ShiftID    int64
+	Team, Role string
+	RunToken   string
+	Writes     bool
+}
+
+// ExpireRuns reclaims live Runs past their own deadline.
+//
+// ExpireLeases cannot do this job any more. A reader holds no Lease
+// (ADR-0010), so a reader whose pod is OOM-killed would otherwise sit
+// 'running' forever — holding a budget authorization nothing ever releases,
+// and leaving its Round unable to complete. Liveness is per-Run because a Run
+// is what dies.
+//
+// Nothing here depends on the dying pod doing anything (R2). Releasing the
+// budget hold needs no statement at all: `reserved` is summed over running
+// Runs, and these are no longer running.
+func (s *Store) ExpireRuns(ctx context.Context) ([]ExpiredRun, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	rows, err := tx.Query(ctx, `
+		UPDATE agent_runs
+		SET state = 'finished', finished_at = now(), outcome = 'failed',
+		    summary = 'run deadline expired', failure_reason = 'lease_lost'
+		WHERE state = 'running' AND expires_at IS NOT NULL AND expires_at < now()
+		RETURNING work_item_id, COALESCE(shift_id, 0), team, role, run_token, writes`)
+	if err != nil {
+		return nil, err
+	}
+	var out []ExpiredRun
+	for rows.Next() {
+		var e ExpiredRun
+		if err := rows.Scan(&e.WorkItemID, &e.ShiftID, &e.Team, &e.Role, &e.RunToken, &e.Writes); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+
+	for _, e := range out {
+		// A writer also drops its Lease, which revokes the push credential
+		// minted with it (ADR-0013) — a zombie writer must not keep pushing.
+		if _, err := tx.Exec(ctx, `DELETE FROM leases WHERE run_token = $1`, e.RunToken); err != nil {
+			return nil, err
+		}
+		if err := audit(ctx, tx, "ploegd:sweeper", "run.expired", &e.WorkItemID, map[string]any{
+			"team": e.Team, "role": e.Role, "shift": e.ShiftID, "writes": e.Writes,
+		}); err != nil {
+			return nil, err
+		}
+	}
+	return out, tx.Commit(ctx)
+}
+
+// RoundComplete reports whether every Run in a Shift's current Round has
+// finished — the signal to open the next Round or close the Shift. Derived,
+// so it cannot disagree with the runs themselves.
+func (s *Store) RoundComplete(ctx context.Context, shiftID int64) (bool, error) {
+	var live int
+	err := s.pool.QueryRow(ctx, `
+		SELECT count(*) FROM agent_runs
+		WHERE shift_id = $1 AND round = (SELECT round FROM shifts WHERE id = $1)
+		  AND state <> 'finished'`, shiftID).Scan(&live)
+	return live == 0, err
 }
 
 // ShiftLedger is the money view of a Shift.

@@ -48,14 +48,29 @@ ALTER TABLE agent_runs ADD COLUMN round      INT    NOT NULL DEFAULT 0;
 -- Writers take the Lease and mutate the tree; readers take none and may run
 -- beside each other. This is the whole of the concurrency control (ADR-0010).
 ALTER TABLE agent_runs ADD COLUMN writes     BOOLEAN NOT NULL DEFAULT TRUE;
--- pending -> running -> finished. Historical rows are already terminal.
-ALTER TABLE agent_runs ADD COLUMN state      TEXT   NOT NULL DEFAULT 'finished';
+-- pending -> running -> finished. The default is 'running' because that is
+-- what an INSERT means on the pre-Shift Claim path: a row appears when a pod
+-- starts. Historical rows are corrected by finished_at just below.
+ALTER TABLE agent_runs ADD COLUMN state      TEXT   NOT NULL DEFAULT 'running';
+-- Liveness is per-Run, not per-Lease. Readers hold no Lease (ADR-0010), so
+-- lease expiry cannot be what detects a dead reader — every Run carries its
+-- own deadline and renews it. NULL on historical rows, which are terminal.
+ALTER TABLE agent_runs ADD COLUMN expires_at TIMESTAMPTZ;
 -- The budget hold for this Run, released at settlement (ADR-0012). Summing
 -- this over running rows IS the reserved figure; there is no counter to drift.
 ALTER TABLE agent_runs ADD COLUMN authorized NUMERIC(12, 4) NOT NULL DEFAULT 0;
 
+-- Correct the rows that predate this column: anything already reported is
+-- finished, anything still open was running when the column landed.
+UPDATE agent_runs SET state = 'finished' WHERE finished_at IS NOT NULL;
+
 ALTER TABLE agent_runs ADD CONSTRAINT agent_runs_state
     CHECK (state IN ('pending', 'running', 'finished'));
+
+-- The Run sweeper: live Runs past their deadline, readers included. Partial so
+-- it stays small however long agent_runs grows.
+CREATE INDEX agent_runs_expiring
+    ON agent_runs (expires_at) WHERE state = 'running';
 
 -- A pending Run has not started yet. started_at has been NOT NULL since 0001,
 -- which was correct when a row only came into existence once a pod was already

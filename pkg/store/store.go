@@ -319,20 +319,42 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
+	// The advance-once compare-and-swap. This used to be the lease DELETE, but
+	// readers hold no Lease (ADR-0010), so the lease can no longer be the thing
+	// exactly one transaction wins. The Run's state transition can: only one
+	// caller moves a row out of 'running', and a swept or replayed token finds
+	// nothing to move.
 	var id int64
 	var team string
-	if err := tx.QueryRow(ctx,
-		`DELETE FROM leases WHERE run_token = $1 RETURNING work_item_id, team`, runToken).Scan(&id, &team); err != nil {
+	var shiftID *int64
+	if err := tx.QueryRow(ctx, `
+		UPDATE agent_runs
+		SET state = 'finished', finished_at = now(), outcome = $1, summary = $2,
+		    stuck_reason = $3, links = $4, usage = $5, failure_reason = $6
+		WHERE run_token = $7 AND state = 'running'
+		RETURNING work_item_id, team, shift_id`,
+		string(rep.Outcome), rep.Summary, rep.StuckReason, rep.Links, rep.Usage,
+		rep.FailureReason, runToken).Scan(&id, &team, &shiftID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrUnknownRun
 		}
 		return err
 	}
-	if _, err := tx.Exec(ctx, `
-		UPDATE agent_runs SET finished_at = now(), outcome = $1, summary = $2, stuck_reason = $3, links = $4, usage = $5, failure_reason = $6
-		WHERE run_token = $7`,
-		string(rep.Outcome), rep.Summary, rep.StuckReason, rep.Links, rep.Usage, rep.FailureReason, runToken); err != nil {
+	// Writers hold a Lease; readers do not, so zero rows here is normal rather
+	// than an error. Releasing it revokes the push credential minted with it
+	// (ADR-0013).
+	if _, err := tx.Exec(ctx, `DELETE FROM leases WHERE run_token = $1`, runToken); err != nil {
 		return err
+	}
+	// Settlement (ADR-0012): record what was actually spent. The authorization
+	// needs no explicit release — `reserved` is summed over running Runs, and
+	// this one is no longer running.
+	if shiftID != nil {
+		if _, err := tx.Exec(ctx, `
+			UPDATE shifts SET spent = spent + COALESCE(($2::jsonb->>'costUsd')::numeric, 0)
+			WHERE id = $1`, *shiftID, rep.Usage); err != nil {
+			return err
+		}
 	}
 	// A failed outcome re-queues until the retry threshold, then stale (R5).
 	if next == work.StateQueued {
@@ -405,8 +427,13 @@ func (s *Store) ExpireLeases(ctx context.Context) ([]ExpiredLease, error) {
 
 	for i := range exp {
 		e := &exp[i]
+		// state = 'finished' matters as much as finished_at: it closes the
+		// advance-once CAS in ReportOutcome so a swept run cannot report, and
+		// it releases the run's budget authorization, which is summed over
+		// running rows only (ADR-0012).
 		if _, err := tx.Exec(ctx, `
-			UPDATE agent_runs SET finished_at = now(), outcome = 'failed', summary = 'lease expired', failure_reason = 'lease_lost'
+			UPDATE agent_runs SET state = 'finished', finished_at = now(), outcome = 'failed',
+			    summary = 'lease expired', failure_reason = 'lease_lost'
 			WHERE run_token = $1 AND finished_at IS NULL`, e.RunToken); err != nil {
 			return nil, err
 		}

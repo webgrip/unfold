@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/webgrip/ploeg/pkg/work"
 )
 
 // These are the acceptance criteria ADR-0010 and ADR-0012 named for
@@ -248,5 +250,116 @@ func TestOneLiveShiftPerItem(t *testing.T) {
 	itemID, _ := openShift(t, 10)
 	if _, err := testStore.OpenShift(ctx, itemID, "bronze", "agent/vik-585", 10); err == nil {
 		t.Error("a second live Shift was opened on the same Work Item")
+	}
+}
+
+// Settlement: the hold releases itself because reserved is summed over running
+// Runs. Nothing has to remember to release it, which is the property that
+// makes a missed settlement impossible rather than merely unlikely.
+func TestSettlementReleasesTheHoldAndRecordsSpend(t *testing.T) {
+	ctx := context.Background()
+	_, shiftID := openShift(t, 10)
+	if _, err := testStore.OpenRound(ctx, shiftID, []Role{{Name: "builder", Writes: true, Cap: 2}}); err != nil {
+		t.Fatalf("OpenRound: %v", err)
+	}
+	run, err := testStore.ClaimRole(ctx, "silver", "builder", time.Minute, 2)
+	if err != nil {
+		t.Fatalf("ClaimRole: %v", err)
+	}
+
+	before, _ := testStore.Ledger(ctx, shiftID)
+	if before.Reserved != 2 {
+		t.Fatalf("reserved = %.2f while running, want 2", before.Reserved)
+	}
+
+	if err := testStore.ReportOutcome(ctx, run.RunToken,
+		Report(work.OutcomePROpened, "done", "", nil, []byte(`{"costUsd":0.75}`), nil)); err != nil {
+		t.Fatalf("ReportOutcome: %v", err)
+	}
+
+	after, _ := testStore.Ledger(ctx, shiftID)
+	if after.Reserved != 0 {
+		t.Errorf("reserved = %.2f after settlement, want 0", after.Reserved)
+	}
+	if after.Spent != 0.75 {
+		t.Errorf("spent = %.2f, want 0.75", after.Spent)
+	}
+	if after.Remaining() != 9.25 {
+		t.Errorf("remaining = %.2f, want 9.25 — unspent authorization must return to the pool", after.Remaining())
+	}
+}
+
+// A reader must be able to report even though it holds no Lease. The CAS used
+// to be the lease DELETE, which would have made every reader's report fail
+// with ErrUnknownRun.
+func TestReaderCanReportWithoutALease(t *testing.T) {
+	ctx := context.Background()
+	_, shiftID := openShift(t, 10)
+	if _, err := testStore.OpenRound(ctx, shiftID, []Role{{Name: "security", Cap: 1}}); err != nil {
+		t.Fatalf("OpenRound: %v", err)
+	}
+	run, err := testStore.ClaimRole(ctx, "silver", "security", time.Minute, 1)
+	if err != nil {
+		t.Fatalf("ClaimRole: %v", err)
+	}
+	if err := testStore.ReportOutcome(ctx, run.RunToken,
+		Report(work.OutcomeNoChangeNeeded, "looks fine", "", nil, nil, nil)); err != nil {
+		t.Errorf("a reader could not report its outcome: %v", err)
+	}
+}
+
+// The advance-once proof, now that the CAS is the Run's state transition:
+// a swept Run must not be able to report, or a zombie would overwrite the
+// sweeper's verdict and re-open settled money.
+func TestSweptRunCannotReport(t *testing.T) {
+	ctx := context.Background()
+	_, shiftID := openShift(t, 10)
+	if _, err := testStore.OpenRound(ctx, shiftID, []Role{{Name: "cfo", Cap: 1}}); err != nil {
+		t.Fatalf("OpenRound: %v", err)
+	}
+	run, err := testStore.ClaimRole(ctx, "silver", "cfo", -time.Second, 1) // already overdue
+	if err != nil {
+		t.Fatalf("ClaimRole: %v", err)
+	}
+	expired, err := testStore.ExpireRuns(ctx)
+	if err != nil {
+		t.Fatalf("ExpireRuns: %v", err)
+	}
+	if len(expired) != 1 {
+		t.Fatalf("swept %d runs, want 1 — a dead reader must be reclaimable", len(expired))
+	}
+	if err := testStore.ReportOutcome(ctx, run.RunToken,
+		Report(work.OutcomePROpened, "zombie", "", nil, nil, nil)); !errors.Is(err, ErrUnknownRun) {
+		t.Errorf("swept run reported: got %v, want ErrUnknownRun", err)
+	}
+	l, _ := testStore.Ledger(ctx, shiftID)
+	if l.Reserved != 0 {
+		t.Errorf("reserved = %.2f after sweep, want 0 — a dead run must not hold money", l.Reserved)
+	}
+}
+
+// The Round-completion signal that drives the pipeline forward.
+func TestRoundCompleteTracksItsRuns(t *testing.T) {
+	ctx := context.Background()
+	_, shiftID := openShift(t, 10)
+	if _, err := testStore.OpenRound(ctx, shiftID,
+		[]Role{{Name: "security", Cap: 1}, {Name: "cfo", Cap: 1}}); err != nil {
+		t.Fatalf("OpenRound: %v", err)
+	}
+	if done, _ := testStore.RoundComplete(ctx, shiftID); done {
+		t.Error("round reported complete while both runs were still pending")
+	}
+	for _, role := range []string{"security", "cfo"} {
+		run, err := testStore.ClaimRole(ctx, "silver", role, time.Minute, 1)
+		if err != nil {
+			t.Fatalf("ClaimRole(%s): %v", role, err)
+		}
+		if err := testStore.ReportOutcome(ctx, run.RunToken,
+			Report(work.OutcomeNoChangeNeeded, "ok", "", nil, nil, nil)); err != nil {
+			t.Fatalf("ReportOutcome(%s): %v", role, err)
+		}
+	}
+	if done, _ := testStore.RoundComplete(ctx, shiftID); !done {
+		t.Error("round did not report complete after every run finished")
 	}
 }
