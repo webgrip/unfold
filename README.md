@@ -6,7 +6,7 @@ An open-source, self-hostable dispatch plane. Bring your own board, forge, and a
 
 *Ploeg* is Dutch for a work crew or shift. Teams of specialist agents pick up a ticket, work it, report an outcome, and disappear.
 
-> **Status: pre-alpha.** Ploeg is being extracted from a running autonomous-agent setup (a "dark factory": agents working a ticket board unattended on a homelab Kubernetes cluster). The dispatch core runs as a local prototype (see below); the Kubernetes executor, provider write-backs, and team manifests are still to come. Watch, don't install.
+> **Status: pre-alpha.** Ploeg is being extracted from a running autonomous-agent setup (a "dark factory": agents working a ticket board unattended on a homelab Kubernetes cluster). The dispatch core and both executors (KEDA `ScaledJob` and a KEDA-free CronJob) ship in the chart — opt-in via `executor.enabled` — and dispatch the originating factory today; a local prototype runs the same core over Docker Compose (see below). Provider write-backs, a Forgejo forge provider, and team manifests are still to come. Watch, don't install.
 
 ## What Ploeg is
 
