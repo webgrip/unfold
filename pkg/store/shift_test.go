@@ -1,0 +1,252 @@
+package store
+
+import (
+	"context"
+	"errors"
+	"sync"
+	"testing"
+	"time"
+)
+
+// These are the acceptance criteria ADR-0010 and ADR-0012 named for
+// themselves. An implementation of Shifts without them should fail review on
+// the ADR, so they are written first.
+
+func openShift(t *testing.T, budget float64) (itemID, shiftID int64) {
+	t.Helper()
+	resetTables(t)
+	itemID, _ = ingestItem(t)
+	shiftID, err := testStore.OpenShift(context.Background(), itemID, "silver", "agent/vik-585", budget)
+	if err != nil {
+		t.Fatalf("OpenShift: %v", err)
+	}
+	return itemID, shiftID
+}
+
+func liveLeases(t *testing.T) int {
+	t.Helper()
+	var n int
+	if err := testStore.pool.QueryRow(context.Background(),
+		"SELECT count(*) FROM leases").Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// The load-bearing property of ADR-0010: readers take no Lease, so a whole
+// fan-out of them runs at once. If this fails, simultaneity is gone and the
+// design collapses back to the sequential one it replaced.
+func TestReadersRunConcurrentlyWithoutLease(t *testing.T) {
+	ctx := context.Background()
+	_, shiftID := openShift(t, 10)
+
+	roles := []Role{
+		{Name: "security", Cap: 1}, {Name: "cfo", Cap: 1}, {Name: "philosopher", Cap: 1},
+	}
+	if _, err := testStore.OpenRound(ctx, shiftID, roles); err != nil {
+		t.Fatalf("OpenRound: %v", err)
+	}
+
+	for _, r := range roles {
+		got, err := testStore.ClaimRole(ctx, "silver", r.Name, time.Minute, r.Cap)
+		if err != nil {
+			t.Fatalf("ClaimRole(%s): %v", r.Name, err)
+		}
+		if got.Writes {
+			t.Errorf("role %s claimed as a writer", r.Name)
+		}
+	}
+	if n := liveLeases(t); n != 0 {
+		t.Errorf("readers took %d leases, want 0 — readers must never block each other", n)
+	}
+}
+
+// A writing Round takes the Lease, and the lease table's unique key means a
+// second writer cannot appear even if a caller opens a malformed Round.
+func TestWriterTakesTheLease(t *testing.T) {
+	ctx := context.Background()
+	_, shiftID := openShift(t, 10)
+	if _, err := testStore.OpenRound(ctx, shiftID, []Role{{Name: "builder", Writes: true, Cap: 2}}); err != nil {
+		t.Fatalf("OpenRound: %v", err)
+	}
+	got, err := testStore.ClaimRole(ctx, "silver", "builder", time.Minute, 2)
+	if err != nil {
+		t.Fatalf("ClaimRole: %v", err)
+	}
+	if !got.Writes {
+		t.Error("builder did not claim as a writer")
+	}
+	if n := liveLeases(t); n != 1 {
+		t.Errorf("writer took %d leases, want exactly 1", n)
+	}
+}
+
+// A Round mixing a writer with readers would put a reviewer beside a builder
+// mutating the same branch. Refused at the source rather than trusted to
+// callers.
+func TestOpenRoundRefusesMixedRounds(t *testing.T) {
+	ctx := context.Background()
+	_, shiftID := openShift(t, 10)
+	for _, tc := range []struct {
+		name  string
+		roles []Role
+	}{
+		{"writer beside reader", []Role{{Name: "builder", Writes: true}, {Name: "cfo"}}},
+		{"two writers", []Role{{Name: "builder", Writes: true}, {Name: "refactorer", Writes: true}}},
+		{"empty", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := testStore.OpenRound(ctx, shiftID, tc.roles); err == nil {
+				t.Error("expected the round to be refused")
+			}
+		})
+	}
+}
+
+// The drift guard. ClaimRole and PendingRuns must select over the identical
+// predicate: overshoot is harmless (a pod finds nothing and exits 0) but
+// undershoot stalls items with no error anywhere, forever. KEDA scales on
+// PendingRuns, so a divergence is invisible until work stops moving.
+func TestClaimRoleAgreesWithPendingRuns(t *testing.T) {
+	ctx := context.Background()
+	_, shiftID := openShift(t, 20)
+	if _, err := testStore.OpenRound(ctx, shiftID,
+		[]Role{{Name: "security", Cap: 1}, {Name: "cfo", Cap: 1}}); err != nil {
+		t.Fatalf("OpenRound: %v", err)
+	}
+
+	for _, role := range []string{"security", "cfo", "nobody"} {
+		want, err := testStore.PendingRuns(ctx, "silver", role)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := 0
+		for {
+			if _, err := testStore.ClaimRole(ctx, "silver", role, time.Minute, 1); err != nil {
+				if errors.Is(err, ErrNoWork) {
+					break
+				}
+				t.Fatalf("ClaimRole(%s): %v", role, err)
+			}
+			got++
+		}
+		if got != want {
+			t.Errorf("role %s: PendingRuns said %d, ClaimRole yielded %d — the KEDA mirror has drifted", role, want, got)
+		}
+	}
+}
+
+// ADR-0012's hard case. Five readers start at once against a pool that funds
+// fewer than five; without the Shift-row lock they would each see the full
+// pool and collectively overspend.
+func TestAuthorizeIsAtomicUnderConcurrency(t *testing.T) {
+	ctx := context.Background()
+	const budget, cap = 2.0, 1.0 // funds exactly 2 of the 5
+	_, shiftID := openShift(t, budget)
+
+	roles := make([]Role, 0, 5)
+	for i := range 5 {
+		roles = append(roles, Role{Name: "reader" + string(rune('a'+i)), Cap: cap})
+	}
+	if _, err := testStore.OpenRound(ctx, shiftID, roles); err != nil {
+		t.Fatalf("OpenRound: %v", err)
+	}
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	granted, exhausted := 0, 0
+	for _, r := range roles {
+		wg.Add(1)
+		go func(role string) {
+			defer wg.Done()
+			_, err := testStore.ClaimRole(ctx, "silver", role, time.Minute, cap)
+			mu.Lock()
+			defer mu.Unlock()
+			switch {
+			case err == nil:
+				granted++
+			case errors.Is(err, ErrBudgetExhausted):
+				exhausted++
+			default:
+				t.Errorf("ClaimRole(%s): %v", role, err)
+			}
+		}(r.Name)
+	}
+	wg.Wait()
+
+	if granted != 2 {
+		t.Errorf("granted %d authorizations, want 2 — the pool was over- or under-committed", granted)
+	}
+	if exhausted != 3 {
+		t.Errorf("refused %d claims, want 3", exhausted)
+	}
+
+	l, err := testStore.Ledger(ctx, shiftID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l.Reserved > l.Budget {
+		t.Errorf("reserved %.2f exceeds budget %.2f", l.Reserved, l.Budget)
+	}
+	if l.Remaining() < 0 {
+		t.Errorf("remaining went negative: %.2f", l.Remaining())
+	}
+}
+
+// The min(roleCap, poolRemaining) rule. Without it an agent with a $2 cap
+// could blow through a pool with $0.30 left, mid-run, where nothing can stop
+// it — the credential is already minted.
+func TestAuthorizationIsCappedByPoolRemaining(t *testing.T) {
+	ctx := context.Background()
+	_, shiftID := openShift(t, 0.30)
+	if _, err := testStore.OpenRound(ctx, shiftID, []Role{{Name: "builder", Writes: true, Cap: 2}}); err != nil {
+		t.Fatalf("OpenRound: %v", err)
+	}
+	got, err := testStore.ClaimRole(ctx, "silver", "builder", time.Minute, 2)
+	if err != nil {
+		t.Fatalf("ClaimRole: %v", err)
+	}
+	if got.Authorized > 0.30 {
+		t.Errorf("authorized %.2f against a pool of 0.30 — a Run can overrun the ceiling", got.Authorized)
+	}
+}
+
+// Below the floor, spawning is waste: the Run dies immediately having burned
+// an attempt and a pod. A gate outcome, not a dispatched-then-failed Run.
+func TestExhaustedPoolRefusesToSpawn(t *testing.T) {
+	ctx := context.Background()
+	_, shiftID := openShift(t, 0.01)
+	if _, err := testStore.OpenRound(ctx, shiftID, []Role{{Name: "cfo", Cap: 1}}); err != nil {
+		t.Fatalf("OpenRound: %v", err)
+	}
+	if _, err := testStore.ClaimRole(ctx, "silver", "cfo", time.Minute, 1); !errors.Is(err, ErrBudgetExhausted) {
+		t.Errorf("got %v, want ErrBudgetExhausted", err)
+	}
+	// Nothing was spawned, so the slot must still be claimable once topped up.
+	if n, _ := testStore.PendingRuns(ctx, "silver", "cfo"); n != 1 {
+		t.Errorf("pending runs = %d, want 1 — a refused claim must not consume the slot", n)
+	}
+}
+
+// A budget of zero means "unmetered", the shape every existing team has today.
+// It must not be read as "exhausted", or turning Shifts on would stop all work.
+func TestZeroBudgetMeansUnmetered(t *testing.T) {
+	ctx := context.Background()
+	_, shiftID := openShift(t, 0)
+	if _, err := testStore.OpenRound(ctx, shiftID, []Role{{Name: "builder", Writes: true}}); err != nil {
+		t.Fatalf("OpenRound: %v", err)
+	}
+	if _, err := testStore.ClaimRole(ctx, "silver", "builder", time.Minute, 0); err != nil {
+		t.Errorf("unmetered claim refused: %v", err)
+	}
+}
+
+// Two Teams never hold a Shift on the same Work Item — enforced by the
+// database, not by whoever calls OpenShift.
+func TestOneLiveShiftPerItem(t *testing.T) {
+	ctx := context.Background()
+	itemID, _ := openShift(t, 10)
+	if _, err := testStore.OpenShift(ctx, itemID, "bronze", "agent/vik-585", 10); err == nil {
+		t.Error("a second live Shift was opened on the same Work Item")
+	}
+}
