@@ -251,13 +251,26 @@ and the implementation (verified 2026-07-27). Aspirational ≠ implemented:
    now carries the live seam: `TaskSpec`/`OutcomeReport` are the adapter I/O
    (published schemas in [contracts/](contracts/), backlog #59), and
    `harness.Adapter` wraps concrete harnesses — `openhands` (default),
-   `exec` (generic binary), `claude-code` (#62) — selected per team via
-   `PLOEG_HARNESS`. Outcome inference stays orchestrator-owned (PR poll is
-   ground truth) until an ACP adapter (#64) supplies structured outcomes.
+   `exec` (generic binary), `claude-code` (#62), `acp` (#64) — selected per
+   team via `PLOEG_HARNESS`. Outcome inference stays orchestrator-owned (the
+   PR poll is ground truth) for the spawn-and-wait adapters; the `acp` adapter
+   supplies structured stop reasons and defers to them.
+
+   > **Naming hazard, and it catches everyone.** `acp` here is Zed's Agent
+   > **Client** Protocol — editor ↔ local coding agent over stdio JSON-RPC,
+   > wire version 1, co-maintained with JetBrains. It is **not** IBM's Agent
+   > **Communication** Protocol, which merged into A2A in August 2025 and is
+   > archived. Different layer, different transport, different problem; they
+   > share three letters and nothing else. See
+   > [ADR-0007](adrs/0007-a2a-adopt-nothing-watchlist-a-facade.md).
 3. **"Watcher records failed on exit-without-report"**: no watcher exists;
    the DB lease sweeper is the crash detector.
-4. **Teams with roles/strategies**: no roles, no `teams` table; a team is one
-   worker + one model in Helm values.
+4. **Teams with roles/strategies**: **half-closed 2026-07-29.** The store
+   layer for Shifts, Rounds and reader/writer Runs is built and tested
+   ([§10](#10-shifts-many-personas-on-one-item)), so roles and a parallel
+   strategy now exist in Postgres. Nothing drives them yet: no Shift is opened,
+   no Round advances, and the chart still renders one worker + one model per
+   team. There is still no `teams` table — a team remains Helm values.
 5. **Checkpoint-driven resume**: checkpoints are written, never read; every
    run starts fresh.
 6. **Tracker write-backs**: Vikunja `FetchItem`/`Comment`/`SetStatus` are
@@ -267,10 +280,15 @@ and the implementation (verified 2026-07-27). Aspirational ≠ implemented:
    effectively never persists.
 8. **`needs_human`/`stale` exits**: only re-assignment implements them; the
    legal-transition table in `pkg/work/state.go` is not enforced by the store.
-9. **stuck vs failed semantics inverted for infra errors**: clone/config/mint
-   failures are reported `stuck` → `needs_human` (parked), though docs define
-   them as retryable `failed`. VIK-596 (classification + backoff + attempt
-   protection) addresses this.
+9. **stuck vs failed semantics inverted for infra errors**: **partly closed.**
+   The `acp` adapter classifies at the source — a missing binary, a failed
+   `initialize` or a rejected protocol version become `failed`/`infra_node`,
+   and an auth or quota failure `failed`/`infra_llm`, both retryable rather
+   than parked. `pkg/worker`'s heuristics defer to an adapter-set
+   `failureReason`, and `pkg/httpapi` now rejects one outside the taxonomy
+   rather than storing it verbatim. Still open for the spawn-and-wait
+   adapters: `openhands` and `exec` infer from exit codes and log tails, so a
+   clone or mint failure under those harnesses is still parked.
 10. **Unassignment** (`task.assignee.deleted`) is parsed and dropped — no run
     cancel or lease release (backlog #8).
 11. **No metrics**: no OTel/Prometheus in Go; observability is structured logs

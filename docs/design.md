@@ -91,6 +91,18 @@ protocols like ACP; `CommandAdapter` for spawn-and-wait harnesses), with
 `openhands`/`exec`/`claude-code` adapters selected per team. Schemas published
 in [contracts/](contracts/) (backlog #59).
 
+*Standard adopted 2026-07-29:* ACP is no longer a candidate to track — the `acp`
+adapter ships (backlog #64), reaching Claude, Copilot, Codex, Cursor, Gemini,
+Goose, Cline, Qwen and opencode through one implementation. Wire version 1 is
+pinned; v2 is draft and self-declares that the protocol will change. Switching a
+team to a different agent becomes a Helm values edit rather than new Go.
+Recorded in `homelab-cluster` ADR-0051, which supersedes ADR-0047's rejection of
+opencode on grounds — a self-updating beta — that stopped being true at v1.0.0.
+
+Zed's Agent **Client** Protocol, that is. Not IBM's Agent **Communication**
+Protocol, which merged into A2A in 2025 and is archived
+([ADR-0007](adrs/0007-a2a-adopt-nothing-watchlist-a-facade.md)).
+
 ## 6. Execution
 
 - **Default executor: KEDA** `ScaledJob` per team, Postgres scaler on the queued-items query.
