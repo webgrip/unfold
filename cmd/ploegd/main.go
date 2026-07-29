@@ -171,6 +171,7 @@ func run(log *slog.Logger) error {
 		LeaseTTL: leaseTTL,
 		Log:      log,
 		RoleCaps: plans,
+		Forges:   forges,
 	}
 	if engine != nil {
 		srv.Engine = engine

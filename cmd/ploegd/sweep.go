@@ -72,12 +72,24 @@ func sweepLoop(ctx context.Context, log *slog.Logger, st *store.Store, sweeper l
 				revokeKey(ctx, log, sweeper, e.RunToken)
 			}
 
+			// Delivery ids outlive a forge's retry window by a wide margin;
+			// the table exists to survive a restart, not to be an archive.
+			if n, err := st.SweepDeliveries(ctx, deliveryRetention); err != nil {
+				log.Error("delivery sweep failed", "err", err)
+			} else if n > 0 {
+				log.Debug("swept forge delivery ids", "count", n)
+			}
+
 			if engine != nil {
 				engine.EvaluateAll(ctx)
 			}
 		}
 	}
 }
+
+// deliveryRetention is how long a forge delivery id is remembered for dedup.
+// Forgejo gives up retrying long before this.
+const deliveryRetention = 48 * time.Hour
 
 func revokeKey(ctx context.Context, log *slog.Logger, sweeper llmbroker.Sweeper, runToken string) {
 	if sweeper == nil {

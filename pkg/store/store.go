@@ -486,6 +486,28 @@ func (r harnessReport) WithVerdict(verdict string) harnessReport {
 	return r
 }
 
+// AuditForgeEvent records a normalized forge event. The audit log is the
+// whole of what this change does with one: the trail exists from the day the
+// endpoint is wired, so when routing lands there is evidence of what has been
+// arriving rather than a guess.
+//
+// The event BODY is deliberately not stored here. It is text written outside
+// the factory (backlog #9), and an audit row is read by humans and by future
+// prompts alike; the metadata is what routing will need.
+func (s *Store) AuditForgeEvent(ctx context.Context, provider, kind, repo, branch string, pr int) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	if err := audit(ctx, tx, "webhook:"+provider, "forge."+kind, nil, map[string]any{
+		"repo": repo, "pr": pr, "branch": branch,
+	}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 // WorkItem reads one item by id — what the shift engine needs to know where
 // to publish: the Work Target names the repository, the provider names the
 // tracker to write back to.
