@@ -18,17 +18,19 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 // Role is one slot in a Round, as the orchestrator sees it.
 type Role struct {
-	Name string `json:"name"`
+	Name string `json:"name" yaml:"name"`
 	// Writes distinguishes the single writer of a Round from its readers
 	// (ADR-0010).
-	Writes bool `json:"writes"`
+	Writes bool `json:"writes" yaml:"writes"`
 	// Cap bounds one Run's spend; the claim authorizes min(cap, pool
 	// remaining) (ADR-0012). Zero = no per-Run cap beyond the pool.
-	Cap money `json:"cap"`
+	Cap money `json:"cap" yaml:"cap"`
 }
 
 // Round is a set of Runs that start together: a fan-out of readers or a
@@ -36,22 +38,22 @@ type Role struct {
 // database; validating here as well means a bad plan fails at boot instead of
 // leasing a ticket it cannot work.
 type Round struct {
-	Roles []Role `json:"roles"`
+	Roles []Role `json:"roles" yaml:"roles"`
 }
 
 // TeamPlan is one Team's plan: the Shift pool and the ordered Rounds.
 type TeamPlan struct {
 	// Pool is the Shift budget (ADR-0012). Zero = unmetered, preserving the
 	// env-budget behaviour of a plan-less team.
-	Pool   money   `json:"pool"`
-	Rounds []Round `json:"rounds"`
+	Pool   money   `json:"pool" yaml:"pool"`
+	Rounds []Round `json:"rounds" yaml:"rounds"`
 	// MaxFixRounds bounds the review loop: how many times a reviewer's
 	// request_changes may re-open the plan's own writing Round (ADR-0017).
 	// Zero disables the loop, and the plan simply runs to exhaustion.
 	//
 	// It is the SECOND bound, never the first — the Shift pool is checked
 	// before it, because money is the limit that cannot be argued with.
-	MaxFixRounds int `json:"maxFixRounds"`
+	MaxFixRounds int `json:"maxFixRounds" yaml:"maxFixRounds"`
 }
 
 // WriterRound returns the index of the plan's last writing Round — the one a
@@ -78,8 +80,14 @@ type Plans map[string]TeamPlan
 // them).
 type money float64
 
-func (m *money) UnmarshalJSON(b []byte) error {
-	s := strings.Trim(string(b), `"`)
+// UnmarshalYAML mirrors UnmarshalJSON: the chart renders money as strings so
+// YAML cannot mangle them into floats, and a hand-written file may use either.
+func (m *money) UnmarshalYAML(value *yaml.Node) error {
+	return m.parse(value.Value)
+}
+
+func (m *money) parse(s string) error {
+	s = strings.Trim(strings.TrimSpace(s), `"`)
 	if s == "" || s == "null" {
 		*m = 0
 		return nil
@@ -90,6 +98,10 @@ func (m *money) UnmarshalJSON(b []byte) error {
 	}
 	*m = money(f)
 	return nil
+}
+
+func (m *money) UnmarshalJSON(b []byte) error {
+	return m.parse(string(b))
 }
 
 // roleName mirrors the chart's team-name pattern: these become workload name
@@ -108,14 +120,17 @@ func Parse(env string) (Plans, error) {
 		return nil, fmt.Errorf("invalid JSON: %w", err)
 	}
 	for team, tp := range p {
-		if err := validate(tp); err != nil {
+		if err := Validate(tp); err != nil {
 			return nil, fmt.Errorf("team %q: %w", team, err)
 		}
 	}
 	return p, nil
 }
 
-func validate(tp TeamPlan) error {
+// Validate checks one team's plan. Exported so config loaded from a file
+// gets the identical rules the env-var path applies — one plan validator,
+// not two that drift.
+func Validate(tp TeamPlan) error {
 	if tp.Pool < 0 {
 		return fmt.Errorf("pool must not be negative, got %v", float64(tp.Pool))
 	}

@@ -35,6 +35,9 @@ type ClaimResponse struct {
 	// at (ADR-0012). Zero = fall back to the worker's env budget.
 	Authorized float64           `json:"authorized,omitempty"`
 	Briefing   []harness.Finding `json:"briefing,omitempty"`
+	// ForgeToken is a push credential minted for this run alone and revoked
+	// when it settles (ADR-0013 tier 2). Empty = use the env credential.
+	ForgeToken string `json:"forgeToken,omitempty"`
 }
 
 // Claim returns nil when the queue is empty (HTTP 204) — the empty-handed

@@ -133,6 +133,16 @@ func (w *Worker) Run() error {
 func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, trace, nodeName, podUID string) harness.OutcomeReport {
 	item := claimed.WorkItem
 
+	// A credential minted for THIS run (ADR-0013 tier 2) beats the shared
+	// env one: it dies when the run settles, so a partitioned pod whose Lease
+	// lapsed cannot keep pushing. Empty = the deployment has no forge admin
+	// credential and the shared token stands.
+	forgeToken := w.Cfg.BuilderToken
+	if claimed.ForgeToken != "" {
+		forgeToken = claimed.ForgeToken
+		w.Log.Info("using a per-run forge credential")
+	}
+
 	// Resolve the repository BEFORE touching disk: a misconfigured run must
 	// park itself without leaving a clone behind.
 	ref, err := resolveTarget(w.Cfg, item, w.Log)
@@ -143,7 +153,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 
 	cloneDir := filepath.Join(w.Cfg.WorkDir, "vik-"+item.ExternalID)
 	_ = os.RemoveAll(cloneDir)
-	cloneURL, err := authURL(ref.ForgeURL, "agent-builder", w.Cfg.BuilderToken, ref.Owner, ref.Name)
+	cloneURL, err := authURL(ref.ForgeURL, "agent-builder", forgeToken, ref.Owner, ref.Name)
 	if err != nil {
 		return stuckReport("invalid forge URL", err.Error())
 	}
@@ -176,7 +186,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	//
 	// Looked up before the prompt is composed, not after: the contract has to
 	// tell a writer whether to open a PR or update the one already there.
-	priorPR, priorErr := findPR(ref, w.Cfg.BuilderToken, branch)
+	priorPR, priorErr := findPR(ref, forgeToken, branch)
 	if priorErr != nil {
 		w.Log.Warn("pre-run PR lookup failed", "err", priorErr)
 	}
@@ -227,7 +237,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	}
 
 	// The PR is the ground truth (git/forge state stays the durable medium).
-	prURL, prErr := findPR(ref, w.Cfg.BuilderToken, branch)
+	prURL, prErr := findPR(ref, forgeToken, branch)
 	if prErr != nil {
 		w.Log.Warn("PR lookup failed", "err", prErr)
 	}

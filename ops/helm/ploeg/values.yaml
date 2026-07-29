@@ -126,6 +126,20 @@ executor:
     readTokenSecret: {}
     #  name: agent-reader-token
     #  key: FORGEJO_TOKEN
+    # ADR-0013 tier 2: ploegd mints a push credential per WRITING Run and
+    # revokes it when the Run settles or its Lease lapses, so holding the
+    # Lease and being able to push are one fact. Closes the zombie-writer
+    # case: a partitioned pod whose Lease expired loses the ABILITY to push,
+    # not merely the right to.
+    #
+    # This credential can create tokens for botUser, so it is an escalation —
+    # accepted deliberately on ADR-0008's reasoning, and it lives only in
+    # ploegd, never in a worker pod (R6). Unset = nothing is minted and every
+    # run uses the shared token below, which is the pre-tier-2 behaviour.
+    adminTokenSecret: {}
+    #  name: agent-builder-admin-token
+    #  key: FORGEJO_ADMIN_TOKEN
+    botUser: agent-builder
   scaler:
     # Empty = ploeg-db-rw.<release namespace>.svc.cluster.local. Must be a
     # name the KEDA operator can resolve from its own namespace (FQDN).
@@ -204,3 +218,34 @@ executor:
   #         - {name: builder, writes: true, cap: "3.00", model: litellm_proxy/claude-sonnet-5}
   #     - roles:
   #         - {name: reviewer, writes: false, cap: "0.75", model: litellm_proxy/claude-sonnet-5, harness: {dind: false}}
+
+# ploegd's routing and roster as a FILE (rendered to a ConfigMap, mounted at
+# /etc/ploeg/ploeg.yaml). Empty = the legacy PLOEG_TARGET_MAP / PLOEG_TEAM_MAP /
+# PLOEG_TEAM_PLANS env vars still apply, so this migrates one deployment at a
+# time.
+#
+# Projects are NAMED, never numbered: ploegd asks the tracker for the id at
+# boot, logs what it resolved, and refuses to start if a name matches nothing.
+# A bare project id in cluster config cannot be reviewed and silently routes
+# work to the wrong repository the day the project is rebuilt.
+config: {}
+#   trackers:
+#     vikunja:
+#       projects:
+#         - name: "Ploeg Test"        # or: id: "11" to pin, skipping resolution
+#           repo: webgrip/ploeg
+#           branch: development       # unset = the repo default, may be a stub
+#           team: bronze              # unset = the assignee decides
+#   teams:
+#     bronze:
+#       assignees: [jake, bronze]     # replaces PLOEG_TEAM_MAP
+#       plan:                         # replaces PLOEG_TEAM_PLANS; omit for one writer
+#         pool: "6"
+#         maxFixRounds: 2
+#         rounds:
+#           - roles:
+#               - {name: analyst, writes: false, cap: "0.50", harness: {dind: false}}
+#           - roles:
+#               - {name: builder, writes: true, cap: "3.00"}
+#           - roles:
+#               - {name: reviewer, writes: false, cap: "0.75", harness: {dind: false}}

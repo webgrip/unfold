@@ -252,6 +252,35 @@ func (s *Store) ClaimRole(ctx context.Context, team, role string, ttl time.Durat
 	}, nil
 }
 
+// RecordForgeToken stores the per-run push credential's id on the Lease, so
+// the sweeper knows what to revoke when that Lease lapses (ADR-0013 tier 2).
+// The lease row is the ledger of which credential is live.
+func (s *Store) RecordForgeToken(ctx context.Context, runToken, tokenID string) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE leases SET forge_token_id = $2 WHERE run_token = $1`, runToken, tokenID)
+	return err
+}
+
+// LiveForgeTokenIDs lists the push credentials that belong to a live Lease —
+// the boot sweep's "what is legitimately outstanding" set.
+func (s *Store) LiveForgeTokenIDs(ctx context.Context) ([]string, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT forge_token_id FROM leases WHERE forge_token_id <> ''`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // PendingRuns is the KEDA scaler query.
 //
 // It MUST stay identical in predicate to ClaimRole above. Overshoot is
@@ -273,6 +302,10 @@ type ExpiredRun struct {
 	Team, Role string
 	RunToken   string
 	Writes     bool
+	// ForgeTokenID is the per-run push credential minted for a writing Run
+	// (ADR-0013 tier 2). The sweeper revokes it: a partitioned pod whose
+	// Lease lapsed must lose the ability to push, not merely the right to.
+	ForgeTokenID string
 }
 
 // ExpireRuns reclaims live Runs past their own deadline.
@@ -314,10 +347,15 @@ func (s *Store) ExpireRuns(ctx context.Context) ([]ExpiredRun, error) {
 		return nil, rows.Err()
 	}
 
-	for _, e := range out {
-		// A writer also drops its Lease, which revokes the push credential
-		// minted with it (ADR-0013) — a zombie writer must not keep pushing.
-		if _, err := tx.Exec(ctx, `DELETE FROM leases WHERE run_token = $1`, e.RunToken); err != nil {
+	for i := range out {
+		e := &out[i]
+		// A writer also drops its Lease. The credential minted with it is
+		// returned so the caller can revoke it at the forge (ADR-0013 tier 2)
+		// — a zombie writer must LOSE the ability to push, not merely the
+		// right to.
+		if err := tx.QueryRow(ctx,
+			`DELETE FROM leases WHERE run_token = $1 RETURNING forge_token_id`, e.RunToken).
+			Scan(&e.ForgeTokenID); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return nil, err
 		}
 		if err := audit(ctx, tx, "ploegd:sweeper", "run.expired", &e.WorkItemID, map[string]any{
