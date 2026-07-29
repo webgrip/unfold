@@ -1,3 +1,8 @@
+## 0.2.0-rc.10 (2026-07-29)
+
+* Merge pull request 'feat(config): routing and roster as a file, and push rights minted per Run' (#27 ([cda5095](https://forgejo.webgrip.dev/webgrip/ploeg/commit/cda5095)), closes [#27](https://forgejo.webgrip.dev/webgrip/ploeg/issues/27)
+* feat(config): routing and roster as a file, and push rights minted per Run ([3c455da](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3c455da))
+
 ## [0.2.0-rc.9](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.8...v0.2.0-rc.9) (2026-07-29)
 
 ## [0.2.0-rc.8](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.7...v0.2.0-rc.8) (2026-07-29)
