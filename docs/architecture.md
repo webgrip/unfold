@@ -286,14 +286,14 @@ Aspirational ≠ implemented:
     cancel or lease release (backlog #8).
 11. **No metrics**: no OTel/Prometheus in Go; observability is structured logs
     plus the `key_alias` join in Grafana (external dashboards in homelab-cluster).
-12. **Team names the repository** (design §3, `domain/model.yaml:369-389`): the
+12. **Team names the repository** (design §3, Team entity in `domain/model.yaml`): the
     Team entity's attributes are exactly name, roles, strategy, budget — no
     repo. The chart binds one anyway: `ops/helm/ploeg/values.yaml` team entries
     carry `repoOwner`/`repoName`/`baseBranch`, and `values.schema.json:34` makes
     `repoOwner`/`repoName` **required**; `cmd/ploeg-worker/main.go:70-74`
     `requireEnv`s `REPO_OWNER`/`REPO_NAME` before the worker claims anything.
     The model's only repository is `TaskSpec.repo_url`
-    (`domain/model.yaml:391-411`), which states no derivation. Cost: onboarding
+    (Task Spec entity, same file), which states no derivation. Cost: onboarding
     a repo needs a new team + KEDA ScaledJob + tracker bot user even when model,
     budget and harness are identical. Decision to decouple:
     [adr/adr-0001-work-target-is-a-work-item-attribute.md](adr/adr-0001-work-target-is-a-work-item-attribute.md).

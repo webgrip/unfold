@@ -17,9 +17,9 @@ user, even when model, budget, harness and strategy are identical.
 
 No normative document says a Team has a repository: design.md §3 defines a Team
 as "name, specialist roles, harness image + model per role, run strategy,
-resource/token budget", and `docs/domain/model.yaml:369-389` lists exactly
+resource/token budget", and the Team entity in `docs/domain/model.yaml` listed exactly
 `name`, `roles`, `strategy`, `budget`. The model's only repository is
-`TaskSpec.repo_url` (`docs/domain/model.yaml:391-411`), with no statement of how
+`TaskSpec.repo_url` (Task Spec entity, same file), with no statement of how
 it is derived. The binding exists only in the chart. This ADR decides where the
 repository coordinate lives instead; scope is `pkg/work`, `pkg/store`,
 `pkg/worker`, `cmd/ploeg-worker`, and `ops/helm/ploeg`.
@@ -143,7 +143,7 @@ Consequential changes:
 * Good, because it needs no code: it is what runs today.
 * Bad, because capacity and codebase are welded together — N repositories cost N
   teams, N ScaledJobs and N bot users at identical model and budget.
-* Bad, because it contradicts design.md §3 and `domain/model.yaml:369-389`,
+* Bad, because it contradicts design.md §3 and the Team entity in `domain/model.yaml`,
   which define a Team without a repository (architecture.md §9.12).
 * Bad, because it makes backlog #42's premise ("preventing two teams racing on
   one codebase") structurally unreachable, and leaves #75 unimplementable.
