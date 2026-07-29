@@ -27,12 +27,20 @@ import (
 // Config is the environment-derived worker configuration (parsed by
 // cmd/ploeg-worker).
 type Config struct {
-	APIURL       string // ploegd base URL
-	Team         string
-	RepoOwner    string
-	RepoName     string
-	BaseBranch   string // branch to clone/branch from and open the PR against; empty = repo default branch (VIK-589)
-	ForgejoURL   string // in-cluster forge base
+	APIURL string // ploegd base URL
+	Team   string
+	// RepoOwner/RepoName/BaseBranch are the FALLBACK target, used when the
+	// claimed work item resolved none. The repository is a property of the
+	// work (R11), so these are deprecated per-team config on the way out —
+	// not a boot requirement.
+	RepoOwner  string
+	RepoName   string
+	BaseBranch string
+	// TargetSource pins this worker to the env target when set to "env";
+	// anything else prefers a resolved claim target. The per-team lever for
+	// rolling the decoupling forward or back one team at a time.
+	TargetSource string
+	ForgejoURL   string // in-cluster forge base (global today; Target carries an id, not a URL)
 	BuilderToken string // agent-builder bot token
 	WorkDir      string
 
@@ -113,13 +121,21 @@ func (w *Worker) Run() error {
 func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, trace, nodeName, podUID string) harness.OutcomeReport {
 	item := claimed.WorkItem
 
+	// Resolve the repository BEFORE touching disk: a misconfigured run must
+	// park itself without leaving a clone behind.
+	ref, err := resolveTarget(w.Cfg, item, w.Log)
+	if err != nil {
+		return stuckReport("no repository for this work item", err.Error())
+	}
+	w.Log.Info("resolved work target", "repo", ref.Owner+"/"+ref.Name, "base", ref.BaseBranch, "route_rule", item.RouteRule)
+
 	cloneDir := filepath.Join(w.Cfg.WorkDir, "vik-"+item.ExternalID)
 	_ = os.RemoveAll(cloneDir)
-	cloneURL, err := authURL(w.Cfg.ForgejoURL, "agent-builder", w.Cfg.BuilderToken, w.Cfg.RepoOwner, w.Cfg.RepoName)
+	cloneURL, err := authURL(ref.ForgeURL, "agent-builder", w.Cfg.BuilderToken, ref.Owner, ref.Name)
 	if err != nil {
 		return stuckReport("invalid forge URL", err.Error())
 	}
-	if out, err := runCmd(ctx, "", "git", cloneArgs(w.Cfg, cloneURL, cloneDir)...); err != nil {
+	if out, err := runCmd(ctx, "", "git", cloneArgs(ref.BaseBranch, cloneURL, cloneDir)...); err != nil {
 		return stuckReport("git clone failed", tail(out, 2000))
 	}
 	for _, kv := range [][2]string{{"user.name", "agent-builder"}, {"user.email", "agent-builder@webgrip.dev"}} {
@@ -134,14 +150,9 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 
 	spec := harness.TaskSpec{
 		WorkItem: item,
-		Repo: harness.RepoRef{
-			ForgeURL:   w.Cfg.ForgejoURL,
-			Owner:      w.Cfg.RepoOwner,
-			Name:       w.Cfg.RepoName,
-			BaseBranch: w.Cfg.BaseBranch,
-		},
-		Branch:  branch,
-		TraceID: trace,
+		Repo:     ref,
+		Branch:   branch,
+		TraceID:  trace,
 	}
 
 	var logTail harness.TailBuffer
@@ -177,7 +188,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	}
 
 	// The PR is the ground truth (git/forge state stays the durable medium).
-	prURL, prErr := findPR(w.Cfg, branch)
+	prURL, prErr := findPR(ref, w.Cfg.BuilderToken, branch)
 	if prErr != nil {
 		w.Log.Warn("PR lookup failed", "err", prErr)
 	}

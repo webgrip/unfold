@@ -43,6 +43,11 @@ type payload struct {
 			Title       string `json:"title"`
 			Description string `json:"description"`
 			Priority    int    `json:"priority"`
+			// ProjectID is the Vikunja project the task lives in — the scope
+			// the core resolves a Work Target from. Vikunja always sends it on
+			// task events; a payload without it yields an empty Scope, which
+			// resolves to no Target and falls back to the worker's env repo.
+			ProjectID int64 `json:"project_id"`
 		} `json:"task"`
 		Assignee struct {
 			Username string `json:"username"`
@@ -77,23 +82,31 @@ func (p *Provider) ParseWebhook(r *http.Request) ([]provider.TrackerEvent, error
 	if t, ok := p.TeamMap[strings.ToLower(pl.Data.Assignee.Username)]; ok {
 		team = t
 	}
+	// The project is Vikunja's own container for the task. The core treats it
+	// as an opaque scope and maps it to a Work Target; this adapter must not
+	// know what a repository is (R7).
+	var scope provider.Scope
+	if pl.Data.Task.ProjectID != 0 {
+		scope = provider.Scope{Kind: "project", ID: fmt.Sprint(pl.Data.Task.ProjectID)}
+	}
 	item := &work.WorkItem{
-		Provider:    p.Name(),
-		ExternalID:  externalID,
-		Team:        team,
-		Origin:      work.OriginAssignment,
-		Priority:    pl.Data.Task.Priority,
-		Title:       pl.Data.Task.Title,
-		Description: pl.Data.Task.Description,
+		Provider:      p.Name(),
+		ExternalID:    externalID,
+		Team:          team,
+		Origin:        work.OriginAssignment,
+		Priority:      pl.Data.Task.Priority,
+		Title:         pl.Data.Task.Title,
+		Description:   pl.Data.Task.Description,
+		ExternalScope: scope.ID,
 	}
 
 	switch pl.EventName {
 	case "task.assignee.created":
-		return []provider.TrackerEvent{{Kind: provider.TrackerAssigned, ExternalID: externalID, Team: team, Item: item}}, nil
+		return []provider.TrackerEvent{{Kind: provider.TrackerAssigned, ExternalID: externalID, Team: team, Scope: scope, Item: item}}, nil
 	case "task.assignee.deleted":
-		return []provider.TrackerEvent{{Kind: provider.TrackerUnassigned, ExternalID: externalID, Team: team, Item: item}}, nil
+		return []provider.TrackerEvent{{Kind: provider.TrackerUnassigned, ExternalID: externalID, Team: team, Scope: scope, Item: item}}, nil
 	case "task.updated":
-		return []provider.TrackerEvent{{Kind: provider.TrackerUpdated, ExternalID: externalID, Team: team, Item: item}}, nil
+		return []provider.TrackerEvent{{Kind: provider.TrackerUpdated, ExternalID: externalID, Team: team, Scope: scope, Item: item}}, nil
 	default:
 		// Unhandled events are dropped, not errors: providers subscribe wider
 		// than the core consumes.

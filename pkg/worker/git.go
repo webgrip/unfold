@@ -8,11 +8,11 @@ import (
 
 // cloneArgs builds the git clone invocation: a configured base branch is
 // cloned explicitly; unset means the repo's default branch — which may be a
-// stale stub, so teams should pin baseBranch (VIK-589).
-func cloneArgs(cfg Config, cloneURL, cloneDir string) []string {
+// stale stub, so a target should pin its base branch (VIK-589).
+func cloneArgs(baseBranch, cloneURL, cloneDir string) []string {
 	args := []string{"clone", "--depth", "50"}
-	if cfg.BaseBranch != "" {
-		args = append(args, "--branch", cfg.BaseBranch)
+	if baseBranch != "" {
+		args = append(args, "--branch", baseBranch)
 	}
 	return append(args, cloneURL, cloneDir)
 }

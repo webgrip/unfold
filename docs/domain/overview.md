@@ -2,7 +2,7 @@
 
 Ploeg is a dispatch plane: it turns work items from any tracker into ephemeral, leased, audited AI-agent runs on Kubernetes. The tracker stays the source of truth for WHAT to do; Ploeg owns HOW work gets executed — assignment events in, ephemeral runs out. (Ploeg is Dutch for a work crew or shift.)
 
-*Model version 0.1.0. Generated from `model.yaml` — do not edit by hand.*
+*Model version 0.2.0. Generated from `model.yaml` — do not edit by hand.*
 
 ## Bounded contexts
 
@@ -22,6 +22,7 @@ flowchart LR
     Execution["Execution"]
     Harness["Harness"]
     Dispatch -->|has_many| Execution
+    Dispatch -->|references| Integration
     Execution -->|belongs_to, references| Dispatch
     Harness -->|references| Dispatch
 ```
@@ -42,22 +43,30 @@ These terms are contested or vague. Resolve them before writing specs that depen
 ```mermaid
 erDiagram
     Work_Item {}
+    Work_Target {}
     Lease {}
     Run {}
     Checkpoint {}
     Team {}
+    Routing_Rule {}
+    Forge {}
     Task_Spec {}
     Outcome_Report {}
     Work_Item ||--|| Lease : has_one
+    Work_Item ||--|| Work_Target : has_one
     Work_Item ||--o{ Run : has_many
     Work_Item ||--o{ Checkpoint : has_many
+    Work_Target }o..o{ Forge : references
     Lease }o--|| Work_Item : belongs_to
     Lease }o..o{ Team : references
     Run }o--|| Work_Item : belongs_to
     Run }o..o{ Team : references
     Checkpoint }o--|| Work_Item : belongs_to
     Team ||--o{ Lease : has_many
+    Routing_Rule }o..o{ Work_Target : references
+    Routing_Rule }o..o{ Team : references
     Task_Spec }o..o{ Work_Item : references
+    Task_Spec }o..o{ Work_Target : references
     Task_Spec }o..o{ Checkpoint : references
     Outcome_Report }o..o{ Checkpoint : references
 ```

@@ -396,11 +396,11 @@ func TestComposePrompt_ConfiguredBase(t *testing.T) {
 }
 
 func TestCloneArgs(t *testing.T) {
-	got := cloneArgs(testCfg(""), "http://x/repo.git", "/work/dir")
+	got := cloneArgs("", "http://x/repo.git", "/work/dir")
 	want := []string{"clone", "--depth", "50", "http://x/repo.git", "/work/dir"}
 	assertSlice(t, got, want)
 
-	got = cloneArgs(testCfg("development"), "http://x/repo.git", "/work/dir")
+	got = cloneArgs("development", "http://x/repo.git", "/work/dir")
 	want = []string{"clone", "--depth", "50", "--branch", "development", "http://x/repo.git", "/work/dir"}
 	assertSlice(t, got, want)
 }

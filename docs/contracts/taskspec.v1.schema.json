@@ -50,6 +50,26 @@
         "title": { "type": "string" },
         "description": { "type": "string" },
         "url": { "type": "string" },
+        "externalScope": {
+          "type": "string",
+          "description": "the tracker's own container for this item (Vikunja project id); the input to Work Target resolution"
+        },
+        "target": {
+          "type": "object",
+          "description": "where this item's changes land. Belongs to the work item, never to the team (R11). Absent = unresolved; the worker falls back to its configured repo. Harness authors should read the top-level `repo`, which is the EFFECTIVE target for the run.",
+          "properties": {
+            "forge": { "type": "string", "description": "forge registry id; absent = the default forge" },
+            "owner": { "type": "string" },
+            "repo": { "type": "string" },
+            "baseBranch": { "type": "string" }
+          },
+          "required": ["owner", "repo"],
+          "additionalProperties": false
+        },
+        "routeRule": {
+          "type": "string",
+          "description": "id of the routing rule that decided team and target, for audit"
+        },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },

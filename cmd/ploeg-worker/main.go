@@ -65,12 +65,21 @@ func run(log *slog.Logger) error {
 	budget, _ := strconv.ParseFloat(os.Getenv("LITELLM_KEY_BUDGET"), 64)
 	model := os.Getenv("LLM_MODEL")
 	cfg := worker.Config{
-		APIURL:       requireEnv("PLOEG_API_URL"),
-		Team:         requireEnv("PLOEG_TEAM"),
-		RepoOwner:    requireEnv("REPO_OWNER"),
-		RepoName:     requireEnv("REPO_NAME"),
+		APIURL: requireEnv("PLOEG_API_URL"),
+		Team:   requireEnv("PLOEG_TEAM"),
+		// The repository is a property of the work item, resolved at ingest and
+		// delivered on the claim (R11). These are only the fallback, so they
+		// are NOT boot-required: requiring them would crash-loop a pod that was
+		// about to be handed a perfectly good target. A run that ends up with
+		// no target at all reports stuck after claiming (worker.resolveTarget)
+		// rather than exiting and stranding the lease for the sweeper.
+		RepoOwner:    os.Getenv("REPO_OWNER"),
+		RepoName:     os.Getenv("REPO_NAME"),
 		BaseBranch:   envOr("PLOEG_BASE_BRANCH", ""),
+		TargetSource: envOr("PLOEG_TARGET_SOURCE", ""),
 		ForgejoURL:   trimSlash(requireEnv("FORGEJO_URL")),
+		// The credential is true for EVERY possible target, so it stays
+		// boot-required: failing here costs no attempt and strands no lease.
 		BuilderToken: requireEnv("AGENT_BUILDER_TOKEN"),
 		WorkDir:      envOr("WORK_DIR", "/mnt/ci-shared"),
 
