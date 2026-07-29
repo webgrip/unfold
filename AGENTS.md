@@ -17,7 +17,7 @@ tickets.
 | Claims, leases, retries, the sweeper | architecture.md §4 + `pkg/store` |
 | Scaling, worker pods, KEDA | architecture.md §3 + `ops/helm/ploeg` |
 | Harness / executor / run-API seams | [docs/contracts/](docs/contracts/) — schemas and Go types change together |
-| Why the design is shaped this way | [docs/design.md](docs/design.md); §8 records evaluated-and-rejected alternatives, [docs/research/](docs/research/) holds the evidence behind them |
+| Why the design is shaped this way | [docs/design.md](docs/design.md) for intent; [docs/adrs/](docs/adrs/) for the decisions themselves — in-force = accepted and not superseded, per the Records index. [docs/research/](docs/research/) holds the evidence behind them |
 | What to build next | [docs/backlog.md](docs/backlog.md) |
 | CI runners, signing, Forgejo/OpenBao traps | [docs/ops/ci-and-infra.md](docs/ops/ci-and-infra.md) |
 | Tracker IDs, board gotchas, dispatch topology | [docs/ops/board.md](docs/ops/board.md) |
@@ -38,6 +38,33 @@ network; a bug fix lands with the regression test that fails against the old cod
 ## Durable knowledge lives in this repo
 
 Findings that outlive a session — evaluations, verdicts, root causes, measured timings — go into
-version control, not an assistant's private memory: evidence trail in
-`docs/research/YYYY-MM-DD-<topic>.md`, condensed verdict and re-evaluation triggers in design.md
-§8, anything actionable as a backlog item tagged `*[research]*`.
+version control, not an assistant's private memory. Three homes, one rule each:
+
+- **Evidence** → `docs/research/YYYY-MM-DD-<topic>.md`. The full working: what was surveyed, what
+  was measured, what could not be verified. Never summarised away.
+- **Verdict** → an ADR in [docs/adrs/](docs/adrs/), which is **the** decision ledger (ADR 0001).
+  MADR 4.0 with two local rules: supersession is append-only (never flip an accepted record's
+  status — write a new record carrying `supersedes: NNNN`), and a decision that can change carries
+  `review-by:` plus named re-evaluation triggers. Every record needs a `### Confirmation` section.
+  Both rules are gated by `go test ./internal/ledger/`; the `adr-writer` skill's bundled validator
+  assumes status-flip supersession and must **not** be run here.
+- **Action** → a numbered item in [docs/backlog.md](docs/backlog.md), tagged `*[research]*`.
+
+`design.md` §8/§9 are now indexes into `docs/adrs/`, not a second ledger. If you find yourself
+recording a verdict anywhere else, that is the bug.
+
+## How changes are proposed
+
+Non-trivial changes run through OpenSpec (schema `spec-driven-with-adr`, see
+[openspec/config.yaml](openspec/config.yaml)): proposal → specs → design → **adr** → tasks. The
+`adr` step gates `tasks`, so a change making a durable architectural commitment cannot reach
+implementation without recording it. `openspec instructions <artifact> --change <name>` prints what
+a model actually receives — use it to check any edit to the schema, the config, or a template.
+
+Tooling is pinned in [mise.toml](mise.toml) (`mise install` puts `openspec` on PATH). The generated
+skills and slash commands are deliberately **not** committed: run `openspec update` locally for
+whichever tools you use.
+
+`.openhands/` and `.opencode/` in this repo are **dogfooding, not product spec**. Ploeg's harness
+support is defined by `pkg/harness` and the published contracts in `docs/contracts/` — never by
+whichever agent config happens to sit in this tree.

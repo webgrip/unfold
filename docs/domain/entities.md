@@ -22,7 +22,7 @@ Ploeg's mirror of one Tracker Item, carrying dispatch state.
 | `priority` | `integer` |  | Rank mirrored from the tracker; drives Team Queue order. |
 
 **Relationships**
-- has_one **Lease** — At most one live Lease at a time (unique per Work Item).
+- has_one **Shift** — At most one live Shift at a time (unique per Work Item).
 - has_one **Work Target** — Pinned at ingest; absent until resolved, and then not claimable (R11).
 - has_many **Run** — All executions across roles, retries, and resumes.
 - has_many **Checkpoint** — Progress records; the latest one drives resume.
@@ -59,21 +59,41 @@ Value object: the forge coordinates one Work Item's Runs act on. A coordinate, n
 **Relationships**
 - references **Forge** — By id; the registry resolves endpoint, dialect, identity, and credential source.
 
-## Lease
+## Shift
 *Context: Dispatch*
 
-A Team's crash-safe, TTL-renewed hold on a Work Item.
+One Team's engagement with one Work Item — owns the branch, the budget pool, the roster and the Round counter (ADR-0010).
 
 | Attribute | Type | Required | Description |
 |---|---|---|---|
-| `work_item_id` | `string` | yes |  |
+| `work_item_id` | `string` | yes | Unique among live Shifts — two Teams never work one item. |
 | `team` | `string` | yes |  |
-| `expires_at` | `timestamp` | yes | Expiry releases the item mechanically. |
+| `branch` | `string` | yes | The single branch every writing Run in this Shift pushes to. |
+| `round` | `int` | yes | Runs started together share a Round and never observe each other. |
+| `budget` | `decimal` | yes | The pool for the whole item, in USD (ADR-0012). |
+| `spent` | `decimal` | yes | Settled spend across every Run in this Shift. Reserved is NOT stored — it is summed over running Runs, so it cannot drift (ADR-0012). |
+
+**Relationships**
+- belongs_to **Work Item** — Unique per Work Item among live Shifts.
+- has_one **Lease** — At most one live Lease — held by the writing Run, if any.
+- has_many **Run** — Readers and writers across every Round.
+
+## Lease
+*Context: Dispatch*
+
+The exclusive right to write a Shift's branch, crash-safe and TTL-renewed. Held only by a writing Run.
+
+| Attribute | Type | Required | Description |
+|---|---|---|---|
+| `shift_id` | `string` | yes | Unique per Shift — one writer at a time. |
+| `run_id` | `string` | yes | The writing Run holding it. Readers never appear here. |
+| `forge_token_id` | `string` | yes | The scoped push credential minted for this Run, revoked when the Lease lapses (ADR-0013). |
+| `expires_at` | `timestamp` | yes | Expiry revokes the push credential and releases the Run's budget authorization in the same sweep. |
 | `renewed_at` | `timestamp` |  | Last renewal by the running Run. |
 
 **Relationships**
-- belongs_to **Work Item** — Unique per Work Item.
-- references **Team** — The claiming Team.
+- belongs_to **Shift** — Unique per Shift.
+- references **Run** — The writing Run holding write access.
 
 ## Run
 *Context: Execution*
@@ -86,6 +106,11 @@ One execution of one Role, realized as one Kubernetes Job.
 | `team` | `string` | yes |  |
 | `role` | `string` | yes | The Role this Run executes. |
 | `job_name` | `string` |  | The Kubernetes Job realizing this Run. |
+| `round` | `int` |  | The Round this Run belongs to; Runs sharing a Round never observe each other. |
+| `writes` | `boolean` |  | A writer takes the Shift's Lease and runs alone; a reader takes none and runs beside others. |
+| `state` | `enum(pending, running, finished)` |  | A Round materialises its Runs as pending rows; pending rows are also the scale signal. |
+| `authorized` | `decimal` |  | The budget hold, summed over running Runs to give the Shift's reserved figure (ADR-0012). |
+| `expires_at` | `timestamp` |  | This Run's own liveness deadline. Not the Lease's — a reader has no Lease to expire. |
 | `outcome` | `enum(pr_opened, pr_updated, issue_updated, follow_up_created, stuck, failed, no_change_needed)` |  | Terminal result; failed when the container exits without a report. |
 | `started_at` | `timestamp` |  |  |
 | `finished_at` | `timestamp` |  |  |

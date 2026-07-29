@@ -1,6 +1,9 @@
 ---
-status: "proposed"
-date: "2026-07-29"
+status: proposed
+date: 2026-07-29
+decision-makers: Ryan Grippeling
+supersedes: none
+review-by: none
 ---
 
 # Resolve forges through a registry and mint forge credentials per Run
@@ -14,7 +17,7 @@ one `AGENT_BUILDER_TOKEN` rendered into every worker
 fourth: `provider.ForgeProvider` (`pkg/provider/provider.go:47-70`) has **zero**
 implementations, while `pkg/worker/forge.go:22-55` speaks Forgejo REST directly.
 
-ADR-0001 makes a Work Target carry a forge **id** rather than a URL or a token,
+ADR-0014 makes a Work Target carry a forge **id** rather than a URL or a token,
 so something must turn that id into a base URL, a dialect, a git identity and a
 credential. And the moment one team can be sent at many repositories, the single
 long-lived token stops being "the token for our repo" and becomes a key to every
@@ -24,7 +27,7 @@ tokens and cannot express `MintRequest.Target` today. Scope: `pkg/provider`,
 
 ## Decision Drivers
 
-* ADR-0001 requires forge ids to resolve to something; nothing resolves them
+* ADR-0014 requires forge ids to resolve to something; nothing resolves them
   today.
 * Least privilege: a run should reach the repository it was dispatched at, and
   no other.
@@ -46,7 +49,7 @@ tokens and cannot express `MintRequest.Target` today. Scope: `pkg/provider`,
 
 Chosen option: "**A forge registry keyed by forge id, plus per-Run repo-scoped
 credentials minted by a broker**", because it is the only option that makes the
-forge id of ADR-0001 resolvable *and* stops a single credential from following
+forge id of ADR-0014 resolvable *and* stops a single credential from following
 the newly widened set of reachable repositories.
 
 A **Forge** is a registry entry keyed by the id a Work Target carries: base URL,
@@ -82,7 +85,7 @@ ServiceAccount token (#76), which is compatible with the pod keeping
   implementation — not a patch to `pkg/worker`.
 * Good, because the commit identity becomes a property of the forge rather than
   a Go constant, which is a prerequisite for signing commits per forge later.
-* Good, because it closes the widening this migration otherwise causes: ADR-0001
+* Good, because it closes the widening this migration otherwise causes: ADR-0014
   lets one team reach many repositories, and this ADR is what keeps the
   credential from following.
 * Bad, because the broker is a new privileged component — it holds the minting
@@ -91,7 +94,7 @@ ServiceAccount token (#76), which is compatible with the pod keeping
 * Bad, because Forgejo PATs never expire: a missed delete is a permanent leak,
   so the revoke path needs the full three layers *and* an alert on orphaned
   tokens, mirroring `slo-ploeg-run-key-leak`.
-* Bad, because rollout order matters. Between ADR-0001 landing and this ADR
+* Bad, because rollout order matters. Between ADR-0014 landing and this ADR
   landing, the one global `AGENT_BUILDER_TOKEN` temporarily reaches every
   repository a target can name. That window must be kept short and stated in the
   rollout plan, not discovered in an incident review.
@@ -125,7 +128,7 @@ ServiceAccount token (#76), which is compatible with the pod keeping
 ### One global forge, per-team overrides in the chart
 
 * Good, because it is a small chart change with no new component.
-* Bad, because it re-binds the forge to the team, which is the coupling ADR-0001
+* Bad, because it re-binds the forge to the team, which is the coupling ADR-0014
   exists to remove — a team could then be sent at a target on a forge it has no
   entry for.
 * Bad, because it leaves `ForgeProvider` without a caller and the dialect
@@ -134,7 +137,7 @@ ServiceAccount token (#76), which is compatible with the pod keeping
 ### Registry for URL and identity, keep the single long-lived token
 
 * Good, because multi-forge works with no broker.
-* Bad, because the credential is exactly what needs to shrink: after ADR-0001
+* Bad, because the credential is exactly what needs to shrink: after ADR-0014
   one token reaches every reachable repository, permanently (Forgejo PATs do not
   expire).
 * Bad, because #75 stays blocked and the security items (#71–#79) keep a hole in
@@ -147,7 +150,7 @@ ServiceAccount token (#76), which is compatible with the pod keeping
 * Neutral, because it bounds blast radius by team rather than by run — better
   than today, worse than per-run.
 * Bad, because it re-introduces per-team provisioning, the exact onboarding cost
-  ADR-0001 removes.
+  ADR-0014 removes.
 
 ## More Information
 
@@ -157,5 +160,5 @@ ServiceAccount token (#76), which is compatible with the pod keeping
   until it lands end to end; on `development` at this date the globals are still
   live in `_helpers.tpl:142-148` and `pkg/worker/worker.go:118,125`,
   `ForgeProvider` still has zero implementations, and no broker exists.
-* Supports [ADR-0001](adr-0001-work-target-is-a-work-item-attribute.md) — it
+* Supports [ADR-0014](0014-work-target-is-a-work-item-attribute.md) — it
   resolves the forge id a Work Target carries.

@@ -1,7 +1,7 @@
 # CI-only values: render the executor templates (scaledjob, triggerauth) so
 # helm template exercises them on every change. The second team overrides
-# the harness block (name/image/args/dind) so both branches of the shared
-# pod template render.
+# the harness block (name/image/args/dind) and the third selects the acp
+# harness, so every branch of the shared pod template renders.
 executor:
   enabled: true
   teams:
@@ -38,3 +38,18 @@ executor:
       repoOwner: webgrip
       repoName: example
       targetSource: env
+    # acp harness: exercises the PLOEG_ACP_* env branch and the custom-profile
+    # argv guard in the pod template. Names no repository either — a harness is
+    # a capability, and capability and codebase are independent axes (R11).
+    - name: lead
+      model: litellm_proxy/claude-sonnet-5
+      budget: "1"
+      maxReplicaCount: 1
+      harness:
+        name: acp
+        image: harbor.webgrip.dev/webgrip/opencode-runner:0.1.0
+        acp:
+          profile: custom
+          argv: ["opencode", "acp"]
+          permissionMode: allow_read_only
+          idleTimeout: 5m

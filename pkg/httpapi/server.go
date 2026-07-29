@@ -190,18 +190,42 @@ func (s *Server) handleCheckpoint(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// validateOutcomeReport enforces the closed enums and R4 at the boundary,
+// before anything reaches the store.
+//
+// docs/contracts/outcomereport.v1.schema.json declares these constraints and
+// pkg/harness/contract_test.go pins the schema to the Go types — but neither
+// runs at request time. A schema nothing checks on the wire is documentation,
+// not a gate: an adapter that typos `infra_llm` had its value stored verbatim
+// and silently defeated pkg/worker's classification, which defers to an
+// adapter-set failureReason.
+//
+// Pure by design, so the rules are testable without a database.
+func validateOutcomeReport(req harness.OutcomeReport) error {
+	if !req.Outcome.Valid() {
+		return errors.New("outcome must be a known outcome enum value")
+	}
+	if req.Outcome == work.OutcomeStuck && req.StuckReason == "" {
+		return errors.New("stuck outcome requires a stuckReason (R4)")
+	}
+	if req.FailureReason != "" && !work.FailureReason(req.FailureReason).Valid() {
+		return errors.New("failureReason must be a known failure-reason enum value")
+	}
+	return nil
+}
+
 // handleOutcome accepts the full harness.OutcomeReport shape
 // (docs/contracts/outcomereport.v1.schema.json). The historical 4-field
 // body remains valid: checkpoint and usage are additive. A final checkpoint
 // riding inline is written before the outcome ends the run.
 func (s *Server) handleOutcome(w http.ResponseWriter, r *http.Request) {
 	var req harness.OutcomeReport
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || !req.Outcome.Valid() {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "outcome must be a known outcome enum value", http.StatusBadRequest)
 		return
 	}
-	if req.Outcome == work.OutcomeStuck && req.StuckReason == "" {
-		http.Error(w, "stuck outcome requires a stuckReason (R4)", http.StatusBadRequest)
+	if err := validateOutcomeReport(req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	if req.Checkpoint != nil && req.Checkpoint.Phase != "" {

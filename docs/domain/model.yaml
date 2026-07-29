@@ -56,38 +56,77 @@ terms:
     synonyms: [ticket, issue]
     see_also: [Work Item, Tracker Provider]
 
+  - name: Shift
+    definition: >
+      One Team's engagement with one Work Item: the container that owns the
+      branch, the budget pool, the roster of Runs and the Round counter. Opens
+      when the first Run starts, closes when the work reaches a terminal state.
+      A Shift is what makes several Runs on one item coherent without any of
+      them needing to remember the others. Named for the crew sense — Ploeg is
+      Dutch for a crew, and ploegendienst is shift work.
+    context: Dispatch
+    avoid: [claim (as a noun), engagement, session]
+    see_also: [Lease, Run, Round, Team, Work Item]
+
   - name: Lease
     definition: >
-      A Team's crash-safe hold on a Work Item: a row (team, work item,
-      expires_at), unique per Work Item, renewed on a fixed interval by the
-      running Run. Expiry releases the item mechanically — nothing depends on
-      an agent behaving well at death. "Claim" is the verb (a team claims an
-      item, acquiring a Lease); the noun is always Lease.
+      The exclusive right to WRITE a Shift's branch, unique per Shift. It is a
+      capability rather than a note: the holder's push credential is minted with
+      it and revoked when it lapses, so holding a Lease and being able to push
+      are one fact. Only a writing Run takes one — reading Runs take none, which
+      is what lets any number of them run at once. A Lease governs exclusion
+      only; liveness belongs to the Run, because a Run is what dies and a reader
+      has no Lease to expire.
     context: Dispatch
     avoid: [claim (as a noun), lock]
-    see_also: [Team, Work Item, Run]
+    see_also: [Shift, Run, Push Credential]
+
+  - name: Push Credential
+    definition: >
+      The repository-scoped forge token minted for one writing Run and revoked
+      when its Lease settles or lapses. What makes the Lease enforceable rather
+      than advisory, and the reason a reading Run cannot write the branch it is
+      reviewing. The model-provider equivalent is the per-Run LiteLLM key.
+    context: Execution
+    avoid: [builder token, deploy key]
+    see_also: [Lease, Run]
+
+  - name: Round
+    definition: >
+      A set of Runs within a Shift that start together. Runs in one Round never
+      observe each other — they receive the same injected state and their
+      findings land afterwards; every later Round sees everything from every
+      earlier one. A Round is either a fan-out of reading Runs or exactly one
+      writing Run, never both, and that rule is the whole of the concurrency
+      control.
+    context: Dispatch
+    avoid: [turn, iteration]
+    see_also: [Shift, Run]
 
   - name: Team
     definition: >
       A declarative manifest — name, Roles, harness image and model per Role,
       run strategy (sequential or parallel), resource/token budget, concurrency
-      cap — that is the unit of claiming. Leases are team-scoped: two Teams
-      never hold the same Work Item; any number of Roles work within one Team's
-      Lease. A Team never names a repository, forge, or credential: capacity and
-      codebase are independent axes (R11).
+      cap — that is the unit of claiming. Two Teams never hold a Shift on the
+      same Work Item; any number of Roles work within one Team's Shift. A Team
+      never names a repository, forge, or credential: capacity and codebase are
+      independent axes (R11) — those coordinates are the Work Item's Work
+      Target, not the Team's.
     context: Dispatch
     avoid: [crew]
     examples: ["implementer + reviewer-on-a-different-model-family + tester"]
-    see_also: [Role, Lease, Work Target]
+    see_also: [Role, Shift, Work Target]
 
   - name: Role
     definition: >
       A named specialist function within a Team (implementer, reviewer,
       tester), bound to a harness image and model. A Role is a slot in the
-      manifest; a Run is one execution of that slot.
+      manifest; a Run is one execution of that slot. Every Role is either a
+      writer (mutates the tree, so its Runs take the Shift's Lease) or a reader
+      (reads and opines, so its Runs take no Lease and may run beside others).
     context: Dispatch
     synonyms: [specialist, specialist role]
-    see_also: [Team, Run]
+    see_also: [Team, Run, Lease]
 
   - name: Run
     definition: >
@@ -349,9 +388,9 @@ entities:
         to: queued
         trigger: Human or explicit policy re-queues
     relationships:
-      - to: Lease
+      - to: Shift
         kind: has_one
-        description: At most one live Lease at a time (unique per Work Item).
+        description: At most one live Shift at a time (unique per Work Item).
       - to: Work Target
         kind: has_one
         description: Pinned at ingest; absent until resolved, and then not claimable (R11).
@@ -390,30 +429,74 @@ entities:
         kind: references
         description: By id; the registry resolves endpoint, dialect, identity, and credential source.
 
-  - name: Lease
-    description: A Team's crash-safe, TTL-renewed hold on a Work Item.
+  - name: Shift
+    description: One Team's engagement with one Work Item — owns the branch, the budget pool, the roster and the Round counter (ADR-0010).
     context: Dispatch
     attributes:
       - name: work_item_id
         type: string
+        description: Unique among live Shifts — two Teams never work one item.
         required: true
       - name: team
         type: string
         required: true
+      - name: branch
+        type: string
+        description: The single branch every writing Run in this Shift pushes to.
+        required: true
+      - name: round
+        type: int
+        description: Runs started together share a Round and never observe each other.
+        required: true
+      - name: budget
+        type: decimal
+        description: The pool for the whole item, in USD (ADR-0012).
+        required: true
+      - name: spent
+        type: decimal
+        description: Settled spend across every Run in this Shift. Reserved is NOT stored — it is summed over running Runs, so it cannot drift (ADR-0012).
+        required: true
+    relationships:
+      - to: Work Item
+        kind: belongs_to
+        description: Unique per Work Item among live Shifts.
+      - to: Lease
+        kind: has_one
+        description: At most one live Lease — held by the writing Run, if any.
+      - to: Run
+        kind: has_many
+        description: Readers and writers across every Round.
+
+  - name: Lease
+    description: The exclusive right to write a Shift's branch, crash-safe and TTL-renewed. Held only by a writing Run.
+    context: Dispatch
+    attributes:
+      - name: shift_id
+        type: string
+        description: Unique per Shift — one writer at a time.
+        required: true
+      - name: run_id
+        type: string
+        description: The writing Run holding it. Readers never appear here.
+        required: true
+      - name: forge_token_id
+        type: string
+        description: The scoped push credential minted for this Run, revoked when the Lease lapses (ADR-0013).
+        required: true
       - name: expires_at
         type: timestamp
-        description: Expiry releases the item mechanically.
+        description: Expiry revokes the push credential and releases the Run's budget authorization in the same sweep.
         required: true
       - name: renewed_at
         type: timestamp
         description: Last renewal by the running Run.
     relationships:
-      - to: Work Item
+      - to: Shift
         kind: belongs_to
-        description: Unique per Work Item.
-      - to: Team
+        description: Unique per Shift.
+      - to: Run
         kind: references
-        description: The claiming Team.
+        description: The writing Run holding write access.
 
   - name: Run
     description: One execution of one Role, realized as one Kubernetes Job.
@@ -432,6 +515,21 @@ entities:
       - name: job_name
         type: string
         description: The Kubernetes Job realizing this Run.
+      - name: round
+        type: int
+        description: The Round this Run belongs to; Runs sharing a Round never observe each other.
+      - name: writes
+        type: boolean
+        description: A writer takes the Shift's Lease and runs alone; a reader takes none and runs beside others.
+      - name: state
+        type: "enum(pending, running, finished)"
+        description: A Round materialises its Runs as pending rows; pending rows are also the scale signal.
+      - name: authorized
+        type: decimal
+        description: The budget hold, summed over running Runs to give the Shift's reserved figure (ADR-0012).
+      - name: expires_at
+        type: timestamp
+        description: This Run's own liveness deadline. Not the Lease's — a reader has no Lease to expire.
       - name: outcome
         type: "enum(pr_opened, pr_updated, issue_updated, follow_up_created, stuck, failed, no_change_needed)"
         description: Terminal result; failed when the container exits without a report.
@@ -695,10 +793,35 @@ events:
     entity: Work Item
     triggers: The Team Queue grows; the Executor's scaler may spawn a Run.
 
+  - name: ShiftOpened
+    description: A Team took up a queued Work Item; the branch, budget pool and Round counter come into existence.
+    entity: Shift
+    triggers: A Round is planned and its Runs are spawned with Task Specs.
+
+  - name: RoundStarted
+    description: A set of Runs was spawned together — either a fan-out of readers or a single writer.
+    entity: Shift
+    triggers: Each Run receives the same injected state; none observes the others.
+
   - name: LeaseAcquired
-    description: A Team claimed a queued Work Item.
+    description: A writing Run took exclusive write access to its Shift's branch; a scoped push credential was minted for it.
     entity: Lease
-    triggers: A Run is spawned with a Task Spec.
+    triggers: The Run may push; no other Run in the Shift holds a push credential at all.
+
+  - name: PushRightsRevoked
+    description: A Lease settled or lapsed; the Run's scoped forge token was revoked.
+    entity: Lease
+    triggers: A zombie Run can no longer push, without any cleanup code running inside it (R2).
+
+  - name: BudgetAuthorized
+    description: A Run reserved min(roleCap, poolRemaining) against its Shift before spawning.
+    entity: Shift
+    triggers: A LiteLLM key is minted for exactly the authorized amount; a zero-row update means the Run is never spawned.
+
+  - name: BudgetSettled
+    description: A Run reported; its authorization was released and actual spend recorded.
+    entity: Shift
+    triggers: Unspent allowance returns to the pool for later Runs.
 
   - name: LeaseExpired
     description: A Lease TTL lapsed without renewal.
@@ -733,7 +856,47 @@ ambiguities:
     options: [Run = one Role + one Job, Run = whole lease servicing, separate lease-level term]
     recommendation: Run = one execution of one Role, exactly one Kubernetes Job.
     status: resolved
-    resolution: Run is per-Role, per-Job; "Job" stays a Kubernetes term. A lease-level grouping term is deliberately not introduced until parallel strategies demand one. (2026-07-22)
+    resolution: >
+      Run is per-Role, per-Job; "Job" stays a Kubernetes term. A lease-level
+      grouping term was deliberately deferred until parallel strategies demanded
+      one (2026-07-22). They now do, and the term is **Shift** — ADR-0010,
+      2026-07-29. A Shift owns the Work Item, its branch, its budget pool and
+      its round counter; a Lease narrows to write access on that branch and is
+      held only by a writing Run. (2026-07-29)
+
+  - phrase: the "leased" Work Item state
+    issue: >
+      The Work Item state enum calls the working state `leased`, named for the
+      Lease it used to imply. After ADR-0010 a Work Item in that state has a
+      Shift, and may have no Lease at all — a Round of readers takes none. The
+      state name now describes the wrong thing.
+    options:
+      - Keep `leased` and accept the vocabulary drift
+      - Rename to `active`
+      - Rename to `in_shift`
+    recommendation: >
+      Decide with the implementing change, not before. The rename touches the
+      state enum, an applied migration, both contract schemas and the KEDA
+      scaler query, so it is a real cost to weigh against a name that is merely
+      imprecise. `active` reads best if it goes ahead.
+    status: open
+
+  - phrase: when a Shift closes
+    issue: >
+      ADR-0010 introduces the Shift but leaves its terminal rule to the
+      implementation. A Shift plainly closes on a terminal Outcome; less plainly
+      when an item goes needs_human and a human re-queues it — does the old
+      Shift resume with its remaining budget and Round counter, or does a fresh
+      one open?
+    options:
+      - Re-queue always opens a new Shift (budget resets, rounds restart)
+      - Re-queue resumes the existing Shift (budget and rounds carry over)
+      - Human chooses per re-queue
+    recommendation: >
+      Resume the existing Shift. A re-queue after needs_human is usually a human
+      unblocking work already done, and restarting the budget silently doubles
+      what the item may cost. Confirm against the first real needs_human Shift.
+    status: open
 
   - phrase: needs_human
     issue: The design mentioned a "human queue" and "needs_human items" but the state enum lacked the state.

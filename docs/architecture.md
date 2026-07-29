@@ -235,7 +235,7 @@ A team = a Helm values entry: name, model, per-run budget,
 `executor.harness` defaults — the single axis of variation for swapping
 harness and image per team.
 
-**The repository is not a team property** (R11, [ADR-0001](adr/adr-0001-work-target-is-a-work-item-attribute.md)):
+**The repository is not a team property** (R11, [ADR-0014](adrs/0014-work-target-is-a-work-item-attribute.md)):
 it belongs to the work item, resolved at ingest from the item's tracker scope
 via ploegd's `PLOEG_TARGET_MAP` and delivered on the claim. A team may still
 pin `repoOwner`/`repoName`/`baseBranch` as a *fallback* while the rollout
@@ -262,13 +262,26 @@ Aspirational ≠ implemented:
    now carries the live seam: `TaskSpec`/`OutcomeReport` are the adapter I/O
    (published schemas in [contracts/](contracts/), backlog #59), and
    `harness.Adapter` wraps concrete harnesses — `openhands` (default),
-   `exec` (generic binary), `claude-code` (#62) — selected per team via
-   `PLOEG_HARNESS`. Outcome inference stays orchestrator-owned (PR poll is
-   ground truth) until an ACP adapter (#64) supplies structured outcomes.
+   `exec` (generic binary), `claude-code` (#62), `acp` (#64) — selected per
+   team via `PLOEG_HARNESS`. Outcome inference stays orchestrator-owned (the
+   PR poll is ground truth) for the spawn-and-wait adapters; the `acp` adapter
+   supplies structured stop reasons and defers to them.
+
+   > **Naming hazard, and it catches everyone.** `acp` here is Zed's Agent
+   > **Client** Protocol — editor ↔ local coding agent over stdio JSON-RPC,
+   > wire version 1, co-maintained with JetBrains. It is **not** IBM's Agent
+   > **Communication** Protocol, which merged into A2A in August 2025 and is
+   > archived. Different layer, different transport, different problem; they
+   > share three letters and nothing else. See
+   > [ADR-0007](adrs/0007-a2a-adopt-nothing-watchlist-a-facade.md).
 3. **"Watcher records failed on exit-without-report"**: no watcher exists;
    the DB lease sweeper is the crash detector.
-4. **Teams with roles/strategies**: no roles, no `teams` table; a team is one
-   worker + one model in Helm values.
+4. **Teams with roles/strategies**: **half-closed 2026-07-29.** The store
+   layer for Shifts, Rounds and reader/writer Runs is built and tested
+   ([§10](#10-shifts-many-personas-on-one-item)), so roles and a parallel
+   strategy now exist in Postgres. Nothing drives them yet: no Shift is opened,
+   no Round advances, and the chart still renders one worker + one model per
+   team. There is still no `teams` table — a team remains Helm values.
 5. **Checkpoint-driven resume**: checkpoints are written, never read; every
    run starts fresh.
 6. **Tracker write-backs**: Vikunja `FetchItem`/`Comment`/`SetStatus` are
@@ -278,10 +291,15 @@ Aspirational ≠ implemented:
    effectively never persists.
 8. **`needs_human`/`stale` exits**: only re-assignment implements them; the
    legal-transition table in `pkg/work/state.go` is not enforced by the store.
-9. **stuck vs failed semantics inverted for infra errors**: clone/config/mint
-   failures are reported `stuck` → `needs_human` (parked), though docs define
-   them as retryable `failed`. VIK-596 (classification + backoff + attempt
-   protection) addresses this.
+9. **stuck vs failed semantics inverted for infra errors**: **partly closed.**
+   The `acp` adapter classifies at the source — a missing binary, a failed
+   `initialize` or a rejected protocol version become `failed`/`infra_node`,
+   and an auth or quota failure `failed`/`infra_llm`, both retryable rather
+   than parked. `pkg/worker`'s heuristics defer to an adapter-set
+   `failureReason`, and `pkg/httpapi` now rejects one outside the taxonomy
+   rather than storing it verbatim. Still open for the spawn-and-wait
+   adapters: `openhands` and `exec` infer from exit codes and log tails, so a
+   clone or mint failure under those harnesses is still parked.
 10. **Unassignment** (`task.assignee.deleted`) is parsed and dropped — no run
     cancel or lease release (backlog #8).
 11. **No metrics**: no OTel/Prometheus in Go; observability is structured logs
@@ -296,7 +314,7 @@ Aspirational ≠ implemented:
     (Task Spec entity, same file), which states no derivation. Cost: onboarding
     a repo needs a new team + KEDA ScaledJob + tracker bot user even when model,
     budget and harness are identical. Decision to decouple:
-    [adr/adr-0001-work-target-is-a-work-item-attribute.md](adr/adr-0001-work-target-is-a-work-item-attribute.md).
+    [adrs/0014-work-target-is-a-work-item-attribute.md](adrs/0014-work-target-is-a-work-item-attribute.md).
     **Partly closed 2026-07-29**: a Work Item now carries its own Target
     (`pkg/work.Target`, migration 0007), the claim delivers it, the worker
     prefers it (`pkg/worker/target.go`), and the chart no longer *requires* a
@@ -312,7 +330,7 @@ Aspirational ≠ implemented:
     provider SPI, and the Vikunja adapter produces it from `PLOEG_TEAM_MAP` —
     the exact shape R7 forbids ("core semantics must never encode a
     provider-specific workaround"). Decision:
-    [adr/adr-0002-routing-is-core-policy-over-provider-opaque-scopes.md](adr/adr-0002-routing-is-core-policy-over-provider-opaque-scopes.md).
+    [adrs/0015-routing-is-core-policy-over-provider-opaque-scopes.md](adrs/0015-routing-is-core-policy-over-provider-opaque-scopes.md).
 14. **The native routing scope is discarded at the parse boundary**:
     `pkg/provider/vikunja/vikunja.go:38-51` unmarshals only `event_name`,
     `data.task.{id,title,description,priority}` and `data.assignee.username`.
@@ -331,7 +349,7 @@ Aspirational ≠ implemented:
     `provider.ForgeProvider` (`pkg/provider/provider.go:47-70`) has **zero**
     implementations while `pkg/worker/forge.go:22-55` hardcodes the Forgejo REST
     dialect. Decision:
-    [adr/adr-0003-forge-registry-and-per-run-repo-scoped-credentials.md](adr/adr-0003-forge-registry-and-per-run-repo-scoped-credentials.md).
+    [adrs/0016-forge-registry-and-per-run-repo-scoped-credentials.md](adrs/0016-forge-registry-and-per-run-repo-scoped-credentials.md).
 16. **`agent/vik-<id>` embeds a vendor token and is not unique per target**:
     `pkg/worker/worker.go:81` builds the branch as `"agent/vik-" +
     item.ExternalID`. `vik` is a Vikunja token sitting in core semantics (R7),
@@ -344,7 +362,187 @@ Aspirational ≠ implemented:
     target is on `work_items` and in the `lease.acquired` audit row, so a
     per-repo rollup is a join away; `agent_runs` still carries no target column.
 
-## 10. Pointers
+## 10. Shifts: many personas on one item
+
+> **Build status.** This documents the architecture decided in
+> [ADR-0010](adrs/0010-shift-owns-the-item-lease-owns-the-branch.md),
+> [0011](adrs/0011-the-pull-request-is-the-blackboard.md),
+> [0012](adrs/0012-two-level-budgets-authorized-and-settled.md) and
+> [0013](adrs/0013-push-rights-are-minted-per-run.md). **The store layer is
+> built and tested; nothing drives it yet** — see [§10.6](#106-build-status).
+> Everything in §§1–9 above is what actually runs today.
+
+### 10.1 The three jobs a Lease used to do
+
+With one pod per item, mutual exclusion, liveness and accounting were
+indistinguishable — one `leases` row did all three. Several pods on one item
+pulls them apart, and each attaches to a different lifetime.
+
+```mermaid
+flowchart TB
+    subgraph shift["Shift — one Team on one Work Item"]
+        direction TB
+        S["owns: branch · budget pool · round counter · roster"]
+        subgraph r1["Round 1 — readers, all at once"]
+            A1[security]:::reader
+            A2[CFO]:::reader
+            A3[philosopher]:::reader
+        end
+        subgraph r2["Round 2 — one writer, alone"]
+            B1[builder]:::writer
+        end
+        L[["Lease — the RIGHT TO WRITE the branch<br/>held only by a writer"]]
+    end
+    B1 --- L
+    classDef reader fill:#e8f4ff,stroke:#4a90d9
+    classDef writer fill:#ffeaea,stroke:#d94a4a
+```
+
+| Concern | Attaches to | Why there |
+| --- | --- | --- |
+| "This Team is working this item" — branch, budget, roster, rounds | **Shift** | Spans every Run on the item |
+| Exclusive right to **write** the branch | **Lease** | Only one writer may push at a time |
+| Liveness, and the credential | **Run** | A Run is what dies, so a Run is what must expire |
+
+The contended resource was never the ticket — it was the **branch**. Any number
+of agents can read a diff at once; they cannot both push. And because most
+personas only read and opine, exclusion is needed by a minority of Runs.
+
+### 10.2 Rounds
+
+A Round is a set of Runs that start together. Runs in one Round never observe
+each other; every later Round sees everything earlier Rounds produced.
+
+**A Round is either a fan-out of readers or exactly one writer, never both.**
+That single rule is the whole of the concurrency control — readers hold no
+Lease, so they have nothing to coordinate over. `OpenRound` refuses a malformed
+Round rather than trusting callers with the rule everything rests on.
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending: OpenRound inserts one row per Role
+    pending --> running: ClaimRole — budget authorized, credential minted
+    running --> finished: ReportOutcome
+    running --> finished: ExpireRuns — deadline lapsed
+    finished --> [*]
+    note right of pending
+      pending rows ARE the KEDA scale signal:
+      the scaler query and the claim predicate
+      are one statement, so they cannot drift
+    end note
+```
+
+### 10.3 The full loop
+
+Multiple agents make a change together, a review is kicked off, and a human is
+pulled in to merge.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant V as Vikunja
+    participant P as ploegd
+    participant DB as Postgres
+    participant R as reader pods (N)
+    participant W as writer pod
+    participant F as Forgejo
+
+    V->>P: ticket assigned to team
+    P->>DB: OpenShift — branch, budget pool
+
+    rect rgb(232,244,255)
+    note over P,R: Round 1 — readers, concurrently, no Lease
+    P->>DB: OpenRound [security, CFO, architect]
+    R->>DB: ClaimRole × N, each authorized min(cap, remaining)
+    R->>F: read the diff
+    R->>DB: ReportOutcome + findings
+    P->>F: publish findings as PR comments (the blackboard)
+    end
+
+    rect rgb(255,234,234)
+    note over P,W: Round 2 — one writer, holds the Lease
+    P->>DB: OpenRound [builder]
+    W->>DB: ClaimRole — takes Lease and push credential
+    W->>F: push branch, open PR
+    W->>DB: ReportOutcome pr_opened
+    end
+
+    rect rgb(232,244,255)
+    note over P,R: Round 3 — review, readers again
+    P->>DB: OpenRound [reviewer, security]
+    R->>DB: ReportOutcome — approved or changes requested
+    end
+
+    P->>DB: no Round left → needs_human
+    P->>V: comment + status — the human is pulled in
+    Note over V,F: a person reads the PR and merges
+```
+
+### 10.4 Money
+
+Two limits of different kinds. A per-Run cap stops one agent looping; the Shift
+pool stops the *item* costing more than it is worth. They do not sum.
+
+```mermaid
+flowchart LR
+    POOL["Shift pool<br/>budget − spent − reserved"] -->|"authorize<br/>min(roleCap, remaining)"| RUN[Run]
+    RUN -->|"minted for exactly that amount"| KEY[LiteLLM per-run key]
+    KEY -->|"the agent cannot exceed it"| LLM[completions]
+    RUN -->|ReportOutcome| SETTLE["spent += actual"]
+    SETTLE --> POOL
+```
+
+`reserved` is **summed over running Runs**, never stored as a counter. A Run
+that stops running stops holding money, so a missed release is impossible
+rather than unlikely, and unspent allowance returns to the pool with nobody
+having to put it back. Below a floor no Run is spawned at all — a gate outcome,
+not a dispatched-then-failed Run.
+
+### 10.5 Data model
+
+```mermaid
+erDiagram
+    WORK_ITEMS ||--o| SHIFTS : "one live"
+    SHIFTS ||--o{ AGENT_RUNS : roster
+    SHIFTS ||--o| LEASES : "at most one writer"
+    WORK_ITEMS ||--o{ CHECKPOINTS : progress
+
+    SHIFTS {
+        bigint work_item_id "unique while open"
+        text branch
+        int round
+        numeric budget
+        numeric spent "reserved is DERIVED"
+    }
+    AGENT_RUNS {
+        text role
+        int round
+        bool writes "writer or reader"
+        text state "pending|running|finished"
+        numeric authorized "the budget hold"
+        timestamptz expires_at "per-Run liveness"
+    }
+    LEASES {
+        bigint work_item_id PK
+        bigint shift_id
+        text forge_token_id "revoked when it lapses"
+    }
+```
+
+### 10.6 Build status
+
+| Component | State |
+| --- | --- |
+| Migration, Shift/Round/Run store, budgets, settlement, sweeper | **built** — 13 tests in `pkg/store/shift_test.go` |
+| Harness plurality — ACP: Claude, Copilot, Codex, Cursor, opencode, Gemini… | **built** — `pkg/harness/adapters/acp` |
+| ploegd orchestration: opening Shifts and Rounds, closing them | **not built** — nothing drives the diagrams above |
+| Role-aware `TaskSpec` and prompt composition | **not built** |
+| Forgejo `ForgeProvider` — PR comments, i.e. the blackboard | **not built** — interface defined, zero implementations |
+| Vikunja write-backs — pulling the human in | **not built** — `Comment`/`SetStatus` are logging no-ops |
+| Per-Run push credentials ([ADR-0013](adrs/0013-push-rights-are-minted-per-run.md)) | **not built** — every pod still shares one static token |
+| Role-partitioned Helm workloads | **not built** |
+
+## 11. Pointers
 
 - Dispatch plane code: [cmd/ploegd](../cmd/ploegd) ·
   [cmd/ploeg-worker](../cmd/ploeg-worker) · [pkg/worker](../pkg/worker)
@@ -359,4 +557,4 @@ Aspirational ≠ implemented:
 - Runner image: `webgrip/infrastructure` → `ops/docker/agent-runner/`
 - Design intent: [design.md](design.md) · domain language:
   [domain/](domain/) · roadmap: [backlog.md](backlog.md) · decision records:
-  [adr/](adr/index.md)
+  [adrs/](adrs/README.md)

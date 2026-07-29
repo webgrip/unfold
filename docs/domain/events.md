@@ -16,12 +16,47 @@ An Assignment matched a Routing Rule; the Work Item is queued with its Team and 
 **Concerns:** Work Item  
 **Triggers:** The Team Queue grows; the Executor's scaler may spawn a Run.  
 
+## ShiftOpened
+
+A Team took up a queued Work Item; the branch, budget pool and Round counter come into existence.
+
+**Concerns:** Shift  
+**Triggers:** A Round is planned and its Runs are spawned with Task Specs.  
+
+## RoundStarted
+
+A set of Runs was spawned together — either a fan-out of readers or a single writer.
+
+**Concerns:** Shift  
+**Triggers:** Each Run receives the same injected state; none observes the others.  
+
 ## LeaseAcquired
 
-A Team claimed a queued Work Item.
+A writing Run took exclusive write access to its Shift's branch; a scoped push credential was minted for it.
 
 **Concerns:** Lease  
-**Triggers:** A Run is spawned with a Task Spec.  
+**Triggers:** The Run may push; no other Run in the Shift holds a push credential at all.  
+
+## PushRightsRevoked
+
+A Lease settled or lapsed; the Run's scoped forge token was revoked.
+
+**Concerns:** Lease  
+**Triggers:** A zombie Run can no longer push, without any cleanup code running inside it (R2).  
+
+## BudgetAuthorized
+
+A Run reserved min(roleCap, poolRemaining) against its Shift before spawning.
+
+**Concerns:** Shift  
+**Triggers:** A LiteLLM key is minted for exactly the authorized amount; a zero-row update means the Run is never spawned.  
+
+## BudgetSettled
+
+A Run reported; its authorization was released and actual spend recorded.
+
+**Concerns:** Shift  
+**Triggers:** Unspent allowance returns to the pool for later Runs.  
 
 ## LeaseExpired
 

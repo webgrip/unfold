@@ -76,10 +76,10 @@ The thin wrapper that makes one Harness satisfy the harness contract: accept a T
 ## Lease
 *Context: Dispatch*
 
-A Team's crash-safe hold on a Work Item: a row (team, work item, expires_at), unique per Work Item, renewed on a fixed interval by the running Run. Expiry releases the item mechanically — nothing depends on an agent behaving well at death. "Claim" is the verb (a team claims an item, acquiring a Lease); the noun is always Lease.
+The exclusive right to WRITE a Shift's branch, unique per Shift. It is a capability rather than a note: the holder's push credential is minted with it and revoked when it lapses, so holding a Lease and being able to push are one fact. Only a writing Run takes one — reading Runs take none, which is what lets any number of them run at once. A Lease governs exclusion only; liveness belongs to the Run, because a Run is what dies and a reader has no Lease to expire.
 
 **Do not use:** claim (as a noun), lock  
-**See also:** [Team](#team), [Work Item](#work-item), [Run](#run)  
+**See also:** [Shift](#shift), [Run](#run), [Push Credential](#push-credential)  
 
 ## Outcome
 *Context: Dispatch*
@@ -95,13 +95,29 @@ The output contract of an Agent Container: Outcome, summary, links, and optional
 
 **See also:** [Task Spec](#task-spec), [Outcome](#outcome)  
 
+## Push Credential
+*Context: Execution*
+
+The repository-scoped forge token minted for one writing Run and revoked when its Lease settles or lapses. What makes the Lease enforceable rather than advisory, and the reason a reading Run cannot write the branch it is reviewing. The model-provider equivalent is the per-Run LiteLLM key.
+
+**Do not use:** builder token, deploy key  
+**See also:** [Lease](#lease), [Run](#run)  
+
 ## Role
 *Context: Dispatch*
 
-A named specialist function within a Team (implementer, reviewer, tester), bound to a harness image and model. A Role is a slot in the manifest; a Run is one execution of that slot.
+A named specialist function within a Team (implementer, reviewer, tester), bound to a harness image and model. A Role is a slot in the manifest; a Run is one execution of that slot. Every Role is either a writer (mutates the tree, so its Runs take the Shift's Lease) or a reader (reads and opines, so its Runs take no Lease and may run beside others).
 
 **Also known as:** specialist, specialist role  
-**See also:** [Team](#team), [Run](#run)  
+**See also:** [Team](#team), [Run](#run), [Lease](#lease)  
+
+## Round
+*Context: Dispatch*
+
+A set of Runs within a Shift that start together. Runs in one Round never observe each other — they receive the same injected state and their findings land afterwards; every later Round sees everything from every earlier one. A Round is either a fan-out of reading Runs or exactly one writing Run, never both, and that rule is the whole of the concurrency control.
+
+**Do not use:** turn, iteration  
+**See also:** [Shift](#shift), [Run](#run)  
 
 ## Routing Rule
 *Context: Dispatch*
@@ -127,6 +143,14 @@ An opaque, provider-scoped container id for a body of work (a Vikunja project, a
 **Also known as:** container id  
 **See also:** [Tracker Event](#tracker-event), [Routing Rule](#routing-rule), [Tracker Provider](#tracker-provider)  
 
+## Shift
+*Context: Dispatch*
+
+One Team's engagement with one Work Item: the container that owns the branch, the budget pool, the roster of Runs and the Round counter. Opens when the first Run starts, closes when the work reaches a terminal state. A Shift is what makes several Runs on one item coherent without any of them needing to remember the others. Named for the crew sense — Ploeg is Dutch for a crew, and ploegendienst is shift work.
+
+**Do not use:** claim (as a noun), engagement, session  
+**See also:** [Lease](#lease), [Run](#run), [Round](#round), [Team](#team), [Work Item](#work-item)  
+
 ## Task Spec
 *Context: Harness*
 
@@ -137,11 +161,11 @@ The input contract of an Agent Container: Work Item snapshot, Role, optional Che
 ## Team
 *Context: Dispatch*
 
-A declarative manifest — name, Roles, harness image and model per Role, run strategy (sequential or parallel), resource/token budget, concurrency cap — that is the unit of claiming. Leases are team-scoped: two Teams never hold the same Work Item; any number of Roles work within one Team's Lease. A Team never names a repository, forge, or credential: capacity and codebase are independent axes (R11).
+A declarative manifest — name, Roles, harness image and model per Role, run strategy (sequential or parallel), resource/token budget, concurrency cap — that is the unit of claiming. Two Teams never hold a Shift on the same Work Item; any number of Roles work within one Team's Shift. A Team never names a repository, forge, or credential: capacity and codebase are independent axes (R11) — those coordinates are the Work Item's Work Target, not the Team's.
 
 **Do not use:** crew  
 **Examples:** implementer + reviewer-on-a-different-model-family + tester  
-**See also:** [Role](#role), [Lease](#lease), [Work Target](#work-target)  
+**See also:** [Role](#role), [Shift](#shift), [Work Target](#work-target)  
 
 ## Team Queue
 *Context: Dispatch*
@@ -220,6 +244,20 @@ Short exchanges showing the terms used precisely at concept boundaries.
 
 ## ⚠ Flagged ambiguities
 
+### the "leased" Work Item state
+
+The Work Item state enum calls the working state `leased`, named for the Lease it used to imply. After ADR-0010 a Work Item in that state has a Shift, and may have no Lease at all — a Round of readers takes none. The state name now describes the wrong thing.
+
+**Options:** Keep `leased` and accept the vocabulary drift, Rename to `active`, Rename to `in_shift`  
+**Recommendation:** Decide with the implementing change, not before. The rename touches the state enum, an applied migration, both contract schemas and the KEDA scaler query, so it is a real cost to weigh against a name that is merely imprecise. `active` reads best if it goes ahead.  
+
+### when a Shift closes
+
+ADR-0010 introduces the Shift but leaves its terminal rule to the implementation. A Shift plainly closes on a terminal Outcome; less plainly when an item goes needs_human and a human re-queues it — does the old Shift resume with its remaining budget and Round counter, or does a fresh one open?
+
+**Options:** Re-queue always opens a new Shift (budget resets, rounds restart), Re-queue resumes the existing Shift (budget and rounds carry over), Human chooses per re-queue  
+**Recommendation:** Resume the existing Shift. A re-queue after needs_human is usually a human unblocking work already done, and restarting the budget silently doubles what the item may cost. Confirm against the first real needs_human Shift.  
+
 ### follow-up mirroring
 
 Follow-Ups enter at queued with no Tracker Item, which tensions with "the tracker is the source of truth for what to do" — work now exists that the board cannot see.
@@ -237,6 +275,6 @@ The design says Ploeg "can schedule a groomer run" but grooming semantics belong
 ## Resolved ambiguities
 
 - **claim** — Lease is canonical for the entity; "claim" is the verb for acquiring one; "claim" as a noun is on the avoid list. (2026-07-22)
-- **run vs job** — Run is per-Role, per-Job; "Job" stays a Kubernetes term. A lease-level grouping term is deliberately not introduced until parallel strategies demand one. (2026-07-22)
+- **run vs job** — Run is per-Role, per-Job; "Job" stays a Kubernetes term. A lease-level grouping term was deliberately deferred until parallel strategies demanded one (2026-07-22). They now do, and the term is **Shift** — ADR-0010, 2026-07-29. A Shift owns the Work Item, its branch, its budget pool and its round counter; a Lease narrows to write access on that branch and is held only by a writing Run. (2026-07-29)
 - **needs_human** — needs_human is a Work Item state, entered on a stuck Outcome or vague/security-sensitive Forge Event feedback; exits are human re-queue or human close. Distinct from stale, which means retry-exhausted. (2026-07-22)
 - **forge vs forge provider** — Forge is the instance (a registry entry, named by a Work Target's forge id); Forge Provider is the adapter that speaks its dialect. A bare "forge" always means the instance; the adapter is always written in full. (2026-07-29)

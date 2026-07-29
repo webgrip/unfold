@@ -1,6 +1,9 @@
 ---
-status: "accepted"
-date: "2026-07-29"
+status: accepted
+date: 2026-07-29
+decision-makers: Ryan Grippeling
+supersedes: none
+review-by: none
 ---
 
 # Bind the Work Target to the Work Item, not to the Team
@@ -52,10 +55,10 @@ queryable answer per work item.
 
 A **Work Target** is `(forge id, owner, repo, base branch, branch)` and is an
 attribute of a **Work Item**, not of a Team. It is a *coordinate, not a
-connection*: it carries a forge **id** that ADR-0003's registry resolves to a
+connection*: it carries a forge **id** that ADR-0016's registry resolves to a
 base URL, dialect, git identity and credential source — never a URL, never a
 token (R8). Resolution happens once, in the ingest path, from the routing rules
-of ADR-0002; the resolved tuple is written to `work_items` in the same
+of ADR-0015; the resolved tuple is written to `work_items` in the same
 transaction as the queued state change and its audit row (#25).
 
 The Team keeps everything else it already has — roles, harness image + model,
@@ -108,7 +111,7 @@ Consequential changes:
   it under a removed key.
 * Bad, because the branch rename straddles in-flight work: items whose PR sits
   on an `agent/vik-*` branch must be drained before cutover or renamed by hand.
-* Bad, because until ADR-0003 lands, the one global `AGENT_BUILDER_TOKEN` now
+* Bad, because until ADR-0016 lands, the one global `AGENT_BUILDER_TOKEN` now
   reaches *every* repository a target can name — blast radius grows before the
   credential fix narrows it. This ordering must be stated in the rollout, not
   discovered.
@@ -174,7 +177,7 @@ Consequential changes:
   until it lands end to end; on `development` at this date there are no target
   columns, ingest performs no resolution, and `values.schema.json:34` still
   requires `repoOwner`/`repoName`.
-* Refined by [ADR-0002](adr-0002-routing-is-core-policy-over-provider-opaque-scopes.md)
+* Refined by [ADR-0015](0015-routing-is-core-policy-over-provider-opaque-scopes.md)
   (how a target is chosen) and supported by
-  [ADR-0003](adr-0003-forge-registry-and-per-run-repo-scoped-credentials.md)
+  [ADR-0016](0016-forge-registry-and-per-run-repo-scoped-credentials.md)
   (what a forge id resolves to).

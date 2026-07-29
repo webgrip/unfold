@@ -25,6 +25,17 @@
     },
     "checkpoint": { "$ref": "checkpoint.v1.schema.json" },
     "stuckReason": { "type": "string" },
+    "failureReason": {
+      "type": "string",
+      "description": "Ploeg's internal failure taxonomy (VIK-597), work.FailureReason. Normally set by the orchestrator; a harness adapter with structured evidence (e.g. an ACP stop reason) may classify its own failure, and the orchestrator's heuristics defer to it.",
+      "enum": [
+        "infra_node",
+        "infra_llm",
+        "agent_error",
+        "budget",
+        "lease_lost"
+      ]
+    },
     "usage": {
       "type": "object",
       "description": "per-run cost/usage (backlog #66) and the harness-native resume handle (backlog #70)",

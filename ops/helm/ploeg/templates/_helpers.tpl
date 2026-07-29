@@ -42,7 +42,19 @@ global executor.harness defaults field-by-field (explicit hasKey checks, so
 {{- $hOutcomeFile := $th.outcomeFile | default $gh.outcomeFile }}
 {{- $hDind := true }}
 {{- if hasKey $th "dind" }}{{- $hDind = $th.dind }}{{- else if hasKey $gh "dind" }}{{- $hDind = $gh.dind }}{{- end }}
-{{- $dt := $root.Values.executor.defaultTarget | default dict -}}
+{{- $dt := $root.Values.executor.defaultTarget | default dict }}
+{{/* acp harness: same field-by-field override, one level deeper. */}}
+{{- $ga := $gh.acp | default dict }}
+{{- $ta := $th.acp | default dict }}
+{{- $acpProfile := $ta.profile | default $ga.profile }}
+{{- $acpArgv := $ta.argv | default $ga.argv }}
+{{- $acpPerm := $ta.permissionMode | default $ga.permissionMode }}
+{{- $acpPrompt := $ta.promptTimeout | default $ga.promptTimeout }}
+{{- $acpIdle := $ta.idleTimeout | default $ga.idleTimeout }}
+{{- $acpConfig := $ta.configJson | default $ga.configJson }}
+{{- if and (eq $hName "acp") (eq ($acpProfile | default "opencode") "custom") (not $acpArgv) }}
+{{- fail (printf "team %s: harness.acp.profile=custom requires harness.acp.argv" $team.name) }}
+{{- end -}}
 metadata:
   labels:
     app.kubernetes.io/name: ploeg-worker
@@ -124,6 +136,32 @@ spec:
         {{- if $hOutcomeFile }}
         - name: PLOEG_OUTCOME_FILE
           value: {{ $hOutcomeFile | quote }}
+        {{- end }}
+        {{- if eq $hName "acp" }}
+        {{- if $acpProfile }}
+        - name: PLOEG_ACP_PROFILE
+          value: {{ $acpProfile | quote }}
+        {{- end }}
+        {{- if $acpArgv }}
+        - name: PLOEG_ACP_ARGV
+          value: {{ toJson $acpArgv | quote }}
+        {{- end }}
+        {{- if $acpPerm }}
+        - name: PLOEG_ACP_PERMISSION_MODE
+          value: {{ $acpPerm | quote }}
+        {{- end }}
+        {{- if $acpPrompt }}
+        - name: PLOEG_ACP_PROMPT_TIMEOUT
+          value: {{ $acpPrompt | quote }}
+        {{- end }}
+        {{- if $acpIdle }}
+        - name: PLOEG_ACP_IDLE_TIMEOUT
+          value: {{ $acpIdle | quote }}
+        {{- end }}
+        {{- if $acpConfig }}
+        - name: PLOEG_ACP_CONFIG_JSON
+          value: {{ $acpConfig | quote }}
+        {{- end }}
         {{- end }}
         - name: LLM_MODEL
           value: {{ $team.model | quote }}
