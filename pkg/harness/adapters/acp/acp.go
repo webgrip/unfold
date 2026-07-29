@@ -113,8 +113,19 @@ func (a *Adapter) Run(ctx context.Context, spec harness.TaskSpec, env harness.Ru
 	var cp *checkpointer
 	defer func() { cp.stop() }()
 
+	// stopProcess is a no-op until the agent is launched, and the shutdown
+	// sequence afterwards. finish() runs it BEFORE reading the tail: os/exec
+	// copies the child's stderr on its own goroutine, and that copy is only
+	// guaranteed complete once Wait returns. Without this ordering a child that
+	// prints its complaint and exits immediately — `opencode: unknown command
+	// 'acp'`, the single most likely misconfiguration — races us, and the
+	// failure reason arrives carrying only "peer disconnected", which is
+	// undiagnosable. Total wall time is unchanged: the deferred shutdown ran
+	// before Run returned anyway.
+	stopProcess := func() {}
 	res := result{phase: phaseLaunch}
 	finish := func() (harness.OutcomeReport, error) {
+		stopProcess()
 		res.stderrTail = tailString(&tail)
 		res.ctxErr = ctx.Err()
 		rep := Build(state, res)
@@ -159,6 +170,7 @@ func (a *Adapter) Run(ctx context.Context, spec harness.TaskSpec, env harness.Ru
 		})
 	}
 	defer shutdown()
+	stopProcess = shutdown
 
 	cl := newClient(state, perms, log)
 	conn := sdk.NewClientSideConnection(cl, proc.Stdin, proc.Stdout)
