@@ -140,6 +140,14 @@
             "readTokenSecret": {
               "$ref": "#/definitions/secretRef",
               "description": "ADR-0013 tier 1: read-only credential for reading Roles. Empty = readers fall back to the read-write builder token and scheduling is the only boundary (a known gap, closed by creating the secret)."
+            },
+            "adminTokenSecret": {
+              "$ref": "#/definitions/secretRef",
+              "description": "ADR-0013 tier 2: credential ploegd uses to MINT per-run push tokens. Held only by ploegd, never by a worker. Unset = nothing is minted."
+            },
+            "botUser": {
+              "type": "string",
+              "description": "the forge user whose tokens are minted (default agent-builder)"
             }
           },
           "additionalProperties": true
@@ -157,6 +165,10 @@
         }
       },
       "additionalProperties": false
+    },
+    "config": {
+      "type": "object",
+      "description": "ploegd's routing and roster as a file (mounted at /etc/ploeg/ploeg.yaml). Projects are NAMED and resolved to tracker ids at boot, so no magic numbers live in cluster config. Empty = the legacy PLOEG_TARGET_MAP/PLOEG_TEAM_MAP/PLOEG_TEAM_PLANS env vars still apply."
     }
   },
   "definitions": {

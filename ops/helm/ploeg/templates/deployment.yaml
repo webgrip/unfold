@@ -10,6 +10,11 @@ spec:
   template:
     metadata:
       labels: {{- include "ploeg.selectorLabels" . | nindent 8 }}
+      {{- if .Values.config }}
+      annotations:
+        # Config is read once at boot, so a change has to restart the pod.
+        ploeg.webgrip.dev/config-checksum: {{ toYaml .Values.config | sha256sum | trunc 16 }}
+      {{- end }}
     spec:
       serviceAccountName: {{ include "ploeg.fullname" . }}
       automountServiceAccountToken: false
@@ -36,7 +41,17 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+          {{- if .Values.config }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/ploeg
+              readOnly: true
+          {{- end }}
           env:
+            {{- if .Values.config }}
+            - name: PLOEG_CONFIG
+              value: /etc/ploeg/ploeg.yaml
+            {{- end }}
             - name: PLOEG_LISTEN
               value: ":8080"
             - name: PLOEG_DATABASE_URL
@@ -76,6 +91,21 @@ spec:
                 secretKeyRef:
                   name: {{ .tokenSecret.name }}
                   key: {{ .tokenSecret.key }}
+            {{- /* ADR-0013 tier 2: the credential that MINTS per-run push
+                 tokens. Held only by ploegd, never by a worker (R6) — the
+                 same escalation ADR-0008 accepts for the LiteLLM master key.
+                 Unset = nothing is minted and workers keep the shared token. */}}
+            {{- with .adminTokenSecret }}
+            - name: PLOEG_FORGEJO_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .key }}
+            {{- end }}
+            {{- with .botUser }}
+            - name: PLOEG_FORGEJO_BOT
+              value: {{ . | quote }}
+            {{- end }}
             {{- end }}
             {{- /* Tracker write-backs (backlog #31): how a closed Shift asks a
                  person to merge. Unset = the provider keeps its logging no-op
@@ -118,3 +148,9 @@ spec:
               port: http
             periodSeconds: 20
           resources: {{- toYaml .Values.resources | nindent 12 }}
+      {{- if .Values.config }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "ploeg.fullname" . }}-config
+      {{- end }}

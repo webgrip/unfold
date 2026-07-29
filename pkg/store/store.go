@@ -365,6 +365,10 @@ type OutcomeResult struct {
 	WorkItemID int64
 	// ShiftID is nil for a legacy (shift-less) run.
 	ShiftID *int64
+	// ForgeTokenID is the per-run push credential to revoke, if one was
+	// minted (ADR-0013 tier 2). Empty for readers and for deployments
+	// without a forge admin credential.
+	ForgeTokenID string
 }
 
 // ReportOutcome ends the run: records the outcome and findings, releases the
@@ -417,7 +421,10 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 	// Writers hold a Lease; readers do not, so zero rows here is normal rather
 	// than an error. Releasing it revokes the push credential minted with it
 	// (ADR-0013).
-	if _, err := tx.Exec(ctx, `DELETE FROM leases WHERE run_token = $1`, runToken); err != nil {
+	var forgeTokenID string
+	if err := tx.QueryRow(ctx,
+		`DELETE FROM leases WHERE run_token = $1 RETURNING forge_token_id`, runToken).
+		Scan(&forgeTokenID); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return OutcomeResult{}, err
 	}
 	// Settlement (ADR-0012): record what was actually spent. The authorization
@@ -450,7 +457,7 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 		map[string]any{"summary": rep.Summary, "stuck_reason": rep.StuckReason, "links": rep.Links}); err != nil {
 		return OutcomeResult{}, err
 	}
-	return OutcomeResult{WorkItemID: id, ShiftID: shiftID}, tx.Commit(ctx)
+	return OutcomeResult{WorkItemID: id, ShiftID: shiftID, ForgeTokenID: forgeTokenID}, tx.Commit(ctx)
 }
 
 // harnessReport mirrors harness.OutcomeReport without importing the package

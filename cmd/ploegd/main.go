@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/webgrip/ploeg/pkg/config"
+	"github.com/webgrip/ploeg/pkg/forgebroker"
 	"github.com/webgrip/ploeg/pkg/httpapi"
 	"github.com/webgrip/ploeg/pkg/litellm"
 	"github.com/webgrip/ploeg/pkg/llmbroker"
@@ -74,13 +76,21 @@ func run(log *slog.Logger) error {
 		return err
 	}
 
+	// File-backed configuration (PLOEG_CONFIG). Replaces three env-var DSLs
+	// with one reviewable YAML file; absent = the env vars still apply, so
+	// this rolls out without a flag day.
+	cfg, err := config.Load(os.Getenv("PLOEG_CONFIG"))
+	if err != nil {
+		return fmt.Errorf("PLOEG_CONFIG: %w", err)
+	}
+
 	// Tracker write-backs are opt-in by credential: without a URL and token
 	// the provider keeps its logging no-op, so a deployment that has not been
 	// given one still finishes runs — it just does not update the board.
 	vik := &vikunja.Provider{
 		Secret:      os.Getenv("PLOEG_VIKUNJA_SECRET"),
 		DefaultTeam: envOr("PLOEG_DEFAULT_TEAM", "default"),
-		TeamMap:     parseTeamMap(os.Getenv("PLOEG_TEAM_MAP")),
+		TeamMap:     mergeTeamMap(cfg.AssigneeTeams(), parseTeamMap(os.Getenv("PLOEG_TEAM_MAP"))),
 		BaseURL:     trimSlash(os.Getenv("PLOEG_VIKUNJA_URL")),
 		Token:       os.Getenv("PLOEG_VIKUNJA_TOKEN"),
 		Log:         log,
@@ -117,6 +127,24 @@ func run(log *slog.Logger) error {
 		log.Info("no forge provider configured (PLOEG_FORGEJO_URL unset); findings will not reach a pull request")
 	}
 
+	// Push rights per writing Run (ADR-0013 tier 2). The admin credential
+	// lives only here, never in a worker pod (R6) — the same escalation
+	// ADR-0008 accepts for LITELLM_MASTER_KEY. Unset = the shared
+	// agent-builder token stands and nothing is minted or revoked.
+	var forgeCreds forgebroker.Broker = forgebroker.Static{Token: os.Getenv("PLOEG_FORGEJO_TOKEN")}
+	var forgeSweeper forgebroker.Sweeper
+	if admin := os.Getenv("PLOEG_FORGEJO_ADMIN_TOKEN"); admin != "" {
+		fb := &forgebroker.Forgejo{
+			BaseURL:    trimSlash(os.Getenv("PLOEG_FORGEJO_URL")),
+			AdminUser:  envOr("PLOEG_FORGEJO_BOT", "agent-builder"),
+			AdminToken: admin,
+		}
+		forgeCreds, forgeSweeper = fb, fb
+		log.Info("per-run forge credentials enabled", "bot", fb.AdminUser)
+	} else {
+		log.Info("per-run forge credentials disabled (PLOEG_FORGEJO_ADMIN_TOKEN unset); workers use the shared token")
+	}
+
 	// Gateway credential sweeper (llmbroker.Sweeper) for per-run key
 	// lifecycle: nil = no gateway configured, revocation disabled.
 	var sweeper llmbroker.Sweeper
@@ -136,9 +164,18 @@ func run(log *slog.Logger) error {
 	// the team (R11). Entries are rendered from the git org.yaml roster
 	// manifest. Empty = nothing resolves and workers keep using their
 	// env-configured repo, which is exactly the pre-decoupling behavior.
-	targets, err := target.NewMapResolver(os.Getenv("PLOEG_TARGET_MAP"), os.Getenv("PLOEG_TARGET_FORGE"))
+	// Routing rules come from the config file when it names projects — which
+	// is where the project IDs get resolved from names, so nothing in cluster
+	// config is a bare number. The env var remains as the fallback.
+	targetSpec := os.Getenv("PLOEG_TARGET_MAP")
+	if spec, err := cfg.TargetSpec(ctx, vik, log); err != nil {
+		return fmt.Errorf("routing config: %w", err)
+	} else if spec != "" {
+		targetSpec = spec
+	}
+	targets, err := target.NewMapResolver(targetSpec, os.Getenv("PLOEG_TARGET_FORGE"))
 	if err != nil {
-		return fmt.Errorf("PLOEG_TARGET_MAP: %w", err)
+		return fmt.Errorf("routing rules: %w", err)
 	}
 	log.Info("target map loaded", "rules", targets.Len())
 
@@ -147,9 +184,11 @@ func run(log *slog.Logger) error {
 	// starts. Empty = every team is plan-less and dispatch is unchanged. The
 	// engine that consumes these lands in a follow-up change; parsing first
 	// means a bad values edit fails loudly at rollout, not at first dispatch.
-	plans, err := plan.Parse(os.Getenv("PLOEG_TEAM_PLANS"))
-	if err != nil {
-		return fmt.Errorf("PLOEG_TEAM_PLANS: %w", err)
+	plans := cfg.Plans()
+	if len(plans) == 0 {
+		if plans, err = plan.Parse(os.Getenv("PLOEG_TEAM_PLANS")); err != nil {
+			return fmt.Errorf("PLOEG_TEAM_PLANS: %w", err)
+		}
 	}
 	log.Info("team plans loaded", "teams", len(plans))
 
@@ -175,13 +214,14 @@ func run(log *slog.Logger) error {
 	}
 
 	srv := &httpapi.Server{
-		Store:    st,
-		Trackers: map[string]provider.TrackerProvider{vik.Name(): vik},
-		Targets:  targets,
-		LeaseTTL: leaseTTL,
-		Log:      log,
-		RoleCaps: plans,
-		Forges:   forges,
+		Store:      st,
+		Trackers:   map[string]provider.TrackerProvider{vik.Name(): vik},
+		Targets:    targets,
+		LeaseTTL:   leaseTTL,
+		Log:        log,
+		RoleCaps:   plans,
+		Forges:     forges,
+		ForgeCreds: forgeCreds,
 	}
 	if engine != nil {
 		srv.Engine = engine
@@ -196,8 +236,9 @@ func run(log *slog.Logger) error {
 	}()
 
 	bootOrphanSweep(ctx, log, st, sweeper)
+	bootForgeSweep(ctx, log, st, forgeSweeper)
 
-	go sweepLoop(ctx, log, st, sweeper, engine, sweepEvery)
+	go sweepLoop(ctx, log, st, sweeper, forgeSweeper, engine, sweepEvery)
 
 	log.Info("ploegd listening", "version", version, "addr", listen, "lease_ttl", leaseTTL)
 	if err := httpSrv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
@@ -208,6 +249,19 @@ func run(log *slog.Logger) error {
 }
 
 func trimSlash(s string) string { return strings.TrimRight(s, "/") }
+
+// mergeTeamMap prefers the config file's roster and keeps env entries it does
+// not define, so a deployment can move one team at a time.
+func mergeTeamMap(fromFile, fromEnv map[string]string) map[string]string {
+	out := map[string]string{}
+	for k, v := range fromEnv {
+		out[k] = v
+	}
+	for k, v := range fromFile {
+		out[k] = v
+	}
+	return out
+}
 
 // parseTeamMap parses "user1=teamA,user2=teamB" (usernames lowercased).
 func parseTeamMap(s string) map[string]string {

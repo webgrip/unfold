@@ -256,3 +256,29 @@ func (p *Provider) log() *slog.Logger {
 	}
 	return slog.Default()
 }
+
+// ProjectsByName lists the tracker's projects as name → id, so configuration
+// can name a board the way a human does and ploegd resolves the number.
+//
+// This is what lets cluster config say `name: "Ploeg Test"` instead of `11`.
+// A bare id in a values file tells a reader nothing, cannot be reviewed, and
+// silently routes work to the wrong repository the day a project is rebuilt
+// with a new one.
+func (p *Provider) ProjectsByName(ctx context.Context) (map[string]string, error) {
+	if !p.configured() {
+		return nil, errors.New("vikunja: no API credentials configured; cannot resolve project names")
+	}
+	var projects []struct {
+		ID    int64  `json:"id"`
+		Title string `json:"title"`
+	}
+	// The instance page cap exceeds Vikunja's default 50 (docs/ops/board.md).
+	if err := p.do(ctx, http.MethodGet, "/projects?per_page=200", nil, &projects); err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, len(projects))
+	for _, pr := range projects {
+		out[pr.Title] = fmt.Sprint(pr.ID)
+	}
+	return out, nil
+}
