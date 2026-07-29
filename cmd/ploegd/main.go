@@ -21,6 +21,7 @@ import (
 	"github.com/webgrip/ploeg/pkg/plan"
 	"github.com/webgrip/ploeg/pkg/provider"
 	"github.com/webgrip/ploeg/pkg/provider/vikunja"
+	"github.com/webgrip/ploeg/pkg/shiftengine"
 	"github.com/webgrip/ploeg/pkg/store"
 	"github.com/webgrip/ploeg/pkg/target"
 )
@@ -115,12 +116,23 @@ func run(log *slog.Logger) error {
 	}
 	log.Info("team plans loaded", "teams", len(plans))
 
+	// The shift engine: nil when no team has a plan, and dispatch is exactly
+	// the pre-Shift path. With plans, ingest opens Shifts, outcome reports
+	// advance them, and the sweeper repairs what either fast path lost.
+	var engine *shiftengine.Engine
+	if len(plans) > 0 {
+		engine = &shiftengine.Engine{Store: st, Plans: plans, Log: log}
+	}
+
 	srv := &httpapi.Server{
 		Store:    st,
 		Trackers: map[string]provider.TrackerProvider{vik.Name(): vik},
 		Targets:  targets,
 		LeaseTTL: leaseTTL,
 		Log:      log,
+	}
+	if engine != nil {
+		srv.Engine = engine
 	}
 
 	httpSrv := &http.Server{Addr: listen, Handler: srv.Handler(), ReadHeaderTimeout: 5 * time.Second}
@@ -133,7 +145,7 @@ func run(log *slog.Logger) error {
 
 	bootOrphanSweep(ctx, log, st, sweeper)
 
-	go sweepLoop(ctx, log, st, sweeper, sweepEvery)
+	go sweepLoop(ctx, log, st, sweeper, engine, sweepEvery)
 
 	log.Info("ploegd listening", "version", version, "addr", listen, "lease_ttl", leaseTTL)
 	if err := httpSrv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {

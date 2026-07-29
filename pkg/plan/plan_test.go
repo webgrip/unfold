@@ -113,15 +113,15 @@ func TestParse_SameRoleAcrossRoundsIsOneWorkload(t *testing.T) {
 	}
 }
 
-func TestStoreRoles(t *testing.T) {
+func TestRoleCapUSD(t *testing.T) {
 	p, err := Parse(`{"t": {"pool": "1", "rounds": [
 		{"roles": [{"name": "a", "cap": "0.5"}, {"name": "b", "cap": "0.5"}]}
 	]}}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	roles := p["t"].Rounds[0].StoreRoles()
-	if len(roles) != 2 || roles[0].Name != "a" || roles[0].Cap != 0.5 || roles[0].Writes {
-		t.Errorf("StoreRoles = %+v", roles)
+	roles := p["t"].Rounds[0].Roles
+	if len(roles) != 2 || roles[0].Name != "a" || roles[0].CapUSD() != 0.5 || roles[0].Writes {
+		t.Errorf("roles = %+v", roles)
 	}
 }
