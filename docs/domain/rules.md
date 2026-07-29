@@ -84,9 +84,9 @@ Team Queue order mirrors the tracker's priority, falling back to oldest-first; P
 
 Core semantics must never encode a provider-specific workaround; everything vendor-specific lives behind the SPI.
 
-**Why:** SPI stability is the project's compatibility promise; one leaked vendor detail makes every other provider carry it forever.
+**Why:** SPI stability is the project's compatibility promise; one leaked vendor detail makes every other provider carry it forever. It cuts both ways — a provider never resolves a Team or a Work Target either; it emits a Scope the core compares for equality and never interprets.
 
-**Also applies to:** Forge Provider
+**Also applies to:** Forge Provider, Tracker Event, Scope, Routing Rule
 
 ## Work Item
 
@@ -107,3 +107,23 @@ Lease expiry or a failed Outcome re-queues the Work Item; after the retry thresh
 **Why:** Retrying is cheap once and ruinous forever — stale is the circuit breaker that stops burning tokens on repeatedly abandoned work.
 
 **Also applies to:** Lease
+
+### R11
+*Context: Dispatch*
+
+A Work Item carries its own Work Target (forge, owner, repository, base branch), resolved at ingest and independent of the Team that claims it. A Team is a capability manifest and never names a repository. A Work Item without a resolved Work Target is not claimable, and the set of reachable Work Targets is closed and operator-declared.
+
+**Why:** A Team is a crew, not a codebase. Binding them makes every capability change a repository migration and vice versa, leaves "two Teams on one repository" and "one Team across many repositories" both unrepresentable, and makes per-Run repo-scoped credentials impossible to express. The closed set keeps tracker content — untrusted input — from pointing a write-scoped credential at an arbitrary repository.
+
+**Also applies to:** Work Target, Team, Routing Rule
+
+## Work Target
+
+### R12
+*Context: Dispatch*
+
+A Work Target is pinned once a Run has produced durable git state for it (a Work Item with an assigned branch); re-resolution that would change it is recorded as a divergence and requires a human.
+
+**Why:** Re-dispatch is the review-round mechanic; silently retargeting round n+1 orphans the branch and the open PR that round n produced.
+
+**Also applies to:** Work Item, Run

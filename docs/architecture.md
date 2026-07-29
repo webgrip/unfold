@@ -303,6 +303,10 @@ Aspirational ≠ implemented:
     per-team repo. Still open until the rollout completes: teams may still pin
     a fallback repo, and no live team resolves a Target yet — the map
     (`PLOEG_TARGET_MAP`) is empty, so every run still uses its env repo.
+    R11's "a Work Item without a resolved Work Target is not claimable" is
+    therefore **not enforced** yet: during the fallback window an unresolved
+    item claims fine and the worker uses its env repo. Enforcement lands when
+    the last team drops its fallback.
 13. **The SPI carries a core concept** (R7): `provider.TrackerEvent.Team`
     (`pkg/provider/provider.go:27`) puts a Ploeg-domain routing *result* in the
     provider SPI, and the Vikunja adapter produces it from `PLOEG_TEAM_MAP` —

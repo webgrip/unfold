@@ -4,14 +4,14 @@
 
 ## WorkItemIngested
 
-A tracker webhook was mirrored into a new Work Item.
+A tracker webhook was mirrored into a new Work Item, recording the Scope it arrived in.
 
 **Concerns:** Work Item  
 **Triggers:** Nothing until an Assignment arrives.  
 
 ## WorkItemAssigned
 
-An Assignment named a Team; the Work Item is queued.
+An Assignment matched a Routing Rule; the Work Item is queued with its Team and its pinned Work Target.
 
 **Concerns:** Work Item  
 **Triggers:** The Team Queue grows; the Executor's scaler may spawn a Run.  
