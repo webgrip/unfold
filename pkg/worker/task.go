@@ -62,6 +62,14 @@ func ComposePrompt(spec harness.TaskSpec, writes bool, priorPR string) string {
   and lines, state the consequence, and say what you would change. Another
   agent acts on this text without ever seeing your session, and a human reads
   it on the pull request.
+- Include a "verdict" alongside it, one of:
+      "approve"          the work is done; no further changes are needed
+      "request_changes"  something must change before this can be merged
+  A request for changes sends the work back to the writer ONE more time, with
+  your findings attached, up to a configured limit. Use it when you found
+  something that must change — not for preferences, and not to be thorough.
+  If you are unsure, omit the verdict: the work then goes to a human as it
+  stands.
 - If the work cannot be reviewed at all, explain why on stderr and exit
   non-zero.
 `, spec.Branch)

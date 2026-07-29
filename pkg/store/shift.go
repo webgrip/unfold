@@ -487,6 +487,10 @@ type RunReport struct {
 	Summary  string
 	Findings string
 	Links    []string
+	// Verdict is a reading Run's approve/request_changes (ADR-0017). Stored
+	// blank for writers by ReportOutcome, so a writer cannot grade its own
+	// work even if its adapter sends one.
+	Verdict string
 }
 
 // RoundReports returns every finished Run's report for a Shift, in Round then
@@ -494,7 +498,7 @@ type RunReport struct {
 // the one being claimed, publication wants the round that just completed.
 func (s *Store) RoundReports(ctx context.Context, shiftID int64) ([]RunReport, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT role, round, writes, COALESCE(outcome, ''), summary, findings, links
+		SELECT role, round, writes, COALESCE(outcome, ''), summary, findings, links, verdict
 		FROM agent_runs
 		WHERE shift_id = $1 AND state = 'finished'
 		ORDER BY round, id`, shiftID)
@@ -505,7 +509,7 @@ func (s *Store) RoundReports(ctx context.Context, shiftID int64) ([]RunReport, e
 	var out []RunReport
 	for rows.Next() {
 		var r RunReport
-		if err := rows.Scan(&r.Role, &r.Round, &r.Writes, &r.Outcome, &r.Summary, &r.Findings, &r.Links); err != nil {
+		if err := rows.Scan(&r.Role, &r.Round, &r.Writes, &r.Outcome, &r.Summary, &r.Findings, &r.Links, &r.Verdict); err != nil {
 			return nil, err
 		}
 		out = append(out, r)

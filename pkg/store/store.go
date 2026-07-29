@@ -403,11 +403,12 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 	if err := tx.QueryRow(ctx, `
 		UPDATE agent_runs
 		SET state = 'finished', finished_at = now(), outcome = $1, summary = $2,
-		    stuck_reason = $3, links = $4, usage = $5, failure_reason = $6, findings = $7
-		WHERE run_token = $8 AND state = 'running'
+		    stuck_reason = $3, links = $4, usage = $5, failure_reason = $6, findings = $7,
+		    verdict = CASE WHEN writes THEN '' ELSE $8 END
+		WHERE run_token = $9 AND state = 'running'
 		RETURNING work_item_id, team, shift_id`,
 		string(rep.Outcome), rep.Summary, rep.StuckReason, rep.Links, rep.Usage,
-		rep.FailureReason, rep.Findings, runToken).Scan(&id, &team, &shiftID); err != nil {
+		rep.FailureReason, rep.Findings, rep.Verdict, runToken).Scan(&id, &team, &shiftID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return OutcomeResult{}, ErrUnknownRun
 		}
@@ -465,6 +466,7 @@ type harnessReport struct {
 	Usage         json.RawMessage
 	FailureReason *string // nil = unclassified; set for failed outcomes (infra_llm, lease_lost, etc.)
 	Findings      string  // a reading Run's blackboard contribution (ADR-0011); empty for most writers
+	Verdict       string  // a reading Run's approve/request_changes (ADR-0017); empty = no opinion
 }
 
 // Report is the store-level outcome input. usage and failureReason may be nil.
@@ -475,6 +477,12 @@ func Report(outcome work.Outcome, summary, stuckReason string, links []string, u
 // WithFindings attaches a reading Run's findings to the report.
 func (r harnessReport) WithFindings(findings string) harnessReport {
 	r.Findings = findings
+	return r
+}
+
+// WithVerdict attaches a reading Run's verdict (ADR-0017).
+func (r harnessReport) WithVerdict(verdict string) harnessReport {
+	r.Verdict = verdict
 	return r
 }
 

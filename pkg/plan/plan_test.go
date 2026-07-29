@@ -143,3 +143,41 @@ func TestRoleCapUSD(t *testing.T) {
 		t.Errorf("roles = %+v", roles)
 	}
 }
+
+// --- the review loop's configuration (ADR-0017) -----------------------------
+
+func TestParse_MaxFixRoundsNeedsAWriterToReopen(t *testing.T) {
+	_, err := Parse(`{"t": {"pool": "6", "maxFixRounds": 2, "rounds": [
+		{"roles": [{"name": "analyst", "cap": "0.5"}, {"name": "tests", "cap": "0.5"}]}
+	]}}`)
+	if err == nil {
+		t.Fatal("a reader-only plan accepted fix rounds it can never run")
+	}
+	if !strings.Contains(err.Error(), "no writing round") {
+		t.Errorf("error does not explain the problem: %v", err)
+	}
+	// Zero fix rounds on a reader-only plan is fine — the loop is off.
+	if _, err := Parse(`{"t": {"pool": "6", "rounds": [
+		{"roles": [{"name": "analyst", "cap": "0.5"}, {"name": "tests", "cap": "0.5"}]}
+	]}}`); err != nil {
+		t.Errorf("reader-only plan without fix rounds rejected: %v", err)
+	}
+}
+
+func TestWriterRound_FindsTheLastWriter(t *testing.T) {
+	p, err := Parse(`{"t": {"pool": "6", "maxFixRounds": 1, "rounds": [
+		{"roles": [{"name": "analyst", "cap": "0.5"}, {"name": "tests", "cap": "0.5"}]},
+		{"roles": [{"name": "builder", "writes": true, "cap": "3"}]},
+		{"roles": [{"name": "reviewer", "cap": "0.75"}]}
+	]}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	idx, ok := p["t"].WriterRound()
+	if !ok || idx != 1 {
+		t.Errorf("WriterRound = (%d, %v), want (1, true)", idx, ok)
+	}
+	if p["t"].MaxFixRounds != 1 {
+		t.Errorf("maxFixRounds = %d, want 1", p["t"].MaxFixRounds)
+	}
+}

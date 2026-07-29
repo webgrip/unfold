@@ -167,11 +167,17 @@ func (e *Engine) evaluate(ctx context.Context, si store.ShiftInfo) error {
 
 	// The plan's next Round, or the end of the plan. si.Round counts opened
 	// Rounds, so it doubles as the index of the next one.
-	if si.Round >= len(tp.Rounds) {
-		return e.close(ctx, si, "plan_exhausted",
-			"plan complete; a person is asked to review and merge", synthesized, reports)
+	var next plan.Round
+	if si.Round < len(tp.Rounds) {
+		next = tp.Rounds[si.Round]
+	} else {
+		// Past the plan: the review loop decides whether anything more runs.
+		loopRound, reason, ok := e.nextFixRound(ctx, si, tp, reports)
+		if !ok {
+			return e.close(ctx, si, reason, closeMessage(reason), synthesized, reports)
+		}
+		next = loopRound
 	}
-	next := tp.Rounds[si.Round]
 	round, err := e.Store.OpenRound(ctx, si.ID, si.Round, storeRoles(next))
 	if err != nil {
 		// The CAS lost to the other evaluator, or the Shift closed under us.

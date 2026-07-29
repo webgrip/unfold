@@ -330,6 +330,12 @@ func validateOutcomeReport(req harness.OutcomeReport) error {
 	if req.FailureReason != "" && !work.FailureReason(req.FailureReason).Valid() {
 		return errors.New("failureReason must be a known failure-reason enum value")
 	}
+	// The verdict is the one field by which an agent influences what runs
+	// next (ADR-0017), so the enum is closed at the boundary for the same
+	// reason failureReason is: a value nothing checks is documentation.
+	if !harness.ValidVerdict(req.Verdict) {
+		return errors.New("verdict must be approve or request_changes")
+	}
 	return nil
 }
 
@@ -364,7 +370,7 @@ func (s *Server) handleOutcome(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := s.Store.ReportOutcome(r.Context(), r.PathValue("token"),
 		store.Report(req.Outcome, req.Summary, req.StuckReason, req.Links, usage, failureReason).
-			WithFindings(req.Findings))
+			WithFindings(req.Findings).WithVerdict(req.Verdict))
 	if err != nil {
 		if errors.Is(err, store.ErrUnknownRun) {
 			runError(w, err)

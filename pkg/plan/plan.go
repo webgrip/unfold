@@ -45,6 +45,28 @@ type TeamPlan struct {
 	// env-budget behaviour of a plan-less team.
 	Pool   money   `json:"pool"`
 	Rounds []Round `json:"rounds"`
+	// MaxFixRounds bounds the review loop: how many times a reviewer's
+	// request_changes may re-open the plan's own writing Round (ADR-0017).
+	// Zero disables the loop, and the plan simply runs to exhaustion.
+	//
+	// It is the SECOND bound, never the first — the Shift pool is checked
+	// before it, because money is the limit that cannot be argued with.
+	MaxFixRounds int `json:"maxFixRounds"`
+}
+
+// WriterRound returns the index of the plan's last writing Round — the one a
+// request_changes verdict re-opens. The rule is positional by design: the
+// verdict re-runs work the operator configured and cannot author its own
+// (ADR-0017).
+func (p TeamPlan) WriterRound() (int, bool) {
+	for i := len(p.Rounds) - 1; i >= 0; i-- {
+		for _, r := range p.Rounds[i].Roles {
+			if r.Writes {
+				return i, true
+			}
+		}
+	}
+	return 0, false
 }
 
 // Plans maps team name to plan. A team absent here is plan-less and follows
@@ -99,6 +121,17 @@ func validate(tp TeamPlan) error {
 	}
 	if len(tp.Rounds) == 0 {
 		return fmt.Errorf("a plan needs at least one round")
+	}
+	if tp.MaxFixRounds < 0 {
+		return fmt.Errorf("maxFixRounds must not be negative, got %d", tp.MaxFixRounds)
+	}
+	// Caught at boot rather than at the moment a reviewer asks for changes:
+	// a plan that configures fix rounds with nothing to re-run would look
+	// fine for hours and then quietly ignore its first real verdict.
+	if tp.MaxFixRounds > 0 {
+		if _, ok := tp.WriterRound(); !ok {
+			return fmt.Errorf("maxFixRounds is %d but the plan has no writing round to re-open (ADR-0017)", tp.MaxFixRounds)
+		}
 	}
 	// A role name is one workload; its writes flag must not flip between
 	// rounds, or the same pod shape would need to be both reader and writer.

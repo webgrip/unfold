@@ -109,13 +109,17 @@ func TestOutcomeReport_MatchesSchema(t *testing.T) {
 		t.Errorf("minimal OutcomeReport does not validate: %v", err)
 	}
 
-	// A reading Run's blackboard contribution (ADR-0011).
-	reader := OutcomeReport{
-		Outcome: work.OutcomeNoChangeNeeded, Summary: "reviewed",
-		Findings: "## security\n- the token is logged at debug",
-	}
-	if err := validate(t, sch, reader); err != nil {
-		t.Errorf("OutcomeReport with findings does not validate: %v", err)
+	// A reading Run's blackboard contribution (ADR-0011) and its verdict
+	// (ADR-0017) — the one field by which an agent influences what runs next.
+	for _, verdict := range []string{VerdictApprove, VerdictRequestChanges} {
+		reader := OutcomeReport{
+			Outcome: work.OutcomeNoChangeNeeded, Summary: "reviewed",
+			Findings: "## security\n- the token is logged at debug",
+			Verdict:  verdict,
+		}
+		if err := validate(t, sch, reader); err != nil {
+			t.Errorf("OutcomeReport with verdict %q does not validate: %v", verdict, err)
+		}
 	}
 
 	stuckOK := OutcomeReport{Outcome: work.OutcomeStuck, Summary: "blocked", StuckReason: "gate failed"}
@@ -155,6 +159,14 @@ func TestOutcomeReport_SchemaRejectsInvalid(t *testing.T) {
 		"outcome": "failed", "summary": "x", "failureReason": "vibes",
 	}); err == nil {
 		t.Error("unknown failureReason enum validated")
+	}
+
+	// An invented verdict. The enum is closed precisely because this field
+	// decides whether more agent Runs happen (ADR-0017).
+	if err := validate(t, sch, map[string]any{
+		"outcome": "no_change_needed", "summary": "x", "verdict": "ship_it",
+	}); err == nil {
+		t.Error("unknown verdict enum validated")
 	}
 
 	// Zero-value report ("no structured signal") is an internal sentinel,
