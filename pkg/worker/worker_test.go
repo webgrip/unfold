@@ -435,7 +435,7 @@ func specFor(cfg Config, item work.WorkItem, branch, trace string) harness.TaskS
 }
 
 func TestComposePrompt_DefaultBaseIsMain(t *testing.T) {
-	task := ComposePrompt(specFor(testCfg(""), testItem(), "agent/vik-585", "ploeg-abc123def456"))
+	task := ComposePrompt(specFor(testCfg(""), testItem(), "agent/vik-585", "ploeg-abc123def456"), true, "")
 	for _, want := range []string{
 		"created from main",
 		"NEVER commit to main",
@@ -448,7 +448,7 @@ func TestComposePrompt_DefaultBaseIsMain(t *testing.T) {
 }
 
 func TestComposePrompt_ConfiguredBase(t *testing.T) {
-	task := ComposePrompt(specFor(testCfg("development"), testItem(), "agent/vik-585", "ploeg-abc123def456"))
+	task := ComposePrompt(specFor(testCfg("development"), testItem(), "agent/vik-585", "ploeg-abc123def456"), true, "")
 	for _, want := range []string{
 		"created from development",
 		"NEVER commit to development",
