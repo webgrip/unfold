@@ -235,7 +235,7 @@ A team = a Helm values entry: name, model, per-run budget,
 `executor.harness` defaults — the single axis of variation for swapping
 harness and image per team.
 
-**The repository is not a team property** (R11, [ADR-0001](adr/adr-0001-work-target-is-a-work-item-attribute.md)):
+**The repository is not a team property** (R11, [ADR-0014](adrs/0014-work-target-is-a-work-item-attribute.md)):
 it belongs to the work item, resolved at ingest from the item's tracker scope
 via ploegd's `PLOEG_TARGET_MAP` and delivered on the claim. A team may still
 pin `repoOwner`/`repoName`/`baseBranch` as a *fallback* while the rollout
@@ -314,7 +314,7 @@ Aspirational ≠ implemented:
     (Task Spec entity, same file), which states no derivation. Cost: onboarding
     a repo needs a new team + KEDA ScaledJob + tracker bot user even when model,
     budget and harness are identical. Decision to decouple:
-    [adr/adr-0001-work-target-is-a-work-item-attribute.md](adr/adr-0001-work-target-is-a-work-item-attribute.md).
+    [adrs/0014-work-target-is-a-work-item-attribute.md](adrs/0014-work-target-is-a-work-item-attribute.md).
     **Partly closed 2026-07-29**: a Work Item now carries its own Target
     (`pkg/work.Target`, migration 0007), the claim delivers it, the worker
     prefers it (`pkg/worker/target.go`), and the chart no longer *requires* a
@@ -330,7 +330,7 @@ Aspirational ≠ implemented:
     provider SPI, and the Vikunja adapter produces it from `PLOEG_TEAM_MAP` —
     the exact shape R7 forbids ("core semantics must never encode a
     provider-specific workaround"). Decision:
-    [adr/adr-0002-routing-is-core-policy-over-provider-opaque-scopes.md](adr/adr-0002-routing-is-core-policy-over-provider-opaque-scopes.md).
+    [adrs/0015-routing-is-core-policy-over-provider-opaque-scopes.md](adrs/0015-routing-is-core-policy-over-provider-opaque-scopes.md).
 14. **The native routing scope is discarded at the parse boundary**:
     `pkg/provider/vikunja/vikunja.go:38-51` unmarshals only `event_name`,
     `data.task.{id,title,description,priority}` and `data.assignee.username`.
@@ -349,7 +349,7 @@ Aspirational ≠ implemented:
     `provider.ForgeProvider` (`pkg/provider/provider.go:47-70`) has **zero**
     implementations while `pkg/worker/forge.go:22-55` hardcodes the Forgejo REST
     dialect. Decision:
-    [adr/adr-0003-forge-registry-and-per-run-repo-scoped-credentials.md](adr/adr-0003-forge-registry-and-per-run-repo-scoped-credentials.md).
+    [adrs/0016-forge-registry-and-per-run-repo-scoped-credentials.md](adrs/0016-forge-registry-and-per-run-repo-scoped-credentials.md).
 16. **`agent/vik-<id>` embeds a vendor token and is not unique per target**:
     `pkg/worker/worker.go:81` builds the branch as `"agent/vik-" +
     item.ExternalID`. `vik` is a Vikunja token sitting in core semantics (R7),
@@ -557,4 +557,4 @@ erDiagram
 - Runner image: `webgrip/infrastructure` → `ops/docker/agent-runner/`
 - Design intent: [design.md](design.md) · domain language:
   [domain/](domain/) · roadmap: [backlog.md](backlog.md) · decision records:
-  [adr/](adr/index.md)
+  [adrs/](adrs/README.md)

@@ -87,6 +87,9 @@ fails otherwise.
 | [0011](0011-the-pull-request-is-the-blackboard.md) | The pull request is the blackboard; Ploeg is only the transport | accepted | 2026-07-29 |
 | [0012](0012-two-level-budgets-authorized-and-settled.md) | Budgets are two-level: a Shift pool, authorized and settled per Run | accepted | 2026-07-29 |
 | [0013](0013-push-rights-are-minted-per-run.md) | Push rights are minted per Run and die with the Lease; readers get none | accepted | 2026-07-29 |
+| [0014](0014-work-target-is-a-work-item-attribute.md) | Bind the Work Target to the Work Item, not to the Team | accepted | 2026-07-29 |
+| [0015](0015-routing-is-core-policy-over-provider-opaque-scopes.md) | Route work in the core over provider-opaque Scopes | proposed | 2026-07-29 |
+| [0016](0016-forge-registry-and-per-run-repo-scoped-credentials.md) | Resolve forges through a registry and mint forge credentials per Run | proposed | 2026-07-29 |
 
 ## Review calendar
 

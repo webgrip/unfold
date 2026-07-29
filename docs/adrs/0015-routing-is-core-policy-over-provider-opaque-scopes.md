@@ -1,6 +1,9 @@
 ---
-status: "proposed"
-date: "2026-07-29"
+status: proposed
+date: 2026-07-29
+decision-makers: Ryan Grippeling
+supersedes: none
+review-by: none
 ---
 
 # Route work in the core over provider-opaque Scopes
@@ -23,7 +26,7 @@ Vikunja does send `project_id`; `encoding/json` discards it silently (zero
 — the trap") every team's webhook is registered on **Ploeg Test (project 11)**,
 so all teams ingest one project and the repository is chosen only by which
 persona happens to be assigned. With the Work Target now an attribute of the
-Work Item (ADR-0001), something has to resolve it — this ADR decides what, and
+Work Item (ADR-0014), something has to resolve it — this ADR decides what, and
 where. Scope: `pkg/provider`, the ingest path in `pkg/httpapi`, and the routing
 configuration rendered into ploegd.
 
@@ -55,7 +58,7 @@ container the event arrived in (Vikunja: the `project_id` currently dropped at
 `vikunja.go:38-51`; a forge provider later: the repository id). The core holds
 an **ordered, first-match-wins rule table** mapping `(provider, scope, actor,
 hint)` → `(team, target)`, evaluated once at ingest, with the resolved target
-pinned on the row per ADR-0001.
+pinned on the row per ADR-0014.
 
 `provider.TrackerEvent.Team` is **removed**. This is an SPI-breaking change and
 is treated as one: it owes backlog #34 a compatibility-window entry naming the
@@ -161,5 +164,5 @@ the twin of the `PLOEG_DEFAULT_TEAM` footgun recorded in #103.
   until it lands end to end; on `development` at this date `TrackerEvent.Team`
   is still present at `pkg/provider/provider.go:27`, `PLOEG_TEAM_MAP` is still
   the live mechanism, and no rule table exists.
-* Refines [ADR-0001](adr-0001-work-target-is-a-work-item-attribute.md) — it
-  supplies the resolution ADR-0001 pins on the row.
+* Refines [ADR-0014](0014-work-target-is-a-work-item-attribute.md) — it
+  supplies the resolution ADR-0014 pins on the row.
