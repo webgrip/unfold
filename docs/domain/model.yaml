@@ -58,12 +58,13 @@ terms:
 
   - name: Lease
     definition: >
-      The exclusive right to WRITE a Shift's branch, unique per Shift and
-      renewed on a fixed interval by the holding Run. It is a capability rather
-      than a note: the holder's push credential is minted with it and revoked
-      when it lapses, so holding a Lease and being able to push are one fact.
-      Only a writing Run takes one — reading Runs take none, which is what lets
-      any number of them run at once.
+      The exclusive right to WRITE a Shift's branch, unique per Shift. It is a
+      capability rather than a note: the holder's push credential is minted with
+      it and revoked when it lapses, so holding a Lease and being able to push
+      are one fact. Only a writing Run takes one — reading Runs take none, which
+      is what lets any number of them run at once. A Lease governs exclusion
+      only; liveness belongs to the Run, because a Run is what dies and a reader
+      has no Lease to expire.
     context: Dispatch
     avoid: [claim (as a noun), lock]
     see_also: [Shift, Run, Push Credential]
@@ -417,6 +418,21 @@ entities:
       - name: job_name
         type: string
         description: The Kubernetes Job realizing this Run.
+      - name: round
+        type: int
+        description: The Round this Run belongs to; Runs sharing a Round never observe each other.
+      - name: writes
+        type: boolean
+        description: A writer takes the Shift's Lease and runs alone; a reader takes none and runs beside others.
+      - name: state
+        type: "enum(pending, running, finished)"
+        description: A Round materialises its Runs as pending rows; pending rows are also the scale signal.
+      - name: authorized
+        type: decimal
+        description: The budget hold, summed over running Runs to give the Shift's reserved figure (ADR-0012).
+      - name: expires_at
+        type: timestamp
+        description: This Run's own liveness deadline. Not the Lease's — a reader has no Lease to expire.
       - name: outcome
         type: "enum(pr_opened, pr_updated, issue_updated, follow_up_created, stuck, failed, no_change_needed)"
         description: Terminal result; failed when the container exits without a report.

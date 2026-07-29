@@ -119,21 +119,48 @@ deliberate: *ploeg* is Dutch for a crew, and *ploegendienst* is shift work.
 
 ### Confirmation
 
-Enforced structurally rather than by review:
+Enforced structurally rather than by review. All in `pkg/store/shift_test.go`,
+gated by `go test ./pkg/store/` in `.forgejo/workflows/on_pull_request.yml`:
 
-* `leases` becomes unique per **Shift**, not per Work Item, and only writing
-  Runs insert into it. A reader that acquires a lease is a schema violation,
-  not a code-review miss.
-* `pkg/store` gains `TestReadersRunConcurrentlyWithoutLease` — N reader Runs in
-  one round, all succeeding, with `SELECT count(*) FROM leases` remaining ≤ 1.
-* `TestOneWriterPerRound` — two writers offered the same round; exactly one
-  acquires, matching the existing single-claimant proof.
-* `TestReportOutcome_AfterSweep_IsNoop` extends to Shifts: reporting on a swept
-  run must not advance the round.
-* The gate is `go test ./pkg/store/` in `.forgejo/workflows/on_pull_request.yml`.
+* Only writing Runs insert into `leases`, which stays unique per Work Item —
+  and because a live Shift is unique per Work Item, one-writer-per-item and
+  one-writer-per-Shift are the same statement. The existing R1 guarantee is
+  therefore untouched rather than replaced.
+* `TestReadersRunConcurrentlyWithoutLease` — a whole fan-out of readers claims
+  successfully with `SELECT count(*) FROM leases` remaining zero. If this fails,
+  simultaneity is gone and the design has collapsed back into the sequential one
+  it replaced.
+* `TestWriterTakesTheLease` — a writing Round takes exactly one.
+* `TestOpenRoundRefusesMixedRounds` — a writer beside readers, two writers, and
+  an empty Round are all refused at the source rather than trusted to callers.
+* `TestClaimRoleAgreesWithPendingRuns` — the drift guard described below.
+* `TestSweptRunCannotReport` — the advance-once proof.
+* `TestRoundCompleteTracksItsRuns` — the signal that moves a Shift forward.
 
-These tests land with the implementing change; this record is the reason they
-exist, and a Shift implementation without them fails review on this ADR.
+### What the implementation changed about this record
+
+Two things were wrong on paper and only appeared on contact with the code. Both
+are corrected above and in `migrations/0007_shifts.sql`.
+
+**The advance-once CAS could not stay on the Lease.** `ReportOutcome` opened
+with `DELETE FROM leases WHERE run_token = $1 RETURNING` — the statement only
+one transaction wins. Readers hold no Lease, so every reader's report would
+have failed with `ErrUnknownRun`, and the reader population this record exists
+to enable could never have reported an outcome at all. The CAS is now the Run's
+own `running -> finished` transition, which works for both kinds of Run.
+
+**Liveness could not stay on the Lease either.** A reader whose pod is
+OOM-killed has no lease to expire, so it would sit `running` forever, holding
+budget nothing releases and leaving its Round unable to complete. Every Run now
+carries its own deadline, swept by `ExpireRuns`. This is the split this record
+already argued for — exclusion on the Lease, liveness and accounting on the Run
+— simply followed through.
+
+**A Round materialises its Runs.** Opening a Round inserts one `pending`
+`agent_runs` row per Role; claiming flips it to `running`. This was not in the
+original decision and improves on it: the claim predicate and the KEDA scaler
+query become the same statement, so the drift hazard named in the drivers above
+is dissolved rather than guarded against.
 
 ## Pros and Cons of the Options
 

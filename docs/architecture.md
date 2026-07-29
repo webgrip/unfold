@@ -276,7 +276,187 @@ and the implementation (verified 2026-07-27). Aspirational ≠ implemented:
 11. **No metrics**: no OTel/Prometheus in Go; observability is structured logs
     plus the `key_alias` join in Grafana (external dashboards in homelab-cluster).
 
-## 10. Pointers
+## 10. Shifts: many personas on one item
+
+> **Build status.** This documents the architecture decided in
+> [ADR-0010](adrs/0010-shift-owns-the-item-lease-owns-the-branch.md),
+> [0011](adrs/0011-the-pull-request-is-the-blackboard.md),
+> [0012](adrs/0012-two-level-budgets-authorized-and-settled.md) and
+> [0013](adrs/0013-push-rights-are-minted-per-run.md). **The store layer is
+> built and tested; nothing drives it yet** — see [§10.6](#106-build-status).
+> Everything in §§1–9 above is what actually runs today.
+
+### 10.1 The three jobs a Lease used to do
+
+With one pod per item, mutual exclusion, liveness and accounting were
+indistinguishable — one `leases` row did all three. Several pods on one item
+pulls them apart, and each attaches to a different lifetime.
+
+```mermaid
+flowchart TB
+    subgraph shift["Shift — one Team on one Work Item"]
+        direction TB
+        S["owns: branch · budget pool · round counter · roster"]
+        subgraph r1["Round 1 — readers, all at once"]
+            A1[security]:::reader
+            A2[CFO]:::reader
+            A3[philosopher]:::reader
+        end
+        subgraph r2["Round 2 — one writer, alone"]
+            B1[builder]:::writer
+        end
+        L[["Lease — the RIGHT TO WRITE the branch<br/>held only by a writer"]]
+    end
+    B1 --- L
+    classDef reader fill:#e8f4ff,stroke:#4a90d9
+    classDef writer fill:#ffeaea,stroke:#d94a4a
+```
+
+| Concern | Attaches to | Why there |
+| --- | --- | --- |
+| "This Team is working this item" — branch, budget, roster, rounds | **Shift** | Spans every Run on the item |
+| Exclusive right to **write** the branch | **Lease** | Only one writer may push at a time |
+| Liveness, and the credential | **Run** | A Run is what dies, so a Run is what must expire |
+
+The contended resource was never the ticket — it was the **branch**. Any number
+of agents can read a diff at once; they cannot both push. And because most
+personas only read and opine, exclusion is needed by a minority of Runs.
+
+### 10.2 Rounds
+
+A Round is a set of Runs that start together. Runs in one Round never observe
+each other; every later Round sees everything earlier Rounds produced.
+
+**A Round is either a fan-out of readers or exactly one writer, never both.**
+That single rule is the whole of the concurrency control — readers hold no
+Lease, so they have nothing to coordinate over. `OpenRound` refuses a malformed
+Round rather than trusting callers with the rule everything rests on.
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending: OpenRound inserts one row per Role
+    pending --> running: ClaimRole — budget authorized, credential minted
+    running --> finished: ReportOutcome
+    running --> finished: ExpireRuns — deadline lapsed
+    finished --> [*]
+    note right of pending
+      pending rows ARE the KEDA scale signal:
+      the scaler query and the claim predicate
+      are one statement, so they cannot drift
+    end note
+```
+
+### 10.3 The full loop
+
+Multiple agents make a change together, a review is kicked off, and a human is
+pulled in to merge.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant V as Vikunja
+    participant P as ploegd
+    participant DB as Postgres
+    participant R as reader pods (N)
+    participant W as writer pod
+    participant F as Forgejo
+
+    V->>P: ticket assigned to team
+    P->>DB: OpenShift — branch, budget pool
+
+    rect rgb(232,244,255)
+    note over P,R: Round 1 — readers, concurrently, no Lease
+    P->>DB: OpenRound [security, CFO, architect]
+    R->>DB: ClaimRole × N, each authorized min(cap, remaining)
+    R->>F: read the diff
+    R->>DB: ReportOutcome + findings
+    P->>F: publish findings as PR comments (the blackboard)
+    end
+
+    rect rgb(255,234,234)
+    note over P,W: Round 2 — one writer, holds the Lease
+    P->>DB: OpenRound [builder]
+    W->>DB: ClaimRole — takes Lease and push credential
+    W->>F: push branch, open PR
+    W->>DB: ReportOutcome pr_opened
+    end
+
+    rect rgb(232,244,255)
+    note over P,R: Round 3 — review, readers again
+    P->>DB: OpenRound [reviewer, security]
+    R->>DB: ReportOutcome — approved or changes requested
+    end
+
+    P->>DB: no Round left → needs_human
+    P->>V: comment + status — the human is pulled in
+    Note over V,F: a person reads the PR and merges
+```
+
+### 10.4 Money
+
+Two limits of different kinds. A per-Run cap stops one agent looping; the Shift
+pool stops the *item* costing more than it is worth. They do not sum.
+
+```mermaid
+flowchart LR
+    POOL["Shift pool<br/>budget − spent − reserved"] -->|"authorize<br/>min(roleCap, remaining)"| RUN[Run]
+    RUN -->|"minted for exactly that amount"| KEY[LiteLLM per-run key]
+    KEY -->|"the agent cannot exceed it"| LLM[completions]
+    RUN -->|ReportOutcome| SETTLE["spent += actual"]
+    SETTLE --> POOL
+```
+
+`reserved` is **summed over running Runs**, never stored as a counter. A Run
+that stops running stops holding money, so a missed release is impossible
+rather than unlikely, and unspent allowance returns to the pool with nobody
+having to put it back. Below a floor no Run is spawned at all — a gate outcome,
+not a dispatched-then-failed Run.
+
+### 10.5 Data model
+
+```mermaid
+erDiagram
+    WORK_ITEMS ||--o| SHIFTS : "one live"
+    SHIFTS ||--o{ AGENT_RUNS : roster
+    SHIFTS ||--o| LEASES : "at most one writer"
+    WORK_ITEMS ||--o{ CHECKPOINTS : progress
+
+    SHIFTS {
+        bigint work_item_id "unique while open"
+        text branch
+        int round
+        numeric budget
+        numeric spent "reserved is DERIVED"
+    }
+    AGENT_RUNS {
+        text role
+        int round
+        bool writes "writer or reader"
+        text state "pending|running|finished"
+        numeric authorized "the budget hold"
+        timestamptz expires_at "per-Run liveness"
+    }
+    LEASES {
+        bigint work_item_id PK
+        bigint shift_id
+        text forge_token_id "revoked when it lapses"
+    }
+```
+
+### 10.6 Build status
+
+| Component | State |
+| --- | --- |
+| Migration, Shift/Round/Run store, budgets, settlement, sweeper | **built** — 13 tests in `pkg/store/shift_test.go` |
+| Harness plurality — ACP: Claude, Copilot, Codex, Cursor, opencode, Gemini… | **built** — `pkg/harness/adapters/acp` |
+| ploegd orchestration: opening Shifts and Rounds, closing them | **not built** — nothing drives the diagrams above |
+| Role-aware `TaskSpec` and prompt composition | **not built** |
+| Forgejo `ForgeProvider` — PR comments, i.e. the blackboard | **not built** — interface defined, zero implementations |
+| Vikunja write-backs — pulling the human in | **not built** — `Comment`/`SetStatus` are logging no-ops |
+| Per-Run push credentials ([ADR-0013](adrs/0013-push-rights-are-minted-per-run.md)) | **not built** — every pod still shares one static token |
+| Role-partitioned Helm workloads | **not built** |
+
+## 11. Pointers
 
 - Dispatch plane code: [cmd/ploegd](../cmd/ploegd) ·
   [cmd/ploeg-worker](../cmd/ploeg-worker) · [pkg/worker](../pkg/worker)

@@ -60,29 +60,40 @@ pool boundary.
 | Per-Run cap | one agent looping | LiteLLM — the minted key stops working |
 | Shift pool | the item costing more than it is worth | Ploeg, **before** spawning |
 
-Authorization is a single conditional write, so concurrent Runs serialise on the
-row rather than racing:
+**A hold lives on the Run that holds it, not in a counter on the Shift.**
+`reserved` is summed over running Runs:
 
 ```sql
-UPDATE shifts
-SET reserved = reserved + $2
-WHERE id = $1 AND budget - spent - reserved >= $2
-RETURNING budget - spent - reserved
+-- authorize, inside the claim transaction
+SELECT budget, spent FROM shifts WHERE id = $1 AND closed_at IS NULL FOR UPDATE;
+SELECT COALESCE(SUM(authorized), 0) FROM agent_runs
+ WHERE shift_id = $1 AND state = 'running';
+-- authorized := min(roleCap, budget - spent - reserved); refuse below the floor
+UPDATE agent_runs SET state = 'running', authorized = $2 WHERE id = $1;
 ```
 
-Zero rows updated means there was no room: do not spawn, do not mint, do not
-burn an attempt. Settlement releases the hold and records the truth:
+Locking the Shift row is what serialises concurrent claims, so five readers
+starting together cannot each see the full pool. It is the same discipline the
+lease already relies on — one row, one winner — and introduces no coordinator.
+
+Settlement records what was actually spent, and that is all:
 
 ```sql
-UPDATE shifts
-SET reserved = reserved - $2,
-    spent    = spent + $3
-WHERE id = $1
+UPDATE shifts SET spent = spent + $2 WHERE id = $1
 ```
 
-`remaining = budget - spent - reserved`. This is the same compare-and-swap
-discipline the lease already relies on; no locks and no coordinator are
-introduced.
+**No release statement exists, because none is needed.** A Run that stops
+running stops appearing in the sum, so the hold releases itself the moment the
+Run reaches any terminal state — reported, swept, or expired. A missed release
+is impossible rather than merely unlikely, and unspent allowance returns to the
+pool with nobody having to remember to put it back.
+
+This replaces a `shifts.reserved` counter that an earlier draft of this record
+specified. A counter can disagree with what is actually in flight; a sum
+derived from the Runs cannot. It is also one column fewer.
+
+`remaining = budget - spent - reserved` still holds; `reserved` is simply
+computed rather than stored.
 
 Two rules complete it:
 
@@ -120,16 +131,27 @@ timer, no second reaper.
 
 ### Confirmation
 
-* `pkg/store` gains `TestAuthorizeIsAtomicUnderConcurrency` — N goroutines
-  authorizing against a pool that fits fewer than N; exactly the affordable
-  number succeed and `spent + reserved` never exceeds `budget`.
-* `TestSweeperReleasesReservation` — expire a lease mid-Run and assert
-  `reserved` returns to zero. This is the R2 proof for money.
-* `TestExhaustedPoolIsNeedsHumanWithReason` — R4 compliance for the exhaustion
-  path.
-* `TestMintedKeyIsCappedByPoolRemaining` — the `min(roleCap, poolRemaining)`
-  rule, which is what prevents a mid-run overrun.
-* Gate: `go test ./pkg/store/` in `.forgejo/workflows/on_pull_request.yml`.
+All in `pkg/store/shift_test.go`, gated by `go test ./pkg/store/` in
+`.forgejo/workflows/on_pull_request.yml`:
+
+* `TestAuthorizeIsAtomicUnderConcurrency` — five goroutines authorize against a
+  pool that funds two; exactly two succeed, three get `ErrBudgetExhausted`, and
+  `spent + reserved` never exceeds `budget`.
+* `TestSettlementReleasesTheHoldAndRecordsSpend` — reserved returns to zero and
+  unspent allowance returns to the pool.
+* `TestSweptRunCannotReport` — sweep a Run mid-flight and assert both that it
+  cannot report afterwards and that `reserved` is zero. The R2 proof for money.
+* `TestAuthorizationIsCappedByPoolRemaining` — the `min(roleCap, remaining)`
+  rule that prevents a mid-run overrun.
+* `TestExhaustedPoolRefusesToSpawn` — nothing is spawned below the floor, and
+  the slot survives so it is still claimable once topped up.
+* `TestZeroBudgetMeansUnmetered` — a zero budget is "not metered", the shape
+  every team has today; reading it as "exhausted" would stop all work the day
+  Shifts are enabled.
+
+Still owed by the orchestration change, not by this one: the `needs_human`
+transition with its R4 reason when a pool is exhausted. `ErrBudgetExhausted` is
+raised at the gate today; nothing yet turns it into an item state.
 
 ## Pros and Cons of the Options
 

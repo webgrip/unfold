@@ -68,7 +68,7 @@ The thin wrapper that makes one Harness satisfy the harness contract: accept a T
 ## Lease
 *Context: Dispatch*
 
-The exclusive right to WRITE a Shift's branch, unique per Shift and renewed on a fixed interval by the holding Run. It is a capability rather than a note: the holder's push credential is minted with it and revoked when it lapses, so holding a Lease and being able to push are one fact. Only a writing Run takes one — reading Runs take none, which is what lets any number of them run at once.
+The exclusive right to WRITE a Shift's branch, unique per Shift. It is a capability rather than a note: the holder's push credential is minted with it and revoked when it lapses, so holding a Lease and being able to push are one fact. Only a writing Run takes one — reading Runs take none, which is what lets any number of them run at once. A Lease governs exclusion only; liveness belongs to the Run, because a Run is what dies and a reader has no Lease to expire.
 
 **Do not use:** claim (as a noun), lock  
 **See also:** [Shift](#shift), [Run](#run), [Push Credential](#push-credential)  

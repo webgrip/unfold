@@ -88,6 +88,11 @@ One execution of one Role, realized as one Kubernetes Job.
 | `team` | `string` | yes |  |
 | `role` | `string` | yes | The Role this Run executes. |
 | `job_name` | `string` |  | The Kubernetes Job realizing this Run. |
+| `round` | `int` |  | The Round this Run belongs to; Runs sharing a Round never observe each other. |
+| `writes` | `boolean` |  | A writer takes the Shift's Lease and runs alone; a reader takes none and runs beside others. |
+| `state` | `enum(pending, running, finished)` |  | A Round materialises its Runs as pending rows; pending rows are also the scale signal. |
+| `authorized` | `decimal` |  | The budget hold, summed over running Runs to give the Shift's reserved figure (ADR-0012). |
+| `expires_at` | `timestamp` |  | This Run's own liveness deadline. Not the Lease's — a reader has no Lease to expire. |
 | `outcome` | `enum(pr_opened, pr_updated, issue_updated, follow_up_created, stuck, failed, no_change_needed)` |  | Terminal result; failed when the container exits without a report. |
 | `started_at` | `timestamp` |  |  |
 | `finished_at` | `timestamp` |  |  |
