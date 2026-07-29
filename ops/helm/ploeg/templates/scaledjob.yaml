@@ -1,21 +1,26 @@
 {{- if and .Values.executor.enabled (eq (.Values.executor.type | default "keda") "keda") }}
 {{- $root := . }}
-{{- range .Values.executor.teams }}
+{{- range $team := .Values.executor.teams }}
+{{- range $role := (include "ploeg.teamRoles" $team | fromJsonArray) }}
 ---
-# One ScaledJob per team (design §6) — the flagship executor. The pod shape
-# lives in the shared ploeg.workerPodTemplate helper (also used by the
-# CronJob executor): privileged DinD sidecar when the harness needs Docker,
-# a shared disk-backed workspace mounted at the SAME path in both
-# containers, and zero Kubernetes API authority for the LLM-driven process.
+# One ScaledJob per (team, Role) — the flagship executor. A team without a
+# plan has exactly one Role-less workload, byte-identical to the pre-Shift
+# shape; a team with a plan gets one per Role, which is what makes "different
+# agents, different harnesses, different images" literally true: pod shape is
+# fixed at render time. The shape lives in the shared ploeg.workerPodTemplate
+# helper (also used by the CronJob executor): privileged DinD sidecar when the
+# harness needs Docker, a shared disk-backed workspace mounted at the SAME
+# path in both containers, and zero Kubernetes API authority for the
+# LLM-driven process.
 apiVersion: keda.sh/v1alpha1
 kind: ScaledJob
 metadata:
-  name: {{ include "ploeg.fullname" $root }}-worker-{{ .name }}
+  name: {{ include "ploeg.workloadName" (dict "root" $root "team" $team "role" $role) }}
   labels: {{- include "ploeg.labels" $root | nindent 4 }}
 spec:
   pollingInterval: {{ $root.Values.executor.pollingInterval }}
   minReplicaCount: 0
-  maxReplicaCount: {{ .maxReplicaCount | default 1 }}
+  maxReplicaCount: {{ $role.maxReplicaCount | default $team.maxReplicaCount | default 1 }}
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   rollout:
@@ -28,7 +33,7 @@ spec:
     backoffLimit: 0 # ploeg owns retries; every pod is one auditable run (backlog #51)
     activeDeadlineSeconds: {{ $root.Values.executor.activeDeadlineSeconds }}
     template:
-      {{- include "ploeg.workerPodTemplate" (dict "root" $root "team" .) | nindent 6 }}
+      {{- include "ploeg.workerPodTemplate" (dict "root" $root "team" $team "role" $role) | nindent 6 }}
   triggers:
     - type: postgresql
       metadata:
@@ -39,12 +44,27 @@ spec:
         userName: {{ $root.Values.executor.scaler.userName | quote }}
         dbName: {{ $root.Values.executor.scaler.dbName | quote }}
         sslmode: {{ $root.Values.executor.scaler.sslmode | quote }}
+        {{- if $role.name }}
+        # THE claim predicate for a Role, and it must stay byte-identical to
+        # store.ClaimRole and store.PendingRuns: pending runs for this team and
+        # role. Served index-only by agent_runs_claimable, which migration 0008
+        # created verbatim for this query:
+        #   CREATE INDEX agent_runs_claimable
+        #       ON agent_runs (team, role, id) WHERE state = 'pending';
+        # Overshoot merely wastes a pod that exits 0 empty-handed; undershoot
+        # stalls Work Items with no error anywhere, which is the worst failure
+        # this system can have. TestClaimRoleAgreesWithPendingRuns keeps the
+        # two Go callers honest; this comment is the third copy's leash.
+        query: "SELECT COUNT(*) FROM agent_runs WHERE team = '{{ $team.name }}' AND role = '{{ $role.name }}' AND state = 'pending'"
+        {{- else }}
         # The one poll-query shape: served index-only by work_items_claimable
         # (backlog #24/#47). Must stay in sync with store.Claim/QueueDepth.
-        query: "SELECT COUNT(*) FROM work_items WHERE team = '{{ .name }}' AND state = 'queued' AND (next_eligible_at IS NULL OR next_eligible_at <= now())"
+        query: "SELECT COUNT(*) FROM work_items WHERE team = '{{ $team.name }}' AND state = 'queued' AND (next_eligible_at IS NULL OR next_eligible_at <= now())"
+        {{- end }}
         targetQueryValue: "1"
         activationTargetQueryValue: "0"
       authenticationRef:
         name: {{ include "ploeg.fullname" $root }}-scaler
+{{- end }}
 {{- end }}
 {{- end }}

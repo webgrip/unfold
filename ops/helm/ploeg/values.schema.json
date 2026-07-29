@@ -6,24 +6,52 @@
     "executor": {
       "type": "object",
       "properties": {
-        "enabled": { "type": "boolean" },
-        "type": { "enum": ["keda", "cronjob"] },
-        "harness": { "$ref": "#/definitions/harness" },
-        "runnerImage": { "type": "string" },
-        "dindImage": { "type": "string" },
-        "workerImage": { "type": "string" },
-        "apiUrl": { "type": "string" },
+        "enabled": {
+          "type": "boolean"
+        },
+        "type": {
+          "enum": [
+            "keda",
+            "cronjob"
+          ]
+        },
+        "harness": {
+          "$ref": "#/definitions/harness"
+        },
+        "runnerImage": {
+          "type": "string"
+        },
+        "dindImage": {
+          "type": "string"
+        },
+        "workerImage": {
+          "type": "string"
+        },
+        "apiUrl": {
+          "type": "string"
+        },
         "cronjob": {
           "type": "object",
-          "properties": { "schedule": { "type": "string", "minLength": 1 } }
+          "properties": {
+            "schedule": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
         },
         "defaultTarget": {
           "type": "object",
           "description": "fallback repo for teams that declare none; empty = a team with no repoOwner/repoName gets no env target and relies entirely on the work item's resolved target",
           "properties": {
-            "owner": { "type": "string" },
-            "name": { "type": "string" },
-            "baseBranch": { "type": "string" }
+            "owner": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "baseBranch": {
+              "type": "string"
+            }
           },
           "additionalProperties": false
         },
@@ -32,15 +60,43 @@
           "items": {
             "type": "object",
             "properties": {
-              "name": { "type": "string", "minLength": 1, "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$" },
-              "model": { "type": "string", "minLength": 1 },
-              "budget": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?$" },
-              "repoOwner": { "type": "string", "minLength": 1 },
-              "repoName": { "type": "string", "minLength": 1 },
-              "baseBranch": { "type": "string" },
-              "targetSource": { "enum": ["claim", "env"] },
-              "maxReplicaCount": { "type": "integer", "minimum": 1 },
-              "harness": { "$ref": "#/definitions/harness" },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+              },
+              "model": {
+                "type": "string",
+                "minLength": 1
+              },
+              "budget": {
+                "type": "string",
+                "pattern": "^[0-9]+(\\.[0-9]+)?$"
+              },
+              "repoOwner": {
+                "type": "string",
+                "minLength": 1
+              },
+              "repoName": {
+                "type": "string",
+                "minLength": 1
+              },
+              "baseBranch": {
+                "type": "string"
+              },
+              "targetSource": {
+                "enum": [
+                  "claim",
+                  "env"
+                ]
+              },
+              "maxReplicaCount": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "harness": {
+                "$ref": "#/definitions/harness"
+              },
               "plan": {
                 "type": "array",
                 "minItems": 1,
@@ -51,18 +107,42 @@
                     "roles": {
                       "type": "array",
                       "minItems": 1,
-                      "items": { "$ref": "#/definitions/planRole" }
+                      "items": {
+                        "$ref": "#/definitions/planRole"
+                      }
                     }
                   },
-                  "required": ["roles"],
+                  "required": [
+                    "roles"
+                  ],
                   "additionalProperties": false
                 }
               }
             },
             "//": "repoOwner/repoName are NOT required: the repository belongs to the work item, resolved at ingest (R11). They remain as a per-team fallback while teams migrate.",
-            "required": ["name", "model", "budget"],
+            "required": [
+              "name",
+              "model",
+              "budget"
+            ],
             "additionalProperties": false
           }
+        },
+        "forgejo": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string"
+            },
+            "tokenSecret": {
+              "$ref": "#/definitions/secretRef"
+            },
+            "readTokenSecret": {
+              "$ref": "#/definitions/secretRef",
+              "description": "ADR-0013 tier 1: read-only credential for reading Roles. Empty = readers fall back to the read-write builder token and scheduling is the only boundary (a known gap, closed by creating the secret)."
+            }
+          },
+          "additionalProperties": true
         }
       }
     }
@@ -71,39 +151,118 @@
     "planRole": {
       "type": "object",
       "properties": {
-        "name": { "type": "string", "minLength": 1, "maxLength": 30, "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$" },
-        "writes": { "type": "boolean" },
-        "cap": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?$" },
-        "model": { "type": "string", "minLength": 1 },
-        "maxReplicaCount": { "type": "integer", "minimum": 1 },
-        "harness": { "$ref": "#/definitions/harness" }
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 30,
+          "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+        },
+        "writes": {
+          "type": "boolean"
+        },
+        "cap": {
+          "type": "string",
+          "pattern": "^[0-9]+(\\.[0-9]+)?$"
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "maxReplicaCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "harness": {
+          "$ref": "#/definitions/harness"
+        }
       },
       "//": "name becomes the workload suffix (ploeg-worker-<team>-<role>); writes marks the round's single writer (ADR-0010); cap bounds one Run's spend against the pool (ADR-0012); model/maxReplicaCount/harness override the team's values for this role's workload.",
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "additionalProperties": false
     },
     "harness": {
       "type": "object",
       "properties": {
-        "name": { "enum": ["openhands", "exec", "claude-code", "acp"] },
-        "image": { "type": "string" },
-        "entrypoint": { "type": "string" },
-        "args": { "type": "array", "items": { "type": "string" } },
-        "outcomeFile": { "type": "string" },
-        "dind": { "type": "boolean" },
-        "acp": { "$ref": "#/definitions/acp" }
+        "name": {
+          "enum": [
+            "openhands",
+            "exec",
+            "claude-code",
+            "acp"
+          ]
+        },
+        "image": {
+          "type": "string"
+        },
+        "entrypoint": {
+          "type": "string"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "outcomeFile": {
+          "type": "string"
+        },
+        "dind": {
+          "type": "boolean"
+        },
+        "acp": {
+          "$ref": "#/definitions/acp"
+        }
       },
       "additionalProperties": false
     },
     "acp": {
       "type": "object",
       "properties": {
-        "profile": { "enum": ["opencode", "custom"] },
-        "argv": { "type": "array", "items": { "type": "string" } },
-        "permissionMode": { "enum": ["", "allow_always", "allow_read_only", "deny_all"] },
-        "promptTimeout": { "type": "string", "pattern": "^$|^[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)$" },
-        "idleTimeout": { "type": "string", "pattern": "^$|^[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)$" },
-        "configJson": { "type": "string" }
+        "profile": {
+          "enum": [
+            "opencode",
+            "custom"
+          ]
+        },
+        "argv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "permissionMode": {
+          "enum": [
+            "",
+            "allow_always",
+            "allow_read_only",
+            "deny_all"
+          ]
+        },
+        "promptTimeout": {
+          "type": "string",
+          "pattern": "^$|^[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)$"
+        },
+        "idleTimeout": {
+          "type": "string",
+          "pattern": "^$|^[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)$"
+        },
+        "configJson": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "secretRef": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
       },
       "additionalProperties": false
     }

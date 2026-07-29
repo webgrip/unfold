@@ -4,6 +4,12 @@
 # harness, so every branch of the shared pod template renders.
 executor:
   enabled: true
+  # Read-only reader credential configured, so the ADR-0013 tier-1 branch of
+  # the pod template renders on every PR rather than only in production.
+  forgejo:
+    readTokenSecret:
+      name: agent-reader-token
+      key: FORGEJO_TOKEN
   teams:
     - name: bronze
       model: litellm_proxy/deepseek-chat
@@ -53,3 +59,28 @@ executor:
           argv: ["opencode", "acp"]
           permissionMode: allow_read_only
           idleTimeout: 5m
+    # A PLANNED team: renders one workload per (team, Role) instead of one per
+    # team, which is the branch every other fixture leaves uncovered. It also
+    # pins the three properties that matter most about role partitioning:
+    #
+    #   * readers set dind: false, so they carry NO privileged-dind label and
+    #     fall outside the PolicyException entirely — the waiver follows the
+    #     hazard, not the workload's name;
+    #   * a reader draws AGENT_BUILDER_TOKEN from readTokenSecret while the
+    #     writer draws the read-write one (ADR-0013 tier 1);
+    #   * `builder` recurs in rounds 2 and 4 (the review→fix loop) with an
+    #     identical definition, so it must collapse to ONE workload.
+    - name: gold
+      model: litellm_proxy/deepseek-chat
+      budget: "6"
+      maxReplicaCount: 1
+      plan:
+        - roles:
+            - {name: analyst, writes: false, cap: "0.50", harness: {dind: false}}
+            - {name: tests, writes: false, cap: "0.50", harness: {dind: false}}
+        - roles:
+            - {name: builder, writes: true, cap: "3.00", model: litellm_proxy/claude-sonnet-5}
+        - roles:
+            - {name: reviewer, writes: false, cap: "0.75", model: litellm_proxy/claude-sonnet-5, harness: {dind: false}}
+        - roles:
+            - {name: builder, writes: true, cap: "3.00", model: litellm_proxy/claude-sonnet-5}

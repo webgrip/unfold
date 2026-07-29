@@ -103,6 +103,19 @@ executor:
     tokenSecret:
       name: agent-builder-token
       key: FORGEJO_TOKEN
+    # ADR-0013 tier 1: the credential handed to READING Roles, which must not
+    # be able to push to the branch they review. Enforcing the reader/writer
+    # split at the forge as well as in Ploeg's scheduling is the whole point —
+    # either alone is a single point of failure.
+    #
+    # UNSET IS A KNOWN GAP, not a safe default: readers then run with the
+    # read-write builder token below and only scheduling separates them. The
+    # repos are private, so "no credential" cannot clone; a read-only token is
+    # the honest tier 1. Closing the gap is one OpenBao entry plus one
+    # ExternalSecret in homelab-cluster — no chart or code change.
+    readTokenSecret: {}
+    #  name: agent-reader-token
+    #  key: FORGEJO_TOKEN
   scaler:
     # Empty = ploeg-db-rw.<release namespace>.svc.cluster.local. Must be a
     # name the KEDA operator can resolve from its own namespace (FQDN).
