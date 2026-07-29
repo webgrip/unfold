@@ -52,12 +52,24 @@ executor:
   # Global harness defaults; a team's optional `harness:` block overrides
   # these field-by-field (see teams below).
   harness:
-    name: openhands # openhands | exec | claude-code (PLOEG_HARNESS)
+    name: openhands # openhands | exec | claude-code | acp (PLOEG_HARNESS)
     image: ""       # agent image; "" = runnerImage below
     entrypoint: ""  # binary override (PLOEG_HARNESS_ENTRYPOINT); "" = adapter default
     args: []        # exec harness only: argv template with {taskspec}/{taskfile}
     outcomeFile: "" # exec harness only: OutcomeReport JSON path override
     dind: true      # privileged DinD sidecar + DOCKER_* wiring (OpenHands + gates need it)
+    # acp harness only. One adapter speaks Zed's Agent CLIENT Protocol (stdio
+    # JSON-RPC, wire version 1) to any ACP-capable agent. Unrelated to IBM's
+    # former Agent COMMUNICATION Protocol, which merged into A2A — see ADR-0007.
+    acp:
+      profile: opencode  # opencode | custom (PLOEG_ACP_PROFILE)
+      argv: []           # whole launch command; REQUIRED when profile is custom
+      permissionMode: "" # allow_always (default) | allow_read_only | deny_all
+      promptTimeout: ""  # Go duration; "" = adapter default (45m)
+      idleTimeout: ""    # Go duration; "" = adapter default (10m) with no protocol traffic
+      # Replaces the profile's generated agent config wholesale, so a wrong
+      # provider block is a values edit rather than an agent image rebuild.
+      configJson: ""
   # DEPRECATED in favor of harness.image (kept as the fallback so existing
   # value overrides keep working).
   # agent-runner >=1.0.1 only: 1.0.0 mints LiteLLM keys without key_alias (400).

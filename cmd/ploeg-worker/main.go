@@ -87,11 +87,28 @@ func run(log *slog.Logger) error {
 		Entrypoint:     os.Getenv("PLOEG_HARNESS_ENTRYPOINT"),
 		OutcomeFile:    os.Getenv("PLOEG_OUTCOME_FILE"),
 		PermissionMode: os.Getenv("PLOEG_CLAUDE_PERMISSION_MODE"),
+		ACP: worker.ACPConfig{
+			Profile:        os.Getenv("PLOEG_ACP_PROFILE"),
+			ConfigJSON:     os.Getenv("PLOEG_ACP_CONFIG_JSON"),
+			PermissionMode: os.Getenv("PLOEG_ACP_PERMISSION_MODE"),
+		},
 	}
 	if raw := os.Getenv("PLOEG_HARNESS_ARGS"); raw != "" {
 		if err := json.Unmarshal([]byte(raw), &hc.Args); err != nil {
 			return fmt.Errorf("PLOEG_HARNESS_ARGS must be a JSON string array: %w", err)
 		}
+	}
+	if raw := os.Getenv("PLOEG_ACP_ARGV"); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &hc.ACP.Argv); err != nil {
+			return fmt.Errorf("PLOEG_ACP_ARGV must be a JSON string array: %w", err)
+		}
+	}
+	var err error
+	if hc.ACP.PromptTimeout, err = durationEnv("PLOEG_ACP_PROMPT_TIMEOUT"); err != nil {
+		return err
+	}
+	if hc.ACP.IdleTimeout, err = durationEnv("PLOEG_ACP_IDLE_TIMEOUT"); err != nil {
+		return err
 	}
 	adapter, err := worker.NewAdapter(hc)
 	if err != nil {
@@ -136,10 +153,25 @@ func envOr(key, def string) string {
 }
 
 func durationOr(key string, def time.Duration) time.Duration {
-	if v := os.Getenv(key); v != "" {
-		if d, err := time.ParseDuration(v); err == nil {
-			return d
-		}
+	if d, err := durationEnv(key); err == nil && d != 0 {
+		return d
 	}
 	return def
+}
+
+// durationEnv parses an optional duration and reports a typo instead of
+// swallowing it. Unlike durationOr, a bad value here is fatal: these are
+// watchdog timeouts, and one that silently reverts to its default fires at the
+// wrong moment and reads as an agent bug rather than a config error. Zero means
+// unset — the adapter's own default applies.
+func durationEnv(key string) (time.Duration, error) {
+	v := os.Getenv(key)
+	if v == "" {
+		return 0, nil
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		return 0, fmt.Errorf("%s must be a Go duration such as 45m or 90s: %w", key, err)
+	}
+	return d, nil
 }

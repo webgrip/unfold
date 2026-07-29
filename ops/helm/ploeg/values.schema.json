@@ -42,12 +42,25 @@
     "harness": {
       "type": "object",
       "properties": {
-        "name": { "enum": ["openhands", "exec", "claude-code"] },
+        "name": { "enum": ["openhands", "exec", "claude-code", "acp"] },
         "image": { "type": "string" },
         "entrypoint": { "type": "string" },
         "args": { "type": "array", "items": { "type": "string" } },
         "outcomeFile": { "type": "string" },
-        "dind": { "type": "boolean" }
+        "dind": { "type": "boolean" },
+        "acp": { "$ref": "#/definitions/acp" }
+      },
+      "additionalProperties": false
+    },
+    "acp": {
+      "type": "object",
+      "properties": {
+        "profile": { "enum": ["opencode", "custom"] },
+        "argv": { "type": "array", "items": { "type": "string" } },
+        "permissionMode": { "enum": ["", "allow_always", "allow_read_only", "deny_all"] },
+        "promptTimeout": { "type": "string", "pattern": "^$|^[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)$" },
+        "idleTimeout": { "type": "string", "pattern": "^$|^[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)$" },
+        "configJson": { "type": "string" }
       },
       "additionalProperties": false
     }
