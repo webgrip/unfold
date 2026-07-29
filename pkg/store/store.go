@@ -403,11 +403,12 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 	if err := tx.QueryRow(ctx, `
 		UPDATE agent_runs
 		SET state = 'finished', finished_at = now(), outcome = $1, summary = $2,
-		    stuck_reason = $3, links = $4, usage = $5, failure_reason = $6, findings = $7
-		WHERE run_token = $8 AND state = 'running'
+		    stuck_reason = $3, links = $4, usage = $5, failure_reason = $6, findings = $7,
+		    verdict = CASE WHEN writes THEN '' ELSE $8 END
+		WHERE run_token = $9 AND state = 'running'
 		RETURNING work_item_id, team, shift_id`,
 		string(rep.Outcome), rep.Summary, rep.StuckReason, rep.Links, rep.Usage,
-		rep.FailureReason, rep.Findings, runToken).Scan(&id, &team, &shiftID); err != nil {
+		rep.FailureReason, rep.Findings, rep.Verdict, runToken).Scan(&id, &team, &shiftID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return OutcomeResult{}, ErrUnknownRun
 		}
@@ -465,6 +466,7 @@ type harnessReport struct {
 	Usage         json.RawMessage
 	FailureReason *string // nil = unclassified; set for failed outcomes (infra_llm, lease_lost, etc.)
 	Findings      string  // a reading Run's blackboard contribution (ADR-0011); empty for most writers
+	Verdict       string  // a reading Run's approve/request_changes (ADR-0017); empty = no opinion
 }
 
 // Report is the store-level outcome input. usage and failureReason may be nil.
@@ -478,22 +480,85 @@ func (r harnessReport) WithFindings(findings string) harnessReport {
 	return r
 }
 
-// MarkNeedsHuman parks a Work Item for a person, with the reason on the audit
-// row. This is the shift engine's transition: for Shift runs, ReportOutcome
-// leaves the item alone and the engine moves it exactly once — at close, at a
-// terminal stuck, or when the pool runs dry (R4: the reason travels with it).
-func (s *Store) MarkNeedsHuman(ctx context.Context, workItemID int64, reason string) error {
+// WithVerdict attaches a reading Run's verdict (ADR-0017).
+func (r harnessReport) WithVerdict(verdict string) harnessReport {
+	r.Verdict = verdict
+	return r
+}
+
+// AuditForgeEvent records a normalized forge event. The audit log is the
+// whole of what this change does with one: the trail exists from the day the
+// endpoint is wired, so when routing lands there is evidence of what has been
+// arriving rather than a guess.
+//
+// The event BODY is deliberately not stored here. It is text written outside
+// the factory (backlog #9), and an audit row is read by humans and by future
+// prompts alike; the metadata is what routing will need.
+func (s *Store) AuditForgeEvent(ctx context.Context, provider, kind, repo, branch string, pr int) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	if _, err := tx.Exec(ctx,
-		`UPDATE work_items SET state = 'needs_human', updated_at = now() WHERE id = $1`,
-		workItemID); err != nil {
+	if err := audit(ctx, tx, "webhook:"+provider, "forge."+kind, nil, map[string]any{
+		"repo": repo, "pr": pr, "branch": branch,
+	}); err != nil {
 		return err
 	}
-	if err := audit(ctx, tx, "ploegd:shift-engine", "work_item.needs_human", &workItemID,
+	return tx.Commit(ctx)
+}
+
+// WorkItem reads one item by id — what the shift engine needs to know where
+// to publish: the Work Target names the repository, the provider names the
+// tracker to write back to.
+func (s *Store) WorkItem(ctx context.Context, id int64) (work.WorkItem, error) {
+	var it work.WorkItem
+	var t work.Target
+	err := s.pool.QueryRow(ctx, `
+		SELECT provider, external_id, revision, team, state, origin, priority, title, description, url,
+			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule
+		FROM work_items WHERE id = $1`, id).
+		Scan(&it.Provider, &it.ExternalID, &it.Revision, &it.Team, &it.State, &it.Origin,
+			&it.Priority, &it.Title, &it.Description, &it.URL,
+			&it.ExternalScope, &t.Forge, &t.Owner, &t.Repo, &t.BaseBranch, &it.RouteRule)
+	if err != nil {
+		return work.WorkItem{}, err
+	}
+	it.ID = fmt.Sprint(id)
+	if t.Resolved() {
+		it.Target = &t
+	}
+	return it, nil
+}
+
+// SettleItem moves a Work Item to its post-Shift state, with the reason on
+// the audit row. This is the shift engine's transition: for Shift runs
+// ReportOutcome leaves the item alone, and the engine moves it exactly once —
+// at close, at a terminal stuck, or when the pool runs dry (R4: the reason
+// travels with it).
+//
+// A failed outcome still respects the retry threshold, so a Shift that ends
+// in failure re-queues and stales exactly like a legacy run (R5).
+func (s *Store) SettleItem(ctx context.Context, workItemID int64, next work.State, reason string) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	if next == work.StateQueued {
+		if _, err := tx.Exec(ctx, `
+			UPDATE work_items
+			SET state = CASE WHEN attempts >= $2 THEN 'stale' ELSE 'queued' END, updated_at = now()
+			WHERE id = $1`, workItemID, MaxAttempts); err != nil {
+			return err
+		}
+	} else if _, err := tx.Exec(ctx,
+		`UPDATE work_items SET state = $2, updated_at = now() WHERE id = $1`,
+		workItemID, string(next)); err != nil {
+		return err
+	}
+	if err := audit(ctx, tx, "ploegd:shift-engine", "work_item."+string(next), &workItemID,
 		map[string]any{"reason": reason}); err != nil {
 		return err
 	}

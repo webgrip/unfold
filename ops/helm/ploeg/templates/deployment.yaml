@@ -64,6 +64,35 @@ spec:
             - name: PLOEG_TEAM_PLANS
               value: {{ toJson $plans | quote }}
             {{- end }}
+            {{- /* The forge seam: ploegd publishes findings to the pull
+                 request as the same bot that opens them (ADR-0011). Commenting
+                 is not pushing, so no second credential — but without a URL
+                 there is no ForgeProvider and findings stay in the database. */}}
+            {{- with .Values.executor.forgejo }}
+            - name: PLOEG_FORGEJO_URL
+              value: {{ .url | quote }}
+            - name: PLOEG_FORGEJO_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .tokenSecret.name }}
+                  key: {{ .tokenSecret.key }}
+            {{- end }}
+            {{- /* Tracker write-backs (backlog #31): how a closed Shift asks a
+                 person to merge. Unset = the provider keeps its logging no-op
+                 and runs still finish; the board just is not updated. */}}
+            {{- with .Values.tracker }}
+            {{- if .url }}
+            - name: PLOEG_VIKUNJA_URL
+              value: {{ .url | quote }}
+            {{- end }}
+            {{- if .tokenSecret }}
+            - name: PLOEG_VIKUNJA_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .tokenSecret.name }}
+                  key: {{ .tokenSecret.key }}
+            {{- end }}
+            {{- end }}
             {{- range $k, $v := .Values.env }}
             - name: {{ $k }}
               value: {{ $v | quote }}

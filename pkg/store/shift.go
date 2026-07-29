@@ -372,6 +372,36 @@ func (s *Store) LiveShifts(ctx context.Context) ([]ShiftInfo, error) {
 	return out, rows.Err()
 }
 
+// QueuedWithoutShift lists queued Work Items that have no live Shift — the
+// sweeper's repair worklist for the window between IngestAssigned committing
+// and EnsureShift running.
+//
+// Asked of the database rather than by iterating configured teams, because
+// under uniform dispatch every team is in scope, including one whose plan was
+// removed or which never had one.
+func (s *Store) QueuedWithoutShift(ctx context.Context) ([]int64, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT w.id FROM work_items w
+		WHERE w.state = 'queued'
+		  AND NOT EXISTS (
+		      SELECT 1 FROM shifts sh
+		      WHERE sh.work_item_id = w.id AND sh.closed_at IS NULL)
+		ORDER BY w.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // LiveShiftForItem returns the live Shift on a Work Item, or nil. This is
 // what makes EnsureShift idempotent: the read answers "already open", and the
 // unique partial index settles the race two openers can still run into.
@@ -457,6 +487,10 @@ type RunReport struct {
 	Summary  string
 	Findings string
 	Links    []string
+	// Verdict is a reading Run's approve/request_changes (ADR-0017). Stored
+	// blank for writers by ReportOutcome, so a writer cannot grade its own
+	// work even if its adapter sends one.
+	Verdict string
 }
 
 // RoundReports returns every finished Run's report for a Shift, in Round then
@@ -464,7 +498,7 @@ type RunReport struct {
 // the one being claimed, publication wants the round that just completed.
 func (s *Store) RoundReports(ctx context.Context, shiftID int64) ([]RunReport, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT role, round, writes, COALESCE(outcome, ''), summary, findings, links
+		SELECT role, round, writes, COALESCE(outcome, ''), summary, findings, links, verdict
 		FROM agent_runs
 		WHERE shift_id = $1 AND state = 'finished'
 		ORDER BY round, id`, shiftID)
@@ -475,7 +509,7 @@ func (s *Store) RoundReports(ctx context.Context, shiftID int64) ([]RunReport, e
 	var out []RunReport
 	for rows.Next() {
 		var r RunReport
-		if err := rows.Scan(&r.Role, &r.Round, &r.Writes, &r.Outcome, &r.Summary, &r.Findings, &r.Links); err != nil {
+		if err := rows.Scan(&r.Role, &r.Round, &r.Writes, &r.Outcome, &r.Summary, &r.Findings, &r.Links, &r.Verdict); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -540,4 +574,41 @@ func (s *Store) Ledger(ctx context.Context, shiftID int64) (ShiftLedger, error) 
 		                 WHERE shift_id = sh.id AND state = 'running'), 0)
 		FROM shifts sh WHERE sh.id = $1`, shiftID).Scan(&l.Budget, &l.Spent, &l.Reserved)
 	return l, err
+}
+
+// SeenDelivery records a forge webhook delivery id and reports whether it had
+// already been seen. A forge retries what it thinks failed, and a retry that
+// acts twice turns one review into two fix rounds (backlog #4).
+//
+// The insert IS the check: ON CONFLICT DO NOTHING makes "have I seen this"
+// and "remember this" one atomic statement, so two concurrent deliveries of
+// the same id cannot both conclude they are the first.
+func (s *Store) SeenDelivery(ctx context.Context, provider, deliveryID string) (bool, error) {
+	if deliveryID == "" {
+		// No id to dedup on. Treated as fresh rather than as a duplicate: a
+		// forge that sends no delivery header must not have every event
+		// silently dropped (backlog #4 — Vikunja does exactly this, which is
+		// why the tracker path synthesizes one).
+		return false, nil
+	}
+	tag, err := s.pool.Exec(ctx,
+		`INSERT INTO forge_deliveries (provider, delivery_id) VALUES ($1, $2)
+		 ON CONFLICT (provider, delivery_id) DO NOTHING`, provider, deliveryID)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 0, nil
+}
+
+// SweepDeliveries drops delivery ids older than the retention window. A forge
+// stops retrying long before this; the table exists to survive a restart, not
+// to be an archive.
+func (s *Store) SweepDeliveries(ctx context.Context, olderThan time.Duration) (int64, error) {
+	tag, err := s.pool.Exec(ctx,
+		`DELETE FROM forge_deliveries WHERE seen_at < now() - $1::interval`,
+		olderThan.String())
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
 }

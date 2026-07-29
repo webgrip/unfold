@@ -58,6 +58,23 @@ type OutcomeReport struct {
 	// markdown prose Ploeg publishes to the pull request and injects into the
 	// next Round's Briefing. A writer normally leaves it empty.
 	Findings string `json:"findings,omitempty"`
+	// Verdict is a reading Run's answer to "is this done?" — approve or
+	// request_changes (ADR-0017). It is the only field by which an agent
+	// influences what runs next, and it can do exactly one thing: re-open the
+	// plan's own writing Round. Ignored from a writing Role.
+	Verdict string `json:"verdict,omitempty"`
+}
+
+// The closed set of verdicts. A reading Run may return one; anything else is
+// rejected at the API boundary.
+const (
+	VerdictApprove        = "approve"
+	VerdictRequestChanges = "request_changes"
+)
+
+// ValidVerdict reports whether v is empty (no opinion) or a known verdict.
+func ValidVerdict(v string) bool {
+	return v == "" || v == VerdictApprove || v == VerdictRequestChanges
 }
 
 // Usage carries per-run cost/usage a harness can report (backlog #66) and

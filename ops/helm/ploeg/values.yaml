@@ -39,6 +39,16 @@ resources:
 nodeSelector:
   node.webgrip.io/pool: worker
 
+# Tracker write-backs (backlog #31): how a closed Shift reaches a person with
+# the pull request link. Unset = the Vikunja provider keeps its logging no-op —
+# runs still finish, the board simply is not updated. Ingest (the webhook) is
+# configured separately and needs no token.
+tracker:
+  # e.g. https://vikunja.example/api/v1
+  url: ""
+  # tokenSecret: {name: agent-vikunja-token, key: VIKUNJA_API_TOKEN}
+  tokenSecret: {}
+
 executor:
   # The executor (design §6, docs/contracts/executor.md). Disabled until the
   # ingest path is verified in-cluster; flipping it on requires the LiteLLM +
@@ -103,6 +113,19 @@ executor:
     tokenSecret:
       name: agent-builder-token
       key: FORGEJO_TOKEN
+    # ADR-0013 tier 1: the credential handed to READING Roles, which must not
+    # be able to push to the branch they review. Enforcing the reader/writer
+    # split at the forge as well as in Ploeg's scheduling is the whole point —
+    # either alone is a single point of failure.
+    #
+    # UNSET IS A KNOWN GAP, not a safe default: readers then run with the
+    # read-write builder token below and only scheduling separates them. The
+    # repos are private, so "no credential" cannot clone; a read-only token is
+    # the honest tier 1. Closing the gap is one OpenBao entry plus one
+    # ExternalSecret in homelab-cluster — no chart or code change.
+    readTokenSecret: {}
+    #  name: agent-reader-token
+    #  key: FORGEJO_TOKEN
   scaler:
     # Empty = ploeg-db-rw.<release namespace>.svc.cluster.local. Must be a
     # name the KEDA operator can resolve from its own namespace (FQDN).

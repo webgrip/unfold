@@ -90,6 +90,7 @@ fails otherwise.
 | [0014](0014-work-target-is-a-work-item-attribute.md) | Bind the Work Target to the Work Item, not to the Team | accepted | 2026-07-29 |
 | [0015](0015-routing-is-core-policy-over-provider-opaque-scopes.md) | Route work in the core over provider-opaque Scopes | proposed | 2026-07-29 |
 | [0016](0016-forge-registry-and-per-run-repo-scoped-credentials.md) | Resolve forges through a registry and mint forge credentials per Run | proposed | 2026-07-29 |
+| [0017](0017-the-review-loop-is-verdict-driven-and-capped.md) | A reviewing Role's verdict re-opens the writer; the pool, a cap and the verdict stop the loop | proposed | 2026-07-29 |
 
 ## Review calendar
 
@@ -99,5 +100,5 @@ triggers.
 | Due | ADRs |
 | --- | --- |
 | 2026-10-31 | [0006](0006-ahp-is-the-wrong-layer.md), [0007](0007-a2a-adopt-nothing-watchlist-a-facade.md), [0008](0008-litellm-is-the-credential-and-metering-seam.md), [0009](0009-paperclip-mine-for-design-never-integrate.md) — the quarterly market re-scan (`design.md` §10) |
-| 2027-01-31 | [0010](0010-shift-owns-the-item-lease-owns-the-branch.md), [0011](0011-the-pull-request-is-the-blackboard.md), [0012](0012-two-level-budgets-authorized-and-settled.md), [0013](0013-push-rights-are-minted-per-run.md) — after the first real Shifts have run; all four rest on assumptions only production can test |
+| 2027-01-31 | [0010](0010-shift-owns-the-item-lease-owns-the-branch.md), [0011](0011-the-pull-request-is-the-blackboard.md), [0012](0012-two-level-budgets-authorized-and-settled.md), [0013](0013-push-rights-are-minted-per-run.md), [0017](0017-the-review-loop-is-verdict-driven-and-capped.md) — after the first real Shifts have run; all five rest on assumptions only production can test |
 | 2027-04-01 | [0005](0005-build-a-dedicated-dispatch-plane.md) — the project review gate (`design.md` §10) |

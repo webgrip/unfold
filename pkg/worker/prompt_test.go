@@ -142,3 +142,25 @@ func TestComposePrompt_RolelessHasNoRoleHeader(t *testing.T) {
 		t.Errorf("role-less prompt no longer starts with the ticket:\n%s", task)
 	}
 }
+
+// The verdict is how a reviewer's judgement becomes a fix round (ADR-0017);
+// an agent that has not been told what the values mean cannot give one.
+func TestComposePrompt_ReaderIsAskedForAVerdict(t *testing.T) {
+	task := ComposePrompt(roleSpec("reviewer", nil), false, "")
+	for _, want := range []string{
+		`"verdict"`, "approve", "request_changes",
+		"back to the writer", // it says what the choice DOES
+	} {
+		if !strings.Contains(task, want) {
+			t.Errorf("reader prompt missing %q:\n%s", want, task)
+		}
+	}
+}
+
+// A writer must not be invited to grade its own work.
+func TestComposePrompt_WriterIsNotAskedForAVerdict(t *testing.T) {
+	task := ComposePrompt(roleSpec("builder", nil), true, "")
+	if strings.Contains(task, `"verdict"`) {
+		t.Errorf("writer prompt asks for a verdict:\n%s", task)
+	}
+}

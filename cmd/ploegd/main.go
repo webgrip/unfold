@@ -20,6 +20,7 @@ import (
 	"github.com/webgrip/ploeg/pkg/llmbroker"
 	"github.com/webgrip/ploeg/pkg/plan"
 	"github.com/webgrip/ploeg/pkg/provider"
+	"github.com/webgrip/ploeg/pkg/provider/forgejo"
 	"github.com/webgrip/ploeg/pkg/provider/vikunja"
 	"github.com/webgrip/ploeg/pkg/shiftengine"
 	"github.com/webgrip/ploeg/pkg/store"
@@ -73,11 +74,47 @@ func run(log *slog.Logger) error {
 		return err
 	}
 
+	// Tracker write-backs are opt-in by credential: without a URL and token
+	// the provider keeps its logging no-op, so a deployment that has not been
+	// given one still finishes runs — it just does not update the board.
 	vik := &vikunja.Provider{
 		Secret:      os.Getenv("PLOEG_VIKUNJA_SECRET"),
 		DefaultTeam: envOr("PLOEG_DEFAULT_TEAM", "default"),
 		TeamMap:     parseTeamMap(os.Getenv("PLOEG_TEAM_MAP")),
+		BaseURL:     trimSlash(os.Getenv("PLOEG_VIKUNJA_URL")),
+		Token:       os.Getenv("PLOEG_VIKUNJA_TOKEN"),
 		Log:         log,
+	}
+	if vik.BaseURL != "" && vik.Token != "" {
+		log.Info("vikunja write-backs enabled", "url", vik.BaseURL)
+	} else {
+		log.Info("vikunja write-backs disabled (PLOEG_VIKUNJA_URL/PLOEG_VIKUNJA_TOKEN unset)")
+	}
+
+	// The forge seam. Ploeg comments as the same bot that opens the pull
+	// requests; commenting is not pushing, so it needs no second credential.
+	//
+	// Registered under the forge ID a Work Target carries, not under the
+	// provider's dialect name. Those are different things (ADR-0016): the id
+	// identifies an INSTANCE, the name identifies the API dialect, and one
+	// deployment could have two Forgejo instances with different ids. The
+	// engine looks up `Forges[target.Forge]`, so keying this by Name() would
+	// silently match nothing and skip every publication. The route is
+	// registered under both, since a webhook path names the dialect.
+	forgeID := envOr("PLOEG_TARGET_FORGE", "forgejo")
+	forges := map[string]provider.ForgeProvider{}
+	if forgeURL := trimSlash(os.Getenv("PLOEG_FORGEJO_URL")); forgeURL != "" {
+		fj := &forgejo.Provider{
+			BaseURL: forgeURL,
+			Token:   os.Getenv("PLOEG_FORGEJO_TOKEN"),
+			Secret:  os.Getenv("PLOEG_FORGEJO_SECRET"),
+			Log:     log,
+		}
+		forges[forgeID] = fj
+		forges[fj.Name()] = fj
+		log.Info("forge provider configured", "forge_id", forgeID, "dialect", fj.Name(), "url", forgeURL)
+	} else {
+		log.Info("no forge provider configured (PLOEG_FORGEJO_URL unset); findings will not reach a pull request")
 	}
 
 	// Gateway credential sweeper (llmbroker.Sweeper) for per-run key
@@ -116,12 +153,25 @@ func run(log *slog.Logger) error {
 	}
 	log.Info("team plans loaded", "teams", len(plans))
 
-	// The shift engine: nil when no team has a plan, and dispatch is exactly
-	// the pre-Shift path. With plans, ingest opens Shifts, outcome reports
-	// advance them, and the sweeper repairs what either fast path lost.
+	// Uniform dispatch: a team with no plan still gets a Shift — one Round,
+	// one writer — so every item has exactly one answer to "what is happening
+	// with this". Default on; PLOEG_SHIFTS_UNIFORM=false is the kill switch
+	// back to the pre-Shift path, and needs only a ploegd restart.
+	uniform := envOr("PLOEG_SHIFTS_UNIFORM", "true") != "false"
+
+	// The engine is nil only when it would have nothing to do: no plans AND
+	// no uniform dispatch. Then dispatch is exactly the pre-Shift path.
 	var engine *shiftengine.Engine
-	if len(plans) > 0 {
-		engine = &shiftengine.Engine{Store: st, Plans: plans, Log: log}
+	if len(plans) > 0 || uniform {
+		engine = &shiftengine.Engine{
+			Store: st, Plans: plans, Log: log,
+			Forges:   forges,
+			Trackers: map[string]provider.TrackerProvider{vik.Name(): vik},
+			Uniform:  uniform,
+		}
+		log.Info("shift engine enabled", "planned_teams", len(plans), "uniform", uniform)
+	} else {
+		log.Info("shift engine disabled (no plans, PLOEG_SHIFTS_UNIFORM=false)")
 	}
 
 	srv := &httpapi.Server{
@@ -131,6 +181,7 @@ func run(log *slog.Logger) error {
 		LeaseTTL: leaseTTL,
 		Log:      log,
 		RoleCaps: plans,
+		Forges:   forges,
 	}
 	if engine != nil {
 		srv.Engine = engine
@@ -155,6 +206,8 @@ func run(log *slog.Logger) error {
 	log.Info("ploegd stopped")
 	return nil
 }
+
+func trimSlash(s string) string { return strings.TrimRight(s, "/") }
 
 // parseTeamMap parses "user1=teamA,user2=teamB" (usernames lowercased).
 func parseTeamMap(s string) map[string]string {

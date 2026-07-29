@@ -34,6 +34,9 @@ type Server struct {
 	// caller — the sweeper's EvaluateAll repairs whatever a lost fast path
 	// leaves behind (R2), so a webhook or worker must never see a 5xx for it.
 	Engine ShiftEngine
+	// Forges hosts the forge webhook route. Nil or missing = the endpoint
+	// answers 404 for that provider; nothing else in ploegd depends on it.
+	Forges map[string]provider.ForgeProvider
 	// RoleCaps supplies the per-Run spending ceiling for a (team, role),
 	// implemented by plan.Plans. Nil = no caps, and the authorization is
 	// bounded by the Shift pool alone.
@@ -59,6 +62,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	mux.HandleFunc("GET /readyz", s.handleReady)
 	mux.HandleFunc("POST /webhooks/tracker/{provider}", s.handleTrackerWebhook)
+	mux.HandleFunc("POST /webhooks/forge/{provider}", s.handleForgeWebhook)
 	mux.HandleFunc("POST /api/v1/claim", s.handleClaim)
 	mux.HandleFunc("POST /api/v1/runs/{token}/renew", s.handleRenew)
 	mux.HandleFunc("POST /api/v1/runs/{token}/checkpoint", s.handleCheckpoint)
@@ -119,6 +123,70 @@ func (s *Server) handleTrackerWebhook(w http.ResponseWriter, r *http.Request) {
 		} else {
 			s.Log.Info("work item refreshed, not queued", "id", id, "state", string(state), "team", item.Team, "title", item.Title)
 		}
+	}
+	w.WriteHeader(http.StatusAccepted)
+}
+
+// handleForgeWebhook is the forge's way in: verify, dedup, audit, acknowledge.
+//
+// It acts on nothing yet, and that is the whole scope of this change. Routing
+// a submitted review into a re-mandate needs the branch-to-Work-Item lookup
+// backlog #107 owes it, and the two "keep going" paths — an agent's verdict
+// and a human's review — should be reconciled deliberately rather than by
+// whichever landed first (ADR-0017 names that as a re-evaluation trigger).
+// What lands here is the endpoint, verified and deduplicated, so the events
+// are recorded from the day the network path opens rather than from the day
+// somebody notices it was never wired.
+//
+// Everything expensive stays out of the handler: Forgejo's DELIVER_TIMEOUT is
+// 5 seconds and a slow endpoint becomes a disabled webhook (backlog #3).
+func (s *Server) handleForgeWebhook(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("provider")
+	fp, ok := s.Forges[name]
+	if !ok {
+		// Not an error worth alarming on: a forge may be configured to notify
+		// an instance that does not host that provider.
+		s.Log.Warn("forge webhook for an unknown provider", "provider", name)
+		http.Error(w, "unknown forge provider", http.StatusNotFound)
+		return
+	}
+
+	// Dedup BEFORE parsing: a redelivery must cost nothing, and the delivery
+	// id is readable without touching the body.
+	delivery := r.Header.Get("X-Forgejo-Delivery")
+	if delivery == "" {
+		delivery = r.Header.Get("X-Gitea-Delivery")
+	}
+	seen, err := s.Store.SeenDelivery(r.Context(), name, delivery)
+	if err != nil {
+		s.Log.Error("forge webhook dedup failed", "provider", name, "err", err)
+		http.Error(w, "dedup failed", http.StatusInternalServerError)
+		return
+	}
+	if seen {
+		s.Log.Info("forge webhook redelivered; ignoring", "provider", name, "delivery", delivery)
+		w.WriteHeader(http.StatusAccepted)
+		return
+	}
+
+	// ParseWebhook verifies the signature against the raw body before it
+	// parses anything (backlog #2).
+	events, err := fp.ParseWebhook(r)
+	if err != nil {
+		s.Log.Warn("forge webhook rejected", "provider", name, "err", err)
+		http.Error(w, "webhook rejected", http.StatusBadRequest)
+		return
+	}
+	for _, ev := range events {
+		// Recorded, not acted on. The body is text written outside the
+		// factory, so it is audited as evidence and never fed anywhere that
+		// would treat it as an instruction (backlog #9).
+		if err := s.Store.AuditForgeEvent(r.Context(), name, string(ev.Kind), ev.Repo, ev.Branch, ev.PR); err != nil {
+			s.Log.Error("forge event audit failed", "provider", name, "kind", ev.Kind, "err", err)
+			continue
+		}
+		s.Log.Info("forge event recorded", "provider", name, "kind", ev.Kind,
+			"repo", ev.Repo, "pr", ev.PR, "branch", ev.Branch)
 	}
 	w.WriteHeader(http.StatusAccepted)
 }
@@ -205,6 +273,18 @@ func (s *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 		s.claimRole(w, r, req)
 		return
 	}
+	// A role-less worker still belongs to a Shift when uniform dispatch
+	// synthesized one — its Run carries the empty role. Try that first and
+	// fall through to the pre-Shift claim when there is none, so the same
+	// pod serves both worlds and the kill switch needs no chart change.
+	if run, err := s.Store.ClaimRole(r.Context(), req.Team, "", s.LeaseTTL, 0); err == nil {
+		s.respondClaimedRun(w, r, req, run)
+		return
+	} else if !errors.Is(err, store.ErrNoWork) && !errors.Is(err, store.ErrBudgetExhausted) {
+		s.Log.Error("role-less shift claim failed", "team", req.Team, "err", err)
+		http.Error(w, "claim failed", http.StatusInternalServerError)
+		return
+	}
 	claimed, err := s.Store.Claim(r.Context(), req.Team, s.LeaseTTL)
 	if errors.Is(err, store.ErrNoWork) {
 		w.WriteHeader(http.StatusNoContent)
@@ -246,6 +326,11 @@ func (s *Server) claimRole(w http.ResponseWriter, r *http.Request, req claimRequ
 		return
 	}
 
+	s.respondClaimedRun(w, r, req, run)
+}
+
+// respondClaimedRun builds the Shift-shaped claim response, briefing and all.
+func (s *Server) respondClaimedRun(w http.ResponseWriter, r *http.Request, req claimRequest, run *store.ClaimedRun) {
 	resp := claimResponse{
 		RunToken: run.RunToken, Deadline: run.Deadline, WorkItem: run.Item,
 		Shift: run.ShiftID, Role: run.Role, Round: run.Round,
@@ -313,6 +398,12 @@ func validateOutcomeReport(req harness.OutcomeReport) error {
 	if req.FailureReason != "" && !work.FailureReason(req.FailureReason).Valid() {
 		return errors.New("failureReason must be a known failure-reason enum value")
 	}
+	// The verdict is the one field by which an agent influences what runs
+	// next (ADR-0017), so the enum is closed at the boundary for the same
+	// reason failureReason is: a value nothing checks is documentation.
+	if !harness.ValidVerdict(req.Verdict) {
+		return errors.New("verdict must be approve or request_changes")
+	}
 	return nil
 }
 
@@ -347,7 +438,7 @@ func (s *Server) handleOutcome(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := s.Store.ReportOutcome(r.Context(), r.PathValue("token"),
 		store.Report(req.Outcome, req.Summary, req.StuckReason, req.Links, usage, failureReason).
-			WithFindings(req.Findings))
+			WithFindings(req.Findings).WithVerdict(req.Verdict))
 	if err != nil {
 		if errors.Is(err, store.ErrUnknownRun) {
 			runError(w, err)

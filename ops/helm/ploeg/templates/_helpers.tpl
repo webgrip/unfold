@@ -24,6 +24,58 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{/*
+ploeg.teamRoles expands one team into the distinct Roles that need their own
+workload, as a JSON array. Both executors range over this, so they cannot
+disagree about how many workloads a team has.
+
+A Role recurring across Rounds is ONE workload doing another stint — the
+review→fix loop depends on that — so the list is deduplicated by name. Two
+definitions of the same name that differ are a configuration error and fail
+the render rather than silently picking one: pod shape is fixed at render
+time, and a Role cannot be a small model in round 1 and a large one in
+round 3.
+
+A team with no plan yields a single empty entry: one workload, no role, and a
+pod byte-identical to the pre-Shift shape.
+*/}}
+{{- define "ploeg.teamRoles" -}}
+{{- $roles := list }}
+{{- $seen := dict }}
+{{- $team := . }}
+{{- range $round := ($team.plan | default list) }}
+{{- range $role := ($round.roles | default list) }}
+{{- $prev := get $seen $role.name }}
+{{- if $prev }}
+{{- if ne (toJson $prev) (toJson $role) }}
+{{- fail (printf "team %s: role %q is defined twice with different settings; one role is one workload, so its shape must not change between rounds" $team.name $role.name) }}
+{{- end }}
+{{- else }}
+{{- $_ := set $seen $role.name $role }}
+{{- $roles = append $roles $role }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if not $roles }}
+{{- $roles = list dict }}
+{{- end }}
+{{- toJson $roles }}
+{{- end -}}
+
+{{/*
+ploeg.workloadName is the workload's name: <fullname>-worker-<team> for a
+plan-less team (unchanged), <fullname>-worker-<team>-<role> for a Role.
+Context: (dict "root" $ "team" <team> "role" <role>).
+*/}}
+{{- define "ploeg.workloadName" -}}
+{{- $name := printf "%s-worker-%s" (include "ploeg.fullname" .root) .team.name }}
+{{- if .role.name }}{{- $name = printf "%s-%s" $name .role.name }}{{- end }}
+{{- if gt (len $name) 63 }}
+{{- fail (printf "workload name %q exceeds 63 characters; shorten the team or role name" $name) }}
+{{- end }}
+{{- $name }}
+{{- end -}}
+
+{{/*
 ploeg.workerPodTemplate renders the worker pod template for one team —
 shared by every executor (ScaledJob, CronJob). Context: (dict "root" $
 "team" <team entry>). The team's optional `harness` block overrides the
@@ -33,32 +85,50 @@ global executor.harness defaults field-by-field (explicit hasKey checks, so
 {{- define "ploeg.workerPodTemplate" -}}
 {{- $root := .root }}
 {{- $team := .team }}
+{{/* role is the (team, role) workload's Role entry; empty dict = a plan-less
+     team, whose single workload is byte-identical to the pre-Shift shape. The
+     override chain gains a tier: role -> team -> global. */}}
+{{- $role := .role | default dict }}
 {{- $gh := $root.Values.executor.harness | default dict }}
 {{- $th := $team.harness | default dict }}
-{{- $hName := $th.name | default ($gh.name | default "openhands") }}
-{{- $hImage := $th.image | default ($gh.image | default $root.Values.executor.runnerImage) }}
-{{- $hEntrypoint := $th.entrypoint | default $gh.entrypoint }}
-{{- $hArgs := $th.args | default $gh.args }}
-{{- $hOutcomeFile := $th.outcomeFile | default $gh.outcomeFile }}
+{{- $rh := $role.harness | default dict }}
+{{- $hName := $rh.name | default ($th.name | default ($gh.name | default "openhands")) }}
+{{- $hImage := $rh.image | default ($th.image | default ($gh.image | default $root.Values.executor.runnerImage)) }}
+{{- $hEntrypoint := $rh.entrypoint | default ($th.entrypoint | default $gh.entrypoint) }}
+{{- $hArgs := $rh.args | default ($th.args | default $gh.args) }}
+{{- $hOutcomeFile := $rh.outcomeFile | default ($th.outcomeFile | default $gh.outcomeFile) }}
 {{- $hDind := true }}
-{{- if hasKey $th "dind" }}{{- $hDind = $th.dind }}{{- else if hasKey $gh "dind" }}{{- $hDind = $gh.dind }}{{- end }}
+{{- if hasKey $rh "dind" }}{{- $hDind = $rh.dind }}{{- else if hasKey $th "dind" }}{{- $hDind = $th.dind }}{{- else if hasKey $gh "dind" }}{{- $hDind = $gh.dind }}{{- end }}
 {{- $dt := $root.Values.executor.defaultTarget | default dict }}
 {{/* acp harness: same field-by-field override, one level deeper. */}}
 {{- $ga := $gh.acp | default dict }}
 {{- $ta := $th.acp | default dict }}
-{{- $acpProfile := $ta.profile | default $ga.profile }}
-{{- $acpArgv := $ta.argv | default $ga.argv }}
-{{- $acpPerm := $ta.permissionMode | default $ga.permissionMode }}
-{{- $acpPrompt := $ta.promptTimeout | default $ga.promptTimeout }}
-{{- $acpIdle := $ta.idleTimeout | default $ga.idleTimeout }}
-{{- $acpConfig := $ta.configJson | default $ga.configJson }}
+{{- $ra := $rh.acp | default dict }}
+{{- $acpProfile := $ra.profile | default ($ta.profile | default $ga.profile) }}
+{{- $acpArgv := $ra.argv | default ($ta.argv | default $ga.argv) }}
+{{- $acpPerm := $ra.permissionMode | default ($ta.permissionMode | default $ga.permissionMode) }}
+{{- $acpPrompt := $ra.promptTimeout | default ($ta.promptTimeout | default $ga.promptTimeout) }}
+{{- $acpIdle := $ra.idleTimeout | default ($ta.idleTimeout | default $ga.idleTimeout) }}
+{{- $acpConfig := $ra.configJson | default ($ta.configJson | default $ga.configJson) }}
+{{- $who := $team.name }}{{- if $role.name }}{{- $who = printf "%s/%s" $team.name $role.name }}{{- end }}
 {{- if and (eq $hName "acp") (eq ($acpProfile | default "opencode") "custom") (not $acpArgv) }}
-{{- fail (printf "team %s: harness.acp.profile=custom requires harness.acp.argv" $team.name) }}
+{{- fail (printf "team %s: harness.acp.profile=custom requires harness.acp.argv" $who) }}
 {{- end -}}
 metadata:
   labels:
     app.kubernetes.io/name: ploeg-worker
     ploeg.webgrip.dev/team: {{ $team.name }}
+    {{- if $role.name }}
+    ploeg.webgrip.dev/role: {{ $role.name }}
+    {{- end }}
+    {{- if $hDind }}
+    # Names the HAZARD, not the workload: this pod carries a privileged
+    # docker:dind sidecar, and the ploeg-worker PolicyException is keyed on
+    # exactly this label. A pod without dind never carries it and is held to
+    # the full baseline — so adding a Role costs no security-repo change, and
+    # readers are not waived for a privilege they do not take.
+    ploeg.webgrip.dev/privileged-dind: "true"
+    {{- end }}
 spec:
   restartPolicy: Never
   automountServiceAccountToken: false
@@ -123,6 +193,10 @@ spec:
           value: {{ include "ploeg.apiUrl" $root | quote }}
         - name: PLOEG_TEAM
           value: {{ $team.name | quote }}
+        {{- if $role.name }}
+        - name: PLOEG_ROLE
+          value: {{ $role.name | quote }}
+        {{- end }}
         - name: PLOEG_HARNESS
           value: {{ $hName | quote }}
         {{- if $hEntrypoint }}
@@ -164,9 +238,14 @@ spec:
         {{- end }}
         {{- end }}
         - name: LLM_MODEL
-          value: {{ $team.model | quote }}
+          value: {{ $role.model | default $team.model | quote }}
+        {{- /* For a Role, the team's `budget` is the SHIFT POOL, not a per-run
+             ceiling — rendering it here would hand one Run the whole pool if
+             this fallback ever applied. A planned Run is always minted at the
+             claim's authorization instead (ADR-0012); this value stands only
+             for a plan-less team, and for a Role it degrades to its own cap. */}}
         - name: LITELLM_KEY_BUDGET
-          value: {{ $team.budget | quote }}
+          value: {{ $role.cap | default $team.budget | quote }}
         - name: LITELLM_KEY_DURATION
           value: {{ $root.Values.executor.litellm.keyDuration | quote }}
         - name: LLM_BASE_URL
@@ -180,11 +259,26 @@ spec:
               key: {{ $root.Values.executor.litellm.masterKeySecret.key }}
         - name: FORGEJO_URL
           value: {{ $root.Values.executor.forgejo.url | quote }}
+        {{- /* ADR-0013 tier 1: a READING Run gets a read-only forge credential
+             where one is configured, so the writer/reader split is enforced by
+             the forge and not only by Ploeg's scheduling. The repos are
+             private, so "no credential at all" cannot clone — a read-only
+             token is the honest tier 1. Until readTokenSecret is set the
+             reader falls back to the read-write builder token and scheduling
+             is the only boundary; turning the credential boundary on is one
+             secret and no code. */}}
+        {{- $isReader := and $role.name (not $role.writes) }}
+        {{- $readSecret := $root.Values.executor.forgejo.readTokenSecret }}
         - name: AGENT_BUILDER_TOKEN
           valueFrom:
             secretKeyRef:
+              {{- if and $isReader $readSecret }}
+              name: {{ $readSecret.name }}
+              key: {{ $readSecret.key }}
+              {{- else }}
               name: {{ $root.Values.executor.forgejo.tokenSecret.name }}
               key: {{ $root.Values.executor.forgejo.tokenSecret.key }}
+              {{- end }}
         # FALLBACK target only. The repository belongs to the work item,
         # resolved at ingest from its tracker scope and delivered on the claim
         # (R11, ADR-0001); these render only while a team still pins a repo,

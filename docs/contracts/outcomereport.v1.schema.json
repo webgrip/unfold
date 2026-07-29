@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://webgrip.dev/ploeg/contracts/outcomereport.v1.schema.json",
   "title": "OutcomeReport",
-  "description": "The harness contract output (design §5, harness.OutcomeReport) and the body of POST /api/v1/runs/{token}/outcome. A stuck outcome always carries a stuckReason (R4).",
+  "description": "The harness contract output (design \u00a75, harness.OutcomeReport) and the body of POST /api/v1/runs/{token}/outcome. A stuck outcome always carries a stuckReason (R4).",
   "type": "object",
   "properties": {
     "outcome": {
@@ -17,14 +17,22 @@
         "no_change_needed"
       ]
     },
-    "summary": { "type": "string" },
+    "summary": {
+      "type": "string"
+    },
     "links": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "description": "PRs, commits, created follow-ups"
     },
-    "checkpoint": { "$ref": "checkpoint.v1.schema.json" },
-    "stuckReason": { "type": "string" },
+    "checkpoint": {
+      "$ref": "checkpoint.v1.schema.json"
+    },
+    "stuckReason": {
+      "type": "string"
+    },
     "failureReason": {
       "type": "string",
       "description": "Ploeg's internal failure taxonomy (VIK-597), work.FailureReason. Normally set by the orchestrator; a harness adapter with structured evidence (e.g. an ACP stop reason) may classify its own failure, and the orchestrator's heuristics defer to it.",
@@ -44,21 +52,53 @@
       "type": "object",
       "description": "per-run cost/usage (backlog #66) and the harness-native resume handle (backlog #70)",
       "properties": {
-        "inputTokens": { "type": "integer", "minimum": 0 },
-        "outputTokens": { "type": "integer", "minimum": 0 },
-        "costUsd": { "type": "number", "minimum": 0 },
-        "sessionId": { "type": "string" }
+        "inputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "costUsd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "sessionId": {
+          "type": "string"
+        }
       },
       "additionalProperties": false
+    },
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "approve",
+        "request_changes"
+      ],
+      "description": "a reading Run's answer to whether the work is done (ADR-0017). request_changes re-opens the plan's own writing Round, bounded by the Shift pool, maxFixRounds and the verdict itself. Ignored from a writing Role; it can name no Role, author no Round and raise no budget."
     }
   },
-  "required": ["outcome", "summary"],
+  "required": [
+    "outcome",
+    "summary"
+  ],
   "if": {
-    "properties": { "outcome": { "const": "stuck" } }
+    "properties": {
+      "outcome": {
+        "const": "stuck"
+      }
+    }
   },
   "then": {
-    "required": ["stuckReason"],
-    "properties": { "stuckReason": { "minLength": 1 } }
+    "required": [
+      "stuckReason"
+    ],
+    "properties": {
+      "stuckReason": {
+        "minLength": 1
+      }
+    }
   },
   "additionalProperties": false
 }

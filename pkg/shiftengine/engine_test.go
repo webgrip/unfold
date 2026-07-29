@@ -450,7 +450,7 @@ func TestRemandateAfterCloseOpensAFreshShift(t *testing.T) {
 	if err := testStore.CloseShift(ctx, first.ID, "operator abort"); err != nil {
 		t.Fatal(err)
 	}
-	if err := testStore.MarkNeedsHuman(ctx, id, "operator abort"); err != nil {
+	if err := testStore.SettleItem(ctx, id, work.StateNeedsHuman, "operator abort"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -468,5 +468,26 @@ func TestRemandateAfterCloseOpensAFreshShift(t *testing.T) {
 	}
 	if n, _ := testStore.PendingRuns(ctx, "bronze", "analyst"); n != 1 {
 		t.Errorf("fresh shift did not materialise its first round")
+	}
+}
+
+// reviewPlan: writer first, then a reviewer — the shape where a reader runs
+// AFTER a pull request exists, which is when findings can be published.
+func reviewPlan() plan.Plans {
+	plans, err := plan.Parse(`{"bronze": {"pool": 10, "rounds": [
+		{"roles": [{"name": "builder", "writes": true, "cap": 3}]},
+		{"roles": [{"name": "reviewer", "writes": false, "cap": 1}]}
+	]}}`)
+	if err != nil {
+		panic(err)
+	}
+	return plans
+}
+
+func forceItemState(t *testing.T, id int64, state string, attempts int) {
+	t.Helper()
+	if _, err := testPool.Exec(context.Background(),
+		"UPDATE work_items SET state = $1, attempts = $2 WHERE id = $3", state, attempts, id); err != nil {
+		t.Fatalf("force state: %v", err)
 	}
 }
