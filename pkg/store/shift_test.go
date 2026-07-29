@@ -45,7 +45,7 @@ func TestReadersRunConcurrentlyWithoutLease(t *testing.T) {
 	roles := []Role{
 		{Name: "security", Cap: 1}, {Name: "cfo", Cap: 1}, {Name: "philosopher", Cap: 1},
 	}
-	if _, err := testStore.OpenRound(ctx, shiftID, roles); err != nil {
+	if _, err := testStore.OpenRound(ctx, shiftID, 0, roles); err != nil {
 		t.Fatalf("OpenRound: %v", err)
 	}
 
@@ -68,7 +68,7 @@ func TestReadersRunConcurrentlyWithoutLease(t *testing.T) {
 func TestWriterTakesTheLease(t *testing.T) {
 	ctx := context.Background()
 	_, shiftID := openShift(t, 10)
-	if _, err := testStore.OpenRound(ctx, shiftID, []Role{{Name: "builder", Writes: true, Cap: 2}}); err != nil {
+	if _, err := testStore.OpenRound(ctx, shiftID, 0, []Role{{Name: "builder", Writes: true, Cap: 2}}); err != nil {
 		t.Fatalf("OpenRound: %v", err)
 	}
 	got, err := testStore.ClaimRole(ctx, "silver", "builder", time.Minute, 2)
@@ -98,7 +98,7 @@ func TestOpenRoundRefusesMixedRounds(t *testing.T) {
 		{"empty", nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := testStore.OpenRound(ctx, shiftID, tc.roles); err == nil {
+			if _, err := testStore.OpenRound(ctx, shiftID, 0, tc.roles); err == nil {
 				t.Error("expected the round to be refused")
 			}
 		})
@@ -112,7 +112,7 @@ func TestOpenRoundRefusesMixedRounds(t *testing.T) {
 func TestClaimRoleAgreesWithPendingRuns(t *testing.T) {
 	ctx := context.Background()
 	_, shiftID := openShift(t, 20)
-	if _, err := testStore.OpenRound(ctx, shiftID,
+	if _, err := testStore.OpenRound(ctx, shiftID, 0,
 		[]Role{{Name: "security", Cap: 1}, {Name: "cfo", Cap: 1}}); err != nil {
 		t.Fatalf("OpenRound: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestAuthorizeIsAtomicUnderConcurrency(t *testing.T) {
 	for i := range 5 {
 		roles = append(roles, Role{Name: "reader" + string(rune('a'+i)), Cap: cap})
 	}
-	if _, err := testStore.OpenRound(ctx, shiftID, roles); err != nil {
+	if _, err := testStore.OpenRound(ctx, shiftID, 0, roles); err != nil {
 		t.Fatalf("OpenRound: %v", err)
 	}
 
@@ -201,7 +201,7 @@ func TestAuthorizeIsAtomicUnderConcurrency(t *testing.T) {
 func TestAuthorizationIsCappedByPoolRemaining(t *testing.T) {
 	ctx := context.Background()
 	_, shiftID := openShift(t, 0.30)
-	if _, err := testStore.OpenRound(ctx, shiftID, []Role{{Name: "builder", Writes: true, Cap: 2}}); err != nil {
+	if _, err := testStore.OpenRound(ctx, shiftID, 0, []Role{{Name: "builder", Writes: true, Cap: 2}}); err != nil {
 		t.Fatalf("OpenRound: %v", err)
 	}
 	got, err := testStore.ClaimRole(ctx, "silver", "builder", time.Minute, 2)
@@ -218,7 +218,7 @@ func TestAuthorizationIsCappedByPoolRemaining(t *testing.T) {
 func TestExhaustedPoolRefusesToSpawn(t *testing.T) {
 	ctx := context.Background()
 	_, shiftID := openShift(t, 0.01)
-	if _, err := testStore.OpenRound(ctx, shiftID, []Role{{Name: "cfo", Cap: 1}}); err != nil {
+	if _, err := testStore.OpenRound(ctx, shiftID, 0, []Role{{Name: "cfo", Cap: 1}}); err != nil {
 		t.Fatalf("OpenRound: %v", err)
 	}
 	if _, err := testStore.ClaimRole(ctx, "silver", "cfo", time.Minute, 1); !errors.Is(err, ErrBudgetExhausted) {
@@ -235,7 +235,7 @@ func TestExhaustedPoolRefusesToSpawn(t *testing.T) {
 func TestZeroBudgetMeansUnmetered(t *testing.T) {
 	ctx := context.Background()
 	_, shiftID := openShift(t, 0)
-	if _, err := testStore.OpenRound(ctx, shiftID, []Role{{Name: "builder", Writes: true}}); err != nil {
+	if _, err := testStore.OpenRound(ctx, shiftID, 0, []Role{{Name: "builder", Writes: true}}); err != nil {
 		t.Fatalf("OpenRound: %v", err)
 	}
 	if _, err := testStore.ClaimRole(ctx, "silver", "builder", time.Minute, 0); err != nil {
@@ -259,7 +259,7 @@ func TestOneLiveShiftPerItem(t *testing.T) {
 func TestSettlementReleasesTheHoldAndRecordsSpend(t *testing.T) {
 	ctx := context.Background()
 	_, shiftID := openShift(t, 10)
-	if _, err := testStore.OpenRound(ctx, shiftID, []Role{{Name: "builder", Writes: true, Cap: 2}}); err != nil {
+	if _, err := testStore.OpenRound(ctx, shiftID, 0, []Role{{Name: "builder", Writes: true, Cap: 2}}); err != nil {
 		t.Fatalf("OpenRound: %v", err)
 	}
 	run, err := testStore.ClaimRole(ctx, "silver", "builder", time.Minute, 2)
@@ -272,7 +272,7 @@ func TestSettlementReleasesTheHoldAndRecordsSpend(t *testing.T) {
 		t.Fatalf("reserved = %.2f while running, want 2", before.Reserved)
 	}
 
-	if err := testStore.ReportOutcome(ctx, run.RunToken,
+	if _, err := testStore.ReportOutcome(ctx, run.RunToken,
 		Report(work.OutcomePROpened, "done", "", nil, []byte(`{"costUsd":0.75}`), nil)); err != nil {
 		t.Fatalf("ReportOutcome: %v", err)
 	}
@@ -295,14 +295,14 @@ func TestSettlementReleasesTheHoldAndRecordsSpend(t *testing.T) {
 func TestReaderCanReportWithoutALease(t *testing.T) {
 	ctx := context.Background()
 	_, shiftID := openShift(t, 10)
-	if _, err := testStore.OpenRound(ctx, shiftID, []Role{{Name: "security", Cap: 1}}); err != nil {
+	if _, err := testStore.OpenRound(ctx, shiftID, 0, []Role{{Name: "security", Cap: 1}}); err != nil {
 		t.Fatalf("OpenRound: %v", err)
 	}
 	run, err := testStore.ClaimRole(ctx, "silver", "security", time.Minute, 1)
 	if err != nil {
 		t.Fatalf("ClaimRole: %v", err)
 	}
-	if err := testStore.ReportOutcome(ctx, run.RunToken,
+	if _, err := testStore.ReportOutcome(ctx, run.RunToken,
 		Report(work.OutcomeNoChangeNeeded, "looks fine", "", nil, nil, nil)); err != nil {
 		t.Errorf("a reader could not report its outcome: %v", err)
 	}
@@ -314,7 +314,7 @@ func TestReaderCanReportWithoutALease(t *testing.T) {
 func TestSweptRunCannotReport(t *testing.T) {
 	ctx := context.Background()
 	_, shiftID := openShift(t, 10)
-	if _, err := testStore.OpenRound(ctx, shiftID, []Role{{Name: "cfo", Cap: 1}}); err != nil {
+	if _, err := testStore.OpenRound(ctx, shiftID, 0, []Role{{Name: "cfo", Cap: 1}}); err != nil {
 		t.Fatalf("OpenRound: %v", err)
 	}
 	run, err := testStore.ClaimRole(ctx, "silver", "cfo", -time.Second, 1) // already overdue
@@ -328,7 +328,7 @@ func TestSweptRunCannotReport(t *testing.T) {
 	if len(expired) != 1 {
 		t.Fatalf("swept %d runs, want 1 — a dead reader must be reclaimable", len(expired))
 	}
-	if err := testStore.ReportOutcome(ctx, run.RunToken,
+	if _, err := testStore.ReportOutcome(ctx, run.RunToken,
 		Report(work.OutcomePROpened, "zombie", "", nil, nil, nil)); !errors.Is(err, ErrUnknownRun) {
 		t.Errorf("swept run reported: got %v, want ErrUnknownRun", err)
 	}
@@ -342,7 +342,7 @@ func TestSweptRunCannotReport(t *testing.T) {
 func TestRoundCompleteTracksItsRuns(t *testing.T) {
 	ctx := context.Background()
 	_, shiftID := openShift(t, 10)
-	if _, err := testStore.OpenRound(ctx, shiftID,
+	if _, err := testStore.OpenRound(ctx, shiftID, 0,
 		[]Role{{Name: "security", Cap: 1}, {Name: "cfo", Cap: 1}}); err != nil {
 		t.Fatalf("OpenRound: %v", err)
 	}
@@ -354,7 +354,7 @@ func TestRoundCompleteTracksItsRuns(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ClaimRole(%s): %v", role, err)
 		}
-		if err := testStore.ReportOutcome(ctx, run.RunToken,
+		if _, err := testStore.ReportOutcome(ctx, run.RunToken,
 			Report(work.OutcomeNoChangeNeeded, "ok", "", nil, nil, nil)); err != nil {
 			t.Fatalf("ReportOutcome(%s): %v", role, err)
 		}

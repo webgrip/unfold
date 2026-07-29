@@ -243,7 +243,9 @@ func (s *Server) handleOutcome(w http.ResponseWriter, r *http.Request) {
 		fr := req.FailureReason
 		failureReason = &fr
 	}
-	err := s.Store.ReportOutcome(r.Context(), r.PathValue("token"),
+	// The result names the Shift this report may have completed; the shift
+	// engine picks it up from here in a later change.
+	_, err := s.Store.ReportOutcome(r.Context(), r.PathValue("token"),
 		store.Report(req.Outcome, req.Summary, req.StuckReason, req.Links, usage, failureReason))
 	if err != nil {
 		if errors.Is(err, store.ErrUnknownRun) {
