@@ -83,6 +83,9 @@ fails otherwise.
 | [0007](0007-a2a-adopt-nothing-watchlist-a-facade.md) | A2A: adopt nothing now; watchlist a north-facing dispatch facade | accepted | 2026-07-29 |
 | [0008](0008-litellm-is-the-credential-and-metering-seam.md) | LiteLLM stays the per-run credential and metering seam | accepted | 2026-07-29 |
 | [0009](0009-paperclip-mine-for-design-never-integrate.md) | Paperclip: mine it for design, never depend on it | accepted | 2026-07-29 |
+| [0010](0010-shift-owns-the-item-lease-owns-the-branch.md) | A Shift owns the work item; a Lease narrows to write access on the branch | accepted | 2026-07-29 |
+| [0011](0011-the-pull-request-is-the-blackboard.md) | The pull request is the blackboard; Ploeg is only the transport | accepted | 2026-07-29 |
+| [0012](0012-two-level-budgets-authorized-and-settled.md) | Budgets are two-level: a Shift pool, authorized and settled per Run | accepted | 2026-07-29 |
 
 ## Review calendar
 
@@ -92,4 +95,5 @@ triggers.
 | Due | ADRs |
 | --- | --- |
 | 2026-10-31 | [0006](0006-ahp-is-the-wrong-layer.md), [0007](0007-a2a-adopt-nothing-watchlist-a-facade.md), [0008](0008-litellm-is-the-credential-and-metering-seam.md), [0009](0009-paperclip-mine-for-design-never-integrate.md) — the quarterly market re-scan (`design.md` §10) |
+| 2027-01-31 | [0010](0010-shift-owns-the-item-lease-owns-the-branch.md), [0011](0011-the-pull-request-is-the-blackboard.md), [0012](0012-two-level-budgets-authorized-and-settled.md) — after the first real Shifts have run; all three rest on assumptions only production can test |
 | 2027-04-01 | [0005](0005-build-a-dedicated-dispatch-plane.md) — the project review gate (`design.md` §10) |
