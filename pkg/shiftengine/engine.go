@@ -216,7 +216,8 @@ func storeRoles(r plan.Round) []store.Role {
 // nobody reconfigured.
 func (e *Engine) close(ctx context.Context, si store.ShiftInfo, closeReason, humanReason string,
 	synthesized bool, reports []store.RunReport) error {
-	if err := e.Store.CloseShift(ctx, si.ID, closeReason); err != nil {
+	closed, err := e.Store.CloseShift(ctx, si.ID, closeReason)
+	if err != nil {
 		return err
 	}
 
@@ -226,15 +227,29 @@ func (e *Engine) close(ctx context.Context, si store.ShiftInfo, closeReason, hum
 			next = work.StateForOutcome(outcome)
 		}
 	}
-	if err := e.Store.SettleItem(ctx, si.WorkItemID, next, humanReason); err != nil {
+	settled, err := e.Store.SettleItem(ctx, si.WorkItemID, next, humanReason)
+	if err != nil {
 		return err
 	}
 	e.Log.Info("shift closed", "shift", si.ID, "work_item", si.WorkItemID,
-		"team", si.Team, "reason", closeReason, "item_state", string(next))
+		"team", si.Team, "reason", closeReason, "item_state", string(settled))
 	// After the state is durable, never before: a tracker outage must not be
 	// able to leave a Shift open or an item un-transitioned.
-	if next == work.StateNeedsHuman {
-		e.notifyHuman(ctx, si, humanReason)
+	//
+	// Every TERMINAL settle notifies, not just needs_human. The blackboard
+	// spec's "a person is asked to merge" says a Shift closing without a
+	// further Round writes back — it does not say "only when it went badly".
+	// Gating on needs_human meant the happy path (a plan-less team's
+	// pr_opened settles done) told the board nothing at all: the pull request
+	// existed and nobody was informed.
+	//
+	// `closed` keeps it to one comment when the outcome fast-path and the
+	// sweeper both conclude the same Shift is over. The notify decision lives
+	// HERE, not inside CloseShift or SettleItem, so that cancellation
+	// (backlog #8) can close a Shift WITHOUT notifying — a human who
+	// unassigned a ticket does not need to be told Ploeg finished it.
+	if closed && work.Terminal(settled) {
+		e.notifyTracker(ctx, si, settled, humanReason)
 	}
 	return nil
 }

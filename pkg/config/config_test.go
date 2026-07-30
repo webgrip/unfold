@@ -247,3 +247,72 @@ teams:
 		t.Errorf("error = %v, want the plan validator's message", err)
 	}
 }
+
+// An assignee on two teams used to load fine and then route by coin flip:
+// AssigneeTeams() ranged a Go map, so the same file dispatched the same
+// person's tickets to a different team on different boots.
+func TestLoad_RejectsAnAssigneeSharedByTwoTeams(t *testing.T) {
+	_, err := Load(write(t, `
+teams:
+  bronze:
+    assignees: [bronze, builder]
+  silver:
+    assignees: [silver, builder]
+`))
+	if err == nil {
+		t.Fatal("an assignee on two teams loaded; routing would be nondeterministic")
+	}
+	for _, want := range []string{"builder", "bronze", "silver"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error does not name %q, so the operator cannot find it: %v", want, err)
+		}
+	}
+}
+
+// Case-folding is what the check compares on, because AssigneeTeams()
+// lowercases: "Builder" and "builder" are the same person to the router.
+func TestLoad_RejectsASharedAssigneeRegardlessOfCase(t *testing.T) {
+	if _, err := Load(write(t, `
+teams:
+  bronze:
+    assignees: [Builder]
+  silver:
+    assignees: [builder]
+`)); err == nil {
+		t.Fatal("case-differing duplicate loaded; the router would still collide")
+	}
+}
+
+// The same name twice inside ONE team is a harmless typo — it resolves to that
+// team either way. Rejecting it would be a gratuitous boot failure.
+func TestLoad_AllowsARepeatedAssigneeWithinOneTeam(t *testing.T) {
+	f, err := Load(write(t, `
+teams:
+  bronze:
+    assignees: [builder, builder]
+`))
+	if err != nil {
+		t.Fatalf("a repeat within one team should load: %v", err)
+	}
+	if got := f.AssigneeTeams()["builder"]; got != "bronze" {
+		t.Errorf("builder routed to %q, want bronze", got)
+	}
+}
+
+// The executable form of the evidence: 200 projections, one answer.
+func TestAssigneeTeams_IsDeterministic(t *testing.T) {
+	f := &File{Teams: map[string]Team{
+		"bronze": {Assignees: []string{"bronze", "builder"}},
+		"silver": {Assignees: []string{"silver", "reviewer"}},
+		"copper": {Assignees: []string{"copper"}},
+	}}
+	first := f.AssigneeTeams()
+	for i := 0; i < 200; i++ {
+		got := f.AssigneeTeams()
+		for k, v := range first {
+			if got[k] != v {
+				t.Fatalf("iteration %d routed %q to %q, first pass said %q", i, k, got[k], v)
+			}
+		}
+	}
+}

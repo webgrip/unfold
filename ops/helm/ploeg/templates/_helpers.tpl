@@ -131,6 +131,11 @@ metadata:
     {{- end }}
 spec:
   restartPolicy: Never
+  # An identity of the workers' own. Naming none left them on `default`, which
+  # both trips require-non-default-serviceaccount and makes every workload in
+  # the namespace indistinguishable in an audit log. The token stays unmounted
+  # either way — a worker needs no Kubernetes API authority at all.
+  serviceAccountName: {{ $root.Values.executor.serviceAccountName | default (printf "%s-worker" (include "ploeg.fullname" $root)) }}
   automountServiceAccountToken: false
   {{- with $root.Values.imagePullSecrets }}
   imagePullSecrets: {{- toYaml . | nindent 4 }}
@@ -182,7 +187,7 @@ spec:
           mountPath: /var/lib/docker
         - name: ci-shared
           mountPath: /mnt/ci-shared
-      resources: {{- toYaml $root.Values.executor.dindResources | nindent 8 }}
+      resources: {{- toYaml (default $root.Values.executor.dindResources $role.dindResources) | nindent 8 }}
     {{- end }}
   containers:
     - name: worker
@@ -338,7 +343,13 @@ spec:
         {{- end }}
         - name: ci-shared
           mountPath: /mnt/ci-shared
-      resources: {{- toYaml $root.Values.executor.workerResources | nindent 8 }}
+      {{- /* Per-Role sizing, falling back to the executor-wide default. A
+           Round that fans out three readers asks the scheduler for three
+           whole writer-sized pods at once, which on a one-node worker pool
+           simply does not fit — and the readers do not build anything, so
+           they never needed a builder's CPU. Same field-by-field override
+           shape as harness above. */}}
+      resources: {{- toYaml (default $root.Values.executor.workerResources $role.workerResources) | nindent 8 }}
   volumes:
     - name: worker-bin
       emptyDir: {}

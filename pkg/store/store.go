@@ -546,30 +546,42 @@ func (s *Store) WorkItem(ctx context.Context, id int64) (work.WorkItem, error) {
 //
 // A failed outcome still respects the retry threshold, so a Shift that ends
 // in failure re-queues and stales exactly like a legacy run (R5).
-func (s *Store) SettleItem(ctx context.Context, workItemID int64, next work.State, reason string) error {
+//
+// Returns the state actually written, which is not always the one asked for:
+// queued coerces to stale at the attempt cap. The caller needs the difference
+// — "failed, retrying" is not terminal and must not notify the tracker, while
+// "failed, gave up" is and must. The audit row records the effective state for
+// the same reason: it used to claim work_item.queued for a row that went stale.
+func (s *Store) SettleItem(ctx context.Context, workItemID int64, next work.State, reason string) (work.State, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
+	var written string
 	if next == work.StateQueued {
-		if _, err := tx.Exec(ctx, `
+		if err := tx.QueryRow(ctx, `
 			UPDATE work_items
 			SET state = CASE WHEN attempts >= $2 THEN 'stale' ELSE 'queued' END, updated_at = now()
-			WHERE id = $1`, workItemID, MaxAttempts); err != nil {
-			return err
+			WHERE id = $1
+			RETURNING state`, workItemID, MaxAttempts).Scan(&written); err != nil {
+			return "", err
 		}
-	} else if _, err := tx.Exec(ctx,
-		`UPDATE work_items SET state = $2, updated_at = now() WHERE id = $1`,
-		workItemID, string(next)); err != nil {
-		return err
+	} else if err := tx.QueryRow(ctx,
+		`UPDATE work_items SET state = $2, updated_at = now() WHERE id = $1 RETURNING state`,
+		workItemID, string(next)).Scan(&written); err != nil {
+		return "", err
 	}
-	if err := audit(ctx, tx, "ploegd:shift-engine", "work_item."+string(next), &workItemID,
+	settled := work.State(written)
+	if err := audit(ctx, tx, "ploegd:shift-engine", "work_item."+written, &workItemID,
 		map[string]any{"reason": reason}); err != nil {
-		return err
+		return "", err
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return "", err
+	}
+	return settled, nil
 }
 
 // ExpireLeases releases every overdue lease: the run is recorded as failed

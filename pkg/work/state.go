@@ -21,6 +21,15 @@ func CanTransition(from, to State) bool {
 	return false
 }
 
+// Terminal reports whether nothing further happens to the item without a new
+// human mandate. It is the tracker write-back's gate: queued is the only
+// settle result that is NOT terminal, because a failed run under the retry
+// threshold comes back round and telling the board "Ploeg finished" mid-retry
+// would be a lie.
+func Terminal(s State) bool {
+	return s == StateDone || s == StateNeedsHuman || s == StateStale
+}
+
 // StateForOutcome maps a terminal Outcome to the Work Item state it produces:
 // stuck routes to a human queue (R4), failed releases the lease for retry
 // (R5), everything else completes the item.

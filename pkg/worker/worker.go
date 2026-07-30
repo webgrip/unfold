@@ -140,7 +140,15 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	forgeToken := w.Cfg.BuilderToken
 	if claimed.ForgeToken != "" {
 		forgeToken = claimed.ForgeToken
-		w.Log.Info("using a per-run forge credential")
+		// Say which one it actually is. The Static broker returns the SHARED
+		// token in this same field, and logging "per-run" for it claims a
+		// revocation guarantee the deployment does not have — read during an
+		// audit, that is worse than saying nothing.
+		if claimed.ForgeTokenPerRun {
+			w.Log.Info("using a per-run forge credential minted for this run")
+		} else {
+			w.Log.Info("using the shared forge credential supplied by ploegd")
+		}
 	}
 
 	// Resolve the repository BEFORE touching disk: a misconfigured run must

@@ -151,6 +151,9 @@
             }
           },
           "additionalProperties": true
+        },
+        "serviceAccountName": {
+          "type": "string"
         }
       }
     },
@@ -198,6 +201,14 @@
         },
         "harness": {
           "$ref": "#/definitions/harness"
+        },
+        "workerResources": {
+          "type": "object",
+          "description": "Overrides executor.workerResources for this role's workload. Readers do not build, so a fan-out round need not book writer-sized pods."
+        },
+        "dindResources": {
+          "type": "object",
+          "description": "Overrides executor.dindResources for this role's DinD sidecar (only rendered when the role runs harness.dind)."
         }
       },
       "//": "name becomes the workload suffix (ploeg-worker-<team>-<role>); writes marks the round's single writer (ADR-0010); cap bounds one Run's spend against the pool (ADR-0012); model/maxReplicaCount/harness override the team's values for this role's workload.",

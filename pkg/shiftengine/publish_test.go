@@ -386,3 +386,98 @@ func TestPublish_ForgeIsKeyedByTargetIDNotDialectName(t *testing.T) {
 		t.Fatalf("findings not published: the forge registry is keyed wrongly (%d comments)", len(forge.comments))
 	}
 }
+
+// The 2026-07-30 incident, as a test. A plan-less team opened a real pull
+// request, the item settled `done` — and the board was told nothing, because
+// the write-back was gated on needs_human. Fails against v0.2.0-rc.12.
+func TestPublish_DoneOutcomeStillNotifiesTheTracker(t *testing.T) {
+	ctx := context.Background()
+	resetTables(t)
+	tracker := &fakeTracker{}
+	e := uniformEngine(t)
+	e.Trackers = map[string]provider.TrackerProvider{"vikunja": tracker}
+	id, _ := openUniform(t, e, "580")
+
+	run, _ := testStore.ClaimRole(ctx, "silver", "", time.Minute, 0)
+	if _, err := testStore.ReportOutcome(ctx, run.RunToken, store.Report(
+		work.OutcomePROpened, "opened a PR", "",
+		[]string{"https://forgejo.webgrip.dev/webgrip/ploeg/pulls/30"}, nil, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EvaluateItem(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := itemState(t, id); got != "done" {
+		t.Fatalf("item state = %q, want done (the path that used to skip the write-back)", got)
+	}
+	if len(tracker.comments) != 1 {
+		t.Fatalf("tracker comments = %d, want exactly 1 — a finished PR must reach the board", len(tracker.comments))
+	}
+	if !strings.Contains(tracker.comments[0], "/pulls/30") {
+		t.Errorf("comment carries no pull request link:\n%s", tracker.comments[0])
+	}
+	// Definition of Done here is "in production, monitored, first telemetry
+	// observed" — none of which Ploeg can see. It must never close the task.
+	for _, s := range tracker.statuses {
+		if s == work.StateDone {
+			t.Error("Ploeg closed the tracker task; a PR is open and unmerged, so the item is not done")
+		}
+	}
+}
+
+// A failed run under the retry threshold re-queues. That is not terminal, and
+// announcing "Ploeg stopped working this item" mid-retry would be a lie.
+func TestPublish_FailedRetryDoesNotNotify(t *testing.T) {
+	ctx := context.Background()
+	resetTables(t)
+	tracker := &fakeTracker{}
+	e := uniformEngine(t)
+	e.Trackers = map[string]provider.TrackerProvider{"vikunja": tracker}
+	id, _ := openUniform(t, e, "581")
+
+	run, _ := testStore.ClaimRole(ctx, "silver", "", time.Minute, 0)
+	if _, err := testStore.ReportOutcome(ctx, run.RunToken,
+		store.Report(work.OutcomeFailed, "boom", "", nil, nil, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EvaluateItem(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	if got := itemState(t, id); got != "queued" {
+		t.Fatalf("item state = %q, want queued for a retry", got)
+	}
+	if len(tracker.comments) != 0 {
+		t.Errorf("tracker was told about a retry: %v", tracker.comments)
+	}
+}
+
+// The wording per terminal state, without a database.
+func TestTrackerMessage_PerTerminalState(t *testing.T) {
+	const link = "https://forgejo.webgrip.dev/webgrip/ploeg/pulls/30"
+	for _, tc := range []struct {
+		name    string
+		settled work.State
+		link    string
+		want    string
+		absent  string
+	}{
+		{"done with a PR", work.StateDone, link, "opened a pull request", "No pull request"},
+		{"done with nothing to change", work.StateDone, "", "without needing to change anything", "Please review"},
+		{"gave up", work.StateStale, "", "gave up on this item", "Please review"},
+		{"parked for a human", work.StateNeedsHuman, link, "Ploeg stopped working this item", "gave up"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := trackerMessage(tc.settled, "plan_exhausted", tc.link, 1, 1)
+			if !strings.Contains(got, tc.want) {
+				t.Errorf("message missing %q:\n%s", tc.want, got)
+			}
+			if tc.absent != "" && strings.Contains(got, tc.absent) {
+				t.Errorf("message should not contain %q:\n%s", tc.absent, got)
+			}
+			if !strings.Contains(got, "stays open until it is in production") {
+				t.Errorf("message drops the definition-of-done note:\n%s", got)
+			}
+		})
+	}
+}

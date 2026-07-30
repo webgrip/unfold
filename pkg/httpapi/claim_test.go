@@ -238,7 +238,7 @@ func TestClaim_DryShiftBlocksTheQueueUntilSwept(t *testing.T) {
 	}
 
 	// The sweeper's park: closing the dry Shift cancels its pending Runs.
-	if err := testStore.CloseShift(context.Background(), dry, "budget exhausted"); err != nil {
+	if _, err := testStore.CloseShift(context.Background(), dry, "budget exhausted"); err != nil {
 		t.Fatal(err)
 	}
 	code, resp := postClaim(t, h, `{"team":"bronze","role":"analyst"}`)

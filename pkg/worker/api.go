@@ -38,6 +38,10 @@ type ClaimResponse struct {
 	// ForgeToken is a push credential minted for this run alone and revoked
 	// when it settles (ADR-0013 tier 2). Empty = use the env credential.
 	ForgeToken string `json:"forgeToken,omitempty"`
+	// ForgeTokenPerRun distinguishes a minted credential from the shared
+	// token, which arrives in the same field. Only ploegd knows the
+	// difference, so it has to say.
+	ForgeTokenPerRun bool `json:"forgeTokenPerRun,omitempty"`
 }
 
 // Claim returns nil when the queue is empty (HTTP 204) — the empty-handed

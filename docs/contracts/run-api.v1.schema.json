@@ -43,7 +43,15 @@
           "minimum": 0,
           "description": "USD ceiling the run's LLM credential must be minted at: min(roleCap, poolRemaining) (ADR-0012). Absent or 0 = use the worker's env budget."
         },
-        "briefing": { "$ref": "taskspec.v1.schema.json#/$defs/briefing" }
+        "briefing": { "$ref": "taskspec.v1.schema.json#/$defs/briefing" },
+        "forgeToken": {
+          "type": "string",
+          "description": "Push credential for this run. Absent = use the worker's env credential. Never logged, never audited, never in a Task Spec (R8)."
+        },
+        "forgeTokenPerRun": {
+          "type": "boolean",
+          "description": "True when forgeToken was minted for this run alone and is revoked when it settles (ADR-0013 tier 2); false or absent when it is the deployment's shared token, which the Static broker returns in the same field."
+        }
       },
       "required": ["runToken", "deadline", "workItem"],
       "additionalProperties": false

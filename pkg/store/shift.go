@@ -470,10 +470,15 @@ func (s *Store) LiveShiftForItem(ctx context.Context, workItemID int64) (*ShiftI
 //
 // Idempotent: closing an already-closed Shift is a no-op, because the outcome
 // fast-path and the sweeper may both conclude a Shift is done (R2).
-func (s *Store) CloseShift(ctx context.Context, shiftID int64, reason string) error {
+//
+// Reports whether THIS call won the close. Both racers still settle the item
+// (that path is crash repair and must stay unconditional), but only the winner
+// notifies the tracker — otherwise the fast path and the sweeper each post a
+// "Ploeg finished this item" comment to the same board.
+func (s *Store) CloseShift(ctx context.Context, shiftID int64, reason string) (bool, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
@@ -488,15 +493,15 @@ func (s *Store) CloseShift(ctx context.Context, shiftID int64, reason string) er
 		var exists bool
 		if err := tx.QueryRow(ctx,
 			`SELECT EXISTS (SELECT 1 FROM shifts WHERE id = $1)`, shiftID).Scan(&exists); err != nil {
-			return err
+			return false, err
 		}
 		if !exists {
-			return fmt.Errorf("shift %d does not exist", shiftID)
+			return false, fmt.Errorf("shift %d does not exist", shiftID)
 		}
-		return nil
+		return false, nil
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	tag, err := tx.Exec(ctx, `
@@ -504,14 +509,17 @@ func (s *Store) CloseShift(ctx context.Context, shiftID int64, reason string) er
 			summary = 'cancelled: shift closed (' || $2 || ')'
 		WHERE shift_id = $1 AND state = 'pending'`, shiftID, reason)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if err := audit(ctx, tx, "team:"+team, "shift.closed", &workItemID, map[string]any{
 		"shift": shiftID, "reason": reason, "cancelled_pending": tag.RowsAffected(),
 	}); err != nil {
-		return err
+		return false, err
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // RunReport is one finished Run's contribution to the blackboard: who said

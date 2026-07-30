@@ -121,7 +121,7 @@ func TestCloseShift(t *testing.T) {
 		t.Fatalf("OpenRound: %v", err)
 	}
 
-	if err := testStore.CloseShift(ctx, shiftID, "plan_exhausted"); err != nil {
+	if _, err := testStore.CloseShift(ctx, shiftID, "plan_exhausted"); err != nil {
 		t.Fatalf("CloseShift: %v", err)
 	}
 
@@ -145,7 +145,7 @@ func TestCloseShift(t *testing.T) {
 	}
 
 	// Idempotent: the outcome fast-path and the sweeper may both close (R2).
-	if err := testStore.CloseShift(ctx, shiftID, "again"); err != nil {
+	if _, err := testStore.CloseShift(ctx, shiftID, "again"); err != nil {
 		t.Errorf("second close must be a no-op, got %v", err)
 	}
 	if err := testStore.pool.QueryRow(ctx,
@@ -161,7 +161,7 @@ func TestCloseShift(t *testing.T) {
 		t.Errorf("re-mandate after close failed: %v", err)
 	}
 
-	if err := testStore.CloseShift(ctx, 99999, "ghost"); err == nil {
+	if _, err := testStore.CloseShift(ctx, 99999, "ghost"); err == nil {
 		t.Errorf("closing a nonexistent shift must error")
 	}
 }
