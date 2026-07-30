@@ -186,7 +186,7 @@ func TestResolveOutcome_Precedence(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			got := resolveOutcome("openhands", tc.report, tc.runErr, tc.ctxErr,
-				tc.prURL, tc.prExisted, "fix the thing", "agent/vik-585", []byte("tail-of-log"), tc.expectsLLM)
+				tc.prURL, tc.prExisted, "fix the thing", "agent/vik-585", []byte("tail-of-log"), tc.expectsLLM, true)
 			if got.Outcome != tc.wantOutcome {
 				t.Errorf("outcome = %q, want %q", got.Outcome, tc.wantOutcome)
 			}
@@ -209,15 +209,15 @@ func TestResolveOutcome_Precedence(t *testing.T) {
 	}
 	t.Run("usage survives every branch", func(t *testing.T) {
 		report := harness.OutcomeReport{Usage: usage} // no structured outcome, usage only
-		got := resolveOutcome("claude-code", report, nil, nil, "http://forge/pr/8", false, "t", "b", nil, true)
+		got := resolveOutcome("claude-code", report, nil, nil, "http://forge/pr/8", false, "t", "b", nil, true, true)
 		if got.Usage != usage {
 			t.Errorf("usage lost on the PR branch: %+v", got.Usage)
 		}
-		got = resolveOutcome("claude-code", report, nil, nil, "http://forge/pr/8", true, "t", "b", nil, true)
+		got = resolveOutcome("claude-code", report, nil, nil, "http://forge/pr/8", true, "t", "b", nil, true, true)
 		if got.Usage != usage {
 			t.Errorf("usage lost on the pr_updated branch: %+v", got.Usage)
 		}
-		got = resolveOutcome("claude-code", report, nil, nil, "", false, "t", "b", nil, true)
+		got = resolveOutcome("claude-code", report, nil, nil, "", false, "t", "b", nil, true, true)
 		if got.Usage != usage {
 			t.Errorf("usage lost on the no-change branch: %+v", got.Usage)
 		}
