@@ -238,6 +238,13 @@ func (s *Server) resolveTarget(item *work.WorkItem, ev provider.TrackerEvent) {
 	}
 	item.Target = &t
 	item.RouteRule = rule
+	// The routing decision, at the moment it is made. Only the failures were
+	// logged, so a CORRECT decision was invisible in ploegd's own log and
+	// only surfaced a hop later in the worker — after a pod had been
+	// scheduled and an agent had started. Nothing here is a credential.
+	s.Log.Info("target resolved", "external_id", ev.ExternalID, "scope", item.ExternalScope,
+		"team", item.Team, "repo", t.Owner+"/"+t.Repo, "branch", t.BaseBranch,
+		"forge", t.Forge, "rule", rule)
 }
 
 type claimRequest struct {
@@ -264,6 +271,11 @@ type claimResponse struct {
 	// settles (ADR-0013 tier 2). Empty = use the env credential. Never logged,
 	// never audited, never in a Task Spec (R8).
 	ForgeToken string `json:"forgeToken,omitempty"`
+	// ForgeTokenPerRun says whether ForgeToken was actually minted for this
+	// run, or is the shared token the Static broker hands back unchanged.
+	// Both arrive in the same field, and the worker cannot tell them apart —
+	// which made it log a per-run credential on deployments that have none.
+	ForgeTokenPerRun bool `json:"forgeTokenPerRun,omitempty"`
 }
 
 // handleClaim leases the next unit of work for a team. 204 = empty-handed
@@ -389,6 +401,11 @@ func (s *Server) respondClaimedRun(w http.ResponseWriter, r *http.Request, req c
 			}
 		}
 		resp.ForgeToken = cred.Token
+		// cred.ID is the truth predicate for "minted, and therefore
+		// revocable" — the Static broker returns the SHARED token with no id.
+		// Without telling the worker, it announces a security property it
+		// does not have (ADR-0013 tier 2 vs the pre-tier-2 shared token).
+		resp.ForgeTokenPerRun = cred.ID != ""
 	}
 
 	s.Log.Info("run claimed", "team", req.Team, "role", run.Role, "shift", run.ShiftID,
