@@ -1,3 +1,7 @@
+## 0.2.0-rc.12 (2026-07-30)
+
+* fix(ci): substitute the chart version out of the helm goldens ([c827f9f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c827f9f))
+
 ## 0.2.0-rc.11 (2026-07-30)
 
 * Merge pull request 'fix(config): per-team routing on one project is valid, not a duplicate' (#29) fr ([c725b8d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c725b8d)), closes [#29](https://forgejo.webgrip.dev/webgrip/ploeg/issues/29)
