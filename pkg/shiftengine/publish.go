@@ -126,11 +126,14 @@ func findingsComment(r store.RunReport) string {
 	return b.String()
 }
 
-// notifyHuman closes the loop the factory opens: a Shift that has stopped
-// tells the board why, with the pull request to look at. Without this the
-// handoff is something a person notices, not something they are told
+// notifyTracker closes the loop the factory opens: a Shift that has stopped
+// tells the board what happened, with the pull request to look at. Without
+// this the handoff is something a person notices, not something they are told
 // (blackboard spec, "a person is asked to merge").
-func (e *Engine) notifyHuman(ctx context.Context, si store.ShiftInfo, reason string) {
+//
+// Called for every TERMINAL settle — see Engine.close. It was called only for
+// needs_human, which meant the successful path said nothing.
+func (e *Engine) notifyTracker(ctx context.Context, si store.ShiftInfo, settled work.State, reason string) {
 	if len(e.Trackers) == 0 {
 		return
 	}
@@ -151,8 +154,46 @@ func (e *Engine) notifyHuman(ctx context.Context, si store.ShiftInfo, reason str
 	}
 	link, _ := pullRequest(reports)
 
+	body := trackerMessage(settled, reason, link, len(reports), si.Round)
+
+	// Write-back failure is logged, never propagated: the Work Item state and
+	// the audit rows are already correct, and losing them to a tracker outage
+	// would be the worse trade (blackboard spec).
+	if err := tp.Comment(ctx, item.ExternalID, body); err != nil {
+		e.Log.Error("tracker comment failed", "shift", si.ID, "external_id", item.ExternalID, "err", err)
+	}
+	// Ploeg NEVER reports an item done, whatever its own state says.
+	//
+	// This deployment's Definition of Done is "in production, monitored,
+	// first telemetry observed". Ploeg opens a pull request and stops — it
+	// does not merge, deploy, or watch a graph, so it is never in a position
+	// to know the item is finished. Closing the task here would hide work
+	// that still owes a merge, a release and a look at the dashboards, and
+	// the comment we just posted literally asks a person to merge it.
+	//
+	// So the tracker is always told needs_human. The provider drops anything
+	// that is not `done`, which makes this a deliberate no-op today rather
+	// than an accidental one — keep the call, because a provider whose
+	// tracker HAS an in-review column should be free to use it.
+	if err := tp.SetStatus(ctx, item.ExternalID, work.StateNeedsHuman); err != nil {
+		e.Log.Error("tracker status write failed", "shift", si.ID, "external_id", item.ExternalID, "err", err)
+	}
+}
+
+// trackerMessage is what the board is told, per terminal state. Pure so the
+// wording is table-testable without an embedded Postgres.
+func trackerMessage(settled work.State, reason, link string, runs, rounds int) string {
 	var b strings.Builder
-	b.WriteString("Ploeg finished working this item.\n\n")
+	switch {
+	case settled == work.StateStale:
+		b.WriteString("Ploeg gave up on this item after repeated failures.\n\n")
+	case settled == work.StateDone && link != "":
+		b.WriteString("Ploeg finished this item and opened a pull request.\n\n")
+	case settled == work.StateDone:
+		b.WriteString("Ploeg finished this item without needing to change anything.\n\n")
+	default:
+		b.WriteString("Ploeg stopped working this item.\n\n")
+	}
 	fmt.Fprintf(&b, "**Outcome:** %s\n", reason)
 	if link != "" {
 		fmt.Fprintf(&b, "**Pull request:** %s\n", link)
@@ -160,17 +201,11 @@ func (e *Engine) notifyHuman(ctx context.Context, si store.ShiftInfo, reason str
 	} else {
 		b.WriteString("\nNo pull request was opened.\n")
 	}
-	if n := len(reports); n > 0 {
-		fmt.Fprintf(&b, "\n<sub>%d agent run(s) across %d round(s).</sub>", n, si.Round)
+	// Left open on purpose: Ploeg's part is done, the item's is not. See the
+	// SetStatus comment above.
+	b.WriteString("\nThis task stays open until it is in production and its first telemetry has been seen.\n")
+	if runs > 0 {
+		fmt.Fprintf(&b, "\n<sub>%d agent run(s) across %d round(s).</sub>", runs, rounds)
 	}
-
-	// Write-back failure is logged, never propagated: the Work Item state and
-	// the audit rows are already correct, and losing them to a tracker outage
-	// would be the worse trade (blackboard spec).
-	if err := tp.Comment(ctx, item.ExternalID, b.String()); err != nil {
-		e.Log.Error("tracker comment failed", "shift", si.ID, "external_id", item.ExternalID, "err", err)
-	}
-	if err := tp.SetStatus(ctx, item.ExternalID, work.StateNeedsHuman); err != nil {
-		e.Log.Error("tracker status write failed", "shift", si.ID, "external_id", item.ExternalID, "err", err)
-	}
+	return b.String()
 }

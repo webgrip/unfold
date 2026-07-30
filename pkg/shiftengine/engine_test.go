@@ -447,10 +447,10 @@ func TestRemandateAfterCloseOpensAFreshShift(t *testing.T) {
 		t.Fatal(err)
 	}
 	first, _ := testStore.LiveShiftForItem(ctx, id)
-	if err := testStore.CloseShift(ctx, first.ID, "operator abort"); err != nil {
+	if _, err := testStore.CloseShift(ctx, first.ID, "operator abort"); err != nil {
 		t.Fatal(err)
 	}
-	if err := testStore.SettleItem(ctx, id, work.StateNeedsHuman, "operator abort"); err != nil {
+	if _, err := testStore.SettleItem(ctx, id, work.StateNeedsHuman, "operator abort"); err != nil {
 		t.Fatal(err)
 	}
 
