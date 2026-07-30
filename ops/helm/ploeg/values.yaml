@@ -86,10 +86,18 @@ executor:
   runnerImage: harbor.webgrip.dev/webgrip/agent-runner:1.0.2@sha256:086b4bc0d3fda0e3c179f9501bb46a612f5f33e60d96405a5d94471a26279596
   dindImage: harbor.webgrip.dev/dockerhub/library/docker:29.6.2-dind
   workerImage: "" # empty = image.repository:tag (carries /usr/local/bin/ploeg-worker)
-  # ServiceAccount for the WORKER pods (not ploegd). Empty = the chart creates
-  # and uses <fullname>-worker. Workers mount no token either way; this is an
-  # identity/audit fix, and what require-non-default-serviceaccount wants.
-  serviceAccountName: ""
+  # ServiceAccount for the WORKER pods (not ploegd). Workers mount no token
+  # either way; this is an identity/audit fix, and what
+  # require-non-default-serviceaccount wants.
+  #
+  # create and name are separate questions ON PURPOSE. The first shape here
+  # inferred one from the other — a name meant "an external account exists, do
+  # not create one" — so naming the chart's own default suppressed the account
+  # the pods referenced and every Job died at admission. Set create: false
+  # only when something outside the chart really owns the account.
+  serviceAccount:
+    create: true
+    name: "" # empty = <fullname>-worker
   apiUrl: ""      # empty = http://<fullname>:<service.port>
   cronjob:
     # type=cronjob only: how often each team polls for work. Idle ticks are

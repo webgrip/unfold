@@ -117,6 +117,11 @@
                   ],
                   "additionalProperties": false
                 }
+              },
+              "maxFixRounds": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "ADR-0017: how many times a reviewer request_changes may re-open the writing Round of this plan. 0 = loop off, the plan runs to exhaustion."
               }
             },
             "//": "repoOwner/repoName are NOT required: the repository belongs to the work item, resolved at ingest (R11). They remain as a per-team fallback while teams migrate.",
@@ -152,8 +157,18 @@
           },
           "additionalProperties": true
         },
-        "serviceAccountName": {
-          "type": "string"
+        "serviceAccount": {
+          "type": "object",
+          "properties": {
+            "create": {
+              "type": "boolean"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Worker pods ServiceAccount. create and name are independent: naming an account never suppresses creating it."
         }
       }
     },
