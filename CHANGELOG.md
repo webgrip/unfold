@@ -1,3 +1,9 @@
+## 0.2.0-rc.11 (2026-07-30)
+
+* Merge pull request 'fix(config): per-team routing on one project is valid, not a duplicate' (#29) fr ([c725b8d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c725b8d)), closes [#29](https://forgejo.webgrip.dev/webgrip/ploeg/issues/29)
+* chore(helm): refresh chart goldens for v0.2.0-rc.10 ([c55f446](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c55f446))
+* fix(config): per-team routing on one project is valid, not a duplicate ([ab8536b](https://forgejo.webgrip.dev/webgrip/ploeg/commit/ab8536b))
+
 ## 0.2.0-rc.10 (2026-07-29)
 
 * Merge pull request 'feat(config): routing and roster as a file, and push rights minted per Run' (#27 ([cda5095](https://forgejo.webgrip.dev/webgrip/ploeg/commit/cda5095)), closes [#27](https://forgejo.webgrip.dev/webgrip/ploeg/issues/27)
