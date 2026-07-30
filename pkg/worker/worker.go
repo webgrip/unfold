@@ -179,16 +179,22 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	// until now it never got it: the shallow single-branch clone contains the
 	// base only, so the branch under review was absent while the prompt
 	// insisted the checkout was on it. Fetch it and stand on it.
+	//
+	// The branch may legitimately not exist yet: a plan can open with a
+	// reading Round — silver's `analyst` recons the ticket BEFORE the builder
+	// writes anything — and there is nothing to fetch then. That is not a
+	// failure, so a missing branch leaves the reader on the base and tells the
+	// prompt so, rather than parking a Round that was never going to find one.
 	writes := claimed.Writes || claimed.Role == ""
+	onReviewBranch := false
 	if !writes && branch != "" {
 		if out, err := runCmd(ctx, cloneDir, "git", fetchBranchArgs(branch)...); err != nil {
-			// Nothing to review is a real answer, not a crash: say which
-			// branch was missing so the cause is one log line away.
-			return stuckReport("the branch under review does not exist on the forge",
-				branch+": "+tail(out, 2000))
-		}
-		if out, err := runCmd(ctx, cloneDir, "git", "checkout", branch); err != nil {
+			w.Log.Info("no branch under review yet; reviewing the base branch",
+				"branch", branch, "base", ref.BaseBranch, "git", tail(out, 400))
+		} else if out, err := runCmd(ctx, cloneDir, "git", "checkout", branch); err != nil {
 			return stuckReport("could not check out the branch under review", tail(out, 2000))
+		} else {
+			onReviewBranch = true
 		}
 		// Take the credential out of `origin`. The clone needed it to read a
 		// private repository; the agent does not need it at all, and leaving
@@ -201,7 +207,8 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 		if out, err := runCmd(ctx, cloneDir, "git", "remote", "set-url", "origin", clean); err != nil {
 			return stuckReport("could not de-credential the clone", tail(out, 2000))
 		}
-		w.Log.Info("reading run: checked out the branch under review", "branch", branch, "base", ref.BaseBranch)
+		w.Log.Info("reading run prepared", "on_review_branch", onReviewBranch,
+			"branch", branch, "base", ref.BaseBranch)
 	}
 
 	if err := w.API.Checkpoint(claimed.RunToken, work.Checkpoint{Phase: "branch_created", Branch: branch, NodeName: nodeName, PodUID: podUID}); err != nil {
@@ -240,7 +247,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	env := harness.RunEnv{
 		RepoDir:    cloneDir,
 		ScratchDir: os.TempDir(),
-		Prompt:     ComposePrompt(spec, writes, priorPR),
+		Prompt:     ComposePrompt(spec, writes, priorPR, onReviewBranch),
 		// A reading run's agent gets no forge credential. os.Environ() carries
 		// AGENT_BUILDER_TOKEN — mandatory on every worker pod, writer or not —
 		// straight into the agent's process, so "you hold no write credential"
