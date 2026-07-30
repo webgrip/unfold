@@ -42,6 +42,20 @@ jobs:
     name: Semantic Release
     needs: [checks]
     runs-on: docker
+    # The release toolchain is this image, not an install (webgrip/workflows ADR-0005): node,
+    # git, yq, semantic-release 25 and @webgrip/semantic-release-config are baked in from a
+    # committed lockfile, so the job resolves nothing at release time. Run 122 spent 3m45s
+    # installing ~430 packages — unlocked, so that release and the next one were not guaranteed
+    # to use the same plugin versions.
+    #
+    # The composite finds the toolchain via SEMREL_PREBAKED, which the image exports. Without
+    # this container it falls back to an unlocked install and says so with a ::warning::, which
+    # is what every other repo on the step-level-composite pattern will do until it gets this
+    # same two lines. Built in webgrip/infrastructure (ops/docker/semantic-release).
+    #
+    # NB: only THIS job. `checks` above needs go and helm, which this image does not carry.
+    container:
+      image: harbor.webgrip.dev/webgrip/semantic-release:0.1.2
     permissions:
       contents: write
       issues: write
@@ -54,7 +68,12 @@ jobs:
       # to Ghost and cannot write org packages.
       - name: Semantic Release
         id: release
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release@main
+        # TEMPORARY PIN — flip back to @main once webgrip/workflows' semrel PR is merged.
+        # ploeg is the trial for the container path: nothing has run it on a real runner yet, and
+        # the composite at @main still installs its toolchain at release time (it would ignore the
+        # image above). Pinned to the commit rather than the branch so a later push to that branch
+        # cannot change what this release runs.
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release@6957a434c373cd655003a30a170faae2b2919970 # fix/semrel-parity-and-hardening
         with:
           token: ${{ secrets.WEBGRIP_CI_TOKEN }}
 
