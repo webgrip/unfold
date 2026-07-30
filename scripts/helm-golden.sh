@@ -20,12 +20,32 @@ cd "$(dirname "$0")/.."
 GOLDEN=ops/helm/ploeg/ci/golden
 mode="${1:-check}"
 
-render() { # <values-file-or-empty> <golden-name>
+# The chart version is substituted out before the diff. semantic-release rewrites
+# Chart.yaml version/appVersion on every rc, and those strings land in three labels
+# on every object plus the ploegd image tag — so a release nobody reviewed stales all
+# three goldens, and the next pull request fails a check with nothing to say. That
+# happened on rc.9→rc.10 and again on rc.10→rc.11. Substituting keeps the goldens
+# about the templates, which is the only thing here anyone can get wrong. Nothing is
+# given up: an image tag that stopped tracking .Chart.AppVersion no longer matches
+# the substitution and still lands in the diff.
+chart_version=$(sed -n 's/^version:[[:space:]]*//p' ops/helm/ploeg/Chart.yaml)
+chart_app_version=$(sed -n 's/^appVersion:[[:space:]]*//p' ops/helm/ploeg/Chart.yaml)
+if [ -z "$chart_version" ] || [ -z "$chart_app_version" ]; then
+	echo "cannot read version/appVersion from ops/helm/ploeg/Chart.yaml" >&2
+	exit 1
+fi
+# Escape the two regex metacharacters a semver can contain (`.` separators, `+`
+# build metadata), so 0.2.0 does not also match 0x2y0.
+escape() { printf '%s' "$1" | sed 's/[.+]/\\&/g'; }
+version_re=$(escape "$chart_version")
+app_version_re=$(escape "$chart_app_version")
+
+render() { # <values-file-or-empty>
 	if [ -n "$1" ]; then
 		helm template ploeg ops/helm/ploeg -f "$1"
 	else
 		helm template ploeg ops/helm/ploeg
-	fi
+	fi | sed -e "s/$version_re/CHART-VERSION/g" -e "s/$app_version_re/CHART-VERSION/g"
 }
 
 status=0

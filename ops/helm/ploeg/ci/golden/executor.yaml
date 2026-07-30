@@ -7,8 +7,8 @@ metadata:
   labels:
     app.kubernetes.io/name: ploeg
     app.kubernetes.io/instance: ploeg
-    app.kubernetes.io/version: "0.2.0-rc.10"
-    helm.sh/chart: ploeg-0.2.0-rc.10
+    app.kubernetes.io/version: "CHART-VERSION"
+    helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
 automountServiceAccountToken: false
 
@@ -21,8 +21,8 @@ metadata:
   labels:
     app.kubernetes.io/name: ploeg
     app.kubernetes.io/instance: ploeg
-    app.kubernetes.io/version: "0.2.0-rc.10"
-    helm.sh/chart: ploeg-0.2.0-rc.10
+    app.kubernetes.io/version: "CHART-VERSION"
+    helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
 spec:
   type: ClusterIP
@@ -43,8 +43,8 @@ metadata:
   labels:
     app.kubernetes.io/name: ploeg
     app.kubernetes.io/instance: ploeg
-    app.kubernetes.io/version: "0.2.0-rc.10"
-    helm.sh/chart: ploeg-0.2.0-rc.10
+    app.kubernetes.io/version: "CHART-VERSION"
+    helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -70,7 +70,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: ploegd
-          image: harbor.webgrip.dev/webgrip/ploegd:0.2.0-rc.10
+          image: harbor.webgrip.dev/webgrip/ploegd:CHART-VERSION
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -155,8 +155,8 @@ metadata:
   labels:
     app.kubernetes.io/name: ploeg
     app.kubernetes.io/instance: ploeg
-    app.kubernetes.io/version: "0.2.0-rc.10"
-    helm.sh/chart: ploeg-0.2.0-rc.10
+    app.kubernetes.io/version: "CHART-VERSION"
+    helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
 spec:
   pollingInterval: 30
@@ -197,7 +197,7 @@ spec:
           # Extracts ploeg-worker from the distroless ploegd image via
           # self-copy (no shell in distroless).
           - name: worker-bin
-            image: harbor.webgrip.dev/webgrip/ploegd:0.2.0-rc.10
+            image: harbor.webgrip.dev/webgrip/ploegd:CHART-VERSION
             command: ["/usr/local/bin/ploeg-worker", "install", "/mnt/bin/ploeg-worker"]
             securityContext:
               runAsNonRoot: true
@@ -376,8 +376,8 @@ metadata:
   labels:
     app.kubernetes.io/name: ploeg
     app.kubernetes.io/instance: ploeg
-    app.kubernetes.io/version: "0.2.0-rc.10"
-    helm.sh/chart: ploeg-0.2.0-rc.10
+    app.kubernetes.io/version: "CHART-VERSION"
+    helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
 spec:
   pollingInterval: 30
@@ -412,7 +412,7 @@ spec:
           # Extracts ploeg-worker from the distroless ploegd image via
           # self-copy (no shell in distroless).
           - name: worker-bin
-            image: harbor.webgrip.dev/webgrip/ploegd:0.2.0-rc.10
+            image: harbor.webgrip.dev/webgrip/ploegd:CHART-VERSION
             command: ["/usr/local/bin/ploeg-worker", "install", "/mnt/bin/ploeg-worker"]
             securityContext:
               runAsNonRoot: true
@@ -549,8 +549,8 @@ metadata:
   labels:
     app.kubernetes.io/name: ploeg
     app.kubernetes.io/instance: ploeg
-    app.kubernetes.io/version: "0.2.0-rc.10"
-    helm.sh/chart: ploeg-0.2.0-rc.10
+    app.kubernetes.io/version: "CHART-VERSION"
+    helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
 spec:
   pollingInterval: 30
@@ -591,7 +591,7 @@ spec:
           # Extracts ploeg-worker from the distroless ploegd image via
           # self-copy (no shell in distroless).
           - name: worker-bin
-            image: harbor.webgrip.dev/webgrip/ploegd:0.2.0-rc.10
+            image: harbor.webgrip.dev/webgrip/ploegd:CHART-VERSION
             command: ["/usr/local/bin/ploeg-worker", "install", "/mnt/bin/ploeg-worker"]
             securityContext:
               runAsNonRoot: true
@@ -762,8 +762,8 @@ metadata:
   labels:
     app.kubernetes.io/name: ploeg
     app.kubernetes.io/instance: ploeg
-    app.kubernetes.io/version: "0.2.0-rc.10"
-    helm.sh/chart: ploeg-0.2.0-rc.10
+    app.kubernetes.io/version: "CHART-VERSION"
+    helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
 spec:
   pollingInterval: 30
@@ -804,7 +804,7 @@ spec:
           # Extracts ploeg-worker from the distroless ploegd image via
           # self-copy (no shell in distroless).
           - name: worker-bin
-            image: harbor.webgrip.dev/webgrip/ploegd:0.2.0-rc.10
+            image: harbor.webgrip.dev/webgrip/ploegd:CHART-VERSION
             command: ["/usr/local/bin/ploeg-worker", "install", "/mnt/bin/ploeg-worker"]
             securityContext:
               runAsNonRoot: true
@@ -983,8 +983,8 @@ metadata:
   labels:
     app.kubernetes.io/name: ploeg
     app.kubernetes.io/instance: ploeg
-    app.kubernetes.io/version: "0.2.0-rc.10"
-    helm.sh/chart: ploeg-0.2.0-rc.10
+    app.kubernetes.io/version: "CHART-VERSION"
+    helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
 spec:
   pollingInterval: 30
@@ -1025,7 +1025,7 @@ spec:
           # Extracts ploeg-worker from the distroless ploegd image via
           # self-copy (no shell in distroless).
           - name: worker-bin
-            image: harbor.webgrip.dev/webgrip/ploegd:0.2.0-rc.10
+            image: harbor.webgrip.dev/webgrip/ploegd:CHART-VERSION
             command: ["/usr/local/bin/ploeg-worker", "install", "/mnt/bin/ploeg-worker"]
             securityContext:
               runAsNonRoot: true
@@ -1204,8 +1204,8 @@ metadata:
   labels:
     app.kubernetes.io/name: ploeg
     app.kubernetes.io/instance: ploeg
-    app.kubernetes.io/version: "0.2.0-rc.10"
-    helm.sh/chart: ploeg-0.2.0-rc.10
+    app.kubernetes.io/version: "CHART-VERSION"
+    helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
 spec:
   pollingInterval: 30
@@ -1241,7 +1241,7 @@ spec:
           # Extracts ploeg-worker from the distroless ploegd image via
           # self-copy (no shell in distroless).
           - name: worker-bin
-            image: harbor.webgrip.dev/webgrip/ploegd:0.2.0-rc.10
+            image: harbor.webgrip.dev/webgrip/ploegd:CHART-VERSION
             command: ["/usr/local/bin/ploeg-worker", "install", "/mnt/bin/ploeg-worker"]
             securityContext:
               runAsNonRoot: true
@@ -1378,8 +1378,8 @@ metadata:
   labels:
     app.kubernetes.io/name: ploeg
     app.kubernetes.io/instance: ploeg
-    app.kubernetes.io/version: "0.2.0-rc.10"
-    helm.sh/chart: ploeg-0.2.0-rc.10
+    app.kubernetes.io/version: "CHART-VERSION"
+    helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
 spec:
   pollingInterval: 30
@@ -1415,7 +1415,7 @@ spec:
           # Extracts ploeg-worker from the distroless ploegd image via
           # self-copy (no shell in distroless).
           - name: worker-bin
-            image: harbor.webgrip.dev/webgrip/ploegd:0.2.0-rc.10
+            image: harbor.webgrip.dev/webgrip/ploegd:CHART-VERSION
             command: ["/usr/local/bin/ploeg-worker", "install", "/mnt/bin/ploeg-worker"]
             securityContext:
               runAsNonRoot: true
@@ -1552,8 +1552,8 @@ metadata:
   labels:
     app.kubernetes.io/name: ploeg
     app.kubernetes.io/instance: ploeg
-    app.kubernetes.io/version: "0.2.0-rc.10"
-    helm.sh/chart: ploeg-0.2.0-rc.10
+    app.kubernetes.io/version: "CHART-VERSION"
+    helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
 spec:
   pollingInterval: 30
@@ -1595,7 +1595,7 @@ spec:
           # Extracts ploeg-worker from the distroless ploegd image via
           # self-copy (no shell in distroless).
           - name: worker-bin
-            image: harbor.webgrip.dev/webgrip/ploegd:0.2.0-rc.10
+            image: harbor.webgrip.dev/webgrip/ploegd:CHART-VERSION
             command: ["/usr/local/bin/ploeg-worker", "install", "/mnt/bin/ploeg-worker"]
             securityContext:
               runAsNonRoot: true
@@ -1776,8 +1776,8 @@ metadata:
   labels:
     app.kubernetes.io/name: ploeg
     app.kubernetes.io/instance: ploeg
-    app.kubernetes.io/version: "0.2.0-rc.10"
-    helm.sh/chart: ploeg-0.2.0-rc.10
+    app.kubernetes.io/version: "CHART-VERSION"
+    helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
 spec:
   pollingInterval: 30
@@ -1813,7 +1813,7 @@ spec:
           # Extracts ploeg-worker from the distroless ploegd image via
           # self-copy (no shell in distroless).
           - name: worker-bin
-            image: harbor.webgrip.dev/webgrip/ploegd:0.2.0-rc.10
+            image: harbor.webgrip.dev/webgrip/ploegd:CHART-VERSION
             command: ["/usr/local/bin/ploeg-worker", "install", "/mnt/bin/ploeg-worker"]
             securityContext:
               runAsNonRoot: true
@@ -1942,8 +1942,8 @@ metadata:
   labels:
     app.kubernetes.io/name: ploeg
     app.kubernetes.io/instance: ploeg
-    app.kubernetes.io/version: "0.2.0-rc.10"
-    helm.sh/chart: ploeg-0.2.0-rc.10
+    app.kubernetes.io/version: "CHART-VERSION"
+    helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
 spec:
   secretTargetRef:
