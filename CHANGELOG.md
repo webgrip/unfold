@@ -1,3 +1,11 @@
+## 0.2.0-rc.14 (2026-07-30)
+
+* Merge pull request 'fix(worker,shiftengine,chart): make a reading Role able to review — and unable t ([5371fff](https://forgejo.webgrip.dev/webgrip/ploeg/commit/5371fff)), closes [#32](https://forgejo.webgrip.dev/webgrip/ploeg/issues/32)
+* fix(chart): three defects found by running rc.13 in production ([11d2284](https://forgejo.webgrip.dev/webgrip/ploeg/commit/11d2284))
+* fix(shiftengine): a successful review must not read as a stoppage ([7deab6a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7deab6a))
+* fix(worker): a reading Round may run before any branch exists ([1c55e74](https://forgejo.webgrip.dev/webgrip/ploeg/commit/1c55e74))
+* fix(worker): give a reader the work, and take away the credential ([8045b6d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8045b6d))
+
 ## 0.2.0-rc.13 (2026-07-30)
 
 * fix(worker,httpapi): tell the truth about the forge credential, log routing ([f58c261](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f58c261))
