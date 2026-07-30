@@ -174,6 +174,43 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 		}
 	}
 
+	// A writer creates its own branch from the base, which the clone already
+	// checked out. A READER is here to look at what the writer produced, and
+	// until now it never got it: the shallow single-branch clone contains the
+	// base only, so the branch under review was absent while the prompt
+	// insisted the checkout was on it. Fetch it and stand on it.
+	//
+	// The branch may legitimately not exist yet: a plan can open with a
+	// reading Round — silver's `analyst` recons the ticket BEFORE the builder
+	// writes anything — and there is nothing to fetch then. That is not a
+	// failure, so a missing branch leaves the reader on the base and tells the
+	// prompt so, rather than parking a Round that was never going to find one.
+	writes := claimed.Writes || claimed.Role == ""
+	onReviewBranch := false
+	if !writes && branch != "" {
+		if out, err := runCmd(ctx, cloneDir, "git", fetchBranchArgs(branch)...); err != nil {
+			w.Log.Info("no branch under review yet; reviewing the base branch",
+				"branch", branch, "base", ref.BaseBranch, "git", tail(out, 400))
+		} else if out, err := runCmd(ctx, cloneDir, "git", "checkout", branch); err != nil {
+			return stuckReport("could not check out the branch under review", tail(out, 2000))
+		} else {
+			onReviewBranch = true
+		}
+		// Take the credential out of `origin`. The clone needed it to read a
+		// private repository; the agent does not need it at all, and leaving
+		// it embedded left a reader holding push rights it was told it did
+		// not have.
+		clean, err := plainURL(ref.ForgeURL, ref.Owner, ref.Name)
+		if err != nil {
+			return stuckReport("invalid forge URL", err.Error())
+		}
+		if out, err := runCmd(ctx, cloneDir, "git", "remote", "set-url", "origin", clean); err != nil {
+			return stuckReport("could not de-credential the clone", tail(out, 2000))
+		}
+		w.Log.Info("reading run prepared", "on_review_branch", onReviewBranch,
+			"branch", branch, "base", ref.BaseBranch)
+	}
+
 	if err := w.API.Checkpoint(claimed.RunToken, work.Checkpoint{Phase: "branch_created", Branch: branch, NodeName: nodeName, PodUID: podUID}); err != nil {
 		w.Log.Warn("checkpoint failed", "err", err)
 	}
@@ -210,11 +247,15 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	env := harness.RunEnv{
 		RepoDir:    cloneDir,
 		ScratchDir: os.TempDir(),
-		Prompt:     ComposePrompt(spec, claimed.Writes || claimed.Role == "", priorPR),
-		BaseEnv:    os.Environ(),
-		LLM:        harness.LLMEnv{BaseURL: w.Cfg.LLMBaseURL, Model: model, TraceID: trace},
-		Stdout:     io.MultiWriter(os.Stdout, &logTail),
-		Stderr:     io.MultiWriter(os.Stderr, &logTail),
+		Prompt:     ComposePrompt(spec, writes, priorPR, onReviewBranch),
+		// A reading run's agent gets no forge credential. os.Environ() carries
+		// AGENT_BUILDER_TOKEN — mandatory on every worker pod, writer or not —
+		// straight into the agent's process, so "you hold no write credential"
+		// was false for every reader ever dispatched. Now it is true.
+		BaseEnv: scrubSecrets(os.Environ(), writes, w.Cfg.BuilderToken, claimed.ForgeToken),
+		LLM:     harness.LLMEnv{BaseURL: w.Cfg.LLMBaseURL, Model: model, TraceID: trace},
+		Stdout:  io.MultiWriter(os.Stdout, &logTail),
+		Stderr:  io.MultiWriter(os.Stderr, &logTail),
 		Checkpoint: func(cp work.Checkpoint) {
 			if err := w.API.Checkpoint(claimed.RunToken, cp); err != nil {
 				w.Log.Warn("checkpoint failed", "err", err)
@@ -250,7 +291,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 		w.Log.Warn("PR lookup failed", "err", prErr)
 	}
 	return resolveOutcome(w.Adapter.Name(), report, runErr, ctx.Err(), prURL, priorPR != "",
-		item.Title, branch, logTail.Bytes(), w.Adapter.ExpectsLLM())
+		item.Title, branch, logTail.Bytes(), w.Adapter.ExpectsLLM(), writes)
 }
 
 // runAgent mints the per-run credential, runs the harness adapter, and
@@ -317,7 +358,7 @@ func noLLMTraffic(u *harness.Usage) bool {
 // telemetry keep the default no_change_needed so exec-harness smoke runs do
 // not burn attempts.
 func resolveOutcome(adapterName string, report harness.OutcomeReport, runErr, ctxErr error,
-	prURL string, prExisted bool, itemTitle, branch string, logTail []byte, expectsLLM bool) harness.OutcomeReport {
+	prURL string, prExisted bool, itemTitle, branch string, logTail []byte, expectsLLM, writes bool) harness.OutcomeReport {
 
 	resolved := func(r harness.OutcomeReport) harness.OutcomeReport {
 		if r.Usage == nil {
@@ -345,6 +386,19 @@ func resolveOutcome(adapterName string, report harness.OutcomeReport, runErr, ct
 			report.FailureReason = string(work.FailureInfraLLM)
 		}
 		return report
+	case runErr == nil && prURL != "" && !writes:
+		// A READER standing on the writer's branch finds the writer's PR. It
+		// did not push it — it cannot push at all — so crediting it with
+		// pr_updated would record work that never happened, and on a plan
+		// whose last Round is a review that is every successful Shift.
+		return resolved(harness.OutcomeReport{
+			Outcome:    work.OutcomeNoChangeNeeded,
+			Summary:    adapterName + " review finished for " + itemTitle,
+			Links:      []string{prURL},
+			Findings:   report.Findings,
+			Verdict:    report.Verdict,
+			Checkpoint: &work.Checkpoint{Phase: "reviewed", Branch: branch, PRURL: prURL},
+		})
 	case runErr == nil && prURL != "":
 		// The PR predates this run and the harness exited cleanly: it pushed
 		// to an existing PR (a retry, a review round, or the next persona).

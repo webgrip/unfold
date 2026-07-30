@@ -72,7 +72,7 @@ spec:
             {{- $plans := dict }}
             {{- range .Values.executor.teams }}
             {{- if .plan }}
-            {{- $_ := set $plans .name (dict "pool" (.budget | default "0") "rounds" .plan) }}
+            {{- $_ := set $plans .name (dict "pool" (.budget | default "0") "rounds" .plan "maxFixRounds" (.maxFixRounds | default 0)) }}
             {{- end }}
             {{- end }}
             {{- if $plans }}

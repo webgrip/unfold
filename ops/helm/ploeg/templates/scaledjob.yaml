@@ -17,6 +17,14 @@ kind: ScaledJob
 metadata:
   name: {{ include "ploeg.workloadName" (dict "root" $root "team" $team "role" $role) }}
   labels: {{- include "ploeg.labels" $root | nindent 4 }}
+    {{- if include "ploeg.roleUsesDind" (dict "root" $root "team" $team "role" $role) }}
+    # KEDA copies these labels onto every Job it creates, which is the only way
+    # the hazard reaches the Job. Kyverno autogens a Job rule for
+    # pod-security-baseline-enforce and a Job selector matches the JOB's own
+    # labels — stamping this on the pod template alone left the PolicyException
+    # unable to admit the Job, and DinD teams were rejected at admission.
+    ploeg.webgrip.dev/privileged-dind: "true"
+    {{- end }}
 spec:
   pollingInterval: {{ $root.Values.executor.pollingInterval }}
   minReplicaCount: 0

@@ -465,7 +465,13 @@ func TestTrackerMessage_PerTerminalState(t *testing.T) {
 		{"done with a PR", work.StateDone, link, "opened a pull request", "No pull request"},
 		{"done with nothing to change", work.StateDone, "", "without needing to change anything", "Please review"},
 		{"gave up", work.StateStale, "", "gave up on this item", "Please review"},
-		{"parked for a human", work.StateNeedsHuman, link, "Ploeg stopped working this item", "gave up"},
+		// The regression: a CONFIGURED plan settles needs_human on SUCCESS —
+		// the last word is "a person is asked to merge". Keying the opening
+		// line on the state alone meant every successful multi-Round Shift
+		// announced "Ploeg stopped working this item" directly above the pull
+		// request it had just produced. A PR existing outranks the state.
+		{"reviewed and waiting on a human", work.StateNeedsHuman, link, "opened a pull request", "stopped working this item"},
+		{"parked with nothing to show", work.StateNeedsHuman, "", "without opening a pull request", "opened a pull request.\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := trackerMessage(tc.settled, "plan_exhausted", tc.link, 1, 1)

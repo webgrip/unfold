@@ -22,7 +22,7 @@ func roleSpec(role string, briefing []harness.Finding) harness.TaskSpec {
 // scheduling and credentials enforce it, but an agent that does not know it
 // wastes its whole run trying (ADR-0010).
 func TestComposePrompt_ReaderHasNoWriteContract(t *testing.T) {
-	task := ComposePrompt(roleSpec("security", nil), false, "")
+	task := ComposePrompt(roleSpec("security", nil), false, "", true)
 
 	for _, want := range []string{
 		"# Your role: security",
@@ -49,7 +49,7 @@ func TestComposePrompt_ReaderHasNoWriteContract(t *testing.T) {
 
 // The writer keeps the full delivery contract, and gains the role header.
 func TestComposePrompt_WriterKeepsTheDeliveryContract(t *testing.T) {
-	task := ComposePrompt(roleSpec("builder", nil), true, "")
+	task := ComposePrompt(roleSpec("builder", nil), true, "", true)
 	for _, want := range []string{
 		"# Your role: builder",
 		"NEVER commit to development",
@@ -67,7 +67,7 @@ func TestComposePrompt_WriterKeepsTheDeliveryContract(t *testing.T) {
 // one — the branch is reused by every retry, review round and persona turn.
 func TestComposePrompt_ExistingPRIsUpdatedNotReopened(t *testing.T) {
 	pr := "https://forgejo.example/webgrip/ploeg/pulls/7"
-	task := ComposePrompt(roleSpec("builder", nil), true, pr)
+	task := ComposePrompt(roleSpec("builder", nil), true, pr, true)
 
 	if !strings.Contains(task, "ALREADY OPEN") || !strings.Contains(task, pr) {
 		t.Errorf("prompt does not point at the open PR:\n%s", task)
@@ -87,7 +87,7 @@ func TestComposePrompt_BriefingIsAttributedAndFramed(t *testing.T) {
 	task := ComposePrompt(roleSpec("builder", []harness.Finding{
 		{Role: "security", Round: 1, Findings: "the token is logged at debug"},
 		{Role: "tests", Round: 1, Findings: "the sweeper has no coverage"},
-	}), true, "")
+	}), true, "", true)
 
 	for _, want := range []string{
 		"## Findings from earlier rounds",
@@ -107,7 +107,7 @@ func TestComposePrompt_BriefingIsAttributedAndFramed(t *testing.T) {
 }
 
 func TestComposePrompt_NoBriefingNoSection(t *testing.T) {
-	task := ComposePrompt(roleSpec("builder", nil), true, "")
+	task := ComposePrompt(roleSpec("builder", nil), true, "", true)
 	if strings.Contains(task, "Findings from earlier rounds") {
 		t.Errorf("empty briefing rendered a section:\n%s", task)
 	}
@@ -119,7 +119,7 @@ func TestComposePrompt_BriefingIsCapped(t *testing.T) {
 	task := ComposePrompt(roleSpec("builder", []harness.Finding{
 		{Role: "security", Round: 1, Findings: huge},
 		{Role: "tests", Round: 1, Findings: "this one is short"},
-	}), true, "")
+	}), true, "", true)
 
 	if len(task) > maxBriefingBytes*2 {
 		t.Errorf("prompt grew to %d bytes; the briefing cap did not hold", len(task))
@@ -134,7 +134,7 @@ func TestComposePrompt_BriefingIsCapped(t *testing.T) {
 
 // A plan-less run has no role, and its prompt must be what it always was.
 func TestComposePrompt_RolelessHasNoRoleHeader(t *testing.T) {
-	task := ComposePrompt(roleSpec("", nil), true, "")
+	task := ComposePrompt(roleSpec("", nil), true, "", true)
 	if strings.Contains(task, "# Your role:") {
 		t.Errorf("role-less prompt grew a role header:\n%s", task)
 	}
@@ -146,7 +146,7 @@ func TestComposePrompt_RolelessHasNoRoleHeader(t *testing.T) {
 // The verdict is how a reviewer's judgement becomes a fix round (ADR-0017);
 // an agent that has not been told what the values mean cannot give one.
 func TestComposePrompt_ReaderIsAskedForAVerdict(t *testing.T) {
-	task := ComposePrompt(roleSpec("reviewer", nil), false, "")
+	task := ComposePrompt(roleSpec("reviewer", nil), false, "", true)
 	for _, want := range []string{
 		`"verdict"`, "approve", "request_changes",
 		"back to the writer", // it says what the choice DOES
@@ -159,8 +159,47 @@ func TestComposePrompt_ReaderIsAskedForAVerdict(t *testing.T) {
 
 // A writer must not be invited to grade its own work.
 func TestComposePrompt_WriterIsNotAskedForAVerdict(t *testing.T) {
-	task := ComposePrompt(roleSpec("builder", nil), true, "")
+	task := ComposePrompt(roleSpec("builder", nil), true, "", true)
 	if strings.Contains(task, `"verdict"`) {
 		t.Errorf("writer prompt asks for a verdict:\n%s", task)
+	}
+}
+
+// A plan may open with a reading Round — silver's analyst recons the ticket
+// before the builder writes anything — so there is no branch to review yet.
+// The contract must say that rather than claim a checkout that does not exist.
+func TestComposePrompt_ReaderBeforeTheWriterIsToldThereIsNoDiff(t *testing.T) {
+	task := ComposePrompt(roleSpec("analyst", nil), false, "", false)
+	if strings.Contains(task, "standing on branch") {
+		t.Errorf("recon reader told it is standing on a branch that does not exist:\n%s", task)
+	}
+	for _, want := range []string{"No work has been written for this ticket yet", "not a diff"} {
+		if !strings.Contains(task, want) {
+			t.Errorf("missing %q:\n%s", want, task)
+		}
+	}
+}
+
+// A reviewing Round does stand on the writer's branch, and must be told how to
+// see the change and where its review will land.
+func TestComposePrompt_ReviewerIsGivenTheDiffAndThePR(t *testing.T) {
+	const pr = "http://forge/webgrip/erfbeeld/pulls/8"
+	task := ComposePrompt(roleSpec("reviewer", nil), false, pr, true)
+	for _, want := range []string{"standing on branch", "git diff", pr} {
+		if !strings.Contains(task, want) {
+			t.Errorf("missing %q:\n%s", want, task)
+		}
+	}
+}
+
+// The contract must not repeat the claim that a push "will be rejected by the
+// forge" — it was false, and the control is now the absent credential.
+func TestComposePrompt_ReaderContractDoesNotClaimTheForgeWillRefuse(t *testing.T) {
+	task := ComposePrompt(roleSpec("reviewer", nil), false, "", true)
+	if strings.Contains(task, "rejected by the forge") {
+		t.Error("reader contract still asserts the forge will reject a push")
+	}
+	if !strings.Contains(task, "no forge token") {
+		t.Errorf("reader contract does not name the real control:\n%s", task)
 	}
 }

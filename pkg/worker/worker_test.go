@@ -186,7 +186,7 @@ func TestResolveOutcome_Precedence(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			got := resolveOutcome("openhands", tc.report, tc.runErr, tc.ctxErr,
-				tc.prURL, tc.prExisted, "fix the thing", "agent/vik-585", []byte("tail-of-log"), tc.expectsLLM)
+				tc.prURL, tc.prExisted, "fix the thing", "agent/vik-585", []byte("tail-of-log"), tc.expectsLLM, true)
 			if got.Outcome != tc.wantOutcome {
 				t.Errorf("outcome = %q, want %q", got.Outcome, tc.wantOutcome)
 			}
@@ -209,15 +209,15 @@ func TestResolveOutcome_Precedence(t *testing.T) {
 	}
 	t.Run("usage survives every branch", func(t *testing.T) {
 		report := harness.OutcomeReport{Usage: usage} // no structured outcome, usage only
-		got := resolveOutcome("claude-code", report, nil, nil, "http://forge/pr/8", false, "t", "b", nil, true)
+		got := resolveOutcome("claude-code", report, nil, nil, "http://forge/pr/8", false, "t", "b", nil, true, true)
 		if got.Usage != usage {
 			t.Errorf("usage lost on the PR branch: %+v", got.Usage)
 		}
-		got = resolveOutcome("claude-code", report, nil, nil, "http://forge/pr/8", true, "t", "b", nil, true)
+		got = resolveOutcome("claude-code", report, nil, nil, "http://forge/pr/8", true, "t", "b", nil, true, true)
 		if got.Usage != usage {
 			t.Errorf("usage lost on the pr_updated branch: %+v", got.Usage)
 		}
-		got = resolveOutcome("claude-code", report, nil, nil, "", false, "t", "b", nil, true)
+		got = resolveOutcome("claude-code", report, nil, nil, "", false, "t", "b", nil, true, true)
 		if got.Usage != usage {
 			t.Errorf("usage lost on the no-change branch: %+v", got.Usage)
 		}
@@ -435,7 +435,7 @@ func specFor(cfg Config, item work.WorkItem, branch, trace string) harness.TaskS
 }
 
 func TestComposePrompt_DefaultBaseIsMain(t *testing.T) {
-	task := ComposePrompt(specFor(testCfg(""), testItem(), "agent/vik-585", "ploeg-abc123def456"), true, "")
+	task := ComposePrompt(specFor(testCfg(""), testItem(), "agent/vik-585", "ploeg-abc123def456"), true, "", true)
 	for _, want := range []string{
 		"created from main",
 		"NEVER commit to main",
@@ -448,7 +448,7 @@ func TestComposePrompt_DefaultBaseIsMain(t *testing.T) {
 }
 
 func TestComposePrompt_ConfiguredBase(t *testing.T) {
-	task := ComposePrompt(specFor(testCfg("development"), testItem(), "agent/vik-585", "ploeg-abc123def456"), true, "")
+	task := ComposePrompt(specFor(testCfg("development"), testItem(), "agent/vik-585", "ploeg-abc123def456"), true, "", true)
 	for _, want := range []string{
 		"created from development",
 		"NEVER commit to development",

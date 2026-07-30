@@ -118,7 +118,7 @@ spec:
                   name: ploeg-webhook-secret
                   key: PLOEG_VIKUNJA_SECRET
             - name: PLOEG_TEAM_PLANS
-              value: "{\"gold\":{\"pool\":\"6\",\"rounds\":[{\"roles\":[{\"cap\":\"0.50\",\"harness\":{\"dind\":false},\"name\":\"analyst\",\"writes\":false},{\"cap\":\"0.50\",\"harness\":{\"dind\":false},\"name\":\"tests\",\"writes\":false}]},{\"roles\":[{\"cap\":\"3.00\",\"model\":\"litellm_proxy/claude-sonnet-5\",\"name\":\"builder\",\"writes\":true}]},{\"roles\":[{\"cap\":\"0.75\",\"harness\":{\"dind\":false},\"model\":\"litellm_proxy/claude-sonnet-5\",\"name\":\"reviewer\",\"writes\":false}]},{\"roles\":[{\"cap\":\"3.00\",\"model\":\"litellm_proxy/claude-sonnet-5\",\"name\":\"builder\",\"writes\":true}]}]}}"
+              value: "{\"gold\":{\"maxFixRounds\":0,\"pool\":\"6\",\"rounds\":[{\"roles\":[{\"cap\":\"0.50\",\"harness\":{\"dind\":false},\"name\":\"analyst\",\"writes\":false},{\"cap\":\"0.50\",\"harness\":{\"dind\":false},\"name\":\"tests\",\"writes\":false}]},{\"roles\":[{\"cap\":\"3.00\",\"model\":\"litellm_proxy/claude-sonnet-5\",\"name\":\"builder\",\"writes\":true}]},{\"roles\":[{\"cap\":\"0.75\",\"harness\":{\"dind\":false},\"model\":\"litellm_proxy/claude-sonnet-5\",\"name\":\"reviewer\",\"writes\":false}]},{\"roles\":[{\"cap\":\"3.00\",\"model\":\"litellm_proxy/claude-sonnet-5\",\"name\":\"builder\",\"writes\":true}]}]}}"
             - name: PLOEG_FORGEJO_URL
               value: "http://forgejo-http.forgejo.svc.cluster.local:3000"
             - name: PLOEG_FORGEJO_TOKEN
@@ -183,6 +183,12 @@ metadata:
     app.kubernetes.io/version: "CHART-VERSION"
     helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
+    # KEDA copies these labels onto every Job it creates, which is the only way
+    # the hazard reaches the Job. Kyverno autogens a Job rule for
+    # pod-security-baseline-enforce and a Job selector matches the JOB's own
+    # labels — stamping this on the pod template alone left the PolicyException
+    # unable to admit the Job, and DinD teams were rejected at admission.
+    ploeg.webgrip.dev/privileged-dind: "true"
 spec:
   pollingInterval: 30
   minReplicaCount: 0
@@ -587,6 +593,12 @@ metadata:
     app.kubernetes.io/version: "CHART-VERSION"
     helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
+    # KEDA copies these labels onto every Job it creates, which is the only way
+    # the hazard reaches the Job. Kyverno autogens a Job rule for
+    # pod-security-baseline-enforce and a Job selector matches the JOB's own
+    # labels — stamping this on the pod template alone left the PolicyException
+    # unable to admit the Job, and DinD teams were rejected at admission.
+    ploeg.webgrip.dev/privileged-dind: "true"
 spec:
   pollingInterval: 30
   minReplicaCount: 0
@@ -805,6 +817,12 @@ metadata:
     app.kubernetes.io/version: "CHART-VERSION"
     helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
+    # KEDA copies these labels onto every Job it creates, which is the only way
+    # the hazard reaches the Job. Kyverno autogens a Job rule for
+    # pod-security-baseline-enforce and a Job selector matches the JOB's own
+    # labels — stamping this on the pod template alone left the PolicyException
+    # unable to admit the Job, and DinD teams were rejected at admission.
+    ploeg.webgrip.dev/privileged-dind: "true"
 spec:
   pollingInterval: 30
   minReplicaCount: 0
@@ -1031,6 +1049,12 @@ metadata:
     app.kubernetes.io/version: "CHART-VERSION"
     helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
+    # KEDA copies these labels onto every Job it creates, which is the only way
+    # the hazard reaches the Job. Kyverno autogens a Job rule for
+    # pod-security-baseline-enforce and a Job selector matches the JOB's own
+    # labels — stamping this on the pod template alone left the PolicyException
+    # unable to admit the Job, and DinD teams were rejected at admission.
+    ploeg.webgrip.dev/privileged-dind: "true"
 spec:
   pollingInterval: 30
   minReplicaCount: 0
@@ -1615,6 +1639,12 @@ metadata:
     app.kubernetes.io/version: "CHART-VERSION"
     helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
+    # KEDA copies these labels onto every Job it creates, which is the only way
+    # the hazard reaches the Job. Kyverno autogens a Job rule for
+    # pod-security-baseline-enforce and a Job selector matches the JOB's own
+    # labels — stamping this on the pod template alone left the PolicyException
+    # unable to admit the Job, and DinD teams were rejected at admission.
+    ploeg.webgrip.dev/privileged-dind: "true"
 spec:
   pollingInterval: 30
   minReplicaCount: 0

@@ -135,7 +135,7 @@ spec:
   # both trips require-non-default-serviceaccount and makes every workload in
   # the namespace indistinguishable in an audit log. The token stays unmounted
   # either way — a worker needs no Kubernetes API authority at all.
-  serviceAccountName: {{ $root.Values.executor.serviceAccountName | default (printf "%s-worker" (include "ploeg.fullname" $root)) }}
+  serviceAccountName: {{ include "ploeg.workerServiceAccountName" $root }}
   automountServiceAccountToken: false
   {{- with $root.Values.imagePullSecrets }}
   imagePullSecrets: {{- toYaml . | nindent 4 }}
@@ -365,4 +365,38 @@ spec:
     - name: ci-shared
       emptyDir:
         sizeLimit: 8Gi
+{{- end -}}
+
+{{/*
+ploeg.workerServiceAccountName is the identity the worker pods run as.
+
+One helper so the object and the reference cannot disagree. They did: the
+create guard used to be `not .Values.executor.serviceAccountName`, reading a
+name as "an external account exists", so naming the chart's own default
+suppressed the account the pods then referenced and every Job died at
+admission with `serviceaccount "ploeg-worker" not found`. create and name are
+separate questions and are now separate keys.
+*/}}
+{{- define "ploeg.workerServiceAccountName" -}}
+{{- .Values.executor.serviceAccount.name | default (printf "%s-worker" (include "ploeg.fullname" .)) -}}
+{{- end -}}
+
+{{/*
+ploeg.roleUsesDind resolves the dind flag for one (team, role) through the
+role -> team -> global override chain. Context: (dict "root" $ "team" <team>
+"role" <role>).
+
+Extracted so the ScaledJob and the pod template cannot disagree. They did, and
+it broke production: the hazard label was stamped only on the pod TEMPLATE,
+but Kyverno autogens a Job rule for pod-security-baseline-enforce and a Job
+selector matches the JOB's own labels — so every DinD team was denied at
+admission while the PolicyException looked correct.
+*/}}
+{{- define "ploeg.roleUsesDind" -}}
+{{- $gh := .root.Values.executor.harness | default dict }}
+{{- $th := .team.harness | default dict }}
+{{- $rh := (.role | default dict).harness | default dict }}
+{{- $d := true }}
+{{- if hasKey $rh "dind" }}{{- $d = $rh.dind }}{{- else if hasKey $th "dind" }}{{- $d = $th.dind }}{{- else if hasKey $gh "dind" }}{{- $d = $gh.dind }}{{- end }}
+{{- if $d }}true{{- end }}
 {{- end -}}

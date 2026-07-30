@@ -24,7 +24,7 @@ const maxBriefingBytes = 8000
 // reader/writer split (ADR-0010) legible to the agent rather than merely
 // enforced around it. priorPR is the pull request already open on this
 // branch, if any.
-func ComposePrompt(spec harness.TaskSpec, writes bool, priorPR string) string {
+func ComposePrompt(spec harness.TaskSpec, writes bool, priorPR string, onReviewBranch bool) string {
 	item := spec.WorkItem
 	// Historical default: before baseBranch existed the contract said "main".
 	// The clone above used the repo default branch in that case, so keeping
@@ -44,11 +44,24 @@ func ComposePrompt(spec harness.TaskSpec, writes bool, priorPR string) string {
 	writeBriefing(&b, spec.Briefing)
 
 	if !writes {
-		fmt.Fprintf(&b, `## Delivery contract (review only)
+		if onReviewBranch {
+			fmt.Fprintf(&b, `## Delivery contract (review only)
 
-- The repository checkout is your working directory, on branch %[1]s. READ it.
-  Do NOT modify, commit or push anything: you hold no lease on this branch and
-  no write credential, so a push will be rejected by the forge.
+- The repository checkout is your working directory, standing on branch %[1]s,
+  which is the work you are reviewing. Its base branch %[2]s is also present,
+  so "git diff %[2]s...%[1]s" is the change under review. READ it.
+`, spec.Branch, base)
+		} else {
+			fmt.Fprintf(&b, `## Delivery contract (review only)
+
+- The repository checkout is your working directory, on the base branch %[1]s.
+  No work has been written for this ticket yet — you are running BEFORE the
+  author, so review the ticket against the existing code, not a diff.
+`, base)
+		}
+		b.WriteString(`- Do NOT modify, commit or push anything. Your clone's origin has no
+  credentials in it and this run was given no forge token, so a push has
+  nothing to authenticate with.
 - Do not open, update, comment on, or merge a pull request. Ploeg publishes
   your findings for you.
 - Deliver your review by writing this JSON to the file named by the
@@ -72,7 +85,15 @@ func ComposePrompt(spec harness.TaskSpec, writes bool, priorPR string) string {
   stands.
 - If the work cannot be reviewed at all, explain why on stderr and exit
   non-zero.
-`, spec.Branch)
+`)
+		// The pull request the findings will land on. A reader was never told
+		// it existed, which made "review the pull request" unsayable — it
+		// could only ever review a branch it had not been given either.
+		if priorPR != "" {
+			fmt.Fprintf(&b, `- Your review will be posted as a comment on this pull request: %[1]s
+  Read it for the author's own description of the change before you judge it.
+`, priorPR)
+		}
 		return b.String()
 	}
 
