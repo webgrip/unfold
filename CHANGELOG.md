@@ -1,3 +1,11 @@
+## 0.2.0-rc.13 (2026-07-30)
+
+* fix(worker,httpapi): tell the truth about the forge credential, log routing ([f58c261](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f58c261))
+* Merge pull request 'fix(shiftengine): tell the board when a Shift finishes' (#31) from fix/tracker-w ([0e9c3e1](https://forgejo.webgrip.dev/webgrip/ploeg/commit/0e9c3e1)), closes [#31](https://forgejo.webgrip.dev/webgrip/ploeg/issues/31)
+* feat(chart): worker ServiceAccount and per-Role resources ([12896f5](https://forgejo.webgrip.dev/webgrip/ploeg/commit/12896f5))
+* fix(config): reject an assignee shared by two teams ([60c836b](https://forgejo.webgrip.dev/webgrip/ploeg/commit/60c836b))
+* fix(shiftengine): write back to the tracker on every terminal settle ([30d9ce3](https://forgejo.webgrip.dev/webgrip/ploeg/commit/30d9ce3)), closes [#30](https://forgejo.webgrip.dev/webgrip/ploeg/issues/30)
+
 ## 0.2.0-rc.12 (2026-07-30)
 
 * fix(ci): substitute the chart version out of the helm goldens ([c827f9f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c827f9f))
