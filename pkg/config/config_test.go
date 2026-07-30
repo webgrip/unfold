@@ -64,6 +64,45 @@ teams:
 	}
 }
 
+// One tracker project serving several repositories, disambiguated by team, is
+// the transitional routing pkg/target exists to express. Validation used to
+// reject it as a duplicate — the config was unbootable and the deployment
+// crash-looped — so this pins that the whole path works end to end.
+func TestTargetSpec_OneProjectRoutesPerTeam(t *testing.T) {
+	f, err := Load(write(t, `
+trackers:
+  vikunja:
+    projects:
+      - name: "Ploeg Test"
+        repo: webgrip/ploeg
+        branch: development
+        team: bronze
+      - name: "Ploeg Test"
+        repo: webgrip/erfbeeld
+        branch: main
+        team: copper
+teams:
+  bronze:
+    assignees: [jake]
+  copper:
+    assignees: [copper]
+`))
+	if err != nil {
+		t.Fatalf("per-team routing on one project was rejected: %v", err)
+	}
+	spec, err := f.TargetSpec(context.Background(), fakeResolver{projects: map[string]string{
+		"Ploeg Test": "11",
+	}}, discard())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"11/bronze=webgrip/ploeg@development", "11/copper=webgrip/erfbeeld@main"} {
+		if !strings.Contains(spec, want) {
+			t.Errorf("spec = %q, want %q", spec, want)
+		}
+	}
+}
+
 // A typo must not route work somewhere plausible — it must refuse to boot,
 // and say what the names actually are.
 func TestTargetSpec_UnknownProjectNameFailsLoudly(t *testing.T) {
@@ -130,6 +169,10 @@ func TestLoad_RejectsBadConfig(t *testing.T) {
 		"no name or id":      "trackers:\n  vikunja:\n    projects:\n      - {repo: webgrip/ploeg}\n",
 		"unknown team":       "trackers:\n  vikunja:\n    projects:\n      - {name: X, repo: webgrip/ploeg, team: ghost}\n",
 		"duplicate project":  "trackers:\n  vikunja:\n    projects:\n      - {name: X, repo: webgrip/a}\n      - {name: X, repo: webgrip/b}\n",
+		// Per-team routing is allowed; the SAME team twice on one project is
+		// still ambiguous — pkg/target would silently keep whichever rule
+		// sorted first.
+		"duplicate project and team": "teams:\n  bronze: {}\ntrackers:\n  vikunja:\n    projects:\n      - {name: X, repo: webgrip/a, team: bronze}\n      - {name: X, repo: webgrip/b, team: bronze}\n",
 		// A typo'd key must fail rather than silently defaulting — the whole
 		// reason for moving off an env-var DSL.
 		"typo'd key": "trackers:\n  vikunja:\n    projects:\n      - {name: X, repo: webgrip/ploeg, brnach: main}\n",

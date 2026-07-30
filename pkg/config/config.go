@@ -122,10 +122,18 @@ func (f *File) Validate() error {
 		if !ok || owner == "" || name == "" {
 			return fmt.Errorf("%s (%s): repo %q must be owner/name", where, p.label(), p.Repo)
 		}
-		if prev, dup := seen[p.label()]; dup {
-			return fmt.Errorf("%s: project %q is routed twice (already to %s)", where, p.label(), prev)
+		// Keyed on project AND team, because per-team routing on one project
+		// is the feature: TargetSpec renders "<id>/<team>=repo" entries, and
+		// pkg/target resolves the team-specific rule ahead of the bare one. A
+		// project-only key would forbid the very config it then generates.
+		if prev, dup := seen[p.routeKey()]; dup {
+			forTeam := ""
+			if p.Team != "" {
+				forTeam = fmt.Sprintf(" for team %q", p.Team)
+			}
+			return fmt.Errorf("%s: project %q is routed twice%s (already to %s)", where, p.label(), forTeam, prev)
 		}
-		seen[p.label()] = p.Repo
+		seen[p.routeKey()] = p.Repo
 		if p.Team != "" {
 			if _, ok := f.Teams[p.Team]; !ok {
 				return fmt.Errorf("%s (%s): routes to team %q, which is not in teams", where, p.label(), p.Team)
@@ -141,6 +149,13 @@ func (f *File) Validate() error {
 		}
 	}
 	return nil
+}
+
+// routeKey is what may only appear once: a project, per team. NUL separates
+// the two halves so a team name can never be mistaken for part of a project
+// name that happens to contain the separator.
+func (p Project) routeKey() string {
+	return p.label() + "\x00" + p.Team
 }
 
 func (p Project) label() string {
