@@ -187,12 +187,21 @@ func trackerMessage(settled work.State, reason, link string, runs, rounds int) s
 	switch {
 	case settled == work.StateStale:
 		b.WriteString("Ploeg gave up on this item after repeated failures.\n\n")
-	case settled == work.StateDone && link != "":
+	case link != "":
+		// A pull request exists, so the Shift produced work — say so, whatever
+		// state the item settled in.
+		//
+		// This used to key on the state alone, and a CONFIGURED plan settles
+		// needs_human on success by design (the last word is "a person is
+		// asked to merge"). So every successful multi-Round Shift opened its
+		// board comment with "Ploeg stopped working this item" directly above
+		// a link to the pull request it had just produced. The state describes
+		// who owes the next move; it does not describe how the run went.
 		b.WriteString("Ploeg finished this item and opened a pull request.\n\n")
 	case settled == work.StateDone:
 		b.WriteString("Ploeg finished this item without needing to change anything.\n\n")
 	default:
-		b.WriteString("Ploeg stopped working this item.\n\n")
+		b.WriteString("Ploeg stopped working this item without opening a pull request.\n\n")
 	}
 	fmt.Fprintf(&b, "**Outcome:** %s\n", reason)
 	if link != "" {
