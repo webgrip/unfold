@@ -7,8 +7,8 @@ metadata:
   labels:
     app.kubernetes.io/name: ploeg
     app.kubernetes.io/instance: ploeg
-    app.kubernetes.io/version: "0.2.0-rc.9"
-    helm.sh/chart: ploeg-0.2.0-rc.9
+    app.kubernetes.io/version: "0.2.0-rc.10"
+    helm.sh/chart: ploeg-0.2.0-rc.10
     app.kubernetes.io/managed-by: Helm
 automountServiceAccountToken: false
 
@@ -21,8 +21,8 @@ metadata:
   labels:
     app.kubernetes.io/name: ploeg
     app.kubernetes.io/instance: ploeg
-    app.kubernetes.io/version: "0.2.0-rc.9"
-    helm.sh/chart: ploeg-0.2.0-rc.9
+    app.kubernetes.io/version: "0.2.0-rc.10"
+    helm.sh/chart: ploeg-0.2.0-rc.10
     app.kubernetes.io/managed-by: Helm
 spec:
   type: ClusterIP
@@ -43,8 +43,8 @@ metadata:
   labels:
     app.kubernetes.io/name: ploeg
     app.kubernetes.io/instance: ploeg
-    app.kubernetes.io/version: "0.2.0-rc.9"
-    helm.sh/chart: ploeg-0.2.0-rc.9
+    app.kubernetes.io/version: "0.2.0-rc.10"
+    helm.sh/chart: ploeg-0.2.0-rc.10
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -70,7 +70,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: ploegd
-          image: harbor.webgrip.dev/webgrip/ploegd:0.2.0-rc.9
+          image: harbor.webgrip.dev/webgrip/ploegd:0.2.0-rc.10
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
