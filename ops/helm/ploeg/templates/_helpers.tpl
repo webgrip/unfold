@@ -248,9 +248,17 @@ spec:
              ceiling — rendering it here would hand one Run the whole pool if
              this fallback ever applied. A planned Run is always minted at the
              claim's authorization instead (ADR-0012); this value stands only
-             for a plan-less team, and for a Role it degrades to its own cap. */}}
+             for a plan-less team, and for a Role it degrades to its own cap.
+
+             `perRunBudget` exists because `budget` alone meant two different
+             things depending on whether a team had a plan: the Shift pool for
+             bronze, and the per-run key ceiling for silver and copper, which
+             have none. One word, two ceilings, and the HelmRelease comments
+             drifted from the values in both directions. Set it to say the
+             per-run number out loud; `budget` remains the fallback so no
+             existing values file changes meaning. */}}
         - name: LITELLM_KEY_BUDGET
-          value: {{ $role.cap | default $team.budget | quote }}
+          value: {{ $role.cap | default $team.perRunBudget | default $team.budget | quote }}
         - name: LITELLM_KEY_DURATION
           value: {{ $root.Values.executor.litellm.keyDuration | quote }}
         - name: LLM_BASE_URL

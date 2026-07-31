@@ -3,6 +3,8 @@ package llmbroker
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"time"
 
 	"github.com/webgrip/ploeg/pkg/litellm"
 )
@@ -18,22 +20,53 @@ func NewLiteLLM(cli *litellm.Client) *LiteLLM { return &LiteLLM{cli: cli} }
 
 var _ Broker = (*LiteLLM)(nil)
 var _ Sweeper = (*LiteLLM)(nil)
+var _ Metered = (*LiteLLM)(nil)
+
+// Spend asks the proxy what this key has spent. Must be called before Revoke:
+// deleting the key deletes the row this reads.
+func (b *LiteLLM) Spend(ctx context.Context, cred Credential) (float64, error) {
+	if cred.APIKey == "" {
+		return 0, fmt.Errorf("no credential to meter")
+	}
+	return b.cli.KeySpend(ctx, cred.APIKey)
+}
 
 func (b *LiteLLM) Mint(ctx context.Context, req MintRequest) (Credential, error) {
 	alias := litellm.Alias(req.RunToken)
 	if alias == "" {
 		return Credential{}, fmt.Errorf("run token too short for key alias")
 	}
+	// Fail closed. MaxBudget is omitempty, so a zero budget does not mint a
+	// zero-spend key — it mints an UNCAPPED one, silently. The only way that
+	// value reaches here is a misconfiguration (an unset or unparseable
+	// LITELLM_KEY_BUDGET, a team with no cap and no budget), and an
+	// unattended agent with an unlimited credential is the one outcome this
+	// package exists to prevent.
+	if req.BudgetUSD <= 0 {
+		return Credential{}, fmt.Errorf("refusing to mint an uncapped key: budget is %v", req.BudgetUSD)
+	}
 	key, err := b.cli.Mint(ctx, litellm.MintRequest{
-		KeyAlias:    alias,
-		MaxBudget:   req.BudgetUSD,
-		Models:      req.Models,
-		MaxHoursTTL: req.TTL.Hours(),
+		KeyAlias:  alias,
+		MaxBudget: req.BudgetUSD,
+		Models:    req.Models,
+		Duration:  ttlString(req.TTL),
 	})
 	if err != nil {
 		return Credential{}, err
 	}
 	return Credential{APIKey: key, Alias: alias}, nil
+}
+
+// ttlString renders a TTL in the duration format LiteLLM parses ("30s",
+// "30m", "30h", "30d"). Seconds, so nothing is lost to rounding — a 90m TTL
+// sent as "1h" would expire half an hour early. Empty for a non-positive
+// TTL, which leaves the key without an expiry; that is the caller's choice
+// to make explicitly, not this function's to invent.
+func ttlString(d time.Duration) string {
+	if d <= 0 {
+		return ""
+	}
+	return strconv.FormatInt(int64(d.Seconds()), 10) + "s"
 }
 
 func (b *LiteLLM) Revoke(ctx context.Context, cred Credential) error {

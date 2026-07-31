@@ -19,6 +19,7 @@ type fakeAdmin struct {
 	minted   []litellm.MintRequest
 	deleted  []string
 	mintFail bool
+	spend    float64 // what /key/info reports for any live key
 }
 
 func newFakeAdmin() *fakeAdmin { return &fakeAdmin{keys: map[string]string{}} }
@@ -70,6 +71,17 @@ func (f *fakeAdmin) server(t *testing.T) *httptest.Server {
 				delete(f.keys, "hashed-"+k) // plaintext revoke path
 			}
 			_ = json.NewEncoder(w).Encode(map[string]string{"message": "deleted"})
+		case "/key/info":
+			key := r.URL.Query().Get("key")
+			if _, ok := f.keys["hashed-"+key]; !ok {
+				// Revoking deletes the row this reads, which is exactly why
+				// spend has to be settled BEFORE revoke.
+				http.Error(w, `{"error":"key not found"}`, http.StatusNotFound)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"info": map[string]any{"spend": f.spend, "max_budget": 2},
+			})
 		case "/key/list":
 			keys := make([]litellm.KeyInfo, 0, len(f.keys))
 			for tok, alias := range f.keys {
@@ -106,11 +118,60 @@ func TestMint_AliasFormatIsLoadBearing(t *testing.T) {
 	if len(f.minted) != 1 || f.minted[0].KeyAlias != "ploeg-1cd43e1dfd6c" {
 		t.Errorf("minted with alias %+v", f.minted)
 	}
-	if f.minted[0].MaxHoursTTL != 4 {
-		t.Errorf("TTL hours = %v, want 4 (LITELLM_KEY_DURATION now flows through)", f.minted[0].MaxHoursTTL)
+	// The TTL must land in `duration`, which is a field LiteLLM actually has.
+	// The previous assertion here checked MaxHoursTTL == 4 and passed for
+	// months while every key was minted WITHOUT AN EXPIRY, because
+	// `max_hours_ttl` is not part of GenerateKeyRequest and pydantic drops
+	// unknown keys silently. Asserting a value reaches the wire says nothing
+	// about whether the receiver has a field to put it in.
+	if f.minted[0].Duration != "14400s" {
+		t.Errorf("duration = %q, want 14400s (4h); a key with no expiry has no backstop",
+			f.minted[0].Duration)
 	}
 	if cred.APIKey == "" {
 		t.Error("mint returned no key")
+	}
+}
+
+func TestMint_RefusesAnUncappedKey(t *testing.T) {
+	f := newFakeAdmin()
+	// max_budget is omitempty, so budget 0 does not mint a zero-spend key —
+	// it mints an unlimited one. Fail closed instead.
+	for _, budget := range []float64{0, -1} {
+		if _, err := f.broker(t).Mint(context.Background(), MintRequest{
+			RunToken: runToken, BudgetUSD: budget, TTL: time.Hour,
+		}); err == nil {
+			t.Errorf("budget %v: expected a refusal, got a minted key", budget)
+		}
+	}
+	if len(f.minted) != 0 {
+		t.Errorf("nothing should have been minted, got %+v", f.minted)
+	}
+}
+
+func TestSpend_ReadsTheGatewaysFigure(t *testing.T) {
+	f := newFakeAdmin()
+	b := f.broker(t)
+	cred, err := b.Mint(context.Background(), MintRequest{
+		RunToken: runToken, BudgetUSD: 2, TTL: time.Hour,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.spend = 0.0137
+	got, err := b.Spend(context.Background(), cred)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != 0.0137 {
+		t.Errorf("spend = %v, want 0.0137", got)
+	}
+}
+
+func TestSpend_NoCredentialIsAnError(t *testing.T) {
+	f := newFakeAdmin()
+	if _, err := f.broker(t).Spend(context.Background(), Credential{}); err == nil {
+		t.Fatal("expected an error metering an empty credential")
 	}
 }
 
@@ -124,7 +185,7 @@ func TestMint_ShortTokenRejected(t *testing.T) {
 func TestRevoke_DeletesTheKey(t *testing.T) {
 	f := newFakeAdmin()
 	b := f.broker(t)
-	cred, err := b.Mint(context.Background(), MintRequest{RunToken: runToken, TTL: time.Hour})
+	cred, err := b.Mint(context.Background(), MintRequest{RunToken: runToken, BudgetUSD: 1, TTL: time.Hour})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +210,7 @@ func TestRevoke_EmptyCredentialIsNoop(t *testing.T) {
 func TestRevokeForRun_ResolvesAliasToHashedTokens(t *testing.T) {
 	f := newFakeAdmin()
 	b := f.broker(t)
-	if _, err := b.Mint(context.Background(), MintRequest{RunToken: runToken, TTL: time.Hour}); err != nil {
+	if _, err := b.Mint(context.Background(), MintRequest{RunToken: runToken, BudgetUSD: 1, TTL: time.Hour}); err != nil {
 		t.Fatal(err)
 	}
 	if err := b.RevokeForRun(context.Background(), runToken); err != nil {
@@ -165,7 +226,7 @@ func TestSweepOrphans_RevokesOnlyDeadRuns(t *testing.T) {
 	b := f.broker(t)
 	aliveToken := "aaaaaaaaaaaa0000000000000000000000000000000000ial"
 	for _, tok := range []string{runToken, aliveToken} {
-		if _, err := b.Mint(context.Background(), MintRequest{RunToken: tok, TTL: time.Hour}); err != nil {
+		if _, err := b.Mint(context.Background(), MintRequest{RunToken: tok, BudgetUSD: 1, TTL: time.Hour}); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -111,7 +111,7 @@ func run(log *slog.Logger) error {
 	// engine looks up `Forges[target.Forge]`, so keying this by Name() would
 	// silently match nothing and skip every publication. The route is
 	// registered under both, since a webhook path names the dialect.
-	forgeID := envOr("PLOEG_TARGET_FORGE", "forgejo")
+	forgeID := forgeIDFromEnv()
 	forges := map[string]provider.ForgeProvider{}
 	if forgeURL := trimSlash(os.Getenv("PLOEG_FORGEJO_URL")); forgeURL != "" {
 		fj := &forgejo.Provider{
@@ -173,7 +173,12 @@ func run(log *slog.Logger) error {
 	} else if spec != "" {
 		targetSpec = spec
 	}
-	targets, err := target.NewMapResolver(targetSpec, os.Getenv("PLOEG_TARGET_FORGE"))
+	// forgeID, not a second read of the env var. The registry above defaults
+	// PLOEG_TARGET_FORGE to "forgejo"; reading it raw here defaulted it to ""
+	// instead, so every resolved Target carried forge="" while the registry
+	// was keyed "forgejo" and publishRound's lookup missed on every Shift.
+	// One value, one read.
+	targets, err := target.NewMapResolver(targetSpec, forgeID)
 	if err != nil {
 		return fmt.Errorf("routing rules: %w", err)
 	}
@@ -204,9 +209,10 @@ func run(log *slog.Logger) error {
 	if len(plans) > 0 || uniform {
 		engine = &shiftengine.Engine{
 			Store: st, Plans: plans, Log: log,
-			Forges:   forges,
-			Trackers: map[string]provider.TrackerProvider{vik.Name(): vik},
-			Uniform:  uniform,
+			Forges:       forges,
+			DefaultForge: forgeID,
+			Trackers:     map[string]provider.TrackerProvider{vik.Name(): vik},
+			Uniform:      uniform,
 		}
 		log.Info("shift engine enabled", "planned_teams", len(plans), "uniform", uniform)
 	} else {
@@ -235,8 +241,8 @@ func run(log *slog.Logger) error {
 		_ = httpSrv.Shutdown(shutdownCtx)
 	}()
 
-	bootOrphanSweep(ctx, log, st, sweeper)
-	bootForgeSweep(ctx, log, st, forgeSweeper)
+	orphanSweep(ctx, log, st, sweeper)
+	forgeOrphanSweep(ctx, log, st, forgeSweeper)
 
 	go sweepLoop(ctx, log, st, sweeper, forgeSweeper, engine, sweepEvery)
 

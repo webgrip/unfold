@@ -62,7 +62,16 @@ func installSelf(dst string) error {
 }
 
 func run(log *slog.Logger) error {
-	budget, _ := strconv.ParseFloat(os.Getenv("LITELLM_KEY_BUDGET"), 64)
+	// Boot-required and parsed strictly. Discarding this error turned a typo
+	// or a dropped chart value into budget 0, and budget 0 mints an UNCAPPED
+	// key rather than a useless one. Failing here costs no attempt and
+	// strands no lease, which is the same reason AGENT_BUILDER_TOKEN is
+	// required below: it is true for every possible target.
+	budgetRaw := os.Getenv("LITELLM_KEY_BUDGET")
+	budget, err := strconv.ParseFloat(budgetRaw, 64)
+	if err != nil {
+		return fmt.Errorf("LITELLM_KEY_BUDGET is not a number: %q", budgetRaw)
+	}
 	model := os.Getenv("LLM_MODEL")
 	cfg := worker.Config{
 		APIURL: requireEnv("PLOEG_API_URL"),
@@ -116,7 +125,6 @@ func run(log *slog.Logger) error {
 			return fmt.Errorf("PLOEG_ACP_ARGV must be a JSON string array: %w", err)
 		}
 	}
-	var err error
 	if hc.ACP.PromptTimeout, err = durationEnv("PLOEG_ACP_PROMPT_TIMEOUT"); err != nil {
 		return err
 	}

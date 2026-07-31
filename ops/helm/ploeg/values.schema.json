@@ -73,6 +73,11 @@
                 "type": "string",
                 "pattern": "^[0-9]+(\\.[0-9]+)?$"
               },
+              "perRunBudget": {
+                "//": "Per-run key ceiling for a team with no plan. Optional; falls back to budget, which for a PLANNED team is the Shift pool and not a per-run figure.",
+                "type": "string",
+                "pattern": "^[0-9]+(\\.[0-9]+)?$"
+              },
               "repoOwner": {
                 "type": "string",
                 "minLength": 1

@@ -329,7 +329,67 @@ func runAgent(ctx context.Context, log *slog.Logger, broker llmbroker.Broker, ad
 	}
 
 	report, runErr = adapter.Run(ctx, spec, env)
+
+	// Settle the cost from the gateway while the credential still exists —
+	// the deferred Revoke above deletes the row this reads. Without this the
+	// Shift pool never depletes: settlement adds COALESCE(usage->>'costUsd', 0)
+	// and openhands/exec report no usage at all, so `spent` stayed 0.0000 and
+	// every budget bound that reads it was inert.
+	if m, ok := broker.(llmbroker.Metered); ok && cred.APIKey != "" {
+		if spend, err := settleSpend(ctx, m, cred, log); err != nil {
+			log.Warn("gateway spend unavailable; run cost not settled", "err", err, "trace", cred.Alias)
+		} else {
+			if report.Usage == nil {
+				report.Usage = &harness.Usage{}
+			}
+			report.Usage.CostUSD = spend
+			log.Info("settled run cost", "trace", cred.Alias, "cost_usd", spend)
+		}
+	}
 	return report, nil, runErr
+}
+
+// settleSpend reads the credential's spend, waiting for the gateway's
+// accounting to catch up.
+//
+// LiteLLM writes spend asynchronously, so the first read after a run ends is
+// routinely stale — often zero. Polling until the value stops MOVING rather
+// than until it is non-zero matters in both directions: a genuinely free run
+// (the exec harness makes no calls) settles at zero on the first two reads
+// and returns immediately, and a busy run is not truncated at whatever
+// partial figure happened to be written first.
+func settleSpend(ctx context.Context, m llmbroker.Metered, cred llmbroker.Credential, log *slog.Logger) (float64, error) {
+	const (
+		every  = 2 * time.Second
+		budget = 20 * time.Second
+	)
+	deadline := time.Now().Add(budget)
+
+	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), budget+10*time.Second)
+	defer cancel()
+
+	prev, err := m.Spend(readCtx, cred)
+	if err != nil {
+		return 0, err
+	}
+	for time.Now().Before(deadline) {
+		select {
+		case <-readCtx.Done():
+			return prev, nil
+		case <-time.After(every):
+		}
+		cur, err := m.Spend(readCtx, cred)
+		if err != nil {
+			// A transient read failure should not throw away a good figure.
+			log.Debug("spend re-read failed, keeping previous", "err", err)
+			return prev, nil
+		}
+		if cur == prev {
+			return cur, nil
+		}
+		prev = cur
+	}
+	return prev, nil
 }
 
 // noLLMTraffic reports whether usage telemetry proves the run made no LLM
