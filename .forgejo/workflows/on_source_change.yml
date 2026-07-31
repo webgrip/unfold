@@ -69,11 +69,12 @@ jobs:
       - name: Semantic Release
         id: release
         # TEMPORARY PIN — flip back to @main once webgrip/workflows' semrel PR is merged.
-        # ploeg is the trial for the container path: nothing has run it on a real runner yet, and
-        # the composite at @main still installs its toolchain at release time (it would ignore the
-        # image above). Pinned to the commit rather than the branch so a later push to that branch
-        # cannot change what this release runs.
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release@6957a434c373cd655003a30a170faae2b2919970 # fix/semrel-parity-and-hardening
+        # ploeg is the trial for the container path. Run 143 proved the toolchain resolves and the
+        # plugins load, but it analyzed to "no release" — so PUBLISH (prepare, the Chart.yaml bump,
+        # the @semantic-release/git push-back through the new public-host extraheader) has still
+        # never run on this path. This commit is releasable on purpose: it is that half of the test.
+        # Pinned to the commit rather than the branch so a later push cannot change what this runs.
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release@2c5c68c9bef02f81c0ebeeb3ce92dbe3114fc5ad # fix/semrel-parity-and-hardening
         with:
           token: ${{ secrets.WEBGRIP_CI_TOKEN }}
 
