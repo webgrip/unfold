@@ -32,6 +32,13 @@ type Engine struct {
 	// forge id, matching the Work Target's Forge. Nil or missing = findings
 	// stay in the database and the run is otherwise unaffected.
 	Forges map[string]provider.ForgeProvider
+	// DefaultForge resolves a Target that names no forge, which is what
+	// pkg/work.Target documents ("empty = the default forge") and what every
+	// routing rule that omits `forge:` produces. It is the id an operator
+	// configured, never an inference from len(Forges) — with two forges
+	// registered, guessing would post an internal review onto whichever
+	// instance happened to answer.
+	DefaultForge string
 	// Trackers asks a person to merge when a Shift closes. Keyed by provider
 	// name, matching the Work Item's. Nil = no write-back.
 	Trackers map[string]provider.TrackerProvider

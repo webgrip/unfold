@@ -387,6 +387,108 @@ func TestPublish_ForgeIsKeyedByTargetIDNotDialectName(t *testing.T) {
 	}
 }
 
+// The 2026-07-30 incident, as a test. Every routing rule in production omits
+// `forge:`, so every Target carried the empty string, and the empty string was
+// used as a literal registry key — which matched nothing, so a real review
+// with verdict=approve was written to the database and never reached the pull
+// request. `pkg/work.Target` documented "empty = the default forge" the whole
+// time; only the documentation implemented it.
+//
+// The sibling test above looks like it covers this and does not: it asserts
+// the engine uses the TARGET's id, which was never broken, and it hand-writes
+// a non-empty id on both sides. Fails against v0.2.0-rc.14.
+func TestPublish_EmptyForgeIDUsesTheDefault(t *testing.T) {
+	ctx := context.Background()
+	resetTables(t)
+	forge := &fakeForge{}
+	e := newEngine(reviewPlan())
+	e.Forges = map[string]provider.ForgeProvider{"forgejo": forge}
+	e.DefaultForge = "forgejo"
+
+	id, _, err := testStore.IngestAssigned(ctx, work.WorkItem{
+		Provider: "vikunja", ExternalID: "911", Team: "bronze", Title: "t",
+		// No Forge — exactly what NewMapResolver produces for a rule that
+		// names no forge, which is all seven of them in production.
+		Target: &work.Target{Owner: "webgrip", Repo: "erfbeeld", BaseBranch: "main"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, _ := testStore.WorkItem(ctx, id)
+	if err := e.EnsureShift(ctx, id, item); err != nil {
+		t.Fatal(err)
+	}
+	rw, _ := testStore.ClaimRole(ctx, "bronze", "builder", time.Minute, 3)
+	if _, err := testStore.ReportOutcome(ctx, rw.RunToken,
+		store.Report(work.OutcomePROpened, "opened", "",
+			[]string{"https://forgejo/webgrip/erfbeeld/pulls/9"}, nil, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EvaluateItem(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	rr, _ := testStore.ClaimRole(ctx, "bronze", "reviewer", time.Minute, 1)
+	if _, err := testStore.ReportOutcome(ctx, rr.RunToken,
+		store.Report(work.OutcomeNoChangeNeeded, "reviewed", "", nil, nil, nil).
+			WithFindings("- Verdict: Approve.")); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EvaluateItem(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	if len(forge.comments) != 1 {
+		t.Fatalf("a review with no forge id on its target reached nobody (%d comments); "+
+			"empty must resolve to DefaultForge", len(forge.comments))
+	}
+}
+
+// And the other direction: with no DefaultForge configured there is nothing to
+// fall back to, and publishing to a guess would be worse than not publishing.
+// A single registered provider must NOT be inferred — with two forges the
+// guess posts an internal review onto an unrelated public pull request.
+func TestPublish_EmptyForgeIDWithNoDefaultPublishesNothing(t *testing.T) {
+	ctx := context.Background()
+	resetTables(t)
+	forge := &fakeForge{}
+	e := newEngine(reviewPlan())
+	e.Forges = map[string]provider.ForgeProvider{"forgejo": forge}
+	e.DefaultForge = ""
+
+	id, _, err := testStore.IngestAssigned(ctx, work.WorkItem{
+		Provider: "vikunja", ExternalID: "912", Team: "bronze", Title: "t",
+		Target: &work.Target{Owner: "webgrip", Repo: "erfbeeld", BaseBranch: "main"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, _ := testStore.WorkItem(ctx, id)
+	if err := e.EnsureShift(ctx, id, item); err != nil {
+		t.Fatal(err)
+	}
+	rw, _ := testStore.ClaimRole(ctx, "bronze", "builder", time.Minute, 3)
+	if _, err := testStore.ReportOutcome(ctx, rw.RunToken,
+		store.Report(work.OutcomePROpened, "opened", "",
+			[]string{"https://forgejo/webgrip/erfbeeld/pulls/9"}, nil, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EvaluateItem(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	rr, _ := testStore.ClaimRole(ctx, "bronze", "reviewer", time.Minute, 1)
+	if _, err := testStore.ReportOutcome(ctx, rr.RunToken,
+		store.Report(work.OutcomeNoChangeNeeded, "reviewed", "", nil, nil, nil).
+			WithFindings("- Verdict: Approve.")); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EvaluateItem(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	if len(forge.comments) != 0 {
+		t.Fatalf("published to an inferred forge (%d comments); the fallback must be a configured id, not a guess",
+			len(forge.comments))
+	}
+}
+
 // The 2026-07-30 incident, as a test. A plan-less team opened a real pull
 // request, the item settled `done` — and the board was told nothing, because
 // the write-back was gated on needs_human. Fails against v0.2.0-rc.12.

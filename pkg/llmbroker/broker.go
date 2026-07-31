@@ -18,8 +18,25 @@ type Broker interface {
 	Revoke(ctx context.Context, cred Credential) error
 }
 
+// Metered is an optional Broker capability: what a credential has actually
+// spent, according to the GATEWAY. This is deliberately not part of Broker —
+// a broker that cannot meter is still a valid broker, and the caller degrades
+// to "cost unknown" rather than failing the run.
+//
+// It exists because the alternative is asking the agent how much it spent.
+// Every adapter that could answer that (acp, claudecode) self-reports, and
+// the two adapters actually deployed (openhands, exec) do not answer at all,
+// which is why agent_runs.usage was NULL on every run ever recorded and
+// shifts.spent stayed 0.0000 — silently, because the settlement SQL
+// COALESCEs a missing cost to zero.
+type Metered interface {
+	// Spend returns the credential's spend so far. Only meaningful before
+	// the credential is revoked.
+	Spend(ctx context.Context, cred Credential) (float64, error)
+}
+
 // Sweeper is ploegd's reconciliation view: crash cleanup by run token and
-// the boot-time orphan sweep.
+// the periodic orphan sweep.
 type Sweeper interface {
 	// RevokeForRun revokes whatever credentials exist for a run token
 	// (lease-expiry sweep).

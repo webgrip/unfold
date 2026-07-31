@@ -93,10 +93,19 @@ func (e *Engine) publishRound(ctx context.Context, si store.ShiftInfo, reports [
 			"shift", si.ID, "work_item", si.WorkItemID)
 		return
 	}
-	fp, ok := e.Forges[item.Target.Forge]
+	// "empty = the default forge" is what pkg/work.Target and pkg/config both
+	// promise; until rc.15 only the promise existed and the empty string was
+	// used as a literal key, which matched nothing. Rows written before that
+	// fix still carry forge="", so resolving it here — rather than only at
+	// ingest — is what makes the existing backlog publishable.
+	forgeID := item.Target.Forge
+	if forgeID == "" {
+		forgeID = e.DefaultForge
+	}
+	fp, ok := e.Forges[forgeID]
 	if !ok {
 		e.Log.Warn("findings not published: no provider for forge",
-			"forge", item.Target.Forge, "shift", si.ID)
+			"forge", item.Target.Forge, "resolved", forgeID, "shift", si.ID)
 		return
 	}
 

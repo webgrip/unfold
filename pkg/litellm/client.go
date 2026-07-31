@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -49,10 +50,17 @@ func NewClient(baseURL, masterKey string) *Client {
 
 // MintRequest is the JSON body for POST /key/generate.
 type MintRequest struct {
-	KeyAlias    string   `json:"key_alias"`
-	MaxBudget   float64  `json:"max_budget,omitempty"`
-	Models      []string `json:"models,omitempty"`
-	MaxHoursTTL float64  `json:"max_hours_ttl,omitempty"`
+	KeyAlias  string   `json:"key_alias"`
+	MaxBudget float64  `json:"max_budget,omitempty"`
+	Models    []string `json:"models,omitempty"`
+	// Duration is LiteLLM's key TTL, a duration string it parses itself
+	// ("30s", "30m", "30h", "30d"). This field used to be `max_hours_ttl`,
+	// which is not a LiteLLM field at all: GenerateKeyRequest ignores unknown
+	// keys, so every key ever minted by Ploeg had NO expiry while three
+	// separate comments called the TTL "the backstop". A revoke that failed
+	// left an immortal budgeted credential — observed on 2026-07-24..27, when
+	// eight keys for finished runs accumulated and stayed live.
+	Duration string `json:"duration,omitempty"`
 }
 
 // MintResponse is the subset of the /key/generate response we need.
@@ -96,9 +104,46 @@ func (c *Client) Mint(ctx context.Context, req MintRequest) (string, error) {
 }
 
 // Revoke deletes a previously-minted key via POST /key/delete.
-// Errors are logged by the caller; the 4 h TTL is the backstop.
+// Errors are logged by the caller; MintRequest.Duration is the backstop, and
+// the periodic orphan sweep is the one after that.
 func (c *Client) Revoke(ctx context.Context, key string) error {
 	return c.DeleteKeys(ctx, []string{key})
+}
+
+// keyInfoResponse is the subset of GET /key/info we need. `info.spend` is the
+// proxy's own running total for that key, which is what makes it usable as an
+// enforcement figure: it is the gateway's accounting, not a number the agent
+// reported about itself.
+type keyInfoResponse struct {
+	Info struct {
+		Spend     float64 `json:"spend"`
+		MaxBudget float64 `json:"max_budget"`
+	} `json:"info"`
+}
+
+// KeySpend returns what a key has spent so far. Only meaningful while the key
+// exists — call it before Revoke.
+func (c *Client) KeySpend(ctx context.Context, key string) (float64, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/key/info?key="+url.QueryEscape(key), nil)
+	if err != nil {
+		return 0, fmt.Errorf("litellm: create key info request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.masterKey)
+
+	resp, err := c.httpCli.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("litellm: key info request: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return 0, fmt.Errorf("litellm: key info got HTTP %d: %s", resp.StatusCode, string(body))
+	}
+	var ki keyInfoResponse
+	if err := json.NewDecoder(resp.Body).Decode(&ki); err != nil {
+		return 0, fmt.Errorf("litellm: decode key info: %w", err)
+	}
+	return ki.Info.Spend, nil
 }
 
 // KeyInfo is a single entry from the /key/list response (with
