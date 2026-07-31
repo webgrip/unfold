@@ -1,3 +1,5 @@
+## [0.2.0-rc.15](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.14...v0.2.0-rc.15) (2026-07-31)
+
 ## 0.2.0-rc.14 (2026-07-30)
 
 * Merge pull request 'fix(worker,shiftengine,chart): make a reading Role able to review — and unable t ([5371fff](https://forgejo.webgrip.dev/webgrip/ploeg/commit/5371fff)), closes [#32](https://forgejo.webgrip.dev/webgrip/ploeg/issues/32)
