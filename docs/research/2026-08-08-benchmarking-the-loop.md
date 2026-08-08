@@ -678,6 +678,72 @@ authorize €6 in each Round. **ADR-0012's pool is not bounding total spend in
 the deployed cluster**; it is bounding concurrency. Deploying current trunk
 closes it, so the action is a release, not a code change.
 
+## 10. How many trials, honestly (2026-08-09)
+
+§2.5 set a floor of "n = 5 for a signal, n = 10 before believing a gap smaller
+than ~15 points". The second half of that is wrong by more than an order of
+magnitude, and computing it rather than asserting it is the difference.
+
+Worst-case 95% Wilson width, and the trials per configuration needed before a
+difference in pass@1 could clear the intervals:
+
+| gap in pass@1 | trials per config |
+|---|---|
+| 60 points | 7 |
+| 50 points | 12 |
+| 40 points | 21 |
+| 30 points | 39 |
+| 25 points | 58 |
+| 20 points | 93 |
+| **15 points** | **167** |
+| 10 points | 381 |
+
+And what a given n can separate at all:
+
+| n | widest 95% interval |
+|---|---|
+| 5 | 65 points |
+| 10 | 53 points |
+| 20 | 40 points |
+
+At n = 5 only a near-total difference is real — 0/5 against 5/5. Two
+configurations at 60% and 80% are **not** distinguishable there, and
+`stats.Distinguishable` says so rather than letting the larger number win.
+
+**This does not sink the design; it renames what the matrix is for.** Three
+things stay sharp at small n, because they are per-trial and deterministic
+rather than sampled:
+
+- **L1 conformance** — 17 assertions, pass or fail on a single run. A
+  violation is a defect on the first trial, not a rate.
+- **L2 gate vectors** — G1–G7 per trial. "This configuration fails G4" is a
+  fact about that run, and a configuration that fails G4 three times out of
+  three needs no interval to be worth acting on.
+- **L3 review metrics** — recall against twelve seeded defects is measured on
+  one trial. Its variance across trials is worth reporting, but a reviewer
+  that misses the money bug five times out of five has told you something at
+  n = 5.
+
+And **pass^k is informative at small n in a way pass@1 is not**: 5/5 against
+3/5 is a visible reliability difference even where the pass@1 intervals
+overlap, because it is a statement about consistency rather than a rate
+estimate.
+
+So the honest protocol:
+
+1. **n = 5 per configuration** to shake out infrastructure, rank
+   configurations, and catch large effects. Report every interval; let
+   overlapping ones read as "not separated" rather than as a ranking.
+2. **Escalate to n ≈ 20–40 only on a specific hypothesis** worth paying for —
+   and note that even 40 only resolves a 30-point gap.
+3. **Never publish a winner from overlapping intervals.** The matrix's job at
+   homelab scale is to rank, to surface conformance and gate failures, and to
+   price configurations — not to settle 10-point differences.
+
+The money makes this concrete. At roughly €0.50–2 per trial, resolving a
+single 15-point comparison at n = 167 costs €170–670 for two configurations.
+That is not a homelab experiment, and the design should not pretend otherwise.
+
 ## 7. Sources
 
 - [Introducing SWE-bench Verified — OpenAI](https://openai.com/index/introducing-swe-bench-verified/)
