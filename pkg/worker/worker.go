@@ -438,6 +438,19 @@ func resolveOutcome(adapterName string, report harness.OutcomeReport, runErr, ct
 		if report.Outcome == work.OutcomeStuck && report.StuckReason == "" {
 			report.StuckReason = tail(logTail, 2000) // R4: stuck always carries a reason
 		}
+		// A structured report says what the agent DID, not where the work
+		// lives — an agent is never given the pull request URL and must not be
+		// trusted to assert one. Ploeg polled the forge and knows, so it fills
+		// the gap it left.
+		//
+		// Without this, a READING Run that correctly wrote a drop box returned
+		// a report with no link, while one that returned nothing got a link
+		// from the reader branch below. publishRound finds the pull request by
+		// scanning reported links, so a review-only Shift published its
+		// findings nowhere — the reviewer worked and no one could read it.
+		if len(report.Links) == 0 && prURL != "" {
+			report.Links = []string{prURL}
+		}
 		// VIK-586: LLM adapter that made no LLM calls → infra_llm failure.
 		// An adapter that already classified the failure is trusted over the
 		// heuristic — a structured taxonomy beats an inference.

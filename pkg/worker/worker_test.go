@@ -88,6 +88,27 @@ func TestResolveOutcome_Precedence(t *testing.T) {
 			wantOutcome: work.OutcomeNoChangeNeeded,
 			wantSummary: "harness says nothing to do",
 		},
+		// A reviewer's own report carries findings and a verdict but no link —
+		// it is never given the PR URL. Ploeg polled the forge, so it fills
+		// the gap; publishRound finds the pull request by scanning reported
+		// links, and without this a review-only Shift published nothing.
+		{
+			name:        "a structured report gains the PR link it could not know",
+			report:      harness.OutcomeReport{Outcome: work.OutcomeNoChangeNeeded, Summary: "review finished", Findings: "- broker.go:88 inverted TTL", Verdict: harness.VerdictRequestChanges},
+			prURL:       "http://forge/pr/7",
+			prExisted:   true,
+			wantOutcome: work.OutcomeNoChangeNeeded,
+			wantSummary: "review finished",
+			wantLinks:   []string{"http://forge/pr/7"},
+		},
+		// ...but never invents one, and never overwrites what the agent said.
+		{
+			name:        "a structured report with no PR keeps its own links",
+			report:      harness.OutcomeReport{Outcome: work.OutcomeFollowUpCreated, Summary: "opened a follow-up", Links: []string{"http://tracker/task/9"}},
+			wantOutcome: work.OutcomeFollowUpCreated,
+			wantSummary: "opened a follow-up",
+			wantLinks:   []string{"http://tracker/task/9"},
+		},
 		{
 			name:        "structured stuck without reason synthesizes one from the tail",
 			report:      harness.OutcomeReport{Outcome: work.OutcomeStuck, Summary: "blocked"},
