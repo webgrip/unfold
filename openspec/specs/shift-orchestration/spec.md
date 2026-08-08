@@ -48,11 +48,44 @@ well).
 - **THEN** the next Round in the plan opens with one writing Role
 - **AND** the writer's Run receives the readers' findings
 
-#### Scenario: A swept Run does not block its Round forever
+#### Scenario: A swept READING Run does not block its Round forever
 
-- **GIVEN** a Run whose pod died without reporting
+- **GIVEN** a reading Run whose pod died without reporting
 - **WHEN** `ExpireRuns` reclaims it
 - **THEN** the Round can complete and the Shift advances
+- **AND** the Round's remaining findings still reach the next Round
+
+### Requirement: A failed writing Run re-opens its Round rather than advancing the plan
+
+A Round whose WRITING Run ended `failed` SHALL NOT advance the plan. The
+orchestrator SHALL re-open that Round in place — without incrementing the round
+counter, which doubles as the index into the Team's plan — until the Role has
+had `MaxRunAttempts` attempts there, after which the Shift SHALL close at
+`needs_human` naming the repeated failure.
+
+`failed` is the sweeper's verdict on a pod that stopped renewing, never an
+agent's report, which is what makes it retryable and what distinguishes it from
+a `stuck` Outcome (R4). The attempt count SHALL be derived from the Runs in the
+Round, not held in a counter.
+
+A reading Run's failure costs an opinion; a writing Run's failure costs the
+work. Advancing over the latter means every later Round reasons about a branch
+that was never written.
+
+#### Scenario: The writer's pod dies
+
+- **GIVEN** a Round whose only writing Run was reclaimed by `ExpireRuns`
+- **WHEN** the orchestrator evaluates the Shift
+- **THEN** the same Round re-opens with that writing Role
+- **AND** the round counter does not advance
+- **AND** no later Round of the plan is opened
+
+#### Scenario: The writer keeps dying
+
+- **GIVEN** a writing Role that has failed `MaxRunAttempts` times in one Round
+- **WHEN** the orchestrator evaluates the Shift
+- **THEN** the Shift closes at `needs_human`
+- **AND** the close reason names the repeated failure rather than plan exhaustion
 
 ### Requirement: A Shift closes on plan exhaustion or a terminal Outcome
 

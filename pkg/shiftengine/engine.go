@@ -172,6 +172,29 @@ func (e *Engine) evaluate(ctx context.Context, si store.ShiftInfo) error {
 		}
 	}
 
+	// A WRITING Run that failed leaves the branch unwritten, so the plan must
+	// not step over it (ADR-0019).
+	//
+	// The spec's "a swept Run does not block its Round forever" was reasoned
+	// about readers, and for a reader it still holds — a missing opinion is
+	// not worth stalling an item over. For a writer the same rule means the
+	// reviewer reviews work that does not exist, which is how a Shift closed
+	// `review_approved` having produced no pull request at all.
+	//
+	// `failed` is the sweeper's verdict on a pod that stopped renewing, so it
+	// is retryable by construction, and retrying is what R2 promises: a node
+	// eviction should not need a person.
+	// Planned Shifts only. Under uniform dispatch a single-writer Shift
+	// already does the right thing: the plan exhausts, close() settles by the
+	// run's own Outcome, and `failed` maps to queued — the attempt-capped
+	// requeue R5 requires. There is no later Round there to step over.
+	if !synthesized {
+		handled, err := e.retryFailedWriter(ctx, si, reports)
+		if err != nil || handled {
+			return err
+		}
+	}
+
 	// The plan's next Round, or the end of the plan. si.Round counts opened
 	// Rounds, so it doubles as the index of the next one.
 	var next plan.Round

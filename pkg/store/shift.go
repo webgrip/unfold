@@ -123,6 +123,146 @@ func roleNames(roles []Role) []string {
 	return out
 }
 
+// MaxRunAttempts bounds how many times one Role may be re-run inside a single
+// Round before the Shift gives up and asks for a person. It matches
+// MaxAttempts, which bounds the same thing on the pre-Shift path.
+const MaxRunAttempts = 3
+
+// FailedRun is one Role whose Run in a Round ended `failed`, with the number
+// of attempts it has had there.
+type FailedRun struct {
+	Role     string
+	Writes   bool
+	Attempts int
+}
+
+// FailedRunsInRound reports the Roles whose Runs in this Round all ended
+// `failed`, and how many attempts each has had.
+//
+// `failed` is the sweeper's verdict on a Run that stopped renewing — a dead
+// pod, not a considered answer. That is exactly what distinguishes it from
+// `stuck`, which says a human is needed and cannot be fixed by retrying (R4).
+//
+// A Role with any non-failed Outcome in the Round is excluded: it already
+// succeeded on a later attempt and there is nothing to retry.
+func (s *Store) FailedRunsInRound(ctx context.Context, shiftID int64, round int) ([]FailedRun, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT role, bool_or(writes), count(*)
+		FROM agent_runs
+		WHERE shift_id = $1 AND round = $2
+		GROUP BY role
+		HAVING count(*) FILTER (WHERE outcome = 'failed') > 0
+		   AND count(*) FILTER (WHERE outcome IS NOT NULL AND outcome <> 'failed') = 0
+		ORDER BY role`, shiftID, round)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []FailedRun
+	for rows.Next() {
+		var f FailedRun
+		if err := rows.Scan(&f.Role, &f.Writes, &f.Attempts); err != nil {
+			return nil, err
+		}
+		out = append(out, f)
+	}
+	return out, rows.Err()
+}
+
+// ReopenRound re-materialises Roles in the round the Shift is ALREADY on,
+// without advancing the counter.
+//
+// This is what a crashed writer needs and what OpenRound cannot give it.
+// `shifts.round` doubles as the index into the Team's plan
+// (`tp.Rounds[si.Round]`), so opening a fresh Round to retry would silently
+// skip the next planned one. Re-opening in place keeps the plan index true,
+// keeps rounds contiguous, and leaves the attempt count derivable from the
+// agent_runs rows themselves rather than held in a counter that can disagree
+// with what happened — the discipline ADR-0012 sets for `reserved`.
+//
+// RoundComplete keys on the Shift's current round, so a pending Run inserted
+// here correctly makes the Round incomplete again.
+//
+// The returned attempt is the number the busiest Role has now had in this
+// Round, counting the row just inserted: the first retry returns 2.
+func (s *Store) ReopenRound(ctx context.Context, shiftID int64, round int, roles []Role) (int, error) {
+	if len(roles) == 0 {
+		return 0, errors.New("reopening a round needs at least one role")
+	}
+	writers := 0
+	for _, r := range roles {
+		if r.Writes {
+			writers++
+		}
+	}
+	if writers > 0 && writers != len(roles) {
+		return 0, errors.New("a round is either readers or one writer, never both (ADR-0010)")
+	}
+	if writers > 1 {
+		return 0, errors.New("a round admits at most one writer (ADR-0010)")
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	// The round is a compare-and-swap guard, exactly as it is in OpenRound:
+	// the outcome fast path and the sweeper may both see the same failed
+	// Round, and only one of them may retry it.
+	var workItemID int64
+	var team string
+	if err := tx.QueryRow(ctx,
+		`SELECT work_item_id, team FROM shifts WHERE id = $1 AND round = $2 AND closed_at IS NULL FOR UPDATE`,
+		shiftID, round).Scan(&workItemID, &team); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, fmt.Errorf("shift %d is not open at round %d", shiftID, round)
+		}
+		return 0, err
+	}
+
+	// A live Run in this Round means someone already retried, or one never
+	// finished. Either way this is not ours to reopen.
+	var live int
+	if err := tx.QueryRow(ctx,
+		`SELECT count(*) FROM agent_runs WHERE shift_id = $1 AND round = $2 AND state <> 'finished'`,
+		shiftID, round).Scan(&live); err != nil {
+		return 0, err
+	}
+	if live > 0 {
+		return 0, fmt.Errorf("shift %d round %d still has %d live Run(s)", shiftID, round, live)
+	}
+
+	attempt := 0
+	for _, r := range roles {
+		var prior int
+		if err := tx.QueryRow(ctx,
+			`SELECT count(*) FROM agent_runs WHERE shift_id = $1 AND round = $2 AND role = $3`,
+			shiftID, round, r.Name).Scan(&prior); err != nil {
+			return 0, err
+		}
+		if prior+1 > attempt {
+			attempt = prior + 1
+		}
+		token, err := newToken()
+		if err != nil {
+			return 0, err
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO agent_runs (work_item_id, shift_id, team, role, round, writes, state, run_token, started_at)
+			VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, NULL)`,
+			workItemID, shiftID, team, r.Name, round, r.Writes, token); err != nil {
+			return 0, err
+		}
+	}
+	if err := audit(ctx, tx, "team:"+team, "round.reopened", &workItemID,
+		map[string]any{"shift": shiftID, "round": round, "roles": roleNames(roles), "attempt": attempt}); err != nil {
+		return 0, err
+	}
+	return attempt, tx.Commit(ctx)
+}
+
 // ClaimedRun is what a worker pod receives when it picks up its slot.
 type ClaimedRun struct {
 	Item       work.WorkItem

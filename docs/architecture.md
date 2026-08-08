@@ -168,6 +168,13 @@ stateDiagram-v2
 `stuck`; `failed` is produced exclusively by the sweeper on lease expiry.
 `stuck` → `needs_human` (no retry), `failed` → requeue (attempt-capped).
 
+> **Read that last clause per dispatch shape.** On the pre-Shift path, and for
+> a uniform (synthesized) Shift, `failed` requeues the item attempt-capped.
+> Inside a PLANNED Shift a failed *writing* Run re-opens its own Round instead,
+> capped at `MaxRunAttempts`, and parks the Shift at `needs_human` when that
+> runs out ([ADR-0019](adrs/0019-a-failed-writing-run-reopens-its-round.md)). A
+> failed *reading* Run costs an opinion and the Round advances without it.
+
 ## 5. Money: the per-run LiteLLM key
 
 Every run gets its own budgeted, TTL'd key whose **alias is the trace id** —
@@ -414,6 +421,29 @@ Aspirational ≠ implemented:
     facts: with no writing Run to carry the link, a review-only Shift has no PR
     for `publishRound` to comment on at all — a review-only plan grades review
     *content*, never review *delivery*.
+19. **A failed writing Run did not stop the plan**: **closed 2026-08-08**,
+    [ADR-0019](adrs/0019-a-failed-writing-run-reopens-its-round.md).
+    `shiftengine.evaluate` froze the plan on a `stuck` Outcome and had no case
+    for `failed`. A Run the sweeper reclaimed is, to `RoundComplete`, simply
+    finished — so the Round completed and the next one opened over work that
+    was never done: the reviewer reviewed a branch that had never been written,
+    approved it, and the Shift closed **`review_approved` with no pull
+    request**, while the tracker comment correctly said Ploeg had stopped
+    without opening one.
+
+    The shift-orchestration spec's "a swept Run does not block its Round
+    forever" was reasoned about READERS, and for a reader it still holds. The
+    distinction it was missing is `writes`. A failed writing Role now re-opens
+    the round the Shift is already on (`store.ReopenRound` — in place, because
+    `shifts.round` doubles as the plan index and a fresh Round would silently
+    skip the next planned one), capped at `store.MaxRunAttempts`, then parks at
+    `needs_human` with close reason `writing_run_failed_repeatedly`.
+
+    Found by the bench's crash drill, which SIGKILLs the worker so the lease
+    genuinely lapses — sleeping does not, because the worker renews on its own
+    goroutine while the agent works. `MaxRunAttempts` is deliberately separate
+    from `MaxAttempts`: `work_items.attempts` increments per role claim, so it
+    stopped meaning "attempts at this work" the day Shifts landed.
 
 ## 10. Shifts: many personas on one item
 
