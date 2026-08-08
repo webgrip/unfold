@@ -335,6 +335,11 @@ Aspirational ≠ implemented:
     cancel or lease release (backlog #8).
 11. **No metrics**: no OTel/Prometheus in Go; observability is structured logs
     plus the `key_alias` join in Grafana (external dashboards in homelab-cluster).
+    This is a gap for *live* observability only — do not read it as "there is no
+    timing data". `agent_runs.started_at`/`finished_at` are exact per Run and
+    per Round after the fact, and the alias itself is derivable in SQL
+    (`'ploeg-' || left(run_token,12)`), so post-hoc latency and cost analysis
+    needs no new instrumentation.
 12. **Team names the repository** [status: unchanged by the Shift work — the
     fallback window below is still open] (design §3, Team entity in `domain/model.yaml`): the
     Team entity's attributes are exactly name, roles, strategy, budget — no
@@ -393,6 +398,22 @@ Aspirational ≠ implemented:
     capability tier only — never per product or repository. Since 2026-07-29 the
     target is on `work_items` and in the `lease.acquired` audit row, so a
     per-repo rollup is a join away; `agent_runs` still carries no target column.
+18. **A reading Run could not return findings on every harness**: **closed
+    2026-08-08.** `ComposePrompt` tells every reading Run to write its review to
+    `$PLOEG_OUTCOME_FILE`, but only `openhands` and `exec` set it —
+    `claude-code` never exported the variable and `acp` had no drop box at all,
+    so on those harnesses `agent_runs.findings`/`verdict` stayed empty,
+    `requestsChanges` was always false, and **ADR-0017's review loop was inert**:
+    every Shift closed `review_approved` whatever the reviewer found. The drop
+    box is now one implementation in `pkg/harness` used by all four adapters
+    ([ADR-0018](adrs/0018-the-outcome-drop-box-is-every-harnesss-return-path.md)),
+    pinned by `harnesstest`'s `ReadingRunFindingsSurviveTheAdapter`. Fixed
+    alongside it: `resolveOutcome`'s structured-report arm returned no `Links`,
+    so a reader that wrote a drop box lost the PR URL and a review-only Shift
+    published its findings nowhere. Still open, and why the two are separate
+    facts: with no writing Run to carry the link, a review-only Shift has no PR
+    for `publishRound` to comment on at all — a review-only plan grades review
+    *content*, never review *delivery*.
 
 ## 10. Shifts: many personas on one item
 
