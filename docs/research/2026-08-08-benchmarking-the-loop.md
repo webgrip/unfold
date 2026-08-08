@@ -614,6 +614,70 @@ immediately in any harness that runs two Runs in one process or one container.
   review-only Shift publishes nothing even once C12 is fixed. Delivery is
   asserted in the full-loop mode only.
 
+## 9. Probe results (2026-08-08)
+
+Measured against the live cluster, not reasoned about. §4 listed four probes
+that block parts of the scorecard; three are now answered.
+
+### P1 — Does LiteLLM keep `key_alias` in its spend logs after the key is
+### deleted? **Yes.**
+
+This was the one that decided whether a crashed run's cost is ever
+recoverable. `revokeKey` deletes the key at settle, so the worry was that
+deletion takes the alias→spend mapping with it.
+
+At the time of the probe `/key/list` held **zero** live `ploeg-*` keys — every
+past run's key had already been revoked — and `/spend/logs` still carried
+**35 distinct `ploeg-*` aliases** with their spend intact. Joining
+`'ploeg-' || left(agent_runs.run_token, 12)` against
+`metadata.user_api_key_alias` matched **34 of 40** recent runs; the six misses
+are runs that made no LLM call at all.
+
+**Consequence for the design.** §3.9 proposed a layered cost model with the
+database as primary and the gateway as a fallback that might not exist. Invert
+it: **the gateway is authoritative and always available**, and
+`agent_runs.usage` becomes a cross-check. `cost.complete` can then be true for
+every run, including swept ones, and the `unattributed_usd` bucket §3.9
+reserved is unnecessary.
+
+### P2 — At what threshold does `-race` fire reliably? **200 goroutines ×
+### 5000 ops, 5 runs of 5.**
+
+Measured on PB-01's `naive-unlocked` calibration patch (the oracle minus its
+mutex) and recorded in `tasks/PB-01/grade.json` and
+`calibration.expected.json`. `-race` is probabilistic; an unrecorded threshold
+is a silent flake generator.
+
+### P4 — Does the bench project resolve a Target? **Yes** — `route_rule=11/bench`,
+so `publishRound` has the Target it needs and the blackboard is not silently
+dead.
+
+### An unplanned finding: production has no cost data at all
+
+Not the swept-run hole (#109) — **every** run. In the cluster database:
+
+```
+agent_runs : 45 rows, 0 with usage   (2026-07-24 … 2026-07-31)
+shifts     :  6 rows, 0 with spend,  total 0.0000
+```
+
+...while the gateway holds the spend for those same runs, down to `$0.1373`
+for the most expensive.
+
+The cause is not a defect in current code. The deployed image is
+`ploegd:0.2.0-rc.14`, and `settleSpend` landed in `a1bccea` (2026-07-31),
+**after** that tag — verified with `git merge-base --is-ancestor`. The cluster
+is stuck there because **rc.15 never published an image**: `docker manifest
+inspect harbor.webgrip.dev/webgrip/ploegd:v0.2.0-rc.15` is a 404, which is also
+why the bench's compose default had to be repointed at a locally built image.
+
+It still has a live consequence worth stating plainly. `ClaimRole` authorizes
+`budget − spent − reserved`. With `spent` permanently 0, only concurrently
+*running* Runs constrain a claim — so a three-Round Shift with a pool of €6 can
+authorize €6 in each Round. **ADR-0012's pool is not bounding total spend in
+the deployed cluster**; it is bounding concurrency. Deploying current trunk
+closes it, so the action is a release, not a code change.
+
 ## 7. Sources
 
 - [Introducing SWE-bench Verified — OpenAI](https://openai.com/index/introducing-swe-bench-verified/)
