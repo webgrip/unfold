@@ -3,6 +3,7 @@ package claudecode
 import (
 	"log/slog"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/webgrip/ploeg/pkg/harness"
@@ -60,8 +61,18 @@ func TestPrepare_NoKeyNoEnv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(inv.ExtraEnv) != 0 {
-		t.Errorf("no LLM wiring should mean no ANTHROPIC_* env, got %v", inv.ExtraEnv)
+	// Narrowed to what the rule actually is: absent LLM wiring means no
+	// ANTHROPIC_* is invented. The drop box (ADR-0018) is unconditional — a
+	// reading Run returns its findings whether or not a key was minted.
+	for _, kv := range inv.ExtraEnv {
+		if strings.HasPrefix(kv, "ANTHROPIC_") {
+			t.Errorf("no LLM wiring should mean no ANTHROPIC_* env, got %q", kv)
+		}
+	}
+	if !slices.ContainsFunc(inv.ExtraEnv, func(kv string) bool {
+		return strings.HasPrefix(kv, harness.DropBoxEnv+"=")
+	}) {
+		t.Errorf("every run must be told where its drop box is, got %v", inv.ExtraEnv)
 	}
 	if inv.Argv[0] != "claude-custom" {
 		t.Errorf("bin override ignored: %v", inv.Argv)

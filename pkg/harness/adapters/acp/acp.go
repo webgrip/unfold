@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -124,12 +125,29 @@ func (a *Adapter) Run(ctx context.Context, spec harness.TaskSpec, env harness.Ru
 	// before Run returned anyway.
 	stopProcess := func() {}
 	res := result{phase: phaseLaunch}
+
+	// The drop box (ADR-0018). ACP reports a stop reason, not a review: the
+	// protocol has no channel for a reading Run's findings and verdict, so the
+	// agent returns those the same way it does on every other harness — the
+	// file PLOEG_OUTCOME_FILE names. Read in finish() because finish() is the
+	// single funnel every return path uses, so a review survives a failed
+	// shutdown handshake, a watchdog, and a lost lease alike.
+	outcomePath := harness.DropBoxPath(env.ScratchDir, spec.TraceID)
+	_ = os.Remove(outcomePath) // never inherit a previous run's report
+
 	finish := func() (harness.OutcomeReport, error) {
 		stopProcess()
 		res.stderrTail = tailString(&tail)
 		res.ctxErr = ctx.Err()
 		rep := Build(state, res)
-		return rep, res.err
+		box, boxErr := harness.ReadDropBox(outcomePath)
+		if boxErr != nil {
+			// A corrupt drop box is the agent's fault and must not mask the
+			// adapter's own classification of the run.
+			log.Warn("ignoring unreadable outcome drop box", "path", outcomePath, "err", boxErr)
+			return rep, res.err
+		}
+		return harness.MergeDropBox(rep, box), res.err
 	}
 
 	argv, extraEnv, err := a.profile.Prepare(spec, env)
@@ -137,6 +155,7 @@ func (a *Adapter) Run(ctx context.Context, spec harness.TaskSpec, env harness.Ru
 		res.err = fmt.Errorf("acp profile %q: %w", a.profile.Name, err)
 		return finish()
 	}
+	extraEnv = append(extraEnv, harness.DropBoxEnv+"="+outcomePath)
 	log.Info("starting acp agent", "profile", a.profile.Name, "argv", argv)
 
 	// State is accumulated from the RAW protocol line, never from the SDK's

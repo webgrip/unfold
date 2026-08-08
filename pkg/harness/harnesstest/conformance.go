@@ -10,6 +10,7 @@ package harnesstest
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -49,6 +50,7 @@ func Run(t *testing.T, fx Fixture) {
 	t.Run("FailureReasonIsValidOrEmpty", fx.failureReasonIsValidOrEmpty)
 	t.Run("SurvivesGarbageOnStdout", fx.survivesGarbageOnStdout)
 	t.Run("CancelKillsTheHarness", fx.cancelKillsTheHarness)
+	t.Run("ReadingRunFindingsSurviveTheAdapter", fx.readingRunFindingsSurviveTheAdapter)
 }
 
 // adapter lifts whichever constructor the fixture supplied to harness.Adapter,
@@ -197,6 +199,62 @@ func (fx Fixture) survivesGarbageOnStdout(t *testing.T) {
 	}
 	if report.Outcome == work.OutcomePROpened || report.Outcome == work.OutcomePRUpdated {
 		t.Errorf("garbage on stdout was read as %q — adapters never assert forge state", report.Outcome)
+	}
+}
+
+// readingRunFindingsSurviveTheAdapter pins the drop box (ADR-0018).
+//
+// worker.ComposePrompt tells EVERY reading Run, on every harness, to deliver
+// its review by writing JSON to the file named by PLOEG_OUTCOME_FILE. An
+// adapter that does not set that variable and read the file back silently
+// swallows the review: agent_runs.findings and verdict stay empty, so
+// shiftengine.requestsChanges is always false and ADR-0017's review loop is
+// inert — every Shift closes review_approved no matter what the reviewer
+// found. That failure is invisible in production, which is why it belongs in
+// the conformance kernel rather than in one adapter's own tests.
+//
+// Findings and Verdict must survive REGARDLESS of which outcome wins. A
+// session adapter handed a binary that never speaks its protocol correctly
+// reports a launch failure, and that classification outranks anything the
+// agent wrote — but the review it did write is still evidence, and dropping
+// it loses work that was actually done.
+func (fx Fixture) readingRunFindingsSurviveTheAdapter(t *testing.T) {
+	const (
+		wantFindings = "## Review\n\n- `broker.go:88` inverted TTL comparison\n"
+		wantVerdict  = "request_changes"
+	)
+	report := harness.OutcomeReport{
+		Outcome:  work.OutcomeNoChangeNeeded,
+		Summary:  "review finished",
+		Findings: wantFindings,
+		Verdict:  wantVerdict,
+	}
+	body, err := json.Marshal(report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The script learns the path the same way a real agent does — from the
+	// environment — so a fixture that never exports it fails here rather than
+	// passing against a path the test happened to know.
+	bin := script(t, `[ -n "$PLOEG_OUTCOME_FILE" ] || { echo "PLOEG_OUTCOME_FILE unset" >&2; exit 3; }
+cat >"$PLOEG_OUTCOME_FILE" <<'JSON'
+`+string(body)+`
+JSON
+exit 0`)
+
+	got, err := fx.adapter(t, bin).Run(context.Background(), spec(), env(t))
+	if err != nil {
+		t.Logf("run returned %v (a session adapter may reject a non-protocol binary; the review must survive anyway)", err)
+	}
+	if got.Findings != wantFindings {
+		t.Errorf("findings did not survive the adapter:\n got %q\nwant %q\n"+
+			"a reading Run's review reaches Ploeg only through the drop box — losing it makes ADR-0017's loop inert",
+			got.Findings, wantFindings)
+	}
+	if got.Verdict != wantVerdict {
+		t.Errorf("verdict did not survive the adapter: got %q, want %q — "+
+			"request_changes is the one bit an agent may use to influence what runs next (ADR-0017)",
+			got.Verdict, wantVerdict)
 	}
 }
 
