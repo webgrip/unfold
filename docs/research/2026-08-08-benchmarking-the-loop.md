@@ -666,10 +666,19 @@ for the most expensive.
 
 The cause is not a defect in current code. The deployed image is
 `ploegd:0.2.0-rc.14`, and `settleSpend` landed in `a1bccea` (2026-07-31),
-**after** that tag — verified with `git merge-base --is-ancestor`. The cluster
-is stuck there because **rc.15 never published an image**: `docker manifest
-inspect harbor.webgrip.dev/webgrip/ploegd:v0.2.0-rc.15` is a 404, which is also
-why the bench's compose default had to be repointed at a locally built image.
+**after** that tag — verified with `git merge-base --is-ancestor`.
+
+> **Correction (2026-08-09).** This section first said "rc.15 never published
+> an image". That was wrong, and the error was mine: the release pipeline
+> strips the leading `v`, so the image is
+> `harbor.webgrip.dev/webgrip/ploegd:0.2.0-rc.15` and it **exists**. I probed
+> for `v0.2.0-rc.15`, got a 404, and concluded too much from it.
+>
+> rc.15 published normally — Forgejo run 1441, a `release` event, succeeded on
+> 2026-07-31T04:48. The real blocker is different and worse: **the `release`
+> job has failed on every push to `development` since then**, so no rc has been
+> cut at all since rc.15 and the two fixes merged on 2026-08-08 have no image.
+> Handed off separately for investigation.
 
 It still has a live consequence worth stating plainly. `ClaimRole` authorizes
 `budget − spent − reserved`. With `spent` permanently 0, only concurrently
