@@ -68,19 +68,24 @@ jobs:
       # to Ghost and cannot write org packages.
       - name: Semantic Release
         id: release
-        # TEMPORARY PIN — flip back to @main once webgrip/workflows PR #40 is merged.
-        # ploeg is the trial for the container path, and it is proven: run 144 cut v0.2.0-rc.15 on
+        # ploeg was the trial for the container path, and it is proven: run 144 cut v0.2.0-rc.15 on
         # this action — analyze, prepare, the Chart.yaml bump and the @semantic-release/git push-back
-        # through the public-host extraheader all ran. (Run 143, one commit earlier, only proved the
-        # toolchain resolves: it analyzed to "no release".)
+        # through the public-host extraheader all ran.
         #
-        # A SHA pin here is only as immutable as the branch it hangs off. The previous pin,
-        # 2c5c68c9, was amended off fix/semrel-parity-and-hardening; the commit survived in local
-        # clones but stopped being reachable from any ref on the server, and the Forgejo runner
+        # No longer a temporary pin, and nothing here is waiting on #40 any more: it merged on
+        # 2026-08-09 and webgrip/workflows self-released v1.2.0, the first release carrying it.
+        # v1.2.0 moved the composite 135/126 lines against v1.1.0, but ploeg felt none of it — it
+        # was already running ee06ca5, PR #40's tip, and this composite is byte-identical between
+        # the two. The repin bought immutability, not behaviour.
+        #
+        # Which is the whole point. A SHA pin is only as immutable as the branch it hangs off. The
+        # pin before this, 2c5c68c9, was amended off fix/semrel-parity-and-hardening; the commit
+        # survived in local clones — so it looked fine from a workstation, and over SSH it still
+        # fetched — but it stopped being reachable from any ref on the server, and the Forgejo runner
         # resolves an action by cloning branch refs over anonymous HTTPS. Every push to development
         # from 2026-07-31 to 2026-08-09 then died before its first step with "could not determine
-        # the commit ID of 2c5c68c9^{commit}" — seven runs, no rc cut. So: re-pin whenever that
-        # branch is amended, and prefer a merged-to-main SHA the moment #40 lands.
+        # the commit ID of 2c5c68c9^{commit}": seven runs, `checks` green on all of them, no rc cut.
+        # A tag on main cannot fail that way. Renovate tracks it through the forgejo-tags datasource.
         uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release@v1.2.0
         with:
           token: ${{ secrets.WEBGRIP_CI_TOKEN }}
