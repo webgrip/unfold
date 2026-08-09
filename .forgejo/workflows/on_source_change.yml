@@ -68,13 +68,20 @@ jobs:
       # to Ghost and cannot write org packages.
       - name: Semantic Release
         id: release
-        # TEMPORARY PIN — flip back to @main once webgrip/workflows' semrel PR is merged.
-        # ploeg is the trial for the container path. Run 143 proved the toolchain resolves and the
-        # plugins load, but it analyzed to "no release" — so PUBLISH (prepare, the Chart.yaml bump,
-        # the @semantic-release/git push-back through the new public-host extraheader) has still
-        # never run on this path. This commit is releasable on purpose: it is that half of the test.
-        # Pinned to the commit rather than the branch so a later push cannot change what this runs.
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release@2c5c68c9bef02f81c0ebeeb3ce92dbe3114fc5ad # fix/semrel-parity-and-hardening
+        # TEMPORARY PIN — flip back to @main once webgrip/workflows PR #40 is merged.
+        # ploeg is the trial for the container path, and it is proven: run 144 cut v0.2.0-rc.15 on
+        # this action — analyze, prepare, the Chart.yaml bump and the @semantic-release/git push-back
+        # through the public-host extraheader all ran. (Run 143, one commit earlier, only proved the
+        # toolchain resolves: it analyzed to "no release".)
+        #
+        # A SHA pin here is only as immutable as the branch it hangs off. The previous pin,
+        # 2c5c68c9, was amended off fix/semrel-parity-and-hardening; the commit survived in local
+        # clones but stopped being reachable from any ref on the server, and the Forgejo runner
+        # resolves an action by cloning branch refs over anonymous HTTPS. Every push to development
+        # from 2026-07-31 to 2026-08-09 then died before its first step with "could not determine
+        # the commit ID of 2c5c68c9^{commit}" — seven runs, no rc cut. So: re-pin whenever that
+        # branch is amended, and prefer a merged-to-main SHA the moment #40 lands.
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release@ee06ca519d28f54fbb655c9e7cf4965cf01e8d45 # fix/semrel-parity-and-hardening
         with:
           token: ${{ secrets.WEBGRIP_CI_TOKEN }}
 
