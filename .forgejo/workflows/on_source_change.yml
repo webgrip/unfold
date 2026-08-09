@@ -81,7 +81,7 @@ jobs:
         # from 2026-07-31 to 2026-08-09 then died before its first step with "could not determine
         # the commit ID of 2c5c68c9^{commit}" — seven runs, no rc cut. So: re-pin whenever that
         # branch is amended, and prefer a merged-to-main SHA the moment #40 lands.
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release@ee06ca519d28f54fbb655c9e7cf4965cf01e8d45 # fix/semrel-parity-and-hardening
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release@v1.2.0
         with:
           token: ${{ secrets.WEBGRIP_CI_TOKEN }}
 
