@@ -56,7 +56,7 @@ jobs:
   release-publish-chart:
     name: Publish Helm chart (Harbor)
     needs: [parse-release-tag]
-    uses: webgrip/workflows/.forgejo/workflows/helm-chart-push.yml@main
+    uses: webgrip/workflows/.forgejo/workflows/helm-chart-push.yml@v1.0.0
     with:
       enabled: true
       registry: harbor.webgrip.dev
@@ -78,7 +78,7 @@ jobs:
       REGISTRY_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
     steps:
       - name: Build and push (Harbor)
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/docker-build-push-registry-fast@main
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/docker-build-push-registry-fast@v1.0.0
         with:
           registry: harbor.webgrip.dev
           docker-context: "."
@@ -110,7 +110,7 @@ jobs:
     enable-openid-connect: true
     steps:
       - name: Sign, attest and SBOM (Harbor)
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/cosign-sign-attest@main
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/cosign-sign-attest@v1.0.0
         with:
           registry: harbor.webgrip.dev
           image-name: harbor.webgrip.dev/webgrip/ploegd
@@ -133,7 +133,7 @@ jobs:
   release-distribute-forgejo:
     name: Distribute (Forgejo)
     needs: [parse-release-tag, release-distribute-harbor]
-    uses: webgrip/workflows/.forgejo/workflows/forgejo-distribute.yml@main
+    uses: webgrip/workflows/.forgejo/workflows/forgejo-distribute.yml@v1.0.0
     with:
       enabled: true
       version: ${{ needs.parse-release-tag.outputs.version }}
