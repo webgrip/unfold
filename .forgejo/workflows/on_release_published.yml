@@ -198,23 +198,37 @@ jobs:
           # depend on that login still being in the job's docker config.
           echo "$REGISTRY_TOKEN" | docker login harbor.webgrip.dev \
             -u "$REGISTRY_USERNAME" --password-stdin >/dev/null
-          # .Image is a per-platform map for a multi-platform build, a single object for one
-          # platform; dumping the whole thing and asserting on the JSON handles both shapes.
-          img="$(docker buildx imagetools inspect "$IMAGE" --format '{{ json .Image }}')"
-          fail=0
-          for want in \
-            "\"org.opencontainers.image.created\":\"$EXPECTED_CREATED\"" \
-            "\"org.opencontainers.image.version\":\"$EXPECTED_VERSION\"" \
-            "\"org.opencontainers.image.revision\":\"$EXPECTED_REVISION\""
-          do
-            grep -qF "$want" <<<"$img" || { echo "::error::missing label $want" >&2; fail=1; }
-          done
-          if grep -qF '1970-01-01T00:00:00Z' <<<"$img"; then
-            echo "::error::image.created is the Dockerfile ARG default — IMAGE_CREATED never reached BuildKit" >&2
-            fail=1
-          fi
-          [[ $fail -eq 0 ]] || { echo "$img" >&2; exit 1; }
-          echo "labels verified: created=$EXPECTED_CREATED version=$EXPECTED_VERSION"
+          # Assert on PARSED json, not on the rendered text. The previous grep -F looked for
+          # `"key":"value"` while imagetools pretty-prints `"key": "value"` — so every
+          # assertion failed on a perfectly correct image (run 175, rc.22). The blanket
+          # search for the 1970 epoch was wrong for the same class of reason: BuildKit
+          # stamps every layer's history entry with it for reproducibility (12 of them
+          # here), so a good build always contains that string. Comparing the label itself
+          # against the expected value covers the ARG-default case exactly.
+          #
+          # .Image is a per-platform map for a multi-platform build and a single object for
+          # one platform; normalise to a list so both shapes assert identically.
+          docker buildx imagetools inspect "$IMAGE" --format '{{ json .Image }}' > /tmp/img.json
+          jq -e --arg created "$EXPECTED_CREATED" \
+                --arg version "$EXPECTED_VERSION" \
+                --arg revision "$EXPECTED_REVISION" '
+            (if has("config") then [.] else [.[]] end)
+            | map(.config.Labels // {})
+            | (length > 0) and all(
+                .["org.opencontainers.image.created"]  == $created and
+                .["org.opencontainers.image.version"]  == $version and
+                .["org.opencontainers.image.revision"] == $revision
+              )
+          ' /tmp/img.json >/dev/null || {
+            echo "ERROR: image label check failed for $IMAGE"
+            echo "       expected created=$EXPECTED_CREATED version=$EXPECTED_VERSION revision=$EXPECTED_REVISION"
+            echo "       actual:"
+            jq -r '(if has("config") then {".": .} else . end)
+                   | to_entries[]
+                   | "         \(.key): created=\(.value.config.Labels["org.opencontainers.image.created"] // "<none>") version=\(.value.config.Labels["org.opencontainers.image.version"] // "<none>") revision=\(.value.config.Labels["org.opencontainers.image.revision"] // "<none>")"' /tmp/img.json
+            exit 1
+          }
+          echo "labels verified on every platform: created=$EXPECTED_CREATED version=$EXPECTED_VERSION"
 
   # ── Supply chain security ────────────────────────────────────────────────────
   # cosign sign + CycloneDX SBOM attest by digest via the shared composite (OpenBao
