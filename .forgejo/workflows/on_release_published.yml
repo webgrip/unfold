@@ -5,9 +5,10 @@ on:
     types: [published]
   # CI-cut releases fire this natively: semantic-release publishes with the webgrip-ci
   # bot PAT, and only same-token actions are loop-suppressed. workflow_dispatch remains
-  # for manual re-publish/backfill of an existing tag — note that the Harbor CHART push
-  # still fails on a re-publish (charts/ploeg:<version> is immutable too, HTTP 412). That
-  # job is independent, so it does not block the image, the signing or either mirror.
+  # for manual re-publish/backfill of an existing tag. That path is genuinely idempotent
+  # since v1.10.0: the image and both chart pushes probe their registry first and skip a
+  # version that is already published, rather than dying on Harbor's immutable tags
+  # (run 173 lost the whole chain that way; run 184 was green end to end).
   workflow_dispatch:
     inputs:
       tag:
@@ -147,7 +148,7 @@ jobs:
 
       - name: Build and push (Harbor)
         if: steps.probe.outputs.exists != 'true'
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/docker-build-push-registry-fast@v1.0.0
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/docker-build-push-registry-fast@v1.10.0
         with:
           registry: harbor.webgrip.dev
           docker-context: "."
@@ -248,7 +249,7 @@ jobs:
     enable-openid-connect: true
     steps:
       - name: Sign, attest and SBOM (Harbor)
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/cosign-sign-attest@v1.0.0
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/cosign-sign-attest@v1.10.0
         with:
           registry: harbor.webgrip.dev
           image-name: harbor.webgrip.dev/webgrip/ploegd
