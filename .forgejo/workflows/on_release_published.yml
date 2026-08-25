@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag, e.g. v0.1.0'
+        description: "Release tag, e.g. v0.1.0"
         required: true
         type: string
 
@@ -116,7 +116,7 @@ jobs:
   # verifies against Harbor. Signs prereleases and finals alike. No checkout: the
   # action is remote and operates on the registry image.
   release-sign-harbor:
-    name: 'Sign & Attest (Harbor)'
+    name: "Sign & Attest (Harbor)"
     needs: [parse-release-tag, release-distribute-harbor]
     runs-on: docker
     enable-openid-connect: true
@@ -180,8 +180,7 @@ jobs:
   release-distribute-github:
     name: Distribute (GitHub)
     needs: [parse-release-tag, release-distribute-harbor]
-    # Ships in webgrip/workflows PR #48; v1.9.0 is the first tag carrying it.
-    uses: webgrip/workflows/.forgejo/workflows/github-distribute.yml@v1.9.0
+    uses: webgrip/workflows/.forgejo/workflows/github-distribute.yml@v1.9.1
     with:
       enabled: true
       version: ${{ needs.parse-release-tag.outputs.version }}
