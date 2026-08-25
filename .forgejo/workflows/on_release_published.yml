@@ -82,11 +82,20 @@ jobs:
           docker-context: "."
           docker-file: "ops/docker/ploegd/Dockerfile"
           platforms: "linux/amd64,linux/arm64"
+          # TEMPORARY Docker Hub proxy bypass (binfmt-image + REGISTRY_DOCKERHUB=docker.io,
+          # same digests): Harbor's docker-hub upstream credential is expired/revoked —
+          # harbor-proxy-config says so every hour, HarborProxyReconcileStale — so every
+          # cache-miss through harbor.webgrip.dev/dockerhub 404s (rc.18 run 166, twice; the
+          # weekly delete_untagged GC had evicted binfmt's digest manifest). Anonymous direct
+          # pulls are fine at this volume (~2/release vs 100/h). REVERT both lines to the
+          # proxy once `bao kv patch secret/harbor/registry-proxy DOCKERHUB_TOKEN=...` has a
+          # fresh read-only token and the registry health check goes green.
+          binfmt-image: "docker.io/tonistiigi/binfmt:latest@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0"
           docker-build-args: |
             IMAGE_CREATED=${{ needs.parse-release-tag.outputs.created }}
             IMAGE_VERSION=${{ needs.parse-release-tag.outputs.version }}
             IMAGE_REVISION=${{ github.sha }}
-            REGISTRY_DOCKERHUB=harbor.webgrip.dev/dockerhub
+            REGISTRY_DOCKERHUB=docker.io
           # Owner hardcoded: github.repository_owner is EMPTY on Forgejo workflow_dispatch.
           docker-tags: |
             webgrip/ploegd:${{ needs.parse-release-tag.outputs.version }}
