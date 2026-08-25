@@ -103,7 +103,9 @@ jobs:
           # meaning of image.created anyway.
           [[ -n "$created" ]] || created="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           [[ "$created" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2} ]] || {
-            echo "::error::refusing to build: IMAGE_CREATED is not ISO-8601: '$created'" >&2
+            echo "ERROR: refusing to build — IMAGE_CREATED is not ISO-8601: '$created'"
+            echo "       A bad timestamp here bakes a wrong org.opencontainers.image.created"
+            echo "       into the release image silently, so fail the build instead."
             exit 1
           }
           echo "created=$created" >> "$GITHUB_OUTPUT"
