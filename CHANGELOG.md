@@ -1,3 +1,5 @@
+## [0.2.0-rc.20](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.19...v0.2.0-rc.20) (2026-08-25)
+
 ## [0.2.0-rc.19](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.18...v0.2.0-rc.19) (2026-08-25)
 
 ## [0.2.0-rc.18](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.17...v0.2.0-rc.18) (2026-08-24)
