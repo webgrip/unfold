@@ -22,7 +22,9 @@ import (
 	"github.com/webgrip/ploeg/pkg/llmbroker"
 	"github.com/webgrip/ploeg/pkg/plan"
 	"github.com/webgrip/ploeg/pkg/provider"
+	"github.com/webgrip/ploeg/pkg/provider/clickup"
 	"github.com/webgrip/ploeg/pkg/provider/forgejo"
+	"github.com/webgrip/ploeg/pkg/provider/gitlab"
 	"github.com/webgrip/ploeg/pkg/provider/vikunja"
 	"github.com/webgrip/ploeg/pkg/shiftengine"
 	"github.com/webgrip/ploeg/pkg/store"
@@ -101,6 +103,32 @@ func run(log *slog.Logger) error {
 		log.Info("vikunja write-backs disabled (PLOEG_VIKUNJA_URL/PLOEG_VIKUNJA_TOKEN unset)")
 	}
 
+	// The tracker registry. Keyed by dialect name, which is what the webhook
+	// route names (/webhooks/tracker/{provider}) and what a mirrored WorkItem
+	// carries in Provider. More than one may be live at once: a board
+	// migration runs both for a while, and nothing in the core cares which one
+	// an item came from.
+	trackers := map[string]provider.TrackerProvider{vik.Name(): vik}
+
+	// ClickUp is registered only when a secret or a token says the deployment
+	// actually uses it — an unconfigured provider on the route would accept
+	// unauthenticated deliveries.
+	if cuSecret, cuToken := os.Getenv("PLOEG_CLICKUP_SECRET"), os.Getenv("PLOEG_CLICKUP_TOKEN"); cuSecret != "" || cuToken != "" {
+		cu := &clickup.Provider{
+			Secret:      cuSecret,
+			DefaultTeam: envOr("PLOEG_DEFAULT_TEAM", "default"),
+			TeamMap:     mergeTeamMap(cfg.AssigneeTeams(), parseTeamMap(os.Getenv("PLOEG_TEAM_MAP"))),
+			BaseURL:     trimSlash(os.Getenv("PLOEG_CLICKUP_URL")),
+			Token:       cuToken,
+			DoneStatus:  os.Getenv("PLOEG_CLICKUP_DONE_STATUS"),
+			Log:         log,
+		}
+		trackers[cu.Name()] = cu
+		log.Info("clickup tracker configured",
+			"write_backs", cuToken != "",
+			"done_status", cu.DoneStatus != "")
+	}
+
 	// The forge seam. Ploeg comments as the same bot that opens the pull
 	// requests; commenting is not pushing, so it needs no second credential.
 	//
@@ -120,11 +148,39 @@ func run(log *slog.Logger) error {
 			Secret:  os.Getenv("PLOEG_FORGEJO_SECRET"),
 			Log:     log,
 		}
-		forges[forgeID] = fj
 		forges[fj.Name()] = fj
-		log.Info("forge provider configured", "forge_id", forgeID, "dialect", fj.Name(), "url", forgeURL)
-	} else {
-		log.Info("no forge provider configured (PLOEG_FORGEJO_URL unset); findings will not reach a pull request")
+		log.Info("forge provider configured", "dialect", fj.Name(), "url", forgeURL)
+	}
+	if glURL := trimSlash(os.Getenv("PLOEG_GITLAB_URL")); glURL != "" {
+		gl := &gitlab.Provider{
+			BaseURL: glURL,
+			Token:   os.Getenv("PLOEG_GITLAB_TOKEN"),
+			Secret:  os.Getenv("PLOEG_GITLAB_SECRET"),
+			Log:     log,
+		}
+		forges[gl.Name()] = gl
+		log.Info("forge provider configured", "dialect", gl.Name(), "url", glURL)
+	}
+	// Bind the INSTANCE id (ADR-0016) to a dialect. PLOEG_TARGET_FORGE names
+	// the instance a Work Target carries; when it happens to equal a dialect
+	// name that binding is already exact. Otherwise a single configured forge
+	// is unambiguous and takes the id. With two forges and an id matching
+	// neither, nothing is bound: guessing which one a Target meant would
+	// publish findings to the wrong forge, which is worse than not publishing.
+	switch {
+	case forges[forgeID] != nil:
+		// PLOEG_TARGET_FORGE already names a configured dialect.
+	case len(forges) == 1:
+		for _, only := range forges {
+			forges[forgeID] = only
+		}
+		log.Info("forge instance bound to the only configured dialect", "forge_id", forgeID)
+	case len(forges) > 1:
+		log.Warn("PLOEG_TARGET_FORGE matches no configured dialect; targets naming it will not publish",
+			"forge_id", forgeID)
+	}
+	if len(forges) == 0 {
+		log.Info("no forge provider configured (PLOEG_FORGEJO_URL/PLOEG_GITLAB_URL unset); findings will not reach a pull request")
 	}
 
 	// Push rights per writing Run (ADR-0013 tier 2). The admin credential
@@ -211,7 +267,7 @@ func run(log *slog.Logger) error {
 			Store: st, Plans: plans, Log: log,
 			Forges:       forges,
 			DefaultForge: forgeID,
-			Trackers:     map[string]provider.TrackerProvider{vik.Name(): vik},
+			Trackers:     trackers,
 			Uniform:      uniform,
 		}
 		log.Info("shift engine enabled", "planned_teams", len(plans), "uniform", uniform)
@@ -221,7 +277,7 @@ func run(log *slog.Logger) error {
 
 	srv := &httpapi.Server{
 		Store:      st,
-		Trackers:   map[string]provider.TrackerProvider{vik.Name(): vik},
+		Trackers:   trackers,
 		Targets:    targets,
 		LeaseTTL:   leaseTTL,
 		Log:        log,
