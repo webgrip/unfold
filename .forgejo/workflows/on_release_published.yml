@@ -5,7 +5,9 @@ on:
     types: [published]
   # CI-cut releases fire this natively: semantic-release publishes with the webgrip-ci
   # bot PAT, and only same-token actions are loop-suppressed. workflow_dispatch remains
-  # for manual re-publish/backfill of an existing tag.
+  # for manual re-publish/backfill of an existing tag — note that the Harbor CHART push
+  # still fails on a re-publish (charts/ploeg:<version> is immutable too, HTTP 412). That
+  # job is independent, so it does not block the image, the signing or either mirror.
   workflow_dispatch:
     inputs:
       tag:
@@ -22,7 +24,6 @@ jobs:
     runs-on: docker
     outputs:
       version: ${{ steps.parse.outputs.version }}
-      created: ${{ steps.parse.outputs.created }}
       latest_tag: ${{ steps.parse.outputs.latest_tag }}
     steps:
       - id: parse
@@ -33,9 +34,6 @@ jobs:
           [[ "$tag" =~ ^v(.+)$ ]] || { echo "Unsupported tag: $tag (expected v<semver>)" >&2; exit 1; }
           version="${BASH_REMATCH[1]}"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          created='${{ github.event.release.published_at || github.event.release.created_at }}'
-          [[ -n "$created" ]] || created="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          echo "created=$created" >> "$GITHUB_OUTPUT"
           # Prereleases (semver with a hyphen, e.g. 0.1.0-rc.1 from development) must not
           # move :latest; the build composite skips the resulting empty tag line.
           latest_tag="webgrip/ploegd:latest"
@@ -75,7 +73,78 @@ jobs:
       REGISTRY_USERNAME: ${{ secrets.HARBOR_ROBOT_USER }}
       REGISTRY_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
     steps:
+      # 0.2.0-rc.21 shipped with org.opencontainers.image.created=1970-01-01T00:00:00Z — the
+      # Dockerfile ARG default — while version and revision, three lines below it in the same
+      # docker-build-args block, both came through. That is only reachable if the key
+      # `IMAGE_CREATED` never landed in BuildKit's build-arg map: buildx keys that map on
+      # presence (`strings.Cut` on the first `=`, so even `KEY=` is present-with-empty), and
+      # BuildKit falls back to the ARG default only when the key is ABSENT. An empty value
+      # would have produced an empty label, not the default.
+      #
+      # Root cause unconfirmed — Forgejo exposes no job-log API and the SLSA provenance that
+      # would name the args needs Harbor auth. So this removes the fragile path rather than
+      # patching a guess: the value is computed in THIS job (no cross-job outputs hop), the
+      # release contexts arrive as env instead of being interpolated into the script body,
+      # and the result is asserted ISO-8601 before it can reach a build-arg.
+      - name: Stamp image creation timestamp
+        id: stamp
+        shell: bash
+        env:
+          RELEASE_PUBLISHED_AT: ${{ github.event.release.published_at }}
+          RELEASE_CREATED_AT: ${{ github.event.release.created_at }}
+        run: |
+          set -euo pipefail
+          created="${RELEASE_PUBLISHED_AT:-}"
+          [[ -n "$created" ]] || created="${RELEASE_CREATED_AT:-}"
+          # Forgejo hands back Go's zero time, not an empty string, for a release published
+          # through the API — which is how semantic-release cuts every rc.
+          [[ "$created" == 0001-01-01T* ]] && created=""
+          # workflow_dispatch has no release event at all; build time is the OCI-conventional
+          # meaning of image.created anyway.
+          [[ -n "$created" ]] || created="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          [[ "$created" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2} ]] || {
+            echo "::error::refusing to build: IMAGE_CREATED is not ISO-8601: '$created'" >&2
+            exit 1
+          }
+          echo "created=$created" >> "$GITHUB_OUTPUT"
+
+      # Harbor tags are immutable, so re-pushing a version that is already published is a
+      # hard failure, not a no-op: the rc.21 backfill (run 173) died here with
+      # "'ploegd:0.2.0-rc.21' configured as immutable" and took the whole chain with it —
+      # sign skipped, both mirrors dead, the GitHub jobs never even instantiated. But an
+      # already-published version IS the desired end state, and every downstream job only
+      # ever copies the image from Harbor by digest. So probe first and skip the build.
+      #
+      # Fail-open by design: anything other than a clean 200 falls through to the build,
+      # which is exactly today's behaviour. A fresh tag 404s here and builds as normal, so
+      # this is inert on the release path and only bites on a re-publish.
+      - name: Probe Harbor for an existing image
+        id: probe
+        shell: bash
+        env:
+          VERSION: ${{ needs.parse-release-tag.outputs.version }}
+        run: |
+          set -uo pipefail
+          code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
+            -u "${REGISTRY_USERNAME}:${REGISTRY_TOKEN}" \
+            -H 'Accept: application/vnd.oci.image.index.v1+json' \
+            -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \
+            "https://harbor.webgrip.dev/v2/webgrip/ploegd/manifests/${VERSION}")" || true
+          # curl already prints 000 on a transport failure; the `|| true` only stops its
+          # non-zero exit from propagating.
+          [ -n "$code" ] || code=000
+          if [ "$code" = 200 ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "harbor.webgrip.dev/webgrip/ploegd:${VERSION} is already published — skipping the build."
+            echo "Harbor tags are immutable; a re-push would fail, and the digest the mirrors"
+            echo "copy is already in place."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Harbor answered HTTP ${code} for ${VERSION} — building."
+          fi
+
       - name: Build and push (Harbor)
+        if: steps.probe.outputs.exists != 'true'
         uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/docker-build-push-registry-fast@v1.0.0
         with:
           registry: harbor.webgrip.dev
@@ -97,7 +166,7 @@ jobs:
           sbom-generator: "docker.io/docker/buildkit-syft-scanner:stable-1@sha256:79e7b013cbec16bbb436f312819a49a4a57752b2270c1a9332ae1a10fcc82a68"
           buildkit-image: "docker.io/moby/buildkit:buildx-stable-1@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec"
           docker-build-args: |
-            IMAGE_CREATED=${{ needs.parse-release-tag.outputs.created }}
+            IMAGE_CREATED=${{ steps.stamp.outputs.created }}
             IMAGE_VERSION=${{ needs.parse-release-tag.outputs.version }}
             IMAGE_REVISION=${{ github.sha }}
             REGISTRY_DOCKERHUB=docker.io
@@ -105,6 +174,47 @@ jobs:
           docker-tags: |
             webgrip/ploegd:${{ needs.parse-release-tag.outputs.version }}
             ${{ needs.parse-release-tag.outputs.latest_tag }}
+
+      # The rc.21 defect was silent: a plausible-looking timestamp shipped, got signed, and
+      # sat in Harbor until someone read the config by hand. Whatever swallowed the build-arg
+      # is still unproven, so assert on the artifact itself rather than on the input — any
+      # future recurrence, from any cause, turns the release red here instead of publishing
+      # provenance that misstates when the image was built.
+      # Gated with the build: this asserts image.created against the timestamp stamped in
+      # THIS run, and an image that was already published legitimately carries the one from
+      # when it was actually built. Verifying a build we did not do would fail on a value
+      # that is correct.
+      - name: Verify image metadata labels
+        if: steps.probe.outputs.exists != 'true'
+        shell: bash
+        env:
+          IMAGE: harbor.webgrip.dev/webgrip/ploegd:${{ needs.parse-release-tag.outputs.version }}
+          EXPECTED_CREATED: ${{ steps.stamp.outputs.created }}
+          EXPECTED_VERSION: ${{ needs.parse-release-tag.outputs.version }}
+          EXPECTED_REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # The composite logs in inside its own step; re-auth explicitly so this does not
+          # depend on that login still being in the job's docker config.
+          echo "$REGISTRY_TOKEN" | docker login harbor.webgrip.dev \
+            -u "$REGISTRY_USERNAME" --password-stdin >/dev/null
+          # .Image is a per-platform map for a multi-platform build, a single object for one
+          # platform; dumping the whole thing and asserting on the JSON handles both shapes.
+          img="$(docker buildx imagetools inspect "$IMAGE" --format '{{ json .Image }}')"
+          fail=0
+          for want in \
+            "\"org.opencontainers.image.created\":\"$EXPECTED_CREATED\"" \
+            "\"org.opencontainers.image.version\":\"$EXPECTED_VERSION\"" \
+            "\"org.opencontainers.image.revision\":\"$EXPECTED_REVISION\""
+          do
+            grep -qF "$want" <<<"$img" || { echo "::error::missing label $want" >&2; fail=1; }
+          done
+          if grep -qF '1970-01-01T00:00:00Z' <<<"$img"; then
+            echo "::error::image.created is the Dockerfile ARG default — IMAGE_CREATED never reached BuildKit" >&2
+            fail=1
+          fi
+          [[ $fail -eq 0 ]] || { echo "$img" >&2; exit 1; }
+          echo "labels verified: created=$EXPECTED_CREATED version=$EXPECTED_VERSION"
 
   # ── Supply chain security ────────────────────────────────────────────────────
   # cosign sign + CycloneDX SBOM attest by digest via the shared composite (OpenBao
