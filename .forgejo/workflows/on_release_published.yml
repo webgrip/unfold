@@ -195,6 +195,9 @@ jobs:
           EXPECTED_CREATED: ${{ steps.stamp.outputs.created }}
           EXPECTED_VERSION: ${{ needs.parse-release-tag.outputs.version }}
           EXPECTED_REVISION: ${{ github.sha }}
+          # ADR-0020: published artifacts name the publicly resolvable mirror, so a
+          # regression here silently orphans the GHCR packages again.
+          EXPECTED_SOURCE: https://github.com/webgrip/ploeg
         run: |
           set -euo pipefail
           # The composite logs in inside its own step; re-auth explicitly so this does not
@@ -214,21 +217,24 @@ jobs:
           docker buildx imagetools inspect "$IMAGE" --format '{{ json .Image }}' > /tmp/img.json
           jq -e --arg created "$EXPECTED_CREATED" \
                 --arg version "$EXPECTED_VERSION" \
-                --arg revision "$EXPECTED_REVISION" '
+                --arg revision "$EXPECTED_REVISION" \
+                --arg source "$EXPECTED_SOURCE" '
             (if has("config") then [.] else [.[]] end)
             | map(.config.Labels // {})
             | (length > 0) and all(
                 .["org.opencontainers.image.created"]  == $created and
                 .["org.opencontainers.image.version"]  == $version and
-                .["org.opencontainers.image.revision"] == $revision
+                .["org.opencontainers.image.revision"] == $revision and
+                .["org.opencontainers.image.source"]   == $source
               )
           ' /tmp/img.json >/dev/null || {
             echo "ERROR: image label check failed for $IMAGE"
             echo "       expected created=$EXPECTED_CREATED version=$EXPECTED_VERSION revision=$EXPECTED_REVISION"
+            echo "                source=$EXPECTED_SOURCE"
             echo "       actual:"
             jq -r '(if has("config") then {".": .} else . end)
                    | to_entries[]
-                   | "         \(.key): created=\(.value.config.Labels["org.opencontainers.image.created"] // "<none>") version=\(.value.config.Labels["org.opencontainers.image.version"] // "<none>") revision=\(.value.config.Labels["org.opencontainers.image.revision"] // "<none>")"' /tmp/img.json
+                   | "         \(.key): created=\(.value.config.Labels["org.opencontainers.image.created"] // "<none>") version=\(.value.config.Labels["org.opencontainers.image.version"] // "<none>") revision=\(.value.config.Labels["org.opencontainers.image.revision"] // "<none>") source=\(.value.config.Labels["org.opencontainers.image.source"] // "<none>")"' /tmp/img.json
             exit 1
           }
           echo "labels verified on every platform: created=$EXPECTED_CREATED version=$EXPECTED_VERSION"

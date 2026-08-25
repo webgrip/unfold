@@ -2,6 +2,15 @@ apiVersion: v2
 name: ploeg
 description: Ploeg dispatch plane — webhook ingest, leases, run API, and pluggable executors (KEDA ScaledJob or CronJob) running swappable agent harnesses.
 type: application
+# GHCR links a package to a repository by matching the OCI annotation
+# org.opencontainers.image.source against a github.com URL, and Helm derives
+# that annotation from sources[0]. Without it the pushed chart carries no
+# source at all and stays orphaned on the packages page. `home` becomes
+# org.opencontainers.image.url, which is where the canonical repo belongs:
+# Forgejo is the source of truth, github.com is the public mirror GHCR can see.
+home: https://forgejo.webgrip.dev/webgrip/ploeg
+sources:
+  - https://github.com/webgrip/ploeg
 # version/appVersion are bumped in lockstep by semantic-release-helm3 on every
 # release; the git tag v<version> is the commit helm-chart-push packages.
 version: 0.2.0-rc.26
