@@ -52,7 +52,7 @@ jobs:
   release-publish-chart:
     name: Publish Helm chart (Harbor)
     needs: [parse-release-tag]
-    uses: webgrip/workflows/.forgejo/workflows/helm-chart-push.yml@v1.0.0
+    uses: webgrip/workflows/.forgejo/workflows/helm-chart-push.yml@v1.10.0
     with:
       enabled: true
       registry: harbor.webgrip.dev
@@ -304,7 +304,7 @@ jobs:
   release-distribute-github:
     name: Distribute (GitHub)
     needs: [parse-release-tag, release-distribute-harbor]
-    uses: webgrip/workflows/.forgejo/workflows/github-distribute.yml@v1.9.2
+    uses: webgrip/workflows/.forgejo/workflows/github-distribute.yml@v1.10.0
     with:
       enabled: true
       version: ${{ needs.parse-release-tag.outputs.version }}
@@ -313,6 +313,14 @@ jobs:
       image-name: ploegd
       mirror-from-registry: harbor.webgrip.dev
       push-latest: ${{ needs.parse-release-tag.outputs.latest_tag != '' }}
+      # Chart to GHCR alongside the image, landing at ghcr.io/webgrip/charts/ploeg —
+      # the same layout Harbor uses. Built from the tagged tree, not copied from Harbor:
+      # imagetools handles image manifest lists, not Helm's config media type. A second
+      # helm-chart-push call was not an option — Forgejo v15 flattening collides two
+      # instances of the SAME reusable in one caller.
+      ref: v${{ needs.parse-release-tag.outputs.version }}
+      chart-path: ops/helm/ploeg
+      chart-name: ploeg
     secrets:
       GH_USERNAME: ${{ secrets.GHCR_USERNAME }}
       GH_TOKEN: ${{ secrets.GHCR_TOKEN }}
