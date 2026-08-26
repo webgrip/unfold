@@ -167,6 +167,11 @@ executor:
   # Backstop only: the DB lease always expires first, so Ploeg decides
   # requeue/stale; this just guarantees the pod dies (backlog #52).
   activeDeadlineSeconds: 7200
+  # Long enough for ploeg-worker to abort the harness, revoke the per-run key,
+  # settle its spend and POST the outcome — not long enough to be a hiding
+  # place. A worker that needs more than this is not shutting down, and the
+  # kubelet's SIGKILL is the right answer.
+  terminationGracePeriodSeconds: 90
   # Guaranteed QoS (requests == limits on EVERY container): factory pods leave
   # the /kubepods/burstable/ cgroup tree, which Talos's OOMController SIGKILLs
   # wholesale under PSI memory pressure (killed runs 9+10 on 2026-07-25;

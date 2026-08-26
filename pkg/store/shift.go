@@ -129,15 +129,25 @@ func roleNames(roles []Role) []string {
 const MaxRunAttempts = 3
 
 // FailedRun is one Role whose Run in a Round ended `failed`, with the number
-// of attempts it has had there.
+// of attempts it has had there, split by who is responsible.
+//
+// InfraAttempts are the subset the agent had no part in — an evicted pod, a
+// dead node, a gateway that never answered. They are counted apart because
+// they are bounded apart: see MaxInfraFailures.
 type FailedRun struct {
-	Role     string
-	Writes   bool
-	Attempts int
+	Role          string
+	Writes        bool
+	Attempts      int
+	InfraAttempts int
 }
 
+// AgentAttempts is the number of attempts this Role actually spent on the
+// work — the ones that say something about the ticket.
+func (f FailedRun) AgentAttempts() int { return f.Attempts - f.InfraAttempts }
+
 // FailedRunsInRound reports the Roles whose Runs in this Round all ended
-// `failed`, and how many attempts each has had.
+// `failed`, how many attempts each has had, and how many of those the agent
+// had no part in (work.FailureReason.IsInfra).
 //
 // `failed` is the sweeper's verdict on a Run that stopped renewing — a dead
 // pod, not a considered answer. That is exactly what distinguishes it from
@@ -147,13 +157,14 @@ type FailedRun struct {
 // succeeded on a later attempt and there is nothing to retry.
 func (s *Store) FailedRunsInRound(ctx context.Context, shiftID int64, round int) ([]FailedRun, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT role, bool_or(writes), count(*)
+		SELECT role, bool_or(writes), count(*),
+		       count(*) FILTER (WHERE failure_reason = ANY($3))
 		FROM agent_runs
 		WHERE shift_id = $1 AND round = $2
 		GROUP BY role
 		HAVING count(*) FILTER (WHERE outcome = 'failed') > 0
 		   AND count(*) FILTER (WHERE outcome IS NOT NULL AND outcome <> 'failed') = 0
-		ORDER BY role`, shiftID, round)
+		ORDER BY role`, shiftID, round, work.InfraFailureReasons())
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +172,7 @@ func (s *Store) FailedRunsInRound(ctx context.Context, shiftID int64, round int)
 	var out []FailedRun
 	for rows.Next() {
 		var f FailedRun
-		if err := rows.Scan(&f.Role, &f.Writes, &f.Attempts); err != nil {
+		if err := rows.Scan(&f.Role, &f.Writes, &f.Attempts, &f.InfraAttempts); err != nil {
 			return nil, err
 		}
 		out = append(out, f)

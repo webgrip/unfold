@@ -9,6 +9,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -73,9 +74,23 @@ func New(cfg Config, adapter harness.Adapter, broker llmbroker.Broker, log *slog
 	}
 }
 
+// Why a run ended early. The distinction is the whole point: a lost lease
+// means another worker may own the item, while a terminated pod means this
+// one was taken away mid-run and nothing about the work is in doubt.
+var (
+	errLeaseLost  = errors.New("lease renewal failed")
+	errTerminated = errors.New("pod terminated")
+)
+
 // Run claims one work item and drives it to a reported outcome. A nil
 // claim (empty queue) is the empty-handed convention: exit 0 (backlog #49).
-func (w *Worker) Run() error {
+func (w *Worker) Run() error { return w.RunContext(context.Background()) }
+
+// RunContext is Run with a cancellable parent. Cancelling the parent — what
+// cmd/ploeg-worker does on SIGTERM — aborts the harness and still reports an
+// outcome, which is the only thing that stops a killed pod from stranding its
+// Lease for the full TTL and charging the Round an attempt it never spent.
+func (w *Worker) RunContext(parent context.Context) error {
 	claimed, err := w.API.Claim(w.Cfg.Team, w.Cfg.Role)
 	if err != nil {
 		return fmt.Errorf("claim: %w", err)
@@ -102,10 +117,16 @@ func (w *Worker) Run() error {
 		"trace", trace, "harness", w.Adapter.Name(), "node", nodeName, "pod_uid", podUID,
 		"role", claimed.Role, "shift", claimed.Shift, "round", claimed.Round, "writes", claimed.Writes)
 
+	// Deliberately NOT derived from parent: the harness must die with the
+	// parent, but everything after it — revoke, settle, report — has to keep
+	// running on a cancelled parent or the shutdown reports nothing, which is
+	// the failure this whole path exists to prevent.
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+	go abortOnTermination(parent, ctx, cancel, w.Log, item.ID, claimed.Role)
+
 	// Lease renewal at TTL/3; three consecutive failures (or a 404 = lease
 	// stolen) cancel the run — another worker may own the item now.
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	ttl := time.Until(claimed.Deadline)
 	if ttl <= 0 {
 		ttl = time.Minute
@@ -290,7 +311,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	if prErr != nil {
 		w.Log.Warn("PR lookup failed", "err", prErr)
 	}
-	return resolveOutcome(w.Adapter.Name(), report, runErr, ctx.Err(), prURL, priorPR != "",
+	return resolveOutcome(w.Adapter.Name(), report, runErr, context.Cause(ctx), prURL, priorPR != "",
 		item.Title, branch, logTail.Bytes(), w.Adapter.ExpectsLLM(), writes)
 }
 
@@ -336,7 +357,9 @@ func runAgent(ctx context.Context, log *slog.Logger, broker llmbroker.Broker, ad
 	// and openhands/exec report no usage at all, so `spent` stayed 0.0000 and
 	// every budget bound that reads it was inert.
 	if m, ok := broker.(llmbroker.Metered); ok && cred.APIKey != "" {
-		if spend, err := settleSpend(ctx, m, cred, log); err != nil {
+		settleCtx, settleCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer settleCancel()
+		if spend, err := settleSpend(settleCtx, m, cred, log); err != nil {
 			log.Warn("gateway spend unavailable; run cost not settled", "err", err, "trace", cred.Alias)
 		} else {
 			if report.Usage == nil {
@@ -494,6 +517,17 @@ func resolveOutcome(adapterName string, report harness.OutcomeReport, runErr, ct
 			Outcome: work.OutcomeNoChangeNeeded,
 			Summary: adapterName + " run finished without opening a PR",
 		})
+	case errors.Is(ctxErr, errTerminated):
+		// R2: an eviction should not need a person. `failed` is the sweeper's
+		// own verdict for a pod that stopped renewing, and it is retryable by
+		// construction — `stuck` would demand a human for a machine's doing.
+		// Reporting it at all is the point: the Round reopens now instead of
+		// fifteen minutes later, and it reopens knowing why.
+		return resolved(harness.OutcomeReport{
+			Outcome:       work.OutcomeFailed,
+			Summary:       adapterName + " run was terminated mid-run (pod shutdown)",
+			FailureReason: string(work.FailureInfraNode),
+		})
 	case ctxErr != nil:
 		return resolved(harness.OutcomeReport{
 			Outcome:       work.OutcomeStuck,
@@ -523,7 +557,22 @@ func stuckReport(summary, reason string) harness.OutcomeReport {
 	return harness.OutcomeReport{Outcome: work.OutcomeStuck, Summary: summary, StuckReason: reason}
 }
 
-func renewLoop(ctx context.Context, cancel context.CancelFunc, api *APIClient, token string, every time.Duration, log *slog.Logger) {
+// abortOnTermination cancels the run with errTerminated when the parent
+// context goes away — the pod is being shut down. It is renewLoop's sibling:
+// both watch for a reason to stop, and both name the reason, because the name
+// is what decides whether the Round retries or a person gets called.
+func abortOnTermination(parent, runCtx context.Context, cancel context.CancelCauseFunc,
+	log *slog.Logger, workItemID, role string) {
+	select {
+	case <-parent.Done():
+		log.Warn("termination signalled; aborting the harness and reporting",
+			"work_item", workItemID, "role", role)
+		cancel(errTerminated)
+	case <-runCtx.Done():
+	}
+}
+
+func renewLoop(ctx context.Context, cancel context.CancelCauseFunc, api *APIClient, token string, every time.Duration, log *slog.Logger) {
 	if every < 5*time.Second {
 		every = 5 * time.Second
 	}
@@ -539,14 +588,14 @@ func renewLoop(ctx context.Context, cancel context.CancelFunc, api *APIClient, t
 			switch {
 			case gone:
 				log.Error("lease no longer ours; cancelling run")
-				cancel()
+				cancel(errLeaseLost)
 				return
 			case err != nil:
 				strikes++
 				log.Warn("lease renewal failed", "strikes", strikes, "err", err)
 				if strikes >= 3 {
 					log.Error("renewal failed 3 times; cancelling run")
-					cancel()
+					cancel(errLeaseLost)
 					return
 				}
 			default:

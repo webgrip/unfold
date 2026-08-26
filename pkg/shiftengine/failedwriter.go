@@ -27,6 +27,11 @@ const (
 	// reasonWriterFailed is the close reason when a writing Role has used up
 	// its attempts inside one Round.
 	reasonWriterFailed = "writing_run_failed_repeatedly"
+	// reasonInfraFailed is the close reason when the writing Role never got a
+	// real attempt because the pods kept dying under it. A different reason
+	// from reasonWriterFailed on purpose: it sends a person to the cluster,
+	// not to the ticket.
+	reasonInfraFailed = "writing_run_killed_repeatedly"
 )
 
 // retryFailedWriter re-opens the current Round when its writing Run failed and
@@ -57,12 +62,29 @@ func (e *Engine) retryFailedWriter(ctx context.Context, si store.ShiftInfo, repo
 		return false, nil
 	}
 
-	if writer.Attempts >= store.MaxRunAttempts {
+	// Infrastructure gets its own, larger budget. A pod the cluster killed
+	// says nothing about the work, so spending the Round's three attempts on
+	// evictions parks a ticket that was never actually tried — which is
+	// exactly how shift 73 reached needs_human on 2026-08-13 having run one
+	// real agent. ExpireLeases has always counted these apart on the pre-Shift
+	// path (store.MaxInfraFailures); the Shift path now does too.
+	if writer.InfraAttempts >= store.MaxInfraFailures {
+		e.Log.Error("writing Run was killed by infrastructure too many times; parking the shift",
+			"shift", si.ID, "round", si.Round, "role", writer.Role,
+			"infra_attempts", writer.InfraAttempts, "agent_attempts", writer.AgentAttempts())
+		return true, e.close(ctx, si, reasonInfraFailed,
+			fmt.Sprintf("shift stopped: %s was killed %d times in round %d before it could finish — the runs never failed on the work, so look at the cluster (evictions, node pressure, image pulls), not the ticket",
+				writer.Role, writer.InfraAttempts, si.Round),
+			false, reports)
+	}
+
+	if writer.AgentAttempts() >= store.MaxRunAttempts {
 		e.Log.Warn("writing Run failed too many times; parking the shift",
-			"shift", si.ID, "round", si.Round, "role", writer.Role, "attempts", writer.Attempts)
+			"shift", si.ID, "round", si.Round, "role", writer.Role,
+			"agent_attempts", writer.AgentAttempts(), "infra_attempts", writer.InfraAttempts)
 		return true, e.close(ctx, si, reasonWriterFailed,
 			fmt.Sprintf("shift stopped: %s failed %d times in round %d without writing the branch — a person should look at why the run keeps dying",
-				writer.Role, writer.Attempts, si.Round),
+				writer.Role, writer.AgentAttempts(), si.Round),
 			false, reports)
 	}
 

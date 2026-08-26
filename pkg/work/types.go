@@ -72,6 +72,36 @@ func (f FailureReason) Valid() bool {
 	return false
 }
 
+// IsInfra reports whether f names a failure the agent had no part in: the pod
+// was killed, the node went away, the gateway did not answer.
+//
+// The distinction decides who gets called. An agent that fails three times is
+// telling you something about the work and a person should read it; a pod
+// evicted three times is telling you something about the cluster and retrying
+// is the whole remedy (R2). Charging both to the same budget is how a healthy
+// ticket parks itself as `needs_human` having never had a real attempt.
+func (f FailureReason) IsInfra() bool {
+	switch f {
+	case FailureInfraNode, FailureInfraLLM, FailureLeaseLost:
+		return true
+	}
+	return false
+}
+
+// InfraFailureReasons lists the IsInfra reasons for SQL that must partition
+// runs the same way. Derived from the enum so a new reason cannot be added to
+// one and forgotten in the other.
+func InfraFailureReasons() []string {
+	all := []FailureReason{FailureInfraNode, FailureInfraLLM, FailureAgentError, FailureBudget, FailureLeaseLost}
+	out := make([]string, 0, len(all))
+	for _, f := range all {
+		if f.IsInfra() {
+			out = append(out, string(f))
+		}
+	}
+	return out
+}
+
 // WorkItem mirrors one tracker item (provider + external id + revision).
 type WorkItem struct {
 	ID         string `json:"id"`

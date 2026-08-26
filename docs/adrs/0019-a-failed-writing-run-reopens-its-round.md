@@ -151,6 +151,13 @@ Shift stops). Both are red against the unfixed code.
 
 ## More Information
 
+* 2026-08-13 — the first re-evaluation trigger fired: work item 98 reached
+  `MaxRunAttempts` in production, having also reached it on 08-11 and 08-12.
+* 2026-08-26 — refined by
+  [ADR-0021](0021-infra-failures-and-agent-failures-get-separate-retry-budgets.md):
+  the cap above is now the **agent's** budget, and infrastructure-caused
+  attempts are counted against `store.MaxInfraFailures` separately. Everything
+  else this record decided stands.
 * Evidence: `docs/research/2026-08-08-benchmarking-the-loop.md`, and the
   `hang` scenario in `webgrip/ploeg-bench`.
 * [ADR-0010](0010-shift-owns-the-item-lease-owns-the-branch.md) — a Round is

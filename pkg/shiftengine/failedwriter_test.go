@@ -101,6 +101,18 @@ func TestFailedWriter_ReopensItsOwnRound(t *testing.T) {
 	}
 }
 
+// failTheRunOnTheWork is the agent's OWN verdict: it ran, and the work
+// defeated it. The counterpart to expireTheRun, and the distinction the
+// attempt budgets now turn on.
+func failTheRunOnTheWork(t *testing.T, runToken string) {
+	t.Helper()
+	reason := string(work.FailureAgentError)
+	if _, err := testStore.ReportOutcome(context.Background(), runToken,
+		store.Report(work.OutcomeFailed, "the agent could not do it", "", nil, nil, &reason)); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestFailedWriter_ParksTheShiftAtTheAttemptCap(t *testing.T) {
 	ctx := context.Background()
 	resetTables(t)
@@ -112,7 +124,7 @@ func TestFailedWriter_ParksTheShiftAtTheAttemptCap(t *testing.T) {
 		if err != nil || run == nil {
 			t.Fatalf("attempt %d: nothing to claim: %v", attempt, err)
 		}
-		expireTheRun(t, run.RunToken)
+		failTheRunOnTheWork(t, run.RunToken)
 		if err := e.EvaluateItem(ctx, itemID); err != nil {
 			t.Fatal(err)
 		}
@@ -127,6 +139,68 @@ func TestFailedWriter_ParksTheShiftAtTheAttemptCap(t *testing.T) {
 	}
 	if got := itemState(t, itemID); got != "needs_human" {
 		t.Errorf("item state = %q, want needs_human: a writer that keeps dying is a person's problem", got)
+	}
+}
+
+// The 2026-08-13 regression, pinned. Shift 73 parked `needs_human` after three
+// pods were killed mid-run — the agent had been working correctly in all three
+// (19 LLM calls, context growing) and nothing about the work was ever tried.
+// A cluster problem must not spend the budget reserved for the ticket.
+func TestFailedWriter_InfraKillsDoNotSpendTheAgentBudget(t *testing.T) {
+	ctx := context.Background()
+	resetTables(t)
+	e := newEngine(bronzePlan(10))
+	itemID, shiftID := runThroughReaders(t, e, "973")
+
+	for attempt := 1; attempt <= store.MaxRunAttempts; attempt++ {
+		run, err := testStore.ClaimRole(ctx, "bronze", "builder", time.Minute, 0)
+		if err != nil || run == nil {
+			t.Fatalf("attempt %d: nothing to claim: %v", attempt, err)
+		}
+		expireTheRun(t, run.RunToken) // the cluster killed it, not the work
+		if err := e.EvaluateItem(ctx, itemID); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	_, closed, reason := shiftRow(t, shiftID)
+	if closed {
+		t.Fatalf("the Shift closed (%q) after %d pods were killed under it — R2: an eviction must not need a person",
+			reason, store.MaxRunAttempts)
+	}
+	if retry, err := testStore.ClaimRole(ctx, "bronze", "builder", time.Minute, 0); err != nil || retry == nil {
+		t.Fatalf("the writing Round was not reopened for a %d-th attempt: %v", store.MaxRunAttempts+1, err)
+	}
+}
+
+// Infrastructure gets a bigger budget, not an unbounded one.
+func TestFailedWriter_ParksAtTheInfraCapAndSaysSo(t *testing.T) {
+	ctx := context.Background()
+	resetTables(t)
+	e := newEngine(bronzePlan(10))
+	itemID, shiftID := runThroughReaders(t, e, "974")
+
+	for attempt := 1; attempt <= store.MaxInfraFailures; attempt++ {
+		run, err := testStore.ClaimRole(ctx, "bronze", "builder", time.Minute, 0)
+		if err != nil || run == nil {
+			t.Fatalf("attempt %d: nothing to claim: %v", attempt, err)
+		}
+		expireTheRun(t, run.RunToken)
+		if err := e.EvaluateItem(ctx, itemID); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	_, closed, reason := shiftRow(t, shiftID)
+	if !closed {
+		t.Fatalf("the Shift is still open after %d infrastructure kills — the infra retry is unbounded", store.MaxInfraFailures)
+	}
+	// The close reason is the whole diagnosis. Closing this as
+	// `writing_run_failed_repeatedly` is what sent a person to read agent logs
+	// for a problem that was never in the agent.
+	if reason != reasonInfraFailed {
+		t.Errorf("close_reason = %q, want %q — the runs never failed on the work, and the reason has to say which way to look",
+			reason, reasonInfraFailed)
 	}
 }
 
