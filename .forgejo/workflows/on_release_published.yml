@@ -309,7 +309,7 @@ jobs:
     enable-openid-connect: true
     steps:
       - name: Sign, attest and SBOM (Harbor)
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/cosign-sign-attest@v1.10.0
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/cosign-sign-attest@v1.11.2
         with:
           registry: harbor.webgrip.dev
           image-name: harbor.webgrip.dev/webgrip/ploegd
