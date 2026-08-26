@@ -90,7 +90,7 @@ fails otherwise.
 | [0014](0014-work-target-is-a-work-item-attribute.md) | Bind the Work Target to the Work Item, not to the Team | accepted | 2026-07-29 |
 | [0015](0015-routing-is-core-policy-over-provider-opaque-scopes.md) | Route work in the core over provider-opaque Scopes | proposed | 2026-07-29 |
 | [0016](0016-forge-registry-and-per-run-repo-scoped-credentials.md) | Resolve forges through a registry and mint forge credentials per Run | proposed | 2026-07-29 |
-| [0017](0017-the-review-loop-is-verdict-driven-and-capped.md) | A reviewing Role's verdict re-opens the writer; the pool, a cap and the verdict stop the loop | accepted | 2026-07-29 |
+| [0017](0017-the-review-loop-is-verdict-driven-and-capped.md) | A reviewing Role's verdict re-opens the writer; the pool, a cap and the verdict stop the loop | proposed | 2026-07-29 |
 | [0018](0018-the-outcome-drop-box-is-every-harnesss-return-path.md) | The outcome drop box is every harness's return path for a reading Run | proposed | 2026-08-08 |
 | [0019](0019-a-failed-writing-run-reopens-its-round.md) | A failed writing Run re-opens its Round; a failed reading Run does not | proposed | 2026-08-08 |
 | [0020](0020-published-artifacts-name-the-mirror-as-source.md) | Published artifacts name the GitHub mirror as their source, and Forgejo as their URL | accepted | 2026-08-25 |
