@@ -332,7 +332,7 @@ jobs:
   release-distribute-forgejo:
     name: Distribute (Forgejo)
     needs: [parse-release-tag, release-distribute-harbor]
-    uses: webgrip/workflows/.forgejo/workflows/forgejo-distribute.yml@v1.0.0
+    uses: webgrip/workflows/.forgejo/workflows/forgejo-distribute.yml@v1.11.3
     with:
       enabled: true
       version: ${{ needs.parse-release-tag.outputs.version }}
@@ -341,6 +341,10 @@ jobs:
       image-name: ploegd
       mirror-from-registry: harbor.webgrip.dev
       push-latest: ${{ needs.parse-release-tag.outputs.latest_tag != '' }}
+      # Same defect the GHCR mirror had: imagetools copies the manifest list, so BuildKit's
+      # provenance and SBOM ride inside the index for free while cosign's .sig/.att are left
+      # behind. Without this, "the image is signed" was true of Harbor alone.
+      copy-accessories: true
       chart-path: ops/helm/ploeg
       chart-name: ploeg
     secrets:
