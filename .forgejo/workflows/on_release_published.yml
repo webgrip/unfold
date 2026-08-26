@@ -95,16 +95,43 @@ jobs:
           RELEASE_CREATED_AT: ${{ github.event.release.created_at }}
         run: |
           set -euo pipefail
-          created="${RELEASE_PUBLISHED_AT:-}"
-          [[ -n "$created" ]] || created="${RELEASE_CREATED_AT:-}"
-          # Forgejo hands back Go's zero time, not an empty string, for a release published
-          # through the API — which is how semantic-release cuts every rc.
-          [[ "$created" == 0001-01-01T* ]] && created=""
-          # workflow_dispatch has no release event at all; build time is the OCI-conventional
-          # meaning of image.created anyway.
+          # Forgejo hands back a ZERO TIME, not an empty string, for a release published
+          # through the API — which is how semantic-release cuts every rc. Two spellings
+          # have been seen: Go's zero value (0001-01-01) and the Unix epoch (1970-01-01,
+          # rc.29). Only the first was rejected, so rc.29 shipped claiming it was built in
+          # 1970 — the very label this step exists to protect, reached by a different route
+          # than the build-arg loss it was originally written for.
+          #
+          # Enumerating sentinels is a losing game, so the real test is plausibility:
+          # nothing this project publishes was created before the project existed, so
+          # anything earlier is a sentinel whatever it spells itself. One predicate serves
+          # both jobs below — choosing a candidate, and asserting the result — because a
+          # value good enough to pick is exactly a value good enough to ship.
+          plausible() {
+            local v="${1:-}"
+            [[ -n "$v" ]] || return 1
+            [[ "$v" =~ ^([0-9]{4})-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2} ]] || return 1
+            (( BASH_REMATCH[1] >= 2020 ))
+          }
+
+          # A rejected candidate is announced, never silently dropped. Substituting build
+          # time keeps the release moving — the label stays correct either way — but a
+          # forge sending an unusable timestamp is a fact someone should be able to see in
+          # the log rather than infer from a date that looks plausible but is not the one
+          # the release carries.
+          created=""
+          for cand in "${RELEASE_PUBLISHED_AT:-}" "${RELEASE_CREATED_AT:-}"; do
+            [[ -n "$cand" ]] || continue
+            if plausible "$cand"; then created="$cand"; break; fi
+            echo "NOTE:  release timestamp '$cand' is a zero time or implausible — ignoring it."
+          done
+          # workflow_dispatch has no release event at all, and build time is the
+          # OCI-conventional meaning of image.created anyway.
           [[ -n "$created" ]] || created="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          [[ "$created" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2} ]] || {
-            echo "ERROR: refusing to build — IMAGE_CREATED is not ISO-8601: '$created'"
+          # Asserted, not merely applied: the label gate downstream compares the built
+          # image against THIS value, so a bad value here would be verified as correct.
+          plausible "$created" || {
+            echo "ERROR: refusing to build — IMAGE_CREATED is not a plausible instant: '$created'"
             echo "       A bad timestamp here bakes a wrong org.opencontainers.image.created"
             echo "       into the release image silently, so fail the build instead."
             exit 1
