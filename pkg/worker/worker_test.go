@@ -546,7 +546,6 @@ func TestPRMatches(t *testing.T) {
 	}
 }
 
-
 // The regression these two guard: a worker that is killed mid-run used to die
 // on the default signal disposition — no outcome, no revoked key, no released
 // Lease — so ploegd could only learn of it by waiting out the full lease TTL,
