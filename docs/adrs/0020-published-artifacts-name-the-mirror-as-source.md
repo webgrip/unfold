@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-08-25
+date: 2026-08-26
 decision-makers: Ryan Grippeling
 supersedes: none
 review-by: none
@@ -148,6 +148,25 @@ helm show chart oci://ghcr.io/webgrip/charts/ploeg --version <v>
   unlinked to GHCR; the Helm annotation mapping was verified by pushing the
   packaged chart to a throwaway local registry and reading the manifest back,
   rather than assumed.
+* 2026-08-26 — **the decision stands; its mechanism was wrong for the image.**
+  The chart linked, the image did not. GHCR resolves a package's repository from
+  the **manifest**, and a Dockerfile `LABEL` lands in each platform's image
+  *config* — which `docker inspect` reads and a registry does not. The chart
+  linked because Helm writes a real OCI annotation; the image stayed orphaned
+  through rc.24–rc.27 with the label set correctly the whole time. The Confirmation
+  gate below shared the mistake: it asserted the label, so it was green on every
+  one of those releases. The build now also sets `index:` annotations via the
+  `annotations` input added to `docker-build-push-registry-fast` (webgrip/workflows
+  v1.11.0), and the gate additionally asserts
+  `.annotations["org.opencontainers.image.source"]` on the raw index — verified to
+  fail against an un-annotated index, so it would have caught the original bug.
+  The `LABEL` is kept: it is what `docker inspect` surfaces, and the two serve
+  different readers.
+* 2026-08-26 — measured, rather than assumed, that annotating at BUILD time is
+  sufficient: a plain `buildx imagetools create` preserves index annotations and
+  leaves the index digest byte-identical, so Harbor, Forgejo and GHCR all inherit
+  them and this record's identical-digest property is untouched. Annotating at
+  copy time would have diverged GHCR's index digest from Harbor's.
 * Refines [0004](0004-forgejo-leading-home-github-mirror-module-path.md), which
   established the Forgejo-leading/GitHub-mirror split and the precedent that
   publicly resolvable metadata names the mirror.
