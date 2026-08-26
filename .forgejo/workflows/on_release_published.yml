@@ -367,7 +367,7 @@ jobs:
   release-distribute-github:
     name: Distribute (GitHub)
     needs: [parse-release-tag, release-distribute-harbor]
-    uses: webgrip/workflows/.forgejo/workflows/github-distribute.yml@v1.11.0
+    uses: webgrip/workflows/.forgejo/workflows/github-distribute.yml@v1.11.1
     with:
       enabled: true
       version: ${{ needs.parse-release-tag.outputs.version }}
