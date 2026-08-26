@@ -148,7 +148,7 @@ jobs:
 
       - name: Build and push (Harbor)
         if: steps.probe.outputs.exists != 'true'
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/docker-build-push-registry-fast@v1.10.0
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/docker-build-push-registry-fast@v1.11.0
         with:
           registry: harbor.webgrip.dev
           docker-context: "."
@@ -168,6 +168,15 @@ jobs:
           binfmt-image: "docker.io/tonistiigi/binfmt:latest@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0"
           sbom-generator: "docker.io/docker/buildkit-syft-scanner:stable-1@sha256:79e7b013cbec16bbb436f312819a49a4a57752b2270c1a9332ae1a10fcc82a68"
           buildkit-image: "docker.io/moby/buildkit:buildx-stable-1@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec"
+          # OCI annotations on the INDEX. The Dockerfile's LABEL of the same name lands in
+          # each platform's image config, which `docker inspect` reads and a registry does
+          # not: GHCR resolves a package's repository link from the manifest, so ploegd
+          # published label-correct and link-less for four releases (ADR-0020). Annotating
+          # here rather than at copy time keeps Harbor, Forgejo and GHCR on one index
+          # digest — a plain `imagetools create` preserves these.
+          annotations: |
+            index:org.opencontainers.image.source=https://github.com/webgrip/ploeg
+            index:org.opencontainers.image.url=https://forgejo.webgrip.dev/webgrip/ploeg
           docker-build-args: |
             IMAGE_CREATED=${{ steps.stamp.outputs.created }}
             IMAGE_VERSION=${{ needs.parse-release-tag.outputs.version }}
@@ -238,6 +247,24 @@ jobs:
             exit 1
           }
           echo "labels verified on every platform: created=$EXPECTED_CREATED version=$EXPECTED_VERSION"
+
+          # And the INDEX annotation, which is a different fact from the label above.
+          # ADR-0020 assumed the Dockerfile LABEL was what GHCR reads; it is not. The
+          # label sits in each platform's image config, the registry reads the manifest,
+          # and this gate passed on four releases that published orphaned packages. A
+          # check that is green while the thing it guards is broken is worse than none —
+          # so assert the annotation the registry actually consumes.
+          docker buildx imagetools inspect --raw "$IMAGE" > /tmp/idx.json
+          jq -e --arg source "$EXPECTED_SOURCE" \
+            '.annotations["org.opencontainers.image.source"] == $source' /tmp/idx.json >/dev/null || {
+            echo "ERROR: index annotation check failed for $IMAGE"
+            echo "       expected org.opencontainers.image.source=$EXPECTED_SOURCE on the index"
+            echo "       actual: $(jq -c '.annotations // "<no annotations on the index>"' /tmp/idx.json)"
+            echo "       A LABEL alone does not satisfy this: GHCR links a package from the"
+            echo "       manifest, so the build needs the composite's `annotations:` input."
+            exit 1
+          }
+          echo "index annotation verified: source=$EXPECTED_SOURCE"
 
   # ── Supply chain security ────────────────────────────────────────────────────
   # cosign sign + CycloneDX SBOM attest by digest via the shared composite (OpenBao
@@ -313,7 +340,7 @@ jobs:
   release-distribute-github:
     name: Distribute (GitHub)
     needs: [parse-release-tag, release-distribute-harbor]
-    uses: webgrip/workflows/.forgejo/workflows/github-distribute.yml@v1.10.0
+    uses: webgrip/workflows/.forgejo/workflows/github-distribute.yml@v1.11.0
     with:
       enabled: true
       version: ${{ needs.parse-release-tag.outputs.version }}
@@ -322,6 +349,13 @@ jobs:
       image-name: ploegd
       mirror-from-registry: harbor.webgrip.dev
       push-latest: ${{ needs.parse-release-tag.outputs.latest_tag != '' }}
+      # imagetools copies the manifest list, so BuildKit's SLSA provenance and SBOM ride
+      # along inside the index for free — but cosign's signature and CycloneDX attestation
+      # live as separate .sig/.att tags and were being left behind, publishing an UNSIGNED
+      # mirror of a signed image. A copied signature still verifies at the mirror (cosign
+      # checks the digest); its payload keeps the Harbor reference, so Kyverno must go on
+      # verifying against Harbor, which it already does.
+      copy-accessories: true
       # Chart to GHCR alongside the image, landing at ghcr.io/webgrip/charts/ploeg —
       # the same layout Harbor uses. Built from the tagged tree, not copied from Harbor:
       # imagetools handles image manifest lists, not Helm's config media type. A second
