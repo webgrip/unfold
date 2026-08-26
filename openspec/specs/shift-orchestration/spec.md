@@ -59,14 +59,24 @@ well).
 
 A Round whose WRITING Run ended `failed` SHALL NOT advance the plan. The
 orchestrator SHALL re-open that Round in place — without incrementing the round
-counter, which doubles as the index into the Team's plan — until the Role has
-had `MaxRunAttempts` attempts there, after which the Shift SHALL close at
-`needs_human` naming the repeated failure.
+counter, which doubles as the index into the Team's plan — until the Role
+exhausts an attempt budget, after which the Shift SHALL close at `needs_human`
+naming the repeated failure.
 
-`failed` is the sweeper's verdict on a pod that stopped renewing, never an
-agent's report, which is what makes it retryable and what distinguishes it from
-a `stuck` Outcome (R4). The attempt count SHALL be derived from the Runs in the
-Round, not held in a counter.
+The budget SHALL be split by who failed (ADR-0021). An attempt whose
+`failure_reason` is an infrastructure reason — the pod was killed, the node
+went away, the gateway did not answer — SHALL count against
+`MaxInfraFailures`; every other attempt SHALL count against `MaxRunAttempts`.
+The two SHALL close the Shift with different reasons, because the reason is
+what tells a person whether to look at the ticket or at the cluster. An
+unrecognised `failure_reason` SHALL count against `MaxRunAttempts`, so a reason
+nobody set cannot buy unlimited infrastructure retries.
+
+`failed` is retryable by construction — it is the sweeper's verdict on a pod
+that stopped renewing, or the worker's own report that its pod was taken away —
+which is what distinguishes it from a `stuck` Outcome, where a human is needed
+and no retry fixes it (R4). The attempt counts SHALL be derived from the Runs
+in the Round, not held in a counter.
 
 A reading Run's failure costs an opinion; a writing Run's failure costs the
 work. Advancing over the latter means every later Round reasons about a branch
@@ -83,9 +93,29 @@ that was never written.
 #### Scenario: The writer keeps dying
 
 - **GIVEN** a writing Role that has failed `MaxRunAttempts` times in one Round
+  for reasons the agent is answerable for
 - **WHEN** the orchestrator evaluates the Shift
 - **THEN** the Shift closes at `needs_human`
 - **AND** the close reason names the repeated failure rather than plan exhaustion
+
+#### Scenario: The writer's pod keeps being killed
+
+- **GIVEN** a writing Role whose Runs in one Round all ended `failed` for
+  infrastructure reasons
+- **WHEN** the orchestrator evaluates the Shift, fewer than `MaxInfraFailures`
+  times
+- **THEN** the Round re-opens with that writing Role
+- **AND** the Role's `MaxRunAttempts` budget is undiminished, because nothing
+  about the work has been tried
+
+#### Scenario: The cluster keeps killing the writer
+
+- **GIVEN** a writing Role whose Runs have failed `MaxInfraFailures` times in
+  one Round for infrastructure reasons
+- **WHEN** the orchestrator evaluates the Shift
+- **THEN** the Shift closes at `needs_human`
+- **AND** the close reason names the infrastructure failure, distinctly from
+  the reason used when the agent itself kept failing
 
 ### Requirement: A Shift closes on plan exhaustion or a terminal Outcome
 

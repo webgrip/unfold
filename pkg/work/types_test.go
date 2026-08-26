@@ -34,3 +34,42 @@ func TestFailureReason_IsString(t *testing.T) {
 		t.Errorf("FailureLeaseLost = %q, want %q", FailureLeaseLost, "lease_lost")
 	}
 }
+
+func TestFailureReason_IsInfra(t *testing.T) {
+	infra := []FailureReason{FailureInfraNode, FailureInfraLLM, FailureLeaseLost}
+	agent := []FailureReason{FailureAgentError, FailureBudget}
+
+	for _, f := range infra {
+		if !f.IsInfra() {
+			t.Errorf("%q must be infra: it decides whether a retry is free or spends the ticket's budget", f)
+		}
+	}
+	for _, f := range agent {
+		if f.IsInfra() {
+			t.Errorf("%q must NOT be infra: it is the agent's own verdict on the work", f)
+		}
+	}
+	// An unclassified failure is charged to the agent. Deliberate: a reason
+	// nobody set must not silently buy unlimited infrastructure retries.
+	if FailureReason("").IsInfra() || FailureReason("something_new").IsInfra() {
+		t.Error("an unknown failure reason must not count as infrastructure")
+	}
+}
+
+// The SQL in FailedRunsInRound partitions runs with InfraFailureReasons while
+// the engine partitions them with IsInfra. If the two ever disagree, attempts
+// are counted against the wrong budget and nothing in either test would say so.
+func TestInfraFailureReasons_MatchesIsInfra(t *testing.T) {
+	listed := map[string]bool{}
+	for _, r := range InfraFailureReasons() {
+		listed[r] = true
+		if !FailureReason(r).IsInfra() {
+			t.Errorf("InfraFailureReasons lists %q, but IsInfra says it is not infra", r)
+		}
+	}
+	for _, f := range []FailureReason{FailureInfraNode, FailureInfraLLM, FailureAgentError, FailureBudget, FailureLeaseLost} {
+		if f.IsInfra() && !listed[string(f)] {
+			t.Errorf("%q is infra but missing from InfraFailureReasons — the SQL would charge it to the agent", f)
+		}
+	}
+}

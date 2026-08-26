@@ -6,13 +6,16 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/webgrip/ploeg/pkg/litellm"
@@ -147,7 +150,17 @@ func run(log *slog.Logger) error {
 	nodeName := os.Getenv("NODE_NAME")
 	podUID := os.Getenv("POD_UID")
 	log.Info("ploeg-worker starting", "version", version, "team", cfg.Team, "harness", hc.Name, "node", nodeName, "pod_uid", podUID)
-	return worker.New(cfg, adapter, broker, log).Run()
+
+	// A worker pod is killed for reasons that have nothing to do with the
+	// agent: an eviction, a drain, a Job deadline, a node going away. Without
+	// this the process died on the default disposition — no outcome, no
+	// revoked credential, no released Lease — and the item sat leased until
+	// the sweeper reclaimed it a full TTL later, having charged the Round an
+	// attempt for infrastructure's mistake. The signal is not the failure;
+	// staying silent about it was.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	return worker.New(cfg, adapter, broker, log).RunContext(ctx)
 }
 
 func trimSlash(s string) string {

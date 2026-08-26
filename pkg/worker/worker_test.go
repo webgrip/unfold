@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/webgrip/ploeg/pkg/harness"
 	"github.com/webgrip/ploeg/pkg/harness/adapters/openhands"
@@ -80,6 +81,24 @@ func TestResolveOutcome_Precedence(t *testing.T) {
 			wantSummary: "run aborted (lease lost)",
 			wantReason:  "lease renewal failed; run cancelled to avoid a double claim",
 			wantFailure: "lease_lost",
+		},
+		{
+			name:        "a terminated pod reports failed/infra_node, never stuck",
+			runErr:      errors.New("signal: killed"),
+			ctxErr:      errTerminated,
+			wantOutcome: work.OutcomeFailed,
+			wantSummary: "openhands run was terminated mid-run (pod shutdown)",
+			wantFailure: "infra_node",
+		},
+		{
+			name:        "a PR opened before termination still wins",
+			runErr:      errors.New("signal: killed"),
+			ctxErr:      errTerminated,
+			prURL:       "http://forge/pr/9",
+			wantOutcome: work.OutcomePROpened,
+			wantSummary: "openhands run opened a PR for fix the thing",
+			wantLinks:   []string{"http://forge/pr/9"},
+			wantPhase:   "pr_opened",
 		},
 		{
 			name:        "structured report beats heuristics",
@@ -524,5 +543,60 @@ func TestPRMatches(t *testing.T) {
 			t.Errorf("%s: prMatches(%q,%q,%q,%q) = %v, want %v",
 				c.name, c.headRef, c.baseRef, c.wantHead, c.base, got, c.want)
 		}
+	}
+}
+
+// The regression these two guard: a worker that is killed mid-run used to die
+// on the default signal disposition — no outcome, no revoked key, no released
+// Lease — so ploegd could only learn of it by waiting out the full lease TTL,
+// and the Round was charged an attempt for a machine's decision. See the
+// 2026-08-13 shift 73, parked needs_human after three such deaths.
+func TestAbortOnTermination_CancelsRunWithTerminatedCause(t *testing.T) {
+	parent, stop := context.WithCancel(context.Background())
+	runCtx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+
+	done := make(chan struct{})
+	go func() {
+		abortOnTermination(parent, runCtx, cancel, discardLog(), "98", "builder")
+		close(done)
+	}()
+
+	stop() // the pod is going away
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("abortOnTermination did not return after the parent was cancelled")
+	}
+
+	<-runCtx.Done()
+	if cause := context.Cause(runCtx); !errors.Is(cause, errTerminated) {
+		t.Fatalf("cause = %v, want errTerminated — a lease_lost cause would send this to stuck and park the Shift", cause)
+	}
+	// The distinction is load-bearing: resolveOutcome maps the two causes to
+	// opposite verdicts, one retryable and one requiring a person.
+	if errors.Is(context.Cause(runCtx), errLeaseLost) {
+		t.Fatal("a terminated pod must not be reported as a lost lease")
+	}
+}
+
+func TestAbortOnTermination_ReturnsWhenTheRunEndsFirst(t *testing.T) {
+	parent := context.Background()
+	runCtx, cancel := context.WithCancelCause(context.Background())
+
+	done := make(chan struct{})
+	go func() {
+		abortOnTermination(parent, runCtx, cancel, discardLog(), "98", "builder")
+		close(done)
+	}()
+
+	cancel(nil) // the run finished on its own
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("abortOnTermination leaked: it outlived the run it was watching")
+	}
+	if cause := context.Cause(runCtx); errors.Is(cause, errTerminated) {
+		t.Fatalf("cause = %v, want the run's own cause — nothing terminated the pod", cause)
 	}
 }

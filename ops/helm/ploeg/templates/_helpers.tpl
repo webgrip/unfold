@@ -131,6 +131,11 @@ metadata:
     {{- end }}
 spec:
   restartPolicy: Never
+  # The shutdown budget for ploeg-worker's SIGTERM path: abort the harness,
+  # revoke the per-run credential, settle its spend, report the outcome. The
+  # 30s default SIGKILLed the pod mid-report, which is the silence that made a
+  # killed run indistinguishable from a hung one and cost the Round an attempt.
+  terminationGracePeriodSeconds: {{ $root.Values.executor.terminationGracePeriodSeconds }}
   # An identity of the workers' own. Naming none left them on `default`, which
   # both trips require-non-default-serviceaccount and makes every workload in
   # the namespace indistinguishable in an audit log. The token stays unmounted
