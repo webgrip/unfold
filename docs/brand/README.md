@@ -228,10 +228,17 @@ wordmark.svg / -white.svg     "Ploeg", omgezet naar contouren
 lockup-horizontal.svg         + -white, + -mono
 lockup-stacked.svg            + -white
 tokens.css                    kleur- en fonttokens
+png/                          transparante PNG-exports, 512 en 1024 px hoog
 ```
 
 Alle SVG's hebben `viewBox` en geen vaste eenheden buiten `width`/`height` — schalen doe
 je met CSS of door die twee attributen te verwijderen.
+
+De PNG's in `png/` zijn met resvg uit deze SVG's gerenderd — elke variant behalve
+`mark-currentcolor.svg` (currentColor heeft buiten CSS geen kleur; gebruik de
+black/white-PNG's). Verander je een SVG, render de PNG's dan opnieuw in plaats van
+ze te bewerken. Voor plekken die geen SVG slikken: sociale platforms, presentaties,
+documenten, e-mail.
 
 ---
 
