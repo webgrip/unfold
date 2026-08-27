@@ -30,10 +30,16 @@ migration.
 ## Before opening a PR
 
 Run the gates from [.forgejo/workflows/on_pull_request.yml](.forgejo/workflows/on_pull_request.yml)
-— Go build/vet/test plus `helm lint` and all three chart renderings — and put their output in the
-PR body. Without a local toolchain, run them through the DinD daemon with the `golang` and
-`alpine/helm` images. Tests fake external services with `net/http/httptest` and never need
-network; a bug fix lands with the regression test that fails against the old code.
+— Go build/vet/test plus `helm lint` and all three chart renderings — with the local toolchain,
+and put their output in the PR body. Tests fake external services with `net/http/httptest` and
+never need network; a bug fix lands with the regression test that fails against the old code.
+
+**In the Ploeg worker sandbox, a gate you cannot run is CI's job — do not fight the network.**
+The sandbox has no registry egress: `docker pull` of any image (docker.io, ghcr.io, the in-house
+Harbor) times out by design, because a worker pod may reach its LLM gateway, its forge, and
+nothing else. If a gate needs a toolchain the image lacks, skip it, never retry the pull, and
+list it in the PR body ("gates left to CI: go test, helm lint"). CI runs the full set on every
+PR with real registry access — CI, not the sandbox, is the enforcement.
 
 ## Working alongside other sessions
 

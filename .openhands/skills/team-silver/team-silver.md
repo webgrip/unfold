@@ -39,9 +39,11 @@ conflict.
    test that fails on the unfixed code — prove it by running the test against
    the original code path first if feasible.
 4. **Gates** (from AGENTS.md) before opening AND before every update of the
-   PR. Use the DinD daemon (`docker run --rm -v "$PWD":/src -w /src
-   golang:1.25 ...`) when no local toolchain exists. Paste the output in the
-   PR body — reviewers reject unverified claims.
+   PR, with the local toolchain. Your sandbox has no registry egress — a
+   `docker pull` of golang or any other image times out by design, so never
+   retry one. A gate you cannot run is CI's job: skip it and say so in the
+   PR body ("gates left to CI: …"). Paste the output of the gates you did
+   run — reviewers reject unverified claims.
 5. **Adversarial self-review** (you have no independent judge in-run, so
    simulate one, then say honestly what a real reviewer should re-check):
    - Failure paths first: does your cleanup run on *every* return, including
