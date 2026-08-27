@@ -95,6 +95,7 @@ fails otherwise.
 | [0019](0019-a-failed-writing-run-reopens-its-round.md) | A failed writing Run re-opens its Round; a failed reading Run does not | proposed | 2026-08-08 |
 | [0020](0020-published-artifacts-name-the-mirror-as-source.md) | Published artifacts name the GitHub mirror as their source, and Forgejo as their URL | accepted | 2026-08-26 |
 | [0021](0021-infra-failures-and-agent-failures-get-separate-retry-budgets.md) | Infrastructure failures and agent failures get separate retry budgets | proposed | 2026-08-26 |
+| [0022](0022-the-name-and-mark-are-trademarks-not-cc-licensed-artwork.md) | The name and mark are trademarks under a usage policy, not CC-licensed artwork | accepted | 2026-08-27 |
 
 ## Review calendar
 

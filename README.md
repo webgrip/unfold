@@ -57,4 +57,11 @@ nothing, and the sweeper releases the lease and re-queues the item when the TTL 
 
 ## License
 
-[Apache-2.0](LICENSE)
+Code: [Apache-2.0](LICENSE).
+
+The name *Ploeg* and the Ploeg mark are trademarks — §6 of that licence grants
+no rights in them, deliberately. [docs/brand/TRADEMARK.md](docs/brand/TRADEMARK.md)
+says what you may do with them without asking (reproduce them, link, say your
+software works with Ploeg) and the two things that need permission (shipping a
+fork under the name, implying endorsement). Settled in
+[ADR-0022](docs/adrs/0022-the-name-and-mark-are-trademarks-not-cc-licensed-artwork.md).

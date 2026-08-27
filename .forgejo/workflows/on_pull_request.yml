@@ -34,3 +34,8 @@ jobs:
       # that must never pass review unseen.
       - name: chart renders match the committed goldens
         run: ./scripts/helm-golden.sh check
+      # ADR-0022: the mark's terms live in a policy file, not in a second
+      # copyright licence. A missing or unreachable policy means the mark
+      # ships with no stated terms at all.
+      - name: name and mark carry their policy
+        run: ./scripts/brand-marks.sh
