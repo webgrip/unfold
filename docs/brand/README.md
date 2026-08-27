@@ -36,11 +36,21 @@ Alles is afgeleid van één maat: de streekbreedte **w = 13** op een canvas van 
 ```
 silhouet  M17.5 49.5V14.5H29.5A17 17 0 0 1 46.5 31.5
 steel     M11 21H24V49.5A6.5 6.5 0 0 1 11 49.5Z
+knip      clipPath op het silhouet, evenodd: M-8 -8H72V72H-8Z M10 22H25V57H10Z
 ```
 
 Het silhouet is één `stroke` met `stroke-width="13"`, `stroke-linecap="round"`,
 `stroke-linejoin="round"` en **expliciet `fill="none"`**. De steel is een gevuld
 vlak dat er in inkt overheen ligt.
+
+De **knip** hoort bij die bouw. De Klei die onder de steel doorloopt schemert
+bij het renderen door elke rand van de steel heen — anti-aliasing mengt
+randpixels met wat eronder ligt, en dat geeft een oranje zweem langs de steel
+en zijn onderkap. Daarom knipt een `clipPath` het verborgen deel van het
+silhouet weg, op een strook van één eenheid onder de naad na, die de naad zelf
+blijft afdekken. De favicon- en tegelvarianten dragen dezelfde knip op hun
+eigen maten (favicon: x 7–23, y 19–61 · tegel: x 13–26, y 24–53). Wie de mark
+opnieuw opbouwt zonder knip, bouwt de zweem opnieuw in.
 
 Vier besluiten die niet toevallig zijn:
 
