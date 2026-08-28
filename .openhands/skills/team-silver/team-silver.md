@@ -39,11 +39,17 @@ conflict.
    test that fails on the unfixed code — prove it by running the test against
    the original code path first if feasible.
 4. **Gates** (from AGENTS.md) before opening AND before every update of the
-   PR, with the local toolchain. Your sandbox has no registry egress — a
-   `docker pull` of golang or any other image times out by design, so never
-   retry one. A gate you cannot run is CI's job: skip it and say so in the
-   PR body ("gates left to CI: …"). Paste the output of the gates you did
-   run — reviewers reject unverified claims.
+   PR. In a dispatched run there is no docker daemon and no Go toolchain in
+   the harness (homelab-cluster ADR-0053: the agent plane is daemonless), and
+   the sandbox has no registry egress — a `docker pull` of golang or any
+   other image times out by design, so never retry one. A gate you cannot
+   run is CI's job: push the branch, let CI run the gate set on the PR, note
+   "gates left to CI: …" in the PR body, read the pipeline result through
+   the forge, and iterate until green. Running locally with the toolchains
+   installed, run them directly. Either way, paste the evidence (gate output,
+   or the CI run link + status) — reviewers reject unverified claims, and
+   claiming a gate you never saw run is worse than reporting you could not
+   run it.
 5. **Adversarial self-review** (you have no independent judge in-run, so
    simulate one, then say honestly what a real reviewer should re-check):
    - Failure paths first: does your cleanup run on *every* return, including
