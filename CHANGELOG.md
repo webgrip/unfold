@@ -1,5 +1,14 @@
 ## [0.2.1-rc.1](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0...v0.2.1-rc.1) (2026-08-28)
 
+### Fixed
+
+* **brand:** clip the Klei under the steel so it can't bleed through the edges ([0abd5e8](https://forgejo.webgrip.dev/webgrip/ploeg/commit/0abd5e8eab6ebe8eee2a6c12c0e729dae1174915))
+
+### Docs
+
+* **agents:** stop telling agents to docker-pull the gate toolchain ([df312cb](https://forgejo.webgrip.dev/webgrip/ploeg/commit/df312cbf44b64e99a8756b98ed709532bdbbfa9e))
+* **changelog:** backfill 28 empty entries — the notes toolchain dropped every commit line ([debf0cb](https://forgejo.webgrip.dev/webgrip/ploeg/commit/debf0cb53355f010ef7337452ffe2dd50c3eda13)), references [#10](https://forgejo.webgrip.dev/webgrip/ploeg/issues/10) [#57](https://forgejo.webgrip.dev/webgrip/ploeg/issues/57) [#131](https://forgejo.webgrip.dev/webgrip/ploeg/issues/131)
+
 ## [0.2.0](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0...v0.2.0) (2026-08-27)
 
 ### Added
