@@ -186,6 +186,22 @@ roadmap-phase order.
 
 ---
 
+## L. Board onboarding & wiring UX — 117–124
+
+Sourced from the 2026-08-28 field report
+([research/2026-08-28-onboarding-friction.md](research/2026-08-28-onboarding-friction.md)):
+routing the twente.dev board took five manual acts across four systems, and every
+skipped step failed silently. Design decision tracked as VIK-781.
+
+117. **One-act board onboarding** — `ploegctl board add <name> --repo … --branch … --forge …` (or a small board manifest) as the single declarative act; ploegd converges everything else and reports READY or the first broken link. Replaces the helm-values-list-plus-MR flow for the per-board entry. *[research: field report 2026-08-28]*
+118. **Webhook self-registration + reconcile** — ploegd manages tracker webhooks with the provider token it already holds: create on onboard, verify signature config, re-create after a tracker rebuild. Extends the reconciliation-sweep philosophy of #6 from deliveries to wiring. Kills the human OpenBao-fetch-and-paste step. *[research: field report 2026-08-28]*
+119. **Wiring preflight / doctor** — one command per board checking the full chain (project resolves, webhook present + signed, team user shared with read access, forge repo reachable, branch exists, token scopes) and naming the first broken link; also run continuously. The "assignment 403s and nothing fires" class becomes a red row instead of tribal knowledge. *[research: field report 2026-08-28]*
+120. **Assignment dead-letter write-back** — an assignment that cannot dispatch (no route, no webhook secret, guard refused, lease unavailable) writes the reason back as a ticket comment plus an audit row. Silence is forbidden: the tracker is the UI the user acted in. *[research: field report 2026-08-28]*
+121. **`ploegctl boards list` wiring status** — declared vs live per board: webhook ok, share ok, repo ok, last-event-at, last-dispatch-at. CLI/API/Grafana only (boundary: no board UI). The config comment "Today only Ploeg Test has both" becomes a query result. *[research: field report 2026-08-28]*
+122. **Per-board dispatch guard on a marker label** — optional route policy (ADR-0015: hint selects among pre-registered routes): a board may declare that only tickets carrying its contract's dispatch marker (e.g. `agent-ready`) dispatch; anything else parks with a #120 write-back. Reads a label, never defines one — grooming stays out of scope. *[research: field report 2026-08-28]*
+123. **TTFR as the onboarding metric** — measure time from board-declared to first PR opened, per board, in the dashboards-as-code; the onboarding funnel (declared → wired → first event → first dispatch → first PR) makes the silent-failure classes visible as drop-off. *[research: field report 2026-08-28]*
+124. **Config self-description** — `ploegctl board explain <name>` renders the routing, guard, team and wiring state as prose; generated docs replace the 90 comment lines that currently make helmrelease.yaml its own runbook. *[research: field report 2026-08-28]*
+
 ## Rejected along the way (boundary check)
 
 Considered and excluded as outside the accepted problem space: a web dashboard for
