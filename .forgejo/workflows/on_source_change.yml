@@ -55,7 +55,7 @@ jobs:
     #
     # NB: only THIS job. `checks` above needs go and helm, which this image does not carry.
     container:
-      image: harbor.webgrip.dev/webgrip/semantic-release:0.3.1
+      image: harbor.webgrip.dev/webgrip/semantic-release:0.1.2
     permissions:
       contents: write
       issues: write
