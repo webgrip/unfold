@@ -47,8 +47,7 @@ Several sessions share this checkout, so **stage paths, never the tree**: `git a
 wrote, never `-A`, `.`, or `commit -a`. A whole-tree commit silently absorbs another session's
 uncommitted work under your message — it happened twice on 2026-07-28, and on `development` a
 swept `feat:`/`fix:` also cuts an rc release that misdescribes its own contents. Dirt in
-`git status` that you did not create belongs to someone else; leave it. Take a worktree for
-anything longer than a couple of edits (`git worktree add ../ploeg-<slug> -b <branch>`). Before
+`git status` that you did not create belongs to someone else; leave it. Before
 concluding your edits are still uncommitted, run `git log --oneline -3 -- <paths>` — another
 session may already have committed them, and on pushed `development` the fix is a follow-up
 commit, never an amend.
