@@ -26,9 +26,16 @@ type Server struct {
 	// Targets resolves a tracker scope to the repository the work lands in.
 	// Nil = no mapping configured; every item stays unresolved and workers use
 	// their env-configured repo (the pre-decoupling behavior).
-	Targets  target.Resolver
-	LeaseTTL time.Duration
-	Log      *slog.Logger
+	Targets target.Resolver
+	// ScopeTeams pins a tracker container to one team (config: a project's
+	// `team:`). The pin BEATS the assignee mapping — the config has always
+	// said "Team routes this project's work to one team. Empty means the
+	// assignee decides", and until this field the second sentence was the
+	// whole implementation. Nil or missing scope = the assignee decides,
+	// unchanged.
+	ScopeTeams map[string]string
+	LeaseTTL   time.Duration
+	Log        *slog.Logger
 	// Engine is the Shift lifecycle fast path (run-multi-agent-shifts): ingest
 	// opens, an outcome report evaluates. Nil = no shift engine configured,
 	// dispatch unchanged. Engine errors are logged, never returned to the
@@ -107,6 +114,7 @@ func (s *Server) handleTrackerWebhook(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		item := s.mirror(r.Context(), tp, ev)
+		s.pinTeam(&item)
 		s.resolveTarget(&item, ev)
 		id, state, err := s.Store.IngestAssigned(r.Context(), item)
 		if err != nil {
@@ -221,6 +229,23 @@ func (s *Server) mirror(ctx context.Context, tp provider.TrackerProvider, ev pro
 // An unresolved target is not an error: the item still queues, and the worker
 // falls back to its env-configured repo. The WARN is the onboarding worklist,
 // generated from live traffic rather than guessed.
+// pinTeam applies a container's pinned team once the scope is known — which
+// for a thin webhook (clickup) is only after mirror has fetched the item, so
+// this cannot live in the provider. It runs before resolveTarget so the
+// team-qualified routing rules see the team the work will actually run as.
+func (s *Server) pinTeam(item *work.WorkItem) {
+	if item.ExternalScope == "" {
+		return
+	}
+	pinned, ok := s.ScopeTeams[item.ExternalScope]
+	if !ok || pinned == "" || pinned == item.Team {
+		return
+	}
+	s.Log.Info("team pinned by tracker container", "external_id", item.ExternalID,
+		"scope", item.ExternalScope, "assignee_team", item.Team, "team", pinned)
+	item.Team = pinned
+}
+
 func (s *Server) resolveTarget(item *work.WorkItem, ev provider.TrackerEvent) {
 	if s.Targets == nil {
 		return

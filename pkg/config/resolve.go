@@ -86,3 +86,19 @@ func sortedKeys(m map[string]string) []string {
 	sort.Strings(out)
 	return out
 }
+
+// ScopeTeams renders the container-to-team pins: every project that names a
+// `team:` and a pinned id. Name-resolved vikunja projects are deliberately
+// absent — their ids are only known after TargetSpec has run, and the one
+// deployment shape that needs pinning (a board where the assignee must not
+// decide) is also the shape that pins ids. When a name resolver hands ids
+// back here, this grows with it.
+func (f *File) ScopeTeams() map[string]string {
+	out := map[string]string{}
+	for _, p := range append(append([]Project{}, f.Trackers.Vikunja.Projects...), f.Trackers.Clickup.Projects...) {
+		if p.ID != "" && p.Team != "" {
+			out[p.ID] = p.Team
+		}
+	}
+	return out
+}
