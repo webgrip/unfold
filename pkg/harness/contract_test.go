@@ -71,6 +71,7 @@ func fullTaskSpec() TaskSpec {
 		Role:       "builder",
 		Checkpoint: &work.Checkpoint{Phase: "branch_created", Branch: "agent/vik-596"},
 		Repo: RepoRef{
+			Forge:    ForgeForgejo,
 			ForgeURL: "http://forgejo-http.forgejo.svc.cluster.local:3000",
 			Owner:    "webgrip", Name: "example", BaseBranch: "development",
 		},
