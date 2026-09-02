@@ -1,3 +1,9 @@
+## [0.3.0-rc.4](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.3.0-rc.3...v0.3.0-rc.4) (2026-09-02)
+
+### Added
+
+* **ingest:** a container's pinned team decides, as the config always claimed ([9680081](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9680081c3d5856c2e49f7344475f810778191d65))
+
 ## [0.3.0-rc.3](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.3.0-rc.2...v0.3.0-rc.3) (2026-09-02)
 
 ### Added

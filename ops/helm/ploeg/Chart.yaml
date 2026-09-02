@@ -13,5 +13,5 @@ sources:
   - https://github.com/webgrip/ploeg
 # version/appVersion are bumped in lockstep by semantic-release-helm3 on every
 # release; the git tag v<version> is the commit helm-chart-push packages.
-version: 0.3.0-rc.3
-appVersion: 0.3.0-rc.3
+version: 0.3.0-rc.4
+appVersion: 0.3.0-rc.4
