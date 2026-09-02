@@ -279,6 +279,7 @@ func run(log *slog.Logger) error {
 		Store:      st,
 		Trackers:   trackers,
 		Targets:    targets,
+		ScopeTeams: cfg.ScopeTeams(),
 		LeaseTTL:   leaseTTL,
 		Log:        log,
 		RoleCaps:   plans,
