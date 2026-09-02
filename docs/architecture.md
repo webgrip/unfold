@@ -387,13 +387,28 @@ Aspirational ≠ implemented:
     project as an opaque `provider.Scope` and the core maps it to a Target; the
     one-project topology is why the map's transitional key is `<scope>/<team>`
     rather than scope alone.
-15. **Forge is a global singleton**: one `FORGEJO_URL` + one
-    `AGENT_BUILDER_TOKEN` (`ops/helm/ploeg/templates/_helpers.tpl:142-148`) and
-    a hardcoded `agent-builder` git identity (`pkg/worker/worker.go:118,125`).
-    `provider.ForgeProvider` (`pkg/provider/provider.go:47-70`) has **zero**
-    implementations while `pkg/worker/forge.go:22-55` hardcodes the Forgejo REST
-    dialect. Decision:
+15. **Forge is a global singleton**: one forge URL + one `AGENT_BUILDER_TOKEN`
+    and a hardcoded `agent-builder` git identity (`pkg/worker/worker.go`).
+    Decision:
     [adrs/0016-forge-registry-and-per-run-repo-scoped-credentials.md](adrs/0016-forge-registry-and-per-run-repo-scoped-credentials.md).
+    **Partly closed 2026-09-02.** Two claims here were true when written and
+    are not now, which is what this section warns about:
+    - `provider.ForgeProvider` has implementations — `pkg/provider/forgejo`
+      and `pkg/provider/gitlab` — and `POST /webhooks/forge/{provider}` calls
+      them.
+    - `pkg/worker/forge.go` no longer hardcodes one REST dialect. It dispatches
+      on `RepoRef.Forge`, which travels on the Work Item
+      ([adrs/0023-the-forge-dialect-travels-on-the-work-item.md](adrs/0023-the-forge-dialect-travels-on-the-work-item.md)),
+      and so does the delivery contract the writing Run is given.
+
+    What remains a singleton is the URL and the credential: a worker pod holds
+    one of each, `executor.forge` selects the active block, and a Work Item
+    routed to a forge the release is not configured for fails at run time, not
+    at boot. Also still open: **ADR-0013 tier 2 is Forgejo-only.** Per-run push
+    credentials are minted through `/api/v1/admin/users/forge`, which GitLab has
+    no equivalent for, so a GitLab deployment runs on the shared token and only
+    scheduling separates a reading Run from a writing one at that tier. Tier 1
+    (a read-only credential for readers) does port and is configured.
 16. **`agent/vik-<id>` embeds a vendor token and is not unique per target**:
     `pkg/worker/worker.go:81` builds the branch as `"agent/vik-" +
     item.ExternalID`. `vik` is a Vikunja token sitting in core semantics (R7),
