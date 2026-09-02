@@ -44,6 +44,7 @@ type File struct {
 
 type Trackers struct {
 	Vikunja TrackerConfig `yaml:"vikunja"`
+	Clickup TrackerConfig `yaml:"clickup"`
 }
 
 type TrackerConfig struct {
@@ -110,34 +111,51 @@ func Load(path string) (*File, error) {
 
 // Validate catches what can be caught without talking to a tracker.
 func (f *File) Validate() error {
+	// One scope namespace across trackers, deliberately: the target map keys
+	// on the provider's container id alone, so a vikunja project and a clickup
+	// List sharing an id would silently route each other's work. Validating
+	// them through one `seen` map turns that collision into a boot failure.
 	seen := map[string]string{}
-	for i, p := range f.Trackers.Vikunja.Projects {
-		where := fmt.Sprintf("trackers.vikunja.projects[%d]", i)
-		if p.Name == "" && p.ID == "" {
-			return fmt.Errorf("%s: needs a name (preferred) or an id", where)
-		}
-		if p.Repo == "" {
-			return fmt.Errorf("%s (%s): needs a repo", where, p.label())
-		}
-		owner, name, ok := strings.Cut(p.Repo, "/")
-		if !ok || owner == "" || name == "" {
-			return fmt.Errorf("%s (%s): repo %q must be owner/name", where, p.label(), p.Repo)
-		}
-		// Keyed on project AND team, because per-team routing on one project
-		// is the feature: TargetSpec renders "<id>/<team>=repo" entries, and
-		// pkg/target resolves the team-specific rule ahead of the bare one. A
-		// project-only key would forbid the very config it then generates.
-		if prev, dup := seen[p.routeKey()]; dup {
-			forTeam := ""
-			if p.Team != "" {
-				forTeam = fmt.Sprintf(" for team %q", p.Team)
+	for _, tr := range []struct {
+		provider string
+		projects []Project
+	}{
+		{"vikunja", f.Trackers.Vikunja.Projects},
+		{"clickup", f.Trackers.Clickup.Projects},
+	} {
+		for i, p := range tr.projects {
+			where := fmt.Sprintf("trackers.%s.projects[%d]", tr.provider, i)
+			if tr.provider == "clickup" && p.ID == "" {
+				// The clickup provider has no name resolver yet; a name-only
+				// entry would boot into "resolve" with nothing to ask.
+				return fmt.Errorf("%s: needs an id (the List id); clickup name resolution is not implemented", where)
 			}
-			return fmt.Errorf("%s: project %q is routed twice%s (already to %s)", where, p.label(), forTeam, prev)
-		}
-		seen[p.routeKey()] = p.Repo
-		if p.Team != "" {
-			if _, ok := f.Teams[p.Team]; !ok {
-				return fmt.Errorf("%s (%s): routes to team %q, which is not in teams", where, p.label(), p.Team)
+			if p.Name == "" && p.ID == "" {
+				return fmt.Errorf("%s: needs a name (preferred) or an id", where)
+			}
+			if p.Repo == "" {
+				return fmt.Errorf("%s (%s): needs a repo", where, p.label())
+			}
+			owner, name, ok := strings.Cut(p.Repo, "/")
+			if !ok || owner == "" || name == "" {
+				return fmt.Errorf("%s (%s): repo %q must be owner/name", where, p.label(), p.Repo)
+			}
+			// Keyed on project AND team, because per-team routing on one project
+			// is the feature: TargetSpec renders "<id>/<team>=repo" entries, and
+			// pkg/target resolves the team-specific rule ahead of the bare one. A
+			// project-only key would forbid the very config it then generates.
+			if prev, dup := seen[p.routeKey()]; dup {
+				forTeam := ""
+				if p.Team != "" {
+					forTeam = fmt.Sprintf(" for team %q", p.Team)
+				}
+				return fmt.Errorf("%s: project %q is routed twice%s (already to %s)", where, p.label(), forTeam, prev)
+			}
+			seen[p.routeKey()] = p.Repo
+			if p.Team != "" {
+				if _, ok := f.Teams[p.Team]; !ok {
+					return fmt.Errorf("%s (%s): routes to team %q, which is not in teams", where, p.label(), p.Team)
+				}
 			}
 		}
 	}

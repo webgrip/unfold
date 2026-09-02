@@ -220,6 +220,30 @@
         },
         "tokenSecret": {
           "$ref": "#/definitions/secretRef"
+        },
+        "clickup": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "ClickUp API root; empty = https://api.clickup.com/api/v2"
+            },
+            "tokenSecret": {
+              "$ref": "#/definitions/secretRef",
+              "description": "Personal token (pk_…) for reads and write-backs. Empty = the provider logs and no-ops instead of failing runs."
+            },
+            "webhookSecret": {
+              "$ref": "#/definitions/secretRef",
+              "description": "Verifies X-Signature on POST /webhooks/tracker/clickup. ClickUp generates this on webhook registration — capture it, never invent it. Empty = deliveries are rejected."
+            },
+            "doneStatus": {
+              "type": "string",
+              "description": "List status name applied when a Shift finishes, e.g. 'for review'. Statuses are per-List custom strings; empty leaves the board untouched."
+            }
+          }
         }
       },
       "additionalProperties": false

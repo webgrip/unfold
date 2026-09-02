@@ -48,6 +48,20 @@ tracker:
   url: ""
   # tokenSecret: {name: agent-vikunja-token, key: VIKUNJA_API_TOKEN}
   tokenSecret: {}
+  # The ClickUp tracker (pkg/provider/clickup). Ingest and write-backs are
+  # independent: webhookSecret alone verifies deliveries, tokenSecret alone
+  # enables reads and write-backs, either without the other degrades rather
+  # than fails. ClickUp GENERATES the webhook secret on registration — capture
+  # it from the create-webhook response; there is nothing to invent.
+  clickup:
+    url: "" # empty = https://api.clickup.com/api/v2
+    # tokenSecret: {name: agent-clickup-token, key: CLICKUP_TOKEN}
+    tokenSecret: {}
+    # webhookSecret: {name: ploeg-clickup-webhook, key: PLOEG_CLICKUP_SECRET}
+    webhookSecret: {}
+    # Statuses are per-List custom strings, so the finished-status must be
+    # NAMED; empty leaves the board untouched.
+    doneStatus: ""
 
 executor:
   # The executor (design §6, docs/contracts/executor.md). Disabled until the
