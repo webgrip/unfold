@@ -33,15 +33,27 @@ type Finding struct {
 	Findings string `json:"findings"`
 }
 
-// RepoRef names the repository a run works on.
 type RepoRef struct {
-	ForgeURL string `json:"forgeUrl"` // forge base URL, e.g. http://forgejo-http.forgejo.svc.cluster.local:3000
-	Owner    string `json:"owner"`
-	Name     string `json:"name"`
-	// BaseBranch is the branch to clone/branch from and open the PR against.
-	// Empty = the repo's default branch (which may be a stale stub — VIK-589).
+	Forge      string `json:"forge,omitempty"`
+	ForgeURL   string `json:"forgeUrl"`
+	Owner      string `json:"owner"`
+	Name       string `json:"name"`
 	BaseBranch string `json:"baseBranch,omitempty"`
 }
+
+const (
+	ForgeForgejo = "forgejo"
+	ForgeGitLab  = "gitlab"
+)
+
+func (r RepoRef) Dialect() string {
+	if r.Forge == "" {
+		return ForgeForgejo
+	}
+	return r.Forge
+}
+
+func (r RepoRef) ProjectPath() string { return r.Owner + "/" + r.Name }
 
 // OutcomeReport is the harness contract output. A zero-value Outcome ("")
 // means "no structured signal" — the orchestrator falls back to forge

@@ -459,7 +459,7 @@ func testCfg(base string) Config {
 		RepoOwner:  "webgrip",
 		RepoName:   "ploeg",
 		BaseBranch: base,
-		ForgejoURL: "http://forgejo-http.forgejo.svc.cluster.local:3000",
+		ForgeURL:   "http://forgejo-http.forgejo.svc.cluster.local:3000",
 	}
 }
 
@@ -467,7 +467,7 @@ func specFor(cfg Config, item work.WorkItem, branch, trace string) harness.TaskS
 	return harness.TaskSpec{
 		WorkItem: item,
 		Repo: harness.RepoRef{
-			ForgeURL: cfg.ForgejoURL, Owner: cfg.RepoOwner, Name: cfg.RepoName, BaseBranch: cfg.BaseBranch,
+			ForgeURL: cfg.ForgeURL, Owner: cfg.RepoOwner, Name: cfg.RepoName, BaseBranch: cfg.BaseBranch,
 		},
 		Branch:  branch,
 		TraceID: trace,
@@ -527,7 +527,7 @@ func assertSlice(t *testing.T, got, want []string) {
 	}
 }
 
-func TestPRMatches(t *testing.T) {
+func TestIsRunChangeRequest(t *testing.T) {
 	cases := []struct {
 		name                             string
 		headRef, baseRef, wantHead, base string
@@ -539,8 +539,8 @@ func TestPRMatches(t *testing.T) {
 		{"wrong base rejected when configured", "agent/vik-1", "main", "agent/vik-1", "development", false},
 	}
 	for _, c := range cases {
-		if got := prMatches(c.headRef, c.baseRef, c.wantHead, c.base); got != c.want {
-			t.Errorf("%s: prMatches(%q,%q,%q,%q) = %v, want %v",
+		if got := isRunChangeRequest(changeRequest{HeadBranch: c.headRef, BaseBranch: c.baseRef}, c.wantHead, c.base); got != c.want {
+			t.Errorf("%s: isRunChangeRequest(%q,%q,%q,%q) = %v, want %v",
 				c.name, c.headRef, c.baseRef, c.wantHead, c.base, got, c.want)
 		}
 	}

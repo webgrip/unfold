@@ -23,6 +23,18 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{ .Values.executor.apiUrl | default (printf "http://%s:%v" (include "ploeg.fullname" .) .Values.service.port) }}
 {{- end -}}
 
+{{- define "ploeg.forge" -}}
+{{- $e := .Values.executor -}}
+{{- $kind := $e.forge | default "forgejo" -}}
+{{- $cfg := (index $e $kind) | default dict -}}
+{{- dict
+      "kind" $kind
+      "url" ($cfg.url | default "")
+      "tokenSecret" ($cfg.tokenSecret | default dict)
+      "readTokenSecret" ($cfg.readTokenSecret | default dict)
+    | toJson -}}
+{{- end -}}
+
 {{/*
 ploeg.teamRoles expands one team into the distinct Roles that need their own
 workload, as a JSON array. Both executors range over this, so they cannot
@@ -275,8 +287,11 @@ spec:
             secretKeyRef:
               name: {{ $root.Values.executor.litellm.masterKeySecret.name }}
               key: {{ $root.Values.executor.litellm.masterKeySecret.key }}
-        - name: FORGEJO_URL
-          value: {{ $root.Values.executor.forgejo.url | quote }}
+        {{- $forge := include "ploeg.forge" $root | fromJson }}
+        - name: PLOEG_TARGET_FORGE
+          value: {{ $forge.kind | quote }}
+        - name: FORGE_URL
+          value: {{ $forge.url | quote }}
         {{- /* ADR-0013 tier 1: a READING Run gets a read-only forge credential
              where one is configured, so the writer/reader split is enforced by
              the forge and not only by Ploeg's scheduling. The repos are
@@ -286,7 +301,7 @@ spec:
              is the only boundary; turning the credential boundary on is one
              secret and no code. */}}
         {{- $isReader := and $role.name (not $role.writes) }}
-        {{- $readSecret := $root.Values.executor.forgejo.readTokenSecret }}
+        {{- $readSecret := $forge.readTokenSecret }}
         - name: AGENT_BUILDER_TOKEN
           valueFrom:
             secretKeyRef:
@@ -294,8 +309,8 @@ spec:
               name: {{ $readSecret.name }}
               key: {{ $readSecret.key }}
               {{- else }}
-              name: {{ $root.Values.executor.forgejo.tokenSecret.name }}
-              key: {{ $root.Values.executor.forgejo.tokenSecret.key }}
+              name: {{ $forge.tokenSecret.name }}
+              key: {{ $forge.tokenSecret.key }}
               {{- end }}
         # FALLBACK target only. The repository belongs to the work item,
         # resolved at ingest from its tracker scope and delivered on the claim

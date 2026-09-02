@@ -8,7 +8,7 @@ import (
 
 func envCfg() Config {
 	return Config{
-		ForgejoURL: "http://forge",
+		ForgeURL:   "http://forge",
 		RepoOwner:  "webgrip",
 		RepoName:   "erfbeeld",
 		BaseBranch: "main",
@@ -51,17 +51,17 @@ func TestResolveTarget_Precedence(t *testing.T) {
 		},
 		{
 			name: "no claim target and no env target is a configuration failure",
-			cfg:  Config{ForgejoURL: "http://forge"}, item: itemWith(nil),
+			cfg:  Config{ForgeURL: "http://forge"}, item: itemWith(nil),
 			wantErr: true,
 		},
 		{
 			name: "targetSource=env with no env target is a configuration failure",
-			cfg:  Config{ForgejoURL: "http://forge", TargetSource: TargetSourceEnv},
+			cfg:  Config{ForgeURL: "http://forge", TargetSource: TargetSourceEnv},
 			item: itemWith(claim), wantErr: true,
 		},
 		{
 			name: "claim target rescues a worker with no env repo at all",
-			cfg:  Config{ForgejoURL: "http://forge"}, item: itemWith(claim),
+			cfg:  Config{ForgeURL: "http://forge"}, item: itemWith(claim),
 			wantOwner: "webgrip", wantNm: "ploeg", wantBase: "development",
 		},
 	}
@@ -82,8 +82,8 @@ func TestResolveTarget_Precedence(t *testing.T) {
 				t.Errorf("got %s/%s@%s, want %s/%s@%s",
 					got.Owner, got.Name, got.BaseBranch, c.wantOwner, c.wantNm, c.wantBase)
 			}
-			if got.ForgeURL != c.cfg.ForgejoURL {
-				t.Errorf("forge URL = %q, want %q (forge is global today)", got.ForgeURL, c.cfg.ForgejoURL)
+			if got.ForgeURL != c.cfg.ForgeURL {
+				t.Errorf("forge URL = %q, want %q (forge is global today)", got.ForgeURL, c.cfg.ForgeURL)
 			}
 		})
 	}

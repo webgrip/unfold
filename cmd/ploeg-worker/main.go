@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/webgrip/ploeg/pkg/harness"
 	"github.com/webgrip/ploeg/pkg/litellm"
 	"github.com/webgrip/ploeg/pkg/llmbroker"
 	"github.com/webgrip/ploeg/pkg/worker"
@@ -93,7 +94,8 @@ func run(log *slog.Logger) error {
 		RepoName:     os.Getenv("REPO_NAME"),
 		BaseBranch:   envOr("PLOEG_BASE_BRANCH", ""),
 		TargetSource: envOr("PLOEG_TARGET_SOURCE", ""),
-		ForgejoURL:   trimSlash(requireEnv("FORGEJO_URL")),
+		ForgeURL:     trimSlash(requireEnv("FORGE_URL")),
+		DefaultForge: envOr("PLOEG_TARGET_FORGE", harness.ForgeForgejo),
 		// The credential is true for EVERY possible target, so it stays
 		// boot-required: failing here costs no attempt and strands no lease.
 		BuilderToken: requireEnv("AGENT_BUILDER_TOKEN"),

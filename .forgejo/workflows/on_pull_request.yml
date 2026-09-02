@@ -26,6 +26,7 @@ jobs:
       - run: helm template ploeg ops/helm/ploeg > /dev/null
       - run: helm template ploeg ops/helm/ploeg -f ops/helm/ploeg/ci/executor-values.yaml > /dev/null
       - run: helm template ploeg ops/helm/ploeg -f ops/helm/ploeg/ci/executor-cronjob-values.yaml > /dev/null
+      - run: helm template ploeg ops/helm/ploeg -f ops/helm/ploeg/ci/executor-gitlab-values.yaml > /dev/null
       # Golden renders. A chart edit that changes a rendered manifest has to
       # say so in the diff — the pod is the security boundary, and the
       # PolicyException in webgrip/homelab-cluster is keyed on a label this

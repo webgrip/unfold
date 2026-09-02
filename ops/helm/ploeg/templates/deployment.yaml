@@ -107,9 +107,26 @@ spec:
               value: {{ . | quote }}
             {{- end }}
             {{- end }}
-            {{- /* Tracker write-backs (backlog #31): how a closed Shift asks a
-                 person to merge. Unset = the provider keeps its logging no-op
-                 and runs still finish; the board just is not updated. */}}
+            {{- with .Values.executor.gitlab }}
+            {{- if .url }}
+            - name: PLOEG_GITLAB_URL
+              value: {{ .url | quote }}
+            - name: PLOEG_GITLAB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .tokenSecret.name }}
+                  key: {{ .tokenSecret.key }}
+            {{- with .webhookSecret }}
+            - name: PLOEG_GITLAB_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .key }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            - name: PLOEG_TARGET_FORGE
+              value: {{ .Values.executor.forge | default "forgejo" | quote }}
             {{- with .Values.tracker }}
             {{- if .url }}
             - name: PLOEG_VIKUNJA_URL

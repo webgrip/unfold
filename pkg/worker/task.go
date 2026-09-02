@@ -2,6 +2,7 @@ package worker
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/webgrip/ploeg/pkg/harness"
@@ -33,6 +34,7 @@ func ComposePrompt(spec harness.TaskSpec, writes bool, priorPR string, onReviewB
 	if base == "" {
 		base = "main"
 	}
+	noun := changeRequestNoun(spec.Repo)
 	var b strings.Builder
 	if spec.Role != "" {
 		fmt.Fprintf(&b, "# Your role: %s\n\n", spec.Role)
@@ -59,10 +61,10 @@ func ComposePrompt(spec harness.TaskSpec, writes bool, priorPR string, onReviewB
   author, so review the ticket against the existing code, not a diff.
 `, base)
 		}
-		b.WriteString(`- Do NOT modify, commit or push anything. Your clone's origin has no
+		fmt.Fprintf(&b, `- Do NOT modify, commit or push anything. Your clone's origin has no
   credentials in it and this run was given no forge token, so a push has
   nothing to authenticate with.
-- Do not open, update, comment on, or merge a pull request. Ploeg publishes
+- Do not open, update, comment on, or merge a %[1]s. Ploeg publishes
   your findings for you.
 - Deliver your review by writing this JSON to the file named by the
   PLOEG_OUTCOME_FILE environment variable, as the LAST thing you do:
@@ -74,7 +76,7 @@ func ComposePrompt(spec harness.TaskSpec, writes bool, priorPR string, onReviewB
   The findings field is the whole point of your run: be specific, name files
   and lines, state the consequence, and say what you would change. Another
   agent acts on this text without ever seeing your session, and a human reads
-  it on the pull request.
+  it on the %[1]s.
 - Include a "verdict" alongside it, one of:
       "approve"          the work is done; no further changes are needed
       "request_changes"  something must change before this can be merged
@@ -85,14 +87,14 @@ func ComposePrompt(spec harness.TaskSpec, writes bool, priorPR string, onReviewB
   stands.
 - If the work cannot be reviewed at all, explain why on stderr and exit
   non-zero.
-`)
+`, noun)
 		// The pull request the findings will land on. A reader was never told
 		// it existed, which made "review the pull request" unsayable — it
 		// could only ever review a branch it had not been given either.
 		if priorPR != "" {
-			fmt.Fprintf(&b, `- Your review will be posted as a comment on this pull request: %[1]s
+			fmt.Fprintf(&b, `- Your review will be posted as a comment on this %[2]s: %[1]s
   Read it for the author's own description of the change before you judge it.
-`, priorPR)
+`, priorPR, noun)
 		}
 		return b.String()
 	}
@@ -108,19 +110,38 @@ func ComposePrompt(spec harness.TaskSpec, writes bool, priorPR string, onReviewB
 `, spec.Branch, item.ExternalID, spec.TraceID, base)
 
 	if priorPR != "" {
-		fmt.Fprintf(&b, `- A pull request is ALREADY OPEN on this branch: %[1]s
-  Push your commits to %[2]s to update it. Do NOT open a second pull request.
-`, priorPR, spec.Branch)
+		fmt.Fprintf(&b, `- A %[3]s is ALREADY OPEN on this branch: %[1]s
+  Push your commits to %[2]s to update it. Do NOT open a second %[3]s.
+`, priorPR, spec.Branch, noun)
 	} else {
-		fmt.Fprintf(&b, `- When the work is complete: push the branch and open a pull request with base
+		b.WriteString(openChangeRequestInstruction(spec.Repo, base, item.ExternalID))
+	}
+	fmt.Fprintf(&b, `- Do NOT merge the %[1]s. A human merges.
+- If the ticket cannot be completed, explain why on stderr and exit non-zero.
+`, noun)
+	return b.String()
+}
+
+func changeRequestNoun(repo harness.RepoRef) string {
+	if repo.Dialect() == harness.ForgeGitLab {
+		return "merge request"
+	}
+	return "pull request"
+}
+
+func openChangeRequestInstruction(repo harness.RepoRef, base, externalID string) string {
+	if repo.Dialect() == harness.ForgeGitLab {
+		return fmt.Sprintf(`- When the work is complete: push the branch and open a merge request with
+  target branch %[3]s via the GitLab API — POST
+  %[1]s/api/v4/projects/%[2]s/merge_requests with source_branch, target_branch
+  and title — sending the token in AGENT_BUILDER_TOKEN as the PRIVATE-TOKEN
+  header. Put "VIK-%[4]s" in the description.
+`, repo.ForgeURL, url.QueryEscape(repo.ProjectPath()), base, externalID)
+	}
+	return fmt.Sprintf(`- When the work is complete: push the branch and open a pull request with base
   branch %[4]s via the Forgejo API (%[1]s/api/v1/repos/%[2]s/%[3]s/pulls)
   authenticated as agent-builder. Put "VIK-%[5]s" in the PR body.
-`, spec.Repo.ForgeURL, spec.Repo.Owner, spec.Repo.Name, base, item.ExternalID)
-	}
-	b.WriteString(`- Do NOT merge the pull request. A human merges.
-- If the ticket cannot be completed, explain why on stderr and exit non-zero.
-`)
-	return b.String()
+`, repo.ForgeURL, repo.Owner, repo.Name, base, externalID)
 }
 
 // writeBriefing renders earlier Rounds' findings, attributed per Role and

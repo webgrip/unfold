@@ -45,7 +45,8 @@ type Config struct {
 	// anything else prefers a resolved claim target. The per-team lever for
 	// rolling the decoupling forward or back one team at a time.
 	TargetSource string
-	ForgejoURL   string // in-cluster forge base (global today; Target carries an id, not a URL)
+	ForgeURL     string // in-cluster forge base (global today; Target carries an id, not a URL)
+	DefaultForge string
 	BuilderToken string // agent-builder bot token
 	WorkDir      string
 
@@ -252,7 +253,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	//
 	// Looked up before the prompt is composed, not after: the contract has to
 	// tell a writer whether to open a PR or update the one already there.
-	priorPR, priorErr := findPR(ref, forgeToken, branch)
+	priorPR, priorErr := findOpenChangeRequest(ref, forgeToken, branch)
 	if priorErr != nil {
 		w.Log.Warn("pre-run PR lookup failed", "err", priorErr)
 	}
@@ -307,7 +308,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	}
 
 	// The PR is the ground truth (git/forge state stays the durable medium).
-	prURL, prErr := findPR(ref, forgeToken, branch)
+	prURL, prErr := findOpenChangeRequest(ref, forgeToken, branch)
 	if prErr != nil {
 		w.Log.Warn("PR lookup failed", "err", prErr)
 	}

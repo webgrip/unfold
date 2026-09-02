@@ -30,7 +30,8 @@ var errNoTarget = errors.New("no repository configured: the work item resolved n
 // Blending is how you clone one repo and push to another.
 func resolveTarget(cfg Config, item work.WorkItem, log *slog.Logger) (harness.RepoRef, error) {
 	env := harness.RepoRef{
-		ForgeURL:   cfg.ForgejoURL,
+		Forge:      cfg.DefaultForge,
+		ForgeURL:   cfg.ForgeURL,
 		Owner:      cfg.RepoOwner,
 		Name:       cfg.RepoName,
 		BaseBranch: cfg.BaseBranch,
@@ -46,10 +47,14 @@ func resolveTarget(cfg Config, item work.WorkItem, log *slog.Logger) (harness.Re
 
 	if item.Target != nil && item.Target.Resolved() {
 		ref := harness.RepoRef{
-			ForgeURL:   cfg.ForgejoURL, // forge is global today; Target carries an id, not a URL
+			Forge:      item.Target.Forge,
+			ForgeURL:   cfg.ForgeURL, // forge is global today; Target carries an id, not a URL
 			Owner:      item.Target.Owner,
 			Name:       item.Target.Repo,
 			BaseBranch: item.Target.BaseBranch,
+		}
+		if ref.Forge == "" {
+			ref.Forge = cfg.DefaultForge
 		}
 		if ref.BaseBranch == "" {
 			ref.BaseBranch = env.BaseBranch

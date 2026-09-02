@@ -59,6 +59,7 @@ executor:
   # executor). Any other launcher can implement docs/contracts/executor.md
   # out-of-chart against the run API.
   type: keda
+  forge: forgejo
   # Global harness defaults; a team's optional `harness:` block overrides
   # these field-by-field (see teams below).
   harness:
@@ -152,6 +153,13 @@ executor:
     #  name: agent-builder-admin-token
     #  key: FORGEJO_ADMIN_TOKEN
     botUser: agent-builder
+  gitlab:
+    url: ""
+    tokenSecret:
+      name: agent-builder-token
+      key: GITLAB_TOKEN
+    readTokenSecret: {}
+    webhookSecret: {}
   scaler:
     # Empty = ploeg-db-rw.<release namespace>.svc.cluster.local. Must be a
     # name the KEDA operator can resolve from its own namespace (FQDN).

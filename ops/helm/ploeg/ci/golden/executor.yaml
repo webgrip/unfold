@@ -128,6 +128,8 @@ spec:
                   key: FORGEJO_TOKEN
             - name: PLOEG_FORGEJO_BOT
               value: "agent-builder"
+            - name: PLOEG_TARGET_FORGE
+              value: "forgejo"
             - name: PLOEG_DEFAULT_TEAM
               value: "default"
             - name: PLOEG_LEASE_TTL
@@ -315,7 +317,9 @@ spec:
                   secretKeyRef:
                     name: agent-litellm-master
                     key: LITELLM_MASTER_KEY
-              - name: FORGEJO_URL
+              - name: PLOEG_TARGET_FORGE
+                value: "forgejo"
+              - name: FORGE_URL
                 value: "http://forgejo-http.forgejo.svc.cluster.local:3000"
               - name: AGENT_BUILDER_TOKEN
                 valueFrom:
@@ -511,7 +515,9 @@ spec:
                   secretKeyRef:
                     name: agent-litellm-master
                     key: LITELLM_MASTER_KEY
-              - name: FORGEJO_URL
+              - name: PLOEG_TARGET_FORGE
+                value: "forgejo"
+              - name: FORGE_URL
                 value: "http://forgejo-http.forgejo.svc.cluster.local:3000"
               - name: AGENT_BUILDER_TOKEN
                 valueFrom:
@@ -735,7 +741,9 @@ spec:
                   secretKeyRef:
                     name: agent-litellm-master
                     key: LITELLM_MASTER_KEY
-              - name: FORGEJO_URL
+              - name: PLOEG_TARGET_FORGE
+                value: "forgejo"
+              - name: FORGE_URL
                 value: "http://forgejo-http.forgejo.svc.cluster.local:3000"
               - name: AGENT_BUILDER_TOKEN
                 valueFrom:
@@ -964,7 +972,9 @@ spec:
                   secretKeyRef:
                     name: agent-litellm-master
                     key: LITELLM_MASTER_KEY
-              - name: FORGEJO_URL
+              - name: PLOEG_TARGET_FORGE
+                value: "forgejo"
+              - name: FORGE_URL
                 value: "http://forgejo-http.forgejo.svc.cluster.local:3000"
               - name: AGENT_BUILDER_TOKEN
                 valueFrom:
@@ -1209,7 +1219,9 @@ spec:
                   secretKeyRef:
                     name: agent-litellm-master
                     key: LITELLM_MASTER_KEY
-              - name: FORGEJO_URL
+              - name: PLOEG_TARGET_FORGE
+                value: "forgejo"
+              - name: FORGE_URL
                 value: "http://forgejo-http.forgejo.svc.cluster.local:3000"
               - name: AGENT_BUILDER_TOKEN
                 valueFrom:
@@ -1398,7 +1410,9 @@ spec:
                   secretKeyRef:
                     name: agent-litellm-master
                     key: LITELLM_MASTER_KEY
-              - name: FORGEJO_URL
+              - name: PLOEG_TARGET_FORGE
+                value: "forgejo"
+              - name: FORGE_URL
                 value: "http://forgejo-http.forgejo.svc.cluster.local:3000"
               - name: AGENT_BUILDER_TOKEN
                 valueFrom:
@@ -1582,7 +1596,9 @@ spec:
                   secretKeyRef:
                     name: agent-litellm-master
                     key: LITELLM_MASTER_KEY
-              - name: FORGEJO_URL
+              - name: PLOEG_TARGET_FORGE
+                value: "forgejo"
+              - name: FORGE_URL
                 value: "http://forgejo-http.forgejo.svc.cluster.local:3000"
               - name: AGENT_BUILDER_TOKEN
                 valueFrom:
@@ -1809,7 +1825,9 @@ spec:
                   secretKeyRef:
                     name: agent-litellm-master
                     key: LITELLM_MASTER_KEY
-              - name: FORGEJO_URL
+              - name: PLOEG_TARGET_FORGE
+                value: "forgejo"
+              - name: FORGE_URL
                 value: "http://forgejo-http.forgejo.svc.cluster.local:3000"
               - name: AGENT_BUILDER_TOKEN
                 valueFrom:
@@ -2006,7 +2024,9 @@ spec:
                   secretKeyRef:
                     name: agent-litellm-master
                     key: LITELLM_MASTER_KEY
-              - name: FORGEJO_URL
+              - name: PLOEG_TARGET_FORGE
+                value: "forgejo"
+              - name: FORGE_URL
                 value: "http://forgejo-http.forgejo.svc.cluster.local:3000"
               - name: AGENT_BUILDER_TOKEN
                 valueFrom:
