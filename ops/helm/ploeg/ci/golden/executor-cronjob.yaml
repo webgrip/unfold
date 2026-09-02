@@ -218,7 +218,7 @@ spec:
           serviceAccountName: ploeg-worker
           automountServiceAccountToken: false
           nodeSelector:
-            node.webgrip.io/pool: worker # never control-plane (ADR-0002: DinD beside etcd)
+            node.webgrip.io/pool: worker
           securityContext:
             fsGroup: 1000
           initContainers:

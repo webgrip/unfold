@@ -157,8 +157,9 @@ spec:
   {{- with $root.Values.imagePullSecrets }}
   imagePullSecrets: {{- toYaml . | nindent 4 }}
   {{- end }}
-  nodeSelector:
-    node.webgrip.io/pool: worker # never control-plane (ADR-0002: DinD beside etcd)
+  {{- with $root.Values.executor.nodeSelector }}
+  nodeSelector: {{- toYaml . | nindent 4 }}
+  {{- end }}
   securityContext:
     fsGroup: 1000
   initContainers:

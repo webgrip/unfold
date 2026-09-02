@@ -209,6 +209,16 @@
           },
           "additionalProperties": false,
           "description": "Worker pods ServiceAccount. create and name are independent: naming an account never suppresses creating it."
+        },
+        "nodeSelector": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "Node selector for WORKER pods, not ploegd (that is the top-level nodeSelector). Keeps agent Jobs off control-plane nodes (ADR-0002: no DinD beside etcd). The default label exists in the homelab and on no other cluster, so a different estate must override it with its own label or clear it with null — Helm deep-merges maps, so {} leaves the default in place and only null removes the block.",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       }
     },
