@@ -22,7 +22,9 @@ type ScopeResolver interface {
 // Produced, never hand-written — which is the point. The operator writes
 // names; this writes the string with the ids in it.
 func (f *File) TargetSpec(ctx context.Context, r ScopeResolver, log *slog.Logger) (string, error) {
-	projects := f.Trackers.Vikunja.Projects
+	// Clickup entries carry pinned List ids (Validate enforces it), so only
+	// the vikunja half can need the resolver.
+	projects := append(append([]Project{}, f.Trackers.Vikunja.Projects...), f.Trackers.Clickup.Projects...)
 	if len(projects) == 0 {
 		return "", nil
 	}

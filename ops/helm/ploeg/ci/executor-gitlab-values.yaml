@@ -1,3 +1,12 @@
+tracker:
+  clickup:
+    tokenSecret:
+      name: agent-clickup-token
+      key: CLICKUP_TOKEN
+    webhookSecret:
+      name: ploeg-clickup-webhook
+      key: PLOEG_CLICKUP_SECRET
+    doneStatus: for review
 executor:
   enabled: true
   forge: gitlab

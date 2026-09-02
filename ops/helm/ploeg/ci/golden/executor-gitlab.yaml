@@ -133,6 +133,18 @@ spec:
                   key: PLOEG_GITLAB_SECRET
             - name: PLOEG_TARGET_FORGE
               value: "gitlab"
+            - name: PLOEG_CLICKUP_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ploeg-clickup-webhook
+                  key: PLOEG_CLICKUP_SECRET
+            - name: PLOEG_CLICKUP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: agent-clickup-token
+                  key: CLICKUP_TOKEN
+            - name: PLOEG_CLICKUP_DONE_STATUS
+              value: "for review"
             - name: PLOEG_DEFAULT_TEAM
               value: "default"
             - name: PLOEG_LEASE_TTL

@@ -140,6 +140,30 @@ spec:
                   key: {{ .tokenSecret.key }}
             {{- end }}
             {{- end }}
+            {{- with .Values.tracker.clickup }}
+            {{- with .webhookSecret }}
+            - name: PLOEG_CLICKUP_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .key }}
+            {{- end }}
+            {{- with .tokenSecret }}
+            - name: PLOEG_CLICKUP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .key }}
+            {{- end }}
+            {{- if .url }}
+            - name: PLOEG_CLICKUP_URL
+              value: {{ .url | quote }}
+            {{- end }}
+            {{- if .doneStatus }}
+            - name: PLOEG_CLICKUP_DONE_STATUS
+              value: {{ .doneStatus | quote }}
+            {{- end }}
+            {{- end }}
             {{- range $k, $v := .Values.env }}
             - name: {{ $k }}
               value: {{ $v | quote }}
