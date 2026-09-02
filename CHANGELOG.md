@@ -1,3 +1,9 @@
+## [0.3.0-rc.3](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.3.0-rc.2...v0.3.0-rc.3) (2026-09-02)
+
+### Added
+
+* **config,chart:** route ClickUp Lists through the config file ([9778959](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9778959ee3fb4b0745e717a589d2d009c825a911))
+
 ## [0.3.0-rc.2](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.3.0-rc.1...v0.3.0-rc.2) (2026-09-02)
 
 ### Fixed
