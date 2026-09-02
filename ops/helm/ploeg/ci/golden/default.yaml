@@ -101,6 +101,8 @@ spec:
                   key: FORGEJO_TOKEN
             - name: PLOEG_FORGEJO_BOT
               value: "agent-builder"
+            - name: PLOEG_TARGET_FORGE
+              value: "forgejo"
             - name: PLOEG_DEFAULT_TEAM
               value: "default"
             - name: PLOEG_LEASE_TTL

@@ -7,12 +7,6 @@ import (
 	"github.com/webgrip/ploeg/pkg/harness"
 )
 
-// The delivery contract is forge-specific in exactly two ways — what the thing
-// is called and how you open one — and both are load-bearing. An agent told to
-// open a "pull request" via a Forgejo endpoint against GitLab opens nothing,
-// reports success, and the Shift then has no change request for the reviewer to
-// comment on. That failure is silent all the way to a human.
-
 func gitlabSpec(role string) harness.TaskSpec {
 	spec := specFor(testCfg("main"), testItem(), "agent/vik-585", "ploeg-abc123def456")
 	spec.Role = role
@@ -31,7 +25,6 @@ func TestComposePrompt_GitLabWriterOpensAMergeRequest(t *testing.T) {
 
 	for _, want := range []string{
 		"open a merge request",
-		// The subgroup path, encoded. Three segments, not two.
 		"https://gitlab.com/api/v4/projects/acme%2Finternal%2Fwidgets/merge_requests",
 		"PRIVATE-TOKEN",
 		"Do NOT merge the merge request",
@@ -47,9 +40,6 @@ func TestComposePrompt_GitLabWriterOpensAMergeRequest(t *testing.T) {
 	}
 }
 
-// The Forgejo contract must be byte-for-byte what it was. This change is
-// additive, and a homelab deployment that never sets a forge must not notice
-// it happened.
 func TestComposePrompt_ForgejoWriterUnchanged(t *testing.T) {
 	task := ComposePrompt(roleSpec("builder", nil), true, "", true)
 
@@ -69,8 +59,6 @@ func TestComposePrompt_ForgejoWriterUnchanged(t *testing.T) {
 	}
 }
 
-// A reader never opens anything, but it is told where its findings will be
-// posted and asked not to comment there itself — both of which name the object.
 func TestComposePrompt_GitLabReaderUsesMergeRequestVocabulary(t *testing.T) {
 	task := ComposePrompt(gitlabSpec("reviewer"), false, "https://gitlab.com/acme/internal/widgets/-/merge_requests/4", true)
 
@@ -88,8 +76,6 @@ func TestComposePrompt_GitLabReaderUsesMergeRequestVocabulary(t *testing.T) {
 	}
 }
 
-// The already-open branch of the writer contract is where a second change
-// request gets opened by accident, so it has to name the object too.
 func TestComposePrompt_GitLabWriterUpdatesExistingMR(t *testing.T) {
 	pr := "https://gitlab.com/acme/internal/widgets/-/merge_requests/4"
 	task := ComposePrompt(gitlabSpec("builder"), true, pr, true)

@@ -33,8 +33,8 @@ default forge" promise `pkg/work.Target` and the forge registry already make.
 The obvious minimal change is the endpoint alone. It is not enough: the
 briefing is a prompt, and an agent told to open a "pull request" on GitLab goes
 looking for a pull-request API, finds none, and improvises. `changeRequestNoun`
-and `openChangeRequest` therefore switch on the same dialect value and sit next
-to each other, so a future forge cannot get one and not the other.
+and `openChangeRequestInstruction` therefore switch on the same dialect value
+and sit next to each other, so a future forge cannot get one and not the other.
 
 ## The chart's nil-pointer, fixed in passing
 
@@ -73,10 +73,13 @@ with `store.ClaimRole` or `store.PendingRuns`.
   and revoked per Run with repository-scoped push rights, GitLab runs on the
   shared token and only scheduling separates reader from writer at tier 2.
   Tier 1 is configured and pinned by a golden.
-- **`FORGEJO_URL` is still emitted** alongside `FORGE_URL`, carrying the same
-  value, so a ScaledJob starting a pod from the previous image mid-upgrade
-  still finds a forge. It should be dropped a release after the chart and image
-  have moved together; nothing currently schedules that.
+- **The worker's forge env is renamed, not aliased.** `FORGE_URL` replaces
+  `FORGEJO_URL`, and the dialect reuses ploegd's existing `PLOEG_TARGET_FORGE`
+  rather than a second spelling. Both are breaking for anyone setting them by
+  hand; neither is for a chart-driven deployment, because the release train
+  keeps chart and image in lockstep. An accepted-alias shim was written first
+  and removed: two names for one value is a worse thing to own than a rename
+  under a version bump.
 - **A GitLab webhook secret** (`executor.gitlab.webhookSecret`) is wired
   through to ploegd, but nothing in this change verifies end to end that a
   GitLab review comment opens a fix Round — that needs a live GitLab and is the

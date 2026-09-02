@@ -34,11 +34,6 @@ func ComposePrompt(spec harness.TaskSpec, writes bool, priorPR string, onReviewB
 	if base == "" {
 		base = "main"
 	}
-	// What this forge calls a change request. Not cosmetic: an agent told to
-	// open a "pull request" against GitLab goes looking for an endpoint that
-	// does not exist there, and the noun is what it searches its tools and the
-	// repository's own docs for. The noun and the endpoint come out of the same
-	// switch (see changeRequestNoun / openChangeRequest) so they cannot drift.
 	noun := changeRequestNoun(spec.Repo)
 	var b strings.Builder
 	if spec.Role != "" {
@@ -93,7 +88,7 @@ func ComposePrompt(spec harness.TaskSpec, writes bool, priorPR string, onReviewB
 - If the work cannot be reviewed at all, explain why on stderr and exit
   non-zero.
 `, noun)
-		// The change request the findings will land on. A reader was never told
+		// The pull request the findings will land on. A reader was never told
 		// it existed, which made "review the pull request" unsayable — it
 		// could only ever review a branch it had not been given either.
 		if priorPR != "" {
@@ -119,7 +114,7 @@ func ComposePrompt(spec harness.TaskSpec, writes bool, priorPR string, onReviewB
   Push your commits to %[2]s to update it. Do NOT open a second %[3]s.
 `, priorPR, spec.Branch, noun)
 	} else {
-		b.WriteString(openChangeRequest(spec.Repo, base, item.ExternalID))
+		b.WriteString(openChangeRequestInstruction(spec.Repo, base, item.ExternalID))
 	}
 	fmt.Fprintf(&b, `- Do NOT merge the %[1]s. A human merges.
 - If the ticket cannot be completed, explain why on stderr and exit non-zero.
@@ -127,7 +122,6 @@ func ComposePrompt(spec harness.TaskSpec, writes bool, priorPR string, onReviewB
 	return b.String()
 }
 
-// changeRequestNoun is what the target forge calls a change request.
 func changeRequestNoun(repo harness.RepoRef) string {
 	if repo.Dialect() == harness.ForgeGitLab {
 		return "merge request"
@@ -135,18 +129,8 @@ func changeRequestNoun(repo harness.RepoRef) string {
 	return "pull request"
 }
 
-// openChangeRequest is the instruction for opening one: the endpoint, how to
-// authenticate against it, and where the ticket reference goes.
-//
-// Both branches name a concrete endpoint rather than saying "open a PR". An
-// agent that has to guess the API guesses the forge it has seen most, and the
-// whole reason this function exists is that the guess used to be wrong in one
-// direction and hardcoded in the other.
-func openChangeRequest(repo harness.RepoRef, base, externalID string) string {
+func openChangeRequestInstruction(repo harness.RepoRef, base, externalID string) string {
 	if repo.Dialect() == harness.ForgeGitLab {
-		// The project is addressed by URL-encoded full path, which is what
-		// makes this work for a subgroup project such as
-		// acme/internal/widgets — three segments, not two.
 		return fmt.Sprintf(`- When the work is complete: push the branch and open a merge request with
   target branch %[3]s via the GitLab API — POST
   %[1]s/api/v4/projects/%[2]s/merge_requests with source_branch, target_branch

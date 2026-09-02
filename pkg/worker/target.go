@@ -30,7 +30,7 @@ var errNoTarget = errors.New("no repository configured: the work item resolved n
 // Blending is how you clone one repo and push to another.
 func resolveTarget(cfg Config, item work.WorkItem, log *slog.Logger) (harness.RepoRef, error) {
 	env := harness.RepoRef{
-		Forge:      cfg.Forge,
+		Forge:      cfg.DefaultForge,
 		ForgeURL:   cfg.ForgeURL,
 		Owner:      cfg.RepoOwner,
 		Name:       cfg.RepoName,
@@ -47,11 +47,6 @@ func resolveTarget(cfg Config, item work.WorkItem, log *slog.Logger) (harness.Re
 
 	if item.Target != nil && item.Target.Resolved() {
 		ref := harness.RepoRef{
-			// The DIALECT comes from the work item — it is a property of the
-			// repository, resolved at ingest from the tracker scope — while the
-			// URL stays global, because Target carries a forge id and not a
-			// host. Falling back to the configured default keeps every row
-			// written before targets carried a forge working unchanged.
 			Forge:      item.Target.Forge,
 			ForgeURL:   cfg.ForgeURL, // forge is global today; Target carries an id, not a URL
 			Owner:      item.Target.Owner,
@@ -59,7 +54,7 @@ func resolveTarget(cfg Config, item work.WorkItem, log *slog.Logger) (harness.Re
 			BaseBranch: item.Target.BaseBranch,
 		}
 		if ref.Forge == "" {
-			ref.Forge = cfg.Forge
+			ref.Forge = cfg.DefaultForge
 		}
 		if ref.BaseBranch == "" {
 			ref.BaseBranch = env.BaseBranch

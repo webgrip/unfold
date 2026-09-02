@@ -280,11 +280,9 @@ spec:
                   secretKeyRef:
                     name: agent-litellm-master
                     key: LITELLM_MASTER_KEY
-              - name: PLOEG_FORGE
+              - name: PLOEG_TARGET_FORGE
                 value: "gitlab"
               - name: FORGE_URL
-                value: "https://gitlab.com"
-              - name: FORGEJO_URL
                 value: "https://gitlab.com"
               - name: AGENT_BUILDER_TOKEN
                 valueFrom:
@@ -468,11 +466,9 @@ spec:
                   secretKeyRef:
                     name: agent-litellm-master
                     key: LITELLM_MASTER_KEY
-              - name: PLOEG_FORGE
+              - name: PLOEG_TARGET_FORGE
                 value: "gitlab"
               - name: FORGE_URL
-                value: "https://gitlab.com"
-              - name: FORGEJO_URL
                 value: "https://gitlab.com"
               - name: AGENT_BUILDER_TOKEN
                 valueFrom:
@@ -656,11 +652,9 @@ spec:
                   secretKeyRef:
                     name: agent-litellm-master
                     key: LITELLM_MASTER_KEY
-              - name: PLOEG_FORGE
+              - name: PLOEG_TARGET_FORGE
                 value: "gitlab"
               - name: FORGE_URL
-                value: "https://gitlab.com"
-              - name: FORGEJO_URL
                 value: "https://gitlab.com"
               - name: AGENT_BUILDER_TOKEN
                 valueFrom:

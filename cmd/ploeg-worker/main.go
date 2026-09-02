@@ -15,10 +15,10 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
+	"github.com/webgrip/ploeg/pkg/harness"
 	"github.com/webgrip/ploeg/pkg/litellm"
 	"github.com/webgrip/ploeg/pkg/llmbroker"
 	"github.com/webgrip/ploeg/pkg/worker"
@@ -94,16 +94,8 @@ func run(log *slog.Logger) error {
 		RepoName:     os.Getenv("REPO_NAME"),
 		BaseBranch:   envOr("PLOEG_BASE_BRANCH", ""),
 		TargetSource: envOr("PLOEG_TARGET_SOURCE", ""),
-		// FORGE_URL is the name; FORGEJO_URL is the name it had when only one
-		// forge existed, still accepted so an existing deployment keeps
-		// booting. Exactly one has to be set — a worker with no forge cannot
-		// clone, which is a boot failure and not a run failure.
-		ForgeURL: trimSlash(requireEnvOneOf("FORGE_URL", "FORGEJO_URL")),
-		// Which dialect that URL speaks, for work items whose target names no
-		// forge. Not validated here: an unknown value is caught per-run in
-		// findPR, where the target's own forge is also in play and the error
-		// can name the run it stopped.
-		Forge: envOr("PLOEG_FORGE", ""),
+		ForgeURL:     trimSlash(requireEnv("FORGE_URL")),
+		DefaultForge: envOr("PLOEG_TARGET_FORGE", harness.ForgeForgejo),
 		// The credential is true for EVERY possible target, so it stays
 		// boot-required: failing here costs no attempt and strands no lease.
 		BuilderToken: requireEnv("AGENT_BUILDER_TOKEN"),
@@ -187,20 +179,6 @@ func requireEnv(key string) string {
 		os.Exit(1)
 	}
 	return v
-}
-
-// requireEnvOneOf takes the first key that is set, so a variable can be renamed
-// without a flag day. The error names every key it looked at — being told only
-// the new name is no help to a deployment that still sets the old one.
-func requireEnvOneOf(keys ...string) string {
-	for _, k := range keys {
-		if v := os.Getenv(k); v != "" {
-			return v
-		}
-	}
-	fmt.Fprintf(os.Stderr, "one of %s is required\n", strings.Join(keys, ", "))
-	os.Exit(1)
-	return ""
 }
 
 func envOr(key, def string) string {

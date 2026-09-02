@@ -14,11 +14,11 @@
 
 ## 3. The two places that name a forge
 
-- [x] 3.1 `findPR` dispatches on the dialect; Forgejo and GitLab decode into one `changeRequest` shape
+- [x] 3.1 `findOpenChangeRequest` dispatches on the dialect; Forgejo and GitLab decode into one `changeRequest` shape
 - [x] 3.2 GitLab filters `source_branch` server-side, so a repository with more than one page of open requests cannot hide the Run's own
 - [x] 3.3 The GitLab project is addressed by URL-encoded full path (`%2F`, not path segments)
 - [x] 3.4 An unknown dialect returns an error naming it — no fallback
-- [x] 3.5 `changeRequestNoun` and `openChangeRequest` switch on the same value, so vocabulary and endpoint cannot drift
+- [x] 3.5 `changeRequestNoun` and `openChangeRequestInstruction` switch on the same value, so vocabulary and endpoint cannot drift
 - [x] 3.6 `resolveTarget` takes the dialect from the Work Item, falling back to the configured default
 - [x] 3.7 Tests: both forges found; empty dialect is forgejo; subgroup path encoded; wrong base rejected on both; unknown dialect named in the error; HTTP failure surfaced
 - [x] 3.8 Tests: GitLab writer told to open a merge request at the GitLab endpoint and never a Forgejo one; GitLab reader given merge-request vocabulary; already-open branch names the right noun; **the Forgejo contract byte-for-byte unchanged**
@@ -29,7 +29,7 @@
 - [x] 4.2 `ploeg.forge` helper resolves the active block; no template reads `.forgejo` or `.gitlab` directly
 - [x] 4.3 The helper's `index`-with-default also removes the `forgejo: null` nil pointer that would have fired the moment `executor.enabled` went true
 - [x] 4.4 ploegd renders `PLOEG_GITLAB_URL` / `_TOKEN` / `_SECRET` when a url is set, and `PLOEG_TARGET_FORGE` when gitlab is active
-- [x] 4.5 `FORGE_URL` is the name; `FORGEJO_URL` emitted alongside and still accepted, so a pod started from the previous image mid-upgrade still finds a forge
+- [x] 4.5 One name per concept: `FORGE_URL` for the base URL and `PLOEG_TARGET_FORGE` for the dialect, the latter shared with ploegd rather than a second spelling of the same thing
 - [x] 4.6 `values.schema.json` gains `forge` (enum) and `gitlab`; both forge blocks become nullable
 - [x] 4.7 A fourth fixture and golden, `executor-gitlab`, rendering with `forgejo: null` on purpose; wired into `scripts/helm-golden.sh` and the PR workflow
 - [x] 4.8 The golden pins ADR-0013 tier 1 on GitLab: readers draw `agent-reader-token`, the writer draws `agent-builder-token`

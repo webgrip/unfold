@@ -33,34 +33,19 @@ type Finding struct {
 	Findings string `json:"findings"`
 }
 
-// RepoRef names the repository a run works on.
 type RepoRef struct {
-	// Forge is the API DIALECT the forge at ForgeURL speaks: "forgejo" (also
-	// Gitea) or "gitlab". Empty means forgejo, so every existing taskspec and
-	// every deployment that never set it keeps its current meaning.
-	//
-	// It is a dialect and not a vendor name because that is all the worker does
-	// with it: pick which endpoint shape to poll for an open change request,
-	// and which one to tell the agent to open. Clone and push need no dialect —
-	// git is git — which is why this arrived late and only in two places.
-	Forge    string `json:"forge,omitempty"`
-	ForgeURL string `json:"forgeUrl"` // forge base URL, e.g. http://forgejo-http.forgejo.svc.cluster.local:3000
-	Owner    string `json:"owner"`
-	Name     string `json:"name"`
-	// BaseBranch is the branch to clone/branch from and open the PR against.
-	// Empty = the repo's default branch (which may be a stale stub — VIK-589).
+	Forge      string `json:"forge,omitempty"`
+	ForgeURL   string `json:"forgeUrl"`
+	Owner      string `json:"owner"`
+	Name       string `json:"name"`
 	BaseBranch string `json:"baseBranch,omitempty"`
 }
 
-// The forge dialects the worker knows how to talk to.
 const (
 	ForgeForgejo = "forgejo"
 	ForgeGitLab  = "gitlab"
 )
 
-// Dialect resolves the empty default. Callers must use this rather than
-// comparing Forge directly: rows written before the field existed carry "",
-// and treating that as "unknown forge" would strand every one of them.
 func (r RepoRef) Dialect() string {
 	if r.Forge == "" {
 		return ForgeForgejo
@@ -68,13 +53,6 @@ func (r RepoRef) Dialect() string {
 	return r.Forge
 }
 
-// ProjectPath is the repository's full path on the forge — what GitLab calls a
-// project path and Forgejo splits into owner and name.
-//
-// GitLab subgroups are why this exists. A nested project is owner "acme"
-// with name "internal/widgets", so the path has THREE segments and the name
-// carries a slash. Joining them is correct for both forges; splitting on the
-// first slash to recover owner and name is not, and nothing here tries.
 func (r RepoRef) ProjectPath() string { return r.Owner + "/" + r.Name }
 
 // OutcomeReport is the harness contract output. A zero-value Outcome ("")

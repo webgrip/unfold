@@ -40,10 +40,10 @@ plus the additive Task Spec field that carries the answer to it.
   target written before this field keeps its exact meaning. The value travels
   on the Work Item — `pkg/work.Target` has carried `Forge` since ADR-0016 —
   and falls back to a deployment default.
-- **`findPR` dispatches on the dialect.** GitLab filters `source_branch`
-  server-side, so unlike the Forgejo call it cannot be defeated by a repository
-  with more than fifty open change requests. The project is addressed by
-  URL-encoded full path, which is what makes a subgroup project work.
+- **`findOpenChangeRequest` dispatches on the dialect.** GitLab filters
+  `source_branch` server-side, so unlike the Forgejo call it cannot be defeated
+  by a repository with more than fifty open change requests. The project is
+  addressed by URL-encoded full path, which is what makes a subgroup work.
 - **The briefing dispatches too, in vocabulary as well as endpoint.** An agent
   told to open a "pull request" against GitLab looks for an endpoint that is
   not there. Noun and endpoint come out of one switch so they cannot drift.

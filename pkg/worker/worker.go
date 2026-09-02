@@ -46,10 +46,7 @@ type Config struct {
 	// rolling the decoupling forward or back one team at a time.
 	TargetSource string
 	ForgeURL     string // in-cluster forge base (global today; Target carries an id, not a URL)
-	// Forge is the DEFAULT forge dialect for runs whose work item names none —
-	// the same "empty means the default forge" promise pkg/work.Target and
-	// ploegd's own forge registry already make. Empty here means forgejo.
-	Forge        string
+	DefaultForge string
 	BuilderToken string // agent-builder bot token
 	WorkDir      string
 
@@ -256,7 +253,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	//
 	// Looked up before the prompt is composed, not after: the contract has to
 	// tell a writer whether to open a PR or update the one already there.
-	priorPR, priorErr := findPR(ref, forgeToken, branch)
+	priorPR, priorErr := findOpenChangeRequest(ref, forgeToken, branch)
 	if priorErr != nil {
 		w.Log.Warn("pre-run PR lookup failed", "err", priorErr)
 	}
@@ -311,7 +308,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	}
 
 	// The PR is the ground truth (git/forge state stays the durable medium).
-	prURL, prErr := findPR(ref, forgeToken, branch)
+	prURL, prErr := findOpenChangeRequest(ref, forgeToken, branch)
 	if prErr != nil {
 		w.Log.Warn("PR lookup failed", "err", prErr)
 	}

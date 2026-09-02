@@ -1,16 +1,3 @@
-# CI-only values: the GitLab forge, rendered on every change.
-#
-# It exists as its own golden because selecting a forge changes the WORKER POD,
-# and the worker pod is the security boundary the goldens are here to police: a
-# different credential Secret, a different API the agent is told to call. A
-# review that cannot see those two lines change cannot review them.
-#
-# `forgejo: null` is the point of the fixture, not an accident. Emptying the
-# block you are not using is the documented way to keep a chart default from
-# demanding a Secret the cluster has no reason to hold — and before
-# ploeg.forge existed it was also a nil pointer, because the worker template
-# dereferenced .Values.executor.forgejo.url whether or not forgejo was in play.
-# Rendering with it null is what stops that from coming back.
 executor:
   enabled: true
   forge: gitlab
@@ -20,8 +7,6 @@ executor:
     tokenSecret:
       name: agent-builder-token
       key: GITLAB_TOKEN
-    # Tier 1 configured, so the reader/writer credential split renders here as
-    # it does in the forgejo fixture.
     readTokenSecret:
       name: agent-reader-token
       key: GITLAB_TOKEN
@@ -29,9 +14,6 @@ executor:
       name: ploeg-gitlab-webhook
       key: PLOEG_GITLAB_SECRET
   teams:
-    # A team with no repository: on GitLab the target is a SUBGROUP path
-    # resolved from the work item (R11), which is the case that broke naive
-    # owner/name splitting. Nothing here pins one, deliberately.
     - name: silver
       model: litellm_proxy/claude-sonnet-5
       budget: "6"
