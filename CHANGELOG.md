@@ -1,3 +1,9 @@
+## [0.3.0-rc.2](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.3.0-rc.1...v0.3.0-rc.2) (2026-09-02)
+
+### Fixed
+
+* **chart:** the worker node selector is a value, not a constant ([7cd54a7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7cd54a768abbc3bf9d0f57135053b216a5b6afb6))
+
 ## [0.3.0-rc.1](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.1-rc.1...v0.3.0-rc.1) (2026-09-02)
 
 ### Added
