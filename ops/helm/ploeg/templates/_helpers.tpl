@@ -24,6 +24,35 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{/*
+ploeg.forge resolves the ACTIVE forge into one shape, as JSON: kind, url,
+tokenSecret, readTokenSecret. Callers read those four keys and never touch
+.Values.executor.forgejo or .gitlab directly, so adding a third forge is a
+values block and an entry here rather than an edit at every use site.
+
+It also removes a trap. The worker template used to dereference
+.Values.executor.forgejo.url unconditionally, which meant `forgejo: null` —
+the documented way to empty the block while the executor is off — became a nil
+pointer the moment executor.enabled flipped to true. Indexing with a default
+tolerates a null or absent block, so selecting gitlab does not require keeping
+a vestigial forgejo block alive to satisfy the renderer.
+
+A kind naming no block yields empty strings rather than failing here. The
+worker fails per-run instead, where the error can name the run it stopped and
+the target's own forge is also in play.
+*/}}
+{{- define "ploeg.forge" -}}
+{{- $e := .Values.executor -}}
+{{- $kind := $e.forge | default "forgejo" -}}
+{{- $cfg := (index $e $kind) | default dict -}}
+{{- dict
+      "kind" $kind
+      "url" ($cfg.url | default "")
+      "tokenSecret" ($cfg.tokenSecret | default dict)
+      "readTokenSecret" ($cfg.readTokenSecret | default dict)
+    | toJson -}}
+{{- end -}}
+
+{{/*
 ploeg.teamRoles expands one team into the distinct Roles that need their own
 workload, as a JSON array. Both executors range over this, so they cannot
 disagree about how many workloads a team has.
@@ -275,8 +304,18 @@ spec:
             secretKeyRef:
               name: {{ $root.Values.executor.litellm.masterKeySecret.name }}
               key: {{ $root.Values.executor.litellm.masterKeySecret.key }}
+        {{- $forge := include "ploeg.forge" $root | fromJson }}
+        - name: PLOEG_FORGE
+          value: {{ $forge.kind | quote }}
+        - name: FORGE_URL
+          value: {{ $forge.url | quote }}
+        {{- /* The name FORGE_URL had when only one forge existed. Emitted
+             alongside the new one so a ScaledJob that starts a pod from the
+             PREVIOUS image during a rolling upgrade still finds a forge — the
+             worker prefers FORGE_URL and only falls back to this. Drop it a
+             release after the chart and image have moved together. */}}
         - name: FORGEJO_URL
-          value: {{ $root.Values.executor.forgejo.url | quote }}
+          value: {{ $forge.url | quote }}
         {{- /* ADR-0013 tier 1: a READING Run gets a read-only forge credential
              where one is configured, so the writer/reader split is enforced by
              the forge and not only by Ploeg's scheduling. The repos are
@@ -286,7 +325,7 @@ spec:
              is the only boundary; turning the credential boundary on is one
              secret and no code. */}}
         {{- $isReader := and $role.name (not $role.writes) }}
-        {{- $readSecret := $root.Values.executor.forgejo.readTokenSecret }}
+        {{- $readSecret := $forge.readTokenSecret }}
         - name: AGENT_BUILDER_TOKEN
           valueFrom:
             secretKeyRef:
@@ -294,8 +333,8 @@ spec:
               name: {{ $readSecret.name }}
               key: {{ $readSecret.key }}
               {{- else }}
-              name: {{ $root.Values.executor.forgejo.tokenSecret.name }}
-              key: {{ $root.Values.executor.forgejo.tokenSecret.key }}
+              name: {{ $forge.tokenSecret.name }}
+              key: {{ $forge.tokenSecret.key }}
               {{- end }}
         # FALLBACK target only. The repository belongs to the work item,
         # resolved at ingest from its tracker scope and delivered on the claim

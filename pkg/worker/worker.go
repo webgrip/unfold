@@ -45,7 +45,11 @@ type Config struct {
 	// anything else prefers a resolved claim target. The per-team lever for
 	// rolling the decoupling forward or back one team at a time.
 	TargetSource string
-	ForgejoURL   string // in-cluster forge base (global today; Target carries an id, not a URL)
+	ForgeURL     string // in-cluster forge base (global today; Target carries an id, not a URL)
+	// Forge is the DEFAULT forge dialect for runs whose work item names none —
+	// the same "empty means the default forge" promise pkg/work.Target and
+	// ploegd's own forge registry already make. Empty here means forgejo.
+	Forge        string
 	BuilderToken string // agent-builder bot token
 	WorkDir      string
 

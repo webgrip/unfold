@@ -300,6 +300,10 @@ spec:
                     secretKeyRef:
                       name: agent-litellm-master
                       key: LITELLM_MASTER_KEY
+                - name: PLOEG_FORGE
+                  value: "forgejo"
+                - name: FORGE_URL
+                  value: "http://forgejo-http.forgejo.svc.cluster.local:3000"
                 - name: FORGEJO_URL
                   value: "http://forgejo-http.forgejo.svc.cluster.local:3000"
                 - name: AGENT_BUILDER_TOKEN

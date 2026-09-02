@@ -459,7 +459,7 @@ func testCfg(base string) Config {
 		RepoOwner:  "webgrip",
 		RepoName:   "ploeg",
 		BaseBranch: base,
-		ForgejoURL: "http://forgejo-http.forgejo.svc.cluster.local:3000",
+		ForgeURL:   "http://forgejo-http.forgejo.svc.cluster.local:3000",
 	}
 }
 
@@ -467,7 +467,7 @@ func specFor(cfg Config, item work.WorkItem, branch, trace string) harness.TaskS
 	return harness.TaskSpec{
 		WorkItem: item,
 		Repo: harness.RepoRef{
-			ForgeURL: cfg.ForgejoURL, Owner: cfg.RepoOwner, Name: cfg.RepoName, BaseBranch: cfg.BaseBranch,
+			ForgeURL: cfg.ForgeURL, Owner: cfg.RepoOwner, Name: cfg.RepoName, BaseBranch: cfg.BaseBranch,
 		},
 		Branch:  branch,
 		TraceID: trace,

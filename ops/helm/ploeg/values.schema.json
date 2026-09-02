@@ -138,8 +138,33 @@
             "additionalProperties": false
           }
         },
+        "forge": {
+          "type": "string",
+          "enum": ["forgejo", "gitlab"],
+          "description": "Which forge the workers act against; selects the sibling block of the same name. Also the DEFAULT dialect for a work item whose target names no forge."
+        },
+        "gitlab": {
+          "type": ["object", "null"],
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "Base URL, no /api/v4. Empty = ploegd configures no GitLab provider, so findings never reach a merge request."
+            },
+            "tokenSecret": {
+              "$ref": "#/definitions/secretRef"
+            },
+            "readTokenSecret": {
+              "$ref": "#/definitions/secretRef",
+              "description": "ADR-0013 tier 1, as for forgejo: a read-only credential for reading Roles. On GitLab a second project access token at read_repository scope."
+            },
+            "webhookSecret": {
+              "$ref": "#/definitions/secretRef",
+              "description": "Shared secret GitLab sends as X-Gitlab-Token to POST /webhooks/forge/gitlab. Unset = forge webhooks are rejected and no fix round can open from a human review."
+            }
+          }
+        },
         "forgejo": {
-          "type": "object",
+          "type": ["object", "null"],
           "properties": {
             "url": {
               "type": "string"

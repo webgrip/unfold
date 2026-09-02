@@ -107,6 +107,38 @@ spec:
               value: {{ . | quote }}
             {{- end }}
             {{- end }}
+            {{- /* The same seam for GitLab. ploegd's GitLab provider comments
+                 on a merge request and verifies inbound webhooks; it does not
+                 open one, which is the worker's job. Rendered only when a url
+                 is set, so the default (empty) block adds nothing — the same
+                 "no URL, no ForgeProvider" rule as forgejo above.
+
+                 PLOEG_TARGET_FORGE names the forge a work item gets when its
+                 own target names none, and must agree with executor.forge:
+                 disagreeing means ploegd publishes findings to one forge while
+                 the worker opened the change request on the other. */}}
+            {{- with .Values.executor.gitlab }}
+            {{- if .url }}
+            - name: PLOEG_GITLAB_URL
+              value: {{ .url | quote }}
+            - name: PLOEG_GITLAB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .tokenSecret.name }}
+                  key: {{ .tokenSecret.key }}
+            {{- with .webhookSecret }}
+            - name: PLOEG_GITLAB_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .key }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- if eq (.Values.executor.forge | default "forgejo") "gitlab" }}
+            - name: PLOEG_TARGET_FORGE
+              value: "gitlab"
+            {{- end }}
             {{- /* Tracker write-backs (backlog #31): how a closed Shift asks a
                  person to merge. Unset = the provider keeps its logging no-op
                  and runs still finish; the board just is not updated. */}}

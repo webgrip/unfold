@@ -59,6 +59,15 @@ executor:
   # executor). Any other launcher can implement docs/contracts/executor.md
   # out-of-chart against the run API.
   type: keda
+  # Which forge the workers act against: forgejo | gitlab. It selects the
+  # sibling block below, and it is the DEFAULT dialect — a work item whose
+  # target names its own forge overrides it per run, exactly as
+  # pkg/work.Target has always promised.
+  #
+  # One active forge, not a set, because the worker has one forge URL and one
+  # credential. A deployment spanning two forges is a second release, not a
+  # second entry here.
+  forge: forgejo
   # Global harness defaults; a team's optional `harness:` block overrides
   # these field-by-field (see teams below).
   harness:
@@ -152,6 +161,35 @@ executor:
     #  name: agent-builder-admin-token
     #  key: FORGEJO_ADMIN_TOKEN
     botUser: agent-builder
+  # Selected by `forge: gitlab` above. Shaped like the forgejo block so the
+  # helper can read either without knowing which it got.
+  #
+  # Tier 2 (per-run minted push credentials) has NO entry here on purpose.
+  # ploegd mints those through /api/v1/admin/users/forge, a Forgejo admin
+  # endpoint with no GitLab equivalent — GitLab's nearest analogue is a project
+  # access token, a different escalation with a different blast radius, and
+  # granting it deserves its own ADR rather than an implied one. Unset means
+  # every run uses the shared token below, which is the documented pre-tier-2
+  # behaviour and not a regression.
+  gitlab:
+    # Base URL only — no /api/v4. e.g. https://gitlab.com
+    url: ""
+    # A token with api scope on the target projects. Sent as PRIVATE-TOKEN.
+    tokenSecret:
+      name: agent-builder-token
+      key: GITLAB_TOKEN
+    # ADR-0013 tier 1, same meaning as forgejo.readTokenSecret: a read-only
+    # credential for reading Roles, so the reader/writer split is enforced at
+    # the forge and not only by Ploeg's scheduling. On GitLab this is a second
+    # project access token at read_repository scope.
+    readTokenSecret: {}
+    # The shared secret GitLab sends as X-Gitlab-Token on webhook deliveries to
+    # POST /webhooks/forge/gitlab. Unset = ploegd rejects forge webhooks, so a
+    # reviewer's comment reaches nothing and no fix round ever opens — the
+    # review loop is only closed once this is set on BOTH ends.
+    webhookSecret: {}
+    #  name: ploeg-gitlab-webhook
+    #  key: PLOEG_GITLAB_SECRET
   scaler:
     # Empty = ploeg-db-rw.<release namespace>.svc.cluster.local. Must be a
     # name the KEDA operator can resolve from its own namespace (FQDN).
