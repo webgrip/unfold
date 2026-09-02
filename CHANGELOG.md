@@ -1,3 +1,34 @@
+## [0.3.0-rc.1](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.1-rc.1...v0.3.0-rc.1) (2026-09-02)
+
+### Added
+
+* **worker:** open change requests on GitLab, not only Forgejo ([a1324ea](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a1324ea3957d5085458ccf1f1c9448d58bd6fea0))
+
+### Fixed
+
+* **harness:** taskspec.v1 carries the forge dialect ([bc485f3](https://forgejo.webgrip.dev/webgrip/ploeg/commit/bc485f3251cff9b083ad17505f945d53ecdfc028))
+
+### Changed
+
+* **worker:** name things instead of explaining them ([a790777](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a7907770ff4bceca024a973ee6289fc7b574b132))
+
+### Docs
+
+* **agents:** add CLAUDE.md as a symlink to AGENTS.md ([6bd94ce](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6bd94ceb551a04c3bb95487d10cba6fdd90e7ad8))
+* **changelog:** backfill v0.2.1-rc.1 — cut on the old toolchain after the first backfill ([8f7aa43](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8f7aa4352433a048f87138e1464bc80edfdbfbe4))
+* onboarding field report — five manual acts, all failing silently ([40dc219](https://forgejo.webgrip.dev/webgrip/ploeg/commit/40dc219cfa6d390c1697aa054724f7f10916e49b))
+* **openspec:** record the forge dialect decision as ADR-0023 ([215c9e5](https://forgejo.webgrip.dev/webgrip/ploeg/commit/215c9e5b12a66d52dbb01024e89badd938e82936))
+* **skills:** team-silver gates run in CI — the dispatched harness is daemonless ([bbde70c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/bbde70cc067baeb38553e545a78f0cf7366e2989))
+* stop prescribing a worktree per change ([010c0c6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/010c0c68dc6acba962aac332d4c0dbc69444dd5b))
+
+### CI
+
+* **release:** back to toolchain image 0.1.2 — 0.3.1 fails the release job ([8203631](https://forgejo.webgrip.dev/webgrip/ploeg/commit/82036314ac7187a52eab1acbb5d965036ac4bd95))
+* **release:** cut releases in toolchain image 0.3.1 — notes render, dep bumps release ([f10b22b](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f10b22b06964745794f674c3d88c433773d4a7ee)), references [#131](https://forgejo.webgrip.dev/webgrip/ploeg/issues/131)
+* **release:** rerun the release job on toolchain image 0.3.1 ([4f3fa35](https://forgejo.webgrip.dev/webgrip/ploeg/commit/4f3fa35ed316d802be33651ceb3b4137d89c602b))
+* **release:** toolchain image 0.3.2 — the alpine base now ships bash ([d2352d7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/d2352d7bd0c7a9e631e643f6cb46ddea530ef761)), references [#132](https://forgejo.webgrip.dev/webgrip/ploeg/issues/132)
+* **release:** toolchain image 0.3.3 — the publish path now resolves got 11 ([a9d398c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a9d398c050bac8961015fba6e65a1a12e2eed2cd))
+
 ## [0.2.1-rc.1](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0...v0.2.1-rc.1) (2026-08-28)
 
 ### Fixed
