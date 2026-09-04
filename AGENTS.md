@@ -52,6 +52,19 @@ concluding your edits are still uncommitted, run `git log --oneline -3 -- <paths
 session may already have committed them, and on pushed `development` the fix is a follow-up
 commit, never an amend.
 
+## Repo rules
+
+- **Comments are NOT allowed.** Always communicate intent with code: a precise name, a type, a
+  smaller function, a test that states the case. A comment is a failure. This holds for every
+  language in the repo, prose in YAML and TOML included. Machine-read directives stay, because the
+  toolchain acts on them as syntax: `// @ts-check`, `eslint-disable`, `<!-- prettier-ignore -->`,
+  `# syntax=`, `# renovate:`, `# yaml-language-server:`, and shebangs. Doc-comment forms the
+  toolchain itself reads are not comments either and stay: godoc directly above an exported
+  identifier, rustdoc `///` and `//!`, and PHPDoc blocks carrying type tags. Anything that outlives
+  a single expression belongs in `docs/` or an ADR, where it gets reviewed, linked and kept
+  current. The estate decision is
+  [ADR 0006](https://forgejo.webgrip.dev/webgrip/workflows/src/branch/main/docs/adrs/0006-no-comments-in-code.md).
+
 ## Durable knowledge lives in this repo
 
 Findings that outlive a session — evaluations, verdicts, root causes, measured timings — go into
