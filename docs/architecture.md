@@ -13,7 +13,8 @@ The design shifts repeated workspace setup and supervision out of individual ter
 | De Vloer | Interactive operator sessions, human intervention and their audit trail |
 | Agent harness | Native reasoning/tool loop and opaque conversation state |
 | LiteLLM | Model routing, scoped virtual credentials and available spend records |
-| Kubernetes | Placement and resource isolation of remote workspaces |
+| Docker Engine | Container isolation of workspaces on the workbench host |
+| Kubernetes | Pod isolation of workspaces in a team deployment |
 
 The Ploeg connector reads its configured queue endpoint. It neither invents a dispatch API nor claims to mutate tracker state. A tracker link provides context; it does not grant authority over the linked item. Converting interactive work into unattended work remains an explicit tracker workflow.
 
@@ -36,7 +37,7 @@ flowchart TD
 | `src/main.ts`, `src/config.ts` | Explicit demo/live startup and administrator configuration |
 | `src/http.ts`, `src/auth.ts`, `public/` | HTTP, identity, object authorization, browser workbench |
 | `src/store.ts`, `src/engine.ts` | Durable state, events and session lifecycle |
-| `src/runtime/` | Runtime adapters and workspace provisioning |
+| `src/runtime/` | Runtime adapters and the local, Docker and Kubernetes workspace backends |
 | `src/broker.ts` | LiteLLM credential lifecycle and spend reconciliation |
 | `src/types.ts` | Shared domain and adapter contracts |
 | `ops/` | Images and Kubernetes deployment |
@@ -56,7 +57,7 @@ Session events are persisted before they are exposed through the event stream. A
 
 Configuration supplies the allowed repository, crew, model and runtime IDs. User requests select from those registrations. Arbitrary process arguments and workspace endpoints are administrator configuration, not prompt-controlled inputs.
 
-The control plane holds its login secrets, LiteLLM minting credential and Kubernetes authority. A worker receives only its session's inference key and explicitly provisioned repository access. The local backend shares the control server’s OS user and permits access to server files through approved shell commands; use it only for trusted single-user development. Kubernetes is the intended isolated team backend, with network policy enforcement dependent on the target cluster. Remote HTTP adapters are integrations with trusted, authenticated endpoints. A read-only role instruction is not a filesystem or credential boundary; review actual adapter and workspace enforcement before giving it production push access.
+The control plane holds its login secrets, LiteLLM minting credential, Docker socket and Kubernetes authority. A worker receives only its session's inference key, explicitly provisioned repository access and the environment names or Kubernetes Secrets an administrator listed for it. Placement is chosen per session from the backends a deployment enables ([ADR 0009](adrs/0009-workspace-placement-is-a-session-choice.md)). The `docker` backend runs the clone and the harness in a hardened container from the pinned agent image on the workbench host; it is the default for a workstation. The `local` backend shares the control server’s OS user and permits access to server files through approved shell commands; use it only for trusted single-user development. Kubernetes is the intended isolated team backend for a workbench deployed in the cluster, with network policy enforcement dependent on the target cluster. Remote HTTP adapters are integrations with trusted, authenticated endpoints. A read-only role instruction is not a filesystem or credential boundary; review actual adapter and workspace enforcement before giving it production push access.
 
 `budgetUsd` is authorized spend. `spentUsd` is observed spend, accompanied by `costStatus`. Demo work has no model calls. Pending or unavailable live metering must remain visible, and an administrator must explicitly authorize an increase. Gateway budgets, TTL and revocation reduce exposure; they are not proof of an exact monetary ceiling for in-flight requests.
 

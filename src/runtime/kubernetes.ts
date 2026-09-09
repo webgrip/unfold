@@ -60,7 +60,7 @@ export class KubernetesClient {
   }
 }
 
-const cloneProgram = `import{mkdirSync,existsSync}from'node:fs';import{spawnSync}from'node:child_process';
+export const cloneProgram = `import{mkdirSync,existsSync}from'node:fs';import{spawnSync}from'node:child_process';
 const env={...process.env,GIT_TERMINAL_PROMPT:'0',GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1'};
 const run=(a)=>{const r=spawnSync('git',a,{env,stdio:'ignore'});if(r.status!==0)process.exit(1)};
 mkdirSync('/workspace',{recursive:true});
@@ -98,7 +98,9 @@ export function workspaceManifests(config: AppConfig, session: Session, reposito
     { name: 'XDG_CONFIG_HOME', value: '/workspace/.home/.config' }, { name: 'XDG_CACHE_HOME', value: '/workspace/.cache' },
     { name: 'TMPDIR', value: '/workspace/.tmp' }, { name: 'GIT_TERMINAL_PROMPT', value: '0' },
     { name: 'OPENCODE_DISABLE_AUTOUPDATE', value: 'true' }, { name: 'OPENCODE_DISABLE_SHARE', value: 'true' },
+    { name: 'GIT_AUTHOR_NAME', value: 'De Vloer' }, { name: 'GIT_AUTHOR_EMAIL', value: 'agent@localhost' }, { name: 'GIT_COMMITTER_NAME', value: 'De Vloer' }, { name: 'GIT_COMMITTER_EMAIL', value: 'agent@localhost' },
   ];
+  const envFrom = (k.agentSecrets ?? []).map(secretName => ({ secretRef: { name: secretName } }));
   const securityContext = { runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: ['ALL'] }, seccompProfile: { type: 'RuntimeDefault' } };
   const pod = { apiVersion: 'v1', kind: 'Pod', metadata, spec: {
     automountServiceAccountToken: false, enableServiceLinks: false, restartPolicy: 'Never', terminationGracePeriodSeconds: 30,
@@ -116,7 +118,7 @@ export function workspaceManifests(config: AppConfig, session: Session, reposito
       resources: { requests: { cpu: '100m', memory: '128Mi' }, limits: { cpu: k.cpu, memory: k.memory } },
     }],
     containers: [{ name: 'agent', image: k.image, imagePullPolicy: k.pullPolicy ?? 'IfNotPresent', securityContext,
-      command: ['opencode', 'serve', '--hostname', '0.0.0.0', '--port', '4096'], workingDir: '/workspace/repository', env,
+      command: ['opencode', 'serve', '--hostname', '0.0.0.0', '--port', '4096'], workingDir: '/workspace/repository', env, ...(envFrom.length ? { envFrom } : {}),
       ports: [{ name: 'http', containerPort: 4096 }],
       startupProbe: { exec: { command: ['node', '-e', healthProgram] }, periodSeconds: 2, failureThreshold: 90, timeoutSeconds: 3 },
       readinessProbe: { exec: { command: ['node', '-e', healthProgram] }, periodSeconds: 10, timeoutSeconds: 3 },

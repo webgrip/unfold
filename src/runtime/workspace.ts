@@ -3,8 +3,9 @@ import { createServer } from 'node:net';
 import { randomBytes } from 'node:crypto';
 import { mkdir, writeFile, access } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import type { AppConfig, Credential, Repository, Session, Workspace } from '../types.ts';
+import type { AppConfig, Credential, Repository, Session, Workspace, WorkspaceBackend } from '../types.ts';
 import { KubernetesWorkspaces } from './kubernetes.ts';
+import { DockerWorkspaces } from './docker.ts';
 import { RuntimeFailure } from '../failures.ts';
 import { captureLocalCandidate, pinCandidateBase, unavailableCandidate, type Candidate } from '../candidates.ts';
 
@@ -33,7 +34,7 @@ export function managedConfig(config: AppConfig): Record<string, unknown> {
   };
 }
 
-export function isolatedEnvironment(directory: string, credential: Credential | undefined, config: AppConfig): Record<string, string> {
+export function isolatedEnvironment(directory: string, credential: Credential | undefined, config: AppConfig, host: NodeJS.ProcessEnv = process.env): Record<string, string> {
   const env: Record<string, string> = {
     PATH: process.env.PATH ?? '/usr/local/bin:/usr/bin:/bin',
     HOME: join(directory, '.home'), XDG_CONFIG_HOME: join(directory, '.home', '.config'),
@@ -45,7 +46,17 @@ export function isolatedEnvironment(directory: string, credential: Credential | 
   };
   if (config.litellm?.baseUrl) env.LITELLM_BASE_URL = config.litellm.baseUrl;
   if (credential?.key) env.LITELLM_API_KEY = credential.key;
+  for (const name of config.runtime.agentEnvironment ?? []) if (host[name] !== undefined && !(name in env)) env[name] = host[name]!;
   return env;
+}
+
+export function sessionPlacement(config: AppConfig, session: Pick<Session, 'placement'>): WorkspaceBackend | 'external' {
+  const backends = config.runtime.backends ?? (config.runtime.backend === 'external' ? [] : [config.runtime.backend]);
+  if (session.placement) {
+    if (!backends.includes(session.placement)) throw new Error(`The ${session.placement} workspace backend is not enabled on this workbench`);
+    return session.placement;
+  }
+  return config.runtime.backend;
 }
 
 const maxOutputChars = 4096;
@@ -93,10 +104,13 @@ export class WorkspaceManager {
   readonly config: AppConfig;
   readonly internal = new Map<string, InternalWorkspace>();
   readonly kubernetes?: KubernetesWorkspaces;
+  readonly docker?: DockerWorkspaces;
 
-  constructor(config: AppConfig) {
+  constructor(config: AppConfig, options: { docker?: DockerWorkspaces; kubernetes?: KubernetesWorkspaces } = {}) {
     this.config = config;
-    if (config.runtime.backend === 'kubernetes') this.kubernetes = new KubernetesWorkspaces(config);
+    const backends = config.runtime.backends ?? [config.runtime.backend];
+    if (backends.includes('kubernetes')) this.kubernetes = options.kubernetes ?? new KubernetesWorkspaces(config);
+    if (backends.includes('docker')) this.docker = options.docker ?? new DockerWorkspaces(config);
   }
 
   credentials(workspace: Workspace): { username: string; password: string } | undefined {
@@ -105,6 +119,7 @@ export class WorkspaceManager {
     if (workspace.backend === 'external' && this.config.runtime.password) return {
       username: this.config.runtime.username ?? 'opencode', password: this.config.runtime.password,
     };
+    if (workspace.backend === 'docker') return this.docker?.credentials(workspace);
     return this.kubernetes?.credentials(workspace);
   }
 
@@ -118,9 +133,17 @@ export class WorkspaceManager {
     if (!/^[a-zA-Z0-9_-]{1,80}$/.test(session.id)) throw new Error('Invalid workspace identity');
     const configured = this.config.repositories.find(item => item.id === repository.id);
     if (!configured || configured.url !== repository.url || configured.baseBranch !== repository.baseBranch) throw new Error('Repository is not configured for this workbench');
-    if (this.config.runtime.kind === 'command' && this.config.runtime.backend !== 'local') throw new Error('The command adapter requires the local backend');
-    if (this.kubernetes) return this.kubernetes.prepare(session, configured, credential, signal, managedConfig(this.config));
-    if (this.config.runtime.backend === 'external') {
+    const placement = sessionPlacement(this.config, session);
+    if (this.config.runtime.kind === 'command' && placement !== 'local') throw new Error('The command adapter requires the local backend');
+    if (placement === 'kubernetes') {
+      if (!this.kubernetes) throw new Error('The kubernetes workspace backend is not enabled on this workbench');
+      return this.kubernetes.prepare(session, configured, credential, signal, managedConfig(this.config));
+    }
+    if (placement === 'docker') {
+      if (!this.docker) throw new Error('The docker workspace backend is not enabled on this workbench');
+      return this.docker.prepare(session, configured, credential, signal, managedConfig(this.config));
+    }
+    if (placement === 'external') {
       if (!this.config.runtime.endpoint || !this.config.runtime.password) throw new Error('External OpenCode requires an endpoint and server password');
       if (credential) throw new Error('External OpenCode cannot receive per-session credentials safely; use local or Kubernetes provisioning');
       return { id: session.id, backend: 'external', directory: '/', endpoint: this.config.runtime.endpoint };
@@ -193,6 +216,7 @@ export class WorkspaceManager {
     const workspace = session.workspace;
     if (!workspace) return unavailableCandidate('unsupported_workspace');
     if (workspace.backend === 'kubernetes') return this.kubernetes?.captureCandidate(session, repository) ?? unavailableCandidate('unsupported_workspace');
+    if (workspace.backend === 'docker') return this.docker?.captureCandidate(session, repository) ?? unavailableCandidate('unsupported_workspace');
     if (workspace.backend !== 'local') return unavailableCandidate('unsupported_workspace');
     const state = this.internal.get(workspace.id);
     if (state?.process) await this.stop(state.process);
@@ -206,5 +230,6 @@ export class WorkspaceManager {
     if (state?.process) await this.stop(state.process);
     this.internal.delete(workspace.id);
     if (workspace.backend === 'kubernetes') await this.kubernetes?.dispose(workspace);
+    if (workspace.backend === 'docker') await this.docker?.dispose(workspace);
   }
 }

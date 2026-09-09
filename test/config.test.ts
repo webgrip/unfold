@@ -1,0 +1,44 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { loadConfig, placements } from '../src/config.ts';
+
+const base = {
+  mode: 'live', dataDir: '.vloer-test',
+  models: [{ id: 'coding', name: 'Coding', providerId: 'gateway', modelId: 'coding' }],
+  repositories: [{ id: 'app', name: 'App', description: '', url: 'https://forge.example/app.git', baseBranch: 'main', verify: ['npm', 'test'] }],
+};
+
+async function load(t: test.TestContext, value: Record<string, unknown>) {
+  const directory = await mkdtemp(join(tmpdir(), 'vloer-config-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const file = join(directory, 'config.json');
+  await writeFile(file, JSON.stringify({ ...base, dataDir: join(directory, 'data'), ...value }));
+  return loadConfig(['--config', file]);
+}
+
+test('a single backend keeps its previous shape and becomes the only placement', async t => {
+  const config = await load(t, { runtime: { kind: 'opencode', backend: 'local', binary: 'opencode', timeoutMs: 60000 } });
+  assert.deepEqual(config.runtime.backends, ['local']);
+  assert.equal(config.docker, undefined);
+  assert.deepEqual(placements(config).map(item => item.id), ['local']);
+});
+
+test('docker and kubernetes placements require their configuration blocks and the first listed backend becomes the default', async t => {
+  const config = await load(t, { runtime: { kind: 'opencode', backends: ['docker', 'local'], timeoutMs: 60000, agentEnvironment: ['FORGE_READ_TOKEN'] }, docker: { image: 'de-vloer-agent:1.18.30', memoryMb: 1024 } });
+  assert.equal(config.runtime.backend, 'docker');
+  assert.deepEqual(config.runtime.backends, ['docker', 'local']);
+  assert.equal(config.docker?.image, 'de-vloer-agent:1.18.30');
+  assert.equal(config.docker?.memoryMb, 1024);
+  assert.equal(config.docker?.cpus, 2);
+  assert.deepEqual(config.runtime.agentEnvironment, ['FORGE_READ_TOKEN']);
+  assert.deepEqual(placements(config).map(item => [item.id, item.default]), [['docker', true], ['local', false]]);
+  await assert.rejects(load(t, { runtime: { kind: 'opencode', backends: ['docker'], timeoutMs: 60000 } }), /docker\.image/);
+  await assert.rejects(load(t, { runtime: { kind: 'opencode', backends: ['kubernetes'], timeoutMs: 60000 } }), /kubernetes configuration block/);
+  await assert.rejects(load(t, { runtime: { kind: 'opencode', backends: ['cloud'], timeoutMs: 60000 } }), /runtime\.backends/);
+  await assert.rejects(load(t, { runtime: { kind: 'opencode', backends: ['local'], timeoutMs: 60000, agentEnvironment: ['LITELLM_MASTER_KEY'] } }), /must not pass LITELLM_MASTER_KEY/);
+  await assert.rejects(load(t, { runtime: { kind: 'opencode', backends: ['local'], timeoutMs: 60000, agentEnvironment: ['lower'] } }), /uppercase/);
+  await assert.rejects(load(t, { runtime: { kind: 'opencode', backends: ['docker'], timeoutMs: 60000 }, docker: { image: 'de-vloer-agent:1.18.30', user: 'root' } }), /docker\.user/);
+});

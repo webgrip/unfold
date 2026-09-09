@@ -7,6 +7,7 @@ import type { Engine } from './engine.ts';
 import { publicSession, type Store } from './store.ts';
 import { getTask, listTasks, publicTaskSource, TaskError } from './tasks.ts';
 import { readCandidate, unavailableCandidate } from './candidates.ts';
+import { placements } from './config.ts';
 
 function fault(status: number, code: string, message: string): never { throw Object.assign(new Error(message), { status, code }); }
 
@@ -29,6 +30,12 @@ async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
     if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error();
     return data;
   } catch { return fault(400, 'invalid_json', 'Expected a JSON object.'); }
+}
+
+function placementInput(value: unknown): 'local' | 'docker' | 'kubernetes' | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (typeof value !== 'string' || !['local', 'docker', 'kubernetes'].includes(value)) fault(400, 'placement', 'Choose a workspace placement enabled on this workbench.');
+  return value as 'local' | 'docker' | 'kubernetes';
 }
 
 function text(value: unknown, name: string, max: number, optional = false): string {
@@ -102,9 +109,10 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           taskSources: (config.taskSources ?? []).map(publicTaskSource),
           crews: config.crews, models: config.models,
           runtimes: runtimeKinds.map(id => ({ id, name: id === 'demo' ? 'Demonstration' : id === 'opencode' ? 'OpenCode' : 'Command bridge', available: true })),
+          placements: placements(config),
           maxBudgetUsd: config.maxBudgetUsd, maxConcurrentSessions: config.maxConcurrentSessions
         }));
-        if (method === 'GET' && path === '/api/health') return json(res, 200, { status: 'ok', mode: config.mode, version: '0.2.0', runtimes: runtimeKinds, litellm: Boolean(config.litellm), workspaceBackend: config.mode === 'demo' ? 'demo' : config.runtime.backend });
+        if (method === 'GET' && path === '/api/health') return json(res, 200, { status: 'ok', mode: config.mode, version: '0.2.0', runtimes: runtimeKinds, litellm: Boolean(config.litellm), workspaceBackend: config.mode === 'demo' ? 'demo' : config.runtime.backend, workspaceBackends: placements(config).map(item => item.id) });
         if (method === 'GET' && path === '/api/task-sources') return json(res, 200, sanitize((config.taskSources ?? []).map(publicTaskSource)));
         const taskRoute = path.match(/^\/api\/task-sources\/([a-z0-9-]+)\/tasks(?:\/([a-zA-Z0-9_-]+))?$/);
         if (method === 'GET' && taskRoute) {
@@ -130,7 +138,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           if (typeof data.budgetUsd !== 'number' || !Number.isFinite(data.budgetUsd) || data.budgetUsd <= 0 || data.budgetUsd > config.maxBudgetUsd) fault(400, 'budget', `Budget must be greater than zero and at most $${config.maxBudgetUsd}.`);
           const snapshot = await getTask(source!, taskId);
           if (snapshot.revision !== revision) fault(409, 'task_changed', 'The task changed after your preview. Refresh it and review the updated version.');
-          const result = engine.importTask(snapshot, { crewId, runtime, budgetUsd: data.budgetUsd as number }, user);
+          const result = engine.importTask(snapshot, { crewId, runtime, budgetUsd: data.budgetUsd as number, placement: placementInput(data.placement) }, user);
           return json(res, result.created ? 201 : 200, sanitize(publicSession(result.session)));
         }
         if (method === 'GET' && path === '/api/sessions') return json(res, 200, sanitize(store.listSessions().filter(session => session.ownerId === user.id || user.role === 'admin').map(publicSession)));
@@ -148,7 +156,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             try { parsed = new URL(trackerUrl); } catch { return fault(400, 'tracker_url', 'Use an HTTP(S) tracker link.'); }
             if (!['http:','https:'].includes(parsed.protocol) || parsed.username || parsed.password) fault(400, 'tracker_url', 'Use an HTTP(S) tracker link without credentials.');
           }
-          const session = engine.create({ title: text(data.title, 'Title', 160), objective: text(data.objective, 'Objective', 16000), repositoryId, crewId, runtime, budgetUsd: data.budgetUsd as number, trackerUrl: trackerUrl || undefined }, user);
+          const session = engine.create({ title: text(data.title, 'Title', 160), objective: text(data.objective, 'Objective', 16000), repositoryId, crewId, runtime, placement: placementInput(data.placement), budgetUsd: data.budgetUsd as number, trackerUrl: trackerUrl || undefined }, user);
           return json(res, 201, sanitize(publicSession(session)));
         }
         if (method === 'GET' && path === '/api/ploeg') {

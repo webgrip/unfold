@@ -12,7 +12,7 @@ Operators can read and change sessions they own. Administrators can access all s
 | --- | --- |
 | `POST /api/login` | `{name,password}` → `{user}` and login cookie |
 | `POST /api/logout` | `{}` → `{ok:true}` and expired cookie |
-| `GET /api/bootstrap` | Current user, mode, registered repositories/crews/models/runtimes and limits |
+| `GET /api/bootstrap` | Current user, mode, registered repositories/crews/models/runtimes, enabled workspace `placements` and limits |
 | `GET /api/health` | Authenticated configuration/readiness summary; does not prove upstream provider reachability |
 | `GET /healthz`, `GET /readyz` | Process/store health for probes; no provider credentials or endpoints returned |
 
@@ -21,7 +21,7 @@ Operators can read and change sessions they own. Administrators can access all s
 | Method and path | Behavior |
 | --- | --- |
 | `GET /api/sessions` | Sessions visible to the current user |
-| `POST /api/sessions` | `{title,objective,repositoryId,crewId,runtime,budgetUsd,trackerUrl?}` → created session, status 201 |
+| `POST /api/sessions` | `{title,objective,repositoryId,crewId,runtime,placement?,budgetUsd,trackerUrl?}` → created session, status 201 |
 | `GET /api/sessions/:id` | Public session view, runs, retained artifacts and accounting status |
 | `POST /api/sessions/:id/start` | `{}`; start queued work in the background |
 | `POST /api/sessions/:id/pause` | `{}`; deliberately stop active execution while retaining the session |
@@ -30,7 +30,7 @@ Operators can read and change sessions they own. Administrators can access all s
 | `POST /api/sessions/:id/messages` | `{text}`; persist an operator instruction |
 | `POST /api/sessions/:id/budget` | `{amountUsd}`; administrator authorizes an additional positive amount within the total limit |
 
-Selection values must come from the registered profiles. Budgets are positive amounts in USD; they are not token allocations. One optional writer may precede reviewers, and roles execute sequentially. Completion requires explicit approval from required reviewers. A review requesting changes is a human decision point rather than an automatic rewriting loop.
+Selection values must come from the registered profiles. `placement` is one of the workspace backends listed in `placements` (`docker`, `kubernetes` or `local`); omitted, it takes the deployment default, and a demonstration deployment lists none. The created session records `placement`, and the `workspace.ready` event reports the resulting `backend` and `isolation` (`container`, `pod` or `working-directory`). Budgets are positive amounts in USD; they are not token allocations. One optional writer may precede reviewers, and roles execute sequentially. Completion requires explicit approval from required reviewers. A review requesting changes is a human decision point rather than an automatic rewriting loop.
 
 A message does not promise immediate insertion into an executing model request. Pause, record the changed instruction and resume when the current run must restart with it. Resume preserves the existing authorization and settled spend. Unresolved prior spend remains reserved and can block resume. A process restart marks active work interrupted and does not silently repeat paid execution.
 
@@ -64,7 +64,7 @@ Connections are administrator-registered `taskSources`. Forgejo, GitHub, GitLab,
 | `GET /api/task-sources` | Public connection records; never connector credentials |
 | `GET /api/task-sources/:sourceId/tasks?page=1` | `{tasks,nextPage?}` with bounded pagination |
 | `GET /api/task-sources/:sourceId/tasks/:taskId` | Current task snapshot for explicit preview |
-| `POST /api/task-imports` | `{sourceId,taskId,revision,crewId,runtime,budgetUsd}` → queued session, 201 new or 200 existing |
+| `POST /api/task-imports` | `{sourceId,taskId,revision,crewId,runtime,placement?,budgetUsd}` → queued session, 201 new or 200 existing |
 
 A snapshot includes `key`, `sourceId`, `provider`, `id`, `revision`, `title`, `description`, `url`, `status`, `repositoryId` and optional `updatedAt`. Status is normalized to `open`, `closed` or `unknown`; only open tasks can be imported. The revision hashes the material snapshot. Import refetches the configured source and returns 409 `task_changed` if the preview is stale. The server retains the accepted snapshot in `session.sourceTask`, redacting any known server credentials from its title and description before persistence and prompting and frames its body as untrusted reference material in the objective.
 

@@ -27,7 +27,20 @@ The minimal runtime selection is:
 }
 ```
 
-This is the `runtime` object, not a full configuration file. `local` means local to the **De Vloer server**. A remote server with this backend already moves agent CPU, memory and repository checks off the operator's laptop. Use this backend only for trusted single-user development on a dedicated host. It separates working directories and selected environment variables, but runs under the control server’s OS user. Approved shell commands or repository scripts can access server files, process environments and sibling workspaces. This is not a boundary for protecting the master key against hostile code. Use the Kubernetes backend with the supplied separate namespace and pod restrictions for a shared team pilot.
+This is the `runtime` object, not a full configuration file, and it enables exactly one workspace backend. To offer a choice per session, list the enabled backends instead; the first entry is the default unless `backend` names another:
+
+```json
+{
+  "kind": "opencode",
+  "backends": ["docker", "local"],
+  "timeoutMs": 1200000,
+  "agentEnvironment": ["FORGEJO_AGENT_TOKEN"]
+}
+```
+
+`agentEnvironment` is an allow-list of variable names copied from the server process into local and Docker workspaces. A launcher may read those values from OpenBao into its own shell; the configuration only names which of them an agent may see, and names carrying workbench, gateway, cluster or vault authority are refused at startup. Nothing here puts a value in a file. Sessions record their `placement`; the browser and editor show the selector only when more than one backend is enabled ([ADR 0009](../adrs/0009-workspace-placement-is-a-session-choice.md)).
+
+`local` means local to the **De Vloer server**. A remote server with this backend already moves agent CPU, memory and repository checks off the operator's laptop. Use this backend only for trusted single-user development on a dedicated host. It separates working directories and selected environment variables, but runs under the control server’s OS user. Approved shell commands or repository scripts can access server files, process environments and sibling workspaces. This is not a boundary for protecting the master key against hostile code. Use the Kubernetes backend with the supplied separate namespace and pod restrictions for a shared team pilot.
 
 Supply secrets through the deployment environment, or a private ignored `.env` for a single trusted server. `npm start` loads `.env` if present. Never put real credentials in checked-in JSON.
 
@@ -55,6 +68,37 @@ The workspace manager starts an authenticated OpenCode server per managed worksp
 
 For another operator, run `npm run user:add` against the same `VLOER_DATA_DIR` while the server is stopped, then restart it. The helper asks for a name and role and generates a password shown once unless `VLOER_USER_PASSWORD` is supplied through the environment. Keep that output private. This is local account provisioning; SSO and shared session membership are not implemented.
 
+## Docker on the workbench host
+
+The `docker` backend runs the clone and the OpenCode server inside a container from the pinned agent image, through the Docker Engine socket. The workbench never invokes a shell or the Docker CLI. Build the image once from the repository and reference it by tag, or pull a digest-pinned build from the registry:
+
+```sh
+docker build -t de-vloer-agent:1.18.30 ops/agent
+```
+
+Add a `docker` block next to `runtime`:
+
+```json
+{
+  "image": "de-vloer-agent:1.18.30",
+  "cpus": 2,
+  "memoryMb": 4096,
+  "pidsLimit": 512,
+  "network": "bridge",
+  "gatewayUrl": "https://litellm.example/v1"
+}
+```
+
+`socketPath` defaults to `/var/run/docker.sock`. `gatewayUrl` overrides the inference URL seen inside containers when the gateway address differs from the host's view, for example `http://host.docker.internal:4000/v1` for a gateway on the workbench host; the containers always get `host.docker.internal` mapped to the host. `user` pins the container uid; on Linux the workbench's own uid and gid are used so the bind-mounted session directory stays readable for candidate capture, and on macOS Docker Desktop the image's `node` user is fine. Each session gets one container named after its workspace, bind-mounted to `<dataDir>/workspaces/<session>`, with a read-only root filesystem, all capabilities dropped, no new privileges, a CPU, memory and PID budget, and the OpenCode port published only on `127.0.0.1` behind a per-session random password. The only credential inside is the session's scoped LiteLLM key plus whatever `agentEnvironment` allows. Container egress follows the Docker network it joins; restrict it by pointing `network` at a network you control.
+
+Candidate capture stops the container, confirms the stop and snapshots the host directory. The container is removed on disposal; the session directory is retained like the local backend's. Reproduce the no-inference qualification against your image with:
+
+```sh
+node scripts/probe-docker.mjs de-vloer-agent:1.18.30
+```
+
+The probe serves a fixture repository to the container, verifies the hardened container configuration, authenticated health, managed configuration, adapter session creation, the event stream, abort, candidate capture and container removal, and records that zero inference requests reached its sink.
+
 ## Kubernetes
 
 Deployment assets live under `ops/helm/de-vloer`; the application Dockerfile and `ops/agent/Dockerfile` build separate control-plane and agent images. Build and publish them to an authorized registry, then configure explicit image tags or digests in values. The supplied configuration is an example, not the user's actual cluster inventory.
@@ -66,7 +110,7 @@ helm lint ops/helm/de-vloer
 helm template de-vloer ops/helm/de-vloer > /tmp/de-vloer-rendered.yaml
 ```
 
-The chart defaults to **demo** mode. Copy `ops/helm/de-vloer/values.live.example.yaml` to a private `values.live.local.yaml` and replace its example registry, forge, gateway/model and network selectors. Configure `credentialsSecret` in the application namespace with the environment variables listed above. Keep the master key out of the workspace namespace. Configure `workspaceGitSecretName` only when a dedicated repository read credential has been provisioned there.
+The chart defaults to **demo** mode. Copy `ops/helm/de-vloer/values.live.example.yaml` to a private `values.live.local.yaml` and replace its example registry, forge, gateway/model and network selectors. Configure `credentialsSecret` in the application namespace with the environment variables listed above. Keep the master key out of the workspace namespace. Configure `workspaceGitSecretName` only when a dedicated repository read credential has been provisioned there. `workspaceAgentSecrets` lists Secrets in the workspace namespace whose keys become environment inside the agent container only, never the clone container; an External Secret from OpenBao is the intended way to let an agent pod reach something beyond the repository and the gateway.
 
 Use **one application replica** with persistent storage and the chart's `Recreate` rollout strategy. Configure a separate workspace namespace, storage class/size, CPU/memory requests, an agent image and an inference gateway URL reachable by agent Pods. The control plane needs the chart's narrowly scoped workspace-management RBAC. Agent Pods must not mount the control-plane service account or LiteLLM master credential.
 
@@ -84,6 +128,8 @@ helm upgrade --install de-vloer ops/helm/de-vloer --namespace de-vloer --create-
 ```
 
 The manager provisions real Kubernetes resources through the API. It retains workspace PVCs after runtime disposal so changes and native state can survive; volume retention has an operational cost. Cleanup policy must preserve reviewable work before deleting retained volumes. Configure `workspaceEgress` for the actual forge and inference gateway; example selectors are not universal access rules. Kubernetes network isolation depends on the cluster's network-policy implementation, so chart rendering cannot prove enforcement.
+
+The in-cluster workbench is the supported way to use the Kubernetes backend. A workbench on a workstation cannot drive a pod through the API server's service proxy, because the API server strips the `Authorization` header that OpenCode's Basic authentication needs; a port-forward transport under the operator's own identity is the identified next step and is not implemented. The estate's `agent-runner` image is Ploeg's unattended OpenHands body and contains no OpenCode server, so it is not a workspace image for De Vloer; publish `ops/agent/Dockerfile` as its `opencode-runner` sibling instead.
 
 Before a team rollout, qualify Pod startup/readiness, repository cloning, model requests, interruption, permission handling, restart recovery, spend settlement and resource cleanup on the target cluster. Record the tested image digests, Kubernetes version, gateway version and result in [validation](../validation.md). No automated chart command deploys this application.
 

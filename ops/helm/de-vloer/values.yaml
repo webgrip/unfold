@@ -28,6 +28,7 @@ workspaceCpu: "1"
 workspaceMemory: 2Gi
 workspaceImagePullSecrets: []
 workspaceGitSecretName: ""
+workspaceAgentSecrets: []
 workspaceEgress: []
 config:
   maxConcurrentSessions: 2

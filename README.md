@@ -31,7 +31,7 @@ npm run smoke
 - Retained candidate export for supported workspaces, with a manifest, binary-capable Git patch and self-contained snapshot bundle. Export availability and limits are visible; see the [iteration guide](docs/operations/iteration-0.2.0.md).
 - OpenCode server integration and a JSON-lines command bridge for additional harnesses.
 - LiteLLM virtual-key lifecycle and visible accounting states; authorized budget additions are administrator actions.
-- Local server workspaces and Kubernetes workspace provisioning; a browser can supervise a remote server without running agents on the laptop.
+- Per-session workspace placement: a hardened container on the workbench host, a pod in a Kubernetes workspace namespace, or a plain working directory for trusted development; a browser can supervise a remote server without running agents on the laptop.
 
 The application uses native Node TypeScript and browser modules, with **zero third-party npm runtime dependencies**. Development-only dependencies provide strict type checking. SQLite requires **one application replica**. Live integrations have separate prerequisites and qualification limits; read the [validation matrix](docs/validation.md) before treating them as production-tested.
 
@@ -41,7 +41,7 @@ The application uses native Node TypeScript and browser modules, with **zero thi
 
 Follow [live operation](docs/operations/live.md) to configure a registered repository, LiteLLM gateway and OpenCode runtime on a remote server or Kubernetes. Live mode is the default and requires deliberate setup; it does not silently substitute the demo. A shared pre-existing OpenCode endpoint cannot accept this implementation's per-session managed key safely and is not the managed live path.
 
-For a shared team pilot, use the Kubernetes backend. The local backend shares the server’s OS user and is intended for trusted single-user development.
+On a workstation, enable the Docker backend so agents run in a sandboxed container from the pinned agent image. For a shared team pilot, deploy the workbench in the cluster and use the Kubernetes backend. The local backend shares the server’s OS user and is intended for trusted single-user development ([ADR 0009](docs/adrs/0009-workspace-placement-is-a-session-choice.md)).
 
 The portable model interface is the configured LiteLLM gateway. Use API-backed model credentials for the managed budget path. This release does not turn a personal coding subscription into shared LiteLLM credit.
 

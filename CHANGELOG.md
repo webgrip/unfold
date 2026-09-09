@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added
+
+- A `docker` workspace backend. The clone and the OpenCode server run inside a hardened container from the pinned agent image, bind-mounted to the session directory, with only the session's scoped LiteLLM key inside. Candidate capture waits for a confirmed container stop. Qualified against the locally built image by `scripts/probe-docker.mjs` without inference.
+- Per-session workspace placement. `runtime.backends` lists the enabled backends, `POST /api/sessions` and task imports accept `placement`, and the browser and VS Code extension offer the choice when more than one backend is enabled. [ADR 0009](docs/adrs/0009-workspace-placement-is-a-session-choice.md).
+- `runtime.agentEnvironment`, an allow-list of environment variable names copied from the server process into local and Docker workspaces, refusing names that carry workbench, gateway, cluster or vault authority. `kubernetes.agentSecrets` and the chart's `workspaceAgentSecrets` mount named Secrets into the agent container only.
+
 ### Changed
 
 - Workspace failures now record the actual cause. The failing command, its exit code or signal and the tail of its standard error are captured for `git` steps and the OpenCode launch, redacted, bounded and shown in the browser and VS Code failure notice as `failure.detail`. Runtime exception text still never enters the failure record.

@@ -3,7 +3,7 @@ import { Store } from './store.ts';
 import { classifyFailure, executionFailure, type FailureStage } from './failures.ts';
 import type { TaskSnapshot } from './tasks.ts';
 import { unavailableCandidate } from './candidates.ts';
-import type { AgentRuntime, AppConfig, Credential, RuntimeKind, Session, User, PermissionRequest, ExecutionResult, RuntimeEvent } from './types.ts';
+import type { AgentRuntime, AppConfig, Credential, RuntimeKind, Session, User, PermissionRequest, ExecutionResult, RuntimeEvent, WorkspaceBackend } from './types.ts';
 
 type Broker = {
   mint(session: Session): Promise<Credential>;
@@ -14,7 +14,7 @@ type Broker = {
 };
 type Reservation = { reference: string; authorizedUsd: number; revoked: boolean };
 type Active = { controller: AbortController; task: Promise<void> };
-export type CreateSessionInput = { title: string; objective: string; repositoryId: string; crewId: string; runtime: RuntimeKind; budgetUsd: number; trackerUrl?: string; sourceTask?: TaskSnapshot };
+export type CreateSessionInput = { title: string; objective: string; repositoryId: string; crewId: string; runtime: RuntimeKind; placement?: WorkspaceBackend; budgetUsd: number; trackerUrl?: string; sourceTask?: TaskSnapshot };
 
 export class EngineError extends Error {
   status: number;
@@ -53,6 +53,7 @@ export class Engine {
     if (!repository || !crew || !this.runtimes.has(input.runtime)) throw new EngineError(400, 'invalid_configuration', 'Choose a configured repository, crew and runtime.');
     this.interactiveRepository(repository.id, input.sourceTask);
     if ((this.config.mode === 'demo') !== (input.runtime === 'demo')) throw new EngineError(400, 'invalid_runtime', 'The runtime does not match this deployment mode.');
+    const placement = this.placement(input.placement);
     if (!crew.roles.length || crew.roles.slice(1).some(role => role.mode !== 'read') || !crew.roles.some(role => role.mode === 'read')) throw new EngineError(400, 'invalid_crew', 'A crew requires reviewers, optionally preceded by one writer.');
     if (new Set(crew.roles.map(role => role.id)).size !== crew.roles.length) throw new EngineError(400, 'invalid_crew', 'Crew role IDs must be unique.');
     const budgetUsd = input.budgetUsd;
@@ -60,13 +61,21 @@ export class Engine {
     if (input.trackerUrl && input.trackerUrl !== repository.trackerUrl) throw new EngineError(400, 'invalid_tracker', 'Use the configured repository tracker link.');
     const now = new Date().toISOString();
     const id = randomUUID();
-    const session: Session = { id, title, objective, repositoryId: repository.id, crewId: crew.id, runtime: input.runtime, ownerId: user.id, ownerName: user.name, status: 'queued', budgetUsd, spentUsd: 0, costStatus: input.runtime === 'demo' ? 'demo' : 'pending', createdAt: now, updatedAt: now, branch: `vloer/${id}`, runs: crew.roles.map(role => ({ id: randomUUID(), sessionId: id, roleId: role.id, roleName: role.name, mode: role.mode, status: 'queued', costUsd: 0 })), artifacts: [], ...(repository.trackerUrl ? { trackerUrl: repository.trackerUrl } : {}) };
+    const session: Session = { id, title, objective, repositoryId: repository.id, crewId: crew.id, runtime: input.runtime, ...(placement ? { placement } : {}), ownerId: user.id, ownerName: user.name, status: 'queued', budgetUsd, spentUsd: 0, costStatus: input.runtime === 'demo' ? 'demo' : 'pending', createdAt: now, updatedAt: now, branch: `vloer/${id}`, runs: crew.roles.map(role => ({ id: randomUUID(), sessionId: id, roleId: role.id, roleName: role.name, mode: role.mode, status: 'queued', costUsd: 0 })), artifacts: [], ...(repository.trackerUrl ? { trackerUrl: repository.trackerUrl } : {}) };
     if (input.sourceTask) { session.sourceTask = structuredClone(input.sourceTask); session.trackerUrl = input.sourceTask.url; }
-    this.save(session, 'session.created', user.id, { title, runtime: session.runtime, budgetUsd, demo: session.runtime === 'demo', ...(session.sourceTask ? { sourceTask: session.sourceTask, imported: true, automaticStart: false } : {}) });
+    this.save(session, 'session.created', user.id, { title, runtime: session.runtime, ...(placement ? { placement } : {}), budgetUsd, demo: session.runtime === 'demo', ...(session.sourceTask ? { sourceTask: session.sourceTask, imported: true, automaticStart: false } : {}) });
     return session;
   }
 
-  importTask(snapshot: TaskSnapshot, input: Pick<CreateSessionInput, 'crewId' | 'runtime' | 'budgetUsd'>, user: User): { session: Session; created: boolean } {
+  private placement(requested: unknown): WorkspaceBackend | undefined {
+    if (this.config.mode === 'demo') { if (requested !== undefined) throw new EngineError(400, 'invalid_placement', 'Demonstration sessions have no workspace placement.'); return undefined; }
+    const backends = this.config.runtime.backends ?? [];
+    if (requested === undefined) return backends.length ? (backends.includes(this.config.runtime.backend as WorkspaceBackend) ? this.config.runtime.backend as WorkspaceBackend : backends[0]) : undefined;
+    if (typeof requested !== 'string' || !backends.includes(requested as WorkspaceBackend)) throw new EngineError(400, 'invalid_placement', 'Choose a workspace placement enabled on this workbench.');
+    return requested as WorkspaceBackend;
+  }
+
+  importTask(snapshot: TaskSnapshot, input: Pick<CreateSessionInput, 'crewId' | 'runtime' | 'budgetUsd' | 'placement'>, user: User): { session: Session; created: boolean } {
     this.operator(user);
     this.interactiveRepository(snapshot.repositoryId, snapshot);
     if (snapshot.status !== 'open') throw new EngineError(409, 'task_closed', 'Only an open task can be imported. Refresh its source before continuing.');
@@ -298,7 +307,7 @@ export class Engine {
       let session = this.store.getSession(id)!;
       session.workspace = workspace;
       if (session.runtime !== 'demo') session.costStatus = 'pending';
-      this.save(session, 'workspace.ready', 'system', { backend: workspace.backend, isolation: workspace.backend === 'kubernetes' ? 'pod' : 'working-directory' });
+      this.save(session, 'workspace.ready', 'system', { backend: workspace.backend, isolation: workspace.backend === 'kubernetes' ? 'pod' : workspace.backend === 'docker' ? 'container' : 'working-directory' });
       const crew = this.config.crews.find(item => item.id === session.crewId)!;
       for (const scheduled of session.runs) {
         signal.throwIfAborted();

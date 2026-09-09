@@ -58,7 +58,7 @@ try {
     return fetch(input, init);
   };
   const runtime = new OpenCodeRuntime(config, manager, noInferenceFetch);
-  await assert.rejects(runtime.execute({ session, repository, workspace, run: { id: 'probe-run' }, role: { id: 'reviewer', name: 'Reviewer', mode: 'read' }, prompt: 'Protocol check only', signal: new AbortController().signal, emit: event => events.push(event) }), /Probe stopped before inference submission/);
+  await assert.rejects(runtime.execute({ session, repository, workspace, run: { id: 'probe-run' }, role: { id: 'reviewer', name: 'Reviewer', mode: 'read' }, prompt: 'Protocol check only', signal: new AbortController().signal, emit: event => events.push(event) }), error => error.category === 'prompt_acceptance_unknown' && error.stage === 'prompt');
   assert.equal(interceptedPrompts, 1);
   const nativeId = events.find(event => event.type === 'native.session').data.nativeId;
   const created = await request('/session/' + nativeId);

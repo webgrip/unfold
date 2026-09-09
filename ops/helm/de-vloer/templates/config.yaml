@@ -3,11 +3,12 @@
 {{- $_ := set $cfg "dataDir" "/data" -}}
 {{- $_ := set $cfg "publicDir" "/app/public" -}}
 {{- if .Values.baseUrl -}}{{- $_ := set $cfg "baseUrl" .Values.baseUrl -}}{{- end -}}
-{{- $_ := set $cfg "runtime" (dict "kind" (ternary "demo" "opencode" (eq .Values.mode "demo")) "backend" "kubernetes" "timeoutMs" 3600000) -}}
+{{- $_ := set $cfg "runtime" (dict "kind" (ternary "demo" "opencode" (eq .Values.mode "demo")) "backend" "kubernetes" "backends" (list "kubernetes") "timeoutMs" 3600000) -}}
 {{- $peer := dict "namespaceSelector" (dict "matchLabels" (dict "kubernetes.io/metadata.name" .Release.Namespace)) "podSelector" (dict "matchLabels" (dict "app.kubernetes.io/name" "de-vloer" "app.kubernetes.io/instance" .Release.Name)) -}}
 {{- $kube := dict "namespace" .Values.workspaceNamespace "image" .Values.workspaceImage "storageSize" .Values.workspaceStorageSize "cpu" .Values.workspaceCpu "memory" .Values.workspaceMemory "ingressFrom" (list $peer) "egress" .Values.workspaceEgress "imagePullSecrets" .Values.workspaceImagePullSecrets -}}
 {{- if .Values.workspaceStorageClass -}}{{- $_ := set $kube "storageClass" .Values.workspaceStorageClass -}}{{- end -}}
 {{- if .Values.workspaceGitSecretName -}}{{- $_ := set $kube "gitSecretName" .Values.workspaceGitSecretName -}}{{- end -}}
+{{- if .Values.workspaceAgentSecrets -}}{{- $_ := set $kube "agentSecrets" .Values.workspaceAgentSecrets -}}{{- end -}}
 {{- $_ := set $cfg "kubernetes" $kube -}}
 apiVersion: v1
 kind: ConfigMap

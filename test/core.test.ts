@@ -297,3 +297,25 @@ test('startup discovers a credential minted before its local persistence and nev
   assert.equal(revocations, 1);
   await engine.shutdown();
 });
+
+test('placement is validated against the enabled workspace backends and recorded on the session', async t => {
+  const { store, config } = await fixture(t, 'live');
+  config.runtime = { kind: 'opencode', backend: 'docker', backends: ['docker', 'kubernetes'], timeoutMs: 30000 };
+  const engine = new Engine(store, config, { opencode: new ControlledRuntime('opencode') });
+  const defaulted = engine.create(input('opencode'), owner);
+  assert.equal(defaulted.placement, 'docker');
+  const chosen = engine.create({ ...input('opencode'), placement: 'kubernetes' }, owner);
+  assert.equal(chosen.placement, 'kubernetes');
+  assert.equal(store.events(chosen.id)[0].data.placement, 'kubernetes');
+  assert.throws(() => engine.create({ ...input('opencode'), placement: 'local' }, owner), (error: any) => error.code === 'invalid_placement');
+  assert.throws(() => engine.create({ ...input('opencode'), placement: 'anywhere' as any }, owner), (error: any) => error.code === 'invalid_placement');
+  await engine.shutdown();
+});
+
+test('demonstration sessions carry no placement', async t => {
+  const { store, config } = await fixture(t);
+  const engine = new Engine(store, config, { demo: new ControlledRuntime() });
+  assert.equal(engine.create(input(), owner).placement, undefined);
+  assert.throws(() => engine.create({ ...input(), placement: 'docker' }, owner), (error: any) => error.code === 'invalid_placement');
+  await engine.shutdown();
+});

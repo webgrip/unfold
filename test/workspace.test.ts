@@ -185,3 +185,21 @@ test('failure details are redacted, bounded and cannot be assigned after constru
   assert.equal(classifyFailure(new RuntimeFailure('timeout', 'workspace'), 'workspace').detail, undefined);
   assert.throws(() => Object.assign(new RuntimeFailure('workspace_setup', 'workspace'), { detail: 'smuggled' }), TypeError);
 });
+
+test('agent secrets reach the agent container as envFrom while the clone container never receives them', () => {
+  const config = configuration();
+  config.kubernetes = { ...config.kubernetes!, agentSecrets: ['forge-read-token', 'openbao-approle'] };
+  const manifests = workspaceManifests(config, session, repository, credential, { username: 'opencode', password: 'basic-private' }, managedConfig(config));
+  const pod = manifests.find(item => item.kind === 'Pod')!;
+  assert.deepEqual(pod.spec.containers[0].envFrom, [{ secretRef: { name: 'forge-read-token' } }, { secretRef: { name: 'openbao-approle' } }]);
+  assert.equal(pod.spec.initContainers[0].envFrom, undefined);
+  assert.ok(pod.spec.containers[0].env.some((e: any) => e.name === 'GIT_COMMITTER_NAME'));
+});
+
+test('the environment allow-list copies named host variables and never the reserved ones', () => {
+  const config = configuration();
+  config.runtime.agentEnvironment = ['FORGE_READ_TOKEN'];
+  const env = isolatedEnvironment('/work/one', credential, config, { FORGE_READ_TOKEN: 'forge-read', LITELLM_MASTER_KEY: 'MASTER-NEVER-AGENT', PATH: '/usr/bin' });
+  assert.equal(env.FORGE_READ_TOKEN, 'forge-read');
+  assert.equal(env.LITELLM_MASTER_KEY, undefined);
+});

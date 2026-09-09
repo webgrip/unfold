@@ -277,7 +277,7 @@ export class OpenCodeRuntime implements AgentRuntime {
   }
 
   async interrupt(workspace: Workspace): Promise<void> {
-    if (!this.workspaces.credentials(workspace) && ['local', 'kubernetes'].includes(workspace.backend)) {
+    if (!this.workspaces.credentials(workspace) && ['local', 'docker', 'kubernetes'].includes(workspace.backend)) {
       await this.workspaces.dispose(workspace);
       return;
     }

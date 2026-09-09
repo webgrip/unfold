@@ -22,6 +22,8 @@
     "workspaceMemory": { "type": "string", "minLength": 1 },
     "workspaceEgress": { "type": "array", "items": { "type": "object" } },
     "workspaceImagePullSecrets": { "type": "array", "items": { "type": "string" } },
+    "workspaceGitSecretName": { "type": "string" },
+    "workspaceAgentSecrets": { "type": "array", "items": { "type": "string", "pattern": "^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$" } },
     "credentialsSecret": { "type": "string", "minLength": 1 },
     "config": { "type": "object" },
     "ingress": {
