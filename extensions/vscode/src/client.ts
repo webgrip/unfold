@@ -1,4 +1,6 @@
-import type { Bootstrap, Session, SessionEvent, SessionInput, Permission, TaskSource, TaskSnapshot, TaskPage, TaskImportInput, CandidateFormat } from './types.js';
+import type { Bootstrap, Session, SessionEvent, SessionInput, Permission, Decision, TaskSource, TaskSnapshot, TaskPage, TaskImportInput, CandidateFormat } from './types.js';
+
+export type StreamHandlers = { onOpen?: () => void; onEvent: (event: SessionEvent) => void };
 
 export interface Secrets {
   get(key: string): PromiseLike<string | undefined>;
@@ -91,8 +93,47 @@ export class VloerClient {
   create(input: SessionInput): Promise<Session> { return this.request('/api/sessions', 'POST', input); }
   action(id: string, action: 'start' | 'pause' | 'resume' | 'cancel'): Promise<Session> { return this.request(`/api/sessions/${identifier(id)}/${action}`, 'POST', {}); }
   message(id: string, text: string): Promise<Session> { return this.request(`/api/sessions/${identifier(id)}/messages`, 'POST', { text }); }
-  respond(id: string, requestId: string, answer: { decision?: 'once' | 'always' | 'reject'; answers?: string[][] }): Promise<Session> {
+  respond(id: string, requestId: string, answer: Decision): Promise<Session> {
     return this.request(`/api/sessions/${identifier(id)}/permissions/${identifier(requestId)}`, 'POST', answer);
+  }
+  budget(id: string, amountUsd: number): Promise<Session> {
+    if (!Number.isFinite(amountUsd) || amountUsd <= 0) throw new Error('Additional budget must be a positive amount.');
+    return this.request(`/api/sessions/${identifier(id)}/budget`, 'POST', { amountUsd });
+  }
+  async stream(id: string, after: number, handlers: StreamHandlers, signal: AbortSignal): Promise<void> {
+    const cookie = await this.secrets.get(this.secretKey);
+    const headers: Record<string, string> = { Accept: 'text/event-stream', Origin: this.origin, 'X-Vloer-Request': '1' };
+    if (cookie) headers.Cookie = cookie;
+    let response: Response;
+    try { response = await fetch(`${this.origin}/api/sessions/${identifier(id)}/events?after=${Math.max(0, Math.floor(after))}`, { headers, signal, redirect: 'manual' }); }
+    catch (error) { if (signal.aborted) return; throw new ApiError(0, 'unreachable', 'The live event stream could not be opened.'); }
+    if (response.status === 401) { await this.secrets.delete(this.secretKey); throw new ApiError(401, 'unauthenticated', 'Sign in to your workbench.'); }
+    if (!response.ok || !(response.headers.get('content-type') ?? '').includes('text/event-stream') || !response.body) { await response.body?.cancel(); throw new ApiError(response.status, 'stream_unavailable', 'The workbench did not offer a live event stream.'); }
+    handlers.onOpen?.();
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    const dispatch = (block: string) => {
+      const data = block.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trim()).join('\n');
+      if (!data) return;
+      let event: SessionEvent;
+      try { event = JSON.parse(data); } catch { return; }
+      if (event && typeof event.id === 'number' && event.sessionId === id && typeof event.type === 'string') handlers.onEvent(event);
+    };
+    try {
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, { stream: true });
+        if (buffer.length > 4_194_304) throw new ApiError(0, 'stream_overflow', 'The live event stream sent an oversized message.');
+        let boundary = buffer.indexOf('\n\n');
+        while (boundary >= 0) { dispatch(buffer.slice(0, boundary)); buffer = buffer.slice(boundary + 2); boundary = buffer.indexOf('\n\n'); }
+      }
+    } catch (error) {
+      if (signal.aborted) return;
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(0, 'stream_closed', 'The live event stream closed.');
+    } finally { await reader.cancel().catch(() => undefined); }
   }
   taskSources(): Promise<TaskSource[]> { return this.request('/api/task-sources'); }
   tasks(sourceId: string, page = 1): Promise<TaskPage> {

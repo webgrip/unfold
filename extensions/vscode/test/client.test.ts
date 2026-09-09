@@ -239,3 +239,65 @@ test('candidate downloads reject redirects and oversized responses without forwa
   mode = 'oversized';
   await assert.rejects(client.downloadCandidate('session-123', 'bundle'), (error: unknown) => error instanceof ApiError && error.code === 'response_too_large');
 });
+
+async function until(condition: () => Promise<boolean> | boolean, timeoutMs = 10_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!(await condition())) {
+    if (Date.now() > deadline) throw new Error('Condition not met in time');
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+}
+
+test('the live event stream delivers durable events in order, replays after a cursor and stops cleanly on abort', { timeout: 30_000 }, async t => {
+  const server = await application();
+  t.after(() => server.close());
+  const client = new VloerClient(server.url, new MemorySecrets());
+  const session = await client.create(createInput() as SessionInput);
+  const seen: { id: number; type: string }[] = [];
+  let opened = false;
+  const controller = new AbortController();
+  const streaming = client.stream(session.id, 0, { onOpen: () => { opened = true; }, onEvent: event => seen.push({ id: event.id, type: event.type }) }, controller.signal);
+  await until(() => opened);
+  await client.action(session.id, 'start');
+  await sessionUntil(server.url, session.id, value => ['completed', 'failed'].includes(value.status));
+  const history = await client.history(session.id);
+  await until(() => seen.length >= history.length);
+  controller.abort();
+  await streaming;
+  assert.deepEqual(seen.map(event => event.id), history.map(event => event.id));
+  assert(seen.some(event => event.type === 'session.created'));
+  assert(seen.some(event => event.type === 'session.completed'));
+  assert(seen.every((event, index) => index === 0 || event.id > seen[index - 1].id));
+  const cursor = history[2].id;
+  const replayed: number[] = [];
+  const replay = new AbortController();
+  const replaying = client.stream(session.id, cursor, { onEvent: event => replayed.push(event.id) }, replay.signal);
+  await until(() => replayed.length >= history.length - 3);
+  replay.abort();
+  await replaying;
+  assert.deepEqual(replayed, history.slice(3).map(event => event.id));
+  await assert.rejects(client.stream('../events', 0, { onEvent: () => undefined }, new AbortController().signal));
+});
+
+test('the live event stream requires the stored login and never invents one', { timeout: 20_000 }, async t => {
+  const server = await application('live');
+  t.after(() => server.close());
+  const secrets = new MemorySecrets();
+  const client = new VloerClient(server.url, secrets);
+  await assert.rejects(client.stream('session-1', 0, { onEvent: () => undefined }, new AbortController().signal), (error: unknown) => error instanceof ApiError && error.status === 401);
+  assert.equal(secrets.values.size, 0);
+});
+
+test('administrators authorize additional budget through the real mutation contract', { timeout: 20_000 }, async t => {
+  const server = await application('live');
+  t.after(() => server.close());
+  const client = new VloerClient(server.url, new MemorySecrets());
+  await client.login('admin', 'test-admin-password-314159');
+  const session = await client.create(createInput({ runtime: 'opencode', budgetUsd: 3 }) as SessionInput);
+  assert.throws(() => client.budget(session.id, 0));
+  assert.throws(() => client.budget(session.id, -1));
+  const increased = await client.budget(session.id, 2);
+  assert.equal(increased.budgetUsd, 5);
+  assert((await client.history(session.id)).some(event => event.type === 'budget.increased'));
+  await assert.rejects(client.budget(session.id, 1000), (error: unknown) => error instanceof ApiError && error.status === 400);
+});

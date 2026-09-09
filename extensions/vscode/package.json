@@ -1,8 +1,8 @@
 {
   "name": "de-vloer",
-  "displayName": "De Vloer \u2014 Remote Agent Workbench",
-  "description": "Direct remote agent crews, inspect evidence and send explicit context without running agents on your workstation.",
-  "version": "0.2.0",
+  "displayName": "De Vloer — Remote Agent Workbench",
+  "description": "Direct remote agent crews from VS Code: decide inline, review native evidence, watch live progress, and never run agents on your workstation.",
+  "version": "0.3.0",
   "publisher": "webgrip",
   "license": "Apache-2.0",
   "engines": {
@@ -31,7 +31,9 @@
   },
   "activationEvents": [
     "onView:vloer.sessions",
-    "onView:vloer.tasks"
+    "onView:vloer.tasks",
+    "onWebviewPanel:vloer.session",
+    "onStartupFinished"
   ],
   "contributes": {
     "commands": [
@@ -59,10 +61,39 @@
         "icon": "$(add)"
       },
       {
+        "command": "vloer.findSession",
+        "title": "Find Session",
+        "category": "Vloer",
+        "icon": "$(search)"
+      },
+      {
+        "command": "vloer.reviewNextDecision",
+        "title": "Review Next Decision",
+        "category": "Vloer",
+        "icon": "$(bell-dot)"
+      },
+      {
+        "command": "vloer.reviewDecision",
+        "title": "Review Decision",
+        "category": "Vloer",
+        "icon": "$(bell-dot)"
+      },
+      {
         "command": "vloer.open",
         "title": "Open Session",
         "category": "Vloer",
         "icon": "$(open-preview)"
+      },
+      {
+        "command": "vloer.openTab",
+        "title": "Open Session Tab",
+        "category": "Vloer"
+      },
+      {
+        "command": "vloer.openArtifact",
+        "title": "Open Evidence",
+        "category": "Vloer",
+        "icon": "$(file)"
       },
       {
         "command": "vloer.start",
@@ -91,28 +122,48 @@
       {
         "command": "vloer.sendInstruction",
         "title": "Send Instruction to Session",
-        "category": "Vloer"
+        "category": "Vloer",
+        "icon": "$(comment)"
       },
       {
         "command": "vloer.attachSelection",
-        "title": "Send Selection to Remote Session\u2026",
+        "title": "Send Selection to Remote Session…",
         "category": "Vloer"
       },
       {
         "command": "vloer.attachFile",
-        "title": "Send Current File to Remote Session\u2026",
+        "title": "Send Current File to Remote Session…",
         "category": "Vloer"
+      },
+      {
+        "command": "vloer.addBudget",
+        "title": "Authorize Additional Budget",
+        "category": "Vloer",
+        "icon": "$(credit-card)"
       },
       {
         "command": "vloer.history",
         "title": "Open Durable Session History",
-        "category": "Vloer"
+        "category": "Vloer",
+        "icon": "$(history)"
       },
       {
         "command": "vloer.dashboard",
         "title": "Open Web Dashboard",
         "category": "Vloer",
         "icon": "$(link-external)"
+      },
+      {
+        "command": "vloer.copyLink",
+        "title": "Copy Session Link",
+        "category": "Vloer",
+        "icon": "$(link)"
+      },
+      {
+        "command": "vloer.openTracker",
+        "title": "Open Original Task in Tracker",
+        "category": "Vloer",
+        "icon": "$(issues)"
       },
       {
         "command": "vloer.browseTasks",
@@ -129,12 +180,20 @@
       {
         "command": "vloer.importTask",
         "title": "Import Linked Task into Session",
-        "category": "Vloer"
+        "category": "Vloer",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "vloer.openTaskLink",
+        "title": "Open Task in Tracker",
+        "category": "Vloer",
+        "icon": "$(link-external)"
       },
       {
         "command": "vloer.sourceTask",
         "title": "Open Imported Task Snapshot",
-        "category": "Vloer"
+        "category": "Vloer",
+        "icon": "$(issues)"
       },
       {
         "command": "vloer.downloadCandidate",
@@ -159,6 +218,28 @@
           "maximum": 60,
           "scope": "application",
           "description": "Refresh visible remote sessions; no agent work runs in this extension."
+        },
+        "vloer.liveUpdates": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "description": "Follow open session panels through the workbench event stream. Polling remains the fallback heartbeat."
+        },
+        "vloer.notifications": {
+          "type": "string",
+          "enum": [
+            "all",
+            "decisions-and-failures",
+            "none"
+          ],
+          "default": "all",
+          "enumDescriptions": [
+            "Notify for new decisions, failures, interruptions and sessions ready for human review",
+            "Notify only when a session needs a decision or attention",
+            "Never show notifications; the sidebar badge and status bar still update"
+          ],
+          "scope": "application",
+          "description": "Which session transitions raise a notification. Streamed tokens and tool completions never notify."
         }
       }
     },
@@ -188,14 +269,38 @@
     "viewsWelcome": [
       {
         "view": "vloer.sessions",
-        "contents": "A shared workbench for remote agent crews.\n[Connect to your workbench](command:vloer.connect)\n[Create a remote session](command:vloer.create)\n\nAgents and model calls run on your server. Local files are sent only when you explicitly choose to share them."
+        "when": "!vloer.connected",
+        "contents": "Direct remote agent crews from your editor. Agents, model calls and repository checkouts stay on your workbench server.\n[Connect to your workbench](command:vloer.connect)\n\nLocal files are sent only when you explicitly choose to share them."
+      },
+      {
+        "view": "vloer.sessions",
+        "when": "vloer.connected",
+        "contents": "No remote sessions yet.\n[Create a remote session](command:vloer.create)\n[Start from a linked task](command:vloer.browseTasks)\n\nA session is authorized when created and runs only when you start it."
       },
       {
         "view": "vloer.tasks",
-        "contents": "Pick work from your team\u2019s connected task systems.\n[Browse linked tasks](command:vloer.browseTasks)\n\nForgejo \u00b7 GitHub \u00b7 GitLab \u00b7 ClickUp \u00b7 Vikunja\nSources and repository routing are configured on the workbench server."
+        "contents": "Pick work from your team’s connected task systems.\n[Browse linked tasks](command:vloer.browseTasks)\n\nForgejo · GitHub · GitLab · ClickUp · Vikunja\nSources and repository routing are configured on the workbench server."
       }
     ],
     "menus": {
+      "commandPalette": [
+        {
+          "command": "vloer.openTab",
+          "when": "false"
+        },
+        {
+          "command": "vloer.reviewDecision",
+          "when": "vloer.connected"
+        },
+        {
+          "command": "vloer.openTaskLink",
+          "when": "false"
+        },
+        {
+          "command": "vloer.importTask",
+          "when": "vloer.connected"
+        }
+      ],
       "view/title": [
         {
           "command": "vloer.create",
@@ -203,9 +308,19 @@
           "group": "navigation@1"
         },
         {
+          "command": "vloer.findSession",
+          "when": "view == vloer.sessions && vloer.connected",
+          "group": "navigation@2"
+        },
+        {
           "command": "vloer.refresh",
           "when": "view == vloer.sessions",
-          "group": "navigation@2"
+          "group": "navigation@3"
+        },
+        {
+          "command": "vloer.reviewNextDecision",
+          "when": "view == vloer.sessions && vloer.connected",
+          "group": "attention@1"
         },
         {
           "command": "vloer.connect",
@@ -235,9 +350,29 @@
       ],
       "view/item/context": [
         {
+          "command": "vloer.start",
+          "when": "view == vloer.sessions && viewItem == session:queued",
+          "group": "inline@1"
+        },
+        {
+          "command": "vloer.resume",
+          "when": "view == vloer.sessions && viewItem =~ /^session:(paused|interrupted)$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "vloer.pause",
+          "when": "view == vloer.sessions && viewItem == session:running",
+          "group": "inline@1"
+        },
+        {
+          "command": "vloer.reviewDecision",
+          "when": "view == vloer.sessions && viewItem == session:waiting_input",
+          "group": "inline@1"
+        },
+        {
           "command": "vloer.open",
           "when": "view == vloer.sessions && viewItem =~ /^session:/",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "vloer.start",
@@ -255,29 +390,69 @@
           "group": "lifecycle@3"
         },
         {
-          "command": "vloer.cancel",
-          "when": "view == vloer.sessions && viewItem =~ /^session:(queued|running|exporting|waiting_input|paused|interrupted)$/",
+          "command": "vloer.sendInstruction",
+          "when": "view == vloer.sessions && viewItem =~ /^session:(queued|running|waiting_input|paused|interrupted|failed)$/",
           "group": "lifecycle@4"
         },
         {
-          "command": "vloer.history",
-          "when": "view == vloer.sessions && viewItem =~ /^session:/",
-          "group": "evidence"
+          "command": "vloer.addBudget",
+          "when": "view == vloer.sessions && viewItem =~ /^session:(queued|running|waiting_input|paused|interrupted|failed)$/",
+          "group": "lifecycle@5"
         },
         {
-          "command": "vloer.importTask",
-          "when": "view == vloer.tasks && viewItem == task:interactive",
-          "group": "inline"
+          "command": "vloer.cancel",
+          "when": "view == vloer.sessions && viewItem =~ /^session:(queued|running|exporting|waiting_input|paused|interrupted)$/",
+          "group": "lifecycle@9"
         },
         {
-          "command": "vloer.sourceTask",
+          "command": "vloer.openArtifact",
           "when": "view == vloer.sessions && viewItem =~ /^session:/",
-          "group": "evidence"
+          "group": "evidence@1"
         },
         {
           "command": "vloer.downloadCandidate",
           "when": "view == vloer.sessions && viewItem =~ /^session:/",
-          "group": "evidence"
+          "group": "evidence@2"
+        },
+        {
+          "command": "vloer.history",
+          "when": "view == vloer.sessions && viewItem =~ /^session:/",
+          "group": "evidence@3"
+        },
+        {
+          "command": "vloer.sourceTask",
+          "when": "view == vloer.sessions && viewItem =~ /^session:/",
+          "group": "evidence@4"
+        },
+        {
+          "command": "vloer.copyLink",
+          "when": "view == vloer.sessions && viewItem =~ /^session:/",
+          "group": "links@1"
+        },
+        {
+          "command": "vloer.dashboard",
+          "when": "view == vloer.sessions && viewItem =~ /^session:/",
+          "group": "links@2"
+        },
+        {
+          "command": "vloer.openTracker",
+          "when": "view == vloer.sessions && viewItem =~ /^session:/",
+          "group": "links@3"
+        },
+        {
+          "command": "vloer.openTaskLink",
+          "when": "view == vloer.sessions && viewItem == task:linked",
+          "group": "inline"
+        },
+        {
+          "command": "vloer.importTask",
+          "when": "view == vloer.tasks && viewItem =~ /^task:interactive/",
+          "group": "inline@1"
+        },
+        {
+          "command": "vloer.openTaskLink",
+          "when": "view == vloer.tasks && viewItem =~ /^task:.*:linked$/",
+          "group": "inline@2"
         }
       ],
       "editor/context": [
@@ -287,7 +462,62 @@
           "group": "vloer"
         }
       ]
-    }
+    },
+    "walkthroughs": [
+      {
+        "id": "vloer.getStarted",
+        "title": "Get started with De Vloer",
+        "description": "Connect to your workbench, pick a task, start a remote crew and review its evidence without running agents on your laptop.",
+        "steps": [
+          {
+            "id": "connect",
+            "title": "Connect to your workbench",
+            "description": "Enter the HTTPS origin of your team server, or the local demo at http://127.0.0.1:4080.\n[Connect](command:vloer.connect)",
+            "media": {
+              "markdown": "media/walkthrough/connect.md"
+            },
+            "completionEvents": [
+              "onContext:vloer.connected"
+            ]
+          },
+          {
+            "id": "task",
+            "title": "Start from a linked task",
+            "description": "Browse Forgejo, GitHub, GitLab, ClickUp or Vikunja sources configured on the server, preview the snapshot, and create a queued session.\n[Browse linked tasks](command:vloer.browseTasks)",
+            "media": {
+              "markdown": "media/walkthrough/tasks.md"
+            },
+            "completionEvents": [
+              "onCommand:vloer.importTask",
+              "onCommand:vloer.create"
+            ]
+          },
+          {
+            "id": "start",
+            "title": "Start the remote crew",
+            "description": "A session is authorized when created and runs only when you start it. Watch the crew live in the session panel.\n[Open a session](command:vloer.findSession)",
+            "media": {
+              "markdown": "media/walkthrough/start.md"
+            },
+            "completionEvents": [
+              "onCommand:vloer.start"
+            ]
+          },
+          {
+            "id": "review",
+            "title": "Decide and review",
+            "description": "Answer permission requests inline, read per-file changes and check output as native documents, then download the review candidate.\n[Review next decision](command:vloer.reviewNextDecision)",
+            "media": {
+              "markdown": "media/walkthrough/review.md"
+            },
+            "completionEvents": [
+              "onCommand:vloer.openArtifact",
+              "onCommand:vloer.downloadCandidate"
+            ]
+          }
+        ]
+      }
+    ]
   },
   "scripts": {
     "compile": "tsc -p .",

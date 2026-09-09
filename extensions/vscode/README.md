@@ -2,7 +2,7 @@
 
 Direct remote agent crews from your editor. Keep the repository checkout, tool execution and model calls on the workbench server while you inspect progress, make decisions and review evidence in VS Code.
 
-This is the **implemented v0.2 desktop extension** for the current De Vloer API. The wider product design, connector roadmap and future IDE experience are documented in the parent repository under `docs/design/`. Proposed capabilities there are not automatically extension features.
+This is the **implemented v0.3 desktop extension** for the current De Vloer API. The wider product design, connector roadmap and future IDE experience are documented in the parent repository under `docs/design/`. Proposed capabilities there are not automatically extension features.
 
 ## Start in five minutes
 
@@ -20,12 +20,12 @@ In another terminal:
 cd extensions/vscode
 npm ci
 npm run package
-code --install-extension de-vloer-0.2.0.vsix
+code --install-extension de-vloer-0.3.0.vsix
 ```
 
 Alternatively, use **Extensions → … → Install from VSIX**. A publisher account or Marketplace upload is unnecessary for a team pilot. The package's `webgrip` publisher identifier does not mean this extension is already published or that a Marketplace publisher has been verified.
 
-Open the **De Vloer** activity bar, run **Vloer: Connect to Workbench**, and enter `http://127.0.0.1:4080`. Demo mode supplies its clearly identified demonstration user automatically. Expand **Linked Tasks → Demo tasks**, select the fixture task, inspect its read-only preview, and choose **Set up session**. Select a crew, runtime and budget, then confirm **Import task**. Choose **Start remote crew** in the queued session. Inspect the baseline failure, passing verification and review under **Evidence**, then download its captured Git bundle, binary patch or manifest. **New Remote Session** remains available for an ad hoc objective.
+Open the **De Vloer** activity bar, run **Vloer: Connect to Workbench**, and enter `http://127.0.0.1:4080`. Demo mode supplies its clearly identified demonstration user automatically. Expand **Linked Tasks → Demo tasks**, select the fixture task, inspect its read-only preview, and choose **Set up session**. Select a crew, runtime and budget (each step has a back button), then confirm **Import task**. Choose **Start remote crew** in the queued session and watch it live. Read the baseline failure and passing verification under **Checks**, the per-file patch under **Changes**, and the reviewer's findings in the crew strip, then download the captured Git bundle, binary patch or manifest. **New Remote Session** remains available for an ad hoc objective. The **Get Started with De Vloer** walkthrough covers the same path.
 
 The demo runs a fixed, real test fixture with no AI calls. An arbitrary objective in demo mode does not turn it into a live coding agent.
 
@@ -41,23 +41,26 @@ The server still enforces account roles and session ownership. v0.2 has no share
 
 | Surface | Implemented behavior |
 | --- | --- |
-| Linked Tasks tree | Browse registered Forgejo, GitHub, GitLab, ClickUp and Vikunja sources; inspect task snapshots and explicitly import an open task |
-| Review candidate | Download retained Git bundle, binary patch or manifest to an explicit local destination; bundle and patch digests are checked before saving |
-| Imported source | Open the exact task snapshot used to create a session, including its source revision and repository destination |
-| Remote Sessions tree | Groups attention, active, queued and historical work using native VS Code items, keyboard navigation and status icons |
-| Session panel | Theme-aware work, evidence and activity tabs; objective, sequential crew stages, review verdicts, spend state, branch and human decisions |
+| Remote Sessions tree | Groups attention, active, ready and historical work; items show repository, active role, observed spend and age, and expand into pending decisions, crew roles, retained evidence, the review candidate and the imported task. Inline actions start, resume, pause or open the decision for the current state |
+| Activity bar and status bar | The view badge counts sessions needing attention. The status bar turns amber with the number of waiting decisions and opens the oldest one; otherwise it shows running work |
+| Notifications | New decisions, failures, interruptions and sessions ready for human review, each with a direct action. Streamed tokens and tool completions never notify. `vloer.notifications` selects all, decisions and failures only, or none |
+| Linked Tasks tree | Browse registered Forgejo, GitHub, GitLab, ClickUp and Vikunja sources; inspect task snapshots, open the original task in its tracker, and explicitly import an open task |
+| Session panel | Leads with one sentence stating the situation and the next permitted action. Crew strip with elapsed time, verdicts and findings rendered as safe Markdown. Tabs: **Brief**, **Changes** (per-file list with added and removed counts), **Checks** (passed, failed or expected failure per artifact) and **Activity** (chronological, filterable, coalesced streamed text, folded tool output) |
+| Decisions | Permission and question cards inline at the top of the panel. Scope is read from the adapter payload; **Allow once** is prominent, **Reject** equally reachable, and a broader grant appears only when patterns are declared. Questions keep options, multiple selection and custom answers, and show a confirmation before sending. Nothing is approved by navigation or by Enter in the composer |
+| Live updates | Open panels read the server event stream from the extension host and refetch the session snapshot on each burst. Polling remains the fallback. The footer states live, polling or disconnected with the last observed time. `vloer.liveUpdates` turns the stream off |
 | Session controls | Explicit start, pause, resume and cancel; cancellation requires a confirmation and does not create replacement work |
-| Evidence | Opens retained patches, real test logs and summaries as read-only virtual editor documents |
-| Instructions | Records an operator instruction for the next execution; pause/resume is needed when an active run must incorporate it |
-| Permissions | Displays the actual unresolved request; supports allow-once or reject; structured questions support options, multiple selections and custom answers when permitted |
-| History | Reads durable events after the last numeric cursor, deduplicates by ID and offers complete JSON history as a read-only document |
+| Evidence | Stable `vloer-evidence:` documents: diffs open with diff highlighting at the chosen file, checks as logs, summaries as Markdown. Reopening reuses the tab |
+| Review candidate | Download retained Git bundle, binary patch or manifest to an explicit local destination; bundle and patch digests are checked before saving |
+| Instructions | Composer with four delivery states: draft on this device, sending, saved for the next execution, delivery unknown. **Pause the active run first** pauses before saving so the next execution starts with the instruction |
+| Budget | Authorized, observed and reserved amounts with settlement status; administrators authorize more from the panel or the tree |
+| Guided creation | New session and task import run in one multi-step flow with a back button, retained draft, budget presets and a final confirmation of destination, repository, crew, runtime and authorization |
 | Editor context | Sends a chosen selection or current text file only after a preview and explicit destination confirmation |
-| Connection states | Shows stale/offline state, disables panel mutations while disconnected, clears expired credentials and exposes reconnection |
-| Execution failures | Displays the server's safe diagnosis, next action and uncertain submission state; retains blocker compatibility with older servers |
+| Connection states | Shows stale or offline state, disables panel mutations while disconnected, clears expired credentials and exposes reconnection. Panels are restored after a window reload |
+| Execution failures | Displays the server's safe diagnosis, next action, recorded cause and uncertain submission state; retains blocker compatibility with older servers |
 
-The panel keeps at most 1,000 recent events in memory and displays the latest 100. **Open complete history** fetches the server's retained history. Cursor values are global event IDs; gaps within one session are normal. Session polling is configurable from two to 60 seconds and occurs while either tree or a session panel is visible. Task pages load when you expand a source; **Refresh Linked Tasks** explicitly reloads them, avoiding a background polling loop against every tracker. Hiding or closing VS Code does not stop remote work.
+The panel keeps at most 2,000 recent events in memory and displays the latest 300. **Open complete history** fetches the server's retained history. Cursor values are global event IDs; gaps within one session are normal. Session polling is configurable from two to 60 seconds and occurs while either tree or a session panel is visible. Task pages load when you expand a source; **Refresh Linked Tasks** explicitly reloads them, avoiding a background polling loop against every tracker. Hiding or closing VS Code does not stop remote work.
 
-No API mutation is retried automatically. If a request loses its response, refresh the session before repeating the action: delivery may have succeeded even when the client could not confirm it. Budgets display **observed** spend and its settlement status, never invented real-time exactness. Budget increases remain available to administrators in the web dashboard.
+No API mutation is retried automatically. If a request loses its response, the composer reports **Delivery unknown** and keeps the draft; refresh the session before repeating the action, because delivery may have succeeded even when the client could not confirm it. Budgets display **observed** spend and its settlement status, never invented real-time exactness.
 
 ## Link your task systems
 
@@ -105,19 +108,23 @@ All commands use the **Vloer:** prefix in the Command Palette.
 | Command | Use |
 | --- | --- |
 | Connect to Workbench / Sign Out | Manage the current server session |
+| Find Session | Search visible sessions by title, state, repository, imported task or ID |
+| Review Next Decision / Review Decision | Open the oldest waiting decision, or a specific one, inside its session |
 | Browse Linked Tasks / Refresh Linked Tasks | Browse connected task systems and explicitly refresh their pages |
 | Import Linked Task into Session | Preview a pinned task revision, configure a crew and create queued work |
-| Open Imported Task Snapshot | Inspect the source snapshot used by the current session |
+| Open Imported Task Snapshot / Open Original Task in Tracker | Inspect the source snapshot used by a session, or open its HTTPS tracker link |
 | Download Review Candidate | Save a Git bundle, binary patch or manifest to an explicit local file |
-| New Remote Session | Choose registered repository, crew, runtime, objective and authorized budget |
+| New Remote Session | Guided repository, crew, runtime, title, objective and authorization steps with a back button |
 | Open Session / Refresh Sessions | Inspect current durable server state |
+| Open Evidence | Open a retained diff, check log or summary as a read-only document |
 | Start / Pause / Resume / Cancel Session | Control deliberate remote execution |
 | Send Instruction to Session | Steer the next execution |
+| Authorize Additional Budget | Administrators add authorization within the deployment limit |
 | Send Selection / Send Current File to Remote Session… | Explicitly share bounded editor context |
 | Open Durable Session History | Open retained JSON events |
-| Open Web Dashboard | Open the same session in the full browser workbench |
+| Open Web Dashboard / Copy Session Link | Open the same session in the browser workbench, or copy its link |
 
-The session composer also supports **Ctrl+Enter / Cmd+Enter**. Tab navigation follows the usual arrow, Home and End behavior. Colors use VS Code theme variables, with visible focus outlines and narrow-editor layouts.
+The session composer supports **Ctrl+Enter / Cmd+Enter**. Tab navigation follows the usual arrow, Home and End behavior. Colors use VS Code theme variables, with visible focus outlines and narrow-editor layouts. No global keyboard shortcuts are registered.
 
 ## Develop and validate
 
@@ -137,7 +144,7 @@ npm test
 npm run package
 ```
 
-The ten client tests exercise isolated instances of the actual De Vloer server, plus controlled upstream and transport fixtures. They cover real demonstration checks and candidate downloads; idempotent task import; authenticated Vloer-to-Vikunja ingestion with a local upstream fixture; stale revision and Ploeg-lane rejection; lifecycle controls; live-cookie login/expiry/logout; operator isolation; origin validation; path rejection; and redirect/oversize download safety. No provider credentials or live model calls are used.
+The thirteen client tests exercise isolated instances of the actual De Vloer server, plus controlled upstream and transport fixtures. They cover real demonstration checks and candidate downloads; idempotent task import; authenticated Vloer-to-Vikunja ingestion with a local upstream fixture; stale revision and Ploeg-lane rejection; lifecycle controls; live-cookie login/expiry/logout; operator isolation; origin validation; path rejection; redirect/oversize download safety; the live event stream with cursor replay and abort; and administrator budget authorization. No provider credentials or live model calls are used.
 
 For the browser-based webview check, first install the root repository's development dependencies and Playwright Chromium:
 
@@ -149,7 +156,7 @@ cd extensions/vscode
 npm run test:webview
 ```
 
-`VLOER_CHROMIUM_BIN` can select an already installed Chromium binary. This check renders real demo output through the shipped webview script and tests the imported source snapshot, complete candidate actions, keyboard tabs, message dispatch, draft retention, hostile text rendering, disconnect behavior and narrow layouts. It **does not run the VS Code Extension Host**. Screenshots go to the ignored `.screenshots/` directory.
+`VLOER_CHROMIUM_BIN` can select an already installed Chromium binary. This check renders real demo output through the shipped webview script and tests the situation sentence, Markdown findings, the per-file changes list, check outcomes, activity filters and folded tool output, inline permission and question decisions with confirmation, composer delivery states with pause-first, disconnect and reconnect, hostile text kept inert, failure guidance with its recorded cause, the administrator budget form, and desktop and narrow layouts. It **does not run the VS Code Extension Host**. Screenshots go to the ignored `.screenshots/` directory.
 
 Before wider distribution, qualify installation, native commands, SecretStorage behavior and accessibility in an actual VS Code Extension Development Host on the supported desktop operating systems. This build environment did not contain a working VS Code desktop installation, so that qualification is not claimed. Real cluster/provider qualification is governed by the parent repository's validation document.
 
@@ -159,7 +166,8 @@ Before wider distribution, qualify installation, native commands, SecretStorage 
 - Cookies stay in the extension host. The webview receives public session data and uses a narrow message protocol; it never receives passwords, cookies, LiteLLM keys or Kubernetes credentials.
 - The server URL is an application-scoped setting. Workspace settings cannot redirect the operator's deployment.
 - API redirects are rejected. Requests include the required mutation header and matching Origin. There is no cross-origin credential forwarding or disabled TLS verification.
-- Webview scripts and styles are packaged locally. Its CSP denies network connections and remote code; server content is constructed as text, not executable HTML or Markdown links.
+- Webview scripts and styles are packaged locally. Its CSP denies network connections and remote code; server content is constructed as DOM text nodes. The Markdown renderer emits headings, lists, code, tables and emphasis only; links are shown as text with their target, never as navigable anchors.
+- The event stream is read in the extension host with the stored cookie; the webview never opens a connection.
 - No analytics, advertising, external font downloads or background repository uploads are implemented. Draft instructions can be retained in VS Code's local webview state; server-side instructions, artifacts and history follow the workbench's retention policy.
 - Current-file context is an explicit text instruction, not a safe mechanism for sharing secrets. Review the exact preview before sending it.
 

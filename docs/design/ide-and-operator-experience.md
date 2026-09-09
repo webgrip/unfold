@@ -1,5 +1,9 @@
 # IDE and operator experience
 
+## 0.3.0 implementation update
+
+The 0.3.0 extension implements the editor sections of this design that the current API can support: a situation sentence and next action on every surface, inline permission and question decisions with scope and confirmation, per-file changes and check outcomes as native documents, a chronological filterable activity stream, four composer delivery states, live updates from the server event stream with polling as fallback, an orienting sidebar with badge and status bar, attention notifications, guided creation with back navigation, and panel restoration after reload. The [0.3 execution plan](ide-10x-plan.md) records the friction it removes and the acceptance checks; the extension's [README](../../extensions/vscode/README.md) and [CHANGELOG](../../extensions/vscode/CHANGELOG.md) describe the shipped behavior. Team handoff, review workspaces, tracker write-back, device login and true side-by-side diffs still need the server work described below.
+
 ## 0.2.0 implementation update
 
 The shipped VSIX now includes a native **Linked Tasks** tree and a shared task browsing/import workflow for Vikunja, ClickUp, Forgejo, GitHub and GitLab. Operators inspect a read-only source preview, choose the crew/runtime/budget, create a queued session and start it separately. Session views retain the imported source snapshot. The evidence panel and **Download Review Candidate** command save an authenticated Git bundle, binary patch or manifest through an explicit local save dialog. Task-provider credentials stay on the server; the editor uses its existing origin-bound Vloer login.
@@ -162,7 +166,7 @@ stateDiagram-v2
 
 Connection health, execution state and accounting state are independent. A disconnected editor does not imply a stopped agent. A reachable server does not prove an executing worker is healthy. Display **Last observed 14:32:08 UTC** on stale state and retain the last evidence without presenting it as current.
 
-Current event IDs are globally allocated by SQLite. Events 10 and 15 can be consecutive events for one session, so `id + 1` is not a valid gap detector. For the baseline, fetch history after the last applied cursor, merge by ID and periodically refetch the authoritative session snapshot. The shipped extension uses polling; this is deliberate and must not be marketed as an SSE client.
+Current event IDs are globally allocated by SQLite. Events 10 and 15 can be consecutive events for one session, so `id + 1` is not a valid gap detector. For the baseline, fetch history after the last applied cursor, merge by ID and periodically refetch the authoritative session snapshot. The 0.3.0 extension reads the existing server-sent event route from the extension host for open panels and keeps polling as the fallback heartbeat; the stream contract improvements below remain open.
 
 The future stream contract should return a snapshot with a high-water cursor, then allow replay strictly after it; advertise minimum retained cursor, stream generation and optional per-session revision. On retention expiry or generation mismatch, fetch a new snapshot and label unavailable historical detail. A normal reconnect replays from the last **applied** event, deduplicates and resynchronizes decisions. Never automatically replay paid start/resume mutations while reconnecting. Bounded queues and backoff protect both client and server.
 
