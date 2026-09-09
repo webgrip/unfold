@@ -19,3 +19,4 @@ playwright-report/
 __pycache__/
 .venv/
 .DS_Store
+*.local.sh

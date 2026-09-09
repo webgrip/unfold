@@ -1,6 +1,7 @@
 [tools]
 node = "24.19.0"
 helm = "4.2.4"
+"npm:opencode-ai" = { version = "1.18.30", npm_args = "--ignore-scripts=false" }
 
 [tasks.demo]
 run = "npm run demo"
