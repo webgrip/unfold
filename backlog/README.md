@@ -1,0 +1,3558 @@
+# Implementation backlog
+
+78 ticket-ready records; generated from backlog/backlog.json. This file is a planning/export artifact. The selected tracker remains the source of truth after import. Planning status is not permission to run work.
+
+Estimates are relative engineering points, not hours, deadlines or predicted agent effort. Cross-repository dependency IDs need a mapping to native tracker IDs after import. No tickets have been created by this generator.
+
+## Milestones
+
+| ID | Outcome | Tickets |
+| --- | --- | --- |
+| M0 | Supervised dogfooding and usable editor | 7 |
+| M1 | Trustworthy candidate, checks and mutations | 13 |
+| M2 | One governed ticket-to-review loop | 19 |
+| M3 | Team identity, takeover and shared resources | 21 |
+| M4 | Repeatable customer pilot and evidence | 15 |
+| M5 | Commercialization and ecosystem decision | 3 |
+
+## Dependency order
+
+PV-001 → PV-002 → PV-003 → PV-004 → PV-005 → PV-006 → PV-007 → PV-013 → PV-014 → PV-015 → PV-016 → PV-071 → PV-072 → PV-073 → PV-074 → PV-022 → PV-023 → PV-028 → PV-009 → PV-010 → PV-011 → PV-078 → PV-008 → PV-012 → PV-017 → PV-018 → PV-019 → PV-020 → PV-021 → PV-034 → PV-024 → PV-025 → PV-026 → PV-027 → PV-029 → PV-030 → PV-031 → PV-032 → PV-033 → PV-035 → PV-036 → PV-037 → PV-038 → PV-039 → PV-040 → PV-041 → PV-042 → PV-043 → PV-044 → PV-045 → PV-046 → PV-047 → PV-048 → PV-049 → PV-050 → PV-051 → PV-052 → PV-053 → PV-054 → PV-055 → PV-056 → PV-057 → PV-058 → PV-059 → PV-060 → PV-061 → PV-062 → PV-063 → PV-064 → PV-065 → PV-066 → PV-067 → PV-068 → PV-069 → PV-070 → PV-075 → PV-076 → PV-077
+
+## Coverage of the code audit
+
+| Gap | Remediation tickets |
+| --- | --- |
+| GAP-01 | PV-009, PV-010, PV-011 |
+| GAP-02 | PV-005, PV-006, PV-007 |
+| GAP-03 | PV-008, PV-078 |
+| GAP-04 | PV-003, PV-004, PV-038, PV-053 |
+| GAP-05 | PV-003, PV-064, PV-070 |
+| GAP-06 | PV-010, PV-012 |
+| GAP-07 | PV-038 |
+| GAP-08 | PV-012, PV-075 |
+| GAP-09 | PV-071 |
+| GAP-10 | PV-022, PV-025 |
+| GAP-11 | PV-013, PV-014 |
+| GAP-12 | PV-023, PV-024, PV-026, PV-072, PV-078 |
+| GAP-13 | PV-015, PV-016, PV-018 |
+| GAP-14 | PV-034, PV-035, PV-036, PV-066 |
+| GAP-15 | PV-019 |
+| GAP-16 | PV-017 |
+| GAP-17 | PV-074, PV-075 |
+| GAP-18 | PV-073, PV-040, PV-041 |
+| GAP-19 | PV-041, PV-044 |
+| GAP-20 | PV-042, PV-043, PV-076 |
+| GAP-21 | PV-026, PV-043 |
+| GAP-22 | PV-043 |
+| GAP-23 | PV-003, PV-052, PV-053, PV-054 |
+| GAP-24 | PV-007, PV-039, PV-048, PV-077 |
+| GAP-25 | PV-067 |
+| GAP-26 | PV-036, PV-045, PV-046, PV-047, PV-048, PV-049, PV-050 |
+| GAP-27 | PV-029, PV-068 |
+| GAP-28 | PV-044, PV-051, PV-055 |
+| GAP-29 | PV-030, PV-031, PV-033, PV-061 |
+| GAP-30 | PV-057, PV-058, PV-059, PV-060, PV-061, PV-062, PV-069 |
+
+## Ticket details
+
+### PV-001: Add keyboard navigation to session evidence tabs
+
+Target repository: de-vloer
+Milestone: M0; epic: E01; risk: low; estimate: 2 relative points.
+Depends on: No code dependencies in this seed; environment and human authorization still required.
+
+#### Problem
+
+Evidence tabs expose tab roles but lack a complete keyboard interaction pattern; this is a bounded first self-improvement task.
+
+#### Acceptance criteria
+
+- [ ] Arrow keys move focus among tabs; Home and End reach the first and last tab.
+- [ ] Only the selected tab participates in the tab sequence and aria-controls identifies its panel.
+- [ ] Changing tabs preserves operator draft text and stream scroll behavior.
+- [ ] The change is reviewed as a candidate while the stable workbench remains running.
+
+#### Verification
+
+- [ ] Browser test covers keyboard use at desktop and mobile widths.
+- [ ] Existing pause/message/resume/cancel and export browser checks still pass.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:public/app.js
+- de-vloer:public/index.html
+- de-vloer:scripts/browser-check.mjs
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-002: Retain actionable redacted execution failures
+
+Target repository: de-vloer
+Milestone: M0; epic: E01; risk: medium; estimate: 3 relative points.
+Depends on: No code dependencies in this seed; environment and human authorization still required.
+
+#### Problem
+
+Live failures collapse to a generic blocker, making missing binaries, model errors and forbidden egress difficult to distinguish.
+
+#### Acceptance criteria
+
+- [ ] Typed failure category and safe remediation reach history and UI.
+- [ ] Native credentials, raw headers and response bodies are excluded.
+- [ ] Ambiguous prompt submission is labeled unknown and never automatically retried.
+
+#### Verification
+
+- [ ] Fixture errors cover missing runtime, provider rejection, workspace timeout and ambiguous disconnect.
+- [ ] Secret redaction is asserted before persistence and after replay.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/engine.ts
+- de-vloer:src/runtime/opencode.ts
+- de-vloer:src/runtime/workspace.ts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-003: Create a qualified self-development execution image
+
+Target repository: de-vloer
+Milestone: M0; epic: E01; risk: medium; estimate: 5 relative points.
+Depends on: No code dependencies in this seed; environment and human authorization still required.
+
+#### Problem
+
+The generic agent image lacks a pinned complete toolchain and controlled dependency access for improving the platform.
+
+#### Acceptance criteria
+
+- [ ] Publish or locally qualify an immutable Node/Git/browser toolchain image through existing CI.
+- [ ] Dependency restore uses approved cache/mirror destinations; agents never need the Docker socket.
+- [ ] Stable service and candidate test instances use separate state and credentials.
+- [ ] Record which checks remain in trusted CI when restricted workers cannot run them.
+
+#### Verification
+
+- [ ] Build image in authorized CI and execute all required checks on the repository baseline.
+- [ ] Verify candidate failure cannot stop the stable workbench.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:ops/agent/Dockerfile
+- de-vloer:docs/operations/live.md
+- de-vloer:package-lock.json
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-004: Exercise one supervised Vloer self-improvement run
+
+Target repository: de-vloer
+Milestone: M0; epic: E01; risk: medium; estimate: 3 relative points.
+Depends on: PV-001, PV-003
+
+#### Problem
+
+Local deterministic evidence does not establish that live agents can improve this repository safely.
+
+#### Acceptance criteria
+
+- [ ] Use a registered remote repository and small explicit budget with one scoped credential.
+- [ ] Produce a candidate for a new bounded task; do not reimplement an already accepted ticket.
+- [ ] Record actual human interruption, independent human-run checks, review and manual merge decision.
+- [ ] Keep a failed-run example and exact runtime/gateway/image versions.
+
+#### Verification
+
+- [ ] Capture a sanitized evidence bundle and verify the stable service survives candidate failure.
+- [ ] Confirm provider usage and blocked credential in the actual gateway.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:docs/design/self-improvement.md
+- de-vloer:config/self-development.example.json (proposed path; confirm before implementation)
+- de-vloer:docs/validation.md
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-005: Define immutable candidate and evidence contracts
+
+Target repository: de-vloer
+Milestone: M1; epic: E02; risk: high; estimate: 3 relative points.
+Depends on: No code dependencies in this seed; environment and human authorization still required.
+
+#### Problem
+
+Artifacts lack canonical base/candidate commit identity, full change completeness and authoritative check provenance.
+
+#### Acceptance criteria
+
+- [ ] Versioned schemas cover repository identity, base/candidate SHA, complete file manifest, artifact hashes and retention.
+- [ ] Verification and human approval reference candidate and policy digests.
+- [ ] Unsupported artifacts are explicit rather than silently omitted.
+
+#### Verification
+
+- [ ] Schema fixtures cover additions/deletions/renames/binaries/submodules and invalid references.
+- [ ] Contract compatibility rules are documented.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/types.ts
+- de-vloer:docs/contracts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-006: Export complete Git candidates from managed workspaces
+
+Target repository: de-vloer
+Milestone: M1; epic: E02; risk: high; estimate: 5 relative points.
+Depends on: PV-005
+
+#### Problem
+
+Native session diff JSON and uncommitted diffs can omit files or commits needed to recover the actual result.
+
+#### Acceptance criteria
+
+- [ ] Export a retrievable candidate commit or Git bundle including tracked and newly added files.
+- [ ] Reject unexpected base movement and forbidden paths before declaring candidate ready.
+- [ ] Capture file modes, renames, deletions and binary changes without path traversal.
+- [ ] Record working-tree changes that could not be represented.
+
+#### Verification
+
+- [ ] Restore exported candidates in a fresh checkout and compare tree hashes.
+- [ ] Exercise committed changes, untracked files, symlinks and deleted files.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/runtime/opencode.ts
+- de-vloer:src/runtime/workspace.ts
+- de-vloer:src/runtime/kubernetes.ts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-007: Persist content-addressed evidence outside worker volumes
+
+Target repository: de-vloer
+Milestone: M1; epic: E02; risk: high; estimate: 5 relative points.
+Depends on: PV-005, PV-006
+
+#### Problem
+
+A retained PVC alone is insufficient for dependable handoff, expiration and artifact inspection.
+
+#### Acceptance criteria
+
+- [ ] Store artifacts under client/attempt-scoped content hashes using the approved object store.
+- [ ] Authorize every fetch and export; browser links do not leak long-lived object credentials.
+- [ ] Document encrypted retention, deletion and restore behavior.
+- [ ] Keep metadata-only UI views usable after worker disposal.
+
+#### Verification
+
+- [ ] Delete the worker and restore all candidate/check artifacts.
+- [ ] Cross-client object access and expired download links are denied.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/store.ts
+- de-vloer:src/types.ts
+- de-vloer:src/http.ts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-008: Open idempotent draft forge reviews for candidates
+
+Target repository: ploeg
+Milestone: M2; epic: E02; risk: high; estimate: 5 relative points.
+Depends on: PV-006, PV-007, PV-022, PV-078, PV-011
+
+#### Problem
+
+Vloer does not create a review request and retrying an ambiguous forge call must not create duplicates.
+
+#### Acceptance criteria
+
+- [ ] Create/update a draft Forgejo PR or GitLab MR for the exact attempt and candidate.
+- [ ] Persist a stable external marker and reconcile unknown create results before retry.
+- [ ] Push credentials are repository/branch scoped and absent from reviewers.
+- [ ] Human edits and moved branches produce a conflict instead of force-push.
+- [ ] A governed review-ready publication requires successful protected checks bound to the exact candidate and policy revision.
+
+#### Verification
+
+- [ ] Simulate request accepted then connection lost; exactly one draft is linked.
+- [ ] Forge integration test rejects updates to a different repository or protected branch.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/provider
+- ploeg:pkg/forgebroker
+- ploeg:docs/contracts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-009: Define verifier policies outside candidate control
+
+Target repository: de-vloer
+Milestone: M1; epic: E03; risk: critical; estimate: 5 relative points.
+Depends on: PV-005
+
+#### Problem
+
+The writer can influence repository checks and summaries, so required verification needs a separate authority.
+
+#### Acceptance criteria
+
+- [ ] Pin command argv, image digest, expected suites and check policy to the approved base/policy revision.
+- [ ] Candidate changes to verification configuration are visible and cannot weaken the active mandate.
+- [ ] Define baseline failure handling and policies for documentation-only changes.
+- [ ] No model verdict substitutes for required check results.
+
+#### Verification
+
+- [ ] Adversarial fixtures remove tests, change npm scripts and print fake PASS while failing.
+- [ ] Policies reject missing suites and unexpected zero test discovery.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/engine.ts
+- de-vloer:src/types.ts
+- de-vloer:docs/contracts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-010: Run checks in a separate unprivileged verification job
+
+Target repository: de-vloer
+Milestone: M1; epic: E03; risk: critical; estimate: 8 relative points.
+Depends on: PV-003, PV-006, PV-009
+
+#### Problem
+
+Live checks currently run inside the writer-controlled harness rather than an independent executor.
+
+#### Acceptance criteria
+
+- [ ] Fresh job checks out exact candidate and pinned verifier policy.
+- [ ] No forge write, model management or deployment credentials are present.
+- [ ] Produce exit code, discovered tests, command/image identity, logs and hashes.
+- [ ] Missing toolchains and unavailable dependencies are blocked, never green.
+
+#### Verification
+
+- [ ] Real job test passes expected fixtures and fails malicious/failing/zero-test fixtures.
+- [ ] Verify network and credential boundaries in the pilot cluster.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/runtime/kubernetes.ts
+- de-vloer:src/engine.ts
+- de-vloer:ops/agent
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-011: Enforce candidate verification before review-ready state
+
+Target repository: de-vloer
+Milestone: M1; epic: E03; risk: critical; estimate: 5 relative points.
+Depends on: PV-009, PV-010
+
+#### Problem
+
+An approving reviewer can currently complete a session without mandatory independently successful checks.
+
+#### Acceptance criteria
+
+- [ ] Review-ready requires all mandatory candidate-bound check runs to pass.
+- [ ] A changed candidate invalidates previous checks and approvals.
+- [ ] Inconclusive findings, missing artifacts and unknown verifier status remain blockers.
+- [ ] Existing completed sessions are not retroactively claimed as verified.
+
+#### Verification
+
+- [ ] State-machine tests attempt false approval, stale checks and changed candidate.
+- [ ] Migration preserves historical evidence labels.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/engine.ts
+- de-vloer:src/store.ts
+- de-vloer:src/types.ts
+- de-vloer:public/app.js
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-012: Add evidence-bound reviewer findings and rework limits
+
+Target repository: de-vloer
+Milestone: M1; epic: E03; risk: high; estimate: 5 relative points.
+Depends on: PV-011
+
+#### Problem
+
+Reviewers need specific evidence and bounded rework rather than approval inferred from conversation text.
+
+#### Acceptance criteria
+
+- [ ] Findings identify candidate files/lines, severity, evidence and uncertainty.
+- [ ] Rework is a new bounded action with maximum attempts and remaining budget.
+- [ ] Human approval of privileged work is distinct from model review.
+- [ ] UI distinguishes verified checks, reviewer opinion and human decision.
+- [ ] Review runs in a separately provisioned read-only immutable candidate snapshot, with no writer volume, shell mutation or publish credentials.
+
+#### Verification
+
+- [ ] Test missing verdicts, changed candidate, exceeded rework limit and stale findings.
+- [ ] Reviewer cannot update its own capability or approval policy.
+- [ ] A writer mutation after capture cannot change reviewer input; attempted reviewer writes are denied by the execution boundary.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/runtime/opencode.ts
+- de-vloer:src/engine.ts
+- de-vloer:public/app.js
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-013: Preserve authoritative ClickUp List scope during intake
+
+Target repository: ploeg
+Milestone: M2; epic: E04; risk: high; estimate: 3 relative points.
+Depends on: No code dependencies in this seed; environment and human authorization still required.
+
+#### Problem
+
+mirror overwrites authoritative FetchItem List scope with an empty scope from a thin ClickUp webhook.
+
+#### Acceptance criteria
+
+- [ ] Retain fetched native scope when the verified event lacks scope.
+- [ ] Reject material scope conflicts and preserve routing audit evidence.
+- [ ] Repository/team resolution uses authoritative connection+scope identity.
+
+#### Verification
+
+- [ ] Regression webhook with no scope still routes to its fetched List project.
+- [ ] Conflicting event scope cannot redirect work to another client.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/httpapi/server.go
+- ploeg:pkg/provider/clickup
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-014: Reject unresolved or ambiguous work targets
+
+Target repository: ploeg
+Milestone: M2; epic: E04; risk: critical; estimate: 3 relative points.
+Depends on: PV-013
+
+#### Problem
+
+Fallback worker environment repository can route ticket work incorrectly when mapping fails.
+
+#### Acceptance criteria
+
+- [ ] Tracked work must resolve to exactly one approved repository/project before claim.
+- [ ] Legacy environment fallback is explicit opt-in and forbidden for client-scoped tracked work.
+- [ ] Blocked mapping is visible to operators and produces no worker credentials.
+
+#### Verification
+
+- [ ] Missing/duplicate mapping and moved source item result in zero claims and keys.
+- [ ] Existing explicitly configured standalone flows have a migration test.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/httpapi/server.go
+- ploeg:pkg/target
+- ploeg:pkg/store
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-015: Authenticate webhook deliveries before reserving dedup IDs
+
+Target repository: ploeg
+Milestone: M2; epic: E04; risk: critical; estimate: 3 relative points.
+Depends on: No code dependencies in this seed; environment and human authorization still required.
+
+#### Problem
+
+A forged delivery identifier must not suppress a later authentic forge event.
+
+#### Acceptance criteria
+
+- [ ] Signature/token verification precedes trusted dedup admission.
+- [ ] Invalid requests cannot reserve a delivery ID or change workflow state.
+- [ ] Raw payload size, supported content type and algorithm are bounded.
+
+#### Verification
+
+- [ ] Invalid-then-valid same-ID sequence processes the valid event once.
+- [ ] Malformed/oversized/signature-mismatched requests have no durable side effects.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/httpapi/server.go
+- ploeg:pkg/provider
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-016: Commit webhook inbox and normalized events atomically
+
+Target repository: ploeg
+Milestone: M2; epic: E04; risk: critical; estimate: 5 relative points.
+Depends on: PV-015
+
+#### Problem
+
+A crash between dedup reservation and durable processing can permanently lose a retried delivery.
+
+#### Acceptance criteria
+
+- [ ] Persist authenticated envelope and idempotency key in one transaction before acknowledgement.
+- [ ] Async processing can replay a pending inbox item after restart.
+- [ ] Delivery dedup and semantic change dedup are separate.
+- [ ] Dead-letter entries include safe category and replay controls.
+
+#### Verification
+
+- [ ] Crash at each boundary and retry yields one logical state transition.
+- [ ] Concurrent duplicate deliveries have one authoritative inbox record.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/httpapi/server.go
+- ploeg:pkg/store/migrations
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-017: Handle ticket edits, unassignment and cancellation
+
+Target repository: ploeg
+Milestone: M2; epic: E04; risk: critical; estimate: 5 relative points.
+Depends on: PV-014, PV-016, PV-022
+
+#### Problem
+
+Current tracker handling drops updates/unassignment so a stale assignment can continue executing.
+
+#### Acceptance criteria
+
+- [ ] Authoritative material change creates a new revision and invalidates the old mandate.
+- [ ] Unassignment/cancellation requests stop and revoke the current owner.
+- [ ] Cosmetic edits are auditable without unnecessary reruns.
+- [ ] Permission/approval requests expire with superseded subjects.
+
+#### Verification
+
+- [ ] Edit objective, move List, unassign and cancel while queued/running/waiting.
+- [ ] A stale retry cannot revive the superseded attempt.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/httpapi/server.go
+- ploeg:pkg/work
+- ploeg:pkg/shiftengine
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-018: Add connector polling repair and sync checkpoints
+
+Target repository: ploeg
+Milestone: M2; epic: E04; risk: high; estimate: 5 relative points.
+Depends on: PV-016, PV-017
+
+#### Problem
+
+Webhooks can be missed and SaaS callbacks may not reach a LAN-only deployment.
+
+#### Acceptance criteria
+
+- [ ] Polling uses per-connection cursor/watermark, bounded overlap and authoritative fetch.
+- [ ] Dedup matches webhook-originated changes without duplicate execution.
+- [ ] Backoff honors native rate-limit responses and exposes sync lag.
+- [ ] An outbound-only deployment can complete the first tracker loop.
+
+#### Verification
+
+- [ ] Drop all webhooks and demonstrate eventual convergence with polling.
+- [ ] Replay across checkpoint crash, deletion, pagination and rate limits.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/provider
+- ploeg:pkg/store
+- ploeg:cmd/ploegd
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-019: Implement Forgejo issues as a tracker provider
+
+Target repository: ploeg
+Milestone: M2; epic: E05; risk: high; estimate: 5 relative points.
+Depends on: PV-014, PV-016
+
+#### Problem
+
+Forgejo code-review webhooks do not currently normalize issue tasks into tracked work.
+
+#### Acceptance criteria
+
+- [ ] Issue identity includes connection and repository plus native issue number/ID.
+- [ ] Configured assignee/label/state rules determine eligibility.
+- [ ] Exclude PR-backed issues from accidental task intake.
+- [ ] Support authoritative fetch, event normalization and scoped summary writeback.
+
+#### Verification
+
+- [ ] Integration fixtures cover assigned, edited, reopened, closed, transferred and PR issue events.
+- [ ] Same number in two repositories remains distinct.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/provider
+- ploeg:cmd/ploegd
+- ploeg:docs/contracts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-020: Qualify ClickUp auth modes and native identifiers
+
+Target repository: ploeg
+Milestone: M2; epic: E05; risk: high; estimate: 3 relative points.
+Depends on: PV-013, PV-016
+
+#### Problem
+
+Personal and OAuth tokens have different current authentication conventions; custom task IDs are not canonical native identity.
+
+#### Acceptance criteria
+
+- [ ] Configure PAT versus OAuth explicitly and use the correct header format.
+- [ ] Use connection+native task ID with authoritative List/workspace mapping.
+- [ ] Validate revoked identity and pagination behavior.
+- [ ] Document deployed tenant/plan limits instead of assuming universal API capacity.
+
+#### Verification
+
+- [ ] Contract tests cover PAT, OAuth, invalid/revoked token and custom display IDs.
+- [ ] Actual limited pilot credential confirms declared capability.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/provider/clickup
+- ploeg:docs/ops
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-021: Adopt version-aware GitLab signed webhook verification
+
+Target repository: ploeg
+Milestone: M2; epic: E05; risk: high; estimate: 3 relative points.
+Depends on: PV-015, PV-016
+
+#### Problem
+
+Current GitLab assumption of token-only verification does not reflect new signed webhook capability.
+
+#### Acceptance criteria
+
+- [ ] Probe configured instance version and supported signature mode.
+- [ ] Validate signing ID/timestamp/signature including replay window where supported.
+- [ ] Retain documented constant-time token verification fallback only for configured older instances.
+
+#### Verification
+
+- [ ] Official signature fixtures pass and altered/replayed bodies fail.
+- [ ] Capability mismatch blocks startup or registration with an actionable error.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/provider/gitlab
+- ploeg:docs/contracts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-022: Introduce canonical work-order revision identity in Ploeg
+
+Target repository: ploeg
+Milestone: M2; epic: E06; risk: critical; estimate: 8 relative points.
+Depends on: PV-014, PV-016, PV-071, PV-072, PV-073, PV-074
+
+#### Problem
+
+Vloer sessions and Ploeg work lack a shared immutable task mandate and execution identity.
+
+#### Acceptance criteria
+
+- [ ] Persist source connection/native item/revision and immutable mandate.
+- [ ] Link existing WorkItem/Shift without replacing tracker priority authority.
+- [ ] Uniqueness prevents two current orders for the same material source revision.
+- [ ] Versioned contracts support explicit standalone/ad-hoc registration.
+- [ ] Adopt the versioned WorkOrder schema published in de-vloer as an explicit Ploeg contract dependency; do not depend on a sibling checkout path at runtime.
+
+#### Verification
+
+- [ ] Schema and migration tests preserve existing shifts and task identity.
+- [ ] Concurrent registration from tracker and Vloer converges to one work order.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/work
+- ploeg:pkg/store
+- de-vloer:docs/contracts/work-order.v1.schema.json (cross-repository reference)
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-023: Add fenced delivery attempts and ownership transitions
+
+Target repository: ploeg
+Milestone: M2; epic: E06; risk: critical; estimate: 8 relative points.
+Depends on: PV-022
+
+#### Problem
+
+Interactive takeover must not leave two writers acting on the same work.
+
+#### Acceptance criteria
+
+- [ ] One current attempt owner has a monotonic generation/lease.
+- [ ] Check ownership generation at every privileged write and credential issuance.
+- [ ] Expired/stale workers cannot renew, publish or resume.
+- [ ] Atomic transfer records previous/new owner and authorized subject.
+- [ ] Extend the existing authenticated Run/lease capabilities from PV-072 to bind canonical attempt, role, generation and expiry.
+- [ ] Ownership transfer waits on active publication barriers and unresolved external effects; release of an expired barrier requires reconciliation, not a timer alone.
+
+#### Verification
+
+- [ ] Race a worker renewal, cancellation and editor takeover; only one generation can write.
+- [ ] Kill/restart coordinator around transfer and preserve ownership invariant.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/store
+- ploeg:pkg/httpapi
+- ploeg:pkg/shiftengine
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-024: Expose authenticated operator work-order API
+
+Target repository: ploeg
+Milestone: M2; epic: E06; risk: critical; estimate: 5 relative points.
+Depends on: PV-023, PV-034
+
+#### Problem
+
+Current worker token APIs do not constitute a scoped human-facing takeover API.
+
+#### Acceptance criteria
+
+- [ ] Provide authorized read, claim, pause/takeover/release operations separate from worker tokens.
+- [ ] Request idempotency and expected revision prevent duplicate/obsolete mutations.
+- [ ] Define typed conflicts and minimum compatible versions.
+- [ ] No browser receives worker or management credentials.
+
+#### Verification
+
+- [ ] Cross-client and expired-role requests deny without existence leakage.
+- [ ] Repeated requests and ambiguous responses reconcile rather than duplicate.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/httpapi
+- ploeg:docs/contracts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-025: Link Vloer sessions to Ploeg work orders and attempts
+
+Target repository: de-vloer
+Milestone: M2; epic: E06; risk: critical; estimate: 5 relative points.
+Depends on: PV-024
+
+#### Problem
+
+A tracker link and queue depth cannot coordinate a session with unattended work.
+
+#### Acceptance criteria
+
+- [ ] Session records canonical workOrder/attempt identity and execution owner.
+- [ ] Ticket-open action attaches to existing work or acquires one authorized claim.
+- [ ] Old ad-hoc sessions remain readable and are not falsely assigned tracker identities.
+- [ ] UI distinguishes delayed synchronization from stopped execution.
+
+#### Verification
+
+- [ ] Open the same ticket from two clients while a worker claims it and assert one owner.
+- [ ] Ploeg outage preserves history but blocks conflicting execution.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/types.ts
+- de-vloer:src/store.ts
+- de-vloer:src/engine.ts
+- de-vloer:src/http.ts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-026: Implement stop-confirmed human takeover and handback
+
+Target repository: de-vloer
+Milestone: M3; epic: E06; risk: critical; estimate: 8 relative points.
+Depends on: PV-025, PV-023, PV-006, PV-078
+
+#### Problem
+
+Pause status currently precedes confirmed interruption and is not a full writer ownership transfer.
+
+#### Acceptance criteria
+
+- [ ] UI represents requested, stopping, confirmed and uncertain states.
+- [ ] Revoke prior capabilities and fence writes before human/editor write access.
+- [ ] Handback snapshots human changes into a new candidate/mandate and rechecks policy.
+- [ ] Out-of-band stop and recovery remain available.
+
+#### Verification
+
+- [ ] Native abort failure, unreachable Pod and late worker writes never grant simultaneous writers.
+- [ ] Human edits survive handback without being overwritten.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/engine.ts
+- de-vloer:src/runtime/opencode.ts
+- de-vloer:src/runtime/kubernetes.ts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-027: Implement quiet idempotent tracker summary writeback
+
+Target repository: ploeg
+Milestone: M2; epic: E05; risk: high; estimate: 5 relative points.
+Depends on: PV-008, PV-018
+
+#### Problem
+
+Token streams in tracker comments create noise, notification cost and duplicate side effects.
+
+#### Acceptance criteria
+
+- [ ] One stable summary per attempt links evidence/review and the next decision.
+- [ ] Persist external comment identity and update only meaningful changes.
+- [ ] Do not claim notify flags suppress all ClickUp notifications.
+- [ ] Tracker completion follows configured delivery/release DoD.
+
+#### Verification
+
+- [ ] Lose response after comment creation and reconcile one comment.
+- [ ] PR opened/merged/deployed events map only to explicitly configured states.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/provider
+- ploeg:pkg/shiftengine
+- ploeg:pkg/store
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-028: Add repository-specific Forgejo credential capability probes
+
+Target repository: ploeg
+Milestone: M2; epic: E05; risk: critical; estimate: 5 relative points.
+Depends on: PV-022
+
+#### Problem
+
+Broker assumptions about token scope may be stale and must not grant every bot repository to one run.
+
+#### Acceptance criteria
+
+- [ ] Probe actual instance support for selected-repository token scope.
+- [ ] Verify token cannot read/write a second private test repository.
+- [ ] Use isolated bot fallback for unsupported instances or block incompatible policy.
+- [ ] Document token TTL/revocation and branch capability limits.
+
+#### Verification
+
+- [ ] Actual scoped token positive/negative integration qualification.
+- [ ] Unknown capabilities fail closed for cross-client workloads.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/forgebroker
+- ploeg:pkg/provider/forgejo
+- ploeg:docs/ops
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-029: Version crews, skills and repository contracts
+
+Target repository: de-vloer
+Milestone: M3; epic: E07; risk: high; estimate: 5 relative points.
+Depends on: PV-022, PV-009
+
+#### Problem
+
+Reusable procedures are currently config content without immutable run-time provenance.
+
+#### Acceptance criteria
+
+- [ ] Pin crew role graph, skill content and repository facts by digest.
+- [ ] Record effective precedence and which instructions affected a run.
+- [ ] Candidate changes cannot rewrite the active crew version.
+- [ ] Roll back a crew independently from application release.
+
+#### Verification
+
+- [ ] Modify skill/config mid-run and verify current mandate remains stable.
+- [ ] Exported evidence reconstructs effective crew and contract.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/config.ts
+- de-vloer:src/types.ts
+- de-vloer:skills
+- de-vloer:.agents/contracts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-030: Add tested runtime capability negotiation
+
+Target repository: de-vloer
+Milestone: M3; epic: E07; risk: high; estimate: 5 relative points.
+Depends on: PV-005
+
+#### Problem
+
+Model portability does not imply identical approvals, resume, streaming or native evidence support.
+
+#### Acceptance criteria
+
+- [ ] Report capabilities for sessions, interruption, questions, evidence and continuation.
+- [ ] Unsupported actions are disabled with actionable explanation.
+- [ ] Adapters have pinned compatibility fixtures and native smoke probes.
+- [ ] Harness replacement records a new execution context rather than claiming hidden-state portability.
+
+#### Verification
+
+- [ ] Run conformance suite against OpenCode and command bridge.
+- [ ] Unsupported capabilities cannot silently degrade governance.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/runtime
+- de-vloer:src/types.ts
+- de-vloer:docs/research/agent-apis.md
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-031: Qualify a second open agent runtime via the bridge
+
+Target repository: de-vloer
+Milestone: M3; epic: E07; risk: high; estimate: 8 relative points.
+Depends on: PV-030, PV-010
+
+#### Problem
+
+A generic command protocol alone is not an exercised OpenHands or other harness integration.
+
+#### Acceptance criteria
+
+- [ ] Select a maintained open runtime after a bounded bakeoff.
+- [ ] Implement native mapping for approvals, cancellation, evidence and costs.
+- [ ] Run same candidate/check policy and dataset as OpenCode.
+- [ ] Document version/license/deployment boundary and remaining unsupported features.
+
+#### Verification
+
+- [ ] Actual provider-authorized pilot returns retrievable candidate and independent check evidence.
+- [ ] Crash/ambiguous prompt tests prove no silent replay.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/runtime/command.ts
+- de-vloer:docs/contracts
+- de-vloer:ops/agent
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-032: Add bounded parallel research with isolated branches
+
+Target repository: ploeg
+Milestone: M3; epic: E07; risk: high; estimate: 8 relative points.
+Depends on: PV-023, PV-029, PV-010
+
+#### Problem
+
+Sequential roles work, but parallel execution requires explicit result ownership and aggregate budgets.
+
+#### Acceptance criteria
+
+- [ ] Parallel readers get scoped contexts and produce independent cited findings.
+- [ ] Any parallel writers use separate branches/workspaces and an explicit integration task.
+- [ ] Fanout, depth, attempt count and money are bounded by the mandate.
+- [ ] No nested harness task bypasses budget or credential restrictions.
+
+#### Verification
+
+- [ ] Race/conflict fixtures and budget-exhaustion tests across sibling runs.
+- [ ] Compare acceptance and human integration effort against sequential baseline.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/plan
+- ploeg:pkg/shiftengine
+- ploeg:pkg/harness
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-033: Create crew and model evaluation corpus
+
+Target repository: de-vloer
+Milestone: M4; epic: E07; risk: medium; estimate: 5 relative points.
+Depends on: PV-010, PV-029, PV-031
+
+#### Problem
+
+Choosing models or prompts by anecdotes can trade correctness for token savings.
+
+#### Acceptance criteria
+
+- [ ] Version representative defect, maintenance, documentation and failure tasks.
+- [ ] Measure acceptance, human review effort, cost, retries and flakiness.
+- [ ] Separate tuning tasks from held-out evaluation tasks.
+- [ ] No client code enters a shared corpus without authorization.
+
+#### Verification
+
+- [ ] Reproduce two runtime/model evaluations with same policy and resources.
+- [ ] Report uncertainty and failure examples without claiming unsupported productivity gains.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:docs/product
+- de-vloer:skills
+- de-vloer:docs/research
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-034: Map organization, client, project and team authorization
+
+Target repository: ploeg
+Milestone: M2; epic: E08; risk: critical; estimate: 8 relative points.
+Depends on: PV-022
+
+#### Problem
+
+Owner/admin authorization cannot support shared teams or prove client separation.
+
+#### Acceptance criteria
+
+- [ ] Persist membership and project/client boundary with explicit role capabilities.
+- [ ] Authorization applies to reads, events, artifacts, decisions, budgets and credentials.
+- [ ] Administrator bypass scope is explicit and audited.
+- [ ] Connection and repository mappings belong to one declared boundary.
+
+#### Verification
+
+- [ ] Negative matrix crosses users/teams/clients and every API surface.
+- [ ] Membership removal revokes ongoing interactive access.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/store
+- ploeg:pkg/httpapi
+- ploeg:docs/contracts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-035: Integrate OIDC browser login and role synchronization
+
+Target repository: de-vloer
+Milestone: M3; epic: E08; risk: critical; estimate: 8 relative points.
+Depends on: PV-034
+
+#### Problem
+
+Local passwords are a prototype identity model and do not reuse company SSO or offboarding.
+
+#### Acceptance criteria
+
+- [ ] Validate issuer/audience/nonce/state and use approved OIDC flow.
+- [ ] Map groups to scoped roles through reviewed configuration.
+- [ ] Logout, token expiry and offboarding revoke current sessions/streams.
+- [ ] Keep a limited audited recovery account outside provider outage path.
+
+#### Verification
+
+- [ ] Authentik pilot with allowed/denied/offboarded users and issuer mismatch.
+- [ ] No secrets or refresh credentials appear in frontend state/logs.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/auth.ts
+- de-vloer:src/http.ts
+- de-vloer:src/store.ts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-036: Add public-client editor authentication
+
+Target repository: de-vloer
+Milestone: M3; epic: E08; risk: critical; estimate: 5 relative points.
+Depends on: PV-035
+
+#### Problem
+
+VS Code cookie support is usable for v0.1 but does not provide scoped SSO/device sessions.
+
+#### Acceptance criteria
+
+- [ ] Use approved PKCE or device authorization with no embedded client secret.
+- [ ] Store refresh material only in SecretStorage and issue audience-scoped API access.
+- [ ] Validate callback ownership and bound device grants to server/organization.
+- [ ] Expiry/revocation does not discard drafts or retry mutations.
+
+#### Verification
+
+- [ ] Actual VS Code host tests for login, expiry, revoke, multiple windows and malicious callback.
+- [ ] Server rejects token from wrong issuer/audience/project.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/auth.ts
+- de-vloer:src/http.ts
+- de-vloer:extensions/vscode
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-037: Enforce resource policy for untrusted remote workspaces
+
+Target repository: de-vloer
+Milestone: M3; epic: E08; risk: critical; estimate: 8 relative points.
+Depends on: PV-034, PV-003
+
+#### Problem
+
+Namespaces and environment filtering alone do not qualify hostile-code or cross-client isolation.
+
+#### Acceptance criteria
+
+- [ ] Define client namespace/service account/network/storage boundaries and Pod security.
+- [ ] Worker pods cannot acquire controller or another client credentials.
+- [ ] Use stronger runtime/node isolation for policy classes requiring it.
+- [ ] Document local same-UID backend exclusion from shared hostile workloads.
+
+#### Verification
+
+- [ ] Target-cluster deny tests cover metadata, API tokens, master key, sibling volumes and egress.
+- [ ] Verify actual network-policy/runtime enforcement not only YAML.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/runtime/kubernetes.ts
+- de-vloer:ops/helm/de-vloer
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-038: Bind approvals to candidate, policy and permission lifetime
+
+Target repository: de-vloer
+Milestone: M3; epic: E08; risk: critical; estimate: 5 relative points.
+Depends on: PV-011, PV-034
+
+#### Problem
+
+An approval must not survive changes to the work, branch, policy or granting identity.
+
+#### Acceptance criteria
+
+- [ ] Record subject hashes, actor, scope, expiry and expected revision.
+- [ ] Expire approvals on candidate/policy/mandate changes and offboarding.
+- [ ] Matching persistent tool grants remain limited to one approved run/policy.
+- [ ] Separation-of-duty rules apply to critical platform changes.
+
+#### Verification
+
+- [ ] Replay old approval after changes and confirm denial.
+- [ ] Reviewer cannot self-authorize policy or budget change.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/engine.ts
+- de-vloer:src/store.ts
+- de-vloer:src/http.ts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-039: Add secret redaction and controlled context export policy
+
+Target repository: de-vloer
+Milestone: M3; epic: E08; risk: high; estimate: 5 relative points.
+Depends on: PV-034
+
+#### Problem
+
+File selections, diffs, logs and remote tool output can expose secrets or cross-client data.
+
+#### Acceptance criteria
+
+- [ ] Centralize bounded redaction before event/artifact persistence and export.
+- [ ] Preview exactly which editor content and metadata will be sent.
+- [ ] Deny automatic bulk workspace upload and cross-client memory reuse.
+- [ ] Allow authorized investigation of redaction failures without exposing values broadly.
+
+#### Verification
+
+- [ ] Canary secrets in nested JSON, diff, terminal output and clipboard selections stay absent from persistence.
+- [ ] Editor selection tests exclude hidden/unsaved context unless explicitly chosen.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/engine.ts
+- de-vloer:src/http.ts
+- de-vloer:extensions/vscode
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-040: Move canonical reservations into the work-order ledger
+
+Target repository: ploeg
+Milestone: M3; epic: E09; risk: critical; estimate: 8 relative points.
+Depends on: PV-023, PV-034
+
+#### Problem
+
+Independent session limits cannot enforce aggregate client/team budgets across Ploeg and Vloer.
+
+#### Acceptance criteria
+
+- [ ] Reserve client/project/attempt budgets in the same authoritative ledger used for dispatch.
+- [ ] Issue scoped gateway keys only after successful reservation.
+- [ ] Track authorized, reserved, estimated, reconciled and unresolved money separately.
+- [ ] Takeover preserves commitments and cannot reset available budget.
+
+#### Verification
+
+- [ ] Concurrent allocation and crash-after-mint tests cannot oversubscribe the chosen policy.
+- [ ] Vloer and unattended workers share the same accounting reference.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/store
+- ploeg:pkg/httpapi
+- ploeg:pkg/llmbroker
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-041: Qualify LiteLLM spend enforcement and late reconciliation
+
+Target repository: ploeg
+Milestone: M3; epic: E09; risk: critical; estimate: 5 relative points.
+Depends on: PV-040
+
+#### Problem
+
+A grace interval is a reporting heuristic and not proof that all upstream spend has settled.
+
+#### Acceptance criteria
+
+- [ ] Pin gateway version and qualify reservation/fail-closed enforcement if supported.
+- [ ] Define currency/precision, delayed charges and retry accounting.
+- [ ] Late updates reconcile against retained references without duplicate settlement.
+- [ ] Unknown gateway state prevents new budget-consuming work under configured policy.
+
+#### Verification
+
+- [ ] Concurrent requests, delayed provider logs, gateway outage and key-block tests use a real pilot gateway.
+- [ ] Produce a documented overshoot/uncertainty envelope rather than claiming exact universal ceilings.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/store
+- de-vloer:src/broker.ts (cross-repository reference)
+- de-vloer:docs/operations (cross-repository reference)
+- ploeg:pkg/llmbroker
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-042: Add fair per-client capacity and admission controls
+
+Target repository: ploeg
+Milestone: M3; epic: E09; risk: high; estimate: 5 relative points.
+Depends on: PV-023, PV-040
+
+#### Problem
+
+A global two-session limit does not prevent one project monopolizing a shared cluster.
+
+#### Acceptance criteria
+
+- [ ] Apply per-client/team concurrency, priority and maximum waiting-age policy.
+- [ ] Reserve workspace capacity independently from model spend.
+- [ ] Expose queue reason and next admissible action.
+- [ ] Administrative exceptions are bounded and audited.
+
+#### Verification
+
+- [ ] Load mixed client queues and verify fairness and quotas.
+- [ ] A stopped or orphaned run cannot leak capacity indefinitely.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/plan
+- ploeg:pkg/store
+- ploeg:ops/helm
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-043: Reconcile orphan workspaces and expired capabilities
+
+Target repository: de-vloer
+Milestone: M3; epic: E09; risk: critical; estimate: 5 relative points.
+Depends on: PV-023, PV-037, PV-040
+
+#### Problem
+
+Crashes during provisioning or cleanup can leave billable resources and usable credentials behind.
+
+#### Acceptance criteria
+
+- [ ] Use stable resource identity labels and persisted provisioning intent.
+- [ ] Periodic reconciliation detects orphan pods/secrets/services/PVCs and stopped keys.
+- [ ] Cleanup retries are idempotent and preserve required evidence.
+- [ ] Show uncertain cleanup to operators with a bounded remediation path.
+
+#### Verification
+
+- [ ] Crash after every create/delete boundary and converge without a second writer.
+- [ ] Verify cost/capacity references remain attributable through cleanup.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/runtime/kubernetes.ts
+- de-vloer:src/engine.ts
+- de-vloer:src/store.ts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-044: Expose client cost and delivery economics reports
+
+Target repository: de-vloer
+Milestone: M4; epic: E09; risk: medium; estimate: 5 relative points.
+Depends on: PV-040, PV-041, PV-033
+
+#### Problem
+
+Token charts alone do not tell a CTO whether delegated work improves engineering delivery.
+
+#### Acceptance criteria
+
+- [ ] Report cost per accepted change and attempted task, including failed attempts.
+- [ ] Separate model charges, runtime costs and measured human review time.
+- [ ] Provide client/project/period breakdown with uncertainty and currency labels.
+- [ ] Exports obey the same authorization as sessions/artifacts.
+
+#### Verification
+
+- [ ] Reconcile report totals with ledger fixtures containing delayed and failed runs.
+- [ ] Demonstrate no misleading savings from excluding failed tasks.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/http.ts
+- de-vloer:public/app.js
+- de-vloer:docs/product
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-045: Qualify the VS Code extension in actual supported hosts
+
+Target repository: de-vloer
+Milestone: M0; epic: E10; risk: medium; estimate: 5 relative points.
+Depends on: No code dependencies in this seed; environment and human authorization still required.
+
+#### Problem
+
+Build/client tests alone do not establish extension activation, native command registration or usable webviews.
+
+#### Acceptance criteria
+
+- [ ] Run extension-host integration tests for install/activation/commands/SecretStorage.
+- [ ] Exercise stable VS Code desktop on supported operating systems and declared remote hosts.
+- [ ] Record unsupported web/VSCodium cases explicitly.
+- [ ] Verify the VSIX contains only required runtime assets and no secrets.
+
+#### Verification
+
+- [ ] Install packaged VSIX in clean profile and run actual demo workflow.
+- [ ] Capture keyboard/theme/accessibility results and package hash.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:extensions/vscode
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-046: Add work-order inbox and ticket quick-open to VS Code
+
+Target repository: de-vloer
+Milestone: M3; epic: E10; risk: high; estimate: 5 relative points.
+Depends on: PV-025, PV-036
+
+#### Problem
+
+The initial extension sees sessions, not a shared task inbox with canonical ticket ownership.
+
+#### Acceptance criteria
+
+- [ ] List eligible/owned work orders with source, client, repository and blocker.
+- [ ] Open external ticket without leaking credentials or changing its priority.
+- [ ] Claim/attach via canonical API with expected revision and idempotency.
+- [ ] Show unavailable/unauthorized mappings without silently creating ad-hoc work.
+
+#### Verification
+
+- [ ] Two editor windows open same task and obtain one authoritative owner.
+- [ ] Expired identity and stale task revision have recoverable UX.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:extensions/vscode
+- de-vloer:src/http.ts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-047: Provide native immutable candidate diff views
+
+Target repository: de-vloer
+Milestone: M3; epic: E10; risk: high; estimate: 5 relative points.
+Depends on: PV-006, PV-007
+
+#### Problem
+
+Read-only artifact text is useful but a full editor diff needs exact remote base/candidate documents.
+
+#### Acceptance criteria
+
+- [ ] Virtual documents resolve by server/client/candidate/path and are immutable.
+- [ ] Native diff handles added/deleted/renamed/binary cases appropriately.
+- [ ] No automatic patch application or dirty local branch checkout.
+- [ ] Open findings at verified candidate locations.
+
+#### Verification
+
+- [ ] Test remote path traversal, same-name files across servers and stale artifacts.
+- [ ] Dirty local worktrees stay unchanged.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:extensions/vscode
+- de-vloer:src/http.ts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-048: Add an explicit durable event revision and retention API
+
+Target repository: de-vloer
+Milestone: M3; epic: E10; risk: high; estimate: 5 relative points.
+Depends on: PV-025
+
+#### Problem
+
+Current global event IDs do not imply contiguous per-session sequences or retained history completeness.
+
+#### Acceptance criteria
+
+- [ ] Expose state revision, per-session ordering and retention watermark.
+- [ ] Clients deduplicate/replay and resnapshot when history is unavailable.
+- [ ] Publish API capability/version information.
+- [ ] Bound response size and recover slow/offline clients without silent event loss.
+
+#### Verification
+
+- [ ] Interleave multiple sessions and truncate history; clients converge correctly.
+- [ ] No assumption that a numeric ID jump is a missing event.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/store.ts
+- de-vloer:src/http.ts
+- de-vloer:extensions/vscode
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-049: Make human decisions usable across browser and editor
+
+Target repository: de-vloer
+Milestone: M3; epic: E10; risk: high; estimate: 5 relative points.
+Depends on: PV-038, PV-048
+
+#### Problem
+
+Multiple questions, stale approvals and parallel clients require one consistent decision surface.
+
+#### Acceptance criteria
+
+- [ ] Support structured single/multi-select/freeform questions and actual runtime reject semantics.
+- [ ] Show action scope, subject revision, expiry and persistent grant limits.
+- [ ] Decision claimed in one client expires or updates the other.
+- [ ] Keyboard/screen reader/high contrast flows preserve drafts.
+
+#### Verification
+
+- [ ] Cross-client concurrent responses accept one valid current decision.
+- [ ] UI tests cover multiple-choice questions, partial errors and offline recovery.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:public/app.js
+- de-vloer:extensions/vscode
+- de-vloer:src/http.ts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-050: Design deliberate local context and remote workspace handoff
+
+Target repository: de-vloer
+Milestone: M3; epic: E10; risk: high; estimate: 5 relative points.
+Depends on: PV-026, PV-039, PV-047
+
+#### Problem
+
+Connecting an editor must not silently upload a repo or overwrite local changes.
+
+#### Acceptance criteria
+
+- [ ] Choose current selection/file/diff explicitly with content/size/client preview.
+- [ ] Record origin path, revision and unsaved status as evidence rather than authority.
+- [ ] Remote workspace opening integrates existing SSH/Coder tooling only when authorized.
+- [ ] Separate supervising from obtaining a write lease.
+
+#### Verification
+
+- [ ] Test multi-root, Remote SSH, devcontainer and conflicting local edits.
+- [ ] No context upload occurs on activation or merely opening a file.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:extensions/vscode
+- de-vloer:docs/design/ide-and-operator-experience.md
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-051: Add OpenTelemetry and operational decision dashboards
+
+Target repository: de-vloer
+Milestone: M4; epic: E11; risk: medium; estimate: 5 relative points.
+Depends on: PV-023, PV-040
+
+#### Problem
+
+Operators need to distinguish slow model work, queue delay, human waiting and broken infrastructure.
+
+#### Acceptance criteria
+
+- [ ] Trace workOrder/attempt/run through intake, execution, checks and writeback.
+- [ ] Measure queue lag, decision age, unknown spend, stop latency, orphan age and review effort.
+- [ ] No prompts/secrets/client source in default telemetry.
+- [ ] Provide actionable alerts with runbook links and owners.
+
+#### Verification
+
+- [ ] Inject failures and verify one useful alert with trace correlation.
+- [ ] Retention/cardinality tests prevent unbounded per-token metrics.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/engine.ts
+- de-vloer:src/http.ts
+- de-vloer:ops
+- de-vloer:docs/operations
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-052: Automate backup, restore and evidence retention drills
+
+Target repository: de-vloer
+Milestone: M4; epic: E11; risk: high; estimate: 5 relative points.
+Depends on: PV-007, PV-023
+
+#### Problem
+
+Durable local files do not prove recoverability after state or cluster loss.
+
+#### Acceptance criteria
+
+- [ ] Back up Ploeg Postgres, Vloer state, encryption metadata and artifact references consistently.
+- [ ] Define proposed RPO/RTO and measure actual drill outcomes.
+- [ ] Restored attempts are fenced and credentials reconciled before work resumes.
+- [ ] Retention/deletion includes volumes, objects and indexes.
+
+#### Verification
+
+- [ ] Restore into isolated environment and inspect prior evidence without replaying work.
+- [ ] Simulate lost encryption key and document recoverability limits.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/store.ts
+- de-vloer:ops
+- de-vloer:docs/operations
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-053: Release immutable signed platform and extension artifacts
+
+Target repository: de-vloer
+Milestone: M4; epic: E11; risk: high; estimate: 5 relative points.
+Depends on: PV-003, PV-045
+
+#### Problem
+
+Reproducible installation and safe self-improvement need provenance, compatibility and rollback.
+
+#### Acceptance criteria
+
+- [ ] Build/tag/sign application, agent images and VSIX through CI using immutable source refs.
+- [ ] Publish SBOM and integrity/provenance metadata supported by the chosen toolchain.
+- [ ] GitOps promotes reviewed image digests; no runtime self-update authority.
+- [ ] Document compatibility matrix and rollback path including DB migration limits.
+
+#### Verification
+
+- [ ] Verify package/image provenance and install prior version in a drill.
+- [ ] A candidate cannot modify active release credentials.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:Dockerfile
+- de-vloer:ops
+- de-vloer:.forgejo
+- de-vloer:.github
+- de-vloer:extensions/vscode
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-054: Add integration chaos qualification for the delivery loop
+
+Target repository: de-vloer
+Milestone: M4; epic: E11; risk: high; estimate: 8 relative points.
+Depends on: PV-011, PV-018, PV-026, PV-041, PV-043
+
+#### Problem
+
+Mock tests cannot prove a complete deployed system survives distributed failures.
+
+#### Acceptance criteria
+
+- [ ] Qualify webhook retry, ticket edits, worker/controller death, network partition, expired credentials and late billing.
+- [ ] Assert no duplicate writer, no false completion and retrievable evidence.
+- [ ] Record exact versions, fixtures and accepted limitations.
+- [ ] Make high-cost/external tests explicit opt-in with bounded spend.
+
+#### Verification
+
+- [ ] Run scenario matrix on target cluster and preserve sanitized results.
+- [ ] Fail release claim gate when a required invariant is unqualified.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:test
+- de-vloer:ops
+- de-vloer:docs/validation.md
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-055: Create declarative project onboarding and readiness diagnostics
+
+Target repository: de-vloer
+Milestone: M4; epic: E11; risk: high; estimate: 5 relative points.
+Depends on: PV-018, PV-028, PV-035, PV-037
+
+#### Problem
+
+Every client project should not require bespoke provider wiring and secret debugging.
+
+#### Acceptance criteria
+
+- [ ] Validate identity, tracker mapping, forge scope, image/toolchain, gateway model and egress.
+- [ ] Expose pass/blocked/unknown with action and responsible owner.
+- [ ] Store only secret references in GitOps project profiles.
+- [ ] Avoid chargeable provider probes unless explicitly requested under a test budget.
+
+#### Verification
+
+- [ ] Onboard second project from template without modifying engine code.
+- [ ] Broken mappings and unavailable network produce precise safe blockers.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/config.ts
+- de-vloer:ops/helm
+- de-vloer:docs/operations
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-056: Enforce single-owner store migrations and compatibility
+
+Target repository: de-vloer
+Milestone: M4; epic: E11; risk: critical; estimate: 8 relative points.
+Depends on: PV-023, PV-048, PV-052
+
+#### Problem
+
+Vloer SQLite is single-server and cannot be scaled by adding replicas; Ploeg already uses Postgres.
+
+#### Acceptance criteria
+
+- [ ] Keep Ploeg canonical claims in existing Postgres; do not add a competing Vloer claim ledger.
+- [ ] Define trigger and migration for Vloer Session/Decision data if HA is required.
+- [ ] Outbox consumers are idempotent and contracts evolve with explicit compatibility.
+- [ ] Mixed-version deployments cannot execute stale mandates.
+
+#### Verification
+
+- [ ] Migration/rollback rehearsals preserve audit history and deny duplicate writers.
+- [ ] HA is not advertised until multi-node failure qualification passes.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/store.ts
+- ploeg:pkg/store (cross-repository reference)
+- de-vloer:docs/contracts
+- de-vloer:src/store.ts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-057: Run a structured competitor workflow bakeoff
+
+Target repository: de-vloer
+Milestone: M4; epic: E12; risk: low; estimate: 5 relative points.
+Depends on: PV-004, PV-033
+
+#### Problem
+
+Broad remote-agent claims overlap established products; the specific differentiation must be measured.
+
+#### Acceptance criteria
+
+- [ ] Compare direct OpenCode plus CI, Kandev, OpenHands/Canvas and a relevant enterprise option on identical tasks.
+- [ ] Measure accepted outcomes, human minutes, cost, setup, recovery and client boundaries.
+- [ ] Record licenses/features as observed at tested version, not old README assumptions.
+- [ ] Choose build/integrate/stop based on predeclared outcomes.
+
+#### Verification
+
+- [ ] Publish fixture definitions, sanitized results and limitations.
+- [ ] No selected screenshot or single task determines the product verdict.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:docs/research/market-landscape.md
+- de-vloer:docs/product
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-058: Interview agency/platform buyers around existing workflows
+
+Target repository: de-vloer
+Milestone: M4; epic: E12; risk: low; estimate: 3 relative points.
+Depends on: No code dependencies in this seed; environment and human authorization still required.
+
+#### Problem
+
+The intended customer segment and willingness to pay are unvalidated.
+
+#### Acceptance criteria
+
+- [ ] Conduct consented interviews with technical and budget owners around recent real delegated work.
+- [ ] Measure existing tool stack, review pain, client restrictions and purchasing process.
+- [ ] Separate feature interest from willingness to run or pay for a pilot.
+- [ ] Store anonymized findings with permission and provenance.
+
+#### Verification
+
+- [ ] Use the research guide and synthesis rubric in the product plan.
+- [ ] Record disconfirming evidence and no-go criteria.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:docs/product/go-to-market.md
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-059: Publish an honest self-improvement demonstration
+
+Target repository: de-vloer
+Milestone: M4; epic: E12; risk: low; estimate: 3 relative points.
+Depends on: PV-004, PV-045
+
+#### Problem
+
+Marketing needs inspectable evidence rather than a claim that agents autonomously run an engineering company.
+
+#### Acceptance criteria
+
+- [ ] Show stable instance, actual task, VS Code intervention, candidate, checks and human decision.
+- [ ] Clearly label demo-only, tested-live and proposed features.
+- [ ] Include one controlled failure and recovery example.
+- [ ] Get explicit approval before publishing customer code, names or screenshots.
+
+#### Verification
+
+- [ ] Reproduce the demo using documented commands and same release artifacts.
+- [ ] Claims link to evidence and known limits.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:docs/product/go-to-market.md
+- de-vloer:docs/validation.md
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-060: Create a paid pilot offer and delivery economics worksheet
+
+Target repository: de-vloer
+Milestone: M5; epic: E12; risk: low; estimate: 3 relative points.
+Depends on: PV-044, PV-057, PV-058
+
+#### Problem
+
+A commercial offer needs a bounded outcome and support economics rather than per-token markup speculation.
+
+#### Acceptance criteria
+
+- [ ] Define one tracker/forge/cluster pilot scope, support responsibilities and success criteria.
+- [ ] Separate software, support/hosting and pass-through model/runtime costs.
+- [ ] Use explicit price hypotheses pending buyer validation; no invented market rates.
+- [ ] Define data ownership, export and exit expectations without claiming legal certification.
+
+#### Verification
+
+- [ ] Run proposed unit economics using measured pilot cost and human effort.
+- [ ] Reject unsustainable support or unverified isolation commitments.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:docs/product/go-to-market.md
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-061: Publish capability and compatibility evidence catalog
+
+Target repository: de-vloer
+Milestone: M4; epic: E12; risk: medium; estimate: 3 relative points.
+Depends on: PV-030, PV-054
+
+#### Problem
+
+Feature lists are misleading if configured, simulated and deployed behavior are mixed.
+
+#### Acceptance criteria
+
+- [ ] Version matrix identifies implementation, mock/native/deployed evidence and unsupported modes.
+- [ ] Every marketing capability maps to a reproducible scenario and tested component versions.
+- [ ] Expired evidence prompts review rather than automatic claim carryover.
+- [ ] Show what upstream tools supply versus what Ploeg/Vloer adds.
+
+#### Verification
+
+- [ ] Review all public README/site/pitch claims against catalog.
+- [ ] Fail documentation check for broken evidence links and unsupported ready labels.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:docs/validation.md
+- de-vloer:docs/research
+- de-vloer:README.md
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-062: Package reusable crew and connector contribution contracts
+
+Target repository: de-vloer
+Milestone: M5; epic: E12; risk: medium; estimate: 5 relative points.
+Depends on: PV-029, PV-030, PV-058
+
+#### Problem
+
+A community ecosystem needs reproducible contracts and governance before becoming a marketplace.
+
+#### Acceptance criteria
+
+- [ ] Provide templates, conformance tests and license/provenance requirements.
+- [ ] Disallow arbitrary unsigned privileged hooks in standard crew packages.
+- [ ] Document maintainer ownership, versioning and deprecation.
+- [ ] Keep trusted policy independent from untrusted contribution content.
+
+#### Verification
+
+- [ ] A third contributor adds a bounded package without modifying the engine.
+- [ ] Malicious capability escalation fixture is rejected.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:skills
+- de-vloer:docs/contracts
+- de-vloer:docs/product
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-063: Expose scoped read-only MCP tools for work inspection
+
+Target repository: de-vloer
+Milestone: M5; epic: E07; risk: high; estimate: 5 relative points.
+Depends on: PV-034, PV-048, PV-061
+
+#### Problem
+
+Other assistants can benefit from standardized evidence access, but MCP must not become an administrative bypass.
+
+#### Acceptance criteria
+
+- [ ] Expose authenticated work/status/evidence reads with same project authorization as HTTP.
+- [ ] Declare and negotiate tested protocol versions and capabilities.
+- [ ] No generic execute/admin tool or implicit ability to start paid work.
+- [ ] Bound content/requests and preserve provenance and redaction.
+
+#### Verification
+
+- [ ] Cross-client tool calls and prompt-injection attempts cannot expand scope.
+- [ ] Conformance tests run against a pinned supported MCP client.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:docs/contracts
+- de-vloer:src/http.ts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-064: Create explicit local development and safe contributor bootstrap
+
+Target repository: de-vloer
+Milestone: M0; epic: E11; risk: low; estimate: 3 relative points.
+Depends on: No code dependencies in this seed; environment and human authorization still required.
+
+#### Problem
+
+Contributors need one documented path for root app, extension, browser gates and proposed contract tooling.
+
+#### Acceptance criteria
+
+- [ ] Root commands discover and run module-specific checks without executing live provider work.
+- [ ] Separate source build, VSIX package, demo and live configuration.
+- [ ] Document Node/tool versions and excluded external checks.
+- [ ] Repository design/backlog artifacts rebuild deterministically.
+
+#### Verification
+
+- [ ] Fresh clone can run local gates and build design/backlog/extension.
+- [ ] CI catches generated-file drift.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:package.json
+- de-vloer:scripts
+- de-vloer:README.md
+- de-vloer:extensions/vscode
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-065: Qualify GitLab issues as an optional tracker adapter
+
+Target repository: ploeg
+Milestone: M4; epic: E05; risk: high; estimate: 5 relative points.
+Depends on: PV-018, PV-022, PV-021
+
+#### Problem
+
+A GitLab-first team may want issues as its task source rather than a separate external tracker.
+
+#### Acceptance criteria
+
+- [ ] Normalize project-scoped issue identity and configured assignment/label rules.
+- [ ] Preserve distinction between issue source and MR delivery feedback.
+- [ ] Honor private project scope and actual instance capabilities.
+- [ ] Use the same work-order, polling and summary contracts as other trackers.
+
+#### Verification
+
+- [ ] Issue update/close/reopen/move fixtures converge without duplicate attempts.
+- [ ] Task source can change without changing runtime/verification code.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/provider
+- ploeg:docs/contracts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-066: Add scoped audit export and offboarding workflow
+
+Target repository: de-vloer
+Milestone: M4; epic: E08; risk: high; estimate: 5 relative points.
+Depends on: PV-034, PV-035, PV-039, PV-052
+
+#### Problem
+
+A client or employee departure needs accountable access revocation and evidence handling.
+
+#### Acceptance criteria
+
+- [ ] Revoke identity, active permissions and scoped credentials in an ordered workflow.
+- [ ] Export only authorized client evidence with documented retention and money uncertainty.
+- [ ] Stop or reassign owned attempts through fenced ownership.
+- [ ] Record successful and incomplete cleanup without assuming deletion everywhere.
+
+#### Verification
+
+- [ ] Offboard user/client with active work and verify denied streams/artifacts/keys.
+- [ ] Restore drill does not revive revoked authorization.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/auth.ts
+- de-vloer:src/http.ts
+- de-vloer:ops
+- de-vloer:docs/operations
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-067: Make operator mutations idempotent and revision-checked
+
+Target repository: de-vloer
+Milestone: M1; epic: E06; risk: critical; estimate: 5 relative points.
+Depends on: No code dependencies in this seed; environment and human authorization still required.
+
+#### Problem
+
+Network ambiguity and multiple clients can otherwise create duplicate sessions or apply stale decisions.
+
+#### Acceptance criteria
+
+- [ ] Accept scoped request IDs for session creation and privileged lifecycle mutations.
+- [ ] Persist request/result with payload hash; conflicting reuse returns conflict.
+- [ ] Expected revision prevents stale decisions.
+- [ ] Document which requests may be retried and reconciliation after timeout.
+
+#### Verification
+
+- [ ] Concurrent same-key creates return one session and one execution.
+- [ ] Crash after commit before response can be reconciled without paid replay.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/http.ts
+- de-vloer:src/store.ts
+- de-vloer:src/engine.ts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-068: Gate model profiles and controlled fallback behavior
+
+Target repository: de-vloer
+Milestone: M3; epic: E09; risk: high; estimate: 5 relative points.
+Depends on: PV-029, PV-030, PV-040
+
+#### Problem
+
+A model alias can change behavior, data destination or price without the operator understanding the change.
+
+#### Acceptance criteria
+
+- [ ] Pin capability/data-residency/cost policy and record resolved model route per attempt.
+- [ ] Fallback is permitted only inside approved policy with visible attribution.
+- [ ] Unsupported tools/context length becomes a blocker, not silent behavior change.
+- [ ] Provider/subscription identities stay separate; shared budget uses qualified API credentials.
+
+#### Verification
+
+- [ ] Model outage/fallback tests verify allowed routes, key scope and cost attribution.
+- [ ] Unknown route change cannot bypass mandate.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/config.ts
+- de-vloer:src/runtime
+- de-vloer:src/broker.ts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-069: Set a maintainable open-source and brand contribution policy
+
+Target repository: de-vloer
+Milestone: M4; epic: E12; risk: medium; estimate: 3 relative points.
+Depends on: PV-058
+
+#### Problem
+
+Commercialization must preserve the chosen open-source promises and existing Ploeg brand decisions.
+
+#### Acceptance criteria
+
+- [ ] Document Apache-2.0 core scope and avoid implying a restrictive license is open source.
+- [ ] Respect Ploeg existing trademark policy; do not claim trademark registration or legal clearance.
+- [ ] Track third-party component licenses and service terms before distribution.
+- [ ] Separate support/hosting offers from mandatory hosted dependencies.
+
+#### Verification
+
+- [ ] Review extension/image dependencies and planned upstream reuse.
+- [ ] Maintainers approve contribution and compatibility policy before public launch.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:LICENSE
+- de-vloer:README.md
+- de-vloer:docs/product
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-070: Validate manual backlog briefs against real session limits
+
+Target repository: de-vloer
+Milestone: M0; epic: E01; risk: low; estimate: 2 relative points.
+Depends on: PV-064
+
+#### Problem
+
+Ticket-ready data must become a bounded objective without pretending the seed file is an authorized dispatch queue.
+
+#### Acceptance criteria
+
+- [ ] Generate explicit session payload using configured repository/crew/runtime and budget arguments.
+- [ ] Include acceptance criteria, scope, dependencies and no-merge/release limits.
+- [ ] Never send network requests or mark external work ready from a local seed status.
+- [ ] Reject objectives or budgets that cannot fit the current API.
+
+#### Verification
+
+- [ ] CLI fixtures cover dependency cycles, CSV quoting, formula-like cells and payload length.
+- [ ] Payload shape is accepted by an isolated demo API when its profile matches.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:scripts/backlog.mjs
+- de-vloer:backlog/backlog.json
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-071: Remove administrative authority from Ploeg worker environments
+
+Target repository: ploeg
+Milestone: M1; epic: E08; risk: critical; estimate: 5 relative points.
+Depends on: No code dependencies in this seed; environment and human authorization still required.
+
+#### Problem
+
+Ploeg workers read LiteLLM management credentials and current scrubbing does not impose a positive allowlist on writers.
+
+#### Acceptance criteria
+
+- [ ] Move key minting/settlement outside arbitrary-code worker execution.
+- [ ] Construct a positive environment allowlist for every role and runtime.
+- [ ] No master key, unrelated forge credential, controller credential or service account mount enters a harness.
+- [ ] Readers and writers receive only their explicitly scoped capabilities.
+
+#### Verification
+
+- [ ] Both roles execute a fixture that inspects environment and allowed mounts without finding canary control secrets.
+- [ ] Kill the worker and verify external broker cleanup still runs.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:cmd/ploeg-worker
+- ploeg:pkg/worker
+- ploeg:pkg/llmbroker
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-072: Authenticate and scope Ploeg worker control endpoints
+
+Target repository: ploeg
+Milestone: M1; epic: E08; risk: critical; estimate: 5 relative points.
+Depends on: No code dependencies in this seed; environment and human authorization still required.
+
+#### Problem
+
+Network reachability currently exposes run-control routes without a product identity middleware boundary.
+
+#### Acceptance criteria
+
+- [ ] Require workload identity or a narrowly scoped bootstrap credential for claims.
+- [ ] Renew/checkpoint/outcome capabilities bind the existing Ploeg Run, worker, role, current lease identity and expiry; canonical attempt/generation binding follows in PV-023.
+- [ ] Separate operator APIs and reject token audiences from another surface.
+- [ ] Rate-limit and audit invalid requests without leaking token values.
+
+#### Verification
+
+- [ ] Untrusted in-cluster client cannot claim work or report another run outcome.
+- [ ] Expired, wrong-run, wrong-worker and invalid-lease tokens fail across all current routes; terminal operations remain idempotent.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/httpapi/server.go
+- ploeg:pkg/harness
+- ploeg:ops/helm/ploeg
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-073: Retain Ploeg budget holds across worker death
+
+Target repository: ploeg
+Milestone: M1; epic: E09; risk: critical; estimate: 5 relative points.
+Depends on: PV-071, PV-072
+
+#### Problem
+
+Run expiration can remove reservations before a killed worker reports actual spend; deleting gateway keys destroys useful accounting references.
+
+#### Acceptance criteria
+
+- [ ] Keep unresolved commitments independent of run liveness or completion.
+- [ ] External reconciliation blocks orphan keys while preserving durable usage identity.
+- [ ] Crash-before-report does not refill shift authorization.
+- [ ] Late provider cost is retained with explicit provisional/reconciled distinction.
+
+#### Verification
+
+- [ ] Crash after allocation, mint, request and report boundaries; no false zero or double settlement.
+- [ ] Missing gateway history remains unresolved with an audited repair path.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/store/shift.go
+- ploeg:pkg/llmbroker/litellm.go
+- ploeg:pkg/shiftengine
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-074: Require explicit Ploeg reviewer approval in fix rounds
+
+Target repository: ploeg
+Milestone: M1; epic: E03; risk: critical; estimate: 3 relative points.
+Depends on: No code dependencies in this seed; environment and human authorization still required.
+
+#### Problem
+
+The absence of request-changes can currently be treated as approval even when a required verdict is missing.
+
+#### Acceptance criteria
+
+- [ ] Only explicit valid approval by required reviewer roles satisfies the review gate.
+- [ ] Missing, malformed and inconclusive verdicts block the relevant transition.
+- [ ] Existing bounded rework remains bounded and cannot reset budget.
+- [ ] Historical attempts keep their original evidence rather than receiving invented approvals.
+
+#### Verification
+
+- [ ] Regression tests cover no verdict, malformed verdict, inconclusive and genuine approval.
+- [ ] A failed reviewer process cannot approve by absence.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/shiftengine/reviewloop.go
+- ploeg:pkg/shiftengine
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-075: Turn forge feedback into candidate-bound follow-up work
+
+Target repository: ploeg
+Milestone: M2; epic: E05; risk: high; estimate: 5 relative points.
+Depends on: PV-016, PV-022, PV-074, PV-011
+
+#### Problem
+
+Forge CI and review events are currently audited but do not drive a governed bounded rework loop.
+
+#### Acceptance criteria
+
+- [ ] Correlate feedback to exact repository, proposal and candidate SHA.
+- [ ] Ignore superseded results and bot echo events for new dispatch.
+- [ ] Create bounded follow-up through current work-order authorization.
+- [ ] Unclear feedback is a human decision rather than immediate paid execution.
+
+#### Verification
+
+- [ ] Late CI failure on old SHA and duplicate review events create no new attempt.
+- [ ] Explicit current review changes create one bounded rework proposal.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/httpapi/server.go
+- ploeg:pkg/shiftengine
+- ploeg:pkg/provider
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-076: Park paused workspaces and enforce retained-resource quotas
+
+Target repository: de-vloer
+Milestone: M3; epic: E09; risk: high; estimate: 5 relative points.
+Depends on: PV-007, PV-043
+
+#### Problem
+
+Paused Pods and retained PVCs can accumulate outside the active-session limit.
+
+#### Acceptance criteria
+
+- [ ] Distinguish active, stopping, parked and retained-artifact resource states.
+- [ ] Apply per-client quotas and visible expiry to paused compute and storage.
+- [ ] Export evidence before garbage collection and require no model call to park.
+- [ ] Resume restores an approved candidate and fresh capabilities.
+
+#### Verification
+
+- [ ] Pause many sessions and demonstrate bounded compute/storage use.
+- [ ] Expiry preserves exported evidence and never deletes unexported human changes silently.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/runtime/kubernetes.ts
+- de-vloer:src/engine.ts
+- de-vloer:ops/helm/de-vloer
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-077: Bound event, artifact and webhook memory surfaces
+
+Target repository: de-vloer
+Milestone: M1; epic: E11; risk: high; estimate: 5 relative points.
+Depends on: No code dependencies in this seed; environment and human authorization still required.
+
+#### Problem
+
+Unbounded history arrays and inline artifacts can exhaust the controller or hide critical input requests during noisy runs.
+
+#### Acceptance criteria
+
+- [ ] Limit frames, pages, total inline artifacts and provider payload parsing.
+- [ ] Provide explicit truncation and a retrievable full artifact where permitted.
+- [ ] Preserve critical lifecycle/permission events under token-output pressure.
+- [ ] Document reconnect behavior when retained history is compacted.
+
+#### Verification
+
+- [ ] Noisy runtime and slow client tests keep memory bounded while decisions remain actionable.
+- [ ] Oversized/malicious payloads cannot create false successful evidence.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/http.ts
+- de-vloer:src/store.ts
+- de-vloer:src/engine.ts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-078: Fence publication through a trusted forge publisher
+
+Target repository: ploeg
+Milestone: M2; epic: E06; risk: critical; estimate: 8 relative points.
+Depends on: PV-023, PV-028, PV-071, PV-011
+
+#### Problem
+
+A database generation alone cannot stop a stale process from using a direct Git push token.
+
+#### Acceptance criteria
+
+- [ ] Only the publisher owns forge write credentials for governed attempts.
+- [ ] Before effect, reserve publication under the same serialized ownership authority after checking generation, candidate, required checks and human/policy authorization.
+- [ ] Reconcile ambiguous forge results and refuse superseded owners.
+- [ ] If direct Git tokens remain in a compatibility mode, explicitly disclaim strong fencing and exclude protected workloads.
+- [ ] A durable publication barrier blocks generation transfer while an authorized external effect is in flight or unknown; reconcile the actual remote ref/proposal before closing the barrier. Timer expiry alone cannot release it.
+- [ ] After crash or partition, a negative forge read does not close an unknown barrier: require evidence that the old actor and remote request ended or are fenced; otherwise keep handover blocked.
+
+#### Verification
+
+- [ ] After takeover a stale worker can neither push nor create/update a review.
+- [ ] Pause publication after authorization, request takeover, then complete or lose the forge response: transfer waits until the effect is resolved, and no superseded owner publishes.
+- [ ] Delay an accepted forge request beyond publisher crash and a negative read; no successor is admitted until the remote effect is terminal or fenced.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/forgebroker
+- ploeg:pkg/httpapi
+- ploeg:pkg/worker
+- ploeg:docs/contracts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.

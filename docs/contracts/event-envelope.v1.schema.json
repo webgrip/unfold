@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:webgrip:ploeg-vloer:event-envelope:1",
+  "title": "Proposed Ploeg/Vloer durable event envelope v1",
+  "description": "Design contract. Per-aggregate ordered, at-least-once delivery; never an authorization bearer. Not a CloudEvents claim. Type-specific data schemas are a required implementation gate; this file validates the envelope only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "type",
+    "occurredAt",
+    "recordedAt",
+    "tenantId",
+    "aggregate",
+    "actor",
+    "correlationId",
+    "data"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "work_order.observed",
+        "work_order.revised",
+        "work_order.eligibility_changed",
+        "delivery_attempt.created",
+        "delivery_attempt.owner_changed",
+        "execution.command_requested",
+        "execution.command_applied",
+        "execution.command_rejected",
+        "execution.started",
+        "execution.paused",
+        "execution.cancelled",
+        "execution.interrupted",
+        "execution.finished",
+        "execution.failed",
+        "human_decision.recorded",
+        "human_decision.invalidated",
+        "artifact.recorded",
+        "change_request.published",
+        "change_request.updated",
+        "change_request.merged",
+        "checks.completed",
+        "tracker.writeback_pending",
+        "tracker.writeback_applied",
+        "tracker.writeback_failed",
+        "budget.authorized",
+        "budget.settled",
+        "budget.unknown",
+        "connector.health_changed"
+      ]
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "recordedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tenantId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+    },
+    "aggregate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "version"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "work_order",
+            "delivery_attempt",
+            "session",
+            "connector"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "human",
+            "service",
+            "policy"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        }
+      }
+    },
+    "correlationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "causationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "deliveryAttemptId",
+        "generation"
+      ],
+      "properties": {
+        "deliveryAttemptId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "runId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        }
+      }
+    },
+    "data": {
+      "type": "object",
+      "maxProperties": 100
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "enum": [
+              "execution.command_requested",
+              "execution.command_applied",
+              "execution.command_rejected",
+              "execution.started",
+              "execution.paused",
+              "execution.cancelled",
+              "execution.interrupted",
+              "execution.finished",
+              "execution.failed"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "execution"
+        ]
+      }
+    }
+  ],
+  "examples": [
+    {
+      "schemaVersion": "1.0",
+      "id": "22222222-2222-4222-8222-222222222222",
+      "type": "execution.paused",
+      "occurredAt": "2026-09-09T12:01:00Z",
+      "recordedAt": "2026-09-09T12:01:00.010Z",
+      "tenantId": "webgrip",
+      "aggregate": {
+        "kind": "delivery_attempt",
+        "id": "33333333-3333-4333-8333-333333333333",
+        "version": 7
+      },
+      "actor": {
+        "kind": "service",
+        "id": "ploeg-controller"
+      },
+      "correlationId": "44444444-4444-4444-8444-444444444444",
+      "execution": {
+        "deliveryAttemptId": "33333333-3333-4333-8333-333333333333",
+        "generation": 2
+      },
+      "data": {
+        "reason": "operator_requested",
+        "commandId": "55555555-5555-4555-8555-555555555555"
+      }
+    }
+  ]
+}

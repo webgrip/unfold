@@ -42,6 +42,35 @@ For a shared team pilot, use the Kubernetes backend. The local backend shares th
 
 The portable model interface is the configured LiteLLM gateway. Subscription logins are not a shared token pool in this release. No vendor account or subscription is bundled with the application.
 
+## Use it from VS Code
+
+The [desktop extension](extensions/vscode/README.md) adds a native session tree, remote crew controls, a themed work/evidence/activity panel, human decisions and read-only evidence. Share a selection or file only after previewing its exact destination and content. Agents and model calls stay on the configured server.
+
+The release archive includes `extensions/vscode/de-vloer-0.1.0.vsix`. Install it with **Extensions → … → Install from VSIX**, connect to the demo or your remote HTTPS workbench, and create a session. To build from source:
+
+```sh
+npm ci --prefix extensions/vscode
+npm run extension:package
+code --install-extension extensions/vscode/de-vloer-0.1.0.vsix
+```
+
+Actual-server integration tests, browser webview checks and packaging pass. Installation and native behavior in an actual VS Code Extension Host still require desktop qualification. The package is not published to a marketplace.
+
+![Extension session panel rendering actual completed demonstration evidence](docs/images/vscode-session.png)
+
+## Improve Vloer with Vloer
+
+Run the stable service separately from the candidate checkout, register the Vloer repository, and assign one bounded change with a small authorized LiteLLM budget. A human independently verifies the result, publishes the proposal and reviews the merge. The [self-improvement guide](docs/design/self-improvement.md) covers the exact first loop, including toolchain setup and current manual change-export limitations.
+
+The [complete product and market design](docs/PRODUCT-DESIGN.md) specifies the next system: one Ploeg work authority, ClickUp/Forgejo intake, immutable candidates, trusted verification and publication, browser/editor intervention, client boundaries and operational recovery. It includes competitive research and a marketing/pilot plan. These target features are explicitly distinguished from the implemented prototype.
+
+The [78-ticket backlog](backlog/README.md) maps every one of [30 audited gaps](docs/design/gap-register.md) to acceptance criteria and dependencies. [Import instructions](docs/operations/backlog.md) cover the included ClickUp CSV and Forgejo payloads. No external tickets have been created. To inspect the first bounded task:
+
+```sh
+npm run backlog -- validate
+node scripts/backlog.mjs brief PV-001
+```
+
 ## Develop and review
 
 ```sh
@@ -49,6 +78,7 @@ npm ci
 npm run typecheck
 npm test
 npm run check
+npm run design:check
 helm lint ops/helm/de-vloer
 helm template de-vloer ops/helm/de-vloer
 ```
@@ -57,6 +87,6 @@ helm template de-vloer ops/helm/de-vloer
 
 Read [architecture](docs/architecture.md), [decisions](docs/adrs/README.md), the [HTTP contract](docs/contracts/api.md) and [source research](docs/research/conventions-and-alternatives.md). The [operator skill](skills/operate-agent-session/SKILL.md) is portable procedure; its [local contract](.agents/contracts/operate-agent-session.md) contains repository facts. Copying it does not install client hooks.
 
-The distributable ZIP contains a complete Git repository on `development`, including the initial commit. No remote is configured. Create an empty repository on your forge, add it as `origin`, and push `development` to run the hosted checks.
+The distributable ZIP contains a complete Git repository on `development`, including its commit history, design, importable backlog and packaged extension. No remote is configured. Create an empty repository on your forge, add it as `origin`, and push `development` to run the hosted checks.
 
 Trunk: `development`. License: [Apache-2.0](LICENSE).

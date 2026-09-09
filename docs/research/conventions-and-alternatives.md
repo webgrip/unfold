@@ -22,12 +22,14 @@ Some template instructions still referenced another application's name. Those st
 
 | Project | Relevant evidence | Boundary for this proof of concept |
 | --- | --- | --- |
-| [Kandev](https://github.com/kdlbs/kandev) | Self-hostable multi-agent workbench, worktrees, integrated review and local/Docker/SSH/Sprites execution | Kubernetes operator listed as roadmap; persistent office/teams work listed in progress. Evaluate before extending De Vloer; concepts cited, code not copied |
+| [Kandev](https://github.com/kdlbs/kandev) | Self-hostable multi-agent workbench, worktrees, integrated review and multiple execution environments, including a documented [Kubernetes executor](https://kandev.ai/docs/k8s) | A Kubernetes operator roadmap entry does not mean Kubernetes execution is absent. Team/auth and Office capabilities require checking their current feature status. Evaluate before extending De Vloer; concepts cited, code not copied |
 | [Vibe Kanban](https://github.com/BloopAI/vibe-kanban) | Agent task orchestration, worktree and review flow | [Official site](https://www.vibekanban.com/) announces sunsetting with community maintenance; [remote access](https://www.vibekanban.com/blog/remote-access) targets a powerful execution host |
 | [OpenCode](https://opencode.ai/docs/server/) | Server sessions, events and human-response endpoints provide a usable harness seam | Its native session state and permissions require an adapter; a server endpoint alone is not workspace isolation |
 | [OpenHands](https://github.com/OpenHands/OpenHands) | Open agent platform and SDK ecosystem | Treat runner, model credentials and remote sandbox as distinct concerns; see the [API research](agent-apis.md) for the actual selected integration |
 
 Ploeg's July [Paperclip fit study](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/docs/research/2026-07-28-paperclip-fit.md) is especially relevant: inspect designs for actionable blockers, liveness and recovery, without introducing a second hidden priority queue. Its rejection is a local integration decision at that date, not a general claim about Paperclip's present capabilities.
+
+The expanded [market landscape](market-landscape.md) and its dated primary-source ledger supersede this short comparison for current product-positioning decisions. In particular, remote agents and Kubernetes execution are existing competitive capabilities, not unique claims for Ploeg/Vloer.
 
 ## What success should measure
 

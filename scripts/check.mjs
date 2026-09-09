@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const failures = [];
 const files = [];
-const excluded = new Set(['.git', 'node_modules', '.vloer', 'coverage', 'test-results', 'playwright-report']);
+const excluded = new Set(['.git', 'node_modules', '.vloer', 'dist', 'coverage', 'test-results', 'playwright-report']);
 
 function walk(directory) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -69,7 +69,8 @@ for (const path of files) {
     const specifier = match[2];
     if (specifier.startsWith('.')) {
       const target = resolve(dirname(path), specifier.split('?')[0]);
-      if (!extname(target) || !existsSync(target)) fail(path, `missing relative import ${specifier}`);
+      const compiledExtensionImport = relative(root, path).startsWith('extensions/vscode/') && extension === '.ts' && target.endsWith('.js') && existsSync(target.slice(0, -3) + '.ts');
+      if (!extname(target) || (!existsSync(target) && !compiledExtensionImport)) fail(path, `missing relative import ${specifier}`);
       if (relative(root, target).startsWith('..') || isAbsolute(relative(root, target))) fail(path, 'source import escapes repository');
     } else if (relative(root, path).startsWith('src/') && !specifier.startsWith('node:')) {
       fail(path, 'application imports must use native Node modules or repository files');

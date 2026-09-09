@@ -22,8 +22,15 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run check
+      - run: npm run design:check
+      - run: npm run backlog -- check
+      - run: npm ci --prefix extensions/vscode
+      - run: npm run extension:build
+      - run: npm run extension:test
+      - run: npm run extension:package
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
+      - run: npm --prefix extensions/vscode run test:webview
       - name: Lint and render Helm chart
         shell: bash
         run: |

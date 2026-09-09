@@ -1,0 +1,243 @@
+{
+  "name": "de-vloer",
+  "displayName": "De Vloer \u2014 Remote Agent Workbench",
+  "description": "Direct remote agent crews, inspect evidence and send explicit context without running agents on your workstation.",
+  "version": "0.1.0",
+  "publisher": "webgrip",
+  "license": "Apache-2.0",
+  "engines": {
+    "vscode": "^1.99.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "agents",
+    "remote",
+    "opencode",
+    "litellm",
+    "self-hosted"
+  ],
+  "main": "./dist/extension.js",
+  "extensionKind": [
+    "ui"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Session inspection works. Sending editor content requires a trusted workspace."
+    },
+    "virtualWorkspaces": true
+  },
+  "activationEvents": [
+    "onView:vloer.sessions"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "vloer.connect",
+        "title": "Connect to Workbench",
+        "category": "Vloer",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "vloer.signOut",
+        "title": "Sign Out",
+        "category": "Vloer"
+      },
+      {
+        "command": "vloer.refresh",
+        "title": "Refresh Sessions",
+        "category": "Vloer",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "vloer.create",
+        "title": "New Remote Session",
+        "category": "Vloer",
+        "icon": "$(add)"
+      },
+      {
+        "command": "vloer.open",
+        "title": "Open Session",
+        "category": "Vloer",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "vloer.start",
+        "title": "Start Session",
+        "category": "Vloer",
+        "icon": "$(play)"
+      },
+      {
+        "command": "vloer.pause",
+        "title": "Pause Session",
+        "category": "Vloer",
+        "icon": "$(debug-pause)"
+      },
+      {
+        "command": "vloer.resume",
+        "title": "Resume Session",
+        "category": "Vloer",
+        "icon": "$(debug-continue)"
+      },
+      {
+        "command": "vloer.cancel",
+        "title": "Cancel Session",
+        "category": "Vloer",
+        "icon": "$(close)"
+      },
+      {
+        "command": "vloer.sendInstruction",
+        "title": "Send Instruction to Session",
+        "category": "Vloer"
+      },
+      {
+        "command": "vloer.attachSelection",
+        "title": "Send Selection to Remote Session\u2026",
+        "category": "Vloer"
+      },
+      {
+        "command": "vloer.attachFile",
+        "title": "Send Current File to Remote Session\u2026",
+        "category": "Vloer"
+      },
+      {
+        "command": "vloer.history",
+        "title": "Open Durable Session History",
+        "category": "Vloer"
+      },
+      {
+        "command": "vloer.dashboard",
+        "title": "Open Web Dashboard",
+        "category": "Vloer",
+        "icon": "$(link-external)"
+      }
+    ],
+    "configuration": {
+      "title": "De Vloer",
+      "properties": {
+        "vloer.serverUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:4080",
+          "scope": "application",
+          "description": "Workbench origin. HTTPS is required except for loopback development. Credentials are stored in SecretStorage."
+        },
+        "vloer.refreshIntervalSeconds": {
+          "type": "number",
+          "default": 5,
+          "minimum": 2,
+          "maximum": 60,
+          "scope": "application",
+          "description": "Refresh visible remote sessions; no agent work runs in this extension."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "vloer",
+          "title": "De Vloer",
+          "icon": "media/vloer.svg"
+        }
+      ]
+    },
+    "views": {
+      "vloer": [
+        {
+          "id": "vloer.sessions",
+          "name": "Remote Sessions",
+          "icon": "media/vloer.svg"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "vloer.sessions",
+        "contents": "A shared workbench for remote agent crews.\n[Connect to your workbench](command:vloer.connect)\n[Create a remote session](command:vloer.create)\n\nAgents and model calls run on your server. Local files are sent only when you explicitly choose to share them."
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "vloer.create",
+          "when": "view == vloer.sessions && vloer.connected",
+          "group": "navigation@1"
+        },
+        {
+          "command": "vloer.refresh",
+          "when": "view == vloer.sessions",
+          "group": "navigation@2"
+        },
+        {
+          "command": "vloer.connect",
+          "when": "view == vloer.sessions",
+          "group": "connection@1"
+        },
+        {
+          "command": "vloer.signOut",
+          "when": "view == vloer.sessions && vloer.connected",
+          "group": "connection@2"
+        },
+        {
+          "command": "vloer.dashboard",
+          "when": "view == vloer.sessions",
+          "group": "connection@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "vloer.open",
+          "when": "view == vloer.sessions && viewItem =~ /^session:/",
+          "group": "inline"
+        },
+        {
+          "command": "vloer.start",
+          "when": "view == vloer.sessions && viewItem == session:queued",
+          "group": "lifecycle@1"
+        },
+        {
+          "command": "vloer.pause",
+          "when": "view == vloer.sessions && viewItem =~ /^session:(running|waiting_input)$/",
+          "group": "lifecycle@2"
+        },
+        {
+          "command": "vloer.resume",
+          "when": "view == vloer.sessions && viewItem =~ /^session:(paused|interrupted)$/",
+          "group": "lifecycle@3"
+        },
+        {
+          "command": "vloer.cancel",
+          "when": "view == vloer.sessions && viewItem =~ /^session:(queued|running|waiting_input|paused|interrupted)$/",
+          "group": "lifecycle@4"
+        },
+        {
+          "command": "vloer.history",
+          "when": "view == vloer.sessions && viewItem =~ /^session:/",
+          "group": "evidence"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "vloer.attachSelection",
+          "when": "editorHasSelection && isWorkspaceTrusted",
+          "group": "vloer"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -p . --watch",
+    "test": "node --test test/*.test.ts",
+    "vscode:prepublish": "npm run compile",
+    "package": "vsce package --no-dependencies --allow-missing-repository --skip-license",
+    "test:webview": "node test/webview.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "@types/vscode": "1.99.0",
+    "@vscode/vsce": "3.9.2",
+    "typescript": "7.0.2"
+  }
+}

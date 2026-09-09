@@ -1,0 +1,622 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:webgrip:ploeg-vloer:work-order:1",
+  "title": "Proposed WorkOrder revision v1",
+  "description": "Design contract, not a shipped API. Immutable normalized execution proposal. Requested budget and source content confer no authorization. Secrets, runtime endpoints, credentials and dynamic state are excluded.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "tenantId",
+    "source",
+    "revision",
+    "brief",
+    "routing",
+    "execution",
+    "relationships"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "tenantId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "connectionId",
+        "provider",
+        "identityNamespace",
+        "container",
+        "itemId",
+        "displayId"
+      ],
+      "properties": {
+        "connectionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "clickup",
+            "forgejo",
+            "gitlab",
+            "vikunja",
+            "manual"
+          ]
+        },
+        "container": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "id"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "list",
+                "repository",
+                "project",
+                "internal"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          }
+        },
+        "itemId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "displayId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 2048
+        },
+        "identityNamespace": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300,
+          "description": "Stable provider identity namespace: ClickUp Workspace ID; immutable Forgejo/GitLab repository/project ID; internal project ID. Independent of movable routing container."
+        }
+      }
+    },
+    "revision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sequence",
+        "snapshotSha256",
+        "materialSha256",
+        "capturedAt"
+      ],
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "providerRevision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "snapshotSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "materialSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "capturedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "brief": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "description",
+        "acceptanceCriteria",
+        "nonGoals",
+        "context"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64000
+        },
+        "acceptanceCriteria": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "minItems": 1
+        },
+        "nonGoals": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "context": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "artifactId",
+              "sha256",
+              "classification",
+              "mediaType"
+            ],
+            "properties": {
+              "artifactId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "classification": {
+                "type": "string",
+                "enum": [
+                  "public",
+                  "internal",
+                  "confidential"
+                ]
+              },
+              "mediaType": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "routing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "projectId",
+        "repositoryId",
+        "forgeId",
+        "baseBranch",
+        "baseCommit",
+        "rule"
+      ],
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "repositoryId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "forgeId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "baseBranch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 250
+        },
+        "baseCommit": {
+          "type": "string",
+          "pattern": "^([a-f0-9]{40}|[a-f0-9]{64})$"
+        },
+        "rule": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "sha256"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requestedMode",
+        "requestedBy",
+        "crew",
+        "skills",
+        "policy",
+        "riskClass",
+        "requestedBudget",
+        "limits"
+      ],
+      "properties": {
+        "requestedMode": {
+          "type": "string",
+          "enum": [
+            "observe",
+            "assisted",
+            "unattended"
+          ]
+        },
+        "requestedBy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "id"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "human",
+                "service",
+                "policy"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            }
+          }
+        },
+        "crew": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "sha256"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        },
+        "skills": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "sha256"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          }
+        },
+        "policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "sha256"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        },
+        "riskClass": {
+          "type": "string",
+          "enum": [
+            "low",
+            "standard",
+            "elevated",
+            "critical"
+          ]
+        },
+        "requestedBudget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "currency",
+            "ceilingMicros"
+          ],
+          "properties": {
+            "currency": {
+              "type": "string",
+              "const": "USD"
+            },
+            "ceilingMicros": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000000000
+            }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "maxRounds",
+            "maxRunMinutes",
+            "maxConcurrentReaders",
+            "allowedCapabilities",
+            "protectedPaths"
+          ],
+          "properties": {
+            "maxRounds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "maxRunMinutes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1440
+            },
+            "maxConcurrentReaders": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 32
+            },
+            "allowedCapabilities": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "repository.read",
+                  "repository.patch",
+                  "checks.run",
+                  "preview.create",
+                  "change_request.propose",
+                  "context.read"
+                ]
+              }
+            },
+            "protectedPaths": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            }
+          }
+        }
+      }
+    },
+    "relationships": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dependsOn",
+        "relatedSourceRefs"
+      ],
+      "properties": {
+        "parentWorkOrderId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "dependsOn": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "relatedSourceRefs": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "connectionId",
+              "containerId",
+              "itemId"
+            ],
+            "properties": {
+              "connectionId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+              },
+              "containerId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "itemId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "schemaVersion": "1.0",
+      "id": "11111111-1111-4111-8111-111111111111",
+      "tenantId": "webgrip",
+      "source": {
+        "connectionId": "forgejo-webgrip",
+        "provider": "forgejo",
+        "identityNamespace": "repository-42",
+        "container": {
+          "kind": "repository",
+          "id": "42"
+        },
+        "itemId": "12",
+        "displayId": "webgrip/de-vloer#12"
+      },
+      "revision": {
+        "sequence": 1,
+        "providerRevision": "2026-09-09T12:00:00Z",
+        "snapshotSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "materialSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "capturedAt": "2026-09-09T12:00:01Z"
+      },
+      "brief": {
+        "title": "Show why a ticket is waiting",
+        "description": "Add explicit eligibility reasons to the task detail view. This is an illustrative schema fixture, not a live ticket.",
+        "acceptanceCriteria": [
+          "A task lacking a configured repository shows unknown_repository and cannot start."
+        ],
+        "nonGoals": [
+          "No changes to authorization policy."
+        ],
+        "context": []
+      },
+      "routing": {
+        "projectId": "vloer",
+        "repositoryId": "de-vloer",
+        "forgeId": "forgejo-webgrip",
+        "baseBranch": "development",
+        "baseCommit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "rule": {
+          "id": "vloer-issues",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      },
+      "execution": {
+        "requestedMode": "assisted",
+        "requestedBy": {
+          "kind": "human",
+          "id": "operator-example"
+        },
+        "crew": {
+          "id": "delivery",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "skills": [
+          {
+            "id": "review-evidence",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "policy": {
+          "id": "pilot-low-risk",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "riskClass": "low",
+        "requestedBudget": {
+          "currency": "USD",
+          "ceilingMicros": 3000000
+        },
+        "limits": {
+          "maxRounds": 3,
+          "maxRunMinutes": 20,
+          "maxConcurrentReaders": 2,
+          "allowedCapabilities": [
+            "repository.read",
+            "repository.patch",
+            "checks.run",
+            "change_request.propose"
+          ],
+          "protectedPaths": [
+            "src/auth.ts",
+            "ops/**"
+          ]
+        }
+      },
+      "relationships": {
+        "dependsOn": [],
+        "relatedSourceRefs": []
+      }
+    }
+  ]
+}
