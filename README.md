@@ -46,12 +46,12 @@ The portable model interface is the configured LiteLLM gateway. Subscription log
 
 The [desktop extension](extensions/vscode/README.md) adds a native session tree, remote crew controls, a themed work/evidence/activity panel, human decisions and read-only evidence. Share a selection or file only after previewing its exact destination and content. Agents and model calls stay on the configured server.
 
-The release archive includes `extensions/vscode/de-vloer-0.1.0.vsix`. Install it with **Extensions → … → Install from VSIX**, connect to the demo or your remote HTTPS workbench, and create a session. To build from source:
+The release archive includes `extensions/vscode/de-vloer-0.1.1.vsix`. Install it with **Extensions → … → Install from VSIX**, connect to the demo or your remote HTTPS workbench, and create a session. To build from source:
 
 ```sh
 npm ci --prefix extensions/vscode
 npm run extension:package
-code --install-extension extensions/vscode/de-vloer-0.1.0.vsix
+code --install-extension extensions/vscode/de-vloer-0.1.1.vsix
 ```
 
 Actual-server integration tests, browser webview checks and packaging pass. Installation and native behavior in an actual VS Code Extension Host still require desktop qualification. The package is not published to a marketplace.
@@ -60,11 +60,13 @@ Actual-server integration tests, browser webview checks and packaging pass. Inst
 
 ## Improve Vloer with Vloer
 
+The [first implementation increment](docs/operations/implementation-progress.md) adds keyboard evidence navigation, stable reading/draft behavior and actionable failure guidance across browser and editor. It also includes [reviewable Ploeg prerequisite patches](integrations/ploeg/README.md), whose Go/PostgreSQL qualification remains pending.
+
 Run the stable service separately from the candidate checkout, register the Vloer repository, and assign one bounded change with a small authorized LiteLLM budget. A human independently verifies the result, publishes the proposal and reviews the merge. The [self-improvement guide](docs/design/self-improvement.md) covers the exact first loop, including toolchain setup and current manual change-export limitations.
 
 The [complete product and market design](docs/PRODUCT-DESIGN.md) specifies the next system: one Ploeg work authority, ClickUp/Forgejo intake, immutable candidates, trusted verification and publication, browser/editor intervention, client boundaries and operational recovery. It includes competitive research and a marketing/pilot plan. These target features are explicitly distinguished from the implemented prototype.
 
-The [78-ticket backlog](backlog/README.md) maps every one of [30 audited gaps](docs/design/gap-register.md) to acceptance criteria and dependencies. [Import instructions](docs/operations/backlog.md) cover the included ClickUp CSV and Forgejo payloads. No external tickets have been created. To inspect the first bounded task:
+The [78-ticket backlog](backlog/README.md) maps every one of [30 audited gaps](docs/design/gap-register.md) to acceptance criteria and dependencies. [Import instructions](docs/operations/backlog.md) cover the included ClickUp CSV and Forgejo payloads. No external tickets have been created. To inspect the first candidate and its remaining acceptance work:
 
 ```sh
 npm run backlog -- validate

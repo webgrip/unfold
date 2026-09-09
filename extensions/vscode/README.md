@@ -20,7 +20,7 @@ In another terminal:
 cd extensions/vscode
 npm ci
 npm run package
-code --install-extension de-vloer-0.1.0.vsix
+code --install-extension de-vloer-0.1.1.vsix
 ```
 
 Alternatively, use **Extensions → … → Install from VSIX**. A publisher account or Marketplace upload is unnecessary for a team pilot. The package's `webgrip` publisher identifier does not mean this extension is already published or that a Marketplace publisher has been verified.
@@ -50,6 +50,7 @@ The server still enforces account roles and session ownership. v0.1 has no share
 | History | Reads durable events after the last numeric cursor, deduplicates by ID and offers complete JSON history as a read-only document |
 | Editor context | Sends a chosen selection or current text file only after a preview and explicit destination confirmation |
 | Connection states | Shows stale/offline state, disables panel mutations while disconnected, clears expired credentials and exposes reconnection |
+| Execution failures | Displays the server's safe diagnosis, next action and uncertain submission state; retains blocker compatibility with older servers |
 
 The panel keeps at most 1,000 recent events in memory and displays the latest 100. **Open complete history** fetches the server's retained history. Cursor values are global event IDs; gaps within one session are normal. Polling is configurable from two to 60 seconds and occurs while the tree or a session panel is visible. Hiding or closing VS Code does not stop remote work.
 

@@ -2,6 +2,8 @@
 
 Status: proposed remediation plan, with implementation evidence from the delivered v0.1 baseline. Review date: 2026-09-09.
 
+Implementation update: [the first increment](../operations/implementation-progress.md) adds Vloer operator fixes and a source-reviewed Ploeg patch affecting parts of GAP-11, GAP-13 and GAP-17. The rows below preserve the original audit evidence. None of those broader gaps is declared closed: Ploeg execution qualification, strict routing, durable inbox/audit and governed follow-up work remain outstanding.
+
 This register audits De Vloer `491c3a62e09dff8ec801495a309f6090120a07da` and Ploeg `67c4bc968455a99ef767bc8a24791ea1a87319cb`. Paths prefixed `Ploeg:` refer to the sibling repository at that revision. These are inspected source snapshots, not a claim about a subsequently deployed service. A new extension or design document in this change does not silently close the underlying control-plane gaps.
 
 The product has a credible working core. Its next bottleneck is trustworthy delivery: connecting a task to the correct repository, proving which code was checked, recovering interrupted work without duplicate authority, and getting the result into an ordinary human review flow. More agents, more chat surfaces and more dashboards do not remove those gaps.

@@ -75,8 +75,19 @@ try {
   await page.setViewportSize({ width: 390, height: 900 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'Narrow editor layout must not overflow horizontally');
   await page.screenshot({ path: new URL('../.screenshots/session-narrow.png', import.meta.url).pathname, fullPage: true });
+  detail.session.status = 'failed';
+  detail.session.failure = { category: 'prompt_acceptance_unknown', stage: 'prompt', message: 'The runtime may already have started paid work. <img src=x onerror="window.compromised=true">', remediation: 'Confirm remote interruption and reconcile spending. <script>window.compromised=true</script>', promptAcceptance: 'unknown', automaticRetry: false };
+  await page.evaluate(detail => window.postMessage({ type: 'session', detail }, '*'), detail);
+  await page.getByText('Submission outcome unconfirmed · no automatic retry.', { exact: true }).waitFor();
+  assert.equal(await page.locator('.execution-failure img, .execution-failure script').count(), 0);
+  assert.equal(await page.evaluate(() => window.compromised), undefined);
+  assert((await page.locator('.execution-failure').textContent()).includes('<img src=x'));
+  assert.equal(await page.getByRole('button', { name: /^(Start remote crew|Resume)$/ }).count(), 0);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'Failure guidance must fit a narrow editor');
+  await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+  assert.equal((await page.evaluate(() => window.messages)).at(-1).type, 'refresh');
   assert.deepEqual(errors, []);
-  process.stdout.write('PASS: actual demo evidence rendered; keyboard tabs; instruction messages; draft retention; text-only hostile content; disconnect state; desktop and narrow layout. This is browser webview validation, not a VS Code Extension Host test.\n');
+  process.stdout.write('PASS: actual demo evidence rendered; keyboard tabs; instruction messages; draft retention; text-only hostile content; disconnect state; actionable failure guidance; desktop and narrow layout. This is browser webview validation, not a VS Code Extension Host test.\n');
 } finally {
   await browser?.close();
   await new Promise(resolve => surface.close(resolve));

@@ -31,6 +31,8 @@ Ploeg is the dispatch and delivery engine. De Vloer is the operator workbench, a
 
 This is an expansion design, not a claim that the original proof of concept already implements the product. The initial De Vloer baseline is commit `491c3a6`; the inspected Ploeg baseline is development commit `67c4bc968455a99ef767bc8a24791ea1a87319cb`. Implementation evidence, unresolved defects, proposed contracts and market hypotheses are distinguished throughout. Current market evidence was checked on 2026-09-09; a deployment must still qualify its actual installed versions.
 
+The [first implementation increment](operations/implementation-progress.md) adds keyboard/scroll behavior and durable actionable failures to Vloer, including the editor panel. It also distributes Ploeg source corrections for scope, webhook authentication order and explicit review approval. Those Ploeg corrections still require Go/PostgreSQL and deployment qualification; their presence in a patch does not close the broader audit gaps.
+
 #### The short answer to self-improvement
 
 Run the previous stable Vloer release as a service and register the Vloer source repository as an allowed target. A crew edits a candidate branch in a separate remote workspace. The running service survives the candidate's mistakes. The result returns as changes, actual checks and review findings; a human reviews and merges, and the existing release pipeline deploys the next stable version. Improving Vloer does not grant an agent the right to deploy it, change its own budget or modify the rules governing its run.
@@ -550,6 +552,8 @@ Measure the bottleneck you intended to move: minutes of human setup/supervision/
 ## 3. Code audit and gap register
 
 Status: proposed remediation plan, with implementation evidence from the delivered v0.1 baseline. Review date: 2026-09-09.
+
+Implementation update: [the first increment](operations/implementation-progress.md) adds Vloer operator fixes and a source-reviewed Ploeg patch affecting parts of GAP-11, GAP-13 and GAP-17. The rows below preserve the original audit evidence. None of those broader gaps is declared closed: Ploeg execution qualification, strict routing, durable inbox/audit and governed follow-up work remain outstanding.
 
 This register audits De Vloer `491c3a62e09dff8ec801495a309f6090120a07da` and Ploeg `67c4bc968455a99ef767bc8a24791ea1a87319cb`. Paths prefixed `Ploeg:` refer to the sibling repository at that revision. These are inspected source snapshots, not a claim about a subsequently deployed service. A new extension or design document in this change does not silently close the underlying control-plane gaps.
 
@@ -2076,6 +2080,8 @@ The repository contains 78 ticket-ready records with acceptance criteria, verifi
 
 `backlog/backlog.json` is the source for the generated planning artifacts. After import, the chosen tracker owns current status, assignments and priority. Keep a mapping from stable `PV-NNN` plan IDs to native tracker IDs. Update the seed deliberately when the design changes; do not overwrite tracker progress by reimporting an old spreadsheet.
 
+Five records now include implementation candidates and remaining qualification checks. See [implementation progress](operations/implementation-progress.md). Their local `review` status is a planning signal, not human acceptance. Read the existing evidence before assigning the same implementation again.
+
 ### Start with a useful slice
 
 Do not try to complete all 78 tickets before using the system. The first milestone is supervised dogfooding; subsequent milestones add stronger delivery guarantees and team operation.
@@ -2113,11 +2119,11 @@ Generated outputs:
 
 Starting-point paths are repository-qualified; cross-repository references and proposed paths are labeled explicitly. These references do not grant access to a second repository.
 
-Estimates are relative engineering points. They are not hours, delivery promises or predictions of agent speed. All seed statuses start as planned. A human must resolve owners, native labels, target branch, dependencies and the actual task revision before marking work eligible for an agent.
+Estimates are relative engineering points. They are not hours, delivery promises or predictions of agent speed. Untouched records remain planned; records with a prepared candidate can be in local review. A human must resolve owners, native labels, target branch, dependencies and the actual task revision before marking work eligible for an agent.
 
 ### Import into ClickUp
 
-Use ClickUp's spreadsheet importer against a deliberately selected project List. Preview the mapping and a small subset before importing the whole plan. The CSV includes `Task Name`, `Description content`, `Status`, `Priority`, `Labels`, `Plan ID`, `Target repository`, `Milestone`, `Depends on` and `Estimate points`. Map columns explicitly; labels use `|` as a delimiter. Map `Planned` to your actual workflow's non-eligible status. Priorities use ClickUp's documented numeric convention: 1 urgent, 2 high, 3 normal, 4 low. [ClickUp preparation](https://help.clickup.com/hc/en-us/articles/6310821748759-Prepare-a-spreadsheet-for-import), [supported fields](https://help.clickup.com/hc/en-us/articles/6310876671255-Fields-supported-by-the-Spreadsheets-importer).
+Use ClickUp's spreadsheet importer against a deliberately selected project List. Preview the mapping and a small subset before importing the whole plan. The CSV includes `Task Name`, `Description content`, `Status`, `Priority`, `Labels`, `Plan ID`, `Target repository`, `Milestone`, `Depends on` and `Estimate points`. Map columns explicitly; labels use `|` as a delimiter. Map `Planned` and `Review` deliberately to your actual workflow's non-eligible planning/review statuses. Priorities use ClickUp's documented numeric convention: 1 urgent, 2 high, 3 normal, 4 low. [ClickUp preparation](https://help.clickup.com/hc/en-us/articles/6310821748759-Prepare-a-spreadsheet-for-import), [supported fields](https://help.clickup.com/hc/en-us/articles/6310876671255-Fields-supported-by-the-Spreadsheets-importer).
 
 Map the plan ID, target repository, milestone and estimate columns to appropriate custom fields if desired. The `Depends on` column is an explicit text list of plan IDs. **It does not create native task dependency relationships.** Resolve imported native task IDs and establish those relationships separately. The importer supports field mapping and preview, but unsupported relationship fields must not be presented as a working automated import. [Spreadsheet importer](https://help.clickup.com/hc/en-us/articles/6310834724247-Use-the-Spreadsheets-Importer), [field limitations](https://help.clickup.com/hc/en-us/articles/6310876671255-Fields-supported-by-the-Spreadsheets-importer).
 
@@ -2181,86 +2187,86 @@ The consolidated document is [PRODUCT-DESIGN.md](PRODUCT-DESIGN.md). Its build c
 
 The complete ticket descriptions, criteria, risk, verification steps and dependency graph are in [the readable backlog](../backlog/README.md). The [JSON seed](../backlog/backlog.json) is the machine-readable planning source. This summary is generated from the same records; a planned ticket is not an execution grant or a completed feature.
 
-| Plan ID | Work | Repository | Gate | Dependencies |
-| --- | --- | --- | --- | --- |
-| PV-001 | Add keyboard navigation to session evidence tabs | de-vloer | M0 | — |
-| PV-002 | Retain actionable redacted execution failures | de-vloer | M0 | — |
-| PV-003 | Create a qualified self-development execution image | de-vloer | M0 | — |
-| PV-004 | Exercise one supervised Vloer self-improvement run | de-vloer | M0 | PV-001, PV-003 |
-| PV-005 | Define immutable candidate and evidence contracts | de-vloer | M1 | — |
-| PV-006 | Export complete Git candidates from managed workspaces | de-vloer | M1 | PV-005 |
-| PV-007 | Persist content-addressed evidence outside worker volumes | de-vloer | M1 | PV-005, PV-006 |
-| PV-008 | Open idempotent draft forge reviews for candidates | ploeg | M2 | PV-006, PV-007, PV-022, PV-078, PV-011 |
-| PV-009 | Define verifier policies outside candidate control | de-vloer | M1 | PV-005 |
-| PV-010 | Run checks in a separate unprivileged verification job | de-vloer | M1 | PV-003, PV-006, PV-009 |
-| PV-011 | Enforce candidate verification before review-ready state | de-vloer | M1 | PV-009, PV-010 |
-| PV-012 | Add evidence-bound reviewer findings and rework limits | de-vloer | M1 | PV-011 |
-| PV-013 | Preserve authoritative ClickUp List scope during intake | ploeg | M2 | — |
-| PV-014 | Reject unresolved or ambiguous work targets | ploeg | M2 | PV-013 |
-| PV-015 | Authenticate webhook deliveries before reserving dedup IDs | ploeg | M2 | — |
-| PV-016 | Commit webhook inbox and normalized events atomically | ploeg | M2 | PV-015 |
-| PV-017 | Handle ticket edits, unassignment and cancellation | ploeg | M2 | PV-014, PV-016, PV-022 |
-| PV-018 | Add connector polling repair and sync checkpoints | ploeg | M2 | PV-016, PV-017 |
-| PV-019 | Implement Forgejo issues as a tracker provider | ploeg | M2 | PV-014, PV-016 |
-| PV-020 | Qualify ClickUp auth modes and native identifiers | ploeg | M2 | PV-013, PV-016 |
-| PV-021 | Adopt version-aware GitLab signed webhook verification | ploeg | M2 | PV-015, PV-016 |
-| PV-022 | Introduce canonical work-order revision identity in Ploeg | ploeg | M2 | PV-014, PV-016, PV-071, PV-072, PV-073, PV-074 |
-| PV-023 | Add fenced delivery attempts and ownership transitions | ploeg | M2 | PV-022 |
-| PV-024 | Expose authenticated operator work-order API | ploeg | M2 | PV-023, PV-034 |
-| PV-025 | Link Vloer sessions to Ploeg work orders and attempts | de-vloer | M2 | PV-024 |
-| PV-026 | Implement stop-confirmed human takeover and handback | de-vloer | M3 | PV-025, PV-023, PV-006, PV-078 |
-| PV-027 | Implement quiet idempotent tracker summary writeback | ploeg | M2 | PV-008, PV-018 |
-| PV-028 | Add repository-specific Forgejo credential capability probes | ploeg | M2 | PV-022 |
-| PV-029 | Version crews, skills and repository contracts | de-vloer | M3 | PV-022, PV-009 |
-| PV-030 | Add tested runtime capability negotiation | de-vloer | M3 | PV-005 |
-| PV-031 | Qualify a second open agent runtime via the bridge | de-vloer | M3 | PV-030, PV-010 |
-| PV-032 | Add bounded parallel research with isolated branches | ploeg | M3 | PV-023, PV-029, PV-010 |
-| PV-033 | Create crew and model evaluation corpus | de-vloer | M4 | PV-010, PV-029, PV-031 |
-| PV-034 | Map organization, client, project and team authorization | ploeg | M2 | PV-022 |
-| PV-035 | Integrate OIDC browser login and role synchronization | de-vloer | M3 | PV-034 |
-| PV-036 | Add public-client editor authentication | de-vloer | M3 | PV-035 |
-| PV-037 | Enforce resource policy for untrusted remote workspaces | de-vloer | M3 | PV-034, PV-003 |
-| PV-038 | Bind approvals to candidate, policy and permission lifetime | de-vloer | M3 | PV-011, PV-034 |
-| PV-039 | Add secret redaction and controlled context export policy | de-vloer | M3 | PV-034 |
-| PV-040 | Move canonical reservations into the work-order ledger | ploeg | M3 | PV-023, PV-034 |
-| PV-041 | Qualify LiteLLM spend enforcement and late reconciliation | ploeg | M3 | PV-040 |
-| PV-042 | Add fair per-client capacity and admission controls | ploeg | M3 | PV-023, PV-040 |
-| PV-043 | Reconcile orphan workspaces and expired capabilities | de-vloer | M3 | PV-023, PV-037, PV-040 |
-| PV-044 | Expose client cost and delivery economics reports | de-vloer | M4 | PV-040, PV-041, PV-033 |
-| PV-045 | Qualify the VS Code extension in actual supported hosts | de-vloer | M0 | — |
-| PV-046 | Add work-order inbox and ticket quick-open to VS Code | de-vloer | M3 | PV-025, PV-036 |
-| PV-047 | Provide native immutable candidate diff views | de-vloer | M3 | PV-006, PV-007 |
-| PV-048 | Add an explicit durable event revision and retention API | de-vloer | M3 | PV-025 |
-| PV-049 | Make human decisions usable across browser and editor | de-vloer | M3 | PV-038, PV-048 |
-| PV-050 | Design deliberate local context and remote workspace handoff | de-vloer | M3 | PV-026, PV-039, PV-047 |
-| PV-051 | Add OpenTelemetry and operational decision dashboards | de-vloer | M4 | PV-023, PV-040 |
-| PV-052 | Automate backup, restore and evidence retention drills | de-vloer | M4 | PV-007, PV-023 |
-| PV-053 | Release immutable signed platform and extension artifacts | de-vloer | M4 | PV-003, PV-045 |
-| PV-054 | Add integration chaos qualification for the delivery loop | de-vloer | M4 | PV-011, PV-018, PV-026, PV-041, PV-043 |
-| PV-055 | Create declarative project onboarding and readiness diagnostics | de-vloer | M4 | PV-018, PV-028, PV-035, PV-037 |
-| PV-056 | Enforce single-owner store migrations and compatibility | de-vloer | M4 | PV-023, PV-048, PV-052 |
-| PV-057 | Run a structured competitor workflow bakeoff | de-vloer | M4 | PV-004, PV-033 |
-| PV-058 | Interview agency/platform buyers around existing workflows | de-vloer | M4 | — |
-| PV-059 | Publish an honest self-improvement demonstration | de-vloer | M4 | PV-004, PV-045 |
-| PV-060 | Create a paid pilot offer and delivery economics worksheet | de-vloer | M5 | PV-044, PV-057, PV-058 |
-| PV-061 | Publish capability and compatibility evidence catalog | de-vloer | M4 | PV-030, PV-054 |
-| PV-062 | Package reusable crew and connector contribution contracts | de-vloer | M5 | PV-029, PV-030, PV-058 |
-| PV-063 | Expose scoped read-only MCP tools for work inspection | de-vloer | M5 | PV-034, PV-048, PV-061 |
-| PV-064 | Create explicit local development and safe contributor bootstrap | de-vloer | M0 | — |
-| PV-065 | Qualify GitLab issues as an optional tracker adapter | ploeg | M4 | PV-018, PV-022, PV-021 |
-| PV-066 | Add scoped audit export and offboarding workflow | de-vloer | M4 | PV-034, PV-035, PV-039, PV-052 |
-| PV-067 | Make operator mutations idempotent and revision-checked | de-vloer | M1 | — |
-| PV-068 | Gate model profiles and controlled fallback behavior | de-vloer | M3 | PV-029, PV-030, PV-040 |
-| PV-069 | Set a maintainable open-source and brand contribution policy | de-vloer | M4 | PV-058 |
-| PV-070 | Validate manual backlog briefs against real session limits | de-vloer | M0 | PV-064 |
-| PV-071 | Remove administrative authority from Ploeg worker environments | ploeg | M1 | — |
-| PV-072 | Authenticate and scope Ploeg worker control endpoints | ploeg | M1 | — |
-| PV-073 | Retain Ploeg budget holds across worker death | ploeg | M1 | PV-071, PV-072 |
-| PV-074 | Require explicit Ploeg reviewer approval in fix rounds | ploeg | M1 | — |
-| PV-075 | Turn forge feedback into candidate-bound follow-up work | ploeg | M2 | PV-016, PV-022, PV-074, PV-011 |
-| PV-076 | Park paused workspaces and enforce retained-resource quotas | de-vloer | M3 | PV-007, PV-043 |
-| PV-077 | Bound event, artifact and webhook memory surfaces | de-vloer | M1 | — |
-| PV-078 | Fence publication through a trusted forge publisher | ploeg | M2 | PV-023, PV-028, PV-071, PV-011 |
+| Plan ID | Work | Repository | Gate | Local status | Dependencies |
+| --- | --- | --- | --- | --- | --- |
+| PV-001 | Add keyboard navigation to session evidence tabs | de-vloer | M0 | review — candidate | — |
+| PV-002 | Retain actionable redacted execution failures | de-vloer | M0 | review — candidate | — |
+| PV-003 | Create a qualified self-development execution image | de-vloer | M0 | planned | — |
+| PV-004 | Exercise one supervised Vloer self-improvement run | de-vloer | M0 | planned | PV-001, PV-003 |
+| PV-005 | Define immutable candidate and evidence contracts | de-vloer | M1 | planned | — |
+| PV-006 | Export complete Git candidates from managed workspaces | de-vloer | M1 | planned | PV-005 |
+| PV-007 | Persist content-addressed evidence outside worker volumes | de-vloer | M1 | planned | PV-005, PV-006 |
+| PV-008 | Open idempotent draft forge reviews for candidates | ploeg | M2 | planned | PV-006, PV-007, PV-022, PV-078, PV-011 |
+| PV-009 | Define verifier policies outside candidate control | de-vloer | M1 | planned | PV-005 |
+| PV-010 | Run checks in a separate unprivileged verification job | de-vloer | M1 | planned | PV-003, PV-006, PV-009 |
+| PV-011 | Enforce candidate verification before review-ready state | de-vloer | M1 | planned | PV-009, PV-010 |
+| PV-012 | Add evidence-bound reviewer findings and rework limits | de-vloer | M1 | planned | PV-011 |
+| PV-013 | Preserve authoritative ClickUp List scope during intake | ploeg | M2 | review — partial candidate | — |
+| PV-014 | Reject unresolved or ambiguous work targets | ploeg | M2 | planned | PV-013 |
+| PV-015 | Authenticate webhook deliveries before reserving dedup IDs | ploeg | M2 | review — partial candidate | — |
+| PV-016 | Commit webhook inbox and normalized events atomically | ploeg | M2 | planned | PV-015 |
+| PV-017 | Handle ticket edits, unassignment and cancellation | ploeg | M2 | planned | PV-014, PV-016, PV-022 |
+| PV-018 | Add connector polling repair and sync checkpoints | ploeg | M2 | planned | PV-016, PV-017 |
+| PV-019 | Implement Forgejo issues as a tracker provider | ploeg | M2 | planned | PV-014, PV-016 |
+| PV-020 | Qualify ClickUp auth modes and native identifiers | ploeg | M2 | planned | PV-013, PV-016 |
+| PV-021 | Adopt version-aware GitLab signed webhook verification | ploeg | M2 | planned | PV-015, PV-016 |
+| PV-022 | Introduce canonical work-order revision identity in Ploeg | ploeg | M2 | planned | PV-014, PV-016, PV-071, PV-072, PV-073, PV-074 |
+| PV-023 | Add fenced delivery attempts and ownership transitions | ploeg | M2 | planned | PV-022 |
+| PV-024 | Expose authenticated operator work-order API | ploeg | M2 | planned | PV-023, PV-034 |
+| PV-025 | Link Vloer sessions to Ploeg work orders and attempts | de-vloer | M2 | planned | PV-024 |
+| PV-026 | Implement stop-confirmed human takeover and handback | de-vloer | M3 | planned | PV-025, PV-023, PV-006, PV-078 |
+| PV-027 | Implement quiet idempotent tracker summary writeback | ploeg | M2 | planned | PV-008, PV-018 |
+| PV-028 | Add repository-specific Forgejo credential capability probes | ploeg | M2 | planned | PV-022 |
+| PV-029 | Version crews, skills and repository contracts | de-vloer | M3 | planned | PV-022, PV-009 |
+| PV-030 | Add tested runtime capability negotiation | de-vloer | M3 | planned | PV-005 |
+| PV-031 | Qualify a second open agent runtime via the bridge | de-vloer | M3 | planned | PV-030, PV-010 |
+| PV-032 | Add bounded parallel research with isolated branches | ploeg | M3 | planned | PV-023, PV-029, PV-010 |
+| PV-033 | Create crew and model evaluation corpus | de-vloer | M4 | planned | PV-010, PV-029, PV-031 |
+| PV-034 | Map organization, client, project and team authorization | ploeg | M2 | planned | PV-022 |
+| PV-035 | Integrate OIDC browser login and role synchronization | de-vloer | M3 | planned | PV-034 |
+| PV-036 | Add public-client editor authentication | de-vloer | M3 | planned | PV-035 |
+| PV-037 | Enforce resource policy for untrusted remote workspaces | de-vloer | M3 | planned | PV-034, PV-003 |
+| PV-038 | Bind approvals to candidate, policy and permission lifetime | de-vloer | M3 | planned | PV-011, PV-034 |
+| PV-039 | Add secret redaction and controlled context export policy | de-vloer | M3 | planned | PV-034 |
+| PV-040 | Move canonical reservations into the work-order ledger | ploeg | M3 | planned | PV-023, PV-034 |
+| PV-041 | Qualify LiteLLM spend enforcement and late reconciliation | ploeg | M3 | planned | PV-040 |
+| PV-042 | Add fair per-client capacity and admission controls | ploeg | M3 | planned | PV-023, PV-040 |
+| PV-043 | Reconcile orphan workspaces and expired capabilities | de-vloer | M3 | planned | PV-023, PV-037, PV-040 |
+| PV-044 | Expose client cost and delivery economics reports | de-vloer | M4 | planned | PV-040, PV-041, PV-033 |
+| PV-045 | Qualify the VS Code extension in actual supported hosts | de-vloer | M0 | planned | — |
+| PV-046 | Add work-order inbox and ticket quick-open to VS Code | de-vloer | M3 | planned | PV-025, PV-036 |
+| PV-047 | Provide native immutable candidate diff views | de-vloer | M3 | planned | PV-006, PV-007 |
+| PV-048 | Add an explicit durable event revision and retention API | de-vloer | M3 | planned | PV-025 |
+| PV-049 | Make human decisions usable across browser and editor | de-vloer | M3 | planned | PV-038, PV-048 |
+| PV-050 | Design deliberate local context and remote workspace handoff | de-vloer | M3 | planned | PV-026, PV-039, PV-047 |
+| PV-051 | Add OpenTelemetry and operational decision dashboards | de-vloer | M4 | planned | PV-023, PV-040 |
+| PV-052 | Automate backup, restore and evidence retention drills | de-vloer | M4 | planned | PV-007, PV-023 |
+| PV-053 | Release immutable signed platform and extension artifacts | de-vloer | M4 | planned | PV-003, PV-045 |
+| PV-054 | Add integration chaos qualification for the delivery loop | de-vloer | M4 | planned | PV-011, PV-018, PV-026, PV-041, PV-043 |
+| PV-055 | Create declarative project onboarding and readiness diagnostics | de-vloer | M4 | planned | PV-018, PV-028, PV-035, PV-037 |
+| PV-056 | Enforce single-owner store migrations and compatibility | de-vloer | M4 | planned | PV-023, PV-048, PV-052 |
+| PV-057 | Run a structured competitor workflow bakeoff | de-vloer | M4 | planned | PV-004, PV-033 |
+| PV-058 | Interview agency/platform buyers around existing workflows | de-vloer | M4 | planned | — |
+| PV-059 | Publish an honest self-improvement demonstration | de-vloer | M4 | planned | PV-004, PV-045 |
+| PV-060 | Create a paid pilot offer and delivery economics worksheet | de-vloer | M5 | planned | PV-044, PV-057, PV-058 |
+| PV-061 | Publish capability and compatibility evidence catalog | de-vloer | M4 | planned | PV-030, PV-054 |
+| PV-062 | Package reusable crew and connector contribution contracts | de-vloer | M5 | planned | PV-029, PV-030, PV-058 |
+| PV-063 | Expose scoped read-only MCP tools for work inspection | de-vloer | M5 | planned | PV-034, PV-048, PV-061 |
+| PV-064 | Create explicit local development and safe contributor bootstrap | de-vloer | M0 | planned | — |
+| PV-065 | Qualify GitLab issues as an optional tracker adapter | ploeg | M4 | planned | PV-018, PV-022, PV-021 |
+| PV-066 | Add scoped audit export and offboarding workflow | de-vloer | M4 | planned | PV-034, PV-035, PV-039, PV-052 |
+| PV-067 | Make operator mutations idempotent and revision-checked | de-vloer | M1 | planned | — |
+| PV-068 | Gate model profiles and controlled fallback behavior | de-vloer | M3 | planned | PV-029, PV-030, PV-040 |
+| PV-069 | Set a maintainable open-source and brand contribution policy | de-vloer | M4 | planned | PV-058 |
+| PV-070 | Validate manual backlog briefs against real session limits | de-vloer | M0 | planned | PV-064 |
+| PV-071 | Remove administrative authority from Ploeg worker environments | ploeg | M1 | planned | — |
+| PV-072 | Authenticate and scope Ploeg worker control endpoints | ploeg | M1 | planned | — |
+| PV-073 | Retain Ploeg budget holds across worker death | ploeg | M1 | planned | PV-071, PV-072 |
+| PV-074 | Require explicit Ploeg reviewer approval in fix rounds | ploeg | M1 | review — candidate | — |
+| PV-075 | Turn forge feedback into candidate-bound follow-up work | ploeg | M2 | planned | PV-016, PV-022, PV-074, PV-011 |
+| PV-076 | Park paused workspaces and enforce retained-resource quotas | de-vloer | M3 | planned | PV-007, PV-043 |
+| PV-077 | Bound event, artifact and webhook memory surfaces | de-vloer | M1 | planned | — |
+| PV-078 | Fence publication through a trusted forge publisher | ploeg | M2 | planned | PV-023, PV-028, PV-071, PV-011 |
 
 ### Audit coverage
 

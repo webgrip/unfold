@@ -4,6 +4,7 @@ import { mkdtemp, rm, writeFile, mkdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { RuntimeFailure } from '../src/failures.ts';
 import { WorkspaceManager, isolatedEnvironment, managedConfig } from '../src/runtime/workspace.ts';
 import { KubernetesWorkspaces, workspaceManifests } from '../src/runtime/kubernetes.ts';
 import type { AppConfig, Repository, Session } from '../src/types.ts';
@@ -120,6 +121,10 @@ http.createServer((req,res)=>{res.writeHead(req.headers.authorization===auth?200
   const config = configuration(join(directory, 'data'));
   config.repositories = [repo]; config.runtime = { kind: 'opencode', backend: 'local', binary, timeoutMs: 5000 };
   const manager = new WorkspaceManager(config);
+  config.runtime.binary = '/no-such-vloer-opencode-binary';
+  await assert.rejects(manager.prepare(session, repo, credential, new AbortController().signal), error => error instanceof RuntimeFailure && error.category === 'missing_executable' && error.promptAcceptance === 'not_submitted');
+  assert.equal(manager.internal.size, 0);
+  config.runtime.binary = binary;
   const workspace = await manager.prepare(session, repo, credential, new AbortController().signal);
   t.after(() => manager.dispose(workspace));
   assert.equal(JSON.stringify(workspace).includes('password'), false);

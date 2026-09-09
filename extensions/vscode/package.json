@@ -2,7 +2,7 @@
   "name": "de-vloer",
   "displayName": "De Vloer \u2014 Remote Agent Workbench",
   "description": "Direct remote agent crews, inspect evidence and send explicit context without running agents on your workstation.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "webgrip",
   "license": "Apache-2.0",
   "engines": {

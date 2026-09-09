@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { OpenCodeRuntime, type RuntimeWorkspaces } from '../src/runtime/opencode.ts';
 import type { AppConfig, ExecutionContext, RuntimeEvent, Workspace } from '../src/types.ts';
+import { RuntimeFailure } from '../src/failures.ts';
 import { executionFixture } from './runtime-fixture.ts';
 
 const workspace: Workspace = { id: 'ws', backend: 'local', directory: '/workspace/repo', endpoint: 'http://agent.test:4096' };
@@ -78,7 +79,7 @@ test('OpenCode exposes native approval identifiers and resumes after actual perm
 test('OpenCode never retries an ambiguous paid prompt and excludes raw error bodies', async () => {
   const fake = wire({ failPrompt: true });
   const runtime = new OpenCodeRuntime(config, manager, fake.fetcher);
-  await assert.rejects(runtime.execute(context([])), error => error instanceof Error && error.message.includes('HTTP 503') && !error.message.includes('secret-provider-error'));
+  await assert.rejects(runtime.execute(context([])), error => error instanceof RuntimeFailure && error.category === 'prompt_acceptance_unknown' && error.promptAcceptance === 'unknown' && !JSON.stringify(error).includes('secret-provider-error'));
   assert.equal(fake.calls.filter(call => call.path.endsWith('/prompt_async')).length, 1);
   assert.equal(fake.calls.some(call => call.path.endsWith('/abort')), true);
 });
@@ -122,5 +123,5 @@ test('OpenCode recovery releases managed workers when their in-memory native cre
 
 test('OpenCode interruption reports native abort failures to the controller', async () => {
   const runtime = new OpenCodeRuntime(config, manager, (async () => new Response('private-error', { status: 503 })) as typeof fetch);
-  await assert.rejects(runtime.interrupt({ ...workspace, nativeSessionId: 'ses_native' }), /HTTP 503/);
+  await assert.rejects(runtime.interrupt({ ...workspace, nativeSessionId: 'ses_native' }), error => error instanceof RuntimeFailure && error.category === 'harness_rejected' && error.httpStatus === 503);
 });

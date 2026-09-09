@@ -5,6 +5,7 @@ import { mkdir, writeFile, access } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { AppConfig, Credential, Repository, Session, Workspace } from '../types.ts';
 import { KubernetesWorkspaces } from './kubernetes.ts';
+import { RuntimeFailure } from '../failures.ts';
 
 type InternalWorkspace = { username: string; password: string; env: Record<string, string>; process?: ChildProcess };
 
@@ -12,7 +13,7 @@ const supervisorProgram = `const{spawn}=require('node:child_process');
 const child=spawn(process.argv[1],process.argv.slice(2),{env:process.env,stdio:'ignore',detached:process.platform!=='win32'});
 let stopping=false;const stop=()=>{if(stopping)return;stopping=true;try{process.platform==='win32'?child.kill('SIGTERM'):process.kill(-child.pid,'SIGTERM')}catch{};setTimeout(()=>{try{process.platform==='win32'?child.kill('SIGKILL'):process.kill(-child.pid,'SIGKILL')}catch{};process.exit(0)},2000).unref()};
 process.stdin.resume();process.stdin.on('end',stop);process.on('SIGTERM',stop);process.on('SIGINT',stop);
-child.once('error',()=>process.exit(1));child.once('exit',code=>process.exit(code??1));`;
+child.once('error',error=>{if(process.send)process.send({type:'launch.error',missing:error.code==='ENOENT'||error.code==='EACCES'},()=>process.exit(1));else process.exit(1)});child.once('exit',code=>process.exit(code??1));`;
 
 export function managedConfig(config: AppConfig): Record<string, unknown> {
   const providers: Record<string, any> = {};
@@ -49,8 +50,8 @@ export function isolatedEnvironment(directory: string, credential: Credential | 
 export function runProcess(binary: string, args: string[], cwd: string, env: Record<string, string>, signal?: AbortSignal): Promise<void> {
   return new Promise((done, reject) => {
     const child = spawn(binary, args, { cwd, env, stdio: 'ignore', signal });
-    child.once('error', () => reject(new Error('Workspace command could not start')));
-    child.once('exit', code => code === 0 ? done() : reject(new Error(`Workspace command failed (${code ?? 'signal'})`)));
+    child.once('error', (error: NodeJS.ErrnoException) => reject(new RuntimeFailure(['ENOENT', 'EACCES'].includes(error.code ?? '') ? 'missing_executable' : 'workspace_setup', 'workspace')));
+    child.once('exit', code => code === 0 ? done() : reject(new RuntimeFailure('workspace_setup', 'workspace')));
   });
 }
 
@@ -125,16 +126,20 @@ export class WorkspaceManager {
     workspace.endpoint = `http://127.0.0.1:${port}`;
     await writeFile(join(root, 'opencode.json'), JSON.stringify(managedConfig(this.config), null, 2), { mode: 0o600 });
     const child = spawn(process.execPath, ['-e', supervisorProgram, this.config.runtime.binary ?? 'opencode', 'serve', '--hostname', '127.0.0.1', '--port', String(port)], {
-      cwd: directory, env: { ...env, OPENCODE_SERVER_USERNAME: state.username, OPENCODE_SERVER_PASSWORD: state.password }, stdio: ['pipe', 'ignore', 'ignore'],
+      cwd: directory, env: { ...env, OPENCODE_SERVER_USERNAME: state.username, OPENCODE_SERVER_PASSWORD: state.password }, stdio: ['pipe', 'ignore', 'ignore', 'ipc'],
     });
     state.process = child;
     let launchError = false;
+    let missingExecutable = false;
     child.on('error', () => { launchError = true; });
+    child.on('message', record => {
+      if (record && typeof record === 'object' && 'type' in record && record.type === 'launch.error' && 'missing' in record) missingExecutable = record.missing === true;
+    });
     const deadline = Date.now() + Math.min(this.config.runtime.timeoutMs, 120_000);
     try {
       while (Date.now() < deadline) {
         signal.throwIfAborted();
-        if (launchError || child.exitCode !== null) throw new Error('OpenCode server could not start; check the configured binary');
+        if (launchError || child.exitCode !== null) throw new RuntimeFailure(missingExecutable ? 'missing_executable' : 'workspace_setup', 'workspace');
         try {
           const response = await fetch(workspace.endpoint + '/global/health', {
             headers: { authorization: 'Basic ' + Buffer.from(`${state.username}:${state.password}`).toString('base64') },
@@ -144,7 +149,7 @@ export class WorkspaceManager {
         } catch {}
         await new Promise(done => setTimeout(done, 200));
       }
-      throw new Error('OpenCode readiness timed out');
+      throw new RuntimeFailure('timeout', 'workspace');
     } catch (error) { await this.stop(child); this.internal.delete(session.id); throw error; }
   }
 

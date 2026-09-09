@@ -1,3 +1,5 @@
+import type { ExecutionFailure } from './failures.ts';
+
 export type SessionStatus = 'queued' | 'running' | 'waiting_input' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
 export type RunStatus = 'queued' | 'running' | 'waiting_input' | 'completed' | 'failed' | 'cancelled' | 'paused';
 export type UserRole = 'admin' | 'operator' | 'viewer';
@@ -8,7 +10,7 @@ export type Crew = { id: string; name: string; description: string; roles: CrewR
 export type RuntimeKind = 'demo' | 'opencode' | 'command';
 export type Artifact = { id: string; name: string; kind: 'diff' | 'test' | 'summary' | 'link'; content: string; url?: string };
 export type Run = { id: string; sessionId: string; roleId: string; roleName: string; mode: 'write' | 'read'; status: RunStatus; startedAt?: string; finishedAt?: string; summary?: string; verdict?: 'approve' | 'request_changes' | 'inconclusive'; nativeId?: string; costUsd: number };
-export type Session = { id: string; title: string; objective: string; repositoryId: string; crewId: string; runtime: RuntimeKind; ownerId: string; ownerName: string; status: SessionStatus; budgetUsd: number; spentUsd: number; costStatus: 'demo' | 'pending' | 'settled' | 'unknown'; createdAt: string; updatedAt: string; branch: string; trackerUrl?: string; workspace?: Workspace; runs: Run[]; artifacts: Artifact[]; blocker?: string };
+export type Session = { id: string; title: string; objective: string; repositoryId: string; crewId: string; runtime: RuntimeKind; ownerId: string; ownerName: string; status: SessionStatus; budgetUsd: number; spentUsd: number; costStatus: 'demo' | 'pending' | 'settled' | 'unknown'; createdAt: string; updatedAt: string; branch: string; trackerUrl?: string; workspace?: Workspace; runs: Run[]; artifacts: Artifact[]; blocker?: string; failure?: ExecutionFailure };
 export type Event = { id: number; sessionId: string; type: string; at: string; actor: string; runId?: string; data: Record<string, unknown> };
 export type Workspace = { id: string; backend: 'demo' | 'local' | 'external' | 'kubernetes'; directory: string; endpoint?: string; nativeSessionId?: string; metadata?: Record<string, string> };
 export type PermissionRequest = { id: string; sessionId: string; runId: string; nativeId: string; kind: 'permission' | 'question'; title: string; detail: string; options?: string[]; questions?: unknown[]; resolved?: boolean };

@@ -6,17 +6,18 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { CommandRuntime } from '../src/runtime/command.ts';
+import { RuntimeFailure } from '../src/failures.ts';
 import type { RuntimeWorkspaces } from '../src/runtime/opencode.ts';
 import type { AppConfig, RuntimeEvent } from '../src/types.ts';
 import { executionFixture } from './runtime-fixture.ts';
 
-async function fixture(code: string) {
+async function fixture(code: string, argv?: string[]) {
   const directory = await mkdtemp(join(tmpdir(), 'vloer-command-'));
   const script = join(directory, 'bridge.mjs');
   await writeFile(script, code);
   const workspace = { id: directory, backend: 'local' as const, directory };
   const manager: RuntimeWorkspaces = { prepare: async () => workspace, credentials: () => undefined, executionEnvironment: () => ({ PATH: process.env.PATH ?? '', LITELLM_API_KEY: 'scoped-key' }), dispose: async () => {} };
-  const config = { runtime: { backend: 'local', command: [process.execPath, script], timeoutMs: 3000 }, models: [] } as unknown as AppConfig;
+  const config = { runtime: { backend: 'local', command: argv ?? [process.execPath, script], timeoutMs: 3000 }, models: [] } as unknown as AppConfig;
   const events: RuntimeEvent[] = [];
   const context = executionFixture({ runtime: 'command', role: { id: 'writer', name: 'Writer', mode: 'write', instruction: 'Implement' }, workspace, verify: [], prompt: 'Do it', signal: new AbortController().signal, emit: event => { events.push(event); } });
   return { runtime: new CommandRuntime(config, manager), context, events, cleanup: () => rm(directory, { recursive: true, force: true }) };
@@ -94,4 +95,16 @@ runtime.execute({session:{id:'s'},run:{id:'r'},workspace,repository:{verify:[]},
     if (runnerPid) try { process.kill(runnerPid, 'SIGKILL'); } catch {}
     await f.cleanup();
   }
+});
+
+
+test('command supervisor distinguishes missing executable from an actual runner exiting 127', async () => {
+  const missing = await fixture('', ['/no-such-vloer-command-binary']);
+  try {
+    await assert.rejects(missing.runtime.execute(missing.context), error => error instanceof RuntimeFailure && error.category === 'missing_executable' && error.promptAcceptance === 'not_submitted');
+  } finally { await missing.cleanup(); }
+  const exited = await fixture('process.exit(127)');
+  try {
+    await assert.rejects(exited.runtime.execute(exited.context), error => error instanceof Error && !(error instanceof RuntimeFailure) && error.message.includes('code 127'));
+  } finally { await exited.cleanup(); }
 });

@@ -36,6 +36,10 @@ A message does not promise immediate insertion into an executing model request. 
 
 ## Durable events and human input
 
+Sessions may include an additive `failure` object: `{category, stage, message, remediation, promptAcceptance, automaticRetry:false}`. Its message and remediation come from a fixed safe catalog. Raw exception text, HTTP headers, credentials, URLs, stack traces and provider response bodies are excluded. Older sessions and servers may omit the field; `blocker` remains a compatible short message.
+
+Stages are `credentials`, `workspace`, `runtime`, `prompt` and `execution`. Prompt certainty is `not_submitted`, `rejected`, `accepted` or `unknown`. `accepted` means submission was acknowledged, not completed work or settled spend. `unknown` means the runtime may have started paid work; it never authorizes an automatic retry. `session.failed` and operator pause/cancel events retain the same safe object in `data.failure`. An explicit new execution clears the current failure; durable history retains earlier evidence. Cancellation metadata is stop intent, not proof of remote termination.
+
 | Method and path | Behavior |
 | --- | --- |
 | `GET /api/sessions/:id/history?after=N` | Durable event array after cursor `N` |

@@ -1,10 +1,12 @@
 export type User = { id: string; name: string; role: 'admin' | 'operator' | 'viewer' };
 export type SessionStatus = 'queued' | 'running' | 'waiting_input' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
 export type Artifact = { id: string; name: string; kind: 'diff' | 'test' | 'summary' | 'link'; content: string; url?: string };
+export type ExecutionFailure = { category: string; stage: string; message: string; remediation: string; promptAcceptance: 'not_submitted' | 'rejected' | 'accepted' | 'unknown'; automaticRetry: false };
 export type Session = {
   id: string; title: string; objective: string; repositoryId: string; crewId: string; runtime: string;
   ownerId: string; ownerName: string; status: SessionStatus; budgetUsd: number; spentUsd: number;
   costStatus: 'demo' | 'pending' | 'settled' | 'unknown'; createdAt: string; updatedAt: string; branch: string; blocker?: string;
+  failure?: ExecutionFailure;
   runs: { id: string; roleName: string; mode: string; status: string; summary?: string; verdict?: string }[];
   artifacts: Artifact[];
 };

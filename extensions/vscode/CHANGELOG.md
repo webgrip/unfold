@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1
+
+- Show structured execution failures with a concrete next action and submission certainty.
+- Keep unknown paid submissions explicit, with no automatic retry or repeat action.
+- Render failure text safely in narrow and desktop session panels; retain compatibility with older servers.
+
 ## 0.1.0
 
 - Added an origin-bound remote client with cookie login through VS Code SecretStorage.

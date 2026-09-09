@@ -19,7 +19,7 @@
       "title": "Add keyboard navigation to session evidence tabs",
       "targetRepository": "de-vloer",
       "milestone": "M0",
-      "status": "planned",
+      "status": "review",
       "priority": 1,
       "risk": "low",
       "estimatePoints": 2,
@@ -50,7 +50,19 @@
         "Required independent checks and human review passed for the exact candidate.",
         "Documentation and contracts match the implementation; unknowns remain explicit.",
         "The existing forge/CI/release policy decides merge, deployment and tracker completion."
-      ]
+      ],
+      "implementation": {
+        "state": "candidate",
+        "summary": "Keyboard evidence navigation, associated panels, draft/focus preservation and live-stream scroll behavior are implemented in the Vloer browser.",
+        "evidence": [
+          "public/app.js and scripts/browser-check.mjs; actual Chromium desktop/mobile regression passes.",
+          "docs/operations/implementation-progress.md records the candidate and qualification boundary."
+        ],
+        "remaining": [
+          "Human review and acceptance against the actual tracker task.",
+          "A supervised live self-improvement run using the stable remote service remains unqualified."
+        ]
+      }
     },
     {
       "id": "PV-002",
@@ -58,7 +70,7 @@
       "title": "Retain actionable redacted execution failures",
       "targetRepository": "de-vloer",
       "milestone": "M0",
-      "status": "planned",
+      "status": "review",
       "priority": 1,
       "risk": "medium",
       "estimatePoints": 3,
@@ -76,7 +88,10 @@
       "sourcePaths": [
         "de-vloer:src/engine.ts",
         "de-vloer:src/runtime/opencode.ts",
-        "de-vloer:src/runtime/workspace.ts"
+        "de-vloer:src/runtime/workspace.ts",
+        "de-vloer:src/failures.ts",
+        "de-vloer:test/api-failures.test.ts",
+        "de-vloer:extensions/vscode/media/session.js"
       ],
       "definitionOfReady": [
         "A human owns the task and confirms its acceptance criteria.",
@@ -88,7 +103,19 @@
         "Required independent checks and human review passed for the exact candidate.",
         "Documentation and contracts match the implementation; unknowns remain explicit.",
         "The existing forge/CI/release policy decides merge, deployment and tracker completion."
-      ]
+      ],
+      "implementation": {
+        "state": "candidate",
+        "summary": "Durable fixed-vocabulary failures identify safe remediation and prompt submission certainty; browser and VS Code display them without automatic retry.",
+        "evidence": [
+          "src/failures.ts, authenticated failure/restart/SSE tests, runtime regression tests and both client surfaces.",
+          "Root test/type/static checks and browser checks are recorded in docs/validation.md."
+        ],
+        "remaining": [
+          "Human review and acceptance against the actual tracker task.",
+          "Actual provider/cluster failure qualification and desktop Extension Host qualification remain outstanding."
+        ]
+      }
     },
     {
       "id": "PV-003",
@@ -513,7 +540,7 @@
       "title": "Preserve authoritative ClickUp List scope during intake",
       "targetRepository": "ploeg",
       "milestone": "M2",
-      "status": "planned",
+      "status": "review",
       "priority": 2,
       "risk": "high",
       "estimatePoints": 3,
@@ -542,7 +569,20 @@
         "Required independent checks and human review passed for the exact candidate.",
         "Documentation and contracts match the implementation; unknowns remain explicit.",
         "The existing forge/CI/release policy decides merge, deployment and tracker completion."
-      ]
+      ],
+      "implementation": {
+        "state": "partial_candidate",
+        "summary": "Ploeg patch preserves fetched Scope and rejects conflicting event Scope before routing/ingestion.",
+        "evidence": [
+          "integrations/ploeg/README.md contains the baseline, patch and qualification instructions.",
+          "Ploeg mirror_test.go contains signed ClickUp fetch/routing and scope-conflict regressions; Go/PostgreSQL execution remains pending."
+        ],
+        "remaining": [
+          "Run Go formatting/build/vet, embedded PostgreSQL regressions and required CI gates; prove failure against old behavior.",
+          "Add durable rejection audit and connection-scoped identity under their own contracts.",
+          "Human review and target-instance qualification before unattended use."
+        ]
+      }
     },
     {
       "id": "PV-014",
@@ -590,7 +630,7 @@
       "title": "Authenticate webhook deliveries before reserving dedup IDs",
       "targetRepository": "ploeg",
       "milestone": "M2",
-      "status": "planned",
+      "status": "review",
       "priority": 2,
       "risk": "critical",
       "estimatePoints": 3,
@@ -619,7 +659,20 @@
         "Required independent checks and human review passed for the exact candidate.",
         "Documentation and contracts match the implementation; unknowns remain explicit.",
         "The existing forge/CI/release policy decides merge, deployment and tracker completion."
-      ]
+      ],
+      "implementation": {
+        "state": "partial_candidate",
+        "summary": "Ploeg patch authenticates and parses before reserving forge delivery IDs, explicitly enforcing the existing one-MiB raw body limit.",
+        "evidence": [
+          "integrations/ploeg/README.md links the patch and qualification record.",
+          "Ploeg forge_admission_test.go covers invalid-then-valid IDs, duplicate raw-body authentication and size limits; Go/PostgreSQL execution is pending."
+        ],
+        "remaining": [
+          "Run Go formatting/build/vet, embedded PostgreSQL regressions and full required CI gates; prove old-code failure.",
+          "Define and qualify the stricter HTTP media-type admission policy without silently changing current compatibility.",
+          "PV-016 transactional inbox/crash-loss work remains separate and unimplemented."
+        ]
+      }
     },
     {
       "id": "PV-016",
@@ -3049,7 +3102,7 @@
       "title": "Require explicit Ploeg reviewer approval in fix rounds",
       "targetRepository": "ploeg",
       "milestone": "M1",
-      "status": "planned",
+      "status": "review",
       "priority": 1,
       "risk": "critical",
       "estimatePoints": 3,
@@ -3079,7 +3132,19 @@
         "Required independent checks and human review passed for the exact candidate.",
         "Documentation and contracts match the implementation; unknowns remain explicit.",
         "The existing forge/CI/release policy decides merge, deployment and tracker completion."
-      ]
+      ],
+      "implementation": {
+        "state": "candidate",
+        "summary": "Ploeg patch requires successful explicit approval from every configured final reader; incomplete review remains needs_human and never opens new paid work.",
+        "evidence": [
+          "integrations/ploeg/README.md contains the Ploeg patch and baseline.",
+          "Ploeg reviewapproval_test.go and strengthened no-verdict regression cover missing/failed/stale/conflicting approval and retained budget; Go/PostgreSQL execution is pending."
+        ],
+        "remaining": [
+          "Run Go formatting/build/vet, embedded PostgreSQL and full CI gates, including old-code regression proof.",
+          "Human review and actual deployment qualification; existing budget/cap stop reasons remain distinct."
+        ]
+      }
     },
     {
       "id": "PV-075",

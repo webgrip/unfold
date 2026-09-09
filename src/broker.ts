@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { RuntimeFailure, transportFailure } from './failures.ts';
 import type { AppConfig, Credential, Session } from './types.ts';
 
 type GatewayKey = { token: string; key_alias: string; spend?: number; blocked?: boolean; metadata?: Record<string, unknown> };
@@ -27,8 +28,8 @@ export class LiteLLMBroker implements BudgetBroker {
         method, headers: { authorization: `Bearer ${this.config.masterKey}`, 'content-type': 'application/json' },
         body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(10_000), redirect: 'error',
       });
-    } catch { throw new Error('LiteLLM administrative request unavailable'); }
-    if (!response.ok) throw new Error(`LiteLLM administrative request failed (${response.status})`);
+    } catch (error) { throw transportFailure(error, 'credentials'); }
+    if (!response.ok) throw new RuntimeFailure('gateway_rejected', 'credentials', 'not_submitted', response.status);
     try { return await response.json(); } catch { throw new Error('LiteLLM returned invalid JSON'); }
   }
 

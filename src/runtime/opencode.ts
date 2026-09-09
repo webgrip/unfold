@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { AgentRuntime, AppConfig, Artifact, Credential, ExecutionContext, ExecutionResult, PermissionRequest, Repository, Session, Workspace } from '../types.ts';
 import { WorkspaceManager } from './workspace.ts';
+import { RuntimeFailure, classifyFailure, transportFailure, type PromptAcceptance } from '../failures.ts';
 
 export interface RuntimeWorkspaces {
   prepare(session: Session, repository: Repository, credential: Credential | undefined, signal: AbortSignal): Promise<Workspace>;
@@ -56,27 +57,34 @@ export class OpenCodeRuntime implements AgentRuntime {
 
   private async request(workspace: Workspace, path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<any> {
     const timeout = AbortSignal.timeout(15000);
-    const response = await this.fetcher(this.url(workspace, path), {
-      method, headers: this.headers(workspace), redirect: 'error',
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-    });
-    if (!response.ok) throw new Error(`OpenCode ${method} ${path.split('?')[0]} failed (HTTP ${response.status})`);
-    if (response.status === 204) return undefined;
-    const reader = response.body?.getReader();
-    const decoder = new TextDecoder();
-    let text = '';
-    let size = 0;
-    if (reader) try {
-      while (true) {
-        const chunk = await reader.read();
-        if (chunk.done) { text += decoder.decode(); break; }
-        size += chunk.value.byteLength;
-        if (size > 16 * 1024 * 1024) throw new Error('OpenCode response exceeded the size limit');
-        text += decoder.decode(chunk.value, { stream: true });
-      }
-    } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
-    try { return text ? JSON.parse(text) : undefined; } catch { throw new Error('OpenCode returned invalid JSON'); }
+    try {
+      const response = await this.fetcher(this.url(workspace, path), {
+        method, headers: this.headers(workspace), redirect: 'error',
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      });
+      if (!response.ok) throw new RuntimeFailure('harness_rejected', 'runtime', 'not_submitted', response.status);
+      if (response.status === 204) return undefined;
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let text = '';
+      let size = 0;
+      if (reader) try {
+        while (true) {
+          const chunk = await reader.read();
+          if (chunk.done) { text += decoder.decode(); break; }
+          size += chunk.value.byteLength;
+          if (size > 16 * 1024 * 1024) throw new RuntimeFailure('harness_rejected', 'runtime');
+          text += decoder.decode(chunk.value, { stream: true });
+        }
+      } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+      try { return text ? JSON.parse(text) : undefined; } catch { throw new RuntimeFailure('harness_rejected', 'runtime'); }
+    } catch (error) {
+      if (error instanceof RuntimeFailure) throw error;
+      if (signal?.aborted) throw signal.reason;
+      if (timeout.aborted) throw new RuntimeFailure('timeout', 'runtime');
+      throw transportFailure(error, 'runtime');
+    }
   }
 
   private async stream(workspace: Workspace, signal: AbortSignal, receive: (event: WireRecord) => void): Promise<void> {
@@ -110,28 +118,37 @@ export class OpenCodeRuntime implements AgentRuntime {
     const completion = new AbortController();
     const operation = AbortSignal.any([signal, timeout, completion.signal]);
     const model = context.model ?? this.config.models[0];
-    if (!model) throw new Error('No coding model is configured');
+    if (!model) throw new RuntimeFailure('harness_rejected', 'runtime');
     let nativeId = context.run.nativeId;
-    if (!nativeId) {
-      const permission = context.role.mode === 'read'
-        ? [{ permission: '*', pattern: '*', action: 'ask' }, { permission: 'edit', pattern: '*', action: 'deny' }, { permission: 'bash', pattern: '*', action: 'deny' }, { permission: 'task', pattern: '*', action: 'deny' }, { permission: 'read', pattern: '*', action: 'allow' }, { permission: 'glob', pattern: '*', action: 'allow' }, { permission: 'grep', pattern: '*', action: 'allow' }, { permission: 'external_directory', pattern: '*', action: 'deny' }]
-        : undefined;
-      const created = await this.request(workspace, '/session', 'POST', { title: `${context.session.title} · ${context.role.name}`, ...(permission ? { permission } : {}) }, operation);
-      if (typeof created?.id !== 'string') throw new Error('OpenCode did not return a session identifier');
-      nativeId = created.id;
+    let baseline: WireMessage[];
+    try {
+      if (!nativeId) {
+        const permission = context.role.mode === 'read'
+          ? [{ permission: '*', pattern: '*', action: 'ask' }, { permission: 'edit', pattern: '*', action: 'deny' }, { permission: 'bash', pattern: '*', action: 'deny' }, { permission: 'task', pattern: '*', action: 'deny' }, { permission: 'read', pattern: '*', action: 'allow' }, { permission: 'glob', pattern: '*', action: 'allow' }, { permission: 'grep', pattern: '*', action: 'allow' }, { permission: 'external_directory', pattern: '*', action: 'deny' }]
+          : undefined;
+        const created = await this.request(workspace, '/session', 'POST', { title: `${context.session.title} · ${context.role.name}`, ...(permission ? { permission } : {}) }, operation);
+        if (typeof created?.id !== 'string') throw new RuntimeFailure('harness_rejected', 'runtime');
+        nativeId = created.id;
+      }
+      if (typeof nativeId !== 'string') throw new RuntimeFailure('harness_rejected', 'runtime');
+      workspace.nativeSessionId = nativeId;
+      emit({ type: 'native.session', data: { nativeId } });
+      baseline = await this.request(workspace, `/session/${encodeURIComponent(nativeId)}/message`, 'GET', undefined, operation);
+      if (!Array.isArray(baseline)) throw new RuntimeFailure('harness_rejected', 'runtime');
+    } catch (error) {
+      if (signal.aborted) throw new DOMException('Agent turn cancelled', 'AbortError');
+      if (timeout.aborted) throw new RuntimeFailure('timeout', 'runtime');
+      const failure = classifyFailure(error, 'runtime');
+      throw new RuntimeFailure(failure.category, 'runtime');
     }
-    if (typeof nativeId !== 'string') throw new Error('OpenCode has no valid session identifier');
-    workspace.nativeSessionId = nativeId;
-    emit({ type: 'native.session', data: { nativeId } });
     const base = `/session/${encodeURIComponent(nativeId)}`;
-    const baseline: WireMessage[] = await this.request(workspace, `${base}/message`, 'GET', undefined, operation);
-    if (!Array.isArray(baseline)) throw new Error('OpenCode returned an invalid message list');
     const existing = new Set(baseline.map(item => item.info?.id));
     const sessions = new Set([nativeId]);
     const seenEvents = new Set<string>();
     const pending = new Set<string>();
     const textParts = new Map<string, string>();
     let failure: Error | undefined;
+    let promptAcceptance: PromptAcceptance = 'not_submitted';
     const receive = (event: WireRecord): void => {
       if (event.id && seenEvents.has(event.id)) return;
       if (event.id) { seenEvents.add(event.id); if (seenEvents.size > 20000) seenEvents.delete(seenEvents.values().next().value!); }
@@ -139,7 +156,7 @@ export class OpenCodeRuntime implements AgentRuntime {
       if (event.type === 'session.created' && p.info?.parentID && sessions.has(p.info.parentID)) sessions.add(p.info.id);
       const sid = p.sessionID ?? p.info?.sessionID ?? p.part?.sessionID;
       if (sid && !sessions.has(sid)) return;
-      if (event.type === 'session.error' && sid === nativeId) failure = new Error(`OpenCode reported ${typeof p.error?.name === 'string' ? p.error.name : 'an agent error'}`);
+      if (event.type === 'session.error' && sid === nativeId) failure = this.agentFailure(p.error);
       if (event.type === 'message.part.delta' && p.field === 'text' && typeof p.delta === 'string') {
         const key = `${sid}:${p.messageID}:${p.partID}`;
         textParts.set(key, (textParts.get(key) ?? '') + p.delta);
@@ -170,7 +187,9 @@ export class OpenCodeRuntime implements AgentRuntime {
       ? '\nInspect the repository and the verification evidence supplied in the task. Shell execution and edits are unavailable in this read role; do not claim to have run tests. Finish with a fenced JSON object containing summary and verdict (approve, request_changes, or inconclusive). Approve only what the available evidence supports.'
       : `\nThe configured verification command is this exact argv array: ${JSON.stringify(context.repository.verify)}. Run it when authorized and report its actual result.`);
     try {
+      promptAcceptance = 'unknown';
       await this.request(workspace, `${base}/prompt_async`, 'POST', { model: { providerID: model.providerId, modelID: model.modelId }, agent: 'build', parts: [{ type: 'text', text: prompt }] }, operation);
+      promptAcceptance = 'accepted';
       while (true) {
         operation.throwIfAborted();
         if (failure) throw failure;
@@ -190,7 +209,7 @@ export class OpenCodeRuntime implements AgentRuntime {
         if (!Array.isArray(messages)) throw new Error('OpenCode returned an invalid message list');
         const assistants: WireMessage[] = messages.filter((item: WireMessage) => item.info?.role === 'assistant' && !existing.has(item.info.id));
         const last = assistants.at(-1);
-        if (last?.info.error) throw new Error(`OpenCode reported ${String(last.info.error.name ?? 'an agent error')}`);
+        if (last?.info.error) throw this.agentFailure(last.info.error);
         const idle = !statuses?.[nativeId] || statuses[nativeId].type === 'idle';
         const terminal = last?.info.finish && !['tool-calls', 'unknown'].includes(last.info.finish);
         if (idle && last?.info.time?.completed && terminal && !pending.size) {
@@ -225,9 +244,20 @@ export class OpenCodeRuntime implements AgentRuntime {
     } catch (error) {
       await this.interrupt(workspace).catch(() => {});
       if (signal.aborted) throw new DOMException('Agent turn cancelled', 'AbortError');
-      if (timeout.aborted) throw new Error('OpenCode execution exceeded its configured time limit');
-      throw error;
+      if (promptAcceptance === 'unknown') {
+        const status = error instanceof RuntimeFailure ? error.httpStatus : undefined;
+        if (status && status >= 400 && status < 500 && status !== 408) throw new RuntimeFailure('harness_rejected', 'prompt', 'rejected');
+        throw new RuntimeFailure('prompt_acceptance_unknown', 'prompt', 'unknown');
+      }
+      if (timeout.aborted) throw new RuntimeFailure('timeout', 'execution', promptAcceptance);
+      const failure = classifyFailure(error, 'execution', promptAcceptance);
+      throw new RuntimeFailure(failure.category, 'execution', promptAcceptance);
     } finally { completion.abort(); await watching; }
+  }
+
+  private agentFailure(error: unknown): RuntimeFailure {
+    const name = error && typeof error === 'object' && 'name' in error ? error.name : undefined;
+    return new RuntimeFailure(['APIError', 'APICallError', 'ProviderAuthError', 'ModelNotFoundError'].includes(String(name)) ? 'gateway_rejected' : 'harness_rejected', 'execution', 'accepted');
   }
 
   async respond(workspace: Workspace, request: PermissionRequest, answer: { decision?: 'once' | 'always' | 'reject'; answers?: string[][] }): Promise<void> {

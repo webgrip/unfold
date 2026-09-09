@@ -1,3 +1,4 @@
+import { RuntimeFailure } from '../src/failures.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -86,7 +87,9 @@ test('provider errors do not expose response credentials', async t => {
   fail();
   await assert.rejects(broker.mint(session), error => {
     assert.equal(String(error).includes('administrative-only'), false);
-    assert.match(String(error), /500/);
+    assert(error instanceof RuntimeFailure);
+    assert.equal(error.category, 'gateway_rejected');
+    assert.equal(error.httpStatus, 500);
     return true;
   });
 });

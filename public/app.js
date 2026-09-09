@@ -32,7 +32,8 @@ const icons = {
 };
 const icon = (name, cls = '') => `<svg class="icon ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] || icons.circle}</svg>`;
 const labels = { queued: 'Ready to start', running: 'Working', waiting_input: 'Needs your input', paused: 'Paused', completed: 'Ready for review', failed: 'Needs attention', cancelled: 'Cancelled', interrupted: 'Interrupted' };
-const state = { bootstrap: null, sessions: [], session: null, events: [], permissions: [], view: 'sessions', tab: 'stream', filter: 'all', search: '', draft: '', stream: null, online: true, busy: false, refreshTimer: null, toastTimer: null, ploeg: null, health: null };
+const evidenceTabs = [['stream','activity','Activity'],['diff','code','Changes'],['test','terminal','Checks'],['handoff','branch','Handoff']];
+const state = { evidenceScroll: {}, bootstrap: null, sessions: [], session: null, events: [], permissions: [], view: 'sessions', tab: 'stream', filter: 'all', search: '', draft: '', stream: null, online: true, busy: false, refreshTimer: null, toastTimer: null, ploeg: null, health: null };
 
 async function api(path, options = {}) {
   const response = await fetch(path, { ...options, headers: { 'Content-Type': 'application/json', 'X-Vloer-Request': '1', ...options.headers }, credentials: 'same-origin' });
@@ -137,6 +138,14 @@ function permissionsMarkup() {
   return state.permissions.filter(request => !request.resolved).map(request => `<section class="permission-card"><div class="permission-heading">${icon('shield')}<div><span class="tiny-label">YOUR DECISION</span><h3>${escape(request.title)}</h3></div></div><p>${escape(request.detail)}</p>${request.kind === 'permission' ? `<div class="permission-actions"><button class="button primary" data-action="permission" data-id="${escape(request.id)}" data-decision="once">Allow once</button><button class="button secondary" data-action="permission" data-id="${escape(request.id)}" data-decision="reject">Reject</button><button class="button text-button" data-action="permission" data-id="${escape(request.id)}" data-decision="always">Allow matching requests</button></div>` : `<form data-form="question" data-id="${escape(request.id)}">${(request.questions || [{ question: request.detail }]).map((question, index) => `<label>${escape(question.question || question.header || `Question ${index + 1}`)}<input name="answer-${index}" required placeholder="Your answer" list="options-${escape(request.id)}-${index}"><datalist id="options-${escape(request.id)}-${index}">${(question.options || []).map(option => `<option value="${escape(option.label || option)}">${escape(option.description || '')}</option>`).join('')}</datalist></label>`).join('')}<button class="button primary" type="submit">Send answer ${icon('send')}</button></form>`}</section>`).join('');
 }
 
+function failureNotice(session) {
+  const failure = session.failure;
+  if (!failure && !session.blocker) return '';
+  const stage = { credentials: 'Gateway authorization', workspace: 'Workspace setup', runtime: 'Runtime startup', prompt: 'Prompt submission', execution: 'Agent execution' }[failure?.stage] || 'Execution';
+  const submission = { not_submitted: 'The prompt was not submitted.', rejected: 'The runtime rejected the prompt.', accepted: 'The runtime acknowledged the prompt; this does not confirm that execution finished.', unknown: 'Prompt submission is unconfirmed. Check remote execution and gateway spend before starting new work.' }[failure?.promptAcceptance];
+  return `<section class="notice notice-warning" aria-labelledby="session-failure-title">${icon('info')}<div><strong id="session-failure-title">${failure ? `${stage} needs attention` : session.status === 'interrupted' ? 'Execution was interrupted' : 'This session needs attention'}</strong><p>${escape(failure?.message || session.blocker)}</p>${failure?.remediation ? `<p>${escape(failure.remediation)}</p>` : ''}${submission ? `<p>${escape(submission)}</p>` : ''}${failure?.automaticRetry === false ? '<p>No automatic retry will be started.</p>' : ''}</div></section>`;
+}
+
 function renderSession() {
   const session = state.session;
   if (!session) return;
@@ -145,9 +154,9 @@ function renderSession() {
   const approved = session.runs.filter(run => run.verdict === 'approve').length;
   const controls = `${session.status === 'queued' ? '<button class="button primary" data-action="start">Start crew '+icon('play')+'</button>' : ''}${isActive(session) ? '<button class="button secondary" data-action="pause">'+icon('pause')+' Pause</button>' : ''}${['paused','interrupted'].includes(session.status) ? '<button class="button primary" data-action="resume">'+icon('play')+' Resume</button>' : ''}${!finished ? '<button class="button text-button danger" data-action="cancel">'+icon('stop')+' Cancel</button>' : ''}`;
   const content = `<div class="session-topline"><a href="#sessions" class="back-link">${icon('back')} All sessions</a><div>${status(session.status)}<span class="tag">${escape(runtimeName(session.runtime))}</span></div></div><section class="session-brief panel"><div><div class="brief-meta"><span>${icon('folder')}${escape(repoName(session.repositoryId))}</span><span>${icon('layers')}${escape(crewName(session.crewId))}</span><span>${icon('clock')}Started ${escape(ago(session.createdAt))}</span></div><p>${escape(session.objective)}</p></div><div class="session-controls">${canOperate ? controls : ''}<button class="button secondary" data-action="export">${icon('download')} Export handoff</button></div></section>
-    ${session.blocker ? `<div class="notice notice-warning">${icon('info')}<div><strong>${session.status === 'interrupted' ? 'Execution was interrupted' : 'This session needs attention'}</strong><p>${escape(session.blocker)}</p></div></div>` : ''}
+    ${failureNotice(session)}
     ${session.status === 'completed' ? `<div class="notice notice-success">${icon('check')}<div><strong>Evidence is ready for your review.</strong><p>The required reviewers approved. No merge or deployment has been performed.</p></div><button class="button text-button" data-action="tab" data-id="diff">Inspect changes ${icon('arrow')}</button></div>` : ''}
-    ${runCards(session)}<div class="session-grid"><section class="panel execution-panel"><div class="tabs" role="tablist" aria-label="Session evidence">${[['stream','activity','Activity'],['diff','code','Changes'],['test','terminal','Checks'],['handoff','branch','Handoff']].map(([id,glyph,label]) => `<button role="tab" aria-selected="${state.tab === id}" data-action="tab" data-id="${id}" class="${state.tab === id ? 'selected' : ''}">${icon(glyph)}${label}${id === 'diff' || id === 'test' ? `<span>${session.artifacts.filter(artifact => artifact.kind === id).length}</span>` : ''}</button>`).join('')}</div><div class="tab-content" role="tabpanel">${state.tab === 'stream' ? streamMarkup() : artifactMarkup(state.tab)}</div>${!finished && canOperate ? `<form class="composer" data-form="message"><label for="operator-message">Steer the next execution</label><div><textarea id="operator-message" name="text" rows="2" placeholder="Add a constraint, clarify the objective, or leave a handoff note…" required>${escape(state.draft)}</textarea><button class="button primary icon-only" type="submit" aria-label="Save instruction">${icon('send')}</button></div><p>Instructions are saved durably. Pause and resume to apply them to the current role.</p></form>` : ''}</section><aside class="right-column">${permissionsMarkup()}<section class="panel budget-panel"><div class="panel-heading"><h2>Session budget</h2>${icon('shield')}</div><div class="budget-value">${money(session.spentUsd)}<span> / ${money(session.budgetUsd)}</span></div><progress max="${session.budgetUsd || 1}" value="${Math.min(session.spentUsd, session.budgetUsd)}" aria-label="Recorded session spend"></progress><div class="budget-details"><span>Accounting</span><strong>${escape(session.costStatus === 'demo' ? 'Demo · no charge' : session.costStatus === 'unknown' ? 'Unresolved · hold retained' : session.costStatus === 'pending' ? 'Awaiting gateway settlement' : 'Settled')}</strong></div><p>${session.costStatus === 'demo' ? 'This session uses a deterministic demonstration runtime. No tokens are consumed.' : session.costStatus === 'unknown' ? 'Unknown usage is never treated as zero. Previous authorization stays reserved.' : 'A scoped gateway key bounds this engagement. Model usage is reconciled independently.'}</p>${state.bootstrap.user.role === 'admin' && !finished ? '<button class="button secondary full" data-action="budget">Authorize more budget</button>' : ''}</section><section class="panel details-panel"><div class="panel-heading"><h2>Working context</h2></div><dl><dt>Branch</dt><dd class="mono">${escape(session.branch)}</dd><dt>Operator</dt><dd>${escape(session.ownerName)}</dd><dt>Explicit reviews</dt><dd>${approved} of ${session.runs.filter(run => run.mode === 'read').length}</dd><dt>Session</dt><dd class="mono">${escape(session.id.slice(0,8))}</dd></dl>${session.trackerUrl ? `<a class="external-link" href="${escape(session.trackerUrl)}" target="_blank" rel="noopener noreferrer">Open tracker ${icon('external')}</a>` : ''}</section></aside></div>`;
+    ${runCards(session)}<div class="session-grid"><section class="panel execution-panel"><div class="tabs" role="tablist" aria-label="Session evidence">${evidenceTabs.map(([id,glyph,label]) => `<button role="tab" id="evidence-tab-${id}" aria-controls="evidence-panel-${id}" tabindex="${state.tab === id ? '0' : '-1'}" aria-selected="${state.tab === id}" data-action="tab" data-id="${id}" class="${state.tab === id ? 'selected' : ''}">${icon(glyph)}${label}${id === 'diff' || id === 'test' ? `<span>${session.artifacts.filter(artifact => artifact.kind === id).length}</span>` : ''}</button>`).join('')}</div>${evidenceTabs.map(([id]) => `<div class="tab-content" role="tabpanel" id="evidence-panel-${id}" aria-labelledby="evidence-tab-${id}" tabindex="0" data-tab="${id}" data-session-id="${escape(session.id)}" ${state.tab === id ? '' : 'hidden'}>${state.tab === id ? id === 'stream' ? streamMarkup() : artifactMarkup(id) : ''}</div>`).join('')}${!finished && canOperate ? `<form class="composer" data-form="message"><label for="operator-message">Steer the next execution</label><div><textarea id="operator-message" name="text" rows="2" placeholder="Add a constraint, clarify the objective, or leave a handoff note…" required>${escape(state.draft)}</textarea><button class="button primary icon-only" type="submit" aria-label="Save instruction">${icon('send')}</button></div><p>Instructions are saved durably. Pause and resume to apply them to the current role.</p></form>` : ''}</section><aside class="right-column">${permissionsMarkup()}<section class="panel budget-panel"><div class="panel-heading"><h2>Session budget</h2>${icon('shield')}</div><div class="budget-value">${money(session.spentUsd)}<span> / ${money(session.budgetUsd)}</span></div><progress max="${session.budgetUsd || 1}" value="${Math.min(session.spentUsd, session.budgetUsd)}" aria-label="Recorded session spend"></progress><div class="budget-details"><span>Accounting</span><strong>${escape(session.costStatus === 'demo' ? 'Demo · no charge' : session.costStatus === 'unknown' ? 'Unresolved · hold retained' : session.costStatus === 'pending' ? 'Awaiting gateway settlement' : 'Settled')}</strong></div><p>${session.costStatus === 'demo' ? 'This session uses a deterministic demonstration runtime. No tokens are consumed.' : session.costStatus === 'unknown' ? 'Unknown usage is never treated as zero. Previous authorization stays reserved.' : 'A scoped gateway key bounds this engagement. Model usage is reconciled independently.'}</p>${state.bootstrap.user.role === 'admin' && !finished ? '<button class="button secondary full" data-action="budget">Authorize more budget</button>' : ''}</section><section class="panel details-panel"><div class="panel-heading"><h2>Working context</h2></div><dl><dt>Branch</dt><dd class="mono">${escape(session.branch)}</dd><dt>Operator</dt><dd>${escape(session.ownerName)}</dd><dt>Explicit reviews</dt><dd>${approved} of ${session.runs.filter(run => run.mode === 'read').length}</dd><dt>Session</dt><dd class="mono">${escape(session.id.slice(0,8))}</dd></dl>${session.trackerUrl ? `<a class="external-link" href="${escape(session.trackerUrl)}" target="_blank" rel="noopener noreferrer">Open tracker ${icon('external')}</a>` : ''}</section></aside></div>`;
   renderHtml(shell(content, session.title, 'A bounded objective. A visible crew. Reviewable evidence.'));
 }
 
@@ -167,17 +176,21 @@ function renderHtml(markup) {
   const active = document.activeElement;
   const focusId = active?.id;
   const selection = active && 'selectionStart' in active ? [active.selectionStart, active.selectionEnd] : null;
-  const oldStream = $('.tab-content');
-  const streamScroll = oldStream?.scrollTop || 0;
-  const atBottom = oldStream ? oldStream.scrollHeight - oldStream.scrollTop - oldStream.clientHeight < 90 : true;
+  const oldPanel = $('.tab-content:not([hidden])');
+  if (oldPanel && oldPanel.dataset.sessionId === state.session?.id) {
+    state.evidenceScroll[oldPanel.dataset.tab] = { top: oldPanel.scrollTop, atBottom: oldPanel.scrollHeight - oldPanel.scrollTop - oldPanel.clientHeight < 90 };
+  }
   $('#app').innerHTML = markup;
   if (focusId) {
     const replacement = document.getElementById(focusId);
     replacement?.focus({ preventScroll: true });
     if (selection && replacement?.setSelectionRange) try { replacement.setSelectionRange(...selection); } catch {}
   }
-  const stream = $('.tab-content');
-  if (stream) stream.scrollTop = atBottom ? stream.scrollHeight : streamScroll;
+  const panel = $('.tab-content:not([hidden])');
+  if (panel) {
+    const previous = state.evidenceScroll[panel.dataset.tab];
+    panel.scrollTop = panel.dataset.tab === 'stream' && (!previous || previous.atBottom) ? panel.scrollHeight : previous?.top || 0;
+  }
 }
 
 function render() {
@@ -211,7 +224,7 @@ async function openSession(id) {
   disconnect();
   const [session, events, permissions] = await Promise.all([api(`/api/sessions/${id}`), api(`/api/sessions/${id}/history`), api(`/api/sessions/${id}/permissions`)]);
   if (location.hash !== `#session/${id}`) return;
-  state.session = session; state.events = events; state.permissions = permissions; state.view = 'session'; state.online = true; state.draft = ''; render();
+  state.session = session; state.events = events; state.permissions = permissions; state.view = 'session'; state.online = true; state.draft = ''; state.evidenceScroll = {}; render();
   const after = events.at(-1)?.id || 0;
   const stream = new EventSource(`/api/sessions/${id}/events?after=${after}`);
   state.stream = stream;
@@ -276,7 +289,7 @@ document.addEventListener('click', async event => {
     else if (action === 'close-dialog') $('#new-session').close();
     else if (action === 'open') { state.tab = 'stream'; location.hash = `session/${button.dataset.id}`; }
     else if (action === 'filter') { state.filter = button.dataset.id; renderDashboard(); }
-    else if (action === 'tab') { state.tab = button.dataset.id; renderSession(); }
+    else if (action === 'tab') selectEvidenceTab(button.dataset.id);
     else if (['start','pause','resume'].includes(action)) await lifecycle(action);
     else if (action === 'cancel') confirmAction('Cancel this session?', 'The active turn will stop and no remaining role will start. This session cannot be resumed after cancellation.', 'Cancel session', () => lifecycle('cancel'));
     else if (action === 'export') exportHandoff();
@@ -325,7 +338,24 @@ document.addEventListener('submit', async event => {
   finally { if (submit) submit.disabled = false; }
 });
 
+function selectEvidenceTab(id) {
+  if (!evidenceTabs.some(([tab]) => tab === id) || !state.session) return;
+  state.tab = id;
+  renderSession();
+  document.getElementById(`evidence-tab-${id}`)?.focus({ preventScroll: true });
+}
+
 document.addEventListener('keydown', event => {
+  const tab = event.target.closest('[role="tab"][data-action="tab"]');
+  if (tab && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    const index = evidenceTabs.findIndex(([id]) => id === tab.dataset.id);
+    const next = event.key === 'ArrowRight' ? (index + 1) % evidenceTabs.length : event.key === 'ArrowLeft' ? (index + evidenceTabs.length - 1) % evidenceTabs.length : event.key === 'Home' ? 0 : event.key === 'End' ? evidenceTabs.length - 1 : -1;
+    if (next !== -1) {
+      event.preventDefault();
+      selectEvidenceTab(evidenceTabs[next][0]);
+      return;
+    }
+  }
   if (event.key.toLowerCase() === 'n' && !event.ctrlKey && !event.metaKey && !event.altKey && !['INPUT','TEXTAREA','SELECT'].includes(event.target.tagName) && state.bootstrap && state.bootstrap.user.role !== 'viewer' && !$('#new-session').open && !$('#confirm-dialog').open) { event.preventDefault(); openNew(); }
 });
 window.addEventListener('hashchange', route);

@@ -29,3 +29,17 @@ test('session payload requires explicit profiles and budget without inventing tr
   assert.throws(() => sessionPayload(task, { repositoryId: 'https://evil.example', crewId: 'delivery', runtime: 'opencode', budgetUsd: 2 }), /registered profile/);
   assert.throws(() => sessionPayload(task, { repositoryId: 'vloer', crewId: 'delivery', runtime: 'opencode', budgetUsd: NaN }), /budget/);
 });
+
+test('exports preserve candidate evidence and review status without claiming tracker acceptance', () => {
+  const backlog = readBacklog();
+  const task = backlog.tickets[0];
+  task.status = 'review';
+  task.implementation = { state: 'partial_candidate', summary: 'Candidate source exists.', evidence: ['Source review is complete.'], remaining: ['Go/PostgreSQL qualification is pending.'] };
+  assert(brief(task).includes('Remaining before acceptance:'));
+  assert(brief(task).includes('Go/PostgreSQL'));
+  assert(clickupCsv(backlog).includes('"Review"'));
+  const payload = sessionPayload(task, { repositoryId: 'ploeg', crewId: 'delivery', runtime: 'opencode', budgetUsd: 2 });
+  assert(payload.objective.includes('Review this evidence before assigning implementation again'));
+  task.implementation.remaining = [];
+  assert.throws(() => validateBacklog(backlog), /Missing implementation remaining/);
+});

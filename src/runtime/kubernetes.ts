@@ -1,6 +1,7 @@
 import { request as httpsRequest } from 'node:https';
 import { readFile } from 'node:fs/promises';
 import { createHash, randomBytes } from 'node:crypto';
+import { RuntimeFailure, transportFailure } from '../failures.ts';
 import type { AppConfig, Credential, Repository, Session, Workspace } from '../types.ts';
 
 type KubernetesConfig = NonNullable<AppConfig['kubernetes']> & {
@@ -42,15 +43,15 @@ export class KubernetesClient {
         response.on('end', () => {
           if (allowMissing && response.statusCode === 404) { done(undefined); return; }
           if (!response.statusCode || response.statusCode < 200 || response.statusCode >= 300) {
-            reject(new Error(`Kubernetes ${method} request failed (${response.statusCode ?? 'unknown'})`)); return;
+            reject(new RuntimeFailure('workspace_setup', 'workspace')); return;
           }
           try { done(chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {}); }
           catch { reject(new Error('Kubernetes returned invalid JSON')); }
         });
-        response.on('error', () => reject(new Error('Kubernetes response interrupted')));
+        response.on('error', error => reject(transportFailure(error, 'workspace')));
       });
-      req.setTimeout(10_000, () => req.destroy(new Error('Kubernetes request timed out')));
-      req.on('error', () => reject(new Error('Kubernetes API unavailable')));
+      req.setTimeout(10_000, () => req.destroy(new RuntimeFailure('timeout', 'workspace')));
+      req.on('error', error => reject(transportFailure(error, 'workspace')));
       req.end(body === undefined ? undefined : JSON.stringify(body));
     });
   }
@@ -159,7 +160,7 @@ export class KubernetesWorkspaces {
       if (!(await this.client.request(this.path('Pod', name), 'GET', undefined, true))) return;
       await new Promise(done => setTimeout(done, 300));
     }
-    throw new Error('Previous workspace pod did not terminate');
+    throw new RuntimeFailure('timeout', 'workspace');
   }
 
   async prepare(session: Session, repository: Repository, credential: Credential | undefined, signal: AbortSignal, managed: Record<string, unknown>): Promise<Workspace> {
@@ -190,7 +191,7 @@ export class KubernetesWorkspaces {
         }
         await new Promise(done => setTimeout(done, 500));
       }
-      throw new Error('Workspace scheduling or readiness timed out');
+      throw new RuntimeFailure('timeout', 'workspace');
     } catch (error) {
       await this.dispose({ id: session.id, backend: 'kubernetes', directory: '/workspace/repository' }).catch(() => {});
       throw error;

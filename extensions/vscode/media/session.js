@@ -55,7 +55,13 @@ function render() {
   const notices = [];
   if (mode === 'demo') notices.push(element('div', { className: 'notice demo' }, element('strong', {}, 'Demonstration'), 'Real fixture changes and checks. No AI calls or model spending.'));
   if (!connected) notices.push(element('div', { className: 'notice warning', role: 'status' }, element('strong', {}, 'Disconnected'), connectionMessage, ' Displaying the last received state.'));
-  if (session.blocker) notices.push(element('div', { className: 'notice warning' }, element('strong', {}, 'Decision needed'), session.blocker));
+  if (session.failure) notices.push(element('div', { className: 'notice warning execution-failure', role: 'status' },
+    element('strong', {}, 'Execution needs attention'),
+    element('p', { className: 'preserve' }, session.failure.message),
+    element('p', { className: 'preserve' }, session.failure.remediation),
+    ...(session.failure.promptAcceptance === 'unknown' ? [element('p', { className: 'muted' }, 'Submission outcome unconfirmed · no automatic retry.')] : []),
+  ));
+  else if (session.blocker) notices.push(element('div', { className: 'notice warning' }, element('strong', {}, 'Decision needed'), session.blocker));
   const requests = permissions.filter(request => !request.resolved);
   for (const request of requests) notices.push(element('div', { className: 'permission-card' }, element('div', {}, element('div', { className: 'eyebrow' }, request.kind === 'question' ? 'CREW QUESTION' : 'PERMISSION REQUEST'), element('h2', {}, request.title), element('p', {}, request.detail)), action('Review request', 'permission', { 'data-id': request.id, className: 'primary', disabled: !mutable })));
 

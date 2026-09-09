@@ -4,6 +4,8 @@ The repository contains 78 ticket-ready records with acceptance criteria, verifi
 
 `backlog/backlog.json` is the source for the generated planning artifacts. After import, the chosen tracker owns current status, assignments and priority. Keep a mapping from stable `PV-NNN` plan IDs to native tracker IDs. Update the seed deliberately when the design changes; do not overwrite tracker progress by reimporting an old spreadsheet.
 
+Five records now include implementation candidates and remaining qualification checks. See [implementation progress](implementation-progress.md). Their local `review` status is a planning signal, not human acceptance. Read the existing evidence before assigning the same implementation again.
+
 ## Start with a useful slice
 
 Do not try to complete all 78 tickets before using the system. The first milestone is supervised dogfooding; subsequent milestones add stronger delivery guarantees and team operation.
@@ -41,11 +43,11 @@ Generated outputs:
 
 Starting-point paths are repository-qualified; cross-repository references and proposed paths are labeled explicitly. These references do not grant access to a second repository.
 
-Estimates are relative engineering points. They are not hours, delivery promises or predictions of agent speed. All seed statuses start as planned. A human must resolve owners, native labels, target branch, dependencies and the actual task revision before marking work eligible for an agent.
+Estimates are relative engineering points. They are not hours, delivery promises or predictions of agent speed. Untouched records remain planned; records with a prepared candidate can be in local review. A human must resolve owners, native labels, target branch, dependencies and the actual task revision before marking work eligible for an agent.
 
 ## Import into ClickUp
 
-Use ClickUp's spreadsheet importer against a deliberately selected project List. Preview the mapping and a small subset before importing the whole plan. The CSV includes `Task Name`, `Description content`, `Status`, `Priority`, `Labels`, `Plan ID`, `Target repository`, `Milestone`, `Depends on` and `Estimate points`. Map columns explicitly; labels use `|` as a delimiter. Map `Planned` to your actual workflow's non-eligible status. Priorities use ClickUp's documented numeric convention: 1 urgent, 2 high, 3 normal, 4 low. [ClickUp preparation](https://help.clickup.com/hc/en-us/articles/6310821748759-Prepare-a-spreadsheet-for-import), [supported fields](https://help.clickup.com/hc/en-us/articles/6310876671255-Fields-supported-by-the-Spreadsheets-importer).
+Use ClickUp's spreadsheet importer against a deliberately selected project List. Preview the mapping and a small subset before importing the whole plan. The CSV includes `Task Name`, `Description content`, `Status`, `Priority`, `Labels`, `Plan ID`, `Target repository`, `Milestone`, `Depends on` and `Estimate points`. Map columns explicitly; labels use `|` as a delimiter. Map `Planned` and `Review` deliberately to your actual workflow's non-eligible planning/review statuses. Priorities use ClickUp's documented numeric convention: 1 urgent, 2 high, 3 normal, 4 low. [ClickUp preparation](https://help.clickup.com/hc/en-us/articles/6310821748759-Prepare-a-spreadsheet-for-import), [supported fields](https://help.clickup.com/hc/en-us/articles/6310876671255-Fields-supported-by-the-Spreadsheets-importer).
 
 Map the plan ID, target repository, milestone and estimate columns to appropriate custom fields if desired. The `Depends on` column is an explicit text list of plan IDs. **It does not create native task dependency relationships.** Resolve imported native task IDs and establish those relationships separately. The importer supports field mapping and preview, but unsupported relationship fields must not be presented as a working automated import. [Spreadsheet importer](https://help.clickup.com/hc/en-us/articles/6310834724247-Use-the-Spreadsheets-Importer), [field limitations](https://help.clickup.com/hc/en-us/articles/6310876671255-Fields-supported-by-the-Spreadsheets-importer).
 

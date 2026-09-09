@@ -59,8 +59,23 @@ PV-001 → PV-002 → PV-003 → PV-004 → PV-005 → PV-006 → PV-007 → PV-
 ### PV-001: Add keyboard navigation to session evidence tabs
 
 Target repository: de-vloer
+Local planning status: review; this is not the tracker's current status or permission to execute.
 Milestone: M0; epic: E01; risk: low; estimate: 2 relative points.
 Depends on: No code dependencies in this seed; environment and human authorization still required.
+
+#### Existing implementation candidate
+
+Keyboard evidence navigation, associated panels, draft/focus preservation and live-stream scroll behavior are implemented in the Vloer browser.
+
+Review this evidence before assigning implementation again:
+
+- public/app.js and scripts/browser-check.mjs; actual Chromium desktop/mobile regression passes.
+- docs/operations/implementation-progress.md records the candidate and qualification boundary.
+
+Remaining before acceptance:
+
+- [ ] Human review and acceptance against the actual tracker task.
+- [ ] A supervised live self-improvement run using the stable remote service remains unqualified.
 
 #### Problem
 
@@ -104,8 +119,23 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-002: Retain actionable redacted execution failures
 
 Target repository: de-vloer
+Local planning status: review; this is not the tracker's current status or permission to execute.
 Milestone: M0; epic: E01; risk: medium; estimate: 3 relative points.
 Depends on: No code dependencies in this seed; environment and human authorization still required.
+
+#### Existing implementation candidate
+
+Durable fixed-vocabulary failures identify safe remediation and prompt submission certainty; browser and VS Code display them without automatic retry.
+
+Review this evidence before assigning implementation again:
+
+- src/failures.ts, authenticated failure/restart/SSE tests, runtime regression tests and both client surfaces.
+- Root test/type/static checks and browser checks are recorded in docs/validation.md.
+
+Remaining before acceptance:
+
+- [ ] Human review and acceptance against the actual tracker task.
+- [ ] Actual provider/cluster failure qualification and desktop Extension Host qualification remain outstanding.
 
 #### Problem
 
@@ -140,6 +170,9 @@ Live failures collapse to a generic blocker, making missing binaries, model erro
 - de-vloer:src/engine.ts
 - de-vloer:src/runtime/opencode.ts
 - de-vloer:src/runtime/workspace.ts
+- de-vloer:src/failures.ts
+- de-vloer:test/api-failures.test.ts
+- de-vloer:extensions/vscode/media/session.js
 
 #### Execution boundary
 
@@ -148,6 +181,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-003: Create a qualified self-development execution image
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M0; epic: E01; risk: medium; estimate: 5 relative points.
 Depends on: No code dependencies in this seed; environment and human authorization still required.
 
@@ -193,6 +227,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-004: Exercise one supervised Vloer self-improvement run
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M0; epic: E01; risk: medium; estimate: 3 relative points.
 Depends on: PV-001, PV-003
 
@@ -238,6 +273,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-005: Define immutable candidate and evidence contracts
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M1; epic: E02; risk: high; estimate: 3 relative points.
 Depends on: No code dependencies in this seed; environment and human authorization still required.
 
@@ -281,6 +317,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-006: Export complete Git candidates from managed workspaces
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M1; epic: E02; risk: high; estimate: 5 relative points.
 Depends on: PV-005
 
@@ -326,6 +363,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-007: Persist content-addressed evidence outside worker volumes
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M1; epic: E02; risk: high; estimate: 5 relative points.
 Depends on: PV-005, PV-006
 
@@ -371,6 +409,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-008: Open idempotent draft forge reviews for candidates
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M2; epic: E02; risk: high; estimate: 5 relative points.
 Depends on: PV-006, PV-007, PV-022, PV-078, PV-011
 
@@ -417,6 +456,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-009: Define verifier policies outside candidate control
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M1; epic: E03; risk: critical; estimate: 5 relative points.
 Depends on: PV-005
 
@@ -462,6 +502,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-010: Run checks in a separate unprivileged verification job
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M1; epic: E03; risk: critical; estimate: 8 relative points.
 Depends on: PV-003, PV-006, PV-009
 
@@ -507,6 +548,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-011: Enforce candidate verification before review-ready state
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M1; epic: E03; risk: critical; estimate: 5 relative points.
 Depends on: PV-009, PV-010
 
@@ -553,6 +595,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-012: Add evidence-bound reviewer findings and rework limits
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M1; epic: E03; risk: high; estimate: 5 relative points.
 Depends on: PV-011
 
@@ -600,8 +643,24 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-013: Preserve authoritative ClickUp List scope during intake
 
 Target repository: ploeg
+Local planning status: review; this is not the tracker's current status or permission to execute.
 Milestone: M2; epic: E04; risk: high; estimate: 3 relative points.
 Depends on: No code dependencies in this seed; environment and human authorization still required.
+
+#### Existing implementation candidate
+
+Ploeg patch preserves fetched Scope and rejects conflicting event Scope before routing/ingestion.
+
+Review this evidence before assigning implementation again:
+
+- integrations/ploeg/README.md contains the baseline, patch and qualification instructions.
+- Ploeg mirror_test.go contains signed ClickUp fetch/routing and scope-conflict regressions; Go/PostgreSQL execution remains pending.
+
+Remaining before acceptance:
+
+- [ ] Run Go formatting/build/vet, embedded PostgreSQL regressions and required CI gates; prove failure against old behavior.
+- [ ] Add durable rejection audit and connection-scoped identity under their own contracts.
+- [ ] Human review and target-instance qualification before unattended use.
 
 #### Problem
 
@@ -643,6 +702,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-014: Reject unresolved or ambiguous work targets
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M2; epic: E04; risk: critical; estimate: 3 relative points.
 Depends on: PV-013
 
@@ -687,8 +747,24 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-015: Authenticate webhook deliveries before reserving dedup IDs
 
 Target repository: ploeg
+Local planning status: review; this is not the tracker's current status or permission to execute.
 Milestone: M2; epic: E04; risk: critical; estimate: 3 relative points.
 Depends on: No code dependencies in this seed; environment and human authorization still required.
+
+#### Existing implementation candidate
+
+Ploeg patch authenticates and parses before reserving forge delivery IDs, explicitly enforcing the existing one-MiB raw body limit.
+
+Review this evidence before assigning implementation again:
+
+- integrations/ploeg/README.md links the patch and qualification record.
+- Ploeg forge_admission_test.go covers invalid-then-valid IDs, duplicate raw-body authentication and size limits; Go/PostgreSQL execution is pending.
+
+Remaining before acceptance:
+
+- [ ] Run Go formatting/build/vet, embedded PostgreSQL regressions and full required CI gates; prove old-code failure.
+- [ ] Define and qualify the stricter HTTP media-type admission policy without silently changing current compatibility.
+- [ ] PV-016 transactional inbox/crash-loss work remains separate and unimplemented.
 
 #### Problem
 
@@ -730,6 +806,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-016: Commit webhook inbox and normalized events atomically
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M2; epic: E04; risk: critical; estimate: 5 relative points.
 Depends on: PV-015
 
@@ -774,6 +851,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-017: Handle ticket edits, unassignment and cancellation
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M2; epic: E04; risk: critical; estimate: 5 relative points.
 Depends on: PV-014, PV-016, PV-022
 
@@ -819,6 +897,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-018: Add connector polling repair and sync checkpoints
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M2; epic: E04; risk: high; estimate: 5 relative points.
 Depends on: PV-016, PV-017
 
@@ -864,6 +943,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-019: Implement Forgejo issues as a tracker provider
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M2; epic: E05; risk: high; estimate: 5 relative points.
 Depends on: PV-014, PV-016
 
@@ -909,6 +989,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-020: Qualify ClickUp auth modes and native identifiers
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M2; epic: E05; risk: high; estimate: 3 relative points.
 Depends on: PV-013, PV-016
 
@@ -953,6 +1034,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-021: Adopt version-aware GitLab signed webhook verification
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M2; epic: E05; risk: high; estimate: 3 relative points.
 Depends on: PV-015, PV-016
 
@@ -996,6 +1078,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-022: Introduce canonical work-order revision identity in Ploeg
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M2; epic: E06; risk: critical; estimate: 8 relative points.
 Depends on: PV-014, PV-016, PV-071, PV-072, PV-073, PV-074
 
@@ -1042,6 +1125,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-023: Add fenced delivery attempts and ownership transitions
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M2; epic: E06; risk: critical; estimate: 8 relative points.
 Depends on: PV-022
 
@@ -1089,6 +1173,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-024: Expose authenticated operator work-order API
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M2; epic: E06; risk: critical; estimate: 5 relative points.
 Depends on: PV-023, PV-034
 
@@ -1133,6 +1218,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-025: Link Vloer sessions to Ploeg work orders and attempts
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M2; epic: E06; risk: critical; estimate: 5 relative points.
 Depends on: PV-024
 
@@ -1179,6 +1265,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-026: Implement stop-confirmed human takeover and handback
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M3; epic: E06; risk: critical; estimate: 8 relative points.
 Depends on: PV-025, PV-023, PV-006, PV-078
 
@@ -1224,6 +1311,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-027: Implement quiet idempotent tracker summary writeback
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M2; epic: E05; risk: high; estimate: 5 relative points.
 Depends on: PV-008, PV-018
 
@@ -1269,6 +1357,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-028: Add repository-specific Forgejo credential capability probes
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M2; epic: E05; risk: critical; estimate: 5 relative points.
 Depends on: PV-022
 
@@ -1314,6 +1403,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-029: Version crews, skills and repository contracts
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M3; epic: E07; risk: high; estimate: 5 relative points.
 Depends on: PV-022, PV-009
 
@@ -1360,6 +1450,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-030: Add tested runtime capability negotiation
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M3; epic: E07; risk: high; estimate: 5 relative points.
 Depends on: PV-005
 
@@ -1405,6 +1496,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-031: Qualify a second open agent runtime via the bridge
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M3; epic: E07; risk: high; estimate: 8 relative points.
 Depends on: PV-030, PV-010
 
@@ -1450,6 +1542,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-032: Add bounded parallel research with isolated branches
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M3; epic: E07; risk: high; estimate: 8 relative points.
 Depends on: PV-023, PV-029, PV-010
 
@@ -1495,6 +1588,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-033: Create crew and model evaluation corpus
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M4; epic: E07; risk: medium; estimate: 5 relative points.
 Depends on: PV-010, PV-029, PV-031
 
@@ -1540,6 +1634,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-034: Map organization, client, project and team authorization
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M2; epic: E08; risk: critical; estimate: 8 relative points.
 Depends on: PV-022
 
@@ -1585,6 +1680,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-035: Integrate OIDC browser login and role synchronization
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M3; epic: E08; risk: critical; estimate: 8 relative points.
 Depends on: PV-034
 
@@ -1630,6 +1726,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-036: Add public-client editor authentication
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M3; epic: E08; risk: critical; estimate: 5 relative points.
 Depends on: PV-035
 
@@ -1675,6 +1772,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-037: Enforce resource policy for untrusted remote workspaces
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M3; epic: E08; risk: critical; estimate: 8 relative points.
 Depends on: PV-034, PV-003
 
@@ -1719,6 +1817,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-038: Bind approvals to candidate, policy and permission lifetime
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M3; epic: E08; risk: critical; estimate: 5 relative points.
 Depends on: PV-011, PV-034
 
@@ -1764,6 +1863,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-039: Add secret redaction and controlled context export policy
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M3; epic: E08; risk: high; estimate: 5 relative points.
 Depends on: PV-034
 
@@ -1809,6 +1909,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-040: Move canonical reservations into the work-order ledger
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M3; epic: E09; risk: critical; estimate: 8 relative points.
 Depends on: PV-023, PV-034
 
@@ -1854,6 +1955,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-041: Qualify LiteLLM spend enforcement and late reconciliation
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M3; epic: E09; risk: critical; estimate: 5 relative points.
 Depends on: PV-040
 
@@ -1900,6 +2002,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-042: Add fair per-client capacity and admission controls
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M3; epic: E09; risk: high; estimate: 5 relative points.
 Depends on: PV-023, PV-040
 
@@ -1945,6 +2048,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-043: Reconcile orphan workspaces and expired capabilities
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M3; epic: E09; risk: critical; estimate: 5 relative points.
 Depends on: PV-023, PV-037, PV-040
 
@@ -1990,6 +2094,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-044: Expose client cost and delivery economics reports
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M4; epic: E09; risk: medium; estimate: 5 relative points.
 Depends on: PV-040, PV-041, PV-033
 
@@ -2035,6 +2140,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-045: Qualify the VS Code extension in actual supported hosts
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M0; epic: E10; risk: medium; estimate: 5 relative points.
 Depends on: No code dependencies in this seed; environment and human authorization still required.
 
@@ -2078,6 +2184,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-046: Add work-order inbox and ticket quick-open to VS Code
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M3; epic: E10; risk: high; estimate: 5 relative points.
 Depends on: PV-025, PV-036
 
@@ -2122,6 +2229,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-047: Provide native immutable candidate diff views
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M3; epic: E10; risk: high; estimate: 5 relative points.
 Depends on: PV-006, PV-007
 
@@ -2166,6 +2274,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-048: Add an explicit durable event revision and retention API
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M3; epic: E10; risk: high; estimate: 5 relative points.
 Depends on: PV-025
 
@@ -2211,6 +2320,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-049: Make human decisions usable across browser and editor
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M3; epic: E10; risk: high; estimate: 5 relative points.
 Depends on: PV-038, PV-048
 
@@ -2256,6 +2366,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-050: Design deliberate local context and remote workspace handoff
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M3; epic: E10; risk: high; estimate: 5 relative points.
 Depends on: PV-026, PV-039, PV-047
 
@@ -2300,6 +2411,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-051: Add OpenTelemetry and operational decision dashboards
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M4; epic: E11; risk: medium; estimate: 5 relative points.
 Depends on: PV-023, PV-040
 
@@ -2346,6 +2458,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-052: Automate backup, restore and evidence retention drills
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M4; epic: E11; risk: high; estimate: 5 relative points.
 Depends on: PV-007, PV-023
 
@@ -2391,6 +2504,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-053: Release immutable signed platform and extension artifacts
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M4; epic: E11; risk: high; estimate: 5 relative points.
 Depends on: PV-003, PV-045
 
@@ -2438,6 +2552,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-054: Add integration chaos qualification for the delivery loop
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M4; epic: E11; risk: high; estimate: 8 relative points.
 Depends on: PV-011, PV-018, PV-026, PV-041, PV-043
 
@@ -2483,6 +2598,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-055: Create declarative project onboarding and readiness diagnostics
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M4; epic: E11; risk: high; estimate: 5 relative points.
 Depends on: PV-018, PV-028, PV-035, PV-037
 
@@ -2528,6 +2644,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-056: Enforce single-owner store migrations and compatibility
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M4; epic: E11; risk: critical; estimate: 8 relative points.
 Depends on: PV-023, PV-048, PV-052
 
@@ -2574,6 +2691,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-057: Run a structured competitor workflow bakeoff
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M4; epic: E12; risk: low; estimate: 5 relative points.
 Depends on: PV-004, PV-033
 
@@ -2618,6 +2736,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-058: Interview agency/platform buyers around existing workflows
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M4; epic: E12; risk: low; estimate: 3 relative points.
 Depends on: No code dependencies in this seed; environment and human authorization still required.
 
@@ -2661,6 +2780,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-059: Publish an honest self-improvement demonstration
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M4; epic: E12; risk: low; estimate: 3 relative points.
 Depends on: PV-004, PV-045
 
@@ -2705,6 +2825,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-060: Create a paid pilot offer and delivery economics worksheet
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M5; epic: E12; risk: low; estimate: 3 relative points.
 Depends on: PV-044, PV-057, PV-058
 
@@ -2748,6 +2869,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-061: Publish capability and compatibility evidence catalog
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M4; epic: E12; risk: medium; estimate: 3 relative points.
 Depends on: PV-030, PV-054
 
@@ -2793,6 +2915,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-062: Package reusable crew and connector contribution contracts
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M5; epic: E12; risk: medium; estimate: 5 relative points.
 Depends on: PV-029, PV-030, PV-058
 
@@ -2838,6 +2961,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-063: Expose scoped read-only MCP tools for work inspection
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M5; epic: E07; risk: high; estimate: 5 relative points.
 Depends on: PV-034, PV-048, PV-061
 
@@ -2882,6 +3006,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-064: Create explicit local development and safe contributor bootstrap
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M0; epic: E11; risk: low; estimate: 3 relative points.
 Depends on: No code dependencies in this seed; environment and human authorization still required.
 
@@ -2928,6 +3053,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-065: Qualify GitLab issues as an optional tracker adapter
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M4; epic: E05; risk: high; estimate: 5 relative points.
 Depends on: PV-018, PV-022, PV-021
 
@@ -2972,6 +3098,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-066: Add scoped audit export and offboarding workflow
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M4; epic: E08; risk: high; estimate: 5 relative points.
 Depends on: PV-034, PV-035, PV-039, PV-052
 
@@ -3018,6 +3145,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-067: Make operator mutations idempotent and revision-checked
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M1; epic: E06; risk: critical; estimate: 5 relative points.
 Depends on: No code dependencies in this seed; environment and human authorization still required.
 
@@ -3063,6 +3191,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-068: Gate model profiles and controlled fallback behavior
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M3; epic: E09; risk: high; estimate: 5 relative points.
 Depends on: PV-029, PV-030, PV-040
 
@@ -3108,6 +3237,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-069: Set a maintainable open-source and brand contribution policy
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M4; epic: E12; risk: medium; estimate: 3 relative points.
 Depends on: PV-058
 
@@ -3153,6 +3283,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-070: Validate manual backlog briefs against real session limits
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M0; epic: E01; risk: low; estimate: 2 relative points.
 Depends on: PV-064
 
@@ -3197,6 +3328,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-071: Remove administrative authority from Ploeg worker environments
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M1; epic: E08; risk: critical; estimate: 5 relative points.
 Depends on: No code dependencies in this seed; environment and human authorization still required.
 
@@ -3242,6 +3374,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-072: Authenticate and scope Ploeg worker control endpoints
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M1; epic: E08; risk: critical; estimate: 5 relative points.
 Depends on: No code dependencies in this seed; environment and human authorization still required.
 
@@ -3287,6 +3420,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-073: Retain Ploeg budget holds across worker death
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M1; epic: E09; risk: critical; estimate: 5 relative points.
 Depends on: PV-071, PV-072
 
@@ -3332,8 +3466,23 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-074: Require explicit Ploeg reviewer approval in fix rounds
 
 Target repository: ploeg
+Local planning status: review; this is not the tracker's current status or permission to execute.
 Milestone: M1; epic: E03; risk: critical; estimate: 3 relative points.
 Depends on: No code dependencies in this seed; environment and human authorization still required.
+
+#### Existing implementation candidate
+
+Ploeg patch requires successful explicit approval from every configured final reader; incomplete review remains needs_human and never opens new paid work.
+
+Review this evidence before assigning implementation again:
+
+- integrations/ploeg/README.md contains the Ploeg patch and baseline.
+- Ploeg reviewapproval_test.go and strengthened no-verdict regression cover missing/failed/stale/conflicting approval and retained budget; Go/PostgreSQL execution is pending.
+
+Remaining before acceptance:
+
+- [ ] Run Go formatting/build/vet, embedded PostgreSQL and full CI gates, including old-code regression proof.
+- [ ] Human review and actual deployment qualification; existing budget/cap stop reasons remain distinct.
 
 #### Problem
 
@@ -3376,6 +3525,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-075: Turn forge feedback into candidate-bound follow-up work
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M2; epic: E05; risk: high; estimate: 5 relative points.
 Depends on: PV-016, PV-022, PV-074, PV-011
 
@@ -3421,6 +3571,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-076: Park paused workspaces and enforce retained-resource quotas
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M3; epic: E09; risk: high; estimate: 5 relative points.
 Depends on: PV-007, PV-043
 
@@ -3466,6 +3617,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-077: Bound event, artifact and webhook memory surfaces
 
 Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M1; epic: E11; risk: high; estimate: 5 relative points.
 Depends on: No code dependencies in this seed; environment and human authorization still required.
 
@@ -3511,6 +3663,7 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 ### PV-078: Fence publication through a trusted forge publisher
 
 Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M2; epic: E06; risk: critical; estimate: 8 relative points.
 Depends on: PV-023, PV-028, PV-071, PV-011
 

@@ -16,6 +16,11 @@ export function validateBacklog(backlog) {
     for (const field of ['acceptanceCriteria', 'verification', 'definitionOfReady', 'definitionOfDone']) if (!Array.isArray(task[field]) || !task[field].length || task[field].some(value => typeof value !== 'string' || !value.trim())) throw new Error(`Missing ${field}: ${task.id}`);
     if (!Array.isArray(task.dependsOn) || new Set(task.dependsOn).size !== task.dependsOn.length) throw new Error(`Invalid dependencies: ${task.id}`);
     if (!Number.isInteger(task.priority) || task.priority < 1 || task.priority > 4) throw new Error(`Invalid priority: ${task.id}`);
+    if (task.implementation) {
+      const progress = task.implementation;
+      if (!['candidate', 'partial_candidate'].includes(progress.state) || typeof progress.summary !== 'string' || !progress.summary.trim()) throw new Error(`Invalid implementation evidence: ${task.id}`);
+      for (const field of ['evidence', 'remaining']) if (!Array.isArray(progress[field]) || !progress[field].length || progress[field].some(value => typeof value !== 'string' || !value.trim())) throw new Error(`Missing implementation ${field}: ${task.id}`);
+    }
     ids.set(task.id, task);
   }
   const visited = new Set(); const visiting = new Set(); const order = [];
@@ -35,7 +40,8 @@ export function validateBacklog(backlog) {
   return { count: ids.size, order };
 }
 export function brief(task) {
-  return [`# ${task.id}: ${task.title}`, '', `Target repository: ${task.targetRepository}`, `Milestone: ${task.milestone}; epic: ${task.epic}; risk: ${task.risk}; estimate: ${task.estimatePoints} relative points.`, `Depends on: ${task.dependsOn.join(', ') || 'No code dependencies in this seed; environment and human authorization still required.'}`, '', '## Problem', '', task.problem, '', '## Acceptance criteria', '', ...task.acceptanceCriteria.map(item => `- [ ] ${item}`), '', '## Verification', '', ...task.verification.map(item => `- [ ] ${item}`), '', '## Definition of ready', '', ...task.definitionOfReady.map(item => `- [ ] ${item}`), '', '## Definition of done', '', ...task.definitionOfDone.map(item => `- [ ] ${item}`), '', '## Starting points', '', ...task.sourcePaths.map(path => `- ${path.trim()}`), '', '## Execution boundary', '', 'This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.', ''].join('\n');
+  const progress = task.implementation ? ['## Existing implementation candidate', '', task.implementation.summary, '', 'Review this evidence before assigning implementation again:', '', ...task.implementation.evidence.map(value => `- ${value}`), '', 'Remaining before acceptance:', '', ...task.implementation.remaining.map(value => `- [ ] ${value}`), ''] : [];
+  return [`# ${task.id}: ${task.title}`, '', `Target repository: ${task.targetRepository}`, `Local planning status: ${task.status}; this is not the tracker's current status or permission to execute.`, `Milestone: ${task.milestone}; epic: ${task.epic}; risk: ${task.risk}; estimate: ${task.estimatePoints} relative points.`, `Depends on: ${task.dependsOn.join(', ') || 'No code dependencies in this seed; environment and human authorization still required.'}`, '', ...progress, '## Problem', '', task.problem, '', '## Acceptance criteria', '', ...task.acceptanceCriteria.map(item => `- [ ] ${item}`), '', '## Verification', '', ...task.verification.map(item => `- [ ] ${item}`), '', '## Definition of ready', '', ...task.definitionOfReady.map(item => `- [ ] ${item}`), '', '## Definition of done', '', ...task.definitionOfDone.map(item => `- [ ] ${item}`), '', '## Starting points', '', ...task.sourcePaths.map(path => `- ${path.trim()}`), '', '## Execution boundary', '', 'This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.', ''].join('\n');
 }
 export function csvCell(value) {
   let text = String(value ?? '');
@@ -44,7 +50,8 @@ export function csvCell(value) {
 }
 export function clickupCsv(backlog) {
   const header = ['Task Name', 'Description content', 'Status', 'Priority', 'Labels', 'Plan ID', 'Target repository', 'Milestone', 'Depends on', 'Estimate points'];
-  return [header, ...backlog.tickets.map(task => [`[${task.id}] ${task.title}`, brief(task), 'Planned', task.priority, `ploeg-vloer|${task.epic.toLowerCase()}|${task.risk}`, task.id, task.targetRepository, task.milestone, task.dependsOn.join('|'), task.estimatePoints])].map(row => row.map(csvCell).join(',')).join('\r\n') + '\r\n';
+  const statuses = { planned: 'Planned', in_progress: 'In progress', review: 'Review', accepted: 'Accepted', deferred: 'Deferred' };
+  return [header, ...backlog.tickets.map(task => [`[${task.id}] ${task.title}`, brief(task), statuses[task.status], task.priority, `ploeg-vloer|${task.epic.toLowerCase()}|${task.risk}`, task.id, task.targetRepository, task.milestone, task.dependsOn.join('|'), task.estimatePoints])].map(row => row.map(csvCell).join(',')).join('\r\n') + '\r\n';
 }
 export function sessionPayload(task, options) {
   for (const name of ['repositoryId', 'crewId']) if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(options[name] ?? '')) throw new Error(`${name} must be an explicitly selected registered profile ID`);
