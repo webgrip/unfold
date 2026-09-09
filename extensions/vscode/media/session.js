@@ -39,10 +39,10 @@ function render() {
   const { session, user, mode, permissions, events } = detail;
   const writer = user.role !== 'viewer';
   const mutable = writer && connected && !pending;
-  const actionable = ['queued', 'running', 'waiting_input', 'paused', 'interrupted'].includes(session.status);
+  const actionable = ['queued', 'running', 'exporting', 'waiting_input', 'paused', 'interrupted'].includes(session.status);
   const header = element('header', { className: 'session-header' },
     element('div', { className: 'eyebrow' }, element('span', { className: 'brand-mark', 'aria-hidden': 'true' }, '▦'), 'DE VLOER', element('span', { className: 'remote-label' }, 'REMOTE SESSION')),
-    element('div', { className: 'title-row' }, element('h1', {}, session.title), element('span', { className: `pill status-${session.status}` }, readable(session.status))),
+    element('div', { className: 'title-row' }, element('h1', {}, session.title), element('span', { className: `pill status-${session.status}` }, session.status === 'exporting' ? 'Preparing review' : readable(session.status))),
     element('p', { className: 'subtitle' }, session.repositoryId, ' / ', session.crewId, ' · ', session.runtime),
     element('div', { className: 'toolbar', 'aria-label': 'Session actions' },
       ...(writer && session.status === 'queued' ? [action('Start remote crew', 'start', { className: 'primary', disabled: !mutable })] : []),
@@ -80,6 +80,15 @@ function render() {
     );
   } else if (tab === 'evidence') {
     content = element('section', {}, element('div', { className: 'section-heading' }, element('h2', {}, 'Reviewable evidence'), element('span', {}, 'Read-only editor documents')),
+      ...(session.candidate ? [element('section', { className: `candidate-card candidate-${session.candidate.status}`, 'aria-label': 'Review candidate' },
+        element('div', { className: 'section-heading' }, element('h3', {}, session.candidate.status === 'ready' ? 'Complete review candidate' : 'Candidate export unavailable'), element('span', {}, session.candidate.status === 'ready' ? `${session.candidate.fileCount ?? 'Captured'} ${session.candidate.fileCount === 1 ? 'file' : 'files'} · Git snapshot` : 'Inspect retained evidence')),
+        ...(session.candidate.status === 'ready' ? [
+          element('p', { className: 'muted' }, 'Download the captured repository change for review. Files are saved only after you choose a destination.'),
+          element('dl', { className: 'candidate-revisions' }, labelValue('Base', session.candidate.baseSha || 'See manifest'), labelValue('Candidate', session.candidate.headSha || 'See manifest')),
+          element('div', { className: 'toolbar' }, action('Download Git bundle', 'download-candidate', { className: 'primary', 'data-format': 'bundle', disabled: !connected || pending }), action('Download patch', 'download-candidate', { 'data-format': 'patch', disabled: !connected || pending }), action('Download manifest', 'download-candidate', { 'data-format': 'manifest', disabled: !connected || pending })),
+          element('p', { className: 'footnote' }, 'An export records repository state. Review approvals and trusted verification remain separate evidence.'),
+        ] : [element('p', { className: 'preserve' }, session.candidate.message || session.candidate.reason || 'The server could not retain a complete candidate. Review the session history before proceeding.')]),
+      )] : []),
       ...(!session.artifacts.length ? [element('div', { className: 'empty-state' }, element('h3', {}, 'Evidence will appear here'), element('p', {}, 'The crew returns repository changes, actual checks and a handoff as it works.'))] : []),
       element('div', { className: 'evidence-list' }, ...session.artifacts.map(artifact => action('', 'artifact', { className: 'artifact', 'data-id': artifact.id, 'aria-label': `Open ${artifact.kind}: ${artifact.name}` })).map((button, index) => {
         const artifact = session.artifacts[index];
@@ -106,6 +115,7 @@ function render() {
   }
   const side = element('aside', { className: 'side-column', 'aria-label': 'Session context' },
     element('section', { className: 'budget-card' }, element('div', { className: 'eyebrow' }, 'OBSERVED SPEND'), element('p', { className: 'spend' }, currency(session.spentUsd)), element('p', { className: 'muted' }, `of ${currency(session.budgetUsd)} authorized`), element('progress', { max: session.budgetUsd, value: Math.min(session.spentUsd, session.budgetUsd), 'aria-label': 'Observed spending against authorized budget' }), element('div', { className: `cost-status cost-${session.costStatus}` }, session.costStatus === 'demo' ? 'Demo · no AI calls' : session.costStatus === 'settled' ? 'Spend reconciled' : session.costStatus === 'unknown' ? 'Spend unavailable · reservation retained' : 'Settlement pending'), element('p', { className: 'footnote' }, session.costStatus === 'demo' ? 'This fixture verifies the workflow without using an LLM.' : 'In-flight requests and delayed provider reports can affect final spending.')),
+    ...(session.sourceTask ? [element('section', { className: 'context-card source-task-card' }, element('div', { className: 'eyebrow' }, 'LINKED TASK'), element('h2', { className: 'preserve' }, session.sourceTask.title), element('p', { className: 'muted' }, `${session.sourceTask.provider} #${session.sourceTask.id} · ${session.sourceTask.status}`), action('Open imported snapshot', 'source-task', { className: 'quiet', disabled: !connected }), element('p', { className: 'footnote' }, 'Pinned source revision. Tracker assignment and status stay in the task system.'))] : []),
     element('section', { className: 'context-card' }, element('h2', {}, 'Session context'), element('dl', {}, labelValue('Operator', session.ownerName), labelValue('Branch', session.branch), labelValue('Runtime', session.runtime), labelValue('Created', new Date(session.createdAt).toLocaleString()), labelValue('Last server change', new Date(session.updatedAt).toLocaleString()))),
     element('p', { className: 'local-note' }, 'Your laptop is the control surface. The server owns execution, history and workspace resources.'),
   );
@@ -124,7 +134,7 @@ document.addEventListener('click', event => {
   const type = button.dataset.action;
   if (type === 'tab') { tab = button.dataset.tab; remember(); render(); return; }
   if (['start', 'pause', 'resume', 'cancel', 'permission'].includes(type)) { pending = true; render(); }
-  bridge.postMessage({ type, ...(button.dataset.id ? { id: button.dataset.id } : {}) });
+  bridge.postMessage({ type, ...(button.dataset.id ? { id: button.dataset.id } : {}), ...(button.dataset.format ? { format: button.dataset.format } : {}) });
 });
 
 document.addEventListener('keydown', event => {

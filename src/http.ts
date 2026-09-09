@@ -5,6 +5,8 @@ import type { AppConfig, User, RuntimeKind, Session } from './types.ts';
 import { Auth } from './auth.ts';
 import type { Engine } from './engine.ts';
 import { publicSession, type Store } from './store.ts';
+import { getTask, listTasks, publicTaskSource, TaskError } from './tasks.ts';
+import { readCandidate, unavailableCandidate } from './candidates.ts';
 
 function fault(status: number, code: string, message: string): never { throw Object.assign(new Error(message), { status, code }); }
 
@@ -50,11 +52,16 @@ function mutationGuard(req: IncomingMessage, config: AppConfig): void {
 export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[]) {
   const auth = new Auth(store, config);
   const streams = new Set<ServerResponse>();
-  const knownSecrets = [config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword].filter((value): value is string => Boolean(value && value.length > 5));
+  const knownSecrets = [config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword, ...(config.taskSources ?? []).map(source => source.token)].filter((value): value is string => Boolean(value));
   function sanitize<T>(value: T): T {
-    let encoded = JSON.stringify(value);
-    for (const secret of knownSecrets) encoded = encoded.split(JSON.stringify(secret).slice(1, -1)).join('[redacted]');
-    return JSON.parse(encoded);
+    if (typeof value === 'string') {
+      let cleaned: string = value;
+      for (const secret of knownSecrets) cleaned = cleaned.split(secret).join('[redacted]');
+      return cleaned as T;
+    }
+    if (Array.isArray(value)) return value.map(item => sanitize(item)) as T;
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sanitize(item)])) as T;
+    return value;
   }
   function visible(id: string, user: User): Session {
     const session = store.getSession(id);
@@ -73,7 +80,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       if (path === '/healthz' || path === '/readyz') {
         if (method !== 'GET') return json(res, 405, { error: { code: 'method', message: 'GET required.' } });
         store.listSessions();
-        return json(res, 200, { status: 'ok', version: '0.1.0' });
+        return json(res, 200, { status: 'ok', version: '0.2.0' });
       }
       if (['POST','PUT','PATCH','DELETE'].includes(method)) mutationGuard(req, config);
       if (method === 'POST' && path === '/api/login') {
@@ -91,12 +98,41 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         if (!user) return json(res, 401, { error: { code: 'unauthenticated', message: 'Sign in to your workbench.' } });
         if (method === 'GET' && path === '/api/bootstrap') return json(res, 200, sanitize({
           user, mode: config.mode,
-          repositories: config.repositories.map(({ id, name, description, baseBranch, trackerUrl }) => ({ id, name, description, baseBranch, trackerUrl })),
+          repositories: config.repositories.map(({ id, name, description, baseBranch, trackerUrl, executionOwner }) => ({ id, name, description, baseBranch, trackerUrl, executionOwner: executionOwner ?? 'interactive' })),
+          taskSources: (config.taskSources ?? []).map(publicTaskSource),
           crews: config.crews, models: config.models,
           runtimes: runtimeKinds.map(id => ({ id, name: id === 'demo' ? 'Demonstration' : id === 'opencode' ? 'OpenCode' : 'Command bridge', available: true })),
           maxBudgetUsd: config.maxBudgetUsd, maxConcurrentSessions: config.maxConcurrentSessions
         }));
-        if (method === 'GET' && path === '/api/health') return json(res, 200, { status: 'ok', mode: config.mode, version: '0.1.0', runtimes: runtimeKinds, litellm: Boolean(config.litellm), workspaceBackend: config.mode === 'demo' ? 'demo' : config.runtime.backend });
+        if (method === 'GET' && path === '/api/health') return json(res, 200, { status: 'ok', mode: config.mode, version: '0.2.0', runtimes: runtimeKinds, litellm: Boolean(config.litellm), workspaceBackend: config.mode === 'demo' ? 'demo' : config.runtime.backend });
+        if (method === 'GET' && path === '/api/task-sources') return json(res, 200, sanitize((config.taskSources ?? []).map(publicTaskSource)));
+        const taskRoute = path.match(/^\/api\/task-sources\/([a-z0-9-]+)\/tasks(?:\/([a-zA-Z0-9_-]+))?$/);
+        if (method === 'GET' && taskRoute) {
+          const source = config.taskSources?.find(item => item.id === taskRoute[1]);
+          if (!source) fault(404, 'source_not_found', 'Task connection not found.');
+          if (taskRoute[2]) return json(res, 200, sanitize(await getTask(source!, taskRoute[2])));
+          const page = Number(url.searchParams.get('page') ?? 1);
+          if (!Number.isSafeInteger(page) || page < 1 || page > 1000) fault(400, 'page', 'Choose a page between 1 and 1000.');
+          return json(res, 200, sanitize(await listTasks(source!, page)));
+        }
+        if (method === 'POST' && path === '/api/task-imports') {
+          if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot import tasks.');
+          const data = await body(req);
+          const sourceId = text(data.sourceId, 'Connection', 64);
+          const taskId = text(data.taskId, 'Task', 128);
+          const revision = text(data.revision, 'Task revision', 128);
+          const crewId = text(data.crewId, 'Crew', 64);
+          const runtime = text(data.runtime, 'Runtime', 32) as RuntimeKind;
+          const source = config.taskSources?.find(item => item.id === sourceId);
+          if (!source) fault(404, 'source_not_found', 'Task connection not found.');
+          if (source!.executionOwner !== 'interactive' || config.repositories.find(repo => repo.id === source!.repositoryId)?.executionOwner === 'ploeg') fault(403, 'ploeg_owned', 'Ploeg owns execution for this task connection. Assign its work through the tracker.');
+          if (!runtimeKinds.includes(runtime) || !config.crews.some(crew => crew.id === crewId)) fault(400, 'unknown_profile', 'Choose a configured crew and runtime.');
+          if (typeof data.budgetUsd !== 'number' || !Number.isFinite(data.budgetUsd) || data.budgetUsd <= 0 || data.budgetUsd > config.maxBudgetUsd) fault(400, 'budget', `Budget must be greater than zero and at most $${config.maxBudgetUsd}.`);
+          const snapshot = await getTask(source!, taskId);
+          if (snapshot.revision !== revision) fault(409, 'task_changed', 'The task changed after your preview. Refresh it and review the updated version.');
+          const result = engine.importTask(snapshot, { crewId, runtime, budgetUsd: data.budgetUsd as number }, user);
+          return json(res, result.created ? 201 : 200, sanitize(publicSession(result.session)));
+        }
         if (method === 'GET' && path === '/api/sessions') return json(res, 200, sanitize(store.listSessions().filter(session => session.ownerId === user.id || user.role === 'admin').map(publicSession)));
         if (method === 'POST' && path === '/api/sessions') {
           if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot start work.');
@@ -134,6 +170,16 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const [, id, action = ''] = match;
           const session = visible(id, user);
           if (method === 'GET' && !action) return json(res, 200, sanitize(publicSession(session)));
+          if (method === 'GET' && action === 'candidate') return json(res, 200, sanitize(session.candidate ?? unavailableCandidate(['completed', 'failed', 'cancelled'].includes(session.status) ? 'unsupported_workspace' : 'not_ready')));
+          if (method === 'GET' && action === 'candidate/download') {
+            const format = url.searchParams.get('format');
+            if (!['bundle', 'patch', 'manifest'].includes(format ?? '')) fault(400, 'candidate_format', 'Choose bundle, patch or manifest.');
+            if (session.candidate?.status !== 'ready') fault(409, 'candidate_unavailable', 'A complete export is not available for this session.');
+            const artifact = await readCandidate(config.dataDir, id, format as 'bundle' | 'patch' | 'manifest');
+            res.writeHead(200, { 'Content-Type': artifact.contentType, 'Content-Length': artifact.content.length, 'Content-Disposition': `attachment; filename="${artifact.filename}"`, 'Cache-Control': 'no-store' });
+            res.end(artifact.content);
+            return;
+          }
           if (method === 'GET' && action === 'history') {
             const after = Math.max(0, Math.floor(Number(url.searchParams.get('after')) || 0));
             return json(res, 200, sanitize(store.events(id, after)));
@@ -195,7 +241,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       if (res.headersSent) { res.end(); return; }
       const status = Number(error.status || error.statusCode) || 500;
       const code = error.code || (status === 500 ? 'internal_error' : 'request_failed');
-      const message = status >= 500 ? 'The operation could not be completed. Check the server log.' : error.message;
+      const message = status >= 500 && !(error instanceof TaskError) ? 'The operation could not be completed. Check the server log.' : error.message;
       if (status >= 500) console.error(JSON.stringify({ level: 'error', event: 'http.failed', message: String(error.message).slice(0, 200).replace(/sk-[\w-]+/g, '[redacted]') }));
       json(res, status, sanitize({ error: { code, message } }));
     }

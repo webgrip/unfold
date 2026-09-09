@@ -1,5 +1,11 @@
 # IDE and operator experience
 
+## 0.2.0 implementation update
+
+The shipped VSIX now includes a native **Linked Tasks** tree and a shared task browsing/import workflow for Vikunja, ClickUp, Forgejo, GitHub and GitLab. Operators inspect a read-only source preview, choose the crew/runtime/budget, create a queued session and start it separately. Session views retain the imported source snapshot. The evidence panel and **Download Review Candidate** command save an authenticated Git bundle, binary patch or manifest through an explicit local save dialog. Task-provider credentials stay on the server; the editor uses its existing origin-bound Vloer login.
+
+The browser exposes the same connections and API through a Tasks workspace, revision preview and repository handoff panel. This release has actual server-client and browser-rendered webview coverage. Native VS Code Extension Host activation and desktop SecretStorage still require qualification on a machine with VS Code. [Release instructions](../operations/iteration-0.2.0.md) describe the implemented flow; the remaining editor architecture below is the planned product scope.
+
 Status: target design with an implementation baseline. Research checked 9 September 2026. This document specifies behavior to build; it does not certify that proposed endpoints, team sharing, remote editor attachment or tracker dispatch already exist. The extension's [README](../../extensions/vscode/README.md), [HTTP contract](../contracts/api.md), source and tests describe the shipped slice.
 
 ## 1. The experience we are building

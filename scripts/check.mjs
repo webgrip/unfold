@@ -26,7 +26,7 @@ function inspectConfig(value, path, pointer = '') {
   if (!value || typeof value !== 'object') return;
   for (const [key, item] of Object.entries(value)) {
     const location = `${pointer}/${key}`;
-    if (/^(masterKey|bootstrapPassword|password|apiKey|accessToken|privateKey)$/i.test(key) && typeof item === 'string' && item.length && !/^\$\{[A-Z_][A-Z0-9_]*\}$/.test(item)) fail(path, `credential value at ${location}; supply it through the supported environment or secret mount`);
+    if (/^(masterKey|bootstrapPassword|password|apiKey|accessToken|privateKey|token)$/i.test(key) && typeof item === 'string' && item.length && !/^\$\{[A-Z_][A-Z0-9_]*\}$/.test(item)) fail(path, `credential value at ${location}; supply it through the supported environment or secret mount`);
     if (/^(url|endpoint|baseUrl|adminUrl)$/i.test(key) && typeof item === 'string' && /^https?:/.test(item)) {
       try {
         const parsed = new URL(item);

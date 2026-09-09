@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { unavailableCandidate, type Candidate } from '../candidates.ts';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { AgentRuntime, AppConfig, Artifact, Credential, ExecutionContext, ExecutionResult, PermissionRequest, Repository, Session, Workspace } from '../types.ts';
 import { WorkspaceManager } from './workspace.ts';
@@ -9,6 +10,7 @@ export interface RuntimeWorkspaces {
   credentials(workspace: Workspace): { username: string; password: string } | undefined;
   executionEnvironment(workspace: Workspace): Record<string, string>;
   dispose(workspace: Workspace): Promise<void>;
+  captureCandidate?(session: Session, repository: Repository): Promise<Candidate>;
 }
 
 type WireRecord = Record<string, any>;
@@ -281,6 +283,8 @@ export class OpenCodeRuntime implements AgentRuntime {
     }
     if (workspace.nativeSessionId) await this.request(workspace, `/session/${encodeURIComponent(workspace.nativeSessionId)}/abort`, 'POST');
   }
+
+  captureCandidate(session: Session, repository: Repository): Promise<Candidate> { return this.workspaces.captureCandidate?.(session, repository) ?? Promise.resolve(unavailableCandidate('unsupported_workspace')); }
 
   dispose(workspace: Workspace): Promise<void> { return this.workspaces.dispose(workspace); }
 }

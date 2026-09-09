@@ -1,9 +1,13 @@
 import * as vscode from 'vscode';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, createHash } from 'node:crypto';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { writeFile } from 'node:fs/promises';
 import { ApiError, VloerClient, normalizeServerUrl } from './client.js';
-import type { Bootstrap, Session, SessionDetail, SessionEvent } from './types.js';
+import type { Bootstrap, Session, SessionDetail, SessionEvent, TaskSource, TaskSnapshot, TaskPage, CandidateFormat } from './types.js';
 
 const statuses: Record<string, { name: string; icon: string }> = {
+  exporting: { name: 'Preparing review', icon: 'package' },
   queued: { name: 'Ready to start', icon: 'circle-outline' }, running: { name: 'Running remotely', icon: 'sync~spin' },
   waiting_input: { name: 'Needs your decision', icon: 'bell-dot' }, paused: { name: 'Paused', icon: 'debug-pause' },
   interrupted: { name: 'Interrupted', icon: 'debug-disconnect' }, completed: { name: 'Reviewed', icon: 'pass' },
@@ -48,10 +52,67 @@ class SessionTree implements vscode.TreeDataProvider<TreeEntry> {
     if (this.message) return [{ kind: 'message', label: this.message }];
     const groups = [
       { label: 'Needs attention', statuses: ['waiting_input', 'paused', 'interrupted', 'failed'] },
-      { label: 'In progress', statuses: ['running'] }, { label: 'Ready', statuses: ['queued'] },
+      { label: 'In progress', statuses: ['running', 'exporting'] }, { label: 'Ready', statuses: ['queued'] },
       { label: 'History', statuses: ['completed', 'cancelled'] },
     ];
     return groups.map(group => ({ kind: 'group' as const, label: group.label, sessions: this.sessions.filter(session => group.statuses.includes(session.status)) })).filter(group => group.sessions.length);
+  }
+  dispose() { this.changed.dispose(); }
+}
+
+type TaskEntry = { kind: 'source'; source: TaskSource } | { kind: 'task'; source: TaskSource; task: TaskSnapshot } | { kind: 'more'; source: TaskSource; page: number } | { kind: 'message'; label: string };
+
+class TaskTree implements vscode.TreeDataProvider<TaskEntry> {
+  private readonly changed = new vscode.EventEmitter<TaskEntry | undefined>();
+  readonly onDidChangeTreeData = this.changed.event;
+  private sources: TaskSource[] = [];
+  private cache = new Map<string, TaskPage>();
+  private message = 'Connect to browse linked tasks';
+  private readonly load: (sourceId: string, page: number) => Promise<TaskPage>;
+  constructor(load: (sourceId: string, page: number) => Promise<TaskPage>) { this.load = load; }
+  update(sources: TaskSource[], message = '') {
+    if (JSON.stringify(sources) === JSON.stringify(this.sources) && message === this.message) return;
+    this.sources = sources; this.message = message; this.cache.clear(); this.changed.fire(undefined);
+  }
+  refresh() { this.cache.clear(); this.changed.fire(undefined); }
+  getTreeItem(entry: TaskEntry): vscode.TreeItem {
+    if (entry.kind === 'message') {
+      const item = new vscode.TreeItem(entry.label);
+      item.iconPath = new vscode.ThemeIcon('info');
+      return item;
+    }
+    if (entry.kind === 'source') {
+      const item = new vscode.TreeItem(entry.source.name, vscode.TreeItemCollapsibleState.Collapsed);
+      item.id = `source:${entry.source.id}`;
+      item.description = `${entry.source.provider} · ${entry.source.repositoryId}`;
+      item.tooltip = `${entry.source.name}\n${entry.source.provider} → ${entry.source.repositoryId}\n${entry.source.executionOwner === 'ploeg' ? 'Ploeg owns execution; inspect tasks here.' : 'Operator-led sessions; import is a separate action.'}`;
+      item.iconPath = new vscode.ThemeIcon(entry.source.executionOwner === 'ploeg' ? 'server-process' : 'checklist');
+      return item;
+    }
+    if (entry.kind === 'more') {
+      const item = new vscode.TreeItem('Browse more tasks…');
+      item.iconPath = new vscode.ThemeIcon('ellipsis');
+      item.command = { command: 'vloer.browseTasks', title: 'Browse more linked tasks', arguments: [entry] };
+      return item;
+    }
+    const item = new vscode.TreeItem(entry.task.title);
+    item.id = `task:${entry.source.id}:${entry.task.id}`;
+    item.description = `#${entry.task.id} · ${entry.task.status}`;
+    item.tooltip = `${entry.task.title}\n${entry.task.status} · ${entry.task.provider}\n${entry.task.description.slice(0, 350)}`;
+    item.iconPath = new vscode.ThemeIcon('issues');
+    item.contextValue = `task:${entry.source.executionOwner}`;
+    item.command = { command: 'vloer.importTask', title: 'Preview linked task', arguments: [entry] };
+    item.accessibilityInformation = { label: `${entry.task.title}, ${entry.task.status}, ${entry.source.name}` };
+    return item;
+  }
+  async getChildren(entry?: TaskEntry): Promise<TaskEntry[]> {
+    if (!entry) return this.message ? [{ kind: 'message', label: this.message }] : this.sources.map(source => ({ kind: 'source', source }));
+    if (entry.kind !== 'source') return [];
+    try {
+      const page = this.cache.get(entry.source.id) ?? await this.load(entry.source.id, 1);
+      this.cache.set(entry.source.id, page);
+      return [...page.tasks.map(task => ({ kind: 'task' as const, source: entry.source, task })), ...(page.nextPage ? [{ kind: 'more' as const, source: entry.source, page: page.nextPage }] : []), ...(!page.tasks.length ? [{ kind: 'message' as const, label: 'No open tasks in this source' }] : [])];
+    } catch (error) { return [{ kind: 'message', label: error instanceof Error ? error.message : 'Could not load tasks. Refresh to try again.' }]; }
   }
   dispose() { this.changed.dispose(); }
 }
@@ -78,6 +139,8 @@ class Workbench implements vscode.Disposable {
   private bootstrap?: Bootstrap;
   private readonly tree = new SessionTree();
   private readonly view: vscode.TreeView<TreeEntry>;
+  private readonly tasks: TaskTree;
+  private readonly taskView: vscode.TreeView<TaskEntry>;
   private readonly status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 10);
   private readonly documents = new EvidenceDocuments();
   private readonly panels = new Map<string, PanelState>();
@@ -92,19 +155,27 @@ class Workbench implements vscode.Disposable {
     try { this.client = new VloerClient(vscode.workspace.getConfiguration('vloer').get('serverUrl', 'http://127.0.0.1:4080'), context.secrets); }
     catch (error) { this.client = new VloerClient('http://127.0.0.1:4080', context.secrets); this.configurationError = error as Error; }
     this.view = vscode.window.createTreeView('vloer.sessions', { treeDataProvider: this.tree, showCollapseAll: true });
+    this.tasks = new TaskTree(async (sourceId, page) => {
+      const target = this.client; const revision = this.revision;
+      const result = await target.tasks(sourceId, page);
+      this.assertTarget(target, revision);
+      return result;
+    });
+    this.taskView = vscode.window.createTreeView('vloer.tasks', { treeDataProvider: this.tasks, showCollapseAll: true });
     this.status.text = '$(layers) Vloer';
     this.status.tooltip = 'Open remote agent sessions';
     this.status.command = 'vloer.sessions.focus';
     this.status.show();
-    context.subscriptions.push(this.tree, this.view, this.status, vscode.workspace.registerTextDocumentContentProvider('vloer-evidence', this.documents));
+    context.subscriptions.push(this.tree, this.view, this.tasks, this.taskView, this.status, vscode.workspace.registerTextDocumentContentProvider('vloer-evidence', this.documents));
     context.subscriptions.push(this.view.onDidChangeVisibility(event => { if (event.visible) void this.refresh(); }));
-    context.subscriptions.push(context.secrets.onDidChange(event => { if (event.key === this.client.secretKey) { this.revision++; this.bootstrap = undefined; this.closePanels(); } }));
+    context.subscriptions.push(context.secrets.onDidChange(event => { if (event.key === this.client.secretKey) { this.revision++; this.bootstrap = undefined; this.closePanels(); this.tasks.update([], 'Connection changed — refresh linked tasks'); } }));
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
       if (event.affectsConfiguration('vloer.serverUrl')) {
         const configured = vscode.workspace.getConfiguration('vloer').get('serverUrl', '');
         if (configured === this.client.origin && !this.configurationError) return;
         this.revision++;
         this.closePanels();
+        this.tasks.update([], 'Connection changed — refresh linked tasks');
         this.bootstrap = undefined;
         try { this.client = new VloerClient(configured, context.secrets); this.configurationError = undefined; void this.refresh(); }
         catch (error) { this.configurationError = error as Error; this.offline(error); }
@@ -116,6 +187,11 @@ class Workbench implements vscode.Disposable {
     register('signOut', () => this.signOut());
     register('refresh', () => this.refresh(true));
     register('create', () => this.create());
+    register('browseTasks', value => this.browseTasks(value));
+    register('refreshTasks', async () => { await this.refresh(true); this.tasks.refresh(); });
+    register('importTask', value => this.importTask(value));
+    register('sourceTask', value => this.sourceTask(value));
+    register('downloadCandidate', value => this.downloadCandidate(value));
     register('open', value => this.open(value));
     register('history', value => this.history(value));
     register('sendInstruction', value => this.sendInstruction(value));
@@ -133,7 +209,7 @@ class Workbench implements vscode.Disposable {
 
   private poll() {
     const seconds = Math.max(2, Math.min(60, vscode.workspace.getConfiguration('vloer').get('refreshIntervalSeconds', 5)));
-    return setInterval(() => { if (this.view.visible || [...this.panels.values()].some(value => value.panel.visible)) void this.refresh(); }, seconds * 1000);
+    return setInterval(() => { if (this.view.visible || this.taskView.visible || [...this.panels.values()].some(value => value.panel.visible)) void this.refresh(); }, seconds * 1000);
   }
 
   private async perform(action: () => Promise<unknown>): Promise<void> {
@@ -150,6 +226,7 @@ class Workbench implements vscode.Disposable {
     this.bootstrap = undefined;
     const needsLogin = error instanceof ApiError && error.status === 401;
     this.tree.update([], needsLogin ? 'Sign in to your workbench' : 'Workbench unavailable — reconnect');
+    this.tasks.update([], needsLogin ? 'Sign in to browse linked tasks' : 'Reconnect to browse linked tasks');
     this.view.message = needsLogin ? 'Your session has expired.' : 'Remote work continues independently. Reconnect to inspect it.';
     this.status.text = needsLogin ? '$(account) Vloer: sign in' : '$(debug-disconnect) Vloer: offline';
     void vscode.commands.executeCommand('setContext', 'vloer.connected', false);
@@ -174,8 +251,10 @@ class Workbench implements vscode.Disposable {
       if (client !== this.client || revision !== this.revision || this.disposed) return;
       this.bootstrap = bootstrap;
       this.tree.update(sessions);
+      this.tasks.update(bootstrap.taskSources ?? [], bootstrap.taskSources?.length ? '' : 'Connect a task source on the workbench server');
+      this.taskView.message = bootstrap.mode === 'demo' ? 'Demo fixture · No tracker account required' : 'Import deliberately. Start execution separately.';
       this.view.message = `${bootstrap.mode === 'demo' ? 'DEMO · No AI calls · ' : ''}${bootstrap.user.name} · ${new URL(client.origin).host}`;
-      const active = sessions.filter(session => session.status === 'running').length;
+      const active = sessions.filter(session => ['running', 'exporting'].includes(session.status)).length;
       const attention = sessions.filter(session => ['waiting_input', 'interrupted'].includes(session.status)).length;
       this.status.text = `$(layers) Vloer${attention ? `: ${attention} need input` : active ? `: ${active} running` : ''}`;
       this.status.tooltip = `${client.origin}\n${bootstrap.mode === 'demo' ? 'Demonstration — real fixture checks, no AI calls' : 'Connected to remote workbench'}`;
@@ -245,6 +324,112 @@ class Workbench implements vscode.Disposable {
     const session = await target.create({ title: title.trim(), objective: objective.trim(), repositoryId: repository.id, crewId: crew.id, runtime: runtime.id, budgetUsd: Number(budget) });
     await this.refresh();
     await this.open(session.id);
+  }
+
+  async browseTasks(value?: TaskEntry): Promise<void> {
+    const target = this.client; const revision = this.revision;
+    const bootstrap = await this.connected();
+    const sources = bootstrap.taskSources ?? await target.taskSources();
+    this.assertTarget(target, revision);
+    if (!sources.length) { void vscode.window.showInformationMessage('No task sources are connected. Add a Forgejo, GitHub, GitLab, ClickUp or Vikunja source in the workbench server configuration.'); return; }
+    const sourceChoice = value && 'source' in value ? value.source : (await vscode.window.showQuickPick(sources.map(source => ({ label: source.name, description: `${source.provider} → ${source.repositoryId}`, detail: source.executionOwner === 'ploeg' ? 'Ploeg owns execution. Task inspection is available; interactive import is blocked.' : 'Import a task snapshot into an operator-led session.', source })), { title: 'Linked tasks · Choose a source', matchOnDescription: true, ignoreFocusOut: true }))?.source;
+    if (!sourceChoice) return;
+    let page = value?.kind === 'more' ? value.page : 1;
+    while (true) {
+      this.assertTarget(target, revision);
+      const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: `Loading ${sourceChoice.name}` }, () => target.tasks(sourceChoice.id, page));
+      this.assertTarget(target, revision);
+      const choices: (vscode.QuickPickItem & { task?: TaskSnapshot; nextPage?: number; byId?: boolean })[] = result.tasks.map(task => ({ label: task.title, description: `#${task.id} · ${task.status}`, detail: task.description.replace(/\s+/g, ' ').slice(0, 200), task }));
+      if (result.nextPage) choices.push({ label: '$(arrow-right) Next page', description: `Page ${result.nextPage}`, nextPage: result.nextPage });
+      choices.push({ label: '$(search) Open task by ID…', description: 'Fetch one task directly from this connected source', byId: true });
+      const choice = await vscode.window.showQuickPick(choices, { title: `${sourceChoice.name} · Page ${page}`, placeHolder: 'Filter this page or open a task by ID', matchOnDescription: true, matchOnDetail: true, ignoreFocusOut: true });
+      if (!choice) return;
+      if (choice.nextPage) { page = choice.nextPage; continue; }
+      let task = choice.task;
+      if (choice.byId) {
+        const id = await vscode.window.showInputBox({ title: `Open ${sourceChoice.name} task`, prompt: 'Native task or issue ID', ignoreFocusOut: true, validateInput: value => /^[a-zA-Z0-9_-]{1,200}$/.test(value) ? undefined : 'Enter the task ID without a URL or path.' });
+        if (!id) return;
+        this.assertTarget(target, revision);
+        task = await target.task(sourceChoice.id, id);
+      }
+      if (task) { this.assertTarget(target, revision); await this.importTask({ kind: 'task', source: sourceChoice, task }); }
+      return;
+    }
+  }
+
+  private async previewTask(task: TaskSnapshot, origin: string): Promise<void> {
+    const preview = `${task.title}\n\nSource: ${task.provider} / ${task.sourceId} / ${task.id}\nStatus: ${task.status}\nRepository: ${task.repositoryId}\nWorkbench: ${origin}\nTracker URL: ${task.url}\nRevision: ${task.revision}\nUpdated: ${task.updatedAt ?? 'Not supplied'}\n\nTASK CONTENT — CONTEXT FROM THE LINKED SOURCE\n\n${task.description}`;
+    await this.documents.open('task-preview', `${task.sourceId}-${task.id}.txt`, preview, 'plaintext');
+  }
+
+  async importTask(value?: TaskEntry): Promise<void> {
+    if (value?.kind !== 'task') { await this.browseTasks(value); return; }
+    const target = this.client; const revision = this.revision;
+    const bootstrap = await this.connected();
+    const task = await target.task(value.source.id, value.task.id);
+    this.assertTarget(target, revision);
+    await this.previewTask(task, target.origin);
+    if (value.source.executionOwner === 'ploeg') { void vscode.window.showInformationMessage('Ploeg owns execution for this source. The task snapshot is open for inspection; interactive import is blocked.'); return; }
+    if (bootstrap.user.role === 'viewer') { void vscode.window.showInformationMessage('The task snapshot is open for inspection. An operator account is required to import it.'); return; }
+    if (task.status !== 'open') { void vscode.window.showInformationMessage('Only open tasks can be imported. The current snapshot is available for inspection.'); return; }
+    const proceed = await vscode.window.showInformationMessage(`Task snapshot opened. Set up an operator-led session on ${new URL(target.origin).host} → ${task.repositoryId} when you are ready.`, 'Set up session');
+    if (proceed !== 'Set up session') return;
+    const crew = await vscode.window.showQuickPick(bootstrap.crews.map(crew => ({ label: crew.name, description: crew.roles.map(role => role.name).join(' → '), detail: crew.description, id: crew.id })), { title: 'Import linked task · Crew', ignoreFocusOut: true });
+    if (!crew) return;
+    const runtime = await vscode.window.showQuickPick(bootstrap.runtimes.filter(runtime => runtime.available).map(runtime => ({ label: runtime.name, id: runtime.id })), { title: 'Import linked task · Remote runtime', ignoreFocusOut: true });
+    if (!runtime) return;
+    const budget = await vscode.window.showInputBox({ title: 'Import linked task · Spending authorization', prompt: bootstrap.mode === 'demo' ? 'Demo allocation in USD. The fixture makes no AI calls.' : `Authorized maximum in USD, up to $${bootstrap.maxBudgetUsd}.`, value: String(Math.min(3, bootstrap.maxBudgetUsd)), ignoreFocusOut: true, validateInput: text => Number.isFinite(Number(text)) && Number(text) > 0 && Number(text) <= bootstrap.maxBudgetUsd ? undefined : `Enter an amount above 0 and at most ${bootstrap.maxBudgetUsd}.` });
+    if (!budget) return;
+    const confirm = await vscode.window.showInformationMessage('Create a session from this task revision?', { modal: true, detail: `${task.title}\n${task.provider} #${task.id} → ${task.repositoryId}\n${target.origin}\n${crew.label} · ${runtime.label} · $${Number(budget).toFixed(2)} authorized\nThe crew starts only when you choose Start remote crew.` }, 'Import task');
+    if (confirm !== 'Import task') return;
+    this.assertTarget(target, revision);
+    let session: Session;
+    try { session = await target.importTask({ sourceId: task.sourceId, taskId: task.id, revision: task.revision, crewId: crew.id, runtime: runtime.id, budgetUsd: Number(budget) }); }
+    catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 409 || error.code !== 'task_changed') throw error;
+      const reload = await vscode.window.showWarningMessage(error.message, 'Reload task');
+      if (reload === 'Reload task') { this.assertTarget(target, revision); await this.importTask(value); }
+      return;
+    }
+    this.assertTarget(target, revision);
+    await this.refresh();
+    await this.open(session.id);
+  }
+
+  async sourceTask(value?: string | TreeEntry): Promise<void> {
+    const target = this.client; const revision = this.revision;
+    const id = await this.choose(value);
+    if (!id) return;
+    const session = await target.session(id);
+    this.assertTarget(target, revision);
+    if (!session.sourceTask) { void vscode.window.showInformationMessage('This session was created without a linked task.'); return; }
+    await this.previewTask(session.sourceTask, target.origin);
+  }
+
+  async downloadCandidate(value?: string | TreeEntry, selectedFormat?: CandidateFormat): Promise<void> {
+    const target = this.client; const revision = this.revision;
+    const id = await this.choose(value);
+    if (!id) return;
+    const session = await target.session(id);
+    this.assertTarget(target, revision);
+    if (session.candidate?.status !== 'ready') throw new Error(session.candidate?.message || session.candidate?.reason || 'This session has no complete review candidate available yet. Inspect its evidence and export status.');
+    const format = selectedFormat ?? (await vscode.window.showQuickPick([
+      { label: 'Git bundle', description: 'Portable Git objects, including binary files and deletions', value: 'bundle' as const },
+      { label: 'Binary patch', description: 'Review the captured changes against the recorded base', value: 'patch' as const },
+      { label: 'Candidate manifest', description: 'Inspect captured revision and export evidence', value: 'manifest' as const },
+    ], { title: 'Download review candidate', ignoreFocusOut: true }))?.value;
+    if (!format) return;
+    const extension = format === 'manifest' ? 'json' : format === 'bundle' ? 'bundle' : 'patch';
+    const destination = await vscode.window.showSaveDialog({ title: `Save ${format} from ${new URL(target.origin).host}`, defaultUri: vscode.Uri.file(join(homedir(), `vloer-${session.id}.${extension}`)), saveLabel: 'Download candidate', filters: { [format === 'manifest' ? 'JSON manifest' : format === 'bundle' ? 'Git bundle' : 'Git patch']: [extension] } });
+    if (!destination) return;
+    if (destination.scheme !== 'file') throw new Error('Choose a local file destination for this explicit download.');
+    this.assertTarget(target, revision);
+    const bytes = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Downloading ${format} from De Vloer` }, () => target.downloadCandidate(id, format));
+    this.assertTarget(target, revision);
+    if (format !== 'manifest' && session.candidate.sha256?.[format] && createHash('sha256').update(bytes).digest('hex') !== session.candidate.sha256[format]) throw new Error('The downloaded candidate did not match its recorded digest. No file has been saved; refresh the session before downloading again.');
+    try { await writeFile(destination.fsPath, bytes, { flag: 'wx' }); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new Error('That file already exists. Choose a new filename to keep the existing file intact.'); throw error; }
+    void vscode.window.showInformationMessage(`Saved ${Math.ceil(bytes.byteLength / 1024)} KiB to ${destination.fsPath}. The candidate is ready for your separate review workflow.`);
   }
 
   async lifecycle(action: 'start' | 'pause' | 'resume' | 'cancel', value?: string | TreeEntry): Promise<void> {
@@ -379,6 +564,8 @@ class Workbench implements vscode.Disposable {
         if (message.type === 'ready' || message.type === 'refresh') { await this.refreshPanel(id); return; }
         if (message.type === 'dashboard') { await this.dashboard(id); return; }
         if (message.type === 'history') { await this.history(id); return; }
+        if (message.type === 'source-task') { await this.sourceTask(id); return; }
+        if (message.type === 'download-candidate' && ['bundle', 'patch', 'manifest'].includes(message.format)) { await this.downloadCandidate(id, message.format); return; }
         if (message.type === 'artifact' && typeof message.id === 'string' && message.id.length <= 200) { await this.artifact(id, message.id); return; }
         if (message.type === 'permission' && typeof message.id === 'string' && message.id.length <= 200) { await this.permission(id, message.id); return; }
         if (message.type === 'instruction' && typeof message.text === 'string' && message.text.trim() && message.text.length <= 16000) {

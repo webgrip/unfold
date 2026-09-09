@@ -1,6 +1,6 @@
 image:
   repository: registry.example/de-vloer
-  tag: 0.1.0
+  tag: 0.2.0
   digest: ""
   pullPolicy: IfNotPresent
 imagePullSecrets: []
@@ -34,6 +34,7 @@ config:
   maxBudgetUsd: 10
   models: []
   repositories: []
+  taskSources: []
   litellm:
     ttl: 4h
     settlementDelayMs: 60000

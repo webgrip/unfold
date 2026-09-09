@@ -112,3 +112,14 @@ footer { display: flex; align-items: center; gap: 7px; border-top: 1px solid var
 @media (max-width: 800px) { #app { padding: 22px 22px 14px; } .session-layout { gap: 22px; grid-template-columns: minmax(0, 1fr) 200px; } .side-column { padding-left: 18px; } .section-heading { align-items: start; flex-direction: column; gap: 5px; } .section-heading > span { text-align: left; } }
 @media (max-width: 580px) { #app { padding: 18px 16px 12px; } .session-layout { display: flex; flex-direction: column; gap: 18px; } .main-column, .side-column { width: 100%; } .side-column { border-left: 0; border-top: 1px solid var(--vscode-widget-border); padding-left: 0; } h1 { font-size: 21px; } .title-row { flex-direction: column; gap: 9px; } .toolbar .danger { margin-left: 0; } .permission-card { align-items: start; flex-direction: column; gap: 10px; } .composer-footer { align-items: start; flex-direction: column; gap: 10px; } .session-id { display: none; } .remote-label { font-size: 9px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+.candidate-card { border: 1px solid var(--vscode-widget-border); border-radius: 6px; padding: 18px; margin: 18px 0; background: var(--vscode-textBlockQuote-background); }
+.candidate-card > p { font-size: 12px; }
+.candidate-revisions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin: 15px 0; }
+.candidate-revisions .fact { margin: 0; }
+.candidate-revisions dd { font-family: var(--vscode-editor-font-family); font-size: 10px; }
+.candidate-unavailable { border-color: var(--vscode-list-warningForeground); }
+.source-task-card { border-bottom: 1px solid var(--vscode-widget-border); padding-bottom: 18px; }
+.source-task-card h2 { margin: 10px 0 5px; line-height: 1.6; }
+.source-task-card > p { font-size: 11px; }
+.source-task-card > button { padding: 5px 0; text-align: left; }

@@ -2,7 +2,7 @@
   "name": "de-vloer",
   "displayName": "De Vloer \u2014 Remote Agent Workbench",
   "description": "Direct remote agent crews, inspect evidence and send explicit context without running agents on your workstation.",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "publisher": "webgrip",
   "license": "Apache-2.0",
   "engines": {
@@ -30,7 +30,8 @@
     "virtualWorkspaces": true
   },
   "activationEvents": [
-    "onView:vloer.sessions"
+    "onView:vloer.sessions",
+    "onView:vloer.tasks"
   ],
   "contributes": {
     "commands": [
@@ -112,6 +113,34 @@
         "title": "Open Web Dashboard",
         "category": "Vloer",
         "icon": "$(link-external)"
+      },
+      {
+        "command": "vloer.browseTasks",
+        "title": "Browse Linked Tasks",
+        "category": "Vloer",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "vloer.refreshTasks",
+        "title": "Refresh Linked Tasks",
+        "category": "Vloer",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "vloer.importTask",
+        "title": "Import Linked Task into Session",
+        "category": "Vloer"
+      },
+      {
+        "command": "vloer.sourceTask",
+        "title": "Open Imported Task Snapshot",
+        "category": "Vloer"
+      },
+      {
+        "command": "vloer.downloadCandidate",
+        "title": "Download Review Candidate",
+        "category": "Vloer",
+        "icon": "$(cloud-download)"
       }
     ],
     "configuration": {
@@ -148,6 +177,11 @@
           "id": "vloer.sessions",
           "name": "Remote Sessions",
           "icon": "media/vloer.svg"
+        },
+        {
+          "id": "vloer.tasks",
+          "name": "Linked Tasks",
+          "icon": "media/vloer.svg"
         }
       ]
     },
@@ -155,6 +189,10 @@
       {
         "view": "vloer.sessions",
         "contents": "A shared workbench for remote agent crews.\n[Connect to your workbench](command:vloer.connect)\n[Create a remote session](command:vloer.create)\n\nAgents and model calls run on your server. Local files are sent only when you explicitly choose to share them."
+      },
+      {
+        "view": "vloer.tasks",
+        "contents": "Pick work from your team\u2019s connected task systems.\n[Browse linked tasks](command:vloer.browseTasks)\n\nForgejo \u00b7 GitHub \u00b7 GitLab \u00b7 ClickUp \u00b7 Vikunja\nSources and repository routing are configured on the workbench server."
       }
     ],
     "menus": {
@@ -183,6 +221,16 @@
           "command": "vloer.dashboard",
           "when": "view == vloer.sessions",
           "group": "connection@3"
+        },
+        {
+          "command": "vloer.browseTasks",
+          "when": "view == vloer.tasks && vloer.connected",
+          "group": "navigation@1"
+        },
+        {
+          "command": "vloer.refreshTasks",
+          "when": "view == vloer.tasks",
+          "group": "navigation@2"
         }
       ],
       "view/item/context": [
@@ -208,11 +256,26 @@
         },
         {
           "command": "vloer.cancel",
-          "when": "view == vloer.sessions && viewItem =~ /^session:(queued|running|waiting_input|paused|interrupted)$/",
+          "when": "view == vloer.sessions && viewItem =~ /^session:(queued|running|exporting|waiting_input|paused|interrupted)$/",
           "group": "lifecycle@4"
         },
         {
           "command": "vloer.history",
+          "when": "view == vloer.sessions && viewItem =~ /^session:/",
+          "group": "evidence"
+        },
+        {
+          "command": "vloer.importTask",
+          "when": "view == vloer.tasks && viewItem == task:interactive",
+          "group": "inline"
+        },
+        {
+          "command": "vloer.sourceTask",
+          "when": "view == vloer.sessions && viewItem =~ /^session:/",
+          "group": "evidence"
+        },
+        {
+          "command": "vloer.downloadCandidate",
           "when": "view == vloer.sessions && viewItem =~ /^session:/",
           "group": "evidence"
         }

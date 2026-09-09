@@ -1,4 +1,4 @@
-import type { Bootstrap, Session, SessionEvent, SessionInput, Permission } from './types.js';
+import type { Bootstrap, Session, SessionEvent, SessionInput, Permission, TaskSource, TaskSnapshot, TaskPage, TaskImportInput, CandidateFormat } from './types.js';
 
 export interface Secrets {
   get(key: string): PromiseLike<string | undefined>;
@@ -93,6 +93,52 @@ export class VloerClient {
   message(id: string, text: string): Promise<Session> { return this.request(`/api/sessions/${identifier(id)}/messages`, 'POST', { text }); }
   respond(id: string, requestId: string, answer: { decision?: 'once' | 'always' | 'reject'; answers?: string[][] }): Promise<Session> {
     return this.request(`/api/sessions/${identifier(id)}/permissions/${identifier(requestId)}`, 'POST', answer);
+  }
+  taskSources(): Promise<TaskSource[]> { return this.request('/api/task-sources'); }
+  tasks(sourceId: string, page = 1): Promise<TaskPage> {
+    if (!Number.isSafeInteger(page) || page < 1 || page > 1000) throw new Error('Invalid task page.');
+    return this.request(`/api/task-sources/${identifier(sourceId)}/tasks?page=${page}`);
+  }
+  task(sourceId: string, taskId: string): Promise<TaskSnapshot> { return this.request(`/api/task-sources/${identifier(sourceId)}/tasks/${identifier(taskId)}`); }
+  importTask(input: TaskImportInput): Promise<Session> { return this.request('/api/task-imports', 'POST', input); }
+  async downloadCandidate(id: string, format: CandidateFormat): Promise<Uint8Array> {
+    if (!['bundle', 'patch', 'manifest'].includes(format)) throw new Error('Invalid candidate format.');
+    const path = `/api/sessions/${identifier(id)}/candidate/download?format=${format}`;
+    const cookie = await this.secrets.get(this.secretKey);
+    const headers: Record<string, string> = { Accept: '*/*', Origin: this.origin, 'X-Vloer-Request': '1' };
+    if (cookie) headers.Cookie = cookie;
+    let response: Response;
+    try { response = await fetch(`${this.origin}${path}`, { headers, redirect: 'manual', signal: AbortSignal.timeout(60_000) }); }
+    catch { throw new ApiError(0, 'unreachable', 'The candidate could not be downloaded. Check the workbench connection.'); }
+    if (response.status >= 300 && response.status < 400) throw new ApiError(response.status, 'redirect', 'The API redirected the download. Configure the final workbench origin; credentials are never forwarded.');
+    if (response.status === 401) await this.secrets.delete(this.secretKey);
+    if (!response.ok) {
+      await response.body?.cancel();
+      throw new ApiError(response.status, 'download_failed', response.status === 404 ? 'This candidate is not available to your account. Refresh the session.' : 'The candidate download is unavailable. Refresh the session and inspect its export status.');
+    }
+    const contentType = (response.headers.get('content-type') ?? '').split(';')[0].trim();
+    const allowed = format === 'manifest' ? ['application/json'] : format === 'patch' ? ['text/plain', 'text/x-diff', 'application/octet-stream'] : ['application/octet-stream', 'application/x-git-bundle'];
+    if (!allowed.includes(contentType)) { await response.body?.cancel(); throw new ApiError(0, 'invalid_response', 'The workbench returned an unexpected candidate file type.'); }
+    const limit = 128 * 1024 * 1024;
+    if (Number(response.headers.get('content-length')) > limit) { await response.body?.cancel(); throw new ApiError(0, 'response_too_large', 'This candidate exceeds the editor download limit of 128 MiB.'); }
+    const reader = response.body?.getReader();
+    if (!reader) throw new ApiError(0, 'invalid_response', 'The workbench returned an empty candidate response.');
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    try {
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        size += chunk.value.byteLength;
+        if (size > limit) { await reader.cancel(); throw new ApiError(0, 'response_too_large', 'This candidate exceeds the editor download limit of 128 MiB.'); }
+        chunks.push(chunk.value);
+      }
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(0, 'incomplete_download', 'The candidate download was interrupted. No file has been saved; download it again when connected.');
+    }
+    if (!size && format !== 'patch') throw new ApiError(0, 'invalid_response', 'The workbench returned an empty candidate file.');
+    return Buffer.concat(chunks, size);
   }
   dashboard(id?: string): string { return `${this.origin}/#${id ? `session/${identifier(id)}` : 'sessions'}`; }
 }

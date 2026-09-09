@@ -1,5 +1,8 @@
 import { request as httpsRequest } from 'node:https';
 import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
+import { stripTypeScriptTypes } from 'node:module';
+import { persistRemoteCandidate, unavailableCandidate, type Candidate, type CandidateManifest } from '../candidates.ts';
 import { createHash, randomBytes } from 'node:crypto';
 import { RuntimeFailure, transportFailure } from '../failures.ts';
 import type { AppConfig, Credential, Repository, Session, Workspace } from '../types.ts';
@@ -21,7 +24,7 @@ export class KubernetesClient {
 
   constructor(config: KubernetesConfig) { this.config = config; }
 
-  async request(path: string, method = 'GET', body?: unknown, allowMissing = false): Promise<any> {
+  async request(path: string, method = 'GET', body?: unknown, allowMissing = false, raw = false): Promise<any> {
     const origin = this.config.apiUrl ?? `https://${process.env.KUBERNETES_SERVICE_HOST ?? 'kubernetes.default.svc'}:${process.env.KUBERNETES_SERVICE_PORT_HTTPS ?? '443'}`;
     const url = new URL(path, origin);
     if (url.protocol !== 'https:' || url.username || url.password) throw new Error('Kubernetes API requires HTTPS');
@@ -45,7 +48,7 @@ export class KubernetesClient {
           if (!response.statusCode || response.statusCode < 200 || response.statusCode >= 300) {
             reject(new RuntimeFailure('workspace_setup', 'workspace')); return;
           }
-          try { done(chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {}); }
+          try { const value = Buffer.concat(chunks).toString('utf8'); done(raw ? value : chunks.length ? JSON.parse(value) : {}); }
           catch { reject(new Error('Kubernetes returned invalid JSON')); }
         });
         response.on('error', error => reject(transportFailure(error, 'workspace')));
@@ -62,7 +65,8 @@ const env={...process.env,GIT_TERMINAL_PROMPT:'0',GIT_CONFIG_GLOBAL:'/dev/null',
 const run=(a)=>{const r=spawnSync('git',a,{env,stdio:'ignore'});if(r.status!==0)process.exit(1)};
 mkdirSync('/workspace',{recursive:true});
 if(!existsSync('/workspace/repository/.git')){run(['clone','--depth','100','--branch',env.BASE_BRANCH,'--',env.REPOSITORY_URL,'/workspace/repository']);run(['-C','/workspace/repository','checkout','-b',env.WORK_BRANCH]);}
-for(const p of['.home','.state','.cache','.tmp'])mkdirSync('/workspace/'+p,{recursive:true});`;
+for(const p of['.home','.state','.cache','.tmp'])mkdirSync('/workspace/'+p,{recursive:true});
+const base=spawnSync('git',['-C','/workspace/repository','rev-parse','HEAD'],{env,encoding:'utf8',stdio:['ignore','pipe','ignore']});if(base.status!==0||! /^[a-f0-9]{40}$/.test(base.stdout.trim()))process.exit(1);process.stdout.write(JSON.stringify({baseSha:base.stdout.trim()})+'\\n');`;
 
 const askpassProgram = '#!/usr/bin/env node\nprocess.stdout.write((process.argv[2]??" ").toLowerCase().includes("username")?process.env.GIT_USERNAME??"":process.env.GIT_PASSWORD??"");\n';
 
@@ -132,6 +136,43 @@ export function workspaceManifests(config: AppConfig, session: Session, reposito
   return [secret, pvc, service, networkPolicy, pod];
 }
 
+const candidateServerProgram = `
+import { createServer as makeExportServer } from 'node:http';
+import { timingSafeEqual as candidateEqual } from 'node:crypto';
+const exportOptions={dataDir:'/exports',sessionId:process.env.CANDIDATE_SESSION,repositoryId:process.env.CANDIDATE_REPOSITORY,directory:'/workspace/repository',baseSha:process.env.CANDIDATE_BASE,timeoutMs:120000};
+const exportResult=await captureLocalCandidate(exportOptions);
+const exportAuth=Buffer.from('Basic '+Buffer.from(process.env.OPENCODE_SERVER_USERNAME+':'+process.env.OPENCODE_SERVER_PASSWORD).toString('base64'));
+makeExportServer(async(req,res)=>{const received=Buffer.from(req.headers.authorization??'');if(received.length!==exportAuth.length||!candidateEqual(received,exportAuth)){res.writeHead(401);res.end();return;}
+if(req.method!=='GET'){res.writeHead(405);res.end();return;}
+res.setHeader('Cache-Control','no-store');
+if(req.url==='/health'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify(exportResult));return;}
+const format=({'/manifest':'manifest','/bundle':'bundle','/patch':'patch'})[req.url];
+if(!format||exportResult.status!=='ready'){res.writeHead(404);res.end();return;}
+try{const file=await readCandidate('/exports',process.env.CANDIDATE_SESSION,format);res.setHeader('Content-Type',file.contentType);res.setHeader('Content-Length',file.content.length);res.end(file.content);}catch{res.writeHead(500);res.end();}
+}).listen(4096,'0.0.0.0');`;
+
+export function candidateExportManifest(config: AppConfig, session: Session, repository: Repository): KubernetesObject {
+  if (!config.kubernetes) throw new Error('Kubernetes workspace configuration missing');
+  const k = config.kubernetes; const name = workspaceName(session.id);
+  const helper = stripTypeScriptTypes(readFileSync(new URL('../candidates.ts', import.meta.url), 'utf8'));
+  const valueFrom = (key: string) => ({ secretKeyRef: { name, key } });
+  return { apiVersion: 'v1', kind: 'Pod', metadata: { name, namespace: k.namespace, labels: { 'app.kubernetes.io/name': 'de-vloer-agent', 'de-vloer/session': name, 'de-vloer/purpose': 'candidate-export' } }, spec: {
+    automountServiceAccountToken: false, enableServiceLinks: false, restartPolicy: 'Never', activeDeadlineSeconds: 240, terminationGracePeriodSeconds: 20,
+    securityContext: { fsGroup: 1000, fsGroupChangePolicy: 'OnRootMismatch', seccompProfile: { type: 'RuntimeDefault' } },
+    ...(k.imagePullSecrets?.length ? { imagePullSecrets: k.imagePullSecrets.map(name => ({ name })) } : {}),
+    containers: [{ name: 'candidate-export', image: k.image, imagePullPolicy: k.pullPolicy ?? 'IfNotPresent',
+      command: ['node', '--input-type=module', '-e', helper + candidateServerProgram],
+      env: [{ name: 'CANDIDATE_SESSION', value: session.id }, { name: 'CANDIDATE_REPOSITORY', value: repository.id }, { name: 'CANDIDATE_BASE', value: session.workspace?.metadata?.baseSha ?? '' },
+        { name: 'OPENCODE_SERVER_USERNAME', valueFrom: valueFrom('OPENCODE_SERVER_USERNAME') }, { name: 'OPENCODE_SERVER_PASSWORD', valueFrom: valueFrom('OPENCODE_SERVER_PASSWORD') }],
+      securityContext: { runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: ['ALL'] }, seccompProfile: { type: 'RuntimeDefault' } },
+      ports: [{ name: 'http', containerPort: 4096 }],
+      resources: { requests: { cpu: '100m', memory: '256Mi' }, limits: { cpu: k.cpu, memory: '512Mi' } },
+      volumeMounts: [{ name: 'workspace', mountPath: '/workspace', readOnly: true }, { name: 'exports', mountPath: '/exports' }, { name: 'tmp', mountPath: '/tmp' }],
+    }],
+    volumes: [{ name: 'workspace', persistentVolumeClaim: { claimName: name, readOnly: true } }, { name: 'exports', emptyDir: { sizeLimit: '512Mi' } }, { name: 'tmp', emptyDir: { sizeLimit: '16Mi' } }],
+  } };
+}
+
 export class KubernetesWorkspaces {
   readonly config: AppConfig;
   readonly kube: KubernetesConfig;
@@ -187,7 +228,13 @@ export class KubernetesWorkspaces {
         if (pod.status?.phase === 'Failed' || pod.status?.phase === 'Succeeded') throw new Error('Workspace agent exited before readiness');
         if (pod.status?.conditions?.some((item: any) => item.type === 'Ready' && item.status === 'True')) {
           this.passwords.set(session.id, basic);
-          return { id: session.id, backend: 'kubernetes', directory: '/workspace/repository', endpoint: `http://${name}.${this.kube.namespace}.svc:4096`, metadata: { namespace: this.kube.namespace, pod: name } };
+          let baseSha = session.workspace?.metadata?.baseSha;
+          if (!baseSha && !session.workspace) {
+            const log = await this.client.request(this.path('Pod', name) + '/log?container=clone', 'GET', undefined, false, true);
+            const record = typeof log === 'string' ? JSON.parse(log.trim()) : undefined;
+            if (record && typeof record.baseSha === 'string' && /^[a-f0-9]{40}$/.test(record.baseSha)) baseSha = record.baseSha;
+          }
+          return { id: session.id, backend: 'kubernetes', directory: '/workspace/repository', endpoint: `http://${name}.${this.kube.namespace}.svc:4096`, metadata: { namespace: this.kube.namespace, pod: name, ...(baseSha ? { baseSha } : {}) } };
         }
         await new Promise(done => setTimeout(done, 500));
       }
@@ -196,6 +243,40 @@ export class KubernetesWorkspaces {
       await this.dispose({ id: session.id, backend: 'kubernetes', directory: '/workspace/repository' }).catch(() => {});
       throw error;
     }
+  }
+
+  async captureCandidate(session: Session, repository: Repository): Promise<Candidate> {
+    const workspace = session.workspace;
+    const basic = workspace ? this.passwords.get(workspace.id) : undefined;
+    if (!workspace || !basic || !workspace.endpoint) return unavailableCandidate('unsupported_workspace');
+    const baseSha = workspace.metadata?.baseSha;
+    if (!baseSha || !/^[a-f0-9]{40}$/.test(baseSha)) return unavailableCandidate('base_unavailable');
+    try { await this.removePod(workspaceName(workspace.id)); } catch { return unavailableCandidate('stop_unconfirmed'); }
+    try {
+      await this.client.request(this.path('Pod'), 'POST', candidateExportManifest(this.config, session, repository));
+      const read = async (path: string, maximum: number): Promise<Buffer> => {
+        const response = await fetch(new URL(path, workspace.endpoint), { headers: { authorization: 'Basic ' + Buffer.from(`${basic.username}:${basic.password}`).toString('base64') }, signal: AbortSignal.timeout(15000), redirect: 'error' });
+        if (!response.ok || !response.body) throw new Error('Candidate export unavailable');
+        const chunks: Buffer[] = []; let size = 0;
+        for await (const chunk of response.body) { size += chunk.length; if (size > maximum) { await response.body.cancel().catch(() => {}); throw new Error('Candidate export is too large'); } chunks.push(Buffer.from(chunk)); }
+        return Buffer.concat(chunks);
+      };
+      const deadline = Date.now() + 180000; let result: Candidate | undefined;
+      while (Date.now() < deadline) {
+        const pod = await this.client.request(this.path('Pod', workspaceName(workspace.id)));
+        if (['Failed', 'Succeeded'].includes(pod.status?.phase)) return unavailableCandidate('capture_failed');
+        if (pod.status?.phase === 'Running') {
+          try { result = JSON.parse((await read('/health', 16384)).toString()) as Candidate; break; } catch {}
+        }
+        await new Promise(done => setTimeout(done, 500));
+      }
+      if (!result || result.status !== 'ready') return unavailableCandidate(result?.reason);
+      const manifest = JSON.parse((await read('/manifest', 8 * 1024 * 1024)).toString()) as CandidateManifest;
+      if (manifest.sessionId !== session.id || manifest.repositoryId !== repository.id || manifest.baseSha !== baseSha) return unavailableCandidate('capture_failed');
+      const bundle = await read('/bundle', 128 * 1024 * 1024);
+      const patch = await read('/patch', 128 * 1024 * 1024);
+      return await persistRemoteCandidate(this.config.dataDir, session.id, manifest, bundle, patch);
+    } catch { return unavailableCandidate('capture_failed'); }
   }
 
   async dispose(workspace: Workspace): Promise<void> {

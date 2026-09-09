@@ -6,6 +6,7 @@ import { join, resolve } from 'node:path';
 import type { AppConfig, Credential, Repository, Session, Workspace } from '../types.ts';
 import { KubernetesWorkspaces } from './kubernetes.ts';
 import { RuntimeFailure } from '../failures.ts';
+import { captureLocalCandidate, pinCandidateBase, unavailableCandidate, type Candidate } from '../candidates.ts';
 
 type InternalWorkspace = { username: string; password: string; env: Record<string, string>; process?: ChildProcess };
 
@@ -120,7 +121,7 @@ export class WorkspaceManager {
     if (previous?.process) await this.stop(previous.process);
     const state: InternalWorkspace = { username: 'opencode', password: randomBytes(32).toString('base64url'), env };
     this.internal.set(session.id, state);
-    const workspace: Workspace = { id: session.id, backend: 'local', directory };
+    const workspace: Workspace = { id: session.id, backend: 'local', directory, metadata: { baseSha: session.workspace?.metadata?.baseSha ?? await pinCandidateBase(directory) } };
     if (this.config.runtime.kind !== 'opencode') return workspace;
     const port = await unusedPort();
     workspace.endpoint = `http://127.0.0.1:${port}`;
@@ -160,6 +161,16 @@ export class WorkspaceManager {
       child.once('exit', () => { clearTimeout(timer); done(); });
       child.kill('SIGTERM');
     });
+  }
+
+  async captureCandidate(session: Session, repository: Repository): Promise<Candidate> {
+    const workspace = session.workspace;
+    if (!workspace) return unavailableCandidate('unsupported_workspace');
+    if (workspace.backend === 'kubernetes') return this.kubernetes?.captureCandidate(session, repository) ?? unavailableCandidate('unsupported_workspace');
+    if (workspace.backend !== 'local') return unavailableCandidate('unsupported_workspace');
+    const state = this.internal.get(workspace.id);
+    if (state?.process) await this.stop(state.process);
+    return captureLocalCandidate({ dataDir: this.config.dataDir, sessionId: session.id, repositoryId: repository.id, directory: workspace.directory, baseSha: workspace.metadata?.baseSha ?? '' });
   }
 
   async interrupt(_workspace: Workspace): Promise<void> {}

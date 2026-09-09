@@ -1,6 +1,6 @@
 # HTTP contract
 
-This guide describes the v0.1 routes implemented by `src/http.ts` and session rules in `src/engine.ts`. The internal [implementation coordination contract](implementation.md) records the initial team agreement; executable tests and source resolve drift. Routes return JSON objects or arrays directly. Errors have the form `{"error":{"code":"...","message":"..."}}`.
+This guide describes the v0.2 routes implemented by `src/http.ts` and session rules in `src/engine.ts`. The internal [implementation coordination contract](implementation.md) records the initial team agreement; executable tests and source resolve drift. Routes return JSON objects or arrays directly. Errors have the form `{"error":{"code":"...","message":"..."}}`.
 
 ## Identity and mutation requests
 
@@ -54,3 +54,31 @@ Permission and question details depend on the adapter. Answer only the actual un
 ## Ploeg
 
 `GET /api/ploeg` reads configured team depths from Ploeg's `/api/v1/queue/depth?team=...`. It returns configuration/reachability information and any configured tracker link. The connector does not expose a dispatch action, create tickets, assign work or modify Ploeg state.
+
+## Linked tasks
+
+Connections are administrator-registered `taskSources`. Forgejo, GitHub, GitLab, ClickUp and Vikunja share the same read-only API. A source maps one tracker project or list to a configured repository. Task content cannot supply a repository URL, model credential, runtime command or execution owner. All authenticated users of this pilot deployment can browse its registered sources; source-level team authorization is a later feature.
+
+| Method and path | Behavior |
+| --- | --- |
+| `GET /api/task-sources` | Public connection records; never connector credentials |
+| `GET /api/task-sources/:sourceId/tasks?page=1` | `{tasks,nextPage?}` with bounded pagination |
+| `GET /api/task-sources/:sourceId/tasks/:taskId` | Current task snapshot for explicit preview |
+| `POST /api/task-imports` | `{sourceId,taskId,revision,crewId,runtime,budgetUsd}` → queued session, 201 new or 200 existing |
+
+A snapshot includes `key`, `sourceId`, `provider`, `id`, `revision`, `title`, `description`, `url`, `status`, `repositoryId` and optional `updatedAt`. Status is normalized to `open`, `closed` or `unknown`; only open tasks can be imported. The revision hashes the material snapshot. Import refetches the configured source and returns 409 `task_changed` if the preview is stale. The server retains the accepted snapshot in `session.sourceTask`, redacting any known server credentials from its title and description before persistence and prompting and frames its body as untrusted reference material in the objective.
+
+Import requires an operator or administrator and passes the same mutation guard as other actions. It does not call a model, assign a tracker task or start execution. Calling import twice for the same canonical task and revision returns the existing session across reconnects and process restarts. Another operator receives a generic conflict, without private session details. A changed revision cannot create competing work while an earlier session is active, stopping or has unresolved reservations. Finished revisions remain inspectable; importing is not a retry command.
+
+Set `executionOwner: "ploeg"` on repositories assigned to unattended Ploeg execution. Vloer rejects both imported and ad hoc execution for those repositories, and rechecks this policy at start and resume. A Ploeg-owned source is also blocked. This is an administrator-configured separation of execution lanes, not a shared distributed claim with Ploeg. [Connection setup](../operations/task-connections.md) covers all providers.
+
+## Candidate exports
+
+| Method and path | Behavior |
+| --- | --- |
+| `GET /api/sessions/:id/candidate` | Export availability and immutable snapshot metadata |
+| `GET /api/sessions/:id/candidate/download?format=bundle` | Authenticated Git bundle download |
+| `GET /api/sessions/:id/candidate/download?format=patch` | Full binary-capable Git patch |
+| `GET /api/sessions/:id/candidate/download?format=manifest` | JSON provenance, file and integrity metadata |
+
+Candidate access uses the same owner/administrator checks as the session. A successful export preserves a reviewable change; it does not certify independent verification, authorize publication or merge anything. Availability and limitations are explicit in the metadata. Native harness history and credentials are not portable candidate contents.

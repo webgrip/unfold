@@ -1,5 +1,7 @@
 # Implementation progress: first dogfooding fixes
 
+This page records the earlier 0.1.1 extension and first dogfooding increment. The current [0.2.0 iteration guide](iteration-0.2.0.md) covers task connections, browser/editor import and candidate export. The qualification recorded here belongs to the historical increment; use the [validation matrix](../validation.md) for the current release.
+
 Date: 2026-09-09. Starting Vloer revision: `6c8fa08`. This increment implements the first operator fixes and supplies a source-reviewed Ploeg prerequisite patch. No live model calls, external ticket creation, remote push or deployment occurred.
 
 | Plan item | Implementation | Qualification and remaining work |

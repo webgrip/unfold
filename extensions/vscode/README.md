@@ -2,7 +2,7 @@
 
 Direct remote agent crews from your editor. Keep the repository checkout, tool execution and model calls on the workbench server while you inspect progress, make decisions and review evidence in VS Code.
 
-This is the **implemented v0.1 desktop extension** for the current De Vloer API. The wider product design, connector roadmap and future IDE experience are documented in the parent repository under `docs/design/`. Proposed capabilities there are not automatically extension features.
+This is the **implemented v0.2 desktop extension** for the current De Vloer API. The wider product design, connector roadmap and future IDE experience are documented in the parent repository under `docs/design/`. Proposed capabilities there are not automatically extension features.
 
 ## Start in five minutes
 
@@ -20,12 +20,12 @@ In another terminal:
 cd extensions/vscode
 npm ci
 npm run package
-code --install-extension de-vloer-0.1.1.vsix
+code --install-extension de-vloer-0.2.0.vsix
 ```
 
 Alternatively, use **Extensions → … → Install from VSIX**. A publisher account or Marketplace upload is unnecessary for a team pilot. The package's `webgrip` publisher identifier does not mean this extension is already published or that a Marketplace publisher has been verified.
 
-Open the **De Vloer** activity bar, run **Vloer: Connect to Workbench**, and enter `http://127.0.0.1:4080`. Demo mode supplies its clearly identified demonstration user automatically. Choose **New Remote Session**, accept the rounding fixture defaults, and then **Start remote crew**. Inspect the baseline failure, passing verification, retained patch and independent review under **Evidence**.
+Open the **De Vloer** activity bar, run **Vloer: Connect to Workbench**, and enter `http://127.0.0.1:4080`. Demo mode supplies its clearly identified demonstration user automatically. Expand **Linked Tasks → Demo tasks**, select the fixture task, inspect its read-only preview, and choose **Set up session**. Select a crew, runtime and budget, then confirm **Import task**. Choose **Start remote crew** in the queued session. Inspect the baseline failure, passing verification and review under **Evidence**, then download its captured Git bundle, binary patch or manifest. **New Remote Session** remains available for an ad hoc objective.
 
 The demo runs a fixed, real test fixture with no AI calls. An arbitrary objective in demo mode does not turn it into a live coding agent.
 
@@ -35,12 +35,15 @@ Run **Vloer: Connect to Workbench** and enter the deployed HTTPS origin, such as
 
 The extension runs in the local UI extension host, including in a Remote SSH window. The configured server must therefore be reachable from the laptop. HTTPS is mandatory except for loopback development. Certificate verification remains enabled. The current API expects an origin at `/`; reverse-proxy subpaths and browser-only SSO interception are not supported by this release.
 
-The server still enforces account roles and session ownership. v0.1 has no shared-team invitation or delegation API. A viewer can inspect its visible sessions; operators mutate their own sessions; administrators can access all sessions. Future OIDC/device login is a separate server and extension feature.
+The server still enforces account roles and session ownership. v0.2 has no shared-team invitation or delegation API. A viewer can inspect its visible sessions; operators mutate their own sessions; administrators can access all sessions. Future OIDC/device login is a separate server and extension feature.
 
 ## The working surface
 
 | Surface | Implemented behavior |
 | --- | --- |
+| Linked Tasks tree | Browse registered Forgejo, GitHub, GitLab, ClickUp and Vikunja sources; inspect task snapshots and explicitly import an open task |
+| Review candidate | Download retained Git bundle, binary patch or manifest to an explicit local destination; bundle and patch digests are checked before saving |
+| Imported source | Open the exact task snapshot used to create a session, including its source revision and repository destination |
 | Remote Sessions tree | Groups attention, active, queued and historical work using native VS Code items, keyboard navigation and status icons |
 | Session panel | Theme-aware work, evidence and activity tabs; objective, sequential crew stages, review verdicts, spend state, branch and human decisions |
 | Session controls | Explicit start, pause, resume and cancel; cancellation requires a confirmation and does not create replacement work |
@@ -52,9 +55,36 @@ The server still enforces account roles and session ownership. v0.1 has no share
 | Connection states | Shows stale/offline state, disables panel mutations while disconnected, clears expired credentials and exposes reconnection |
 | Execution failures | Displays the server's safe diagnosis, next action and uncertain submission state; retains blocker compatibility with older servers |
 
-The panel keeps at most 1,000 recent events in memory and displays the latest 100. **Open complete history** fetches the server's retained history. Cursor values are global event IDs; gaps within one session are normal. Polling is configurable from two to 60 seconds and occurs while the tree or a session panel is visible. Hiding or closing VS Code does not stop remote work.
+The panel keeps at most 1,000 recent events in memory and displays the latest 100. **Open complete history** fetches the server's retained history. Cursor values are global event IDs; gaps within one session are normal. Session polling is configurable from two to 60 seconds and occurs while either tree or a session panel is visible. Task pages load when you expand a source; **Refresh Linked Tasks** explicitly reloads them, avoiding a background polling loop against every tracker. Hiding or closing VS Code does not stop remote work.
 
 No API mutation is retried automatically. If a request loses its response, refresh the session before repeating the action: delivery may have succeeded even when the client could not confirm it. Budgets display **observed** spend and its settlement status, never invented real-time exactness. Budget increases remain available to administrators in the web dashboard.
+
+## Link your task systems
+
+Configure connections once on the workbench server. The same sources appear in the browser and the extension; no tracker token is entered in VS Code. A source selects its provider, API root, native project/repository/list ID, registered code repository, credential environment variable and explicit execution owner. The server example `config/task-sources.example.json` and parent task-connection guide describe each provider.
+
+In the **Linked Tasks** view, expand a source and select a task. **Vloer: Browse Linked Tasks** also supports filtering a page, pagination and opening a native task ID directly. GitHub, Forgejo and GitLab connections read issues. ClickUp connections read a configured home list; Vikunja connections read a configured project. Task content is always opened as inert plain text.
+
+Import uses a deliberate sequence:
+
+1. Inspect the fetched task snapshot and mapped repository.
+2. Choose a registered crew, remote runtime and spending authorization.
+3. Confirm the destination workbench, repository and task revision.
+4. Open the resulting queued session and choose **Start remote crew** separately.
+
+If the source changes after preview, the server rejects the stale revision. **Reload task** reopens its current snapshot for another explicit review. Repeating an import of the same revision reopens the existing session; it does not create replacement paid work. The server also blocks a second active session for an already active task revision lineage.
+
+Sources owned by Ploeg remain available for inspection, with interactive import blocked. Import does not claim, assign, close or update a tracker task. Repository routing comes from the administrator's source mapping. A link in a task description cannot select another repository or change its execution owner.
+
+## Bring back a complete review candidate
+
+The **Evidence** tab shows **Preparing review** while the server captures the final repository state. When available, **Download Git bundle**, **Download patch** and **Download manifest** open a local save dialog. **Vloer: Download Review Candidate** offers the same choices from the Command Palette.
+
+A Git bundle retains the exported objects needed for a separate review checkout, including binary content, file modes and deletions. The binary patch describes the captured changes against the recorded base. The manifest records the capture's revision and export metadata. These files are evidence of the captured state; an export alone does not certify independent trusted verification or approval to publish.
+
+Downloads are authenticated, capped at 128 MiB, refuse redirects, and verify the recorded bundle/patch digest before saving. Interrupted transfers do not leave a partial destination file. Existing local files are kept intact; choose a new filename. The extension does not automatically execute, apply, commit, push or merge downloaded content.
+
+If capture is unavailable, the panel displays the server's explanation and keeps the other evidence visible. An unavailable complete export is never presented as a successful candidate.
 
 ## Send local context deliberately
 
@@ -75,6 +105,10 @@ All commands use the **Vloer:** prefix in the Command Palette.
 | Command | Use |
 | --- | --- |
 | Connect to Workbench / Sign Out | Manage the current server session |
+| Browse Linked Tasks / Refresh Linked Tasks | Browse connected task systems and explicitly refresh their pages |
+| Import Linked Task into Session | Preview a pinned task revision, configure a crew and create queued work |
+| Open Imported Task Snapshot | Inspect the source snapshot used by the current session |
+| Download Review Candidate | Save a Git bundle, binary patch or manifest to an explicit local file |
 | New Remote Session | Choose registered repository, crew, runtime, objective and authorized budget |
 | Open Session / Refresh Sessions | Inspect current durable server state |
 | Start / Pause / Resume / Cancel Session | Control deliberate remote execution |
@@ -103,7 +137,7 @@ npm test
 npm run package
 ```
 
-The seven client tests start isolated instances of the actual De Vloer server. They cover the real demonstration checks and evidence, lifecycle controls, live-cookie login/expiry/logout, operator isolation, origin validation, path rejection and redirect credential safety. No provider credentials or live model calls are used.
+The ten client tests exercise isolated instances of the actual De Vloer server, plus controlled upstream and transport fixtures. They cover real demonstration checks and candidate downloads; idempotent task import; authenticated Vloer-to-Vikunja ingestion with a local upstream fixture; stale revision and Ploeg-lane rejection; lifecycle controls; live-cookie login/expiry/logout; operator isolation; origin validation; path rejection; and redirect/oversize download safety. No provider credentials or live model calls are used.
 
 For the browser-based webview check, first install the root repository's development dependencies and Playwright Chromium:
 
@@ -115,7 +149,7 @@ cd extensions/vscode
 npm run test:webview
 ```
 
-`VLOER_CHROMIUM_BIN` can select an already installed Chromium binary. This check renders real demo output through the shipped webview script and tests keyboard tabs, message dispatch, draft retention, hostile text rendering, disconnect behavior and narrow layouts. It **does not run the VS Code Extension Host**. Screenshots go to the ignored `.screenshots/` directory.
+`VLOER_CHROMIUM_BIN` can select an already installed Chromium binary. This check renders real demo output through the shipped webview script and tests the imported source snapshot, complete candidate actions, keyboard tabs, message dispatch, draft retention, hostile text rendering, disconnect behavior and narrow layouts. It **does not run the VS Code Extension Host**. Screenshots go to the ignored `.screenshots/` directory.
 
 Before wider distribution, qualify installation, native commands, SecretStorage behavior and accessibility in an actual VS Code Extension Development Host on the supported desktop operating systems. This build environment did not contain a working VS Code desktop installation, so that qualification is not claimed. Real cluster/provider qualification is governed by the parent repository's validation document.
 
@@ -141,4 +175,4 @@ Reviewed against official sources on 2026-09-09:
 - [Testing extensions](https://code.visualstudio.com/api/working-with-extensions/testing-extension): actual Extension Development Host testing is distinct from Node and browser tests.
 - [Publishing extensions](https://code.visualstudio.com/api/working-with-extensions/publishing-extension): VSIX packaging and distribution.
 
-The executable server contract is in the parent repository at `src/http.ts` and `src/engine.ts`; `docs/contracts/api.md` describes that contract. The extension adds no tracker ingestion, ticket creation, remote filesystem, Ploeg dispatch or automatic merge APIs.
+The executable server contract is in the parent repository at `src/http.ts` and `src/engine.ts`; `docs/contracts/api.md` describes that contract. The extension uses the server task-source, task-import and retained-candidate APIs. It adds no ticket creation, tracker write-back, remote filesystem mounting, Ploeg dispatch or automatic merge authority.

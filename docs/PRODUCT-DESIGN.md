@@ -4,7 +4,9 @@ Design edition: 9 September 2026. Intended readers: developers, technical leads,
 
 Ploeg is the delivery engine. De Vloer is the human workbench in the browser and editor. Together, the proposed product turns an approved task into a bounded remote attempt, an independently verified candidate and a reviewable proposal inside the team’s existing delivery workflow.
 
-This document separates the implemented prototype, audited defects, proposed architecture and commercial hypotheses. The accompanying repository adds a working first VS Code client and a planning/export toolkit; it does not claim that all of the proposed platform is implemented. Release-specific evidence is recorded in [validation](validation.md).
+This document separates the implemented prototype, audited defects, proposed architecture and commercial hypotheses. The accompanying 0.2.0 repository adds task connections for Forgejo, GitHub, GitLab, ClickUp and Vikunja, an updated VS Code client, reviewable candidate exports and a planning/export toolkit; it does not claim that all of the proposed platform is implemented. Release-specific evidence is recorded in [validation](validation.md).
+
+The current operator-led workflow and its qualification limits are documented in [the 0.2.0 release](operations/iteration-0.2.0.md) and [connection setup](operations/task-connections.md). Earlier audit chapters remain the historical baseline; unattended intake, shared Ploeg claims and a trusted publication pipeline remain proposed.
 
 ## Reading guide
 
@@ -655,6 +657,14 @@ Baseline validation recorded 42 automated tests and browser qualification; it ex
 A gap is closed by a merged implementation and linked acceptance evidence, not a design paragraph or a ticket status. Record the exact tested commits and external versions. After an implementation changes a cited function, recheck the finding rather than copying this register forward unchanged. Provider-specific API assumptions and proposed intake semantics are expanded in [ticket integration](design/ticket-integration.md).
 
 ## 4. Tickets, work orders and delivery
+
+### 0.2.0 implementation update
+
+The repository now implements an operator-led intake layer for **Vikunja, ClickUp, Forgejo, GitHub and GitLab**. Each server-configured connection binds one project or list to an approved repository. Browser and VS Code clients browse and preview the same normalized task snapshot, then request an explicit queued session. Import refetches the task revision, rejects stale or closed work, deduplicates repeated imports durably and enforces the configured interactive/Ploeg execution lane. Known server credentials reflected in source text are redacted before storage and agent prompting; the source revision still identifies the upstream snapshot.
+
+Vikunja is a first-class task provider, independent of the repository forge. A Vikunja project can drive work in a Forgejo, GitHub or GitLab repository through the same interface. The initial adapter reads API v1 tasks filtered by project and validates project membership when reading an individual task. The adapter seam allows another task system to implement list/read/snapshot normalization without changing browser, editor or engine APIs. The [connection guide](operations/task-connections.md) specifies API roots, read scopes, limits and source registration for all five providers.
+
+This increment supplies deliberate human intake and portable candidate exports. The canonical WorkOrder, unattended webhook/poll reconciliation, shared Ploeg claims, source write-back and automated PR/MR publication described below remain proposed. The [0.2.0 release walkthrough](operations/iteration-0.2.0.md) distinguishes exercised behavior from deployment qualification. The design below remains the broader target system rather than a claim that all its services exist.
 
 Status: proposed implementation design. Research checked 2026-09-09. This document does not claim the proposed APIs or integrations are already implemented. Local evidence: Ploeg `67c4bc968455a99ef767bc8a24791ea1a87319cb`, De Vloer `491c3a62e09dff8ec801495a309f6090120a07da` before this design change.
 
@@ -1337,6 +1347,12 @@ Keep recovery outside the product being repaired: an operator runbook and restri
 The platform is ready to market as a team operating system for agent-assisted delivery when it can demonstrate this chain with real evidence: authorized ticket, bounded remote execution, visible human control, independent checks, reviewed change, attributable cost and recoverable operations. Until those gates pass, market it as an open-source pilot with explicit qualification boundaries.
 
 ## 6. IDE and operator experience
+
+### 0.2.0 implementation update
+
+The shipped VSIX now includes a native **Linked Tasks** tree and a shared task browsing/import workflow for Vikunja, ClickUp, Forgejo, GitHub and GitLab. Operators inspect a read-only source preview, choose the crew/runtime/budget, create a queued session and start it separately. Session views retain the imported source snapshot. The evidence panel and **Download Review Candidate** command save an authenticated Git bundle, binary patch or manifest through an explicit local save dialog. Task-provider credentials stay on the server; the editor uses its existing origin-bound Vloer login.
+
+The browser exposes the same connections and API through a Tasks workspace, revision preview and repository handoff panel. This release has actual server-client and browser-rendered webview coverage. Native VS Code Extension Host activation and desktop SecretStorage still require qualification on a machine with VS Code. [Release instructions](operations/iteration-0.2.0.md) describe the implemented flow; the remaining editor architecture below is the planned product scope.
 
 Status: target design with an implementation baseline. Research checked 9 September 2026. This document specifies behavior to build; it does not certify that proposed endpoints, team sharing, remote editor attachment or tracker dispatch already exist. The extension's [README](../extensions/vscode/README.md), [HTTP contract](contracts/api.md), source and tests describe the shipped slice.
 

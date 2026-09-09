@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { unavailableCandidate, type Candidate } from '../candidates.ts';
 import { StringDecoder } from 'node:string_decoder';
 import type { AgentRuntime, AppConfig, Artifact, Credential, ExecutionContext, ExecutionResult, PermissionRequest, Repository, Session, Workspace } from '../types.ts';
 import { WorkspaceManager } from './workspace.ts';
@@ -131,5 +132,7 @@ export class CommandRuntime implements AgentRuntime {
     active?.stop();
     if (active) await active.closed;
   }
+  captureCandidate(session: Session, repository: Repository): Promise<Candidate> { return this.workspaces.captureCandidate?.(session, repository) ?? Promise.resolve(unavailableCandidate('unsupported_workspace')); }
+
   dispose(workspace: Workspace): Promise<void> { return this.workspaces.dispose(workspace); }
 }

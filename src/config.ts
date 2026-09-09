@@ -2,6 +2,7 @@ import { readFileSync, existsSync, mkdirSync, chmodSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AppConfig, Repository, Crew } from './types.ts';
+import { validateTaskSources } from './tasks.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 export const defaultCrews: Crew[] = [
@@ -45,6 +46,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     if (!repo.name || !repo.url || !repo.baseBranch || !Array.isArray(repo.verify) || repo.verify.some((v: unknown) => typeof v !== 'string')) throw new Error(`Invalid repository ${repo.id}`);
     if (mode === 'live') configuredUrl(repo.url, `Repository ${repo.id}`);
     if (repo.trackerUrl) configuredUrl(repo.trackerUrl, `Repository ${repo.id} trackerUrl`);
+    if (repo.executionOwner !== undefined && !['interactive', 'ploeg'].includes(repo.executionOwner)) throw new Error(`Invalid execution owner for repository ${repo.id}`);
   }
   const crews = mode === 'demo' ? defaultCrews.filter(crew => crew.id === 'delivery') : raw.crews || defaultCrews;
   if (!Array.isArray(crews) || !crews.length) throw new Error('At least one crew is required');
@@ -78,6 +80,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     mode, host: process.env.VLOER_HOST || raw.host || '127.0.0.1', port: number(process.env.VLOER_PORT ?? raw.port, 4080, 0, 65535, 'port'),
     dataDir, publicDir: resolve(raw.publicDir || `${root}/public`), baseUrl: baseUrl ? configuredUrl(baseUrl, 'baseUrl') : undefined,
     repositories, crews, models, runtime,
+    taskSources: validateTaskSources(raw.taskSources, repositories, mode),
     auth: { secureCookies: baseUrl?.startsWith('https://') ?? false, sessionHours: 12, bootstrapName: process.env.VLOER_ADMIN_NAME || 'admin', ...raw.auth, bootstrapPassword: process.env.VLOER_ADMIN_PASSWORD },
     maxConcurrentSessions: number(raw.maxConcurrentSessions, 2, 1, 16, 'maxConcurrentSessions'), maxBudgetUsd: number(raw.maxBudgetUsd, 25, 0.01, 10000, 'maxBudgetUsd'),
     kubernetes: raw.kubernetes,

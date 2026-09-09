@@ -3,6 +3,7 @@ import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { captureLocalCandidate, pinCandidateBase, type Candidate } from '../candidates.ts';
 import { setTimeout } from 'node:timers/promises';
 import type { AgentRuntime, AppConfig, Credential, Session, Repository, Workspace, ExecutionContext, ExecutionResult, Artifact } from '../types.ts';
 
@@ -37,12 +38,16 @@ export class DemoRuntime implements AgentRuntime {
         if (result.exitCode !== 0) throw new Error('Could not initialize demo workspace');
       }
     }
-    return { id: session.id, backend: 'demo', directory };
+    return { id: session.id, backend: 'demo', directory, metadata: { baseSha: session.workspace?.metadata?.baseSha ?? await pinCandidateBase(directory) } };
   }
 
   async execute(context: ExecutionContext): Promise<ExecutionResult> {
     context.signal.throwIfAborted();
     return context.role.mode === 'write' ? this.write(context) : this.review(context);
+  }
+
+  captureCandidate(session: Session, repository: Repository): Promise<Candidate> {
+    return captureLocalCandidate({ dataDir: resolve(this.root, '..'), sessionId: session.id, repositoryId: repository.id, directory: session.workspace!.directory, baseSha: session.workspace?.metadata?.baseSha ?? '' });
   }
 
   async interrupt(_workspace: Workspace): Promise<void> {}

@@ -31,16 +31,20 @@ const icons = {
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/>'
 };
 const icon = (name, cls = '') => `<svg class="icon ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] || icons.circle}</svg>`;
-const labels = { queued: 'Ready to start', running: 'Working', waiting_input: 'Needs your input', paused: 'Paused', completed: 'Ready for review', failed: 'Needs attention', cancelled: 'Cancelled', interrupted: 'Interrupted' };
+const labels = { queued: 'Ready to start', running: 'Working', exporting: 'Preparing review', waiting_input: 'Needs your input', paused: 'Paused', completed: 'Ready for review', failed: 'Needs attention', cancelled: 'Cancelled', interrupted: 'Interrupted' };
 const evidenceTabs = [['stream','activity','Activity'],['diff','code','Changes'],['test','terminal','Checks'],['handoff','branch','Handoff']];
-const state = { evidenceScroll: {}, bootstrap: null, sessions: [], session: null, events: [], permissions: [], view: 'sessions', tab: 'stream', filter: 'all', search: '', draft: '', stream: null, online: true, busy: false, refreshTimer: null, toastTimer: null, ploeg: null, health: null };
+const providers = { forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp', vikunja: 'Vikunja', demo: 'Demo fixture' };
+const state = { evidenceScroll: {}, bootstrap: null, sessions: [], session: null, events: [], permissions: [], view: 'sessions', tab: 'stream', filter: 'all', search: '', draft: '', stream: null, online: true, busy: false, refreshTimer: null, toastTimer: null, ploeg: null, health: null, taskSourceId: '', tasks: [], task: null, taskPage: 1, taskNextPage: null, taskSearch: '', taskLoading: false, taskPreviewLoading: false, taskError: '', taskPreviewError: '', taskChanged: false, taskDraft: null, taskRequest: 0, previewRequest: 0, taskImporting: false };
 
 async function api(path, options = {}) {
   const response = await fetch(path, { ...options, headers: { 'Content-Type': 'application/json', 'X-Vloer-Request': '1', ...options.headers }, credentials: 'same-origin' });
   const data = await response.json();
   if (!response.ok) {
     if (response.status === 401 && path !== '/api/login') { disconnect(); state.bootstrap = null; renderLogin(); }
-    throw new Error(data.error?.message || 'The request could not be completed.');
+    const error = new Error(data.error?.message || 'The request could not be completed.');
+    error.status = response.status;
+    error.code = data.error?.code;
+    throw error;
   }
   return data;
 }
@@ -55,8 +59,12 @@ function status(value) { return `<span class="status status-${escape(value)}"><s
 function repoName(id) { return state.bootstrap.repositories.find(repo => repo.id === id)?.name || id; }
 function crewName(id) { return state.bootstrap.crews.find(crew => crew.id === id)?.name || id; }
 function runtimeName(id) { return state.bootstrap.runtimes.find(runtime => runtime.id === id)?.name || id; }
-function isActive(session) { return ['running','waiting_input'].includes(session.status); }
+function isActive(session) { return ['running','waiting_input','exporting'].includes(session.status); }
 function disconnect() { state.stream?.close(); state.stream = null; clearTimeout(state.refreshTimer); }
+function safeUrl(value) { try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password ? url.href : null; } catch { return null; } }
+function taskSources() { return state.bootstrap.taskSources || []; }
+function selectedTaskSource() { return taskSources().find(source => source.id === state.taskSourceId); }
+function providerName(id) { return providers[id] || id; }
 
 function shell(content, title = 'Sessions', subtitle = 'Your work, running elsewhere.') {
   const user = state.bootstrap.user;
@@ -64,14 +72,14 @@ function shell(content, title = 'Sessions', subtitle = 'Your work, running elsew
     <aside class="sidebar" aria-label="Primary navigation">
       <a class="brand" href="#sessions" aria-label="De Vloer home"><span class="brand-mark"><i></i><i></i><i></i></span><span>de vloer<span class="brand-caption">AGENT WORKBENCH</span></span></a>
       <div class="workspace-label">WORKSPACE <span>01</span></div>
-      <nav>${[['sessions','grid','Sessions'],['ploeg','layers','Ploeg queues'],['system','shield','Environment']].map(([id, glyph, label]) => `<a href="#${id}" aria-label="${escape(label)}" class="nav-item ${state.view === id || state.view === 'session' && id === 'sessions' ? 'active' : ''}" ${state.view === id ? 'aria-current="page"' : ''}>${icon(glyph)}<span>${label}</span>${id === 'sessions' ? `<b>${state.sessions.filter(isActive).length}</b>` : ''}</a>`).join('')}</nav>
+      <nav>${[['sessions','grid','Sessions'],['tasks','folder','Tasks'],['ploeg','layers','Ploeg queues'],['system','shield','Environment']].map(([id, glyph, label]) => `<a href="#${id}" aria-label="${escape(label)}" class="nav-item ${state.view === id || state.view === 'session' && id === 'sessions' ? 'active' : ''}" ${state.view === id ? 'aria-current="page"' : ''}>${icon(glyph)}<span>${label}</span>${id === 'sessions' ? `<b>${state.sessions.filter(isActive).length}</b>` : ''}</a>`).join('')}</nav>
       <div class="sidebar-note"><span class="tiny-label">THE WORKING AGREEMENT</span><p>You set the direction.<br>Agents bring back evidence.</p><div class="small-rule"></div><span>Human review stays in the loop.</span></div>
       <div class="user-card"><span class="avatar">${escape(user.name.slice(0, 2).toUpperCase())}</span><div><strong>${escape(user.name)}</strong><span>${escape(user.role)}${state.bootstrap.mode === 'demo' ? ' · local demo' : ''}</span></div>${state.bootstrap.mode !== 'demo' ? `<button class="icon-button" data-action="logout" aria-label="Sign out">${icon('logout')}</button>` : ''}</div>
     </aside>
     <div class="content-wrap"><header class="topbar"><div class="breadcrumb">Workspace ${icon('chevron')} <span>${escape(title)}</span></div><div class="topbar-right"><span class="connection ${state.online ? '' : 'offline'}"><i></i>${state.online ? 'Connected' : 'Reconnecting'}</span><span class="mode-pill">${state.bootstrap.mode === 'demo' ? 'DEMO' : 'LIVE'}</span></div></header>
       ${state.bootstrap.mode === 'demo' ? `<div class="demo-ribbon">${icon('info')}<span><strong>Demonstration mode.</strong> Real code changes and tests. No AI model calls or charges.</span></div>` : ''}
-      <main id="main" class="main"><div class="page-heading"><div><p class="eyebrow">${state.view === 'session' ? 'SESSION WORKSPACE' : 'DE VLOER / WORKSPACE'}</p><h1>${escape(title)}</h1><p class="page-subtitle">${escape(subtitle)}</p></div>${state.view === 'sessions' && user.role !== 'viewer' ? `<button class="button primary" data-action="new">${icon('plus')} New session <kbd>N</kbd></button>` : ''}</div>${content}</main>
-      <footer><span>DE VLOER <b>0.1</b></span><span>Self-hosted. Your models. Your infrastructure.</span></footer>
+      <main id="main" class="main"><div class="page-heading"><div><p class="eyebrow">${state.view === 'session' ? 'SESSION WORKSPACE' : 'DE VLOER / WORKSPACE'}</p><h1>${escape(title)}</h1><p class="page-subtitle">${escape(subtitle)}</p></div>${state.view === 'sessions' && user.role !== 'viewer' ? `<button class="button primary" data-action="new">${icon('plus')} New session <kbd>N</kbd></button>` : state.view === 'tasks' ? `<button class="button secondary" data-action="connections">${icon('layers')} Connections</button>` : ''}</div>${content}</main>
+      <footer><span>DE VLOER <b>0.2</b></span><span>Self-hosted. Your models. Your infrastructure.</span></footer>
     </div></div>`;
 }
 
@@ -125,7 +133,7 @@ function streamMarkup() {
     if (key) parts.set(key, item);
     visible.push(item);
   }
-  return `<div class="stream-content">${visible.length ? visible.map(eventMarkup).join('') : '<div class="empty compact"><h3>The workspace is ready.</h3><p>Start the session to see the crew work.</p></div>'}${isActive(state.session) ? '<div class="working-indicator"><span></span><span></span><span></span><em>The crew is working</em></div>' : ''}</div>`;
+  return `<div class="stream-content">${visible.length ? visible.map(eventMarkup).join('') : '<div class="empty compact"><h3>The workspace is ready.</h3><p>Start the session to see the crew work.</p></div>'}${isActive(state.session) ? '<div class="working-indicator"><span></span><span></span><span></span><em>'+ (state.session.status === 'exporting' ? 'Preparing the repository handoff' : 'The crew is working') +'</em></div>' : ''}</div>`;
 }
 
 function artifactMarkup(kind) {
@@ -146,18 +154,33 @@ function failureNotice(session) {
   return `<section class="notice notice-warning" aria-labelledby="session-failure-title">${icon('info')}<div><strong id="session-failure-title">${failure ? `${stage} needs attention` : session.status === 'interrupted' ? 'Execution was interrupted' : 'This session needs attention'}</strong><p>${escape(failure?.message || session.blocker)}</p>${failure?.remediation ? `<p>${escape(failure.remediation)}</p>` : ''}${submission ? `<p>${escape(submission)}</p>` : ''}${failure?.automaticRetry === false ? '<p>No automatic retry will be started.</p>' : ''}</div></section>`;
 }
 
+function sourceTaskMarkup(session) {
+  const task = session.sourceTask;
+  if (!task) return '';
+  const link = safeUrl(task.url);
+  return `<div class="source-task-context">${icon('folder')}<span>Imported from <strong>${escape(providerName(task.provider))} #${escape(task.id)}</strong><span class="source-task-revision"> · source revision ${escape(task.revision.slice(0,12))}</span></span>${link ? `<a href="${escape(link)}" target="_blank" rel="noopener noreferrer">Open original task ${icon('external')}</a>` : ''}</div>`;
+}
+
+function candidateMarkup(session) {
+  const candidate = session.candidate;
+  if (!candidate) return '';
+  if (candidate.status !== 'ready') return `<section class="panel candidate-panel" aria-labelledby="candidate-title"><div class="panel-heading"><h2 id="candidate-title">Repository handoff</h2>${icon('branch')}</div><div class="candidate-body"><p>${escape(candidate.message || 'A complete repository export is unavailable for this session. Review the retained evidence and workspace before taking over.')}</p></div></section>`;
+  return `<section class="panel candidate-panel" aria-labelledby="candidate-title"><div class="panel-heading"><h2 id="candidate-title">Repository handoff</h2>${icon('branch')}</div><div class="candidate-body"><span class="candidate-ready">${icon('check')} Repository snapshot saved</span><p>Download the captured changes and their manifest for review in your own tools.</p>${candidate.headSha ? `<p class="mono">${escape(candidate.headSha.slice(0,12))}${candidate.fileCount !== undefined ? ` · ${escape(candidate.fileCount)} changed files` : ''}</p>` : ''}<div class="candidate-downloads">${[['bundle','Git bundle','branch'],['patch','Binary patch','code'],['manifest','Manifest','shield']].filter(([format]) => candidate.formats?.includes(format)).map(([format,label,glyph]) => `<button class="button secondary full" data-action="candidate-download" data-format="${format}">${icon(glyph)}${label}${icon('download')}</button>`).join('')}</div><p class="candidate-review-note">Human review and your repository’s checks are still required. No changes have been pushed or merged.</p></div></section>`;
+}
+
 function renderSession() {
   const session = state.session;
   if (!session) return;
   const canOperate = state.bootstrap.user.role !== 'viewer';
   const finished = ['completed','failed','cancelled'].includes(session.status);
   const approved = session.runs.filter(run => run.verdict === 'approve').length;
-  const controls = `${session.status === 'queued' ? '<button class="button primary" data-action="start">Start crew '+icon('play')+'</button>' : ''}${isActive(session) ? '<button class="button secondary" data-action="pause">'+icon('pause')+' Pause</button>' : ''}${['paused','interrupted'].includes(session.status) ? '<button class="button primary" data-action="resume">'+icon('play')+' Resume</button>' : ''}${!finished ? '<button class="button text-button danger" data-action="cancel">'+icon('stop')+' Cancel</button>' : ''}`;
-  const content = `<div class="session-topline"><a href="#sessions" class="back-link">${icon('back')} All sessions</a><div>${status(session.status)}<span class="tag">${escape(runtimeName(session.runtime))}</span></div></div><section class="session-brief panel"><div><div class="brief-meta"><span>${icon('folder')}${escape(repoName(session.repositoryId))}</span><span>${icon('layers')}${escape(crewName(session.crewId))}</span><span>${icon('clock')}Started ${escape(ago(session.createdAt))}</span></div><p>${escape(session.objective)}</p></div><div class="session-controls">${canOperate ? controls : ''}<button class="button secondary" data-action="export">${icon('download')} Export handoff</button></div></section>
-    ${failureNotice(session)}
+  const controls = `${session.status === 'queued' ? '<button class="button primary" data-action="start">Start crew '+icon('play')+'</button>' : ''}${['running','waiting_input'].includes(session.status) ? '<button class="button secondary" data-action="pause">'+icon('pause')+' Pause</button>' : ''}${['paused','interrupted'].includes(session.status) ? '<button class="button primary" data-action="resume">'+icon('play')+' Resume</button>' : ''}${!finished ? '<button class="button text-button danger" data-action="cancel">'+icon('stop')+' Cancel</button>' : ''}`;
+  const content = `<div class="session-topline"><a href="#sessions" class="back-link">${icon('back')} All sessions</a><div>${status(session.status)}<span class="tag">${escape(runtimeName(session.runtime))}</span></div></div><section class="session-brief panel"><div><div class="brief-meta"><span>${icon('folder')}${escape(repoName(session.repositoryId))}</span><span>${icon('layers')}${escape(crewName(session.crewId))}</span><span>${icon('clock')}Created ${escape(ago(session.createdAt))}</span></div><p>${escape(session.objective)}</p></div><div class="session-controls">${canOperate ? controls : ''}<button class="button secondary" data-action="export">${icon('download')} Export handoff</button></div></section>
+    ${sourceTaskMarkup(session)}${failureNotice(session)}
     ${session.status === 'completed' ? `<div class="notice notice-success">${icon('check')}<div><strong>Evidence is ready for your review.</strong><p>The required reviewers approved. No merge or deployment has been performed.</p></div><button class="button text-button" data-action="tab" data-id="diff">Inspect changes ${icon('arrow')}</button></div>` : ''}
-    ${runCards(session)}<div class="session-grid"><section class="panel execution-panel"><div class="tabs" role="tablist" aria-label="Session evidence">${evidenceTabs.map(([id,glyph,label]) => `<button role="tab" id="evidence-tab-${id}" aria-controls="evidence-panel-${id}" tabindex="${state.tab === id ? '0' : '-1'}" aria-selected="${state.tab === id}" data-action="tab" data-id="${id}" class="${state.tab === id ? 'selected' : ''}">${icon(glyph)}${label}${id === 'diff' || id === 'test' ? `<span>${session.artifacts.filter(artifact => artifact.kind === id).length}</span>` : ''}</button>`).join('')}</div>${evidenceTabs.map(([id]) => `<div class="tab-content" role="tabpanel" id="evidence-panel-${id}" aria-labelledby="evidence-tab-${id}" tabindex="0" data-tab="${id}" data-session-id="${escape(session.id)}" ${state.tab === id ? '' : 'hidden'}>${state.tab === id ? id === 'stream' ? streamMarkup() : artifactMarkup(id) : ''}</div>`).join('')}${!finished && canOperate ? `<form class="composer" data-form="message"><label for="operator-message">Steer the next execution</label><div><textarea id="operator-message" name="text" rows="2" placeholder="Add a constraint, clarify the objective, or leave a handoff note…" required>${escape(state.draft)}</textarea><button class="button primary icon-only" type="submit" aria-label="Save instruction">${icon('send')}</button></div><p>Instructions are saved durably. Pause and resume to apply them to the current role.</p></form>` : ''}</section><aside class="right-column">${permissionsMarkup()}<section class="panel budget-panel"><div class="panel-heading"><h2>Session budget</h2>${icon('shield')}</div><div class="budget-value">${money(session.spentUsd)}<span> / ${money(session.budgetUsd)}</span></div><progress max="${session.budgetUsd || 1}" value="${Math.min(session.spentUsd, session.budgetUsd)}" aria-label="Recorded session spend"></progress><div class="budget-details"><span>Accounting</span><strong>${escape(session.costStatus === 'demo' ? 'Demo · no charge' : session.costStatus === 'unknown' ? 'Unresolved · hold retained' : session.costStatus === 'pending' ? 'Awaiting gateway settlement' : 'Settled')}</strong></div><p>${session.costStatus === 'demo' ? 'This session uses a deterministic demonstration runtime. No tokens are consumed.' : session.costStatus === 'unknown' ? 'Unknown usage is never treated as zero. Previous authorization stays reserved.' : 'A scoped gateway key bounds this engagement. Model usage is reconciled independently.'}</p>${state.bootstrap.user.role === 'admin' && !finished ? '<button class="button secondary full" data-action="budget">Authorize more budget</button>' : ''}</section><section class="panel details-panel"><div class="panel-heading"><h2>Working context</h2></div><dl><dt>Branch</dt><dd class="mono">${escape(session.branch)}</dd><dt>Operator</dt><dd>${escape(session.ownerName)}</dd><dt>Explicit reviews</dt><dd>${approved} of ${session.runs.filter(run => run.mode === 'read').length}</dd><dt>Session</dt><dd class="mono">${escape(session.id.slice(0,8))}</dd></dl>${session.trackerUrl ? `<a class="external-link" href="${escape(session.trackerUrl)}" target="_blank" rel="noopener noreferrer">Open tracker ${icon('external')}</a>` : ''}</section></aside></div>`;
+    ${runCards(session)}<div class="session-grid"><section class="panel execution-panel"><div class="tabs" role="tablist" aria-label="Session evidence">${evidenceTabs.map(([id,glyph,label]) => `<button role="tab" id="evidence-tab-${id}" aria-controls="evidence-panel-${id}" tabindex="${state.tab === id ? '0' : '-1'}" aria-selected="${state.tab === id}" data-action="tab" data-id="${id}" class="${state.tab === id ? 'selected' : ''}">${icon(glyph)}${label}${id === 'diff' || id === 'test' ? `<span>${session.artifacts.filter(artifact => artifact.kind === id).length}</span>` : ''}</button>`).join('')}</div>${evidenceTabs.map(([id]) => `<div class="tab-content" role="tabpanel" id="evidence-panel-${id}" aria-labelledby="evidence-tab-${id}" tabindex="0" data-tab="${id}" data-session-id="${escape(session.id)}" ${state.tab === id ? '' : 'hidden'}>${state.tab === id ? id === 'stream' ? streamMarkup() : artifactMarkup(id) : ''}</div>`).join('')}${!finished && session.status !== 'exporting' && canOperate ? `<form class="composer" data-form="message"><label for="operator-message">Steer the next execution</label><div><textarea id="operator-message" name="text" rows="2" placeholder="Add a constraint, clarify the objective, or leave a handoff note…" required>${escape(state.draft)}</textarea><button class="button primary icon-only" type="submit" aria-label="Save instruction">${icon('send')}</button></div><p>Instructions are saved durably. Pause and resume to apply them to the current role.</p></form>` : ''}</section><aside class="right-column">${permissionsMarkup()}${candidateMarkup(session)}<section class="panel budget-panel"><div class="panel-heading"><h2>Session budget</h2>${icon('shield')}</div><div class="budget-value">${money(session.spentUsd)}<span> / ${money(session.budgetUsd)}</span></div><progress max="${session.budgetUsd || 1}" value="${Math.min(session.spentUsd, session.budgetUsd)}" aria-label="Recorded session spend"></progress><div class="budget-details"><span>Accounting</span><strong>${escape(session.costStatus === 'demo' ? 'Demo · no charge' : session.costStatus === 'unknown' ? 'Unresolved · hold retained' : session.costStatus === 'pending' ? 'Awaiting gateway settlement' : 'Settled')}</strong></div><p>${session.costStatus === 'demo' ? 'This session uses a deterministic demonstration runtime. No tokens are consumed.' : session.costStatus === 'unknown' ? 'Unknown usage is never treated as zero. Previous authorization stays reserved.' : 'A scoped gateway key bounds this engagement. Model usage is reconciled independently.'}</p>${state.bootstrap.user.role === 'admin' && !finished && session.status !== 'exporting' ? '<button class="button secondary full" data-action="budget">Authorize more budget</button>' : ''}</section><section class="panel details-panel"><div class="panel-heading"><h2>Working context</h2></div><dl><dt>Branch</dt><dd class="mono">${escape(session.branch)}</dd><dt>Operator</dt><dd>${escape(session.ownerName)}</dd><dt>Explicit reviews</dt><dd>${approved} of ${session.runs.filter(run => run.mode === 'read').length}</dd><dt>Session</dt><dd class="mono">${escape(session.id.slice(0,8))}</dd></dl>${session.trackerUrl ? `<a class="external-link" href="${escape(session.trackerUrl)}" target="_blank" rel="noopener noreferrer">Open tracker ${icon('external')}</a>` : ''}</section></aside></div>`;
   renderHtml(shell(content, session.title, 'A bounded objective. A visible crew. Reviewable evidence.'));
+  if (state.busy) for (const button of document.querySelectorAll('.session-controls [data-action]')) if (['start','pause','resume','cancel'].includes(button.dataset.action)) button.disabled = true;
 }
 
 function renderSystem() {
@@ -170,6 +193,60 @@ function renderPloeg() {
   const ploeg = state.ploeg;
   const content = `<section class="panel"><div class="panel-heading"><div><h2>Unattended dispatch</h2><p>Ploeg owns the queue, leases and execution of assigned tracker work.</p></div><span class="tag">READ-ONLY CONNECTION</span></div>${!ploeg ? '<div class="empty compact"><p>Checking the configured connection…</p></div>' : !ploeg.configured ? `<div class="empty"><span class="empty-icon">${icon('layers')}</span><h3>Connect your existing dispatch plane</h3><p>Configure Ploeg’s internal URL and team IDs on the server. This view then shows the actual queue depth for each team.</p><div class="connection-example"><code>ploeg.url</code><span>Internal Ploeg API</span><code>ploeg.teams</code><span>Registered team IDs</span></div></div>` : `<div class="queue-grid">${ploeg.teams.map(team => `<article><span class="tiny-label">${escape(team.team)}</span><strong>${team.available ? team.depth : '—'}</strong><p>${team.available ? 'queued work items' : escape(team.message)}</p></article>`).join('')}</div><div class="panel-bottom"><p>${escape(ploeg.message)}</p>${ploeg.trackerUrl ? `<a class="button secondary" href="${escape(ploeg.trackerUrl)}" target="_blank" rel="noopener noreferrer">Open tracker ${icon('external')}</a>` : ''}</div>`}</section>`;
   renderHtml(shell(content, 'Ploeg queues', 'Interactive work here. Assigned delivery work in Ploeg.'));
+}
+
+function taskPreviewMarkup() {
+  const task = state.task;
+  const source = selectedTaskSource();
+  if (state.taskPreviewLoading) return '<div class="empty task-preview-empty" role="status"><span class="empty-icon">'+icon('clock')+'</span><h3>Opening the latest task</h3><p>Fetching its current description and revision.</p></div>';
+  if (!task) return `<div class="empty task-preview-empty"><span class="empty-icon">${icon('branch')}</span><h3>Select a task. Shape the work.</h3><p>Review the source brief, choose your crew, then start a session when you are ready.</p>${state.taskPreviewError ? `<p class="form-error" role="alert">${escape(state.taskPreviewError)}</p>` : ''}</div>`;
+  const draft = state.taskDraft;
+  const link = safeUrl(task.url);
+  const blocked = source?.executionOwner === 'ploeg' || state.bootstrap.user.role === 'viewer' || task.status !== 'open';
+  return `<article class="task-preview" aria-labelledby="task-preview-title"><header><div><span class="tiny-label">SOURCE BRIEF · ${escape(providerName(task.provider))}</span><h2 id="task-preview-title">${escape(task.title)}</h2></div>${link ? `<a class="icon-button" href="${escape(link)}" target="_blank" rel="noopener noreferrer" aria-label="Open original task">${icon('external')}</a>` : ''}</header><div class="task-preview-meta"><span class="tag">${escape(task.status)}</span><span>${icon('folder')}${escape(repoName(task.repositoryId))}</span><span class="mono">#${escape(task.id)}</span></div><div class="task-description">${escape(task.description || 'This task has no description. Review the original task before starting work.')}</div><div class="task-revision"><span>Snapshot ${escape(task.revision.slice(0,12))}</span>${task.updatedAt ? `<span>Updated ${escape(ago(task.updatedAt))}</span>` : ''}</div>${state.taskChanged ? '<div class="notice notice-warning task-import-notice" role="alert"><div><strong>The source task changed.</strong><p>This is its latest version. Review the updated brief before creating the session. Your crew and budget choices are preserved.</p></div></div>' : ''}${state.taskPreviewError ? `<div class="form-error task-import-notice" role="alert">${escape(state.taskPreviewError)}</div>` : ''}${source?.executionOwner === 'ploeg' ? `<div class="notice task-import-notice"><div><strong>Ploeg manages this connection.</strong><p>Interactive import is disabled. Use your tracker’s assignment workflow for unattended delivery.</p></div></div>` : state.bootstrap.user.role === 'viewer' ? '<div class="notice task-import-notice">Your account can inspect tasks. An operator can create a session.</div>' : blocked ? '<div class="notice task-import-notice">Only open tasks can be imported. Check its state in the source system before starting work.</div>' : `<form data-form="task-import" class="task-import-form"><div class="task-import-heading"><span class="tiny-label">YOUR WORKING AGREEMENT</span><h3>Bring this task onto the floor.</h3><p>The registered repository is fixed by this connection. You choose the crew and spending limit.</p></div><div class="form-grid"><label>Crew<select id="task-crew" name="crewId">${state.bootstrap.crews.map(crew => `<option value="${escape(crew.id)}" ${draft.crewId === crew.id ? 'selected' : ''}>${escape(crew.name)}</option>`).join('')}</select></label><label>Runtime<select id="task-runtime" name="runtime">${state.bootstrap.runtimes.map(runtime => `<option value="${escape(runtime.id)}" ${draft.runtime === runtime.id ? 'selected' : ''}>${escape(runtime.name)}</option>`).join('')}</select></label><label>Session budget · USD<input id="task-budget" name="budgetUsd" type="number" min="0.01" max="${state.bootstrap.maxBudgetUsd}" step="0.01" value="${escape(draft.budgetUsd)}" required></label><div class="task-start-contract">${icon('shield')}<span>Created ready to start.<br>You decide when the crew runs.</span></div></div><button class="button primary full" type="submit" ${state.taskImporting ? 'disabled' : ''}>${state.taskImporting ? 'Creating session…' : 'Create session'} ${icon('arrow')}</button><p class="form-help">The source task stays in its tracker. Importing does not assign it, change its status or start model usage.</p></form>`}</article>`;
+}
+
+function renderTasks() {
+  const sources = taskSources();
+  const source = selectedTaskSource();
+  const selected = state.tasks.filter(task => `${task.id} ${task.title}`.toLowerCase().includes(state.taskSearch.toLowerCase()));
+  const content = !sources.length ? `<section class="panel"><div class="empty"><span class="empty-icon">${icon('layers')}</span><h2>Your work already has a home.</h2><p>Connect Forgejo, GitHub, GitLab, ClickUp or Vikunja. Bring their tasks into the same remote workbench.</p><button class="button primary" data-action="connections">Set up a connection ${icon('arrow')}</button></div></section>` : `<div class="task-source-strip" role="group" aria-label="Task connections">${sources.map(item => `<button id="task-source-${escape(item.id)}" class="task-source ${state.taskSourceId === item.id ? 'selected' : ''}" data-action="task-source" data-id="${escape(item.id)}" aria-pressed="${state.taskSourceId === item.id}"><span class="source-avatar">${escape(providerName(item.provider).slice(0,1))}</span><span><strong>${escape(item.name)}</strong><small>${escape(providerName(item.provider))}${item.executionOwner === 'ploeg' ? ' · Ploeg managed' : ' · Operator led'}</small></span>${icon('chevron')}</button>`).join('')}</div>${state.bootstrap.mode === 'demo' ? '<div class="task-demo-caption">'+icon('info')+'<span>Sample tracker data. Import the rounding task to run the real demonstration fixture.</span></div>' : ''}<div class="task-grid"><section class="panel task-list-panel" aria-label="Source tasks"><div class="panel-heading"><div><h2>${escape(source?.name || 'Tasks')}</h2><p>${escape(source ? repoName(source.repositoryId) : '')}</p></div><button class="icon-button" data-action="task-refresh" aria-label="Refresh tasks" ${state.taskLoading ? 'disabled' : ''}>${icon('activity')}</button></div><label class="search-box task-search">${icon('search')}<input id="task-search" type="search" aria-label="Search loaded tasks" placeholder="Find a task on this page" value="${escape(state.taskSearch)}"></label><div class="task-list" aria-busy="${state.taskLoading}">${state.taskLoading ? '<div class="empty compact" role="status"><p>Loading tasks from the connection…</p></div>' : state.taskError ? `<div class="empty compact"><h3>Connection needs attention</h3><p role="alert">${escape(state.taskError)}</p><button class="button secondary" data-action="task-refresh">Try again</button></div>` : selected.length ? selected.map(task => `<button id="task-row-${escape(task.id)}" class="task-row ${state.task?.id === task.id ? 'selected' : ''}" data-action="task-preview" data-id="${escape(task.id)}" aria-pressed="${state.task?.id === task.id}"><span class="task-row-meta"><span>#${escape(task.id)}</span><span>${escape(task.status)}</span></span><strong>${escape(task.title)}</strong><span class="task-row-footer">Review brief ${icon('arrow')}</span></button>`).join('') : `<div class="empty compact"><h3>${state.taskSearch ? 'No matching tasks' : 'No open tasks on this page'}</h3><p>${state.taskSearch ? 'Try another title or task number.' : 'Refresh after adding work to the connected project.'}</p></div>`}</div><div class="task-pagination"><button class="button text-button" data-action="task-page" data-page="${state.taskPage - 1}" ${state.taskPage <= 1 || state.taskLoading ? 'disabled' : ''}>${icon('back')} Previous</button><span>Page ${state.taskPage}</span><button class="button text-button" data-action="task-page" data-page="${state.taskNextPage || ''}" ${!state.taskNextPage || state.taskLoading ? 'disabled' : ''}>Next ${icon('arrow')}</button></div></section><section class="panel task-preview-panel">${taskPreviewMarkup()}</section></div>`;
+  renderHtml(shell(content, 'Tasks', 'Your tracker’s work. One shared way to move it forward.'));
+}
+
+function openConnections() {
+  const dialog = $('#task-connections');
+  dialog.innerHTML = `<header class="dialog-header"><div><p class="eyebrow">LINK THE SYSTEMS YOU USE</p><h2 id="connections-title">Your tasks, connected.</h2></div><button class="icon-button" data-action="close-connections" aria-label="Close connections">${icon('x')}</button></header><div class="dialog-body"><div class="provider-chips">${['forgejo','github','gitlab','clickup','vikunja'].map(provider => `<span>${escape(providerName(provider))}</span>`).join('')}</div><p>An administrator links each project or list to a registered repository. Everyone then uses the same task preview and session workflow.</p><ol class="connection-steps"><li><strong>Register the connection</strong><span>Set its provider, server address and project or list in the server’s taskSources configuration.</span></li><li><strong>Supply a read-only credential</strong><span>Store the token in the server environment and reference its variable name in the connection. Credentials stay on the server.</span></li><li><strong>Choose who owns execution</strong><span>Use interactive for operator-created sessions, or ploeg to keep the connection under unattended dispatch.</span></li></ol><p class="form-help">Setup examples for all five providers ship in docs/operations/task-connections.md. Restart the server after updating its configuration.</p>${taskSources().length ? `<div class="configured-connections"><h3>Registered connections</h3>${taskSources().map(source => `<div><span><strong>${escape(source.name)}</strong><small>${escape(providerName(source.provider))} → ${escape(repoName(source.repositoryId))}</small></span><span class="tag">${source.executionOwner === 'ploeg' ? 'Ploeg managed' : 'Operator led'}</span></div>`).join('')}</div>` : ''}</div><footer class="dialog-footer"><button class="button primary" data-action="close-connections">Done</button></footer>`;
+  dialog.showModal();
+}
+
+async function loadTasks(sourceId, page = 1) {
+  if (!taskSources().some(source => source.id === sourceId)) return;
+  const request = ++state.taskRequest;
+  ++state.previewRequest;
+  state.taskSourceId = sourceId; state.taskPage = page; state.taskNextPage = null; state.task = null; state.taskSearch = ''; state.taskError = ''; state.taskPreviewError = ''; state.taskChanged = false; state.taskLoading = true; state.taskPreviewLoading = false; state.tasks = [];
+  if (state.view === 'tasks') renderTasks();
+  try {
+    const result = await api(`/api/task-sources/${encodeURIComponent(sourceId)}/tasks?page=${page}`);
+    if (request !== state.taskRequest) return;
+    state.tasks = result.tasks; state.taskNextPage = result.nextPage || null;
+  } catch (error) { if (request === state.taskRequest) state.taskError = error.message; }
+  finally { if (request === state.taskRequest) { state.taskLoading = false; if (state.view === 'tasks' && state.bootstrap) renderTasks(); } }
+}
+
+async function openTask(id, preserveDraft = false) {
+  const sourceId = state.taskSourceId;
+  const request = ++state.previewRequest;
+  state.taskPreviewLoading = true; state.taskPreviewError = ''; state.taskChanged = preserveDraft;
+  if (!preserveDraft) state.taskDraft = { crewId: state.bootstrap.crews[0]?.id || '', runtime: state.bootstrap.runtimes[0]?.id || '', budgetUsd: Math.min(5, state.bootstrap.maxBudgetUsd) };
+  renderTasks();
+  try {
+    const task = await api(`/api/task-sources/${encodeURIComponent(sourceId)}/tasks/${encodeURIComponent(id)}`);
+    if (request !== state.previewRequest || sourceId !== state.taskSourceId) return;
+    state.task = task;
+    if (state.view === 'tasks') $('#announcement').textContent = `Task preview ready: ${task.title}`;
+  } catch (error) { if (request === state.previewRequest) { state.task = null; state.taskPreviewError = error.message; } }
+  finally { if (request === state.previewRequest) { state.taskPreviewLoading = false; if (state.view === 'tasks' && state.bootstrap) renderTasks(); } }
 }
 
 function renderHtml(markup) {
@@ -198,6 +275,7 @@ function render() {
   if (state.view === 'session') return renderSession();
   if (state.view === 'ploeg') return renderPloeg();
   if (state.view === 'system') return renderSystem();
+  if (state.view === 'tasks') return renderTasks();
   renderDashboard();
 }
 
@@ -254,8 +332,9 @@ async function route() {
   const hash = location.hash.slice(1) || 'sessions';
   try {
     if (hash.startsWith('session/')) return await openSession(hash.slice(8));
-    disconnect(); state.session = null; state.view = ['sessions','ploeg','system'].includes(hash) ? hash : 'sessions';
+    disconnect(); state.session = null; state.view = ['sessions','tasks','ploeg','system'].includes(hash) ? hash : 'sessions';
     state.sessions = await api('/api/sessions'); render();
+    if (state.view === 'tasks' && taskSources().length) await loadTasks(state.taskSourceId || taskSources()[0].id);
     if (state.view === 'ploeg') { state.ploeg = await api('/api/ploeg'); renderPloeg(); }
     if (state.view === 'system') { state.health = await api('/api/health'); renderSystem(); }
   } catch (error) { notify(error.message, true); if (state.bootstrap) { state.view = 'sessions'; renderDashboard(); } }
@@ -266,6 +345,19 @@ function download(filename, content, type = 'text/plain') {
   link.href = url; link.download = filename; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+async function downloadCandidate(format) {
+  if (!state.session || !['bundle', 'patch', 'manifest'].includes(format)) return;
+  const sessionId = state.session.id;
+  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/candidate/download?format=${format}`, { credentials: 'same-origin' });
+  if (!response.ok) {
+    const data = await response.json();
+    if (response.status === 401) { disconnect(); state.bootstrap = null; renderLogin(); }
+    throw new Error(data.error?.message || 'The repository export could not be downloaded.');
+  }
+  const blob = await response.blob();
+  download(`de-vloer-${sessionId.slice(0,8)}.${format === 'manifest' ? 'json' : format}`, blob, blob.type);
+}
+
 function exportHandoff() {
   const session = state.session;
   const content = [`# ${session.title}`, '', `Runtime: ${runtimeName(session.runtime)}`, `Status: ${labels[session.status]}`, `Repository: ${repoName(session.repositoryId)}`, `Branch: ${session.branch}`, `Accounting: ${session.costStatus}; recorded spend ${money(session.spentUsd)}; authorization ${money(session.budgetUsd)}`, '', '## Objective', session.objective, '', ...session.runs.flatMap(run => [`## ${run.roleName}`, `Status: ${run.status}${run.verdict ? `; verdict: ${run.verdict}` : ''}`, run.summary || 'No completed summary.', '']), ...session.artifacts.flatMap(artifact => [`## ${artifact.name}`, '', '````', artifact.content, '````', '']), 'No automatic merge or deployment was performed.'].join('\n');
@@ -274,10 +366,17 @@ function exportHandoff() {
 
 async function lifecycle(action) {
   if (state.busy || !state.session) return;
+  const sessionId = state.session.id;
   state.busy = true;
-  try { state.session = await api(`/api/sessions/${state.session.id}/${action}`, { method: 'POST', body: '{}' }); renderSession(); notify(action === 'pause' ? 'Paused. Your context and budget remain attached to this session.' : action === 'cancel' ? 'Cancelled. This work will not automatically retry.' : 'The crew is starting.'); }
+  renderSession();
+  try {
+    const session = await api(`/api/sessions/${sessionId}/${action}`, { method: 'POST', body: '{}' });
+    state.sessions = state.sessions.map(item => item.id === sessionId ? session : item);
+    if (state.view === 'session' && state.session?.id === sessionId) state.session = session;
+    notify(action === 'pause' ? 'Paused. Your context and budget remain attached to this session.' : action === 'cancel' ? 'Cancelled. This work will not automatically retry.' : 'The crew is starting.');
+  }
   catch (error) { notify(error.message, true); }
-  finally { state.busy = false; }
+  finally { state.busy = false; if (state.view === 'session' && state.session?.id === sessionId) renderSession(); }
 }
 
 document.addEventListener('click', async event => {
@@ -286,6 +385,12 @@ document.addEventListener('click', async event => {
   const action = button.dataset.action;
   try {
     if (action === 'new') openNew();
+    else if (action === 'connections') openConnections();
+    else if (action === 'close-connections') $('#task-connections').close();
+    else if (action === 'task-source') await loadTasks(button.dataset.id);
+    else if (action === 'task-refresh') await loadTasks(state.taskSourceId, state.taskPage);
+    else if (action === 'task-page') await loadTasks(state.taskSourceId, Number(button.dataset.page));
+    else if (action === 'task-preview') await openTask(button.dataset.id);
     else if (action === 'close-dialog') $('#new-session').close();
     else if (action === 'open') { state.tab = 'stream'; location.hash = `session/${button.dataset.id}`; }
     else if (action === 'filter') { state.filter = button.dataset.id; renderDashboard(); }
@@ -293,6 +398,7 @@ document.addEventListener('click', async event => {
     else if (['start','pause','resume'].includes(action)) await lifecycle(action);
     else if (action === 'cancel') confirmAction('Cancel this session?', 'The active turn will stop and no remaining role will start. This session cannot be resumed after cancellation.', 'Cancel session', () => lifecycle('cancel'));
     else if (action === 'export') exportHandoff();
+    else if (action === 'candidate-download') { button.disabled = true; try { await downloadCandidate(button.dataset.format); } finally { button.disabled = false; } }
     else if (action === 'download-artifact') { const artifact = state.session.artifacts.find(item => item.id === button.dataset.id); if (artifact) download(`${artifact.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.${artifact.kind === 'diff' ? 'patch' : 'txt'}`, artifact.content); }
     else if (action === 'logout') { await api('/api/logout', { method: 'POST', body: '{}' }); state.bootstrap = null; disconnect(); renderLogin(); }
     else if (action === 'permission') { button.disabled = true; await api(`/api/sessions/${state.session.id}/permissions/${button.dataset.id}`, { method: 'POST', body: JSON.stringify({ decision: button.dataset.decision }) }); notify('Your decision was delivered to the runtime.'); }
@@ -312,6 +418,11 @@ document.addEventListener('click', async event => {
 document.addEventListener('input', event => {
   if (event.target.id === 'operator-message') state.draft = event.target.value;
   if (event.target.id === 'session-search') { state.search = event.target.value; renderDashboard(); }
+  if (event.target.id === 'task-search') { state.taskSearch = event.target.value; renderTasks(); }
+  if (event.target.closest('[data-form="task-import"]') && state.taskDraft) state.taskDraft[event.target.name] = event.target.value;
+});
+document.addEventListener('change', event => {
+  if (event.target.closest('[data-form="task-import"]') && state.taskDraft) state.taskDraft[event.target.name] = event.target.value;
 });
 
 document.addEventListener('submit', async event => {
@@ -326,6 +437,24 @@ document.addEventListener('submit', async event => {
       data.budgetUsd = Number(data.budgetUsd);
       const session = await api('/api/sessions', { method: 'POST', body: JSON.stringify(data) });
       $('#new-session').close(); state.sessions.unshift(session); state.tab = 'stream'; location.hash = `session/${session.id}`;
+    } else if (form.dataset.form === 'task-import') {
+      if (state.taskImporting || !state.task) return;
+      state.taskImporting = true;
+      const selected = state.task;
+      const existingIds = new Set(state.sessions.map(session => session.id));
+      try {
+        const session = await api('/api/task-imports', { method: 'POST', body: JSON.stringify({ sourceId: selected.sourceId, taskId: selected.id, revision: selected.revision, crewId: data.crewId, runtime: data.runtime, budgetUsd: Number(data.budgetUsd) }) });
+        state.sessions = [session, ...state.sessions.filter(item => item.id !== session.id)]; state.tab = 'stream';
+        location.hash = `session/${session.id}`;
+        notify(existingIds.has(session.id) ? 'Opened the existing session for this task. No additional work was started.' : 'Task imported. Review the brief, then start the crew when you are ready.');
+      } catch (error) {
+        if (error.status === 409 && error.code === 'task_changed' && state.view === 'tasks' && state.taskSourceId === selected.sourceId) {
+          await openTask(selected.id, true);
+          state.taskPreviewError = error.message;
+        } else state.taskPreviewError = error.message;
+        if (state.view === 'tasks') renderTasks();
+        notify(error.message, true);
+      } finally { state.taskImporting = false; if (state.view === 'tasks') renderTasks(); }
     } else if (form.dataset.form === 'message') {
       await api(`/api/sessions/${state.session.id}/messages`, { method: 'POST', body: JSON.stringify({ text: data.text }) }); state.draft = ''; form.reset(); notify('Instruction saved for the next execution.');
     } else if (form.dataset.form === 'budget') {
@@ -356,7 +485,7 @@ document.addEventListener('keydown', event => {
       return;
     }
   }
-  if (event.key.toLowerCase() === 'n' && !event.ctrlKey && !event.metaKey && !event.altKey && !['INPUT','TEXTAREA','SELECT'].includes(event.target.tagName) && state.bootstrap && state.bootstrap.user.role !== 'viewer' && !$('#new-session').open && !$('#confirm-dialog').open) { event.preventDefault(); openNew(); }
+  if (event.key.toLowerCase() === 'n' && !event.ctrlKey && !event.metaKey && !event.altKey && !['INPUT','TEXTAREA','SELECT'].includes(event.target.tagName) && state.bootstrap && state.bootstrap.user.role !== 'viewer' && !$('#new-session').open && !$('#confirm-dialog').open && !$('#task-connections').open) { event.preventDefault(); openNew(); }
 });
 window.addEventListener('hashchange', route);
 window.addEventListener('beforeunload', disconnect);

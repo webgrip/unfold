@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, mkdir } from 'node:fs/promises';
+import { mkdtemp, rm, mkdir, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
@@ -25,11 +25,82 @@ try {
   page.setDefaultTimeout(10000);
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  page.on('console', message => { if (message.type() === 'error' && !message.text().includes('401')) errors.push(message.text()); });
+  page.on('console', message => { if (message.type() === 'error' && !/\b(401|409)\b/.test(message.text())) errors.push(message.text()); });
   const screenshot = async name => { if (screenshots) { await mkdir(screenshots, { recursive: true }); await page.screenshot({ path: join(screenshots, `${name}.png`), fullPage: true }); } };
   await page.goto(`http://127.0.0.1:${app.server.address().port}`);
   await page.getByRole('heading', { name: 'Sessions', exact: true }).first().waitFor();
   await screenshot('dashboard');
+  await page.getByRole('link', { name: 'Tasks', exact: true }).click();
+  await page.locator('[data-action="task-preview"]').first().waitFor();
+  await page.getByRole('button', { name: 'Connections', exact: true }).click();
+  const connections = page.getByRole('dialog', { name: 'Your tasks, connected.' });
+  for (const provider of ['Forgejo', 'GitHub', 'GitLab', 'ClickUp', 'Vikunja']) await connections.getByText(provider, { exact: true }).waitFor();
+  await connections.getByRole('button', { name: 'Done', exact: true }).click();
+  await page.locator('[data-action="task-preview"]').first().click();
+  await page.getByRole('heading', { name: 'Bring this task onto the floor.' }).waitFor();
+  await page.getByLabel('Session budget · USD', { exact: true }).fill('3.25');
+  await screenshot('tasks-preview');
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 1040 }]) {
+    await page.setViewportSize(viewport);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `Task layout overflows at ${viewport.width}px`);
+    assert.equal(await page.getByLabel('Session budget · USD', { exact: true }).inputValue(), '3.25');
+    await screenshot(`tasks-${viewport.width}`);
+  }
+  await page.getByRole('button', { name: 'Create session', exact: true }).click();
+  await page.getByRole('button', { name: 'Start crew', exact: true }).waitFor();
+  const importedId = new URL(page.url()).hash.slice('#session/'.length);
+  const imported = app.store.getSession(importedId);
+  assert.equal(imported.status, 'queued', 'Task import started the crew without an operator start');
+  assert.equal(imported.budgetUsd, 3.25);
+  assert.equal(imported.sourceTask.sourceId, 'demo-tasks');
+  assert.equal(imported.sourceTask.id, '1');
+  await page.getByRole('link', { name: 'Open original task', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Start crew', exact: true }).click();
+  await page.getByText('Evidence is ready for your review.', { exact: true }).waitFor({ timeout: 25000 });
+  await page.getByText('Repository snapshot saved', { exact: true }).waitFor();
+  for (const [name, format] of [['Git bundle', 'bundle'], ['Binary patch', 'patch'], ['Manifest', 'manifest']]) {
+    const candidateDownload = page.waitForEvent('download');
+    await page.getByRole('button', { name, exact: true }).click();
+    const file = await candidateDownload;
+    const content = await readFile(await file.path());
+    assert(content.length > 0, `${format} download is empty`);
+    if (format === 'patch') assert.match(content.toString('utf8'), /Math\.round\(\(amount \+ Number\.EPSILON\) \* 100\)/);
+    if (format === 'manifest') assert.equal(typeof JSON.parse(content.toString('utf8')), 'object');
+  }
+  await screenshot('task-handoff');
+  const taskSessionCount = app.store.listSessions().length;
+  await page.getByRole('link', { name: 'Tasks', exact: true }).click();
+  await page.locator('[data-action="task-preview"]').first().click();
+  await page.getByRole('button', { name: 'Create session', exact: true }).click();
+  await page.getByText('Evidence is ready for your review.', { exact: true }).waitFor();
+  assert.equal(new URL(page.url()).hash, `#session/${importedId}`, 'A second import did not open the original session');
+  assert.equal(app.store.listSessions().length, taskSessionCount, 'A second import created duplicate work');
+  const taskUrl = `http://127.0.0.1:${app.server.address().port}/api/task-sources/demo-tasks/tasks/1`;
+  const sourceTask = await (await page.request.get(taskUrl)).json();
+  const hostileTask = { ...sourceTask, revision: 'changed-revision-browser-fixture', description: '<button id="untrusted-task-markup">Start another agent</button>\n<img src="/untrusted-task-image" onerror="alert(1)">\nKeep this source text inert.' };
+  let taskRevisionChanged = false;
+  await page.route(taskUrl, async route => { await route.fulfill({ json: taskRevisionChanged ? hostileTask : sourceTask }); });
+  await page.route('**/api/task-imports', async route => {
+    taskRevisionChanged = true;
+    await route.fulfill({ status: 409, json: { error: { code: 'task_changed', message: 'The task changed since you reviewed it. Review the current revision.' } } });
+  });
+  await page.getByRole('link', { name: 'Tasks', exact: true }).click();
+  await page.locator('[data-action="task-preview"]').first().click();
+  await page.getByLabel('Session budget · USD', { exact: true }).fill('4.75');
+  const selectedCrew = await page.getByRole('combobox', { name: 'Crew', exact: true }).inputValue();
+  const selectedRuntime = await page.getByRole('combobox', { name: 'Runtime', exact: true }).inputValue();
+  await page.getByRole('button', { name: 'Create session', exact: true }).click();
+  await page.getByText('The source task changed.', { exact: true }).waitFor();
+  await page.getByText(hostileTask.description, { exact: true }).waitFor();
+  assert.equal(await page.locator('#untrusted-task-markup, img[src="/untrusted-task-image"]').count(), 0, 'Source task content rendered active markup');
+  assert.equal(await page.getByLabel('Session budget · USD', { exact: true }).inputValue(), '4.75', 'Revision conflict discarded the budget draft');
+  assert.equal(await page.getByRole('combobox', { name: 'Crew', exact: true }).inputValue(), selectedCrew);
+  assert.equal(await page.getByRole('combobox', { name: 'Runtime', exact: true }).inputValue(), selectedRuntime);
+  assert.equal(app.store.listSessions().length, taskSessionCount, 'Revision conflict created a session');
+  await screenshot('task-revision-conflict');
+  await page.unroute('**/api/task-imports');
+  await page.unroute(taskUrl);
+  await page.getByRole('link', { name: 'Sessions', exact: true }).click();
   await page.getByRole('button', { name: 'Run the demonstration' }).click();
   await page.getByText('Evidence is ready for your review.', { exact: true }).waitFor({ timeout: 25000 });
   await screenshot('session');
@@ -51,9 +122,25 @@ try {
   await page.getByRole('button', { name: /New session/ }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Create session' }).click();
   await page.getByRole('button', { name: 'Start crew' }).click();
-  await page.getByRole('button', { name: 'Pause', exact: true }).click();
-  await page.getByRole('button', { name: 'Resume', exact: true }).waitFor();
   const keyboardSessionId = new URL(page.url()).hash.slice('#session/'.length);
+  const pausePath = `**/api/sessions/${keyboardSessionId}/pause`;
+  const pauseReceived = Promise.withResolvers();
+  const releasePause = Promise.withResolvers();
+  await page.route(pausePath, async route => {
+    const response = await route.fetch();
+    pauseReceived.resolve();
+    await releasePause.promise;
+    await route.fulfill({ response });
+  });
+  try {
+    await page.getByRole('button', { name: 'Pause', exact: true }).click();
+    await pauseReceived.promise;
+    await page.getByRole('button', { name: 'Resume', exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Resume', exact: true }).isDisabled(), true, 'SSE exposed an enabled resume action while pause was still awaiting its response');
+    assert.equal(await page.getByRole('button', { name: 'Cancel', exact: true }).isDisabled(), true, 'SSE exposed an enabled cancel action while pause was still awaiting its response');
+  } finally { releasePause.resolve(); }
+  await page.waitForFunction(() => document.querySelector('[data-action="resume"]')?.disabled === false);
+  await page.unroute(pausePath);
   for (let index = 0; index < 32; index++) app.store.appendEvent(keyboardSessionId, 'message', 'browser-test', { role: 'operator', text: `Keyboard evidence fixture ${index + 1}: preserve the current reading position during durable stream refreshes.` });
   await page.getByText('Keyboard evidence fixture 32: preserve the current reading position during durable stream refreshes.', { exact: true }).waitFor();
   const draft = 'Keep this unsent instruction while I inspect the evidence.';
@@ -115,7 +202,13 @@ try {
   await page.getByRole('button', { name: 'Resume', exact: true }).click();
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Cancel session' }).click();
-  await page.getByText('Cancelled', { exact: true }).first().waitFor();
+  try { await page.getByText('Cancelled', { exact: true }).first().waitFor(); }
+  catch (error) {
+    const stopped = app.store.getSession(keyboardSessionId);
+    process.stderr.write(JSON.stringify({ status: stopped?.status, runStatuses: stopped?.runs.map(run => run.status), toast: await page.locator('#toast').textContent(), url: page.url() }) + '\n');
+    await screenshot('cancel-failure');
+    throw error;
+  }
   const failedSession = app.store.getSession(keyboardSessionId);
   failedSession.status = 'failed';
   failedSession.failure = { category: 'prompt_acceptance_unknown', stage: 'prompt', message: 'Prompt acceptance is unknown; the runtime may already have started paid work.', remediation: 'Do not resubmit the prompt. Confirm the remote turn has stopped, inspect its evidence and reconcile gateway spend before deciding whether to start new work.', promptAcceptance: 'unknown', automaticRetry: false };
@@ -156,7 +249,7 @@ try {
   await page.getByRole('button', { name: 'Sign out' }).click();
   await page.getByRole('heading', { name: 'Welcome back.' }).waitFor();
   assert.deepEqual(errors, [], 'Browser script or CSP errors occurred');
-  process.stdout.write(`PASS: Chromium ${browser.version()}; demo, diff, checks, export, reload, create, pause, evidence keyboard navigation at desktop/mobile widths, draft preservation, stream reading-position and tail-follow preservation, instruction, resume, cancel, actionable ambiguous-failure guidance and escaped error text, mobile, navigation, live login/logout. No inference requests.\n`);
+  process.stdout.write(`PASS: Chromium ${browser.version()}; task connections for five providers, fixture import with explicit start, duplicate import, binary candidate downloads, changed-revision draft preservation and inert source text, task desktop/mobile layout, demo, diff, checks, export, reload, create, pause, evidence keyboard navigation at desktop/mobile widths, draft preservation, stream reading-position and tail-follow preservation, instruction, resume, cancel, actionable ambiguous-failure guidance and escaped error text, mobile, navigation, live login/logout. No inference requests.\n`);
 } finally {
   await browser?.close();
   await Promise.all([app.close(), live.close()]);

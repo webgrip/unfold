@@ -131,3 +131,111 @@ test('invalid route identifiers are rejected before any network action', async (
     assert.throws(() => client.dashboard(id));
   }
 });
+
+test('linked demo task import preserves its revision, deduplicates commands and starts only on operator action', { timeout: 30_000 }, async t => {
+  const server = await application('demo', config => {
+    config.taskSources = [{ id: 'demo-tasks', name: 'Demo tasks', provider: 'demo', baseUrl: 'https://example.invalid', project: 'demo', repositoryId: 'order-service', executionOwner: 'interactive' }];
+  });
+  t.after(() => server.close());
+  const client = new VloerClient(server.url, new MemorySecrets());
+  const sources = await client.taskSources();
+  assert.equal(sources[0].provider, 'demo');
+  assert.deepEqual((await client.bootstrap()).taskSources, sources);
+  const page = await client.tasks('demo-tasks');
+  assert.equal(page.tasks.length, 1);
+  const task = await client.task('demo-tasks', page.tasks[0].id);
+  assert.equal(task.revision, page.tasks[0].revision);
+  const input = { sourceId: task.sourceId, taskId: task.id, revision: task.revision, crewId: 'delivery', runtime: 'demo', budgetUsd: 3 };
+  const [first, repeated] = await Promise.all([client.importTask(input), client.importTask(input)]);
+  assert.equal(first.id, repeated.id);
+  assert.equal(first.status, 'queued');
+  assert(first.runs.every(run => run.status === 'queued'));
+  assert.deepEqual(first.sourceTask, task);
+  assert.equal((await client.sessions()).length, 1);
+  assert.equal((await client.history(first.id)).filter(event => event.type === 'session.created').length, 1);
+  await client.action(first.id, 'start');
+  await sessionUntil(server.url, first.id, session => ['completed', 'failed'].includes(session.status));
+  const completed = await client.session(first.id);
+  assert.equal(completed.status, 'completed');
+  assert.equal(completed.costStatus, 'demo');
+  assert.equal(completed.candidate?.status, 'ready');
+  const manifest = JSON.parse(Buffer.from(await client.downloadCandidate(first.id, 'manifest')).toString('utf8'));
+  assert.equal(manifest.sessionId, first.id);
+  const patch = Buffer.from(await client.downloadCandidate(first.id, 'patch')).toString('utf8');
+  assert.match(patch, /^diff --git/m);
+  const bundle = Buffer.from(await client.downloadCandidate(first.id, 'bundle'));
+  assert.match(bundle.subarray(0, 80).toString('utf8'), /^# v[23] git bundle\n/);
+  assert.equal((await client.importTask(input)).id, first.id, 're-importing a completed revision never starts replacement work');
+});
+
+test('a desktop client links Vikunja through the actual authenticated server and refuses stale snapshots and Ploeg execution', { timeout: 20_000 }, async t => {
+  let title = 'Improve remote task import';
+  const requests: { path: string; authorization: string }[] = [];
+  const upstream = createServer((request, response) => {
+    const url = new URL(request.url!, 'http://localhost');
+    requests.push({ path: url.pathname, authorization: request.headers.authorization ?? '' });
+    const task = { id: 42, project_id: 9, title, description: '<script>malicious tracker text</script> Preserve review evidence.', done: false, updated: '2026-09-09T00:00:00Z' };
+    response.setHeader('Content-Type', 'application/json');
+    if (url.pathname === '/api/v1/tasks') {
+      assert.equal(url.searchParams.get('filter'), 'project_id = 9 && done = false');
+      response.end(JSON.stringify([task]));
+    } else if (url.pathname === '/api/v1/tasks/42') response.end(JSON.stringify(task));
+    else { response.statusCode = 404; response.end('{}'); }
+  });
+  await new Promise<void>(resolve => upstream.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise<void>(resolve => upstream.close(() => resolve())));
+  const address = upstream.address();
+  assert(address && typeof address !== 'string');
+  const server = await application('live', config => {
+    const source = { id: 'vikunja-work', name: 'Vikunja work', provider: 'vikunja' as const, baseUrl: `http://127.0.0.1:${address.port}/api/v1`, project: '9', repositoryId: 'order-service', token: 'upstream-token-kept-server-side', executionOwner: 'interactive' as const };
+    config.taskSources = [source, { ...source, id: 'ploeg-work', project: '10', executionOwner: 'ploeg' }];
+  });
+  t.after(() => server.close());
+  const client = new VloerClient(server.url, new MemorySecrets());
+  await client.login('admin', 'test-admin-password-314159');
+  const bootstrap = await client.bootstrap();
+  assert(!JSON.stringify(bootstrap).includes('upstream-token-kept-server-side'));
+  assert(!JSON.stringify(bootstrap).includes('/api/v1'));
+  const task = (await client.tasks('vikunja-work')).tasks[0];
+  assert.equal(task.provider, 'vikunja');
+  assert.equal(task.repositoryId, 'order-service');
+  assert.match(task.description, /<script>/);
+  const input = { sourceId: task.sourceId, taskId: task.id, revision: task.revision, crewId: 'delivery', runtime: 'opencode', budgetUsd: 3 };
+  title = 'Task updated after preview';
+  await assert.rejects(client.importTask(input), (error: unknown) => error instanceof ApiError && error.status === 409 && error.code === 'task_changed');
+  assert.equal((await client.sessions()).length, 0);
+  const fresh = await client.task(task.sourceId, task.id);
+  const session = await client.importTask({ ...input, revision: fresh.revision });
+  assert.equal(session.status, 'queued');
+  assert.equal(session.sourceTask?.title, title);
+  assert(session.runs.every(run => run.status === 'queued'));
+  await assert.rejects(client.importTask({ ...input, sourceId: 'ploeg-work' }), (error: unknown) => error instanceof ApiError && error.status === 403 && error.code === 'ploeg_owned');
+  assert(requests.length >= 4);
+  assert(requests.every(request => request.authorization === 'Bearer upstream-token-kept-server-side'));
+  assert(requests.every(request => !request.authorization.includes('vloer=')));
+});
+
+test('candidate downloads reject redirects and oversized responses without forwarding credentials or retaining a partial file', async t => {
+  let targetCalls = 0;
+  const target = createServer((_request, response) => { targetCalls++; response.end('unexpected'); });
+  await new Promise<void>(resolve => target.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise<void>(resolve => target.close(() => resolve())));
+  const targetAddress = target.address();
+  assert(targetAddress && typeof targetAddress !== 'string');
+  let mode = 'redirect';
+  const origin = createServer((_request, response) => {
+    if (mode === 'redirect') { response.writeHead(302, { Location: `http://127.0.0.1:${targetAddress.port}/artifact` }); response.end(); }
+    else { response.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': 129 * 1024 * 1024 }); response.end(); }
+  });
+  await new Promise<void>(resolve => origin.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise<void>(resolve => origin.close(() => resolve())));
+  const address = origin.address();
+  assert(address && typeof address !== 'string');
+  const secrets = new MemorySecrets();
+  const client = new VloerClient(`http://127.0.0.1:${address.port}`, secrets);
+  await secrets.store(client.secretKey, 'vloer=opaque-download-cookie');
+  await assert.rejects(client.downloadCandidate('session-123', 'bundle'), (error: unknown) => error instanceof ApiError && error.code === 'redirect');
+  assert.equal(targetCalls, 0);
+  mode = 'oversized';
+  await assert.rejects(client.downloadCandidate('session-123', 'bundle'), (error: unknown) => error instanceof ApiError && error.code === 'response_too_large');
+});

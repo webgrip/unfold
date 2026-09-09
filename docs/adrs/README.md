@@ -11,3 +11,4 @@ Trunk is `development`. Each accepted decision records its consequences and a tr
 | [0005 — One work authority](0005-one-work-authority.md) | Proposed for governed delivery |
 | [0006 — Trusted verifier and publisher](0006-trusted-verifier-and-publisher.md) | Proposed; independent execution not implemented |
 | [0007 — Thin editor client](0007-thin-editor-client.md) | Accepted for the v0.1 extension |
+| [0008 — Shared task connections and portable candidate handoff](0008-task-connections-and-candidate-handoff.md) | Implemented in 0.2.0; proposed for team adoption |
