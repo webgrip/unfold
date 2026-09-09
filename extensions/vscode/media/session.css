@@ -47,6 +47,7 @@ p { margin: 8px 0; }
 .objective { padding-bottom: 25px; }
 .objective p { line-height: 1.7; }
 .preserve { white-space: pre-wrap; overflow-wrap: anywhere; }
+.failure-detail { margin: 8px 0 4px; padding: 8px 10px; border-radius: 4px; background: var(--vscode-textCodeBlock-background); font-family: var(--vscode-editor-font-family); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; }
 .section-heading { display: flex; align-items: baseline; gap: 14px; justify-content: space-between; margin-bottom: 12px; }
 .section-heading h2 { margin: 0; }
 .section-heading > span { color: var(--vscode-descriptionForeground); font-size: 11px; text-align: right; }

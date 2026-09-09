@@ -59,6 +59,7 @@ function render() {
     element('strong', {}, 'Execution needs attention'),
     element('p', { className: 'preserve' }, session.failure.message),
     element('p', { className: 'preserve' }, session.failure.remediation),
+    ...(session.failure.detail ? [element('pre', { className: 'failure-detail', 'aria-label': 'Recorded error output' }, session.failure.detail)] : []),
     ...(session.failure.promptAcceptance === 'unknown' ? [element('p', { className: 'muted' }, 'Submission outcome unconfirmed · no automatic retry.')] : []),
   ));
   else if (session.blocker) notices.push(element('div', { className: 'notice warning' }, element('strong', {}, 'Decision needed'), session.blocker));

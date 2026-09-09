@@ -1,7 +1,24 @@
 export type FailureCategory = 'missing_executable' | 'workspace_setup' | 'gateway_rejected' | 'harness_rejected' | 'connectivity' | 'timeout' | 'cancelled' | 'prompt_acceptance_unknown' | 'runtime_failure' | 'review_incomplete' | 'input_unresolved';
 export type FailureStage = 'credentials' | 'workspace' | 'runtime' | 'prompt' | 'execution';
 export type PromptAcceptance = 'not_submitted' | 'rejected' | 'accepted' | 'unknown';
-export type ExecutionFailure = { category: FailureCategory; stage: FailureStage; message: string; remediation: string; promptAcceptance: PromptAcceptance; automaticRetry: false };
+export type ExecutionFailure = { category: FailureCategory; stage: FailureStage; message: string; remediation: string; promptAcceptance: PromptAcceptance; automaticRetry: false; detail?: string };
+
+const maxDetailChars = 2000;
+const details = new WeakMap<RuntimeFailure, string>();
+
+export function safeDetail(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const cleaned = value
+    .replace(/\u001b\[[0-9;]*[A-Za-z]/g, '')
+    .replace(/[^\P{C}\n\t]/gu, '')
+    .replace(/:\/\/[^\s/@]+@/g, '://[redacted]@')
+    .replace(/\bsk-[\w-]+/g, '[redacted]')
+    .replace(/\b(Bearer|Basic|token)\s+\S+/gi, '$1 [redacted]')
+    .replace(/\b(token|password|secret|key|authorization)=[^\s&]+/gi, '$1=[redacted]')
+    .trim();
+  if (!cleaned) return undefined;
+  return cleaned.length > maxDetailChars ? '…' + cleaned.slice(-maxDetailChars) : cleaned;
+}
 
 const descriptions: Record<FailureCategory, { message: string; remediation: string }> = {
   missing_executable: { message: 'A required runtime or workspace executable is unavailable.', remediation: 'Ask an administrator to check the configured executable, its permissions and the workspace image before starting new work.' },
@@ -20,11 +37,12 @@ const descriptions: Record<FailureCategory, { message: string; remediation: stri
 const stages = new Set<FailureStage>(['credentials', 'workspace', 'runtime', 'prompt', 'execution']);
 const acceptances = new Set<PromptAcceptance>(['not_submitted', 'rejected', 'accepted', 'unknown']);
 
-export function executionFailure(category: FailureCategory, stage: FailureStage, promptAcceptance: PromptAcceptance): ExecutionFailure {
+export function executionFailure(category: FailureCategory, stage: FailureStage, promptAcceptance: PromptAcceptance, detail?: unknown): ExecutionFailure {
   const safeCategory = typeof category === 'string' && Object.hasOwn(descriptions, category) ? category : 'runtime_failure';
   const safeStage = stages.has(stage) ? stage : 'execution';
   const safeAcceptance = acceptances.has(promptAcceptance) ? promptAcceptance : 'unknown';
-  return { category: safeCategory, stage: safeStage, ...descriptions[safeCategory], promptAcceptance: safeAcceptance, automaticRetry: false };
+  const safe = safeDetail(detail);
+  return { category: safeCategory, stage: safeStage, ...descriptions[safeCategory], promptAcceptance: safeAcceptance, automaticRetry: false, ...(safe ? { detail: safe } : {}) };
 }
 
 export class RuntimeFailure extends Error {
@@ -33,19 +51,22 @@ export class RuntimeFailure extends Error {
   readonly promptAcceptance: PromptAcceptance;
   readonly httpStatus?: number;
 
-  constructor(category: FailureCategory, stage: FailureStage, promptAcceptance: PromptAcceptance = 'not_submitted', httpStatus?: number) {
-    const failure = executionFailure(category, stage, promptAcceptance);
+  constructor(category: FailureCategory, stage: FailureStage, promptAcceptance: PromptAcceptance = 'not_submitted', httpStatus?: number, detail?: string) {
+    const failure = executionFailure(category, stage, promptAcceptance, detail);
     super(failure.message);
     this.name = 'RuntimeFailure';
     this.category = failure.category;
     this.stage = failure.stage;
     this.promptAcceptance = failure.promptAcceptance;
     this.httpStatus = httpStatus;
+    if (failure.detail) details.set(this, failure.detail);
   }
+
+  get detail(): string | undefined { return details.get(this); }
 }
 
 export function classifyFailure(error: unknown, stage: FailureStage, promptAcceptance: PromptAcceptance = 'not_submitted'): ExecutionFailure {
-  if (error instanceof RuntimeFailure) return executionFailure(error.category, error.stage, error.promptAcceptance);
+  if (error instanceof RuntimeFailure) return executionFailure(error.category, error.stage, error.promptAcceptance, details.get(error));
   const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
   const causeCode = error instanceof Error && error.cause && typeof error.cause === 'object' && 'code' in error.cause ? error.cause.code : undefined;
   if (error instanceof Error && error.name === 'TimeoutError' || ['ETIMEDOUT', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT'].includes(String(code ?? causeCode))) return executionFailure('timeout', stage, promptAcceptance);

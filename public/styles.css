@@ -1404,6 +1404,21 @@ kbd {
   opacity:.85;
   overflow-wrap:anywhere;
 }
+.notice pre.failure-detail {
+  margin:10px 0 6px;
+  padding:10px 12px;
+  border-radius:6px;
+  background:#f7f1e6;
+  border:1px solid #ecdfca;
+  color:#6f5a3a;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:10px;
+  line-height:1.5;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  max-height:240px;
+  overflow:auto;
+}
 .notice-success {
   background:#f0f7f1;
   border-color:#dce9de;

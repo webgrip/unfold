@@ -11,7 +11,7 @@ import { captureLocalCandidate, pinCandidateBase, unavailableCandidate, type Can
 type InternalWorkspace = { username: string; password: string; env: Record<string, string>; process?: ChildProcess };
 
 const supervisorProgram = `const{spawn}=require('node:child_process');
-const child=spawn(process.argv[1],process.argv.slice(2),{env:process.env,stdio:'ignore',detached:process.platform!=='win32'});
+const child=spawn(process.argv[1],process.argv.slice(2),{env:process.env,stdio:['ignore','ignore','inherit'],detached:process.platform!=='win32'});
 let stopping=false;const stop=()=>{if(stopping)return;stopping=true;try{process.platform==='win32'?child.kill('SIGTERM'):process.kill(-child.pid,'SIGTERM')}catch{};setTimeout(()=>{try{process.platform==='win32'?child.kill('SIGKILL'):process.kill(-child.pid,'SIGKILL')}catch{};process.exit(0)},2000).unref()};
 process.stdin.resume();process.stdin.on('end',stop);process.on('SIGTERM',stop);process.on('SIGINT',stop);
 child.once('error',error=>{if(process.send)process.send({type:'launch.error',missing:error.code==='ENOENT'||error.code==='EACCES'},()=>process.exit(1));else process.exit(1)});child.once('exit',code=>process.exit(code??1));`;
@@ -48,11 +48,32 @@ export function isolatedEnvironment(directory: string, credential: Credential | 
   return env;
 }
 
+const maxOutputChars = 4096;
+
+function outputTail(): { append(chunk: Buffer | string): void; text(): string } {
+  let text = '';
+  return {
+    append(chunk) { text = (text + String(chunk)).slice(-maxOutputChars); },
+    text() { return text; },
+  };
+}
+
+function withoutServerPaths(text: string, ...paths: string[]): string {
+  for (const path of paths) if (path) text = text.split(path).join('<workspace>');
+  return text;
+}
+
 export function runProcess(binary: string, args: string[], cwd: string, env: Record<string, string>, signal?: AbortSignal): Promise<void> {
+  const command = withoutServerPaths([binary, ...args].join(' '), cwd);
   return new Promise((done, reject) => {
-    const child = spawn(binary, args, { cwd, env, stdio: 'ignore', signal });
-    child.once('error', (error: NodeJS.ErrnoException) => reject(new RuntimeFailure(['ENOENT', 'EACCES'].includes(error.code ?? '') ? 'missing_executable' : 'workspace_setup', 'workspace')));
-    child.once('exit', code => code === 0 ? done() : reject(new RuntimeFailure('workspace_setup', 'workspace')));
+    const stderr = outputTail();
+    const child = spawn(binary, args, { cwd, env, stdio: ['ignore', 'ignore', 'pipe'], signal });
+    child.stderr?.on('data', chunk => stderr.append(chunk));
+    child.once('error', (error: NodeJS.ErrnoException) => {
+      const missing = ['ENOENT', 'EACCES'].includes(error.code ?? '');
+      reject(new RuntimeFailure(missing ? 'missing_executable' : 'workspace_setup', 'workspace', 'not_submitted', undefined, missing ? `${binary} was not found or is not executable on the server PATH (${error.code})` : `${command} could not start (${error.code ?? 'unknown error'})`));
+    });
+    child.once('exit', (code, signalName) => code === 0 ? done() : reject(new RuntimeFailure('workspace_setup', 'workspace', 'not_submitted', undefined, `${command} exited with ${code === null ? `signal ${signalName}` : `code ${code}`}\n${withoutServerPaths(stderr.text(), cwd)}`)));
   });
 }
 
@@ -127,20 +148,25 @@ export class WorkspaceManager {
     workspace.endpoint = `http://127.0.0.1:${port}`;
     await writeFile(join(root, 'opencode.json'), JSON.stringify(managedConfig(this.config), null, 2), { mode: 0o600 });
     const child = spawn(process.execPath, ['-e', supervisorProgram, this.config.runtime.binary ?? 'opencode', 'serve', '--hostname', '127.0.0.1', '--port', String(port)], {
-      cwd: directory, env: { ...env, OPENCODE_SERVER_USERNAME: state.username, OPENCODE_SERVER_PASSWORD: state.password }, stdio: ['pipe', 'ignore', 'ignore', 'ipc'],
+      cwd: directory, env: { ...env, OPENCODE_SERVER_USERNAME: state.username, OPENCODE_SERVER_PASSWORD: state.password }, stdio: ['pipe', 'ignore', 'pipe', 'ipc'],
     });
     state.process = child;
+    const binary = this.config.runtime.binary ?? 'opencode';
+    const stderr = outputTail();
+    child.stderr?.on('data', chunk => stderr.append(chunk));
+    const launchDetail = (summary: string) => `${summary}\n${withoutServerPaths(stderr.text(), root)}`;
     let launchError = false;
     let missingExecutable = false;
     child.on('error', () => { launchError = true; });
     child.on('message', record => {
       if (record && typeof record === 'object' && 'type' in record && record.type === 'launch.error' && 'missing' in record) missingExecutable = record.missing === true;
     });
-    const deadline = Date.now() + Math.min(this.config.runtime.timeoutMs, 120_000);
+    const started = Date.now();
+    const deadline = started + Math.min(this.config.runtime.timeoutMs, 120_000);
     try {
       while (Date.now() < deadline) {
         signal.throwIfAborted();
-        if (launchError || child.exitCode !== null) throw new RuntimeFailure(missingExecutable ? 'missing_executable' : 'workspace_setup', 'workspace');
+        if (launchError || child.exitCode !== null) throw new RuntimeFailure(missingExecutable ? 'missing_executable' : 'workspace_setup', 'workspace', 'not_submitted', undefined, missingExecutable ? `${binary} was not found or is not executable on the server PATH` : launchDetail(`${binary} serve exited with code ${child.exitCode ?? 'unknown'} before answering /global/health`));
         try {
           const response = await fetch(workspace.endpoint + '/global/health', {
             headers: { authorization: 'Basic ' + Buffer.from(`${state.username}:${state.password}`).toString('base64') },
@@ -150,7 +176,7 @@ export class WorkspaceManager {
         } catch {}
         await new Promise(done => setTimeout(done, 200));
       }
-      throw new RuntimeFailure('timeout', 'workspace');
+      throw new RuntimeFailure('timeout', 'workspace', 'not_submitted', undefined, launchDetail(`${binary} serve did not answer /global/health within ${Math.round((deadline - started) / 1000)}s`));
     } catch (error) { await this.stop(child); this.internal.delete(session.id); throw error; }
   }
 

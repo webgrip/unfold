@@ -4,7 +4,7 @@ import { mkdtemp, rm, writeFile, mkdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { RuntimeFailure } from '../src/failures.ts';
+import { RuntimeFailure, classifyFailure } from '../src/failures.ts';
 import { WorkspaceManager, isolatedEnvironment, managedConfig } from '../src/runtime/workspace.ts';
 import { KubernetesWorkspaces, workspaceManifests } from '../src/runtime/kubernetes.ts';
 import type { AppConfig, Repository, Session } from '../src/types.ts';
@@ -140,4 +140,48 @@ http.createServer((req,res)=>{res.writeHead(req.headers.authorization===auth?200
     await new Promise(done => setTimeout(done, 100));
   }
   assert.equal(stopped, true, 'closing the parent channel must stop the agent server');
+});
+
+test('workspace failures carry the failing command and its redacted output', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'vloer-failure-detail-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const repo = { ...repository, url: join(directory, 'missing.git') };
+  const config = configuration(join(directory, 'data'));
+  config.repositories = [repo]; config.runtime = { kind: 'command', backend: 'local', timeoutMs: 10_000 };
+  await assert.rejects(new WorkspaceManager(config).prepare(session, repo, credential, new AbortController().signal), (error: RuntimeFailure) => {
+    assert.equal(error.category, 'workspace_setup');
+    assert.match(error.detail!, /^git clone --depth 100 --branch main -- \S+\/missing\.git <workspace>\/repository exited with code 128\n/);
+    assert.match(error.detail!, /does not exist|not found|No such file/i);
+    assert.equal(error.detail!.includes(join(directory, 'data')), false);
+    return true;
+  });
+  const source = join(directory, 'source'); await mkdir(source);
+  execFileSync('git', ['init', '-b', 'main', source], { stdio: 'ignore' });
+  execFileSync('git', ['-C', source, '-c', 'user.name=Test', '-c', 'user.email=test@localhost', 'commit', '--allow-empty', '-m', 'Initial'], { stdio: 'ignore' });
+  const binary = join(directory, 'failing-opencode.cjs');
+  await writeFile(binary, `#!/usr/bin/env node
+process.stderr.write('provider rejected key sk-live-secret at https://user:pass@gateway.example/v1\\n');
+process.exit(3);
+`, { mode: 0o700 });
+  const launching = { ...repository, url: source };
+  config.repositories = [launching]; config.runtime = { kind: 'opencode', backend: 'local', binary, timeoutMs: 5000 };
+  await assert.rejects(new WorkspaceManager(config).prepare(session, launching, credential, new AbortController().signal), (error: RuntimeFailure) => {
+    assert.equal(error.category, 'workspace_setup');
+    assert.match(error.detail!, /serve exited with code 3 before answering \/global\/health\nprovider rejected key \[redacted\] at https:\/\/\[redacted\]@gateway\.example\/v1/);
+    assert.equal(error.detail!.includes(join(directory, 'data')), false);
+    return true;
+  });
+});
+
+test('failure details are redacted, bounded and cannot be assigned after construction', () => {
+  const escape = String.fromCharCode(27);
+  const raw = `${escape}[31mfatal:${escape}[0m Authorization: Bearer opaque-token token=never-persist ${'x'.repeat(5000)}`;
+  const detail = classifyFailure(new RuntimeFailure('workspace_setup', 'workspace', 'not_submitted', undefined, raw), 'workspace').detail!;
+  assert.equal(detail.includes('opaque-token'), false);
+  assert.equal(detail.includes('never-persist'), false);
+  assert.equal(detail.includes(escape), false);
+  assert.equal(detail.length, 2001);
+  assert.equal(classifyFailure(new Error('raw exception text'), 'workspace').detail, undefined);
+  assert.equal(classifyFailure(new RuntimeFailure('timeout', 'workspace'), 'workspace').detail, undefined);
+  assert.throws(() => Object.assign(new RuntimeFailure('workspace_setup', 'workspace'), { detail: 'smuggled' }), TypeError);
 });

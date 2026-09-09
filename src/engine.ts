@@ -327,7 +327,7 @@ export class Engine {
         session.status = 'failed';
         session.failure = error instanceof EngineError && ['review_incomplete', 'input_unresolved'].includes(error.code)
           ? executionFailure(error.code as 'review_incomplete' | 'input_unresolved', stage, 'accepted')
-          : classifyFailure(error, stage, stage === 'execution' ? 'unknown' : 'not_submitted');
+          : this.clean(classifyFailure(error, stage, stage === 'execution' ? 'unknown' : 'not_submitted'));
         session.blocker = session.failure.message;
         for (const run of session.runs) if (['running', 'waiting_input'].includes(run.status)) { run.status = 'failed'; run.finishedAt = new Date().toISOString(); }
         this.resolvePermissions(id);

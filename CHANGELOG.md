@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Workspace failures now record the actual cause. The failing command, its exit code or signal and the tail of its standard error are captured for `git` steps and the OpenCode launch, redacted, bounded and shown in the browser and VS Code failure notice as `failure.detail`. Runtime exception text still never enters the failure record.
+
 ## 0.2.0 — 2026-09-09
 
 ### Added
