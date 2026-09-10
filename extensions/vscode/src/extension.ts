@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { writeFile } from 'node:fs/promises';
 import { ApiError, VloerClient, normalizeServerUrl } from './client.js';
+import { browserLogin } from './browser-login.js';
 import { EvidenceDocuments, patchFileLine } from './evidence.js';
 import { AttentionWatcher, show, type NotificationPolicy } from './notifications.js';
 import { SessionPanels, type PanelHost, type PanelTab, type InstructionOutcome } from './panel.js';
@@ -202,6 +203,22 @@ class Workbench implements vscode.Disposable, PanelHost {
     try { this.cachedBootstrap = await this.current.bootstrap(); }
     catch (error) {
       if (!(error instanceof ApiError) || error.status !== 401) throw error;
+      const methods = await this.current.authMethods().catch(() => ({ local: true, oidc: null }));
+      const useBrowser = methods.oidc ? await vscode.window.showQuickPick([
+        { label: `$(globe) Sign in with ${methods.oidc.name}`, description: 'Opens your browser once; the editor keeps the session.', method: 'browser' as const },
+        { label: '$(account) Local account', description: 'Name and password on this workbench.', method: 'local' as const },
+      ], { title: `Sign in to De Vloer on ${new URL(origin).host}`, ignoreFocusOut: true }) : { method: 'local' as const };
+      if (!useBrowser) return;
+      if (useBrowser.method === 'browser') {
+        const client = this.current;
+        const signedIn = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Waiting for your sign-in with ${methods.oidc!.name} in the browser…`, cancellable: true }, (_progress, token) =>
+          browserLogin(client, { open: async url => { await vscode.env.openExternal(vscode.Uri.parse(url)); }, cancelled: () => token.isCancellationRequested, sleep: ms => new Promise(resolve => setTimeout(resolve, ms)) }, origin));
+        if (!signedIn) return;
+        this.cachedBootstrap = await this.current.bootstrap();
+        await this.refresh(true);
+        await vscode.commands.executeCommand('vloer.sessions.focus');
+        return;
+      }
       const name = await vscode.window.showInputBox({ title: 'Sign in to De Vloer', prompt: `Account name on ${new URL(origin).host}`, ignoreFocusOut: true, validateInput: value => value.trim() ? undefined : 'Enter your account name.' });
       if (!name) return;
       const password = await vscode.window.showInputBox({ title: 'Sign in to De Vloer', prompt: 'Your password is used for this login only. The session is stored in VS Code SecretStorage.', password: true, ignoreFocusOut: true });

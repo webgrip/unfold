@@ -4,7 +4,7 @@ import type { AppConfig, UserRole } from './types.ts';
 export type OidcSettings = { issuer: string; clientId: string; clientSecret?: string; scopes: string[]; displayName: string; roleClaim: string; groupsClaim: string; roles: Record<UserRole, string[]> };
 export type OidcIdentity = { id: string; name: string; role: UserRole; subject: string; email?: string };
 type Discovery = { issuer: string; authorization_endpoint: string; token_endpoint: string; jwks_uri: string };
-type Pending = { verifier: string; nonce: string; createdAt: number };
+type Pending = { verifier: string; nonce: string; createdAt: number; editor?: string };
 
 const pendingTtlMs = 10 * 60_000;
 const maxPending = 1000;
@@ -73,7 +73,7 @@ export class Oidc {
     return keys;
   }
 
-  async begin(): Promise<string> {
+  async begin(editor?: string): Promise<string> {
     const settings = this.required();
     const discovery = await this.discover();
     const now = Date.now();
@@ -82,7 +82,7 @@ export class Oidc {
     const verifier = base64url(randomBytes(48));
     const state = base64url(randomBytes(24));
     const nonce = base64url(randomBytes(24));
-    this.pending.set(state, { verifier, nonce, createdAt: now });
+    this.pending.set(state, { verifier, nonce, createdAt: now, ...(editor ? { editor } : {}) });
     const url = new URL(discovery.authorization_endpoint);
     url.searchParams.set('client_id', settings.clientId);
     url.searchParams.set('redirect_uri', this.redirectUri());
@@ -95,7 +95,7 @@ export class Oidc {
     return url.toString();
   }
 
-  async complete(code: string, state: string): Promise<OidcIdentity> {
+  async complete(code: string, state: string): Promise<OidcIdentity & { editor?: string }> {
     const settings = this.required();
     const pending = this.pending.get(state);
     if (pending) this.pending.delete(state);
@@ -112,7 +112,7 @@ export class Oidc {
     try { data = await response.json(); } catch { throw new OidcError(502, 'oidc_exchange', 'The identity provider returned an invalid token response.'); }
     if (typeof data?.id_token !== 'string') throw new OidcError(502, 'oidc_exchange', 'The identity provider returned no identity token.');
     const claims = await this.validate(data.id_token, pending.nonce);
-    return this.identity(claims);
+    return { ...this.identity(claims), ...(pending.editor ? { editor: pending.editor } : {}) };
   }
 
   private async validate(token: string, nonce: string): Promise<Record<string, unknown>> {

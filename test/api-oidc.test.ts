@@ -107,3 +107,34 @@ test('a token for another audience or another sign-in is rejected', async t => {
   const bad = await signIn(audience.server, audience.idp, 'bad-code');
   assert.equal(bad.callback.headers.get('location'), '/?login_error=oidc_exchange');
 });
+
+test('an editor signs in through the browser: a one-time code, the usual sign-in, then the session collected with its secret', async t => {
+  const { server, idp } = await workbench(t);
+  const started = await request(server.url, '/api/auth/editor', { method: 'POST', body: {} });
+  assert.equal(started.status, 200);
+  assert.match(started.body.code, /^[A-Za-z0-9_-]{8,32}$/);
+  assert.ok(started.body.url.endsWith(`/api/auth/oidc?editor=${started.body.code}`));
+  const pending = await request(server.url, `/api/auth/editor/${started.body.code}`, { method: 'POST', body: { secret: started.body.secret } });
+  assert.equal(pending.status, 202);
+  assert.equal(pending.body.status, 'pending');
+  const wrong = await request(server.url, `/api/auth/editor/${started.body.code}`, { method: 'POST', body: { secret: 'guess' } });
+  assert.equal(wrong.status, 404);
+  const unknown = await fetch(`${server.url}/api/auth/oidc?editor=nope12345`, { redirect: 'manual' });
+  assert.equal(unknown.status, 404);
+  const start = await fetch(`${server.url}/api/auth/oidc?editor=${started.body.code}`, { redirect: 'manual' });
+  assert.equal(start.status, 303);
+  const authorize = new URL(start.headers.get('location')!);
+  idp.pendingNonce.set('*', authorize.searchParams.get('nonce')!);
+  const callback = await fetch(`${server.url}/api/auth/oidc/callback?code=good-code&state=${encodeURIComponent(authorize.searchParams.get('state')!)}`, { redirect: 'manual' });
+  assert.equal(callback.headers.get('location'), '/?editor=done');
+  const ready = await request(server.url, `/api/auth/editor/${started.body.code}`, { method: 'POST', body: { secret: started.body.secret } });
+  assert.equal(ready.status, 200);
+  assert.equal(ready.body.status, 'ready');
+  assert.equal(ready.body.user.role, 'operator');
+  const editorCookie = ready.body.cookie.split(';')[0];
+  assert.notEqual(editorCookie, callback.headers.get('set-cookie')!.split(';')[0]);
+  const bootstrap = await request(server.url, '/api/bootstrap', { cookie: editorCookie });
+  assert.equal(bootstrap.body.user.name, 'person@example.com');
+  const again = await request(server.url, `/api/auth/editor/${started.body.code}`, { method: 'POST', body: { secret: started.body.secret } });
+  assert.equal(again.status, 404);
+});

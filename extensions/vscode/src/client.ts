@@ -85,6 +85,25 @@ export class VloerClient {
   }
   bootstrap(): Promise<Bootstrap> { return this.request('/api/bootstrap'); }
   async login(name: string, password: string): Promise<void> { await this.request('/api/login', 'POST', { name, password }); }
+  async authMethods(): Promise<{ local: boolean; oidc: { name: string; issuer: string } | null }> {
+    const result = await this.request<{ local?: boolean; oidc?: { name: string; issuer: string } | null }>('/api/auth/methods');
+    return { local: result?.local !== false, oidc: result?.oidc && typeof result.oidc.name === 'string' ? result.oidc : null };
+  }
+  async beginBrowserLogin(): Promise<{ code: string; secret: string; url: string; expiresIn: number }> {
+    const result = await this.request<{ code?: string; secret?: string; url?: string; expiresIn?: number }>('/api/auth/editor', 'POST', {});
+    if (typeof result?.code !== 'string' || typeof result?.secret !== 'string' || typeof result?.url !== 'string') throw new ApiError(0, 'invalid_response', 'The workbench did not start a browser sign-in.');
+    return { code: result.code, secret: result.secret, url: result.url, expiresIn: typeof result.expiresIn === 'number' ? result.expiresIn : 600 };
+  }
+  async collectBrowserLogin(code: string, secret: string): Promise<{ status: 'pending' } | { status: 'ready'; cookie: string; user: { name: string } }> {
+    const result = await this.request<{ status?: string; cookie?: string; user?: { name: string } }>(`/api/auth/editor/${encodeURIComponent(code)}`, 'POST', { secret });
+    if (result?.status === 'ready' && typeof result.cookie === 'string' && result.user) return { status: 'ready', cookie: result.cookie, user: result.user };
+    return { status: 'pending' };
+  }
+  async acceptCookie(cookie: string): Promise<void> {
+    const authenticated = cookie.split(';')[0];
+    if (!/^(?:__Host-)?vloer=[A-Za-z0-9_-]{32,200}$/.test(authenticated)) throw new ApiError(0, 'invalid_cookie', 'The browser sign-in did not return a valid workbench session.');
+    await this.secrets.store(this.secretKey, authenticated);
+  }
   async logout(): Promise<void> { try { await this.request('/api/logout', 'POST', {}); } finally { await this.secrets.delete(this.secretKey); } }
   sessions(): Promise<Session[]> { return this.request('/api/sessions'); }
   session(id: string): Promise<Session> { return this.request(`/api/sessions/${identifier(id)}`); }

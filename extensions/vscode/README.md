@@ -31,6 +31,9 @@ The demo runs a fixed, real test fixture with no AI calls. An arbitrary objectiv
 
 ## Connect to the team server
 
+When the workbench has single sign-on, connecting offers "Sign in with <provider>" first. The extension opens your browser on the workbench's own sign-in with a one-time code and collects its session once you have signed in, so the editor acts as the same person as the browser. The local account remains as a second choice.
+
+
 Run **Vloer: Connect to Workbench** and enter the deployed HTTPS origin, such as `https://vloer.example.org`. Sign in using your Vloer account when prompted. The password is used only for that login; the returned opaque session cookie is stored in VS Code SecretStorage, scoped to the server origin. There are no password or API-key settings.
 
 The extension runs in the local UI extension host, including in a Remote SSH window. The configured server must therefore be reachable from the laptop. HTTPS is mandatory except for loopback development. Certificate verification remains enabled. The current API expects an origin at `/`; reverse-proxy subpaths and browser-only SSO interception are not supported by this release.

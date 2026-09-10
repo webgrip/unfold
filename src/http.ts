@@ -98,7 +98,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         return json(res, 200, { status: 'ok', version: applicationVersion });
       }
       if (relay && await relay.handle(req, res, url)) return;
-      if (['POST','PUT','PATCH','DELETE'].includes(method)) mutationGuard(req, config);
+      if (['POST','PUT','PATCH','DELETE'].includes(method) && !path.startsWith('/api/auth/editor')) mutationGuard(req, config);
       if (method === 'POST' && path === '/api/login') {
         const data = await body(req);
         const result = auth.login(text(data.name, 'Name', 100), typeof data.password === 'string' ? data.password : '', req.socket.remoteAddress || 'unknown');
@@ -106,8 +106,20 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         return json(res, 200, { user: result.user });
       }
       if (method === 'GET' && path === '/api/auth/methods') return json(res, 200, { local: true, oidc: oidc?.configured() ? { name: config.auth.oidc!.displayName, issuer: config.auth.oidc!.issuer } : null });
+      if (method === 'POST' && path === '/api/auth/editor' && oidc?.configured()) {
+        const started = auth.beginEditor();
+        return json(res, 200, { code: started.code, secret: started.secret, expiresIn: started.expiresIn, url: `${config.baseUrl ?? `http://${req.headers.host}`}/api/auth/oidc?editor=${encodeURIComponent(started.code)}` });
+      }
+      const editorCollect = path.match(/^\/api\/auth\/editor\/([A-Za-z0-9_-]{8,32})$/);
+      if (method === 'POST' && editorCollect) {
+        const data = await body(req);
+        const result = auth.collectEditor(editorCollect[1], typeof data.secret === 'string' ? data.secret : '');
+        return json(res, result.status === 'ready' ? 200 : 202, result);
+      }
       if (method === 'GET' && path === '/api/auth/oidc' && oidc?.configured()) {
-        res.writeHead(303, { Location: await oidc.begin() });
+        const editor = url.searchParams.get('editor') ?? undefined;
+        if (editor !== undefined && !auth.editorPending(editor)) return fault(404, 'editor_login_unknown', 'This editor sign-in is unknown or has expired. Start it again from your editor.');
+        res.writeHead(303, { Location: await oidc.begin(editor) });
         res.end();
         return;
       }
@@ -118,7 +130,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const identity = await oidc.complete(url.searchParams.get('code') ?? '', url.searchParams.get('state') ?? '');
           store.upsertUser({ id: identity.id, name: identity.email ?? identity.name, role: identity.role, passwordHash: '' });
           const issued = auth.issue({ id: identity.id, name: identity.email ?? identity.name, role: identity.role });
-          res.writeHead(303, { Location: '/', 'Set-Cookie': issued.cookie });
+          if (identity.editor) { auth.bindEditor(identity.editor, auth.issue(issued.user)); }
+          res.writeHead(303, { Location: identity.editor ? '/?editor=done' : '/', 'Set-Cookie': issued.cookie });
         } catch (error: any) {
           console.error(JSON.stringify({ level: 'warn', event: 'login.failed', method: 'oidc', code: String(error?.code || 'oidc_failed'), message: String(error?.message || '').slice(0, 300) }));
           res.writeHead(303, { Location: `/?login_error=${encodeURIComponent(String(error?.code || 'oidc_failed').replace(/[^a-z0-9_]/gi, '').slice(0, 40))}` });

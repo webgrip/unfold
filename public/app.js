@@ -641,7 +641,9 @@ async function boot() {
   const params = new URLSearchParams(location.search);
   const linkNotice = params.get('linked') ? `${({ gitlab: 'GitLab', clickup: 'ClickUp' })[params.get('linked')] || params.get('linked')} is linked to your account.` : params.get('link_error') ? linkFailure(params.get('link_error')) : '';
   if (linkNotice) history.replaceState(null, '', `${location.pathname}#account`);
-  try { state.bootstrap = await api('/api/bootstrap'); state.sessions = await api('/api/sessions'); await route(); if (linkNotice) notify(linkNotice, Boolean(params.get('link_error'))); }
+  const editorDone = params.get('editor') === 'done';
+  if (editorDone) history.replaceState(null, '', location.pathname);
+  try { state.bootstrap = await api('/api/bootstrap'); state.sessions = await api('/api/sessions'); await route(); if (linkNotice) notify(linkNotice, Boolean(params.get('link_error'))); if (editorDone) notify('Signed in for your editor. You can return to it now.'); }
   catch (error) { if (!state.bootstrap) renderLogin(error.message.includes('Sign in') ? '' : error.message); else notify(error.message, true); }
 }
 void boot();

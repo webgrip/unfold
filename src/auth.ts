@@ -62,6 +62,36 @@ export class Auth {
     this.store.createLogin(digest(token), record.id, new Date(now + seconds * 1000).toISOString());
     return { user: { id: record.id, name: record.name, role: record.role }, cookie: this.cookie(token, seconds) };
   }
+  private readonly editors = new Map<string, { secretHash: string; createdAt: number; issued?: { user: User; cookie: string } }>();
+
+  beginEditor(): { code: string; secret: string; expiresIn: number } {
+    const now = Date.now();
+    for (const [code, item] of this.editors) if (now - item.createdAt > 600_000) this.editors.delete(code);
+    if (this.editors.size >= 1000) throw Object.assign(new Error('Too many editor sign-ins are waiting. Try again in a few minutes.'), { status: 429, code: 'rate_limited' });
+    const code = randomBytes(9).toString('base64url');
+    const secret = randomBytes(32).toString('base64url');
+    this.editors.set(code, { secretHash: digest(secret), createdAt: now });
+    return { code, secret, expiresIn: 600 };
+  }
+
+  editorPending(code: string): boolean {
+    const item = this.editors.get(code);
+    return Boolean(item && !item.issued && Date.now() - item.createdAt <= 600_000);
+  }
+
+  bindEditor(code: string, issued: { user: User; cookie: string }): void {
+    const item = this.editors.get(code);
+    if (item && !item.issued && Date.now() - item.createdAt <= 600_000) item.issued = issued;
+  }
+
+  collectEditor(code: string, secret: string): { status: 'pending' } | { status: 'ready'; user: User; cookie: string } {
+    const item = this.editors.get(code);
+    if (!item || Date.now() - item.createdAt > 600_000 || item.secretHash !== digest(secret)) throw Object.assign(new Error('This editor sign-in is unknown or has expired. Start it again.'), { status: 404, code: 'editor_login_unknown' });
+    if (!item.issued) return { status: 'pending' };
+    this.editors.delete(code);
+    return { status: 'ready', user: item.issued.user, cookie: item.issued.cookie };
+  }
+
   issue(user: User): { user: User; cookie: string } {
     const token = randomBytes(32).toString('base64url');
     const seconds = this.config.auth.sessionHours * 3600;

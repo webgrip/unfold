@@ -20,6 +20,8 @@ Operators can read and change sessions they own. Administrators can access all s
 
 When `auth.oidc` is configured, `GET /api/auth/methods` (public) reports the provider's display name and issuer, `GET /api/auth/oidc` redirects to the provider with an authorization-code request carrying PKCE, `state` and `nonce`, and `GET /api/auth/oidc/callback` completes it: the workbench exchanges the code server-side, fetches the provider's signing keys, verifies the identity token's signature, issuer, audience, expiry and nonce, and derives the role. The role is the `roleClaim` value when the provider sends one, otherwise the first of admin, operator and viewer whose configured groups intersect the `groupsClaim` list; a person in none of them is refused with `oidc_not_entitled` and no session. The user record is keyed by issuer and subject, named by email, and its role is refreshed on every sign-in. The local password login remains for the bootstrap administrator.
 
+An editor signs in through the same browser flow. `POST /api/auth/editor` (public) returns a one-time `code`, a `secret` only the editor holds, and the `url` to open, which is the sign-in with `?editor=<code>`; the workbench refuses an unknown or expired code before redirecting. When the person completes the sign-in, the callback binds a fresh session to the code and sends the browser to `/?editor=done`. The editor polls `POST /api/auth/editor/<code>` with `{secret}`: 202 while pending, 200 once with `{cookie, user}`, then 404. Codes and their sessions expire after ten minutes.
+
 ## Sessions
 
 | Method and path | Behavior |
