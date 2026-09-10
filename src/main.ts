@@ -10,6 +10,7 @@ import { WorkerRelay } from './runtime/relay.ts';
 import { AgentHost } from './ahp/host.ts';
 import { LiteLLMBroker } from './broker.ts';
 import { Links } from './links.ts';
+import { Oidc } from './oidc.ts';
 import { buildServer } from './http.ts';
 import { loadConfig } from './config.ts';
 import type { AppConfig, AgentRuntime, RuntimeKind } from './types.ts';
@@ -31,7 +32,7 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
   const engine = new Engine(store, config, runtimes, broker, links);
   engine.recover();
   const agentHost = new AgentHost(config, store, engine);
-  const { server, closeStreams } = buildServer(config, store, engine, [...runtimes.keys()], relay, agentHost, links);
+  const { server, closeStreams } = buildServer(config, store, engine, [...runtimes.keys()], relay, agentHost, links, new Oidc(config));
   server.on('upgrade', (req, socket, head) => { if (!agentHost.handleUpgrade(req, socket, head)) socket.destroy(); });
   let closed = false;
   async function close() {

@@ -19,4 +19,4 @@ Trunk is `development`. Each accepted decision records its consequences and a tr
 | [0013 — Sandbox CRD placement with warm Kata pools](0013-sandbox-crd-placement-with-warm-kata-pools.md) | Accepted as an option; unqualified on the cluster |
 | [0014 — Candidates are signed](0014-signed-candidates.md) | Accepted for 0.3.0 |
 | [0015 — Ploeg exposes a read-only operator API and De Vloer projects it](0015-ploeg-operator-read-api.md) | Proposed; nothing implemented on either side |
-| [0016 — People sign in with the estate and link their own accounts](0016-sign-in-and-link-your-own-accounts.md) | Proposed; GitLab link implemented, login and publication not |
+| [0016 — People sign in with the estate and link their own accounts](0016-sign-in-and-link-your-own-accounts.md) | Accepted in part; OIDC sign-in and GitLab link implemented, publication not |

@@ -16,12 +16,16 @@ Operators can read and change sessions they own. Administrators can access all s
 | `GET /api/health` | Authenticated configuration/readiness summary; does not prove upstream provider reachability |
 | `GET /healthz`, `GET /readyz` | Process/store health for probes; no provider credentials or endpoints returned |
 
+### Single sign-on
+
+When `auth.oidc` is configured, `GET /api/auth/methods` (public) reports the provider's display name and issuer, `GET /api/auth/oidc` redirects to the provider with an authorization-code request carrying PKCE, `state` and `nonce`, and `GET /api/auth/oidc/callback` completes it: the workbench exchanges the code server-side, fetches the provider's signing keys, verifies the identity token's signature, issuer, audience, expiry and nonce, and derives the role. The role is the `roleClaim` value when the provider sends one, otherwise the first of admin, operator and viewer whose configured groups intersect the `groupsClaim` list; a person in none of them is refused with `oidc_not_entitled` and no session. The user record is keyed by issuer and subject, named by email, and its role is refreshed on every sign-in. The local password login remains for the bootstrap administrator.
+
 ## Sessions
 
 | Method and path | Behavior |
 | --- | --- |
 | `GET /api/sessions` | Sessions visible to the current user |
-| `POST /api/sessions` | `{title,objective,repositoryId,crewId,runtime,placement?,approval?,budgetUsd,trackerUrl?}` → created session, status 201. `approval` is `manual` (default) or `auto`; `auto` needs a `docker` or `kubernetes` placement and answers every tool permission inside the sandbox itself, while questions still reach the operator |
+| `POST /api/sessions` | `{title,objective,repositoryId,crewId,runtime,placement?,approval?,budgetUsd,trackerUrl?}` → created session, status 201. `model` pins one configured model id for every role of the session, overriding the crew's role models, which is how the same objective is run pinned and auto-routed for comparison; `approval` is `manual` (default) or `auto`; `auto` needs a `docker` or `kubernetes` placement and answers every tool permission inside the sandbox itself, while questions still reach the operator |
 | `GET /api/sessions/:id` | Public session view, runs, retained artifacts and accounting status |
 | `POST /api/sessions/:id/start` | `{}`; start queued work in the background |
 | `POST /api/sessions/:id/pause` | `{}`; deliberately stop active execution while retaining the session |

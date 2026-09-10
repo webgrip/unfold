@@ -62,6 +62,12 @@ export class Auth {
     this.store.createLogin(digest(token), record.id, new Date(now + seconds * 1000).toISOString());
     return { user: { id: record.id, name: record.name, role: record.role }, cookie: this.cookie(token, seconds) };
   }
+  issue(user: User): { user: User; cookie: string } {
+    const token = randomBytes(32).toString('base64url');
+    const seconds = this.config.auth.sessionHours * 3600;
+    this.store.createLogin(digest(token), user.id, new Date(Date.now() + seconds * 1000).toISOString());
+    return { user, cookie: this.cookie(token, seconds) };
+  }
   cookie(value: string, seconds: number): string {
     return `${this.cookieName}=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${seconds}${this.config.auth.secureCookies ? '; Secure' : ''}`;
   }

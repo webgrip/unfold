@@ -3114,3 +3114,10 @@ details.transcript summary { cursor: pointer; }
 .cost-curve .budget-line { stroke: rgba(0,0,0,0.3); stroke-dasharray: 3 3; }
 .cost-curve .violation-dot { fill: var(--danger, #a33); }
 .cost-curve figcaption { font-size: 0.75rem; opacity: 0.7; margin-top: 0.2rem; }
+
+.compare-table th:first-child { width: 12rem; opacity: 0.7; font-weight: 500; }
+.compare-table td.differs { background: rgba(200, 100, 47, 0.08); }
+
+.sso-button { text-align: center; text-decoration: none; display: block; margin-bottom: 0.5rem; }
+.login-divider { display: flex; align-items: center; gap: 0.6rem; margin: 1rem 0; font-size: 0.75rem; opacity: 0.6; }
+.login-divider::before, .login-divider::after { content: ""; flex: 1; border-top: 1px solid rgba(0,0,0,0.15); }

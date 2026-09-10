@@ -1,6 +1,6 @@
 # 0016 — People sign in with the estate and link their own accounts
 
-Date: 2026-09-10. Status: proposed; the GitLab link and its use by the clone step (PV-083, clone half of PV-084) are implemented, the rest is not.
+Date: 2026-09-10. Status: accepted in part; OIDC sign-in for the browser (PV-082), the GitLab link and its use by the clone step (PV-083, clone half of PV-084) are implemented; sessions without a repository, editor sign-in and publication are not.
 
 ## Context
 

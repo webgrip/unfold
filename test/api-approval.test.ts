@@ -28,3 +28,17 @@ test('automatic approval needs an isolated placement and can be switched on a li
   const refusedSwitch = await request(server.url, `/api/sessions/${local.body.id}/approval`, { method: 'POST', body: { approval: 'auto' }, cookie, csrf: true });
   assert.equal(refusedSwitch.status, 400);
 });
+
+test('a session can pin a configured model for every role and rejects an unknown one', async t => {
+  const server = await application('live', config => { config.runtime = { kind: 'opencode', backend: 'docker', backends: ['docker', 'local'], timeoutMs: 30_000 }; config.models.push({ id: 'auto', name: 'Auto-router', providerId: 'litellm', modelId: 'auto' }); }, new Map<RuntimeKind, AgentRuntime>([['opencode', inert]]));
+  t.after(() => server.close());
+  const { cookie } = await login(server.url);
+  const pinned = await request(server.url, '/api/sessions', { method: 'POST', body: createInput({ runtime: 'opencode', model: 'auto' }), cookie, csrf: true });
+  assert.equal(pinned.status, 201);
+  assert.equal(pinned.body.model, 'auto');
+  const unknown = await request(server.url, '/api/sessions', { method: 'POST', body: createInput({ runtime: 'opencode', model: 'nope' }), cookie, csrf: true });
+  assert.equal(unknown.status, 400);
+  assert.equal(unknown.body.error.code, 'invalid_model');
+  const none = await request(server.url, '/api/sessions', { method: 'POST', body: createInput({ runtime: 'opencode' }), cookie, csrf: true });
+  assert.equal(none.body.model, undefined);
+});

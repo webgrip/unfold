@@ -82,6 +82,10 @@ That token is the one credential a sandbox holds beyond its inference key, and a
 
 The Activity stream shows one card per tool call with its status; open it for the input, the output and the error when it failed. A read role's search tools depend on ripgrep, which the agent image now installs, so a session on an image built before 2026-09-10 shows every grep and glob failing with exit code 127 and the crew falling back to reads alone. The Handoff tab carries a transcript per role with the model that answered each message. The budget panel lists which models the gateway actually used, with the routed group when the session named an auto-router, and what each cost. The Gateway tab answers the provenance questions per request: which provider and endpoint served it and in which region, why the auto-router chose that tier and what it saved, whether the gateway retried, fell back, hit its cache or applied a guardrail, how long the request took and when the first token arrived, which harness version called, and the gateway call id to find the span in the estate's trace store. A refused request shows the gateway's error class, so a budget ceiling or a provider outage is visible where it happened.
 
+## Comparing two ways of running the same objective
+
+A session can pin one configured model for every role from the new-session form, so an objective can be run once on `auto` and once on a pinned model, or once on Anthropic and once on a Fireworks model. From either session, "Compare with another session" opens a side-by-side table built from the gateway ledger and the recorded runs: outcome and final verdict, wall time, requests and refusals, the providers and models that answered, tokens, cost, router savings, median time to first token and the number of change artifacts. Cells that differ are highlighted. Compare sessions with the same objective and crew; the table does not normalise for different briefs.
+
 ## Keeping inference where policy allows
 
 A profile can name the providers and regions the gateway may route a session to:
@@ -99,6 +103,16 @@ Each role's brief is recorded with the run and shown in the Activity stream, and
 Every OpenCode session starts with `ask` for every tool, so each read, search and shell command waits for the operator. That is the right default on the `local` backend, where the crew shares the workbench's files. In a container or a pod the sandbox is the boundary, so a session there can be created with automatic approval, or switched to it from the decision panel while it runs. The switch answers the permissions already waiting and creates later roles with allow rules; read roles still cannot edit or run commands, and a crew's questions still wait for a person. Automatic approval is refused on the `local` backend.
 
 Budgets are enforced by the gateway key, so a session whose ceiling is reached fails mid-turn with `budget_exhausted`, and the spend shown while it runs is the gateway's live attribution, which settles a minute later. Size the budget to the crew: reading a repository with a Sonnet-class model costs a few cents per turn, and an investigation crew can spend a quarter in under a minute.
+
+## Signing in with the estate
+
+Register the workbench as an OAuth2 application at the estate's Authentik: a public client with PKCE, so no secret exists, client id `vloer`, redirect URI `<baseUrl>/api/auth/oidc/callback` matched strictly, the `openid`, `email` and `profile` scopes so groups are sent, and one scope mapping that turns membership into a role claim. At acme that is a blueprint in the Authentik blueprints ConfigMap next to the other applications, with groups `vloer-admins` and `vloer-operators` granted through the entitlements model rather than by hand. The profile then carries:
+
+```json
+"auth": { "oidc": { "issuer": "https://auth.example/application/o/vloer/", "clientId": "vloer", "displayName": "Authentik" } }
+```
+
+Optional keys: `roleClaim` (default `vloer_role`), `groupsClaim` (default `groups`), `roles` mapping each of admin, operator and viewer to group names (defaults `vloer-admins`, `vloer-operators`, `vloer-viewers`), `scopes`, and `clientSecretEnv` for a confidential client. Who can sign in is decided by the provider: at acme only Workspace accounts reach enrolment, and a person who signs in without one of the admitted groups is refused by the workbench with a message naming the group to ask for. The local password stays as the bootstrap administrator's door and for the editor extension until it gains a device flow.
 
 ## Linking GitLab
 

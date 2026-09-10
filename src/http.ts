@@ -12,6 +12,7 @@ import type { WorkerRelay } from './runtime/relay.ts';
 import type { AgentHost } from './ahp/host.ts';
 import { protocolVersion as agentHostProtocolVersion } from './ahp/host.ts';
 import type { Links } from './links.ts';
+import type { Oidc } from './oidc.ts';
 import { readFileSync } from 'node:fs';
 
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
@@ -63,7 +64,7 @@ function mutationGuard(req: IncomingMessage, config: AppConfig): void {
   if (req.headers['sec-fetch-site'] === 'cross-site') fault(403, 'origin', 'Cross-site requests are not allowed.');
 }
 
-export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost, links?: Links) {
+export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost, links?: Links, oidc?: Oidc) {
   const auth = new Auth(store, config);
   const streams = new Set<ServerResponse>();
   const knownSecrets = [config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword, ...(config.taskSources ?? []).map(source => source.token)].filter((value): value is string => Boolean(value));
@@ -103,6 +104,27 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         const result = auth.login(text(data.name, 'Name', 100), typeof data.password === 'string' ? data.password : '', req.socket.remoteAddress || 'unknown');
         res.setHeader('Set-Cookie', result.cookie);
         return json(res, 200, { user: result.user });
+      }
+      if (method === 'GET' && path === '/api/auth/methods') return json(res, 200, { local: true, oidc: oidc?.configured() ? { name: config.auth.oidc!.displayName, issuer: config.auth.oidc!.issuer } : null });
+      if (method === 'GET' && path === '/api/auth/oidc' && oidc?.configured()) {
+        res.writeHead(303, { Location: await oidc.begin() });
+        res.end();
+        return;
+      }
+      if (method === 'GET' && path === '/api/auth/oidc/callback' && oidc?.configured()) {
+        const denied = url.searchParams.get('error');
+        try {
+          if (denied) throw Object.assign(new Error(denied), { code: denied.replace(/[^a-z_]/gi, '').slice(0, 40) || 'denied' });
+          const identity = await oidc.complete(url.searchParams.get('code') ?? '', url.searchParams.get('state') ?? '');
+          store.upsertUser({ id: identity.id, name: identity.email ?? identity.name, role: identity.role, passwordHash: '' });
+          const issued = auth.issue({ id: identity.id, name: identity.email ?? identity.name, role: identity.role });
+          res.writeHead(303, { Location: '/', 'Set-Cookie': issued.cookie });
+        } catch (error: any) {
+          console.error(JSON.stringify({ level: 'warn', event: 'login.failed', method: 'oidc', code: String(error?.code || 'oidc_failed'), message: String(error?.message || '').slice(0, 300) }));
+          res.writeHead(303, { Location: `/?login_error=${encodeURIComponent(String(error?.code || 'oidc_failed').replace(/[^a-z0-9_]/gi, '').slice(0, 40))}` });
+        }
+        res.end();
+        return;
       }
       if (method === 'POST' && path === '/api/logout') {
         res.setHeader('Set-Cookie', auth.logout(req));
@@ -204,7 +226,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             try { parsed = new URL(trackerUrl); } catch { return fault(400, 'tracker_url', 'Use an HTTP(S) tracker link.'); }
             if (!['http:','https:'].includes(parsed.protocol) || parsed.username || parsed.password) fault(400, 'tracker_url', 'Use an HTTP(S) tracker link without credentials.');
           }
-          const session = engine.create({ approval: data.approval as 'manual' | 'auto' | undefined, title: text(data.title, 'Title', 160), objective: text(data.objective, 'Objective', 16000), repositoryId, crewId, runtime, placement: placementInput(data.placement), budgetUsd: data.budgetUsd as number, trackerUrl: trackerUrl || undefined }, user);
+          const session = engine.create({ approval: data.approval as 'manual' | 'auto' | undefined, model: text(data.model, 'Model', 64, true) || undefined, title: text(data.title, 'Title', 160), objective: text(data.objective, 'Objective', 16000), repositoryId, crewId, runtime, placement: placementInput(data.placement), budgetUsd: data.budgetUsd as number, trackerUrl: trackerUrl || undefined }, user);
           return json(res, 201, sanitize(publicSession(session)));
         }
         if (method === 'GET' && path === '/api/ploeg') {

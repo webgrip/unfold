@@ -98,6 +98,10 @@ export class Store {
     this.db.prepare('INSERT INTO users(id,name,role,password_hash) VALUES(?,?,?,?)').run(user.id, user.name, user.role, user.passwordHash);
   }
 
+  upsertUser(user: StoredUser): void {
+    this.db.prepare('INSERT INTO users(id,name,role,password_hash) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, role=excluded.role').run(user.id, user.name, user.role, user.passwordHash);
+  }
+
   getUserByName(name: string): StoredUser | undefined {
     return this.user(this.db.prepare('SELECT * FROM users WHERE name=? COLLATE NOCASE').get(name));
   }

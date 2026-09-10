@@ -181,6 +181,19 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     gatewayPolicy,
     litellm: litellmBase && adminKey ? { baseUrl: configuredUrl(litellmBase, 'litellm.baseUrl'), adminUrl: configuredUrl(process.env.LITELLM_ADMIN_URL || raw.litellm?.adminUrl || litellmBase.replace(/\/v1\/?$/, ''), 'litellm.adminUrl'), masterKey: adminKey, models: models.map((model: any) => model.modelId), ttl: raw.litellm?.ttl || '4h', settlementDelayMs: number(raw.litellm?.settlementDelayMs, 60000, 0, 3600000, 'litellm.settlementDelayMs') } : undefined
   };
+  const oidc = (raw.auth ?? {}).oidc;
+  if (oidc !== undefined) {
+    if (!oidc || typeof oidc !== 'object' || Array.isArray(oidc)) throw new Error('auth.oidc must be an object');
+    if (typeof oidc.clientId !== 'string' || !/^[A-Za-z0-9_.:-]{1,200}$/.test(oidc.clientId)) throw new Error('auth.oidc.clientId must be the application client id');
+    const scopes = oidc.scopes ?? ['openid', 'email', 'profile'];
+    if (!Array.isArray(scopes) || !scopes.length || scopes.length > 20 || scopes.some((scope: unknown) => typeof scope !== 'string' || !/^[a-z_:.-]{1,64}$/.test(scope)) || !scopes.includes('openid')) throw new Error('auth.oidc.scopes must list scope names including openid');
+    const roles: Record<string, string[]> = { admin: ['vloer-admins'], operator: ['vloer-operators'], viewer: ['vloer-viewers'], ...(oidc.roles ?? {}) };
+    for (const role of ['admin', 'operator', 'viewer']) if (!Array.isArray(roles[role]) || roles[role].length > 20 || roles[role].some((group: unknown) => typeof group !== 'string' || !/^[A-Za-z0-9_.:@ -]{1,100}$/.test(group))) throw new Error(`auth.oidc.roles.${role} must list group names`);
+    for (const key of ['roleClaim', 'groupsClaim', 'displayName', 'clientSecretEnv']) if (oidc[key] !== undefined && (typeof oidc[key] !== 'string' || !oidc[key] || oidc[key].length > 100)) throw new Error(`auth.oidc.${key} must be a short string`);
+    const clientSecret = oidc.clientSecretEnv ? process.env[oidc.clientSecretEnv] : undefined;
+    if (oidc.clientSecretEnv && !clientSecret) throw new Error(`auth.oidc.clientSecretEnv names ${oidc.clientSecretEnv}, which is not set`);
+    config.auth.oidc = { issuer: configuredUrl(oidc.issuer, 'auth.oidc.issuer'), clientId: oidc.clientId, ...(clientSecret ? { clientSecret } : {}), scopes, displayName: oidc.displayName ?? 'Authentik', roleClaim: oidc.roleClaim ?? 'vloer_role', groupsClaim: oidc.groupsClaim ?? 'groups', roles: roles as Record<'admin' | 'operator' | 'viewer', string[]> };
+  } else delete (config.auth as { oidc?: unknown }).oidc;
   if (!existsSync(config.publicDir)) throw new Error('Browser application directory is missing');
   return config;
 }
