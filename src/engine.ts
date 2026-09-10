@@ -512,7 +512,7 @@ export class Engine {
       if (kept) { request.roleId = kept; continue; }
       const at = Date.parse(request.at);
       const start = [...starts].reverse().find(item => item.at <= at + 2000);
-      if (start) request.roleId = start.roleId;
+      request.roleId = start ? start.roleId : 'brief';
     }
     return { usage: [...merged.values()].sort((a, b) => b.usd - a.usd), requests: requests.slice(-500) };
   }

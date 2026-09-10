@@ -1,4 +1,5 @@
 const bridge = acquireVsCodeApi();
+let lastRenderKey = '';
 const saved = bridge.getState() || {};
 const sessionId = document.body.dataset.sessionId || saved.sessionId || '';
 const tabs = ['brief', 'changes', 'checks', 'activity', 'gateway'];
@@ -35,7 +36,7 @@ function element(tag, attributes = {}, ...children) {
 }
 
 function action(label, type, attributes = {}, ...children) { return element('button', { type: 'button', 'data-action': type, ...attributes }, label, ...children); }
-function currency(value) { return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value || 0); }
+function currency(value) { const amount = value || 0; const digits = amount > 0 && amount < 0.01 ? 5 : amount > 0 && amount < 1 ? 4 : 2; return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: digits }).format(amount); }
 function readable(value) { return String(value ?? '').replaceAll('_', ' ').replaceAll('.', ' · '); }
 function clock(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
 function ago(value) { const seconds = Math.max(0, Math.round((Date.now() - Date.parse(value)) / 1000)); return !Number.isFinite(seconds) ? '' : seconds < 45 ? 'just now' : seconds < 3600 ? `${Math.round(seconds / 60)}m ago` : seconds < 86400 ? `${Math.round(seconds / 3600)}h ago` : `${Math.round(seconds / 86400)}d ago`; }
@@ -241,7 +242,7 @@ function decisionCard(request, session, mutable) {
         group.append(element('label', { className: 'option', for: id }, element('input', { id, type, name: `q-${index}`, value: option.label, checked: answer.selected.includes(option.label), 'data-question': index, disabled: busy }), element('span', {}, element('strong', {}, option.label), option.description ? element('span', { className: 'muted' }, ` ${option.description}`) : null)));
       }
       if (question.custom !== false) group.append(element('label', { className: 'custom' }, element('span', { className: 'muted' }, question.multiple ? 'Add your own answer' : 'Or write your own answer'), element('input', { type: 'text', maxlength: '4000', 'data-custom': index, value: answer.custom, placeholder: 'Your answer', disabled: busy })));
-    } else group.append(element('textarea', { rows: '3', maxlength: '4000', 'data-custom': index, placeholder: 'Your answer', disabled: busy, value: answer.custom, 'aria-label': question.question }));
+    } else group.append(element('textarea', { id: `answer-${request.id}-${index}`, rows: '3', maxlength: '4000', 'data-custom': index, placeholder: 'Your answer', disabled: busy, value: answer.custom, 'aria-label': question.question }));
     form.append(group);
   });
   const complete = answers().every(list => list.length);
@@ -582,7 +583,7 @@ function placementText(placement, host) {
 function gatewayTab(session, gateway, observability) {
   const requests = Array.isArray(session.requests) ? session.requests : [];
   if (!requests.length) return element('div', { className: 'empty-state' }, element('h3', {}, 'No gateway requests recorded yet'), element('p', {}, session.costStatus === 'demo' ? 'The demonstration runtime does not call a model gateway.' : 'Each model call the gateway attributes to this session appears here within fifteen seconds, with the provider that served it.'));
-  const roleName = id => session.runs.find(run => run.roleId === id)?.roleName || '';
+  const roleName = id => id === 'brief' ? 'Brief check' : session.runs.find(run => run.roleId === id)?.roleName || '';
   const totals = requests.reduce((sum, request) => ({ usd: sum.usd + (Number(request.usd) || 0), savings: sum.savings + (Number(request.savingsUsd) || 0), failures: sum.failures + (request.status === 'failure' ? 1 : 0) }), { usd: 0, savings: 0, failures: 0 });
   const providers = [...new Set(requests.map(request => request.provider).filter(Boolean))];
   const hosts = [...new Set(requests.map(request => request.host).filter(Boolean))];
@@ -626,6 +627,7 @@ function render() {
   const focused = document.activeElement?.id;
   const position = document.activeElement?.selectionStart;
   const scroll = window.scrollY;
+  const tableScroll = [...document.querySelectorAll('.table-scroll')].map(node => node.scrollLeft);
   const stream = document.getElementById('stream');
   const atBottom = !stream || stream.scrollHeight - stream.scrollTop - stream.clientHeight < 40;
   const { session, user, mode, permissions, events, origin, freshness, gateway } = detail;
@@ -676,7 +678,7 @@ function render() {
     element('section', { className: 'card context-card' }, element('h2', {}, 'Session context'), element('dl', {}, fact('Operator', session.ownerName), fact('Branch', element('code', {}, session.branch)), fact('Runtime', session.runtime), session.placement ? fact('Placement', session.placement) : null, session.approval ? fact('Approval', session.approval === 'auto' ? 'automatic inside the sandbox' : 'asks before each tool') : null, session.model ? fact('Model', element('code', {}, session.model)) : null, fact('Created', `${new Date(session.createdAt).toLocaleString()}`), fact('Last server change', `${ago(session.updatedAt)} · ${clock(session.updatedAt)}`), fact('Session', element('code', { className: 'session-id' }, session.id)))),
     element('p', { className: 'local-note' }, 'Your laptop is the control surface. The server owns execution, history and workspace resources.'));
 
-  app.replaceChildren(header, ...notices, ...(decisionSection ? [decisionSection] : []), element('div', { className: 'session-layout' }, main, side), element('footer', {}, element('span', { className: connected ? (freshness.transport === 'live' ? 'live-dot' : 'connected-dot') : 'offline-dot', 'aria-hidden': 'true' }), freshnessText, element('span', { className: 'session-id' }, session.id)));
+  app.replaceChildren(header, ...notices, ...(decisionSection ? [decisionSection] : []), element('div', { className: 'session-layout' }, main, side), element('footer', {}, element('span', { className: connected ? (freshness.transport === 'live' ? 'live-dot' : 'connected-dot') : 'offline-dot', 'aria-hidden': 'true' }), element('span', { id: 'freshness' }, freshnessText), element('span', { className: 'session-id' }, session.id)));
 
   if (focusTarget) {
     const target = focusTarget.requestId ? document.getElementById(`decision-${focusTarget.requestId}`) : focusTarget.runId ? document.getElementById(`run-${focusTarget.runId}`) : requests.length && focusTarget.decisions ? document.getElementById('decisions') : null;
@@ -689,6 +691,7 @@ function render() {
     if (typeof position === 'number' && restore?.setSelectionRange) try { restore.setSelectionRange(position, position); } catch {}
   }
   window.scrollTo(0, scroll);
+  [...document.querySelectorAll('.table-scroll')].forEach((node, index) => { if (tableScroll[index]) node.scrollLeft = tableScroll[index]; });
   const nextStream = document.getElementById('stream');
   if (nextStream) nextStream.scrollTop = follow && atBottom ? nextStream.scrollHeight : stream?.scrollTop || 0;
 }
@@ -799,6 +802,9 @@ window.addEventListener('message', event => {
   if (message.type === 'session') {
     const previous = detail;
     detail = message.detail; connected = true; connectionMessage = '';
+    const key = JSON.stringify({ session: detail.session, permissions: detail.permissions, events: detail.events.length, last: detail.events.at(-1)?.id, user: detail.user, origin: detail.origin });
+    if (previous && key === lastRenderKey && !message.focus) { const badge = document.getElementById('freshness'); if (badge) badge.textContent = `${detail.freshness.transport === 'live' ? 'Live' : 'Polling'} · observed ${clock(detail.freshness.observedAt)}`; return; }
+    lastRenderKey = key;
     if (message.focus) focusTarget = { tab: message.focus.tab, requestId: message.focus.requestId, runId: message.focus.runId, decisions: Boolean(message.focus.requestId) };
     if (message.focus?.tab && tabs.includes(message.focus.tab) && !message.focus.requestId) { tab = message.focus.tab; remember(); }
     for (const id of [...decisions.keys()]) if (!detail.permissions.some(request => request.id === id && !request.resolved)) { decisions.delete(id); confirming.delete(id); }

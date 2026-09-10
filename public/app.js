@@ -1,6 +1,6 @@
 const $ = selector => document.querySelector(selector);
 const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
-const money = value => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 3 }).format(value || 0);
+const money = value => { const amount = value || 0; const digits = amount > 0 && amount < 0.01 ? 5 : amount > 0 && amount < 1 ? 4 : 3; return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: digits }).format(amount); };
 const clock = value => new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(value));
 const ago = value => { const minutes = Math.floor((Date.now() - Date.parse(value)) / 60000); return minutes < 1 ? 'Just now' : minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.floor(minutes / 60)}h ago` : new Date(value).toLocaleDateString(); };
 const icons = {
@@ -229,7 +229,7 @@ function gatewayMarkup() {
   const session = state.session;
   const requests = session.requests || [];
   if (!requests.length) return `<div class="empty compact">${icon('layers')}<h3>No gateway requests recorded yet</h3><p>${session.costStatus === 'demo' ? 'The demonstration runtime does not call a model gateway.' : 'Each model call the gateway attributes to this session appears here within fifteen seconds, with the provider that served it.'}</p></div>`;
-  const roleName = id => session.runs.find(run => run.roleId === id)?.roleName || '';
+  const roleName = id => id === 'brief' ? 'Brief check' : session.runs.find(run => run.roleId === id)?.roleName || '';
   const totals = requests.reduce((sum, request) => ({ usd: sum.usd + request.usd, savings: sum.savings + (request.savingsUsd || 0), failures: sum.failures + (request.status === 'failure' ? 1 : 0), cached: sum.cached + (request.cachedTokens || 0) }), { usd: 0, savings: 0, failures: 0, cached: 0 });
   const providers = [...new Set(requests.map(request => request.provider).filter(Boolean))];
   const hosts = [...new Set(requests.map(request => request.host).filter(Boolean))];
