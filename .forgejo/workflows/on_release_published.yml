@@ -248,7 +248,7 @@ jobs:
     needs: [parse-release-tag, release-distribute-harbor]
     uses: webgrip/workflows/.forgejo/workflows/github-distribute.yml@v1.11.1
     with:
-      enabled: true
+      enabled: false
       version: ${{ needs.parse-release-tag.outputs.version }}
       repo: webgrip/de-vloer
       branches: main development
