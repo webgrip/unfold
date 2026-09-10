@@ -510,9 +510,16 @@ document.addEventListener('keydown', event => {
 window.addEventListener('hashchange', route);
 window.addEventListener('beforeunload', disconnect);
 
+function linkFailure(code) {
+  if (code === 'exchange_401') return 'GitLab refused the exchange: the application is marked Confidential. Edit it at GitLab, untick Confidential, and link again.';
+  if (code === 'link_state') return 'The link attempt expired or was started elsewhere. Start it again from this page.';
+  if (code === 'access_denied') return 'You declined the authorization at GitLab.';
+  return `Linking GitLab failed: ${code}.`;
+}
+
 async function boot() {
   const params = new URLSearchParams(location.search);
-  const linkNotice = params.get('linked') ? 'GitLab is linked to your account.' : params.get('link_error') ? `Linking GitLab failed: ${params.get('link_error')}.` : '';
+  const linkNotice = params.get('linked') ? 'GitLab is linked to your account.' : params.get('link_error') ? linkFailure(params.get('link_error')) : '';
   if (linkNotice) history.replaceState(null, '', `${location.pathname}#account`);
   try { state.bootstrap = await api('/api/bootstrap'); state.sessions = await api('/api/sessions'); await route(); if (linkNotice) notify(linkNotice, Boolean(params.get('link_error'))); }
   catch (error) { if (!state.bootstrap) renderLogin(error.message.includes('Sign in') ? '' : error.message); else notify(error.message, true); }

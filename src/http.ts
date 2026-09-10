@@ -114,7 +114,11 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         if (denied) location = `/?link_error=${encodeURIComponent(denied.replace(/[^a-z_]/gi, '').slice(0, 40) || 'denied')}`;
         else {
           try { await links.complete(url.searchParams.get('code') ?? '', url.searchParams.get('state') ?? ''); }
-          catch (error: any) { location = `/?link_error=${encodeURIComponent(String(error?.code || 'link_failed').replace(/[^a-z_]/gi, '').slice(0, 40))}`; }
+          catch (error: any) {
+            const code = typeof error?.httpStatus === 'number' ? `exchange_${error.httpStatus}` : String(error?.code || 'link_failed');
+            console.error(JSON.stringify({ level: 'warn', event: 'link.failed', provider: 'gitlab', code, detail: String(error?.detail || error?.message || '').slice(0, 300) }));
+            location = `/?link_error=${encodeURIComponent(code.replace(/[^a-z0-9_]/gi, '').slice(0, 40))}`;
+          }
         }
         res.writeHead(303, { Location: location });
         res.end();
