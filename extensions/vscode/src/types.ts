@@ -22,7 +22,7 @@ export type Session = {
 export type GatewayPolicy = { providers?: string[]; regions?: string[] };
 export type Bootstrap = {
   user: User; mode: 'demo' | 'live'; maxBudgetUsd: number; maxConcurrentSessions: number;
-  gateway?: string; gatewayPolicy?: GatewayPolicy | null;
+  gateway?: string; gatewayPolicy?: GatewayPolicy | null; observability?: Observability | null;
   repositories: { id: string; name: string; description: string; baseBranch: string; trackerUrl?: string; executionOwner?: 'interactive' | 'ploeg' }[];
   crews: { id: string; name: string; description: string; roles: { name: string; mode: string }[] }[];
   models: { id: string; name: string }[];
@@ -43,7 +43,8 @@ export type Question = { question: string; header?: string; options?: { label: s
 export type Permission = { id: string; kind: 'permission' | 'question'; title: string; detail: string; options?: string[]; questions?: Question[]; resolved?: boolean; runId?: string };
 export type Decision = { decision?: 'once' | 'always' | 'reject'; answers?: string[][] };
 export type Freshness = { transport: 'live' | 'polling' | 'offline'; observedAt: string };
-export type SessionDetail = { session: Session; events: SessionEvent[]; permissions: Permission[]; user: User; mode: 'demo' | 'live'; origin: string; freshness: Freshness; gateway?: string };
+export type Observability = { grafanaUrl?: string; dashboards?: Record<string, string>; tracesDatasource?: string; logsDatasource?: string; traceQuery?: string; logsQuery?: string };
+export type SessionDetail = { session: Session; events: SessionEvent[]; permissions: Permission[]; user: User; mode: 'demo' | 'live'; origin: string; freshness: Freshness; gateway?: string; observability?: Observability };
 
 export type TaskProvider = 'demo' | 'forgejo' | 'github' | 'gitlab' | 'clickup' | 'vikunja';
 export type TaskSource = { id: string; name: string; provider: TaskProvider; repositoryId: string; executionOwner: 'interactive' | 'ploeg' };

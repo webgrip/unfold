@@ -195,3 +195,6 @@ Reviewed against official sources on 2026-09-09:
 - [Publishing extensions](https://code.visualstudio.com/api/working-with-extensions/publishing-extension): VSIX packaging and distribution.
 
 The executable server contract is in the parent repository at `src/http.ts` and `src/engine.ts`; `docs/contracts/api.md` describes that contract. The extension uses the server task-source, task-import and retained-candidate APIs. It adds no ticket creation, tracker write-back, remote filesystem mounting, Ploeg dispatch or automatic merge authority.
+
+
+The Gateway tab links each request and the whole session to the estate's Grafana when the workbench names one: traces and logs for the request's window, and the spend, reliability and FinOps dashboards.

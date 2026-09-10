@@ -112,6 +112,14 @@ The provider rule is enforced before the first turn, from the gateway's model ca
 
 Each role's brief is recorded with the run and shown in the Activity stream, and the budget panel draws cumulative cost against the ceiling from the gateway's rows.
 
+## Keeping a thin brief from spending the budget
+
+A session titled "Hiya" with the same one word as its brief once cost two dollars: the analyst explored the repository looking for a task and the reviewer verified the exploration with a larger model. Three things now stand in the way. The form refuses a brief under twenty characters or four words. At start, before any workspace exists, the cheapest listed model is asked whether the brief is actionable, for about a cent; if not, the session waits with the model's questions in the decision panel and starts once they are answered, with the answers appended to the brief. And every role has a tool-call limit, eighty by default, so a role that keeps reading without finishing is stopped as a runaway rather than allowed to run the budget down.
+
+The model choice on the new-session form shows what the gateway will do with it: the provider that serves a pinned model, or for an auto-router each tier and where it goes. At acme, `auto` routes every tier to Anthropic, while `auto-frugal` sends its low tiers to open-weight models on Fireworks; a session that should reach Fireworks needs `auto-frugal` or a Fireworks model pinned.
+
+An investigation crew, one with no writer, completes with its challenger's verdict rather than failing on it. Only a delivery crew treats a missing approval as an incomplete review.
+
 ## Approving tool use
 
 Every OpenCode session starts with `ask` for every tool, so each read, search and shell command waits for the operator. That is the right default on the `local` backend, where the crew shares the workbench's files. In a container or a pod the sandbox is the boundary, so a session there can be created with automatic approval, or switched to it from the decision panel while it runs. The switch answers the permissions already waiting and creates later roles with allow rules; read roles still cannot edit or run commands, and a crew's questions still wait for a person. Automatic approval is refused on the `local` backend.

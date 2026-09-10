@@ -12,7 +12,7 @@ export interface PanelHost {
   revision(): number;
   bootstrap(): Promise<Bootstrap>;
   liveUpdates(): boolean;
-  lifecycle(id: string, action: 'start' | 'pause' | 'resume' | 'cancel'): Promise<void>;
+  lifecycle(id: string, action: 'start' | 'pause' | 'resume' | 'cancel' | 'retry'): Promise<void>;
   instruction(id: string, text: string, pauseFirst: boolean): Promise<InstructionOutcome>;
   decide(id: string, requestId: string, decision: Decision): Promise<void>;
   openArtifact(id: string, artifactId: string, file?: string): Promise<void>;
@@ -87,7 +87,7 @@ export class SessionPanel implements vscode.Disposable {
       if (this.disposed || client !== this.host.client() || revision !== this.host.revision()) return;
       this.merge(events);
       this.freshness = { transport: this.stream ? 'live' : this.freshness.transport === 'offline' ? 'polling' : this.freshness.transport, observedAt: new Date().toISOString() };
-      const detail: SessionDetail = { session, events: this.events.slice(-300), permissions, user: bootstrap.user, mode: bootstrap.mode, origin: client.origin, freshness: this.freshness, ...(typeof bootstrap.gateway === 'string' ? { gateway: bootstrap.gateway } : {}) };
+      const detail: SessionDetail = { session, events: this.events.slice(-300), permissions, user: bootstrap.user, mode: bootstrap.mode, origin: client.origin, freshness: this.freshness, ...(typeof bootstrap.gateway === 'string' ? { gateway: bootstrap.gateway } : {}), ...(bootstrap.observability ? { observability: bootstrap.observability } : {}) };
       this.panel.title = session.title;
       await this.panel.webview.postMessage({ type: 'session', detail, focus: this.pendingFocus });
       this.pendingFocus = undefined;
@@ -173,7 +173,8 @@ export class SessionPanel implements vscode.Disposable {
         }
         case 'budget': { if (typeof message.amountUsd === 'number') await this.host.budget(this.id, message.amountUsd); return; }
         case 'approval': { if (message.approval === 'auto' || message.approval === 'manual') await this.host.setApproval(this.id, message.approval); return; }
-        case 'start': case 'pause': case 'resume': case 'cancel': await this.host.lifecycle(this.id, message.type); return;
+        case 'start': case 'pause': case 'resume': case 'cancel': case 'retry': await this.host.lifecycle(this.id, message.type); return;
+        case 'open-url': { const url = typeof message.url === 'string' ? message.url : ''; if (/^https:\/\/[^\s]+$/.test(url) && !url.includes('@')) await vscode.env.openExternal(vscode.Uri.parse(url)); return; }
       }
     } catch (error) {
       if (message.type === 'instruction') await this.panel.webview.postMessage({ type: 'instruction', state: 'failed', message: error instanceof Error ? error.message : 'The instruction could not be saved.' });

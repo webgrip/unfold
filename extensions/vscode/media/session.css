@@ -286,3 +286,7 @@ footer .session-id { margin-left: auto; font-family: var(--mono); }
 @media (max-width: 860px) { #app { padding: 22px 22px 14px; } .session-layout { gap: 22px; grid-template-columns: minmax(0, 1fr) 210px; } .section-heading { align-items: start; flex-direction: column; gap: 5px; } .section-heading > span { text-align: left; } }
 @media (max-width: 600px) { #app { padding: 18px 16px 12px; } .session-layout { display: flex; flex-direction: column; gap: 18px; } .main-column, .side-column { width: 100%; } h1 { font-size: 21px; } .title-row { flex-direction: column; gap: 9px; } .toolbar .danger { margin-left: 0; } .composer-footer { align-items: start; flex-direction: column; gap: 10px; } .composer-actions { flex-wrap: wrap; } footer .session-id { display: none; } .remote-label { font-size: 9px; } .stream { max-height: 50vh; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } .dots i { opacity: 1; } }
+
+.link-button { background: none; border: none; color: var(--vscode-textLink-foreground); cursor: pointer; padding: 0; margin-right: 0.6rem; font: inherit; }
+.link-button:hover { text-decoration: underline; }
+.link-row { display: inline-flex; flex-wrap: wrap; gap: 0.2rem 0.4rem; }

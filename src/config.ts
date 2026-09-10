@@ -108,6 +108,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     const roleIds = new Set();
     for (const role of crew.roles) {
       if (!role.id || roleIds.has(role.id) || !role.name || !role.instruction || !['read','write'].includes(role.mode)) throw new Error(`Invalid role in ${crew.id}`);
+      if (role.maxToolCalls !== undefined) number(role.maxToolCalls, 80, 1, 2000, `crews.${crew.id}.roles.${role.id}.maxToolCalls`);
       roleIds.add(role.id);
     }
   }
@@ -219,6 +220,9 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     if (oidc.clientSecretEnv && !clientSecret) throw new Error(`auth.oidc.clientSecretEnv names ${oidc.clientSecretEnv}, which is not set`);
     config.auth.oidc = { issuer: configuredUrl(oidc.issuer, 'auth.oidc.issuer'), clientId: oidc.clientId, ...(clientSecret ? { clientSecret } : {}), scopes, displayName: oidc.displayName ?? 'Authentik', roleClaim: oidc.roleClaim ?? 'vloer_role', groupsClaim: oidc.groupsClaim ?? 'groups', roles: roles as Record<'admin' | 'operator' | 'viewer', string[]> };
   } else delete (config.auth as { oidc?: unknown }).oidc;
+  config.runtime.maxToolCalls = number(raw.runtime?.maxToolCalls, 80, 1, 2000, 'runtime.maxToolCalls');
+  if (raw.runtime?.briefCheck !== undefined && typeof raw.runtime.briefCheck !== 'boolean') throw new Error('runtime.briefCheck must be true or false');
+  config.runtime.briefCheck = raw.runtime?.briefCheck ?? true;
   if (!existsSync(config.publicDir)) throw new Error('Browser application directory is missing');
   return config;
 }

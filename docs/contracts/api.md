@@ -55,6 +55,14 @@ A crew's read roles are not all reviewers. Only the final role of a crew carries
 
 `run.started` carries the composed prompt as `prompt`, split into objective, role instruction, operator notes, prior work, supplied evidence and the closing guidance, plus the model chosen for the role and `promptSha`, the SHA-256 of the exact text sent. The run keeps `promptSha` and the signed provenance records it per run, so a reviewer can match a transcript to the brief that produced it.
 
+### Before the crew spends
+
+`POST /api/sessions` refuses an objective under twenty characters or four words with 400 `objective_too_thin`; an imported task is exempt because its brief is generated from the ticket. When a session starts and the gateway is configured, the workbench first asks the cheapest listed model, with the session's own credential, whether the brief is actionable, and records `brief.checked`. If it is not, the session waits with a question titled "The brief needs more before the crew starts", carrying the model's reason and up to three questions, and `brief.unclear` is recorded; nothing else is spent. Answering the question through the permissions route appends the answers to the objective as an operator clarification, records `brief.clarified`, and starts the crew. `runtime.briefCheck: false` disables the check.
+
+Each role may make at most `runtime.maxToolCalls` tool calls, eighty by default, or the role's own `maxToolCalls`; beyond that the session fails with category `runaway` and `run.runaway` is recorded. A crew without a write role, an investigation, completes with its final reader's verdict on the run instead of failing when that verdict is not approve; only a crew with a writer treats a missing approval as `review_incomplete`.
+
+`GET /api/models` describes the configured models through the gateway's catalogue: the provider that serves each, and for an auto-router its tiers and the provider set behind them.
+
 ## Durable events and human input
 
 Sessions may include an additive `failure` object: `{category, stage, message, remediation, promptAcceptance, automaticRetry:false, detail?}`. Its message and remediation come from a fixed safe catalog. Raw exception text, HTTP headers, credentials, stack traces and provider response bodies are excluded. The optional `detail` is the recorded cause when the server itself produced it: the failing workspace command, its exit code or signal, and the last 4 KiB of its standard error, with credentials, bearer tokens, key-shaped strings and server filesystem paths redacted and the whole bounded to 2,000 characters. Runtime exception messages never become `detail`. Older sessions and servers may omit both fields; `blocker` remains a compatible short message.

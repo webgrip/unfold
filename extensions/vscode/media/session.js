@@ -334,7 +334,7 @@ function checksTab(session) {
   }));
 }
 
-const hiddenEvents = new Set(['native.session', 'usage', 'message.delta', 'heartbeat']);
+const hiddenEvents = new Set(['native.session', 'usage', 'message.delta', 'heartbeat', 'budget.observed', 'budget.settled', 'brief.checked']);
 
 function visibleEvents(events) {
   const visible = [];
@@ -366,6 +366,10 @@ function systemText(event, session) {
   const data = event.data;
   const role = (session && roleFor(session, event.runId)) || data.role || 'Role';
   if (event.type === 'run.finished') return `${role} finished${data.verdict ? ` · ${verdictLabel(data.verdict)}` : data.status && data.status !== 'completed' ? ` · ${readable(data.status)}` : ''}`;
+  if (event.type === 'permission') return `${roleName} ${data.kind === 'question' ? 'asked a question' : 'asked for permission'}${data.title ? `: ${data.title}` : ''}`;
+  if (event.type === 'brief.unclear') return `Brief check: not enough to start on. ${data.reason || ''}${Array.isArray(data.questions) && data.questions.length ? ` Questions: ${data.questions.join(' / ')}` : ''} Answer in the decision panel; the crew starts once you do.`;
+  if (event.type === 'brief.clarified') return 'Brief clarified by the operator; the crew starts.';
+  if (event.type === 'run.runaway') return String(data.message || 'A role exceeded its tool-call limit.');
   if (event.type === 'budget.observed') return `Observed at the gateway: ${currency(data.observedUsd)} of ${currency(data.budgetUsd)}${typeof data.requests === 'number' ? ` · ${data.requests} request${data.requests === 1 ? '' : 's'}` : ''}`;
   if (event.type === 'approval.changed') return data.approval === 'auto' ? 'Tool use is now approved automatically inside the sandbox' : 'Tool use asks you again';
   if (event.type === 'policy.violated') return `Gateway policy: ${typeof data.message === 'string' ? data.message : `${data.request?.model || 'a model request'} answered by ${data.request?.violation || 'a provider outside policy'}`}`;
@@ -542,7 +546,31 @@ function approvalCard(session, writer) {
     active && writer ? element('div', { className: 'toolbar' }, automatic ? action('Ask me again', 'approval', { className: 'quiet', 'data-approval': 'manual', disabled: busy }) : action('Approve automatically', 'approval', { 'data-approval': 'auto', disabled: busy })) : null);
 }
 
-function gatewayTab(session, gateway) {
+function exploreUrl(observability, uid, query, queryType, range) {
+  const grafana = observability.grafanaUrl.replace(/\/$/, '');
+  const pane = { datasource: uid, queries: [{ refId: 'A', datasource: { uid }, ...(queryType ? { queryType } : {}), ...(queryType === 'traceql' ? { query } : { expr: query }) }], range };
+  return `${grafana}/explore?schemaVersion=1&orgId=1&panes=${encodeURIComponent(JSON.stringify({ v: pane }))}`;
+}
+
+function observabilityLinks(observability, session, request) {
+  if (!observability || !observability.grafanaUrl) return [];
+  const window = request ? [Date.parse(request.at) - 60000, Date.parse(request.at) + (request.durationMs || 0) + 60000] : session ? [Date.parse(session.runs.find(run => run.startedAt)?.startedAt || session.createdAt) - 60000, Date.parse(session.updatedAt) + 60000] : null;
+  const range = window ? { from: String(window[0]), to: String(window[1]) } : { from: 'now-1h', to: 'now' };
+  const fill = template => template.replace('{callId}', request?.callId || '').replace('{alias}', session ? `de-vloer-${session.id}` : '').replace('{sessionId}', session?.id || '');
+  const links = [];
+  if (observability.tracesDatasource) links.push(['Traces ↗', exploreUrl(observability, observability.tracesDatasource, fill(observability.traceQuery || '{ resource.service.name = "litellm" }'), 'traceql', range)]);
+  if (observability.logsDatasource) links.push(['Logs ↗', exploreUrl(observability, observability.logsDatasource, fill(observability.logsQuery || 'k8s_namespace:"ai" AND k8s_container:"litellm"'), undefined, range)]);
+  return links.map(([label, url]) => element('button', { className: 'link-button', type: 'button', 'data-open-url': url }, label));
+}
+
+function dashboardLinks(observability) {
+  if (!observability || !observability.grafanaUrl || !observability.dashboards) return [];
+  const names = { spend: 'Spend, budgets and savings', reliability: 'Latency and reliability', finops: 'FinOps' };
+  const grafana = observability.grafanaUrl.replace(/\/$/, '');
+  return Object.entries(observability.dashboards).map(([key, uid]) => element('button', { className: 'link-button', type: 'button', 'data-open-url': `${grafana}/d/${uid}` }, `${names[key] || key} ↗`));
+}
+
+function gatewayTab(session, gateway, observability) {
   const requests = Array.isArray(session.requests) ? session.requests : [];
   if (!requests.length) return element('div', { className: 'empty-state' }, element('h3', {}, 'No gateway requests recorded yet'), element('p', {}, session.costStatus === 'demo' ? 'The demonstration runtime does not call a model gateway.' : 'Each model call the gateway attributes to this session appears here within fifteen seconds, with the provider that served it.'));
   const roleName = id => session.runs.find(run => run.roleId === id)?.roleName || '';
@@ -568,14 +596,15 @@ function gatewayTab(session, gateway) {
     element('td', {}, `${request.inputTokens ?? 0} in`, element('br'), small(`${request.outputTokens ?? 0} out`)),
     element('td', {}, currency(request.usd), request.savingsUsd ? [element('br'), small(`saved ${currency(request.savingsUsd)}`)] : null),
     element('td', {}, request.durationMs !== undefined ? `${(request.durationMs / 1000).toFixed(1)}s` : '—', request.firstTokenMs !== undefined ? [element('br'), small(`first token ${(request.firstTokenMs / 1000).toFixed(1)}s`)] : null),
-    element('td', { className: 'flags' }, ...flags(request), request.error ? [element('br'), element('small', { className: 'tool-error' }, String(request.error))] : null, request.harness ? [element('br'), small(String(request.harness))] : null)));
+    element('td', { className: 'flags' }, ...flags(request), request.error ? [element('br'), element('small', { className: 'tool-error' }, String(request.error))] : null, request.harness ? [element('br'), small(String(request.harness))] : null, observabilityLinks(observability, session, request).length ? [element('br'), element('span', { className: 'link-row' }, ...observabilityLinks(observability, session, request))] : null)));
   return element('div', { className: 'gateway' },
     element('dl', { className: 'gateway-summary' },
       fact('Gateway', element('code', {}, gateway || 'LiteLLM')),
       fact('Providers', providers.length ? providers.join(', ') : '—'),
       fact('Endpoints', hosts.length ? element('span', {}, ...hosts.flatMap((host, index) => index ? [element('br'), element('code', {}, host)] : [element('code', {}, host)])) : '—'),
       fact('Requests', `${requests.length}${totals.failures ? ` · ${totals.failures} refused` : ''}`),
-      fact('Attributed cost', `${currency(totals.usd)}${totals.savings ? ` · router saved ${currency(totals.savings)}` : ''}`)),
+      fact('Attributed cost', `${currency(totals.usd)}${totals.savings ? ` · router saved ${currency(totals.savings)}` : ''}`),
+      ...((observabilityLinks(observability, session).length || dashboardLinks(observability).length) ? [fact('Observability', element('span', { className: 'link-row' }, ...observabilityLinks(observability, session), ...dashboardLinks(observability)))] : [])),
     element('div', { className: 'table-scroll' }, element('table', { className: 'gateway-table' },
       element('thead', {}, element('tr', {}, ...['Time', 'Role', 'Answered by', 'Route', 'Tokens', 'Cost', 'Latency', ''].map(label => element('th', {}, label)))),
       element('tbody', {}, ...rows))),
@@ -623,7 +652,7 @@ function render() {
   const decisionSection = requests.length ? element('section', { className: 'decisions', id: 'decisions', 'aria-label': 'Decisions waiting for you' }, element('div', { className: 'section-heading' }, element('h2', {}, requests.length === 1 ? 'Your decision' : `${requests.length} decisions waiting`), element('span', {}, 'Nothing continues until you answer')), ...requests.map(request => decisionCard(request, session, mutable))) : null;
 
   const nav = element('div', { className: 'tabs', role: 'tablist', 'aria-label': 'Session information' }, ...tabs.map(value => action('', 'tab', { id: `tab-${value}`, 'data-tab': value, role: 'tab', 'aria-controls': 'tab-content', 'aria-selected': tab === value, tabindex: tab === value ? '0' : '-1', className: tab === value ? 'selected' : '' }, value === 'changes' ? ['Changes', diffs ? element('span', { className: 'count' }, String(diffs)) : null] : value === 'checks' ? ['Checks', checks ? element('span', { className: 'count' }, String(checks)) : null] : value === 'gateway' ? ['Gateway', requestCount ? element('span', { className: 'count' }, String(requestCount)) : null] : value[0].toUpperCase() + value.slice(1))));
-  const content = tab === 'brief' ? briefTab(session) : tab === 'changes' ? changesTab(session) : tab === 'checks' ? checksTab(session) : tab === 'gateway' ? gatewayTab(session, gateway) : activityTab(session, events);
+  const content = tab === 'brief' ? briefTab(session) : tab === 'changes' ? changesTab(session) : tab === 'checks' ? checksTab(session) : tab === 'gateway' ? gatewayTab(session, gateway, detail.observability) : activityTab(session, events);
   const main = element('div', { className: 'main-column' },
     element('section', { className: 'crew-section' }, element('div', { className: 'section-heading' }, element('h2', {}, 'Your crew'), element('span', {}, 'Sequential roles · remote execution')), crewStrip(session)),
     nav, element('div', { id: 'tab-content', role: 'tabpanel', 'aria-labelledby': `tab-${tab}`, className: 'tab-content' }, content),
@@ -775,3 +804,5 @@ window.addEventListener('message', event => {
 
 remember();
 bridge.postMessage({ type: 'ready' });
+
+document.addEventListener('click', event => { const link = event.target.closest('[data-open-url]'); if (link) vscode.postMessage({ type: 'open-url', url: link.dataset.openUrl }); });

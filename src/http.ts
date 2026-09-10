@@ -194,6 +194,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           res.end(key.publicPem());
           return;
         }
+        if (method === 'GET' && path === '/api/models') return json(res, 200, { models: await engine.describeModels() });
         if (method === 'GET' && path === '/api/links') return json(res, 200, { links: links ? links.describeAll(user.id) : [] });
         const linkRoute = path.match(/^\/api\/links\/(gitlab|clickup)$/);
         if (linkRoute && links) {

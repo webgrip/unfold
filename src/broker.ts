@@ -12,6 +12,7 @@ export interface BudgetBroker {
   usage?(reference: string): Promise<ModelUsage[] | undefined>;
   ledger?(reference: string): Promise<{ usage: ModelUsage[]; requests: GatewayRequest[] } | undefined>;
   providersFor?(model: string): Promise<string[] | undefined>;
+  routes?(model: string): Promise<{ provider?: string; tiers?: Record<string, string> } | undefined>;
 }
 
 export class LiteLLMBroker implements BudgetBroker {
@@ -144,7 +145,7 @@ export class LiteLLMBroker implements BudgetBroker {
     return { usage: [...byModel.values()].sort((a, b) => b.usd - a.usd), requests };
   }
 
-  private catalogue?: { at: number; entries: Map<string, { provider?: string; tiers: string[] }> };
+  private catalogue?: { at: number; entries: Map<string, { provider?: string; tiers: string[]; tierMap?: Record<string, string> }> };
 
   async providersFor(model: string): Promise<string[] | undefined> {
     if (!this.catalogue || Date.now() - this.catalogue.at > 60_000) {
@@ -155,7 +156,7 @@ export class LiteLLMBroker implements BudgetBroker {
         if (typeof row?.model_name !== 'string') continue;
         const tiers = row?.litellm_params?.complexity_router_config?.tiers;
         const provider = typeof row?.model_info?.litellm_provider === 'string' ? row.model_info.litellm_provider : typeof row?.litellm_params?.model === 'string' && row.litellm_params.model.includes('/') ? row.litellm_params.model.split('/')[0] : undefined;
-        entries.set(row.model_name, { provider, tiers: tiers && typeof tiers === 'object' ? [...new Set(Object.values(tiers).filter((value): value is string => typeof value === 'string'))] : [] });
+        entries.set(row.model_name, { provider, tiers: tiers && typeof tiers === 'object' ? [...new Set(Object.values(tiers).filter((value): value is string => typeof value === 'string'))] : [], ...(tiers && typeof tiers === 'object' ? { tierMap: Object.fromEntries(Object.entries(tiers).filter(([, value]) => typeof value === 'string')) as Record<string, string> } : {}) });
       }
       this.catalogue = { at: Date.now(), entries };
     }
@@ -171,6 +172,13 @@ export class LiteLLMBroker implements BudgetBroker {
     };
     visit(model, 0);
     return seen.has(model) && this.catalogue.entries.has(model) ? [...providers] : undefined;
+  }
+
+  async routes(model: string): Promise<{ provider?: string; tiers?: Record<string, string> } | undefined> {
+    await this.providersFor(model);
+    const entry = this.catalogue?.entries.get(model);
+    if (!entry) return undefined;
+    return { ...(entry.provider ? { provider: entry.provider } : {}), ...(entry.tierMap ? { tiers: entry.tierMap } : {}) };
   }
 
   async extend(reference: string, totalBudget: number): Promise<void> {

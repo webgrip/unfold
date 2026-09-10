@@ -8,7 +8,7 @@ export type UserRole = 'admin' | 'operator' | 'viewer';
 export type User = { id: string; name: string; role: UserRole };
 export type RepositoryAccess = { username: string; password: string };
 export type Repository = { id: string; name: string; description: string; url: string; baseBranch: string; verify: string[]; trackerUrl?: string; executionOwner?: 'interactive' | 'ploeg'; access?: RepositoryAccess };
-export type CrewRole = { id: string; name: string; mode: 'write' | 'read'; instruction: string; model?: string };
+export type CrewRole = { id: string; name: string; mode: 'write' | 'read'; instruction: string; model?: string; maxToolCalls?: number };
 export type Crew = { id: string; name: string; description: string; roles: CrewRole[] };
 export type RuntimeKind = 'demo' | 'opencode' | 'command';
 export type WorkspaceBackend = 'local' | 'docker' | 'kubernetes';
@@ -27,7 +27,7 @@ export type AppConfig = {
   mode: 'demo' | 'live'; host: string; port: number; dataDir: string; publicDir: string; baseUrl?: string;
   repositories: Repository[]; crews: Crew[]; models: ModelConfig[];
   taskSources?: TaskSourceConfig[];
-  runtime: { kind: RuntimeKind; backend: WorkspaceBackend | 'external'; backends?: WorkspaceBackend[]; endpoint?: string; username?: string; password?: string; binary?: string; image?: string; command?: string[]; timeoutMs: number; agentEnvironment?: string[] };
+  runtime: { kind: RuntimeKind; backend: WorkspaceBackend | 'external'; backends?: WorkspaceBackend[]; endpoint?: string; username?: string; password?: string; binary?: string; image?: string; command?: string[]; timeoutMs: number; agentEnvironment?: string[]; maxToolCalls?: number; briefCheck?: boolean };
   docker?: { image: string; socketPath?: string; network?: string; cpus?: number; memoryMb?: number; pidsLimit?: number; gatewayUrl?: string; provisionTimeoutMs?: number; user?: string; transport?: WorkspaceTransport; relayUrl?: string };
   litellm?: { baseUrl: string; adminUrl: string; masterKey: string; models: string[]; ttl: string; settlementDelayMs?: number };
   kubernetes?: { namespace: string; image: string; storageClass?: string; storageSize: string; cpu: string; memory: string; apiUrl?: string; tokenFile?: string; caFile?: string; pullPolicy?: string; ingressFrom?: Record<string, unknown>[]; egress?: Record<string, unknown>[]; gitSecretName?: string; agentSecrets?: string[]; imagePullSecrets?: string[]; provisionTimeoutMs?: number; transport?: WorkspaceTransport; relayUrl?: string; provisioner?: 'pod' | 'sandbox'; userNamespaces?: boolean; sandbox?: { runtimeClassName?: string; warmPool?: string; poolTokenEnv?: string } };
