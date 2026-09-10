@@ -324,6 +324,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             else if (action === 'resume') result = await engine.resume(id, user);
             else if (action === 'cancel') result = await engine.cancel(id, user);
             else if (action === 'retry') result = await engine.retry(id, user);
+            else if (action === 'review') result = engine.review(id, { decision: data.decision, note: data.note }, user);
             else if (action === 'messages') result = engine.message(id, text(data.text, 'Instruction', 16000), user);
             else if (action === 'approval') result = await engine.setApproval(id, data.approval, user);
             else if (action === 'budget') {

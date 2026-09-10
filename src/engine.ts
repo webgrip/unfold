@@ -188,6 +188,18 @@ export class Engine {
   async pause(id: string, user: User): Promise<Session> { return this.stop(id, user, 'paused'); }
   async cancel(id: string, user: User): Promise<Session> { return this.stop(id, user, 'cancelled'); }
 
+  review(id: string, input: { decision?: unknown; note?: unknown }, user: User): Session {
+    const session = this.owned(id, user);
+    if (session.status !== 'completed') throw new EngineError(409, 'invalid_state', 'Only a completed session can be reviewed.');
+    if (session.review) throw new EngineError(409, 'already_reviewed', `This session was ${session.review.decision} by ${session.review.byName}.`);
+    if (input.decision !== 'accepted' && input.decision !== 'rejected') throw new EngineError(400, 'invalid_decision', 'Choose accepted or rejected.');
+    const note = input.note === undefined || input.note === '' ? undefined : this.text(input.note, 'note', 2000);
+    if (input.decision === 'rejected' && !note) throw new EngineError(400, 'note_required', 'Say why the outcome is rejected, so the next attempt can use it.');
+    session.review = { decision: input.decision, by: user.id, byName: user.name, at: new Date().toISOString(), ...(note ? { note } : {}) };
+    this.save(session, 'review.recorded', user.id, { decision: input.decision, byName: user.name, ...(note ? { note } : {}) });
+    return session;
+  }
+
   async retry(id: string, user: User): Promise<Session> {
     let session = this.owned(id, user);
     if (session.status !== 'failed') throw new EngineError(409, 'invalid_state', 'Only a failed session can be tried again.');

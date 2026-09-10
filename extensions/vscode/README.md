@@ -198,3 +198,6 @@ The executable server contract is in the parent repository at `src/http.ts` and 
 
 
 The Gateway tab links each request and the whole session to the estate's Grafana when the workbench names one: traces and logs for the request's window, and the spend, reliability and FinOps dashboards.
+
+
+A completed session reads "Awaiting your review" until you accept or reject it from the panel toolbar or the **Record Review** command; a rejection needs a reason, and both are recorded with your name.

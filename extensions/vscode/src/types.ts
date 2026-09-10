@@ -18,7 +18,7 @@ export type Session = {
   candidate?: Candidate;
   runs: Run[];
   artifacts: Artifact[];
-};
+ review?: { decision: 'accepted' | 'rejected'; by: string; byName: string; at: string; note?: string } };
 export type GatewayPolicy = { providers?: string[]; regions?: string[] };
 export type Bootstrap = {
   user: User; mode: 'demo' | 'live'; maxBudgetUsd: number; maxConcurrentSessions: number;

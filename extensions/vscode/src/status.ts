@@ -10,13 +10,18 @@ export const statuses: Record<SessionStatus, StatusPresentation> = {
   running: { name: 'Working', icon: 'sync~spin', group: 'active' },
   exporting: { name: 'Preparing review', icon: 'package', group: 'active' },
   queued: { name: 'Ready to start', icon: 'circle-outline', group: 'ready' },
-  completed: { name: 'Ready for human review', icon: 'pass', color: 'testing.iconPassed', group: 'history' },
+  completed: { name: 'Awaiting your review', icon: 'eye', color: 'testing.iconPassed', group: 'ready' },
   cancelled: { name: 'Cancelled', icon: 'circle-slash', group: 'history' },
 };
 
 export const groups: { id: StatusPresentation['group']; label: string }[] = [
   { id: 'attention', label: 'Needs attention' }, { id: 'active', label: 'In progress' }, { id: 'ready', label: 'Ready' }, { id: 'history', label: 'History' },
 ];
+
+export function presentationFor(session: { status: string; review?: { decision: 'accepted' | 'rejected' } }): StatusPresentation {
+  if (session.status === 'completed' && session.review) return session.review.decision === 'accepted' ? { name: 'Accepted', icon: 'pass', color: 'testing.iconPassed', group: 'history' } : { name: 'Rejected', icon: 'circle-slash', color: 'list.warningForeground', group: 'history' };
+  return presentation(session.status);
+}
 
 export function presentation(status: string): StatusPresentation {
   return statuses[status as SessionStatus] ?? { name: status.replaceAll('_', ' '), icon: 'circle-outline', group: 'history' };
@@ -87,10 +92,10 @@ export function situation(session: Session): { headline: string; next: string } 
     case 'running': return { headline: `${role ?? 'The crew'} is working in ${placementLabel(session.placement)}.`, next: 'You can keep editing. Pause to steer, or wait for the next decision.' };
     case 'exporting': return { headline: 'Capturing the repository state for review.', next: 'The candidate download appears when the snapshot is complete.' };
     case 'queued': return { headline: 'Authorized and ready; nothing has run yet.', next: 'Start the crew when the brief is right.' };
-    case 'completed': return { headline: `Required reviewers approved (${reviewing.filter(run => run.verdict === 'approve').length} of ${reviewing.length}).`, next: 'Machine review is done. Human review and your repository checks are still required.' };
+    case 'completed': return session.review ? { headline: `${session.review.decision === 'accepted' ? 'Accepted' : 'Rejected'} by ${session.review.byName}.`, next: session.review.note ?? 'Recorded in the session history. Nothing was pushed or merged by the workbench.' } : { headline: 'The crew finished and the candidate is captured. Your review is next.', next: 'Inspect the changes, checks and transcripts, then accept or reject. Nothing has been pushed or merged.' };
     case 'cancelled': return { headline: 'Cancelled by an operator.', next: 'Evidence stays available. Create a new session to try again.' };
   }
-  return { headline: presentation(session.status).name, next: '' };
+  return { headline: presentationFor(session).name, next: '' };
 }
 
 export function relativeTime(value: string, now = Date.now()): string {

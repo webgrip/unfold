@@ -63,6 +63,10 @@ Each role may make at most `runtime.maxToolCalls` tool calls, eighty by default,
 
 `GET /api/models` describes the configured models through the gateway's catalogue: the provider that serves each, and for an auto-router its tiers and the provider set behind them.
 
+### The human review
+
+`completed` means the crew finished, the candidate was captured and signed, the workspace was released, and nothing was published; the label reads "Awaiting your review". `POST /api/sessions/:id/review` with `{decision, note?}` records that review once: `accepted`, with an optional note, or `rejected`, which requires a note so the next attempt can use it. The session carries `review` with the decision, who made it, when and the note, and `review.recorded` is appended to the history. A reviewed session cannot be reviewed again; 409 `already_reviewed` names the earlier decision. Publication, when it arrives, will require an accepted review.
+
 ## Durable events and human input
 
 Sessions may include an additive `failure` object: `{category, stage, message, remediation, promptAcceptance, automaticRetry:false, detail?}`. Its message and remediation come from a fixed safe catalog. Raw exception text, HTTP headers, credentials, stack traces and provider response bodies are excluded. The optional `detail` is the recorded cause when the server itself produced it: the failing workspace command, its exit code or signal, and the last 4 KiB of its standard error, with credentials, bearer tokens, key-shaped strings and server filesystem paths redacted and the whole bounded to 2,000 characters. Runtime exception messages never become `detail`. Older sessions and servers may omit both fields; `blocker` remains a compatible short message.

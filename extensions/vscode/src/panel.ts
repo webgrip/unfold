@@ -13,6 +13,7 @@ export interface PanelHost {
   bootstrap(): Promise<Bootstrap>;
   liveUpdates(): boolean;
   lifecycle(id: string, action: 'start' | 'pause' | 'resume' | 'cancel' | 'retry'): Promise<void>;
+  review(id: string, decision: 'accepted' | 'rejected'): Promise<void>;
   instruction(id: string, text: string, pauseFirst: boolean): Promise<InstructionOutcome>;
   decide(id: string, requestId: string, decision: Decision): Promise<void>;
   openArtifact(id: string, artifactId: string, file?: string): Promise<void>;
@@ -174,6 +175,7 @@ export class SessionPanel implements vscode.Disposable {
         case 'budget': { if (typeof message.amountUsd === 'number') await this.host.budget(this.id, message.amountUsd); return; }
         case 'approval': { if (message.approval === 'auto' || message.approval === 'manual') await this.host.setApproval(this.id, message.approval); return; }
         case 'start': case 'pause': case 'resume': case 'cancel': case 'retry': await this.host.lifecycle(this.id, message.type); return;
+        case 'review': { if (message.decision === 'accepted' || message.decision === 'rejected') await this.host.review(this.id, message.decision); return; }
         case 'open-url': { const url = typeof message.url === 'string' ? message.url : ''; if (/^https:\/\/[^\s]+$/.test(url) && !url.includes('@')) await vscode.env.openExternal(vscode.Uri.parse(url)); return; }
       }
     } catch (error) {

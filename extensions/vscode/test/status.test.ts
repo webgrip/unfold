@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runLabel, reviewers, situation, failureStage, spendLabel, observedSpend, isolatedPlacement, approvalLabel } from '../src/status.ts';
+import { runLabel, reviewers, situation, failureStage, spendLabel, observedSpend, isolatedPlacement, approvalLabel, presentationFor } from '../src/status.ts';
 import type { Session } from '../src/types.ts';
 
 function session(overrides: Partial<Session> = {}): Session {
@@ -27,7 +27,10 @@ test('run labels: write is implementation, a read role before the end is analysi
 });
 
 test('the situation counts only the final read role as a reviewer', () => {
-  assert.equal(situation(session()).headline, 'Required reviewers approved (1 of 1).');
+  assert.equal(situation(session()).headline, 'The crew finished and the candidate is captured. Your review is next.');
+  assert.equal(situation(session({ review: { decision: 'accepted', by: 'u', byName: 'Ryan', at: '2026-09-10T14:00:00.000Z', note: 'Fine.' } })).headline, 'Accepted by Ryan.');
+  assert.equal(presentationFor(session({ review: { decision: 'rejected', by: 'u', byName: 'Ryan', at: '2026-09-10T14:00:00.000Z', note: 'No.' } })).name, 'Rejected');
+  assert.equal(presentationFor(session()).name, 'Awaiting your review');
   const rejected = session({ status: 'failed', runs: [{ id: 'r1', roleName: 'Engineer', mode: 'write', status: 'completed' }, { id: 'r2', roleName: 'Reviewer', mode: 'read', status: 'failed', verdict: 'request_changes' }] });
   assert.equal(situation(rejected).headline, 'Reviewer requested changes.');
 });

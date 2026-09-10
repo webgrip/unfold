@@ -8,7 +8,7 @@ import { browserLogin } from './browser-login.js';
 import { EvidenceDocuments, patchFileLine } from './evidence.js';
 import { AttentionWatcher, show, type NotificationPolicy } from './notifications.js';
 import { SessionPanels, type PanelHost, type PanelTab, type InstructionOutcome } from './panel.js';
-import { presentation, situation, safeHttpsUrl, spendLabel, isolatedPlacement, placementLabel } from './status.js';
+import { presentation, situation, safeHttpsUrl, spendLabel, isolatedPlacement, placementLabel, presentationFor } from './status.js';
 import { setApproval as chooseApproval, type ApprovalChoice } from './approval.js';
 import { linkedAccounts, type AccountChoice } from './accounts.js';
 import { SessionTree, TaskTree, type SessionEntry, type TaskEntry } from './tree.js';
@@ -98,6 +98,7 @@ class Workbench implements vscode.Disposable, PanelHost {
     register('setApproval', value => this.setApprovalCommand(value));
     register('linkedAccounts', () => this.linkedAccounts());
     for (const action of ['start', 'pause', 'resume', 'cancel', 'retry'] as const) register(action, value => this.lifecycleCommand(action, value));
+    register('review', async value => { const id = await this.choose(value, 'Review which session?'); if (!id) return; const decision = await vscode.window.showQuickPick([{ label: '$(check) Accept', description: 'The outcome is fit to take further', value: 'accepted' as const }, { label: '$(circle-slash) Reject', description: 'Say why so the next attempt can use it', value: 'rejected' as const }], { title: 'Record your review', ignoreFocusOut: true }); if (decision) await this.review(id, decision.value); });
     this.timer = this.poll();
     void this.refresh();
   }
@@ -171,8 +172,8 @@ class Workbench implements vscode.Disposable, PanelHost {
       this.taskView.message = bootstrap.mode === 'demo' ? 'Demo fixture · No tracker account required' : undefined;
       this.view.message = `${bootstrap.mode === 'demo' ? 'DEMO · No AI calls · ' : ''}${bootstrap.user.name} · ${new URL(client.origin).host}`;
       const waiting = sessions.filter(session => session.status === 'waiting_input');
-      const attention = sessions.filter(session => presentation(session.status).group === 'attention');
-      const active = sessions.filter(session => presentation(session.status).group === 'active');
+      const attention = sessions.filter(session => presentationFor(session).group === 'attention');
+      const active = sessions.filter(session => presentationFor(session).group === 'active');
       this.view.badge = attention.length ? { value: attention.length, tooltip: `${attention.length} session${attention.length === 1 ? '' : 's'} need${attention.length === 1 ? 's' : ''} attention` } : undefined;
       if (waiting.length) {
         this.status.text = `$(bell-dot) Vloer: ${waiting.length} decision${waiting.length === 1 ? '' : 's'}`;
@@ -248,7 +249,7 @@ class Workbench implements vscode.Disposable, PanelHost {
     await this.bootstrap();
     const sessions = await this.current.sessions();
     if (!sessions.length) { void vscode.window.showInformationMessage('No sessions yet. Create one with Vloer: New Session.'); return; }
-    const choice = await vscode.window.showQuickPick(sessions.map(session => ({ label: `$(${presentation(session.status).icon.replace('~spin', '')}) ${session.title}`, description: `${presentation(session.status).name} · ${session.repositoryId} · ${spendLabel(session)}`, detail: `${situation(session).headline}${session.sourceTask ? ` · ${session.sourceTask.provider} #${session.sourceTask.id}` : ''} · ${session.id}`, id: session.id })), { title, matchOnDescription: true, matchOnDetail: true, ignoreFocusOut: true });
+    const choice = await vscode.window.showQuickPick(sessions.map(session => ({ label: `$(${presentationFor(session).icon.replace('~spin', '')}) ${session.title}`, description: `${presentationFor(session).name} · ${session.repositoryId} · ${spendLabel(session)}`, detail: `${situation(session).headline}${session.sourceTask ? ` · ${session.sourceTask.provider} #${session.sourceTask.id}` : ''} · ${session.id}`, id: session.id })), { title, matchOnDescription: true, matchOnDetail: true, ignoreFocusOut: true });
     return choice?.id;
   }
 
@@ -471,6 +472,14 @@ class Workbench implements vscode.Disposable, PanelHost {
   }
 
   private async lifecycleCommand(action: 'start' | 'pause' | 'resume' | 'cancel' | 'retry', value: SessionRef): Promise<void> { const id = await this.choose(value, `${action[0].toUpperCase()}${action.slice(1)} which session?`); if (id) await this.lifecycle(id, action); }
+  async review(id: string, decision: 'accepted' | 'rejected'): Promise<void> {
+    const note = await vscode.window.showInputBox({ title: decision === 'accepted' ? 'Accept this outcome' : 'Reject this outcome', prompt: decision === 'accepted' ? 'Optional note, recorded in the session.' : 'Why is it rejected? Required, so the next attempt can use it.', ignoreFocusOut: true, validateInput: value => decision === 'rejected' && !value.trim() ? 'A reason is required.' : value.length > 2000 ? 'Keep the note under 2000 characters.' : undefined });
+    if (note === undefined) return;
+    await this.current.review(id, decision, note.trim() || undefined);
+    void vscode.window.showInformationMessage(decision === 'accepted' ? 'Accepted. Your decision is recorded in the session.' : 'Rejected. Your reason is recorded in the session.');
+    await this.refresh();
+  }
+
   async lifecycle(id: string, action: 'start' | 'pause' | 'resume' | 'cancel' | 'retry'): Promise<void> {
     const target = this.current; const generation = this.generation;
     if (action === 'cancel') {

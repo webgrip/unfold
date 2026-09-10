@@ -47,7 +47,7 @@ function safeHttps(value) { try { const url = new URL(value); return url.protoco
 
 const stageNames = { credentials: 'Gateway authorization', workspace: 'Workspace setup', runtime: 'Runtime startup', prompt: 'Prompt submission', execution: 'Agent execution' };
 const submissionText = { not_submitted: 'The prompt was not submitted.', rejected: 'The runtime rejected the prompt.', accepted: 'The runtime acknowledged the prompt; this does not confirm that execution finished.', unknown: 'Prompt submission is unconfirmed. Check remote execution and gateway spend before starting new work.' };
-const statusNames = { queued: 'Ready to start', running: 'Running remotely', exporting: 'Preparing review', waiting_input: 'Needs your decision', paused: 'Paused', interrupted: 'Interrupted', completed: 'Ready for human review', failed: 'Needs attention', cancelled: 'Cancelled' };
+const statusNames = { queued: 'Ready to start', running: 'Working', exporting: 'Preparing review', waiting_input: 'Needs your decision', paused: 'Paused', interrupted: 'Interrupted', completed: 'Awaiting your review', failed: 'Needs attention', cancelled: 'Cancelled' };
 
 function activeRole(session) { return session.runs.find(run => ['running', 'waiting_input', 'paused'].includes(run.status))?.roleName; }
 function isReviewer(session, run) { return run.mode === 'read' && session.runs[session.runs.length - 1]?.id === run.id; }
@@ -384,7 +384,8 @@ function systemText(event, session) {
     case 'workspace.ready': return `Workspace ready${data.backend ? ` · ${data.backend}` : ''}`;
     case 'run.started': return `${role} started`;
     case 'budget.increased': return `Additional authorization: ${currency(data.amountUsd)}`;
-    case 'budget.settled': return `Spend settled at ${currency(data.spentUsd)}`;
+    case 'budget.settled': return data.costStatus === 'settled' ? `Spend settled at ${currency(data.spentUsd)}` : `Awaiting gateway settlement · ${currency(data.reservedUsd || 0)} reserved`;
+    case 'review.recorded': return `${data.decision === 'accepted' ? 'Accepted' : 'Rejected'} by ${data.byName || event.actor}${data.note ? `: ${data.note}` : ''}`;
     case 'candidate.ready': return 'Review candidate captured';
     case 'candidate.preparing': return 'Capturing the review candidate';
     case 'candidate.unavailable': return 'Review candidate unavailable';
@@ -640,11 +641,13 @@ function render() {
 
   const header = element('header', { className: 'session-header' },
     element('div', { className: 'eyebrow' }, element('span', { className: 'brand-mark', 'aria-hidden': 'true' }, '▦'), 'DE VLOER', element('span', { className: 'remote-label' }, 'WORKBENCH SESSION'), host ? element('span', { className: 'remote-label' }, host) : null, element('span', { className: 'remote-label' }, placementText(session.placement, host).toUpperCase())),
-    element('div', { className: 'title-row' }, element('h1', {}, session.title), element('span', { className: `pill status-${session.status}` }, statusNames[session.status] || readable(session.status))),
+    element('div', { className: 'title-row' }, element('h1', {}, session.title), element('span', { className: `pill status-${session.status}` }, session.status === 'completed' && session.review ? (session.review.decision === 'accepted' ? 'Accepted' : 'Rejected') : statusNames[session.status] || readable(session.status))),
     element('p', { className: 'subtitle' }, element('span', {}, session.repositoryId), ' / ', element('span', {}, session.crewId), ' · ', session.runtime, session.placement ? ` · ${session.placement}` : '', session.approval === 'auto' ? ' · approves automatically' : '', ' · ', element('code', {}, session.branch)),
     element('div', { className: `situation situation-${session.status}` }, element('p', { className: 'headline' }, headline), next ? element('p', { className: 'next' }, next) : null),
     element('div', { className: 'toolbar', 'aria-label': 'Session actions' },
       writer && session.status === 'queued' ? action('Start crew', 'start', { className: 'primary', disabled: !mutable }) : null,
+      writer && session.status === 'completed' && !session.review ? action('Accept', 'review', { className: 'primary', 'data-decision': 'accepted' }) : null,
+      writer && session.status === 'completed' && !session.review ? action('Reject…', 'review', { 'data-decision': 'rejected' }) : null,
       writer && ['running', 'waiting_input'].includes(session.status) ? action('Pause', 'pause', { disabled: !mutable }) : null,
       writer && ['paused', 'interrupted'].includes(session.status) ? action('Resume', 'resume', { className: 'primary', disabled: !mutable }) : null,
       requests.length ? action(`Review ${requests.length === 1 ? 'decision' : `${requests.length} decisions`}`, 'jump-decision', { className: session.status === 'waiting_input' ? 'primary' : '' }) : null,
@@ -697,6 +700,7 @@ document.addEventListener('click', event => {
   if (type === 'tab') { tab = button.dataset.tab; remember(); render(); return; }
   if (type === 'filter') { activityFilter = button.dataset.filter; remember(); render(); return; }
   if (type === 'jump-decision') { focusTarget = { decisions: true }; render(); return; }
+  if (type === 'review') { bridge.postMessage({ type: 'review', decision: button.dataset.decision }); return; }
   if (type === 'budget-open') { budgetOpen = true; render(); document.getElementById('budget-amount')?.focus(); return; }
   if (type === 'budget-close') { budgetOpen = false; render(); return; }
   if (type === 'edit-answer') { confirming.delete(button.dataset.id); render(); return; }
@@ -813,4 +817,4 @@ window.addEventListener('message', event => {
 remember();
 bridge.postMessage({ type: 'ready' });
 
-document.addEventListener('click', event => { const link = event.target.closest('[data-open-url]'); if (link) vscode.postMessage({ type: 'open-url', url: link.dataset.openUrl }); });
+document.addEventListener('click', event => { const link = event.target.closest('[data-open-url]'); if (link) bridge.postMessage({ type: 'open-url', url: link.dataset.openUrl }); });

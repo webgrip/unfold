@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { groups, presentation, situation, relativeTime, spendLabel, activeRole, safeHttpsUrl, runLabel, approvalLabel, observedSpend, isolatedPlacement } from './status.js';
+import { groups, presentation, situation, relativeTime, spendLabel, activeRole, safeHttpsUrl, runLabel, approvalLabel, observedSpend, isolatedPlacement, presentationFor } from './status.js';
 import type { Session, Run, Artifact, Permission, TaskSource, TaskSnapshot, TaskPage } from './types.js';
 
 export type SessionEntry =
@@ -16,7 +16,7 @@ const runIcons: Record<string, string> = { completed: 'pass', running: 'sync~spi
 const artifactIcons: Record<Artifact['kind'], string> = { diff: 'diff', test: 'beaker', summary: 'book', link: 'link-external', transcript: 'comment-discussion' };
 
 export function sessionTooltip(session: Session): vscode.MarkdownString {
-  const state = presentation(session.status);
+  const state = presentationFor(session);
   const { headline, next } = situation(session);
   const tooltip = new vscode.MarkdownString(undefined, true);
   tooltip.appendMarkdown(`**${session.title}**\n\n$(${state.icon.replace('~spin', '')}) ${state.name}\n\n${headline}\n\n_${next}_\n\n`);
@@ -115,7 +115,7 @@ export class SessionTree implements vscode.TreeDataProvider<SessionEntry>, vscod
   }
 
   private sessionItem(session: Session): vscode.TreeItem {
-    const state = presentation(session.status);
+    const state = presentationFor(session);
     const item = new vscode.TreeItem(session.title, vscode.TreeItemCollapsibleState.Collapsed);
     item.id = session.id;
     const role = activeRole(session);
@@ -133,7 +133,7 @@ export class SessionTree implements vscode.TreeDataProvider<SessionEntry>, vscod
   async getChildren(entry?: SessionEntry): Promise<SessionEntry[]> {
     if (!entry) {
       if (this.message) return [{ kind: 'message', label: this.message, command: this.messageCommand }];
-      return groups.map(group => ({ kind: 'group' as const, id: group.id, label: group.label, sessions: this.sessions.filter(session => presentation(session.status).group === group.id) })).filter(group => group.sessions.length);
+      return groups.map(group => ({ kind: 'group' as const, id: group.id, label: group.label, sessions: this.sessions.filter(session => presentationFor(session).group === group.id) })).filter(group => group.sessions.length);
     }
     if (entry.kind === 'group') return entry.sessions.map(session => ({ kind: 'session', session }));
     if (entry.kind !== 'session') return [];
@@ -153,8 +153,8 @@ export class SessionTree implements vscode.TreeDataProvider<SessionEntry>, vscod
   getParent(entry: SessionEntry): SessionEntry | undefined {
     if (entry.kind === 'group' || entry.kind === 'message') return undefined;
     if (entry.kind === 'session') {
-      const group = groups.find(group => group.id === presentation(entry.session.status).group)!;
-      return { kind: 'group', id: group.id, label: group.label, sessions: this.sessions.filter(session => presentation(session.status).group === group.id) };
+      const group = groups.find(group => group.id === presentationFor(entry.session).group)!;
+      return { kind: 'group', id: group.id, label: group.label, sessions: this.sessions.filter(session => presentationFor(session).group === group.id) };
     }
     return { kind: 'session', session: entry.session };
   }

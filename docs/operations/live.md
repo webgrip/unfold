@@ -126,6 +126,12 @@ Every OpenCode session starts with `ask` for every tool, so each read, search an
 
 Budgets are enforced by the gateway key, so a session whose ceiling is reached fails mid-turn with `budget_exhausted`, and the spend shown while it runs is the gateway's live attribution, which settles a minute later. Size the budget to the crew: reading a repository with a Sonnet-class model costs a few cents per turn, and an investigation crew can spend a quarter in under a minute.
 
+## What "awaiting your review" means
+
+A completed session has done everything the machine does: every role finished, the final reviewer's verdict is on its run, the candidate is captured as a bundle, patch and manifest with two signed statements over them, the workspace is released, and nothing was pushed or merged. The label now says what is missing: a person's review. Accept records that you inspected the candidate and consider it fit to take further, with an optional note; reject requires a reason, which the next attempt receives. Both are recorded with your name in the session history and shown on the session instead of the label. Until the publish action exists, taking an accepted candidate further is still a manual push and merge request from the downloaded bundle.
+
+While the crew's last requests settle at the gateway, the spend shows as observed and the hold as reserved; a settled figure follows about a minute after the crew finishes.
+
 ## Trying a failed session again
 
 A session that failed before or during execution shows "Try again" once its spend has settled: the workspace is released, every role returns to queued, artifacts and ledger rows from the failed attempt are cleared, and the crew starts from the beginning with the same brief, budget and links. "Duplicate as a new session" opens the new-session form filled from the failed one, for changing the model, crew or budget instead. A clone refused for credentials names the missing or refused link in its detail.

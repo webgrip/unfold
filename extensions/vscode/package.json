@@ -138,6 +138,12 @@
         "icon": "$(debug-restart)"
       },
       {
+        "command": "vloer.review",
+        "title": "Record Review",
+        "category": "Vloer",
+        "icon": "$(eye)"
+      },
+      {
         "command": "vloer.sendInstruction",
         "title": "Send Instruction to Session",
         "category": "Vloer",
@@ -450,6 +456,11 @@
           "command": "vloer.retry",
           "when": "view == vloer.sessions && viewItem =~ /^session:failed(:isolated)?$/",
           "group": "lifecycle@10"
+        },
+        {
+          "command": "vloer.review",
+          "when": "view == vloer.sessions && viewItem =~ /^session:completed(:isolated)?$/",
+          "group": "lifecycle@11"
         },
         {
           "command": "vloer.openArtifact",

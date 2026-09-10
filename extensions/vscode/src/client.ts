@@ -115,6 +115,7 @@ export class VloerClient {
   permissions(id: string): Promise<Permission[]> { return this.request(`/api/sessions/${identifier(id)}/permissions`); }
   create(input: SessionInput): Promise<Session> { return this.request('/api/sessions', 'POST', input); }
   action(id: string, action: 'start' | 'pause' | 'resume' | 'cancel' | 'retry'): Promise<Session> { return this.request(`/api/sessions/${identifier(id)}/${action}`, 'POST', {}); }
+  review(id: string, decision: 'accepted' | 'rejected', note?: string): Promise<Session> { return this.request(`/api/sessions/${identifier(id)}/review`, 'POST', { decision, ...(note ? { note } : {}) }); }
   message(id: string, text: string): Promise<Session> { return this.request(`/api/sessions/${identifier(id)}/messages`, 'POST', { text }); }
   respond(id: string, requestId: string, answer: Decision): Promise<Session> {
     return this.request(`/api/sessions/${identifier(id)}/permissions/${identifier(requestId)}`, 'POST', answer);
