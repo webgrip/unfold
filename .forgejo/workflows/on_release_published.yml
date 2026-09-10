@@ -226,7 +226,7 @@ jobs:
   release-distribute-forgejo:
     name: Distribute (Forgejo)
     needs: [parse-release-tag, release-distribute-harbor]
-    uses: webgrip/workflows/.forgejo/workflows/forgejo-distribute.yml@v1.11.3
+    uses: webgrip/workflows/.forgejo/workflows/forgejo-distribute.yml@v2.6.2
     with:
       enabled: true
       version: ${{ needs.parse-release-tag.outputs.version }}
@@ -246,7 +246,7 @@ jobs:
   release-distribute-github:
     name: Distribute (GitHub)
     needs: [parse-release-tag, release-distribute-harbor]
-    uses: webgrip/workflows/.forgejo/workflows/github-distribute.yml@v1.11.1
+    uses: webgrip/workflows/.forgejo/workflows/github-distribute.yml@v2.6.2
     with:
       enabled: false
       version: ${{ needs.parse-release-tag.outputs.version }}
