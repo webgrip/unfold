@@ -245,3 +245,17 @@ test('a linked repository credential reaches the clone container as a git header
   assert.equal(JSON.stringify(specs.agent).includes(header), false);
   assert.ok(specs.agent.Env.includes('GIT_CONFIG_COUNT=1'));
 });
+
+test('the workspace manager keeps a linked credential on the validated repository it hands to a backend', async () => {
+  const config = configuration('/data', '/nonexistent.sock');
+  const manager = new WorkspaceManager(config);
+  let received: any;
+  (manager as any).docker = { prepare: async (_session: unknown, target: unknown) => { received = target; return { id: 'w', backend: 'docker', endpoint: 'http://127.0.0.1:1', directory: '/data' }; } };
+  const linked = { ...repository, access: { username: 'oauth2', password: 'link-token' } };
+  await manager.prepare({ ...session, placement: 'docker' }, linked, credential, new AbortController().signal);
+  assert.deepEqual(received.access, { username: 'oauth2', password: 'link-token' });
+  assert.equal(received.url, repository.url);
+  await manager.prepare({ ...session, placement: 'docker' }, repository, credential, new AbortController().signal);
+  assert.equal(received.access, undefined);
+  await assert.rejects(manager.prepare({ ...session, placement: 'docker' }, { ...linked, url: 'https://elsewhere.example/other.git' }, credential, new AbortController().signal), /not configured/);
+});

@@ -142,15 +142,16 @@ export class WorkspaceManager {
     if (!/^[a-zA-Z0-9_-]{1,80}$/.test(session.id)) throw new Error('Invalid workspace identity');
     const configured = this.config.repositories.find(item => item.id === repository.id);
     if (!configured || configured.url !== repository.url || configured.baseBranch !== repository.baseBranch) throw new Error('Repository is not configured for this workbench');
+    const target: Repository = repository.access ? { ...configured, access: repository.access } : configured;
     const placement = sessionPlacement(this.config, session);
     if (this.config.runtime.kind === 'command' && placement !== 'local') throw new Error('The command adapter requires the local backend');
     if (placement === 'kubernetes') {
       if (!this.kubernetes) throw new Error('The kubernetes workspace backend is not enabled on this workbench');
-      return this.kubernetes.prepare(session, configured, credential, signal, managedConfig(this.config));
+      return this.kubernetes.prepare(session, target, credential, signal, managedConfig(this.config));
     }
     if (placement === 'docker') {
       if (!this.docker) throw new Error('The docker workspace backend is not enabled on this workbench');
-      return this.docker.prepare(session, configured, credential, signal, managedConfig(this.config));
+      return this.docker.prepare(session, target, credential, signal, managedConfig(this.config));
     }
     if (placement === 'external') {
       if (!this.config.runtime.endpoint || !this.config.runtime.password) throw new Error('External OpenCode requires an endpoint and server password');
