@@ -1,3 +1,9 @@
+## [0.3.0-rc.2](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.1...v0.3.0-rc.2) (2026-09-10)
+
+### Fixed
+
+* **release:** create the release directly so Forgejo emits the published event ([1898da7](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/1898da740851a34218d0ca6fad8599530a740bad))
+
 ## [0.3.0-rc.1](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.2.0...v0.3.0-rc.1) (2026-09-10)
 
 ### Added
