@@ -1,0 +1,27 @@
+name: On Docs Change
+
+on:
+  push:
+    branches: ['*']
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.forgejo/workflows/on_docs_change.yml'
+  workflow_dispatch:
+
+jobs:
+  generate-documentation:
+    uses: webgrip/workflows/.forgejo/workflows/techdocs-generate.yml@abf3c951d8243ef030421ab2acff0af9edce3215 # main
+    with:
+      source-dir: '.'
+
+  deploy-docs-site:
+    uses: webgrip/workflows/.forgejo/workflows/techdocs-deploy-docs-site.yml@abf3c951d8243ef030421ab2acff0af9edce3215 # main
+    needs: generate-documentation
+    if: github.ref == 'refs/heads/development'
+    with:
+      dest-prefix: de-vloer
+      strict: 'false'
+    secrets:
+      TECHDOCS_S3_ACCESS_KEY_ID: ${{ secrets.TECHDOCS_S3_ACCESS_KEY_ID }}
+      TECHDOCS_S3_SECRET_ACCESS_KEY: ${{ secrets.TECHDOCS_S3_SECRET_ACCESS_KEY }}

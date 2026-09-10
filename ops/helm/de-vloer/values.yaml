@@ -1,6 +1,6 @@
 image:
-  repository: registry.example/de-vloer
-  tag: 0.2.0
+  repository: harbor.webgrip.dev/webgrip/de-vloer
+  tag: ""
   digest: ""
   pullPolicy: IfNotPresent
 imagePullSecrets: []
@@ -21,7 +21,7 @@ baseUrl: ""
 credentialsSecret: de-vloer-credentials
 workspaceNamespace: de-vloer-workspaces
 createWorkspaceNamespace: true
-workspaceImage: registry.example/de-vloer-agent:1.18.30
+workspaceImage: ""
 workspaceStorageSize: 8Gi
 workspaceStorageClass: ""
 workspaceCpu: "1"

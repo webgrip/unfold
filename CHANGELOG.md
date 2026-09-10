@@ -8,8 +8,14 @@
 - Per-session workspace placement. `runtime.backends` lists the enabled backends, `POST /api/sessions` and task imports accept `placement`, and the browser and VS Code extension offer the choice when more than one backend is enabled. [ADR 0009](docs/adrs/0009-workspace-placement-is-a-session-choice.md).
 - `runtime.agentEnvironment`, an allow-list of environment variable names copied from the server process into local and Docker workspaces, refusing names that carry workbench, gateway, cluster or vault authority. `kubernetes.agentSecrets` and the chart's `workspaceAgentSecrets` mount named Secrets into the agent container only.
 
+- Forgejo release pipeline in the estate's shape: `on_pull_request`, `on_source_change`, `on_release_published` and `on_docs_change`, semantic-release on one `v<semver>` train that versions the chart, both `package.json` files and the VSIX, Harbor images built from the tag, a CVE budget gate before cosign signing, chart push, Forgejo and GitHub mirrors, and extension publication to Open VSX and optionally the Marketplace. [ADR 0010](docs/adrs/0010-one-release-train-with-zero-cve-images.md), [releases](docs/operations/release.md).
+
 ### Changed
 
+- Both images are rebuilt on Docker Hardened Images (Alpine) through the Harbor proxy. The workbench image is shell-less and package-manager-free; the agent image fetches the musl OpenCode binary at build time and upgrades from the hardened feed. Trivy reports zero findings at every severity for both, against 14 critical and 83 high on the previous Debian agent image.
+- The Helm chart defaults both images to its `appVersion`, so pinning the chart pins the images; `workspaceImage` and `image.tag` become overrides.
+- `/api/health` and `/healthz` report the version from `package.json` instead of a hardcoded string.
+- The GitHub workflow tree is removed; Forgejo is the sole workflow tree and GitHub a mirror.
 - Workspace failures now record the actual cause. The failing command, its exit code or signal and the tail of its standard error are captured for `git` steps and the OpenCode launch, redacted, bounded and shown in the browser and VS Code failure notice as `failure.detail`. Runtime exception text still never enters the failure record.
 
 ## 0.2.0 — 2026-09-09

@@ -1,0 +1,8 @@
+site_name: De Vloer
+site_description: Operator workbench for remote agent crews beside Ploeg
+site_url: https://docs.webgrip.dev/de-vloer/
+docs_dir: docs
+repo_url: https://forgejo.webgrip.dev/webgrip/de-vloer
+edit_uri: _edit/development/docs/
+plugins:
+  - techdocs-core

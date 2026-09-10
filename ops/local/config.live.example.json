@@ -3,10 +3,8 @@
   "runtime": {
     "kind": "opencode",
     "backends": [
-      "docker",
-      "local"
+      "docker"
     ],
-    "binary": "opencode",
     "timeoutMs": 3600000,
     "agentEnvironment": []
   },
@@ -38,7 +36,7 @@
     "settlementDelayMs": 60000
   },
   "docker": {
-    "image": "de-vloer-agent:1.18.30",
+    "image": "harbor.webgrip.dev/webgrip/de-vloer-agent:0.3.0",
     "cpus": 2,
     "memoryMb": 4096,
     "pidsLimit": 512

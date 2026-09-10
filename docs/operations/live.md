@@ -76,6 +76,8 @@ The `docker` backend runs the clone and the OpenCode server inside a container f
 docker build -t de-vloer-agent:1.18.30 ops/agent
 ```
 
+The Dockerfile pulls its hardened base through `harbor.webgrip.dev/dhi`, which is reachable on the LAN; pass `--build-arg REGISTRY_DHI=<your-proxy>` elsewhere. Released builds are at `harbor.webgrip.dev/webgrip/de-vloer-agent:<version>`, signed and within a zero critical, zero high CVE budget ([releases](release.md)).
+
 Add a `docker` block next to `runtime`:
 
 ```json

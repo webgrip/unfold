@@ -8,6 +8,9 @@ import { publicSession, type Store } from './store.ts';
 import { getTask, listTasks, publicTaskSource, TaskError } from './tasks.ts';
 import { readCandidate, unavailableCandidate } from './candidates.ts';
 import { placements } from './config.ts';
+import { readFileSync } from 'node:fs';
+
+const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
 
 function fault(status: number, code: string, message: string): never { throw Object.assign(new Error(message), { status, code }); }
 
@@ -87,7 +90,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       if (path === '/healthz' || path === '/readyz') {
         if (method !== 'GET') return json(res, 405, { error: { code: 'method', message: 'GET required.' } });
         store.listSessions();
-        return json(res, 200, { status: 'ok', version: '0.2.0' });
+        return json(res, 200, { status: 'ok', version: applicationVersion });
       }
       if (['POST','PUT','PATCH','DELETE'].includes(method)) mutationGuard(req, config);
       if (method === 'POST' && path === '/api/login') {
@@ -112,7 +115,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           placements: placements(config),
           maxBudgetUsd: config.maxBudgetUsd, maxConcurrentSessions: config.maxConcurrentSessions
         }));
-        if (method === 'GET' && path === '/api/health') return json(res, 200, { status: 'ok', mode: config.mode, version: '0.2.0', runtimes: runtimeKinds, litellm: Boolean(config.litellm), workspaceBackend: config.mode === 'demo' ? 'demo' : config.runtime.backend, workspaceBackends: placements(config).map(item => item.id) });
+        if (method === 'GET' && path === '/api/health') return json(res, 200, { status: 'ok', mode: config.mode, version: applicationVersion, runtimes: runtimeKinds, litellm: Boolean(config.litellm), workspaceBackend: config.mode === 'demo' ? 'demo' : config.runtime.backend, workspaceBackends: placements(config).map(item => item.id) });
         if (method === 'GET' && path === '/api/task-sources') return json(res, 200, sanitize((config.taskSources ?? []).map(publicTaskSource)));
         const taskRoute = path.match(/^\/api\/task-sources\/([a-z0-9-]+)\/tasks(?:\/([a-zA-Z0-9_-]+))?$/);
         if (method === 'GET' && taskRoute) {

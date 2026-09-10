@@ -13,3 +13,4 @@ Trunk is `development`. Each accepted decision records its consequences and a tr
 | [0007 — Thin editor client](0007-thin-editor-client.md) | Accepted for the v0.1 extension |
 | [0008 — Shared task connections and portable candidate handoff](0008-task-connections-and-candidate-handoff.md) | Implemented in 0.2.0; proposed for team adoption |
 | [0009 — Workspace placement is a per-session choice](0009-workspace-placement-is-a-session-choice.md) | Accepted for 0.3.0; Docker qualified locally, Kubernetes unqualified on a cluster |
+| [0010 — One release train, hardened images with a zero-finding budget](0010-one-release-train-with-zero-cve-images.md) | Accepted; first pipeline release pending estate prerequisites |

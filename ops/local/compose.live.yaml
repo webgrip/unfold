@@ -2,11 +2,11 @@ services:
   workbench:
     build:
       context: ../..
-      target: live
+      target: app
     environment:
       VLOER_MODE: live
       VLOER_HOST: 0.0.0.0
-      VLOER_DATA_DIR: /data
+      VLOER_DATA_DIR: ${VLOER_DATA_DIR:?Set an absolute host directory that is mounted at the same path inside the container}
       VLOER_CONFIG: /etc/de-vloer/config.json
       VLOER_ADMIN_NAME: ${VLOER_ADMIN_NAME:-admin}
       VLOER_ADMIN_PASSWORD: ${VLOER_ADMIN_PASSWORD:?Set a unique administrative password}
@@ -16,8 +16,10 @@ services:
     ports:
       - "127.0.0.1:4080:4080"
     volumes:
-      - workbench-live-data:/data
+      - ${VLOER_DATA_DIR}:${VLOER_DATA_DIR}
       - ${VLOER_CONFIG_FILE:-./config.live.json}:/etc/de-vloer/config.json:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    read_only: true
     tmpfs:
       - /tmp:rw,nosuid,size=256m
     security_opt:
@@ -29,5 +31,3 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
-volumes:
-  workbench-live-data:
