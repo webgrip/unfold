@@ -49,6 +49,12 @@
         "category": "Vloer"
       },
       {
+        "command": "vloer.connectAgentHost",
+        "title": "Attach as Agent Host (chat.remoteAgentHosts)",
+        "category": "Vloer",
+        "icon": "$(remote)"
+      },
+      {
         "command": "vloer.refresh",
         "title": "Refresh Sessions",
         "category": "Vloer",

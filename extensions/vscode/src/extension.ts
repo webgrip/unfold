@@ -69,6 +69,7 @@ class Workbench implements vscode.Disposable, PanelHost {
     const register = (name: string, action: (...args: any[]) => Promise<unknown>) => context.subscriptions.push(vscode.commands.registerCommand(`vloer.${name}`, (...args: any[]) => this.perform(() => action(...args))));
     register('connect', () => this.connect());
     register('signOut', () => this.signOut());
+    register('connectAgentHost', () => this.connectAgentHost());
     register('refresh', () => this.refresh(true));
     register('create', () => this.create());
     register('browseTasks', value => this.browseTasks(value));
@@ -257,6 +258,17 @@ class Workbench implements vscode.Disposable, PanelHost {
     const result = await wizard.run(draft, steps);
     this.drafts.set(key, result ?? draft);
     return result;
+  }
+
+  async connectAgentHost(): Promise<void> {
+    const target = this.current;
+    const bootstrap = await this.bootstrap();
+    if (bootstrap.user.role === 'viewer') throw new Error('Your viewer account can inspect sessions. An operator account is required to attach an agent host.');
+    const issued = await target.request<{ token: string; address: string; vscodeSetting: { key: string; entry: { address: string; name: string; connectionToken: string } } }>('/api/agent-host/tokens', 'POST', { label: `VS Code on ${vscode.env.machineId.slice(0, 8)}` });
+    const configuration = vscode.workspace.getConfiguration();
+    const existing = (configuration.get<Array<{ address?: string; name?: string }>>(issued.vscodeSetting.key) ?? []).filter(entry => entry?.address !== issued.vscodeSetting.entry.address);
+    await configuration.update(issued.vscodeSetting.key, [...existing, issued.vscodeSetting.entry], vscode.ConfigurationTarget.Global);
+    void vscode.window.showInformationMessage(`De Vloer at ${new URL(target.origin).host} is registered as an agent host in ${issued.vscodeSetting.key}. Its sessions appear in the agent sessions view of VS Code 1.136 and later; the connection token was stored in your user settings.`);
   }
 
   async create(): Promise<void> {
