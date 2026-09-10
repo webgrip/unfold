@@ -91,7 +91,7 @@ export class VloerClient {
   history(id: string, after = 0): Promise<SessionEvent[]> { return this.request(`/api/sessions/${identifier(id)}/history?after=${Math.max(0, Math.floor(after))}`); }
   permissions(id: string): Promise<Permission[]> { return this.request(`/api/sessions/${identifier(id)}/permissions`); }
   create(input: SessionInput): Promise<Session> { return this.request('/api/sessions', 'POST', input); }
-  action(id: string, action: 'start' | 'pause' | 'resume' | 'cancel'): Promise<Session> { return this.request(`/api/sessions/${identifier(id)}/${action}`, 'POST', {}); }
+  action(id: string, action: 'start' | 'pause' | 'resume' | 'cancel' | 'retry'): Promise<Session> { return this.request(`/api/sessions/${identifier(id)}/${action}`, 'POST', {}); }
   message(id: string, text: string): Promise<Session> { return this.request(`/api/sessions/${identifier(id)}/messages`, 'POST', { text }); }
   respond(id: string, requestId: string, answer: Decision): Promise<Session> {
     return this.request(`/api/sessions/${identifier(id)}/permissions/${identifier(requestId)}`, 'POST', answer);
@@ -104,12 +104,14 @@ export class VloerClient {
     const result = await this.request<{ links?: AccountLink[] }>('/api/links');
     return Array.isArray(result?.links) ? result.links : [];
   }
-  async linkGitlab(): Promise<string> {
-    const result = await this.request<{ url?: string }>('/api/links/gitlab', 'POST', {});
-    if (typeof result?.url !== 'string' || !/^https?:\/\//.test(result.url)) throw new ApiError(0, 'invalid_response', 'The workbench did not return a GitLab authorization URL.');
+  async link(provider: string): Promise<string> {
+    const result = await this.request<{ url?: string }>(`/api/links/${encodeURIComponent(provider)}`, 'POST', {});
+    if (typeof result?.url !== 'string' || !/^https?:\/\//.test(result.url)) throw new ApiError(0, 'invalid_response', 'The workbench did not return an authorization URL.');
     return result.url;
   }
-  async unlinkGitlab(): Promise<void> { await this.request('/api/links/gitlab', 'DELETE'); }
+  async unlink(provider: string): Promise<void> { await this.request(`/api/links/${encodeURIComponent(provider)}`, 'DELETE'); }
+  linkGitlab(): Promise<string> { return this.link('gitlab'); }
+  unlinkGitlab(): Promise<void> { return this.unlink('gitlab'); }
   budget(id: string, amountUsd: number): Promise<Session> {
     if (!Number.isFinite(amountUsd) || amountUsd <= 0) throw new Error('Additional budget must be a positive amount.');
     return this.request(`/api/sessions/${identifier(id)}/budget`, 'POST', { amountUsd });

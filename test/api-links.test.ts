@@ -63,3 +63,19 @@ test('a person links GitLab through the browser, sees the account without its to
   const after = await request(app.url, '/api/links', { cookie });
   assert.equal(after.body.links[0].linked, false);
 });
+
+test('a task connection without its own token uses the person\'s link and says so when there is none', async t => {
+  const app = await application('live', config => {
+    config.links = { clickup: { clientId: 'cu-app', clientSecret: 'cu-secret', apiUrl: 'https://api.clickup.example', appUrl: 'https://app.clickup.example' } };
+    config.taskSources = [{ id: 'board', name: 'Board', provider: 'clickup', baseUrl: 'https://api.clickup.example/api/v2', project: '123', repositoryId: 'order-service', executionOwner: 'interactive' }];
+  });
+  t.after(() => app.close());
+  const { cookie } = await login(app.url);
+  const sources = await request(app.url, '/api/task-sources', { cookie });
+  assert.equal(sources.body[0].needsLink, 'clickup');
+  const tasks = await request(app.url, '/api/task-sources/board/tasks', { cookie });
+  assert.equal(tasks.status, 409);
+  assert.equal(tasks.body.error.code, 'source_unlinked');
+  const listed = await request(app.url, '/api/links', { cookie });
+  assert.deepEqual(listed.body.links.map((link: any) => link.provider), ['clickup']);
+});

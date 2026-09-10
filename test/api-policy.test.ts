@@ -20,7 +20,7 @@ test('a model served outside the allowed providers is refused before the first t
   t.after(() => server.close());
   const { cookie } = await login(server.url);
   server.app.engine.broker = {
-    mint: async (session: Session) => ({ key: 'k', alias: 'a', reference: `de-vloer-${session.id}-x`, budgetUsd: session.budgetUsd }), revoke: async () => {}, spend: async () => 0, extend: async () => {},
+    mint: async (session: Session) => ({ key: 'sk-session-fixture-key', alias: 'a', reference: `de-vloer-${session.id}-x`, budgetUsd: session.budgetUsd }), revoke: async () => {}, spend: async () => 0, extend: async () => {},
     providersFor: async (model: string) => model === 'coding' ? ['fireworks_ai'] : undefined,
   };
   const created = await request(server.url, '/api/sessions', { method: 'POST', body: createInput({ runtime: 'opencode' }), cookie, csrf: true });
@@ -36,7 +36,7 @@ test('a request the gateway attributes to a provider or region outside policy st
   t.after(() => server.close());
   const { cookie } = await login(server.url);
   server.app.engine.broker = {
-    mint: async (session: Session) => ({ key: 'k', alias: 'a', reference: `de-vloer-${session.id}-x`, budgetUsd: session.budgetUsd }), revoke: async (reference: string) => { revoked.push(reference); }, spend: async () => 0.02, extend: async () => {},
+    mint: async (session: Session) => ({ key: 'sk-session-fixture-key', alias: 'a', reference: `de-vloer-${session.id}-x`, budgetUsd: session.budgetUsd }), revoke: async (reference: string) => { revoked.push(reference); }, spend: async () => 0.02, extend: async () => {},
     providersFor: async () => ['anthropic'],
     ledger: async () => ({ usage: [{ model: 'anthropic/claude-sonnet-5', requests: 1, failures: 0, usd: 0.02, inputTokens: 10, outputTokens: 5 }], requests: [{ id: 'r1', at: new Date().toISOString(), provider: 'anthropic', geo: 'global', model: 'anthropic/claude-sonnet-5', retries: 0, fallbacks: 0, guardrails: [], cacheHit: false, cachedTokens: 0, inputTokens: 10, outputTokens: 5, usd: 0.02, status: 'success' as const }] }),
   };

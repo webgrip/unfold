@@ -27,6 +27,7 @@ When `auth.oidc` is configured, `GET /api/auth/methods` (public) reports the pro
 | `GET /api/sessions` | Sessions visible to the current user |
 | `POST /api/sessions` | `{title,objective,repositoryId,crewId,runtime,placement?,approval?,budgetUsd,trackerUrl?}` → created session, status 201. `model` pins one configured model id for every role of the session, overriding the crew's role models, which is how the same objective is run pinned and auto-routed for comparison; `approval` is `manual` (default) or `auto`; `auto` needs a `docker` or `kubernetes` placement and answers every tool permission inside the sandbox itself, while questions still reach the operator |
 | `GET /api/sessions/:id` | Public session view, runs, retained artifacts and accounting status |
+| `POST /api/sessions/:id/retry` | Tries a failed session again from the beginning: after spend has settled, the workspace is released, every run returns to queued, artifacts and ledger rows are cleared, `session.retried` is recorded with the attempt number, and the crew launches. 409 `spend_unresolved` while accounting is still open |
 | `POST /api/sessions/:id/start` | `{}`; start queued work in the background |
 | `POST /api/sessions/:id/pause` | `{}`; deliberately stop active execution while retaining the session |
 | `POST /api/sessions/:id/resume` | `{}`; explicitly continue paused/interrupted work subject to spend reconciliation |
@@ -81,8 +82,11 @@ Permission and question details depend on the adapter. Answer only the actual un
 | `POST /api/links/gitlab` | Starts an OAuth authorization with PKCE and returns the GitLab URL to visit; 409 `link_unconfigured` without an application ID |
 | `GET /api/links/gitlab/callback` | GitLab's redirect target. Needs no cookie: the `state` names the person who started it, once, within ten minutes. Redirects to `/?linked=gitlab` or `/?link_error=<code>` |
 | `DELETE /api/links/gitlab` | Forgets the tokens and asks GitLab to revoke them |
+| `POST /api/links/clickup`, `GET /api/links/clickup/callback`, `DELETE /api/links/clickup` | The same flow for ClickUp, whose OAuth has no PKCE and needs the application's client secret on the workbench; the token does not expire and there is no revocation endpoint, so unlinking forgets it |
 
 `GET /api/bootstrap` also carries `gateway`, the gateway host, `gatewayPolicy`, and `observability`, the estate's Grafana URL, dashboard uids and datasource uids the browser uses to build outbound links.
+
+A task connection whose configuration names no `tokenEnv` reads tasks with the signed-in person's link for its provider; `GET /api/task-sources` marks such a connection with `needsLink`, and listing, previewing or importing from it without a link answers 409 `source_unlinked`. A GitLab link's token is sent as a bearer token to the GitLab API.
 
 A link is the person's own credential. Tokens are encrypted at rest with the workbench key beside the database and refreshed server-side before use. When a session starts on a repository whose origin matches the link's GitLab host, the clone step receives the access token as a git authorization header for that origin; the agent container and its environment never do. Publication through the link is [ADR 0016](../adrs/0016-sign-in-and-link-your-own-accounts.md) work that has not started.
 

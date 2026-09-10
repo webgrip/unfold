@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { Repository } from './types.ts';
 
 export type TaskProvider = 'forgejo' | 'github' | 'gitlab' | 'clickup' | 'vikunja' | 'demo';
-export type TaskSourceConfig = { id: string; name: string; provider: TaskProvider; baseUrl: string; project: string; repositoryId: string; token?: string; executionOwner: 'interactive' | 'ploeg' };
+export type TaskSourceConfig = { id: string; name: string; provider: TaskProvider; baseUrl: string; project: string; repositoryId: string; token?: string; tokenType?: 'bearer'; executionOwner: 'interactive' | 'ploeg' };
 export type TaskSnapshot = { key: string; sourceId: string; provider: TaskProvider; id: string; revision: string; title: string; description: string; url: string; status: 'open' | 'closed' | 'unknown'; updatedAt?: string; repositoryId: string };
 export type TaskPage = { tasks: TaskSnapshot[]; nextPage?: number };
 
@@ -198,7 +198,7 @@ function headers(source: TaskSourceConfig): Record<string, string> {
   const result: Record<string, string> = { Accept: 'application/json', 'User-Agent': 'de-vloer-task-connector' };
   if (source.provider === 'github') { result.Accept = 'application/vnd.github+json'; result['X-GitHub-Api-Version'] = '2022-11-28'; }
   if (source.token) {
-    if (source.provider === 'gitlab') result['PRIVATE-TOKEN'] = source.token;
+    if (source.provider === 'gitlab' && source.tokenType !== 'bearer') result['PRIVATE-TOKEN'] = source.token;
     else result.Authorization = source.provider === 'forgejo' ? `token ${source.token}` : source.provider === 'clickup' ? source.token : `Bearer ${source.token}`;
   }
   return result;

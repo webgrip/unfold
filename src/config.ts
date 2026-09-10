@@ -156,6 +156,16 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
       if (!Array.isArray(scopes) || !scopes.length || scopes.length > 10 || scopes.some((scope: unknown) => typeof scope !== 'string' || !/^[a-z_]{1,40}$/.test(scope))) throw new Error('links.gitlab.scopes must list OAuth scope names');
       links = { gitlab: { baseUrl: configuredUrl(gitlab.baseUrl ?? 'https://gitlab.com', 'links.gitlab.baseUrl'), clientId, scopes } };
     }
+    if (raw.links.clickup !== undefined) {
+      const clickup = raw.links.clickup;
+      if (!clickup || typeof clickup !== 'object' || Array.isArray(clickup)) throw new Error('links.clickup must be an object');
+      const clientId = process.env.VLOER_CLICKUP_CLIENT_ID || clickup.clientId;
+      if (clientId !== undefined && (typeof clientId !== 'string' || !/^[A-Za-z0-9_-]{4,200}$/.test(clientId))) throw new Error('links.clickup.clientId must be an OAuth application ID');
+      if (clickup.clientSecretEnv !== undefined && (typeof clickup.clientSecretEnv !== 'string' || !/^[A-Z][A-Z0-9_]{0,127}$/.test(clickup.clientSecretEnv))) throw new Error('links.clickup.clientSecretEnv must name an environment variable');
+      const clientSecret = clickup.clientSecretEnv ? process.env[clickup.clientSecretEnv] : undefined;
+      if (clickup.clientSecretEnv && (!clientSecret || clientSecret.length > 4096 || /[^\x21-\x7e]/.test(clientSecret))) throw new Error(`links.clickup.clientSecretEnv names ${clickup.clientSecretEnv}, which is not set to a valid secret`);
+      links = { ...(links ?? {}), clickup: { clientId, ...(clientSecret ? { clientSecret } : {}), apiUrl: configuredUrl(clickup.apiUrl ?? 'https://api.clickup.com', 'links.clickup.apiUrl'), appUrl: configuredUrl(clickup.appUrl ?? 'https://app.clickup.com', 'links.clickup.appUrl') } };
+    }
   }
   let gatewayPolicy: AppConfig['gatewayPolicy'];
   if (raw.gatewayPolicy !== undefined) {

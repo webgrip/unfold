@@ -246,7 +246,7 @@ function failureNotice(session) {
   if (!failure && !session.blocker) return '';
   const stage = failure?.category === 'policy_violation' ? 'Gateway policy' : ({ credentials: 'Gateway authorization', workspace: 'Workspace setup', runtime: 'Runtime startup', prompt: 'Prompt submission', execution: 'Agent execution' }[failure?.stage] || 'Execution');
   const submission = { not_submitted: 'The prompt was not submitted.', rejected: 'The runtime rejected the prompt.', accepted: 'The runtime acknowledged the prompt; this does not confirm that execution finished.', unknown: 'Prompt submission is unconfirmed. Check remote execution and gateway spend before starting new work.' }[failure?.promptAcceptance];
-  return `<section class="notice notice-warning" aria-labelledby="session-failure-title">${icon('info')}<div><strong id="session-failure-title">${failure ? `${stage} needs attention` : session.status === 'interrupted' ? 'Execution was interrupted' : 'This session needs attention'}</strong><p>${escape(failure?.message || session.blocker)}</p>${failure?.remediation ? `<p>${escape(failure.remediation)}</p>` : ''}${failure?.detail ? `<pre class="failure-detail" aria-label="Recorded error output">${escape(failure.detail)}</pre>` : ''}${submission ? `<p>${escape(submission)}</p>` : ''}${failure?.automaticRetry === false ? '<p>No automatic retry will be started.</p>' : ''}</div></section>`;
+  return `<section class="notice notice-warning" aria-labelledby="session-failure-title">${icon('info')}<div><strong id="session-failure-title">${failure ? `${stage} needs attention` : session.status === 'interrupted' ? 'Execution was interrupted' : 'This session needs attention'}</strong><p>${escape(failure?.message || session.blocker)}</p>${failure?.remediation ? `<p>${escape(failure.remediation)}</p>` : ''}${failure?.detail ? `<pre class="failure-detail" aria-label="Recorded error output">${escape(failure.detail)}</pre>` : ''}${submission ? `<p>${escape(submission)}</p>` : ''}${failure?.automaticRetry === false ? '<p>No automatic retry will be started.</p>' : ''}${session.status === 'failed' && state.bootstrap.user.role !== 'viewer' ? `<div class="permission-actions">${session.costStatus !== 'unknown' ? '<button class="button primary" data-action="retry">Try again</button>' : '<span class="form-help">Spend is still being reconciled; try again once accounting settles.</span>'}<button class="button secondary" data-action="duplicate">Duplicate as a new session</button></div>` : ''}</div></section>`;
 }
 
 function sourceTaskMarkup(session) {
@@ -286,49 +286,19 @@ function renderSystem() {
   renderHtml(shell(content, 'Environment', 'The shared foundation behind every session.'));
 }
 
+const providerLabels = { gitlab: 'GitLab', clickup: 'ClickUp' };
+
+function linkRow(link) {
+  const label = providerLabels[link.provider] || link.provider;
+  const status = !link.configured ? `Not configured on this workbench. An administrator sets <code>links.${escape(link.provider)}.clientId</code>${link.provider === 'clickup' ? ' and <code>clientSecretEnv</code>' : ''}.` : link.linked ? `Linked as ${link.webUrl ? `<a href="${escape(link.webUrl)}" target="_blank" rel="noopener noreferrer">${escape(link.login)}</a>` : escape(link.login)}${(link.scopes || []).length ? ` · ${link.scopes.map(escape).join(', ')}` : ''}` : link.provider === 'gitlab' ? 'Not linked. Private repositories on this host cannot be cloned until you link.' : 'Not linked. Task connections on ClickUp show nothing until you link.';
+  const button = !link.configured ? '' : link.linked ? `<button class="button secondary" data-action="unlink" data-provider="${escape(link.provider)}">Unlink</button>` : `<button class="button primary" data-action="link" data-provider="${escape(link.provider)}">Link ${escape(label)}</button>`;
+  return `<article class="profile-row">${icon('link')}<div><h3>${escape(label)} · ${escape(link.host)}</h3><p>${status}</p></div>${button}</article>`;
+}
+
 function renderAccount() {
-  const link = (state.links || []).find(item => item.provider === 'gitlab');
-  const status = !link ? '' : !link.configured ? 'Not configured on this workbench. An administrator sets <code>links.gitlab.clientId</code> to an OAuth application ID.' : link.linked ? `Linked as <a href="${escape(link.webUrl)}" target="_blank" rel="noopener noreferrer">${escape(link.login)}</a> · ${(link.scopes || []).map(escape).join(', ')}` : 'Not linked. Private repositories on this host cannot be cloned until you link.';
-  const button = !link || !link.configured ? '' : link.linked ? `<button class="button secondary" data-action="unlink-gitlab">Unlink</button>` : `<button class="button primary" data-action="link-gitlab">Link GitLab</button>`;
-  const content = `<section class="panel"><div class="panel-heading"><div><h2>Linked accounts</h2><p>Links are yours. The workbench clones with them and never hands them to a sandbox.</p></div></div>${!link ? '<div class="empty compact"><p>Loading…</p></div>' : `<article class="profile-row">${icon('link')}<div><h3>GitLab · ${escape(link.host)}</h3><p>${status}</p></div>${button}</article>`}</section>`;
+  const links = state.links || [];
+  const content = `<section class="panel"><div class="panel-heading"><div><h2>Linked accounts</h2><p>Links are yours. The workbench clones and reads tasks with them and never hands them to a sandbox.</p></div></div>${!state.links ? '<div class="empty compact"><p>Loading…</p></div>' : links.length ? links.map(linkRow).join('') : '<div class="empty compact"><p>This workbench has no linkable accounts configured.</p></div>'}</section>`;
   renderHtml(shell(content, 'Linked accounts', 'Sign in once, link what you need.'));
-}
-
-function sessionMetrics(session) {
-  const requests = session.requests || [];
-  const starts = session.runs.map(run => run.startedAt).filter(Boolean).map(Date.parse);
-  const ends = session.runs.map(run => run.finishedAt).filter(Boolean).map(Date.parse);
-  const firstTokens = requests.map(request => request.firstTokenMs).filter(value => typeof value === 'number').sort((a, b) => a - b);
-  const reviewer = session.runs[session.runs.length - 1];
-  return {
-    title: session.title, crew: session.crewId, model: session.model ? (state.bootstrap.models.find(model => model.id === session.model) || { name: session.model }).name : 'Crew default',
-    status: labels[session.status] || session.status, verdict: reviewer?.verdict ? verdictLabel(reviewer.verdict) : '—',
-    duration: starts.length && ends.length ? `${Math.round((Math.max(...ends) - Math.min(...starts)) / 1000)}s` : '—',
-    requests: requests.length, refused: requests.filter(request => request.status === 'failure').length,
-    providers: [...new Set(requests.map(request => request.provider).filter(Boolean))].join(', ') || '—',
-    models: [...new Set(requests.map(request => request.model))].join(', ') || '—',
-    tokens: `${requests.reduce((sum, request) => sum + request.inputTokens, 0)} in · ${requests.reduce((sum, request) => sum + request.outputTokens, 0)} out`,
-    cost: money(session.spentUsd || session.observedUsd || requests.reduce((sum, request) => sum + request.usd, 0)),
-    savings: money(requests.reduce((sum, request) => sum + (request.savingsUsd || 0), 0)),
-    firstToken: firstTokens.length ? `${(firstTokens[Math.floor(firstTokens.length / 2)] / 1000).toFixed(1)}s median` : '—',
-    changes: `${session.artifacts.filter(artifact => artifact.kind === 'diff').length} diff artifacts`,
-  };
-}
-
-function renderCompare() {
-  const [left, right] = state.compare || [];
-  if (!left || !right) return renderHtml(shell('<div class="empty compact"><p>Loading both sessions…</p></div>', 'Compare sessions', 'The same objective, two ways.'));
-  const rows = [['Title', 'title'], ['Crew', 'crew'], ['Model', 'model'], ['Outcome', 'status'], ['Final verdict', 'verdict'], ['Wall time', 'duration'], ['Gateway requests', 'requests'], ['Refused', 'refused'], ['Providers', 'providers'], ['Models that answered', 'models'], ['Tokens', 'tokens'], ['Cost', 'cost'], ['Router savings', 'savings'], ['Time to first token', 'firstToken'], ['Changes', 'changes']];
-  const a = sessionMetrics(left), b = sessionMetrics(right);
-  const content = `<section class="panel"><div class="panel-heading"><div><h2>Side by side</h2><p>Metrics come from the gateway ledger and the recorded runs. Pick sessions with the same objective for a fair read.</p></div></div><div class="table-scroll"><table class="gateway-table compare-table"><thead><tr><th></th><th><a href="#session/${escape(left.id)}">${escape(left.title)}</a></th><th><a href="#session/${escape(right.id)}">${escape(right.title)}</a></th></tr></thead><tbody>${rows.map(([label, key]) => `<tr><th>${escape(label)}</th><td>${escape(String(a[key]))}</td><td class="${a[key] !== b[key] ? 'differs' : ''}">${escape(String(b[key]))}</td></tr>`).join('')}</tbody></table></div></section>`;
-  renderHtml(shell(content, 'Compare sessions', 'The same objective, two ways.'));
-}
-
-function openCompareDialog() {
-  const dialog = $('#confirm-dialog');
-  const candidates = state.sessions.filter(other => other.id !== state.session.id && other.repositoryId === state.session.repositoryId);
-  dialog.innerHTML = `<form data-form="compare"><div class="dialog-body"><h2 id="confirm-title">Compare with another session</h2><p>Sessions on the same repository. Metrics come from the gateway ledger.</p><label>Session<select name="other">${candidates.map(other => `<option value="${escape(other.id)}">${escape(other.title)} · ${escape(labels[other.status] || other.status)}</option>`).join('')}</select></label></div><footer class="dialog-footer"><button class="button secondary" type="button" data-action="close-budget">Cancel</button><button class="button primary" type="submit">Compare</button></footer></form>`;
-  dialog.showModal();
 }
 
 function renderPloeg() {
@@ -351,9 +321,10 @@ function taskPreviewMarkup() {
 function renderTasks() {
   const sources = taskSources();
   const source = selectedTaskSource();
+  const unlinked = source?.needsLink && !(state.links || []).some(link => link.provider === source.needsLink && link.linked);
   const selected = state.tasks.filter(task => `${task.id} ${task.title}`.toLowerCase().includes(state.taskSearch.toLowerCase()));
   const content = !sources.length ? `<section class="panel"><div class="empty"><span class="empty-icon">${icon('layers')}</span><h2>Your work already has a home.</h2><p>Connect Forgejo, GitHub, GitLab, ClickUp or Vikunja. Bring their tasks into the same remote workbench.</p><button class="button primary" data-action="connections">Set up a connection ${icon('arrow')}</button></div></section>` : `<div class="task-source-strip" role="group" aria-label="Task connections">${sources.map(item => `<button id="task-source-${escape(item.id)}" class="task-source ${state.taskSourceId === item.id ? 'selected' : ''}" data-action="task-source" data-id="${escape(item.id)}" aria-pressed="${state.taskSourceId === item.id}"><span class="source-avatar">${escape(providerName(item.provider).slice(0,1))}</span><span><strong>${escape(item.name)}</strong><small>${escape(providerName(item.provider))}${item.executionOwner === 'ploeg' ? ' · Ploeg managed' : ' · Operator led'}</small></span>${icon('chevron')}</button>`).join('')}</div>${state.bootstrap.mode === 'demo' ? '<div class="task-demo-caption">'+icon('info')+'<span>Sample tracker data. Import the rounding task to run the real demonstration fixture.</span></div>' : ''}<div class="task-grid"><section class="panel task-list-panel" aria-label="Source tasks"><div class="panel-heading"><div><h2>${escape(source?.name || 'Tasks')}</h2><p>${escape(source ? repoName(source.repositoryId) : '')}</p></div><button class="icon-button" data-action="task-refresh" aria-label="Refresh tasks" ${state.taskLoading ? 'disabled' : ''}>${icon('activity')}</button></div><label class="search-box task-search">${icon('search')}<input id="task-search" type="search" aria-label="Search loaded tasks" placeholder="Find a task on this page" value="${escape(state.taskSearch)}"></label><div class="task-list" aria-busy="${state.taskLoading}">${state.taskLoading ? '<div class="empty compact" role="status"><p>Loading tasks from the connection…</p></div>' : state.taskError ? `<div class="empty compact"><h3>Connection needs attention</h3><p role="alert">${escape(state.taskError)}</p><button class="button secondary" data-action="task-refresh">Try again</button></div>` : selected.length ? selected.map(task => `<button id="task-row-${escape(task.id)}" class="task-row ${state.task?.id === task.id ? 'selected' : ''}" data-action="task-preview" data-id="${escape(task.id)}" aria-pressed="${state.task?.id === task.id}"><span class="task-row-meta"><span>#${escape(task.id)}</span><span>${escape(task.status)}</span></span><strong>${escape(task.title)}</strong><span class="task-row-footer">Review brief ${icon('arrow')}</span></button>`).join('') : `<div class="empty compact"><h3>${state.taskSearch ? 'No matching tasks' : 'No open tasks on this page'}</h3><p>${state.taskSearch ? 'Try another title or task number.' : 'Refresh after adding work to the connected project.'}</p></div>`}</div><div class="task-pagination"><button class="button text-button" data-action="task-page" data-page="${state.taskPage - 1}" ${state.taskPage <= 1 || state.taskLoading ? 'disabled' : ''}>${icon('back')} Previous</button><span>Page ${state.taskPage}</span><button class="button text-button" data-action="task-page" data-page="${state.taskNextPage || ''}" ${!state.taskNextPage || state.taskLoading ? 'disabled' : ''}>Next ${icon('arrow')}</button></div></section><section class="panel task-preview-panel">${taskPreviewMarkup()}</section></div>`;
-  renderHtml(shell(content, 'Tasks', 'Your tracker’s work. One shared way to move it forward.'));
+  renderHtml(shell((unlinked ? `<div class="notice notice-warning">${icon('link')}<div><strong>${escape(providerLabels[source.needsLink] || source.needsLink)} is not linked.</strong><p>This connection reads tasks with your own account. <a href="#account">Open Linked accounts</a> to link it.</p></div></div>` : '') + content, 'Tasks', 'Your tracker’s work. One shared way to move it forward.'));
 }
 
 function openConnections() {
@@ -491,6 +462,7 @@ async function route() {
     if (hash.startsWith('compare/')) { const [left, right] = hash.slice(8).split('/'); disconnect(); state.session = null; state.view = 'compare'; state.compare = null; renderCompare(); state.compare = await Promise.all([api(`/api/sessions/${encodeURIComponent(left)}`), api(`/api/sessions/${encodeURIComponent(right)}`)]); return renderCompare(); }
     disconnect(); state.session = null; state.view = ['sessions','tasks','ploeg','account','system'].includes(hash) ? hash : 'sessions';
     state.sessions = await api('/api/sessions'); render();
+    if (state.view === 'tasks' && !state.links) { try { state.links = (await api('/api/links')).links; } catch { state.links = []; } }
     if (state.view === 'tasks' && taskSources().length) await loadTasks(state.taskSourceId || taskSources()[0].id);
     if (state.view === 'ploeg') { state.ploeg = await api('/api/ploeg'); renderPloeg(); }
     if (state.view === 'account') { state.links = (await api('/api/links')).links; renderAccount(); }
@@ -558,8 +530,10 @@ document.addEventListener('click', async event => {
     else if (action === 'export') exportHandoff();
     else if (action === 'candidate-download') { button.disabled = true; try { await downloadCandidate(button.dataset.format); } finally { button.disabled = false; } }
     else if (action === 'download-artifact') { const artifact = state.session.artifacts.find(item => item.id === button.dataset.id); if (artifact) download(`${artifact.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.${artifact.kind === 'diff' ? 'patch' : 'txt'}`, artifact.content); }
-    else if (action === 'link-gitlab') { button.disabled = true; try { const { url } = await api('/api/links/gitlab', { method: 'POST', body: '{}' }); location.assign(url); } finally { button.disabled = false; } }
-    else if (action === 'unlink-gitlab') confirmAction('Unlink GitLab?', 'The workbench forgets the tokens and asks GitLab to revoke them. Sessions on private repositories from this host will fail to clone until you link again.', 'Unlink', async () => { await api('/api/links/gitlab', { method: 'DELETE' }); state.links = (await api('/api/links')).links; renderAccount(); });
+    else if (action === 'link') { button.disabled = true; try { const { url } = await api(`/api/links/${button.dataset.provider}`, { method: 'POST', body: '{}' }); location.assign(url); } finally { button.disabled = false; } }
+    else if (action === 'unlink') { const label = providerLabels[button.dataset.provider] || button.dataset.provider; confirmAction(`Unlink ${label}?`, `The workbench forgets the token${button.dataset.provider === 'gitlab' ? 's and asks GitLab to revoke them. Sessions on private repositories from this host will fail to clone until you link again' : '. Task connections on ClickUp will show nothing until you link again'}.`, 'Unlink', async () => { await api(`/api/links/${button.dataset.provider}`, { method: 'DELETE' }); state.links = (await api('/api/links')).links; renderAccount(); }); }
+    else if (action === 'retry') { button.disabled = true; try { await api(`/api/sessions/${state.session.id}/retry`, { method: 'POST', body: '{}' }); notify('Trying again. The crew starts from the beginning.'); await openSession(state.session.id); } catch (error) { notify(error.message, true); button.disabled = false; } }
+    else if (action === 'duplicate') { const source = state.session; location.hash = 'sessions'; openNew(); const form = $('#new-session form'); if (form) { for (const [name, value] of Object.entries({ title: source.title, objective: source.objective, repositoryId: source.repositoryId, crewId: source.crewId, model: source.model || '', budgetUsd: source.budgetUsd })) { const field = form.elements[name]; if (field) field.value = value; } if (source.placement && form.elements.placement) form.elements.placement.value = source.placement; if (source.approval === 'auto' && form.elements.approval) form.elements.approval.checked = true; } }
     else if (action === 'logout') { await api('/api/logout', { method: 'POST', body: '{}' }); state.bootstrap = null; disconnect(); renderLogin(); }
     else if (action === 'compare') openCompareDialog();
     else if (action === 'approval') { button.disabled = true; try { state.session = await api(`/api/sessions/${state.session.id}/approval`, { method: 'POST', body: JSON.stringify({ approval: button.dataset.approval }) }); notify(button.dataset.approval === 'auto' ? 'The crew now works without asking for each tool.' : 'The crew asks you again before each tool.'); renderSession(); } finally { button.disabled = false; } }
@@ -655,7 +629,7 @@ window.addEventListener('hashchange', route);
 window.addEventListener('beforeunload', disconnect);
 
 function linkFailure(code) {
-  if (code === 'exchange_401') return 'GitLab refused the exchange: the application is marked Confidential. Edit it at GitLab, untick Confidential, and link again.';
+  if (code === 'exchange_401') return 'The provider refused the exchange. For GitLab that means the application is marked Confidential: edit it, untick Confidential, and link again.';
   if (code === 'link_state') return 'The link attempt expired or was started elsewhere. Start it again from this page.';
   if (code === 'access_denied') return 'You declined the authorization at GitLab.';
   return `Linking GitLab failed: ${code}.`;
@@ -663,7 +637,7 @@ function linkFailure(code) {
 
 async function boot() {
   const params = new URLSearchParams(location.search);
-  const linkNotice = params.get('linked') ? 'GitLab is linked to your account.' : params.get('link_error') ? linkFailure(params.get('link_error')) : '';
+  const linkNotice = params.get('linked') ? `${({ gitlab: 'GitLab', clickup: 'ClickUp' })[params.get('linked')] || params.get('linked')} is linked to your account.` : params.get('link_error') ? linkFailure(params.get('link_error')) : '';
   if (linkNotice) history.replaceState(null, '', `${location.pathname}#account`);
   try { state.bootstrap = await api('/api/bootstrap'); state.sessions = await api('/api/sessions'); await route(); if (linkNotice) notify(linkNotice, Boolean(params.get('link_error'))); }
   catch (error) { if (!state.bootstrap) renderLogin(error.message.includes('Sign in') ? '' : error.message); else notify(error.message, true); }

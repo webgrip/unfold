@@ -184,6 +184,28 @@ export class Engine {
   async pause(id: string, user: User): Promise<Session> { return this.stop(id, user, 'paused'); }
   async cancel(id: string, user: User): Promise<Session> { return this.stop(id, user, 'cancelled'); }
 
+  async retry(id: string, user: User): Promise<Session> {
+    let session = this.owned(id, user);
+    if (session.status !== 'failed') throw new EngineError(409, 'invalid_state', 'Only a failed session can be tried again.');
+    if (this.active.has(id)) throw new EngineError(409, 'stopping', 'The previous execution is still stopping.');
+    if (session.runtime !== 'demo') {
+      if (this.store.getSecret<boolean>(`discovery:${id}`)) await this.discoverReservations(session);
+      await this.reconcile(id);
+      session = this.owned(id, user);
+      if (this.reservations(id).length || this.store.getSecret<boolean>(`discovery:${id}`)) throw new EngineError(409, 'spend_unresolved', 'Previous model spend is still unknown. Its budget remains reserved; reconcile it before trying again.');
+    }
+    if (session.workspace) {
+      try { await this.runtimes.get(session.runtime)!.dispose(session.workspace); } catch {}
+      delete session.workspace;
+    }
+    const attempt = (this.store.events(id).filter(event => event.type === 'session.retried').length) + 2;
+    for (const run of session.runs) { run.status = 'queued'; run.costUsd = 0; delete run.startedAt; delete run.finishedAt; delete run.summary; delete run.verdict; delete run.nativeId; delete run.promptSha; }
+    session.artifacts = []; delete session.candidate; delete session.observedUsd; delete session.usage; delete session.requests;
+    this.resolvePermissions(id);
+    this.save(session, 'session.retried', user.id, { attempt, previousFailure: session.failure?.category ?? null });
+    return this.launch(session, user);
+  }
+
   private async stop(id: string, user: User, status: 'paused' | 'cancelled'): Promise<Session> {
     const session = this.owned(id, user);
     if (['completed', 'failed', 'cancelled'].includes(session.status)) throw new EngineError(409, 'invalid_state', 'This session has already ended.');
@@ -309,6 +331,15 @@ export class Engine {
     await Promise.allSettled([...this.active.values()].map(active => active.task));
     if (this.maintenanceTask) await this.maintenanceTask;
     await Promise.allSettled([...this.reconciliations.values()]);
+  }
+
+  private linkHint(session: Session, stage: FailureStage): string | undefined {
+    if (stage !== 'workspace' || !this.links || !/could not read Username|Authentication failed|HTTP Basic|403|401/i.test(session.failure?.detail ?? '')) return undefined;
+    const repository = this.config.repositories.find(item => item.id === session.repositoryId);
+    if (!repository) return undefined;
+    const link = this.links.describeFor(session.ownerId, repository.url);
+    if (!link) return undefined;
+    return link.linked ? `Your ${link.host} link exists but the clone was refused. Unlink and link ${link.host} again under Linked accounts, then try again.` : `Your account has no ${link.host} link. Open Linked accounts, link ${link.host}, then try again.`;
   }
 
   private async checkModelPolicy(session: Session): Promise<void> {
@@ -460,6 +491,8 @@ export class Engine {
           ? executionFailure(error.code as 'review_incomplete' | 'input_unresolved', stage, 'accepted')
           : this.clean(classifyFailure(error, stage, stage === 'execution' ? 'unknown' : 'not_submitted'));
         session.blocker = session.failure.message;
+        const hint = this.linkHint(session, stage);
+        if (hint) session.failure.detail = [session.failure.detail, hint].filter(Boolean).join('\n\n');
         for (const run of session.runs) if (['running', 'waiting_input'].includes(run.status)) { run.status = 'failed'; run.finishedAt = new Date().toISOString(); }
         this.resolvePermissions(id);
         this.save(session, 'session.failed', 'system', { message: session.blocker, code: session.failure.category, failure: session.failure });

@@ -132,6 +132,12 @@
         "icon": "$(close)"
       },
       {
+        "command": "vloer.retry",
+        "title": "Try Again",
+        "category": "Vloer",
+        "icon": "$(debug-restart)"
+      },
+      {
         "command": "vloer.sendInstruction",
         "title": "Send Instruction to Session",
         "category": "Vloer",
@@ -439,6 +445,11 @@
           "command": "vloer.cancel",
           "when": "view == vloer.sessions && viewItem =~ /^session:(queued|running|exporting|waiting_input|paused|interrupted)(:isolated)?$/",
           "group": "lifecycle@9"
+        },
+        {
+          "command": "vloer.retry",
+          "when": "view == vloer.sessions && viewItem =~ /^session:failed(:isolated)?$/",
+          "group": "lifecycle@10"
         },
         {
           "command": "vloer.openArtifact",

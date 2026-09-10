@@ -34,7 +34,7 @@ export type AppConfig = {
   auth: { secureCookies: boolean; sessionHours: number; bootstrapPassword?: string; bootstrapName: string; oidc?: { issuer: string; clientId: string; clientSecret?: string; scopes: string[]; displayName: string; roleClaim: string; groupsClaim: string; roles: Record<UserRole, string[]> } };
   maxConcurrentSessions: number; maxBudgetUsd: number;
   ploeg?: { url: string; teams: string[]; trackerUrl?: string };
-  links?: { gitlab?: { baseUrl: string; clientId?: string; scopes: string[] } };
+  links?: { gitlab?: { baseUrl: string; clientId?: string; scopes: string[] }; clickup?: { clientId?: string; clientSecret?: string; apiUrl: string; appUrl: string } };
   gatewayPolicy?: { providers?: string[]; regions?: string[] };
   observability?: { grafanaUrl?: string; dashboards?: Record<string, string>; tracesDatasource?: string; logsDatasource?: string; logsUrl?: string; traceQuery?: string; logsQuery?: string };
 };

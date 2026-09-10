@@ -118,6 +118,14 @@ Every OpenCode session starts with `ask` for every tool, so each read, search an
 
 Budgets are enforced by the gateway key, so a session whose ceiling is reached fails mid-turn with `budget_exhausted`, and the spend shown while it runs is the gateway's live attribution, which settles a minute later. Size the budget to the crew: reading a repository with a Sonnet-class model costs a few cents per turn, and an investigation crew can spend a quarter in under a minute.
 
+## Trying a failed session again
+
+A session that failed before or during execution shows "Try again" once its spend has settled: the workspace is released, every role returns to queued, artifacts and ledger rows from the failed attempt are cleared, and the crew starts from the beginning with the same brief, budget and links. "Duplicate as a new session" opens the new-session form filled from the failed one, for changing the model, crew or budget instead. A clone refused for credentials names the missing or refused link in its detail.
+
+## Linking ClickUp
+
+Create an OAuth application in ClickUp under your workspace settings, with redirect URL `<baseUrl>/api/links/clickup/callback`. ClickUp's OAuth has no PKCE, so the application's client secret must reach the workbench: put the client id and secret in the vault once and let the launcher export them, and set `links.clickup.clientSecretEnv` to the variable it exports. A task connection configured without `tokenEnv` then reads ClickUp with the signed-in person's link, and the Tasks view says when a link is missing. ClickUp tokens do not expire and cannot be revoked remotely; unlinking forgets the token.
+
 ## Signing in with the estate
 
 Register the workbench as an OAuth2 application at the estate's Authentik: a public client with PKCE, so no secret exists, client id `vloer`, redirect URI `<baseUrl>/api/auth/oidc/callback` matched strictly, the `openid`, `email` and `profile` scopes so groups are sent, and one scope mapping that turns membership into a role claim. At acme that is a blueprint in the Authentik blueprints ConfigMap next to the other applications, with groups `vloer-admins` and `vloer-operators` granted through the entitlements model rather than by hand. The profile then carries:

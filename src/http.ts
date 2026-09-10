@@ -130,15 +130,17 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         res.setHeader('Set-Cookie', auth.logout(req));
         return json(res, 200, { ok: true });
       }
-      if (method === 'GET' && path === '/api/links/gitlab/callback' && links) {
+      const linkCallback = path.match(/^\/api\/links\/(gitlab|clickup)\/callback$/);
+      if (method === 'GET' && linkCallback && links) {
+        const provider = linkCallback[1] as 'gitlab' | 'clickup';
         const denied = url.searchParams.get('error');
-        let location = '/?linked=gitlab';
+        let location = `/?linked=${provider}`;
         if (denied) location = `/?link_error=${encodeURIComponent(denied.replace(/[^a-z_]/gi, '').slice(0, 40) || 'denied')}`;
         else {
-          try { await links.complete(url.searchParams.get('code') ?? '', url.searchParams.get('state') ?? ''); }
+          try { await links.complete(provider, url.searchParams.get('code') ?? '', url.searchParams.get('state') ?? ''); }
           catch (error: any) {
             const code = typeof error?.httpStatus === 'number' ? `exchange_${error.httpStatus}` : String(error?.code || 'link_failed');
-            console.error(JSON.stringify({ level: 'warn', event: 'link.failed', provider: 'gitlab', code, detail: String(error?.detail || error?.message || '').slice(0, 300) }));
+            console.error(JSON.stringify({ level: 'warn', event: 'link.failed', provider, code, detail: String(error?.detail || error?.message || '').slice(0, 300) }));
             location = `/?link_error=${encodeURIComponent(code.replace(/[^a-z0-9_]/gi, '').slice(0, 40))}`;
           }
         }
@@ -154,7 +156,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           gatewayPolicy: config.gatewayPolicy ?? null,
           observability: config.observability ?? null,
           repositories: config.repositories.map(({ id, name, description, baseBranch, trackerUrl, executionOwner }) => ({ id, name, description, baseBranch, trackerUrl, executionOwner: executionOwner ?? 'interactive' })),
-          taskSources: (config.taskSources ?? []).map(publicTaskSource),
+          taskSources: (config.taskSources ?? []).map(source => ({ ...publicTaskSource(source), needsLink: !source.token && (source.provider === 'gitlab' || source.provider === 'clickup') ? source.provider : null })),
           crews: config.crews, models: config.models,
           runtimes: runtimeKinds.map(id => ({ id, name: id === 'demo' ? 'Demonstration' : id === 'opencode' ? 'OpenCode' : 'Command bridge', available: true })),
           placements: placements(config),
@@ -179,20 +181,30 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           res.end(key.publicPem());
           return;
         }
-        if (method === 'GET' && path === '/api/links') return json(res, 200, { links: links ? [links.describe(user.id)] : [] });
-        if (path === '/api/links/gitlab' && links) {
-          if (method === 'POST') return json(res, 200, { url: links.begin(user.id) });
-          if (method === 'DELETE') { await links.revoke(user.id); return json(res, 200, { ok: true }); }
+        if (method === 'GET' && path === '/api/links') return json(res, 200, { links: links ? links.describeAll(user.id) : [] });
+        const linkRoute = path.match(/^\/api\/links\/(gitlab|clickup)$/);
+        if (linkRoute && links) {
+          const provider = linkRoute[1] as 'gitlab' | 'clickup';
+          if (method === 'POST') return json(res, 200, { url: links.begin(provider, user.id) });
+          if (method === 'DELETE') { await links.revoke(provider, user.id); return json(res, 200, { ok: true }); }
         }
-        if (method === 'GET' && path === '/api/task-sources') return json(res, 200, sanitize((config.taskSources ?? []).map(publicTaskSource)));
+        const withUserToken = async (source: NonNullable<AppConfig['taskSources']>[number]) => {
+          if (source.token) return source;
+          if (source.provider !== 'gitlab' && source.provider !== 'clickup') return source;
+          const token = links ? await links.token(user.id, source.provider) : undefined;
+          if (!token) fault(409, 'source_unlinked', `Link ${source.provider === 'gitlab' ? 'GitLab' : 'ClickUp'} under Linked accounts to use this connection.`);
+          return { ...source, token: token!, ...(source.provider === 'gitlab' ? { tokenType: 'bearer' as const } : {}) };
+        };
+        if (method === 'GET' && path === '/api/task-sources') return json(res, 200, sanitize((config.taskSources ?? []).map(source => ({ ...publicTaskSource(source), needsLink: !source.token && (source.provider === 'gitlab' || source.provider === 'clickup') ? source.provider : null }))));
         const taskRoute = path.match(/^\/api\/task-sources\/([a-z0-9-]+)\/tasks(?:\/([a-zA-Z0-9_-]+))?$/);
         if (method === 'GET' && taskRoute) {
           const source = config.taskSources?.find(item => item.id === taskRoute[1]);
           if (!source) fault(404, 'source_not_found', 'Task connection not found.');
-          if (taskRoute[2]) return json(res, 200, sanitize(await getTask(source!, taskRoute[2])));
+          const resolved = await withUserToken(source!);
+          if (taskRoute[2]) return json(res, 200, sanitize(await getTask(resolved, taskRoute[2])));
           const page = Number(url.searchParams.get('page') ?? 1);
           if (!Number.isSafeInteger(page) || page < 1 || page > 1000) fault(400, 'page', 'Choose a page between 1 and 1000.');
-          return json(res, 200, sanitize(await listTasks(source!, page)));
+          return json(res, 200, sanitize(await listTasks(resolved, page)));
         }
         if (method === 'POST' && path === '/api/task-imports') {
           if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot import tasks.');
@@ -207,7 +219,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           if (source!.executionOwner !== 'interactive' || config.repositories.find(repo => repo.id === source!.repositoryId)?.executionOwner === 'ploeg') fault(403, 'ploeg_owned', 'Ploeg owns execution for this task connection. Assign its work through the tracker.');
           if (!runtimeKinds.includes(runtime) || !config.crews.some(crew => crew.id === crewId)) fault(400, 'unknown_profile', 'Choose a configured crew and runtime.');
           if (typeof data.budgetUsd !== 'number' || !Number.isFinite(data.budgetUsd) || data.budgetUsd <= 0 || data.budgetUsd > config.maxBudgetUsd) fault(400, 'budget', `Budget must be greater than zero and at most $${config.maxBudgetUsd}.`);
-          const snapshot = await getTask(source!, taskId);
+          const snapshot = await getTask(await withUserToken(source!), taskId);
           if (snapshot.revision !== revision) fault(409, 'task_changed', 'The task changed after your preview. Refresh it and review the updated version.');
           const result = engine.importTask(snapshot, { crewId, runtime, budgetUsd: data.budgetUsd as number, placement: placementInput(data.placement) }, user);
           return json(res, result.created ? 201 : 200, sanitize(publicSession(result.session)));
@@ -296,6 +308,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             else if (action === 'pause') result = await engine.pause(id, user);
             else if (action === 'resume') result = await engine.resume(id, user);
             else if (action === 'cancel') result = await engine.cancel(id, user);
+            else if (action === 'retry') result = await engine.retry(id, user);
             else if (action === 'messages') result = engine.message(id, text(data.text, 'Instruction', 16000), user);
             else if (action === 'approval') result = await engine.setApproval(id, data.approval, user);
             else if (action === 'budget') {

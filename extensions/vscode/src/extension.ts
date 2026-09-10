@@ -96,7 +96,7 @@ class Workbench implements vscode.Disposable, PanelHost {
     register('addBudget', value => this.addBudget(value));
     register('setApproval', value => this.setApprovalCommand(value));
     register('linkedAccounts', () => this.linkedAccounts());
-    for (const action of ['start', 'pause', 'resume', 'cancel'] as const) register(action, value => this.lifecycleCommand(action, value));
+    for (const action of ['start', 'pause', 'resume', 'cancel', 'retry'] as const) register(action, value => this.lifecycleCommand(action, value));
     this.timer = this.poll();
     void this.refresh();
   }
@@ -421,8 +421,8 @@ class Workbench implements vscode.Disposable, PanelHost {
     if (next === 'Reveal file') await vscode.commands.executeCommand('revealFileInOS', destination);
   }
 
-  private async lifecycleCommand(action: 'start' | 'pause' | 'resume' | 'cancel', value: SessionRef): Promise<void> { const id = await this.choose(value, `${action[0].toUpperCase()}${action.slice(1)} which session?`); if (id) await this.lifecycle(id, action); }
-  async lifecycle(id: string, action: 'start' | 'pause' | 'resume' | 'cancel'): Promise<void> {
+  private async lifecycleCommand(action: 'start' | 'pause' | 'resume' | 'cancel' | 'retry', value: SessionRef): Promise<void> { const id = await this.choose(value, `${action[0].toUpperCase()}${action.slice(1)} which session?`); if (id) await this.lifecycle(id, action); }
+  async lifecycle(id: string, action: 'start' | 'pause' | 'resume' | 'cancel' | 'retry'): Promise<void> {
     const target = this.current; const generation = this.generation;
     if (action === 'cancel') {
       const confirm = await vscode.window.showWarningMessage('Cancel this remote session?', { modal: true, detail: 'This records an intentional cancellation. The workbench will retain the history and evidence, and will not start replacement work.' }, 'Cancel session');
