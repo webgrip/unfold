@@ -105,6 +105,10 @@ export class VloerClient {
     await this.secrets.store(this.secretKey, authenticated);
   }
   async logout(): Promise<void> { try { await this.request('/api/logout', 'POST', {}); } finally { await this.secrets.delete(this.secretKey); } }
+  async models(): Promise<Array<{ id: string; name: string; modelId: string; providerId: string; provider?: string; providers?: string[]; tiers?: Record<string, string> }>> {
+    const result = await this.request<{ models?: Array<{ id: string; name: string; modelId: string; providerId: string; provider?: string; providers?: string[]; tiers?: Record<string, string> }> }>('/api/models');
+    return Array.isArray(result?.models) ? result.models : [];
+  }
   sessions(): Promise<Session[]> { return this.request('/api/sessions'); }
   session(id: string): Promise<Session> { return this.request(`/api/sessions/${identifier(id)}`); }
   history(id: string, after = 0): Promise<SessionEvent[]> { return this.request(`/api/sessions/${identifier(id)}/history?after=${Math.max(0, Math.floor(after))}`); }

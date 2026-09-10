@@ -570,6 +570,14 @@ function dashboardLinks(observability) {
   return Object.entries(observability.dashboards).map(([key, uid]) => element('button', { className: 'link-button', type: 'button', 'data-open-url': `${grafana}/d/${uid}` }, `${names[key] || key} ↗`));
 }
 
+function placementText(placement, host) {
+  const here = !host || /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/.test(host);
+  if (placement === 'docker') return here ? 'container on this machine' : `container on ${host.replace(/:\d+$/, '')}`;
+  if (placement === 'kubernetes') return 'pod in the cluster';
+  if (placement === 'local') return here ? 'working directory on this machine' : `working directory on ${host.replace(/:\d+$/, '')}`;
+  return 'workbench workspace';
+}
+
 function gatewayTab(session, gateway, observability) {
   const requests = Array.isArray(session.requests) ? session.requests : [];
   if (!requests.length) return element('div', { className: 'empty-state' }, element('h3', {}, 'No gateway requests recorded yet'), element('p', {}, session.costStatus === 'demo' ? 'The demonstration runtime does not call a model gateway.' : 'Each model call the gateway attributes to this session appears here within fifteen seconds, with the provider that served it.'));
@@ -631,12 +639,12 @@ function render() {
   const host = (() => { try { return new URL(origin).host; } catch { return ''; } })();
 
   const header = element('header', { className: 'session-header' },
-    element('div', { className: 'eyebrow' }, element('span', { className: 'brand-mark', 'aria-hidden': 'true' }, '▦'), 'DE VLOER', element('span', { className: 'remote-label' }, 'REMOTE SESSION'), host ? element('span', { className: 'remote-label' }, host) : null),
+    element('div', { className: 'eyebrow' }, element('span', { className: 'brand-mark', 'aria-hidden': 'true' }, '▦'), 'DE VLOER', element('span', { className: 'remote-label' }, 'WORKBENCH SESSION'), host ? element('span', { className: 'remote-label' }, host) : null, element('span', { className: 'remote-label' }, placementText(session.placement, host).toUpperCase())),
     element('div', { className: 'title-row' }, element('h1', {}, session.title), element('span', { className: `pill status-${session.status}` }, statusNames[session.status] || readable(session.status))),
     element('p', { className: 'subtitle' }, element('span', {}, session.repositoryId), ' / ', element('span', {}, session.crewId), ' · ', session.runtime, session.placement ? ` · ${session.placement}` : '', session.approval === 'auto' ? ' · approves automatically' : '', ' · ', element('code', {}, session.branch)),
     element('div', { className: `situation situation-${session.status}` }, element('p', { className: 'headline' }, headline), next ? element('p', { className: 'next' }, next) : null),
     element('div', { className: 'toolbar', 'aria-label': 'Session actions' },
-      writer && session.status === 'queued' ? action('Start remote crew', 'start', { className: 'primary', disabled: !mutable }) : null,
+      writer && session.status === 'queued' ? action('Start crew', 'start', { className: 'primary', disabled: !mutable }) : null,
       writer && ['running', 'waiting_input'].includes(session.status) ? action('Pause', 'pause', { disabled: !mutable }) : null,
       writer && ['paused', 'interrupted'].includes(session.status) ? action('Resume', 'resume', { className: 'primary', disabled: !mutable }) : null,
       requests.length ? action(`Review ${requests.length === 1 ? 'decision' : `${requests.length} decisions`}`, 'jump-decision', { className: session.status === 'waiting_input' ? 'primary' : '' }) : null,
@@ -654,7 +662,7 @@ function render() {
   const nav = element('div', { className: 'tabs', role: 'tablist', 'aria-label': 'Session information' }, ...tabs.map(value => action('', 'tab', { id: `tab-${value}`, 'data-tab': value, role: 'tab', 'aria-controls': 'tab-content', 'aria-selected': tab === value, tabindex: tab === value ? '0' : '-1', className: tab === value ? 'selected' : '' }, value === 'changes' ? ['Changes', diffs ? element('span', { className: 'count' }, String(diffs)) : null] : value === 'checks' ? ['Checks', checks ? element('span', { className: 'count' }, String(checks)) : null] : value === 'gateway' ? ['Gateway', requestCount ? element('span', { className: 'count' }, String(requestCount)) : null] : value[0].toUpperCase() + value.slice(1))));
   const content = tab === 'brief' ? briefTab(session) : tab === 'changes' ? changesTab(session) : tab === 'checks' ? checksTab(session) : tab === 'gateway' ? gatewayTab(session, gateway, detail.observability) : activityTab(session, events);
   const main = element('div', { className: 'main-column' },
-    element('section', { className: 'crew-section' }, element('div', { className: 'section-heading' }, element('h2', {}, 'Your crew'), element('span', {}, 'Sequential roles · remote execution')), crewStrip(session)),
+    element('section', { className: 'crew-section' }, element('div', { className: 'section-heading' }, element('h2', {}, 'Your crew'), element('span', {}, `Sequential roles · ${placementText(session.placement, host)}`)), crewStrip(session)),
     nav, element('div', { id: 'tab-content', role: 'tabpanel', 'aria-labelledby': `tab-${tab}`, className: 'tab-content' }, content),
     composer(session, writer));
 

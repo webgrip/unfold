@@ -25,13 +25,13 @@ export type Bootstrap = {
   gateway?: string; gatewayPolicy?: GatewayPolicy | null; observability?: Observability | null;
   repositories: { id: string; name: string; description: string; baseBranch: string; trackerUrl?: string; executionOwner?: 'interactive' | 'ploeg' }[];
   crews: { id: string; name: string; description: string; roles: { name: string; mode: string }[] }[];
-  models: { id: string; name: string }[];
+  models: Array<{ id: string; name: string; modelId?: string; providerId?: string }>;
   runtimes: { id: string; name: string; available: boolean }[];
   placements?: Placement[];
   taskSources?: TaskSource[];
 };
 export type Placement = { id: string; name: string; isolation: 'working-directory' | 'container' | 'pod'; default: boolean };
-export type SessionInput = { title: string; objective: string; repositoryId: string; crewId: string; runtime: string; placement?: string; approval?: Approval; budgetUsd: number };
+export type SessionInput = { title: string; objective: string; repositoryId: string; crewId: string; runtime: string; placement?: string; approval?: Approval; budgetUsd: number; model?: string };
 export type SessionEvent = { id: number; sessionId: string; type: string; at: string; actor: string; runId?: string; data: Record<string, unknown> };
 export type ToolEventData = { partId?: string; name?: string; tool?: string; title?: string; input?: unknown; output?: string; error?: string; status?: string; durationMs?: number; exitCode?: number; expectedFailure?: boolean; text?: string };
 export type RunStartedData = { role: string; mode: 'write' | 'read'; reviewer: boolean; model: { id: string; modelId: string; providerId: string } | null; prompt: { objective: string; instruction: string; notes: string | null; earlier: string | null; evidence: string | null; guidance: string }; promptSha?: string };

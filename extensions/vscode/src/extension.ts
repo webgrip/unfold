@@ -8,7 +8,7 @@ import { browserLogin } from './browser-login.js';
 import { EvidenceDocuments, patchFileLine } from './evidence.js';
 import { AttentionWatcher, show, type NotificationPolicy } from './notifications.js';
 import { SessionPanels, type PanelHost, type PanelTab, type InstructionOutcome } from './panel.js';
-import { presentation, situation, safeHttpsUrl, spendLabel, isolatedPlacement } from './status.js';
+import { presentation, situation, safeHttpsUrl, spendLabel, isolatedPlacement, placementLabel } from './status.js';
 import { setApproval as chooseApproval, type ApprovalChoice } from './approval.js';
 import { linkedAccounts, type AccountChoice } from './accounts.js';
 import { SessionTree, TaskTree, type SessionEntry, type TaskEntry } from './tree.js';
@@ -16,7 +16,7 @@ import * as wizard from './wizard.js';
 import type { Approval, Bootstrap, Session, TaskSnapshot, TaskSource, CandidateFormat, Decision, Permission } from './types.js';
 
 type SessionRef = string | SessionEntry | undefined;
-type Draft = { repositoryId?: string; crewId?: string; runtime?: string; placement?: string; approval?: Approval; title?: string; objective?: string; budgetUsd?: number };
+type Draft = { repositoryId?: string; crewId?: string; runtime?: string; placement?: string; approval?: Approval; model?: string; title?: string; objective?: string; budgetUsd?: number; autoStart?: boolean };
 
 function settings() { return vscode.workspace.getConfiguration('vloer'); }
 
@@ -145,14 +145,14 @@ class Workbench implements vscode.Disposable, PanelHost {
     const needsLogin = error instanceof ApiError && error.status === 401;
     this.tree.update([], needsLogin ? 'Sign in to your workbench' : 'Workbench unavailable — reconnect', 'vloer.connect');
     this.tasks.update([], needsLogin ? 'Sign in to browse linked tasks' : 'Reconnect to browse linked tasks');
-    this.view.message = needsLogin ? 'Your session has expired.' : 'Remote work continues independently. Reconnect to inspect it.';
+    this.view.message = needsLogin ? 'Your session has expired.' : 'Work continues on the workbench. Reconnect to inspect it.';
     this.view.badge = undefined;
     this.status.text = needsLogin ? '$(account) Vloer: sign in' : '$(debug-disconnect) Vloer: offline';
     this.status.backgroundColor = undefined;
     this.status.command = 'vloer.connect';
     this.status.tooltip = needsLogin ? 'Sign in to your workbench' : 'Reconnect to your workbench';
     void vscode.commands.executeCommand('setContext', 'vloer.connected', false);
-    this.panels.offline(needsLogin ? 'Session expired. Use Vloer: Connect to sign in.' : 'Connection lost. Remote work keeps its last server state.');
+    this.panels.offline(needsLogin ? 'Session expired. Use Vloer: Connect to sign in.' : 'Connection lost. The workbench keeps its state.');
   }
 
   async refresh(raise = false): Promise<void> {
@@ -193,7 +193,7 @@ class Workbench implements vscode.Disposable, PanelHost {
   }
 
   async connect(): Promise<void> {
-    const value = await vscode.window.showInputBox({ title: 'Connect to De Vloer', prompt: 'Remote workbench origin; use HTTPS for your team server.', value: settings().get('serverUrl', this.current.origin), ignoreFocusOut: true, validateInput: value => { try { normalizeServerUrl(value); return undefined; } catch (error) { return (error as Error).message; } } });
+    const value = await vscode.window.showInputBox({ title: 'Connect to De Vloer', prompt: 'Workbench origin; use HTTPS for a team server.', value: settings().get('serverUrl', this.current.origin), ignoreFocusOut: true, validateInput: value => { try { normalizeServerUrl(value); return undefined; } catch (error) { return (error as Error).message; } } });
     if (!value) return;
     const origin = normalizeServerUrl(value);
     this.configurationError = undefined;
@@ -242,18 +242,18 @@ class Workbench implements vscode.Disposable, PanelHost {
     return undefined;
   }
 
-  private async choose(value: SessionRef, title = 'Choose a remote session'): Promise<string | undefined> {
+  private async choose(value: SessionRef, title = 'Choose a session'): Promise<string | undefined> {
     const direct = this.sessionId(value);
     if (direct) return direct;
     await this.bootstrap();
     const sessions = await this.current.sessions();
-    if (!sessions.length) { void vscode.window.showInformationMessage('No remote sessions yet. Create one with Vloer: New Remote Session.'); return; }
+    if (!sessions.length) { void vscode.window.showInformationMessage('No sessions yet. Create one with Vloer: New Session.'); return; }
     const choice = await vscode.window.showQuickPick(sessions.map(session => ({ label: `$(${presentation(session.status).icon.replace('~spin', '')}) ${session.title}`, description: `${presentation(session.status).name} · ${session.repositoryId} · ${spendLabel(session)}`, detail: `${situation(session).headline}${session.sourceTask ? ` · ${session.sourceTask.provider} #${session.sourceTask.id}` : ''} · ${session.id}`, id: session.id })), { title, matchOnDescription: true, matchOnDetail: true, ignoreFocusOut: true });
     return choice?.id;
   }
 
   async findSession(): Promise<void> {
-    const id = await this.choose(undefined, 'Find a remote session');
+    const id = await this.choose(undefined, 'Find a session');
     if (id) await this.open(id);
   }
 
@@ -263,7 +263,16 @@ class Workbench implements vscode.Disposable, PanelHost {
     const steps: wizard.Step<Draft>[] = [];
     if (!fixed.repositoryId) steps.push((state, position) => wizard.pick({ ...position, title: `${label} · Repository`, placeholder: 'Choose a registered repository', selected: state.repositoryId, items: bootstrap.repositories.map(repo => ({ label: repo.name, description: `${repo.baseBranch}${repo.executionOwner === 'ploeg' ? ' · Ploeg-owned' : ''}`, detail: repo.description, value: repo.id })) }).then(value => value === wizard.back || value === undefined ? value : { repositoryId: value }));
     steps.push((state, position) => wizard.pick({ ...position, title: `${label} · Crew`, placeholder: 'Choose a reusable crew', selected: state.crewId, items: bootstrap.crews.map(crew => ({ label: crew.name, description: crew.roles.map(role => role.name).join(' → '), detail: crew.description, value: crew.id })) }).then(value => value === wizard.back || value === undefined ? value : { crewId: value }));
-    steps.push((state, position) => wizard.pick({ ...position, title: `${label} · Runtime`, placeholder: 'Choose the remote execution runtime', selected: state.runtime, items: bootstrap.runtimes.filter(runtime => runtime.available).map(runtime => ({ label: runtime.name, description: runtime.id === 'demo' ? 'Deterministic fixture, no model calls' : 'Runs on the workbench server', value: runtime.id })) }).then(value => value === wizard.back || value === undefined ? value : { runtime: value }));
+    if (!demo && bootstrap.models.length) steps.push(async (state, position) => {
+      const routes = await this.current.models().catch(() => []);
+      const describe = (modelId: string) => { const route = routes.find(item => item.modelId === modelId); if (!route) return ''; const tiers = route.tiers ? Object.entries(route.tiers).map(([tier, target]) => `${tier.toLowerCase()} → ${target}${routes.find(item => item.modelId === target)?.provider ? ` (${routes.find(item => item.modelId === target)!.provider})` : ''}`).join(' · ') : ''; return route.tiers ? `Router: ${tiers}` : route.provider ? `Served by ${route.provider}` : ''; };
+      const first = bootstrap.models[0];
+      return wizard.pick<string>({ ...position, title: `${label} · Model`, placeholder: 'Choose the model for every role, or keep the crew default', selected: state.model ?? '', items: [
+        { label: '$(organization) Crew default', description: first?.modelId ?? '', detail: first?.modelId ? describe(first.modelId) : 'Each role uses the model its crew names.', value: '' },
+        ...bootstrap.models.map(model => ({ label: model.name, description: model.modelId ?? '', detail: model.modelId ? describe(model.modelId) : '', value: model.id })),
+      ] }).then(value => value === wizard.back || value === undefined ? value : { model: value || undefined });
+    });
+    steps.push((state, position) => wizard.pick({ ...position, title: `${label} · Runtime`, placeholder: 'Choose the runtime', selected: state.runtime, items: bootstrap.runtimes.filter(runtime => runtime.available).map(runtime => ({ label: runtime.name, description: runtime.id === 'demo' ? 'Deterministic fixture, no model calls' : 'Runs on the workbench server', value: runtime.id })) }).then(value => value === wizard.back || value === undefined ? value : { runtime: value }));
     const placements = bootstrap.placements ?? [];
     if (placements.length > 1) steps.push((state, position) => wizard.pick({ ...position, title: `${label} · Workspace placement`, placeholder: 'Choose where the agent workspace runs', selected: state.placement ?? placements.find(placement => placement.default)?.id, items: placements.map(placement => ({ label: placement.name, description: placement.isolation === 'pod' ? 'Isolated pod, cluster policy applies' : placement.isolation === 'container' ? 'Sandboxed container on the workbench host' : 'Shares the workbench server user; trusted development only', value: placement.id })) }).then(value => value === wizard.back || value === undefined ? value : { placement: value }));
     const effectivePlacement = (state: Draft) => state.placement ?? placements.find(placement => placement.default)?.id;
@@ -280,6 +289,31 @@ class Workbench implements vscode.Disposable, PanelHost {
       const custom = await wizard.input({ ...position, title: `${label} · Custom authorization`, prompt: `Amount in USD above 0 and at most ${bootstrap.maxBudgetUsd}`, value: state.budgetUsd ? String(state.budgetUsd) : '', validate: text => Number.isFinite(Number(text)) && Number(text) > 0 && Number(text) <= bootstrap.maxBudgetUsd ? undefined : `Enter an amount above 0 and at most ${bootstrap.maxBudgetUsd}.` });
       if (custom === wizard.back) return {};
       return custom === undefined ? undefined : { budgetUsd: Number(custom) };
+    });
+    if (offerApproval) steps.push(async (state, position) => {
+      const repository = bootstrap.repositories.find(repo => repo.id === state.repositoryId);
+      const crew = bootstrap.crews.find(item => item.id === state.crewId);
+      const placement = effectivePlacement(state);
+      const placementName = placements.find(item => item.id === placement)?.name ?? placement ?? 'default placement';
+      const model = state.model ? bootstrap.models.find(item => item.id === state.model)?.name ?? state.model : 'Crew default';
+      const automatic = state.approval === 'auto' && isolatedPlacement(placement);
+      const summary: Array<vscode.QuickPickItem & { value: 'create' | 'create-start' | 'change' }> = [
+        { label: 'Summary', kind: vscode.QuickPickItemKind.Separator, value: 'change' },
+        { label: `$(folder) ${repository?.name ?? state.repositoryId}`, description: 'repository', value: 'change' },
+        { label: `$(organization) ${crew?.name ?? state.crewId}`, description: 'crew', detail: crew?.roles.map(role => role.name).join(' → '), value: 'change' },
+        { label: `$(hubot) ${model}`, description: 'model', value: 'change' },
+        { label: `$(server) ${placementName}`, description: 'placement', detail: `Runs in ${placementLabel(placement, this.current.origin)}.`, value: 'change' },
+        { label: `$(shield) ${automatic ? 'Tool use approved automatically' : 'Every tool use asks you'}`, description: 'approval', value: 'change' },
+        { label: `$(credit-card) $${(state.budgetUsd ?? 0).toFixed(2)} authorized`, description: 'budget', value: 'change' },
+        { label: `$(note) ${state.title ?? ''}`, description: 'title', detail: (state.objective ?? '').replace(/\s+/g, ' ').slice(0, 200), value: 'change' },
+        { label: 'Create', kind: vscode.QuickPickItemKind.Separator, value: 'change' },
+        { label: '$(play) Create and start the crew', description: 'starts now', value: 'create-start' },
+        { label: '$(check) Create only', description: 'start it later from the session', value: 'create' },
+      ];
+      const chosen = await wizard.pick<'create' | 'create-start' | 'change'>({ ...position, title: `${label} · Review`, placeholder: 'Pick a line to change it, or create the session', items: summary });
+      if (chosen === wizard.back || chosen === undefined) return chosen;
+      if (chosen === 'change') return wizard.back;
+      return { autoStart: chosen === 'create-start' };
     });
     const result = await wizard.run(draft, steps);
     this.drafts.set(key, result ?? draft);
@@ -302,15 +336,13 @@ class Workbench implements vscode.Disposable, PanelHost {
     const generation = this.generation;
     const bootstrap = await this.bootstrap();
     if (bootstrap.user.role === 'viewer') throw new Error('Your viewer account can inspect sessions. An operator account is required to create work.');
-    const draft = await this.engagement(bootstrap, 'create', {}, 'New remote session', true);
+    const draft = await this.engagement(bootstrap, 'create', {}, 'New session', true);
     if (!draft) return;
-    const repository = bootstrap.repositories.find(repo => repo.id === draft.repositoryId);
     const placement = draft.placement ?? bootstrap.placements?.find(item => item.default)?.id;
     const automatic = draft.approval === 'auto' && isolatedPlacement(placement);
-    const confirm = await vscode.window.showInformationMessage('Create this remote session?', { modal: true, detail: `${draft.title}\n${repository?.name ?? draft.repositoryId} · ${bootstrap.crews.find(crew => crew.id === draft.crewId)?.name} · ${draft.runtime}${draft.placement ? ` · ${draft.placement}` : ''}\n${new URL(target.origin).host}\n$${draft.budgetUsd!.toFixed(2)} authorized\n${automatic ? 'Tool use is approved automatically inside the sandbox; questions still reach you.' : 'Every tool use asks you first.'}\nThe crew starts only when you choose Start remote crew.` }, 'Create session');
-    if (confirm !== 'Create session') return;
     this.assertTarget(target, generation);
-    const session = await target.create({ title: draft.title!, objective: draft.objective!, repositoryId: draft.repositoryId!, crewId: draft.crewId!, runtime: draft.runtime!, ...(draft.placement ? { placement: draft.placement } : {}), ...(automatic ? { approval: 'auto' as const } : {}), budgetUsd: draft.budgetUsd! });
+    const session = await target.create({ title: draft.title!, objective: draft.objective!, repositoryId: draft.repositoryId!, crewId: draft.crewId!, runtime: draft.runtime!, ...(draft.placement ? { placement: draft.placement } : {}), ...(automatic ? { approval: 'auto' as const } : {}), ...(draft.model ? { model: draft.model } : {}), budgetUsd: draft.budgetUsd! });
+    if (draft.autoStart) await target.action(session.id, 'start').catch(error => { void vscode.window.showWarningMessage(`The session was created but did not start: ${error instanceof Error ? error.message : String(error)}`); });
     this.drafts.delete('create');
     await this.refresh();
     await this.open(session.id);
@@ -442,7 +474,7 @@ class Workbench implements vscode.Disposable, PanelHost {
   async lifecycle(id: string, action: 'start' | 'pause' | 'resume' | 'cancel' | 'retry'): Promise<void> {
     const target = this.current; const generation = this.generation;
     if (action === 'cancel') {
-      const confirm = await vscode.window.showWarningMessage('Cancel this remote session?', { modal: true, detail: 'This records an intentional cancellation. The workbench will retain the history and evidence, and will not start replacement work.' }, 'Cancel session');
+      const confirm = await vscode.window.showWarningMessage('Cancel this session?', { modal: true, detail: 'This records an intentional cancellation. The workbench will retain the history and evidence, and will not start replacement work.' }, 'Cancel session');
       if (confirm !== 'Cancel session') return;
     }
     this.assertTarget(target, generation);
@@ -454,7 +486,7 @@ class Workbench implements vscode.Disposable, PanelHost {
   private async sendInstructionCommand(value: SessionRef): Promise<void> {
     const id = await this.choose(value);
     if (!id) return;
-    const text = await vscode.window.showInputBox({ title: 'Instruction to remote crew', prompt: 'Saved for the next execution. Pause and resume to apply it to an active run.', ignoreFocusOut: true, validateInput: text => text.trim() && text.length <= 16000 ? undefined : 'Use 1 to 16,000 characters.' });
+    const text = await vscode.window.showInputBox({ title: 'Instruction to the crew', prompt: 'Saved for the next execution. Pause and resume to apply it to an active run.', ignoreFocusOut: true, validateInput: text => text.trim() && text.length <= 16000 ? undefined : 'Use 1 to 16,000 characters.' });
     if (!text?.trim()) return;
     const outcome = await this.instruction(id, text, false);
     if (outcome.state !== 'saved') throw new Error(outcome.message);

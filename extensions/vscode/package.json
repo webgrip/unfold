@@ -68,7 +68,7 @@
       },
       {
         "command": "vloer.create",
-        "title": "New Remote Session",
+        "title": "New Session",
         "category": "Vloer",
         "icon": "$(add)"
       },
@@ -280,7 +280,7 @@
       "vloer": [
         {
           "id": "vloer.sessions",
-          "name": "Remote Sessions",
+          "name": "Sessions",
           "icon": "media/vloer.svg"
         },
         {

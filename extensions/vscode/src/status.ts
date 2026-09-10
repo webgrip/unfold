@@ -7,7 +7,7 @@ export const statuses: Record<SessionStatus, StatusPresentation> = {
   failed: { name: 'Needs attention', icon: 'error', color: 'list.errorForeground', group: 'attention' },
   interrupted: { name: 'Interrupted', icon: 'debug-disconnect', color: 'list.warningForeground', group: 'attention' },
   paused: { name: 'Paused', icon: 'debug-pause', color: 'list.warningForeground', group: 'attention' },
-  running: { name: 'Running remotely', icon: 'sync~spin', group: 'active' },
+  running: { name: 'Working', icon: 'sync~spin', group: 'active' },
   exporting: { name: 'Preparing review', icon: 'package', group: 'active' },
   queued: { name: 'Ready to start', icon: 'circle-outline', group: 'ready' },
   completed: { name: 'Ready for human review', icon: 'pass', color: 'testing.iconPassed', group: 'history' },
@@ -32,6 +32,15 @@ export type RunLabel = 'implementation' | 'analysis' | 'independent review';
 
 export function isReviewer(session: Session, run: Run): boolean {
   return run.mode === 'read' && session.runs.at(-1)?.id === run.id;
+}
+
+export function placementLabel(placement: string | undefined, origin?: string): string {
+  const host = origin ? new URL(origin).hostname : undefined;
+  const here = !host || ['127.0.0.1', 'localhost', '::1'].includes(host);
+  if (placement === 'docker') return here ? 'a container on this machine' : `a container on ${host}`;
+  if (placement === 'kubernetes') return 'a pod in the cluster';
+  if (placement === 'local') return here ? 'a working directory on this machine' : `a working directory on ${host}`;
+  return 'the workbench workspace';
 }
 
 export function runLabel(session: Session, run: Run): RunLabel {
@@ -75,9 +84,9 @@ export function situation(session: Session): { headline: string; next: string } 
         : { headline: session.blocker || 'Execution stopped without approval.', next: 'Inspect the activity and checks, then decide whether to resume with new instructions.' };
     case 'interrupted': return { headline: 'Execution was interrupted; no replacement run started.', next: 'Inspect retained evidence and spend, then resume deliberately.' };
     case 'paused': return { headline: `Paused${role ? ` while ${role} was working` : ''}.`, next: 'Add instructions if needed, then resume to continue with them.' };
-    case 'running': return { headline: `${role ?? 'The crew'} is working in the remote workspace.`, next: 'You can keep editing. Pause to steer, or wait for the next decision.' };
+    case 'running': return { headline: `${role ?? 'The crew'} is working in ${placementLabel(session.placement)}.`, next: 'You can keep editing. Pause to steer, or wait for the next decision.' };
     case 'exporting': return { headline: 'Capturing the repository state for review.', next: 'The candidate download appears when the snapshot is complete.' };
-    case 'queued': return { headline: 'Authorized and ready; nothing has run yet.', next: 'Start the remote crew when the brief is right.' };
+    case 'queued': return { headline: 'Authorized and ready; nothing has run yet.', next: 'Start the crew when the brief is right.' };
     case 'completed': return { headline: `Required reviewers approved (${reviewing.filter(run => run.verdict === 'approve').length} of ${reviewing.length}).`, next: 'Machine review is done. Human review and your repository checks are still required.' };
     case 'cancelled': return { headline: 'Cancelled by an operator.', next: 'Evidence stays available. Create a new session to try again.' };
   }

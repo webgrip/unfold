@@ -1,6 +1,6 @@
 # De Vloer for VS Code
 
-Direct remote agent crews from your editor. Keep the repository checkout, tool execution and model calls on the workbench server while you inspect progress, make decisions and review evidence in VS Code.
+Direct agent crews from your editor. The checkout, tool execution and model calls run where the session is placed, a container on the workbench host or a pod in the cluster, while you inspect progress, make decisions and review evidence in VS Code.
 
 This is the **implemented v0.3 desktop extension** for the current De Vloer API. The wider product design, connector roadmap and future IDE experience are documented in the parent repository under `docs/design/`. Proposed capabilities there are not automatically extension features.
 
@@ -44,7 +44,7 @@ The server still enforces account roles and session ownership. v0.2 has no share
 
 | Surface | Implemented behavior |
 | --- | --- |
-| Remote Sessions tree | Groups attention, active, ready and historical work; items show repository, active role, observed spend and age, and expand into pending decisions, crew roles, retained evidence, the review candidate and the imported task. Crew roles are labelled **implementation**, **analysis** (a read role that is not the last run) or **independent review** (the final read role); transcripts carry their own icon. The session tooltip states the approval mode and, while running, the spend observed at the gateway. Inline actions start, resume, pause or open the decision for the current state |
+| Sessions tree | Groups attention, active, ready and historical work; items show repository, active role, observed spend and age, and expand into pending decisions, crew roles, retained evidence, the review candidate and the imported task. Crew roles are labelled **implementation**, **analysis** (a read role that is not the last run) or **independent review** (the final read role); transcripts carry their own icon. The session tooltip states the approval mode and, while running, the spend observed at the gateway. Inline actions start, resume, pause or open the decision for the current state |
 | Activity bar and status bar | The view badge counts sessions needing attention. The status bar turns amber with the number of waiting decisions and opens the oldest one; otherwise it shows running work |
 | Notifications | New decisions, failures, interruptions and sessions ready for human review, each with a direct action. Streamed tokens and tool completions never notify. `vloer.notifications` selects all, decisions and failures only, or none |
 | Linked Tasks tree | Browse registered Forgejo, GitHub, GitLab, ClickUp and Vikunja sources; inspect task snapshots, open the original task in its tracker, and explicitly import an open task |
@@ -78,9 +78,9 @@ In the **Linked Tasks** view, expand a source and select a task. **Vloer: Browse
 Import uses a deliberate sequence:
 
 1. Inspect the fetched task snapshot and mapped repository.
-2. Choose a registered crew, remote runtime and spending authorization.
+2. Choose a registered crew, the model, the placement and the spending authorization, then review the summary.
 3. Confirm the destination workbench, repository and task revision.
-4. Open the resulting queued session and choose **Start remote crew** separately.
+4. Start the crew from the review step, or later from the session.
 
 If the source changes after preview, the server rejects the stale revision. **Reload task** reopens its current snapshot for another explicit review. Repeating an import of the same revision reopens the existing session; it does not create replacement paid work. The server also blocks a second active session for an already active task revision lineage.
 
