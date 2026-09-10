@@ -1024,9 +1024,10 @@
       "estimatePoints": 5,
       "dependsOn": [
         "PV-023",
-        "PV-034"
+        "PV-034",
+        "PV-079"
       ],
-      "problem": "Current worker token APIs do not constitute a scoped human-facing takeover API.",
+      "problem": "Current worker token APIs do not constitute a scoped human-facing takeover API; the read half lives in PV-079 and this ticket covers claim, pause, takeover and release.",
       "acceptanceCriteria": [
         "Provide authorized read, claim, pause/takeover/release operations separate from worker tokens.",
         "Request idempotency and expected revision prevent duplicate/obsolete mutations.",
@@ -3306,6 +3307,135 @@
         "ploeg:pkg/httpapi",
         "ploeg:pkg/worker",
         "ploeg:docs/contracts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-079",
+      "epic": "E06",
+      "title": "Expose a read-only operator API in Ploeg",
+      "targetRepository": "ploeg",
+      "milestone": "M2",
+      "status": "planned",
+      "priority": 1,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [],
+      "problem": "Ploeg records runs, shifts, verdicts, findings, spend, checkpoints and audit rows but exposes only queue depth and a per-team item list, all unauthenticated, so no front-end can show what Ploeg is doing.",
+      "acceptanceCriteria": [
+        "GET-only routes under /api/v1/operator/ for teams, work-items (paginated, filtered by team, state, needs_human), work-items/{id}, runs/{id}, served from read-only store methods.",
+        "Detail responses include shifts, runs with role, round, state, outcome, failure reason, verdict, findings, usage and authorized versus settled spend, checkpoints, audit rows and forge links.",
+        "Responses carry the LiteLLM key alias and never a run token, forge token or credential.",
+        "Named consumer bearer tokens from the environment, constant-time compared, optionally scoped to teams; an unauthenticated request is denied without existence leakage.",
+        "A versioned JSON schema in docs/contracts describes every response; the external HTTPRoute continues to expose /webhooks/ only."
+      ],
+      "verification": [
+        "Fixture database with a swept run, a finished shift and a needs-human item renders through every route.",
+        "A token scoped to one team cannot list or read another team's items.",
+        "Schema validation of every response in the test suite."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/httpapi",
+        "ploeg:pkg/store",
+        "ploeg:docs/contracts",
+        "ploeg:ops/helm/ploeg"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-080",
+      "epic": "E06",
+      "title": "Project Ploeg's operator API in De Vloer",
+      "targetRepository": "de-vloer",
+      "milestone": "M2",
+      "status": "planned",
+      "priority": 1,
+      "risk": "medium",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-079"
+      ],
+      "problem": "De Vloer's Ploeg view is one depth integer per team, fetched on navigation and discarded, so the workbench cannot act as the front for the unattended lane.",
+      "acceptanceCriteria": [
+        "The ploeg config block accepts tokenEnv; teams becomes optional and is discovered from the API.",
+        "A client module with the broker's posture: http or https only, no credentials in the URL, bounded timeouts, redirects refused, response size and shape validated.",
+        "GET /api/ploeg returns teams, needs-human items, running items with role, round and spend, then the queue; GET /api/ploeg/work-items/:id returns the detail; unavailable Ploeg degrades to available:false.",
+        "The web Ploeg view shows the list with a detail drawer; the VS Code tree gains a Ploeg node with the same data.",
+        "Nothing from Ploeg is persisted in the event log or database; a short in-memory cache is the only state."
+      ],
+      "verification": [
+        "A fixture Ploeg server drives the API and UI tests, including denial, timeout and malformed responses.",
+        "The existing security-http test still asserts 401 for unauthenticated /api/ploeg."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/http.ts",
+        "de-vloer:src/config.ts",
+        "de-vloer:src/types.ts",
+        "de-vloer:public/app.js",
+        "de-vloer:extensions/vscode/src/tree.ts",
+        "de-vloer:docs/contracts/api.md"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-081",
+      "epic": "E06",
+      "title": "Stream Ploeg events and project runs as read-only Agent Host Protocol sessions",
+      "targetRepository": "ploeg",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 2,
+      "risk": "medium",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-079",
+        "PV-080"
+      ],
+      "problem": "Without an event feed a projector must poll lists, and Ploeg runs remain invisible to editors attached to De Vloer's Agent Host Protocol host.",
+      "acceptanceCriteria": [
+        "GET /api/v1/operator/events returns audit rows from a cursor, long-poll first, server-sent events later, under the same bearer scope as PV-079.",
+        "De Vloer lists Ploeg runs as read-only AHP sessions whose transcript is the run's findings, outcome and links, with no send or steer capability.",
+        "A Ploeg outage never blocks De Vloer's own AHP sessions."
+      ],
+      "verification": [
+        "Replay a fixture audit log through the cursor and observe a stable, ordered projection.",
+        "An AHP client sees a Ploeg run appear, progress and finish without any write path."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/httpapi",
+        "ploeg:pkg/store",
+        "de-vloer:src/ahp",
+        "de-vloer:src/http.ts"
       ],
       "definitionOfReady": [
         "A human owns the task and confirms its acceptance criteria.",

@@ -18,3 +18,4 @@ Trunk is `development`. Each accepted decision records its consequences and a tr
 | [0012 — Every session is an Agent Host Protocol host](0012-agent-host-protocol-host.md) | Accepted for 0.3.0; VS Code attachment documented |
 | [0013 — Sandbox CRD placement with warm Kata pools](0013-sandbox-crd-placement-with-warm-kata-pools.md) | Accepted as an option; unqualified on the cluster |
 | [0014 — Candidates are signed](0014-signed-candidates.md) | Accepted for 0.3.0 |
+| [0015 — Ploeg exposes a read-only operator API and De Vloer projects it](0015-ploeg-operator-read-api.md) | Proposed; nothing implemented on either side |

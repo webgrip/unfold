@@ -1,6 +1,6 @@
 # Implementation backlog
 
-78 ticket-ready records; generated from backlog/backlog.json. This file is a planning/export artifact. The selected tracker remains the source of truth after import. Planning status is not permission to run work.
+81 ticket-ready records; generated from backlog/backlog.json. This file is a planning/export artifact. The selected tracker remains the source of truth after import. Planning status is not permission to run work.
 
 Estimates are relative engineering points, not hours, deadlines or predicted agent effort. Cross-repository dependency IDs need a mapping to native tracker IDs after import. No tickets have been created by this generator.
 
@@ -10,14 +10,14 @@ Estimates are relative engineering points, not hours, deadlines or predicted age
 | --- | --- | --- |
 | M0 | Supervised dogfooding and usable editor | 7 |
 | M1 | Trustworthy candidate, checks and mutations | 13 |
-| M2 | One governed ticket-to-review loop | 19 |
-| M3 | Team identity, takeover and shared resources | 21 |
+| M2 | One governed ticket-to-review loop | 21 |
+| M3 | Team identity, takeover and shared resources | 22 |
 | M4 | Repeatable customer pilot and evidence | 15 |
 | M5 | Commercialization and ecosystem decision | 3 |
 
 ## Dependency order
 
-PV-001 → PV-002 → PV-003 → PV-004 → PV-005 → PV-006 → PV-007 → PV-013 → PV-014 → PV-015 → PV-016 → PV-071 → PV-072 → PV-073 → PV-074 → PV-022 → PV-023 → PV-028 → PV-009 → PV-010 → PV-011 → PV-078 → PV-008 → PV-012 → PV-017 → PV-018 → PV-019 → PV-020 → PV-021 → PV-034 → PV-024 → PV-025 → PV-026 → PV-027 → PV-029 → PV-030 → PV-031 → PV-032 → PV-033 → PV-035 → PV-036 → PV-037 → PV-038 → PV-039 → PV-040 → PV-041 → PV-042 → PV-043 → PV-044 → PV-045 → PV-046 → PV-047 → PV-048 → PV-049 → PV-050 → PV-051 → PV-052 → PV-053 → PV-054 → PV-055 → PV-056 → PV-057 → PV-058 → PV-059 → PV-060 → PV-061 → PV-062 → PV-063 → PV-064 → PV-065 → PV-066 → PV-067 → PV-068 → PV-069 → PV-070 → PV-075 → PV-076 → PV-077
+PV-001 → PV-002 → PV-003 → PV-004 → PV-005 → PV-006 → PV-007 → PV-013 → PV-014 → PV-015 → PV-016 → PV-071 → PV-072 → PV-073 → PV-074 → PV-022 → PV-023 → PV-028 → PV-009 → PV-010 → PV-011 → PV-078 → PV-008 → PV-012 → PV-017 → PV-018 → PV-019 → PV-020 → PV-021 → PV-034 → PV-079 → PV-024 → PV-025 → PV-026 → PV-027 → PV-029 → PV-030 → PV-031 → PV-032 → PV-033 → PV-035 → PV-036 → PV-037 → PV-038 → PV-039 → PV-040 → PV-041 → PV-042 → PV-043 → PV-044 → PV-045 → PV-046 → PV-047 → PV-048 → PV-049 → PV-050 → PV-051 → PV-052 → PV-053 → PV-054 → PV-055 → PV-056 → PV-057 → PV-058 → PV-059 → PV-060 → PV-061 → PV-062 → PV-063 → PV-064 → PV-065 → PV-066 → PV-067 → PV-068 → PV-069 → PV-070 → PV-075 → PV-076 → PV-077 → PV-080 → PV-081
 
 ## Coverage of the code audit
 
@@ -1175,11 +1175,11 @@ This is a planning brief, not an execution grant. Confirm the actual tracker rev
 Target repository: ploeg
 Local planning status: planned; this is not the tracker's current status or permission to execute.
 Milestone: M2; epic: E06; risk: critical; estimate: 5 relative points.
-Depends on: PV-023, PV-034
+Depends on: PV-023, PV-034, PV-079
 
 #### Problem
 
-Current worker token APIs do not constitute a scoped human-facing takeover API.
+Current worker token APIs do not constitute a scoped human-facing takeover API; the read half lives in PV-079 and this ticket covers claim, pause, takeover and release.
 
 #### Acceptance criteria
 
@@ -3705,6 +3705,151 @@ A database generation alone cannot stop a stale process from using a direct Git 
 - ploeg:pkg/httpapi
 - ploeg:pkg/worker
 - ploeg:docs/contracts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-079: Expose a read-only operator API in Ploeg
+
+Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
+Milestone: M2; epic: E06; risk: high; estimate: 5 relative points.
+Depends on: No code dependencies in this seed; environment and human authorization still required.
+
+#### Problem
+
+Ploeg records runs, shifts, verdicts, findings, spend, checkpoints and audit rows but exposes only queue depth and a per-team item list, all unauthenticated, so no front-end can show what Ploeg is doing.
+
+#### Acceptance criteria
+
+- [ ] GET-only routes under /api/v1/operator/ for teams, work-items (paginated, filtered by team, state, needs_human), work-items/{id}, runs/{id}, served from read-only store methods.
+- [ ] Detail responses include shifts, runs with role, round, state, outcome, failure reason, verdict, findings, usage and authorized versus settled spend, checkpoints, audit rows and forge links.
+- [ ] Responses carry the LiteLLM key alias and never a run token, forge token or credential.
+- [ ] Named consumer bearer tokens from the environment, constant-time compared, optionally scoped to teams; an unauthenticated request is denied without existence leakage.
+- [ ] A versioned JSON schema in docs/contracts describes every response; the external HTTPRoute continues to expose /webhooks/ only.
+
+#### Verification
+
+- [ ] Fixture database with a swept run, a finished shift and a needs-human item renders through every route.
+- [ ] A token scoped to one team cannot list or read another team's items.
+- [ ] Schema validation of every response in the test suite.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/httpapi
+- ploeg:pkg/store
+- ploeg:docs/contracts
+- ploeg:ops/helm/ploeg
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-080: Project Ploeg's operator API in De Vloer
+
+Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
+Milestone: M2; epic: E06; risk: medium; estimate: 5 relative points.
+Depends on: PV-079
+
+#### Problem
+
+De Vloer's Ploeg view is one depth integer per team, fetched on navigation and discarded, so the workbench cannot act as the front for the unattended lane.
+
+#### Acceptance criteria
+
+- [ ] The ploeg config block accepts tokenEnv; teams becomes optional and is discovered from the API.
+- [ ] A client module with the broker's posture: http or https only, no credentials in the URL, bounded timeouts, redirects refused, response size and shape validated.
+- [ ] GET /api/ploeg returns teams, needs-human items, running items with role, round and spend, then the queue; GET /api/ploeg/work-items/:id returns the detail; unavailable Ploeg degrades to available:false.
+- [ ] The web Ploeg view shows the list with a detail drawer; the VS Code tree gains a Ploeg node with the same data.
+- [ ] Nothing from Ploeg is persisted in the event log or database; a short in-memory cache is the only state.
+
+#### Verification
+
+- [ ] A fixture Ploeg server drives the API and UI tests, including denial, timeout and malformed responses.
+- [ ] The existing security-http test still asserts 401 for unauthenticated /api/ploeg.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/http.ts
+- de-vloer:src/config.ts
+- de-vloer:src/types.ts
+- de-vloer:public/app.js
+- de-vloer:extensions/vscode/src/tree.ts
+- de-vloer:docs/contracts/api.md
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-081: Stream Ploeg events and project runs as read-only Agent Host Protocol sessions
+
+Target repository: ploeg
+Local planning status: planned; this is not the tracker's current status or permission to execute.
+Milestone: M3; epic: E06; risk: medium; estimate: 5 relative points.
+Depends on: PV-079, PV-080
+
+#### Problem
+
+Without an event feed a projector must poll lists, and Ploeg runs remain invisible to editors attached to De Vloer's Agent Host Protocol host.
+
+#### Acceptance criteria
+
+- [ ] GET /api/v1/operator/events returns audit rows from a cursor, long-poll first, server-sent events later, under the same bearer scope as PV-079.
+- [ ] De Vloer lists Ploeg runs as read-only AHP sessions whose transcript is the run's findings, outcome and links, with no send or steer capability.
+- [ ] A Ploeg outage never blocks De Vloer's own AHP sessions.
+
+#### Verification
+
+- [ ] Replay a fixture audit log through the cursor and observe a stable, ordered projection.
+- [ ] An AHP client sees a Ploeg run appear, progress and finish without any write path.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- ploeg:pkg/httpapi
+- ploeg:pkg/store
+- de-vloer:src/ahp
+- de-vloer:src/http.ts
 
 #### Execution boundary
 

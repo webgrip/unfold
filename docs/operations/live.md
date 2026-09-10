@@ -68,6 +68,16 @@ The workspace manager starts an authenticated OpenCode server per managed worksp
 
 For another operator, run `npm run user:add` against the same `VLOER_DATA_DIR` while the server is stopped, then restart it. The helper asks for a name and role and generates a password shown once unless `VLOER_USER_PASSWORD` is supplied through the environment. Keep that output private. This is local account provisioning; SSO and shared session membership are not implemented.
 
+## A second estate as a profile
+
+A profile is a config file plus a launcher; nothing in the source knows which estate it serves. The webgrip pilot runs on port 4080 with its data under `.vloer`, and a acme profile runs beside it on 4081 with its data under `.vloer/second`, each pointing at its own LiteLLM, task source, repositories and Ploeg. Both files are ignored by Git (`config/*.local.json`, `*.local.sh`) so no estate detail is committed.
+
+The launcher resolves every secret from the estate's OpenBao at start and exports it for the process. the second estate's OpenBao authenticates on the `authentik/` mount with one role per team, and only the `admin` role reads outside `secret/teams/<team>/*`, so the launcher logs in with `bao login -method=oidc -path=authentik role=admin` ([acme authentication](https://gitlab.com/acme/internal/platform/-/blob/main/docs/general/authentication.md)). The retired `oidc/` mount answers 403 to a login attempt, which reads like a policy problem and is a wrong path.
+
+A private repository over HTTPS needs a credential the workspace can use without a token in the URL, which the config rejects, and without an askpass, which the Docker backend does not carry. Git reads configuration from `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_n` and `GIT_CONFIG_VALUE_n` even under the `GIT_CONFIG_GLOBAL=/dev/null` and `GIT_CONFIG_NOSYSTEM=1` the clone step sets ([git config environment](https://git-scm.com/docs/git-config#ENVIRONMENT)). The launcher sets `http.https://gitlab.com/.extraheader` to a basic authorization header built from the token, plus the committer identity, and the profile allows those names in `agentEnvironment`. The clone, the push and the merge-request call then work with no code change.
+
+That token is the one credential a sandbox holds beyond its inference key, and a crew that pushes its own branch and opens the merge request is the compatibility mode [ADR 0006](../adrs/0006-trusted-verifier-and-publisher.md) describes: it cannot claim the fencing guarantee. Use a project access token scoped to the one repository with `api` and `write_repository` and a short expiry, never a shared estate token. The [model gateway capabilities](../product/model-gateway-capabilities.md) page records the path that removes the token entirely, forge tools served through the gateway's MCP surface and granted per key.
+
 ## Docker on the workbench host
 
 The `docker` backend runs the clone and the OpenCode server inside a container from the pinned agent image, through the Docker Engine socket. The workbench never invokes a shell or the Docker CLI. Build the image once from the repository and reference it by tag, or pull a digest-pinned build from the registry:
