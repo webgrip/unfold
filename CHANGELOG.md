@@ -1,3 +1,9 @@
+## [0.3.0-rc.7](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.6...v0.3.0-rc.7) (2026-09-10)
+
+### Added
+
+* **auth:** the editor signs in through the browser with the estate's identity provider ([65ab9ec](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/65ab9ec50d5cbf368e8f3bc37e725dda1e17b38b))
+
 ## [0.3.0-rc.6](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.5...v0.3.0-rc.6) (2026-09-10)
 
 ### Added
