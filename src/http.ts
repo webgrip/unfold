@@ -9,6 +9,8 @@ import { getTask, listTasks, publicTaskSource, TaskError } from './tasks.ts';
 import { readCandidate, unavailableCandidate } from './candidates.ts';
 import { placements } from './config.ts';
 import type { WorkerRelay } from './runtime/relay.ts';
+import type { AgentHost } from './ahp/host.ts';
+import { protocolVersion as agentHostProtocolVersion } from './ahp/host.ts';
 import { readFileSync } from 'node:fs';
 
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
@@ -60,7 +62,7 @@ function mutationGuard(req: IncomingMessage, config: AppConfig): void {
   if (req.headers['sec-fetch-site'] === 'cross-site') fault(403, 'origin', 'Cross-site requests are not allowed.');
 }
 
-export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay) {
+export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost) {
   const auth = new Auth(store, config);
   const streams = new Set<ServerResponse>();
   const knownSecrets = [config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword, ...(config.taskSources ?? []).map(source => source.token)].filter((value): value is string => Boolean(value));
@@ -118,6 +120,18 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           maxBudgetUsd: config.maxBudgetUsd, maxConcurrentSessions: config.maxConcurrentSessions
         }));
         if (method === 'GET' && path === '/api/health') return json(res, 200, { status: 'ok', mode: config.mode, version: applicationVersion, runtimes: runtimeKinds, litellm: Boolean(config.litellm), workspaceBackend: config.mode === 'demo' ? 'demo' : config.runtime.backend, workspaceBackends: placements(config).map(item => item.id) });
+        if (path === '/api/agent-host' || path === '/api/agent-host/tokens') {
+          if (!agentHost) fault(404, 'agent_host_disabled', 'The agent host is not enabled on this workbench.');
+          const address = (config.baseUrl ?? `http://${config.host}:${config.port}`).replace(/^http/, 'ws');
+          if (method === 'GET' && path === '/api/agent-host') return json(res, 200, { protocolVersion: agentHostProtocolVersion, address, provider: 'de-vloer', clients: agentHost!.clients.size, vscodeSetting: { key: 'chat.remoteAgentHosts', entry: { address, name: 'De Vloer', connectionToken: '<token from POST /api/agent-host/tokens>' } } });
+          if (method === 'POST' && path === '/api/agent-host/tokens') {
+            if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot connect an agent host.');
+            const data = await body(req);
+            const token = agentHost!.issueToken(user, text(data.label, 'Label', 80, true) || 'agent host');
+            return json(res, 201, { token, address, vscodeSetting: { key: 'chat.remoteAgentHosts', entry: { address, name: 'De Vloer', connectionToken: token } } });
+          }
+          fault(405, 'method', 'Unsupported method.');
+        }
         if (method === 'GET' && path === '/api/task-sources') return json(res, 200, sanitize((config.taskSources ?? []).map(publicTaskSource)));
         const taskRoute = path.match(/^\/api\/task-sources\/([a-z0-9-]+)\/tasks(?:\/([a-zA-Z0-9_-]+))?$/);
         if (method === 'GET' && taskRoute) {

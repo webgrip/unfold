@@ -7,6 +7,7 @@ import { OpenCodeRuntime } from './runtime/opencode.ts';
 import { CommandRuntime } from './runtime/command.ts';
 import { WorkspaceManager } from './runtime/workspace.ts';
 import { WorkerRelay } from './runtime/relay.ts';
+import { AgentHost } from './ahp/host.ts';
 import { LiteLLMBroker } from './broker.ts';
 import { buildServer } from './http.ts';
 import { loadConfig } from './config.ts';
@@ -27,17 +28,20 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
   const broker = config.mode === 'live' && config.litellm ? new LiteLLMBroker(config.litellm) : undefined;
   const engine = new Engine(store, config, runtimes, broker);
   engine.recover();
-  const { server, closeStreams } = buildServer(config, store, engine, [...runtimes.keys()], relay);
+  const agentHost = new AgentHost(config, store, engine);
+  const { server, closeStreams } = buildServer(config, store, engine, [...runtimes.keys()], relay, agentHost);
+  server.on('upgrade', (req, socket, head) => { if (!agentHost.handleUpgrade(req, socket, head)) socket.destroy(); });
   let closed = false;
   async function close() {
     if (closed) return;
     closed = true;
+    agentHost.close();
     closeStreams();
     await engine.shutdown();
     if (server.listening) await new Promise<void>((done) => { server.close(() => done()); server.closeIdleConnections(); });
     store.close();
   }
-  return { server, store, engine, close };
+  return { server, store, engine, agentHost, close };
 }
 
 async function main() {
