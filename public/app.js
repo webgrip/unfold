@@ -109,7 +109,7 @@ function sessionRow(session) {
 
 function statusLabel(session) {
   if (session.status === 'completed' && session.review) return session.review.decision === 'accepted' ? 'Accepted' : 'Rejected';
-  return statusLabel(session) || session.status;
+  return labels[session.status] || session.status;
 }
 
 function renderDashboard() {
