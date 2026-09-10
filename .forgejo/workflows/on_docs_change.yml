@@ -20,6 +20,7 @@ jobs:
     needs: generate-documentation
     if: github.ref == 'refs/heads/development'
     with:
+      source-dir: '.'
       dest-prefix: de-vloer
       strict: 'false'
     secrets:
