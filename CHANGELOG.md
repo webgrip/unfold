@@ -1,3 +1,13 @@
+## [0.3.0-rc.4](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.3...v0.3.0-rc.4) (2026-09-10)
+
+### Fixed
+
+* **release:** take the distribute lanes that use the runner's own cosign ([7fdea66](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/7fdea66ad07bde155fffd3d8b714f89da97792dd))
+
+### Docs
+
+* record the outcome of the first three hosted releases ([8ad8e43](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/8ad8e431e3328ab7bc755794fe7c27ec68554ed7))
+
 ## [0.3.0-rc.3](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.2...v0.3.0-rc.3) (2026-09-10)
 
 ### Added
