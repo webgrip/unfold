@@ -1,3 +1,29 @@
+## [0.3.0-rc.1](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.2.0...v0.3.0-rc.1) (2026-09-10)
+
+### Added
+
+* let sandboxes dial out through a pull-based relay instead of exposing a port ([d11ad43](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/d11ad4399e2306aa938cd613f7731f9951e0ecc9))
+* release images, chart and extension on one hardened Forgejo train ([00d9eca](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/00d9ecac5a2091edc402de7d19adff2cea5f5a0b))
+* run agent workspaces in a sandboxed container and choose placement per session ([da04129](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/da041290a853e1220da5d01e0bd319c4204527ef))
+* serve every session as an Agent Host Protocol host over WebSocket ([70abc39](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/70abc3923283c12f0b3511b756f4971961505337))
+* show the recorded cause of workspace failures ([e16003e](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/e16003e8b131f31097045734b8cd73e8d40d0cda))
+* sign every captured candidate with in-toto provenance and an Agent Trace record ([f11cc14](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/f11cc146b2dc0d6d451fafb20cfce0a0110bc988))
+* **vscode:** attach the workbench as an agent host from the command palette ([83b34c6](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/83b34c6fa2e4d496af9a8f3e15ff7ef778d6b6ed))
+* **vscode:** rebuild the operator experience for review, decisions and live progress ([0f03acb](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/0f03acbf3653b7e583a9ff6c95c38be9fb4a66dd))
+* warm Kata sandboxes through the Sandbox CRDs, pool assignment and in-place capture ([2321943](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/2321943a54c6441a987556c939afc5fbe76d6588))
+
+### Docs
+
+* record which release prerequisites are done and which are deferred ([0251314](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/02513144103bc3976ba016199cb5679020343c65))
+
+### CI
+
+* build the docs site from the repository root like the generate step ([64d950c](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/64d950c8c4644f5b07aece0ac584d90d8d546ddf))
+
+### Internal
+
+* pin opencode 1.18.30 through mise and ignore local launch scripts ([aa05979](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/aa05979f106cd692125fc25bdd549a15c3f156bc))
+
 # Changelog
 
 ## Unreleased

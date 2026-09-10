@@ -2,5 +2,5 @@ apiVersion: v2
 name: de-vloer
 description: Single-server operator workbench with isolated agent workspaces
 type: application
-version: 0.2.0
-appVersion: 0.2.0
+version: 0.3.0-rc.1
+appVersion: 0.3.0-rc.1

@@ -2,7 +2,7 @@
   "name": "de-vloer",
   "displayName": "De Vloer — Remote Agent Workbench",
   "description": "Direct remote agent crews from VS Code: decide inline, review native evidence, watch live progress, and never run agents on your workstation.",
-  "version": "0.3.0",
+  "version": "0.3.0-rc.1",
   "publisher": "webgrip",
   "license": "Apache-2.0",
   "engines": {
