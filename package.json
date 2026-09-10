@@ -1,6 +1,6 @@
 {
   "name": "@webgrip/de-vloer",
-  "version": "0.3.0-rc.2",
+  "version": "0.3.0-rc.3",
   "private": true,
   "description": "A self-hosted operator workbench for remote agent crews",
   "type": "module",

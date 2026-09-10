@@ -1,3 +1,13 @@
+## [0.3.0-rc.3](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.2...v0.3.0-rc.3) (2026-09-10)
+
+### Added
+
+* **kubernetes:** offer user namespaces for workspace pods ([432eb7e](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/432eb7ea2eea54ccedf1ccb04d1b8f7beb916ebc))
+
+### Fixed
+
+* **release:** hold the GitHub mirror until its repository exists ([c94ce15](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/c94ce1538f134fb81242b5d3ab674eac58389cdc))
+
 ## [0.3.0-rc.2](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.1...v0.3.0-rc.2) (2026-09-10)
 
 ### Fixed
