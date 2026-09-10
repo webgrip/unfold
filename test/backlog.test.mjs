@@ -4,7 +4,7 @@ import { readBacklog, validateBacklog, csvCell, clickupCsv, sessionPayload, brie
 
 test('backlog has complete audit coverage and dependency-safe planning order', () => {
   const backlog = readBacklog(); const result = validateBacklog(backlog);
-  assert.equal(result.count, 78);
+  assert.equal(result.count, 85);
   for (const task of backlog.tickets) for (const dependency of task.dependsOn) assert(result.order.indexOf(dependency) < result.order.indexOf(task.id));
   assert.equal(Object.keys(backlog.gapCoverage).length, 30);
 });

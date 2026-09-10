@@ -65,7 +65,7 @@ export class KubernetesClient {
 
 export const cloneProgram = `import{mkdirSync,existsSync}from'node:fs';import{spawnSync}from'node:child_process';
 const env={...process.env,GIT_TERMINAL_PROMPT:'0',GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1'};
-const run=(a)=>{const r=spawnSync('git',a,{env,stdio:'ignore'});if(r.status!==0)process.exit(1)};
+const run=(a)=>{const r=spawnSync('git',a,{env,stdio:['ignore','ignore','pipe'],encoding:'utf8'});if(r.status!==0){process.stderr.write(String(r.stderr??'').slice(-2000));process.exit(1)}};
 mkdirSync('/workspace',{recursive:true});
 if(!existsSync('/workspace/repository/.git')){run(['clone','--depth','100','--branch',env.BASE_BRANCH,'--',env.REPOSITORY_URL,'/workspace/repository']);run(['-C','/workspace/repository','checkout','-b',env.WORK_BRANCH]);}
 for(const p of['.home','.state','.cache','.tmp'])mkdirSync('/workspace/'+p,{recursive:true});

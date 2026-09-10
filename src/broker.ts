@@ -29,7 +29,7 @@ export class LiteLLMBroker implements BudgetBroker {
         body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(10_000), redirect: 'error',
       });
     } catch (error) { throw transportFailure(error, 'credentials'); }
-    if (!response.ok) throw new RuntimeFailure('gateway_rejected', 'credentials', 'not_submitted', response.status);
+    if (!response.ok) throw new RuntimeFailure(response.status >= 500 ? 'connectivity' : 'gateway_rejected', 'credentials', 'not_submitted', response.status, `${method} ${path.split('?')[0]} returned HTTP ${response.status}`);
     try { return await response.json(); } catch { throw new Error('LiteLLM returned invalid JSON'); }
   }
 

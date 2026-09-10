@@ -18,6 +18,7 @@ async function gateway(t: any, delay = 0) {
     requests.push({ method: request.method, path: url.pathname, body });
     assert.equal(request.headers.authorization, 'Bearer administrative-only');
     if (mode === 'error') { response.writeHead(500); response.end('administrative-only secret echo'); return; }
+    if (mode === 'denied') { response.writeHead(403); response.end('{"error":"administrative-only policy"}'); return; }
     response.setHeader('content-type', 'application/json');
     if (url.pathname === '/key/generate') {
       const token = 'hashed-' + body.key_alias;
@@ -33,7 +34,7 @@ async function gateway(t: any, delay = 0) {
   t.after(() => server.close());
   const address = server.address() as { port: number };
   const config = { baseUrl: `http://127.0.0.1:${address.port}/v1`, adminUrl: `http://127.0.0.1:${address.port}`, masterKey: 'administrative-only', models: ['coding'], ttl: '4h', settlementDelayMs: delay };
-  return { broker: new LiteLLMBroker(config), config, keys, requests, fail: () => { mode = 'error'; } };
+  return { broker: new LiteLLMBroker(config), config, keys, requests, fail: () => { mode = 'error'; }, deny: () => { mode = 'denied'; } };
 }
 
 const session = { id: 'session-123', ownerId: 'owner', budgetUsd: 5 } as Session;
@@ -82,14 +83,27 @@ test('post-revocation accounting grace and missing spend remain unknown instead 
   assert.equal(await broker.spend(credential.reference), undefined);
 });
 
-test('provider errors do not expose response credentials', async t => {
+test('a gateway outage is connectivity, not a rejection, and names the call', async t => {
   const { broker, fail } = await gateway(t);
   fail();
   await assert.rejects(broker.mint(session), error => {
     assert.equal(String(error).includes('administrative-only'), false);
     assert(error instanceof RuntimeFailure);
-    assert.equal(error.category, 'gateway_rejected');
+    assert.equal(error.category, 'connectivity');
     assert.equal(error.httpStatus, 500);
+    assert.equal(error.detail, 'POST /key/generate returned HTTP 500');
+    return true;
+  });
+});
+
+test('a gateway refusal is a rejection that never echoes the response', async t => {
+  const { broker, deny } = await gateway(t);
+  deny();
+  await assert.rejects(broker.mint(session), error => {
+    assert.equal(String(error).includes('administrative-only'), false);
+    assert(error instanceof RuntimeFailure);
+    assert.equal(error.category, 'gateway_rejected');
+    assert.equal(error.httpStatus, 403);
     return true;
   });
 });
