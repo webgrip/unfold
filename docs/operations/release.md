@@ -46,9 +46,10 @@ Bridge-level Forgejo Actions secrets, provisioned from OpenBao by the estate's r
 
 Signing uses no secret: the job's OIDC token is exchanged at OpenBao for a short-lived Transit signing lease, which requires `webgrip/de-vloer` in the `cosign-signer` role's bound repositories in homelab-cluster.
 
-## Before the first release
+## State of the prerequisites
 
-1. Add `webgrip/de-vloer` to the OpenBao `cosign-signer` role and provision the repository secrets above through the `forgejo-actions-secrets` reconciler in homelab-cluster.
-2. Create the `webgrip` namespace on Open VSX and verify the token with `npx ovsx verify-pat webgrip`; do the same on the Marketplace with `npx @vscode/vsce verify-pat webgrip` if it is used.
-3. Push `development`; the first `feat` cuts `v0.3.0-rc.1`, and the release workflow proves the chain end to end before any consumer pins it.
-4. In homelab-cluster, add an `OCIRepository` for `oci://harbor.webgrip.dev/webgrip/charts/de-vloer` with tag and Harbor digest, and a `HelmRelease` that sets `mode: live`, the workspace namespace, egress and credentials. That deployment is the in-cluster workbench described in [live operation](live.md).
+Done on 2026-09-10: `webgrip/de-vloer` is in the OpenBao `cosign-signer` role ([homelab-cluster 0ae3e99a](https://forgejo.webgrip.dev/webgrip/homelab-cluster/commit/0ae3e99a)); the OpenBao config CronJob applies it within minutes. `WEBGRIP_CI_TOKEN`, `HARBOR_ROBOT_*`, `GHCR_*`, `GH_RELEASE_TOKEN` and `TECHDOCS_S3_*` are organization-wide secrets and need no repository entry. The first push of `development` with this pipeline is the qualification run; its outcome belongs in [validation](../validation.md).
+
+Deferred, because each needs an account only a person can create: the `webgrip` namespace and `OVSX_PAT` on Open VSX, and `VSCE_PAT` for the Marketplace. Until they exist the publish job records a notice and the VSIX remains a Forgejo release asset. When the tokens exist, put them in OpenBao and add an External Secret plus a `put_repo_secret` line for `de-vloer` in the `forgejo-actions-secrets` CronJob.
+
+Still to do for the in-cluster workbench: an `OCIRepository` for `oci://harbor.webgrip.dev/webgrip/charts/de-vloer` with tag and Harbor digest, a `HelmRelease` with `mode: live`, the workspace namespace, egress and credentials, and, for the sandbox provisioner, the agent-sandbox controller and the warm pool from [ops/cluster/agent-sandbox](../../ops/cluster/agent-sandbox/README.md). That deployment is the in-cluster workbench described in [live operation](live.md).
