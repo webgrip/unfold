@@ -5,12 +5,12 @@ import { join, resolve, relative, isAbsolute, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { deflateSync } from 'node:zlib';
 
-export type CandidateFormat = 'bundle' | 'patch' | 'manifest';
+export type CandidateFormat = 'bundle' | 'patch' | 'manifest' | 'attestation' | 'trace';
 export type CandidateFile = { path: string; status: 'added' | 'modified' | 'deleted'; baseMode?: string; mode?: string; baseBlob?: string; blob?: string; bytes: number };
 export type Candidate = {
   status: 'ready' | 'unavailable'; reason?: string; message?: string; createdAt?: string; baseSha?: string;
   snapshotBaseSha?: string; headSha?: string; treeSha?: string; fileCount?: number; bytes?: number;
-  sha256?: { bundle: string; patch: string }; formats?: CandidateFormat[];
+  sha256?: { bundle: string; patch: string }; formats?: CandidateFormat[]; attestation?: { keyId: string; predicateTypes: string[] };
 };
 export type CandidateManifest = {
   version: 1; sessionId: string; repositoryId: string; createdAt: string; baseSha: string;
@@ -24,7 +24,7 @@ export type CaptureOptions = { dataDir: string; sessionId: string; repositoryId:
 type TreeEntry = { mode: string; blob: string; bytes: number };
 
 const limits = { files: 5000, fileBytes: 16 * 1024 * 1024, sourceBytes: 64 * 1024 * 1024, outputBytes: 128 * 1024 * 1024 };
-const names: Record<CandidateFormat, string> = { bundle: 'candidate.git.bundle', patch: 'candidate.patch', manifest: 'manifest.json' };
+const names: Record<CandidateFormat, string> = { bundle: 'candidate.git.bundle', patch: 'candidate.patch', manifest: 'manifest.json', attestation: 'candidate.attestation.json', trace: 'candidate.trace.json' };
 const unavailableMessages: Record<string, string> = { capture_failed: 'The candidate could not be captured. The workspace is retained for manual review.', base_unavailable: 'The original Git base could not be established. Review the retained workspace manually.', unsupported_workspace: 'This workspace does not support complete candidate export. Use a provisioned local or Kubernetes workspace.', unsupported_repository: 'This repository uses a Git layout or file type this exporter does not support. Review the retained workspace manually.', secret_path: 'A sensitive file path blocks this export. Remove credentials from the change before creating a new session.', secret_content: 'A recognizable secret blocks this export. Remove the secret before creating a new session.', size_limit: 'The workspace exceeds the bounded export limits. Review the retained workspace or reduce the change.', workspace_changed: 'The workspace changed during capture. No partial candidate was published; review the retained workspace.', stop_unconfirmed: 'The previous runtime has not confirmed it stopped. Export remains blocked to avoid an inconsistent snapshot.', not_ready: 'A candidate is available after the session finishes preparing its review.' };
 
 export function unavailableCandidate(reason = 'capture_failed'): Candidate { const code = Object.hasOwn(unavailableMessages, reason) ? reason : 'capture_failed'; return { status: 'unavailable', reason: code, message: unavailableMessages[code] }; }
@@ -241,11 +241,11 @@ export async function readCandidate(dataDir: string, sessionId: string, format: 
   if (!Object.hasOwn(names, format)) throw new Error('Unsupported candidate format');
   const root = resolve(dataDir, 'candidates', identity(sessionId));
   const content = await boundedRead(join(root, names[format]), limits.outputBytes);
-  if (format !== 'manifest') {
+  if (format === 'bundle' || format === 'patch') {
     const manifest = JSON.parse(decode(await boundedRead(join(root, names.manifest)))) as CandidateManifest;
     if (manifest.downloads[format].sha256 !== sha256(content) || manifest.downloads[format].bytes !== content.length) throw new Error('Candidate integrity check failed');
   }
-  return { content, contentType: format === 'manifest' ? 'application/json' : format === 'patch' ? 'text/plain; charset=utf-8' : 'application/octet-stream', filename: names[format] };
+  return { content, contentType: format === 'manifest' || format === 'attestation' || format === 'trace' ? 'application/json' : format === 'patch' ? 'text/plain; charset=utf-8' : 'application/octet-stream', filename: names[format] };
 }
 
 export async function persistRemoteCandidate(dataDir: string, sessionId: string, manifest: CandidateManifest, bundle: Buffer, patch: Buffer): Promise<Candidate> {

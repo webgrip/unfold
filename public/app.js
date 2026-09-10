@@ -172,7 +172,7 @@ function candidateMarkup(session) {
   const candidate = session.candidate;
   if (!candidate) return '';
   if (candidate.status !== 'ready') return `<section class="panel candidate-panel" aria-labelledby="candidate-title"><div class="panel-heading"><h2 id="candidate-title">Repository handoff</h2>${icon('branch')}</div><div class="candidate-body"><p>${escape(candidate.message || 'A complete repository export is unavailable for this session. Review the retained evidence and workspace before taking over.')}</p></div></section>`;
-  return `<section class="panel candidate-panel" aria-labelledby="candidate-title"><div class="panel-heading"><h2 id="candidate-title">Repository handoff</h2>${icon('branch')}</div><div class="candidate-body"><span class="candidate-ready">${icon('check')} Repository snapshot saved</span><p>Download the captured changes and their manifest for review in your own tools.</p>${candidate.headSha ? `<p class="mono">${escape(candidate.headSha.slice(0,12))}${candidate.fileCount !== undefined ? ` · ${escape(candidate.fileCount)} changed files` : ''}</p>` : ''}<div class="candidate-downloads">${[['bundle','Git bundle','branch'],['patch','Binary patch','code'],['manifest','Manifest','shield']].filter(([format]) => candidate.formats?.includes(format)).map(([format,label,glyph]) => `<button class="button secondary full" data-action="candidate-download" data-format="${format}">${icon(glyph)}${label}${icon('download')}</button>`).join('')}</div><p class="candidate-review-note">Human review and your repository’s checks are still required. No changes have been pushed or merged.</p></div></section>`;
+  return `<section class="panel candidate-panel" aria-labelledby="candidate-title"><div class="panel-heading"><h2 id="candidate-title">Repository handoff</h2>${icon('branch')}</div><div class="candidate-body"><span class="candidate-ready">${icon('check')} Repository snapshot saved</span><p>Download the captured changes and their manifest for review in your own tools.</p>${candidate.headSha ? `<p class="mono">${escape(candidate.headSha.slice(0,12))}${candidate.fileCount !== undefined ? ` · ${escape(candidate.fileCount)} changed files` : ''}</p>` : ''}<div class="candidate-downloads">${[['bundle','Git bundle','branch'],['patch','Binary patch','code'],['manifest','Manifest','shield'],['attestation','Signed provenance','shield'],['trace','Agent Trace','layers']].filter(([format]) => candidate.formats?.includes(format)).map(([format,label,glyph]) => `<button class="button secondary full" data-action="candidate-download" data-format="${format}">${icon(glyph)}${label}${icon('download')}</button>`).join('')}</div><p class="candidate-review-note">Human review and your repository’s checks are still required. No changes have been pushed or merged.</p></div></section>`;
 }
 
 function renderSession() {
@@ -353,7 +353,7 @@ function download(filename, content, type = 'text/plain') {
 }
 
 async function downloadCandidate(format) {
-  if (!state.session || !['bundle', 'patch', 'manifest'].includes(format)) return;
+  if (!state.session || !['bundle', 'patch', 'manifest', 'attestation', 'trace'].includes(format)) return;
   const sessionId = state.session.id;
   const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/candidate/download?format=${format}`, { credentials: 'same-origin' });
   if (!response.ok) {

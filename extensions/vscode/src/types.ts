@@ -39,4 +39,4 @@ export type TaskSnapshot = { key: string; sourceId: string; provider: TaskProvid
 export type TaskPage = { tasks: TaskSnapshot[]; nextPage?: number };
 export type TaskImportInput = { sourceId: string; taskId: string; revision: string; crewId: string; runtime: string; placement?: string; budgetUsd: number };
 export type Candidate = { status: 'ready' | 'unavailable'; reason?: string; message?: string; createdAt?: string; baseSha?: string; snapshotBaseSha?: string; headSha?: string; treeSha?: string; fileCount?: number; bytes?: number; sha256?: { bundle: string; patch: string }; formats?: CandidateFormat[] };
-export type CandidateFormat = 'bundle' | 'patch' | 'manifest';
+export type CandidateFormat = 'bundle' | 'patch' | 'manifest' | 'attestation' | 'trace';

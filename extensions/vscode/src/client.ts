@@ -143,7 +143,7 @@ export class VloerClient {
   task(sourceId: string, taskId: string): Promise<TaskSnapshot> { return this.request(`/api/task-sources/${identifier(sourceId)}/tasks/${identifier(taskId)}`); }
   importTask(input: TaskImportInput): Promise<Session> { return this.request('/api/task-imports', 'POST', input); }
   async downloadCandidate(id: string, format: CandidateFormat): Promise<Uint8Array> {
-    if (!['bundle', 'patch', 'manifest'].includes(format)) throw new Error('Invalid candidate format.');
+    if (!['bundle', 'patch', 'manifest', 'attestation', 'trace'].includes(format)) throw new Error('Invalid candidate format.');
     const path = `/api/sessions/${identifier(id)}/candidate/download?format=${format}`;
     const cookie = await this.secrets.get(this.secretKey);
     const headers: Record<string, string> = { Accept: '*/*', Origin: this.origin, 'X-Vloer-Request': '1' };

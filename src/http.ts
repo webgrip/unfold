@@ -132,6 +132,12 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           }
           fault(405, 'method', 'Unsupported method.');
         }
+        if (method === 'GET' && path === '/api/attestations/public-key') {
+          const key = engine.signing();
+          res.writeHead(200, { 'Content-Type': 'application/x-pem-file', 'Content-Disposition': 'attachment; filename="de-vloer-attestation.pub"', 'Cache-Control': 'no-store', 'X-Key-Id': key.id });
+          res.end(key.publicPem());
+          return;
+        }
         if (method === 'GET' && path === '/api/task-sources') return json(res, 200, sanitize((config.taskSources ?? []).map(publicTaskSource)));
         const taskRoute = path.match(/^\/api\/task-sources\/([a-z0-9-]+)\/tasks(?:\/([a-zA-Z0-9_-]+))?$/);
         if (method === 'GET' && taskRoute) {
@@ -200,9 +206,10 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           if (method === 'GET' && action === 'candidate') return json(res, 200, sanitize(session.candidate ?? unavailableCandidate(['completed', 'failed', 'cancelled'].includes(session.status) ? 'unsupported_workspace' : 'not_ready')));
           if (method === 'GET' && action === 'candidate/download') {
             const format = url.searchParams.get('format');
-            if (!['bundle', 'patch', 'manifest'].includes(format ?? '')) fault(400, 'candidate_format', 'Choose bundle, patch or manifest.');
+            if (!['bundle', 'patch', 'manifest', 'attestation', 'trace'].includes(format ?? '')) fault(400, 'candidate_format', 'Choose bundle, patch, manifest, attestation or trace.');
             if (session.candidate?.status !== 'ready') fault(409, 'candidate_unavailable', 'A complete export is not available for this session.');
-            const artifact = await readCandidate(config.dataDir, id, format as 'bundle' | 'patch' | 'manifest');
+            if ((format === 'attestation' || format === 'trace') && !session.candidate.formats?.includes(format)) fault(409, 'candidate_unavailable', 'This candidate has no signed attestation.');
+            const artifact = await readCandidate(config.dataDir, id, format as 'bundle' | 'patch' | 'manifest' | 'attestation' | 'trace');
             res.writeHead(200, { 'Content-Type': artifact.contentType, 'Content-Length': artifact.content.length, 'Content-Disposition': `attachment; filename="${artifact.filename}"`, 'Cache-Control': 'no-store' });
             res.end(artifact.content);
             return;

@@ -3,6 +3,8 @@ import { Store } from './store.ts';
 import { classifyFailure, executionFailure, type FailureStage } from './failures.ts';
 import type { TaskSnapshot } from './tasks.ts';
 import { unavailableCandidate } from './candidates.ts';
+import { SigningKey, attestCandidate, candidatePredicateType, tracePredicateType } from './attestations.ts';
+import { readFileSync } from 'node:fs';
 import type { AgentRuntime, AppConfig, Credential, RuntimeKind, Session, User, PermissionRequest, ExecutionResult, RuntimeEvent, WorkspaceBackend } from './types.ts';
 
 type Broker = {
@@ -15,6 +17,8 @@ type Broker = {
 type Reservation = { reference: string; authorizedUsd: number; revoked: boolean };
 type Active = { controller: AbortController; task: Promise<void> };
 export type CreateSessionInput = { title: string; objective: string; repositoryId: string; crewId: string; runtime: RuntimeKind; placement?: WorkspaceBackend; budgetUsd: number; trackerUrl?: string; sourceTask?: TaskSnapshot };
+
+const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
 
 export class EngineError extends Error {
   status: number;
@@ -33,6 +37,7 @@ export class Engine {
   private shuttingDown = false;
   private maintenance?: ReturnType<typeof setInterval>;
   private maintenanceTask?: Promise<void>;
+  private signingKey?: SigningKey;
 
   constructor(store: Store, config: AppConfig, runtimes: Map<RuntimeKind, AgentRuntime> | Record<string, AgentRuntime>, broker?: Broker) {
     this.store = store; this.config = config; this.runtimes = runtimes instanceof Map ? runtimes : new Map(Object.entries(runtimes) as [RuntimeKind, AgentRuntime][]); this.broker = broker;
@@ -359,6 +364,13 @@ export class Engine {
           } catch { candidate = unavailableCandidate('capture_failed'); }
         }
         finished = this.store.getSession(id)!;
+        if (candidate.status === 'ready') {
+          try {
+            const key = this.signing();
+            await attestCandidate(this.config.dataDir, key, { config: this.config, session: finished, repository: this.config.repositories.find(item => item.id === finished.repositoryId)!, version: applicationVersion });
+            candidate = { ...candidate, formats: [...(candidate.formats ?? []), 'attestation', 'trace'], attestation: { keyId: key.id, predicateTypes: [candidatePredicateType, tracePredicateType] } };
+          } catch { this.store.appendEvent(id, 'candidate.attestation_failed', 'system', { message: 'The candidate was captured but could not be signed. Verify it manually before trusting its provenance.' }); }
+        }
         finished.candidate = candidate;
         this.save(finished, candidate.status === 'ready' ? 'candidate.ready' : 'candidate.unavailable', 'system', { candidate });
         if (stopped && candidate.status === 'ready') {
@@ -373,6 +385,11 @@ export class Engine {
       }
       if (credential) this.keys.delete(credential.key);
     }
+  }
+
+  signing(): SigningKey {
+    this.signingKey ??= SigningKey.load(this.config.dataDir);
+    return this.signingKey;
   }
 
   private finishRun(id: string, runId: string, actor: string, result: ExecutionResult): void {

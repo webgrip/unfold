@@ -391,7 +391,7 @@ class Workbench implements vscode.Disposable, PanelHost {
     this.assertTarget(target, generation);
     const bytes = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Downloading ${format} from De Vloer` }, () => target.downloadCandidate(id, format));
     this.assertTarget(target, generation);
-    if (format !== 'manifest' && session.candidate.sha256?.[format] && createHash('sha256').update(bytes).digest('hex') !== session.candidate.sha256[format]) throw new Error('The downloaded candidate did not match its recorded digest. No file has been saved; refresh the session before downloading again.');
+    if ((format === 'bundle' || format === 'patch') && session.candidate.sha256?.[format] && createHash('sha256').update(bytes).digest('hex') !== session.candidate.sha256[format]) throw new Error('The downloaded candidate did not match its recorded digest. No file has been saved; refresh the session before downloading again.');
     try { await writeFile(destination.fsPath, bytes, { flag: 'wx' }); }
     catch (error) { if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new Error('That file already exists. Choose a new filename to keep the existing file intact.'); throw error; }
     const next = await vscode.window.showInformationMessage(`Saved ${Math.ceil(bytes.byteLength / 1024)} KiB to ${destination.fsPath}. The candidate is ready for your separate review workflow.`, 'Reveal file');
