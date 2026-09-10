@@ -6,7 +6,8 @@ export type SessionStatus = 'queued' | 'running' | 'waiting_input' | 'exporting'
 export type RunStatus = 'queued' | 'running' | 'waiting_input' | 'completed' | 'failed' | 'cancelled' | 'paused';
 export type UserRole = 'admin' | 'operator' | 'viewer';
 export type User = { id: string; name: string; role: UserRole };
-export type Repository = { id: string; name: string; description: string; url: string; baseBranch: string; verify: string[]; trackerUrl?: string; executionOwner?: 'interactive' | 'ploeg' };
+export type RepositoryAccess = { username: string; password: string };
+export type Repository = { id: string; name: string; description: string; url: string; baseBranch: string; verify: string[]; trackerUrl?: string; executionOwner?: 'interactive' | 'ploeg'; access?: RepositoryAccess };
 export type CrewRole = { id: string; name: string; mode: 'write' | 'read'; instruction: string; model?: string };
 export type Crew = { id: string; name: string; description: string; roles: CrewRole[] };
 export type RuntimeKind = 'demo' | 'opencode' | 'command';
@@ -31,6 +32,7 @@ export type AppConfig = {
   auth: { secureCookies: boolean; sessionHours: number; bootstrapPassword?: string; bootstrapName: string };
   maxConcurrentSessions: number; maxBudgetUsd: number;
   ploeg?: { url: string; teams: string[]; trackerUrl?: string };
+  links?: { gitlab?: { baseUrl: string; clientId?: string; scopes: string[] } };
 };
 export type RuntimeEvent = { type: string; data: Record<string, unknown> };
 export type Emit = (event: RuntimeEvent) => void;

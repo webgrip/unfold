@@ -11,6 +11,7 @@ import { placements } from './config.ts';
 import type { WorkerRelay } from './runtime/relay.ts';
 import type { AgentHost } from './ahp/host.ts';
 import { protocolVersion as agentHostProtocolVersion } from './ahp/host.ts';
+import type { Links } from './links.ts';
 import { readFileSync } from 'node:fs';
 
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
@@ -62,7 +63,7 @@ function mutationGuard(req: IncomingMessage, config: AppConfig): void {
   if (req.headers['sec-fetch-site'] === 'cross-site') fault(403, 'origin', 'Cross-site requests are not allowed.');
 }
 
-export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost) {
+export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost, links?: Links) {
   const auth = new Auth(store, config);
   const streams = new Set<ServerResponse>();
   const knownSecrets = [config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword, ...(config.taskSources ?? []).map(source => source.token)].filter((value): value is string => Boolean(value));
@@ -107,6 +108,18 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         res.setHeader('Set-Cookie', auth.logout(req));
         return json(res, 200, { ok: true });
       }
+      if (method === 'GET' && path === '/api/links/gitlab/callback' && links) {
+        const denied = url.searchParams.get('error');
+        let location = '/?linked=gitlab';
+        if (denied) location = `/?link_error=${encodeURIComponent(denied.replace(/[^a-z_]/gi, '').slice(0, 40) || 'denied')}`;
+        else {
+          try { await links.complete(url.searchParams.get('code') ?? '', url.searchParams.get('state') ?? ''); }
+          catch (error: any) { location = `/?link_error=${encodeURIComponent(String(error?.code || 'link_failed').replace(/[^a-z_]/gi, '').slice(0, 40))}`; }
+        }
+        res.writeHead(303, { Location: location });
+        res.end();
+        return;
+      }
       if (path.startsWith('/api/')) {
         const user = auth.user(req);
         if (!user) return json(res, 401, { error: { code: 'unauthenticated', message: 'Sign in to your workbench.' } });
@@ -137,6 +150,11 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           res.writeHead(200, { 'Content-Type': 'application/x-pem-file', 'Content-Disposition': 'attachment; filename="de-vloer-attestation.pub"', 'Cache-Control': 'no-store', 'X-Key-Id': key.id });
           res.end(key.publicPem());
           return;
+        }
+        if (method === 'GET' && path === '/api/links') return json(res, 200, { links: links ? [links.describe(user.id)] : [] });
+        if (path === '/api/links/gitlab' && links) {
+          if (method === 'POST') return json(res, 200, { url: links.begin(user.id) });
+          if (method === 'DELETE') { await links.revoke(user.id); return json(res, 200, { ok: true }); }
         }
         if (method === 'GET' && path === '/api/task-sources') return json(res, 200, sanitize((config.taskSources ?? []).map(publicTaskSource)));
         const taskRoute = path.match(/^\/api\/task-sources\/([a-z0-9-]+)\/tasks(?:\/([a-zA-Z0-9_-]+))?$/);

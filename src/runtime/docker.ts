@@ -6,6 +6,7 @@ import { captureLocalCandidate, pinCandidateBase, unavailableCandidate, type Can
 import { RuntimeFailure, transportFailure } from '../failures.ts';
 import type { AppConfig, Credential, Repository, Session, Workspace } from '../types.ts';
 import { cloneProgram, workspaceName } from './kubernetes.ts';
+import { gitAccessVariables } from './git-access.ts';
 import { WorkerRelay, relayEndpoint } from './relay.ts';
 
 type DockerSettings = NonNullable<AppConfig['docker']>;
@@ -110,7 +111,7 @@ export function containerSpecs(config: AppConfig, session: Session, repository: 
   const environment = agentEnvironment(config, credential, basic, managed, host);
   const clone = {
     Image: settings.image, Cmd: ['node', '--input-type=module', '-e', cloneProgram], WorkingDir: containerWorkspace, Labels: { ...labels, 'dev.webgrip.de-vloer/purpose': 'clone' },
-    Env: [...environment.filter(entry => !/^(LITELLM_API_KEY|OPENCODE_SERVER_)/.test(entry)), `REPOSITORY_URL=${repository.url}`, `BASE_BRANCH=${repository.baseBranch}`, `WORK_BRANCH=${session.branch}`],
+    Env: [...environment.filter(entry => !/^(LITELLM_API_KEY|OPENCODE_SERVER_)/.test(entry) && !(repository.access && entry.startsWith('GIT_CONFIG_COUNT='))), ...Object.entries(gitAccessVariables(Object.fromEntries(environment.map(entry => [entry.slice(0, entry.indexOf('=')), entry.slice(entry.indexOf('=') + 1)])), repository)).map(([key, value]) => `${key}=${value}`), `REPOSITORY_URL=${repository.url}`, `BASE_BRANCH=${repository.baseBranch}`, `WORK_BRANCH=${session.branch}`],
     HostConfig: hardenedHostConfig(settings, root), ...(user ? { User: user } : {}),
   };
   const agent = relay ? {

@@ -55,6 +55,17 @@ Permission and question details depend on the adapter. Answer only the actual un
 
 `GET /api/ploeg` reads configured team depths from Ploeg's `/api/v1/queue/depth?team=...`. It returns configuration/reachability information and any configured tracker link. The connector does not expose a dispatch action, create tickets, assign work or modify Ploeg state.
 
+## Linked accounts
+
+| Route | Behaviour |
+| --- | --- |
+| `GET /api/links` | The signed-in person's links: provider, host, whether the workbench has an application ID, whether the person is linked, and the account name and scopes. Never a token |
+| `POST /api/links/gitlab` | Starts an OAuth authorization with PKCE and returns the GitLab URL to visit; 409 `link_unconfigured` without an application ID |
+| `GET /api/links/gitlab/callback` | GitLab's redirect target. Needs no cookie: the `state` names the person who started it, once, within ten minutes. Redirects to `/?linked=gitlab` or `/?link_error=<code>` |
+| `DELETE /api/links/gitlab` | Forgets the tokens and asks GitLab to revoke them |
+
+A link is the person's own credential. Tokens are encrypted at rest with the workbench key beside the database and refreshed server-side before use. When a session starts on a repository whose origin matches the link's GitLab host, the clone step receives the access token as a git authorization header for that origin; the agent container and its environment never do. Publication through the link is [ADR 0016](../adrs/0016-sign-in-and-link-your-own-accounts.md) work that has not started.
+
 ## Linked tasks
 
 Connections are administrator-registered `taskSources`. Forgejo, GitHub, GitLab, ClickUp and Vikunja share the same read-only API. A source maps one tracker project or list to a configured repository. Task content cannot supply a repository URL, model credential, runtime command or execution owner. All authenticated users of this pilot deployment can browse its registered sources; source-level team authorization is a later feature.

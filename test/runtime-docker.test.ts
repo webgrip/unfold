@@ -228,3 +228,20 @@ test('docker pull transport publishes no port, hands the container a relay token
   await manager.dispose(workspace).catch((error: any) => { throw new Error(`dispose: ${error.category}: ${error.detail ?? error.message}`); });
   assert.equal(relay.connected(session.id), false);
 });
+
+test('a linked repository credential reaches the clone container as a git header and never the agent container', () => {
+  const config = configuration('/data', '/nonexistent.sock');
+  const host = { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'user.name', GIT_CONFIG_VALUE_0: 'De Vloer', PATH: '/usr/bin' };
+  config.runtime.agentEnvironment = ['GIT_CONFIG_COUNT', 'GIT_CONFIG_KEY_0', 'GIT_CONFIG_VALUE_0'];
+  const linked = { ...repository, url: 'https://gitlab.example/group/project.git', access: { username: 'oauth2', password: 'link-token-never-agent' } };
+  const specs = containerSpecs(config, session, linked, '/data/workspaces/docker-session', credential, { username: 'opencode', password: 'basic-secret' }, managedConfig(config), host);
+  const header = 'Authorization: Basic ' + Buffer.from('oauth2:link-token-never-agent').toString('base64');
+  assert.ok(specs.clone.Env.includes('GIT_CONFIG_COUNT=2'));
+  assert.equal(specs.clone.Env.filter((entry: string) => entry.startsWith('GIT_CONFIG_COUNT=')).length, 1);
+  assert.ok(specs.clone.Env.includes('GIT_CONFIG_KEY_1=http.https://gitlab.example/.extraheader'));
+  assert.ok(specs.clone.Env.includes(`GIT_CONFIG_VALUE_1=${header}`));
+  assert.ok(specs.clone.Env.includes('GIT_CONFIG_VALUE_0=De Vloer'));
+  assert.equal(JSON.stringify(specs.agent).includes('link-token-never-agent'), false);
+  assert.equal(JSON.stringify(specs.agent).includes(header), false);
+  assert.ok(specs.agent.Env.includes('GIT_CONFIG_COUNT=1'));
+});

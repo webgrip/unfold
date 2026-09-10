@@ -3,6 +3,7 @@ import { createServer } from 'node:net';
 import { randomBytes } from 'node:crypto';
 import { mkdir, writeFile, access } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { gitAccessVariables } from './git-access.ts';
 import type { AppConfig, Credential, Repository, Session, Workspace, WorkspaceBackend } from '../types.ts';
 import { KubernetesWorkspaces } from './kubernetes.ts';
 import { DockerWorkspaces } from './docker.ts';
@@ -164,7 +165,7 @@ export class WorkspaceManager {
     let exists = false;
     try { await access(join(directory, '.git')); exists = true; } catch {}
     if (!exists) {
-      await runProcess('git', ['clone', '--depth', '100', '--branch', repository.baseBranch, '--', repository.url, directory], root, env, signal);
+      await runProcess('git', ['clone', '--depth', '100', '--branch', repository.baseBranch, '--', repository.url, directory], root, { ...env, ...gitAccessVariables(env, repository) }, signal);
       await runProcess('git', ['checkout', '-b', session.branch], directory, env, signal);
       await runProcess('git', ['config', 'user.name', 'De Vloer'], directory, env, signal);
       await runProcess('git', ['config', 'user.email', 'agent@localhost'], directory, env, signal);

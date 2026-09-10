@@ -6,6 +6,7 @@ const ago = value => { const minutes = Math.floor((Date.now() - Date.parse(value
 const icons = {
   grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
   layers: '<path d="m12 3 10 5-10 5L2 8l10-5ZM2 12l10 5 10-5M2 16l10 5 10-5"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>',
   activity: '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   play: '<path d="m8 5 11 7-11 7V5Z"/>',
@@ -79,7 +80,7 @@ function shell(content, title = 'Sessions', subtitle = 'Your work, running elsew
     <aside class="sidebar" aria-label="Primary navigation">
       <a class="brand" href="#sessions" aria-label="De Vloer home"><span class="brand-mark"><i></i><i></i><i></i></span><span>de vloer<span class="brand-caption">AGENT WORKBENCH</span></span></a>
       <div class="workspace-label">WORKSPACE <span>01</span></div>
-      <nav>${[['sessions','grid','Sessions'],['tasks','folder','Tasks'],['ploeg','layers','Ploeg queues'],['system','shield','Environment']].map(([id, glyph, label]) => `<a href="#${id}" aria-label="${escape(label)}" class="nav-item ${state.view === id || state.view === 'session' && id === 'sessions' ? 'active' : ''}" ${state.view === id ? 'aria-current="page"' : ''}>${icon(glyph)}<span>${label}</span>${id === 'sessions' ? `<b>${state.sessions.filter(isActive).length}</b>` : ''}</a>`).join('')}</nav>
+      <nav>${[['sessions','grid','Sessions'],['tasks','folder','Tasks'],['ploeg','layers','Ploeg queues'],['account','link','Linked accounts'],['system','shield','Environment']].map(([id, glyph, label]) => `<a href="#${id}" aria-label="${escape(label)}" class="nav-item ${state.view === id || state.view === 'session' && id === 'sessions' ? 'active' : ''}" ${state.view === id ? 'aria-current="page"' : ''}>${icon(glyph)}<span>${label}</span>${id === 'sessions' ? `<b>${state.sessions.filter(isActive).length}</b>` : ''}</a>`).join('')}</nav>
       <div class="sidebar-note"><span class="tiny-label">THE WORKING AGREEMENT</span><p>You set the direction.<br>Agents bring back evidence.</p><div class="small-rule"></div><span>Human review stays in the loop.</span></div>
       <div class="user-card"><span class="avatar">${escape(user.name.slice(0, 2).toUpperCase())}</span><div><strong>${escape(user.name)}</strong><span>${escape(user.role)}${state.bootstrap.mode === 'demo' ? ' · local demo' : ''}</span></div>${state.bootstrap.mode !== 'demo' ? `<button class="icon-button" data-action="logout" aria-label="Sign out">${icon('logout')}</button>` : ''}</div>
     </aside>
@@ -196,6 +197,14 @@ function renderSystem() {
   renderHtml(shell(content, 'Environment', 'The shared foundation behind every session.'));
 }
 
+function renderAccount() {
+  const link = (state.links || []).find(item => item.provider === 'gitlab');
+  const status = !link ? '' : !link.configured ? 'Not configured on this workbench. An administrator sets <code>links.gitlab.clientId</code> to an OAuth application ID.' : link.linked ? `Linked as <a href="${escape(link.webUrl)}" target="_blank" rel="noopener noreferrer">${escape(link.login)}</a> · ${(link.scopes || []).map(escape).join(', ')}` : 'Not linked. Private repositories on this host cannot be cloned until you link.';
+  const button = !link || !link.configured ? '' : link.linked ? `<button class="button secondary" data-action="unlink-gitlab">Unlink</button>` : `<button class="button primary" data-action="link-gitlab">Link GitLab</button>`;
+  const content = `<section class="panel"><div class="panel-heading"><div><h2>Linked accounts</h2><p>Links are yours. The workbench clones with them and never hands them to a sandbox.</p></div></div>${!link ? '<div class="empty compact"><p>Loading…</p></div>' : `<article class="profile-row">${icon('link')}<div><h3>GitLab · ${escape(link.host)}</h3><p>${status}</p></div>${button}</article>`}</section>`;
+  renderHtml(shell(content, 'Linked accounts', 'Sign in once, link what you need.'));
+}
+
 function renderPloeg() {
   const ploeg = state.ploeg;
   const content = `<section class="panel"><div class="panel-heading"><div><h2>Unattended dispatch</h2><p>Ploeg owns the queue, leases and execution of assigned tracker work.</p></div><span class="tag">READ-ONLY CONNECTION</span></div>${!ploeg ? '<div class="empty compact"><p>Checking the configured connection…</p></div>' : !ploeg.configured ? `<div class="empty"><span class="empty-icon">${icon('layers')}</span><h3>Connect your existing dispatch plane</h3><p>Configure Ploeg’s internal URL and team IDs on the server. This view then shows the actual queue depth for each team.</p><div class="connection-example"><code>ploeg.url</code><span>Internal Ploeg API</span><code>ploeg.teams</code><span>Registered team IDs</span></div></div>` : `<div class="queue-grid">${ploeg.teams.map(team => `<article><span class="tiny-label">${escape(team.team)}</span><strong>${team.available ? team.depth : '—'}</strong><p>${team.available ? 'queued work items' : escape(team.message)}</p></article>`).join('')}</div><div class="panel-bottom"><p>${escape(ploeg.message)}</p>${ploeg.trackerUrl ? `<a class="button secondary" href="${escape(ploeg.trackerUrl)}" target="_blank" rel="noopener noreferrer">Open tracker ${icon('external')}</a>` : ''}</div>`}</section>`;
@@ -281,6 +290,7 @@ function render() {
   if (!state.bootstrap) return renderLogin();
   if (state.view === 'session') return renderSession();
   if (state.view === 'ploeg') return renderPloeg();
+  if (state.view === 'account') return renderAccount();
   if (state.view === 'system') return renderSystem();
   if (state.view === 'tasks') return renderTasks();
   renderDashboard();
@@ -339,10 +349,11 @@ async function route() {
   const hash = location.hash.slice(1) || 'sessions';
   try {
     if (hash.startsWith('session/')) return await openSession(hash.slice(8));
-    disconnect(); state.session = null; state.view = ['sessions','tasks','ploeg','system'].includes(hash) ? hash : 'sessions';
+    disconnect(); state.session = null; state.view = ['sessions','tasks','ploeg','account','system'].includes(hash) ? hash : 'sessions';
     state.sessions = await api('/api/sessions'); render();
     if (state.view === 'tasks' && taskSources().length) await loadTasks(state.taskSourceId || taskSources()[0].id);
     if (state.view === 'ploeg') { state.ploeg = await api('/api/ploeg'); renderPloeg(); }
+    if (state.view === 'account') { state.links = (await api('/api/links')).links; renderAccount(); }
     if (state.view === 'system') { state.health = await api('/api/health'); renderSystem(); }
   } catch (error) { notify(error.message, true); if (state.bootstrap) { state.view = 'sessions'; renderDashboard(); } }
 }
@@ -407,6 +418,8 @@ document.addEventListener('click', async event => {
     else if (action === 'export') exportHandoff();
     else if (action === 'candidate-download') { button.disabled = true; try { await downloadCandidate(button.dataset.format); } finally { button.disabled = false; } }
     else if (action === 'download-artifact') { const artifact = state.session.artifacts.find(item => item.id === button.dataset.id); if (artifact) download(`${artifact.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.${artifact.kind === 'diff' ? 'patch' : 'txt'}`, artifact.content); }
+    else if (action === 'link-gitlab') { button.disabled = true; try { const { url } = await api('/api/links/gitlab', { method: 'POST', body: '{}' }); location.assign(url); } finally { button.disabled = false; } }
+    else if (action === 'unlink-gitlab') confirmAction('Unlink GitLab?', 'The workbench forgets the tokens and asks GitLab to revoke them. Sessions on private repositories from this host will fail to clone until you link again.', 'Unlink', async () => { await api('/api/links/gitlab', { method: 'DELETE' }); state.links = (await api('/api/links')).links; renderAccount(); });
     else if (action === 'logout') { await api('/api/logout', { method: 'POST', body: '{}' }); state.bootstrap = null; disconnect(); renderLogin(); }
     else if (action === 'permission') { button.disabled = true; await api(`/api/sessions/${state.session.id}/permissions/${button.dataset.id}`, { method: 'POST', body: JSON.stringify({ decision: button.dataset.decision }) }); notify('Your decision was delivered to the runtime.'); }
     else if (action === 'budget') {
@@ -498,7 +511,10 @@ window.addEventListener('hashchange', route);
 window.addEventListener('beforeunload', disconnect);
 
 async function boot() {
-  try { state.bootstrap = await api('/api/bootstrap'); state.sessions = await api('/api/sessions'); await route(); }
+  const params = new URLSearchParams(location.search);
+  const linkNotice = params.get('linked') ? 'GitLab is linked to your account.' : params.get('link_error') ? `Linking GitLab failed: ${params.get('link_error')}.` : '';
+  if (linkNotice) history.replaceState(null, '', `${location.pathname}#account`);
+  try { state.bootstrap = await api('/api/bootstrap'); state.sessions = await api('/api/sessions'); await route(); if (linkNotice) notify(linkNotice, Boolean(params.get('link_error'))); }
   catch (error) { if (!state.bootstrap) renderLogin(error.message.includes('Sign in') ? '' : error.message); else notify(error.message, true); }
 }
 void boot();

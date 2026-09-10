@@ -83,7 +83,7 @@ export function workspaceManifests(config: AppConfig, session: Session, reposito
   const metadata = { name, namespace: k.namespace, labels };
   const secret = {
     apiVersion: 'v1', kind: 'Secret', metadata, type: 'Opaque',
-    stringData: { LITELLM_API_KEY: credential.key, OPENCODE_SERVER_USERNAME: basic.username, OPENCODE_SERVER_PASSWORD: basic.password, 'opencode.json': JSON.stringify(managed), askpass: askpassProgram, ...(relay ? { VLOER_RELAY_TOKEN: relay.token } : {}) },
+    stringData: { LITELLM_API_KEY: credential.key, OPENCODE_SERVER_USERNAME: basic.username, OPENCODE_SERVER_PASSWORD: basic.password, 'opencode.json': JSON.stringify(managed), askpass: askpassProgram, ...(relay ? { VLOER_RELAY_TOKEN: relay.token } : {}), ...(repository.access ? { 'git-username': repository.access.username, 'git-password': repository.access.password } : {}) },
   };
   const pvc = { apiVersion: 'v1', kind: 'PersistentVolumeClaim', metadata, spec: {
     accessModes: ['ReadWriteOnce'], resources: { requests: { storage: k.storageSize } },
@@ -115,7 +115,11 @@ export function workspaceManifests(config: AppConfig, session: Session, reposito
     initContainers: [{ name: 'clone', image: k.image, imagePullPolicy: k.pullPolicy ?? 'IfNotPresent', securityContext,
       command: ['node', '--input-type=module', '-e', cloneProgram], env: [
         { name: 'REPOSITORY_URL', value: repository.url }, { name: 'BASE_BRANCH', value: repository.baseBranch }, { name: 'WORK_BRANCH', value: session.branch },
-        ...(k.gitSecretName ? [
+        ...(repository.access ? [
+          { name: 'GIT_ASKPASS', value: '/clone-auth/askpass' },
+          { name: 'GIT_USERNAME', valueFrom: valueFrom('git-username') },
+          { name: 'GIT_PASSWORD', valueFrom: valueFrom('git-password') },
+        ] : k.gitSecretName ? [
           { name: 'GIT_ASKPASS', value: '/clone-auth/askpass' },
           { name: 'GIT_USERNAME', valueFrom: { secretKeyRef: { name: k.gitSecretName, key: 'username' } } },
           { name: 'GIT_PASSWORD', valueFrom: { secretKeyRef: { name: k.gitSecretName, key: 'password' } } },

@@ -78,6 +78,12 @@ A private repository over HTTPS needs a credential the workspace can use without
 
 That token is the one credential a sandbox holds beyond its inference key, and a crew that pushes its own branch and opens the merge request is the compatibility mode [ADR 0006](../adrs/0006-trusted-verifier-and-publisher.md) describes: it cannot claim the fencing guarantee. Use a project access token scoped to the one repository with `api` and `write_repository` and a short expiry, never a shared estate token. The [model gateway capabilities](../product/model-gateway-capabilities.md) page records the path that removes the token entirely, forge tools served through the gateway's MCP surface and granted per key.
 
+## Linking GitLab
+
+Register one OAuth application per workbench in GitLab, under your user or the group that owns the repositories ([GitLab OAuth applications](https://docs.gitlab.com/integration/oauth_provider/)): redirect URI `<baseUrl>/api/links/gitlab/callback`, confidential off, scopes `read_api`, `read_repository` and `write_repository`. The application ID is not a secret. Put it in the profile as `links.gitlab.clientId`, or export `VLOER_GITLAB_CLIENT_ID`, and set `links.gitlab.baseUrl` for a self-hosted GitLab. `baseUrl` on the workbench must match what the browser uses, because it forms the redirect URI.
+
+Each person then opens Linked accounts, links GitLab, and approves the application once. From then on a session on a repository from that GitLab clones with their token, which reaches only the clone step. The person can unlink at any time, which also revokes the tokens at GitLab.
+
 ## Docker on the workbench host
 
 The `docker` backend runs the clone and the OpenCode server inside a container from the pinned agent image, through the Docker Engine socket. The workbench never invokes a shell or the Docker CLI. Build the image once from the repository and reference it by tag, or pull a digest-pinned build from the registry:

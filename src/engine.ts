@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Store } from './store.ts';
+import type { Links } from './links.ts';
 import { classifyFailure, executionFailure, type FailureStage } from './failures.ts';
 import type { TaskSnapshot } from './tasks.ts';
 import { unavailableCandidate } from './candidates.ts';
@@ -38,9 +39,10 @@ export class Engine {
   private maintenance?: ReturnType<typeof setInterval>;
   private maintenanceTask?: Promise<void>;
   private signingKey?: SigningKey;
+  private links?: Links;
 
-  constructor(store: Store, config: AppConfig, runtimes: Map<RuntimeKind, AgentRuntime> | Record<string, AgentRuntime>, broker?: Broker) {
-    this.store = store; this.config = config; this.runtimes = runtimes instanceof Map ? runtimes : new Map(Object.entries(runtimes) as [RuntimeKind, AgentRuntime][]); this.broker = broker;
+  constructor(store: Store, config: AppConfig, runtimes: Map<RuntimeKind, AgentRuntime> | Record<string, AgentRuntime>, broker?: Broker, links?: Links) {
+    this.store = store; this.config = config; this.runtimes = runtimes instanceof Map ? runtimes : new Map(Object.entries(runtimes) as [RuntimeKind, AgentRuntime][]); this.broker = broker; this.links = links;
     for (const value of [config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword, ...(config.taskSources ?? []).map(source => source.token)]) if (value) this.keys.add(value);
     if (broker) this.maintenance = setInterval(() => {
       if (this.shuttingDown || this.maintenanceTask) return;
@@ -305,8 +307,10 @@ export class Engine {
         this.store.setSecret(`budget:${id}`, [...this.reservations(id), { reference: credential.reference, authorizedUsd: credential.budgetUsd, revoked: false }]);
         signal.throwIfAborted();
       }
-      const repository = this.config.repositories.find(item => item.id === first.repositoryId)!;
+      const configured = this.config.repositories.find(item => item.id === first.repositoryId)!;
       stage = 'workspace';
+      const access = this.links ? await this.links.access(first.ownerId, configured.url) : undefined;
+      const repository = access ? { ...configured, access } : configured;
       const workspace = await runtime.prepare(first, repository, credential, signal);
       signal.throwIfAborted();
       let session = this.store.getSession(id)!;

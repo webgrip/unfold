@@ -144,6 +144,19 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   if (raw.kubernetes?.agentSecrets !== undefined && (!Array.isArray(raw.kubernetes.agentSecrets) || raw.kubernetes.agentSecrets.some((name: unknown) => typeof name !== 'string' || !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(name)))) throw new Error('kubernetes.agentSecrets must list Kubernetes Secret names');
   if (raw.ploeg && (!Array.isArray(raw.ploeg.teams) || raw.ploeg.teams.length > 50 || raw.ploeg.teams.some((team: unknown) => typeof team !== 'string' || !team || team.length > 100))) throw new Error('ploeg.teams must contain at most 50 team names');
   if (raw.ploeg?.trackerUrl) configuredUrl(raw.ploeg.trackerUrl, 'ploeg.trackerUrl');
+  let links: AppConfig['links'];
+  if (raw.links !== undefined) {
+    if (!raw.links || typeof raw.links !== 'object' || Array.isArray(raw.links)) throw new Error('links must be an object');
+    if (raw.links.gitlab !== undefined) {
+      const gitlab = raw.links.gitlab;
+      if (!gitlab || typeof gitlab !== 'object' || Array.isArray(gitlab)) throw new Error('links.gitlab must be an object');
+      const clientId = process.env.VLOER_GITLAB_CLIENT_ID || gitlab.clientId;
+      if (clientId !== undefined && (typeof clientId !== 'string' || !/^[A-Za-z0-9_-]{8,200}$/.test(clientId))) throw new Error('links.gitlab.clientId must be an OAuth application ID');
+      const scopes = gitlab.scopes ?? ['read_api', 'read_repository', 'write_repository'];
+      if (!Array.isArray(scopes) || !scopes.length || scopes.length > 10 || scopes.some((scope: unknown) => typeof scope !== 'string' || !/^[a-z_]{1,40}$/.test(scope))) throw new Error('links.gitlab.scopes must list OAuth scope names');
+      links = { gitlab: { baseUrl: configuredUrl(gitlab.baseUrl ?? 'https://gitlab.com', 'links.gitlab.baseUrl'), clientId, scopes } };
+    }
+  }
   const config: AppConfig = {
     mode, host: process.env.VLOER_HOST || raw.host || '127.0.0.1', port: number(process.env.VLOER_PORT ?? raw.port, 4080, 0, 65535, 'port'),
     dataDir, publicDir: resolve(raw.publicDir || `${root}/public`), baseUrl: baseUrl ? configuredUrl(baseUrl, 'baseUrl') : undefined,
@@ -153,6 +166,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     maxConcurrentSessions: number(raw.maxConcurrentSessions, 2, 1, 16, 'maxConcurrentSessions'), maxBudgetUsd: number(raw.maxBudgetUsd, 25, 0.01, 10000, 'maxBudgetUsd'),
     kubernetes: raw.kubernetes,
     ploeg: raw.ploeg ? { ...raw.ploeg, url: configuredUrl(raw.ploeg.url, 'ploeg.url') } : undefined,
+    links,
     litellm: litellmBase && adminKey ? { baseUrl: configuredUrl(litellmBase, 'litellm.baseUrl'), adminUrl: configuredUrl(process.env.LITELLM_ADMIN_URL || raw.litellm?.adminUrl || litellmBase.replace(/\/v1\/?$/, ''), 'litellm.adminUrl'), masterKey: adminKey, models: models.map((model: any) => model.modelId), ttl: raw.litellm?.ttl || '4h', settlementDelayMs: number(raw.litellm?.settlementDelayMs, 60000, 0, 3600000, 'litellm.settlementDelayMs') } : undefined
   };
   if (!existsSync(config.publicDir)) throw new Error('Browser application directory is missing');

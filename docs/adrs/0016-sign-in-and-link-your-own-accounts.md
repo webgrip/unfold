@@ -1,6 +1,6 @@
 # 0016 — People sign in with the estate and link their own accounts
 
-Date: 2026-09-10. Status: proposed; nothing implemented.
+Date: 2026-09-10. Status: proposed; the GitLab link and its use by the clone step (PV-083, clone half of PV-084) are implemented, the rest is not.
 
 ## Context
 
