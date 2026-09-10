@@ -1,3 +1,9 @@
+## [0.3.0-rc.10](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.9...v0.3.0-rc.10) (2026-09-10)
+
+### Added
+
+* **sessions:** a person accepts or rejects a completed session, and settlement says what it is doing ([41da098](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/41da098eb27d0625fa59955d78b4b8e062eb1533))
+
 ## [0.3.0-rc.9](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.8...v0.3.0-rc.9) (2026-09-10)
 
 ### Added
