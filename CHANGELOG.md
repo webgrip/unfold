@@ -1,3 +1,9 @@
+## [0.3.0-rc.12](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.11...v0.3.0-rc.12) (2026-09-10)
+
+### Fixed
+
+* **ui:** show sub-cent spend, keep the editor panel still while it refreshes, and name the brief check ([60e8737](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/60e8737f0b16ba9bfeff2b8dfaa5de7dbbf92a55))
+
 ## [0.3.0-rc.11](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.10...v0.3.0-rc.11) (2026-09-10)
 
 ### Fixed
