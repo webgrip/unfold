@@ -1,4 +1,4 @@
-import type { Bootstrap, Session, SessionEvent, SessionInput, Permission, Decision, TaskSource, TaskSnapshot, TaskPage, TaskImportInput, CandidateFormat } from './types.js';
+import type { AccountLink, Approval, Bootstrap, Session, SessionEvent, SessionInput, Permission, Decision, TaskSource, TaskSnapshot, TaskPage, TaskImportInput, CandidateFormat } from './types.js';
 
 export type StreamHandlers = { onOpen?: () => void; onEvent: (event: SessionEvent) => void };
 
@@ -96,6 +96,20 @@ export class VloerClient {
   respond(id: string, requestId: string, answer: Decision): Promise<Session> {
     return this.request(`/api/sessions/${identifier(id)}/permissions/${identifier(requestId)}`, 'POST', answer);
   }
+  setApproval(id: string, approval: Approval): Promise<Session> {
+    if (approval !== 'manual' && approval !== 'auto') throw new Error('Approval is manual or auto.');
+    return this.request(`/api/sessions/${identifier(id)}/approval`, 'POST', { approval });
+  }
+  async links(): Promise<AccountLink[]> {
+    const result = await this.request<{ links?: AccountLink[] }>('/api/links');
+    return Array.isArray(result?.links) ? result.links : [];
+  }
+  async linkGitlab(): Promise<string> {
+    const result = await this.request<{ url?: string }>('/api/links/gitlab', 'POST', {});
+    if (typeof result?.url !== 'string' || !/^https?:\/\//.test(result.url)) throw new ApiError(0, 'invalid_response', 'The workbench did not return a GitLab authorization URL.');
+    return result.url;
+  }
+  async unlinkGitlab(): Promise<void> { await this.request('/api/links/gitlab', 'DELETE'); }
   budget(id: string, amountUsd: number): Promise<Session> {
     if (!Number.isFinite(amountUsd) || amountUsd <= 0) throw new Error('Additional budget must be a positive amount.');
     return this.request(`/api/sessions/${identifier(id)}/budget`, 'POST', { amountUsd });

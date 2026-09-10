@@ -1,12 +1,16 @@
 export type User = { id: string; name: string; role: 'admin' | 'operator' | 'viewer' };
 export type SessionStatus = 'queued' | 'running' | 'exporting' | 'waiting_input' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
 export type RunStatus = 'queued' | 'running' | 'waiting_input' | 'completed' | 'failed' | 'cancelled' | 'paused';
-export type Artifact = { id: string; name: string; kind: 'diff' | 'test' | 'summary' | 'link'; content: string; url?: string };
+export type ArtifactKind = 'diff' | 'test' | 'summary' | 'link' | 'transcript';
+export type Artifact = { id: string; name: string; kind: ArtifactKind; content: string; url?: string };
 export type ExecutionFailure = { category: string; stage: string; message: string; remediation: string; promptAcceptance: 'not_submitted' | 'rejected' | 'accepted' | 'unknown'; automaticRetry: false; detail?: string };
-export type Run = { id: string; roleName: string; mode: string; status: RunStatus | string; startedAt?: string; finishedAt?: string; summary?: string; verdict?: 'approve' | 'request_changes' | 'inconclusive' | string; costUsd?: number };
+export type Run = { id: string; roleName: string; mode: string; status: RunStatus | string; startedAt?: string; finishedAt?: string; summary?: string; verdict?: 'approve' | 'request_changes' | 'inconclusive' | string; costUsd?: number; roleId?: string; promptSha?: string };
+export type Approval = 'manual' | 'auto';
+export type GatewayRequest = { id: string; at: string; durationMs?: number; firstTokenMs?: number; provider?: string; host?: string; geo?: string; model: string; group?: string; tier?: string; cause?: string; savingsUsd?: number; retries: number; fallbacks: number; guardrails: string[]; cacheHit: boolean; cachedTokens: number; inputTokens: number; outputTokens: number; usd: number; status: 'success' | 'failure'; error?: string; callId?: string; harness?: string; roleId?: string; violation?: string };
+export type ModelUsage = { model: string; group?: string; requests: number; failures: number; usd: number; inputTokens: number; outputTokens: number };
 export type Session = {
-  id: string; title: string; objective: string; repositoryId: string; crewId: string; runtime: string; placement?: string;
-  ownerId: string; ownerName: string; status: SessionStatus; budgetUsd: number; spentUsd: number;
+  id: string; title: string; objective: string; repositoryId: string; crewId: string; runtime: string; placement?: string; approval?: Approval; model?: string;
+  ownerId: string; ownerName: string; status: SessionStatus; budgetUsd: number; spentUsd: number; observedUsd?: number; usage?: ModelUsage[]; requests?: GatewayRequest[];
   costStatus: 'demo' | 'pending' | 'settled' | 'unknown'; createdAt: string; updatedAt: string; branch: string; blocker?: string;
   trackerUrl?: string;
   failure?: ExecutionFailure;
@@ -15,8 +19,10 @@ export type Session = {
   runs: Run[];
   artifacts: Artifact[];
 };
+export type GatewayPolicy = { providers?: string[]; regions?: string[] };
 export type Bootstrap = {
   user: User; mode: 'demo' | 'live'; maxBudgetUsd: number; maxConcurrentSessions: number;
+  gateway?: string; gatewayPolicy?: GatewayPolicy | null;
   repositories: { id: string; name: string; description: string; baseBranch: string; trackerUrl?: string; executionOwner?: 'interactive' | 'ploeg' }[];
   crews: { id: string; name: string; description: string; roles: { name: string; mode: string }[] }[];
   models: { id: string; name: string }[];
@@ -25,13 +31,19 @@ export type Bootstrap = {
   taskSources?: TaskSource[];
 };
 export type Placement = { id: string; name: string; isolation: 'working-directory' | 'container' | 'pod'; default: boolean };
-export type SessionInput = { title: string; objective: string; repositoryId: string; crewId: string; runtime: string; placement?: string; budgetUsd: number };
+export type SessionInput = { title: string; objective: string; repositoryId: string; crewId: string; runtime: string; placement?: string; approval?: Approval; budgetUsd: number };
 export type SessionEvent = { id: number; sessionId: string; type: string; at: string; actor: string; runId?: string; data: Record<string, unknown> };
+export type ToolEventData = { partId?: string; name?: string; tool?: string; title?: string; input?: unknown; output?: string; error?: string; status?: string; durationMs?: number; exitCode?: number; expectedFailure?: boolean; text?: string };
+export type RunStartedData = { role: string; mode: 'write' | 'read'; reviewer: boolean; model: { id: string; modelId: string; providerId: string } | null; prompt: { objective: string; instruction: string; notes: string | null; earlier: string | null; evidence: string | null; guidance: string }; promptSha?: string };
+export type RunFinishedData = { summary?: string; verdict?: 'approve' | 'request_changes' | 'inconclusive'; status: RunStatus };
+export type BudgetObservedData = { observedUsd: number; budgetUsd: number; usage?: ModelUsage[]; requests?: number };
+export type PolicyViolatedData = { message: string; request: { id: string; model: string; provider: string | null; geo: string | null; violation: string } };
+export type ApprovalChangedData = { approval: Approval };
 export type Question = { question: string; header?: string; options?: { label: string; description?: string }[]; multiple?: boolean; custom?: boolean };
 export type Permission = { id: string; kind: 'permission' | 'question'; title: string; detail: string; options?: string[]; questions?: Question[]; resolved?: boolean; runId?: string };
 export type Decision = { decision?: 'once' | 'always' | 'reject'; answers?: string[][] };
 export type Freshness = { transport: 'live' | 'polling' | 'offline'; observedAt: string };
-export type SessionDetail = { session: Session; events: SessionEvent[]; permissions: Permission[]; user: User; mode: 'demo' | 'live'; origin: string; freshness: Freshness };
+export type SessionDetail = { session: Session; events: SessionEvent[]; permissions: Permission[]; user: User; mode: 'demo' | 'live'; origin: string; freshness: Freshness; gateway?: string };
 
 export type TaskProvider = 'demo' | 'forgejo' | 'github' | 'gitlab' | 'clickup' | 'vikunja';
 export type TaskSource = { id: string; name: string; provider: TaskProvider; repositoryId: string; executionOwner: 'interactive' | 'ploeg' };
@@ -40,3 +52,5 @@ export type TaskPage = { tasks: TaskSnapshot[]; nextPage?: number };
 export type TaskImportInput = { sourceId: string; taskId: string; revision: string; crewId: string; runtime: string; placement?: string; budgetUsd: number };
 export type Candidate = { status: 'ready' | 'unavailable'; reason?: string; message?: string; createdAt?: string; baseSha?: string; snapshotBaseSha?: string; headSha?: string; treeSha?: string; fileCount?: number; bytes?: number; sha256?: { bundle: string; patch: string }; formats?: CandidateFormat[] };
 export type CandidateFormat = 'bundle' | 'patch' | 'manifest' | 'attestation' | 'trace';
+export type LinkProvider = 'gitlab';
+export type AccountLink = { provider: LinkProvider | string; host: string; configured: boolean; linked: boolean; login?: string; webUrl?: string; scopes?: string[]; linkedAt?: string; expiresAt?: string };

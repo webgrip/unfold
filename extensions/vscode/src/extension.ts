@@ -7,13 +7,15 @@ import { ApiError, VloerClient, normalizeServerUrl } from './client.js';
 import { EvidenceDocuments, patchFileLine } from './evidence.js';
 import { AttentionWatcher, show, type NotificationPolicy } from './notifications.js';
 import { SessionPanels, type PanelHost, type PanelTab, type InstructionOutcome } from './panel.js';
-import { presentation, situation, safeHttpsUrl, spendLabel } from './status.js';
+import { presentation, situation, safeHttpsUrl, spendLabel, isolatedPlacement } from './status.js';
+import { setApproval as chooseApproval, type ApprovalChoice } from './approval.js';
+import { linkedAccounts, type AccountChoice } from './accounts.js';
 import { SessionTree, TaskTree, type SessionEntry, type TaskEntry } from './tree.js';
 import * as wizard from './wizard.js';
-import type { Bootstrap, Session, TaskSnapshot, TaskSource, CandidateFormat, Decision, Permission } from './types.js';
+import type { Approval, Bootstrap, Session, TaskSnapshot, TaskSource, CandidateFormat, Decision, Permission } from './types.js';
 
 type SessionRef = string | SessionEntry | undefined;
-type Draft = { repositoryId?: string; crewId?: string; runtime?: string; placement?: string; title?: string; objective?: string; budgetUsd?: number };
+type Draft = { repositoryId?: string; crewId?: string; runtime?: string; placement?: string; approval?: Approval; title?: string; objective?: string; budgetUsd?: number };
 
 function settings() { return vscode.workspace.getConfiguration('vloer'); }
 
@@ -92,6 +94,8 @@ class Workbench implements vscode.Disposable, PanelHost {
     register('copyLink', value => this.copyLinkCommand(value));
     register('openTracker', value => this.trackerCommand(value));
     register('addBudget', value => this.addBudget(value));
+    register('setApproval', value => this.setApprovalCommand(value));
+    register('linkedAccounts', () => this.linkedAccounts());
     for (const action of ['start', 'pause', 'resume', 'cancel'] as const) register(action, value => this.lifecycleCommand(action, value));
     this.timer = this.poll();
     void this.refresh();
@@ -236,7 +240,7 @@ class Workbench implements vscode.Disposable, PanelHost {
     if (id) await this.open(id);
   }
 
-  private async engagement(bootstrap: Bootstrap, key: string, fixed: { repositoryId?: string; title?: string; objective?: string }, label: string): Promise<Draft | undefined> {
+  private async engagement(bootstrap: Bootstrap, key: string, fixed: { repositoryId?: string; title?: string; objective?: string }, label: string, offerApproval = false): Promise<Draft | undefined> {
     const demo = bootstrap.mode === 'demo';
     const draft = { ...(this.drafts.get(key) ?? {}), ...fixed };
     const steps: wizard.Step<Draft>[] = [];
@@ -245,6 +249,11 @@ class Workbench implements vscode.Disposable, PanelHost {
     steps.push((state, position) => wizard.pick({ ...position, title: `${label} · Runtime`, placeholder: 'Choose the remote execution runtime', selected: state.runtime, items: bootstrap.runtimes.filter(runtime => runtime.available).map(runtime => ({ label: runtime.name, description: runtime.id === 'demo' ? 'Deterministic fixture, no model calls' : 'Runs on the workbench server', value: runtime.id })) }).then(value => value === wizard.back || value === undefined ? value : { runtime: value }));
     const placements = bootstrap.placements ?? [];
     if (placements.length > 1) steps.push((state, position) => wizard.pick({ ...position, title: `${label} · Workspace placement`, placeholder: 'Choose where the agent workspace runs', selected: state.placement ?? placements.find(placement => placement.default)?.id, items: placements.map(placement => ({ label: placement.name, description: placement.isolation === 'pod' ? 'Isolated pod, cluster policy applies' : placement.isolation === 'container' ? 'Sandboxed container on the workbench host' : 'Shares the workbench server user; trusted development only', value: placement.id })) }).then(value => value === wizard.back || value === undefined ? value : { placement: value }));
+    const effectivePlacement = (state: Draft) => state.placement ?? placements.find(placement => placement.default)?.id;
+    if (offerApproval) steps.push({ applies: state => isolatedPlacement(effectivePlacement(state)), run: (state, position) => wizard.pick<Approval>({ ...position, title: `${label} · Tool approval`, placeholder: 'Approve tool use automatically?', selected: state.approval ?? 'manual', items: [
+      { label: '$(bell-dot) Ask me before each tool', description: 'manual', detail: 'Every read, search and shell command waits for your decision.', value: 'manual' },
+      { label: '$(shield) Approve tool use automatically', description: 'auto', detail: `The ${effectivePlacement(state)} workspace is the boundary. Questions from the crew still wait for you.`, value: 'auto' },
+    ] }).then(value => value === wizard.back || value === undefined ? value : { approval: value }) });
     if (!fixed.title) steps.push((state, position) => wizard.input({ ...position, title: `${label} · Title`, prompt: 'A concise outcome, up to 160 characters', value: state.title ?? (demo ? 'Correct order rounding' : ''), validate: text => text.trim() && text.length <= 160 ? undefined : 'Use a title between 1 and 160 characters.' }).then(value => value === wizard.back || value === undefined ? value : { title: value.trim() }));
     if (!fixed.objective) steps.push((state, position) => wizard.input({ ...position, title: `${label} · Objective`, prompt: demo ? 'Demo runs the fixed rounding fixture with real checks, without model calls.' : 'What should the crew change, verify and return for review?', value: state.objective ?? (demo ? 'Fix the rounding regression and provide the real test result and an independent review.' : ''), validate: text => text.trim() && text.length <= 16000 ? undefined : 'Use an objective between 1 and 16,000 characters.' }).then(value => value === wizard.back || value === undefined ? value : { objective: value.trim() }));
     steps.push(async (state, position) => {
@@ -276,13 +285,15 @@ class Workbench implements vscode.Disposable, PanelHost {
     const generation = this.generation;
     const bootstrap = await this.bootstrap();
     if (bootstrap.user.role === 'viewer') throw new Error('Your viewer account can inspect sessions. An operator account is required to create work.');
-    const draft = await this.engagement(bootstrap, 'create', {}, 'New remote session');
+    const draft = await this.engagement(bootstrap, 'create', {}, 'New remote session', true);
     if (!draft) return;
     const repository = bootstrap.repositories.find(repo => repo.id === draft.repositoryId);
-    const confirm = await vscode.window.showInformationMessage('Create this remote session?', { modal: true, detail: `${draft.title}\n${repository?.name ?? draft.repositoryId} · ${bootstrap.crews.find(crew => crew.id === draft.crewId)?.name} · ${draft.runtime}${draft.placement ? ` · ${draft.placement}` : ''}\n${new URL(target.origin).host}\n$${draft.budgetUsd!.toFixed(2)} authorized\nThe crew starts only when you choose Start remote crew.` }, 'Create session');
+    const placement = draft.placement ?? bootstrap.placements?.find(item => item.default)?.id;
+    const automatic = draft.approval === 'auto' && isolatedPlacement(placement);
+    const confirm = await vscode.window.showInformationMessage('Create this remote session?', { modal: true, detail: `${draft.title}\n${repository?.name ?? draft.repositoryId} · ${bootstrap.crews.find(crew => crew.id === draft.crewId)?.name} · ${draft.runtime}${draft.placement ? ` · ${draft.placement}` : ''}\n${new URL(target.origin).host}\n$${draft.budgetUsd!.toFixed(2)} authorized\n${automatic ? 'Tool use is approved automatically inside the sandbox; questions still reach you.' : 'Every tool use asks you first.'}\nThe crew starts only when you choose Start remote crew.` }, 'Create session');
     if (confirm !== 'Create session') return;
     this.assertTarget(target, generation);
-    const session = await target.create({ title: draft.title!, objective: draft.objective!, repositoryId: draft.repositoryId!, crewId: draft.crewId!, runtime: draft.runtime!, ...(draft.placement ? { placement: draft.placement } : {}), budgetUsd: draft.budgetUsd! });
+    const session = await target.create({ title: draft.title!, objective: draft.objective!, repositoryId: draft.repositoryId!, crewId: draft.crewId!, runtime: draft.runtime!, ...(draft.placement ? { placement: draft.placement } : {}), ...(automatic ? { approval: 'auto' as const } : {}), budgetUsd: draft.budgetUsd! });
     this.drafts.delete('create');
     await this.refresh();
     await this.open(session.id);
@@ -487,6 +498,45 @@ class Workbench implements vscode.Disposable, PanelHost {
     const amount = await vscode.window.showInputBox({ title: 'Authorize additional budget', prompt: `Current authorization $${session.budgetUsd.toFixed(2)}; add at most $${remaining.toFixed(2)}.`, ignoreFocusOut: true, validateInput: text => Number.isFinite(Number(text)) && Number(text) > 0 && Number(text) <= remaining ? undefined : `Enter an amount above 0 and at most ${remaining.toFixed(2)}.` });
     if (!amount) return;
     await this.budget(id, Number(amount));
+  }
+
+  private async setApprovalCommand(value: SessionRef): Promise<void> {
+    const id = await this.choose(value, 'Set tool approval for which session?');
+    if (!id) return;
+    const target = this.current; const generation = this.generation;
+    const session = await target.session(id);
+    this.assertTarget(target, generation);
+    const ui = {
+      pick: async (choices: ApprovalChoice[], current: Approval | undefined) => (await vscode.window.showQuickPick(choices.map(choice => ({ ...choice, picked: choice.value === (current ?? 'manual') })), { title: `Tool approval · ${session.title}`, placeHolder: `Currently ${current === 'auto' ? 'approving automatically' : 'asking before each tool'}`, ignoreFocusOut: true }))?.value,
+      info: (message: string) => { void vscode.window.showInformationMessage(message); },
+    };
+    const changed = await chooseApproval({ setApproval: (sessionId, approval) => { this.assertTarget(target, generation); return target.setApproval(sessionId, approval); } }, ui, session);
+    if (changed) { await this.refresh(); await this.panels.get(id)?.refresh(); }
+  }
+
+  async setApproval(id: string, approval: Approval): Promise<void> {
+    const target = this.current; const generation = this.generation;
+    this.assertTarget(target, generation);
+    const updated = await target.setApproval(id, approval);
+    void vscode.window.showInformationMessage(updated.approval === 'auto' ? 'The crew now works without asking for each tool.' : 'The crew asks you again before each tool.');
+    await this.refresh();
+    await this.panels.get(id)?.refresh();
+  }
+
+  async linkedAccounts(): Promise<void> {
+    const target = this.current; const generation = this.generation;
+    await this.bootstrap();
+    const ui = {
+      pick: async (choices: AccountChoice[], title: string) => (await vscode.window.showQuickPick(choices, { title, placeHolder: new URL(target.origin).host, ignoreFocusOut: true }))?.action,
+      confirm: async (message: string, detail: string, action: string) => (await vscode.window.showWarningMessage(message, { modal: true, detail }, action)) === action,
+      open: async (url: string) => { await vscode.env.openExternal(vscode.Uri.parse(url)); },
+      info: (message: string) => { void vscode.window.showInformationMessage(message); },
+    };
+    await linkedAccounts({
+      links: () => { this.assertTarget(target, generation); return target.links(); },
+      linkGitlab: () => { this.assertTarget(target, generation); return target.linkGitlab(); },
+      unlinkGitlab: () => { this.assertTarget(target, generation); return target.unlinkGitlab(); },
+    }, ui);
   }
 
   async budget(id: string, amountUsd: number): Promise<void> {

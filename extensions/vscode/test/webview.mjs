@@ -98,11 +98,22 @@ try {
   assert(await page.locator('#stream .message').count() >= 1);
   await page.getByRole('button', { name: 'All', exact: true }).click();
   assert.equal(await page.locator('#stream > *').count(), allEvents);
-  await page.locator('#stream details summary').first().click();
-  assert(await page.locator('#stream details[open] pre').count() >= 1, 'tool output folds open inline');
+  await page.locator('#stream .tool details summary').first().click();
+  assert(await page.locator('#stream .tool details[open] pre').count() >= 1, 'tool output folds open inline');
+  assert(await page.locator('#stream .brief-event').count() >= 1, 'each run.started event renders a brief card');
+  await page.locator('#stream .brief-event summary').first().click();
+  await page.locator('#stream .brief-event details[open] .markdown').first().waitFor();
+  assert.equal(await page.locator('#stream .brief-event details[open] .eyebrow', { hasText: 'OBJECTIVE' }).count(), 1, 'the brief lists the objective the role received');
+  assert.equal(await page.locator('#stream .system-text', { hasText: 'Reviewer finished · Explicitly approved' }).count(), 1, 'run.finished shows the role and verdict');
   await page.getByRole('button', { name: 'Open complete history' }).click();
   assert.equal((await lastMessage()).type, 'history');
   await shot('session-activity.png');
+
+  await page.getByRole('tab', { name: /^Gateway/ }).click();
+  await page.getByText('No gateway requests recorded yet', { exact: true }).waitFor();
+  await page.getByText('The demonstration runtime does not call a model gateway.', { exact: true }).waitFor();
+  assert.equal(await page.locator('.approval-card').count(), 0, 'the demo placement offers no approval switch');
+  await page.getByRole('tab', { name: 'Activity' }).click();
 
   detail.session.status = 'waiting_input';
   detail.session.runs[1].status = 'waiting_input';

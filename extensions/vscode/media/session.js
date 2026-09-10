@@ -1,7 +1,7 @@
 const bridge = acquireVsCodeApi();
 const saved = bridge.getState() || {};
 const sessionId = document.body.dataset.sessionId || saved.sessionId || '';
-const tabs = ['brief', 'changes', 'checks', 'activity'];
+const tabs = ['brief', 'changes', 'checks', 'activity', 'gateway'];
 let detail;
 let tab = tabs.includes(saved.tab) ? saved.tab : 'brief';
 let draft = saved.draft || '';
@@ -30,7 +30,7 @@ function element(tag, attributes = {}, ...children) {
     else if (name === 'value') node.value = value;
     else node.setAttribute(name, String(value));
   }
-  for (const child of children.flat()) if (child !== undefined && child !== null && child !== false) node.append(typeof child === 'string' ? document.createTextNode(child) : child);
+  for (const child of children.flat(Infinity)) if (child !== undefined && child !== null && child !== false) node.append(typeof child === 'string' ? document.createTextNode(child) : child);
   return node;
 }
 
@@ -50,14 +50,22 @@ const submissionText = { not_submitted: 'The prompt was not submitted.', rejecte
 const statusNames = { queued: 'Ready to start', running: 'Running remotely', exporting: 'Preparing review', waiting_input: 'Needs your decision', paused: 'Paused', interrupted: 'Interrupted', completed: 'Ready for human review', failed: 'Needs attention', cancelled: 'Cancelled' };
 
 function activeRole(session) { return session.runs.find(run => ['running', 'waiting_input', 'paused'].includes(run.status))?.roleName; }
+function isReviewer(session, run) { return run.mode === 'read' && session.runs[session.runs.length - 1]?.id === run.id; }
+function runLabel(session, run) { return run.mode === 'write' ? 'implementation' : isReviewer(session, run) ? 'independent review' : 'analysis'; }
+function reviewers(session) { return session.runs.filter(run => isReviewer(session, run)); }
+function verdictLabel(verdict) { return verdict === 'approve' ? 'Explicitly approved' : verdict === 'request_changes' ? 'Changes requested' : verdict === 'inconclusive' ? 'Inconclusive' : ''; }
+function failureStage(failure) { return !failure ? 'Execution' : failure.category === 'policy_violation' ? 'Gateway policy' : stageNames[failure.stage] ?? 'Execution'; }
+function isolatedPlacement(placement) { return placement === 'docker' || placement === 'kubernetes'; }
+function finished(session) { return ['completed', 'failed', 'cancelled'].includes(session.status); }
+function observedSpend(session) { return !finished(session) && typeof session.observedUsd === 'number' && session.observedUsd > session.spentUsd ? session.observedUsd : undefined; }
 
 function situation(session) {
   const role = activeRole(session);
-  const reviewers = session.runs.filter(run => run.mode === 'read');
-  const rejected = reviewers.find(run => run.verdict === 'request_changes');
+  const reviewing = reviewers(session);
+  const rejected = reviewing.find(run => run.verdict === 'request_changes');
   switch (session.status) {
     case 'waiting_input': return [`${role ?? 'The crew'} is waiting for your decision.`, 'Answer the pending request below; nothing continues until you do.'];
-    case 'failed': return session.failure ? [`${stageNames[session.failure.stage] ?? 'Execution'} failed: ${session.failure.message}`, session.failure.remediation]
+    case 'failed': return session.failure ? [`${failureStage(session.failure)} failed: ${session.failure.message}`, session.failure.remediation]
       : rejected ? [`${rejected.roleName} requested changes.`, 'Read the review findings, then send a revised instruction and resume, or cancel.']
       : [session.blocker || 'Execution stopped without approval.', 'Inspect the activity and checks, then decide whether to resume with new instructions.'];
     case 'interrupted': return ['Execution was interrupted; no replacement run started.', 'Inspect retained evidence and spend, then resume deliberately.'];
@@ -65,7 +73,7 @@ function situation(session) {
     case 'running': return [`${role ?? 'The crew'} is working in the remote workspace.`, 'You can keep editing. Pause to steer, or wait for the next decision.'];
     case 'exporting': return ['Capturing the repository state for review.', 'The candidate download appears when the snapshot is complete.'];
     case 'queued': return ['Authorized and ready; nothing has run yet.', 'Start the remote crew when the brief is right.'];
-    case 'completed': return [`Required reviewers approved (${reviewers.filter(run => run.verdict === 'approve').length} of ${reviewers.length}).`, 'Machine review is done. Human review and your repository checks are still required.'];
+    case 'completed': return [`Required reviewers approved (${reviewing.filter(run => run.verdict === 'approve').length} of ${reviewing.length}).`, 'Machine review is done. Human review and your repository checks are still required.'];
     case 'cancelled': return ['Cancelled by an operator.', 'Evidence stays available. Create a new session to try again.'];
     default: return [readable(session.status), ''];
   }
@@ -253,7 +261,7 @@ function crewStrip(session) {
     const item = element('li', { className: `run run-${run.status}${run.verdict ? ` verdict-${run.verdict}` : ''}`, id: `run-${run.id}` },
       element('div', { className: 'run-number', 'aria-hidden': 'true' }, run.status === 'completed' && run.verdict !== 'request_changes' ? '✓' : attention ? '!' : String(index + 1)),
       element('div', { className: 'run-content' },
-        element('div', { className: 'run-heading' }, element('h3', {}, run.roleName), element('span', { className: 'run-meta' }, run.mode === 'write' ? 'Implementation' : 'Independent review', elapsed ? ` · ${elapsed}` : '', run.costUsd ? ` · ${currency(run.costUsd)}` : '')),
+        element('div', { className: 'run-heading' }, element('h3', {}, run.roleName), element('span', { className: 'run-meta' }, runLabel(session, run).replace(/^./, first => first.toUpperCase()), elapsed ? ` · ${elapsed}` : '', run.costUsd ? ` · ${currency(run.costUsd)}` : '')),
         element('p', { className: `run-state state-${run.status}` }, stateText),
         run.summary ? element('details', { className: 'run-summary', open, 'data-run': run.id }, element('summary', {}, open ? 'Hide findings' : 'Read findings'), markdown(run.summary)) : null));
     return item;
@@ -273,17 +281,26 @@ function candidateCard(session) {
     ] : [element('p', { className: 'preserve' }, candidate.message || candidate.reason || 'The server could not retain a complete candidate. Review the session history before proceeding.')]));
 }
 
+function transcriptSection(artifact) {
+  return element('details', { className: 'transcript card', 'data-transcript': artifact.id },
+    element('summary', {}, element('strong', {}, artifact.name), element('span', { className: 'muted' }, ' · transcript · ', `${String(artifact.content || '').length.toLocaleString()} characters`)),
+    markdown(artifact.content),
+    element('div', { className: 'toolbar' }, action('Open as document', 'artifact', { className: 'quiet', 'data-id': artifact.id })));
+}
+
 function briefTab(session) {
   const handoff = session.artifacts.filter(artifact => ['summary', 'link'].includes(artifact.kind));
+  const transcripts = session.artifacts.filter(artifact => artifact.kind === 'transcript');
   return element('div', { className: 'brief' },
     element('section', { className: 'objective' }, element('h2', {}, 'The brief'), markdown(session.objective)),
     ...(session.sourceTask ? [element('section', { className: 'card source-task' }, element('div', { className: 'section-heading' }, element('h2', {}, 'Imported task'), element('span', {}, `${session.sourceTask.provider} #${session.sourceTask.id} · ${session.sourceTask.status}`)), element('p', { className: 'preserve' }, session.sourceTask.title), element('div', { className: 'toolbar' }, action('Open imported snapshot', 'source-task', { disabled: !connected }), safeHttps(session.sourceTask.url) ? action('Open in tracker ↗', 'tracker') : null), element('p', { className: 'footnote' }, `Pinned source revision ${session.sourceTask.revision.slice(0, 12)}. Tracker assignment and status stay in the task system.`))] : []),
     candidateCard(session),
-    ...(handoff.length ? [element('section', {}, element('div', { className: 'section-heading' }, element('h2', {}, 'Handoff'), element('span', {}, 'Retained summaries and links')), element('div', { className: 'evidence-list' }, ...handoff.map(artifact => evidenceButton(artifact))))] : []));
+    ...(handoff.length ? [element('section', {}, element('div', { className: 'section-heading' }, element('h2', {}, 'Handoff'), element('span', {}, 'Retained summaries and links')), element('div', { className: 'evidence-list' }, ...handoff.map(artifact => evidenceButton(artifact))))] : []),
+    ...(transcripts.length ? [element('section', { className: 'transcripts' }, element('div', { className: 'section-heading' }, element('h2', {}, 'Transcripts'), element('span', {}, 'What each role said, as recorded by the workbench')), ...transcripts.map(transcriptSection))] : []));
 }
 
 function evidenceButton(artifact, extra) {
-  const glyph = artifact.kind === 'diff' ? '±' : artifact.kind === 'test' ? '✓' : artifact.kind === 'link' ? '↗' : '≡';
+  const glyph = artifact.kind === 'diff' ? '±' : artifact.kind === 'test' ? '✓' : artifact.kind === 'link' ? '↗' : artifact.kind === 'transcript' ? '❝' : '≡';
   const button = action('', 'artifact', { className: 'artifact', 'data-id': artifact.id, 'aria-label': `Open ${artifact.kind}: ${artifact.name}` });
   button.append(element('span', { className: `artifact-type type-${artifact.kind}` }, glyph), element('span', { className: 'artifact-label' }, element('strong', {}, artifact.name), element('span', {}, extra || `${readable(artifact.kind)} · opens as a read-only document`)), element('span', { 'aria-hidden': 'true' }, '↗'));
   return button;
@@ -324,8 +341,14 @@ function visibleEvents(events) {
   const parts = new Map();
   for (const event of events) {
     if (hiddenEvents.has(event.type)) continue;
-    const key = event.type === 'message' && event.data?.partId ? `${event.runId}:${event.data.partId}` : null;
-    if (key && parts.has(key)) { parts.get(key).data.text = `${parts.get(key).data.text || ''}${event.data.text || ''}`; parts.get(key).at = event.at; continue; }
+    const key = event.type === 'message' && event.data?.partId ? `${event.runId}:${event.data.partId}` : event.type === 'tool' && event.data?.partId ? `${event.runId}:tool:${event.data.partId}` : null;
+    if (key && parts.has(key)) {
+      const current = parts.get(key);
+      if (event.type === 'tool') Object.assign(current.data, event.data || {});
+      else current.data.text = `${current.data.text || ''}${event.data.text || ''}`;
+      current.at = event.at;
+      continue;
+    }
     const item = { ...event, data: { ...(event.data || {}) } };
     if (key) parts.set(key, item);
     visible.push(item);
@@ -339,8 +362,13 @@ function eventCategory(event) {
   return 'workbench';
 }
 
-function systemText(event) {
+function systemText(event, session) {
   const data = event.data;
+  const role = (session && roleFor(session, event.runId)) || data.role || 'Role';
+  if (event.type === 'run.finished') return `${role} finished${data.verdict ? ` · ${verdictLabel(data.verdict)}` : data.status && data.status !== 'completed' ? ` · ${readable(data.status)}` : ''}`;
+  if (event.type === 'budget.observed') return `Observed at the gateway: ${currency(data.observedUsd)} of ${currency(data.budgetUsd)}${typeof data.requests === 'number' ? ` · ${data.requests} request${data.requests === 1 ? '' : 's'}` : ''}`;
+  if (event.type === 'approval.changed') return data.approval === 'auto' ? 'Tool use is now approved automatically inside the sandbox' : 'Tool use asks you again';
+  if (event.type === 'policy.violated') return `Gateway policy: ${typeof data.message === 'string' ? data.message : `${data.request?.model || 'a model request'} answered by ${data.request?.violation || 'a provider outside policy'}`}`;
   if (typeof data.message === 'string') return data.message;
   if (typeof data.summary === 'string') return data.summary;
   switch (event.type) {
@@ -350,8 +378,7 @@ function systemText(event) {
     case 'session.failed': return data.failure?.message ? `Failed: ${data.failure.message}` : 'Session failed';
     case 'session.interrupted': return 'Execution interrupted; no replacement run started.';
     case 'workspace.ready': return `Workspace ready${data.backend ? ` · ${data.backend}` : ''}`;
-    case 'run.started': return `${data.role || 'Role'} started`;
-    case 'run.finished': return `${data.role || 'Role'} finished${data.verdict ? ` · ${readable(data.verdict)}` : ''}`;
+    case 'run.started': return `${role} started`;
     case 'budget.increased': return `Additional authorization: ${currency(data.amountUsd)}`;
     case 'budget.settled': return `Spend settled at ${currency(data.spentUsd)}`;
     case 'candidate.ready': return 'Review candidate captured';
@@ -371,15 +398,49 @@ function eventNode(event, session) {
   }
   if (category === 'tools') {
     const data = event.data;
-    const failed = data.status === 'failed' && !data.expectedFailure;
+    const failed = (data.status === 'failed' || data.status === 'error') && !data.expectedFailure;
     const state = data.expectedFailure && data.exitCode ? 'expected baseline failure' : data.status || '';
-    const node = element('article', { className: `tool tool-${failed ? 'failed' : data.status || 'unknown'}` }, element('div', { className: 'tool-title' }, element('span', { className: 'tool-glyph', 'aria-hidden': 'true' }, failed ? '✕' : data.status === 'completed' ? '✓' : data.status === 'running' ? '…' : '›'), element('code', {}, String(data.name || data.tool || 'Tool operation')), element('span', { className: 'tool-state' }, state, data.durationMs ? ` · ${Math.round(data.durationMs / 100) / 10}s` : ''), element('time', { datetime: event.at }, clock(event.at))));
-    if (typeof data.output === 'string' && data.output) node.append(element('details', {}, element('summary', {}, `View output${data.exitCode !== undefined ? ` · exit ${data.exitCode}` : ''}`), element('pre', {}, data.output.slice(0, 20000))));
-    else if (typeof data.text === 'string' && data.text) node.append(element('p', { className: 'preserve' }, data.text));
+    const input = toolInput(data);
+    const detail = toolTitle(data);
+    const node = element('article', { className: `tool tool-${failed ? 'failed' : data.status || 'unknown'}` }, element('div', { className: 'tool-title' }, element('span', { className: 'tool-glyph', 'aria-hidden': 'true' }, failed ? '✕' : data.status === 'completed' ? '✓' : data.status === 'running' ? '…' : '›'), element('code', {}, String(data.name || data.tool || 'Tool operation')), detail ? element('span', { className: 'tool-detail' }, detail) : null, element('span', { className: 'tool-state' }, state, data.durationMs ? ` · ${Math.round(data.durationMs / 100) / 10}s` : ''), element('time', { datetime: event.at }, clock(event.at))));
+    const output = typeof data.output === 'string' && data.output ? data.output : '';
+    const error = typeof data.error === 'string' && data.error ? data.error : '';
+    if (input || output || error) {
+      const body = element('details', {}, element('summary', {}, `${error ? 'Error and input' : output ? 'Input and output' : 'Input'}${data.exitCode !== undefined ? ` · exit ${data.exitCode}` : ''}`));
+      if (input) body.append(element('p', { className: 'eyebrow' }, 'INPUT'), element('pre', {}, input.slice(0, 20000)));
+      if (output) body.append(element('p', { className: 'eyebrow' }, 'OUTPUT'), element('pre', {}, output.slice(0, 20000)));
+      if (error) body.append(element('p', { className: 'eyebrow' }, 'ERROR'), element('pre', { className: 'tool-error' }, error.slice(0, 20000)));
+      node.append(body);
+    } else if (typeof data.text === 'string' && data.text) node.append(element('p', { className: 'preserve' }, data.text));
     return node;
   }
-  const kind = event.type.includes('completed') || event.type.includes('ready') ? 'good' : event.type.includes('failed') || event.type.includes('interrupted') || event.type.includes('unavailable') ? 'bad' : 'neutral';
-  return element('div', { className: `system-event system-${kind}` }, element('span', { className: 'system-glyph', 'aria-hidden': 'true' }, kind === 'good' ? '✓' : kind === 'bad' ? '!' : '·'), element('span', { className: 'system-text' }, systemText(event)), element('span', { className: 'muted' }, event.actor), element('time', { datetime: event.at }, clock(event.at)));
+  if (event.type === 'run.started' && event.data.prompt && typeof event.data.prompt === 'object') return briefEvent(event, session);
+  const kind = event.type.includes('completed') || event.type.includes('ready') ? 'good' : event.type.includes('failed') || event.type.includes('interrupted') || event.type.includes('unavailable') || event.type === 'policy.violated' ? 'bad' : 'neutral';
+  return element('div', { className: `system-event system-${kind}` }, element('span', { className: 'system-glyph', 'aria-hidden': 'true' }, kind === 'good' ? '✓' : kind === 'bad' ? '!' : '·'), element('span', { className: 'system-text' }, systemText(event, session)), element('span', { className: 'muted' }, event.actor), element('time', { datetime: event.at }, clock(event.at)));
+}
+
+function toolInput(data) {
+  if (data.input === undefined || data.input === null || data.input === '') return '';
+  if (typeof data.input === 'string') return data.input;
+  try { return JSON.stringify(data.input, null, 2); } catch { return String(data.input); }
+}
+
+function toolTitle(data) {
+  const parsed = (() => { try { return typeof data.input === 'string' ? JSON.parse(data.input) : data.input; } catch { return null; } })();
+  const detail = data.title || (parsed && typeof parsed === 'object' && (parsed.command || parsed.pattern || parsed.filePath || parsed.path || parsed.query || parsed.url)) || '';
+  return detail ? String(detail).slice(0, 160) : '';
+}
+
+function briefEvent(event, session) {
+  const data = event.data;
+  const prompt = data.prompt;
+  const role = roleFor(session, event.runId) || data.role || 'Role';
+  const label = data.reviewer ? 'independent review' : data.mode === 'write' ? 'implementation' : 'analysis';
+  const section = (title, text) => typeof text === 'string' && text.trim() ? [element('p', { className: 'eyebrow' }, title), markdown(text)] : [];
+  return element('article', { className: 'brief-event' },
+    element('div', { className: 'tool-title' }, element('span', { className: 'tool-glyph', 'aria-hidden': 'true' }, '›'), element('strong', {}, `${role} started`), element('span', { className: 'tool-state' }, label, data.model?.modelId ? ` · ${data.model.modelId}` : ''), element('time', { datetime: event.at }, clock(event.at))),
+    element('details', { className: 'brief-body' }, element('summary', {}, 'The brief this role received', typeof data.promptSha === 'string' && data.promptSha ? element('code', {}, data.promptSha.slice(0, 12)) : null),
+      ...section('OBJECTIVE', prompt.objective), ...section('ROLE INSTRUCTION', prompt.instruction), ...section('OPERATOR NOTES', prompt.notes), ...section('PRIOR WORK', prompt.earlier), ...section('EVIDENCE SUPPLIED', prompt.evidence), ...section('GUIDANCE', prompt.guidance)));
 }
 
 function activityTab(session, events) {
@@ -396,7 +457,7 @@ function failureNotice(session) {
   const failure = session.failure;
   if (!failure && !session.blocker) return null;
   return element('section', { className: 'notice warning execution-failure', role: 'status', 'aria-labelledby': 'failure-title' },
-    element('strong', { id: 'failure-title' }, failure ? `${stageNames[failure.stage] ?? 'Execution'} needs attention` : session.status === 'interrupted' ? 'Execution was interrupted' : 'Decision needed'),
+    element('strong', { id: 'failure-title' }, failure ? `${failureStage(failure)} needs attention` : session.status === 'interrupted' ? 'Execution was interrupted' : 'Decision needed'),
     element('p', { className: 'preserve' }, failure?.message || session.blocker),
     failure?.remediation ? element('p', { className: 'preserve remediation' }, failure.remediation) : null,
     failure?.detail ? element('details', { className: 'failure-detail-wrap' }, element('summary', {}, 'Recorded error output'), element('pre', { className: 'failure-detail', 'aria-label': 'Recorded error output' }, failure.detail)) : null,
@@ -418,16 +479,107 @@ function composer(session, writer) {
     element('p', { className: 'footnote' }, 'Enter adds a line. Use Ctrl+Enter or Cmd+Enter to send. Sending never approves a pending request.'));
 }
 
+function svg(tag, attributes = {}, ...children) {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [name, value] of Object.entries(attributes)) if (value !== undefined && value !== null && value !== false) node.setAttribute(name, String(value));
+  for (const child of children.flat(Infinity)) if (child) node.append(child);
+  return node;
+}
+
+function costCurve(session) {
+  const requests = (session.requests || []).filter(request => request && typeof request.at === 'string').slice().sort((a, b) => a.at.localeCompare(b.at));
+  if (requests.length < 2) return null;
+  const start = Date.parse(session.runs.find(run => run.startedAt)?.startedAt || requests[0].at);
+  const end = Math.max(Date.parse(requests[requests.length - 1].at), start + 1000);
+  const budget = session.budgetUsd || 1;
+  let total = 0;
+  const points = [[0, 0]];
+  for (const request of requests) { total += Number(request.usd) || 0; points.push([(Date.parse(request.at) - start) / (end - start), total]); }
+  const top = Math.max(budget, total) * 1.05;
+  const width = 280, height = 72, pad = 4;
+  const x = fraction => pad + Math.max(0, Math.min(1, fraction)) * (width - pad * 2);
+  const y = value => height - pad - (value / top) * (height - pad * 2);
+  const line = points.map(([fraction, value], index) => `${index ? 'L' : 'M'}${x(fraction).toFixed(1)},${y(value).toFixed(1)}`).join(' ');
+  const violations = requests.filter(request => request.violation);
+  return element('figure', { className: 'cost-curve' },
+    svg('svg', { viewBox: `0 0 ${width} ${height}`, role: 'img', 'aria-label': 'Cumulative gateway cost over the session against its budget' },
+      svg('line', { x1: pad, x2: width - pad, y1: y(budget).toFixed(1), y2: y(budget).toFixed(1), class: 'budget-line' }),
+      svg('path', { d: line, class: 'cost-line' }),
+      ...violations.map(request => svg('circle', { cx: x((Date.parse(request.at) - start) / (end - start)).toFixed(1), cy: y(total).toFixed(1), r: 3, class: 'violation-dot' }))),
+    element('figcaption', {}, `${requests.length} requests over ${Math.max(1, Math.round((end - start) / 1000))}s · ceiling ${currency(budget)}`));
+}
+
+function usageList(session) {
+  const usage = Array.isArray(session.usage) ? session.usage : [];
+  if (!usage.length) return null;
+  return element('dl', { className: 'usage-list' }, ...usage.map(entry => element('div', { className: 'fact' }, element('dt', {}, entry.group ? `${entry.group} → ${entry.model}` : entry.model), element('dd', {}, `${entry.requests} request${entry.requests === 1 ? '' : 's'}${entry.failures ? ` · ${entry.failures} refused` : ''} · ${currency(entry.usd)}`))));
+}
+
 function budgetCard(session, user) {
-  const ratio = session.budgetUsd ? Math.min(1, session.spentUsd / session.budgetUsd) : 0;
+  const observed = observedSpend(session);
+  const shown = observed ?? session.spentUsd;
+  const ratio = session.budgetUsd ? Math.min(1, shown / session.budgetUsd) : 0;
   const warn = session.costStatus !== 'demo' && ratio >= 0.8;
-  const statusText = session.costStatus === 'demo' ? 'Demo · no AI calls' : session.costStatus === 'settled' ? 'Spend reconciled' : session.costStatus === 'unknown' ? 'Spend unconfirmed · authorization stays reserved' : 'Settlement pending';
-  const card = element('section', { className: `card budget-card${warn ? ' budget-warn' : ''}` }, element('div', { className: 'eyebrow' }, 'OBSERVED SPEND'), element('p', { className: 'spend' }, currency(session.spentUsd)), element('p', { className: 'muted' }, `of ${currency(session.budgetUsd)} authorized${session.costStatus === 'unknown' ? ` · ${currency(session.budgetUsd)} reserved` : ''}`), element('progress', { max: session.budgetUsd || 1, value: Math.min(session.spentUsd, session.budgetUsd || 1), 'aria-label': 'Observed spending against authorized budget' }), element('div', { className: `cost-status cost-${session.costStatus}` }, statusText), element('p', { className: 'footnote' }, session.costStatus === 'demo' ? 'This fixture verifies the workflow without using an LLM.' : session.costStatus === 'unknown' ? 'Unknown usage is never treated as zero.' : 'In-flight requests and delayed provider reports can affect final spending.'));
+  const statusText = session.costStatus === 'demo' ? 'Demo · no AI calls' : observed !== undefined ? 'Observed at the gateway · settles later' : session.costStatus === 'settled' ? 'Spend reconciled' : session.costStatus === 'unknown' ? 'Spend unconfirmed · authorization stays reserved' : 'Settlement pending';
+  const card = element('section', { className: `card budget-card${warn ? ' budget-warn' : ''}` }, element('div', { className: 'eyebrow' }, observed !== undefined ? 'OBSERVED AT THE GATEWAY' : 'OBSERVED SPEND'), element('p', { className: 'spend' }, currency(shown)), element('p', { className: 'muted' }, `of ${currency(session.budgetUsd)} authorized${observed !== undefined ? ` · ${currency(session.spentUsd)} settled` : ''}${session.costStatus === 'unknown' ? ` · ${currency(session.budgetUsd)} reserved` : ''}`), element('progress', { max: session.budgetUsd || 1, value: Math.min(shown, session.budgetUsd || 1), 'aria-label': 'Observed spending against authorized budget' }), element('div', { className: `cost-status cost-${session.costStatus}` }, statusText), costCurve(session), usageList(session), element('p', { className: 'footnote' }, session.costStatus === 'demo' ? 'This fixture verifies the workflow without using an LLM.' : session.costStatus === 'unknown' ? 'Unknown usage is never treated as zero.' : 'In-flight requests and delayed provider reports can affect final spending.'));
   if (user.role === 'admin' && !['completed', 'cancelled', 'exporting'].includes(session.status)) {
     if (budgetOpen) card.append(element('form', { id: 'budget-form', className: 'budget-form' }, element('label', { for: 'budget-amount' }, 'Additional amount · USD'), element('input', { id: 'budget-amount', type: 'number', min: '0.01', step: '0.01', required: true, disabled: pending }), element('div', { className: 'toolbar' }, element('button', { type: 'submit', className: 'primary', disabled: pending }, 'Authorize'), action('Cancel', 'budget-close', { className: 'quiet' }))));
     else card.append(action('Authorize more budget', 'budget-open', { className: 'quiet', disabled: !connected || pending }));
   }
   return card;
+}
+
+function approvalCard(session, writer) {
+  const active = !finished(session);
+  const isolated = isolatedPlacement(session.placement);
+  const automatic = session.approval === 'auto';
+  if (!automatic && !(active && isolated)) return null;
+  const busy = !writer || !connected || pending;
+  return element('section', { className: `card approval-card approval-${automatic ? 'auto' : 'manual'}`, 'aria-label': 'Tool approval' },
+    element('div', { className: 'eyebrow' }, 'APPROVAL'),
+    element('h2', {}, automatic ? 'Automatic for this session' : 'Every tool use asks you'),
+    element('p', { className: 'muted' }, automatic ? 'Tool use inside the sandbox is approved without asking. Questions from the crew still wait for you.' : 'The workspace is isolated, so you can let the crew work unattended for the rest of this session.'),
+    active && writer ? element('div', { className: 'toolbar' }, automatic ? action('Ask me again', 'approval', { className: 'quiet', 'data-approval': 'manual', disabled: busy }) : action('Approve automatically', 'approval', { 'data-approval': 'auto', disabled: busy })) : null);
+}
+
+function gatewayTab(session, gateway) {
+  const requests = Array.isArray(session.requests) ? session.requests : [];
+  if (!requests.length) return element('div', { className: 'empty-state' }, element('h3', {}, 'No gateway requests recorded yet'), element('p', {}, session.costStatus === 'demo' ? 'The demonstration runtime does not call a model gateway.' : 'Each model call the gateway attributes to this session appears here within fifteen seconds, with the provider that served it.'));
+  const roleName = id => session.runs.find(run => run.roleId === id)?.roleName || '';
+  const totals = requests.reduce((sum, request) => ({ usd: sum.usd + (Number(request.usd) || 0), savings: sum.savings + (Number(request.savingsUsd) || 0), failures: sum.failures + (request.status === 'failure' ? 1 : 0) }), { usd: 0, savings: 0, failures: 0 });
+  const providers = [...new Set(requests.map(request => request.provider).filter(Boolean))];
+  const hosts = [...new Set(requests.map(request => request.host).filter(Boolean))];
+  const tag = (text, bad) => element('span', { className: `tag${bad ? ' tag-error' : ''}` }, text);
+  const flags = request => [
+    request.violation ? tag(`outside policy: ${request.violation}`, true) : null,
+    request.status === 'failure' ? tag('refused', true) : null,
+    request.retries ? tag(`${request.retries} retr${request.retries === 1 ? 'y' : 'ies'}`) : null,
+    request.fallbacks ? tag('fallback') : null,
+    request.cacheHit ? tag('cache hit') : null,
+    request.cachedTokens ? tag(`${request.cachedTokens} cached`) : null,
+    ...(Array.isArray(request.guardrails) ? request.guardrails.map(name => tag(String(name))) : []),
+  ];
+  const small = (...children) => element('small', { className: 'muted' }, ...children);
+  const rows = requests.map(request => element('tr', { className: request.status === 'failure' || request.violation ? 'row-failed' : '' },
+    element('td', {}, clock(request.at)),
+    element('td', {}, roleName(request.roleId)),
+    element('td', {}, element('code', {}, String(request.model || '')), request.provider ? [element('br'), small(request.provider, request.host ? ` · ${request.host}` : '', request.geo ? ` · ${request.geo}` : '')] : null),
+    element('td', {}, request.group ? [element('code', {}, request.group), request.tier ? [element('br'), small(String(request.tier).toLowerCase(), request.cause ? ` · ${String(request.cause).replaceAll('_', ' ')}` : '')] : null] : small('pinned')),
+    element('td', {}, `${request.inputTokens ?? 0} in`, element('br'), small(`${request.outputTokens ?? 0} out`)),
+    element('td', {}, currency(request.usd), request.savingsUsd ? [element('br'), small(`saved ${currency(request.savingsUsd)}`)] : null),
+    element('td', {}, request.durationMs !== undefined ? `${(request.durationMs / 1000).toFixed(1)}s` : '—', request.firstTokenMs !== undefined ? [element('br'), small(`first token ${(request.firstTokenMs / 1000).toFixed(1)}s`)] : null),
+    element('td', { className: 'flags' }, ...flags(request), request.error ? [element('br'), element('small', { className: 'tool-error' }, String(request.error))] : null, request.harness ? [element('br'), small(String(request.harness))] : null)));
+  return element('div', { className: 'gateway' },
+    element('dl', { className: 'gateway-summary' },
+      fact('Gateway', element('code', {}, gateway || 'LiteLLM')),
+      fact('Providers', providers.length ? providers.join(', ') : '—'),
+      fact('Endpoints', hosts.length ? element('span', {}, ...hosts.flatMap((host, index) => index ? [element('br'), element('code', {}, host)] : [element('code', {}, host)])) : '—'),
+      fact('Requests', `${requests.length}${totals.failures ? ` · ${totals.failures} refused` : ''}`),
+      fact('Attributed cost', `${currency(totals.usd)}${totals.savings ? ` · router saved ${currency(totals.savings)}` : ''}`)),
+    element('div', { className: 'table-scroll' }, element('table', { className: 'gateway-table' },
+      element('thead', {}, element('tr', {}, ...['Time', 'Role', 'Answered by', 'Route', 'Tokens', 'Cost', 'Latency', ''].map(label => element('th', {}, label)))),
+      element('tbody', {}, ...rows))),
+    element('p', { className: 'footnote' }, 'Rows are the gateway\u2019s own attribution for this session\u2019s credential. Costs settle after the run; the budget card shows the same figures.'));
 }
 
 function render() {
@@ -438,7 +590,7 @@ function render() {
   const scroll = window.scrollY;
   const stream = document.getElementById('stream');
   const atBottom = !stream || stream.scrollHeight - stream.scrollTop - stream.clientHeight < 40;
-  const { session, user, mode, permissions, events, origin, freshness } = detail;
+  const { session, user, mode, permissions, events, origin, freshness, gateway } = detail;
   const writer = user.role !== 'viewer';
   const mutable = writer && connected && !pending;
   const actionable = ['queued', 'running', 'exporting', 'waiting_input', 'paused', 'interrupted'].includes(session.status);
@@ -446,12 +598,13 @@ function render() {
   const requests = permissions.filter(request => !request.resolved);
   const diffs = session.artifacts.filter(artifact => artifact.kind === 'diff').length;
   const checks = session.artifacts.filter(artifact => artifact.kind === 'test').length;
+  const requestCount = Array.isArray(session.requests) ? session.requests.length : 0;
   const host = (() => { try { return new URL(origin).host; } catch { return ''; } })();
 
   const header = element('header', { className: 'session-header' },
     element('div', { className: 'eyebrow' }, element('span', { className: 'brand-mark', 'aria-hidden': 'true' }, '▦'), 'DE VLOER', element('span', { className: 'remote-label' }, 'REMOTE SESSION'), host ? element('span', { className: 'remote-label' }, host) : null),
     element('div', { className: 'title-row' }, element('h1', {}, session.title), element('span', { className: `pill status-${session.status}` }, statusNames[session.status] || readable(session.status))),
-    element('p', { className: 'subtitle' }, element('span', {}, session.repositoryId), ' / ', element('span', {}, session.crewId), ' · ', session.runtime, session.placement ? ` · ${session.placement}` : '', ' · ', element('code', {}, session.branch)),
+    element('p', { className: 'subtitle' }, element('span', {}, session.repositoryId), ' / ', element('span', {}, session.crewId), ' · ', session.runtime, session.placement ? ` · ${session.placement}` : '', session.approval === 'auto' ? ' · approves automatically' : '', ' · ', element('code', {}, session.branch)),
     element('div', { className: `situation situation-${session.status}` }, element('p', { className: 'headline' }, headline), next ? element('p', { className: 'next' }, next) : null),
     element('div', { className: 'toolbar', 'aria-label': 'Session actions' },
       writer && session.status === 'queued' ? action('Start remote crew', 'start', { className: 'primary', disabled: !mutable }) : null,
@@ -469,8 +622,8 @@ function render() {
   if (failure) notices.push(failure);
   const decisionSection = requests.length ? element('section', { className: 'decisions', id: 'decisions', 'aria-label': 'Decisions waiting for you' }, element('div', { className: 'section-heading' }, element('h2', {}, requests.length === 1 ? 'Your decision' : `${requests.length} decisions waiting`), element('span', {}, 'Nothing continues until you answer')), ...requests.map(request => decisionCard(request, session, mutable))) : null;
 
-  const nav = element('div', { className: 'tabs', role: 'tablist', 'aria-label': 'Session information' }, ...tabs.map(value => action('', 'tab', { id: `tab-${value}`, 'data-tab': value, role: 'tab', 'aria-controls': 'tab-content', 'aria-selected': tab === value, tabindex: tab === value ? '0' : '-1', className: tab === value ? 'selected' : '' }, value === 'changes' ? ['Changes', diffs ? element('span', { className: 'count' }, String(diffs)) : null] : value === 'checks' ? ['Checks', checks ? element('span', { className: 'count' }, String(checks)) : null] : value[0].toUpperCase() + value.slice(1))));
-  const content = tab === 'brief' ? briefTab(session) : tab === 'changes' ? changesTab(session) : tab === 'checks' ? checksTab(session) : activityTab(session, events);
+  const nav = element('div', { className: 'tabs', role: 'tablist', 'aria-label': 'Session information' }, ...tabs.map(value => action('', 'tab', { id: `tab-${value}`, 'data-tab': value, role: 'tab', 'aria-controls': 'tab-content', 'aria-selected': tab === value, tabindex: tab === value ? '0' : '-1', className: tab === value ? 'selected' : '' }, value === 'changes' ? ['Changes', diffs ? element('span', { className: 'count' }, String(diffs)) : null] : value === 'checks' ? ['Checks', checks ? element('span', { className: 'count' }, String(checks)) : null] : value === 'gateway' ? ['Gateway', requestCount ? element('span', { className: 'count' }, String(requestCount)) : null] : value[0].toUpperCase() + value.slice(1))));
+  const content = tab === 'brief' ? briefTab(session) : tab === 'changes' ? changesTab(session) : tab === 'checks' ? checksTab(session) : tab === 'gateway' ? gatewayTab(session, gateway) : activityTab(session, events);
   const main = element('div', { className: 'main-column' },
     element('section', { className: 'crew-section' }, element('div', { className: 'section-heading' }, element('h2', {}, 'Your crew'), element('span', {}, 'Sequential roles · remote execution')), crewStrip(session)),
     nav, element('div', { id: 'tab-content', role: 'tabpanel', 'aria-labelledby': `tab-${tab}`, className: 'tab-content' }, content),
@@ -478,8 +631,9 @@ function render() {
 
   const freshnessText = !connected ? `Disconnected · last observed ${clock(freshness.observedAt)}` : freshness.transport === 'live' ? `Live · observed ${clock(freshness.observedAt)}` : `Polling · observed ${clock(freshness.observedAt)}`;
   const side = element('aside', { className: 'side-column', 'aria-label': 'Session context' },
+    approvalCard(session, writer),
     budgetCard(session, user),
-    element('section', { className: 'card context-card' }, element('h2', {}, 'Session context'), element('dl', {}, fact('Operator', session.ownerName), fact('Branch', element('code', {}, session.branch)), fact('Runtime', session.runtime), fact('Created', `${new Date(session.createdAt).toLocaleString()}`), fact('Last server change', `${ago(session.updatedAt)} · ${clock(session.updatedAt)}`), fact('Session', element('code', { className: 'session-id' }, session.id)))),
+    element('section', { className: 'card context-card' }, element('h2', {}, 'Session context'), element('dl', {}, fact('Operator', session.ownerName), fact('Branch', element('code', {}, session.branch)), fact('Runtime', session.runtime), session.placement ? fact('Placement', session.placement) : null, session.approval ? fact('Approval', session.approval === 'auto' ? 'automatic inside the sandbox' : 'asks before each tool') : null, session.model ? fact('Model', element('code', {}, session.model)) : null, fact('Created', `${new Date(session.createdAt).toLocaleString()}`), fact('Last server change', `${ago(session.updatedAt)} · ${clock(session.updatedAt)}`), fact('Session', element('code', { className: 'session-id' }, session.id)))),
     element('p', { className: 'local-note' }, 'Your laptop is the control surface. The server owns execution, history and workspace resources.'));
 
   app.replaceChildren(header, ...notices, ...(decisionSection ? [decisionSection] : []), element('div', { className: 'session-layout' }, main, side), element('footer', {}, element('span', { className: connected ? (freshness.transport === 'live' ? 'live-dot' : 'connected-dot') : 'offline-dot', 'aria-hidden': 'true' }), freshnessText, element('span', { className: 'session-id' }, session.id)));
@@ -518,6 +672,7 @@ document.addEventListener('click', event => {
     return;
   }
   if (type === 'decide') { pending = true; render(); bridge.postMessage({ type: 'decide', id: button.dataset.id, decision: button.dataset.decision }); return; }
+  if (type === 'approval') { pending = true; render(); bridge.postMessage({ type: 'approval', approval: button.dataset.approval }); return; }
   if (['start', 'pause', 'resume', 'cancel'].includes(type)) { pending = true; render(); }
   bridge.postMessage({ type, ...(button.dataset.id ? { id: button.dataset.id } : {}), ...(button.dataset.format ? { format: button.dataset.format } : {}), ...(button.dataset.file ? { file: button.dataset.file } : {}) });
 });

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { groups, presentation, situation, relativeTime, spendLabel, activeRole, safeHttpsUrl } from './status.js';
+import { groups, presentation, situation, relativeTime, spendLabel, activeRole, safeHttpsUrl, runLabel, approvalLabel, observedSpend, isolatedPlacement } from './status.js';
 import type { Session, Run, Artifact, Permission, TaskSource, TaskSnapshot, TaskPage } from './types.js';
 
 export type SessionEntry =
@@ -13,14 +13,15 @@ export type SessionEntry =
   | { kind: 'message'; label: string; command?: string };
 
 const runIcons: Record<string, string> = { completed: 'pass', running: 'sync~spin', waiting_input: 'bell-dot', failed: 'error', cancelled: 'circle-slash', paused: 'debug-pause', queued: 'circle-outline' };
-const artifactIcons: Record<Artifact['kind'], string> = { diff: 'diff', test: 'beaker', summary: 'book', link: 'link-external' };
+const artifactIcons: Record<Artifact['kind'], string> = { diff: 'diff', test: 'beaker', summary: 'book', link: 'link-external', transcript: 'comment-discussion' };
 
 export function sessionTooltip(session: Session): vscode.MarkdownString {
   const state = presentation(session.status);
   const { headline, next } = situation(session);
   const tooltip = new vscode.MarkdownString(undefined, true);
   tooltip.appendMarkdown(`**${session.title}**\n\n$(${state.icon.replace('~spin', '')}) ${state.name}\n\n${headline}\n\n_${next}_\n\n`);
-  tooltip.appendMarkdown(`${session.repositoryId} · ${session.crewId} · ${session.runtime}  \n${session.ownerName} · ${spendLabel(session)} · updated ${relativeTime(session.updatedAt)}`);
+  tooltip.appendMarkdown(`${session.repositoryId} · ${session.crewId} · ${session.runtime}${session.placement ? ` · ${session.placement}` : ''}  \n${session.ownerName} · ${spendLabel(session)} · updated ${relativeTime(session.updatedAt)}`);
+  if (session.approval) tooltip.appendMarkdown(`  \n$(shield) Approval: ${approvalLabel(session)}`);
   if (session.sourceTask) tooltip.appendMarkdown(`  \nImported from ${session.sourceTask.provider} #${session.sourceTask.id}`);
   return tooltip;
 }
@@ -72,7 +73,7 @@ export class SessionTree implements vscode.TreeDataProvider<SessionEntry>, vscod
       case 'run': {
         const item = new vscode.TreeItem(entry.run.roleName);
         item.id = `run:${entry.session.id}:${entry.run.id}`;
-        item.description = `${entry.run.mode === 'write' ? 'implementation' : 'review'} · ${entry.run.verdict ? entry.run.verdict.replaceAll('_', ' ') : entry.run.status.replaceAll('_', ' ')}`;
+        item.description = `${runLabel(entry.session, entry.run)} · ${entry.run.verdict ? entry.run.verdict.replaceAll('_', ' ') : entry.run.status.replaceAll('_', ' ')}`;
         item.tooltip = entry.run.summary ? entry.run.summary.slice(0, 800) : `${entry.run.roleName} · ${entry.run.status}`;
         item.iconPath = new vscode.ThemeIcon(runIcons[entry.run.status] ?? 'circle-outline', entry.run.verdict === 'approve' ? new vscode.ThemeColor('testing.iconPassed') : entry.run.verdict === 'request_changes' || entry.run.status === 'failed' ? new vscode.ThemeColor('list.warningForeground') : undefined);
         item.contextValue = 'run';
@@ -82,7 +83,7 @@ export class SessionTree implements vscode.TreeDataProvider<SessionEntry>, vscod
       case 'artifact': {
         const item = new vscode.TreeItem(entry.artifact.name);
         item.id = `artifact:${entry.session.id}:${entry.artifact.id}`;
-        item.description = entry.artifact.kind === 'diff' ? 'changes' : entry.artifact.kind === 'test' ? 'checks' : entry.artifact.kind;
+        item.description = entry.artifact.kind === 'diff' ? 'changes' : entry.artifact.kind === 'test' ? 'checks' : entry.artifact.kind === 'transcript' ? 'transcript' : entry.artifact.kind;
         item.iconPath = new vscode.ThemeIcon(artifactIcons[entry.artifact.kind] ?? 'file');
         item.contextValue = `artifact:${entry.artifact.kind}`;
         item.command = { command: 'vloer.openArtifact', title: 'Open evidence', arguments: [entry.session.id, entry.artifact.id] };
@@ -118,11 +119,12 @@ export class SessionTree implements vscode.TreeDataProvider<SessionEntry>, vscod
     const item = new vscode.TreeItem(session.title, vscode.TreeItemCollapsibleState.Collapsed);
     item.id = session.id;
     const role = activeRole(session);
-    const parts = [session.repositoryId, session.status === 'waiting_input' || session.status === 'running' ? (role ?? state.name) : state.name, session.costStatus === 'demo' ? 'demo' : `$${session.spentUsd.toFixed(2)}`, relativeTime(session.updatedAt)];
+    const observed = observedSpend(session);
+    const parts = [session.repositoryId, session.status === 'waiting_input' || session.status === 'running' ? (role ?? state.name) : state.name, session.costStatus === 'demo' ? 'demo' : `$${(observed ?? session.spentUsd).toFixed(2)}${observed === undefined ? '' : ' observed'}`, relativeTime(session.updatedAt)];
     item.description = parts.filter(Boolean).join(' · ');
     item.tooltip = sessionTooltip(session);
     item.iconPath = new vscode.ThemeIcon(state.icon, state.color ? new vscode.ThemeColor(state.color) : undefined);
-    item.contextValue = `session:${session.status}`;
+    item.contextValue = `session:${session.status}${isolatedPlacement(session.placement) ? ':isolated' : ''}`;
     item.command = { command: 'vloer.open', title: 'Open remote session', arguments: [session.id] };
     item.accessibilityInformation = { label: `${session.title}, ${state.name}, ${session.repositoryId}, ${spendLabel(session)}` };
     return item;

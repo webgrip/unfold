@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 import { randomBytes } from 'node:crypto';
 import { ApiError, type VloerClient } from './client.js';
-import type { Bootstrap, CandidateFormat, Decision, Freshness, SessionDetail, SessionEvent } from './types.js';
+import type { Approval, Bootstrap, CandidateFormat, Decision, Freshness, SessionDetail, SessionEvent } from './types.js';
 
-export type PanelTab = 'brief' | 'changes' | 'checks' | 'activity';
+export type PanelTab = 'brief' | 'changes' | 'checks' | 'activity' | 'gateway';
 export type InstructionOutcome = { state: 'saved' | 'unknown' | 'failed'; message?: string };
 
 export interface PanelHost {
@@ -23,6 +23,7 @@ export interface PanelHost {
   tracker(id: string): Promise<void>;
   copyLink(id: string): Promise<void>;
   budget(id: string, amountUsd: number): Promise<void>;
+  setApproval(id: string, approval: Approval): Promise<void>;
   report(error: unknown): Promise<void>;
 }
 
@@ -86,7 +87,7 @@ export class SessionPanel implements vscode.Disposable {
       if (this.disposed || client !== this.host.client() || revision !== this.host.revision()) return;
       this.merge(events);
       this.freshness = { transport: this.stream ? 'live' : this.freshness.transport === 'offline' ? 'polling' : this.freshness.transport, observedAt: new Date().toISOString() };
-      const detail: SessionDetail = { session, events: this.events.slice(-300), permissions, user: bootstrap.user, mode: bootstrap.mode, origin: client.origin, freshness: this.freshness };
+      const detail: SessionDetail = { session, events: this.events.slice(-300), permissions, user: bootstrap.user, mode: bootstrap.mode, origin: client.origin, freshness: this.freshness, ...(typeof bootstrap.gateway === 'string' ? { gateway: bootstrap.gateway } : {}) };
       this.panel.title = session.title;
       await this.panel.webview.postMessage({ type: 'session', detail, focus: this.pendingFocus });
       this.pendingFocus = undefined;
@@ -171,6 +172,7 @@ export class SessionPanel implements vscode.Disposable {
           return;
         }
         case 'budget': { if (typeof message.amountUsd === 'number') await this.host.budget(this.id, message.amountUsd); return; }
+        case 'approval': { if (message.approval === 'auto' || message.approval === 'manual') await this.host.setApproval(this.id, message.approval); return; }
         case 'start': case 'pause': case 'resume': case 'cancel': await this.host.lifecycle(this.id, message.type); return;
       }
     } catch (error) {

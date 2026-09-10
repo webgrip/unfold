@@ -2,6 +2,11 @@
 
 ## 0.3.0
 
+- Parity with the web workbench for the 0.3.0 server: a **Gateway** tab with per-request attribution, the budget card's spend observed at the gateway with per-model usage and a cost curve, tool cards that collapse per part and show title, input and error, an expandable brief card for each `run.started` event, transcripts in the Brief tab, an approval control for isolated placements, and a **Gateway policy** failure label.
+- Crew roles are labelled implementation, analysis or independent review; only the final read role counts as the reviewer in the situation sentence and tree.
+- `vloer.create` offers automatic tool approval when the placement is a container or pod; new **Set Tool Approval** and **Linked Accounts** commands cover `/api/sessions/:id/approval` and `/api/links`.
+- Node tests cover the webview script through a DOM stub, the run labels, and the approval and linked-account flows.
+
 - Rebuilt the session panel around review: a situation sentence with the next permitted action, a crew strip with findings rendered as safe Markdown, and Brief, Changes, Checks and Activity tabs.
 - Answer permission requests and crew questions inline. Scope comes from the adapter payload, a broader grant appears only when patterns are declared, and answers are confirmed before they are sent.
 - Changes lists every file in the retained patch with added and removed counts and opens the patch at that file. Checks shows passed, failed or expected failure per artifact. Activity is chronological, filterable, coalesces streamed text and folds tool output.

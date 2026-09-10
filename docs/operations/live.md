@@ -232,6 +232,8 @@ curl -sS -X POST -H 'X-Vloer-Request: 1' -H 'Content-Type: application/json' -b 
 
 The response contains `address` and a ready-made `vscodeSetting.entry` with the token. Sessions appear in VS Code's agent sessions list; a new session asks for repository, crew, budget and placement, and its first message starts the crew. Every other client attached with a token of the same user sees the same session. Tokens are bound to the user who created them and honour the same ownership rules as the HTTP API ([ADR 0012](../adrs/0012-agent-host-protocol-host.md)). Whether a given VS Code build offers plain WebSocket hosts in its picker is not something this repository can verify; the setting itself is read by the 1.136 client.
 
+The De Vloer extension in [extensions/vscode](../../extensions/vscode/README.md) is the other way in, and it now mirrors what the browser shows for a 0.3.0 server: the same run labels (implementation, analysis, independent review), the brief each role received, tool input and error text in the Activity tab, a Gateway tab with the gateway's per-request attribution, the spend observed at the gateway with the cost curve, transcripts, the approval switch for `docker` and `kubernetes` sessions, and GitLab linking through **Vloer: Linked Accounts**. Both clients read the same API and event stream, so a session opened in one is the same session in the other.
+
 ## Verifying a candidate
 
 Every ready candidate ships a signed provenance statement and an Agent Trace record. Download all five formats and the public key, then verify offline:

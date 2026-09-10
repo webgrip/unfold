@@ -182,6 +182,43 @@ p { margin: 8px 0; }
 .tool details { margin-top: 6px; }
 .tool summary { cursor: pointer; color: var(--accent); font-size: 11px; }
 .tool pre { margin-top: 6px; padding: 8px 10px; border-radius: 4px; background: var(--vscode-textCodeBlock-background); max-height: 300px; overflow: auto; font-size: 11.5px; }
+.tool-detail { font-family: var(--mono); font-size: 11px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool details .eyebrow { margin: 8px 0 0; }
+.tool-error, .tag-error { color: var(--bad); }
+.brief-event { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.brief-event:last-child { border-bottom: 0; }
+.brief-event .tool-glyph { color: var(--accent); }
+.brief-body { margin-top: 6px; }
+.brief-body summary { cursor: pointer; color: var(--accent); font-size: 11px; display: flex; align-items: center; gap: 8px; }
+.brief-body summary code { font-size: 10px; }
+.brief-body .eyebrow { margin: 10px 0 2px; }
+.brief-body .markdown { font-size: 12px; padding-left: 10px; border-left: 2px solid var(--border); }
+.gateway-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.gateway-summary .fact { margin: 0; }
+.gateway .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.gateway-table { border-collapse: collapse; width: 100%; font-size: 11.5px; }
+.gateway-table th, .gateway-table td { padding: 6px 8px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.gateway-table th { color: var(--muted); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; }
+.gateway-table tbody tr:last-child td { border-bottom: 0; }
+.gateway-table .flags { white-space: normal; min-width: 140px; }
+.gateway-table .flags .tag { display: inline-block; margin: 0 4px 3px 0; }
+.gateway-table small { font-size: 10.5px; }
+.gateway-table .row-failed td:first-child { border-left: 2px solid var(--bad); }
+.transcripts details.transcript { padding: 10px 14px; }
+.transcript summary { cursor: pointer; font-size: 12px; }
+.transcript .markdown { margin-top: 10px; font-size: 12px; max-height: 420px; overflow: auto; }
+.transcript .toolbar { margin-top: 10px; }
+.approval-card h2 { font-size: 13px; margin: 6px 0 4px; }
+.approval-card .muted { font-size: 11.5px; margin: 0 0 10px; }
+.approval-auto { border-color: var(--good); }
+.cost-curve { margin: 12px 0 4px; }
+.cost-curve svg { width: 100%; height: auto; display: block; }
+.cost-curve .budget-line { stroke: var(--warn); stroke-width: 1; stroke-dasharray: 4 3; }
+.cost-curve .cost-line { stroke: var(--accent); stroke-width: 1.5; fill: none; }
+.cost-curve .violation-dot { fill: var(--bad); }
+.cost-curve figcaption { color: var(--muted); font-size: 10px; margin-top: 4px; }
+.usage-list { margin: 10px 0 0; border-top: 1px solid var(--border); padding-top: 8px; }
+.usage-list .fact { margin: 6px 0; }
 .system-event { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--muted); }
 .system-glyph { width: 16px; text-align: center; }
 .system-good .system-glyph { color: var(--good); }

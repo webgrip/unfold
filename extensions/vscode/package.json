@@ -49,6 +49,12 @@
         "category": "Vloer"
       },
       {
+        "command": "vloer.linkedAccounts",
+        "title": "Linked Accounts",
+        "category": "Vloer",
+        "icon": "$(account)"
+      },
+      {
         "command": "vloer.connectAgentHost",
         "title": "Attach as Agent Host (chat.remoteAgentHosts)",
         "category": "Vloer",
@@ -146,6 +152,12 @@
         "title": "Authorize Additional Budget",
         "category": "Vloer",
         "icon": "$(credit-card)"
+      },
+      {
+        "command": "vloer.setApproval",
+        "title": "Set Tool Approval",
+        "category": "Vloer",
+        "icon": "$(shield)"
       },
       {
         "command": "vloer.history",
@@ -305,6 +317,14 @@
         {
           "command": "vloer.importTask",
           "when": "vloer.connected"
+        },
+        {
+          "command": "vloer.setApproval",
+          "when": "vloer.connected"
+        },
+        {
+          "command": "vloer.linkedAccounts",
+          "when": "vloer.connected"
         }
       ],
       "view/title": [
@@ -339,9 +359,14 @@
           "group": "connection@2"
         },
         {
+          "command": "vloer.linkedAccounts",
+          "when": "view == vloer.sessions && vloer.connected",
+          "group": "connection@3"
+        },
+        {
           "command": "vloer.dashboard",
           "when": "view == vloer.sessions",
-          "group": "connection@3"
+          "group": "connection@4"
         },
         {
           "command": "vloer.browseTasks",
@@ -357,22 +382,22 @@
       "view/item/context": [
         {
           "command": "vloer.start",
-          "when": "view == vloer.sessions && viewItem == session:queued",
+          "when": "view == vloer.sessions && viewItem =~ /^session:queued(:isolated)?$/",
           "group": "inline@1"
         },
         {
           "command": "vloer.resume",
-          "when": "view == vloer.sessions && viewItem =~ /^session:(paused|interrupted)$/",
+          "when": "view == vloer.sessions && viewItem =~ /^session:(paused|interrupted)(:isolated)?$/",
           "group": "inline@1"
         },
         {
           "command": "vloer.pause",
-          "when": "view == vloer.sessions && viewItem == session:running",
+          "when": "view == vloer.sessions && viewItem =~ /^session:running(:isolated)?$/",
           "group": "inline@1"
         },
         {
           "command": "vloer.reviewDecision",
-          "when": "view == vloer.sessions && viewItem == session:waiting_input",
+          "when": "view == vloer.sessions && viewItem =~ /^session:waiting_input(:isolated)?$/",
           "group": "inline@1"
         },
         {
@@ -382,32 +407,37 @@
         },
         {
           "command": "vloer.start",
-          "when": "view == vloer.sessions && viewItem == session:queued",
+          "when": "view == vloer.sessions && viewItem =~ /^session:queued(:isolated)?$/",
           "group": "lifecycle@1"
         },
         {
           "command": "vloer.pause",
-          "when": "view == vloer.sessions && viewItem =~ /^session:(running|waiting_input)$/",
+          "when": "view == vloer.sessions && viewItem =~ /^session:(running|waiting_input)(:isolated)?$/",
           "group": "lifecycle@2"
         },
         {
           "command": "vloer.resume",
-          "when": "view == vloer.sessions && viewItem =~ /^session:(paused|interrupted)$/",
+          "when": "view == vloer.sessions && viewItem =~ /^session:(paused|interrupted)(:isolated)?$/",
           "group": "lifecycle@3"
         },
         {
           "command": "vloer.sendInstruction",
-          "when": "view == vloer.sessions && viewItem =~ /^session:(queued|running|waiting_input|paused|interrupted|failed)$/",
+          "when": "view == vloer.sessions && viewItem =~ /^session:(queued|running|waiting_input|paused|interrupted|failed)(:isolated)?$/",
           "group": "lifecycle@4"
         },
         {
           "command": "vloer.addBudget",
-          "when": "view == vloer.sessions && viewItem =~ /^session:(queued|running|waiting_input|paused|interrupted|failed)$/",
+          "when": "view == vloer.sessions && viewItem =~ /^session:(queued|running|waiting_input|paused|interrupted|failed)(:isolated)?$/",
           "group": "lifecycle@5"
         },
         {
+          "command": "vloer.setApproval",
+          "when": "view == vloer.sessions && viewItem =~ /^session:(queued|running|waiting_input|paused|interrupted):isolated$/",
+          "group": "lifecycle@6"
+        },
+        {
           "command": "vloer.cancel",
-          "when": "view == vloer.sessions && viewItem =~ /^session:(queued|running|exporting|waiting_input|paused|interrupted)$/",
+          "when": "view == vloer.sessions && viewItem =~ /^session:(queued|running|exporting|waiting_input|paused|interrupted)(:isolated)?$/",
           "group": "lifecycle@9"
         },
         {

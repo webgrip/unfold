@@ -1,4 +1,4 @@
-import type { Session, SessionStatus } from './types.js';
+import type { ExecutionFailure, Run, Session, SessionStatus } from './types.js';
 
 export type StatusPresentation = { name: string; icon: string; color?: string; group: 'attention' | 'active' | 'ready' | 'history' };
 
@@ -28,14 +28,48 @@ export function activeRole(session: Session): string | undefined {
 
 export const stageNames: Record<string, string> = { credentials: 'Gateway authorization', workspace: 'Workspace setup', runtime: 'Runtime startup', prompt: 'Prompt submission', execution: 'Agent execution' };
 
+export type RunLabel = 'implementation' | 'analysis' | 'independent review';
+
+export function isReviewer(session: Session, run: Run): boolean {
+  return run.mode === 'read' && session.runs.at(-1)?.id === run.id;
+}
+
+export function runLabel(session: Session, run: Run): RunLabel {
+  if (run.mode === 'write') return 'implementation';
+  return isReviewer(session, run) ? 'independent review' : 'analysis';
+}
+
+export function reviewers(session: Session): Run[] {
+  return session.runs.filter(run => isReviewer(session, run));
+}
+
+export function failureStage(failure: ExecutionFailure | undefined): string {
+  if (!failure) return 'Execution';
+  if (failure.category === 'policy_violation') return 'Gateway policy';
+  return stageNames[failure.stage] ?? 'Execution';
+}
+
+export function isolatedPlacement(placement: string | undefined): boolean {
+  return placement === 'docker' || placement === 'kubernetes';
+}
+
+export function approvalLabel(session: Session): string {
+  return session.approval === 'auto' ? 'tool use approved automatically' : 'tool use asks you';
+}
+
+export function observedSpend(session: Session): number | undefined {
+  const finished = ['completed', 'failed', 'cancelled'].includes(session.status);
+  return !finished && typeof session.observedUsd === 'number' && session.observedUsd > session.spentUsd ? session.observedUsd : undefined;
+}
+
 export function situation(session: Session): { headline: string; next: string } {
   const role = activeRole(session);
-  const reviewers = session.runs.filter(run => run.mode === 'read');
-  const rejected = reviewers.find(run => run.verdict === 'request_changes');
+  const reviewing = reviewers(session);
+  const rejected = reviewing.find(run => run.verdict === 'request_changes');
   switch (session.status) {
     case 'waiting_input': return { headline: `${role ?? 'The crew'} is waiting for your decision.`, next: 'Answer the pending request below; nothing continues until you do.' };
     case 'failed': return session.failure
-      ? { headline: `${stageNames[session.failure.stage] ?? 'Execution'} failed: ${session.failure.message}`, next: session.failure.remediation }
+      ? { headline: `${failureStage(session.failure)} failed: ${session.failure.message}`, next: session.failure.remediation }
       : rejected
         ? { headline: `${rejected.roleName} requested changes.`, next: 'Read the review findings, then send a revised instruction and resume, or cancel.' }
         : { headline: session.blocker || 'Execution stopped without approval.', next: 'Inspect the activity and checks, then decide whether to resume with new instructions.' };
@@ -44,7 +78,7 @@ export function situation(session: Session): { headline: string; next: string } 
     case 'running': return { headline: `${role ?? 'The crew'} is working in the remote workspace.`, next: 'You can keep editing. Pause to steer, or wait for the next decision.' };
     case 'exporting': return { headline: 'Capturing the repository state for review.', next: 'The candidate download appears when the snapshot is complete.' };
     case 'queued': return { headline: 'Authorized and ready; nothing has run yet.', next: 'Start the remote crew when the brief is right.' };
-    case 'completed': return { headline: `Required reviewers approved (${reviewers.filter(run => run.verdict === 'approve').length} of ${reviewers.length}).`, next: 'Machine review is done. Human review and your repository checks are still required.' };
+    case 'completed': return { headline: `Required reviewers approved (${reviewing.filter(run => run.verdict === 'approve').length} of ${reviewing.length}).`, next: 'Machine review is done. Human review and your repository checks are still required.' };
     case 'cancelled': return { headline: 'Cancelled by an operator.', next: 'Evidence stays available. Create a new session to try again.' };
   }
   return { headline: presentation(session.status).name, next: '' };
@@ -62,7 +96,9 @@ export function relativeTime(value: string, now = Date.now()): string {
 export function money(value: number): string { return `$${value.toFixed(2)}`; }
 
 export function spendLabel(session: Session): string {
-  return session.costStatus === 'demo' ? 'demo · $0' : `${money(session.spentUsd)} of ${money(session.budgetUsd)}`;
+  if (session.costStatus === 'demo') return 'demo · $0';
+  const observed = observedSpend(session);
+  return observed === undefined ? `${money(session.spentUsd)} of ${money(session.budgetUsd)}` : `${money(observed)} observed at the gateway of ${money(session.budgetUsd)}`;
 }
 
 export function safeHttpsUrl(value: string | undefined): string | undefined {

@@ -50,15 +50,24 @@ export function input(options: InputOptions): Promise<StepResult<string>> {
   });
 }
 
-export type Step<S> = (state: S, position: { step: number; total: number; canGoBack: boolean }) => Promise<StepResult<Partial<S>>>;
+export type StepFunction<S> = (state: S, position: { step: number; total: number; canGoBack: boolean }) => Promise<StepResult<Partial<S>>>;
+export type Step<S> = StepFunction<S> | { applies: (state: S) => boolean; run: StepFunction<S> };
+
+function applicable<S>(step: Step<S>, state: S): boolean { return typeof step === 'function' || step.applies(state); }
 
 export async function run<S>(initial: S, steps: Step<S>[]): Promise<S | undefined> {
   let state = initial;
   let index = 0;
+  let direction = 1;
   while (index < steps.length) {
-    const result = await steps[index](state, { step: index + 1, total: steps.length, canGoBack: index > 0 });
+    const step = steps[index];
+    if (!applicable(step, state)) { index = Math.max(0, index + direction); if (index === 0 && direction < 0) direction = 1; continue; }
+    const active = steps.filter(item => applicable(item, state));
+    const position = active.indexOf(step);
+    const result = await (typeof step === 'function' ? step : step.run)(state, { step: position + 1, total: active.length, canGoBack: position > 0 });
     if (result === undefined) return undefined;
-    if (result === back) { index = Math.max(0, index - 1); continue; }
+    if (result === back) { direction = -1; index = Math.max(0, index - 1); continue; }
+    direction = 1;
     state = { ...state, ...result };
     index++;
   }
