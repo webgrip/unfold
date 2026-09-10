@@ -1,4 +1,4 @@
-export type FailureCategory = 'missing_executable' | 'workspace_setup' | 'gateway_rejected' | 'harness_rejected' | 'connectivity' | 'timeout' | 'cancelled' | 'prompt_acceptance_unknown' | 'runtime_failure' | 'review_incomplete' | 'input_unresolved';
+export type FailureCategory = 'missing_executable' | 'workspace_setup' | 'gateway_rejected' | 'budget_exhausted' | 'harness_rejected' | 'connectivity' | 'timeout' | 'cancelled' | 'prompt_acceptance_unknown' | 'runtime_failure' | 'review_incomplete' | 'input_unresolved';
 export type FailureStage = 'credentials' | 'workspace' | 'runtime' | 'prompt' | 'execution';
 export type PromptAcceptance = 'not_submitted' | 'rejected' | 'accepted' | 'unknown';
 export type ExecutionFailure = { category: FailureCategory; stage: FailureStage; message: string; remediation: string; promptAcceptance: PromptAcceptance; automaticRetry: false; detail?: string };
@@ -23,6 +23,7 @@ export function safeDetail(value: unknown): string | undefined {
 const descriptions: Record<FailureCategory, { message: string; remediation: string }> = {
   missing_executable: { message: 'A required runtime or workspace executable is unavailable.', remediation: 'Ask an administrator to check the configured executable, its permissions and the workspace image before starting new work.' },
   workspace_setup: { message: 'The workspace could not be prepared.', remediation: 'Check the registered repository, clone access, workspace storage and provisioning policy. Inspect restricted infrastructure logs using the session identifier.' },
+  budget_exhausted: { message: 'The session budget is exhausted at the model gateway.', remediation: 'Authorize more budget and resume. The gateway settles the spend it already recorded within a minute.' },
   gateway_rejected: { message: 'The model gateway rejected a request.', remediation: 'Ask an administrator to check the registered model route, scoped credential, budget and gateway policy. Reconcile prior spend before starting new work.' },
   harness_rejected: { message: 'The agent runtime rejected a request or reported a failure.', remediation: 'Check runtime authentication, model configuration and adapter compatibility. Inspect the retained evidence and reconcile spend before starting new work.' },
   connectivity: { message: 'The required service could not be reached or its response was interrupted.', remediation: 'Check service health, DNS, TLS and permitted network egress. Inspect the remote session and reconcile spend before starting new work.' },

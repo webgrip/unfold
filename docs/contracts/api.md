@@ -21,7 +21,7 @@ Operators can read and change sessions they own. Administrators can access all s
 | Method and path | Behavior |
 | --- | --- |
 | `GET /api/sessions` | Sessions visible to the current user |
-| `POST /api/sessions` | `{title,objective,repositoryId,crewId,runtime,placement?,budgetUsd,trackerUrl?}` → created session, status 201 |
+| `POST /api/sessions` | `{title,objective,repositoryId,crewId,runtime,placement?,approval?,budgetUsd,trackerUrl?}` → created session, status 201. `approval` is `manual` (default) or `auto`; `auto` needs a `docker` or `kubernetes` placement and answers every tool permission inside the sandbox itself, while questions still reach the operator |
 | `GET /api/sessions/:id` | Public session view, runs, retained artifacts and accounting status |
 | `POST /api/sessions/:id/start` | `{}`; start queued work in the background |
 | `POST /api/sessions/:id/pause` | `{}`; deliberately stop active execution while retaining the session |
@@ -33,6 +33,10 @@ Operators can read and change sessions they own. Administrators can access all s
 Selection values must come from the registered profiles. `placement` is one of the workspace backends listed in `placements` (`docker`, `kubernetes` or `local`); omitted, it takes the deployment default, and a demonstration deployment lists none. The created session records `placement`, and the `workspace.ready` event reports the resulting `backend` and `isolation` (`container`, `pod` or `working-directory`). Budgets are positive amounts in USD; they are not token allocations. One optional writer may precede reviewers, and roles execute sequentially. Completion requires explicit approval from required reviewers. A review requesting changes is a human decision point rather than an automatic rewriting loop.
 
 A message does not promise immediate insertion into an executing model request. Pause, record the changed instruction and resume when the current run must restart with it. Resume preserves the existing authorization and settled spend. Unresolved prior spend remains reserved and can block resume. A process restart marks active work interrupted and does not silently repeat paid execution.
+
+`POST /api/sessions/:id/approval` with `{approval}` switches a live session between `manual` and `auto`, records `approval.changed`, and when switching to `auto` answers the permissions already waiting with `always`. Later roles are created with allow rules; a read role keeps its edit, bash and task denials.
+
+While a session runs, the workbench reads each held gateway key every fifteen seconds and records `budget.observed` with the spend the gateway has already attributed; the session carries it as `observedUsd`. It is a live reading, not the settled figure `spentUsd`, which still arrives after reconciliation. A turn refused by the gateway because the key's ceiling is reached fails with category `budget_exhausted`, whose remediation is to authorize more budget and resume.
 
 ## Durable events and human input
 

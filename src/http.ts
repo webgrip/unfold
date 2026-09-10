@@ -203,7 +203,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             try { parsed = new URL(trackerUrl); } catch { return fault(400, 'tracker_url', 'Use an HTTP(S) tracker link.'); }
             if (!['http:','https:'].includes(parsed.protocol) || parsed.username || parsed.password) fault(400, 'tracker_url', 'Use an HTTP(S) tracker link without credentials.');
           }
-          const session = engine.create({ title: text(data.title, 'Title', 160), objective: text(data.objective, 'Objective', 16000), repositoryId, crewId, runtime, placement: placementInput(data.placement), budgetUsd: data.budgetUsd as number, trackerUrl: trackerUrl || undefined }, user);
+          const session = engine.create({ approval: data.approval as 'manual' | 'auto' | undefined, title: text(data.title, 'Title', 160), objective: text(data.objective, 'Objective', 16000), repositoryId, crewId, runtime, placement: placementInput(data.placement), budgetUsd: data.budgetUsd as number, trackerUrl: trackerUrl || undefined }, user);
           return json(res, 201, sanitize(publicSession(session)));
         }
         if (method === 'GET' && path === '/api/ploeg') {
@@ -273,6 +273,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             else if (action === 'resume') result = await engine.resume(id, user);
             else if (action === 'cancel') result = await engine.cancel(id, user);
             else if (action === 'messages') result = engine.message(id, text(data.text, 'Instruction', 16000), user);
+            else if (action === 'approval') result = await engine.setApproval(id, data.approval, user);
             else if (action === 'budget') {
               if (user.role !== 'admin') fault(403, 'forbidden', 'An administrator must authorize additional budget.');
               if (typeof data.amountUsd !== 'number' || !Number.isFinite(data.amountUsd) || data.amountUsd <= 0) fault(400, 'budget', 'Additional budget must be positive.');

@@ -17,7 +17,7 @@ type Broker = {
 };
 type Reservation = { reference: string; authorizedUsd: number; revoked: boolean };
 type Active = { controller: AbortController; task: Promise<void> };
-export type CreateSessionInput = { title: string; objective: string; repositoryId: string; crewId: string; runtime: RuntimeKind; placement?: WorkspaceBackend; budgetUsd: number; trackerUrl?: string; sourceTask?: TaskSnapshot };
+export type CreateSessionInput = { title: string; objective: string; repositoryId: string; crewId: string; runtime: RuntimeKind; placement?: WorkspaceBackend; approval?: 'manual' | 'auto'; budgetUsd: number; trackerUrl?: string; sourceTask?: TaskSnapshot };
 
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
 
@@ -46,7 +46,7 @@ export class Engine {
     for (const value of [config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword, ...(config.taskSources ?? []).map(source => source.token)]) if (value) this.keys.add(value);
     if (broker) this.maintenance = setInterval(() => {
       if (this.shuttingDown || this.maintenanceTask) return;
-      this.maintenanceTask = this.reconcilePending().catch(() => undefined).finally(() => { this.maintenanceTask = undefined; });
+      this.maintenanceTask = this.observeSpend().catch(() => undefined).then(() => this.reconcilePending()).catch(() => undefined).finally(() => { this.maintenanceTask = undefined; });
     }, 15000).unref();
   }
 
@@ -61,6 +61,7 @@ export class Engine {
     this.interactiveRepository(repository.id, input.sourceTask);
     if ((this.config.mode === 'demo') !== (input.runtime === 'demo')) throw new EngineError(400, 'invalid_runtime', 'The runtime does not match this deployment mode.');
     const placement = this.placement(input.placement);
+    const approval = this.approval(input.approval, placement);
     if (!crew.roles.length || crew.roles.slice(1).some(role => role.mode !== 'read') || !crew.roles.some(role => role.mode === 'read')) throw new EngineError(400, 'invalid_crew', 'A crew requires reviewers, optionally preceded by one writer.');
     if (new Set(crew.roles.map(role => role.id)).size !== crew.roles.length) throw new EngineError(400, 'invalid_crew', 'Crew role IDs must be unique.');
     const budgetUsd = input.budgetUsd;
@@ -68,10 +69,30 @@ export class Engine {
     if (input.trackerUrl && input.trackerUrl !== repository.trackerUrl) throw new EngineError(400, 'invalid_tracker', 'Use the configured repository tracker link.');
     const now = new Date().toISOString();
     const id = randomUUID();
-    const session: Session = { id, title, objective, repositoryId: repository.id, crewId: crew.id, runtime: input.runtime, ...(placement ? { placement } : {}), ownerId: user.id, ownerName: user.name, status: 'queued', budgetUsd, spentUsd: 0, costStatus: input.runtime === 'demo' ? 'demo' : 'pending', createdAt: now, updatedAt: now, branch: `vloer/${id}`, runs: crew.roles.map(role => ({ id: randomUUID(), sessionId: id, roleId: role.id, roleName: role.name, mode: role.mode, status: 'queued', costUsd: 0 })), artifacts: [], ...(repository.trackerUrl ? { trackerUrl: repository.trackerUrl } : {}) };
+    const session: Session = { id, title, objective, repositoryId: repository.id, crewId: crew.id, runtime: input.runtime, ...(placement ? { placement } : {}), approval, ownerId: user.id, ownerName: user.name, status: 'queued', budgetUsd, spentUsd: 0, costStatus: input.runtime === 'demo' ? 'demo' : 'pending', createdAt: now, updatedAt: now, branch: `vloer/${id}`, runs: crew.roles.map(role => ({ id: randomUUID(), sessionId: id, roleId: role.id, roleName: role.name, mode: role.mode, status: 'queued', costUsd: 0 })), artifacts: [], ...(repository.trackerUrl ? { trackerUrl: repository.trackerUrl } : {}) };
     if (input.sourceTask) { session.sourceTask = structuredClone(input.sourceTask); session.trackerUrl = input.sourceTask.url; }
-    this.save(session, 'session.created', user.id, { title, runtime: session.runtime, ...(placement ? { placement } : {}), budgetUsd, demo: session.runtime === 'demo', ...(session.sourceTask ? { sourceTask: session.sourceTask, imported: true, automaticStart: false } : {}) });
+    this.save(session, 'session.created', user.id, { title, runtime: session.runtime, ...(placement ? { placement } : {}), approval, budgetUsd, demo: session.runtime === 'demo', ...(session.sourceTask ? { sourceTask: session.sourceTask, imported: true, automaticStart: false } : {}) });
     return session;
+  }
+
+  private approval(requested: unknown, placement: WorkspaceBackend | undefined): 'manual' | 'auto' {
+    if (requested === undefined || requested === 'manual') return 'manual';
+    if (requested !== 'auto') throw new EngineError(400, 'invalid_approval', 'Approval is manual or auto.');
+    if (placement !== 'docker' && placement !== 'kubernetes') throw new EngineError(400, 'approval_requires_isolation', 'Automatic approval needs a container or pod placement.');
+    return 'auto';
+  }
+
+  async setApproval(id: string, requested: unknown, user: User): Promise<Session> {
+    const session = this.owned(id, user);
+    if (['completed', 'failed', 'cancelled'].includes(session.status)) throw new EngineError(409, 'session_finished', 'This session has finished.');
+    const approval = this.approval(requested, session.placement);
+    session.approval = approval;
+    this.save(session, 'approval.changed', user.id, { approval });
+    if (approval === 'auto') for (const request of this.store.permissions(id)) {
+      if (request.resolved || request.kind !== 'permission') continue;
+      try { await this.respond(id, request.id, { decision: 'always' }, user); } catch { break; }
+    }
+    return this.store.getSession(id)!;
   }
 
   private placement(requested: unknown): WorkspaceBackend | undefined {
@@ -282,6 +303,26 @@ export class Engine {
     await Promise.allSettled([...this.active.values()].map(active => active.task));
     if (this.maintenanceTask) await this.maintenanceTask;
     await Promise.allSettled([...this.reconciliations.values()]);
+  }
+
+  async observeSpend(): Promise<void> {
+    if (!this.broker) return;
+    for (const session of this.store.listSessions()) {
+      if (this.shuttingDown) return;
+      if (session.runtime === 'demo' || !this.active.has(session.id) || !['running', 'waiting_input'].includes(session.status)) continue;
+      let observed = session.spentUsd;
+      for (const hold of this.reservations(session.id)) {
+        if (hold.revoked) continue;
+        const spend = await this.broker.spend(hold.reference).catch(() => undefined);
+        if (typeof spend === 'number') observed += spend;
+      }
+      observed = Math.round(observed * 1e6) / 1e6;
+      if (observed <= (session.observedUsd ?? session.spentUsd)) continue;
+      const current = this.store.getSession(session.id);
+      if (!current || !['running', 'waiting_input'].includes(current.status)) continue;
+      current.observedUsd = observed;
+      this.save(current, 'budget.observed', 'system', { observedUsd: observed, budgetUsd: current.budgetUsd });
+    }
   }
 
   async reconcilePending(): Promise<void> {

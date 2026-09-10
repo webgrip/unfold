@@ -130,9 +130,10 @@ export class OpenCodeRuntime implements AgentRuntime {
     let baseline: WireMessage[];
     try {
       if (!nativeId) {
+        const auto = context.session.approval === 'auto';
         const permission = context.role.mode === 'read'
-          ? [{ permission: '*', pattern: '*', action: 'ask' }, { permission: 'edit', pattern: '*', action: 'deny' }, { permission: 'bash', pattern: '*', action: 'deny' }, { permission: 'task', pattern: '*', action: 'deny' }, { permission: 'read', pattern: '*', action: 'allow' }, { permission: 'glob', pattern: '*', action: 'allow' }, { permission: 'grep', pattern: '*', action: 'allow' }, { permission: 'external_directory', pattern: '*', action: 'deny' }]
-          : undefined;
+          ? [{ permission: '*', pattern: '*', action: auto ? 'allow' : 'ask' }, { permission: 'edit', pattern: '*', action: 'deny' }, { permission: 'bash', pattern: '*', action: 'deny' }, { permission: 'task', pattern: '*', action: 'deny' }, { permission: 'read', pattern: '*', action: 'allow' }, { permission: 'glob', pattern: '*', action: 'allow' }, { permission: 'grep', pattern: '*', action: 'allow' }, { permission: 'external_directory', pattern: '*', action: 'deny' }]
+          : auto ? [{ permission: '*', pattern: '*', action: 'allow' }, { permission: 'external_directory', pattern: '*', action: 'deny' }] : undefined;
         const created = await this.request(workspace, '/session', 'POST', { title: `${context.session.title} · ${context.role.name}`, ...(permission ? { permission } : {}) }, operation);
         if (typeof created?.id !== 'string') throw new RuntimeFailure('harness_rejected', 'runtime');
         nativeId = created.id;
@@ -264,7 +265,10 @@ export class OpenCodeRuntime implements AgentRuntime {
 
   private agentFailure(error: unknown): RuntimeFailure {
     const name = error && typeof error === 'object' && 'name' in error ? error.name : undefined;
-    return new RuntimeFailure(['APIError', 'APICallError', 'ProviderAuthError', 'ModelNotFoundError'].includes(String(name)) ? 'gateway_rejected' : 'harness_rejected', 'execution', 'accepted');
+    const message = error && typeof error === 'object' && 'message' in error ? String(error.message ?? '') : '';
+    const gateway = ['APIError', 'APICallError', 'ProviderAuthError', 'ModelNotFoundError'].includes(String(name));
+    const exhausted = /budget has been exceeded|BudgetExceeded|ExceededBudget/i.test(message);
+    return new RuntimeFailure(exhausted ? 'budget_exhausted' : gateway ? 'gateway_rejected' : 'harness_rejected', 'execution', 'accepted', undefined, message ? `${String(name ?? 'error')}: ${message.slice(0, 300)}` : undefined);
   }
 
   async respond(workspace: Workspace, request: PermissionRequest, answer: { decision?: 'once' | 'always' | 'reject'; answers?: string[][] }): Promise<void> {

@@ -78,6 +78,12 @@ A private repository over HTTPS needs a credential the workspace can use without
 
 That token is the one credential a sandbox holds beyond its inference key, and a crew that pushes its own branch and opens the merge request is the compatibility mode [ADR 0006](../adrs/0006-trusted-verifier-and-publisher.md) describes: it cannot claim the fencing guarantee. Use a project access token scoped to the one repository with `api` and `write_repository` and a short expiry, never a shared estate token. The [model gateway capabilities](../product/model-gateway-capabilities.md) page records the path that removes the token entirely, forge tools served through the gateway's MCP surface and granted per key.
 
+## Approving tool use
+
+Every OpenCode session starts with `ask` for every tool, so each read, search and shell command waits for the operator. That is the right default on the `local` backend, where the crew shares the workbench's files. In a container or a pod the sandbox is the boundary, so a session there can be created with automatic approval, or switched to it from the decision panel while it runs. The switch answers the permissions already waiting and creates later roles with allow rules; read roles still cannot edit or run commands, and a crew's questions still wait for a person. Automatic approval is refused on the `local` backend.
+
+Budgets are enforced by the gateway key, so a session whose ceiling is reached fails mid-turn with `budget_exhausted`, and the spend shown while it runs is the gateway's live attribution, which settles a minute later. Size the budget to the crew: reading a repository with a Sonnet-class model costs a few cents per turn, and an investigation crew can spend a quarter in under a minute.
+
 ## Linking GitLab
 
 Register one OAuth application per workbench in GitLab, under your user or the group that owns the repositories ([GitLab OAuth applications](https://docs.gitlab.com/integration/oauth_provider/)): redirect URI `<baseUrl>/api/links/gitlab/callback`, confidential off, scopes `read_api`, `read_repository` and `write_repository`. The application ID is not a secret. Put it in the profile as `links.gitlab.clientId`, or export `VLOER_GITLAB_CLIENT_ID`, and set `links.gitlab.baseUrl` for a self-hosted GitLab. `baseUrl` on the workbench must match what the browser uses, because it forms the redirect URI.

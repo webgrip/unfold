@@ -125,3 +125,23 @@ test('OpenCode interruption reports native abort failures to the controller', as
   const runtime = new OpenCodeRuntime(config, manager, (async () => new Response('private-error', { status: 503 })) as typeof fetch);
   await assert.rejects(runtime.interrupt({ ...workspace, nativeSessionId: 'ses_native' }), error => error instanceof RuntimeFailure && error.category === 'harness_rejected' && error.httpStatus === 503);
 });
+
+test('automatic approval creates the native session with allow rules and keeps the read-role denials', async () => {
+  const events: RuntimeEvent[] = [];
+  const fake = wire();
+  const runtime = new OpenCodeRuntime(config, manager, fake.fetcher);
+  const ctx = context(events);
+  ctx.session = { ...ctx.session, approval: 'auto' };
+  await runtime.execute(ctx);
+  const rules = fake.calls.find(call => call.path === '/session')?.body.permission;
+  assert.equal(rules.find((rule: any) => rule.permission === '*').action, 'allow');
+  assert.equal(rules.find((rule: any) => rule.permission === 'edit').action, 'deny');
+  assert.equal(rules.find((rule: any) => rule.permission === 'bash').action, 'deny');
+  const writer = context(events);
+  writer.session = { ...writer.session, approval: 'auto' };
+  writer.role = { id: 'builder', name: 'Builder', mode: 'write', instruction: 'Build' };
+  const second = wire();
+  await new OpenCodeRuntime(config, manager, second.fetcher).execute(writer);
+  const writerRules = second.calls.find(call => call.path === '/session')?.body.permission;
+  assert.deepEqual(writerRules, [{ permission: '*', pattern: '*', action: 'allow' }, { permission: 'external_directory', pattern: '*', action: 'deny' }]);
+});
