@@ -3798,3 +3798,182 @@ Without an event feed a projector must poll lists, and Ploeg runs remain invisib
 
 This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
 ","Planned","2","ploeg-vloer|e06|medium","PV-081","ploeg","M3","PV-079|PV-080","5"
+"[PV-082] Sign in with the estate's OIDC provider","# PV-082: Sign in with the estate's OIDC provider
+
+Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
+Milestone: M0; epic: E03; risk: high; estimate: 5 relative points.
+Depends on: No code dependencies in this seed; environment and human authorization still required.
+
+## Problem
+
+Local passwords are the only login, so a person's sessions, spend and forge writes carry no estate identity.
+
+## Acceptance criteria
+
+- [ ] Authorization-code flow with PKCE, state and nonce against a configured issuer; issuer, audience, expiry and signature validated; identity is (issuer, subject).
+- [ ] The VS Code client authenticates as a public client through the system browser with device authorization as fallback; no client secret in the extension.
+- [ ] The local password remains only as the bootstrap administrator path.
+
+## Verification
+
+- [ ] Login, logout and expiry against an Authentik fixture; a token from another issuer is rejected.
+
+## Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+## Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+## Starting points
+
+- de-vloer:src/auth.ts
+- de-vloer:src/http.ts
+- de-vloer:extensions/vscode/src/extension.ts
+
+## Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+","Planned","1","ploeg-vloer|e03|high","PV-082","de-vloer","M0","","5"
+"[PV-083] Let a person link their own forge and tracker accounts","# PV-083: Let a person link their own forge and tracker accounts
+
+Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
+Milestone: M0; epic: E03; risk: high; estimate: 5 relative points.
+Depends on: PV-082
+
+## Problem
+
+Forge and tracker credentials are seeded by an administrator into a vault or a shell, so a person cannot connect anything themselves and a missing token stops the workbench.
+
+## Acceptance criteria
+
+- [ ] A profile page lists links; GitLab OAuth with read_api, read_repository and write_repository is the first provider; a pasted token is accepted where OAuth is unavailable.
+- [ ] Tokens are stored per user, encrypted with a server key from the environment, refreshed server-side and revocable; revocation stops sessions using the link.
+- [ ] No link is ever exported to a sandbox or returned by the API.
+
+## Verification
+
+- [ ] OAuth round trip against a GitLab fixture; revoke mid-session and observe the session stop; API responses never contain a token.
+
+## Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+## Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+## Starting points
+
+- de-vloer:src/http.ts
+- de-vloer:src/store.ts
+- de-vloer:public/app.js
+- de-vloer:docs/contracts/api.md
+
+## Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+","Planned","1","ploeg-vloer|e03|high","PV-083","de-vloer","M0","PV-082","5"
+"[PV-084] Run sessions without a repository and discover repositories from a link","# PV-084: Run sessions without a repository and discover repositories from a link
+
+Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
+Milestone: M0; epic: E03; risk: medium; estimate: 5 relative points.
+Depends on: PV-083
+
+## Problem
+
+A session requires an administrator-listed repository, so a person cannot start with an objective alone or with a repository only they can see.
+
+## Acceptance criteria
+
+- [ ] POST /api/sessions accepts no repositoryId and provisions an empty workspace.
+- [ ] Repositories are listed from the person's forge link; administrator-listed repositories remain as estate defaults and carry executionOwner.
+- [ ] A private clone runs in the clone step with a token minted for that operation; the agent container starts after it with only its inference key.
+
+## Verification
+
+- [ ] A session with no repository runs the delivery crew to a candidate; a private repository clones without any forge credential in the agent container's environment.
+
+## Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+## Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+## Starting points
+
+- de-vloer:src/engine.ts
+- de-vloer:src/runtime/workspace.ts
+- de-vloer:src/runtime/docker.ts
+- de-vloer:src/runtime/kubernetes.ts
+
+## Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+","Planned","1","ploeg-vloer|e03|medium","PV-084","de-vloer","M0","PV-083","5"
+"[PV-085] Open the merge request from the workbench as the signed-in person","# PV-085: Open the merge request from the workbench as the signed-in person
+
+Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
+Milestone: M1; epic: E03; risk: high; estimate: 5 relative points.
+Depends on: PV-083, PV-084
+
+## Problem
+
+Publication is a prompt instruction to a sandboxed writer holding a forge token, which ADR 0006 calls a compatibility mode without a fencing guarantee.
+
+## Acceptance criteria
+
+- [ ] After review, an action pushes the candidate branch and opens the merge or pull request with the person's link from the control plane.
+- [ ] Both writes are recorded in the session's event log with the person's identity; the ticket, if linked, receives the link.
+- [ ] The candidate manifest keeps publication as not performed by the session.
+
+## Verification
+
+- [ ] Publish a fixture candidate to a GitLab fixture and a Forgejo fixture; the sandbox environment never contains a forge credential; the event log shows who published.
+
+## Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+## Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+## Starting points
+
+- de-vloer:src/candidates.ts
+- de-vloer:src/http.ts
+- de-vloer:public/app.js
+- de-vloer:extensions/vscode/src/extension.ts
+
+## Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+","Planned","1","ploeg-vloer|e03|high","PV-085","de-vloer","M1","PV-083|PV-084","5"

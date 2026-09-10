@@ -1,6 +1,6 @@
 # Implementation backlog
 
-81 ticket-ready records; generated from backlog/backlog.json. This file is a planning/export artifact. The selected tracker remains the source of truth after import. Planning status is not permission to run work.
+85 ticket-ready records; generated from backlog/backlog.json. This file is a planning/export artifact. The selected tracker remains the source of truth after import. Planning status is not permission to run work.
 
 Estimates are relative engineering points, not hours, deadlines or predicted agent effort. Cross-repository dependency IDs need a mapping to native tracker IDs after import. No tickets have been created by this generator.
 
@@ -8,8 +8,8 @@ Estimates are relative engineering points, not hours, deadlines or predicted age
 
 | ID | Outcome | Tickets |
 | --- | --- | --- |
-| M0 | Supervised dogfooding and usable editor | 7 |
-| M1 | Trustworthy candidate, checks and mutations | 13 |
+| M0 | Supervised dogfooding and usable editor | 10 |
+| M1 | Trustworthy candidate, checks and mutations | 14 |
 | M2 | One governed ticket-to-review loop | 21 |
 | M3 | Team identity, takeover and shared resources | 22 |
 | M4 | Repeatable customer pilot and evidence | 15 |
@@ -17,7 +17,7 @@ Estimates are relative engineering points, not hours, deadlines or predicted age
 
 ## Dependency order
 
-PV-001 → PV-002 → PV-003 → PV-004 → PV-005 → PV-006 → PV-007 → PV-013 → PV-014 → PV-015 → PV-016 → PV-071 → PV-072 → PV-073 → PV-074 → PV-022 → PV-023 → PV-028 → PV-009 → PV-010 → PV-011 → PV-078 → PV-008 → PV-012 → PV-017 → PV-018 → PV-019 → PV-020 → PV-021 → PV-034 → PV-079 → PV-024 → PV-025 → PV-026 → PV-027 → PV-029 → PV-030 → PV-031 → PV-032 → PV-033 → PV-035 → PV-036 → PV-037 → PV-038 → PV-039 → PV-040 → PV-041 → PV-042 → PV-043 → PV-044 → PV-045 → PV-046 → PV-047 → PV-048 → PV-049 → PV-050 → PV-051 → PV-052 → PV-053 → PV-054 → PV-055 → PV-056 → PV-057 → PV-058 → PV-059 → PV-060 → PV-061 → PV-062 → PV-063 → PV-064 → PV-065 → PV-066 → PV-067 → PV-068 → PV-069 → PV-070 → PV-075 → PV-076 → PV-077 → PV-080 → PV-081
+PV-001 → PV-002 → PV-003 → PV-004 → PV-005 → PV-006 → PV-007 → PV-013 → PV-014 → PV-015 → PV-016 → PV-071 → PV-072 → PV-073 → PV-074 → PV-022 → PV-023 → PV-028 → PV-009 → PV-010 → PV-011 → PV-078 → PV-008 → PV-012 → PV-017 → PV-018 → PV-019 → PV-020 → PV-021 → PV-034 → PV-079 → PV-024 → PV-025 → PV-026 → PV-027 → PV-029 → PV-030 → PV-031 → PV-032 → PV-033 → PV-035 → PV-036 → PV-037 → PV-038 → PV-039 → PV-040 → PV-041 → PV-042 → PV-043 → PV-044 → PV-045 → PV-046 → PV-047 → PV-048 → PV-049 → PV-050 → PV-051 → PV-052 → PV-053 → PV-054 → PV-055 → PV-056 → PV-057 → PV-058 → PV-059 → PV-060 → PV-061 → PV-062 → PV-063 → PV-064 → PV-065 → PV-066 → PV-067 → PV-068 → PV-069 → PV-070 → PV-075 → PV-076 → PV-077 → PV-080 → PV-081 → PV-082 → PV-083 → PV-084 → PV-085
 
 ## Coverage of the code audit
 
@@ -3850,6 +3850,185 @@ Without an event feed a projector must poll lists, and Ploeg runs remain invisib
 - ploeg:pkg/store
 - de-vloer:src/ahp
 - de-vloer:src/http.ts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-082: Sign in with the estate's OIDC provider
+
+Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
+Milestone: M0; epic: E03; risk: high; estimate: 5 relative points.
+Depends on: No code dependencies in this seed; environment and human authorization still required.
+
+#### Problem
+
+Local passwords are the only login, so a person's sessions, spend and forge writes carry no estate identity.
+
+#### Acceptance criteria
+
+- [ ] Authorization-code flow with PKCE, state and nonce against a configured issuer; issuer, audience, expiry and signature validated; identity is (issuer, subject).
+- [ ] The VS Code client authenticates as a public client through the system browser with device authorization as fallback; no client secret in the extension.
+- [ ] The local password remains only as the bootstrap administrator path.
+
+#### Verification
+
+- [ ] Login, logout and expiry against an Authentik fixture; a token from another issuer is rejected.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/auth.ts
+- de-vloer:src/http.ts
+- de-vloer:extensions/vscode/src/extension.ts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-083: Let a person link their own forge and tracker accounts
+
+Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
+Milestone: M0; epic: E03; risk: high; estimate: 5 relative points.
+Depends on: PV-082
+
+#### Problem
+
+Forge and tracker credentials are seeded by an administrator into a vault or a shell, so a person cannot connect anything themselves and a missing token stops the workbench.
+
+#### Acceptance criteria
+
+- [ ] A profile page lists links; GitLab OAuth with read_api, read_repository and write_repository is the first provider; a pasted token is accepted where OAuth is unavailable.
+- [ ] Tokens are stored per user, encrypted with a server key from the environment, refreshed server-side and revocable; revocation stops sessions using the link.
+- [ ] No link is ever exported to a sandbox or returned by the API.
+
+#### Verification
+
+- [ ] OAuth round trip against a GitLab fixture; revoke mid-session and observe the session stop; API responses never contain a token.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/http.ts
+- de-vloer:src/store.ts
+- de-vloer:public/app.js
+- de-vloer:docs/contracts/api.md
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-084: Run sessions without a repository and discover repositories from a link
+
+Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
+Milestone: M0; epic: E03; risk: medium; estimate: 5 relative points.
+Depends on: PV-083
+
+#### Problem
+
+A session requires an administrator-listed repository, so a person cannot start with an objective alone or with a repository only they can see.
+
+#### Acceptance criteria
+
+- [ ] POST /api/sessions accepts no repositoryId and provisions an empty workspace.
+- [ ] Repositories are listed from the person's forge link; administrator-listed repositories remain as estate defaults and carry executionOwner.
+- [ ] A private clone runs in the clone step with a token minted for that operation; the agent container starts after it with only its inference key.
+
+#### Verification
+
+- [ ] A session with no repository runs the delivery crew to a candidate; a private repository clones without any forge credential in the agent container's environment.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/engine.ts
+- de-vloer:src/runtime/workspace.ts
+- de-vloer:src/runtime/docker.ts
+- de-vloer:src/runtime/kubernetes.ts
+
+#### Execution boundary
+
+This is a planning brief, not an execution grant. Confirm the actual tracker revision, dependencies, allowed target, budget and policy before work. Produce a reviewable candidate and real evidence. Do not merge, deploy, change active platform permissions, or increase your own budget. Preserve the intentionally failing order-service demonstration fixture unless the approved task specifically changes that demonstration.
+
+### PV-085: Open the merge request from the workbench as the signed-in person
+
+Target repository: de-vloer
+Local planning status: planned; this is not the tracker's current status or permission to execute.
+Milestone: M1; epic: E03; risk: high; estimate: 5 relative points.
+Depends on: PV-083, PV-084
+
+#### Problem
+
+Publication is a prompt instruction to a sandboxed writer holding a forge token, which ADR 0006 calls a compatibility mode without a fencing guarantee.
+
+#### Acceptance criteria
+
+- [ ] After review, an action pushes the candidate branch and opens the merge or pull request with the person's link from the control plane.
+- [ ] Both writes are recorded in the session's event log with the person's identity; the ticket, if linked, receives the link.
+- [ ] The candidate manifest keeps publication as not performed by the session.
+
+#### Verification
+
+- [ ] Publish a fixture candidate to a GitLab fixture and a Forgejo fixture; the sandbox environment never contains a forge credential; the event log shows who published.
+
+#### Definition of ready
+
+- [ ] A human owns the task and confirms its acceptance criteria.
+- [ ] Target repository, base revision and affected policy are identified.
+- [ ] Dependencies are accepted in the actual tracker; no local seed status grants execution authority.
+
+#### Definition of done
+
+- [ ] The change has reproducible evidence for the listed acceptance criteria.
+- [ ] Required independent checks and human review passed for the exact candidate.
+- [ ] Documentation and contracts match the implementation; unknowns remain explicit.
+- [ ] The existing forge/CI/release policy decides merge, deployment and tracker completion.
+
+#### Starting points
+
+- de-vloer:src/candidates.ts
+- de-vloer:src/http.ts
+- de-vloer:public/app.js
+- de-vloer:extensions/vscode/src/extension.ts
 
 #### Execution boundary
 

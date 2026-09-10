@@ -3448,6 +3448,164 @@
         "Documentation and contracts match the implementation; unknowns remain explicit.",
         "The existing forge/CI/release policy decides merge, deployment and tracker completion."
       ]
+    },
+    {
+      "id": "PV-082",
+      "epic": "E03",
+      "title": "Sign in with the estate's OIDC provider",
+      "targetRepository": "de-vloer",
+      "milestone": "M0",
+      "status": "planned",
+      "priority": 1,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [],
+      "problem": "Local passwords are the only login, so a person's sessions, spend and forge writes carry no estate identity.",
+      "acceptanceCriteria": [
+        "Authorization-code flow with PKCE, state and nonce against a configured issuer; issuer, audience, expiry and signature validated; identity is (issuer, subject).",
+        "The VS Code client authenticates as a public client through the system browser with device authorization as fallback; no client secret in the extension.",
+        "The local password remains only as the bootstrap administrator path."
+      ],
+      "verification": [
+        "Login, logout and expiry against an Authentik fixture; a token from another issuer is rejected."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/auth.ts",
+        "de-vloer:src/http.ts",
+        "de-vloer:extensions/vscode/src/extension.ts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-083",
+      "epic": "E03",
+      "title": "Let a person link their own forge and tracker accounts",
+      "targetRepository": "de-vloer",
+      "milestone": "M0",
+      "status": "planned",
+      "priority": 1,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-082"
+      ],
+      "problem": "Forge and tracker credentials are seeded by an administrator into a vault or a shell, so a person cannot connect anything themselves and a missing token stops the workbench.",
+      "acceptanceCriteria": [
+        "A profile page lists links; GitLab OAuth with read_api, read_repository and write_repository is the first provider; a pasted token is accepted where OAuth is unavailable.",
+        "Tokens are stored per user, encrypted with a server key from the environment, refreshed server-side and revocable; revocation stops sessions using the link.",
+        "No link is ever exported to a sandbox or returned by the API."
+      ],
+      "verification": [
+        "OAuth round trip against a GitLab fixture; revoke mid-session and observe the session stop; API responses never contain a token."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/http.ts",
+        "de-vloer:src/store.ts",
+        "de-vloer:public/app.js",
+        "de-vloer:docs/contracts/api.md"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-084",
+      "epic": "E03",
+      "title": "Run sessions without a repository and discover repositories from a link",
+      "targetRepository": "de-vloer",
+      "milestone": "M0",
+      "status": "planned",
+      "priority": 1,
+      "risk": "medium",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-083"
+      ],
+      "problem": "A session requires an administrator-listed repository, so a person cannot start with an objective alone or with a repository only they can see.",
+      "acceptanceCriteria": [
+        "POST /api/sessions accepts no repositoryId and provisions an empty workspace.",
+        "Repositories are listed from the person's forge link; administrator-listed repositories remain as estate defaults and carry executionOwner.",
+        "A private clone runs in the clone step with a token minted for that operation; the agent container starts after it with only its inference key."
+      ],
+      "verification": [
+        "A session with no repository runs the delivery crew to a candidate; a private repository clones without any forge credential in the agent container's environment."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/engine.ts",
+        "de-vloer:src/runtime/workspace.ts",
+        "de-vloer:src/runtime/docker.ts",
+        "de-vloer:src/runtime/kubernetes.ts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-085",
+      "epic": "E03",
+      "title": "Open the merge request from the workbench as the signed-in person",
+      "targetRepository": "de-vloer",
+      "milestone": "M1",
+      "status": "planned",
+      "priority": 1,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-083",
+        "PV-084"
+      ],
+      "problem": "Publication is a prompt instruction to a sandboxed writer holding a forge token, which ADR 0006 calls a compatibility mode without a fencing guarantee.",
+      "acceptanceCriteria": [
+        "After review, an action pushes the candidate branch and opens the merge or pull request with the person's link from the control plane.",
+        "Both writes are recorded in the session's event log with the person's identity; the ticket, if linked, receives the link.",
+        "The candidate manifest keeps publication as not performed by the session."
+      ],
+      "verification": [
+        "Publish a fixture candidate to a GitLab fixture and a Forgejo fixture; the sandbox environment never contains a forge credential; the event log shows who published."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/candidates.ts",
+        "de-vloer:src/http.ts",
+        "de-vloer:public/app.js",
+        "de-vloer:extensions/vscode/src/extension.ts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
     }
   ],
   "gapCoverage": {
