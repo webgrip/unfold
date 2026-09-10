@@ -8,6 +8,7 @@ import { publicSession, type Store } from './store.ts';
 import { getTask, listTasks, publicTaskSource, TaskError } from './tasks.ts';
 import { readCandidate, unavailableCandidate } from './candidates.ts';
 import { placements } from './config.ts';
+import type { WorkerRelay } from './runtime/relay.ts';
 import { readFileSync } from 'node:fs';
 
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
@@ -59,7 +60,7 @@ function mutationGuard(req: IncomingMessage, config: AppConfig): void {
   if (req.headers['sec-fetch-site'] === 'cross-site') fault(403, 'origin', 'Cross-site requests are not allowed.');
 }
 
-export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[]) {
+export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay) {
   const auth = new Auth(store, config);
   const streams = new Set<ServerResponse>();
   const knownSecrets = [config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword, ...(config.taskSources ?? []).map(source => source.token)].filter((value): value is string => Boolean(value));
@@ -92,6 +93,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         store.listSessions();
         return json(res, 200, { status: 'ok', version: applicationVersion });
       }
+      if (relay && await relay.handle(req, res, url)) return;
       if (['POST','PUT','PATCH','DELETE'].includes(method)) mutationGuard(req, config);
       if (method === 'POST' && path === '/api/login') {
         const data = await body(req);

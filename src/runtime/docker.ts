@@ -6,10 +6,15 @@ import { captureLocalCandidate, pinCandidateBase, unavailableCandidate, type Can
 import { RuntimeFailure, transportFailure } from '../failures.ts';
 import type { AppConfig, Credential, Repository, Session, Workspace } from '../types.ts';
 import { cloneProgram, workspaceName } from './kubernetes.ts';
+import { WorkerRelay, relayEndpoint } from './relay.ts';
 
 type DockerSettings = NonNullable<AppConfig['docker']>;
 type BasicCredentials = { username: string; password: string };
 type ContainerSpec = Record<string, any>;
+type RelayBinding = { url: string; token: string };
+
+export const relayWorkerPath = '/usr/local/lib/de-vloer/relay-worker.mjs';
+export const relayServeCommand = ['node', relayWorkerPath, '--', 'opencode', 'serve', '--hostname', '127.0.0.1', '--port', '4096'];
 
 export const defaultSocketPath = '/var/run/docker.sock';
 const containerWorkspace = '/workspace';
@@ -53,7 +58,7 @@ export class DockerClient {
       req.setTimeout(timeoutMs, () => req.destroy(new RuntimeFailure('timeout', 'workspace')));
       req.on('error', (error: NodeJS.ErrnoException) => reject(['ENOENT', 'EACCES', 'ECONNREFUSED'].includes(error.code ?? '')
         ? new RuntimeFailure('missing_executable', 'workspace', 'not_submitted', undefined, `The Docker Engine socket ${this.socketPath} is unavailable (${error.code})`)
-        : transportFailure(error, 'workspace')));
+        : new RuntimeFailure('connectivity', 'workspace', 'not_submitted', undefined, `Docker ${method} ${path.split('?')[0]} failed before a response (${error.code ?? error.name})`)));
       req.end(payload);
     });
   }
@@ -97,7 +102,7 @@ function hardenedHostConfig(settings: DockerSettings, root: string): ContainerSp
   };
 }
 
-export function containerSpecs(config: AppConfig, session: Session, repository: Repository, root: string, credential: Credential | undefined, basic: BasicCredentials, managed: Record<string, unknown>, host = process.env): { clone: ContainerSpec; agent: ContainerSpec } {
+export function containerSpecs(config: AppConfig, session: Session, repository: Repository, root: string, credential: Credential | undefined, basic: BasicCredentials, managed: Record<string, unknown>, host = process.env, relay?: RelayBinding): { clone: ContainerSpec; agent: ContainerSpec } {
   const settings = config.docker;
   if (!settings) throw new Error('Docker workspace configuration missing');
   const user = settings.user ?? (process.platform === 'linux' && typeof process.getuid === 'function' ? `${process.getuid()}:${process.getgid!()}` : undefined);
@@ -108,7 +113,11 @@ export function containerSpecs(config: AppConfig, session: Session, repository: 
     Env: [...environment.filter(entry => !/^(LITELLM_API_KEY|OPENCODE_SERVER_)/.test(entry)), `REPOSITORY_URL=${repository.url}`, `BASE_BRANCH=${repository.baseBranch}`, `WORK_BRANCH=${session.branch}`],
     HostConfig: hardenedHostConfig(settings, root), ...(user ? { User: user } : {}),
   };
-  const agent = {
+  const agent = relay ? {
+    Image: settings.image, Cmd: relayServeCommand, WorkingDir: `${containerWorkspace}/repository`, Labels: { ...labels, 'dev.webgrip.de-vloer/purpose': 'agent', 'dev.webgrip.de-vloer/transport': 'pull' },
+    Env: [...environment, `VLOER_RELAY_URL=${relay.url}`, `VLOER_RELAY_TOKEN=${relay.token}`, 'VLOER_RELAY_TARGET=http://127.0.0.1:4096'],
+    HostConfig: hardenedHostConfig(settings, root), ...(user ? { User: user } : {}),
+  } : {
     Image: settings.image, Cmd: ['opencode', 'serve', '--hostname', '0.0.0.0', '--port', '4096'], WorkingDir: `${containerWorkspace}/repository`, Labels: { ...labels, 'dev.webgrip.de-vloer/purpose': 'agent' },
     Env: environment, ExposedPorts: { '4096/tcp': {} },
     HostConfig: { ...hardenedHostConfig(settings, root), PortBindings: { '4096/tcp': [{ HostIp: '127.0.0.1', HostPort: '' }] } }, ...(user ? { User: user } : {}),
@@ -122,11 +131,17 @@ export class DockerWorkspaces {
   readonly client: DockerClient;
   readonly passwords = new Map<string, BasicCredentials>();
   readonly host: NodeJS.ProcessEnv;
+  readonly relay: WorkerRelay;
 
-  constructor(config: AppConfig, client?: DockerClient, host: NodeJS.ProcessEnv = process.env) {
+  constructor(config: AppConfig, client?: DockerClient, host: NodeJS.ProcessEnv = process.env, relay: WorkerRelay = new WorkerRelay()) {
     if (!config.docker) throw new Error('Docker workspace configuration missing');
-    this.config = config; this.settings = config.docker; this.host = host;
+    this.config = config; this.settings = config.docker; this.host = host; this.relay = relay;
     this.client = client ?? new DockerClient(config.docker.socketPath ?? defaultSocketPath);
+  }
+
+  relayUrl(sessionId: string): string {
+    const base = this.settings.relayUrl ?? `http://host.docker.internal:${this.config.port}`;
+    return `${base.replace(/\/$/, '')}${this.relay.basePath}${sessionId}`;
   }
 
   credentials(workspace: Workspace): BasicCredentials | undefined { return this.passwords.get(workspace.id); }
@@ -184,7 +199,9 @@ export class DockerWorkspaces {
     const root = this.hostDirectory(session.id);
     await mkdir(root, { recursive: true, mode: 0o700 });
     const basic = { username: 'opencode', password: randomBytes(32).toString('base64url') };
-    const specs = containerSpecs(this.config, session, repository, root, credential, basic, managed, this.host);
+    const pull = this.settings.transport === 'pull';
+    const relay = pull ? { url: this.relayUrl(session.id), token: this.relay.register(session.id) } : undefined;
+    const specs = containerSpecs(this.config, session, repository, root, credential, basic, managed, this.host, relay);
     const deadline = Date.now() + (this.settings.provisionTimeoutMs ?? 180_000);
     await this.remove(name);
     let baseSha = session.workspace?.metadata?.baseSha;
@@ -198,6 +215,7 @@ export class DockerWorkspaces {
       await this.client.request(`/containers/${encodeURIComponent(name)}/start`, 'POST');
       const authorization = 'Basic ' + Buffer.from(`${basic.username}:${basic.password}`).toString('base64');
       let endpoint: string | undefined;
+      const probe = pull ? this.relay.fetcher(session.id) : fetch;
       while (Date.now() < deadline) {
         signal.throwIfAborted();
         const current = await this.inspect(name);
@@ -205,14 +223,19 @@ export class DockerWorkspaces {
           const output = await this.logs(name);
           throw new RuntimeFailure('workspace_setup', 'workspace', 'not_submitted', undefined, `opencode serve inside ${this.settings.image} exited with code ${current?.State?.ExitCode ?? 'unknown'} before answering /global/health\n${output.stderr || output.stdout}`);
         }
-        const port = Number(current.NetworkSettings?.Ports?.['4096/tcp']?.[0]?.HostPort);
-        if (!Number.isInteger(port) || port <= 0) { await new Promise(done => setTimeout(done, 250)); continue; }
-        endpoint = `http://127.0.0.1:${port}`;
+        if (pull) {
+          if (!this.relay.connected(session.id, 5000)) { await new Promise(done => setTimeout(done, 250)); continue; }
+          endpoint = relayEndpoint(session.id);
+        } else {
+          const port = Number(current.NetworkSettings?.Ports?.['4096/tcp']?.[0]?.HostPort);
+          if (!Number.isInteger(port) || port <= 0) { await new Promise(done => setTimeout(done, 250)); continue; }
+          endpoint = `http://127.0.0.1:${port}`;
+        }
         try {
-          const response = await fetch(endpoint + '/global/health', { headers: { authorization }, signal: AbortSignal.any([signal, AbortSignal.timeout(1500)]), redirect: 'error' });
+          const response = await probe((pull ? 'http://workspace' : endpoint) + '/global/health', { headers: { authorization }, signal: AbortSignal.any([signal, AbortSignal.timeout(1500)]), redirect: 'error' });
           if (response.ok) {
             this.passwords.set(session.id, basic);
-            return { id: session.id, backend: 'docker', directory: `${containerWorkspace}/repository`, endpoint, metadata: { container: name, image: this.settings.image, hostDirectory: join(root, 'repository'), ...(baseSha ? { baseSha } : {}) } };
+            return { id: session.id, backend: 'docker', directory: `${containerWorkspace}/repository`, endpoint, metadata: { container: name, image: this.settings.image, hostDirectory: join(root, 'repository'), transport: pull ? 'pull' : 'publish', ...(baseSha ? { baseSha } : {}) } };
           }
         } catch {}
         await new Promise(done => setTimeout(done, 250));
@@ -222,6 +245,7 @@ export class DockerWorkspaces {
     } catch (error) {
       await this.remove(name).catch(() => {});
       this.passwords.delete(session.id);
+      this.relay.unregister(session.id);
       throw error;
     }
   }
@@ -240,5 +264,6 @@ export class DockerWorkspaces {
   async dispose(workspace: Workspace): Promise<void> {
     await this.remove(workspaceName(workspace.id));
     this.passwords.delete(workspace.id);
+    this.relay.unregister(workspace.id);
   }
 }

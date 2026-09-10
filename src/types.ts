@@ -11,6 +11,7 @@ export type CrewRole = { id: string; name: string; mode: 'write' | 'read'; instr
 export type Crew = { id: string; name: string; description: string; roles: CrewRole[] };
 export type RuntimeKind = 'demo' | 'opencode' | 'command';
 export type WorkspaceBackend = 'local' | 'docker' | 'kubernetes';
+export type WorkspaceTransport = 'publish' | 'pull';
 export type Placement = { id: WorkspaceBackend; name: string; isolation: 'working-directory' | 'container' | 'pod'; default: boolean };
 export type Artifact = { id: string; name: string; kind: 'diff' | 'test' | 'summary' | 'link'; content: string; url?: string };
 export type Run = { id: string; sessionId: string; roleId: string; roleName: string; mode: 'write' | 'read'; status: RunStatus; startedAt?: string; finishedAt?: string; summary?: string; verdict?: 'approve' | 'request_changes' | 'inconclusive'; nativeId?: string; costUsd: number };
@@ -24,9 +25,9 @@ export type AppConfig = {
   repositories: Repository[]; crews: Crew[]; models: ModelConfig[];
   taskSources?: TaskSourceConfig[];
   runtime: { kind: RuntimeKind; backend: WorkspaceBackend | 'external'; backends?: WorkspaceBackend[]; endpoint?: string; username?: string; password?: string; binary?: string; image?: string; command?: string[]; timeoutMs: number; agentEnvironment?: string[] };
-  docker?: { image: string; socketPath?: string; network?: string; cpus?: number; memoryMb?: number; pidsLimit?: number; gatewayUrl?: string; provisionTimeoutMs?: number; user?: string };
+  docker?: { image: string; socketPath?: string; network?: string; cpus?: number; memoryMb?: number; pidsLimit?: number; gatewayUrl?: string; provisionTimeoutMs?: number; user?: string; transport?: WorkspaceTransport; relayUrl?: string };
   litellm?: { baseUrl: string; adminUrl: string; masterKey: string; models: string[]; ttl: string; settlementDelayMs?: number };
-  kubernetes?: { namespace: string; image: string; storageClass?: string; storageSize: string; cpu: string; memory: string; apiUrl?: string; tokenFile?: string; caFile?: string; pullPolicy?: string; ingressFrom?: Record<string, unknown>[]; egress?: Record<string, unknown>[]; gitSecretName?: string; agentSecrets?: string[]; imagePullSecrets?: string[]; provisionTimeoutMs?: number };
+  kubernetes?: { namespace: string; image: string; storageClass?: string; storageSize: string; cpu: string; memory: string; apiUrl?: string; tokenFile?: string; caFile?: string; pullPolicy?: string; ingressFrom?: Record<string, unknown>[]; egress?: Record<string, unknown>[]; gitSecretName?: string; agentSecrets?: string[]; imagePullSecrets?: string[]; provisionTimeoutMs?: number; transport?: WorkspaceTransport; relayUrl?: string };
   auth: { secureCookies: boolean; sessionHours: number; bootstrapPassword?: string; bootstrapName: string };
   maxConcurrentSessions: number; maxBudgetUsd: number;
   ploeg?: { url: string; teams: string[]; trackerUrl?: string };

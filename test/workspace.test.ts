@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { RuntimeFailure, classifyFailure } from '../src/failures.ts';
 import { WorkspaceManager, isolatedEnvironment, managedConfig } from '../src/runtime/workspace.ts';
-import { KubernetesWorkspaces, workspaceManifests } from '../src/runtime/kubernetes.ts';
+import { KubernetesWorkspaces, workspaceManifests, candidateExportManifest } from '../src/runtime/kubernetes.ts';
 import type { AppConfig, Repository, Session } from '../src/types.ts';
 
 const repository = { id: 'repo', name: 'Repo', description: '', url: 'https://forge.example/project.git', baseBranch: 'main', verify: ['node', '--test'] } as Repository;
@@ -202,4 +202,24 @@ test('the environment allow-list copies named host variables and never the reser
   const env = isolatedEnvironment('/work/one', credential, config, { FORGE_READ_TOKEN: 'forge-read', LITELLM_MASTER_KEY: 'MASTER-NEVER-AGENT', PATH: '/usr/bin' });
   assert.equal(env.FORGE_READ_TOKEN, 'forge-read');
   assert.equal(env.LITELLM_MASTER_KEY, undefined);
+});
+
+test('pull transport manifests drop the Service and ingress, run the relay worker and carry the token only in the Secret', () => {
+  const config = configuration();
+  config.kubernetes = { ...config.kubernetes!, transport: 'pull', relayUrl: 'http://de-vloer.de-vloer.svc:4080' };
+  const relay = { url: 'http://de-vloer.de-vloer.svc:4080/api/relay/abc123', token: 'relay-token-secret' };
+  const manifests = workspaceManifests(config, session, repository, credential, { username: 'opencode', password: 'basic-private' }, managedConfig(config), relay);
+  assert.deepEqual(manifests.map(item => item.kind), ['Secret', 'PersistentVolumeClaim', 'NetworkPolicy', 'Pod']);
+  const pod = manifests.find(item => item.kind === 'Pod')!;
+  const agent = pod.spec.containers[0];
+  assert.deepEqual(agent.command.slice(0, 3), ['node', '/usr/local/lib/de-vloer/relay-worker.mjs', '--']);
+  assert.ok(agent.command.includes('127.0.0.1'));
+  assert.equal(agent.ports, undefined);
+  assert.equal(agent.env.find((e: any) => e.name === 'VLOER_RELAY_URL')?.value, relay.url);
+  assert.deepEqual(agent.env.find((e: any) => e.name === 'VLOER_RELAY_TOKEN')?.valueFrom, { secretKeyRef: { name: pod.metadata.name, key: 'VLOER_RELAY_TOKEN' } });
+  assert.equal(JSON.stringify(pod).includes('relay-token-secret'), false);
+  assert.equal(manifests.find(item => item.kind === 'Secret')!.stringData.VLOER_RELAY_TOKEN, 'relay-token-secret');
+  assert.deepEqual(manifests.find(item => item.kind === 'NetworkPolicy')!.spec.ingress, []);
+  const exportPod = candidateExportManifest(config, { ...session, workspace: { id: session.id, backend: 'kubernetes', directory: '/workspace/repository', metadata: { baseSha: 'a'.repeat(40) } } }, repository, relay);
+  assert.deepEqual(exportPod.spec.containers[0].command.slice(0, 3), ['node', '/usr/local/lib/de-vloer/relay-worker.mjs', '--']);
 });

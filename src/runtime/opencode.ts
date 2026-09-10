@@ -11,6 +11,7 @@ export interface RuntimeWorkspaces {
   executionEnvironment(workspace: Workspace): Record<string, string>;
   dispose(workspace: Workspace): Promise<void>;
   captureCandidate?(session: Session, repository: Repository): Promise<Candidate>;
+  transport?(workspace: Workspace): typeof fetch | undefined;
 }
 
 type WireRecord = Record<string, any>;
@@ -52,6 +53,10 @@ export class OpenCodeRuntime implements AgentRuntime {
     return url;
   }
 
+  private fetch(workspace: Workspace): typeof fetch {
+    return this.workspaces.transport?.(workspace) ?? this.fetcher;
+  }
+
   private headers(workspace: Workspace): Record<string, string> {
     const auth = this.workspaces.credentials(workspace);
     return { 'Content-Type': 'application/json', ...(auth ? { Authorization: `Basic ${Buffer.from(`${auth.username}:${auth.password}`).toString('base64')}` } : {}) };
@@ -60,7 +65,7 @@ export class OpenCodeRuntime implements AgentRuntime {
   private async request(workspace: Workspace, path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<any> {
     const timeout = AbortSignal.timeout(15000);
     try {
-      const response = await this.fetcher(this.url(workspace, path), {
+      const response = await this.fetch(workspace)(this.url(workspace, path), {
         method, headers: this.headers(workspace), redirect: 'error',
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
@@ -90,7 +95,7 @@ export class OpenCodeRuntime implements AgentRuntime {
   }
 
   private async stream(workspace: Workspace, signal: AbortSignal, receive: (event: WireRecord) => void): Promise<void> {
-    const response = await this.fetcher(this.url(workspace, '/event'), { headers: this.headers(workspace), redirect: 'error', signal });
+    const response = await this.fetch(workspace)(this.url(workspace, '/event'), { headers: this.headers(workspace), redirect: 'error', signal });
     if (!response.ok || !response.body) throw new Error(`OpenCode event stream failed (HTTP ${response.status})`);
     const reader = response.body.getReader();
     const decoder = new TextDecoder();

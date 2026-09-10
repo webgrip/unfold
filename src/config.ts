@@ -49,6 +49,12 @@ function agentEnvironmentNames(value: unknown): string[] {
   return [...new Set(value as string[])];
 }
 
+function transportSetting(value: unknown, name: string): 'publish' | 'pull' {
+  if (value === undefined) return 'publish';
+  if (value !== 'publish' && value !== 'pull') throw new Error(`${name} must be publish or pull`);
+  return value;
+}
+
 function dockerSettings(raw: unknown): NonNullable<AppConfig['docker']> {
   const value = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   if (typeof value.image !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._\/:@-]{0,255}$/.test(value.image)) throw new Error('docker.image must name the agent image, for example de-vloer-agent:1.18.30');
@@ -59,6 +65,8 @@ function dockerSettings(raw: unknown): NonNullable<AppConfig['docker']> {
     image: value.image, socketPath: value.socketPath as string | undefined, network: value.network as string | undefined, user: value.user as string | undefined,
     cpus: number(value.cpus, 2, 0.25, 64, 'docker.cpus'), memoryMb: number(value.memoryMb, 4096, 256, 262144, 'docker.memoryMb'), pidsLimit: number(value.pidsLimit, 512, 32, 65536, 'docker.pidsLimit'),
     gatewayUrl: value.gatewayUrl === undefined ? undefined : configuredUrl(String(value.gatewayUrl), 'docker.gatewayUrl'),
+    transport: transportSetting(value.transport, 'docker.transport'),
+    relayUrl: value.relayUrl === undefined ? undefined : configuredUrl(String(value.relayUrl), 'docker.relayUrl'),
     provisionTimeoutMs: number(value.provisionTimeoutMs, 180_000, 5_000, 3_600_000, 'docker.provisionTimeoutMs'),
   };
 }
@@ -120,6 +128,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   runtime.agentEnvironment = agentEnvironmentNames(raw.runtime?.agentEnvironment);
   const docker = runtime.backends.includes('docker') ? dockerSettings(raw.docker) : undefined;
   if (runtime.backends.includes('kubernetes') && !raw.kubernetes) throw new Error('The kubernetes workspace backend requires a kubernetes configuration block');
+  if (raw.kubernetes) { raw.kubernetes.transport = transportSetting(raw.kubernetes.transport, 'kubernetes.transport'); if (raw.kubernetes.relayUrl !== undefined) raw.kubernetes.relayUrl = configuredUrl(String(raw.kubernetes.relayUrl), 'kubernetes.relayUrl'); if (raw.kubernetes.transport === 'pull' && !raw.kubernetes.relayUrl) throw new Error('kubernetes.transport pull requires kubernetes.relayUrl, the workbench URL reachable from agent pods'); }
   if (raw.kubernetes?.agentSecrets !== undefined && (!Array.isArray(raw.kubernetes.agentSecrets) || raw.kubernetes.agentSecrets.some((name: unknown) => typeof name !== 'string' || !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(name)))) throw new Error('kubernetes.agentSecrets must list Kubernetes Secret names');
   if (raw.ploeg && (!Array.isArray(raw.ploeg.teams) || raw.ploeg.teams.length > 50 || raw.ploeg.teams.some((team: unknown) => typeof team !== 'string' || !team || team.length > 100))) throw new Error('ploeg.teams must contain at most 50 team names');
   if (raw.ploeg?.trackerUrl) configuredUrl(raw.ploeg.trackerUrl, 'ploeg.trackerUrl');

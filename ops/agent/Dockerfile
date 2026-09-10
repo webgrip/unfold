@@ -25,6 +25,9 @@ RUN sed -i '/dl-cdn.alpinelinux.org/d' /etc/apk/repositories \
  && apk add --no-cache bash git ca-certificates \
  && install -d -o node -g node -m 0755 /workspace /etc/opencode
 COPY --from=fetch /opencode /usr/local/bin/opencode
+RUN install -d -m 0755 /usr/local/lib/de-vloer
+COPY relay-worker.mjs /usr/local/lib/de-vloer/relay-worker.mjs
+RUN chmod 0644 /usr/local/lib/de-vloer/relay-worker.mjs && su node -s /bin/sh -c 'node --check /usr/local/lib/de-vloer/relay-worker.mjs'
 RUN opencode --version | grep -F "${OPENCODE_VERSION}"
 USER node
 WORKDIR /workspace

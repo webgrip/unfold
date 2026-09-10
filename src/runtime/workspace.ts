@@ -6,6 +6,7 @@ import { join, resolve } from 'node:path';
 import type { AppConfig, Credential, Repository, Session, Workspace, WorkspaceBackend } from '../types.ts';
 import { KubernetesWorkspaces } from './kubernetes.ts';
 import { DockerWorkspaces } from './docker.ts';
+import { WorkerRelay } from './relay.ts';
 import { RuntimeFailure } from '../failures.ts';
 import { captureLocalCandidate, pinCandidateBase, unavailableCandidate, type Candidate } from '../candidates.ts';
 
@@ -105,12 +106,18 @@ export class WorkspaceManager {
   readonly internal = new Map<string, InternalWorkspace>();
   readonly kubernetes?: KubernetesWorkspaces;
   readonly docker?: DockerWorkspaces;
+  readonly relay: WorkerRelay;
 
-  constructor(config: AppConfig, options: { docker?: DockerWorkspaces; kubernetes?: KubernetesWorkspaces } = {}) {
+  constructor(config: AppConfig, options: { docker?: DockerWorkspaces; kubernetes?: KubernetesWorkspaces; relay?: WorkerRelay } = {}) {
     this.config = config;
+    this.relay = options.relay ?? new WorkerRelay();
     const backends = config.runtime.backends ?? [config.runtime.backend];
-    if (backends.includes('kubernetes')) this.kubernetes = options.kubernetes ?? new KubernetesWorkspaces(config);
-    if (backends.includes('docker')) this.docker = options.docker ?? new DockerWorkspaces(config);
+    if (backends.includes('kubernetes')) this.kubernetes = options.kubernetes ?? new KubernetesWorkspaces(config, undefined, this.relay);
+    if (backends.includes('docker')) this.docker = options.docker ?? new DockerWorkspaces(config, undefined, process.env, this.relay);
+  }
+
+  transport(workspace: Workspace): typeof fetch | undefined {
+    return workspace.metadata?.transport === 'pull' ? this.relay.fetcher(workspace.id) : undefined;
   }
 
   credentials(workspace: Workspace): { username: string; password: string } | undefined {

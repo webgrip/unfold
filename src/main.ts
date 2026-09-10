@@ -6,6 +6,7 @@ import { DemoRuntime } from './runtime/demo.ts';
 import { OpenCodeRuntime } from './runtime/opencode.ts';
 import { CommandRuntime } from './runtime/command.ts';
 import { WorkspaceManager } from './runtime/workspace.ts';
+import { WorkerRelay } from './runtime/relay.ts';
 import { LiteLLMBroker } from './broker.ts';
 import { buildServer } from './http.ts';
 import { loadConfig } from './config.ts';
@@ -14,10 +15,11 @@ import type { AppConfig, AgentRuntime, RuntimeKind } from './types.ts';
 export async function createApplication(config: AppConfig, options: { runtimes?: Map<RuntimeKind, AgentRuntime> } = {}) {
   const store = new Store(join(config.dataDir, 'vloer.sqlite'));
   const runtimes = options.runtimes || new Map<RuntimeKind, AgentRuntime>();
+  const relay = new WorkerRelay();
   if (!options.runtimes) {
     if (config.mode === 'demo') runtimes.set('demo', new DemoRuntime(config));
     else {
-      const workspaces = new WorkspaceManager(config);
+      const workspaces = new WorkspaceManager(config, { relay });
       if (config.runtime.kind === 'opencode') runtimes.set('opencode', new OpenCodeRuntime(config, workspaces));
       if (config.runtime.kind === 'command') runtimes.set('command', new CommandRuntime(config, workspaces));
     }
@@ -25,7 +27,7 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
   const broker = config.mode === 'live' && config.litellm ? new LiteLLMBroker(config.litellm) : undefined;
   const engine = new Engine(store, config, runtimes, broker);
   engine.recover();
-  const { server, closeStreams } = buildServer(config, store, engine, [...runtimes.keys()]);
+  const { server, closeStreams } = buildServer(config, store, engine, [...runtimes.keys()], relay);
   let closed = false;
   async function close() {
     if (closed) return;

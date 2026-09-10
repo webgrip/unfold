@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createServer, type IncomingMessage } from 'node:http';
+import { createServer, type IncomingMessage, type Server } from 'node:http';
+import { spawn, type ChildProcess } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,6 +10,7 @@ import { execFileSync } from 'node:child_process';
 import { DockerClient, DockerWorkspaces, agentEnvironment, containerSpecs, demultiplex } from '../src/runtime/docker.ts';
 import { WorkspaceManager, managedConfig, sessionPlacement } from '../src/runtime/workspace.ts';
 import { workspaceName } from '../src/runtime/kubernetes.ts';
+import { WorkerRelay } from '../src/runtime/relay.ts';
 import { RuntimeFailure } from '../src/failures.ts';
 import type { AppConfig, Repository, Session } from '../src/types.ts';
 
@@ -30,7 +33,8 @@ function frame(kind: number, text: string): Buffer {
   return Buffer.concat([header, payload]);
 }
 
-type FakeContainer = { name: string; spec: any; running: boolean; exitCode: number; logs: Buffer; port?: number };
+type FakeContainer = { name: string; spec: any; running: boolean; exitCode: number; logs: Buffer; port?: number; worker?: ChildProcess };
+const workerScript = fileURLToPath(new URL('../ops/agent/relay-worker.mjs', import.meta.url));
 
 async function fakeEngine(directory: string, options: { cloneExit?: number; agentExit?: number; baseSha?: string } = {}) {
   const socketPath = join(directory, 'docker.sock');
@@ -71,19 +75,21 @@ async function fakeEngine(directory: string, options: { cloneExit?: number; agen
           await new Promise<void>(resolve => health.listen(0, '127.0.0.1', () => resolve()));
           healthServers.push(health);
           container.port = (health.address() as any).port;
+          const env = Object.fromEntries(container.spec.Env.map((entry: string) => entry.split(/=(.*)/s).slice(0, 2)));
+          if (env.VLOER_RELAY_URL) container.worker = spawn(process.execPath, [workerScript], { env: { PATH: process.env.PATH ?? '', VLOER_RELAY_URL: env.VLOER_RELAY_URL, VLOER_RELAY_TOKEN: env.VLOER_RELAY_TOKEN, VLOER_RELAY_TARGET: `http://127.0.0.1:${container.port}` }, stdio: ['ignore', 'ignore', 'ignore'] });
         }
       }
       return reply(204);
     }
     if (req.method === 'POST' && match[2] === 'wait') return reply(200, { StatusCode: container.exitCode });
-    if (req.method === 'POST' && match[2] === 'stop') { container.running = false; return reply(204); }
+    if (req.method === 'POST' && match[2] === 'stop') { container.running = false; container.worker?.kill('SIGKILL'); return reply(204); }
     if (req.method === 'GET' && match[2] === 'logs') { res.writeHead(200, { 'content-type': 'application/vnd.docker.multiplexed-stream' }); res.end(container.logs); return; }
     if (req.method === 'GET' && match[2] === 'json') return reply(200, { Id: container.name, State: { Running: container.running, ExitCode: container.exitCode }, NetworkSettings: { Ports: container.port ? { '4096/tcp': [{ HostIp: '127.0.0.1', HostPort: String(container.port) }] } : {} } });
-    if (req.method === 'DELETE') { containers.delete(container.name); return reply(204); }
+    if (req.method === 'DELETE') { container.worker?.kill('SIGKILL'); containers.delete(container.name); return reply(204); }
     return reply(405, { message: 'unsupported' });
   });
   await new Promise<void>(resolve => server.listen(socketPath, resolve));
-  return { socketPath, containers, calls, close: async () => { for (const health of healthServers) health.close(); await new Promise(resolve => server.close(resolve)); } };
+  return { socketPath, containers, calls, close: async () => { for (const container of containers.values()) container.worker?.kill('SIGKILL'); for (const health of healthServers) health.close(); await new Promise(resolve => server.close(resolve)); } };
 }
 
 test('docker container specs carry only the session credential, a hardened host configuration and the explicit environment allow-list', () => {
@@ -192,4 +198,33 @@ test('session placement selects an enabled backend and rejects the rest', () => 
   assert.throws(() => sessionPlacement(config, { placement: 'kubernetes' }), /not enabled/);
   const manager = new WorkspaceManager({ ...config, runtime: { ...config.runtime, backend: 'local', backends: ['local'] } });
   assert.equal(manager.docker, undefined);
+});
+
+test('docker pull transport publishes no port, hands the container a relay token and reaches the harness through the dial-out worker', { timeout: 30_000 }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'vloer-docker-pull-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const engine = await fakeEngine(directory);
+  t.after(() => engine.close());
+  const relay = new WorkerRelay();
+  const relayServer: Server = createServer(async (req, res) => { if (!(await relay.handle(req, res, new URL(req.url ?? '/', 'http://localhost')))) { res.writeHead(404); res.end(); } });
+  await new Promise<void>(resolve => relayServer.listen(0, '127.0.0.1', () => resolve()));
+  t.after(() => relayServer.close());
+  const config = configuration(directory, engine.socketPath);
+  config.docker = { ...config.docker!, transport: 'pull', relayUrl: `http://127.0.0.1:${(relayServer.address() as any).port}` };
+  const manager = new WorkspaceManager(config, { relay });
+  const workspace = await manager.prepare(session, repository, credential, new AbortController().signal).catch((error: any) => { throw new Error(`${error.category}: ${error.detail ?? error.message}`); });
+  assert.equal(workspace.endpoint, `relay://${session.id}`);
+  assert.equal(workspace.metadata?.transport, 'pull');
+  const spec = engine.containers.get(workspaceName(session.id))!.spec;
+  assert.equal(spec.ExposedPorts, undefined);
+  assert.equal(spec.HostConfig.PortBindings, undefined);
+  assert.deepEqual(spec.Cmd.slice(0, 3), ['node', '/usr/local/lib/de-vloer/relay-worker.mjs', '--']);
+  assert.ok(spec.Env.some((entry: string) => entry === `VLOER_RELAY_URL=http://127.0.0.1:${(relayServer.address() as any).port}/api/relay/${session.id}`));
+  const transport = manager.transport(workspace)!;
+  const basic = manager.credentials(workspace)!;
+  const health = await transport('http://workspace/global/health', { headers: { authorization: 'Basic ' + Buffer.from(`${basic.username}:${basic.password}`).toString('base64') } });
+  assert.equal(health.status, 200);
+  assert.equal((await transport('http://workspace/global/health')).status, 401);
+  await manager.dispose(workspace).catch((error: any) => { throw new Error(`dispose: ${error.category}: ${error.detail ?? error.message}`); });
+  assert.equal(relay.connected(session.id), false);
 });
