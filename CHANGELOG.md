@@ -1,3 +1,9 @@
+## [0.3.0-rc.6](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.5...v0.3.0-rc.6) (2026-09-10)
+
+### Added
+
+* **links:** link ClickUp or GitLab by pasting a personal token, with no application registered ([46d8a10](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/46d8a1056f849460014797c79e660d7cde91b313))
+
 ## [0.3.0-rc.5](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.4...v0.3.0-rc.5) (2026-09-10)
 
 ### Added
