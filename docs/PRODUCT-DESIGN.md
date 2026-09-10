@@ -2232,7 +2232,7 @@ The complete ticket descriptions, criteria, risk, verification steps and depende
 | PV-021 | Adopt version-aware GitLab signed webhook verification | ploeg | M2 | planned | PV-015, PV-016 |
 | PV-022 | Introduce canonical work-order revision identity in Ploeg | ploeg | M2 | planned | PV-014, PV-016, PV-071, PV-072, PV-073, PV-074 |
 | PV-023 | Add fenced delivery attempts and ownership transitions | ploeg | M2 | planned | PV-022 |
-| PV-024 | Expose authenticated operator work-order API | ploeg | M2 | planned | PV-023, PV-034 |
+| PV-024 | Expose authenticated operator work-order API | ploeg | M2 | planned | PV-023, PV-034, PV-079 |
 | PV-025 | Link Vloer sessions to Ploeg work orders and attempts | de-vloer | M2 | planned | PV-024 |
 | PV-026 | Implement stop-confirmed human takeover and handback | de-vloer | M3 | planned | PV-025, PV-023, PV-006, PV-078 |
 | PV-027 | Implement quiet idempotent tracker summary writeback | ploeg | M2 | planned | PV-008, PV-018 |
@@ -2287,6 +2287,13 @@ The complete ticket descriptions, criteria, risk, verification steps and depende
 | PV-076 | Park paused workspaces and enforce retained-resource quotas | de-vloer | M3 | planned | PV-007, PV-043 |
 | PV-077 | Bound event, artifact and webhook memory surfaces | de-vloer | M1 | planned | — |
 | PV-078 | Fence publication through a trusted forge publisher | ploeg | M2 | planned | PV-023, PV-028, PV-071, PV-011 |
+| PV-079 | Expose a read-only operator API in Ploeg | ploeg | M2 | planned | — |
+| PV-080 | Project Ploeg's operator API in De Vloer | de-vloer | M2 | planned | PV-079 |
+| PV-081 | Stream Ploeg events and project runs as read-only Agent Host Protocol sessions | ploeg | M3 | planned | PV-079, PV-080 |
+| PV-082 | Sign in with the estate's OIDC provider | de-vloer | M0 | planned | — |
+| PV-083 | Let a person link their own forge and tracker accounts | de-vloer | M0 | planned | PV-082 |
+| PV-084 | Run sessions without a repository and discover repositories from a link | de-vloer | M0 | planned | PV-083 |
+| PV-085 | Open the merge request from the workbench as the signed-in person | de-vloer | M1 | planned | PV-083, PV-084 |
 
 ### Audit coverage
 
