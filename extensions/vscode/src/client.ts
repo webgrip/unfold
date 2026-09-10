@@ -110,6 +110,7 @@ export class VloerClient {
     return result.url;
   }
   async unlink(provider: string): Promise<void> { await this.request(`/api/links/${encodeURIComponent(provider)}`, 'DELETE'); }
+  async paste(provider: string, token: string): Promise<void> { await this.request(`/api/links/${encodeURIComponent(provider)}`, 'PUT', { token }); }
   linkGitlab(): Promise<string> { return this.link('gitlab'); }
   unlinkGitlab(): Promise<void> { return this.unlink('gitlab'); }
   budget(id: string, amountUsd: number): Promise<Session> {

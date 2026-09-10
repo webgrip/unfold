@@ -3123,3 +3123,9 @@ details.transcript summary { cursor: pointer; }
 .login-divider::before, .login-divider::after { content: ""; flex: 1; border-top: 1px solid rgba(0,0,0,0.15); }
 
 .link-row a { margin-right: 0.6rem; white-space: nowrap; }
+
+.link-row-card { align-items: flex-start; }
+.link-actions { display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-end; min-width: 16rem; }
+.paste-token { display: grid; gap: 0.3rem; width: 100%; }
+.paste-token label { font-size: 0.8rem; display: grid; gap: 0.2rem; }
+.paste-token .form-help { margin: 0; font-size: 0.72rem; }

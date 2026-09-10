@@ -124,7 +124,9 @@ A session that failed before or during execution shows "Try again" once its spen
 
 ## Linking ClickUp
 
-Create an OAuth application in ClickUp under your workspace settings, with redirect URL `<baseUrl>/api/links/clickup/callback`. ClickUp's OAuth has no PKCE, so the application's client secret must reach the workbench: put the client id and secret in the vault once and let the launcher export them, and set `links.clickup.clientSecretEnv` to the variable it exports. A task connection configured without `tokenEnv` then reads ClickUp with the signed-in person's link, and the Tasks view says when a link is missing. ClickUp tokens do not expire and cannot be revoked remotely; unlinking forgets the token.
+A person links ClickUp by pasting their own personal API token on the Linked accounts page: ClickUp shows it under the avatar menu, Settings, Apps, API Token. The workbench checks the token against ClickUp's account endpoint, stores it encrypted for that account only, and from then on reads every task connection that names no `tokenEnv` with it. The Tasks view says when a link is missing. No application, secret or administrator is involved. GitLab accepts a pasted personal access token the same way, with `read_api`, `read_repository` and `write_repository`, and uses it for private clones as well as the API.
+
+OAuth is optional on top: a workbench that registers a ClickUp OAuth application, which needs the application's client secret because ClickUp's OAuth has no PKCE, can offer a "Link ClickUp" button next to the paste form by setting `links.clickup.clientId` and `clientSecretEnv`. Unlinking forgets the token; ClickUp tokens do not expire and have no remote revocation.
 
 ## Signing in with the estate
 

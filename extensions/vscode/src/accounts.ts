@@ -1,15 +1,16 @@
 import type { AccountLink } from './types.js';
 
-export type AccountsClient = { links(): Promise<AccountLink[]>; linkGitlab(): Promise<string>; unlinkGitlab(): Promise<void>; link?(provider: string): Promise<string>; unlink?(provider: string): Promise<void> };
+export type AccountsClient = { links(): Promise<AccountLink[]>; linkGitlab(): Promise<string>; unlinkGitlab(): Promise<void>; link?(provider: string): Promise<string>; unlink?(provider: string): Promise<void>; paste?(provider: string, token: string): Promise<void> };
 const providerLabels: Record<string, string> = { gitlab: 'GitLab', clickup: 'ClickUp' };
 export function providerLabel(provider: string): string { return providerLabels[provider] ?? provider; }
-export type AccountAction = 'link' | 'unlink' | 'open';
+export type AccountAction = 'link' | 'unlink' | 'open' | 'paste';
 export type AccountChoice = { label: string; description: string; detail: string; action: AccountAction };
 export type AccountsUi = {
   pick(choices: AccountChoice[], title: string): Promise<AccountAction | undefined>;
   confirm(message: string, detail: string, action: string): Promise<boolean>;
   open(url: string): Promise<void>;
   info(message: string): void;
+  secret?(prompt: string, placeholder: string): Promise<string | undefined>;
 };
 
 export function safeHttpUrl(value: string | undefined): string | undefined {
@@ -25,8 +26,14 @@ export function describeLink(link: AccountLink): string {
 
 export function accountChoices(link: AccountLink): AccountChoice[] {
   if (!link.configured) return [];
-  if (!link.linked) return [{ label: `$(link) Link ${providerLabel(link.provider)}`, description: link.host, detail: `Opens ${providerLabel(link.provider)} in your browser to approve the workbench application once. Tokens stay on the workbench.`, action: 'link' }];
-  const choices: AccountChoice[] = [{ label: `$(debug-disconnect) Unlink ${providerLabel(link.provider)}`, description: link.host, detail: link.provider === 'gitlab' ? 'The workbench forgets the tokens and asks GitLab to revoke them.' : 'The workbench forgets the token.', action: 'unlink' }];
+  const label = providerLabel(link.provider);
+  if (!link.linked) {
+    const choices: AccountChoice[] = [];
+    if (link.oauth !== false) choices.push({ label: `$(link) Link ${label}`, description: link.host, detail: `Opens ${label} in your browser to approve the workbench application once. Tokens stay on the workbench.`, action: 'link' });
+    choices.push({ label: '$(key) Paste a personal token', description: link.host, detail: link.provider === 'clickup' ? 'From ClickUp: avatar, Settings, Apps, API Token. Stored encrypted for your account only.' : 'A personal access token with read_api, read_repository and write_repository. Stored encrypted for your account only.', action: 'paste' });
+    return choices;
+  }
+  const choices: AccountChoice[] = [{ label: `$(debug-disconnect) Unlink ${label}`, description: link.host, detail: link.provider === 'gitlab' ? 'The workbench forgets the tokens and asks GitLab to revoke them.' : 'The workbench forgets the token.', action: 'unlink' }];
   if (safeHttpUrl(link.webUrl)) choices.push({ label: '$(link-external) Open profile', description: link.login ?? '', detail: link.webUrl ?? '', action: 'open' });
   return choices;
 }
@@ -48,6 +55,13 @@ export async function linkedAccounts(client: AccountsClient, ui: AccountsUi, pic
     const url = await linkNow();
     await ui.open(url);
     ui.info(`Approve the De Vloer application in your browser. Run Linked Accounts again to see the result.`);
+    return action;
+  }
+  if (action === 'paste') {
+    const token = ui.secret ? await ui.secret(`Paste your ${label} token`, link.provider === 'clickup' ? 'pk_…' : 'glpat-…') : undefined;
+    if (!token || !client.paste) return undefined;
+    await client.paste(link.provider, token);
+    ui.info(`${label} · ${link.host} is linked with your personal token.`);
     return action;
   }
   if (action === 'unlink') {

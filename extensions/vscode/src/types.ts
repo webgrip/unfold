@@ -53,4 +53,4 @@ export type TaskImportInput = { sourceId: string; taskId: string; revision: stri
 export type Candidate = { status: 'ready' | 'unavailable'; reason?: string; message?: string; createdAt?: string; baseSha?: string; snapshotBaseSha?: string; headSha?: string; treeSha?: string; fileCount?: number; bytes?: number; sha256?: { bundle: string; patch: string }; formats?: CandidateFormat[] };
 export type CandidateFormat = 'bundle' | 'patch' | 'manifest' | 'attestation' | 'trace';
 export type LinkProvider = 'gitlab';
-export type AccountLink = { provider: LinkProvider | string; host: string; configured: boolean; linked: boolean; login?: string; webUrl?: string; scopes?: string[]; linkedAt?: string; expiresAt?: string };
+export type AccountLink = { provider: LinkProvider | string; host: string; configured: boolean; oauth?: boolean; method?: 'oauth' | 'token'; linked: boolean; login?: string; webUrl?: string; scopes?: string[]; linkedAt?: string; expiresAt?: string };

@@ -290,9 +290,10 @@ const providerLabels = { gitlab: 'GitLab', clickup: 'ClickUp' };
 
 function linkRow(link) {
   const label = providerLabels[link.provider] || link.provider;
-  const status = !link.configured ? `Not configured on this workbench. An administrator sets <code>links.${escape(link.provider)}.clientId</code>${link.provider === 'clickup' ? ' and <code>clientSecretEnv</code>' : ''}.` : link.linked ? `Linked as ${link.webUrl ? `<a href="${escape(link.webUrl)}" target="_blank" rel="noopener noreferrer">${escape(link.login)}</a>` : escape(link.login)}${(link.scopes || []).length ? ` · ${link.scopes.map(escape).join(', ')}` : ''}` : link.provider === 'gitlab' ? 'Not linked. Private repositories on this host cannot be cloned until you link.' : 'Not linked. Task connections on ClickUp show nothing until you link.';
-  const button = !link.configured ? '' : link.linked ? `<button class="button secondary" data-action="unlink" data-provider="${escape(link.provider)}">Unlink</button>` : `<button class="button primary" data-action="link" data-provider="${escape(link.provider)}">Link ${escape(label)}</button>`;
-  return `<article class="profile-row">${icon('link')}<div><h3>${escape(label)} · ${escape(link.host)}</h3><p>${status}</p></div>${button}</article>`;
+  const where = link.provider === 'clickup' ? 'ClickUp → your avatar → Settings → Apps → API Token' : 'GitLab → Preferences → Access tokens, with read_api, read_repository and write_repository';
+  const status = link.linked ? `Linked as ${link.webUrl ? `<a href="${escape(link.webUrl)}" target="_blank" rel="noopener noreferrer">${escape(link.login)}</a>` : escape(link.login)}${link.method === 'token' ? ' · personal token' : ''}${(link.scopes || []).length ? ` · ${link.scopes.map(escape).join(', ')}` : ''}` : link.provider === 'gitlab' ? 'Not linked. Private repositories on this host cannot be cloned until you link.' : 'Not linked. Task connections on ClickUp show nothing until you link.';
+  const actions = link.linked ? `<button class="button secondary" data-action="unlink" data-provider="${escape(link.provider)}">Unlink</button>` : `${link.oauth ? `<button class="button primary" data-action="link" data-provider="${escape(link.provider)}">Link ${escape(label)}</button>` : ''}<form data-form="paste-token" data-provider="${escape(link.provider)}" class="paste-token"><label>${link.oauth ? 'Or paste a personal token' : 'Paste a personal token'}<input name="token" type="password" autocomplete="off" required placeholder="${escape(link.provider === 'clickup' ? 'pk_…' : 'glpat-…')}"></label><button class="button ${link.oauth ? 'secondary' : 'primary'}" type="submit">Save</button><p class="form-help">${escape(where)}. Stored encrypted for your account only.</p></form>`;
+  return `<article class="profile-row link-row-card">${icon('link')}<div><h3>${escape(label)} · ${escape(link.host)}</h3><p>${status}</p></div><div class="link-actions">${actions}</div></article>`;
 }
 
 function renderAccount() {
@@ -569,6 +570,7 @@ document.addEventListener('submit', async event => {
   const submit = form.querySelector('[type="submit"]'); if (submit) submit.disabled = true;
   try {
     if (form.dataset.form === 'login') { await api('/api/login', { method: 'POST', body: JSON.stringify(data) }); await boot(); }
+    else if (form.dataset.form === 'paste-token') { await api(`/api/links/${form.dataset.provider}`, { method: 'PUT', body: JSON.stringify({ token: data.token }) }); notify(`${providerLabels[form.dataset.provider] || form.dataset.provider} is linked to your account.`); state.links = (await api('/api/links')).links; renderAccount(); }
     else if (form.dataset.form === 'compare') { $('#confirm-dialog').close(); location.hash = `compare/${state.session.id}/${data.other}`; }
     else if (form.dataset.form === 'new') {
       data.budgetUsd = Number(data.budgetUsd);

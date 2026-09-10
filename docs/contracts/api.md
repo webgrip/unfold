@@ -81,6 +81,7 @@ Permission and question details depend on the adapter. Answer only the actual un
 | `GET /api/links` | The signed-in person's links: provider, host, whether the workbench has an application ID, whether the person is linked, and the account name and scopes. Never a token |
 | `POST /api/links/gitlab` | Starts an OAuth authorization with PKCE and returns the GitLab URL to visit; 409 `link_unconfigured` without an application ID |
 | `GET /api/links/gitlab/callback` | GitLab's redirect target. Needs no cookie: the `state` names the person who started it, once, within ten minutes. Redirects to `/?linked=gitlab` or `/?link_error=<code>` |
+| `PUT /api/links/gitlab` or `PUT /api/links/clickup` with `{token}` | Links by a pasted personal token: the workbench verifies it against the provider's account endpoint and stores it encrypted for the person; needs no application. A link made this way carries `method: "token"` |
 | `DELETE /api/links/gitlab` | Forgets the tokens and asks GitLab to revoke them |
 | `POST /api/links/clickup`, `GET /api/links/clickup/callback`, `DELETE /api/links/clickup` | The same flow for ClickUp, whose OAuth has no PKCE and needs the application's client secret on the workbench; the token does not expire and there is no revocation endpoint, so unlinking forgets it |
 

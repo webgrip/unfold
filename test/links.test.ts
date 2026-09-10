@@ -11,7 +11,7 @@ import { Links, LinkError } from '../src/links.ts';
 import { RuntimeFailure } from '../src/failures.ts';
 import { configuration } from './api-support.ts';
 
-type Fake = { base: string; tokens: Record<string, unknown>[]; clickupExchanges: Record<string, string>[]; revoked: string[]; users: number; expiresIn: number; close(): Promise<void> };
+type Fake = { base: string; tokens: Record<string, unknown>[]; clickupExchanges: Record<string, string>[]; revoked: string[]; users: number; expiresIn: number; privateToken?: string; close(): Promise<void> };
 
 async function gitlab(): Promise<Fake> {
   const fake: Fake = { base: '', tokens: [], clickupExchanges: [], revoked: [], users: 0, expiresIn: 7200, close: async () => {} };
@@ -31,7 +31,7 @@ async function gitlab(): Promise<Fake> {
     }
     if (req.method === 'GET' && req.url === '/api/v4/user') {
       fake.users += 1;
-      if (req.headers.authorization !== 'Bearer access-1') { res.writeHead(401); res.end('{}'); return; }
+      if (req.headers.authorization !== 'Bearer access-1' && req.headers['private-token'] !== fake.privateToken) { res.writeHead(401); res.end('{}'); return; }
       res.end(JSON.stringify({ username: 'ryan', web_url: `${fake.base}/ryan` }));
       return;
     }
@@ -71,7 +71,7 @@ async function harness(t: test.TestContext) {
 
 test('a link starts with PKCE, completes against the account, and yields clone access for that host only', async t => {
   const { links, store, fake } = await harness(t);
-  assert.deepEqual(links.describe('user-1'), { provider: 'gitlab', host: new URL(fake.base).host, configured: true, linked: false });
+  assert.deepEqual(links.describe('user-1'), { provider: 'gitlab', host: new URL(fake.base).host, configured: true, oauth: true, linked: false });
   const url = new URL(links.begin('gitlab', 'user-1'));
   assert.equal(url.origin + url.pathname, `${fake.base}/oauth/authorize`);
   assert.equal(url.searchParams.get('code_challenge_method'), 'S256');
@@ -126,7 +126,7 @@ test('a rejected code and a broken refresh are failures the session can explain'
 test('an unconfigured link describes itself and refuses to start', async t => {
   const { links, config } = await harness(t);
   config.links = { gitlab: { baseUrl: 'https://gitlab.example', scopes: ['read_api'] } };
-  assert.deepEqual(links.describe('user-1'), { provider: 'gitlab', host: 'gitlab.example', configured: false, linked: false });
+  assert.deepEqual(links.describe('user-1'), { provider: 'gitlab', host: 'gitlab.example', configured: true, oauth: false, linked: false });
   assert.throws(() => links.begin('gitlab', 'user-1'), (error: any) => error instanceof LinkError && error.status === 409);
   assert.equal(await links.access('user-1', 'https://gitlab.example/p.git'), undefined);
 });
@@ -147,9 +147,33 @@ test('a ClickUp link exchanges the code with the client secret, keeps the token 
   const completed = await links.complete('clickup', 'cu-code', state);
   assert.equal(completed.link.linked, true);
   assert.equal(completed.link.login, 'ryan');
-  assert.equal(await links.token('user-1', 'clickup'), 'cu-access-1');
+  assert.deepEqual(await links.token('user-1', 'clickup'), { token: 'cu-access-1', type: 'private' });
   assert.equal(await links.token('user-2', 'clickup'), undefined);
   assert.equal(fake.clickupExchanges[0].client_secret, 'cu-secret');
   await links.revoke('clickup', 'user-1');
   assert.equal(links.describe('user-1', 'clickup').linked, false);
+});
+
+test('a person can paste a personal token for ClickUp or GitLab with no application registered', async t => {
+  const { links, config, fake } = await harness(t);
+  config.links = { gitlab: { baseUrl: fake.base, scopes: ['read_api'] }, clickup: { apiUrl: fake.base, appUrl: fake.base } };
+  config.taskSources = [{ id: 'board', name: 'Board', provider: 'clickup', baseUrl: `${fake.base}/api/v2`, project: '1', repositoryId: 'r', executionOwner: 'interactive' }];
+  const listed = links.describeAll('user-1');
+  assert.deepEqual(listed.map(link => `${link.provider}:${link.configured}:${link.oauth}`), ['gitlab:true:false', 'clickup:true:false']);
+  assert.throws(() => links.begin('clickup', 'user-1'), (error: any) => error.code === 'link_unconfigured');
+  await assert.rejects(links.paste('clickup', 'user-1', 'wrong-token'), (error: any) => error.code === 'link_profile');
+  await assert.rejects(links.paste('clickup', 'user-1', '   '), (error: any) => error.code === 'link_token');
+  const clickup = await links.paste('clickup', 'user-1', 'cu-access-1');
+  assert.equal(clickup.linked, true);
+  assert.equal(clickup.method, 'token');
+  assert.equal(clickup.login, 'ryan');
+  assert.deepEqual(await links.token('user-1', 'clickup'), { token: 'cu-access-1', type: 'private' });
+  fake.privateToken = 'glpat-personal';
+  const gitlab = await links.paste('gitlab', 'user-1', 'glpat-personal');
+  assert.equal(gitlab.method, 'token');
+  assert.deepEqual(await links.token('user-1', 'gitlab'), { token: 'glpat-personal', type: 'private' });
+  assert.deepEqual(await links.access('user-1', `${fake.base}/group/project.git`), { username: 'oauth2', password: 'glpat-personal' });
+  await links.revoke('gitlab', 'user-1');
+  assert.equal(fake.revoked.length, 0);
+  assert.equal(links.describe('user-1', 'gitlab').linked, false);
 });

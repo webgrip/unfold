@@ -28,7 +28,7 @@ test('links are absent until configured and a start is refused without an applic
   const { cookie } = await login(app.url);
   const listed = await request(app.url, '/api/links', { cookie });
   assert.equal(listed.status, 200);
-  assert.deepEqual(listed.body.links, [{ provider: 'gitlab', host: 'gitlab.example', configured: false, linked: false }]);
+  assert.deepEqual(listed.body.links, [{ provider: 'gitlab', host: 'gitlab.example', configured: true, oauth: false, linked: false }]);
   const started = await request(app.url, '/api/links/gitlab', { method: 'POST', body: {}, cookie, csrf: true });
   assert.equal(started.status, 409);
   assert.equal(started.body.error.code, 'link_unconfigured');
@@ -78,4 +78,7 @@ test('a task connection without its own token uses the person\'s link and says s
   assert.equal(tasks.body.error.code, 'source_unlinked');
   const listed = await request(app.url, '/api/links', { cookie });
   assert.deepEqual(listed.body.links.map((link: any) => link.provider), ['clickup']);
+  const pasted = await request(app.url, '/api/links/clickup', { method: 'PUT', body: { token: '' }, cookie, csrf: true });
+  assert.equal(pasted.status, 400);
+  assert.equal(pasted.body.error.code, 'link_token');
 });

@@ -186,14 +186,15 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         if (linkRoute && links) {
           const provider = linkRoute[1] as 'gitlab' | 'clickup';
           if (method === 'POST') return json(res, 200, { url: links.begin(provider, user.id) });
+          if (method === 'PUT') { const data = await body(req); return json(res, 200, { link: await links.paste(provider, user.id, typeof data.token === 'string' ? data.token : '') }); }
           if (method === 'DELETE') { await links.revoke(provider, user.id); return json(res, 200, { ok: true }); }
         }
         const withUserToken = async (source: NonNullable<AppConfig['taskSources']>[number]) => {
           if (source.token) return source;
           if (source.provider !== 'gitlab' && source.provider !== 'clickup') return source;
-          const token = links ? await links.token(user.id, source.provider) : undefined;
-          if (!token) fault(409, 'source_unlinked', `Link ${source.provider === 'gitlab' ? 'GitLab' : 'ClickUp'} under Linked accounts to use this connection.`);
-          return { ...source, token: token!, ...(source.provider === 'gitlab' ? { tokenType: 'bearer' as const } : {}) };
+          const linked = links ? await links.token(user.id, source.provider) : undefined;
+          if (!linked) fault(409, 'source_unlinked', `Link ${source.provider === 'gitlab' ? 'GitLab' : 'ClickUp'} under Linked accounts to use this connection.`);
+          return { ...source, token: linked!.token, ...(source.provider === 'gitlab' && linked!.type === 'bearer' ? { tokenType: 'bearer' as const } : {}) };
         };
         if (method === 'GET' && path === '/api/task-sources') return json(res, 200, sanitize((config.taskSources ?? []).map(source => ({ ...publicTaskSource(source), needsLink: !source.token && (source.provider === 'gitlab' || source.provider === 'clickup') ? source.provider : null }))));
         const taskRoute = path.match(/^\/api\/task-sources\/([a-z0-9-]+)\/tasks(?:\/([a-zA-Z0-9_-]+))?$/);

@@ -33,7 +33,7 @@ const linked: AccountLink = { provider: 'gitlab', host: 'gitlab.example', config
 
 test('choices follow the link state and descriptions match the web workbench wording', () => {
   assert.deepEqual(accountChoices({ provider: 'gitlab', host: 'gitlab.example', configured: false, linked: false }), []);
-  assert.deepEqual(accountChoices(unlinked).map(choice => choice.action), ['link']);
+  assert.deepEqual(accountChoices(unlinked).map(choice => choice.action), ['link', 'paste']);
   assert.deepEqual(accountChoices(linked).map(choice => choice.action), ['unlink', 'open']);
   assert.deepEqual(accountChoices({ ...linked, webUrl: 'javascript:alert(1)' }).map(choice => choice.action), ['unlink']);
   assert.match(describeLink({ provider: 'gitlab', host: 'gitlab.example', configured: false, linked: false }), /links\.gitlab\.clientId/);
@@ -50,7 +50,7 @@ test('linking GitLab opens the authorization URL the workbench returns in the ex
   assert.deepEqual(calls, ['links', 'link']);
   assert.deepEqual(recorded.opened, ['https://gitlab.example/oauth/authorize?client_id=app&state=abc']);
   assert.deepEqual(recorded.confirmed, []);
-  assert.equal(recorded.picked[0], 'GitLab · gitlab.example · Not linked. Private repositories on this host cannot be cloned until you link. :: link');
+  assert.equal(recorded.picked[0], 'GitLab · gitlab.example · Not linked. Private repositories on this host cannot be cloned until you link. :: link,paste');
   assert.match(recorded.info.at(-1)!, /Approve the De Vloer application/);
 });
 
