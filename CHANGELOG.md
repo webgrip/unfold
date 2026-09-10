@@ -4,6 +4,11 @@
 
 ### Added
 
+- A pull transport for sandboxes: the agent image bakes a worker that dials out to the workbench, so a Docker container publishes no port and a pod needs no Service or ingress rule; candidates are captured in place through the same channel, and warm pods receive their session over it. [ADR 0011](docs/adrs/0011-sandboxes-dial-out-through-a-relay.md).
+- An Agent Host Protocol 0.9.0 host on the workbench port: sessions, chats, permissions, questions and changesets over WebSocket for any number of clients, with personal connection tokens from `POST /api/agent-host/tokens` and a VS Code `chat.remoteAgentHosts` entry. [ADR 0012](docs/adrs/0012-agent-host-protocol-host.md).
+- A `sandbox` provisioner for Kubernetes using the agent-sandbox CRDs: cold `Sandbox` objects under a RuntimeClass or `SandboxClaim`s against a warm Kata pool, with an example template under `ops/cluster/agent-sandbox`. [ADR 0013](docs/adrs/0013-sandbox-crd-placement-with-warm-kata-pools.md).
+- Signed candidates: an in-toto provenance statement and an Agent Trace record in DSSE envelopes, a public key endpoint and `scripts/verify-candidate.mjs`. [ADR 0014](docs/adrs/0014-signed-candidates.md).
+- Research notes on the sandbox landscape, the Agent Host Protocol and Kubernetes 1.36 and 1.37 features under `docs/research/`.
 - A `docker` workspace backend. The clone and the OpenCode server run inside a hardened container from the pinned agent image, bind-mounted to the session directory, with only the session's scoped LiteLLM key inside. Candidate capture waits for a confirmed container stop. Qualified against the locally built image by `scripts/probe-docker.mjs` without inference.
 - Per-session workspace placement. `runtime.backends` lists the enabled backends, `POST /api/sessions` and task imports accept `placement`, and the browser and VS Code extension offer the choice when more than one backend is enabled. [ADR 0009](docs/adrs/0009-workspace-placement-is-a-session-choice.md).
 - `runtime.agentEnvironment`, an allow-list of environment variable names copied from the server process into local and Docker workspaces, refusing names that carry workbench, gateway, cluster or vault authority. `kubernetes.agentSecrets` and the chart's `workspaceAgentSecrets` mount named Secrets into the agent container only.

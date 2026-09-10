@@ -31,6 +31,7 @@ npm run smoke
 - Retained candidate export for supported workspaces, with a manifest, binary-capable Git patch and self-contained snapshot bundle. Export availability and limits are visible; see the [iteration guide](docs/operations/iteration-0.2.0.md).
 - OpenCode server integration and a JSON-lines command bridge for additional harnesses.
 - LiteLLM virtual-key lifecycle and visible accounting states; authorized budget additions are administrator actions.
+- Sandboxes that dial out, an Agent Host Protocol endpoint for VS Code and other clients, warm Kata pools through the Sandbox CRDs, and candidates signed with in-toto provenance and Agent Trace records.
 - Per-session workspace placement: a hardened container on the workbench host, a pod in a Kubernetes workspace namespace, or a plain working directory for trusted development; a browser can supervise a remote server without running agents on the laptop.
 
 The application uses native Node TypeScript and browser modules, with **zero third-party npm runtime dependencies**. Development-only dependencies provide strict type checking. SQLite requires **one application replica**. Live integrations have separate prerequisites and qualification limits; read the [validation matrix](docs/validation.md) before treating them as production-tested.

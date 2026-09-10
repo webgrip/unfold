@@ -1,0 +1,119 @@
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxTemplate
+metadata:
+  name: de-vloer-agent
+  namespace: de-vloer-workspaces
+spec:
+  podTemplate:
+    metadata:
+      labels:
+        app.kubernetes.io/name: de-vloer-agent
+        de-vloer/pool: warm
+    spec:
+      runtimeClassName: kata
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: agent
+          image: harbor.webgrip.dev/webgrip/de-vloer-agent:0.3.0
+          command: ["node", "/usr/local/lib/de-vloer/relay-worker.mjs"]
+          workingDir: /workspace
+          env:
+            - name: VLOER_POOL_URL
+              value: http://de-vloer.de-vloer.svc:4080/api/relay/pool
+            - name: VLOER_POOL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: de-vloer-pool
+                  key: VLOER_POOL_TOKEN
+            - name: VLOER_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: VLOER_RELAY_TARGET
+              value: http://127.0.0.1:4096
+            - name: HOME
+              value: /workspace/.home
+            - name: XDG_DATA_HOME
+              value: /workspace/.state
+            - name: XDG_CONFIG_HOME
+              value: /workspace/.home/.config
+            - name: XDG_CACHE_HOME
+              value: /workspace/.cache
+            - name: TMPDIR
+              value: /workspace/.tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: workspace
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 8Gi
+  networkPolicyManagement: Managed
+  networkPolicy:
+    egress:
+      - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: de-vloer
+            podSelector:
+              matchLabels:
+                app.kubernetes.io/name: de-vloer
+        ports:
+          - protocol: TCP
+            port: 4080
+      - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: kube-system
+            podSelector:
+              matchLabels:
+                k8s-app: kube-dns
+        ports:
+          - protocol: UDP
+            port: 53
+          - protocol: TCP
+            port: 53
+---
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxWarmPool
+metadata:
+  name: vloer-warm
+  namespace: de-vloer-workspaces
+spec:
+  replicas: 2
+  sandboxTemplateRef:
+    name: de-vloer-agent
+  updateStrategy:
+    type: OnReplenish

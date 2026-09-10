@@ -146,7 +146,7 @@ export function workspaceManifests(config: AppConfig, session: Session, reposito
 const candidateServerProgram = `
 import { createServer as makeExportServer } from 'node:http';
 import { timingSafeEqual as candidateEqual } from 'node:crypto';
-const exportOptions={dataDir:'/exports',sessionId:process.env.CANDIDATE_SESSION,repositoryId:process.env.CANDIDATE_REPOSITORY,directory:'/workspace/repository',baseSha:process.env.CANDIDATE_BASE,timeoutMs:120000};
+const exportOptions={dataDir:process.env.CANDIDATE_EXPORT_DIR||'/exports',sessionId:process.env.CANDIDATE_SESSION,repositoryId:process.env.CANDIDATE_REPOSITORY,directory:'/workspace/repository',baseSha:process.env.CANDIDATE_BASE,timeoutMs:120000};
 const exportResult=await captureLocalCandidate(exportOptions);
 const exportAuth=Buffer.from('Basic '+Buffer.from(process.env.OPENCODE_SERVER_USERNAME+':'+process.env.OPENCODE_SERVER_PASSWORD).toString('base64'));
 makeExportServer(async(req,res)=>{const received=Buffer.from(req.headers.authorization??'');if(received.length!==exportAuth.length||!candidateEqual(received,exportAuth)){res.writeHead(401);res.end();return;}
@@ -155,8 +155,12 @@ res.setHeader('Cache-Control','no-store');
 if(req.url==='/health'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify(exportResult));return;}
 const format=({'/manifest':'manifest','/bundle':'bundle','/patch':'patch'})[req.url];
 if(!format||exportResult.status!=='ready'){res.writeHead(404);res.end();return;}
-try{const file=await readCandidate('/exports',process.env.CANDIDATE_SESSION,format);res.setHeader('Content-Type',file.contentType);res.setHeader('Content-Length',file.content.length);res.end(file.content);}catch{res.writeHead(500);res.end();}
+try{const file=await readCandidate(process.env.CANDIDATE_EXPORT_DIR||'/exports',process.env.CANDIDATE_SESSION,format);res.setHeader('Content-Type',file.contentType);res.setHeader('Content-Length',file.content.length);res.end(file.content);}catch{res.writeHead(500);res.end();}
 }).listen(4096,'0.0.0.0');`;
+
+export function candidateExportProgram(): string {
+  return stripTypeScriptTypes(readFileSync(new URL('../candidates.ts', import.meta.url), 'utf8')) + candidateServerProgram;
+}
 
 export function candidateExportManifest(config: AppConfig, session: Session, repository: Repository, relay?: RelayBinding): KubernetesObject {
   if (!config.kubernetes) throw new Error('Kubernetes workspace configuration missing');
@@ -179,6 +183,40 @@ export function candidateExportManifest(config: AppConfig, session: Session, rep
     }],
     volumes: [{ name: 'workspace', persistentVolumeClaim: { claimName: name, readOnly: true } }, { name: 'exports', emptyDir: { sizeLimit: '512Mi' } }, { name: 'tmp', emptyDir: { sizeLimit: '16Mi' } }],
   } };
+}
+
+export async function captureInPlace(relay: WorkerRelay, config: AppConfig, session: Session, repository: Repository, basic: BasicCredentials, baseSha: string): Promise<Candidate> {
+  const transport = relay.fetcher(session.id);
+  const control = async (path: string, body?: unknown, timeoutMs = 30_000) => {
+    const response = await transport(`http://workspace${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: body === undefined ? '{}' : JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs) });
+    if (!response.ok) throw new Error(`control ${path} returned HTTP ${response.status}`);
+    return response.json() as Promise<any>;
+  };
+  try { const stopped = await control('/__vloer/stop-child', undefined, 60_000); if (stopped?.stopped !== true) return unavailableCandidate('stop_unconfirmed'); } catch { return unavailableCandidate('stop_unconfirmed'); }
+  try {
+    await control('/__vloer/run', { argv: ['node', '--input-type=module', '-e', candidateExportProgram()], env: { CANDIDATE_SESSION: session.id, CANDIDATE_REPOSITORY: repository.id, CANDIDATE_BASE: baseSha, CANDIDATE_EXPORT_DIR: '/workspace/.exports', OPENCODE_SERVER_USERNAME: basic.username, OPENCODE_SERVER_PASSWORD: basic.password } });
+    const read = async (path: string, maximum: number): Promise<Buffer> => {
+      const response = await transport(`http://workspace${path}`, { headers: { authorization: 'Basic ' + Buffer.from(`${basic.username}:${basic.password}`).toString('base64') }, signal: AbortSignal.timeout(60_000) });
+      if (!response.ok || !response.body) throw new Error('Candidate export unavailable');
+      const chunks: Buffer[] = []; let size = 0;
+      for await (const chunk of response.body) { size += chunk.length; if (size > maximum) { await response.body.cancel().catch(() => {}); throw new Error('Candidate export is too large'); } chunks.push(Buffer.from(chunk)); }
+      return Buffer.concat(chunks);
+    };
+    const deadline = Date.now() + 180_000; let result: Candidate | undefined;
+    while (Date.now() < deadline) {
+      try { result = JSON.parse((await read('/health', 16384)).toString()) as Candidate; break; } catch {}
+      const status = await control('/__vloer/status').catch(() => undefined);
+      if (status && status.child === false) return unavailableCandidate('capture_failed');
+      await new Promise(done => setTimeout(done, 500));
+    }
+    if (!result || result.status !== 'ready') return unavailableCandidate(result?.reason);
+    const manifest = JSON.parse((await read('/manifest', 8 * 1024 * 1024)).toString()) as CandidateManifest;
+    if (manifest.sessionId !== session.id || manifest.repositoryId !== repository.id || manifest.baseSha !== baseSha) return unavailableCandidate('capture_failed');
+    const bundle = await read('/bundle', 128 * 1024 * 1024);
+    const patch = await read('/patch', 128 * 1024 * 1024);
+    return await persistRemoteCandidate(config.dataDir, session.id, manifest, bundle, patch);
+  } catch { return unavailableCandidate('capture_failed'); }
+  finally { await control('/__vloer/stop-child', undefined, 30_000).catch(() => {}); }
 }
 
 export class KubernetesWorkspaces {
@@ -271,6 +309,7 @@ export class KubernetesWorkspaces {
     if (!workspace || !basic || !workspace.endpoint) return unavailableCandidate('unsupported_workspace');
     const baseSha = workspace.metadata?.baseSha;
     if (!baseSha || !/^[a-f0-9]{40}$/.test(baseSha)) return unavailableCandidate('base_unavailable');
+    if (workspace.metadata?.transport === 'pull') return captureInPlace(this.relay, this.config, session, repository, basic, baseSha);
     try { await this.removePod(workspaceName(workspace.id)); } catch { return unavailableCandidate('stop_unconfirmed'); }
     try {
       const relay = this.relayBinding(session.id);

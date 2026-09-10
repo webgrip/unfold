@@ -89,3 +89,36 @@ test('the relay rejects foreign tokens and fails pending requests when a workspa
   await assert.rejects(pending, (error: any) => error.category === 'connectivity' && /relay was closed/.test(error.detail ?? ''));
   assert.equal(relay.connected('ws-2'), false);
 });
+
+test('a warm worker waits for a pool assignment, receives its session environment over the relay and runs commands on request', { timeout: 30_000 }, async t => {
+  const relay = new WorkerRelay();
+  relay.configurePool('pool-secret-token');
+  const relayServer = createServer(async (req, res) => { if (!(await relay.handle(req, res, new URL(req.url ?? '/', 'http://localhost')))) { res.writeHead(404); res.end(); } });
+  const relayPort = await listen(relayServer);
+  t.after(() => relayServer.close());
+  const base = `http://127.0.0.1:${relayPort}/api/relay`;
+  const rejected = await fetch(`${base}/pool/claim?pod=warm-1&wait=0`, { headers: { authorization: 'Bearer wrong' } });
+  assert.equal(rejected.status, 401);
+  const worker = spawn(process.execPath, [workerScript], { env: { PATH: process.env.PATH ?? '', VLOER_POOL_URL: `${base}/pool`, VLOER_POOL_TOKEN: 'pool-secret-token', VLOER_POD_NAME: 'warm-1', VLOER_RELAY_TARGET: 'http://127.0.0.1:9', VLOER_RELAY_KEEP_ALIVE: '1' }, stdio: ['ignore', 'ignore', 'pipe'] });
+  t.after(() => worker.kill('SIGKILL'));
+  let logs = '';
+  worker.stderr!.on('data', chunk => { logs += chunk; });
+  await delay(300);
+  assert.equal(relay.connected('ws-warm'), false, 'an unassigned warm worker relays nothing');
+  const token = relay.register('ws-warm');
+  relay.assign('warm-1', { sessionId: 'ws-warm', token, env: { REPOSITORY_URL: 'https://forge.example/repo.git', SESSION_MARKER: 'from-assignment' } });
+  await relay.waitForWorker('ws-warm', new AbortController().signal, 10_000);
+  const fetcher = relay.fetcher('ws-warm');
+  const status = await fetcher('http://workspace/__vloer/status');
+  assert.deepEqual(await status.json(), { child: false, session: 'ws-warm', inFlight: 1 });
+  const executed = await fetcher('http://workspace/__vloer/exec', { method: 'POST', body: JSON.stringify({ argv: [process.execPath, '-e', 'process.stdout.write(process.env.SESSION_MARKER + ":" + process.env.EXTRA); process.exit(3)'], env: { EXTRA: 'x' } }) });
+  assert.deepEqual(await executed.json(), { exitCode: 3, stdout: 'from-assignment:x', stderr: '' });
+  const ran = await fetcher('http://workspace/__vloer/run', { method: 'POST', body: JSON.stringify({ argv: [process.execPath, '-e', 'setInterval(() => {}, 1000)'] }) });
+  assert.equal(ran.status, 202);
+  assert.equal((await (await fetcher('http://workspace/__vloer/status')).json()).child, true);
+  const stopped = await fetcher('http://workspace/__vloer/stop-child', { method: 'POST' });
+  assert.deepEqual(await stopped.json(), { stopped: true });
+  assert.equal((await (await fetcher('http://workspace/__vloer/status')).json()).child, false);
+  assert.match(logs, /assigned session ws-warm/);
+  assert.equal(logs.includes('pool-secret-token'), false);
+});

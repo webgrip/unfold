@@ -9,6 +9,10 @@
 {{- if .Values.workspaceStorageClass -}}{{- $_ := set $kube "storageClass" .Values.workspaceStorageClass -}}{{- end -}}
 {{- if .Values.workspaceGitSecretName -}}{{- $_ := set $kube "gitSecretName" .Values.workspaceGitSecretName -}}{{- end -}}
 {{- if .Values.workspaceAgentSecrets -}}{{- $_ := set $kube "agentSecrets" .Values.workspaceAgentSecrets -}}{{- end -}}
+{{- $_ := set $kube "transport" .Values.workspaceTransport -}}
+{{- if eq .Values.workspaceTransport "pull" -}}{{- $_ := set $kube "relayUrl" (default (printf "http://%s.%s.svc:%d" (include "vloer.name" .) .Release.Namespace (int .Values.service.port)) .Values.workspaceRelayUrl) -}}{{- end -}}
+{{- $_ := set $kube "provisioner" .Values.workspaceProvisioner -}}
+{{- if eq .Values.workspaceProvisioner "sandbox" -}}{{- $_ := set $kube "sandbox" (dict "runtimeClassName" .Values.workspaceRuntimeClassName "warmPool" .Values.workspaceWarmPool "poolTokenEnv" "VLOER_POOL_TOKEN") -}}{{- end -}}
 {{- $_ := set $cfg "kubernetes" $kube -}}
 apiVersion: v1
 kind: ConfigMap

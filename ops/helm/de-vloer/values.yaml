@@ -29,6 +29,11 @@ workspaceMemory: 2Gi
 workspaceImagePullSecrets: []
 workspaceGitSecretName: ""
 workspaceAgentSecrets: []
+workspaceTransport: pull
+workspaceRelayUrl: ""
+workspaceProvisioner: pod
+workspaceRuntimeClassName: kata
+workspaceWarmPool: ""
 workspaceEgress: []
 config:
   maxConcurrentSessions: 2

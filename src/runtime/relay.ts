@@ -12,9 +12,23 @@ const pickupTimeoutMs = 30_000;
 
 export function relayEndpoint(workspaceId: string): string { return `relay://${workspaceId}`; }
 
+type Assignment = { sessionId: string; token: string; env: Record<string, string> };
+
 export class WorkerRelay {
   private readonly registrations = new Map<string, Registration>();
+  private readonly assignments = new Map<string, Assignment>();
+  private readonly poolWaiters = new Map<string, Set<() => void>>();
+  private poolToken?: Buffer;
   readonly basePath = '/api/relay/';
+
+  configurePool(token: string | undefined): void { this.poolToken = token ? Buffer.from(token) : undefined; }
+
+  assign(podName: string, assignment: Assignment): void {
+    this.assignments.set(podName, assignment);
+    for (const wake of this.poolWaiters.get(podName) ?? []) wake();
+  }
+
+  unassign(podName: string): void { this.assignments.delete(podName); }
 
   register(workspaceId: string): string {
     this.unregister(workspaceId);
@@ -94,10 +108,40 @@ export class WorkerRelay {
     return presented.length === registration.token.length && timingSafeEqual(presented, registration.token);
   }
 
+  private poolAuthorized(req: IncomingMessage): boolean {
+    if (!this.poolToken) return false;
+    const header = req.headers.authorization ?? '';
+    if (!header.startsWith('Bearer ')) return false;
+    const presented = Buffer.from(header.slice(7));
+    return presented.length === this.poolToken.length && timingSafeEqual(presented, this.poolToken);
+  }
+
   async handle(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
     if (!url.pathname.startsWith(this.basePath)) return false;
-    const match = url.pathname.slice(this.basePath.length).match(/^([a-zA-Z0-9_-]{1,80})\/(requests|responses\/([a-zA-Z0-9_-]{1,32}))$/);
     const json = (status: number, value: unknown) => { res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(value)); };
+    if (url.pathname === `${this.basePath}pool/claim` && req.method === 'GET') {
+      if (!this.poolAuthorized(req)) { json(401, { error: { code: 'unauthorized', message: 'Pool token rejected.' } }); return true; }
+      const pod = url.searchParams.get('pod') ?? '';
+      if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(pod) || pod.length > 253) { json(400, { error: { code: 'pod', message: 'pod must be a DNS label.' } }); return true; }
+      const wait = Math.min(maxPollMs, Math.max(0, Number(url.searchParams.get('wait') ?? maxPollMs) || 0));
+      if (!this.assignments.has(pod) && wait > 0) {
+        await new Promise<void>(done => {
+          const waiters = this.poolWaiters.get(pod) ?? new Set<() => void>();
+          this.poolWaiters.set(pod, waiters);
+          const timer = setTimeout(() => { waiters.delete(wake); done(); }, wait);
+          const wake = () => { clearTimeout(timer); waiters.delete(wake); done(); };
+          waiters.add(wake);
+          req.on('close', wake);
+        });
+      }
+      if (req.destroyed) return true;
+      const assignment = this.assignments.get(pod);
+      if (!assignment) { json(200, { assignment: null }); return true; }
+      this.assignments.delete(pod);
+      json(200, { assignment: { sessionId: assignment.sessionId, token: assignment.token, env: assignment.env } });
+      return true;
+    }
+    const match = url.pathname.slice(this.basePath.length).match(/^([a-zA-Z0-9_-]{1,80})\/(requests|responses\/([a-zA-Z0-9_-]{1,32}))$/);
     if (!match) { json(404, { error: { code: 'not_found', message: 'Relay route not found.' } }); return true; }
     const registration = this.registrations.get(match[1]);
     if (!this.authorized(registration, req)) { json(401, { error: { code: 'unauthorized', message: 'Relay token rejected.' } }); return true; }

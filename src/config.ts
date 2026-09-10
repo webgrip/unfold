@@ -129,6 +129,16 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   const docker = runtime.backends.includes('docker') ? dockerSettings(raw.docker) : undefined;
   if (runtime.backends.includes('kubernetes') && !raw.kubernetes) throw new Error('The kubernetes workspace backend requires a kubernetes configuration block');
   if (raw.kubernetes) { raw.kubernetes.transport = transportSetting(raw.kubernetes.transport, 'kubernetes.transport'); if (raw.kubernetes.relayUrl !== undefined) raw.kubernetes.relayUrl = configuredUrl(String(raw.kubernetes.relayUrl), 'kubernetes.relayUrl'); if (raw.kubernetes.transport === 'pull' && !raw.kubernetes.relayUrl) throw new Error('kubernetes.transport pull requires kubernetes.relayUrl, the workbench URL reachable from agent pods'); }
+  if (raw.kubernetes) {
+    raw.kubernetes.provisioner = raw.kubernetes.provisioner ?? 'pod';
+    if (!['pod', 'sandbox'].includes(raw.kubernetes.provisioner)) throw new Error('kubernetes.provisioner must be pod or sandbox');
+    if (raw.kubernetes.provisioner === 'sandbox') {
+      if (raw.kubernetes.transport !== 'pull') throw new Error('kubernetes.provisioner sandbox requires kubernetes.transport pull');
+      const sandbox = raw.kubernetes.sandbox ?? {};
+      for (const key of ['runtimeClassName', 'warmPool', 'poolTokenEnv']) if (sandbox[key] !== undefined && (typeof sandbox[key] !== 'string' || !/^[A-Za-z0-9_.-]{1,253}$/.test(sandbox[key]))) throw new Error(`kubernetes.sandbox.${key} must be a name`);
+      raw.kubernetes.sandbox = { runtimeClassName: sandbox.runtimeClassName ?? 'kata', warmPool: sandbox.warmPool, poolTokenEnv: sandbox.poolTokenEnv ?? 'VLOER_POOL_TOKEN' };
+    }
+  }
   if (raw.kubernetes?.agentSecrets !== undefined && (!Array.isArray(raw.kubernetes.agentSecrets) || raw.kubernetes.agentSecrets.some((name: unknown) => typeof name !== 'string' || !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(name)))) throw new Error('kubernetes.agentSecrets must list Kubernetes Secret names');
   if (raw.ploeg && (!Array.isArray(raw.ploeg.teams) || raw.ploeg.teams.length > 50 || raw.ploeg.teams.some((team: unknown) => typeof team !== 'string' || !team || team.length > 100))) throw new Error('ploeg.teams must contain at most 50 team names');
   if (raw.ploeg?.trackerUrl) configuredUrl(raw.ploeg.trackerUrl, 'ploeg.trackerUrl');

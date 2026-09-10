@@ -7,6 +7,7 @@ import type { AppConfig, Credential, Repository, Session, Workspace, WorkspaceBa
 import { KubernetesWorkspaces } from './kubernetes.ts';
 import { DockerWorkspaces } from './docker.ts';
 import { WorkerRelay } from './relay.ts';
+import { SandboxWorkspaces } from './sandbox.ts';
 import { RuntimeFailure } from '../failures.ts';
 import { captureLocalCandidate, pinCandidateBase, unavailableCandidate, type Candidate } from '../candidates.ts';
 
@@ -104,15 +105,15 @@ async function unusedPort(): Promise<number> {
 export class WorkspaceManager {
   readonly config: AppConfig;
   readonly internal = new Map<string, InternalWorkspace>();
-  readonly kubernetes?: KubernetesWorkspaces;
+  readonly kubernetes?: KubernetesWorkspaces | SandboxWorkspaces;
   readonly docker?: DockerWorkspaces;
   readonly relay: WorkerRelay;
 
-  constructor(config: AppConfig, options: { docker?: DockerWorkspaces; kubernetes?: KubernetesWorkspaces; relay?: WorkerRelay } = {}) {
+  constructor(config: AppConfig, options: { docker?: DockerWorkspaces; kubernetes?: KubernetesWorkspaces | SandboxWorkspaces; relay?: WorkerRelay } = {}) {
     this.config = config;
     this.relay = options.relay ?? new WorkerRelay();
     const backends = config.runtime.backends ?? [config.runtime.backend];
-    if (backends.includes('kubernetes')) this.kubernetes = options.kubernetes ?? new KubernetesWorkspaces(config, undefined, this.relay);
+    if (backends.includes('kubernetes')) this.kubernetes = options.kubernetes ?? (config.kubernetes?.provisioner === 'sandbox' ? new SandboxWorkspaces(config, undefined, this.relay) : new KubernetesWorkspaces(config, undefined, this.relay));
     if (backends.includes('docker')) this.docker = options.docker ?? new DockerWorkspaces(config, undefined, process.env, this.relay);
   }
 

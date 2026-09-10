@@ -80,5 +80,23 @@ Set `executionOwner: "ploeg"` on repositories assigned to unattended Ploeg execu
 | `GET /api/sessions/:id/candidate/download?format=bundle` | Authenticated Git bundle download |
 | `GET /api/sessions/:id/candidate/download?format=patch` | Full binary-capable Git patch |
 | `GET /api/sessions/:id/candidate/download?format=manifest` | JSON provenance, file and integrity metadata |
+| `GET /api/sessions/:id/candidate/download?format=attestation` | DSSE envelope with the in-toto candidate provenance statement |
+| `GET /api/sessions/:id/candidate/download?format=trace` | DSSE envelope with the Agent Trace 0.1.0 record |
+| `GET /api/attestations/public-key` | PEM public key of the workbench's Ed25519 attestation key; `X-Key-Id` carries its identifier |
+
+`candidate.attestation` records the key identifier and predicate types when signing succeeded; a `candidate.attestation_failed` event marks a captured but unsigned candidate.
+
+## Agent host
+
+| Method and path | Behavior |
+| --- | --- |
+| `GET /api/agent-host` | Protocol version, WebSocket address, connected client count and the shape of the VS Code setting |
+| `POST /api/agent-host/tokens` | `{label?}` → `{token, address, vscodeSetting}`; the token is shown once and bound to the caller |
+
+The WebSocket endpoint is the workbench address with `?tkn=<token>`; it speaks Agent Host Protocol 0.9.0 ([ADR 0012](../adrs/0012-agent-host-protocol-host.md)).
+
+## Workspace relay
+
+Routes under `/api/relay/` are for sandbox workers, authenticated by per-workspace or pool bearer tokens rather than login cookies, and are not part of the operator contract.
 
 Candidate access uses the same owner/administrator checks as the session. A successful export preserves a reviewable change; it does not certify independent verification, authorize publication or merge anything. Availability and limitations are explicit in the metadata. Native harness history and credentials are not portable candidate contents.

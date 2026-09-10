@@ -93,6 +93,8 @@ Add a `docker` block next to `runtime`:
 
 `socketPath` defaults to `/var/run/docker.sock`. `gatewayUrl` overrides the inference URL seen inside containers when the gateway address differs from the host's view, for example `http://host.docker.internal:4000/v1` for a gateway on the workbench host; the containers always get `host.docker.internal` mapped to the host. `user` pins the container uid; on Linux the workbench's own uid and gid are used so the bind-mounted session directory stays readable for candidate capture, and on macOS Docker Desktop the image's `node` user is fine. Each session gets one container named after its workspace, bind-mounted to `<dataDir>/workspaces/<session>`, with a read-only root filesystem, all capabilities dropped, no new privileges, a CPU, memory and PID budget, and the OpenCode port published only on `127.0.0.1` behind a per-session random password. The only credential inside is the session's scoped LiteLLM key plus whatever `agentEnvironment` allows. Container egress follows the Docker network it joins; restrict it by pointing `network` at a network you control.
 
+Set `"transport": "pull"` in the `docker` block to let the container dial out instead of publishing a port. The container then runs the relay worker baked into the agent image, polls `docker.relayUrl` (default `http://host.docker.internal:<port>`) with a per-session token and forwards requests to OpenCode on its own loopback. On macOS Docker Desktop that reaches a workbench bound to `127.0.0.1`; on Linux bind the workbench to an address the Docker network can reach. Nothing is published on the host in pull mode ([ADR 0011](../adrs/0011-sandboxes-dial-out-through-a-relay.md)).
+
 Candidate capture stops the container, confirms the stop and snapshots the host directory. The container is removed on disposal; the session directory is retained like the local backend's. Reproduce the no-inference qualification against your image with:
 
 ```sh
@@ -131,6 +133,8 @@ helm upgrade --install de-vloer ops/helm/de-vloer --namespace de-vloer --create-
 
 The manager provisions real Kubernetes resources through the API. It retains workspace PVCs after runtime disposal so changes and native state can survive; volume retention has an operational cost. Cleanup policy must preserve reviewable work before deleting retained volumes. Configure `workspaceEgress` for the actual forge and inference gateway; example selectors are not universal access rules. Kubernetes network isolation depends on the cluster's network-policy implementation, so chart rendering cannot prove enforcement.
 
+`workspaceTransport: pull` (the chart default) makes agent pods dial out to the workbench Service instead of receiving a Service and an ingress rule; `workspaceRelayUrl` overrides the address the pods use. Candidates are then captured in place through the relay, without an export pod. `workspaceProvisioner: sandbox` switches from hand-rolled pods to the agent-sandbox CRDs: a `Sandbox` per session under `workspaceRuntimeClassName` (default `kata`), or, with `workspaceWarmPool` set, a `SandboxClaim` against a warm pool whose pods receive their session over the relay. The controller, the template and the pool token are cluster concerns described in [ops/cluster/agent-sandbox](../../ops/cluster/agent-sandbox/README.md) and [ADR 0013](../adrs/0013-sandbox-crd-placement-with-warm-kata-pools.md); the workbench needs `VLOER_POOL_TOKEN` in its credentials Secret for the warm path.
+
 The in-cluster workbench is the supported way to use the Kubernetes backend. A workbench on a workstation cannot drive a pod through the API server's service proxy, because the API server strips the `Authorization` header that OpenCode's Basic authentication needs; a port-forward transport under the operator's own identity is the identified next step and is not implemented. The estate's `agent-runner` image is Ploeg's unattended OpenHands body and contains no OpenCode server, so it is not a workspace image for De Vloer; publish `ops/agent/Dockerfile` as its `opencode-runner` sibling instead.
 
 Before a team rollout, qualify Pod startup/readiness, repository cloning, model requests, interruption, permission handling, restart recovery, spend settlement and resource cleanup on the target cluster. Record the tested image digests, Kubernetes version, gateway version and result in [validation](../validation.md). No automated chart command deploys this application.
@@ -150,3 +154,26 @@ The bridge sends a versioned `start` JSON line on stdin, forwards human response
 - Back up SQLite consistently using a SQLite-aware snapshot or by stopping the single server before copying the database and associated files. Preserve retained workspace/PVC evidence separately and test restore before relying on it.
 
 Subscription authentication is not provided by this managed path. If a harness later supports an upstream-approved personal subscription flow, it still needs separate visible identity/quota semantics; it does not become a pool of LiteLLM API credit. Use API-backed gateway credentials for the currently implemented managed model budget.
+
+## Attaching VS Code as an agent host client
+
+The workbench serves the Agent Host Protocol on its own port. Create a personal connection token, then add the printed entry to the `chat.remoteAgentHosts` setting in VS Code 1.136 or later:
+
+```sh
+curl -sS -X POST -H 'X-Vloer-Request: 1' -H 'Content-Type: application/json' -b "$COOKIE" \
+  http://127.0.0.1:4080/api/agent-host/tokens -d '{"label":"laptop"}'
+```
+
+The response contains `address` and a ready-made `vscodeSetting.entry` with the token. Sessions appear in VS Code's agent sessions list; a new session asks for repository, crew, budget and placement, and its first message starts the crew. Every other client attached with a token of the same user sees the same session. Tokens are bound to the user who created them and honour the same ownership rules as the HTTP API ([ADR 0012](../adrs/0012-agent-host-protocol-host.md)). Whether a given VS Code build offers plain WebSocket hosts in its picker is not something this repository can verify; the setting itself is read by the 1.136 client.
+
+## Verifying a candidate
+
+Every ready candidate ships a signed provenance statement and an Agent Trace record. Download all five formats and the public key, then verify offline:
+
+```sh
+node scripts/verify-candidate.mjs ./candidate de-vloer-attestation.pub
+cosign verify-blob-attestation --key de-vloer-attestation.pub --signature candidate.attestation.json \
+  --type https://webgrip.dev/attestations/agent-candidate/v1 --insecure-ignore-tlog manifest.json
+```
+
+The script recomputes the bundle, patch and manifest digests, checks both DSSE signatures against the key and confirms the attested commit matches the manifest. The key is generated on first use in the data directory; back it up with the database and treat its loss as a re-keying event ([ADR 0014](../adrs/0014-signed-candidates.md)).
