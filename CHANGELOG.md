@@ -1,3 +1,30 @@
+## [0.3.0-rc.5](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.4...v0.3.0-rc.5) (2026-09-10)
+
+### Added
+
+* **auth:** sign in with the estate's identity provider ([cc8073b](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/cc8073b3fdf4cf5c68a69bf850556a4858ed404f))
+* **links:** let a person link their GitLab account and clone private repositories with it ([3e03be9](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/3e03be94b5c5d638926775ce999a82880cbf2363))
+* **sessions:** a Gateway tab that shows who served each request and what the gateway did ([4ff8ce8](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/4ff8ce8fd46740c3e43a81b9594f1f8d9b136e34))
+* **sessions:** automatic tool approval in isolated placements, live observed spend, and a budget-exhausted failure ([03ef124](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/03ef124639d7775c2069e54c7ce114c47abd5329))
+* **sessions:** gateway policy that fails closed, the brief each role received, and a cost curve ([95a52a2](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/95a52a28e3cf1ce8d8caeb16ab886f64a9a2df2d))
+* **sessions:** link every session to the estate's dashboards, traces and logs, and list strict aliases ([7b8ce25](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/7b8ce2580bd124fecd73bc9c064549bba34bc367))
+* **sessions:** show what the crew did, which model answered, and let analysis roles answer without a verdict ([fe0b9b4](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/fe0b9b4a994c3f6e53ad10262557967d81a7b75d))
+* **sessions:** try a failed session again, duplicate it, and link ClickUp beside GitLab ([e0ffac5](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/e0ffac5eb3b7ca3cf99433aedd1aca1c7b788a09))
+* **vscode:** bring the editor to parity with the workbench ([4102bb4](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/4102bb451a99f269a79ae1b0b052440b1f7b9664))
+
+### Fixed
+
+* **links:** name the GitLab exchange failure and explain a confidential application ([b609714](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/b609714b08e0aff506d72e214934a267e24ec5e8))
+* **runtime:** tell a gateway outage from a refusal, and let the clone step report git's error ([86c18f0](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/86c18f054ba69a6fc8f19295889eebbbbcd4369e))
+* **ui:** declare the observed spend before the session template uses it ([3efb458](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/3efb4588fe3a1cd04c74b7f787fa431cff15c234))
+* **workspace:** keep the linked credential on the repository the manager validates ([87c9096](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/87c90960fb492105861b446cb4938ad86b64bba6))
+
+### Docs
+
+* propose that people sign in with the estate and link their own accounts ([4b605b8](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/4b605b843f1d45c1f2d7fbd5cd75a8c9b9a853eb))
+* record what Ploeg and De Vloer each do, propose the operator read API, list gateway capabilities ([4927342](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/4927342d429d0653be052bb3ed57902cc348dd75))
+* regenerate the consolidated design for tickets PV-079 through PV-085 ([0700edc](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/0700edcf3fc347242afd9e3ebb818ff6ce776898))
+
 ## [0.3.0-rc.4](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.3...v0.3.0-rc.4) (2026-09-10)
 
 ### Fixed
