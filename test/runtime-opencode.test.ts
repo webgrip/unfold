@@ -145,3 +145,28 @@ test('automatic approval creates the native session with allow rules and keeps t
   const writerRules = second.calls.find(call => call.path === '/session')?.body.permission;
   assert.deepEqual(writerRules, [{ permission: '*', pattern: '*', action: 'allow' }, { permission: 'external_directory', pattern: '*', action: 'deny' }]);
 });
+
+test('the report drops the verdict block, the transcript keeps every part, and tool events carry their input and error', async () => {
+  const { withoutVerdictBlock, transcript } = await import('../src/runtime/opencode.ts');
+  assert.equal(withoutVerdictBlock('Found it in a.ts:12.\n\n```json\n{"verdict":"approve","summary":"ok"}\n```'), 'Found it in a.ts:12.');
+  assert.equal(withoutVerdictBlock('{"verdict":"inconclusive","summary":"Nothing to review."}'), 'Nothing to review.');
+  assert.equal(withoutVerdictBlock('plain text'), 'plain text');
+  const text = transcript('Analyst', [{ info: { id: 'm1', role: 'assistant', sessionID: 's', time: { created: 0 }, modelID: 'claude-sonnet-5', providerID: 'acme' }, parts: [
+    { type: 'reasoning', text: 'think first' },
+    { type: 'tool', tool: 'grep', state: { status: 'error', input: { pattern: 'litellm' }, error: 'ripgrep failed with code 127' } },
+    { type: 'tool', tool: 'read', state: { status: 'completed', input: { filePath: 'a.yaml' }, output: 'tag: v1.100.0', title: 'a.yaml' } },
+    { type: 'text', text: 'The tag is v1.100.0.' },
+  ] }] as any);
+  assert.ok(text.includes('# Analyst transcript'));
+  assert.ok(text.includes('acme/claude-sonnet-5'));
+  assert.ok(text.includes('> think first'));
+  assert.ok(text.includes('### tool grep · error'));
+  assert.ok(text.includes('Error: ripgrep failed with code 127'));
+  assert.ok(text.includes('### tool read · completed · a.yaml'));
+  assert.ok(text.includes('tag: v1.100.0'));
+  const events: RuntimeEvent[] = [];
+  const fake = wire({ toolCommand: 'npm test' });
+  const result = await new OpenCodeRuntime(config, manager, fake.fetcher).execute(context(events));
+  assert.ok(result.artifacts.some(artifact => artifact.kind === 'transcript' && artifact.content.includes('# Reviewer transcript')));
+  assert.equal(result.summary.includes('"verdict"'), false);
+});

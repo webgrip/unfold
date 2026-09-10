@@ -17,6 +17,48 @@ export interface RuntimeWorkspaces {
 type WireRecord = Record<string, any>;
 type WireMessage = { info: WireRecord; parts: WireRecord[] };
 
+function preview(value: unknown, limit: number): string {
+  let text: string;
+  try { text = typeof value === 'string' ? value : JSON.stringify(value); } catch { text = String(value); }
+  return text.length > limit ? text.slice(0, limit) + '…' : text;
+}
+
+function tail(text: string, limit: number): string { return text.length > limit ? '…' + text.slice(-limit) : text; }
+
+export function withoutVerdictBlock(text: string): string {
+  try { const whole = JSON.parse(text); if (whole && typeof whole === 'object' && 'verdict' in whole) return typeof whole.summary === 'string' && whole.summary ? whole.summary : text; } catch {}
+  let summary = '';
+  const stripped = text.replace(/```(?:json)?\s*([\s\S]*?)```/g, (block, body) => {
+    try {
+      const value = JSON.parse(body);
+      if (!value || typeof value !== 'object' || !('verdict' in value)) return block;
+      if (typeof value.summary === 'string' && value.summary) summary = value.summary;
+      return '';
+    } catch { return block; }
+  }).trim();
+  return stripped || summary || text;
+}
+
+export function transcript(role: string, messages: WireMessage[]): string {
+  const lines = [`# ${role} transcript`, ''];
+  for (const message of messages) {
+    const created = message.info?.time?.created ? new Date(message.info.time.created).toISOString() : '';
+    lines.push(`## assistant${created ? ` · ${created}` : ''}${message.info?.modelID ? ` · ${message.info.providerID ? `${message.info.providerID}/` : ''}${message.info.modelID}` : ''}`, '');
+    for (const part of message.parts ?? []) {
+      if (part.type === 'text' && typeof part.text === 'string') lines.push(part.text.trim(), '');
+      else if (part.type === 'reasoning' && typeof part.text === 'string') lines.push('> reasoning', ...String(part.text).trim().split('\n').map((line: string) => `> ${line}`), '');
+      else if (part.type === 'tool') {
+        const state = part.state ?? {};
+        lines.push(`### tool ${String(part.tool ?? 'tool')} · ${String(state.status ?? 'unknown')}${state.title ? ` · ${String(state.title).slice(0, 200)}` : ''}`, '');
+        if (state.input !== undefined) lines.push('```json', preview(state.input, 2000), '```', '');
+        if (typeof state.output === 'string' && state.output) lines.push('```', tail(state.output, 4000), '```', '');
+        if (state.status === 'error') lines.push(`Error: ${tail(String(state.error ?? ''), 2000)}`, '');
+      }
+    }
+  }
+  return lines.join('\n');
+}
+
 export function reportedVerdict(text: string, structured?: unknown): ExecutionResult['verdict'] {
   const values: unknown[] = [structured];
   try { values.push(JSON.parse(text)); } catch {}
@@ -171,7 +213,8 @@ export class OpenCodeRuntime implements AgentRuntime {
         emit({ type: 'message', data: { text: p.delta, role: 'assistant', nativeSessionId: sid, partId: p.partID } });
       }
       if (event.type === 'message.part.updated' && p.part?.type === 'tool') {
-        emit({ type: 'tool', data: { name: String(p.part.tool ?? 'tool'), status: String(p.part.state?.status ?? 'unknown'), nativeSessionId: sid } });
+        const state = p.part.state ?? {};
+        emit({ type: 'tool', data: { name: String(p.part.tool ?? 'tool'), status: String(state.status ?? 'unknown'), nativeSessionId: sid, partId: String(p.part.id ?? p.part.callID ?? ''), ...(state.title ? { title: String(state.title).slice(0, 200) } : {}), ...(state.input !== undefined ? { input: preview(state.input, 2000) } : {}), ...(state.status === 'completed' && typeof state.output === 'string' ? { output: tail(state.output, 4000) } : {}), ...(state.status === 'error' ? { error: tail(String(state.error ?? state.output ?? 'The tool failed without a message.'), 2000) } : {}) } });
       }
       if (event.type === 'permission.asked' || event.type === 'question.asked') {
         if (typeof p.id !== 'string' || pending.has(p.id)) return;
@@ -232,7 +275,7 @@ export class OpenCodeRuntime implements AgentRuntime {
           }
           const costUsd = allMessages.reduce((sum, item) => sum + (Number.isFinite(item.info.cost) ? item.info.cost : 0), 0);
           emit({ type: 'usage', data: { costUsd, source: 'harness-estimate', inputTokens: allMessages.reduce((n, m) => n + (m.info.tokens?.input ?? 0), 0), outputTokens: allMessages.reduce((n, m) => n + (m.info.tokens?.output ?? 0), 0) } });
-          const artifacts: Artifact[] = [{ id: randomUUID(), kind: 'summary', name: `${context.role.name} report`, content: resultText }];
+          const artifacts: Artifact[] = [{ id: randomUUID(), kind: 'summary', name: `${context.role.name} report`, content: withoutVerdictBlock(resultText) }, { id: randomUUID(), kind: 'transcript', name: `${context.role.name} transcript`, content: transcript(context.role.name, allMessages) }];
           const diff = await this.request(workspace, `${base}/diff`, 'GET', undefined, operation);
           if (Array.isArray(diff) && diff.length) artifacts.push({ id: randomUUID(), kind: 'diff', name: `${context.role.name} native file diff`, content: JSON.stringify(diff, null, 2) });
           for (const message of allMessages) {
@@ -245,7 +288,7 @@ export class OpenCodeRuntime implements AgentRuntime {
             }
           }
           if (!textParts.size) emit({ type: 'message', data: { role: 'assistant', text: resultText } });
-          return { summary: resultText, nativeId, costUsd, artifacts, verdict: reportedVerdict(resultText, last.info.structured) ?? (context.role.mode === 'read' ? 'inconclusive' : undefined) };
+          return { summary: withoutVerdictBlock(resultText), nativeId, costUsd, artifacts, verdict: reportedVerdict(resultText, last.info.structured) ?? (context.role.mode === 'read' ? 'inconclusive' : undefined) };
         }
         await delay(750, undefined, { signal: operation });
       }

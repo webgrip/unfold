@@ -107,3 +107,31 @@ test('a gateway refusal is a rejection that never echoes the response', async t 
     return true;
   });
 });
+
+test('usage aggregates the gateway ledger per model with the routed group and failures', async t => {
+  const { broker, config } = await gateway(t);
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (input: any, init?: any) => {
+    const url = String(input);
+    if (url.includes('/spend/logs')) {
+      assert.ok(url.includes('api_key=hashed-'));
+      return new Response(JSON.stringify([
+        { model: 'anthropic/claude-haiku-4-5', model_group: 'auto', spend: 0.01, status: 'success', prompt_tokens: 100, completion_tokens: 20 },
+        { model: 'anthropic/claude-sonnet-5', model_group: 'auto', spend: 0.02, status: 'success', prompt_tokens: 200, completion_tokens: 40 },
+        { model: 'anthropic/claude-sonnet-5', model_group: 'auto', spend: 0.03, status: 'success', prompt_tokens: 300, completion_tokens: 60 },
+        { model: 'auto', model_group: 'auto', spend: 0, status: 'failure', prompt_tokens: 0, completion_tokens: 0 },
+      ]), { headers: { 'content-type': 'application/json' } });
+    }
+    return original(input, init);
+  }) as typeof fetch;
+  t.after(() => { globalThis.fetch = original; });
+  const credential = await broker.mint(session);
+  const usage = await broker.usage(credential.reference);
+  assert.deepEqual(usage, [
+    { model: 'anthropic/claude-sonnet-5', group: 'auto', requests: 2, failures: 0, usd: 0.05, inputTokens: 500, outputTokens: 100 },
+    { model: 'anthropic/claude-haiku-4-5', group: 'auto', requests: 1, failures: 0, usd: 0.01, inputTokens: 100, outputTokens: 20 },
+    { model: 'auto', requests: 1, failures: 1, usd: 0, inputTokens: 0, outputTokens: 0 },
+  ]);
+  assert.equal(await broker.usage('de-vloer-missing'), undefined);
+  void config;
+});

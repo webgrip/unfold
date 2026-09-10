@@ -22,7 +22,7 @@ ARG IMAGE_VERSION=dev
 ARG IMAGE_REVISION=unknown
 RUN sed -i '/dl-cdn.alpinelinux.org/d' /etc/apk/repositories \
  && apk upgrade --no-cache --available \
- && apk add --no-cache bash git ca-certificates \
+ && apk add --no-cache bash git ca-certificates ripgrep \
  && install -d -o node -g node -m 0755 /workspace /etc/opencode
 COPY --from=fetch /opencode /usr/local/bin/opencode
 RUN install -d -m 0755 /usr/local/lib/de-vloer

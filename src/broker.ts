@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { RuntimeFailure, transportFailure } from './failures.ts';
-import type { AppConfig, Credential, Session } from './types.ts';
+import type { AppConfig, Credential, ModelUsage, Session } from './types.ts';
 
 type GatewayKey = { token: string; key_alias: string; spend?: number; blocked?: boolean; metadata?: Record<string, unknown> };
 
@@ -9,6 +9,7 @@ export interface BudgetBroker {
   spend(reference: string): Promise<number | undefined>;
   revoke(reference: string): Promise<void>;
   extend(reference: string, totalBudget: number): Promise<void>;
+  usage?(reference: string): Promise<ModelUsage[] | undefined>;
 }
 
 export class LiteLLMBroker implements BudgetBroker {
@@ -87,6 +88,28 @@ export class LiteLLMBroker implements BudgetBroker {
     if (!key.metadata?.de_vloer_blocked_at) await this.request('/key/update', 'POST', {
       key: key.token, metadata: { ...key.metadata, de_vloer_blocked_at: new Date().toISOString() },
     });
+  }
+
+  async usage(reference: string): Promise<ModelUsage[] | undefined> {
+    const key = await this.find(reference);
+    if (!key) return undefined;
+    const result = await this.request(`/spend/logs?api_key=${encodeURIComponent(key.token)}`);
+    const rows: any[] = Array.isArray(result) ? result : Array.isArray(result?.data) ? result.data : [];
+    const byModel = new Map<string, ModelUsage>();
+    for (const row of rows) {
+      const model = typeof row?.model === 'string' && row.model ? row.model : 'unknown';
+      const group = typeof row?.model_group === 'string' && row.model_group && row.model_group !== model ? row.model_group : undefined;
+      const entry = byModel.get(model) ?? { model, ...(group ? { group } : {}), requests: 0, failures: 0, usd: 0, inputTokens: 0, outputTokens: 0 };
+      entry.requests += 1;
+      if (row?.status === 'failure') entry.failures += 1;
+      const spend = Number(row?.spend);
+      if (Number.isFinite(spend) && spend > 0) entry.usd = Math.round((entry.usd + spend) * 1e6) / 1e6;
+      const input = Number(row?.prompt_tokens), output = Number(row?.completion_tokens);
+      if (Number.isFinite(input) && input > 0) entry.inputTokens += input;
+      if (Number.isFinite(output) && output > 0) entry.outputTokens += output;
+      byModel.set(model, entry);
+    }
+    return [...byModel.values()].sort((a, b) => b.usd - a.usd);
   }
 
   async extend(reference: string, totalBudget: number): Promise<void> {

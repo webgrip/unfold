@@ -3080,3 +3080,19 @@ dialog::backdrop {
     margin-left:21px;
   }
 }
+
+.markdown p { margin: 0 0 0.6rem; }
+.markdown p:last-child { margin-bottom: 0; }
+.markdown ul { margin: 0 0 0.6rem 1.1rem; padding: 0; }
+.markdown h3, .markdown h4, .markdown h5, .markdown h6 { margin: 0.8rem 0 0.3rem; font-size: 0.95rem; }
+.markdown code { font-family: var(--mono, ui-monospace, monospace); font-size: 0.85em; background: rgba(0,0,0,0.05); padding: 0.05rem 0.3rem; border-radius: 0.25rem; }
+.markdown pre.md-code { overflow-x: auto; padding: 0.6rem 0.8rem; border-radius: 0.4rem; background: rgba(0,0,0,0.05); font-size: 0.8rem; margin: 0.4rem 0 0.7rem; }
+.tool-detail { margin-left: 0.5rem; opacity: 0.75; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 28rem; }
+.tool-failed .tool-title strong { color: var(--danger, #a33); }
+.tool-body { margin: 0.3rem 0 0 1.6rem; font-size: 0.8rem; }
+.tool-body summary { cursor: pointer; opacity: 0.75; }
+.tool-body pre { overflow-x: auto; max-height: 18rem; padding: 0.5rem 0.7rem; border-radius: 0.4rem; background: rgba(0,0,0,0.05); margin: 0.2rem 0 0.5rem; white-space: pre-wrap; word-break: break-word; }
+.usage-list { display: grid; grid-template-columns: 1fr auto; gap: 0.2rem 0.8rem; margin: 0.6rem 0; font-size: 0.8rem; }
+.usage-list dt { font-family: var(--mono, ui-monospace, monospace); overflow: hidden; text-overflow: ellipsis; }
+.usage-list dd { margin: 0; text-align: right; white-space: nowrap; }
+details.transcript summary { cursor: pointer; }
