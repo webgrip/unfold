@@ -1,3 +1,9 @@
+## [0.3.0-rc.9](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.8...v0.3.0-rc.9) (2026-09-10)
+
+### Added
+
+* **vscode:** say where a session runs, choose the model, and review before creating ([3e8090c](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/3e8090c0acac304b2432f03fccf5e96edf94a9e2))
+
 ## [0.3.0-rc.8](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.7...v0.3.0-rc.8) (2026-09-10)
 
 ### Added
