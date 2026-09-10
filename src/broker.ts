@@ -11,6 +11,7 @@ export interface BudgetBroker {
   extend(reference: string, totalBudget: number): Promise<void>;
   usage?(reference: string): Promise<ModelUsage[] | undefined>;
   ledger?(reference: string): Promise<{ usage: ModelUsage[]; requests: GatewayRequest[] } | undefined>;
+  providersFor?(model: string): Promise<string[] | undefined>;
 }
 
 export class LiteLLMBroker implements BudgetBroker {
@@ -141,6 +142,35 @@ export class LiteLLMBroker implements BudgetBroker {
       byModel.set(model, entry);
     }
     return { usage: [...byModel.values()].sort((a, b) => b.usd - a.usd), requests };
+  }
+
+  private catalogue?: { at: number; entries: Map<string, { provider?: string; tiers: string[] }> };
+
+  async providersFor(model: string): Promise<string[] | undefined> {
+    if (!this.catalogue || Date.now() - this.catalogue.at > 60_000) {
+      const result = await this.request('/model/info');
+      const rows: any[] = Array.isArray(result?.data) ? result.data : Array.isArray(result) ? result : [];
+      const entries = new Map<string, { provider?: string; tiers: string[] }>();
+      for (const row of rows) {
+        if (typeof row?.model_name !== 'string') continue;
+        const tiers = row?.litellm_params?.complexity_router_config?.tiers;
+        const provider = typeof row?.model_info?.litellm_provider === 'string' ? row.model_info.litellm_provider : typeof row?.litellm_params?.model === 'string' && row.litellm_params.model.includes('/') ? row.litellm_params.model.split('/')[0] : undefined;
+        entries.set(row.model_name, { provider, tiers: tiers && typeof tiers === 'object' ? [...new Set(Object.values(tiers).filter((value): value is string => typeof value === 'string'))] : [] });
+      }
+      this.catalogue = { at: Date.now(), entries };
+    }
+    const providers = new Set<string>();
+    const seen = new Set<string>();
+    const visit = (name: string, depth: number): void => {
+      if (depth > 4 || seen.has(name)) return;
+      seen.add(name);
+      const entry = this.catalogue!.entries.get(name);
+      if (!entry) return;
+      if (entry.tiers.length) for (const tier of entry.tiers) visit(tier, depth + 1);
+      else if (entry.provider) providers.add(entry.provider);
+    };
+    visit(model, 0);
+    return seen.has(model) && this.catalogue.entries.has(model) ? [...providers] : undefined;
   }
 
   async extend(reference: string, totalBudget: number): Promise<void> {

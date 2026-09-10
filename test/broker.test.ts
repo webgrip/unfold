@@ -156,3 +156,22 @@ test('usage aggregates the gateway ledger per model with the routed group and fa
   assert.ok(refused.error!.startsWith('BudgetExceededError · 429 · Budget has been exceeded'));
   void config;
 });
+
+test('providersFor resolves a model, follows an auto-router to its tiers, and is undefined for an unknown name', async t => {
+  const { broker } = await gateway(t);
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (input: any, init?: any) => {
+    if (String(input).includes('/model/info')) return new Response(JSON.stringify({ data: [
+      { model_name: 'claude-sonnet-5', litellm_params: { model: 'anthropic/claude-sonnet-5' }, model_info: { litellm_provider: 'anthropic' } },
+      { model_name: 'kimi-latest', litellm_params: { model: 'fireworks_ai/accounts/fireworks/models/kimi-k3' }, model_info: { litellm_provider: 'fireworks_ai' } },
+      { model_name: 'auto', litellm_params: { complexity_router_config: { tiers: { SIMPLE: 'kimi-latest', MEDIUM: 'claude-sonnet-5', COMPLEX: 'claude-sonnet-5' } } }, model_info: { litellm_provider: 'auto_router' } },
+      { model_name: 'nested', litellm_params: { complexity_router_config: { tiers: { SIMPLE: 'auto' } } }, model_info: { litellm_provider: 'auto_router' } },
+    ] }), { headers: { 'content-type': 'application/json' } });
+    return original(input, init);
+  }) as typeof fetch;
+  t.after(() => { globalThis.fetch = original; });
+  assert.deepEqual(await broker.providersFor('claude-sonnet-5'), ['anthropic']);
+  assert.deepEqual((await broker.providersFor('auto'))!.sort(), ['anthropic', 'fireworks_ai']);
+  assert.deepEqual((await broker.providersFor('nested'))!.sort(), ['anthropic', 'fireworks_ai']);
+  assert.equal(await broker.providersFor('missing'), undefined);
+});

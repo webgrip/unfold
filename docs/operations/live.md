@@ -82,6 +82,18 @@ That token is the one credential a sandbox holds beyond its inference key, and a
 
 The Activity stream shows one card per tool call with its status; open it for the input, the output and the error when it failed. A read role's search tools depend on ripgrep, which the agent image now installs, so a session on an image built before 2026-09-10 shows every grep and glob failing with exit code 127 and the crew falling back to reads alone. The Handoff tab carries a transcript per role with the model that answered each message. The budget panel lists which models the gateway actually used, with the routed group when the session named an auto-router, and what each cost. The Gateway tab answers the provenance questions per request: which provider and endpoint served it and in which region, why the auto-router chose that tier and what it saved, whether the gateway retried, fell back, hit its cache or applied a guardrail, how long the request took and when the first token arrived, which harness version called, and the gateway call id to find the span in the estate's trace store. A refused request shows the gateway's error class, so a budget ceiling or a provider outage is visible where it happened.
 
+## Keeping inference where policy allows
+
+A profile can name the providers and regions the gateway may route a session to:
+
+```json
+"gatewayPolicy": { "providers": ["anthropic", "fireworks_ai"], "regions": ["eu"] }
+```
+
+The provider rule is enforced before the first turn, from the gateway's model catalogue, including every tier behind an auto-router; a session whose crew names a model served elsewhere does not start. The region rule can only be checked against what the gateway attributes after a request, so a violation stops the session at the next ledger read and revokes its key, and the Gateway tab marks the row. The names are the gateway's own: `anthropic`, `fireworks_ai`, and regions such as `global` or `eu` as the provider reports them. Anthropic's public endpoint reports `global`, so a profile that requires `eu` needs a gateway route to a regional endpoint first.
+
+Each role's brief is recorded with the run and shown in the Activity stream, and the budget panel draws cumulative cost against the ceiling from the gateway's rows.
+
 ## Approving tool use
 
 Every OpenCode session starts with `ask` for every tool, so each read, search and shell command waits for the operator. That is the right default on the `local` backend, where the crew shares the workbench's files. In a container or a pod the sandbox is the boundary, so a session there can be created with automatic approval, or switched to it from the decision panel while it runs. The switch answers the permissions already waiting and creates later roles with allow rules; read roles still cannot edit or run commands, and a crew's questions still wait for a person. Automatic approval is refused on the `local` backend.

@@ -42,3 +42,20 @@ test('docker and kubernetes placements require their configuration blocks and th
   await assert.rejects(load(t, { runtime: { kind: 'opencode', backends: ['local'], timeoutMs: 60000, agentEnvironment: ['lower'] } }), /uppercase/);
   await assert.rejects(load(t, { runtime: { kind: 'opencode', backends: ['docker'], timeoutMs: 60000 }, docker: { image: 'de-vloer-agent:1.18.30', user: 'root' } }), /docker\.user/);
 });
+
+test('gatewayPolicy lists providers and regions as lowercase names', async () => {
+  const { loadConfig } = await import('../src/config.ts');
+  const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = await mkdtemp(join(tmpdir(), 'vloer-policy-'));
+  try {
+    const base = { mode: 'demo', dataDir: dir, publicDir: new URL('../public', import.meta.url).pathname };
+    await writeFile(join(dir, 'ok.json'), JSON.stringify({ ...base, gatewayPolicy: { providers: ['anthropic', 'fireworks_ai'], regions: ['eu'] } }));
+    process.env.VLOER_CONFIG = join(dir, 'ok.json');
+    assert.deepEqual(loadConfig([]).gatewayPolicy, { providers: ['anthropic', 'fireworks_ai'], regions: ['eu'] });
+    await writeFile(join(dir, 'bad.json'), JSON.stringify({ ...base, gatewayPolicy: { providers: ['Anthropic Inc'] } }));
+    process.env.VLOER_CONFIG = join(dir, 'bad.json');
+    assert.throws(() => loadConfig([]), /gatewayPolicy.providers/);
+  } finally { delete process.env.VLOER_CONFIG; await rm(dir, { recursive: true, force: true }); }
+});

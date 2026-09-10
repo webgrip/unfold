@@ -157,6 +157,17 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
       links = { gitlab: { baseUrl: configuredUrl(gitlab.baseUrl ?? 'https://gitlab.com', 'links.gitlab.baseUrl'), clientId, scopes } };
     }
   }
+  let gatewayPolicy: AppConfig['gatewayPolicy'];
+  if (raw.gatewayPolicy !== undefined) {
+    if (!raw.gatewayPolicy || typeof raw.gatewayPolicy !== 'object' || Array.isArray(raw.gatewayPolicy)) throw new Error('gatewayPolicy must be an object');
+    gatewayPolicy = {};
+    for (const key of ['providers', 'regions'] as const) {
+      const list = raw.gatewayPolicy[key];
+      if (list === undefined) continue;
+      if (!Array.isArray(list) || !list.length || list.length > 50 || list.some((item: unknown) => typeof item !== 'string' || !/^[a-z0-9_.-]{1,64}$/.test(item))) throw new Error(`gatewayPolicy.${key} must list lowercase names`);
+      gatewayPolicy[key] = [...new Set(list as string[])];
+    }
+  }
   const config: AppConfig = {
     mode, host: process.env.VLOER_HOST || raw.host || '127.0.0.1', port: number(process.env.VLOER_PORT ?? raw.port, 4080, 0, 65535, 'port'),
     dataDir, publicDir: resolve(raw.publicDir || `${root}/public`), baseUrl: baseUrl ? configuredUrl(baseUrl, 'baseUrl') : undefined,
@@ -167,6 +178,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     kubernetes: raw.kubernetes,
     ploeg: raw.ploeg ? { ...raw.ploeg, url: configuredUrl(raw.ploeg.url, 'ploeg.url') } : undefined,
     links,
+    gatewayPolicy,
     litellm: litellmBase && adminKey ? { baseUrl: configuredUrl(litellmBase, 'litellm.baseUrl'), adminUrl: configuredUrl(process.env.LITELLM_ADMIN_URL || raw.litellm?.adminUrl || litellmBase.replace(/\/v1\/?$/, ''), 'litellm.adminUrl'), masterKey: adminKey, models: models.map((model: any) => model.modelId), ttl: raw.litellm?.ttl || '4h', settlementDelayMs: number(raw.litellm?.settlementDelayMs, 60000, 0, 3600000, 'litellm.settlementDelayMs') } : undefined
   };
   if (!existsSync(config.publicDir)) throw new Error('Browser application directory is missing');

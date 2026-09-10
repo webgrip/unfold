@@ -40,6 +40,14 @@ While a session runs, the workbench reads each held gateway key every fifteen se
 
 A crew's read roles are not all reviewers. Only the final role of a crew carries the review verdict and is prompted for it; an earlier read role is an analysis role that answers the objective with evidence and returns no verdict, so an investigation crew of analyst then challenger completes on the challenger's approval alone. Run cards label the two as analysis and independent review.
 
+### Gateway policy
+
+`gatewayPolicy` in the configuration lists the providers and inference regions a workbench allows, as the gateway names them, for example `{"providers": ["anthropic"], "regions": ["eu"]}`. Before a session starts, the workbench resolves every model its crew will use through the gateway's catalogue, following an auto-router into its tiers, and refuses the start with 409 `policy_provider` when any tier is served by a provider outside the list. While the session runs, every ledger row is checked; the first row attributed to a provider or region outside the list stops the session with failure category `policy_violation`, revokes its gateway credential, records `policy.violated` with the offending request, and marks the row in `requests` with `violation`. Regions are only known after the fact, so the region rule is enforced within the fifteen-second ledger read, never before the first token.
+
+### The brief a role received
+
+`run.started` carries the composed prompt as `prompt`, split into objective, role instruction, operator notes, prior work, supplied evidence and the closing guidance, plus the model chosen for the role and `promptSha`, the SHA-256 of the exact text sent. The run keeps `promptSha` and the signed provenance records it per run, so a reviewer can match a transcript to the brief that produced it.
+
 ## Durable events and human input
 
 Sessions may include an additive `failure` object: `{category, stage, message, remediation, promptAcceptance, automaticRetry:false, detail?}`. Its message and remediation come from a fixed safe catalog. Raw exception text, HTTP headers, credentials, stack traces and provider response bodies are excluded. The optional `detail` is the recorded cause when the server itself produced it: the failing workspace command, its exit code or signal, and the last 4 KiB of its standard error, with credentials, bearer tokens, key-shaped strings and server filesystem paths redacted and the whole bounded to 2,000 characters. Runtime exception messages never become `detail`. Older sessions and servers may omit both fields; `blocker` remains a compatible short message.

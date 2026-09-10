@@ -3106,3 +3106,11 @@ details.transcript summary { cursor: pointer; }
 .gateway-table small { opacity: 0.7; }
 .gateway-table .row-failed td { background: rgba(170, 51, 51, 0.06); }
 .tag-error { color: var(--danger, #a33); }
+
+.brief-event { margin: 0.4rem 0; }
+.cost-curve { margin: 0.6rem 0 0.2rem; }
+.cost-curve svg { width: 100%; height: auto; display: block; }
+.cost-curve .cost-line { fill: none; stroke: var(--accent, #c8642f); stroke-width: 1.5; }
+.cost-curve .budget-line { stroke: rgba(0,0,0,0.3); stroke-dasharray: 3 3; }
+.cost-curve .violation-dot { fill: var(--danger, #a33); }
+.cost-curve figcaption { font-size: 0.75rem; opacity: 0.7; margin-top: 0.2rem; }
