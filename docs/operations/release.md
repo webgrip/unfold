@@ -52,6 +52,8 @@ Done on 2026-09-10: `webgrip/de-vloer` is in the OpenBao `cosign-signer` role ([
 
 Deferred, because each needs an account only a person can create: the `webgrip` namespace and `OVSX_PAT` on Open VSX, and `VSCE_PAT` for the Marketplace. Neither exists on 2026-09-10, so the publish job records a notice and the VSIX remains a Forgejo release asset. When the tokens exist, put them in OpenBao and add an External Secret plus a `put_repo_secret` line for `de-vloer` in the `forgejo-actions-secrets` CronJob.
 
+Known rough edges after the first three releases: the Forgejo image mirror failed once after successfully pushing its tag, and one source-change run reported success without cutting a version, its commit rolling into the next release. Both need an authenticated job log to diagnose, and both are recorded in [validation](../validation.md).
+
 Deferred for the same reason: the GitHub mirror. `github.com/webgrip/de-vloer` does not exist, so the mirror job force-pushed nothing and failed on the Releases API in the first full chain. Its `enabled` input is `false` until someone creates that repository; the GHCR image and chart copies are org-scoped and already publish without it. Flip the input back to `true` in the same change that creates the repository.
 
 Still to do for the in-cluster workbench: an `OCIRepository` for `oci://harbor.webgrip.dev/webgrip/charts/de-vloer` with tag and Harbor digest, a `HelmRelease` with `mode: live`, the workspace namespace, egress and credentials, and, for the sandbox provisioner, the agent-sandbox controller and the warm pool from [ops/cluster/agent-sandbox](../../ops/cluster/agent-sandbox/README.md). That deployment is the in-cluster workbench described in [live operation](live.md).
