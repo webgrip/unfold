@@ -28,6 +28,7 @@
     "workspaceProvisioner": { "enum": ["pod", "sandbox"] },
     "workspaceRuntimeClassName": { "type": "string" },
     "workspaceWarmPool": { "type": "string" },
+    "workspaceUserNamespaces": { "type": "boolean" },
     "workspaceAgentSecrets": { "type": "array", "items": { "type": "string", "pattern": "^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$" } },
     "credentialsSecret": { "type": "string", "minLength": 1 },
     "config": { "type": "object" },

@@ -29,6 +29,7 @@ workspaceMemory: 2Gi
 workspaceImagePullSecrets: []
 workspaceGitSecretName: ""
 workspaceAgentSecrets: []
+workspaceUserNamespaces: false
 workspaceTransport: pull
 workspaceRelayUrl: ""
 workspaceProvisioner: pod

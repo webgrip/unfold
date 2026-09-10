@@ -223,3 +223,11 @@ test('pull transport manifests drop the Service and ingress, run the relay worke
   const exportPod = candidateExportManifest(config, { ...session, workspace: { id: session.id, backend: 'kubernetes', directory: '/workspace/repository', metadata: { baseSha: 'a'.repeat(40) } } }, repository, relay);
   assert.deepEqual(exportPod.spec.containers[0].command.slice(0, 3), ['node', '/usr/local/lib/de-vloer/relay-worker.mjs', '--']);
 });
+
+test('user namespaces are opt-in and remap both the writer and the export pod', () => {
+  const config = configuration();
+  assert.equal(workspaceManifests(config, session, repository, credential, { username: 'opencode', password: 'p' }, managedConfig(config)).find(item => item.kind === 'Pod')!.spec.hostUsers, undefined);
+  config.kubernetes = { ...config.kubernetes!, userNamespaces: true };
+  assert.equal(workspaceManifests(config, session, repository, credential, { username: 'opencode', password: 'p' }, managedConfig(config)).find(item => item.kind === 'Pod')!.spec.hostUsers, false);
+  assert.equal(candidateExportManifest(config, { ...session, workspace: { id: session.id, backend: 'kubernetes', directory: '/workspace/repository', metadata: { baseSha: 'a'.repeat(40) } } }, repository).spec.hostUsers, false);
+});

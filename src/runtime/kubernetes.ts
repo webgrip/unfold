@@ -109,6 +109,7 @@ export function workspaceManifests(config: AppConfig, session: Session, reposito
   const securityContext = { runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: ['ALL'] }, seccompProfile: { type: 'RuntimeDefault' } };
   const pod = { apiVersion: 'v1', kind: 'Pod', metadata, spec: {
     automountServiceAccountToken: false, enableServiceLinks: false, restartPolicy: 'Never', terminationGracePeriodSeconds: 30,
+    ...(k.userNamespaces ? { hostUsers: false } : {}),
     securityContext: { fsGroup: 1000, fsGroupChangePolicy: 'OnRootMismatch', seccompProfile: { type: 'RuntimeDefault' } },
     ...(k.imagePullSecrets?.length ? { imagePullSecrets: k.imagePullSecrets.map(name => ({ name })) } : {}),
     initContainers: [{ name: 'clone', image: k.image, imagePullPolicy: k.pullPolicy ?? 'IfNotPresent', securityContext,
@@ -169,6 +170,7 @@ export function candidateExportManifest(config: AppConfig, session: Session, rep
   const valueFrom = (key: string) => ({ secretKeyRef: { name, key } });
   return { apiVersion: 'v1', kind: 'Pod', metadata: { name, namespace: k.namespace, labels: { 'app.kubernetes.io/name': 'de-vloer-agent', 'de-vloer/session': name, 'de-vloer/purpose': 'candidate-export' } }, spec: {
     automountServiceAccountToken: false, enableServiceLinks: false, restartPolicy: 'Never', activeDeadlineSeconds: 240, terminationGracePeriodSeconds: 20,
+    ...(k.userNamespaces ? { hostUsers: false } : {}),
     securityContext: { fsGroup: 1000, fsGroupChangePolicy: 'OnRootMismatch', seccompProfile: { type: 'RuntimeDefault' } },
     ...(k.imagePullSecrets?.length ? { imagePullSecrets: k.imagePullSecrets.map(name => ({ name })) } : {}),
     containers: [{ name: 'candidate-export', image: k.image, imagePullPolicy: k.pullPolicy ?? 'IfNotPresent',

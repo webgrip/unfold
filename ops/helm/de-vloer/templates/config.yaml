@@ -9,6 +9,7 @@
 {{- if .Values.workspaceStorageClass -}}{{- $_ := set $kube "storageClass" .Values.workspaceStorageClass -}}{{- end -}}
 {{- if .Values.workspaceGitSecretName -}}{{- $_ := set $kube "gitSecretName" .Values.workspaceGitSecretName -}}{{- end -}}
 {{- if .Values.workspaceAgentSecrets -}}{{- $_ := set $kube "agentSecrets" .Values.workspaceAgentSecrets -}}{{- end -}}
+{{- if .Values.workspaceUserNamespaces -}}{{- $_ := set $kube "userNamespaces" true -}}{{- end -}}
 {{- $_ := set $kube "transport" .Values.workspaceTransport -}}
 {{- if eq .Values.workspaceTransport "pull" -}}{{- $_ := set $kube "relayUrl" (default (printf "http://%s.%s.svc:%d" (include "vloer.name" .) .Release.Namespace (int .Values.service.port)) .Values.workspaceRelayUrl) -}}{{- end -}}
 {{- $_ := set $kube "provisioner" .Values.workspaceProvisioner -}}
