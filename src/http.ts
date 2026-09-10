@@ -152,6 +152,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         if (method === 'GET' && path === '/api/bootstrap') return json(res, 200, sanitize({
           user, mode: config.mode, gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined,
           gatewayPolicy: config.gatewayPolicy ?? null,
+          observability: config.observability ?? null,
           repositories: config.repositories.map(({ id, name, description, baseBranch, trackerUrl, executionOwner }) => ({ id, name, description, baseBranch, trackerUrl, executionOwner: executionOwner ?? 'interactive' })),
           taskSources: (config.taskSources ?? []).map(publicTaskSource),
           crews: config.crews, models: config.models,

@@ -82,6 +82,20 @@ That token is the one credential a sandbox holds beyond its inference key, and a
 
 The Activity stream shows one card per tool call with its status; open it for the input, the output and the error when it failed. A read role's search tools depend on ripgrep, which the agent image now installs, so a session on an image built before 2026-09-10 shows every grep and glob failing with exit code 127 and the crew falling back to reads alone. The Handoff tab carries a transcript per role with the model that answered each message. The budget panel lists which models the gateway actually used, with the routed group when the session named an auto-router, and what each cost. The Gateway tab answers the provenance questions per request: which provider and endpoint served it and in which region, why the auto-router chose that tier and what it saved, whether the gateway retried, fell back, hit its cache or applied a guardrail, how long the request took and when the first token arrived, which harness version called, and the gateway call id to find the span in the estate's trace store. A refused request shows the gateway's error class, so a budget ceiling or a provider outage is visible where it happened.
 
+## Linking the estate's observability
+
+A profile can point the workbench at the estate's Grafana so every session links out to where the rest of the evidence lives:
+
+```json
+"observability": { "grafanaUrl": "https://grafana.example", "dashboards": { "spend": "litellm", "reliability": "litellm-reliability", "finops": "finops-fleet" }, "tracesDatasource": "victoriatraces", "logsDatasource": "victorialogs" }
+```
+
+The Environment view lists the dashboards, the budget panel links to the spend board whose "Cost per run" table is keyed by the session's key alias, and the Gateway tab opens Grafana Explore on the trace and log datasources for the session's time window, or for one request's window from its row. The default trace query selects the gateway's service and the default log query its namespace and container; `traceQuery` and `logsQuery` override them and may use `{callId}`, `{alias}` and `{sessionId}` once the estate records the gateway call id as a span attribute or log field. At acme the spend board's per-run rows come from the ledger exporter, which reads the gateway's request log by key alias, so a session's cost survives the revocation of its key.
+
+## Seeing what the gateway dropped
+
+The gateway drops request parameters a provider does not accept, and it does not record what it dropped. acme therefore serves strict twins of its Anthropic aliases, `claude-sonnet-5-strict` and `claude-haiku-4-5-strict`, with dropping off: a request that carries an unsupported parameter fails with a 400 the ledger records. Run the same objective once on the plain alias and once on the strict twin, then compare the two sessions; a refusal on the strict side with an otherwise identical brief names the parameter the plain side silently lost.
+
 ## Comparing two ways of running the same objective
 
 A session can pin one configured model for every role from the new-session form, so an objective can be run once on `auto` and once on a pinned model, or once on Anthropic and once on a Fireworks model. From either session, "Compare with another session" opens a side-by-side table built from the gateway ledger and the recorded runs: outcome and final verdict, wall time, requests and refusals, the providers and models that answered, tokens, cost, router savings, median time to first token and the number of change artifacts. Cells that differ are highlighted. Compare sessions with the same objective and crew; the table does not normalise for different briefs.

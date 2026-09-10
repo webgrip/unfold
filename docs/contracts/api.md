@@ -82,6 +82,8 @@ Permission and question details depend on the adapter. Answer only the actual un
 | `GET /api/links/gitlab/callback` | GitLab's redirect target. Needs no cookie: the `state` names the person who started it, once, within ten minutes. Redirects to `/?linked=gitlab` or `/?link_error=<code>` |
 | `DELETE /api/links/gitlab` | Forgets the tokens and asks GitLab to revoke them |
 
+`GET /api/bootstrap` also carries `gateway`, the gateway host, `gatewayPolicy`, and `observability`, the estate's Grafana URL, dashboard uids and datasource uids the browser uses to build outbound links.
+
 A link is the person's own credential. Tokens are encrypted at rest with the workbench key beside the database and refreshed server-side before use. When a session starts on a repository whose origin matches the link's GitLab host, the clone step receives the access token as a git authorization header for that origin; the agent container and its environment never do. Publication through the link is [ADR 0016](../adrs/0016-sign-in-and-link-your-own-accounts.md) work that has not started.
 
 ## Linked tasks

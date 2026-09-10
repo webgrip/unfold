@@ -59,3 +59,17 @@ test('gatewayPolicy lists providers and regions as lowercase names', async () =>
     assert.throws(() => loadConfig([]), /gatewayPolicy.providers/);
   } finally { delete process.env.VLOER_CONFIG; await rm(dir, { recursive: true, force: true }); }
 });
+
+test('observability names a Grafana, dashboards by uid and datasources by uid', async () => {
+  const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = await mkdtemp(join(tmpdir(), 'vloer-observability-'));
+  try {
+    const base = { mode: 'demo', dataDir: dir, publicDir: new URL('../public', import.meta.url).pathname };
+    await writeFile(join(dir, 'ok.json'), JSON.stringify({ ...base, observability: { grafanaUrl: 'https://grafana.example/', dashboards: { spend: 'litellm' }, tracesDatasource: 'victoriatraces' } }));
+    assert.deepEqual(loadConfig(['--config', join(dir, 'ok.json')]).observability, { grafanaUrl: 'https://grafana.example', dashboards: { spend: 'litellm' }, tracesDatasource: 'victoriatraces' });
+    await writeFile(join(dir, 'bad.json'), JSON.stringify({ ...base, observability: { grafanaUrl: 'https://grafana.example', dashboards: { spend: 'not a uid' } } }));
+    assert.throws(() => loadConfig(['--config', join(dir, 'bad.json')]), /observability.dashboards/);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});

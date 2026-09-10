@@ -168,6 +168,20 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
       gatewayPolicy[key] = [...new Set(list as string[])];
     }
   }
+  let observability: AppConfig['observability'];
+  if (raw.observability !== undefined) {
+    const o = raw.observability;
+    if (!o || typeof o !== 'object' || Array.isArray(o)) throw new Error('observability must be an object');
+    observability = {};
+    if (o.grafanaUrl !== undefined) observability.grafanaUrl = configuredUrl(o.grafanaUrl, 'observability.grafanaUrl');
+    if (o.logsUrl !== undefined) observability.logsUrl = configuredUrl(o.logsUrl, 'observability.logsUrl');
+    if (o.dashboards !== undefined) {
+      if (!o.dashboards || typeof o.dashboards !== 'object' || Array.isArray(o.dashboards) || Object.entries(o.dashboards).some(([key, value]) => !/^[a-z0-9-]{1,40}$/.test(key) || typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(value))) throw new Error('observability.dashboards maps short names to Grafana dashboard uids');
+      observability.dashboards = o.dashboards;
+    }
+    for (const key of ['tracesDatasource', 'logsDatasource'] as const) if (o[key] !== undefined) { if (typeof o[key] !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(o[key])) throw new Error(`observability.${key} must be a datasource uid`); observability[key] = o[key]; }
+    for (const key of ['traceQuery', 'logsQuery'] as const) if (o[key] !== undefined) { if (typeof o[key] !== 'string' || o[key].length > 500) throw new Error(`observability.${key} must be a query template`); observability[key] = o[key]; }
+  }
   const config: AppConfig = {
     mode, host: process.env.VLOER_HOST || raw.host || '127.0.0.1', port: number(process.env.VLOER_PORT ?? raw.port, 4080, 0, 65535, 'port'),
     dataDir, publicDir: resolve(raw.publicDir || `${root}/public`), baseUrl: baseUrl ? configuredUrl(baseUrl, 'baseUrl') : undefined,
@@ -179,6 +193,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     ploeg: raw.ploeg ? { ...raw.ploeg, url: configuredUrl(raw.ploeg.url, 'ploeg.url') } : undefined,
     links,
     gatewayPolicy,
+    observability,
     litellm: litellmBase && adminKey ? { baseUrl: configuredUrl(litellmBase, 'litellm.baseUrl'), adminUrl: configuredUrl(process.env.LITELLM_ADMIN_URL || raw.litellm?.adminUrl || litellmBase.replace(/\/v1\/?$/, ''), 'litellm.adminUrl'), masterKey: adminKey, models: models.map((model: any) => model.modelId), ttl: raw.litellm?.ttl || '4h', settlementDelayMs: number(raw.litellm?.settlementDelayMs, 60000, 0, 3600000, 'litellm.settlementDelayMs') } : undefined
   };
   const oidc = (raw.auth ?? {}).oidc;

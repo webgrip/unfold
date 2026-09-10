@@ -36,6 +36,7 @@ export type AppConfig = {
   ploeg?: { url: string; teams: string[]; trackerUrl?: string };
   links?: { gitlab?: { baseUrl: string; clientId?: string; scopes: string[] } };
   gatewayPolicy?: { providers?: string[]; regions?: string[] };
+  observability?: { grafanaUrl?: string; dashboards?: Record<string, string>; tracesDatasource?: string; logsDatasource?: string; logsUrl?: string; traceQuery?: string; logsQuery?: string };
 };
 export type RuntimeEvent = { type: string; data: Record<string, unknown> };
 export type Emit = (event: RuntimeEvent) => void;
