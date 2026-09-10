@@ -109,7 +109,7 @@ export function candidateStatement(input: AttestationInput): Json {
       workspace: workspace ? { backend: workspace.backend, transport: workspace.metadata?.transport ?? null, image: workspace.metadata?.image ?? null, container: workspace.metadata?.container ?? null, pod: workspace.metadata?.pod ?? null, namespace: workspace.metadata?.namespace ?? null } : null,
       crew: crew ? { id: crew.id, roles: crew.roles.map(role => ({ id: role.id, name: role.name, mode: role.mode, model: role.model ? models.get(role.model)?.modelId ?? role.model : input.config.models[0]?.modelId ?? null })) } : null,
       runs: session.runs.map(run => ({ roleId: run.roleId, mode: run.mode, status: run.status, verdict: run.verdict ?? null, nativeId: run.nativeId ?? null, costUsd: run.costUsd, startedAt: run.startedAt ?? null, finishedAt: run.finishedAt ?? null })),
-      spend: { budgetUsd: session.budgetUsd, spentUsd: session.spentUsd, costStatus: session.costStatus },
+      spend: { budgetUsd: session.budgetUsd, spentUsd: session.spentUsd, costStatus: session.costStatus, usage: session.usage ?? null, providers: [...new Set((session.requests ?? []).map(request => request.provider).filter(Boolean))] },
       harness: { kind: session.runtime },
       files: manifest.files.map(file => ({ path: file.path, status: file.status, bytes: file.bytes, blob: file.blob ?? null })),
     },

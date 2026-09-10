@@ -128,7 +128,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         const user = auth.user(req);
         if (!user) return json(res, 401, { error: { code: 'unauthenticated', message: 'Sign in to your workbench.' } });
         if (method === 'GET' && path === '/api/bootstrap') return json(res, 200, sanitize({
-          user, mode: config.mode,
+          user, mode: config.mode, gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined,
           repositories: config.repositories.map(({ id, name, description, baseBranch, trackerUrl, executionOwner }) => ({ id, name, description, baseBranch, trackerUrl, executionOwner: executionOwner ?? 'interactive' })),
           taskSources: (config.taskSources ?? []).map(publicTaskSource),
           crews: config.crews, models: config.models,
@@ -136,7 +136,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           placements: placements(config),
           maxBudgetUsd: config.maxBudgetUsd, maxConcurrentSessions: config.maxConcurrentSessions
         }));
-        if (method === 'GET' && path === '/api/health') return json(res, 200, { status: 'ok', mode: config.mode, version: applicationVersion, runtimes: runtimeKinds, litellm: Boolean(config.litellm), workspaceBackend: config.mode === 'demo' ? 'demo' : config.runtime.backend, workspaceBackends: placements(config).map(item => item.id) });
+        if (method === 'GET' && path === '/api/health') return json(res, 200, { status: 'ok', mode: config.mode, version: applicationVersion, runtimes: runtimeKinds, litellm: Boolean(config.litellm), gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined, workspaceBackend: config.mode === 'demo' ? 'demo' : config.runtime.backend, workspaceBackends: placements(config).map(item => item.id) });
         if (path === '/api/agent-host' || path === '/api/agent-host/tokens') {
           if (!agentHost) fault(404, 'agent_host_disabled', 'The agent host is not enabled on this workbench.');
           const address = (config.baseUrl ?? `http://${config.host}:${config.port}`).replace(/^http/, 'ws');

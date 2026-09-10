@@ -116,10 +116,10 @@ test('usage aggregates the gateway ledger per model with the routed group and fa
     if (url.includes('/spend/logs')) {
       assert.ok(url.includes('api_key=hashed-'));
       return new Response(JSON.stringify([
-        { model: 'anthropic/claude-haiku-4-5', model_group: 'auto', spend: 0.01, status: 'success', prompt_tokens: 100, completion_tokens: 20 },
-        { model: 'anthropic/claude-sonnet-5', model_group: 'auto', spend: 0.02, status: 'success', prompt_tokens: 200, completion_tokens: 40 },
-        { model: 'anthropic/claude-sonnet-5', model_group: 'auto', spend: 0.03, status: 'success', prompt_tokens: 300, completion_tokens: 60 },
-        { model: 'auto', model_group: 'auto', spend: 0, status: 'failure', prompt_tokens: 0, completion_tokens: 0 },
+        { model: 'anthropic/claude-haiku-4-5', model_group: 'auto', spend: 0.01, status: 'success', prompt_tokens: 100, completion_tokens: 20, request_id: 'r1', custom_llm_provider: 'anthropic', api_base: 'https://api.anthropic.com/v1/messages', startTime: '2026-09-10T12:00:00.000Z', completionStartTime: '2026-09-10T12:00:00.400Z', endTime: '2026-09-10T12:00:02.000Z', request_tags: ['User-Agent: opencode/1.18.30 ai-sdk'], metadata: { routing_decision: { tier: 'LOW', cause: 'heuristic_scorer' }, autorouter_savings: 0.004, attempted_retries: 1, attempted_fallbacks: 0, applied_guardrails: ['lakera'], additional_usage_values: { inference_geo: 'global', prompt_tokens_details: { cached_tokens: 50 } }, litellm_call_id: 'call-1' } },
+        { model: 'anthropic/claude-sonnet-5', model_group: 'auto', spend: 0.02, status: 'success', prompt_tokens: 200, completion_tokens: 40, request_id: 'r2', startTime: '2026-09-10T12:00:03.000Z' },
+        { model: 'anthropic/claude-sonnet-5', model_group: 'auto', spend: 0.03, status: 'success', prompt_tokens: 300, completion_tokens: 60, request_id: 'r3', startTime: '2026-09-10T12:00:06.000Z' },
+        { model: 'auto', model_group: 'auto', spend: 0, status: 'failure', prompt_tokens: 0, completion_tokens: 0, request_id: 'r4', startTime: '2026-09-10T12:00:09.000Z', metadata: { error_information: { error_class: 'BudgetExceededError', error_code: '429', error_message: 'Budget has been exceeded! Key=sk-secret spend=0.25' } } },
       ]), { headers: { 'content-type': 'application/json' } });
     }
     return original(input, init);
@@ -133,5 +133,26 @@ test('usage aggregates the gateway ledger per model with the routed group and fa
     { model: 'auto', requests: 1, failures: 1, usd: 0, inputTokens: 0, outputTokens: 0 },
   ]);
   assert.equal(await broker.usage('de-vloer-missing'), undefined);
+  const ledger = (await broker.ledger(credential.reference))!;
+  assert.equal(ledger.requests.length, 4);
+  const first = ledger.requests[0];
+  assert.equal(first.id, 'r1');
+  assert.equal(first.provider, 'anthropic');
+  assert.equal(first.host, 'api.anthropic.com');
+  assert.equal(first.geo, 'global');
+  assert.equal(first.group, 'auto');
+  assert.equal(first.tier, 'LOW');
+  assert.equal(first.cause, 'heuristic_scorer');
+  assert.equal(first.savingsUsd, 0.004);
+  assert.equal(first.retries, 1);
+  assert.deepEqual(first.guardrails, ['lakera']);
+  assert.equal(first.cachedTokens, 50);
+  assert.equal(first.durationMs, 2000);
+  assert.equal(first.firstTokenMs, 400);
+  assert.equal(first.harness, 'opencode/1.18.30');
+  assert.equal(first.callId, 'call-1');
+  const refused = ledger.requests.at(-1)!;
+  assert.equal(refused.status, 'failure');
+  assert.ok(refused.error!.startsWith('BudgetExceededError · 429 · Budget has been exceeded'));
   void config;
 });

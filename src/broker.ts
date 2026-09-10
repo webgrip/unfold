@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { RuntimeFailure, transportFailure } from './failures.ts';
-import type { AppConfig, Credential, ModelUsage, Session } from './types.ts';
+import type { AppConfig, Credential, GatewayRequest, ModelUsage, Session } from './types.ts';
 
 type GatewayKey = { token: string; key_alias: string; spend?: number; blocked?: boolean; metadata?: Record<string, unknown> };
 
@@ -10,6 +10,7 @@ export interface BudgetBroker {
   revoke(reference: string): Promise<void>;
   extend(reference: string, totalBudget: number): Promise<void>;
   usage?(reference: string): Promise<ModelUsage[] | undefined>;
+  ledger?(reference: string): Promise<{ usage: ModelUsage[]; requests: GatewayRequest[] } | undefined>;
 }
 
 export class LiteLLMBroker implements BudgetBroker {
@@ -90,11 +91,41 @@ export class LiteLLMBroker implements BudgetBroker {
     });
   }
 
-  async usage(reference: string): Promise<ModelUsage[] | undefined> {
+  async usage(reference: string): Promise<ModelUsage[] | undefined> { return (await this.ledger(reference))?.usage; }
+
+  async ledger(reference: string): Promise<{ usage: ModelUsage[]; requests: GatewayRequest[] } | undefined> {
     const key = await this.find(reference);
     if (!key) return undefined;
     const result = await this.request(`/spend/logs?api_key=${encodeURIComponent(key.token)}`);
     const rows: any[] = Array.isArray(result) ? result : Array.isArray(result?.data) ? result.data : [];
+    const requests: GatewayRequest[] = [];
+    for (const row of rows.slice(0, 500)) {
+      const md = row?.metadata && typeof row.metadata === 'object' ? row.metadata : {};
+      const model = typeof row?.model === 'string' && row.model ? row.model : 'unknown';
+      const start = Date.parse(String(row?.startTime ?? '')), end = Date.parse(String(row?.endTime ?? '')), first = Date.parse(String(row?.completionStartTime ?? ''));
+      const decision = md.routing_decision && typeof md.routing_decision === 'object' ? md.routing_decision : {};
+      const extra = md.additional_usage_values && typeof md.additional_usage_values === 'object' ? md.additional_usage_values : {};
+      const details = extra.prompt_tokens_details && typeof extra.prompt_tokens_details === 'object' ? extra.prompt_tokens_details : {};
+      const failure = md.error_information && typeof md.error_information === 'object' ? md.error_information : undefined;
+      const tags: string[] = Array.isArray(row?.request_tags) ? row.request_tags.map(String) : [];
+      const harness = tags.map(tag => /^User-Agent:\s*(\S+\/\S+)/.exec(tag)?.[1]).find(Boolean);
+      let host: string | undefined;
+      try { if (typeof row?.api_base === 'string' && row.api_base) host = new URL(row.api_base).host; } catch {}
+      const savings = Number(md.autorouter_savings);
+      requests.push({
+        id: String(row?.request_id ?? md.litellm_call_id ?? requests.length), at: Number.isFinite(start) ? new Date(start).toISOString() : new Date(0).toISOString(),
+        ...(Number.isFinite(start) && Number.isFinite(end) ? { durationMs: Math.max(0, end - start) } : {}), ...(Number.isFinite(start) && Number.isFinite(first) ? { firstTokenMs: Math.max(0, first - start) } : {}),
+        ...(typeof row?.custom_llm_provider === 'string' && row.custom_llm_provider ? { provider: row.custom_llm_provider } : {}), ...(host ? { host } : {}), ...(typeof extra.inference_geo === 'string' ? { geo: extra.inference_geo } : {}),
+        model, ...(typeof row?.model_group === 'string' && row.model_group && row.model_group !== model ? { group: row.model_group } : {}),
+        ...(typeof decision.tier === 'string' ? { tier: decision.tier } : {}), ...(typeof decision.cause === 'string' ? { cause: decision.cause } : {}), ...(Number.isFinite(savings) && savings > 0 ? { savingsUsd: Math.round(savings * 1e6) / 1e6 } : {}),
+        retries: Number(md.attempted_retries) || 0, fallbacks: Number(md.attempted_fallbacks) || 0, guardrails: Array.isArray(md.applied_guardrails) ? md.applied_guardrails.map(String) : [],
+        cacheHit: row?.cache_hit === true || row?.cache_hit === 'True', cachedTokens: Number(details.cached_tokens) || 0,
+        inputTokens: Number(row?.prompt_tokens) || 0, outputTokens: Number(row?.completion_tokens) || 0, usd: Math.round((Number(row?.spend) || 0) * 1e6) / 1e6,
+        status: row?.status === 'failure' ? 'failure' : 'success', ...(failure ? { error: [failure.error_class, failure.error_code, String(failure.error_message ?? '').slice(0, 200)].filter(Boolean).join(' · ') } : {}),
+        ...(typeof md.litellm_call_id === 'string' ? { callId: md.litellm_call_id } : {}), ...(harness ? { harness } : {}),
+      });
+    }
+    requests.sort((a, b) => a.at.localeCompare(b.at));
     const byModel = new Map<string, ModelUsage>();
     for (const row of rows) {
       const model = typeof row?.model === 'string' && row.model ? row.model : 'unknown';
@@ -109,7 +140,7 @@ export class LiteLLMBroker implements BudgetBroker {
       if (Number.isFinite(output) && output > 0) entry.outputTokens += output;
       byModel.set(model, entry);
     }
-    return [...byModel.values()].sort((a, b) => b.usd - a.usd);
+    return { usage: [...byModel.values()].sort((a, b) => b.usd - a.usd), requests };
   }
 
   async extend(reference: string, totalBudget: number): Promise<void> {

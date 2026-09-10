@@ -6,7 +6,7 @@ import type { TaskSnapshot } from './tasks.ts';
 import { unavailableCandidate } from './candidates.ts';
 import { SigningKey, attestCandidate, candidatePredicateType, tracePredicateType } from './attestations.ts';
 import { readFileSync } from 'node:fs';
-import type { AgentRuntime, AppConfig, Credential, RuntimeKind, Session, User, PermissionRequest, ExecutionResult, RuntimeEvent, WorkspaceBackend, ModelUsage } from './types.ts';
+import type { AgentRuntime, AppConfig, Credential, RuntimeKind, Session, User, PermissionRequest, ExecutionResult, RuntimeEvent, WorkspaceBackend, ModelUsage, GatewayRequest } from './types.ts';
 
 type Broker = {
   mint(session: Session): Promise<Credential>;
@@ -15,6 +15,7 @@ type Broker = {
   extend(reference: string, totalBudget: number): Promise<void>;
   aliasesForSession?(sessionId: string): Promise<string[]>;
   usage?(reference: string): Promise<ModelUsage[] | undefined>;
+  ledger?(reference: string): Promise<{ usage: ModelUsage[]; requests: GatewayRequest[] } | undefined>;
 };
 type Reservation = { reference: string; authorizedUsd: number; revoked: boolean };
 type Active = { controller: AbortController; task: Promise<void> };
@@ -319,28 +320,38 @@ export class Engine {
       }
       observed = Math.round(observed * 1e6) / 1e6;
       if (observed <= (session.observedUsd ?? session.spentUsd)) continue;
-      const usage = await this.usage(session.id);
+      const ledger = await this.ledger(session, this.reservations(session.id).map(hold => hold.reference));
       const current = this.store.getSession(session.id);
       if (!current || !['running', 'waiting_input'].includes(current.status)) continue;
       current.observedUsd = observed;
-      if (usage) current.usage = usage;
-      this.save(current, 'budget.observed', 'system', { observedUsd: observed, budgetUsd: current.budgetUsd, ...(usage ? { usage } : {}) });
+      if (ledger) { current.usage = ledger.usage; current.requests = ledger.requests; }
+      this.save(current, 'budget.observed', 'system', { observedUsd: observed, budgetUsd: current.budgetUsd, ...(ledger ? { usage: ledger.usage, requests: ledger.requests.length } : {}) });
     }
   }
 
-  private async usage(id: string): Promise<ModelUsage[] | undefined> {
-    if (!this.broker?.usage) return undefined;
+  private async ledger(session: Session, references: string[]): Promise<{ usage: ModelUsage[]; requests: GatewayRequest[] } | undefined> {
+    if (!this.broker?.ledger) return undefined;
     const merged = new Map<string, ModelUsage>();
-    for (const hold of this.reservations(id)) {
-      const entries = await this.broker.usage(hold.reference).catch(() => undefined);
-      for (const entry of entries ?? []) {
+    const requests: GatewayRequest[] = [];
+    for (const reference of references) {
+      const entries = await this.broker.ledger(reference).catch(() => undefined);
+      if (!entries) continue;
+      for (const entry of entries.usage) {
         const current = merged.get(entry.model);
         if (!current) { merged.set(entry.model, { ...entry }); continue; }
         current.requests += entry.requests; current.failures += entry.failures; current.inputTokens += entry.inputTokens; current.outputTokens += entry.outputTokens;
         current.usd = Math.round((current.usd + entry.usd) * 1e6) / 1e6;
       }
+      requests.push(...entries.requests);
     }
-    return merged.size ? [...merged.values()].sort((a, b) => b.usd - a.usd) : undefined;
+    if (!merged.size && !requests.length) return undefined;
+    requests.sort((a, b) => a.at.localeCompare(b.at));
+    for (const request of requests) {
+      const at = Date.parse(request.at);
+      const run = session.runs.find(item => item.startedAt && at >= Date.parse(item.startedAt) - 2000 && (!item.finishedAt || at <= Date.parse(item.finishedAt) + 2000));
+      if (run) request.roleId = run.roleId;
+    }
+    return { usage: [...merged.values()].sort((a, b) => b.usd - a.usd), requests: requests.slice(-500) };
   }
 
   async reconcilePending(): Promise<void> {
@@ -514,6 +525,8 @@ export class Engine {
       else unresolved.push(hold);
     }
     const session = this.store.getSession(id)!;
+    const ledger = await this.ledger(session, [...new Set([...settled, ...unresolved.map(hold => hold.reference)])]);
+    if (ledger) { session.usage = ledger.usage; session.requests = ledger.requests; }
     session.spentUsd = Math.round((session.spentUsd + newlySettled) * 1e8) / 1e8;
     const discoveryPending = this.store.getSecret<boolean>(`discovery:${id}`);
     session.costStatus = unresolved.length || discoveryPending ? 'unknown' : 'settled';
