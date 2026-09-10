@@ -183,6 +183,23 @@ jobs:
           npm run extension:build
           npm --prefix extensions/vscode run package -- --out "de-vloer-${VERSION}.vsix"
           test -s "extensions/vscode/de-vloer-${VERSION}.vsix"
+      - name: Attach the VSIX to the Forgejo release
+        shell: bash
+        env:
+          VERSION: ${{ needs.parse-release-tag.outputs.version }}
+          TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
+          API: https://forgejo.webgrip.dev/api/v1/repos/webgrip/de-vloer
+        run: |
+          set -euo pipefail
+          asset="de-vloer-${VERSION}.vsix"
+          release="$(curl -sS --fail --max-time 30 -H "Authorization: token ${TOKEN}" "${API}/releases/tags/v${VERSION}")"
+          release_id="$(printf '%s' "$release" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
+          if printf '%s' "$release" | python3 -c 'import json,sys; a=sys.argv[1]; sys.exit(0 if any(x.get("name")==a for x in json.load(sys.stdin).get("assets",[])) else 1)' "$asset"; then
+            echo "${asset} is already attached to release ${release_id}; skipping the upload."
+          else
+            curl -sS --fail --max-time 120 -H "Authorization: token ${TOKEN}" -F "attachment=@extensions/vscode/${asset}" "${API}/releases/${release_id}/assets?name=${asset}" >/dev/null
+            echo "attached ${asset} to release ${release_id}"
+          fi
       - name: Publish to Open VSX and the Marketplace where a token is configured
         shell: bash
         env:

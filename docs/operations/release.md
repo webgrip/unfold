@@ -28,7 +28,7 @@ The chart defaults its workbench image and its agent image to the chart's `appVe
 
 ## Extension
 
-The VSIX is packaged twice from the same tagged tree: once during semantic-release, attached to the Forgejo release, and once in the publish job, which uploads it to Open VSX when `OVSX_PAT` is present and to the Visual Studio Marketplace when `VSCE_PAT` is present. Prereleases are published with the pre-release flag. Without either token the job records a notice and the release asset remains the distribution path; a sideloaded VSIX does not auto-update in VS Code.
+The VSIX is packaged twice from the same tagged tree: once during semantic-release as a gate that proves the extension still packages before the tag is cut, and once in the publish job, which attaches it to the Forgejo release and uploads it to Open VSX when `OVSX_PAT` is present and to the Visual Studio Marketplace when `VSCE_PAT` is present. The release itself carries no assets at creation time on purpose: the Gitea release plugin publishes an asset-bearing release as a draft that it then flips to published, and Forgejo reports that flip as a release `updated` event rather than `published` when the tag already exists, which is exactly what happened to `v0.3.0-rc.1`. Prereleases are published with the pre-release flag. Without either token the job records a notice and the release asset remains the distribution path; a sideloaded VSIX does not auto-update in VS Code.
 
 Open VSX serves VSCodium, code-server, Theia, Gitpod and Cursor. Plain VS Code only installs from the Marketplace or a VSIX file, and Marketplace publishing requires a Microsoft account with an Azure DevOps token. Azure DevOps retires global personal access tokens on 2026-12-01; plan the replacement before then.
 
