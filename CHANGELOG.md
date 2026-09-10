@@ -1,3 +1,9 @@
+## [0.3.0-rc.11](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.10...v0.3.0-rc.11) (2026-09-10)
+
+### Fixed
+
+* **ui:** the status label helper called itself ([7bcd28f](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/7bcd28f1dc1282df1258fe8564b54d18567f7722))
+
 ## [0.3.0-rc.10](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.9...v0.3.0-rc.10) (2026-09-10)
 
 ### Added
