@@ -1,3 +1,9 @@
+## [0.3.0-rc.8](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.7...v0.3.0-rc.8) (2026-09-10)
+
+### Added
+
+* **sessions:** screen the brief before spending, cap runaway roles, and tidy what the session shows ([f214a3d](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/f214a3dfc4dbd06275abc8dc1350a3de1e5e8d74))
+
 ## [0.3.0-rc.7](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.6...v0.3.0-rc.7) (2026-09-10)
 
 ### Added
