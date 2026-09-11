@@ -1,3 +1,15 @@
+## [0.3.0-rc.16](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.15...v0.3.0-rc.16) (2026-09-11)
+
+### Added
+
+* **brand:** add the De Vloer identity and hold Apache-2.0 in CI ([fabd72b](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/fabd72b5d10ff3fc10967e30d126e76e8b1aecc4))
+* **extension:** publish through Open VSX and mirror releases to GHCR ([e900ae8](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/e900ae8bcb5be5352a938965f7a27769faf19ab0))
+* **ui:** repaint the workbench on the brand palette and self-host Archivo ([f35f4e0](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/f35f4e06791e3f05ac5019425c22920b3311be87))
+
+### Fixed
+
+* **ci:** stop the licence gate depending on a network tool install ([0a1bd42](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/0a1bd428a5bd977591c4d23701a9347cbd63db37))
+
 ## [0.3.0-rc.15](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.14...v0.3.0-rc.15) (2026-09-11)
 
 ### Added
