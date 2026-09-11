@@ -204,4 +204,4 @@ A completed session reads "Awaiting your review" until you accept or reject it f
 
 ## Ploeg work
 
-The Ploeg tree uses the same signed-in workbench identity to list allowed teams, attention/running/queue lanes and paginated work. Selecting an item opens its workbench detail with shifts, runs, cost uncertainty and links to existing interactive sessions. Refresh reads a new bounded snapshot; it is not a lossless subscription. The editor holds no Ploeg service credential. Configure access with [the unified workbench guide](../../docs/operations/unified-baseline.md).
+The Ploeg tree uses the same signed-in workbench identity to list allowed teams, attention/running/queue lanes and paginated work. Selecting an item opens its workbench detail with shifts, runs, cost uncertainty and links to existing interactive sessions. Refresh reads a new bounded snapshot; it is not a lossless subscription. The editor holds no Ploeg service credential. Configure access with [the unified workbench guide](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/operations/unified-baseline.md).
