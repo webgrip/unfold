@@ -119,6 +119,15 @@ Team Queue order mirrors the tracker's priority, falling back to oldest-first; P
 
 **Also applies to:** Tracker Item
 
+## Tracker Item
+
+### R19
+*Context: Integration*
+
+A research ticket asking whether a product is worth building may finish with convincing evidence, a documented business case and a conclusion to stop. A technical design or proof of concept is not required when that conclusion is supported.
+
+**Why:** Research must support a decision; building an unwanted product does not improve the answer.
+
 ## Tracker Provider
 
 ### R7
@@ -131,6 +140,15 @@ Core semantics must never encode a provider-specific workaround; everything vend
 **Also applies to:** Forge Provider, Tracker Event, Scope, Routing Rule
 
 ## Work Item
+
+### R18
+*Context: Dispatch*
+
+For work begun hands-on in De Vloer, creating a Work Item or Operator Execution requires that person to explicitly hand the work to agents through Ploeg. Starting hands-on work alone does not create these records. The chosen agent tool does not change this rule.
+
+**Why:** Using an assistant while coding and asking agents to take responsibility for work are different choices.
+
+**Also applies to:** Operator Execution
 
 ### R16
 *Context: Dispatch*

@@ -1,9 +1,11 @@
 project: Ploeg
 description: >
-  Ploeg owns admission and execution authority for tracker-originated work and
-  explicitly registered operator work. Executors run bounded agent workloads;
-  De Vloer supplies human sessions and intervention. Trackers retain authority
-  over their own work content and priority.
+  Ploeg schedules and runs work handed to agents, tracks progress and cost,
+  and supports cooperation between agents. De Vloer is where people work on
+  tickets, give work to agents and review the results. The intended workflow
+  starts with a ticket in De Vloer. Starting hands-on work does not itself
+  give work to Ploeg. OpenCode and other agent tools are replaceable
+  implementation details. Trackers keep their work content and priorities.
 version: 0.4.0
 
 contexts:
@@ -51,10 +53,10 @@ terms:
 
   - name: Operator Execution
     definition: >
-      A durable binding from one authenticated human workbench session to one
-      Work Item, Shift and Run. It records execution state, supervision,
-      serialized command revisions and an executor generation. Human and
-      background supervision retain the same execution identity.
+      A record of work a person explicitly hands to agents through De Vloer,
+      kept in Ploeg and linked to that person's session. Hands-on work in De Vloer alone
+      does not create one. It links one Work Item, Shift and Run and retains
+      its identity when a person steps in to supervise.
     context: Dispatch
     see_also: [Work Item, Shift, Run, Operator Consumer, Inference Account]
 
@@ -801,6 +803,16 @@ entities:
         kind: references
 
 rules:
+  - id: R18
+    statement: For work begun hands-on in De Vloer, creating a Work Item or Operator Execution requires that person to explicitly hand the work to agents through Ploeg. Starting hands-on work alone does not create these records. The chosen agent tool does not change this rule.
+    rationale: Using an assistant while coding and asking agents to take responsibility for work are different choices.
+    applies_to: [Work Item, Operator Execution]
+    context: Dispatch
+  - id: R19
+    statement: A research ticket asking whether a product is worth building may finish with convincing evidence, a documented business case and a conclusion to stop. A technical design or proof of concept is not required when that conclusion is supported.
+    rationale: Research must support a decision; building an unwanted product does not improve the answer.
+    applies_to: [Tracker Item]
+    context: Integration
   - id: R16
     statement: Binding tracker work to an Operator Execution retains its canonical Work Item identity and tracker origin. Admission atomically excludes unattended claims and requires fresh registered Scope and Work Target expectations. Tracker refresh never implicitly relinquishes operator ownership.
     rationale: Human interaction must not create a duplicate dispatch or restart intentionally stopped work.
@@ -972,26 +984,14 @@ events:
     triggers: The owning Team's Queue grows; vague or security-sensitive feedback goes to needs_human instead.
 
 ambiguities:
-  - phrase: claim
-    issue: README and design used "claim" and "lease" interchangeably for the same row.
-    options: [Lease as noun + claim as verb, Lease only, Claim as the entity]
-    recommendation: Lease is the noun/entity; "claim" survives only as the verb.
-    status: resolved
-    resolution: Lease is canonical for the entity; "claim" is the verb for acquiring one; "claim" as a noun is on the avoid list. (2026-07-22)
-
-  - phrase: run vs job
-    issue: With sequential/parallel team strategies it was unclear whether a Run spans the whole lease servicing or one Kubernetes Job.
-    options: [Run = one Role + one Job, Run = whole lease servicing, separate lease-level term]
-    recommendation: Run = one execution of one Role, exactly one Kubernetes Job.
-    status: resolved
-    resolution: >
-      Run is per-Role, per-Job; "Job" stays a Kubernetes term. A lease-level
-      grouping term was deliberately deferred until parallel strategies demanded
-      one (2026-07-22). They now do, and the term is **Shift** — ADR-0010,
-      2026-07-29. A Shift owns the Work Item, its branch, its budget pool and
-      its round counter; a Lease narrows to write access on that branch and is
-      held only by a writing Run. (2026-07-29)
-
+  - phrase: who decides that delegated work is finished
+    issue: Successful checks, another agent's review and a person's approval are different possible conditions for finishing work; the product has no agreed rule for choosing between them.
+    options:
+      - Choose the condition for each task
+      - Always require a person's approval
+      - Let the agent finish when its checks pass
+    recommendation: Choose the condition for each task so research, coding and other work can use appropriate checks and approval.
+    status: open
   - phrase: the "leased" Work Item state
     issue: >
       The Work Item state enum calls the working state `leased`, named for the
@@ -1026,28 +1026,6 @@ ambiguities:
       what the item may cost. Confirm against the first real needs_human Shift.
     status: open
 
-  - phrase: needs_human
-    issue: The design mentioned a "human queue" and "needs_human items" but the state enum lacked the state.
-    options: [WorkItem state, outcome-only fact, separate Escalation entity]
-    recommendation: Make it a lifecycle state; the human queue is a query on it.
-    status: resolved
-    resolution: needs_human is a Work Item state, entered on a stuck Outcome or vague/security-sensitive Forge Event feedback; exits are human re-queue or human close. Distinct from stale, which means retry-exhausted. (2026-07-22)
-
-  - phrase: forge vs forge provider
-    issue: >
-      Two near-homonyms sit one word apart: a Forge is one registered instance
-      (id, endpoint, dialect, identity, credential source) while a Forge
-      Provider is the adapter that speaks that instance's dialect. Unqualified
-      "forge" in prose or a field name reads as either.
-    options: [Forge = instance + Forge Provider = adapter, Forge Instance + Forge Provider, one term for both]
-    recommendation: Keep both terms and never let "forge" stand alone for the adapter.
-    status: resolved
-    resolution: >
-      Forge is the instance (a registry entry, named by a Work Target's forge
-      id); Forge Provider is the adapter that speaks its dialect. A bare
-      "forge" always means the instance; the adapter is always written in
-      full. (2026-07-29)
-
   - phrase: follow-up mirroring
     issue: >
       Follow-Ups enter at queued with no Tracker Item, which tensions with "the
@@ -1077,6 +1055,26 @@ ambiguities:
     status: open
 
 dialogues:
+  - title: Working on a ticket in De Vloer
+    lines:
+      - speaker: Developer
+        text: Where do I start working?
+      - speaker: Product owner
+        text: In De Vloer, with a ticket. You can work on it yourself or give work to agents through Ploeg.
+      - speaker: Developer
+        text: Does that require OpenCode?
+      - speaker: Product owner
+        text: No. The tool running the agent is replaceable. De Vloer is the place you use.
+  - title: Research can recommend stopping
+    lines:
+      - speaker: Developer
+        text: The research says this product should not be built. Must the agent still build a prototype?
+      - speaker: Product owner
+        text: No. Convincing evidence, a business case and a clear conclusion to stop can finish that ticket.
+      - speaker: Developer
+        text: And if the evidence supports building it?
+      - speaker: Product owner
+        text: I expect a usable design document, recorded decisions, graphs, documentation, a business case and a final conclusion. A proof of concept may also help.
   - title: Lease vs claim, and what a crash does
     context: Dispatch
     lines:

@@ -105,7 +105,7 @@ A named service identity with explicit Team scope and separate read and executio
 ## Operator Execution
 *Context: Dispatch*
 
-A durable binding from one authenticated human workbench session to one Work Item, Shift and Run. It records execution state, supervision, serialized command revisions and an executor generation. Human and background supervision retain the same execution identity.
+A record of work a person explicitly hands to agents through De Vloer, kept in Ploeg and linked to that person's session. Hands-on work in De Vloer alone does not create one. It links one Work Item, Shift and Run and retains its identity when a person steps in to supervise.
 
 **See also:** [Work Item](#work-item), [Shift](#shift), [Run](#run), [Operator Consumer](#operator-consumer), [Inference Account](#inference-account)
 
@@ -262,6 +262,20 @@ The forge coordinates a Work Item's Runs act on: forge, owner, repository, base 
 
 Short exchanges showing the terms used precisely at concept boundaries.
 
+### Working on a ticket in De Vloer
+
+> **Developer:** Where do I start working?
+> **Product owner:** In De Vloer, with a ticket. You can work on it yourself or give work to agents through Ploeg.
+> **Developer:** Does that require OpenCode?
+> **Product owner:** No. The tool running the agent is replaceable. De Vloer is the place you use.
+
+### Research can recommend stopping
+
+> **Developer:** The research says this product should not be built. Must the agent still build a prototype?
+> **Product owner:** No. Convincing evidence, a business case and a clear conclusion to stop can finish that ticket.
+> **Developer:** And if the evidence supports building it?
+> **Product owner:** I expect a usable design document, recorded decisions, graphs, documentation, a business case and a final conclusion. A proof of concept may also help.
+
 ### Lease vs claim, and what a crash does
 *Context: Dispatch*
 
@@ -285,6 +299,13 @@ Short exchanges showing the terms used precisely at concept boundaries.
 ---
 
 ## ⚠ Flagged ambiguities
+
+### who decides that delegated work is finished
+
+Successful checks, another agent's review and a person's approval are different possible conditions for finishing work; the product has no agreed rule for choosing between them.
+
+**Options:** Choose the condition for each task, Always require a person's approval, Let the agent finish when its checks pass
+**Recommendation:** Choose the condition for each task so research, coding and other work can use appropriate checks and approval.
 
 ### the "leased" Work Item state
 
@@ -313,10 +334,3 @@ The design says Ploeg "can schedule a groomer run" but grooming semantics belong
 
 **Options:** Keep Groomer out of the core language (operator concern), Define it as a Team with a single grooming Role, First-class GroomerRun concept
 **Recommendation:** Keep it out of the core language for now; if it lands in phase 2, model it as an ordinary Team whose single Role grooms — no new concepts.
-
-## Resolved ambiguities
-
-- **claim** — Lease is canonical for the entity; "claim" is the verb for acquiring one; "claim" as a noun is on the avoid list. (2026-07-22)
-- **run vs job** — Run is per-Role, per-Job; "Job" stays a Kubernetes term. A lease-level grouping term was deliberately deferred until parallel strategies demanded one (2026-07-22). They now do, and the term is **Shift** — ADR-0010, 2026-07-29. A Shift owns the Work Item, its branch, its budget pool and its round counter; a Lease narrows to write access on that branch and is held only by a writing Run. (2026-07-29)
-- **needs_human** — needs_human is a Work Item state, entered on a stuck Outcome or vague/security-sensitive Forge Event feedback; exits are human re-queue or human close. Distinct from stale, which means retry-exhausted. (2026-07-22)
-- **forge vs forge provider** — Forge is the instance (a registry entry, named by a Work Target's forge id); Forge Provider is the adapter that speaks its dialect. A bare "forge" always means the instance; the adapter is always written in full. (2026-07-29)

@@ -1,6 +1,6 @@
 # Ploeg — Domain Overview
 
-Ploeg owns admission and execution authority for tracker-originated work and explicitly registered operator work. Executors run bounded agent workloads; De Vloer supplies human sessions and intervention. Trackers retain authority over their own work content and priority.
+Ploeg schedules and runs work handed to agents, tracks progress and cost, and supports cooperation between agents. De Vloer is where people work on tickets, give work to agents and review the results. The intended workflow starts with a ticket in De Vloer. Starting hands-on work does not itself give work to Ploeg. OpenCode and other agent tools are replaceable implementation details. Trackers keep their work content and priorities.
 
 *Model version 0.4.0. Generated from `model.yaml` — do not edit by hand.*
 
@@ -31,6 +31,9 @@ flowchart LR
 
 These terms are contested or vague. Resolve them before writing specs that depend on them.
 
+- **who decides that delegated work is finished** — Successful checks, another agent's review and a person's approval are different possible conditions for finishing work; the product has no agreed rule for choosing between them.
+  - Options: Choose the condition for each task, Always require a person's approval, Let the agent finish when its checks pass
+  - Recommendation: Choose the condition for each task so research, coding and other work can use appropriate checks and approval.
 - **the "leased" Work Item state** — The Work Item state enum calls the working state `leased`, named for the Lease it used to imply. After ADR-0010 a Work Item in that state has a Shift, and may have no Lease at all — a Round of readers takes none. The state name now describes the wrong thing.
   - Options: Keep `leased` and accept the vocabulary drift, Rename to `active`, Rename to `in_shift`
   - Recommendation: Decide with the implementing change, not before. The rename touches the state enum, an applied migration, both contract schemas and the KEDA scaler query, so it is a real cost to weigh against a name that is merely imprecise. `active` reads best if it goes ahead.
