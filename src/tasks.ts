@@ -2,8 +2,10 @@ import { createHash } from 'node:crypto';
 import type { Repository } from './types.ts';
 
 export type TaskProvider = 'forgejo' | 'github' | 'gitlab' | 'clickup' | 'vikunja' | 'demo';
-export type TaskSourceConfig = { id: string; name: string; provider: TaskProvider; baseUrl: string; project: string; repositoryId: string; token?: string; tokenType?: 'bearer'; executionOwner: 'interactive' | 'ploeg' };
-export type TaskSnapshot = { key: string; sourceId: string; provider: TaskProvider; id: string; revision: string; title: string; description: string; url: string; status: 'open' | 'closed' | 'unknown'; updatedAt?: string; repositoryId: string };
+export type TaskTarget = { forge: string; owner: string; repo: string; baseBranch: string };
+export type PloegTaskSource = { workItemId: string; provider: string; externalId: string; expectedBaseUrl: string; expectedScope: string; expectedRevision: string; expectedUpdatedAt: string; expectedTarget: TaskTarget };
+export type TaskSourceConfig = { id: string; name: string; provider: TaskProvider; baseUrl: string; project: string; repositoryId: string; token?: string; tokenType?: 'bearer'; executionOwner: 'interactive' | 'ploeg'; ploeg?: { target: TaskTarget } };
+export type TaskSnapshot = { key: string; sourceId: string; provider: TaskProvider; id: string; revision: string; title: string; description: string; url: string; status: 'open' | 'closed' | 'unknown'; updatedAt?: string; repositoryId: string; nativeRevision?: string; scope?: string; ploeg?: PloegTaskSource; bindingConfig?: string; bindingRevision?: string; ploegUnavailable?: { code: string; message: string } };
 export type TaskPage = { tasks: TaskSnapshot[]; nextPage?: number };
 
 export class TaskError extends Error {
@@ -24,7 +26,7 @@ const timeoutMs = 10000;
 const slug = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const numericId = /^[1-9][0-9]{0,19}$/;
 const projectPart = /^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,254}$/;
-const sourceFields = new Set(['id', 'name', 'provider', 'baseUrl', 'project', 'repositoryId', 'tokenEnv', 'executionOwner']);
+const sourceFields = new Set(['id', 'name', 'provider', 'baseUrl', 'project', 'repositoryId', 'tokenEnv', 'executionOwner', 'ploeg']);
 
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TaskError(502, 'task_response_invalid', 'The task service returned an unsupported response.');
@@ -80,6 +82,18 @@ export function validateTaskSources(raw: unknown, repositories: Repository[], mo
     if (source.executionOwner === 'interactive' && repositories.find(repository => repository.id === source.repositoryId)?.executionOwner === 'ploeg') throw new Error('An interactive task source cannot override a Ploeg-owned repository');
     const baseUrl = apiRoot(source.baseUrl, provider);
     const project = configuredProject(source.project, provider);
+    let ploeg: TaskSourceConfig['ploeg'];
+    if (source.ploeg !== undefined) {
+      const value = source.ploeg as { target?: TaskTarget };
+      const target = value?.target;
+      const repository = repositories.find(item => item.id === source.repositoryId)!;
+      if (source.executionOwner !== 'ploeg' || !['vikunja', 'clickup'].includes(provider) || !value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(key => key !== 'target') || !target || typeof target !== 'object' || Array.isArray(target) || Object.keys(target).sort().join(',') !== 'baseBranch,forge,owner,repo') throw new Error('Task source ploeg requires an explicit Vikunja or ClickUp Ploeg target');
+      if (typeof target.forge !== 'string' || !/^[A-Za-z0-9_.:-]{1,100}$/.test(target.forge) || !configText(target.owner, 512) || target.owner.split('/').some(part => !projectPart.test(part) || part === '.' || part === '..') || !configText(target.repo, 255) || !projectPart.test(target.repo) || ['.', '..'].includes(target.repo) || !configText(target.baseBranch, 512) || target.baseBranch !== repository.baseBranch) throw new Error('Task source Ploeg target must match the registered repository and base branch');
+      let url: URL;
+      try { url = new URL(repository.url); } catch { throw new Error('Ploeg tracker targets require a registered repository URL'); }
+      if (url.username || url.password || url.search || url.hash || !['https:', 'ssh:', ...(mode === 'demo' ? ['http:'] : [])].includes(url.protocol) || url.pathname.replace(/^\//, '').replace(/\.git$/, '') !== `${target.owner}/${target.repo}`) throw new Error('Task source Ploeg target must match the registered repository URL');
+      ploeg = { target: { forge: target.forge, owner: target.owner, repo: target.repo, baseBranch: target.baseBranch } };
+    }
     let token: string | undefined;
     if (source.tokenEnv !== undefined) {
       if (typeof source.tokenEnv !== 'string' || !/^[A-Z][A-Z0-9_]{0,127}$/.test(source.tokenEnv)) throw new Error('Task source tokenEnv must name an environment variable');
@@ -87,15 +101,15 @@ export function validateTaskSources(raw: unknown, repositories: Repository[], mo
       if (!token || token.length > 4096 || /[^\x21-\x7e]/.test(token)) throw new Error('Task source tokenEnv must reference a non-empty, valid API token');
     }
     const identity = JSON.stringify([provider, baseUrl, project]);
-    const mapping = JSON.stringify([source.repositoryId, source.executionOwner]);
+    const mapping = JSON.stringify([source.repositoryId, source.executionOwner, ploeg]);
     if (mappings.has(identity) && mappings.get(identity) !== mapping) throw new Error('Aliases of a task source must use the same repository and execution owner');
     mappings.set(identity, mapping);
-    return { id: source.id, name: source.name, provider, baseUrl, project, repositoryId: source.repositoryId, executionOwner: source.executionOwner, ...(token ? { token } : {}) };
+    return { id: source.id, name: source.name, provider, baseUrl, project, repositoryId: source.repositoryId, executionOwner: source.executionOwner, ...(token ? { token } : {}), ...(ploeg ? { ploeg } : {}) };
   });
 }
 
 export function publicTaskSource(source: TaskSourceConfig) {
-  return { id: source.id, name: source.name, provider: source.provider, repositoryId: source.repositoryId, executionOwner: source.executionOwner };
+  return { id: source.id, name: source.name, provider: source.provider, repositoryId: source.repositoryId, executionOwner: source.executionOwner, ...(source.ploeg ? { ploeg: source.ploeg } : {}) };
 }
 
 function taskId(source: TaskSourceConfig, value: unknown): string {
@@ -148,6 +162,7 @@ function snapshot(source: TaskSourceConfig, raw: unknown): TaskSnapshot {
   let description: string;
   let status: TaskSnapshot['status'] = 'unknown';
   let updatedAt: string | undefined;
+  let nativeRevision: string | undefined;
   let project = source.project;
   if (source.provider === 'forgejo' || source.provider === 'github') {
     if (value.pull_request) throw new TaskError(422, 'task_is_pull_request', 'Select an issue instead of a pull request.');
@@ -174,6 +189,7 @@ function snapshot(source: TaskSourceConfig, raw: unknown): TaskSnapshot {
     const type = record(value.status).type;
     status = value.archived === true || type === 'closed' || type === 'done' ? 'closed' : type === 'open' || type === 'custom' ? 'open' : 'unknown';
     updatedAt = updated(value.date_updated, true);
+    if (value.date_updated !== undefined && value.date_updated !== null) nativeRevision = field(String(value.date_updated), 128);
   } else if (source.provider === 'vikunja') {
     id = taskId(source, value.id);
     if (String(value.project_id) !== source.project) throw new TaskError(404, 'task_outside_source', 'This task is outside the configured project.');
@@ -181,6 +197,7 @@ function snapshot(source: TaskSourceConfig, raw: unknown): TaskSnapshot {
     description = field(value.description, 16000, true);
     status = value.done === true ? 'closed' : value.done === false ? 'open' : 'unknown';
     updatedAt = updated(value.updated);
+    if (value.updated !== undefined && value.updated !== null) nativeRevision = field(value.updated, 128);
   } else {
     id = taskId(source, value.id);
     title = field(value.title, 500);
@@ -188,10 +205,25 @@ function snapshot(source: TaskSourceConfig, raw: unknown): TaskSnapshot {
     status = 'open';
     updatedAt = '2026-09-09T00:00:00.000Z';
   }
+  if (source.token) {
+    title = title.replaceAll(source.token, '[redacted]');
+    description = description.replaceAll(source.token, '[redacted]');
+  }
   const key = `task:${digest([source.provider, source.baseUrl.replace(/\/+$/, ''), project, id])}`;
   const url = taskUrl(source, id, value);
+  if (source.token) {
+    let decoded: string;
+    try { decoded = decodeURIComponent(url); } catch { throw new TaskError(502, 'task_response_invalid', 'The task service returned an invalid task link.'); }
+    if (decoded.includes(source.token)) throw new TaskError(502, 'task_sensitive_response', 'The task service returned credential material in a task link. This snapshot cannot be imported.');
+  }
   const revision = digest({ key, title, description, status, updatedAt, url });
-  return { key, sourceId: source.id, provider: source.provider, id, revision, title, description, url, status, ...(updatedAt ? { updatedAt } : {}), repositoryId: source.repositoryId };
+  const result = { key, sourceId: source.id, provider: source.provider, id, revision, title, description, url, status, ...(updatedAt ? { updatedAt } : {}), ...(nativeRevision ? { nativeRevision, scope: project } : {}), repositoryId: source.repositoryId };
+  if (source.token && Object.values(result).some(value => typeof value === 'string' && value.includes(source.token!))) throw new TaskError(502, 'task_sensitive_response', 'The task service returned credential material in a task identity, revision or link. This snapshot cannot be imported.');
+  return result;
+}
+
+export function taskBindingConfiguration(source: TaskSourceConfig, repository: Repository): string {
+  return digest({ provider: source.provider, baseUrl: source.baseUrl, project: source.project, repositoryId: source.repositoryId, executionOwner: source.executionOwner, ploeg: source.ploeg, repositoryUrl: repository.url, baseBranch: repository.baseBranch });
 }
 
 function headers(source: TaskSourceConfig): Record<string, string> {

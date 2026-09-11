@@ -56,7 +56,7 @@ try {
   assert.equal(imported.sourceTask.id, '1');
   await page.getByRole('link', { name: 'Open original task', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Start crew', exact: true }).click();
-  await page.getByText('Evidence is ready for your review.', { exact: true }).waitFor({ timeout: 25000 });
+  await page.getByText('Your review is next.', { exact: true }).waitFor({ timeout: 25000 });
   await page.getByText('Repository snapshot saved', { exact: true }).waitFor();
   for (const [name, format] of [['Git bundle', 'bundle'], ['Binary patch', 'patch'], ['Manifest', 'manifest']]) {
     const candidateDownload = page.waitForEvent('download');
@@ -72,7 +72,7 @@ try {
   await page.getByRole('link', { name: 'Tasks', exact: true }).click();
   await page.locator('[data-action="task-preview"]').first().click();
   await page.getByRole('button', { name: 'Create session', exact: true }).click();
-  await page.getByText('Evidence is ready for your review.', { exact: true }).waitFor();
+  await page.getByText('Your review is next.', { exact: true }).waitFor();
   assert.equal(new URL(page.url()).hash, `#session/${importedId}`, 'A second import did not open the original session');
   assert.equal(app.store.listSessions().length, taskSessionCount, 'A second import created duplicate work');
   const taskUrl = `http://127.0.0.1:${app.server.address().port}/api/task-sources/demo-tasks/tasks/1`;
@@ -102,7 +102,7 @@ try {
   await page.unroute(taskUrl);
   await page.getByRole('link', { name: 'Sessions', exact: true }).click();
   await page.getByRole('button', { name: 'Run the demonstration' }).click();
-  await page.getByText('Evidence is ready for your review.', { exact: true }).waitFor({ timeout: 25000 });
+  await page.getByText('Your review is next.', { exact: true }).waitFor({ timeout: 25000 });
   await screenshot('session');
   await page.getByRole('tab', { name: /Changes/ }).click();
   await page.getByText('+  return Math.round((amount + Number.EPSILON) * 100);', { exact: true }).waitFor();
@@ -117,7 +117,7 @@ try {
   const downloadPath = await download.path();
   assert(downloadPath);
   await page.reload();
-  await page.getByText('Evidence is ready for your review.', { exact: true }).waitFor();
+  await page.getByText('Your review is next.', { exact: true }).waitFor();
   await page.getByRole('link', { name: 'All sessions' }).click();
   await page.getByRole('button', { name: /New session/ }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Create session' }).click();
@@ -147,7 +147,7 @@ try {
   await page.getByRole('textbox', { name: 'Steer the next execution' }).fill(draft);
   const selectedTab = async id => {
     const tabs = await page.getByRole('tab').evaluateAll(elements => elements.map(element => ({ id: element.dataset.id, selected: element.getAttribute('aria-selected'), tabIndex: element.tabIndex, panel: document.getElementById(element.getAttribute('aria-controls'))?.id, label: document.getElementById(element.getAttribute('aria-controls'))?.getAttribute('aria-labelledby') })));
-    assert.equal(tabs.length, 4);
+    assert.equal(tabs.length, 5);
     assert.deepEqual(tabs.filter(tab => tab.selected === 'true').map(tab => tab.id), [id]);
     assert.deepEqual(tabs.filter(tab => tab.tabIndex === 0).map(tab => tab.id), [id]);
     for (const tab of tabs) {
@@ -164,7 +164,7 @@ try {
     await page.setViewportSize(viewport);
     await page.getByRole('tab', { name: 'Activity', exact: true }).click();
     await selectedTab('stream');
-    for (const [key, id] of [['ArrowRight', 'diff'], ['ArrowRight', 'test'], ['End', 'handoff'], ['ArrowRight', 'stream'], ['ArrowLeft', 'handoff'], ['Home', 'stream']]) {
+    for (const [key, id] of [['ArrowRight', 'gateway'], ['ArrowRight', 'diff'], ['ArrowRight', 'test'], ['End', 'handoff'], ['ArrowRight', 'stream'], ['ArrowLeft', 'handoff'], ['Home', 'stream']]) {
       await page.keyboard.press(key);
       await selectedTab(id);
     }
@@ -177,6 +177,8 @@ try {
       panel.scrollTop = 120;
       return panel.scrollTop;
     });
+    await page.keyboard.press('ArrowRight');
+    await selectedTab('gateway');
     await page.keyboard.press('ArrowRight');
     await selectedTab('diff');
     const hiddenUpdate = `Durable event while inspecting Changes at width ${viewport.width}.`;
@@ -205,7 +207,7 @@ try {
   try { await page.getByText('Cancelled', { exact: true }).first().waitFor(); }
   catch (error) {
     const stopped = app.store.getSession(keyboardSessionId);
-    process.stderr.write(JSON.stringify({ status: stopped?.status, runStatuses: stopped?.runs.map(run => run.status), toast: await page.locator('#toast').textContent(), url: page.url() }) + '\n');
+    process.stderr.write(JSON.stringify({ status: stopped?.status, failure: stopped?.failure, runStatuses: stopped?.runs.map(run => run.status), toast: await page.locator('#toast').textContent(), url: page.url() }) + '\n');
     await screenshot('cancel-failure');
     throw error;
   }
@@ -236,8 +238,8 @@ try {
   await screenshot('mobile');
   await page.getByRole('link', { name: 'Environment' }).click();
   await page.getByRole('heading', { name: 'Execution environment', exact: true }).waitFor();
-  await page.getByRole('link', { name: 'Ploeg queues' }).click();
-  await page.getByRole('heading', { name: 'Connect your existing dispatch plane', exact: true }).waitFor();
+  await page.getByRole('link', { name: 'Ploeg', exact: true }).click();
+  await page.locator('[data-action="ploeg-item"][data-id="101"]').waitFor();
   await page.setViewportSize({ width: 1440, height: 1040 });
   await page.goto(`http://127.0.0.1:${live.server.address().port}`);
   await page.getByRole('heading', { name: 'Welcome back.' }).waitFor();

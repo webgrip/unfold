@@ -582,7 +582,7 @@ export class AgentHost {
           const text = String(action.message?.text ?? '').trim();
           if (!text) { reject('Empty message'); return; }
           if (['completed', 'cancelled', 'failed'].includes(session.status)) { reject('The session has ended; start a new session'); return; }
-          this.engine.message(session.id, text, client.user);
+          await this.engine.message(session.id, text, client.user);
           if (session.status === 'queued') await this.engine.start(session.id, client.user);
           else if (['paused', 'interrupted'].includes(session.status)) await this.engine.resume(session.id, client.user);
           return;

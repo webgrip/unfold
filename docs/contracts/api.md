@@ -154,3 +154,9 @@ The WebSocket endpoint is the workbench address with `?tkn=<token>`; it speaks A
 Routes under `/api/relay/` are for sandbox workers, authenticated by per-workspace or pool bearer tokens rather than login cookies, and are not part of the operator contract.
 
 Candidate access uses the same owner/administrator checks as the session. A successful export preserves a reviewable change; it does not certify independent verification, authorize publication or merge anything. Availability and limitations are explicit in the metadata. Native harness history and credentials are not portable candidate contents.
+
+## Ploeg workbench
+
+The scoped overview is `GET /api/ploeg`; paged work is `GET /api/ploeg/work-items`, and detail is `GET /api/ploeg/work-items/:id`. `refresh=1` bypasses the short cache. Responses are snapshots with explicit bounds and uncertainty.
+
+A shared session exposes a credential-free `execution` binding. `POST /api/sessions/:id/supervision` accepts `{"supervision":"human"}` or `{"supervision":"background"}` for an active owned session. Existing start, pause, resume, cancel, message and permission routes delegate through Ploeg when configured. See [the shared execution contract](ploeg-execution.md).

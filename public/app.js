@@ -1,3 +1,5 @@
+import { ploegMarkup, ploegLanes } from './ploeg.js';
+
 const $ = selector => document.querySelector(selector);
 const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const money = value => { const amount = value || 0; const digits = amount > 0 && amount < 0.01 ? 5 : amount > 0 && amount < 1 ? 4 : 3; return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: digits }).format(amount); };
@@ -35,7 +37,7 @@ const icon = (name, cls = '') => `<svg class="icon ${cls}" viewBox="0 0 24 24" f
 const labels = { queued: 'Ready to start', running: 'Working', exporting: 'Preparing review', waiting_input: 'Needs your input', paused: 'Paused', completed: 'Awaiting your review', failed: 'Needs attention', cancelled: 'Cancelled', interrupted: 'Interrupted' };
 const evidenceTabs = [['stream','activity','Activity'],['gateway','layers','Gateway'],['diff','code','Changes'],['test','terminal','Checks'],['handoff','branch','Handoff']];
 const providers = { forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp', vikunja: 'Vikunja', demo: 'Demo fixture' };
-const state = { evidenceScroll: {}, bootstrap: null, sessions: [], session: null, events: [], permissions: [], view: 'sessions', tab: 'stream', filter: 'all', search: '', draft: '', stream: null, online: true, busy: false, refreshTimer: null, toastTimer: null, ploeg: null, health: null, taskSourceId: '', tasks: [], task: null, taskPage: 1, taskNextPage: null, taskSearch: '', taskLoading: false, taskPreviewLoading: false, taskError: '', taskPreviewError: '', taskChanged: false, taskDraft: null, taskRequest: 0, previewRequest: 0, taskImporting: false };
+const state = { evidenceScroll: {}, bootstrap: null, sessions: [], session: null, events: [], permissions: [], view: 'sessions', tab: 'stream', filter: 'all', search: '', draft: '', stream: null, online: true, busy: false, refreshTimer: null, toastTimer: null, ploeg: null, ploegLane: 'needs_human', ploegDetail: null, ploegDetailError: '', ploegDetailLoading: false, ploegLoading: false, ploegRequest: 0, health: null, taskSourceId: '', tasks: [], task: null, taskPage: 1, taskNextPage: null, taskSearch: '', taskLoading: false, taskPreviewLoading: false, taskError: '', taskPreviewError: '', taskChanged: false, taskDraft: null, taskRequest: 0, previewRequest: 0, taskImporting: false };
 
 async function api(path, options = {}) {
   const response = await fetch(path, { ...options, headers: { 'Content-Type': 'application/json', 'X-Vloer-Request': '1', ...options.headers }, credentials: 'same-origin' });
@@ -56,7 +58,7 @@ function notify(message, error = false) {
   clearTimeout(state.toastTimer); state.toastTimer = setTimeout(() => { toast.className = 'toast'; }, 5500);
 }
 
-function status(value) { return `<span class="status status-${escape(value)}"><span></span>${escape(labels[value] || value)}</span>`; }
+function status(value, label = labels[value] || value) { return `<span class="status status-${escape(value)}"><span></span>${escape(label)}</span>`; }
 function repoName(id) { return state.bootstrap.repositories.find(repo => repo.id === id)?.name || id; }
 function crewName(id) { return state.bootstrap.crews.find(crew => crew.id === id)?.name || id; }
 function runtimeName(id) { return state.bootstrap.runtimes.find(runtime => runtime.id === id)?.name || id; }
@@ -80,7 +82,7 @@ function shell(content, title = 'Sessions', subtitle = 'Your work, running elsew
     <aside class="sidebar" aria-label="Primary navigation">
       <a class="brand" href="#sessions" aria-label="De Vloer home"><span class="brand-mark"><i></i><i></i><i></i></span><span>de vloer<span class="brand-caption">AGENT WORKBENCH</span></span></a>
       <div class="workspace-label">WORKSPACE <span>01</span></div>
-      <nav>${[['sessions','grid','Sessions'],['tasks','folder','Tasks'],['ploeg','layers','Ploeg queues'],['account','link','Linked accounts'],['system','shield','Environment']].map(([id, glyph, label]) => `<a href="#${id}" aria-label="${escape(label)}" class="nav-item ${state.view === id || state.view === 'session' && id === 'sessions' ? 'active' : ''}" ${state.view === id ? 'aria-current="page"' : ''}>${icon(glyph)}<span>${label}</span>${id === 'sessions' ? `<b>${state.sessions.filter(isActive).length}</b>` : ''}</a>`).join('')}</nav>
+      <nav>${[['sessions','grid','Sessions'],['tasks','folder','Tasks'],['ploeg','layers','Ploeg'],['account','link','Linked accounts'],['system','shield','Environment']].map(([id, glyph, label]) => `<a href="#${id}" aria-label="${escape(label)}" class="nav-item ${state.view === id || state.view === 'session' && id === 'sessions' ? 'active' : ''}" ${state.view === id ? 'aria-current="page"' : ''}>${icon(glyph)}<span>${label}</span>${id === 'sessions' ? `<b>${state.sessions.filter(isActive).length}</b>` : ''}</a>`).join('')}</nav>
       <div class="sidebar-note"><span class="tiny-label">THE WORKING AGREEMENT</span><p>You set the direction.<br>Agents bring back evidence.</p><div class="small-rule"></div><span>Human review stays in the loop.</span></div>
       <div class="user-card"><span class="avatar">${escape(user.name.slice(0, 2).toUpperCase())}</span><div><strong>${escape(user.name)}</strong><span>${escape(user.role)}${state.bootstrap.mode === 'demo' ? ' · local demo' : ''}</span></div>${state.bootstrap.mode !== 'demo' ? `<button class="icon-button" data-action="logout" aria-label="Sign out">${icon('logout')}</button>` : ''}</div>
     </aside>
@@ -273,6 +275,15 @@ function candidateMarkup(session) {
   return `<section class="panel candidate-panel" aria-labelledby="candidate-title"><div class="panel-heading"><h2 id="candidate-title">Repository handoff</h2>${icon('branch')}</div><div class="candidate-body"><span class="candidate-ready">${icon('check')} Repository snapshot saved</span><p>Download the captured changes and their manifest for review in your own tools.</p>${candidate.headSha ? `<p class="mono">${escape(candidate.headSha.slice(0,12))}${candidate.fileCount !== undefined ? ` · ${escape(candidate.fileCount)} changed files` : ''}</p>` : ''}<div class="candidate-downloads">${[['bundle','Git bundle','branch'],['patch','Binary patch','code'],['manifest','Manifest','shield'],['attestation','Signed provenance','shield'],['trace','Agent Trace','layers']].filter(([format]) => candidate.formats?.includes(format)).map(([format,label,glyph]) => `<button class="button secondary full" data-action="candidate-download" data-format="${format}">${icon(glyph)}${label}${icon('download')}</button>`).join('')}</div><p class="candidate-review-note">Human review and your repository’s checks are still required. No changes have been pushed or merged.</p></div></section>`;
 }
 
+function executionOwnershipMarkup(session) {
+  const binding = session.execution;
+  if (!binding) return '';
+  const canSupervise = state.bootstrap.user.role !== 'viewer' && (state.bootstrap.user.role === 'admin' || state.bootstrap.user.id === session.ownerId) && ['running', 'waiting_input'].includes(session.status);
+  const human = binding.supervision === 'human';
+  const link = /^[1-9][0-9]{0,19}$/.test(binding.workItemId) ? `<a class="ploeg-link" href="#ploeg/${binding.workItemId}">Inspect Ploeg work ${icon('arrow')}</a>` : '';
+  return `<section class="execution-ownership" aria-label="Ploeg execution ownership"><span class="execution-ownership-icon">${icon('shield')}</span><div><strong>Ploeg owns this execution</strong><p>${escape(binding.team)} · ${human ? 'Human supervised' : 'Background supervision'} · ${escape(binding.state.replaceAll('_', ' '))}</p><small>The same execution and workspace continue when supervision changes.</small></div><div class="execution-ownership-actions">${link}${canSupervise ? `<button class="button secondary" data-action="supervision" data-supervision="${human ? 'background' : 'human'}" ${state.busy ? 'disabled' : ''}>${icon(human ? 'layers' : 'activity')}${human ? 'Continue in background' : 'Supervise here'}</button>` : ''}</div></section>`;
+}
+
 function renderSession() {
   const session = state.session;
   if (!session) return;
@@ -283,7 +294,7 @@ function renderSession() {
   const shownSpend = liveSpend ? session.observedUsd : session.spentUsd;
   const controls = `${session.status === 'queued' ? '<button class="button primary" data-action="start">Start crew '+icon('play')+'</button>' : ''}${['running','waiting_input'].includes(session.status) ? '<button class="button secondary" data-action="pause">'+icon('pause')+' Pause</button>' : ''}${['paused','interrupted'].includes(session.status) ? '<button class="button primary" data-action="resume">'+icon('play')+' Resume</button>' : ''}${!finished ? '<button class="button text-button danger" data-action="cancel">'+icon('stop')+' Cancel</button>' : ''}`;
   const content = `<div class="session-topline"><a href="#sessions" class="back-link">${icon('back')} All sessions</a><div>${status(session.status)}<span class="tag">${escape(runtimeName(session.runtime))}</span>${session.placement ? `<span class="tag">${escape(placementName(session.placement))}</span>` : ''}</div></div><section class="session-brief panel"><div><div class="brief-meta"><span>${icon('folder')}${escape(repoName(session.repositoryId))}</span><span>${icon('layers')}${escape(crewName(session.crewId))}</span><span>${icon('clock')}Created ${escape(ago(session.createdAt))}</span></div><p>${escape(session.objective)}</p></div><div class="session-controls">${canOperate ? controls : ''}<button class="button secondary" data-action="export">${icon('download')} Export handoff</button></div></section>
-    ${sourceTaskMarkup(session)}${failureNotice(session)}
+    ${sourceTaskMarkup(session)}${executionOwnershipMarkup(session)}${failureNotice(session)}
     ${session.status === 'completed' ? session.review ? `<div class="notice ${session.review.decision === 'accepted' ? 'notice-success' : 'notice-warning'}">${icon(session.review.decision === 'accepted' ? 'check' : 'info')}<div><strong>${session.review.decision === 'accepted' ? 'Accepted' : 'Rejected'} by ${escape(session.review.byName)} · ${escape(ago(session.review.at))}</strong>${session.review.note ? `<p>${escape(session.review.note)}</p>` : '<p>No note.</p>'}<p class="form-help">Recorded in the session history. Nothing was pushed or merged by the workbench.</p></div></div>` : `<div class="notice notice-success">${icon('check')}<div><strong>Your review is next.</strong><p>The crew finished and the candidate is captured. Inspect the changes, checks and transcripts, then record your decision. Nothing has been pushed or merged.</p></div>${canOperate ? `<div class="permission-actions"><button class="button primary" data-action="review" data-decision="accepted">Accept</button><button class="button secondary" data-action="review" data-decision="rejected">Reject…</button><button class="button text-button" data-action="tab" data-id="diff">Inspect changes ${icon('arrow')}</button></div>` : ''}</div>` : ''}
     ${runCards(session)}<div class="session-grid"><section class="panel execution-panel"><div class="tabs" role="tablist" aria-label="Session evidence">${evidenceTabs.map(([id,glyph,label]) => `<button role="tab" id="evidence-tab-${id}" aria-controls="evidence-panel-${id}" tabindex="${state.tab === id ? '0' : '-1'}" aria-selected="${state.tab === id}" data-action="tab" data-id="${id}" class="${state.tab === id ? 'selected' : ''}">${icon(glyph)}${label}${id === 'diff' || id === 'test' ? `<span>${session.artifacts.filter(artifact => artifact.kind === id).length}</span>` : ''}</button>`).join('')}</div>${evidenceTabs.map(([id]) => `<div class="tab-content" role="tabpanel" id="evidence-panel-${id}" aria-labelledby="evidence-tab-${id}" tabindex="0" data-tab="${id}" data-session-id="${escape(session.id)}" ${state.tab === id ? '' : 'hidden'}>${state.tab === id ? id === 'stream' ? streamMarkup() : id === 'gateway' ? gatewayMarkup() : artifactMarkup(id) : ''}</div>`).join('')}${!finished && session.status !== 'exporting' && canOperate ? `<form class="composer" data-form="message"><label for="operator-message">Steer the next execution</label><div><textarea id="operator-message" name="text" rows="2" placeholder="Add a constraint, clarify the objective, or leave a handoff note…" required>${escape(state.draft)}</textarea><button class="button primary icon-only" type="submit" aria-label="Save instruction">${icon('send')}</button></div><p>Instructions are saved durably. Pause and resume to apply them to the current role.</p></form>` : ''}</section><aside class="right-column">${permissionsMarkup()}${candidateMarkup(session)}<section class="panel budget-panel"><div class="panel-heading"><h2>Session budget</h2>${icon('shield')}</div><div class="budget-value">${money(shownSpend)}<span> / ${money(session.budgetUsd)}</span></div><progress max="${session.budgetUsd || 1}" value="${Math.min(shownSpend, session.budgetUsd)}" aria-label="Recorded session spend"></progress><div class="budget-details"><span>Accounting</span><strong>${escape(session.costStatus === 'demo' ? 'Demo · no charge' : liveSpend ? 'Observed at the gateway · settles later' : session.costStatus === 'unknown' ? 'Unresolved · hold retained' : session.costStatus === 'pending' ? 'Awaiting gateway settlement' : 'Settled')}</strong></div>${costCurve(session)}${(session.usage || []).length ? `<dl class="usage-list">${session.usage.map(entry => `<dt>${escape(entry.group ? `${entry.group} → ${entry.model}` : entry.model)}</dt><dd>${entry.requests} request${entry.requests === 1 ? '' : 's'}${entry.failures ? ` · ${entry.failures} refused` : ''} · ${money(entry.usd)}</dd>`).join('')}</dl>` : ''}<p>${session.costStatus === 'demo' ? 'This session uses a deterministic demonstration runtime. No tokens are consumed.' : session.costStatus === 'unknown' ? 'Unknown usage is never treated as zero. Previous authorization stays reserved.' : 'A scoped gateway key bounds this engagement. Model usage is reconciled independently.'}</p>${state.bootstrap.observability?.grafanaUrl && state.bootstrap.observability.dashboards?.spend ? `<a class="external-link" href="${escape(`${state.bootstrap.observability.grafanaUrl.replace(/\/$/, '')}/d/${state.bootstrap.observability.dashboards.spend}`)}" target="_blank" rel="noopener noreferrer">Cost per run on Grafana ${icon('external')}</a>` : ''}${state.bootstrap.user.role === 'admin' && !finished && session.status !== 'exporting' ? '<button class="button secondary full" data-action="budget">Authorize more budget</button>' : ''}</section><section class="panel details-panel"><div class="panel-heading"><h2>Working context</h2></div><dl><dt>Branch</dt><dd class="mono">${escape(session.branch)}</dd><dt>Model</dt><dd>${escape(session.model ? (state.bootstrap.models.find(model => model.id === session.model) || { name: session.model }).name : 'Crew default')}</dd><dt>Operator</dt><dd>${escape(session.ownerName)}</dd><dt>Explicit reviews</dt><dd>${approved} of ${session.runs.filter(run => run.mode === 'read').length}</dd><dt>Session</dt><dd class="mono">${escape(session.id.slice(0,8))}</dd></dl>${session.trackerUrl ? `<a class="external-link" href="${escape(session.trackerUrl)}" target="_blank" rel="noopener noreferrer">Open tracker ${icon('external')}</a>` : ''}${state.sessions.some(other => other.id !== session.id && other.repositoryId === session.repositoryId) ? `<button class="button secondary full" data-action="compare">Compare with another session</button>` : ''}</section></aside></div>`;
   renderHtml(shell(content, session.title, 'A bounded objective. A visible crew. Reviewable evidence.'));
@@ -313,9 +324,59 @@ function renderAccount() {
 }
 
 function renderPloeg() {
-  const ploeg = state.ploeg;
-  const content = `<section class="panel"><div class="panel-heading"><div><h2>Unattended dispatch</h2><p>Ploeg owns the queue, leases and execution of assigned tracker work.</p></div><span class="tag">READ-ONLY CONNECTION</span></div>${!ploeg ? '<div class="empty compact"><p>Checking the configured connection…</p></div>' : !ploeg.configured ? `<div class="empty"><span class="empty-icon">${icon('layers')}</span><h3>Connect your existing dispatch plane</h3><p>Configure Ploeg’s internal URL and team IDs on the server. This view then shows the actual queue depth for each team.</p><div class="connection-example"><code>ploeg.url</code><span>Internal Ploeg API</span><code>ploeg.teams</code><span>Registered team IDs</span></div></div>` : `<div class="queue-grid">${ploeg.teams.map(team => `<article><span class="tiny-label">${escape(team.team)}</span><strong>${team.available ? team.depth : '—'}</strong><p>${team.available ? 'queued work items' : escape(team.message)}</p></article>`).join('')}</div><div class="panel-bottom"><p>${escape(ploeg.message)}</p>${ploeg.trackerUrl ? `<a class="button secondary" href="${escape(ploeg.trackerUrl)}" target="_blank" rel="noopener noreferrer">Open tracker ${icon('external')}</a>` : ''}</div>`}</section>`;
-  renderHtml(shell(content, 'Ploeg queues', 'Interactive work here. Assigned delivery work in Ploeg.'));
+  renderHtml(shell(ploegMarkup(state, { escape, icon, money, safeUrl, ago }), 'Ploeg', 'The work in motion. The decisions that need you.'));
+}
+
+async function loadPloeg(team, id, fresh = false) {
+  const request = ++state.ploegRequest;
+  state.ploegLoading = true;
+  state.ploegDetailLoading = Boolean(id);
+  state.ploegDetail = null;
+  state.ploegDetailError = '';
+  state.ploeg = null;
+  renderPloeg();
+  try {
+    let detail;
+    if (id) {
+      try { detail = await api(`/api/ploeg/work-items/${encodeURIComponent(id)}${fresh ? '?refresh=1' : ''}`); }
+      catch (error) { if (request !== state.ploegRequest || !state.bootstrap) return; state.ploegDetailError = error.message; }
+    }
+    if (request !== state.ploegRequest || !state.bootstrap) return;
+    const query = new URLSearchParams();
+    if (detail?.item.team || team) query.set('team', detail?.item.team || team);
+    if (fresh) query.set('refresh', '1');
+    const [data, sessions] = await Promise.all([api(`/api/ploeg?${query}`), api('/api/sessions')]);
+    if (request !== state.ploegRequest || state.view !== 'ploeg' || !state.bootstrap) return;
+    state.ploeg = data;
+    state.sessions = sessions;
+    state.ploegDetail = data.available ? detail || null : null;
+  } catch (error) {
+    if (request !== state.ploegRequest || state.view !== 'ploeg' || !state.bootstrap) return;
+    state.ploeg = { configured: true, available: false, demo: false, teams: [], message: error.message };
+  } finally {
+    if (request === state.ploegRequest && state.view === 'ploeg' && state.bootstrap) {
+      state.ploegLoading = false; state.ploegDetailLoading = false; renderPloeg();
+      if (state.ploegDetail) $('#ploeg-item-title')?.focus({ preventScroll: true });
+    }
+  }
+}
+
+async function loadMorePloeg() {
+  const lane = state.ploegLane;
+  const data = state.ploeg;
+  const page = data?.lanes?.[lane];
+  if (state.ploegLoading || !page?.nextCursor) return;
+  const request = state.ploegRequest;
+  state.ploegLoading = true; renderPloeg();
+  try {
+    const query = new URLSearchParams({ team: data.selectedTeam, state: lane, after: page.nextCursor });
+    const next = await api(`/api/ploeg/work-items?${query}`);
+    if (request !== state.ploegRequest || !state.bootstrap) return;
+    const seen = new Set(page.items.map(item => item.id));
+    page.items.push(...next.items.filter(item => !seen.has(item.id)));
+    page.nextCursor = next.nextCursor;
+  } catch (error) { if (state.bootstrap) notify(error.message, true); }
+  finally { if (request === state.ploegRequest && state.bootstrap) { state.ploegLoading = false; if (state.view === 'ploeg') renderPloeg(); } }
 }
 
 function taskPreviewMarkup() {
@@ -325,8 +386,11 @@ function taskPreviewMarkup() {
   if (!task) return `<div class="empty task-preview-empty"><span class="empty-icon">${icon('branch')}</span><h3>Select a task. Shape the work.</h3><p>Review the source brief, choose your crew, then start a session when you are ready.</p>${state.taskPreviewError ? `<p class="form-error" role="alert">${escape(state.taskPreviewError)}</p>` : ''}</div>`;
   const draft = state.taskDraft;
   const link = safeUrl(task.url);
-  const blocked = source?.executionOwner === 'ploeg' || state.bootstrap.user.role === 'viewer' || task.status !== 'open';
-  return `<article class="task-preview" aria-labelledby="task-preview-title"><header><div><span class="tiny-label">SOURCE BRIEF · ${escape(providerName(task.provider))}</span><h2 id="task-preview-title">${escape(task.title)}</h2></div>${link ? `<a class="icon-button" href="${escape(link)}" target="_blank" rel="noopener noreferrer" aria-label="Open original task">${icon('external')}</a>` : ''}</header><div class="task-preview-meta"><span class="tag">${escape(task.status)}</span><span>${icon('folder')}${escape(repoName(task.repositoryId))}</span><span class="mono">#${escape(task.id)}</span></div><div class="task-description">${escape(task.description || 'This task has no description. Review the original task before starting work.')}</div><div class="task-revision"><span>Snapshot ${escape(task.revision.slice(0,12))}</span>${task.updatedAt ? `<span>Updated ${escape(ago(task.updatedAt))}</span>` : ''}</div>${state.taskChanged ? '<div class="notice notice-warning task-import-notice" role="alert"><div><strong>The source task changed.</strong><p>This is its latest version. Review the updated brief before creating the session. Your crew and budget choices are preserved.</p></div></div>' : ''}${state.taskPreviewError ? `<div class="form-error task-import-notice" role="alert">${escape(state.taskPreviewError)}</div>` : ''}${source?.executionOwner === 'ploeg' ? `<div class="notice task-import-notice"><div><strong>Ploeg manages this connection.</strong><p>Interactive import is disabled. Use your tracker’s assignment workflow for unattended delivery.</p></div></div>` : state.bootstrap.user.role === 'viewer' ? '<div class="notice task-import-notice">Your account can inspect tasks. An operator can create a session.</div>' : blocked ? '<div class="notice task-import-notice">Only open tasks can be imported. Check its state in the source system before starting work.</div>' : `<form data-form="task-import" class="task-import-form"><div class="task-import-heading"><span class="tiny-label">YOUR WORKING AGREEMENT</span><h3>Bring this task onto the floor.</h3><p>The registered repository is fixed by this connection. You choose the crew and spending limit.</p></div><div class="form-grid"><label>Crew<select id="task-crew" name="crewId">${state.bootstrap.crews.map(crew => `<option value="${escape(crew.id)}" ${draft.crewId === crew.id ? 'selected' : ''}>${escape(crew.name)}</option>`).join('')}</select></label><label>Runtime<select id="task-runtime" name="runtime">${state.bootstrap.runtimes.map(runtime => `<option value="${escape(runtime.id)}" ${draft.runtime === runtime.id ? 'selected' : ''}>${escape(runtime.name)}</option>`).join('')}</select></label>${placementField('task', draft.placement)}<label>Session budget · USD<input id="task-budget" name="budgetUsd" type="number" min="0.01" max="${state.bootstrap.maxBudgetUsd}" step="0.01" value="${escape(draft.budgetUsd)}" required></label><div class="task-start-contract">${icon('shield')}<span>Created ready to start.<br>You decide when the crew runs.</span></div></div><button class="button primary full" type="submit" ${state.taskImporting ? 'disabled' : ''}>${state.taskImporting ? 'Creating session…' : 'Create session'} ${icon('arrow')}</button><p class="form-help">The source task stays in its tracker. Importing does not assign it, change its status or start model usage.</p></form>`}</article>`;
+  const shared = state.bootstrap.sharedExecution;
+  const bindingBlocked = shared ? !task.ploeg || Boolean(task.ploegUnavailable) : source?.executionOwner === 'ploeg';
+  const blocked = bindingBlocked || state.bootstrap.user.role === 'viewer' || task.status !== 'open';
+  const bindingNotice = task.ploeg ? `<div class="notice task-import-notice"><div><strong>Continue the existing Ploeg work item.</strong><p><a href="#ploeg/${escape(task.ploeg.workItemId)}">Work item #${escape(task.ploeg.workItemId)}</a> · ${escape(task.ploeg.expectedTarget.owner)}/${escape(task.ploeg.expectedTarget.repo)} · ${escape(task.ploeg.expectedTarget.baseBranch)}</p><p>Import prepares your session. Start checks the source again and claims this item for your crew.</p></div></div>` : '';
+  return `<article class="task-preview" aria-labelledby="task-preview-title"><header><div><span class="tiny-label">SOURCE BRIEF · ${escape(providerName(task.provider))}</span><h2 id="task-preview-title">${escape(task.title)}</h2></div>${link ? `<a class="icon-button" href="${escape(link)}" target="_blank" rel="noopener noreferrer" aria-label="Open original task">${icon('external')}</a>` : ''}</header><div class="task-preview-meta"><span class="tag">${escape(task.status)}</span><span>${icon('folder')}${escape(repoName(task.repositoryId))}</span><span class="mono">#${escape(task.id)}</span></div><div class="task-description">${escape(task.description || 'This task has no description. Review the original task before starting work.')}</div><div class="task-revision"><span>Snapshot ${escape(task.revision.slice(0,12))}</span>${task.updatedAt ? `<span>Updated ${escape(ago(task.updatedAt))}</span>` : ''}</div>${state.taskChanged ? '<div class="notice notice-warning task-import-notice" role="alert"><div><strong>The source task changed.</strong><p>This is its latest version. Review the updated brief before creating the session. Your crew and budget choices are preserved.</p></div></div>' : ''}${state.taskPreviewError ? `<div class="form-error task-import-notice" role="alert">${escape(state.taskPreviewError)}</div>` : ''}${bindingNotice}${bindingBlocked ? `<div class="notice task-import-notice"><div><strong>Ploeg binding needs attention.</strong><p>${escape(task.ploegUnavailable?.message || 'This connection needs its registered Ploeg tracker target before you can import work here.')}</p></div></div>` : state.bootstrap.user.role === 'viewer' ? '<div class="notice task-import-notice">Your account can inspect tasks. An operator can create a session.</div>' : blocked ? '<div class="notice task-import-notice">Only open tasks can be imported. Check its state in the source system before starting work.</div>' : `<form data-form="task-import" class="task-import-form"><div class="task-import-heading"><span class="tiny-label">YOUR WORKING AGREEMENT</span><h3>Bring this task onto the floor.</h3><p>The registered repository is fixed by this connection. You choose the crew and spending limit.</p></div><div class="form-grid"><label>Crew<select id="task-crew" name="crewId">${state.bootstrap.crews.map(crew => `<option value="${escape(crew.id)}" ${draft.crewId === crew.id ? 'selected' : ''}>${escape(crew.name)}</option>`).join('')}</select></label><label>Runtime<select id="task-runtime" name="runtime">${state.bootstrap.runtimes.map(runtime => `<option value="${escape(runtime.id)}" ${draft.runtime === runtime.id ? 'selected' : ''}>${escape(runtime.name)}</option>`).join('')}</select></label>${placementField('task', draft.placement)}<label>Session budget · USD<input id="task-budget" name="budgetUsd" type="number" min="0.01" max="${state.bootstrap.maxBudgetUsd}" step="0.01" value="${escape(draft.budgetUsd)}" required></label><div class="task-start-contract">${icon('shield')}<span>Created ready to start.<br>You decide when the crew runs.</span></div></div><button class="button primary full" type="submit" ${state.taskImporting ? 'disabled' : ''}>${state.taskImporting ? 'Creating session…' : 'Create session'} ${icon('arrow')}</button><p class="form-help">The source task stays in its tracker. Importing does not assign it, change its status or start model usage.</p></form>`}</article>`;
 }
 
 function renderTasks() {
@@ -340,7 +404,7 @@ function renderTasks() {
 
 function openConnections() {
   const dialog = $('#task-connections');
-  dialog.innerHTML = `<header class="dialog-header"><div><p class="eyebrow">LINK THE SYSTEMS YOU USE</p><h2 id="connections-title">Your tasks, connected.</h2></div><button class="icon-button" data-action="close-connections" aria-label="Close connections">${icon('x')}</button></header><div class="dialog-body"><div class="provider-chips">${['forgejo','github','gitlab','clickup','vikunja'].map(provider => `<span>${escape(providerName(provider))}</span>`).join('')}</div><p>An administrator links each project or list to a registered repository. Everyone then uses the same task preview and session workflow.</p><ol class="connection-steps"><li><strong>Register the connection</strong><span>Set its provider, server address and project or list in the server’s taskSources configuration.</span></li><li><strong>Supply a read-only credential</strong><span>Store the token in the server environment and reference its variable name in the connection. Credentials stay on the server.</span></li><li><strong>Choose who owns execution</strong><span>Use interactive for operator-created sessions, or ploeg to keep the connection under unattended dispatch.</span></li></ol><p class="form-help">Setup examples for all five providers ship in docs/operations/task-connections.md. Restart the server after updating its configuration.</p>${taskSources().length ? `<div class="configured-connections"><h3>Registered connections</h3>${taskSources().map(source => `<div><span><strong>${escape(source.name)}</strong><small>${escape(providerName(source.provider))} → ${escape(repoName(source.repositoryId))}</small></span><span class="tag">${source.executionOwner === 'ploeg' ? 'Ploeg managed' : 'Operator led'}</span></div>`).join('')}</div>` : ''}</div><footer class="dialog-footer"><button class="button primary" data-action="close-connections">Done</button></footer>`;
+  dialog.innerHTML = `<header class="dialog-header"><div><p class="eyebrow">LINK THE SYSTEMS YOU USE</p><h2 id="connections-title">Your tasks, connected.</h2></div><button class="icon-button" data-action="close-connections" aria-label="Close connections">${icon('x')}</button></header><div class="dialog-body"><div class="provider-chips">${['forgejo','github','gitlab','clickup','vikunja'].map(provider => `<span>${escape(providerName(provider))}</span>`).join('')}</div><p>An administrator links each project or list to a registered repository. Everyone then uses the same task preview and session workflow.</p><ol class="connection-steps"><li><strong>Register the connection</strong><span>Set its provider, server address and project or list in the server’s taskSources configuration.</span></li><li><strong>Supply a read-only credential</strong><span>Store the token in the server environment and reference its variable name in the connection. Credentials stay on the server.</span></li><li><strong>Choose who owns execution</strong><span>Use interactive for standalone sessions. Shared execution uses ploeg with an explicit registered tracker target, so Start claims the existing work item.</span></li></ol><p class="form-help">Setup examples for all five providers ship in docs/operations/task-connections.md. Restart the server after updating its configuration.</p>${taskSources().length ? `<div class="configured-connections"><h3>Registered connections</h3>${taskSources().map(source => `<div><span><strong>${escape(source.name)}</strong><small>${escape(providerName(source.provider))} → ${escape(repoName(source.repositoryId))}</small></span><span class="tag">${source.executionOwner === 'ploeg' ? 'Ploeg managed' : 'Operator led'}</span></div>`).join('')}</div>` : ''}</div><footer class="dialog-footer"><button class="button primary" data-action="close-connections">Done</button></footer>`;
   dialog.showModal();
 }
 
@@ -484,14 +548,15 @@ async function openSession(id) {
 async function route() {
   if (!state.bootstrap) return;
   const hash = location.hash.slice(1) || 'sessions';
+  state.ploegRequest++;
   try {
+    if (hash === 'ploeg' || hash.startsWith('ploeg/')) { disconnect(); state.session = null; state.view = 'ploeg'; return await loadPloeg(state.ploeg?.selectedTeam, hash.startsWith('ploeg/') ? hash.slice(6) : undefined); }
     if (hash.startsWith('session/')) return await openSession(hash.slice(8));
     if (hash.startsWith('compare/')) { const [left, right] = hash.slice(8).split('/'); disconnect(); state.session = null; state.view = 'compare'; state.compare = null; renderCompare(); state.compare = await Promise.all([api(`/api/sessions/${encodeURIComponent(left)}`), api(`/api/sessions/${encodeURIComponent(right)}`)]); return renderCompare(); }
     disconnect(); state.session = null; state.view = ['sessions','tasks','ploeg','account','system'].includes(hash) ? hash : 'sessions';
     state.sessions = await api('/api/sessions'); render();
     if (state.view === 'tasks' && !state.links) { try { state.links = (await api('/api/links')).links; } catch { state.links = []; } }
     if (state.view === 'tasks' && taskSources().length) await loadTasks(state.taskSourceId || taskSources()[0].id);
-    if (state.view === 'ploeg') { state.ploeg = await api('/api/ploeg'); renderPloeg(); }
     if (state.view === 'account') { state.links = (await api('/api/links')).links; renderAccount(); }
     if (state.view === 'system') { state.health = await api('/api/health'); renderSystem(); }
   } catch (error) { notify(error.message, true); if (state.bootstrap) { state.view = 'sessions'; renderDashboard(); } }
@@ -541,7 +606,12 @@ document.addEventListener('click', async event => {
   if (!button || button.disabled) return;
   const action = button.dataset.action;
   try {
-    if (action === 'new') openNew();
+    if (action === 'ploeg-refresh') await loadPloeg(state.ploeg?.selectedTeam, location.hash.startsWith('#ploeg/') ? location.hash.slice(7) : undefined, true);
+    else if (action === 'ploeg-item') location.hash = `ploeg/${button.dataset.id}`;
+    else if (action === 'ploeg-close') location.hash = 'ploeg';
+    else if (action === 'ploeg-lane' && ploegLanes.some(([id]) => id === button.dataset.id)) { state.ploegLane = button.dataset.id; renderPloeg(); }
+    else if (action === 'ploeg-more') await loadMorePloeg();
+    else if (action === 'new') openNew();
     else if (action === 'connections') openConnections();
     else if (action === 'close-connections') $('#task-connections').close();
     else if (action === 'task-source') await loadTasks(button.dataset.id);
@@ -566,9 +636,14 @@ document.addEventListener('click', async event => {
     }
     else if (action === 'retry') { button.disabled = true; try { await api(`/api/sessions/${state.session.id}/retry`, { method: 'POST', body: '{}' }); notify('Trying again. The crew starts from the beginning.'); await openSession(state.session.id); } catch (error) { notify(error.message, true); button.disabled = false; } }
     else if (action === 'duplicate') { const source = state.session; location.hash = 'sessions'; openNew(); const form = $('#new-session form'); if (form) { for (const [name, value] of Object.entries({ title: source.title, objective: source.objective, repositoryId: source.repositoryId, crewId: source.crewId, model: source.model || '', budgetUsd: source.budgetUsd })) { const field = form.elements[name]; if (field) field.value = value; } if (source.placement && form.elements.placement) form.elements.placement.value = source.placement; if (source.approval === 'auto' && form.elements.approval) form.elements.approval.checked = true; } }
-    else if (action === 'logout') { await api('/api/logout', { method: 'POST', body: '{}' }); state.bootstrap = null; disconnect(); renderLogin(); }
+    else if (action === 'logout') { await api('/api/logout', { method: 'POST', body: '{}' }); state.bootstrap = null; state.ploeg = null; state.ploegDetail = null; state.ploegRequest++; disconnect(); renderLogin(); }
     else if (action === 'compare') openCompareDialog();
     else if (action === 'approval') { button.disabled = true; try { state.session = await api(`/api/sessions/${state.session.id}/approval`, { method: 'POST', body: JSON.stringify({ approval: button.dataset.approval }) }); notify(button.dataset.approval === 'auto' ? 'The crew now works without asking for each tool.' : 'The crew asks you again before each tool.'); renderSession(); } finally { button.disabled = false; } }
+    else if (action === 'supervision' && state.session && !state.busy) {
+      const id = state.session.id; state.busy = true; renderSession();
+      try { const session = await api(`/api/sessions/${id}/supervision`, { method: 'POST', body: JSON.stringify({ supervision: button.dataset.supervision }) }); if (state.view === 'session' && state.session?.id === id) state.session = session; notify('Supervision updated on the existing Ploeg execution.'); }
+      finally { state.busy = false; if (state.bootstrap && state.view === 'session' && state.session?.id === id) renderSession(); }
+    }
     else if (action === 'permission') { button.disabled = true; await api(`/api/sessions/${state.session.id}/permissions/${button.dataset.id}`, { method: 'POST', body: JSON.stringify({ decision: button.dataset.decision }) }); notify('Your decision was delivered to the runtime.'); }
     else if (action === 'budget') {
       const dialog = $('#confirm-dialog');
@@ -590,6 +665,7 @@ document.addEventListener('input', event => {
   if (event.target.closest('[data-form="task-import"]') && state.taskDraft) state.taskDraft[event.target.name] = event.target.value;
 });
 document.addEventListener('change', event => {
+  if (event.target.id === 'ploeg-team') { history.replaceState(null, '', '#ploeg'); loadPloeg(event.target.value); }
   const select = event.target.closest('[data-model-select]');
   if (select) { const hint = document.querySelector('[data-model-hint]'); if (hint && state.models) hint.innerHTML = modelHint(state.models, select.value); }
   if (event.target.closest('[data-form="task-import"]') && state.taskDraft) state.taskDraft[event.target.name] = event.target.value;
@@ -617,12 +693,12 @@ document.addEventListener('submit', async event => {
       const selected = state.task;
       const existingIds = new Set(state.sessions.map(session => session.id));
       try {
-        const session = await api('/api/task-imports', { method: 'POST', body: JSON.stringify({ sourceId: selected.sourceId, taskId: selected.id, revision: selected.revision, crewId: data.crewId, runtime: data.runtime, ...(data.placement ? { placement: data.placement } : {}), budgetUsd: Number(data.budgetUsd) }) });
+        const session = await api('/api/task-imports', { method: 'POST', body: JSON.stringify({ sourceId: selected.sourceId, taskId: selected.id, revision: selected.revision, ...(selected.bindingRevision ? { bindingRevision: selected.bindingRevision } : {}), crewId: data.crewId, runtime: data.runtime, ...(data.placement ? { placement: data.placement } : {}), budgetUsd: Number(data.budgetUsd) }) });
         state.sessions = [session, ...state.sessions.filter(item => item.id !== session.id)]; state.tab = 'stream';
         location.hash = `session/${session.id}`;
         notify(existingIds.has(session.id) ? 'Opened the existing session for this task. No additional work was started.' : 'Task imported. Review the brief, then start the crew when you are ready.');
       } catch (error) {
-        if (error.status === 409 && error.code === 'task_changed' && state.view === 'tasks' && state.taskSourceId === selected.sourceId) {
+        if (error.status === 409 && ['task_changed', 'task_binding_changed'].includes(error.code) && state.view === 'tasks' && state.taskSourceId === selected.sourceId) {
           await openTask(selected.id, true);
           state.taskPreviewError = error.message;
         } else state.taskPreviewError = error.message;

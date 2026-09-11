@@ -5,8 +5,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { SigningKey, changedLineRanges, pae, verifyEnvelope, candidatePredicateType, tracePredicateType } from '../src/attestations.ts';
+import { SigningKey, candidateStatement, changedLineRanges, pae, verifyEnvelope, candidatePredicateType, tracePredicateType } from '../src/attestations.ts';
 import { application, createSession, request, sessionUntil } from './api-support.ts';
+import { fixture } from './task-binding-support.ts';
 
 test('DSSE envelopes use the in-toto payload type, the PAE encoding and verify only with the matching Ed25519 key', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'vloer-attest-'));
@@ -73,4 +74,26 @@ test('a captured candidate ships a signed provenance statement and an Agent Trac
   const patch = await readFile(join(directory, 'candidate.patch'));
   await writeFile(join(directory, 'candidate.patch'), Buffer.concat([patch, Buffer.from('\n')]));
   assert.throws(() => execFileSync(process.execPath, [script, directory, join(directory, 'key.pub')], { encoding: 'utf8', stdio: 'pipe' }), 'a modified patch must fail verification');
+});
+
+test('candidate provenance signs the canonical tracker binding independently from the preview hash', async t => {
+  const f = await fixture(t);
+  const session = await f.imported();
+  const statement = candidateStatement({
+    session, config: f.server.config, repository: f.server.config.repositories[0], version: 'test',
+    bundle: Buffer.from('test bundle'), patch: Buffer.from('test patch'), manifestBytes: Buffer.from('{}'),
+    manifest: { version: 1, sessionId: session.id, repositoryId: session.repositoryId, createdAt: session.createdAt, baseSha: 'a'.repeat(40), snapshotBaseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), treeSha: 'c'.repeat(40), history: 'synthetic_snapshot_commits', verification: 'not_performed', publication: 'not_performed', scope: 'base_and_index_tracked_plus_unignored_worktree', files: [], fileCount: 0, bytes: 0, downloads: { bundle: { filename: 'candidate.git.bundle', bytes: 0, sha256: '' }, patch: { filename: 'candidate.patch', bytes: 0, sha256: '' } } },
+  });
+  const key = f.server.app.engine.signing();
+  const envelope = key.sign(statement);
+  const verified = verifyEnvelope(envelope, key.publicPem());
+  assert.equal(verified.valid, true);
+  const source = (verified.statement as any).predicate.session.sourceTask;
+  assert.deepEqual(source.ploeg, session.sourceTask!.ploeg);
+  assert.equal(source.nativeRevision, session.sourceTask!.nativeRevision);
+  assert.equal(source.bindingRevision, session.sourceTask!.bindingRevision);
+  assert.notEqual(source.revision, source.nativeRevision);
+  const altered = JSON.parse(Buffer.from(envelope.payload, 'base64').toString('utf8'));
+  altered.predicate.session.sourceTask.ploeg.workItemId = '123';
+  assert.equal(verifyEnvelope({ ...envelope, payload: Buffer.from(JSON.stringify(altered)).toString('base64') }, key.publicPem()).valid, false);
 });

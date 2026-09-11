@@ -42,3 +42,7 @@ Ploeg ships `ploegctl` or a native event stream, in which case the projection co
 2. PV-080, De Vloer: the client, projection, web view and extension node, replacing the depth tiles.
 3. PV-081, Ploeg and De Vloer: `events` and the read-only Agent Host Protocol projection of Ploeg runs.
 4. PV-024, Ploeg: the write half, after PV-023.
+
+## Implementation evidence — 2026-09-10
+
+The read API, scoped browser projection and editor tree are implemented and qualified in [the unified baseline](../operations/unified-baseline.md). Fleet audit reads explicitly provide snapshot consistency; the proposed lossless fleet stream and AHP projection remain open. Separate operator executions now have serialized revision events and scoped commands under [ADR 0017](0017-delegate-interactive-execution-to-ploeg.md). The proposal above is retained as its original decision context; this dated note records implementation without silently accepting its unimplemented parts.

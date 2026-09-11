@@ -27,7 +27,7 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
       if (config.runtime.kind === 'command') runtimes.set('command', new CommandRuntime(config, workspaces));
     }
   }
-  const broker = config.mode === 'live' && config.litellm ? new LiteLLMBroker(config.litellm) : undefined;
+  const broker = config.mode === 'live' && config.litellm?.masterKey && !config.execution ? new LiteLLMBroker(config.litellm) : undefined;
   const links = new Links(store, config);
   const engine = new Engine(store, config, runtimes, broker, links);
   engine.recover();

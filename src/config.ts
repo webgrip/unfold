@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AppConfig, Repository, Crew, Placement, WorkspaceBackend } from './types.ts';
 import { validateTaskSources } from './tasks.ts';
+import { validatePloeg } from './ploeg.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 export const defaultCrews: Crew[] = [
@@ -29,7 +30,7 @@ function configuredUrl(value: string, name: string): string {
 }
 
 const backendOrder: WorkspaceBackend[] = ['docker', 'kubernetes', 'local'];
-const reservedEnvironment = /^(LITELLM_MASTER_KEY|LITELLM_ADMIN_URL|OPENCODE_SERVER_|VLOER_|KUBERNETES_|DOCKER_HOST|BAO_TOKEN|VAULT_TOKEN|HOME|PATH)/;
+const reservedEnvironment = /^(LITELLM_MASTER_KEY|LITELLM_ADMIN_URL|OPENCODE_SERVER_|VLOER_|PLOEG_|KUBERNETES_|DOCKER_HOST|BAO_TOKEN|VAULT_TOKEN|HOME|PATH)/;
 
 function workspaceBackends(runtime: AppConfig['runtime'], explicitDefault: unknown): WorkspaceBackend[] {
   const declared = (runtime as { backends?: unknown }).backends;
@@ -143,8 +144,6 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     }
   }
   if (raw.kubernetes?.agentSecrets !== undefined && (!Array.isArray(raw.kubernetes.agentSecrets) || raw.kubernetes.agentSecrets.some((name: unknown) => typeof name !== 'string' || !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(name)))) throw new Error('kubernetes.agentSecrets must list Kubernetes Secret names');
-  if (raw.ploeg && (!Array.isArray(raw.ploeg.teams) || raw.ploeg.teams.length > 50 || raw.ploeg.teams.some((team: unknown) => typeof team !== 'string' || !team || team.length > 100))) throw new Error('ploeg.teams must contain at most 50 team names');
-  if (raw.ploeg?.trackerUrl) configuredUrl(raw.ploeg.trackerUrl, 'ploeg.trackerUrl');
   let links: AppConfig['links'];
   if (raw.links !== undefined) {
     if (!raw.links || typeof raw.links !== 'object' || Array.isArray(raw.links)) throw new Error('links must be an object');
@@ -201,12 +200,24 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     auth: { secureCookies: baseUrl?.startsWith('https://') ?? false, sessionHours: 12, bootstrapName: process.env.VLOER_ADMIN_NAME || 'admin', ...raw.auth, bootstrapPassword: process.env.VLOER_ADMIN_PASSWORD },
     maxConcurrentSessions: number(raw.maxConcurrentSessions, 2, 1, 16, 'maxConcurrentSessions'), maxBudgetUsd: number(raw.maxBudgetUsd, 25, 0.01, 10000, 'maxBudgetUsd'),
     kubernetes: raw.kubernetes,
-    ploeg: raw.ploeg ? { ...raw.ploeg, url: configuredUrl(raw.ploeg.url, 'ploeg.url') } : undefined,
+    ploeg: validatePloeg(raw.ploeg, mode),
+    execution: raw.execution,
     links,
     gatewayPolicy,
     observability,
-    litellm: litellmBase && adminKey ? { baseUrl: configuredUrl(litellmBase, 'litellm.baseUrl'), adminUrl: configuredUrl(process.env.LITELLM_ADMIN_URL || raw.litellm?.adminUrl || litellmBase.replace(/\/v1\/?$/, ''), 'litellm.adminUrl'), masterKey: adminKey, models: models.map((model: any) => model.modelId), ttl: raw.litellm?.ttl || '4h', settlementDelayMs: number(raw.litellm?.settlementDelayMs, 60000, 0, 3600000, 'litellm.settlementDelayMs') } : undefined
+    litellm: litellmBase && (adminKey || raw.execution) ? { baseUrl: configuredUrl(litellmBase, 'litellm.baseUrl'), adminUrl: configuredUrl(process.env.LITELLM_ADMIN_URL || raw.litellm?.adminUrl || litellmBase.replace(/\/v1\/?$/, ''), 'litellm.adminUrl'), masterKey: adminKey, models: models.map((model: any) => model.modelId), ttl: raw.litellm?.ttl || '4h', settlementDelayMs: number(raw.litellm?.settlementDelayMs, 60000, 0, 3600000, 'litellm.settlementDelayMs') } : undefined
   };
+  if (config.execution !== undefined) {
+    const value = config.execution;
+    if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(key => !['team', 'heartbeatMs'].includes(key)) || typeof value.team !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,127}$/.test(value.team)) throw new Error('execution requires a configured Ploeg team');
+    if (!config.ploeg || config.ploeg.demo || !config.ploeg.tokenEnv) throw new Error('execution requires a real Ploeg API connection with a server credential');
+    if (config.ploeg.teams && !config.ploeg.teams.includes(value.team)) throw new Error('execution.team must be within the Ploeg consumer scope');
+    value.heartbeatMs = number(value.heartbeatMs, 15000, 1000, 20000, 'execution.heartbeatMs');
+    if (config.runtime.agentEnvironment?.includes(config.ploeg.tokenEnv)) throw new Error('The Ploeg consumer credential must never enter an agent workspace');
+    if (config.litellm) config.litellm.masterKey = '';
+    if (mode === 'live' && !config.litellm?.baseUrl) throw new Error('Ploeg execution requires an inference gateway base URL');
+    if (mode === 'live' && config.gatewayPolicy) throw new Error('Ploeg execution requires provider and region restrictions to be enforced in the control-plane gateway policy');
+  }
   const oidc = (raw.auth ?? {}).oidc;
   if (oidc !== undefined) {
     if (!oidc || typeof oidc !== 'object' || Array.isArray(oidc)) throw new Error('auth.oidc must be an object');
@@ -224,5 +235,6 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   if (raw.runtime?.briefCheck !== undefined && typeof raw.runtime.briefCheck !== 'boolean') throw new Error('runtime.briefCheck must be true or false');
   config.runtime.briefCheck = raw.runtime?.briefCheck ?? true;
   if (!existsSync(config.publicDir)) throw new Error('Browser application directory is missing');
+  if (config.taskSources?.some(source => source.ploeg) && !config.execution) throw new Error('Ploeg tracker targets require shared execution configuration');
   return config;
 }

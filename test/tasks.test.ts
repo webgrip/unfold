@@ -160,6 +160,30 @@ test('task adapters reject global task lookups outside their configured project 
   }
 });
 
+test('resolved tracker credentials are scrubbed from both list and detail prose before hashing', async () => {
+  const payload = issue('clickup', { name: `Fix rounding ${token}`, markdown_description: `Accidental credential echo ${token}; preserve acceptance criteria.` });
+  const remote = await fixture((request, response) => json(response, request.url?.startsWith('/api/v2/task/') ? payload : { tasks: [payload] }));
+  try {
+    const configured = source('clickup', remote.origin);
+    const task = await getTask(configured, 'abc17'); const page = await listTasks(configured);
+    assert(!JSON.stringify(task).includes(token)); assert(!JSON.stringify(page).includes(token));
+    assert.equal(task.revision, page.tasks[0].revision); assert.match(task.title, /\[redacted\]/); assert.match(task.description, /\[redacted\]/);
+  } finally { await remote.close(); }
+});
+
+test('credential material in opaque native revisions or returned links rejects the snapshot', async () => {
+  const nativeRevision = String(Date.parse(date));
+  const clickup = await fixture((_request, response) => json(response, issue('clickup')));
+  try { await assert.rejects(getTask({ ...source('clickup', clickup.origin), token: nativeRevision }, 'abc17'), expectedError('task_sensitive_response')); }
+  finally { await clickup.close(); }
+  const linkToken = 'fixture/linked-credential+unsafe';
+  let origin = '';
+  const gitlab = await fixture((_request, response) => json(response, issue('gitlab', { web_url: `${origin}/team/${encodeURIComponent(linkToken)}/-/issues/17` })));
+  origin = gitlab.origin;
+  try { await assert.rejects(getTask({ ...source('gitlab', origin), project: '42', token: linkToken }, '17'), expectedError('task_sensitive_response')); }
+  finally { await gitlab.close(); }
+});
+
 test('closed tasks remain readable, unknown states fail closed, and pull requests cannot become tasks', async () => {
   for (const provider of ['forgejo', 'github', 'gitlab', 'clickup', 'vikunja'] as const) {
     let raw = issue(provider, provider === 'vikunja' ? { done: true } : provider === 'clickup' ? { status: { type: 'done' } } : { state: 'closed' });

@@ -14,6 +14,7 @@ import { protocolVersion as agentHostProtocolVersion } from './ahp/host.ts';
 import type { Links } from './links.ts';
 import type { Oidc } from './oidc.ts';
 import { readFileSync } from 'node:fs';
+import { PloegClient, PloegError, type PloegState } from './ploeg.ts';
 
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
 
@@ -66,8 +67,9 @@ function mutationGuard(req: IncomingMessage, config: AppConfig): void {
 
 export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost, links?: Links, oidc?: Oidc) {
   const auth = new Auth(store, config);
+  const ploeg = new PloegClient(config);
   const streams = new Set<ServerResponse>();
-  const knownSecrets = [config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword, ...(config.taskSources ?? []).map(source => source.token)].filter((value): value is string => Boolean(value));
+  const knownSecrets = [config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword, config.ploeg?.tokenEnv ? process.env[config.ploeg.tokenEnv] : undefined, ...(config.taskSources ?? []).map(source => source.token)].filter((value): value is string => Boolean(value));
   function sanitize<T>(value: T): T {
     if (typeof value === 'string') {
       let cleaned: string = value;
@@ -165,7 +167,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         const user = auth.user(req);
         if (!user) return json(res, 401, { error: { code: 'unauthenticated', message: 'Sign in to your workbench.' } });
         if (method === 'GET' && path === '/api/bootstrap') return json(res, 200, sanitize({
-          user, mode: config.mode, gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined,
+          user, mode: config.mode, sharedExecution: Boolean(config.execution), gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined,
           gatewayPolicy: config.gatewayPolicy ?? null,
           observability: config.observability ?? null,
           repositories: config.repositories.map(({ id, name, description, baseBranch, trackerUrl, executionOwner }) => ({ id, name, description, baseBranch, trackerUrl, executionOwner: executionOwner ?? 'interactive' })),
@@ -216,7 +218,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const source = config.taskSources?.find(item => item.id === taskRoute[1]);
           if (!source) fault(404, 'source_not_found', 'Task connection not found.');
           const resolved = await withUserToken(source!);
-          if (taskRoute[2]) return json(res, 200, sanitize(await getTask(resolved, taskRoute[2])));
+          if (taskRoute[2]) return json(res, 200, sanitize(await engine.previewTask(await getTask(resolved, taskRoute[2]), user)));
           const page = Number(url.searchParams.get('page') ?? 1);
           if (!Number.isSafeInteger(page) || page < 1 || page > 1000) fault(400, 'page', 'Choose a page between 1 and 1000.');
           return json(res, 200, sanitize(await listTasks(resolved, page)));
@@ -231,12 +233,12 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const runtime = text(data.runtime, 'Runtime', 32) as RuntimeKind;
           const source = config.taskSources?.find(item => item.id === sourceId);
           if (!source) fault(404, 'source_not_found', 'Task connection not found.');
-          if (source!.executionOwner !== 'interactive' || config.repositories.find(repo => repo.id === source!.repositoryId)?.executionOwner === 'ploeg') fault(403, 'ploeg_owned', 'Ploeg owns execution for this task connection. Assign its work through the tracker.');
+          if (!config.execution && (source!.executionOwner !== 'interactive' || config.repositories.find(repo => repo.id === source!.repositoryId)?.executionOwner === 'ploeg')) fault(403, 'ploeg_owned', 'Ploeg owns execution for this task connection. Assign its work through the tracker.');
           if (!runtimeKinds.includes(runtime) || !config.crews.some(crew => crew.id === crewId)) fault(400, 'unknown_profile', 'Choose a configured crew and runtime.');
           if (typeof data.budgetUsd !== 'number' || !Number.isFinite(data.budgetUsd) || data.budgetUsd <= 0 || data.budgetUsd > config.maxBudgetUsd) fault(400, 'budget', `Budget must be greater than zero and at most $${config.maxBudgetUsd}.`);
           const snapshot = await getTask(await withUserToken(source!), taskId);
           if (snapshot.revision !== revision) fault(409, 'task_changed', 'The task changed after your preview. Refresh it and review the updated version.');
-          const result = engine.importTask(snapshot, { crewId, runtime, budgetUsd: data.budgetUsd as number, placement: placementInput(data.placement) }, user);
+          const result = await engine.importTask(snapshot, { crewId, runtime, budgetUsd: data.budgetUsd as number, placement: placementInput(data.placement) }, user, typeof data.bindingRevision === 'string' ? data.bindingRevision : undefined);
           return json(res, result.created ? 201 : 200, sanitize(publicSession(result.session)));
         }
         if (method === 'GET' && path === '/api/sessions') return json(res, 200, sanitize(store.listSessions().filter(session => session.ownerId === user.id || user.role === 'admin').map(publicSession)));
@@ -257,19 +259,16 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const session = engine.create({ approval: data.approval as 'manual' | 'auto' | undefined, model: text(data.model, 'Model', 64, true) || undefined, title: text(data.title, 'Title', 160), objective: text(data.objective, 'Objective', 16000), repositoryId, crewId, runtime, placement: placementInput(data.placement), budgetUsd: data.budgetUsd as number, trackerUrl: trackerUrl || undefined }, user);
           return json(res, 201, sanitize(publicSession(session)));
         }
-        if (method === 'GET' && path === '/api/ploeg') {
-          if (!config.ploeg) return json(res, 200, { configured: false, teams: [], message: 'Connect Ploeg in the server configuration to inspect its queues.' });
-          const teams = await Promise.all(config.ploeg.teams.map(async team => {
-            try {
-              const response = await fetch(`${config.ploeg!.url}/api/v1/queue/depth?team=${encodeURIComponent(team)}`, { signal: AbortSignal.timeout(4000), redirect: 'error' });
-              if (!response.ok) throw new Error();
-              const data = await response.json() as Record<string, unknown>;
-              const depth = Number(data.depth ?? data.queued ?? data.count);
-              if (!Number.isSafeInteger(depth) || depth < 0) throw new Error();
-              return { team, available: true, depth };
-            } catch { return { team, available: false, message: 'Queue could not be reached.' }; }
-          }));
-          return json(res, 200, { configured: true, teams, trackerUrl: config.ploeg.trackerUrl, message: 'Ploeg retains ownership of unattended dispatch. Assign work in the tracker.' });
+        if (path === '/api/ploeg' || path.startsWith('/api/ploeg/')) {
+          if (method !== 'GET') fault(405, 'method', 'Ploeg operator views are read-only.');
+          try {
+            const fresh = url.searchParams.get('refresh') === '1';
+            if (path === '/api/ploeg') return json(res, 200, sanitize(await ploeg.overview(user, url.searchParams.get('team') ?? undefined, fresh)));
+            if (path === '/api/ploeg/work-items') return json(res, 200, sanitize(await ploeg.items(user, text(url.searchParams.get('team'), 'Team', 100), (url.searchParams.get('state') ?? 'all') as PloegState | 'all', url.searchParams.get('after') ?? '0', fresh)));
+            const match = /^\/api\/ploeg\/work-items\/([^/]+)$/.exec(path);
+            if (match) return json(res, 200, sanitize(await ploeg.detail(user, match[1], fresh)));
+            fault(404, 'not_found', 'Ploeg operator view not found.');
+          } catch (error) { if (error instanceof PloegError) return json(res, error.status, { error: { code: error.code, message: error.message } }); throw error; }
         }
         const match = path.match(/^\/api\/sessions\/([a-zA-Z0-9_-]+)(?:\/(.*))?$/);
         if (match) {
@@ -325,7 +324,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             else if (action === 'cancel') result = await engine.cancel(id, user);
             else if (action === 'retry') result = await engine.retry(id, user);
             else if (action === 'review') result = engine.review(id, { decision: data.decision, note: data.note }, user);
-            else if (action === 'messages') result = engine.message(id, text(data.text, 'Instruction', 16000), user);
+            else if (action === 'messages') result = await engine.message(id, text(data.text, 'Instruction', 16000), user);
+            else if (action === 'supervision') result = await engine.setSupervision(id, data.supervision, user);
             else if (action === 'approval') result = await engine.setApproval(id, data.approval, user);
             else if (action === 'budget') {
               if (user.role !== 'admin') fault(403, 'forbidden', 'An administrator must authorize additional budget.');
@@ -341,7 +341,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         }
         return fault(404, 'not_found', 'API route not found.');
       }
-      const assets: Record<string, string> = { '/': 'index.html', '/app.js': 'app.js', '/styles.css': 'styles.css', '/favicon.svg': 'favicon.svg' };
+      const assets: Record<string, string> = { '/': 'index.html', '/app.js': 'app.js', '/ploeg.js': 'ploeg.js', '/styles.css': 'styles.css', '/favicon.svg': 'favicon.svg' };
       if (method !== 'GET' || !assets[path]) return fault(404, 'not_found', 'Page not found.');
       const file = assets[path];
       const content = await readFile(join(config.publicDir, file));
@@ -351,7 +351,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       if (res.headersSent) { res.end(); return; }
       const status = Number(error.status || error.statusCode) || 500;
       const code = error.code || (status === 500 ? 'internal_error' : 'request_failed');
-      const message = status >= 500 && !(error instanceof TaskError) ? 'The operation could not be completed. Check the server log.' : error.message;
+      const message = status >= 500 && !(error instanceof TaskError) && !(error instanceof PloegError) ? 'The operation could not be completed. Check the server log.' : error.message;
       if (status >= 500) console.error(JSON.stringify({ level: 'error', event: 'http.failed', message: String(error.message).slice(0, 200).replace(/sk-[\w-]+/g, '[redacted]') }));
       json(res, status, sanitize({ error: { code, message } }));
     }
