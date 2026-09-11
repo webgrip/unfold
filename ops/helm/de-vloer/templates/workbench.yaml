@@ -68,7 +68,7 @@ spec:
             - name: VLOER_CONFIG
               value: /etc/de-vloer/config.json
             - name: VLOER_DATA_DIR
-              value: /data
+              value: /data/workbench
           {{- if eq .Values.mode "live" }}
           envFrom:
             - secretRef:

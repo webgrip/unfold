@@ -1,6 +1,6 @@
 {{- $cfg := deepCopy .Values.config -}}
 {{- $_ := set $cfg "mode" .Values.mode -}}
-{{- $_ := set $cfg "dataDir" "/data" -}}
+{{- $_ := set $cfg "dataDir" "/data/workbench" -}}
 {{- $_ := set $cfg "publicDir" "/app/public" -}}
 {{- if .Values.baseUrl -}}{{- $_ := set $cfg "baseUrl" .Values.baseUrl -}}{{- end -}}
 {{- $_ := set $cfg "runtime" (dict "kind" (ternary "demo" "opencode" (eq .Values.mode "demo")) "backend" "kubernetes" "backends" (list "kubernetes") "timeoutMs" 3600000) -}}

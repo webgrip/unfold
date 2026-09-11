@@ -35,9 +35,11 @@ export class KubernetesClient {
       readFile(this.config.tokenFile ?? '/var/run/secrets/kubernetes.io/serviceaccount/token', 'utf8'),
       readFile(this.config.caFile ?? '/var/run/secrets/kubernetes.io/serviceaccount/ca.crt'),
     ]);
+    const payload = body === undefined ? undefined : JSON.stringify(body);
     return new Promise((done, reject) => {
       const req = httpsRequest(url, { method, ca, headers: {
         authorization: `Bearer ${token.trim()}`, 'content-type': 'application/json',
+        ...(payload === undefined ? {} : { 'content-length': Buffer.byteLength(payload) }),
       } }, response => {
         let size = 0;
         const chunks: Buffer[] = [];
@@ -58,7 +60,7 @@ export class KubernetesClient {
       });
       req.setTimeout(10_000, () => req.destroy(new RuntimeFailure('timeout', 'workspace')));
       req.on('error', error => reject(transportFailure(error, 'workspace')));
-      req.end(body === undefined ? undefined : JSON.stringify(body));
+      req.end(payload);
     });
   }
 }

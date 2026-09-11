@@ -208,6 +208,8 @@ The chart defaults to **demo** mode. Copy `ops/helm/de-vloer/values.live.example
 
 Use **one application replica** with persistent storage and the chart's `Recreate` rollout strategy. Configure a separate workspace namespace, storage class/size, CPU/memory requests, an agent image and an inference gateway URL reachable by agent Pods. The control plane needs the chart's narrowly scoped workspace-management RBAC. Agent Pods must not mount the control-plane service account or LiteLLM master credential.
 
+The chart mounts the application volume at `/data` and stores application state in `/data/workbench`. The non-root process creates that private subdirectory with mode `0700`; it does not change permissions on the storage driver's volume root. Back up the entire application directory, including `vloer.sqlite`, its `vloer.sqlite.key` encryption key and retained evidence. When upgrading an existing deployment that stored state directly in `/data`, stop the application and move its complete state into `/data/workbench` with ownership matching the chart's application UID before starting the new version. An empty application directory initializes a new instance; the chart does not migrate existing state automatically.
+
 Review the live render with the deployment's own values:
 
 ```sh
@@ -222,6 +224,8 @@ helm upgrade --install de-vloer ops/helm/de-vloer --namespace de-vloer --create-
 ```
 
 The manager provisions real Kubernetes resources through the API. It retains workspace PVCs after runtime disposal so changes and native state can survive; volume retention has an operational cost. Cleanup policy must preserve reviewable work before deleting retained volumes. Configure `workspaceEgress` for the actual forge and inference gateway; example selectors are not universal access rules. Kubernetes network isolation depends on the cluster's network-policy implementation, so chart rendering cannot prove enforcement.
+
+The API client sets the byte length of every serialized JSON request, including Pod deletion options, so a subsequent request can reuse the connection safely. A missing Pod remains an allowed cleanup result. The [HTTP framing regression](../../test/runtime-kubernetes.test.ts) checks a DELETE body containing non-ASCII text followed by a GET on the same connection and retains the allowed-404 behavior.
 
 `workspaceTransport: pull` (the chart default) makes agent pods dial out to the workbench Service instead of receiving a Service and an ingress rule; `workspaceRelayUrl` overrides the address the pods use. Candidates are then captured in place through the relay, without an export pod. `workspaceProvisioner: sandbox` switches from hand-rolled pods to the agent-sandbox CRDs: a `Sandbox` per session under `workspaceRuntimeClassName` (default `kata`), or, with `workspaceWarmPool` set, a `SandboxClaim` against a warm pool whose pods receive their session over the relay. The controller, the template and the pool token are cluster concerns described in [ops/cluster/agent-sandbox](../../ops/cluster/agent-sandbox/README.md) and [ADR 0013](../adrs/0013-sandbox-crd-placement-with-warm-kata-pools.md); the workbench needs `VLOER_POOL_TOKEN` in its credentials Secret for the warm path.
 
