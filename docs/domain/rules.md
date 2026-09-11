@@ -2,6 +2,17 @@
 
 *Generated from `model.yaml` — do not edit by hand. Cite rules by id in specs.*
 
+## Delivery Candidate
+
+### R17
+*Context: Integration*
+
+Publication requires an immutable Delivery Candidate, a matching trusted Verification Receipt and explicit candidate-bound human approval. An ambiguous Publication Operation retains its barrier until trusted positive evidence reconciles the external effect.
+
+**Why:** Neither worker claims nor a timeout establish that publication is safe to repeat.
+
+**Also applies to:** Verification Receipt, Publication Operation
+
 ## Follow-Up
 
 ### R9
@@ -13,14 +24,45 @@ Follow-Ups are routed to the Team owning the source branch and never gate other 
 
 **Also applies to:** Team
 
+## Inference Account
+
+### R15
+*Context: Execution*
+
+Management credentials stay in the control plane. Inference Account authorization remains held across uncertain issuance, expiry and blocking until trusted final accounting reconciles it.
+
+**Why:** A crashed executor cannot authorize unrelated work or make unresolved paid work appear free.
+
+**Also applies to:** Run, Executor
+
 ## Lease
 
 ### R2
 *Context: Dispatch*
 
-A Lease must be renewed on a fixed interval by the running Run; expiry releases the Work Item mechanically.
+A Lease must be renewed on a fixed interval by the running Run. Tracker execution expiry enters the configured recovery policy; Operator Execution expiry interrupts work and preserves pending stop intent and unresolved Inference Account authorization.
 
 **Why:** Crash-safety must never depend on an agent behaving well at death — a crashed pod releases its item with no cleanup code running.
+
+**Also applies to:** Run
+
+## Operator Execution
+
+### R13
+*Context: Dispatch*
+
+Operator Execution commands require authenticated consumer and actor scope, a unique command identity, current revision and current generation. Replaying an accepted command returns its original result.
+
+**Why:** Lost responses must not create duplicate work or silently repeat paid submissions.
+
+**Also applies to:** Operator Consumer
+
+### R14
+*Context: Dispatch*
+
+A pending cancellation remains pending until confirmed cancelled; interruption, expiry and restart never turn it into resumable work. A pause requires confirmed stop before explicit resume.
+
+**Why:** A deliberate human stop must survive every recovery boundary.
 
 **Also applies to:** Run
 
@@ -49,7 +91,7 @@ Every Run ends with an Outcome Report; a container that exits without one is rec
 ### R6
 *Context: Dispatch*
 
-Durable state lives only in Postgres and in git/forge state — never inside an agent process.
+Authoritative Ploeg execution state lives in Postgres and durable repository evidence lives in git/forge state. Human-session records may live in the delegated workbench store; they cannot independently grant execution authority.
 
 **Why:** Ephemerality is the design axiom; any state trapped in a long-lived process breaks crash-safety and resume.
 
@@ -90,6 +132,15 @@ Core semantics must never encode a provider-specific workaround; everything vend
 
 ## Work Item
 
+### R16
+*Context: Dispatch*
+
+Binding tracker work to an Operator Execution retains its canonical Work Item identity and tracker origin. Admission atomically excludes unattended claims and requires fresh registered Scope and Work Target expectations. Tracker refresh never implicitly relinquishes operator ownership.
+
+**Why:** Human interaction must not create a duplicate dispatch or restart intentionally stopped work.
+
+**Also applies to:** Operator Execution, Work Target
+
 ### R1
 *Context: Dispatch*
 
@@ -102,7 +153,7 @@ A Work Item is held by at most one Team at a time; a Lease is unique per Work It
 ### R5
 *Context: Dispatch*
 
-Lease expiry or a failed Outcome re-queues the Work Item; after the retry threshold is reached without an Outcome, the item goes stale, and only a human or explicit policy leaves stale.
+For unattended tracker work, Lease expiry or a failed Outcome re-queues the Work Item; after the retry threshold is reached without an Outcome, the item goes stale, and only a human or explicit policy leaves stale.
 
 **Why:** Retrying is cheap once and ruinous forever — stale is the circuit breaker that stops burning tokens on repeatedly abandoned work.
 

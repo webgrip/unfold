@@ -2,10 +2,47 @@
 
 *Generated from `model.yaml` — do not edit by hand.*
 
+## Operator Execution
+*Context: Dispatch*
+
+A consumer-owned session binding and serialized execution lifecycle.
+
+| Attribute | Type | Required | Description |
+|---|---|---|---|
+| `id` | `string` | yes | Stable identity derived from consumer and session; admission is idempotent. |
+| `generation` | `integer` | yes | Incremented on explicit resume; stale executors cannot authorize new turns. |
+| `revision` | `integer` | yes | Transactionally serialized command and event position for this execution. |
+| `supervision` | `enum(human, background)` |  | Human attention mode; it does not move or replace the Executor. |
+| `stop_confirmed` | `boolean` |  | Whether the delegated Executor acknowledged that its turn stopped. |
+
+**Relationships**
+- has_one **Work Item** — One manual item or atomically adopted pristine tracker item outside unattended queue claims.
+- has_one **Shift** — One retained authorization pool.
+- has_one **Run** — One operator Role containing the delegated crew execution.
+
+**Lifecycle**
+
+```mermaid
+stateDiagram-v2
+    [*] --> admitted : Scoped idempotent admission
+    admitted --> running : Explicit start before expiry
+    running --> waiting_input : Runtime requests human input
+    waiting_input --> running : Authenticated answer accepted
+    running --> pause_requested : Human requests pause
+    pause_requested --> paused : Executor confirms stop
+    paused --> running : Explicit resume with a new generation and usable capability
+    running --> cancel_requested : Human requests cancellation
+    cancel_requested --> cancelled : Executor confirms stop
+    running --> interrupted : Authority expires or Executor stops unexpectedly
+    interrupted --> running : Explicit resume after stop and capability reconciliation
+    running --> completed : Executor reports approved evidence and confirms stop
+    running --> failed : Executor reports failure and confirms stop
+```
+
 ## Work Item
 *Context: Dispatch*
 
-Ploeg's mirror of one Tracker Item, carrying dispatch state.
+Ploeg's execution record for tracker, follow-up or operator work.
 
 | Attribute | Type | Required | Description |
 |---|---|---|---|
@@ -18,7 +55,7 @@ Ploeg's mirror of one Tracker Item, carrying dispatch state.
 | `target` | `Work Target` |  | Forge coordinates the item's Runs act on; absent means unresolved (R11). |
 | `route_rule` | `string` |  | Id of the Routing Rule that decided team and target; recorded for audit. |
 | `state` | `enum(ingested, queued, leased, needs_human, stale, done)` | yes | Dispatch lifecycle position. |
-| `origin` | `enum(assignment, follow_up)` | yes | Whether the item came from the tracker or from a Forge Event. |
+| `origin` | `enum(assignment, follow_up, operator)` | yes | Whether the item came from a tracker, Forge Event or Operator Consumer. |
 | `priority` | `integer` |  | Rank mirrored from the tracker; drives Team Queue order. |
 
 **Relationships**

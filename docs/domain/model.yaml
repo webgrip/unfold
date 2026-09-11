@@ -1,10 +1,10 @@
 project: Ploeg
 description: >
-  Ploeg is a dispatch plane: it turns work items from any tracker into ephemeral,
-  leased, audited AI-agent runs on Kubernetes. The tracker stays the source of
-  truth for WHAT to do; Ploeg owns HOW work gets executed — assignment events in,
-  ephemeral runs out. (Ploeg is Dutch for a work crew or shift.)
-version: 0.2.0
+  Ploeg owns admission and execution authority for tracker-originated work and
+  explicitly registered operator work. Executors run bounded agent workloads;
+  De Vloer supplies human sessions and intervention. Trackers retain authority
+  over their own work content and priority.
+version: 0.4.0
 
 contexts:
   - name: Dispatch
@@ -25,12 +25,62 @@ contexts:
       Outcome Report out. Isolates the fast-churning agent-tool boundary.
 
 terms:
+  - name: Delivery Candidate
+    definition: >
+      An immutable proposed repository tree with a canonical commit on an approved
+      base, artifact digests and a verification policy digest, bound to one
+      Operator Execution generation. Worker assertions do not verify it.
+    context: Dispatch
+    see_also: [Operator Execution, Verification Receipt, Publication Operation]
+
+  - name: Verification Receipt
+    definition: >
+      Evidence reported by an explicitly authorized verifier for one Delivery
+      Candidate and policy digest. It records the real check exit and discovery
+      count from an independent disposable environment.
+    context: Execution
+    see_also: [Delivery Candidate, Operator Consumer]
+
+  - name: Publication Operation
+    definition: >
+      A durable, explicitly approved operation to publish one verified Delivery
+      Candidate. An in-flight or uncertain external effect retains a barrier
+      against a replacement execution or duplicate publication.
+    context: Integration
+    see_also: [Delivery Candidate, Verification Receipt, Operator Execution]
+
+  - name: Operator Execution
+    definition: >
+      A durable binding from one authenticated human workbench session to one
+      Work Item, Shift and Run. It records execution state, supervision,
+      serialized command revisions and an executor generation. Human and
+      background supervision retain the same execution identity.
+    context: Dispatch
+    see_also: [Work Item, Shift, Run, Operator Consumer, Inference Account]
+
+  - name: Operator Consumer
+    definition: >
+      A named service identity with explicit Team scope and separate read and
+      execution permissions. It authenticates the human actor and authorizes
+      registered repositories before requesting an Operator Execution.
+    context: Integration
+    see_also: [Team, Operator Execution]
+
+  - name: Inference Account
+    definition: >
+      The durable authorization and accounting record for a Run's scoped
+      inference capability. Uncertain issuance, blocking, expiry and observed
+      spend retain unresolved authorization until trusted final evidence
+      reconciles it. An observed debit is not settlement.
+    context: Execution
+    see_also: [Run, Operator Execution]
+
   - name: Work Item
     definition: >
-      Ploeg's mirror of one Tracker Item (provider + external id + revision),
-      carrying the Dispatch lifecycle state. It never replaces the Tracker Item,
-      which remains authoritative for content; the Work Item is authoritative
-      only for how execution is going.
+      Ploeg's execution record for one Tracker Item, Follow-Up or explicitly
+      admitted Operator Execution. Tracker-originated content remains owned by
+      the Tracker Item. Manual-origin content is registered by an authenticated
+      Operator Consumer and never silently creates a Tracker Item.
     context: Dispatch
     avoid: [task, ticket]
     see_also: [Tracker Item, Lease, Follow-Up, Work Target]
@@ -130,8 +180,8 @@ terms:
 
   - name: Run
     definition: >
-      One execution of one Role against a leased Work Item, realized as
-      exactly one Kubernetes Job. A Lease may accumulate several Runs (roles,
+      One execution of one Role against a Work Item, realized by an Executor
+      as a Kubernetes Job or a delegated workbench execution. A Lease may accumulate several Runs (roles,
       retries, resumes); each Run ends in an Outcome Report or is recorded as
       failed by the Executor's watch. "Job" is reserved for the Kubernetes
       object and is never a domain term.
@@ -309,8 +359,49 @@ terms:
     see_also: [Task Spec, Outcome]
 
 entities:
+  - name: Operator Execution
+    description: A consumer-owned session binding and serialized execution lifecycle.
+    context: Dispatch
+    attributes:
+      - name: id
+        type: string
+        required: true
+        description: Stable identity derived from consumer and session; admission is idempotent.
+      - name: generation
+        type: integer
+        required: true
+        description: Incremented on explicit resume; stale executors cannot authorize new turns.
+      - name: revision
+        type: integer
+        required: true
+        description: Transactionally serialized command and event position for this execution.
+      - name: supervision
+        type: enum(human, background)
+        description: Human attention mode; it does not move or replace the Executor.
+      - name: stop_confirmed
+        type: boolean
+        description: Whether the delegated Executor acknowledged that its turn stopped.
+    states:
+      - {from: '[start]', to: admitted, trigger: Scoped idempotent admission}
+      - {from: admitted, to: running, trigger: Explicit start before expiry}
+      - {from: running, to: waiting_input, trigger: Runtime requests human input}
+      - {from: waiting_input, to: running, trigger: Authenticated answer accepted}
+      - {from: running, to: pause_requested, trigger: Human requests pause}
+      - {from: pause_requested, to: paused, trigger: Executor confirms stop}
+      - {from: paused, to: running, trigger: Explicit resume with a new generation and usable capability}
+      - {from: running, to: cancel_requested, trigger: Human requests cancellation}
+      - {from: cancel_requested, to: cancelled, trigger: Executor confirms stop}
+      - {from: running, to: interrupted, trigger: Authority expires or Executor stops unexpectedly}
+      - {from: interrupted, to: running, trigger: Explicit resume after stop and capability reconciliation}
+      - {from: running, to: completed, trigger: Executor reports approved evidence and confirms stop}
+      - {from: running, to: failed, trigger: Executor reports failure and confirms stop}
+    relationships:
+      - {to: Work Item, kind: has_one, description: One manual item or atomically adopted pristine tracker item outside unattended queue claims.}
+      - {to: Shift, kind: has_one, description: One retained authorization pool.}
+      - {to: Run, kind: has_one, description: One operator Role containing the delegated crew execution.}
+
   - name: Work Item
-    description: Ploeg's mirror of one Tracker Item, carrying dispatch state.
+    description: Ploeg's execution record for tracker, follow-up or operator work.
     context: Dispatch
     attributes:
       - name: id
@@ -347,8 +438,8 @@ entities:
         description: Dispatch lifecycle position.
         required: true
       - name: origin
-        type: "enum(assignment, follow_up)"
-        description: Whether the item came from the tracker or from a Forge Event.
+        type: "enum(assignment, follow_up, operator)"
+        description: Whether the item came from a tracker, Forge Event or Operator Consumer.
         required: true
       - name: priority
         type: integer
@@ -710,6 +801,31 @@ entities:
         kind: references
 
 rules:
+  - id: R16
+    statement: Binding tracker work to an Operator Execution retains its canonical Work Item identity and tracker origin. Admission atomically excludes unattended claims and requires fresh registered Scope and Work Target expectations. Tracker refresh never implicitly relinquishes operator ownership.
+    rationale: Human interaction must not create a duplicate dispatch or restart intentionally stopped work.
+    applies_to: [Work Item, Operator Execution, Work Target]
+    context: Dispatch
+  - id: R17
+    statement: Publication requires an immutable Delivery Candidate, a matching trusted Verification Receipt and explicit candidate-bound human approval. An ambiguous Publication Operation retains its barrier until trusted positive evidence reconciles the external effect.
+    rationale: Neither worker claims nor a timeout establish that publication is safe to repeat.
+    applies_to: [Delivery Candidate, Verification Receipt, Publication Operation]
+    context: Integration
+  - id: R13
+    statement: Operator Execution commands require authenticated consumer and actor scope, a unique command identity, current revision and current generation. Replaying an accepted command returns its original result.
+    rationale: Lost responses must not create duplicate work or silently repeat paid submissions.
+    applies_to: [Operator Execution, Operator Consumer]
+    context: Dispatch
+  - id: R14
+    statement: A pending cancellation remains pending until confirmed cancelled; interruption, expiry and restart never turn it into resumable work. A pause requires confirmed stop before explicit resume.
+    rationale: A deliberate human stop must survive every recovery boundary.
+    applies_to: [Operator Execution, Run]
+    context: Dispatch
+  - id: R15
+    statement: Management credentials stay in the control plane. Inference Account authorization remains held across uncertain issuance, expiry and blocking until trusted final accounting reconciles it.
+    rationale: A crashed executor cannot authorize unrelated work or make unresolved paid work appear free.
+    applies_to: [Inference Account, Run, Executor]
+    context: Execution
   - id: R1
     statement: A Work Item is held by at most one Team at a time; a Lease is unique per Work Item.
     rationale: Two Teams on one item means two writers on one branch and split accountability in the audit log.
@@ -717,7 +833,7 @@ rules:
     context: Dispatch
 
   - id: R2
-    statement: A Lease must be renewed on a fixed interval by the running Run; expiry releases the Work Item mechanically.
+    statement: A Lease must be renewed on a fixed interval by the running Run. Tracker execution expiry enters the configured recovery policy; Operator Execution expiry interrupts work and preserves pending stop intent and unresolved Inference Account authorization.
     rationale: Crash-safety must never depend on an agent behaving well at death — a crashed pod releases its item with no cleanup code running.
     applies_to: [Lease, Run]
     context: Dispatch
@@ -735,13 +851,13 @@ rules:
     context: Dispatch
 
   - id: R5
-    statement: Lease expiry or a failed Outcome re-queues the Work Item; after the retry threshold is reached without an Outcome, the item goes stale, and only a human or explicit policy leaves stale.
+    statement: For unattended tracker work, Lease expiry or a failed Outcome re-queues the Work Item; after the retry threshold is reached without an Outcome, the item goes stale, and only a human or explicit policy leaves stale.
     rationale: Retrying is cheap once and ruinous forever — stale is the circuit breaker that stops burning tokens on repeatedly abandoned work.
     applies_to: [Work Item, Lease]
     context: Dispatch
 
   - id: R6
-    statement: Durable state lives only in Postgres and in git/forge state — never inside an agent process.
+    statement: Authoritative Ploeg execution state lives in Postgres and durable repository evidence lives in git/forge state. Human-session records may live in the delegated workbench store; they cannot independently grant execution authority.
     rationale: Ephemerality is the design axiom; any state trapped in a long-lived process breaks crash-safety and resume.
     applies_to: [Run, Checkpoint]
     context: Dispatch
@@ -783,6 +899,18 @@ rules:
     context: Dispatch
 
 events:
+  - name: OperatorExecutionAdmitted
+    description: One authenticated session was bound to a Work Item, Shift and Run.
+    entity: Operator Execution
+    triggers: Makes explicit start available without launching an agent.
+  - name: OperatorExecutionCommandAccepted
+    description: A command passed identity, revision and generation checks and advanced the serialized revision.
+    entity: Operator Execution
+    triggers: The executor or workbench observes the new lifecycle or supervision state.
+  - name: OperatorExecutionExpired
+    description: Executor authority expired while work or a stop request remained unresolved.
+    entity: Operator Execution
+    triggers: Repeatedly attempt capability blocking; never enqueue a replacement execution.
   - name: WorkItemIngested
     description: A tracker webhook was mirrored into a new Work Item, recording the Scope it arrived in.
     entity: Work Item

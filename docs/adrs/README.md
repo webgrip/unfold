@@ -97,6 +97,10 @@ fails otherwise.
 | [0021](0021-infra-failures-and-agent-failures-get-separate-retry-budgets.md) | Infrastructure failures and agent failures get separate retry budgets | proposed | 2026-08-26 |
 | [0022](0022-the-name-and-mark-are-trademarks-not-cc-licensed-artwork.md) | The name and mark are trademarks under a usage policy, not CC-licensed artwork | accepted | 2026-08-27 |
 | [0023](0023-the-forge-dialect-travels-on-the-work-item.md) | The forge dialect travels on the Work Item; the forge URL and credential stay deployment-global | proposed | 2026-09-02 |
+| [0024](0024-operator-work-uses-one-execution-authority.md) | Ploeg admits operator work and owns execution while De Vloer provides interaction | proposed | 2026-09-10 |
+| [0025](0025-management-authority-stays-in-the-control-plane.md) | Management authority stays in the control plane and unresolved accounting retains authorization | proposed | 2026-09-10 |
+| [0026](0026-tracker-selections-bind-the-canonical-work-item.md) | Tracker selections bind canonical Work Items under durable operator ownership | proposed | 2026-09-11 |
+| [0027](0027-candidate-delivery-uses-trusted-evidence-and-a-publication-barrier.md) | Candidate delivery uses trusted evidence and a publication barrier | proposed | 2026-09-11 |
 
 ## Review calendar
 
@@ -105,6 +109,6 @@ triggers.
 
 | Due | ADRs |
 | --- | --- |
-| 2026-10-31 | [0006](0006-ahp-is-the-wrong-layer.md), [0007](0007-a2a-adopt-nothing-watchlist-a-facade.md), [0008](0008-litellm-is-the-credential-and-metering-seam.md), [0009](0009-paperclip-mine-for-design-never-integrate.md) — the quarterly market re-scan (`design.md` §10) |
+| 2026-10-31 | [0006](0006-ahp-is-the-wrong-layer.md), [0007](0007-a2a-adopt-nothing-watchlist-a-facade.md), [0008](0008-litellm-is-the-credential-and-metering-seam.md), [0009](0009-paperclip-mine-for-design-never-integrate.md), [0024](0024-operator-work-uses-one-execution-authority.md), [0025](0025-management-authority-stays-in-the-control-plane.md) — the quarterly market re-scan (`design.md` §10) |
 | 2027-01-31 | [0010](0010-shift-owns-the-item-lease-owns-the-branch.md), [0011](0011-the-pull-request-is-the-blackboard.md), [0012](0012-two-level-budgets-authorized-and-settled.md), [0013](0013-push-rights-are-minted-per-run.md), [0017](0017-the-review-loop-is-verdict-driven-and-capped.md), [0018](0018-the-outcome-drop-box-is-every-harnesss-return-path.md), [0019](0019-a-failed-writing-run-reopens-its-round.md), [0021](0021-infra-failures-and-agent-failures-get-separate-retry-budgets.md), [0023](0023-the-forge-dialect-travels-on-the-work-item.md) — after the first real Shifts have run; all nine rest on assumptions only production can test |
 | 2027-04-01 | [0005](0005-build-a-dedicated-dispatch-plane.md) — the project review gate (`design.md` §10) |

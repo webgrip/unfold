@@ -1,8 +1,8 @@
 # Ploeg — Domain Overview
 
-Ploeg is a dispatch plane: it turns work items from any tracker into ephemeral, leased, audited AI-agent runs on Kubernetes. The tracker stays the source of truth for WHAT to do; Ploeg owns HOW work gets executed — assignment events in, ephemeral runs out. (Ploeg is Dutch for a work crew or shift.)
+Ploeg owns admission and execution authority for tracker-originated work and explicitly registered operator work. Executors run bounded agent workloads; De Vloer supplies human sessions and intervention. Trackers retain authority over their own work content and priority.
 
-*Model version 0.2.0. Generated from `model.yaml` — do not edit by hand.*
+*Model version 0.4.0. Generated from `model.yaml` — do not edit by hand.*
 
 ## Bounded contexts
 
@@ -21,7 +21,7 @@ flowchart LR
     Integration["Integration"]
     Execution["Execution"]
     Harness["Harness"]
-    Dispatch -->|has_many, references| Execution
+    Dispatch -->|has_many, has_one, references| Execution
     Dispatch -->|references| Integration
     Execution -->|belongs_to, references| Dispatch
     Harness -->|references| Dispatch
@@ -48,6 +48,7 @@ These terms are contested or vague. Resolve them before writing specs that depen
 
 ```mermaid
 erDiagram
+    Operator_Execution {}
     Work_Item {}
     Work_Target {}
     Shift {}
@@ -59,6 +60,9 @@ erDiagram
     Forge {}
     Task_Spec {}
     Outcome_Report {}
+    Operator_Execution ||--|| Work_Item : has_one
+    Operator_Execution ||--|| Shift : has_one
+    Operator_Execution ||--|| Run : has_one
     Work_Item ||--|| Shift : has_one
     Work_Item ||--|| Work_Target : has_one
     Work_Item ||--o{ Run : has_many
