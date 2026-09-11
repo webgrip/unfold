@@ -1,3 +1,4 @@
+import type { PloegOverview } from './ploeg-types.js';
 import type { AccountLink, Approval, Bootstrap, Session, SessionEvent, SessionInput, Permission, Decision, TaskSource, TaskSnapshot, TaskPage, TaskImportInput, CandidateFormat } from './types.js';
 
 export type StreamHandlers = { onOpen?: () => void; onEvent: (event: SessionEvent) => void };
@@ -83,6 +84,8 @@ export class VloerClient {
     }
     return data as T;
   }
+  ploeg(team?: string, fresh = false): Promise<PloegOverview> { const query = new URLSearchParams(); if (team) query.set('team', team); if (fresh) query.set('refresh', '1'); return this.request(`/api/ploeg?${query}`); }
+  ploegDashboard(id?: string): string { if (id && !/^[1-9][0-9]{0,19}$/.test(id)) throw new Error('Invalid Ploeg work item identifier.'); return `${this.origin}/#ploeg${id ? `/${id}` : ''}`; }
   bootstrap(): Promise<Bootstrap> { return this.request('/api/bootstrap'); }
   async login(name: string, password: string): Promise<void> { await this.request('/api/login', 'POST', { name, password }); }
   async authMethods(): Promise<{ local: boolean; oidc: { name: string; issuer: string } | null }> {

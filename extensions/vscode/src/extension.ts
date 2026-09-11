@@ -1,3 +1,4 @@
+import { PloegTree, type PloegEntry } from './ploeg-tree.js';
 import * as vscode from 'vscode';
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
@@ -28,6 +29,8 @@ class Workbench implements vscode.Disposable, PanelHost {
   private readonly tree: SessionTree;
   private readonly view: vscode.TreeView<SessionEntry>;
   private readonly tasks: TaskTree;
+  private readonly ploeg: PloegTree;
+  private readonly ploegView: vscode.TreeView<PloegEntry>;
   private readonly taskView: vscode.TreeView<TaskEntry>;
   private readonly status = vscode.window.createStatusBarItem('vloer.status', vscode.StatusBarAlignment.Left, 10);
   private readonly documents: EvidenceDocuments;
@@ -49,13 +52,15 @@ class Workbench implements vscode.Disposable, PanelHost {
     this.view = vscode.window.createTreeView('vloer.sessions', { treeDataProvider: this.tree, showCollapseAll: true });
     this.tasks = new TaskTree(async (sourceId, page) => { const target = this.current; const generation = this.generation; const result = await target.tasks(sourceId, page); this.assertTarget(target, generation); return result; });
     this.taskView = vscode.window.createTreeView('vloer.tasks', { treeDataProvider: this.tasks, showCollapseAll: true });
+    this.ploeg = new PloegTree(async (team, fresh) => { const target = this.current; const generation = this.generation; const result = await target.ploeg(team, fresh); this.assertTarget(target, generation); return result; });
+    this.ploegView = vscode.window.createTreeView('vloer.ploeg', { treeDataProvider: this.ploeg, showCollapseAll: true });
     this.documents = new EvidenceDocuments(async (sessionId, artifactId) => (await this.current.session(sessionId)).artifacts.find(artifact => artifact.id === artifactId));
     this.panels = new SessionPanels(this);
     this.status.name = 'De Vloer';
     this.status.text = '$(layers) Vloer';
     this.status.command = 'vloer.sessions.focus';
     this.status.show();
-    context.subscriptions.push(this.tree, this.view, this.tasks, this.taskView, this.status, this.documents, this.panels, vscode.workspace.registerTextDocumentContentProvider('vloer-evidence', this.documents));
+    context.subscriptions.push(this.tree, this.view, this.tasks, this.taskView, this.ploeg, this.ploegView, this.status, this.documents, this.panels, vscode.workspace.registerTextDocumentContentProvider('vloer-evidence', this.documents));
     context.subscriptions.push(vscode.window.registerWebviewPanelSerializer('vloer.session', { deserializeWebviewPanel: async (panel, state: { sessionId?: string } | undefined) => { const id = typeof state?.sessionId === 'string' && /^[a-zA-Z0-9_-]+$/.test(state.sessionId) ? state.sessionId : undefined; if (!id) { panel.dispose(); return; } this.panels.adopt(id, panel); } }));
     context.subscriptions.push(this.view.onDidChangeVisibility(event => { if (event.visible) void this.refresh(); }));
     context.subscriptions.push(context.secrets.onDidChange(event => { if (event.key === this.current.secretKey) this.connectionChanged(); }));
@@ -75,6 +80,8 @@ class Workbench implements vscode.Disposable, PanelHost {
     register('connectAgentHost', () => this.connectAgentHost());
     register('refresh', () => this.refresh(true));
     register('create', () => this.create());
+    register('openPloeg', async (value?: string | PloegEntry) => { if (this.configurationError) throw this.configurationError; const id = typeof value === 'string' ? value : value?.kind === 'item' ? value.item.id : undefined; await vscode.env.openExternal(vscode.Uri.parse(this.current.ploegDashboard(id))); });
+    register('refreshPloeg', async () => { await this.refresh(true); this.ploeg.reset(); });
     register('browseTasks', value => this.browseTasks(value));
     register('refreshTasks', async () => { await this.refresh(true); this.tasks.refresh(); });
     register('importTask', value => this.importTask(value));
@@ -120,6 +127,7 @@ class Workbench implements vscode.Disposable, PanelHost {
     this.drafts.clear();
     this.panels.closeAll();
     this.tasks.update([], 'Connection changed — refresh linked tasks');
+    this.ploeg.reset('Connection changed — reconnect to inspect Ploeg');
   }
 
   private assertTarget(client: VloerClient, generation: number) {
@@ -128,7 +136,7 @@ class Workbench implements vscode.Disposable, PanelHost {
 
   private poll() {
     const seconds = Math.max(2, Math.min(60, settings().get('refreshIntervalSeconds', 5)));
-    return setInterval(() => { if (this.view.visible || this.taskView.visible || this.panels.visible) void this.refresh(); }, seconds * 1000);
+    return setInterval(() => { if (this.view.visible || this.taskView.visible || this.ploegView.visible || this.panels.visible) void this.refresh(); }, seconds * 1000);
   }
 
   private async perform(action: () => Promise<unknown>): Promise<void> {
@@ -146,6 +154,7 @@ class Workbench implements vscode.Disposable, PanelHost {
     const needsLogin = error instanceof ApiError && error.status === 401;
     this.tree.update([], needsLogin ? 'Sign in to your workbench' : 'Workbench unavailable — reconnect', 'vloer.connect');
     this.tasks.update([], needsLogin ? 'Sign in to browse linked tasks' : 'Reconnect to browse linked tasks');
+    this.ploeg.reset(needsLogin ? 'Sign in to inspect Ploeg work' : 'Reconnect to inspect Ploeg work');
     this.view.message = needsLogin ? 'Your session has expired.' : 'Work continues on the workbench. Reconnect to inspect it.';
     this.view.badge = undefined;
     this.status.text = needsLogin ? '$(account) Vloer: sign in' : '$(debug-disconnect) Vloer: offline';
@@ -167,6 +176,8 @@ class Workbench implements vscode.Disposable, PanelHost {
       const sessions = await client.sessions();
       if (client !== this.current || generation !== this.generation || this.disposed) return;
       this.cachedBootstrap = bootstrap;
+      this.ploeg.connected();
+      this.ploegView.message = 'Read-only snapshot · refresh to update';
       this.tree.update(sessions);
       this.tasks.update(bootstrap.taskSources ?? [], bootstrap.taskSources?.length ? '' : 'Connect a task source on the workbench server');
       this.taskView.message = bootstrap.mode === 'demo' ? 'Demo fixture · No tracker account required' : undefined;
@@ -355,7 +366,7 @@ class Workbench implements vscode.Disposable, PanelHost {
     const sources = bootstrap.taskSources ?? await target.taskSources();
     this.assertTarget(target, generation);
     if (!sources.length) { void vscode.window.showInformationMessage('No task sources are connected. Add a Forgejo, GitHub, GitLab, ClickUp or Vikunja source in the workbench server configuration.'); return; }
-    const sourceChoice = value && 'source' in value ? value.source : (await vscode.window.showQuickPick(sources.map(source => ({ label: source.name, description: `${source.provider} → ${source.repositoryId}`, detail: source.executionOwner === 'ploeg' ? 'Ploeg owns execution. Task inspection is available; interactive import is blocked.' : 'Import a task snapshot into an operator-led session.', source })), { title: 'Linked tasks · Choose a source', matchOnDescription: true, ignoreFocusOut: true }))?.source;
+    const sourceChoice = value && 'source' in value ? value.source : (await vscode.window.showQuickPick(sources.map(source => ({ label: source.name, description: `${source.provider} → ${source.repositoryId}`, detail: source.executionOwner === 'ploeg' ? source.ploeg ? 'Ploeg owns execution. Import prepares a session for the existing work item.' : 'Ploeg owns execution. A registered tracker target is required for import.' : 'Import a task snapshot into an operator-led session.', source })), { title: 'Linked tasks · Choose a source', matchOnDescription: true, ignoreFocusOut: true }))?.source;
     if (!sourceChoice) return;
     let page = value?.kind === 'more' ? value.page : 1;
     while (true) {
@@ -381,7 +392,7 @@ class Workbench implements vscode.Disposable, PanelHost {
   }
 
   private async previewTask(task: TaskSnapshot, origin: string): Promise<void> {
-    const preview = `${task.title}\n\nSource: ${task.provider} / ${task.sourceId} / ${task.id}\nStatus: ${task.status}\nRepository: ${task.repositoryId}\nWorkbench: ${origin}\nTracker URL: ${task.url}\nRevision: ${task.revision}\nUpdated: ${task.updatedAt ?? 'Not supplied'}\n\nTASK CONTENT — CONTEXT FROM THE LINKED SOURCE\n\n${task.description}`;
+    const preview = `${task.title}\n\nSource: ${task.provider} / ${task.sourceId} / ${task.id}\nStatus: ${task.status}\nRepository: ${task.repositoryId}\nWorkbench: ${origin}\nTracker URL: ${task.url}\nRevision: ${task.revision}\nUpdated: ${task.updatedAt ?? 'Not supplied'}${task.ploeg ? `\nPloeg work item: ${task.ploeg.workItemId}\nTarget: ${task.ploeg.expectedTarget.owner}/${task.ploeg.expectedTarget.repo}@${task.ploeg.expectedTarget.baseBranch}` : ''}\n\nTASK CONTENT — CONTEXT FROM THE LINKED SOURCE\n\n${task.description}`;
     await this.documents.openText('task-preview', `${task.sourceId}-${task.id}.txt`, preview, 'plaintext');
   }
 
@@ -392,7 +403,7 @@ class Workbench implements vscode.Disposable, PanelHost {
     const task = await target.task(value.source.id, value.task.id);
     this.assertTarget(target, generation);
     await this.previewTask(task, target.origin);
-    if (value.source.executionOwner === 'ploeg') { void vscode.window.showInformationMessage('Ploeg owns execution for this source. The task snapshot is open for inspection; interactive import is blocked.'); return; }
+    if (bootstrap.sharedExecution ? !task.ploeg || Boolean(task.ploegUnavailable) : value.source.executionOwner === 'ploeg') { void vscode.window.showInformationMessage(task.ploegUnavailable?.message || 'This source needs its registered Ploeg tracker target before importing here.'); return; }
     if (bootstrap.user.role === 'viewer') { void vscode.window.showInformationMessage('The task snapshot is open for inspection. An operator account is required to import it.'); return; }
     if (task.status !== 'open') { void vscode.window.showInformationMessage('Only open tasks can be imported. The current snapshot is available for inspection.'); return; }
     const proceed = await vscode.window.showInformationMessage(`Task snapshot opened. Set up an operator-led session on ${new URL(target.origin).host} → ${task.repositoryId} when you are ready.`, 'Set up session');
@@ -403,9 +414,9 @@ class Workbench implements vscode.Disposable, PanelHost {
     if (confirm !== 'Import task') return;
     this.assertTarget(target, generation);
     let session: Session;
-    try { session = await target.importTask({ sourceId: task.sourceId, taskId: task.id, revision: task.revision, crewId: draft.crewId!, runtime: draft.runtime!, ...(draft.placement ? { placement: draft.placement } : {}), budgetUsd: draft.budgetUsd! }); }
+    try { session = await target.importTask({ sourceId: task.sourceId, taskId: task.id, revision: task.revision, ...(task.bindingRevision ? { bindingRevision: task.bindingRevision } : {}), crewId: draft.crewId!, runtime: draft.runtime!, ...(draft.placement ? { placement: draft.placement } : {}), budgetUsd: draft.budgetUsd! }); }
     catch (error) {
-      if (!(error instanceof ApiError) || error.status !== 409 || error.code !== 'task_changed') throw error;
+      if (!(error instanceof ApiError) || error.status !== 409 || !['task_changed', 'task_binding_changed'].includes(error.code)) throw error;
       const reload = await vscode.window.showWarningMessage(error.message, 'Reload task');
       if (reload === 'Reload task') { this.assertTarget(target, generation); await this.importTask(value); }
       return;

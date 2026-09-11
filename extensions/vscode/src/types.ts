@@ -21,7 +21,7 @@ export type Session = {
  review?: { decision: 'accepted' | 'rejected'; by: string; byName: string; at: string; note?: string } };
 export type GatewayPolicy = { providers?: string[]; regions?: string[] };
 export type Bootstrap = {
-  user: User; mode: 'demo' | 'live'; maxBudgetUsd: number; maxConcurrentSessions: number;
+  user: User; mode: 'demo' | 'live'; sharedExecution?: boolean; maxBudgetUsd: number; maxConcurrentSessions: number;
   gateway?: string; gatewayPolicy?: GatewayPolicy | null; observability?: Observability | null;
   repositories: { id: string; name: string; description: string; baseBranch: string; trackerUrl?: string; executionOwner?: 'interactive' | 'ploeg' }[];
   crews: { id: string; name: string; description: string; roles: { name: string; mode: string }[] }[];
@@ -44,13 +44,13 @@ export type Permission = { id: string; kind: 'permission' | 'question'; title: s
 export type Decision = { decision?: 'once' | 'always' | 'reject'; answers?: string[][] };
 export type Freshness = { transport: 'live' | 'polling' | 'offline'; observedAt: string };
 export type Observability = { grafanaUrl?: string; dashboards?: Record<string, string>; tracesDatasource?: string; logsDatasource?: string; traceQuery?: string; logsQuery?: string };
-export type SessionDetail = { session: Session; events: SessionEvent[]; permissions: Permission[]; user: User; mode: 'demo' | 'live'; origin: string; freshness: Freshness; gateway?: string; observability?: Observability };
+export type SessionDetail = { session: Session; events: SessionEvent[]; permissions: Permission[]; user: User; mode: 'demo' | 'live'; sharedExecution?: boolean; origin: string; freshness: Freshness; gateway?: string; observability?: Observability };
 
 export type TaskProvider = 'demo' | 'forgejo' | 'github' | 'gitlab' | 'clickup' | 'vikunja';
-export type TaskSource = { id: string; name: string; provider: TaskProvider; repositoryId: string; executionOwner: 'interactive' | 'ploeg' };
-export type TaskSnapshot = { key: string; sourceId: string; provider: TaskProvider; id: string; revision: string; title: string; description: string; url: string; status: 'open' | 'closed' | 'unknown'; updatedAt?: string; repositoryId: string };
+export type TaskSource = { id: string; name: string; provider: TaskProvider; repositoryId: string; executionOwner: 'interactive' | 'ploeg'; ploeg?: { target: { forge: string; owner: string; repo: string; baseBranch: string } } };
+export type TaskSnapshot = { key: string; sourceId: string; provider: TaskProvider; id: string; revision: string; title: string; description: string; url: string; status: 'open' | 'closed' | 'unknown'; updatedAt?: string; repositoryId: string; bindingRevision?: string; nativeRevision?: string; ploeg?: { workItemId: string; expectedTarget: { owner: string; repo: string; baseBranch: string } }; ploegUnavailable?: { code: string; message: string } };
 export type TaskPage = { tasks: TaskSnapshot[]; nextPage?: number };
-export type TaskImportInput = { sourceId: string; taskId: string; revision: string; crewId: string; runtime: string; placement?: string; budgetUsd: number };
+export type TaskImportInput = { sourceId: string; taskId: string; revision: string; bindingRevision?: string; crewId: string; runtime: string; placement?: string; budgetUsd: number };
 export type Candidate = { status: 'ready' | 'unavailable'; reason?: string; message?: string; createdAt?: string; baseSha?: string; snapshotBaseSha?: string; headSha?: string; treeSha?: string; fileCount?: number; bytes?: number; sha256?: { bundle: string; patch: string }; formats?: CandidateFormat[] };
 export type CandidateFormat = 'bundle' | 'patch' | 'manifest' | 'attestation' | 'trace';
 export type LinkProvider = 'gitlab';

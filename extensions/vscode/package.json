@@ -32,6 +32,7 @@
   "activationEvents": [
     "onView:vloer.sessions",
     "onView:vloer.tasks",
+    "onView:vloer.ploeg",
     "onWebviewPanel:vloer.session",
     "onStartupFinished"
   ],
@@ -230,6 +231,18 @@
         "title": "Download Review Candidate",
         "category": "Vloer",
         "icon": "$(cloud-download)"
+      },
+      {
+        "command": "vloer.openPloeg",
+        "title": "Open Ploeg Workbench",
+        "category": "Vloer",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "vloer.refreshPloeg",
+        "title": "Refresh Ploeg Snapshot",
+        "category": "Vloer",
+        "icon": "$(refresh)"
       }
     ],
     "configuration": {
@@ -292,6 +305,11 @@
         {
           "id": "vloer.tasks",
           "name": "Linked Tasks",
+          "icon": "media/vloer.svg"
+        },
+        {
+          "id": "vloer.ploeg",
+          "name": "Ploeg",
           "icon": "media/vloer.svg"
         }
       ]
@@ -388,6 +406,16 @@
         {
           "command": "vloer.refreshTasks",
           "when": "view == vloer.tasks",
+          "group": "navigation@2"
+        },
+        {
+          "command": "vloer.openPloeg",
+          "when": "view == vloer.ploeg",
+          "group": "navigation@1"
+        },
+        {
+          "command": "vloer.refreshPloeg",
+          "when": "view == vloer.ploeg",
           "group": "navigation@2"
         }
       ],

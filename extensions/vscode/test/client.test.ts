@@ -301,3 +301,20 @@ test('administrators authorize additional budget through the real mutation contr
   assert((await client.history(session.id)).some(event => event.type === 'budget.increased'));
   await assert.rejects(client.budget(session.id, 1000), (error: unknown) => error instanceof ApiError && error.status === 400);
 });
+
+test('Ploeg inspection shares workbench identity and opens opaque item links without remote execution', async t => {
+  const server = await application();
+  t.after(() => server.close());
+  const secrets = new MemorySecrets();
+  const client = new VloerClient(server.url, secrets);
+  const overview = await client.ploeg('research', true);
+  assert.equal(overview.demo, true);
+  assert.equal(overview.selectedTeam, 'research');
+  assert.equal(overview.lanes?.queued.items[0].id, '104');
+  assert.equal(client.ploegDashboard('9007199254740993'), `${server.url}/#ploeg/9007199254740993`);
+  assert.equal(client.ploegDashboard(), `${server.url}/#ploeg`);
+  assert.throws(() => client.ploegDashboard('../private'));
+  assert.throws(() => client.ploegDashboard('1?token=anything'));
+  assert.equal(server.app.store.listSessions().length, 0);
+  assert.equal(secrets.values.size, 0);
+});
