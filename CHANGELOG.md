@@ -1,3 +1,34 @@
+## [0.3.0-rc.5](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.3.0-rc.4...v0.3.0-rc.5) (2026-09-11)
+
+### ⚠ BREAKING CHANGES
+
+* **control-plane:** managed worker authentication is now the default. Configure
+  controller signing/bootstrap Secret references and LLM policies, remove
+  administrative worker credentials, and roll controller and workers together.
+  Compatibility requires explicit legacy authentication and static-compatibility
+  inference. See docs/ops/managed-workers.md for the existing-deployment upgrade.
+
+### Added
+
+* **control-plane:** unify managed execution and verified delivery ([7714cd5](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7714cd5eb3268fd8291075a13fcb3736ddc88c76))
+
+### Fixed
+
+* **llm:** scope gateway keys and preserve accounting identities ([3536a7a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3536a7a1456d80151fa7e688fae35c33b620ec31))
+* **release:** keep experimental Ploeg releases on zero major ([6129281](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6129281217564a733827bb5ae32b5a3dd5f052a1))
+* **tracker:** retain authoritative scope and expose fresh execution state ([bbf5c82](https://forgejo.webgrip.dev/webgrip/ploeg/commit/bbf5c82a90a53e347ec7b97aa7b8dad532586781))
+
+### Docs
+
+* **agents:** adopt the estate no-comments rule ([67c4bc9](https://forgejo.webgrip.dev/webgrip/ploeg/commit/67c4bc968455a99ef767bc8a24791ea1a87319cb))
+* **architecture:** define unified execution and delivery authority ([0992441](https://forgejo.webgrip.dev/webgrip/ploeg/commit/099244146077926ac3f2084d47cd31135e968a43))
+* **domain:** ground work in tickets and useful research ([188f0fe](https://forgejo.webgrip.dev/webgrip/ploeg/commit/188f0fe54542f6be30b51520a05a97fabafcc561))
+* **release:** record withdrawal of the mistaken 1.x release ([04a81d0](https://forgejo.webgrip.dev/webgrip/ploeg/commit/04a81d0e4afba9ce74acb97f7f395faab4f20e9f))
+
+### Internal
+
+* **release:** v1.0.0-rc.1 [skip ci] ([47c078d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/47c078da2f41548ac6903482160ca29c9a87f872))
+
 ## Withdrawn: [1.0.0-rc.1](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.3.0-rc.4...withdrawn-v1.0.0-rc.1) (2026-09-11)
 
 The release automation selected the wrong major version. Ploeg is experimental and is not ready for general availability. This release is [withdrawn](https://forgejo.webgrip.dev/webgrip/ploeg/releases/tag/withdrawn-v1.0.0-rc.1); do not deploy its images or charts. Original notes remain below. See the [release policy and correction record](docs/ops/release-versioning.md).
