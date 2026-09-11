@@ -5,18 +5,40 @@
   "version": "0.3.0-rc.15",
   "publisher": "webgrip",
   "license": "Apache-2.0",
+  "homepage": "https://forgejo.webgrip.dev/webgrip/de-vloer",
+  "repository": {
+    "type": "git",
+    "url": "https://forgejo.webgrip.dev/webgrip/de-vloer.git"
+  },
+  "bugs": {
+    "url": "https://forgejo.webgrip.dev/webgrip/de-vloer/issues"
+  },
+  "qna": "https://forgejo.webgrip.dev/webgrip/de-vloer/issues",
+  "pricing": "Free",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#15191C",
+    "theme": "dark"
+  },
+  "preview": true,
   "engines": {
     "vscode": "^1.99.0"
   },
   "categories": [
+    "AI",
     "Other"
   ],
   "keywords": [
     "agents",
-    "remote",
+    "coding agent",
+    "remote agents",
+    "ai",
     "opencode",
     "litellm",
-    "self-hosted"
+    "self-hosted",
+    "code review",
+    "forgejo",
+    "vikunja"
   ],
   "main": "./dist/extension.js",
   "extensionKind": [
@@ -610,13 +632,14 @@
     "watch": "tsc -p . --watch",
     "test": "node --test test/*.test.ts",
     "vscode:prepublish": "npm run compile",
-    "package": "vsce package --no-dependencies --allow-missing-repository --skip-license",
+    "package": "vsce package --no-dependencies",
     "test:webview": "node test/webview.mjs"
   },
   "devDependencies": {
     "@types/node": "24.13.3",
     "@types/vscode": "1.99.0",
     "@vscode/vsce": "3.9.2",
+    "ovsx": "1.2.0",
     "typescript": "7.0.2"
   }
 }

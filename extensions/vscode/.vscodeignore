@@ -8,3 +8,4 @@ package-lock.json
 *.vsix
 dist/**/*.map
 .screenshots/
+**/.DS_Store

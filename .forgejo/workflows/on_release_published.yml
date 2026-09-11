@@ -165,6 +165,8 @@ jobs:
     name: Publish VS Code extension
     needs: [parse-release-tag]
     runs-on: docker
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -183,7 +185,13 @@ jobs:
           npm run extension:build
           npm --prefix extensions/vscode run package -- --out "de-vloer-${VERSION}.vsix"
           test -s "extensions/vscode/de-vloer-${VERSION}.vsix"
-      - name: Attach the VSIX to the Forgejo release
+      - name: Verify the listing and the packaged contents
+        shell: bash
+        env:
+          VERSION: ${{ needs.parse-release-tag.outputs.version }}
+          VSIX_PATH: extensions/vscode/de-vloer-${{ needs.parse-release-tag.outputs.version }}.vsix
+        run: npm run extension:verify
+      - name: Attach the VSIX and its checksum to the Forgejo release
         shell: bash
         env:
           VERSION: ${{ needs.parse-release-tag.outputs.version }}
@@ -191,36 +199,54 @@ jobs:
           API: https://forgejo.webgrip.dev/api/v1/repos/webgrip/de-vloer
         run: |
           set -euo pipefail
-          asset="de-vloer-${VERSION}.vsix"
+          cd extensions/vscode
+          vsix="de-vloer-${VERSION}.vsix"
+          sha256sum "$vsix" > "${vsix}.sha256"
           release="$(curl -sS --fail --max-time 30 -H "Authorization: token ${TOKEN}" "${API}/releases/tags/v${VERSION}")"
           release_id="$(printf '%s' "$release" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
-          if printf '%s' "$release" | python3 -c 'import json,sys; a=sys.argv[1]; sys.exit(0 if any(x.get("name")==a for x in json.load(sys.stdin).get("assets",[])) else 1)' "$asset"; then
-            echo "${asset} is already attached to release ${release_id}; skipping the upload."
-          else
-            curl -sS --fail --max-time 120 -H "Authorization: token ${TOKEN}" -F "attachment=@extensions/vscode/${asset}" "${API}/releases/${release_id}/assets?name=${asset}" >/dev/null
-            echo "attached ${asset} to release ${release_id}"
-          fi
-      - name: Publish to Open VSX and the Marketplace where a token is configured
+          for asset in "$vsix" "${vsix}.sha256"; do
+            if printf '%s' "$release" | python3 -c 'import json,sys; a=sys.argv[1]; sys.exit(0 if any(x.get("name")==a for x in json.load(sys.stdin).get("assets",[])) else 1)' "$asset"; then
+              echo "${asset} is already attached to release ${release_id}; skipping the upload."
+            else
+              curl -sS --fail --max-time 120 -H "Authorization: token ${TOKEN}" -F "attachment=@${asset}" "${API}/releases/${release_id}/assets?name=${asset}" >/dev/null
+              echo "attached ${asset} to release ${release_id}"
+            fi
+          done
+      - name: Publish to Open VSX
         shell: bash
         env:
           VERSION: ${{ needs.parse-release-tag.outputs.version }}
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: |
           set -euo pipefail
           cd extensions/vscode
-          vsix="de-vloer-${VERSION}.vsix"
+          if [ -z "${OVSX_PAT:-}" ]; then
+            echo "::warning::OVSX_PAT is not configured; ${VERSION} reaches VS Code forks only as a sideloaded release asset."
+            exit 0
+          fi
           prerelease=""
           [[ "$VERSION" == *-* ]] && prerelease="--pre-release"
-          if [ -n "${OVSX_PAT:-}" ]; then
-            npx --yes ovsx@1.1.1 publish --packagePath "$vsix" --skip-duplicate $prerelease
-          else
-            echo "::notice::OVSX_PAT is not configured; the VSIX stays a Forgejo release asset only."
+          npx --no-install ovsx publish --packagePath "de-vloer-${VERSION}.vsix" --skip-duplicate $prerelease
+      - name: Publish to the Visual Studio Marketplace
+        shell: bash
+        env:
+          VERSION: ${{ needs.parse-release-tag.outputs.version }}
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          AZURE_CLIENT_ID: ${{ secrets.MARKETPLACE_AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.MARKETPLACE_AZURE_TENANT_ID }}
+        run: |
+          set -euo pipefail
+          cd extensions/vscode
+          if [[ "$VERSION" == *-* ]]; then
+            echo "::notice::${VERSION} is a pre-release version. The Visual Studio Marketplace accepts only major.minor.patch; Open VSX carries this build."
+            exit 0
           fi
-          if [ -n "${VSCE_PAT:-}" ]; then
-            npx --yes @vscode/vsce@3.9.2 publish --packagePath "$vsix" --skip-duplicate $prerelease
+          if [ -n "${AZURE_CLIENT_ID:-}" ] && [ -n "${AZURE_TENANT_ID:-}" ]; then
+            npx --no-install vsce publish --packagePath "de-vloer-${VERSION}.vsix" --skip-duplicate --azure-credential
+          elif [ -n "${VSCE_PAT:-}" ]; then
+            npx --no-install vsce publish --packagePath "de-vloer-${VERSION}.vsix" --skip-duplicate
           else
-            echo "::notice::VSCE_PAT is not configured; skipping the Visual Studio Marketplace."
+            echo "::warning::${VERSION} is a stable release and no Marketplace credential is configured; it did not reach the Visual Studio Marketplace."
           fi
 
   release-distribute-forgejo:

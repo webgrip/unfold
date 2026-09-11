@@ -1,29 +1,39 @@
+![De Vloer](https://forgejo.webgrip.dev/webgrip/de-vloer/raw/branch/development/docs/brand/png/banner-512.png)
+
 # De Vloer for VS Code
 
 Direct agent crews from your editor. The checkout, tool execution and model calls run where the session is placed, a container on the workbench host or a pod in the cluster, while you inspect progress, make decisions and review evidence in VS Code.
 
-This is the **implemented v0.3 desktop extension** for the current De Vloer API. The wider product design, connector roadmap and future IDE experience are documented in the parent repository under `docs/design/`. Proposed capabilities there are not automatically extension features.
+This is the **implemented v0.3 desktop extension** for the current De Vloer API. The wider product design, connector roadmap and future IDE experience are documented in [the parent repository](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/design). Proposed capabilities there are not automatically extension features.
+
+## Install
+
+Search for **De Vloer** in the Extensions view, or install it by identifier:
+
+```sh
+code --install-extension webgrip.de-vloer
+```
+
+Stable releases go to both the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=webgrip.de-vloer) and the [Open VSX Registry](https://open-vsx.org/extension/webgrip/de-vloer), which is what VSCodium, Cursor, Windsurf, code-server, Gitpod and Theia install from. Release candidates go to Open VSX only, because the Marketplace accepts no version carrying a `-rc` suffix.
+
+Every release also attaches its VSIX and a SHA-256 checksum to the [Forgejo release](https://forgejo.webgrip.dev/webgrip/de-vloer/releases). Verify and sideload it with **Extensions → … → Install from VSIX** when you would rather not install from a registry:
+
+```sh
+shasum -a 256 -c de-vloer-0.3.0.vsix.sha256
+code --install-extension de-vloer-0.3.0.vsix
+```
+
+A sideloaded VSIX does not auto-update.
 
 ## Start in five minutes
 
 Requirements: Node 24 and Git for the server/demo; VS Code 1.99 or later for the extension. The extension uses the editor's Node extension host and has no runtime npm dependencies. It does not require local OpenCode, Claude Code, Kubernetes tools or provider keys.
 
-In the repository root:
+Run the demo server in the repository root:
 
 ```sh
 npm run demo
 ```
-
-In another terminal:
-
-```sh
-cd extensions/vscode
-npm ci
-npm run package
-code --install-extension de-vloer-0.3.0.vsix
-```
-
-Alternatively, use **Extensions → … → Install from VSIX**. A publisher account or Marketplace upload is unnecessary for a team pilot. The package's `webgrip` publisher identifier does not mean this extension is already published or that a Marketplace publisher has been verified.
 
 Open the **De Vloer** activity bar, run **Vloer: Connect to Workbench**, and enter `http://127.0.0.1:4080`. Demo mode supplies its clearly identified demonstration user automatically. Expand **Linked Tasks → Demo tasks**, select the fixture task, inspect its read-only preview, and choose **Set up session**. Select a crew, runtime and budget (each step has a back button), then confirm **Import task**. Choose **Start remote crew** in the queued session and watch it live. Read the baseline failure and passing verification under **Checks**, the per-file patch under **Changes**, and the reviewer's findings in the crew strip, then download the captured Git bundle, binary patch or manifest. **New Remote Session** remains available for an ad hoc objective. The **Get Started with De Vloer** walkthrough covers the same path.
 
