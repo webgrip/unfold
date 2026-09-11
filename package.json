@@ -10,6 +10,7 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env src/main.ts",
     "demo": "node --env-file-if-exists=.env src/main.ts --demo",
+    "demo:unified": "node scripts/unified-demo.ts",
     "test": "node --test test/*.test.ts test/*.test.mjs",
     "check": "node scripts/check.mjs",
     "user:add": "node scripts/user-add.ts",

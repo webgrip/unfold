@@ -1,8 +1,16 @@
 # Run the unified workbench
 
+For a local browser test with real Ploeg authority and PostgreSQL, run `mise exec -- npm run demo:unified`. The [local demonstration guide](local-unified-demo.md) covers prerequisites, supervision, pause/resume and cleanup. It uses the actual code from both checkouts, a deterministic fixture and zero model calls; no cluster deployment is required.
+
 De Vloer now combines Ploeg's work overview with an opt-in path for Ploeg-owned interactive execution. Start with the read connection, then enable shared execution for one registered repository and team. The [execution contract](../contracts/ploeg-execution.md) describes ownership, recovery and remaining limits.
 
 ## Configure the services
+
+For a cluster pilot, use an isolated Ploeg namespace and database, one registered repository/team, one concurrent workbench session and a small explicit inference budget. Start with De Vloer and its Docker workspace/verifier on the workstation. Keep unattended executors and publication disabled until this path is qualified with the actual gateway and repository.
+
+Build from the matching prereleases. Existing Ploeg deployments must review the [managed-worker migration](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/docs/ops/managed-workers.md): managed worker authentication is now the default and requires its control-plane credentials and policies. Pin chart and image versions in Git; let Flux reconcile the reviewed manifests.
+
+Publishing a prerelease does not change the `latest` tag, but deployment automation can still select it. On 2026-09-11, the homelab [Renovate configuration](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/.renovaterc.json5) allowed Ploeg prereleases alongside matching patch/minor automerge rules. Review the current rules and deployment pins before a pilot release is adopted into an existing environment. The local demonstration does not modify these settings.
 
 Use [the unified example](../../config/unified.example.json) as a profile. Supply environment-specific URLs through your deployment configuration. Provision secret values through the estate's vault and existing ExternalSecret workflow; this guide contains names and references only.
 

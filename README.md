@@ -16,6 +16,8 @@ Open **http://127.0.0.1:4080** → **Tasks**. Preview **[Demo fixture] Fix check
 
 This is an explicitly labeled deterministic demo. It copies an isolated Git fixture, modifies real source and executes real Node tests. It makes **zero AI calls** and records **zero model spend**. It demonstrates the operating workflow, not model quality.
 
+To test the shared execution with real Ploeg and PostgreSQL, use `mise exec -- npm run demo:unified`. Keep the matching Ploeg checkout beside this one and follow the [local shared execution guide](docs/operations/local-unified-demo.md) for prerequisites and cleanup. The launcher prints a browser URL and prepares a session you can start, pause and supervise.
+
 With the server running, a second terminal can verify the full demonstration:
 
 ```sh
