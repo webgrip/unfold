@@ -33,10 +33,20 @@ export class DemoRuntime implements AgentRuntime {
     try { exists = (await stat(join(directory, '.git'))).isDirectory(); } catch {}
     if (!exists) {
       await cp(this.fixture, directory, { recursive: true });
-      for (const args of [['init', '--initial-branch=main'], ['add', 'package.json', 'src/order.js', 'test/order.test.js'], ['-c', 'user.name=De Vloer Demo', '-c', 'user.email=demo@localhost', 'commit', '-m', 'test: establish intentionally failing rounding fixture'], ['checkout', '-b', session.branch]]) {
+      const initialized = await this.command('git', ['init', '--initial-branch=main'], directory, signal);
+      if (initialized.exitCode !== 0) throw new Error('Could not initialize demo workspace');
+    }
+    const head = await this.command('git', ['rev-parse', '--verify', 'HEAD'], directory, signal);
+    if (head.exitCode !== 0) {
+      for (const args of [['add', 'package.json', 'src/order.js', 'test/order.test.js'], ['-c', 'user.name=De Vloer Demo', '-c', 'user.email=demo@localhost', 'commit', '-m', 'test: establish intentionally failing rounding fixture']]) {
         const result = await this.command('git', args, directory, signal);
-        if (result.exitCode !== 0) throw new Error('Could not initialize demo workspace');
+        if (result.exitCode !== 0) throw new Error('Could not establish demo workspace baseline');
       }
+    }
+    const branch = await this.command('git', ['show-ref', '--verify', `refs/heads/${session.branch}`], directory, signal);
+    if (branch.exitCode !== 0) {
+      const checkedOut = await this.command('git', ['checkout', '-b', session.branch], directory, signal);
+      if (checkedOut.exitCode !== 0) throw new Error('Could not select demo workspace branch');
     }
     return { id: session.id, backend: 'demo', directory, metadata: { baseSha: session.workspace?.metadata?.baseSha ?? await pinCandidateBase(directory) } };
   }
