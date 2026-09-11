@@ -31,21 +31,22 @@ export class DemoRuntime implements AgentRuntime {
     await mkdir(this.root, { recursive: true, mode: 0o700 });
     let exists = false;
     try { exists = (await stat(join(directory, '.git'))).isDirectory(); } catch {}
-    if (!exists) {
-      await cp(this.fixture, directory, { recursive: true });
-      const initialized = await this.command('git', ['init', '--initial-branch=main'], directory, signal);
+    if (!exists) await cp(this.fixture, directory, { recursive: true });
+    const repository = await this.prepareGit(['rev-parse', '--resolve-git-dir', '.git'], directory, signal);
+    if (repository.exitCode !== 0) {
+      const initialized = await this.prepareGit(['init', '--initial-branch=main'], directory, signal);
       if (initialized.exitCode !== 0) throw new Error('Could not initialize demo workspace');
     }
-    const head = await this.command('git', ['rev-parse', '--verify', 'HEAD'], directory, signal);
+    const head = await this.prepareGit(['rev-parse', '--verify', 'HEAD'], directory, signal);
     if (head.exitCode !== 0) {
       for (const args of [['add', 'package.json', 'src/order.js', 'test/order.test.js'], ['-c', 'user.name=De Vloer Demo', '-c', 'user.email=demo@localhost', 'commit', '-m', 'test: establish intentionally failing rounding fixture']]) {
-        const result = await this.command('git', args, directory, signal);
+        const result = await this.prepareGit(args, directory, signal);
         if (result.exitCode !== 0) throw new Error('Could not establish demo workspace baseline');
       }
     }
-    const branch = await this.command('git', ['show-ref', '--verify', `refs/heads/${session.branch}`], directory, signal);
+    const branch = await this.prepareGit(['show-ref', '--verify', `refs/heads/${session.branch}`], directory, signal);
     if (branch.exitCode !== 0) {
-      const checkedOut = await this.command('git', ['checkout', '-b', session.branch], directory, signal);
+      const checkedOut = await this.prepareGit(['checkout', '-b', session.branch], directory, signal);
       if (checkedOut.exitCode !== 0) throw new Error('Could not select demo workspace branch');
     }
     return { id: session.id, backend: 'demo', directory, metadata: { baseSha: session.workspace?.metadata?.baseSha ?? await pinCandidateBase(directory) } };
@@ -109,6 +110,13 @@ export class DemoRuntime implements AgentRuntime {
 
   private delay(signal: AbortSignal): Promise<void> { return setTimeout(this.delayMs, undefined, { signal }); }
 
+  private async prepareGit(args: string[], cwd: string, signal: AbortSignal): Promise<CommandResult> {
+    signal.throwIfAborted();
+    const result = await this.command('git', ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '-c', 'commit.gpgSign=false', ...args], cwd, AbortSignal.timeout(30000));
+    signal.throwIfAborted();
+    return result;
+  }
+
   private command(binary: string, args: string[], cwd: string, signal: AbortSignal): Promise<CommandResult> {
     signal.throwIfAborted();
     return new Promise((resolveCommand, reject) => {
@@ -117,8 +125,22 @@ export class DemoRuntime implements AgentRuntime {
       let output = '';
       const append = (value: Buffer) => { output = (output + value.toString()).slice(-100000); };
       child.stdout.on('data', append); child.stderr.on('data', append);
-      child.once('error', reject);
-      child.once('close', code => { if (signal.aborted) reject(signal.reason); else resolveCommand({ exitCode: code ?? 1, output, durationMs: Math.round(performance.now() - started) }); });
+      let failure: Error | undefined;
+      let termination: ReturnType<typeof globalThis.setTimeout> | undefined;
+      const stop = () => {
+        if (termination) return;
+        termination = globalThis.setTimeout(() => child.kill('SIGKILL'), 1000).unref();
+      };
+      signal.addEventListener('abort', stop, { once: true });
+      if (signal.aborted) stop();
+      child.once('error', error => { failure = error; });
+      child.once('close', code => {
+        signal.removeEventListener('abort', stop);
+        if (termination) clearTimeout(termination);
+        if (signal.aborted) reject(signal.reason);
+        else if (failure) reject(failure);
+        else resolveCommand({ exitCode: code ?? 1, output, durationMs: Math.round(performance.now() - started) });
+      });
     });
   }
 }

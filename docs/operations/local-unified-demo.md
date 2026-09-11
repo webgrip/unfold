@@ -32,6 +32,8 @@ Optional environment settings:
 
 The demo runtime always repairs the supplied order-service fixture, regardless of a different objective you type. It does not invoke OpenCode or test a model's understanding. Candidate evidence is available after completion; **the delivery gate is not configured**, so this launcher does not verify delivery policy, grant a publication approval or publish a proposal. [The complete authority and delivery qualifications](unified-baseline.md) exercise those separate boundaries. Tracker import is also outside this launcher; [its qualification evidence](../research/evidence/delivery-2026-09-11/tracker-authority-qualification.json) uses the real applications and database with a tracker HTTP fixture.
 
+A pause during repository initialization waits for the current Git metadata command to finish before confirming the stop. Each such command has a 30-second timeout, followed by at most one second to terminate an unresponsive child. This preserves resumable repository metadata; an explicit resume never relies on deleting unknown Git locks.
+
 ## Stop and clean up
 
 Press **Ctrl+C** in the launcher terminal. From another terminal, send `SIGTERM` to the launcher PID printed in `unified-demo.ready`. Wait for `unified-demo.stopped`, which confirms that the application processes and PostgreSQL have stopped and the printed temporary directory has been removed.
