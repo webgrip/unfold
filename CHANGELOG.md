@@ -1,4 +1,6 @@
-## [1.0.0-rc.1](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.3.0-rc.4...v1.0.0-rc.1) (2026-09-11)
+## Withdrawn: [1.0.0-rc.1](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.3.0-rc.4...withdrawn-v1.0.0-rc.1) (2026-09-11)
+
+The release automation selected the wrong major version. Ploeg is experimental and is not ready for general availability. This release is [withdrawn](https://forgejo.webgrip.dev/webgrip/ploeg/releases/tag/withdrawn-v1.0.0-rc.1); do not deploy its images or charts. Original notes remain below. See the [release policy and correction record](docs/ops/release-versioning.md).
 
 ### ⚠ BREAKING CHANGES
 
