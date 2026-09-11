@@ -1,3 +1,18 @@
+## [0.3.0-rc.7](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.3.0-rc.6...v0.3.0-rc.7) (2026-09-11)
+
+### Fixed
+
+* **ci:** stop the licence gate depending on a network tool install ([f2333b9](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f2333b96c6b44f489c562f74d6a4654fed29cc01))
+
+### Docs
+
+* **release:** drop the 1.x candidate from the record ([9e18b91](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9e18b913fe33c41b74739c9b24d99ced0ce39fb3))
+* **release:** point test deployments at the corrected publisher ([023c29f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/023c29fd8380ac1d0cfa375fe0098e99006fc2e8))
+
+### Internal
+
+* **licence:** name the copyright holder and hold Apache-2.0 in CI ([bafb2a5](https://forgejo.webgrip.dev/webgrip/ploeg/commit/bafb2a52b6ea584f6c25f322b3b768edb7068cb3))
+
 ## [0.3.0-rc.6](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.3.0-rc.5...v0.3.0-rc.6) (2026-09-11)
 
 ### Fixed
