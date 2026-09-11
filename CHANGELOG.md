@@ -1,3 +1,13 @@
+## [0.3.0-rc.6](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.3.0-rc.5...v0.3.0-rc.6) (2026-09-11)
+
+### Fixed
+
+* **release:** use available outputs to enable Forgejo publishers ([6eecf01](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6eecf01afab7772be504a8033d53ea33950fd489))
+
+### Docs
+
+* **release:** record corrected prerelease publication ([43c29be](https://forgejo.webgrip.dev/webgrip/ploeg/commit/43c29be95ce7168091d2d6058d3e01022745948c))
+
 ## [0.3.0-rc.5](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.3.0-rc.4...v0.3.0-rc.5) (2026-09-11)
 
 ### ⚠ BREAKING CHANGES
