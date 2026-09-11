@@ -1,3 +1,22 @@
+## [0.3.0-rc.13](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.12...v0.3.0-rc.13) (2026-09-11)
+
+### Added
+
+* **delivery:** verify canonical candidates before human approval ([7732703](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/773270300d20fec8ffa25bcf0de66ec6479c7f8b))
+* **demo:** launch a local Ploeg and workbench test stack ([ea96755](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/ea96755abd53909b80c7686b467a84f12536e4cf))
+* **ploeg:** bind human sessions and tracker imports to shared execution ([fb11923](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/fb119235d5e430eb4e21964a673b01b3f3b635fd))
+* **vscode:** inspect scoped Ploeg work and execution bindings ([039c8a0](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/039c8a0172e53c7a864496d52b2cc322bec6c3c9))
+
+### Fixed
+
+* **demo:** finish Git metadata writes before confirming pause ([ccd42fa](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/ccd42fa89539d3bda649fbfed5bdeae523a7eae0))
+* **demo:** recover interrupted workspace initialization ([6674981](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/6674981001ae9c5a8994d947c08ea599c6192b50))
+* **vscode:** resolve workbench guide in packaged extension ([a3ac9f1](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/a3ac9f156ec272fd71b3378d714547cdf0177aa8))
+
+### Docs
+
+* record unified architecture and qualification evidence ([06d7aed](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/06d7aed1f60f6575778b86495a48ee7e4ffcb32b))
+
 ## [0.3.0-rc.12](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.11...v0.3.0-rc.12) (2026-09-10)
 
 ### Fixed
