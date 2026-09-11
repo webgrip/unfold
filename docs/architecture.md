@@ -36,6 +36,10 @@ flowchart TD
 
 Standalone workbench sessions retain their existing broker behavior when shared execution is not enabled. Bound sessions cannot silently fall back to standalone authority. [Registered Vikunja and ClickUp imports](contracts/ploeg-tracker-binding.md) bind to the existing queued Ploeg Work Item and claim it atomically on Start. General WorkOrders and adoption of already executing harness work remain outside this boundary.
 
+The intended product starts in De Vloer, with a ticket. A person can work on that ticket hands-on or give work to agents through Ploeg. OpenCode, OpenHands and other agent tools are replaceable implementation details. Starting hands-on work alone does not give work to Ploeg. The current shared configuration applies to every session in that workbench, so it does not yet offer this choice within one deployment.
+
+Research is useful work in its own right. A ticket asking whether a product is worth building may finish with convincing evidence, a business case and a clear conclusion to stop. It need not produce a technical design or prototype when the evidence supports stopping. When building is justified, the expected result includes a usable design, recorded decisions, graphs, documentation, a business case and a conclusion, possibly supported by a proof of concept. Who approves completion and who may start follow-up tickets remain open product questions.
+
 ## Implementation map
 
 | Path | Responsibility |
