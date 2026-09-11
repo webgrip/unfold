@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Ploeg and Vloer: responsibilities, C4 architecture, alternatives, and bottlenecks.">
+<title>Ploeg + Vloer — Understand the system</title>
+<style>
+:root{color-scheme:light dark;--paper:light-dark(#fff,#16191c);--text:light-dark(#17242d,#e2e8ed);--muted:light-dark(#52636f,#a9b7c1);--line:light-dark(#d7dfe4,#3c464f);--surface:light-dark(#f3f6f7,#21272c);--accent:light-dark(#146050,#78cbb7);--diagram-node:var(--surface);--diagram-text:var(--text);--diagram-stroke:var(--muted);--diagram-line:var(--muted);--diagram-boundary:var(--paper);--diagram-border:var(--line);--diagram-paper:var(--paper)}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--text);font:16px/1.65 system-ui,sans-serif}a{color:var(--accent);text-underline-offset:3px}button,select,input{font:inherit;color:inherit}button,select{background:var(--surface);border:1px solid var(--line);padding:8px 12px;border-radius:4px;cursor:pointer}button:focus-visible,a:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:3px}header{padding:30px 36px 24px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;justify-content:space-between;gap:20px;flex-wrap:wrap}.brand{font-size:24px;font-weight:650;letter-spacing:-.5px}header p{margin:4px 0 0;color:var(--muted)}header small{color:var(--muted)}.layout{display:grid;grid-template-columns:230px minmax(0,1fr);max-width:1640px;margin:auto}nav{padding:28px 18px;position:sticky;top:0;height:max-content}nav a{display:block;text-decoration:none;color:var(--muted);padding:9px 14px;border-left:3px solid transparent;font-size:15px}nav a[aria-current=page]{color:var(--accent);border-left-color:var(--accent);background:var(--surface);font-weight:600}main{min-width:0;padding:30px 40px 90px;border-left:1px solid var(--line)}h1{font-size:28px;line-height:1.25;letter-spacing:-.45px;margin:0 0 24px}h2{font-size:21px;line-height:1.35;margin:36px 0 12px}h3{font-size:18px;margin-top:28px}p,li{max-width:84ch}p{margin:14px 0}li{margin:7px 0}ul,ol{padding-left:24px}strong{font-weight:650}code{background:var(--surface);font-size:.9em;padding:2px 5px;border-radius:3px;overflow-wrap:anywhere}pre{background:var(--surface);padding:18px;overflow:auto;font-size:13px}pre code{padding:0}blockquote{border-left:3px solid var(--line);margin-left:0;padding-left:20px;color:var(--muted)}table{border-collapse:collapse;font-size:14px;display:block;overflow-x:auto;width:100%;margin:20px 0}th,td{border-bottom:1px solid var(--line);padding:12px 14px;text-align:left;vertical-align:top;min-width:160px}th{background:var(--surface)}figure{margin:28px 0}.diagram{overflow:auto;border:1px solid var(--line);padding:20px;background:var(--paper)}.diagram svg{display:block;width:100%;height:auto;min-width:640px;max-width:none!important}.diagram svg .label,.diagram svg text{color:var(--text)!important}.diagram svg foreignObject{overflow:visible}figcaption{font-size:13px;color:var(--muted);margin-top:8px}.viewtools{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:18px 0;border-bottom:1px solid var(--line);margin-bottom:24px}.viewtools select{max-width:100%;min-width:240px;flex:1}.kicker{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}.scale-demo{padding:22px 0;border-block:1px solid var(--line);margin:24px 0}.scale-inputs{display:grid;grid-template-columns:repeat(4,minmax(110px,1fr));gap:16px}.scale-inputs label{font-size:14px}.scale-inputs input{width:100%;margin-top:8px;background:var(--surface);border:1px solid var(--line);padding:8px}.scale-result{font-size:20px;margin-top:20px;font-weight:600}.barrow{display:grid;grid-template-columns:155px 1fr 65px;align-items:center;gap:14px;margin:16px 0;font-size:14px}.bar{height:14px;background:var(--surface)}.bar span{display:block;height:100%;background:var(--muted)}.barrow.limiting .bar span{background:var(--accent)}.diagram source{display:none}.fine{font-size:13px;color:var(--muted)}.intro-strip{padding:16px 20px;background:var(--surface);margin-bottom:26px;border-left:3px solid var(--accent)}
+.diagram svg *{filter:none!important}
+@media(max-width:850px){header{padding:22px}.layout{grid-template-columns:1fr}nav{position:static;padding:12px;display:flex;overflow:auto;border-bottom:1px solid var(--line)}nav a{white-space:nowrap;border-left:0;border-bottom:3px solid transparent;padding:8px 12px}nav a[aria-current=page]{border-bottom-color:var(--accent)}main{border-left:0;padding:26px 22px 60px}.scale-inputs{grid-template-columns:repeat(2,minmax(0,1fr))}h1{font-size:25px}.barrow{grid-template-columns:120px 1fr 45px}.diagram{padding:12px}.viewtools select{min-width:0;width:100%}}
+@media print{header{padding:0 0 20px}nav,.viewtools,header button,.scale-demo{display:none}.layout{display:block}main{padding:0;border:0}a{color:inherit}figure{break-inside:avoid}.diagram{overflow:visible;padding:5px}.diagram svg{min-width:0}h2{break-after:avoid}body{font-size:11pt}}
+</style>
+</head>
+<body>
+<header><div><div class="brand">Ploeg + Vloer</div><p>Understand the work, the responsibilities, and the choices.</p></div><div><small>Discussion baseline · 11 September 2026</small><br><button id="print" type="button">Print current view</button></div></header>
+<div class="layout"><nav id="navigation" aria-label="Architecture guide"></nav><main id="content"></main></div>
+<script>
+const landscape="__LANDSCAPE_DATA__";
+const nav=document.getElementById('navigation');
+const content=document.getElementById('content');
+const escapeText=s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+nav.innerHTML=landscape.pages.map(p=>`<a href="#${p.id}">${escapeText(p.title)}</a>`).join('');
+document.getElementById('print').onclick=()=>window.print();
+function show(){
+  const [id='start',selection='0']=location.hash.slice(1).split('/');
+  const page=landscape.pages.find(p=>p.id===id)||landscape.pages[0];
+  nav.querySelectorAll('a').forEach(a=>a.setAttribute('aria-current',a.hash==='#'+page.id?'page':'false'));
+  if(page.id==='c4'){
+    const sections=page.html.split(/(?=<h2>)/);
+    const views=sections.slice(1);
+    const selected=Math.max(0,Math.min(views.length-1,Number(selection)||0));
+    content.innerHTML='<div class="kicker">Architecture · choose one question at a time</div><h1>C4 views</h1><div class="viewtools"><label for="view-select">View</label><select id="view-select">'+views.map((v,i)=>`<option value="${i}" ${i===selected?'selected':''}>${escapeText(v.match(/<h2>(.*?)<\/h2>/s)?.[1].replace(/<[^>]+>/g,'')||'View '+(i+1))}</option>`).join('')+'</select><button id="previous" type="button">Previous</button><button id="next" type="button">Next</button></div>'+views[selected];
+    document.getElementById('view-select').onchange=e=>location.hash='c4/'+e.target.value;
+    document.getElementById('previous').onclick=()=>location.hash='c4/'+Math.max(0,selected-1);
+    document.getElementById('next').onclick=()=>location.hash='c4/'+Math.min(views.length-1,selected+1);
+  }else{
+    content.innerHTML=page.html;
+    if(page.id==='start')content.insertAdjacentHTML('afterbegin','<div class="intro-strip"><strong>Agreed direction:</strong> Vloer is where people work with AI. Ploeg runs the AI work. Tickets are external and optional for starting a conversation.</div>');
+    if(page.id==='bottlenecks')insertCapacityDemo();
+  }
+  window.scrollTo(0,0);
+  document.title=page.title+' — Ploeg + Vloer';
+}
+function insertCapacityDemo(){
+  const block=document.createElement('section');block.className='scale-demo';
+  block.innerHTML='<h2>Adding execution capacity</h2><p class="fine">Illustrative ticketed software workflow. Inputs are assumptions, not observed team data. Units: items per week.</p><div class="scale-inputs">'+[['ready','Ready tickets',20],['produce','Candidate changes',50],['review','Human reviews',8],['release','Safe releases',20]].map(([id,name,value])=>`<label>${name}<input type="number" min="0" max="10000" step="1" id="capacity-${id}" value="${value}"></label>`).join('')+'</div><div id="capacity-result" class="scale-result" aria-live="polite"></div><div id="capacity-bars"></div><p class="fine">Simple capacity ceiling. Dependencies, rework, quality, and variability can reduce actual delivery. Research conclusions need not reach production.</p>';
+  content.querySelector('h1').after(block);
+  const update=()=>{const names=['Ready tickets','Candidate changes','Human reviews','Safe releases'];const values=[...block.querySelectorAll('input')].map(n=>Math.max(0,Math.min(10000,Number(n.value)||0)));const ceiling=Math.min(...values);const max=Math.max(...values,1);document.getElementById('capacity-result').textContent=`At most ${ceiling} production changes per week in this illustration`;document.getElementById('capacity-bars').innerHTML=values.map((n,i)=>`<div class="barrow ${n===ceiling?'limiting':''}"><span>${names[i]}</span><div class="bar"><span style="width:${100*n/max}%"></span></div><span>${n}/wk</span></div>`).join('');};
+  block.querySelectorAll('input').forEach(input=>input.oninput=update);update();
+}
+window.addEventListener('hashchange',show);show();
+</script>
+</body>
+</html>

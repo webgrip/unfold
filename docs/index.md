@@ -2,6 +2,8 @@
 
 De Vloer is the human workbench beside Ploeg: durable operator sessions, isolated agent workspaces, interchangeable harnesses and evidence people can review.
 
+Start with [the ecosystem explanation](landscape/index.md) for plain definitions, C4 views, bottlenecks, alternatives, and the product questions being worked through with the owner.
+
 - [Architecture](architecture.md) and the [decisions](adrs/README.md) behind it
 - [Live operation](operations/live.md), [releases](operations/release.md) and [task connections](operations/task-connections.md)
 - [Unified Ploeg workbench](operations/unified-baseline.md) and [shared execution contract](contracts/ploeg-execution.md)
