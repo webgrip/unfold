@@ -1,3 +1,13 @@
+## [0.3.0-rc.15](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.14...v0.3.0-rc.15) (2026-09-11)
+
+### Added
+
+* **release:** publish de-vloer to GHCR so Harbor stops being the only door ([35a7520](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/35a75202d352d4bf815178f0e8a07152263ce704))
+
+### Docs
+
+* **landscape:** add ecosystem explanation, domain model and explorer ([c0eaeac](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/c0eaeac4bea099d3af69518a39aaaec84b459670))
+
 ## [0.3.0-rc.14](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.13...v0.3.0-rc.14) (2026-09-11)
 
 ### Fixed
