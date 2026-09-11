@@ -51,7 +51,7 @@ jobs:
     needs: [parse-release-tag]
     uses: webgrip/workflows/.forgejo/workflows/helm-chart-push.yml@v1.10.0
     with:
-      enabled: ${{ needs.parse-release-tag.result == 'success' && needs.parse-release-tag.outputs.version != '' }}
+      enabled: ${{ needs.parse-release-tag.outputs.version != '' }}
       registry: harbor.webgrip.dev
       path: ops/helm/ploeg
       name: ploeg
@@ -330,7 +330,7 @@ jobs:
     needs: [parse-release-tag, release-distribute-harbor]
     uses: webgrip/workflows/.forgejo/workflows/forgejo-distribute.yml@v1.11.3
     with:
-      enabled: ${{ needs.parse-release-tag.result == 'success' && needs.parse-release-tag.outputs.version != '' && needs.release-distribute-harbor.result == 'success' }}
+      enabled: ${{ needs.parse-release-tag.outputs.version != '' }}
       version: ${{ needs.parse-release-tag.outputs.version }}
       ref: v${{ needs.parse-release-tag.outputs.version }}
       link-repo: ploeg
@@ -369,7 +369,7 @@ jobs:
     needs: [parse-release-tag, release-distribute-harbor]
     uses: webgrip/workflows/.forgejo/workflows/github-distribute.yml@v1.11.1
     with:
-      enabled: ${{ needs.parse-release-tag.result == 'success' && needs.parse-release-tag.outputs.version != '' && needs.release-distribute-harbor.result == 'success' }}
+      enabled: ${{ needs.parse-release-tag.outputs.version != '' }}
       version: ${{ needs.parse-release-tag.outputs.version }}
       repo: webgrip/ploeg
       branches: main development

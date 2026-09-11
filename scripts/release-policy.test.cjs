@@ -177,23 +177,36 @@ test('the actual current Git history calculates the corrected replacement withou
   console.log(JSON.stringify({ lastRelease: lastRelease.gitTag, analyzedCommits: commits.length, type, nextRelease: `v${version}`, publication: false }));
 });
 
-test('reusable artifact jobs receive an explicit denial when parse or Harbor prerequisites fail', () => {
+test('reusable artifact jobs accept validated parse output without unavailable job results', () => {
   const workflow = fs.readFileSync(path.join(root, '.forgejo/workflows/on_release_published.yml'), 'utf8');
-  for (const name of ['release-publish-chart', 'release-distribute-forgejo', 'release-distribute-github']) {
-    const job = workflow.slice(workflow.indexOf(`  ${name}:`)).split(/\n  [a-z]+[a-z-]*:/)[0];
-    const expression = job.match(/enabled: \$\{\{ (.+) \}\}/)?.[1];
-    assert.ok(expression, `${name} must pass an explicit guarded enabled input`);
-    const evaluate = (parseResult, version, harborResult) => vm.runInNewContext(expression
-      .replaceAll('needs.parse-release-tag.result', JSON.stringify(parseResult))
-      .replaceAll('needs.parse-release-tag.outputs.version', JSON.stringify(version))
-      .replaceAll('needs.release-distribute-harbor.result', JSON.stringify(harborResult)));
-    assert.equal(evaluate('success', '0.3.0-rc.5', 'success'), true);
-    assert.equal(evaluate('failure', '', 'success'), false);
-    assert.equal(evaluate('failure', '0.3.0-rc.5', 'success'), false);
-    assert.equal(evaluate('success', '', 'success'), false);
-    if (name !== 'release-publish-chart') {
-      assert.equal(evaluate('success', '0.3.0-rc.5', 'failure'), false);
-      assert.equal(evaluate('success', '0.3.0-rc.5', 'skipped'), false);
+  const parseJob = workflow.slice(workflow.indexOf('  parse-release-tag:'), workflow.indexOf('\n  # Distribute:'));
+  const shell = parseJob.slice(parseJob.indexOf('          set -euo pipefail')).replace(/^          /gm, '');
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ploeg-publish-input-'));
+  const output = path.join(directory, 'output');
+  try {
+    for (const tag of ['v0.3.0-rc.5', 'v1.0.0-rc.1', 'v0.3.0', '']) {
+      fs.writeFileSync(output, '');
+      const result = spawnSync('bash', ['-c', shell], { env: { ...process.env, RELEASE_TAG: tag, GITHUB_OUTPUT: output }, encoding: 'utf8' });
+      const version = fs.readFileSync(output, 'utf8').match(/^version=(.*)$/m)?.[1] || '';
+      for (const name of ['release-publish-chart', 'release-distribute-forgejo', 'release-distribute-github']) {
+        const job = workflow.slice(workflow.indexOf(`  ${name}:`)).split(/\n  [a-z]+[a-z-]*:/)[0];
+        const expression = job.match(/enabled: \$\{\{ (.+) \}\}/)?.[1];
+        assert.ok(expression, `${name} must pass an explicit guarded enabled input`);
+        for (const unavailableResult of [undefined, '']) {
+          const enabled = vm.runInNewContext(expression.replace(/needs\.([a-z-]+)/g, "needs['$1']"), {
+            needs: {
+              'parse-release-tag': { outputs: { version }, result: unavailableResult },
+              'release-distribute-harbor': { outputs: {}, result: unavailableResult },
+            },
+          });
+          assert.equal(enabled, result.status === 0, `${name} input gate for ${tag}`);
+        }
+        if (name !== 'release-publish-chart') {
+          assert.match(job, /needs: \[parse-release-tag, release-distribute-harbor\]/);
+        }
+      }
     }
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
   }
 });
