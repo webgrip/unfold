@@ -10,6 +10,8 @@ The [artifact publisher](../../.forgejo/workflows/on_release_published.yml) also
 
 On 2026-09-11, a breaking-change footer caused the release automation to select `v1.0.0-rc.1`. The compatibility warning was needed, but the version number was wrong.
 
+The corrected source release is [v0.3.0-rc.5](https://forgejo.webgrip.dev/webgrip/ploeg/releases/tag/v0.3.0-rc.5), at [e335a9e](https://forgejo.webgrip.dev/webgrip/ploeg/commit/e335a9e1000638fa8c2bf47ab1dedc2ec2f8941e). The [artifact publication run](https://forgejo.webgrip.dev/webgrip/ploeg/actions/runs/252) reports whether its images and chart finished publishing.
+
 The [Forgejo release](https://forgejo.webgrip.dev/webgrip/ploeg/releases/tag/withdrawn-v1.0.0-rc.1) is marked withdrawn. Its original notes and assets are preserved under `withdrawn-v1.0.0-rc.1`, pointing to the original [47c078d commit](https://forgejo.webgrip.dev/webgrip/ploeg/commit/47c078da2f41548ac6903482160ca29c9a87f872). Only after verifying that archive was the original source tag removed from release-version discovery. Development history was not rewritten.
 
 The [GitHub release](https://github.com/webgrip/ploeg/releases/tag/v1.0.0-rc.1) is also marked withdrawn. Its immutable tag and assets remain for traceability. Existing 1.0.0-rc.1 container images and charts retain their original bytes; they must not be used for the test deployment.
