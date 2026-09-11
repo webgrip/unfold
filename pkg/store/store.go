@@ -7,6 +7,7 @@ package store
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"embed"
 	"encoding/hex"
 	"encoding/json"
@@ -167,7 +168,7 @@ func (s *Store) IngestAssigned(ctx context.Context, item work.WorkItem) (int64, 
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		ON CONFLICT (provider, external_id) DO UPDATE SET
 			revision = EXCLUDED.revision,
-			team     = EXCLUDED.team,
+			team     = CASE WHEN work_items.operator_owned THEN work_items.team ELSE EXCLUDED.team END,
 			priority = EXCLUDED.priority,
 			title    = EXCLUDED.title,
 			description = EXCLUDED.description,
@@ -176,15 +177,15 @@ func (s *Store) IngestAssigned(ctx context.Context, item work.WorkItem) (int64, 
 			-- Never re-target a live run: the worker has already cloned, and a
 			-- review round that silently moved repo would orphan its own branch
 			-- and PR (R12). A re-target takes effect on the NEXT dispatch.
-			target_forge       = CASE WHEN work_items.state = 'leased' THEN work_items.target_forge       ELSE EXCLUDED.target_forge       END,
-			target_owner       = CASE WHEN work_items.state = 'leased' THEN work_items.target_owner       ELSE EXCLUDED.target_owner       END,
-			target_repo        = CASE WHEN work_items.state = 'leased' THEN work_items.target_repo        ELSE EXCLUDED.target_repo        END,
-			target_base_branch = CASE WHEN work_items.state = 'leased' THEN work_items.target_base_branch ELSE EXCLUDED.target_base_branch END,
-			route_rule         = CASE WHEN work_items.state = 'leased' THEN work_items.route_rule         ELSE EXCLUDED.route_rule         END,
-			state    = CASE WHEN work_items.state IN ('ingested', 'stale', 'done', 'needs_human') THEN 'queued' ELSE work_items.state END,
-			attempts = CASE WHEN work_items.state IN ('stale', 'done', 'needs_human') THEN 0 ELSE work_items.attempts END,
-			next_eligible_at  = NULL,
-			infra_failures = CASE WHEN work_items.state IN ('stale', 'done', 'needs_human') THEN 0 ELSE work_items.infra_failures END,
+			target_forge       = CASE WHEN work_items.operator_owned OR work_items.state = 'leased' THEN work_items.target_forge       ELSE EXCLUDED.target_forge       END,
+			target_owner       = CASE WHEN work_items.operator_owned OR work_items.state = 'leased' THEN work_items.target_owner       ELSE EXCLUDED.target_owner       END,
+			target_repo        = CASE WHEN work_items.operator_owned OR work_items.state = 'leased' THEN work_items.target_repo        ELSE EXCLUDED.target_repo        END,
+			target_base_branch = CASE WHEN work_items.operator_owned OR work_items.state = 'leased' THEN work_items.target_base_branch ELSE EXCLUDED.target_base_branch END,
+			route_rule         = CASE WHEN work_items.operator_owned OR work_items.state = 'leased' THEN work_items.route_rule         ELSE EXCLUDED.route_rule         END,
+			state    = CASE WHEN NOT work_items.operator_owned AND work_items.state IN ('ingested', 'stale', 'done', 'needs_human') THEN 'queued' ELSE work_items.state END,
+			attempts = CASE WHEN NOT work_items.operator_owned AND work_items.state IN ('stale', 'done', 'needs_human') THEN 0 ELSE work_items.attempts END,
+			next_eligible_at  = CASE WHEN work_items.operator_owned THEN work_items.next_eligible_at ELSE NULL END,
+			infra_failures = CASE WHEN NOT work_items.operator_owned AND work_items.state IN ('stale', 'done', 'needs_human') THEN 0 ELSE work_items.infra_failures END,
 			updated_at = now()
 		RETURNING id, state`,
 		item.Provider, item.ExternalID, item.Revision, item.Team,
@@ -239,7 +240,7 @@ func (s *Store) Claim(ctx context.Context, team string, ttl time.Duration) (*Cla
 		UPDATE work_items SET state = 'leased', attempts = attempts + 1, updated_at = now()
 		WHERE id = (
 			SELECT id FROM work_items
-			WHERE team = $1 AND state = 'queued' AND (next_eligible_at IS NULL OR next_eligible_at <= now())
+			WHERE team = $1 AND state = 'queued' AND NOT operator_owned AND (next_eligible_at IS NULL OR next_eligible_at <= now())
 			ORDER BY priority DESC, created_at
 			FOR UPDATE SKIP LOCKED
 			LIMIT 1
@@ -389,6 +390,11 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 		rep.Links = []string{}
 	}
 	next := work.StateForOutcome(rep.Outcome)
+	encoded, err := json.Marshal(rep)
+	if err != nil {
+		return OutcomeResult{}, err
+	}
+	digest := fmt.Sprintf("%x", sha256.Sum256(encoded))
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -408,12 +414,18 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 		UPDATE agent_runs
 		SET state = 'finished', finished_at = now(), outcome = $1, summary = $2,
 		    stuck_reason = $3, links = $4, usage = $5, failure_reason = $6, findings = $7,
-		    verdict = CASE WHEN writes THEN '' ELSE $8 END
+		    verdict = CASE WHEN writes THEN '' ELSE $8 END, outcome_digest = $10
 		WHERE run_token = $9 AND state = 'running'
 		RETURNING work_item_id, team, shift_id`,
 		string(rep.Outcome), rep.Summary, rep.StuckReason, rep.Links, rep.Usage,
-		rep.FailureReason, rep.Findings, rep.Verdict, runToken).Scan(&id, &team, &shiftID); err != nil {
+		rep.FailureReason, rep.Findings, rep.Verdict, runToken, digest).Scan(&id, &team, &shiftID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			if err := tx.QueryRow(ctx, `SELECT work_item_id,shift_id FROM agent_runs
+				WHERE run_token=$1 AND state='finished' AND outcome_digest=$2
+				AND EXISTS (SELECT 1 FROM run_llm_accounts WHERE run_token=$1)`, runToken, digest).
+				Scan(&id, &shiftID); err == nil {
+				return OutcomeResult{WorkItemID: id, ShiftID: shiftID}, nil
+			}
 			return OutcomeResult{}, ErrUnknownRun
 		}
 		return OutcomeResult{}, err
@@ -433,7 +445,7 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 	if shiftID != nil {
 		if _, err := tx.Exec(ctx, `
 			UPDATE shifts SET spent = spent + COALESCE(($2::jsonb->>'costUsd')::numeric, 0)
-			WHERE id = $1`, *shiftID, rep.Usage); err != nil {
+			WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM run_llm_accounts WHERE run_token = $3)`, *shiftID, rep.Usage, runToken); err != nil {
 			return OutcomeResult{}, err
 		}
 	}
@@ -559,6 +571,14 @@ func (s *Store) SettleItem(ctx context.Context, workItemID int64, next work.Stat
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
+	var operatorOwned bool
+	if err := tx.QueryRow(ctx, `SELECT operator_owned FROM work_items WHERE id=$1 FOR UPDATE`, workItemID).Scan(&operatorOwned); err != nil {
+		return "", err
+	}
+	if operatorOwned {
+		return "", ErrExecutionConflict
+	}
+
 	var written string
 	if next == work.StateQueued {
 		if err := tx.QueryRow(ctx, `
@@ -676,7 +696,7 @@ func (s *Store) QueueDepth(ctx context.Context, team string) (int, error) {
 	var n int
 	err := s.pool.QueryRow(ctx, `
 		SELECT COUNT(*) FROM work_items
-		WHERE team = $1 AND state = 'queued' AND (next_eligible_at IS NULL OR next_eligible_at <= now())`,
+		WHERE team = $1 AND state = 'queued' AND NOT operator_owned AND (next_eligible_at IS NULL OR next_eligible_at <= now())`,
 		team).Scan(&n)
 	return n, err
 }

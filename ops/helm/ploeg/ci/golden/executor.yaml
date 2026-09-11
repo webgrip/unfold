@@ -145,6 +145,20 @@ spec:
                 secretKeyRef:
                   name: agent-litellm-master
                   key: LITELLM_MASTER_KEY
+            - name: PLOEG_WORKER_AUTH_MODE
+              value: "managed"
+            - name: PLOEG_WORKER_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ploeg-worker-signing
+                  key: key
+            - name: PLOEG_WORKER_BOOTSTRAPS
+              valueFrom:
+                secretKeyRef:
+                  name: ploeg-worker-bootstrap
+                  key: registry.json
+            - name: PLOEG_WORKER_LLM_POLICIES
+              value: "[{\"budgetUsd\":2,\"models\":[\"deepseek-chat\"],\"role\":\"\",\"team\":\"bronze\",\"ttl\":\"4h\"},{\"budgetUsd\":3,\"models\":[\"claude-sonnet-5\"],\"role\":\"\",\"team\":\"copper\",\"ttl\":\"4h\"},{\"budgetUsd\":1,\"models\":[\"deepseek-chat\"],\"role\":\"\",\"team\":\"tin\",\"ttl\":\"4h\"},{\"budgetUsd\":1,\"models\":[\"deepseek-chat\"],\"role\":\"\",\"team\":\"zinc\",\"ttl\":\"4h\"},{\"budgetUsd\":1,\"models\":[\"claude-sonnet-5\"],\"role\":\"\",\"team\":\"lead\",\"ttl\":\"4h\"},{\"budgetUsd\":0.5,\"models\":[\"deepseek-chat\"],\"role\":\"analyst\",\"team\":\"gold\",\"ttl\":\"4h\"},{\"budgetUsd\":0.5,\"models\":[\"deepseek-chat\"],\"role\":\"tests\",\"team\":\"gold\",\"ttl\":\"4h\"},{\"budgetUsd\":3,\"models\":[\"claude-sonnet-5\"],\"role\":\"builder\",\"team\":\"gold\",\"ttl\":\"4h\"},{\"budgetUsd\":0.75,\"models\":[\"claude-sonnet-5\"],\"role\":\"reviewer\",\"team\":\"gold\",\"ttl\":\"4h\"}]"
           readinessProbe:
             httpGet:
               path: /readyz
@@ -310,13 +324,13 @@ spec:
                 value: "4h"
               - name: LLM_BASE_URL
                 value: "http://litellm.ai.svc.cluster.local:4000/v1"
-              - name: LITELLM_ADMIN_URL
-                value: "http://litellm.ai.svc.cluster.local:4000"
-              - name: LITELLM_MASTER_KEY
+              - name: PLOEG_LLM_CREDENTIAL_MODE
+                value: "managed"
+              - name: PLOEG_WORKER_BOOTSTRAP_TOKEN
                 valueFrom:
                   secretKeyRef:
-                    name: agent-litellm-master
-                    key: LITELLM_MASTER_KEY
+                    name: ploeg-worker-bootstrap
+                    key: "bronze--default"
               - name: PLOEG_TARGET_FORGE
                 value: "forgejo"
               - name: FORGE_URL
@@ -398,7 +412,7 @@ spec:
         sslmode: "require"
         # The one poll-query shape: served index-only by work_items_claimable
         # (backlog #24/#47). Must stay in sync with store.Claim/QueueDepth.
-        query: "SELECT COUNT(*) FROM work_items WHERE team = 'bronze' AND state = 'queued' AND (next_eligible_at IS NULL OR next_eligible_at <= now())"
+        query: "SELECT COUNT(*) FROM work_items WHERE team = 'bronze' AND state = 'queued' AND NOT operator_owned AND (next_eligible_at IS NULL OR next_eligible_at <= now())"
         targetQueryValue: "1"
         activationTargetQueryValue: "0"
       authenticationRef:
@@ -508,13 +522,13 @@ spec:
                 value: "4h"
               - name: LLM_BASE_URL
                 value: "http://litellm.ai.svc.cluster.local:4000/v1"
-              - name: LITELLM_ADMIN_URL
-                value: "http://litellm.ai.svc.cluster.local:4000"
-              - name: LITELLM_MASTER_KEY
+              - name: PLOEG_LLM_CREDENTIAL_MODE
+                value: "managed"
+              - name: PLOEG_WORKER_BOOTSTRAP_TOKEN
                 valueFrom:
                   secretKeyRef:
-                    name: agent-litellm-master
-                    key: LITELLM_MASTER_KEY
+                    name: ploeg-worker-bootstrap
+                    key: "copper--default"
               - name: PLOEG_TARGET_FORGE
                 value: "forgejo"
               - name: FORGE_URL
@@ -583,7 +597,7 @@ spec:
         sslmode: "require"
         # The one poll-query shape: served index-only by work_items_claimable
         # (backlog #24/#47). Must stay in sync with store.Claim/QueueDepth.
-        query: "SELECT COUNT(*) FROM work_items WHERE team = 'copper' AND state = 'queued' AND (next_eligible_at IS NULL OR next_eligible_at <= now())"
+        query: "SELECT COUNT(*) FROM work_items WHERE team = 'copper' AND state = 'queued' AND NOT operator_owned AND (next_eligible_at IS NULL OR next_eligible_at <= now())"
         targetQueryValue: "1"
         activationTargetQueryValue: "0"
       authenticationRef:
@@ -734,13 +748,13 @@ spec:
                 value: "4h"
               - name: LLM_BASE_URL
                 value: "http://litellm.ai.svc.cluster.local:4000/v1"
-              - name: LITELLM_ADMIN_URL
-                value: "http://litellm.ai.svc.cluster.local:4000"
-              - name: LITELLM_MASTER_KEY
+              - name: PLOEG_LLM_CREDENTIAL_MODE
+                value: "managed"
+              - name: PLOEG_WORKER_BOOTSTRAP_TOKEN
                 valueFrom:
                   secretKeyRef:
-                    name: agent-litellm-master
-                    key: LITELLM_MASTER_KEY
+                    name: ploeg-worker-bootstrap
+                    key: "tin--default"
               - name: PLOEG_TARGET_FORGE
                 value: "forgejo"
               - name: FORGE_URL
@@ -814,7 +828,7 @@ spec:
         sslmode: "require"
         # The one poll-query shape: served index-only by work_items_claimable
         # (backlog #24/#47). Must stay in sync with store.Claim/QueueDepth.
-        query: "SELECT COUNT(*) FROM work_items WHERE team = 'tin' AND state = 'queued' AND (next_eligible_at IS NULL OR next_eligible_at <= now())"
+        query: "SELECT COUNT(*) FROM work_items WHERE team = 'tin' AND state = 'queued' AND NOT operator_owned AND (next_eligible_at IS NULL OR next_eligible_at <= now())"
         targetQueryValue: "1"
         activationTargetQueryValue: "0"
       authenticationRef:
@@ -965,13 +979,13 @@ spec:
                 value: "4h"
               - name: LLM_BASE_URL
                 value: "http://litellm.ai.svc.cluster.local:4000/v1"
-              - name: LITELLM_ADMIN_URL
-                value: "http://litellm.ai.svc.cluster.local:4000"
-              - name: LITELLM_MASTER_KEY
+              - name: PLOEG_LLM_CREDENTIAL_MODE
+                value: "managed"
+              - name: PLOEG_WORKER_BOOTSTRAP_TOKEN
                 valueFrom:
                   secretKeyRef:
-                    name: agent-litellm-master
-                    key: LITELLM_MASTER_KEY
+                    name: ploeg-worker-bootstrap
+                    key: "zinc--default"
               - name: PLOEG_TARGET_FORGE
                 value: "forgejo"
               - name: FORGE_URL
@@ -1053,7 +1067,7 @@ spec:
         sslmode: "require"
         # The one poll-query shape: served index-only by work_items_claimable
         # (backlog #24/#47). Must stay in sync with store.Claim/QueueDepth.
-        query: "SELECT COUNT(*) FROM work_items WHERE team = 'zinc' AND state = 'queued' AND (next_eligible_at IS NULL OR next_eligible_at <= now())"
+        query: "SELECT COUNT(*) FROM work_items WHERE team = 'zinc' AND state = 'queued' AND NOT operator_owned AND (next_eligible_at IS NULL OR next_eligible_at <= now())"
         targetQueryValue: "1"
         activationTargetQueryValue: "0"
       authenticationRef:
@@ -1212,13 +1226,13 @@ spec:
                 value: "4h"
               - name: LLM_BASE_URL
                 value: "http://litellm.ai.svc.cluster.local:4000/v1"
-              - name: LITELLM_ADMIN_URL
-                value: "http://litellm.ai.svc.cluster.local:4000"
-              - name: LITELLM_MASTER_KEY
+              - name: PLOEG_LLM_CREDENTIAL_MODE
+                value: "managed"
+              - name: PLOEG_WORKER_BOOTSTRAP_TOKEN
                 valueFrom:
                   secretKeyRef:
-                    name: agent-litellm-master
-                    key: LITELLM_MASTER_KEY
+                    name: ploeg-worker-bootstrap
+                    key: "lead--default"
               - name: PLOEG_TARGET_FORGE
                 value: "forgejo"
               - name: FORGE_URL
@@ -1292,7 +1306,7 @@ spec:
         sslmode: "require"
         # The one poll-query shape: served index-only by work_items_claimable
         # (backlog #24/#47). Must stay in sync with store.Claim/QueueDepth.
-        query: "SELECT COUNT(*) FROM work_items WHERE team = 'lead' AND state = 'queued' AND (next_eligible_at IS NULL OR next_eligible_at <= now())"
+        query: "SELECT COUNT(*) FROM work_items WHERE team = 'lead' AND state = 'queued' AND NOT operator_owned AND (next_eligible_at IS NULL OR next_eligible_at <= now())"
         targetQueryValue: "1"
         activationTargetQueryValue: "0"
       authenticationRef:
@@ -1403,13 +1417,13 @@ spec:
                 value: "4h"
               - name: LLM_BASE_URL
                 value: "http://litellm.ai.svc.cluster.local:4000/v1"
-              - name: LITELLM_ADMIN_URL
-                value: "http://litellm.ai.svc.cluster.local:4000"
-              - name: LITELLM_MASTER_KEY
+              - name: PLOEG_LLM_CREDENTIAL_MODE
+                value: "managed"
+              - name: PLOEG_WORKER_BOOTSTRAP_TOKEN
                 valueFrom:
                   secretKeyRef:
-                    name: agent-litellm-master
-                    key: LITELLM_MASTER_KEY
+                    name: ploeg-worker-bootstrap
+                    key: "gold--analyst"
               - name: PLOEG_TARGET_FORGE
                 value: "forgejo"
               - name: FORGE_URL
@@ -1589,13 +1603,13 @@ spec:
                 value: "4h"
               - name: LLM_BASE_URL
                 value: "http://litellm.ai.svc.cluster.local:4000/v1"
-              - name: LITELLM_ADMIN_URL
-                value: "http://litellm.ai.svc.cluster.local:4000"
-              - name: LITELLM_MASTER_KEY
+              - name: PLOEG_LLM_CREDENTIAL_MODE
+                value: "managed"
+              - name: PLOEG_WORKER_BOOTSTRAP_TOKEN
                 valueFrom:
                   secretKeyRef:
-                    name: agent-litellm-master
-                    key: LITELLM_MASTER_KEY
+                    name: ploeg-worker-bootstrap
+                    key: "gold--tests"
               - name: PLOEG_TARGET_FORGE
                 value: "forgejo"
               - name: FORGE_URL
@@ -1818,13 +1832,13 @@ spec:
                 value: "4h"
               - name: LLM_BASE_URL
                 value: "http://litellm.ai.svc.cluster.local:4000/v1"
-              - name: LITELLM_ADMIN_URL
-                value: "http://litellm.ai.svc.cluster.local:4000"
-              - name: LITELLM_MASTER_KEY
+              - name: PLOEG_LLM_CREDENTIAL_MODE
+                value: "managed"
+              - name: PLOEG_WORKER_BOOTSTRAP_TOKEN
                 valueFrom:
                   secretKeyRef:
-                    name: agent-litellm-master
-                    key: LITELLM_MASTER_KEY
+                    name: ploeg-worker-bootstrap
+                    key: "gold--builder"
               - name: PLOEG_TARGET_FORGE
                 value: "forgejo"
               - name: FORGE_URL
@@ -2017,13 +2031,13 @@ spec:
                 value: "4h"
               - name: LLM_BASE_URL
                 value: "http://litellm.ai.svc.cluster.local:4000/v1"
-              - name: LITELLM_ADMIN_URL
-                value: "http://litellm.ai.svc.cluster.local:4000"
-              - name: LITELLM_MASTER_KEY
+              - name: PLOEG_LLM_CREDENTIAL_MODE
+                value: "managed"
+              - name: PLOEG_WORKER_BOOTSTRAP_TOKEN
                 valueFrom:
                   secretKeyRef:
-                    name: agent-litellm-master
-                    key: LITELLM_MASTER_KEY
+                    name: ploeg-worker-bootstrap
+                    key: "gold--reviewer"
               - name: PLOEG_TARGET_FORGE
                 value: "forgejo"
               - name: FORGE_URL

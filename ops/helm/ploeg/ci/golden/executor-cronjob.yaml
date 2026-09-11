@@ -143,6 +143,20 @@ spec:
                 secretKeyRef:
                   name: agent-litellm-master
                   key: LITELLM_MASTER_KEY
+            - name: PLOEG_WORKER_AUTH_MODE
+              value: "managed"
+            - name: PLOEG_WORKER_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ploeg-worker-signing
+                  key: key
+            - name: PLOEG_WORKER_BOOTSTRAPS
+              valueFrom:
+                secretKeyRef:
+                  name: ploeg-worker-bootstrap
+                  key: registry.json
+            - name: PLOEG_WORKER_LLM_POLICIES
+              value: "[{\"budgetUsd\":2,\"models\":[\"deepseek-chat\"],\"role\":\"\",\"team\":\"bronze\",\"ttl\":\"4h\"}]"
           readinessProbe:
             httpGet:
               path: /readyz
@@ -295,13 +309,13 @@ spec:
                   value: "4h"
                 - name: LLM_BASE_URL
                   value: "http://litellm.ai.svc.cluster.local:4000/v1"
-                - name: LITELLM_ADMIN_URL
-                  value: "http://litellm.ai.svc.cluster.local:4000"
-                - name: LITELLM_MASTER_KEY
+                - name: PLOEG_LLM_CREDENTIAL_MODE
+                  value: "managed"
+                - name: PLOEG_WORKER_BOOTSTRAP_TOKEN
                   valueFrom:
                     secretKeyRef:
-                      name: agent-litellm-master
-                      key: LITELLM_MASTER_KEY
+                      name: ploeg-worker-bootstrap
+                      key: "bronze--default"
                 - name: PLOEG_TARGET_FORGE
                   value: "forgejo"
                 - name: FORGE_URL

@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/webgrip/ploeg/pkg/harness"
-	"github.com/webgrip/ploeg/pkg/litellm"
 	"github.com/webgrip/ploeg/pkg/llmbroker"
 	"github.com/webgrip/ploeg/pkg/worker"
 )
@@ -66,6 +65,9 @@ func installSelf(dst string) error {
 }
 
 func run(log *slog.Logger) error {
+	if err := rejectAdministrativeEnvironment(); err != nil {
+		return err
+	}
 	// Boot-required and parsed strictly. Discarding this error turned a typo
 	// or a dropped chart value into budget 0, and budget 0 mints an UNCAPPED
 	// key rather than a useless one. Failing here costs no attempt and
@@ -78,8 +80,10 @@ func run(log *slog.Logger) error {
 	}
 	model := os.Getenv("LLM_MODEL")
 	cfg := worker.Config{
-		APIURL: requireEnv("PLOEG_API_URL"),
-		Team:   requireEnv("PLOEG_TEAM"),
+		APIURL:         requireEnv("PLOEG_API_URL"),
+		BootstrapToken: os.Getenv("PLOEG_WORKER_BOOTSTRAP_TOKEN"),
+		WorkerID:       envOr("PLOEG_WORKER_ID", os.Getenv("POD_UID")),
+		Team:           requireEnv("PLOEG_TEAM"),
 		// This pod's slot in a Round. NOT boot-required: unset is the
 		// pre-Shift claim over queued work items, which is exactly what a
 		// team without a plan keeps doing.
@@ -141,12 +145,16 @@ func run(log *slog.Logger) error {
 		return err
 	}
 
-	// The credential seam: LiteLLM per-run keys when the admin API is
-	// configured, otherwise a static/BYO credential (empty = the harness
-	// image authenticates itself).
-	var broker llmbroker.Broker = llmbroker.Static{Key: os.Getenv("LLM_API_KEY")}
-	if adminURL, masterKey := os.Getenv("LITELLM_ADMIN_URL"), os.Getenv("LITELLM_MASTER_KEY"); adminURL != "" && masterKey != "" {
-		broker = llmbroker.NewLiteLLM(litellm.NewClient(adminURL, masterKey))
+	var broker llmbroker.Broker
+	switch envOr("PLOEG_LLM_CREDENTIAL_MODE", "managed") {
+	case "managed":
+		if cfg.BootstrapToken == "" || cfg.WorkerID == "" {
+			return fmt.Errorf("managed worker requires bootstrap capability and worker identity")
+		}
+	case "static-compatibility":
+		broker = llmbroker.Static{Key: os.Getenv("LLM_API_KEY")}
+	default:
+		return fmt.Errorf("unknown worker credential mode")
 	}
 
 	nodeName := os.Getenv("NODE_NAME")
@@ -163,6 +171,15 @@ func run(log *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	return worker.New(cfg, adapter, broker, log).RunContext(ctx)
+}
+
+func rejectAdministrativeEnvironment() error {
+	for _, key := range []string{"LITELLM_MASTER_KEY", "LITELLM_ADMIN_URL", "PLOEG_WORKER_SIGNING_KEY", "PLOEG_WORKER_BOOTSTRAPS", "PLOEG_FORGEJO_ADMIN_TOKEN", "PLOEG_DATABASE_URL", "KUBECONFIG"} {
+		if os.Getenv(key) != "" {
+			return fmt.Errorf("administrative configuration %s must not enter worker containers", key)
+		}
+	}
+	return nil
 }
 
 func trimSlash(s string) string {

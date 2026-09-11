@@ -177,6 +177,10 @@ spec:
                   name: {{ .masterKeySecret.name }}
                   key: {{ .masterKeySecret.key }}
             {{- end }}
+            {{- include "ploeg.workerControlEnv" . | nindent 12 }}
+            {{- if .Values.operator.consumers }}
+            {{- include "ploeg.operatorControlEnv" . | nindent 12 }}
+            {{- end }}
           readinessProbe:
             httpGet:
               path: /readyz

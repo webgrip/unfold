@@ -3,6 +3,127 @@
   "title": "ploeg chart values",
   "type": "object",
   "properties": {
+    "operator": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "consumers": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "tokenSecret"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+              },
+              "teams": {
+                "type": "array",
+                "maxItems": 100,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                }
+              },
+              "execute": {
+                "type": "boolean"
+              },
+              "maxBudgetUsd": {
+                "type": "number",
+                "minimum": 0.01,
+                "maximum": 10000
+              },
+              "tokenSecret": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "key"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 253,
+                    "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+                  },
+                  "key": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 253,
+                    "pattern": "^[A-Za-z0-9._-]+$"
+                  }
+                }
+              },
+              "verify": {
+                "type": "boolean"
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "required": [
+                    "maxBudgetUsd"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "execute"
+                  ],
+                  "properties": {
+                    "execute": {
+                      "const": true
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "deliveryPolicies": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "repositoryId",
+              "policySha256",
+              "verifierId",
+              "minTests"
+            ],
+            "properties": {
+              "repositoryId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+              },
+              "policySha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "verifierId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+              },
+              "minTests": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100000
+              },
+              "publicationEnabled": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
     "executor": {
       "type": "object",
       "properties": {
@@ -215,10 +336,128 @@
             "object",
             "null"
           ],
-          "description": "Node selector for WORKER pods, not ploegd (that is the top-level nodeSelector). Keeps agent Jobs off control-plane nodes (ADR-0002: no DinD beside etcd). The default label exists in the homelab and on no other cluster, so a different estate must override it with its own label or clear it with null — Helm deep-merges maps, so {} leaves the default in place and only null removes the block.",
+          "description": "Node selector for WORKER pods, not ploegd (that is the top-level nodeSelector). Keeps agent Jobs off control-plane nodes (ADR-0002: no DinD beside etcd). The default label exists in the homelab and on no other cluster, so a different estate must override it with its own label or clear it with null \u2014 Helm deep-merges maps, so {} leaves the default in place and only null removes the block.",
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "workerAuth": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "enum": [
+                "managed",
+                "legacy"
+              ]
+            },
+            "signingKeySecret": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "key": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "name",
+                "key"
+              ],
+              "additionalProperties": false
+            },
+            "bootstrapSecret": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "registryKey": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "name",
+                "registryKey"
+              ],
+              "additionalProperties": false
+            },
+            "staticInferenceSecret": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "key": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "key"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "additionalLLMPolicies": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "team": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "role": {
+                    "type": "string"
+                  },
+                  "budgetUsd": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "models": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "ttl": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "team",
+                  "role",
+                  "budgetUsd",
+                  "models",
+                  "ttl"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "mode",
+            "signingKeySecret",
+            "bootstrapSecret"
+          ],
+          "additionalProperties": false
         }
       }
     },
@@ -243,11 +482,11 @@
             },
             "tokenSecret": {
               "$ref": "#/definitions/secretRef",
-              "description": "Personal token (pk_…) for reads and write-backs. Empty = the provider logs and no-ops instead of failing runs."
+              "description": "Personal token (pk_\u2026) for reads and write-backs. Empty = the provider logs and no-ops instead of failing runs."
             },
             "webhookSecret": {
               "$ref": "#/definitions/secretRef",
-              "description": "Verifies X-Signature on POST /webhooks/tracker/clickup. ClickUp generates this on webhook registration — capture it, never invent it. Empty = deliveries are rejected."
+              "description": "Verifies X-Signature on POST /webhooks/tracker/clickup. ClickUp generates this on webhook registration \u2014 capture it, never invent it. Empty = deliveries are rejected."
             },
             "doneStatus": {
               "type": "string",

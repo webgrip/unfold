@@ -6,6 +6,10 @@ imagePullSecrets: [] # homelab sets [{name: harbor-pull}]
 service:
   port: 8080
 
+operator:
+  consumers: []
+  deliveryPolicies: []
+
 # Plain PLOEG_* env rendered onto the deployment.
 env:
   PLOEG_DEFAULT_TEAM: default
@@ -137,6 +141,16 @@ executor:
       name: agent-litellm-master
       key: LITELLM_MASTER_KEY
     keyDuration: 4h
+  workerAuth:
+    mode: managed
+    signingKeySecret:
+      name: ploeg-worker-signing
+      key: key
+    bootstrapSecret:
+      name: ploeg-worker-bootstrap
+      registryKey: registry.json
+    staticInferenceSecret: {}
+    additionalLLMPolicies: []
   forgejo:
     url: http://forgejo-http.forgejo.svc.cluster.local:3000
     tokenSecret:

@@ -160,6 +160,20 @@ spec:
                 secretKeyRef:
                   name: agent-litellm-master
                   key: LITELLM_MASTER_KEY
+            - name: PLOEG_WORKER_AUTH_MODE
+              value: "managed"
+            - name: PLOEG_WORKER_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ploeg-worker-signing
+                  key: key
+            - name: PLOEG_WORKER_BOOTSTRAPS
+              valueFrom:
+                secretKeyRef:
+                  name: ploeg-worker-bootstrap
+                  key: registry.json
+            - name: PLOEG_WORKER_LLM_POLICIES
+              value: "[{\"budgetUsd\":0.5,\"models\":[\"claude-sonnet-5\"],\"role\":\"analyst\",\"team\":\"silver\",\"ttl\":\"4h\"},{\"budgetUsd\":3,\"models\":[\"claude-sonnet-5\"],\"role\":\"builder\",\"team\":\"silver\",\"ttl\":\"4h\"},{\"budgetUsd\":0.75,\"models\":[\"claude-sonnet-5\"],\"role\":\"reviewer\",\"team\":\"silver\",\"ttl\":\"4h\"}]"
           readinessProbe:
             httpGet:
               path: /readyz
@@ -285,13 +299,13 @@ spec:
                 value: "4h"
               - name: LLM_BASE_URL
                 value: "http://litellm.ai.svc.cluster.local:4000/v1"
-              - name: LITELLM_ADMIN_URL
-                value: "http://litellm.ai.svc.cluster.local:4000"
-              - name: LITELLM_MASTER_KEY
+              - name: PLOEG_LLM_CREDENTIAL_MODE
+                value: "managed"
+              - name: PLOEG_WORKER_BOOTSTRAP_TOKEN
                 valueFrom:
                   secretKeyRef:
-                    name: agent-litellm-master
-                    key: LITELLM_MASTER_KEY
+                    name: ploeg-worker-bootstrap
+                    key: "silver--analyst"
               - name: PLOEG_TARGET_FORGE
                 value: "gitlab"
               - name: FORGE_URL
@@ -471,13 +485,13 @@ spec:
                 value: "4h"
               - name: LLM_BASE_URL
                 value: "http://litellm.ai.svc.cluster.local:4000/v1"
-              - name: LITELLM_ADMIN_URL
-                value: "http://litellm.ai.svc.cluster.local:4000"
-              - name: LITELLM_MASTER_KEY
+              - name: PLOEG_LLM_CREDENTIAL_MODE
+                value: "managed"
+              - name: PLOEG_WORKER_BOOTSTRAP_TOKEN
                 valueFrom:
                   secretKeyRef:
-                    name: agent-litellm-master
-                    key: LITELLM_MASTER_KEY
+                    name: ploeg-worker-bootstrap
+                    key: "silver--builder"
               - name: PLOEG_TARGET_FORGE
                 value: "gitlab"
               - name: FORGE_URL
@@ -657,13 +671,13 @@ spec:
                 value: "4h"
               - name: LLM_BASE_URL
                 value: "http://litellm.ai.svc.cluster.local:4000/v1"
-              - name: LITELLM_ADMIN_URL
-                value: "http://litellm.ai.svc.cluster.local:4000"
-              - name: LITELLM_MASTER_KEY
+              - name: PLOEG_LLM_CREDENTIAL_MODE
+                value: "managed"
+              - name: PLOEG_WORKER_BOOTSTRAP_TOKEN
                 valueFrom:
                   secretKeyRef:
-                    name: agent-litellm-master
-                    key: LITELLM_MASTER_KEY
+                    name: ploeg-worker-bootstrap
+                    key: "silver--reviewer"
               - name: PLOEG_TARGET_FORGE
                 value: "gitlab"
               - name: FORGE_URL

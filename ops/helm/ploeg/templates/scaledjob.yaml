@@ -67,7 +67,7 @@ spec:
         {{- else }}
         # The one poll-query shape: served index-only by work_items_claimable
         # (backlog #24/#47). Must stay in sync with store.Claim/QueueDepth.
-        query: "SELECT COUNT(*) FROM work_items WHERE team = '{{ $team.name }}' AND state = 'queued' AND (next_eligible_at IS NULL OR next_eligible_at <= now())"
+        query: "SELECT COUNT(*) FROM work_items WHERE team = '{{ $team.name }}' AND state = 'queued' AND NOT operator_owned AND (next_eligible_at IS NULL OR next_eligible_at <= now())"
         {{- end }}
         targetQueryValue: "1"
         activationTargetQueryValue: "0"

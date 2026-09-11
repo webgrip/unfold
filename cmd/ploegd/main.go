@@ -275,16 +275,38 @@ func run(log *slog.Logger) error {
 		log.Info("shift engine disabled (no plans, PLOEG_SHIFTS_UNIFORM=false)")
 	}
 
+	workerSecurity, err := httpapi.NewWorkerSecurity(os.Getenv("PLOEG_WORKER_BOOTSTRAPS"), os.Getenv("PLOEG_WORKER_SIGNING_KEY"), os.Getenv("PLOEG_WORKER_AUTH_MODE") == "legacy")
+	if err != nil {
+		return fmt.Errorf("worker security: %w", err)
+	}
+	var llmControl *httpapi.LLMControl
+	if !workerSecurity.AllowLegacy {
+		managed, ok := sweeper.(httpapi.ManagedLLMBroker)
+		if !ok {
+			return errors.New("managed worker mode requires a LiteLLM management broker")
+		}
+		llmControl, err = httpapi.NewLLMControl(st, managed, os.Getenv("PLOEG_WORKER_LLM_POLICIES"))
+		if err != nil {
+			return fmt.Errorf("worker inference policy: %w", err)
+		}
+	}
+	operator, err := operatorConfig(cfg, plans)
+	if err != nil {
+		return fmt.Errorf("operator configuration: %w", err)
+	}
 	srv := &httpapi.Server{
-		Store:      st,
-		Trackers:   trackers,
-		Targets:    targets,
-		ScopeTeams: cfg.ScopeTeams(),
-		LeaseTTL:   leaseTTL,
-		Log:        log,
-		RoleCaps:   plans,
-		Forges:     forges,
-		ForgeCreds: forgeCreds,
+		OperatorConfig: operator,
+		WorkerSecurity: workerSecurity,
+		LLMControl:     llmControl,
+		Store:          st,
+		Trackers:       trackers,
+		Targets:        targets,
+		ScopeTeams:     cfg.ScopeTeams(),
+		LeaseTTL:       leaseTTL,
+		Log:            log,
+		RoleCaps:       plans,
+		Forges:         forges,
+		ForgeCreds:     forgeCreds,
 	}
 	if engine != nil {
 		srv.Engine = engine
@@ -300,8 +322,12 @@ func run(log *slog.Logger) error {
 
 	orphanSweep(ctx, log, st, sweeper)
 	forgeOrphanSweep(ctx, log, st, forgeSweeper)
+	if err := srv.ReconcileOperatorExecutions(ctx); err != nil {
+		log.Error("operator execution reconciliation failed at startup")
+	}
+	managedBlockSweep(ctx, log, srv, 0)
 
-	go sweepLoop(ctx, log, st, sweeper, forgeSweeper, engine, sweepEvery)
+	go sweepLoop(ctx, log, st, sweeper, forgeSweeper, engine, srv, sweepEvery)
 
 	log.Info("ploegd listening", "version", version, "addr", listen, "lease_ttl", leaseTTL)
 	if err := httpSrv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {

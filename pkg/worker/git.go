@@ -2,7 +2,10 @@ package worker
 
 import (
 	"context"
+	"encoding/base64"
+	"fmt"
 	"net/url"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -31,31 +34,36 @@ func fetchBranchArgs(branch string) []string {
 	return []string{"fetch", "--depth", "50", "origin", branch + ":" + branch}
 }
 
-// plainURL is the repository URL with NO credentials in it — what a reading
-// run's `origin` is reset to, so the clone's remote cannot be pushed to.
 func plainURL(base, owner, repo string) (string, error) {
 	u, err := url.Parse(base)
-	if err != nil {
-		return "", err
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		return "", fmt.Errorf("invalid forge URL")
 	}
 	u.User = nil
+	u.RawQuery = ""
+	u.Fragment = ""
 	u.Path = "/" + owner + "/" + repo + ".git"
 	return u.String(), nil
 }
 
-func authURL(base, user, token, owner, repo string) (string, error) {
-	u, err := url.Parse(base)
-	if err != nil {
-		return "", err
+func gitAuthenticationEnvironment(repositoryURL, token string) []string {
+	env := []string{"GIT_TERMINAL_PROMPT=0", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null"}
+	if token != "" {
+		header := "Authorization: Basic " + base64.StdEncoding.EncodeToString([]byte("agent-builder:"+token))
+		env = append(env, "GIT_CONFIG_COUNT=1", "GIT_CONFIG_KEY_0=http."+repositoryURL+".extraheader", "GIT_CONFIG_VALUE_0="+header)
 	}
-	u.User = url.UserPassword(user, token)
-	u.Path = "/" + owner + "/" + repo + ".git"
-	return u.String(), nil
+	return env
 }
 
-func runCmd(ctx context.Context, dir, name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
+func runGit(ctx context.Context, dir, repositoryURL, token string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
+	for _, key := range []string{"PATH", "LANG", "LC_ALL", "TZ"} {
+		if value, ok := os.LookupEnv(key); ok {
+			cmd.Env = append(cmd.Env, key+"="+value)
+		}
+	}
+	cmd.Env = append(cmd.Env, gitAuthenticationEnvironment(repositoryURL, token)...)
 	return cmd.CombinedOutput()
 }
 

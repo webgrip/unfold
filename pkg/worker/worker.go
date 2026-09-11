@@ -28,8 +28,10 @@ import (
 // Config is the environment-derived worker configuration (parsed by
 // cmd/ploeg-worker).
 type Config struct {
-	APIURL string // ploegd base URL
-	Team   string
+	APIURL         string // ploegd base URL
+	BootstrapToken string
+	WorkerID       string
+	Team           string
 	// Role is this pod's slot in a Round (PLOEG_ROLE). Empty = the pre-Shift
 	// claim over queued work items; the pod shape is fixed at render time, so
 	// one workload serves exactly one role.
@@ -66,10 +68,14 @@ type Worker struct {
 }
 
 func New(cfg Config, adapter harness.Adapter, broker llmbroker.Broker, log *slog.Logger) *Worker {
+	api := &APIClient{Base: strings.TrimRight(cfg.APIURL, "/"), HC: &http.Client{Timeout: 30 * time.Second}, BootstrapToken: cfg.BootstrapToken, WorkerID: cfg.WorkerID}
+	if broker == nil {
+		broker = api
+	}
 	return &Worker{
 		Cfg:     cfg,
 		Log:     log,
-		API:     &APIClient{Base: strings.TrimRight(cfg.APIURL, "/"), HC: &http.Client{Timeout: 30 * time.Second}},
+		API:     api,
 		Adapter: adapter,
 		Broker:  broker,
 	}
@@ -183,15 +189,15 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 
 	cloneDir := filepath.Join(w.Cfg.WorkDir, "vik-"+item.ExternalID)
 	_ = os.RemoveAll(cloneDir)
-	cloneURL, err := authURL(ref.ForgeURL, "agent-builder", forgeToken, ref.Owner, ref.Name)
+	cloneURL, err := plainURL(ref.ForgeURL, ref.Owner, ref.Name)
 	if err != nil {
 		return stuckReport("invalid forge URL", err.Error())
 	}
-	if out, err := runCmd(ctx, "", "git", cloneArgs(ref.BaseBranch, cloneURL, cloneDir)...); err != nil {
+	if out, err := runGit(ctx, "", cloneURL, forgeToken, cloneArgs(ref.BaseBranch, cloneURL, cloneDir)...); err != nil {
 		return stuckReport("git clone failed", tail(out, 2000))
 	}
 	for _, kv := range [][2]string{{"user.name", "agent-builder"}, {"user.email", "agent-builder@webgrip.dev"}} {
-		if out, err := runCmd(ctx, cloneDir, "git", "config", kv[0], kv[1]); err != nil {
+		if out, err := runGit(ctx, cloneDir, cloneURL, forgeToken, "config", kv[0], kv[1]); err != nil {
 			return stuckReport("git config failed", tail(out, 2000))
 		}
 	}
@@ -210,24 +216,13 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	writes := claimed.Writes || claimed.Role == ""
 	onReviewBranch := false
 	if !writes && branch != "" {
-		if out, err := runCmd(ctx, cloneDir, "git", fetchBranchArgs(branch)...); err != nil {
+		if out, err := runGit(ctx, cloneDir, cloneURL, forgeToken, fetchBranchArgs(branch)...); err != nil {
 			w.Log.Info("no branch under review yet; reviewing the base branch",
 				"branch", branch, "base", ref.BaseBranch, "git", tail(out, 400))
-		} else if out, err := runCmd(ctx, cloneDir, "git", "checkout", branch); err != nil {
+		} else if out, err := runGit(ctx, cloneDir, cloneURL, forgeToken, "checkout", branch); err != nil {
 			return stuckReport("could not check out the branch under review", tail(out, 2000))
 		} else {
 			onReviewBranch = true
-		}
-		// Take the credential out of `origin`. The clone needed it to read a
-		// private repository; the agent does not need it at all, and leaving
-		// it embedded left a reader holding push rights it was told it did
-		// not have.
-		clean, err := plainURL(ref.ForgeURL, ref.Owner, ref.Name)
-		if err != nil {
-			return stuckReport("invalid forge URL", err.Error())
-		}
-		if out, err := runCmd(ctx, cloneDir, "git", "remote", "set-url", "origin", clean); err != nil {
-			return stuckReport("could not de-credential the clone", tail(out, 2000))
 		}
 		w.Log.Info("reading run prepared", "on_review_branch", onReviewBranch,
 			"branch", branch, "base", ref.BaseBranch)
@@ -262,28 +257,36 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	}
 
 	var logTail harness.TailBuffer
+	scratchDir, err := os.MkdirTemp(w.Cfg.WorkDir, "run-")
+	if err != nil {
+		return stuckReport("workspace scratch allocation failed", err.Error())
+	}
+	home := filepath.Join(scratchDir, "home")
+	if err := os.MkdirAll(home, 0o700); err != nil {
+		return stuckReport("workspace home allocation failed", err.Error())
+	}
 	model := w.Cfg.LLMModel
 	if len(w.Cfg.LLMModels) > 0 {
 		model = w.Cfg.LLMModels[0]
 	}
 	env := harness.RunEnv{
 		RepoDir:    cloneDir,
-		ScratchDir: os.TempDir(),
+		ScratchDir: scratchDir,
 		Prompt:     ComposePrompt(spec, writes, priorPR, onReviewBranch),
-		// A reading run's agent gets no forge credential. os.Environ() carries
-		// AGENT_BUILDER_TOKEN — mandatory on every worker pod, writer or not —
-		// straight into the agent's process, so "you hold no write credential"
-		// was false for every reader ever dispatched. Now it is true.
-		BaseEnv: scrubSecrets(os.Environ(), writes, w.Cfg.BuilderToken, claimed.ForgeToken),
-		LLM:     harness.LLMEnv{BaseURL: w.Cfg.LLMBaseURL, Model: model, TraceID: trace},
-		Stdout:  io.MultiWriter(os.Stdout, &logTail),
-		Stderr:  io.MultiWriter(os.Stderr, &logTail),
+		BaseEnv:    harnessEnvironment(os.Environ(), home, scratchDir, writes, forgeToken, w.Cfg.LLMBaseURL, model),
+		LLM:        harness.LLMEnv{BaseURL: w.Cfg.LLMBaseURL, Model: model, TraceID: trace},
+		Stdout:     io.MultiWriter(os.Stdout, &logTail),
+		Stderr:     io.MultiWriter(os.Stderr, &logTail),
 		Checkpoint: func(cp work.Checkpoint) {
 			if err := w.API.Checkpoint(claimed.RunToken, cp); err != nil {
 				w.Log.Warn("checkpoint failed", "err", err)
 			}
 		},
 		Log: w.Log,
+	}
+
+	if writes {
+		env.BaseEnv = append(env.BaseEnv, gitAuthenticationEnvironment(cloneURL, forgeToken)...)
 	}
 
 	// The Shift's authorization is the ceiling the credential must be minted
@@ -352,44 +355,30 @@ func runAgent(ctx context.Context, log *slog.Logger, broker llmbroker.Broker, ad
 
 	report, runErr = adapter.Run(ctx, spec, env)
 
-	// Settle the cost from the gateway while the credential still exists —
-	// the deferred Revoke above deletes the row this reads. Without this the
-	// Shift pool never depletes: settlement adds COALESCE(usage->>'costUsd', 0)
-	// and openhands/exec report no usage at all, so `spent` stayed 0.0000 and
-	// every budget bound that reads it was inert.
 	if m, ok := broker.(llmbroker.Metered); ok && cred.APIKey != "" {
-		settleCtx, settleCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-		defer settleCancel()
-		if spend, err := settleSpend(settleCtx, m, cred, log); err != nil {
-			log.Warn("gateway spend unavailable; run cost not settled", "err", err, "trace", cred.Alias)
+		observeCtx, observeCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer observeCancel()
+		if spend, err := observeSpend(observeCtx, m, cred, log); err != nil {
+			log.Warn("gateway spend observation unavailable", "err", err, "trace", cred.Alias)
 		} else {
 			if report.Usage == nil {
 				report.Usage = &harness.Usage{}
 			}
 			report.Usage.CostUSD = spend
-			log.Info("settled run cost", "trace", cred.Alias, "cost_usd", spend)
+			log.Info("observed provisional run cost", "trace", cred.Alias, "cost_usd", spend)
 		}
 	}
 	return report, nil, runErr
 }
 
-// settleSpend reads the credential's spend, waiting for the gateway's
-// accounting to catch up.
-//
-// LiteLLM writes spend asynchronously, so the first read after a run ends is
-// routinely stale — often zero. Polling until the value stops MOVING rather
-// than until it is non-zero matters in both directions: a genuinely free run
-// (the exec harness makes no calls) settles at zero on the first two reads
-// and returns immediately, and a busy run is not truncated at whatever
-// partial figure happened to be written first.
-func settleSpend(ctx context.Context, m llmbroker.Metered, cred llmbroker.Credential, log *slog.Logger) (float64, error) {
+func observeSpend(ctx context.Context, m llmbroker.Metered, cred llmbroker.Credential, log *slog.Logger) (float64, error) {
 	const (
 		every  = 2 * time.Second
 		budget = 20 * time.Second
 	)
 	deadline := time.Now().Add(budget)
 
-	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), budget+10*time.Second)
+	readCtx, cancel := context.WithTimeout(ctx, budget+10*time.Second)
 	defer cancel()
 
 	prev, err := m.Spend(readCtx, cred)

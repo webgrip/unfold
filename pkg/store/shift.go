@@ -41,12 +41,27 @@ type Role struct {
 // shifts_one_live_per_item makes a second live Shift on the same item a
 // database error rather than a race two Teams can both win.
 func (s *Store) OpenShift(ctx context.Context, workItemID int64, team, branch string, budget float64) (int64, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx)
+	var allowed bool
+	if err := tx.QueryRow(ctx, `SELECT state='queued' AND NOT operator_owned AND team=$2 FROM work_items WHERE id=$1 FOR UPDATE`, workItemID, team).Scan(&allowed); err != nil {
+		return 0, err
+	}
+	if !allowed {
+		return 0, ErrExecutionConflict
+	}
 	var id int64
-	err := s.pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		INSERT INTO shifts (work_item_id, team, branch, budget)
 		VALUES ($1, $2, $3, $4) RETURNING id`,
 		workItemID, team, branch, budget).Scan(&id)
-	return id, err
+	if err != nil {
+		return 0, err
+	}
+	return id, tx.Commit(ctx)
 }
 
 // OpenRound materialises the next Round: one pending Run per Role.
@@ -88,6 +103,7 @@ func (s *Store) OpenRound(ctx context.Context, shiftID int64, fromRound int, rol
 	var team string
 	if err := tx.QueryRow(ctx,
 		`UPDATE shifts SET round = round + 1 WHERE id = $1 AND round = $2 AND closed_at IS NULL
+		 AND NOT EXISTS(SELECT 1 FROM operator_executions e WHERE e.shift_id=shifts.id)
 		 RETURNING round, work_item_id, team`, shiftID, fromRound).
 		Scan(&round, &workItemID, &team); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -225,7 +241,8 @@ func (s *Store) ReopenRound(ctx context.Context, shiftID int64, round int, roles
 	var workItemID int64
 	var team string
 	if err := tx.QueryRow(ctx,
-		`SELECT work_item_id, team FROM shifts WHERE id = $1 AND round = $2 AND closed_at IS NULL FOR UPDATE`,
+		`SELECT work_item_id, team FROM shifts WHERE id = $1 AND round = $2 AND closed_at IS NULL
+		 AND NOT EXISTS(SELECT 1 FROM operator_executions e WHERE e.shift_id=shifts.id) FOR UPDATE`,
 		shiftID, round).Scan(&workItemID, &team); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return 0, fmt.Errorf("shift %d is not open at round %d", shiftID, round)
@@ -334,7 +351,7 @@ func (s *Store) ClaimRole(ctx context.Context, team, role string, ttl time.Durat
 	}
 	var reserved float64
 	if err := tx.QueryRow(ctx,
-		`SELECT COALESCE(SUM(authorized), 0) FROM agent_runs WHERE shift_id = $1 AND state = 'running'`,
+		`SELECT COALESCE(SUM(reserved), 0) FROM run_budget_holds WHERE shift_id = $1`,
 		shiftID).Scan(&reserved); err != nil {
 		return nil, err
 	}
@@ -374,7 +391,7 @@ func (s *Store) ClaimRole(ctx context.Context, team, role string, ttl time.Durat
 	var tg work.Target
 	if err := tx.QueryRow(ctx, `
 		UPDATE work_items SET state = 'leased', attempts = attempts + 1, updated_at = now()
-		WHERE id = $1
+		WHERE id = $1 AND NOT operator_owned
 		RETURNING provider, external_id, revision, team, origin, priority, title, description, url,
 			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule`,
 		workItemID).Scan(&it.Provider, &it.ExternalID, &it.Revision, &it.Team, &it.Origin,
@@ -482,6 +499,7 @@ func (s *Store) ExpireRuns(ctx context.Context) ([]ExpiredRun, error) {
 		SET state = 'finished', finished_at = now(), outcome = 'failed',
 		    summary = 'run deadline expired', failure_reason = 'lease_lost'
 		WHERE state = 'running' AND expires_at IS NOT NULL AND expires_at < now()
+		AND NOT EXISTS(SELECT 1 FROM operator_executions e WHERE e.run_id=agent_runs.id)
 		RETURNING work_item_id, COALESCE(shift_id, 0), team, role, run_token, writes`)
 	if err != nil {
 		return nil, err
@@ -545,7 +563,7 @@ type ShiftInfo struct {
 func (s *Store) LiveShifts(ctx context.Context) ([]ShiftInfo, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT id, work_item_id, team, round, branch FROM shifts
-		WHERE closed_at IS NULL ORDER BY id`)
+		WHERE closed_at IS NULL AND NOT EXISTS(SELECT 1 FROM operator_executions e WHERE e.shift_id=shifts.id) ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -571,7 +589,7 @@ func (s *Store) LiveShifts(ctx context.Context) ([]ShiftInfo, error) {
 func (s *Store) QueuedWithoutShift(ctx context.Context) ([]int64, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT w.id FROM work_items w
-		WHERE w.state = 'queued'
+		WHERE w.state = 'queued' AND NOT w.operator_owned
 		  AND NOT EXISTS (
 		      SELECT 1 FROM shifts sh
 		      WHERE sh.work_item_id = w.id AND sh.closed_at IS NULL)
@@ -598,7 +616,7 @@ func (s *Store) LiveShiftForItem(ctx context.Context, workItemID int64) (*ShiftI
 	var si ShiftInfo
 	err := s.pool.QueryRow(ctx, `
 		SELECT id, work_item_id, team, round, branch FROM shifts
-		WHERE work_item_id = $1 AND closed_at IS NULL`, workItemID).
+		WHERE work_item_id = $1 AND closed_at IS NULL AND NOT EXISTS(SELECT 1 FROM operator_executions e WHERE e.shift_id=shifts.id)`, workItemID).
 		Scan(&si.ID, &si.WorkItemID, &si.Team, &si.Round, &si.Branch)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -638,6 +656,7 @@ func (s *Store) CloseShift(ctx context.Context, shiftID int64, reason string) (b
 	err = tx.QueryRow(ctx, `
 		UPDATE shifts SET closed_at = now(), close_reason = $2
 		WHERE id = $1 AND closed_at IS NULL
+		  AND NOT EXISTS(SELECT 1 FROM operator_executions e WHERE e.shift_id=shifts.id)
 		RETURNING work_item_id, team`, shiftID, reason).Scan(&workItemID, &team)
 	if errors.Is(err, pgx.ErrNoRows) {
 		// Already closed (idempotent), or never existed (caller bug).
@@ -721,10 +740,11 @@ func (s *Store) RoundReports(ctx context.Context, shiftID int64) ([]RunReport, e
 func (s *Store) ShiftsBelowFloor(ctx context.Context) ([]ShiftLedgerEntry, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT sh.id, sh.work_item_id, sh.team, sh.budget, sh.spent,
-		       COALESCE((SELECT SUM(authorized) FROM agent_runs
-		                 WHERE shift_id = sh.id AND state = 'running'), 0)
+		       COALESCE((SELECT SUM(reserved) FROM run_budget_holds
+		                 WHERE shift_id = sh.id), 0)
 		FROM shifts sh
 		WHERE sh.closed_at IS NULL AND sh.budget > 0
+		  AND NOT EXISTS(SELECT 1 FROM operator_executions e WHERE e.shift_id=sh.id)
 		  AND EXISTS (SELECT 1 FROM agent_runs
 		              WHERE shift_id = sh.id AND state = 'pending')`)
 	if err != nil {
@@ -767,8 +787,8 @@ func (s *Store) Ledger(ctx context.Context, shiftID int64) (ShiftLedger, error) 
 	var l ShiftLedger
 	err := s.pool.QueryRow(ctx, `
 		SELECT sh.budget, sh.spent,
-		       COALESCE((SELECT SUM(authorized) FROM agent_runs
-		                 WHERE shift_id = sh.id AND state = 'running'), 0)
+		       COALESCE((SELECT SUM(reserved) FROM run_budget_holds
+		                 WHERE shift_id = sh.id), 0)
 		FROM shifts sh WHERE sh.id = $1`, shiftID).Scan(&l.Budget, &l.Spent, &l.Reserved)
 	return l, err
 }

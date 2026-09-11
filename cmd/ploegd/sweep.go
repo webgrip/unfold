@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/webgrip/ploeg/pkg/forgebroker"
+	"github.com/webgrip/ploeg/pkg/httpapi"
 	"github.com/webgrip/ploeg/pkg/llmbroker"
 	"github.com/webgrip/ploeg/pkg/shiftengine"
 	"github.com/webgrip/ploeg/pkg/store"
@@ -74,7 +75,8 @@ func orphanSweep(ctx context.Context, log *slog.Logger, st *store.Store, sweeper
 // could never see it die), then the engine advances or repairs every live
 // Shift — the async half of the fast-path/sweeper split (R2).
 func sweepLoop(ctx context.Context, log *slog.Logger, st *store.Store, sweeper llmbroker.Sweeper,
-	forgeSweeper forgebroker.Sweeper, engine *shiftengine.Engine, every time.Duration) {
+	forgeSweeper forgebroker.Sweeper, engine *shiftengine.Engine, server *httpapi.Server, every time.Duration) {
+	var managedCursor int64
 	t := time.NewTicker(every)
 	defer t.Stop()
 	// A second, much slower ticker: reconciling every credential against the
@@ -90,6 +92,9 @@ func sweepLoop(ctx context.Context, log *slog.Logger, st *store.Store, sweeper l
 			orphanSweep(ctx, log, st, sweeper)
 			forgeOrphanSweep(ctx, log, st, forgeSweeper)
 		case <-t.C:
+			if err := server.ReconcileOperatorExecutions(ctx); err != nil {
+				log.Error("operator execution reconciliation failed")
+			}
 			expired, err := st.ExpireLeases(ctx)
 			if err != nil {
 				log.Error("lease sweep failed", "err", err)
@@ -97,7 +102,7 @@ func sweepLoop(ctx context.Context, log *slog.Logger, st *store.Store, sweeper l
 			}
 			for _, e := range expired {
 				log.Warn("lease expired, item released", "work_item", e.WorkItemID)
-				revokeKey(ctx, log, sweeper, e.RunToken)
+				blockExpiredRun(ctx, log, sweeper, server, e.RunToken)
 			}
 
 			runs, err := st.ExpireRuns(ctx)
@@ -108,12 +113,13 @@ func sweepLoop(ctx context.Context, log *slog.Logger, st *store.Store, sweeper l
 			for _, e := range runs {
 				log.Warn("run deadline expired, run reclaimed",
 					"work_item", e.WorkItemID, "shift", e.ShiftID, "role", e.Role, "writes", e.Writes)
-				revokeKey(ctx, log, sweeper, e.RunToken)
+				blockExpiredRun(ctx, log, sweeper, server, e.RunToken)
 				// The zombie-writer case ADR-0013 tier 2 exists for: the pod
 				// may still be alive and partitioned, so take away its ability
 				// to push, not just its right to.
 				revokeForgeToken(ctx, log, forgeSweeper, e.ForgeTokenID)
 			}
+			managedCursor = managedBlockSweep(ctx, log, server, managedCursor)
 
 			// Delivery ids outlive a forge's retry window by a wide margin;
 			// the table exists to survive a restart, not to be an archive.
@@ -128,6 +134,42 @@ func sweepLoop(ctx context.Context, log *slog.Logger, st *store.Store, sweeper l
 			}
 		}
 	}
+}
+
+func blockExpiredRun(ctx context.Context, log *slog.Logger, sweeper llmbroker.Sweeper, server *httpapi.Server, runToken string) {
+	if server.LLMControl != nil {
+		if _, err := server.Store.LLMAccount(ctx, runToken); err == nil {
+			if err := server.LLMControl.Block(ctx, runToken); err != nil {
+				log.Error("managed expired run key block unresolved")
+			}
+			return
+		}
+	}
+	revokeKey(ctx, log, sweeper, runToken)
+}
+
+func managedBlockSweep(ctx context.Context, log *slog.Logger, server *httpapi.Server, after int64) int64 {
+	if server.LLMControl == nil {
+		return 0
+	}
+	accounts, err := server.Store.PendingLLMBlocks(ctx, after, 100)
+	if err != nil {
+		log.Error("managed key block queue unavailable")
+		return after
+	}
+	if len(accounts) == 0 {
+		return 0
+	}
+	for _, account := range accounts {
+		after = account.RunID
+		if err := server.LLMControl.Block(ctx, account.RunToken); err != nil {
+			log.Error("managed key block retry unresolved")
+		}
+		if ctx.Err() != nil {
+			break
+		}
+	}
+	return after
 }
 
 // forgeIDFromEnv is the forge instance id, and there is exactly one of it.

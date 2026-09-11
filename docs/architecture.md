@@ -12,6 +12,14 @@ work happens in ephemeral Kubernetes jobs running the `agent-runner` image
 (built in `webgrip/infrastructure`), deployed and sized by
 `webgrip/homelab-cluster`.
 
+## Unified workbench implementation, 2026-09-11
+
+The dated deployment description below remains a historical baseline. Current local code adds a scoped [operator API](contracts/operator-api.v1.schema.json), shared interactive execution and controller-owned inference authority. The workbench may atomically adopt a queued pristine tracker Work Item under [ADR0026](adrs/0026-tracker-selections-bind-the-canonical-work-item.md). A row-local ownership fence prevents both claim paths, Shift creation, KEDA scaling and webhook requeue from dispatching that item independently. Tracker origin and content remain intact.
+
+The [candidate delivery contract](contracts/operator-delivery.md) records canonical candidate identity, separately authorized verification receipts, candidate-bound human approval and a durable publication reservation. A lost reservation response never grants the effect again; uncertain publication remains a barrier. De Vloer qualifies a bounded Docker verifier and canonical Git export. There is no live publisher executor in this increment, no automatic ownership release, and no qualified active-worker takeover.
+
+These additions have local executable qualification; they do not assert deployment into the estate or thousand-agent scale. [ADR0024](adrs/0024-operator-work-uses-one-execution-authority.md), [ADR0025](adrs/0025-management-authority-stays-in-the-control-plane.md) and [ADR0027](adrs/0027-candidate-delivery-uses-trusted-evidence-and-a-publication-barrier.md) retain proposed status pending architecture ratification.
+
 ## 1. System context
 
 ```mermaid

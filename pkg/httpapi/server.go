@@ -21,8 +21,11 @@ import (
 )
 
 type Server struct {
-	Store    *store.Store
-	Trackers map[string]provider.TrackerProvider
+	OperatorConfig OperatorConfig
+	WorkerSecurity *WorkerSecurity
+	LLMControl     *LLMControl
+	Store          *store.Store
+	Trackers       map[string]provider.TrackerProvider
 	// Targets resolves a tracker scope to the repository the work lands in.
 	// Nil = no mapping configured; every item stays unresolved and workers use
 	// their env-configured repo (the pre-decoupling behavior).
@@ -82,7 +85,9 @@ func (s *Server) Handler() http.Handler {
 	// Literal path wins over the {team} wildcard in the Go 1.22 mux.
 	mux.HandleFunc("GET /api/v1/queue/depth", s.handleQueueDepth)
 	mux.HandleFunc("GET /api/v1/queue/{team}", s.handleQueue)
-	return mux
+	mux.Handle("/api/v1/operator/", s.operatorHandler())
+	s.RegisterLLMControl(mux)
+	return s.WorkerHandler(mux)
 }
 
 func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {

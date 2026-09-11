@@ -1,6 +1,9 @@
 package worker
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -59,5 +62,35 @@ func TestFetchBranchArgs_BringsTheBranchUnderReview(t *testing.T) {
 	got := strings.Join(fetchBranchArgs("agent/vik-624"), " ")
 	if want := "fetch --depth 50 origin agent/vik-624:agent/vik-624"; got != want {
 		t.Errorf("fetchBranchArgs = %q, want %q", got, want)
+	}
+}
+
+func TestGitAuthenticationNeverPersistsInClone(t *testing.T) {
+	ctx := context.Background()
+	base := t.TempDir()
+	source := filepath.Join(base, "source.git")
+	clone := filepath.Join(base, "clone")
+	const token = "synthetic-fixture-forge-credential"
+	const repositoryURL = "https://forge.example/team/repo.git"
+	for _, args := range [][]string{{"init", "--bare", source}, {"clone", source, clone}} {
+		if output, err := runGit(ctx, "", repositoryURL, token, args...); err != nil {
+			t.Fatalf("git failed: %v %s", err, output)
+		}
+	}
+	config, err := os.ReadFile(filepath.Join(clone, ".git", "config"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(config), token) || strings.Contains(string(config), "extraheader") || strings.Contains(string(config), "Authorization") {
+		t.Fatal("Git persisted transient authentication")
+	}
+	out, err := runGit(ctx, clone, repositoryURL, token, "config", "--get-urlmatch", "http.extraheader", repositoryURL)
+	if err != nil || !strings.HasPrefix(string(out), "Authorization: Basic ") {
+		t.Fatal("repository authentication was unavailable")
+	}
+	for _, other := range []string{"https://other.example/team/repo.git", "https://forge.example/team/other.git"} {
+		if out, err := runGit(ctx, clone, repositoryURL, token, "config", "--get-urlmatch", "http.extraheader", other); err == nil || len(out) != 0 {
+			t.Fatal("Git authentication escaped repository URL scope")
+		}
 	}
 }

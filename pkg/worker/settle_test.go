@@ -39,7 +39,7 @@ func quietLog() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, n
 // it to stop moving.
 func TestSettleSpend_WaitsForTheFigureToStopMoving(t *testing.T) {
 	m := &meterStub{readings: []float64{0, 0.004, 0.0137}}
-	got, err := settleSpend(context.Background(), m, llmbroker.Credential{APIKey: "sk-x"}, quietLog())
+	got, err := observeSpend(context.Background(), m, llmbroker.Credential{APIKey: "sk-x"}, quietLog())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestSettleSpend_WaitsForTheFigureToStopMoving(t *testing.T) {
 // This is why the loop keys on "stopped changing" and not on "non-zero".
 func TestSettleSpend_ZeroCostRunSettlesImmediately(t *testing.T) {
 	m := &meterStub{readings: []float64{0}}
-	got, err := settleSpend(context.Background(), m, llmbroker.Credential{APIKey: "sk-x"}, quietLog())
+	got, err := observeSpend(context.Background(), m, llmbroker.Credential{APIKey: "sk-x"}, quietLog())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestSettleSpend_ZeroCostRunSettlesImmediately(t *testing.T) {
 // entire life.
 func TestSettleSpend_FirstReadFailureIsReported(t *testing.T) {
 	m := &meterStub{err: errors.New("gateway down")}
-	if _, err := settleSpend(context.Background(), m, llmbroker.Credential{APIKey: "sk-x"}, quietLog()); err == nil {
+	if _, err := observeSpend(context.Background(), m, llmbroker.Credential{APIKey: "sk-x"}, quietLog()); err == nil {
 		t.Fatal("expected the error to surface, got a silent zero")
 	}
 }

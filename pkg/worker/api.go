@@ -2,28 +2,33 @@ package worker
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/webgrip/ploeg/pkg/harness"
+	"github.com/webgrip/ploeg/pkg/llmbroker"
 	"github.com/webgrip/ploeg/pkg/work"
 )
 
-// APIClient speaks ploegd's run API (docs/contracts/executor.md): claim,
-// renew, checkpoint, outcome. The run token is the only credential.
+// APIClient authenticates bootstrap claims and run-scoped control operations.
 type APIClient struct {
-	Base string
-	HC   *http.Client
+	Base           string
+	HC             *http.Client
+	BootstrapToken string
+	WorkerID       string
+	controlTokens  sync.Map
 }
 
 type ClaimResponse struct {
-	RunToken string        `json:"runToken"`
-	Deadline time.Time     `json:"deadline"`
-	WorkItem work.WorkItem `json:"workItem"`
+	RunToken     string        `json:"runToken"`
+	ControlToken string        `json:"controlToken,omitempty"`
+	Deadline     time.Time     `json:"deadline"`
+	WorkItem     work.WorkItem `json:"workItem"`
 	// Shift fields, all zero on a pre-Shift claim.
 	Shift  int64  `json:"shift,omitempty"`
 	Role   string `json:"role,omitempty"`
@@ -55,7 +60,7 @@ func (a *APIClient) Claim(team, role string) (*ClaimResponse, error) {
 		req["role"] = role
 	}
 	body, _ := json.Marshal(req)
-	resp, err := a.HC.Post(a.Base+"/api/v1/claim", "application/json", bytes.NewReader(body))
+	resp, err := a.request(context.Background(), http.MethodPost, "/api/v1/claim", body, a.BootstrapToken)
 	if err != nil {
 		return nil, err
 	}
@@ -68,6 +73,12 @@ func (a *APIClient) Claim(team, role string) (*ClaimResponse, error) {
 		if err := json.NewDecoder(resp.Body).Decode(&c); err != nil {
 			return nil, err
 		}
+		if a.BootstrapToken != "" && c.ControlToken == "" {
+			return nil, fmt.Errorf("managed claim returned no run capability")
+		}
+		if c.ControlToken != "" {
+			a.controlTokens.Store(c.RunToken, c.ControlToken)
+		}
 		return &c, nil
 	default:
 		return nil, fmt.Errorf("claim: HTTP %d", resp.StatusCode)
@@ -76,7 +87,7 @@ func (a *APIClient) Claim(team, role string) (*ClaimResponse, error) {
 
 // Renew returns gone=true when the lease is not ours anymore (404).
 func (a *APIClient) Renew(token string) (bool, error) {
-	resp, err := a.HC.Post(a.Base+"/api/v1/runs/"+token+"/renew", "application/json", nil)
+	resp, err := a.request(context.Background(), http.MethodPost, "/api/v1/runs/"+token+"/renew", nil, a.runCredential(token))
 	if err != nil {
 		return false, err
 	}
@@ -84,7 +95,7 @@ func (a *APIClient) Renew(token string) (bool, error) {
 	switch resp.StatusCode {
 	case http.StatusOK:
 		return false, nil
-	case http.StatusNotFound:
+	case http.StatusNotFound, http.StatusUnauthorized, http.StatusForbidden:
 		return true, nil
 	default:
 		return false, fmt.Errorf("renew: HTTP %d", resp.StatusCode)
@@ -107,14 +118,90 @@ func (a *APIClient) post(path string, v any) error {
 	if err != nil {
 		return err
 	}
-	resp, err := a.HC.Post(a.Base+path, "application/json", bytes.NewReader(body))
+	parts := strings.Split(strings.TrimPrefix(path, "/api/v1/runs/"), "/")
+	resp, err := a.request(context.Background(), http.MethodPost, path, body, a.runCredential(parts[0]))
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("%s: HTTP %d: %s", path, resp.StatusCode, strings.TrimSpace(string(msg)))
+		return fmt.Errorf("run control: HTTP %d", resp.StatusCode)
 	}
 	return nil
+}
+
+func (a *APIClient) runCredential(runToken string) string {
+	if token, ok := a.controlTokens.Load(runToken); ok {
+		return token.(string)
+	}
+	return ""
+}
+
+func (a *APIClient) request(ctx context.Context, method, path string, body []byte, token string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, method, a.Base+path, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("invalid run control endpoint")
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	if a.WorkerID != "" {
+		req.Header.Set("X-Ploeg-Worker-ID", a.WorkerID)
+	}
+	resp, err := a.HC.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("run control request failed")
+	}
+	return resp, nil
+}
+
+func (a *APIClient) Mint(ctx context.Context, req llmbroker.MintRequest) (llmbroker.Credential, error) {
+	var cred llmbroker.Credential
+	resp, err := a.request(ctx, http.MethodPost, "/api/v1/runs/"+req.RunToken+"/llm/credential", nil, a.runCredential(req.RunToken))
+	if err != nil {
+		return cred, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return cred, fmt.Errorf("managed credential issue: HTTP %d", resp.StatusCode)
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&cred); err != nil {
+		return cred, fmt.Errorf("invalid managed credential response")
+	}
+	if cred.APIKey == "" || cred.Alias == "" {
+		return cred, fmt.Errorf("managed credential response is incomplete")
+	}
+	cred.RunToken = req.RunToken
+	return cred, nil
+}
+
+func (a *APIClient) Revoke(ctx context.Context, cred llmbroker.Credential) error {
+	resp, err := a.request(ctx, http.MethodPost, "/api/v1/runs/"+cred.RunToken+"/llm/block", nil, a.runCredential(cred.RunToken))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("managed credential block: HTTP %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func (a *APIClient) Spend(ctx context.Context, cred llmbroker.Credential) (float64, error) {
+	resp, err := a.request(ctx, http.MethodGet, "/api/v1/runs/"+cred.RunToken+"/llm/spend", nil, a.runCredential(cred.RunToken))
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("managed usage read: HTTP %d", resp.StatusCode)
+	}
+	var usage struct {
+		CostUSD *float64 `json:"costUsd"`
+	}
+	if json.NewDecoder(resp.Body).Decode(&usage) != nil || usage.CostUSD == nil {
+		return 0, fmt.Errorf("managed usage unavailable")
+	}
+	return *usage.CostUSD, nil
 }

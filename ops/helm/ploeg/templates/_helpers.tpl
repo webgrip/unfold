@@ -281,13 +281,21 @@ spec:
           value: {{ $root.Values.executor.litellm.keyDuration | quote }}
         - name: LLM_BASE_URL
           value: {{ $root.Values.executor.litellm.baseUrl | quote }}
-        - name: LITELLM_ADMIN_URL
-          value: {{ $root.Values.executor.litellm.adminUrl | quote }}
-        - name: LITELLM_MASTER_KEY
+        - name: PLOEG_LLM_CREDENTIAL_MODE
+          value: {{ ternary "static-compatibility" "managed" (eq $root.Values.executor.workerAuth.mode "legacy") | quote }}
+        {{- if eq $root.Values.executor.workerAuth.mode "managed" }}
+        - name: PLOEG_WORKER_BOOTSTRAP_TOKEN
           valueFrom:
             secretKeyRef:
-              name: {{ $root.Values.executor.litellm.masterKeySecret.name }}
-              key: {{ $root.Values.executor.litellm.masterKeySecret.key }}
+              name: {{ $root.Values.executor.workerAuth.bootstrapSecret.name }}
+              key: {{ printf "%s--%s" $team.name ($role.name | default "default") | quote }}
+        {{- else if $root.Values.executor.workerAuth.staticInferenceSecret }}
+        - name: LLM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ $root.Values.executor.workerAuth.staticInferenceSecret.name }}
+              key: {{ $root.Values.executor.workerAuth.staticInferenceSecret.key }}
+        {{- end }}
         {{- $forge := include "ploeg.forge" $root | fromJson }}
         - name: PLOEG_TARGET_FORGE
           value: {{ $forge.kind | quote }}

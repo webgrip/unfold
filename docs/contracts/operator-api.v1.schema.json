@@ -1,0 +1,827 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://webgrip.dev/ploeg/contracts/operator-api.v1.schema.json",
+  "title": "Ploeg authenticated operator read API v1",
+  "description": "GET /api/v1/operator/{teams,work-items,work-items/{id},runs/{id},events}. Bearer consumers have team scope. Collection after is a decimal bigint cursor; limit defaults 50, maximum 200. Detail returns the most recent 200 records per collection, with explicit truncation flags. Audit pagination has snapshot consistency and is not a lossless changefeed: IDs are allocated before commit. Unbound events are omitted. Missing costs and unsupported team pause state remain unknown/null. Text is bounded (16384 characters for descriptions/findings, 4096 for summaries/reasons/URLs), recognizable credentials are redacted, URL queries/fragments are removed. Other credential-bearing structural fields are never selected. A recorded cost is an observation, not proof of final gateway settlement.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/teamsResponse"
+    },
+    {
+      "$ref": "#/$defs/itemsResponse"
+    },
+    {
+      "$ref": "#/$defs/itemResponse"
+    },
+    {
+      "$ref": "#/$defs/runResponse"
+    },
+    {
+      "$ref": "#/$defs/eventsResponse"
+    },
+    {
+      "$ref": "#/$defs/errorResponse"
+    }
+  ],
+  "$defs": {
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "forge",
+        "owner",
+        "repo",
+        "baseBranch"
+      ],
+      "properties": {
+        "forge": {
+          "type": "string"
+        },
+        "owner": {
+          "type": "string"
+        },
+        "repo": {
+          "type": "string"
+        },
+        "baseBranch": {
+          "type": "string"
+        }
+      }
+    },
+    "lease": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expiresAt",
+        "renewedAt"
+      ],
+      "properties": {
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "renewedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "queueDepth"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "queueDepth": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "team": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "paused",
+        "queueDepth",
+        "roles"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "paused": {
+          "type": "null"
+        },
+        "queueDepth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/role"
+          }
+        }
+      }
+    },
+    "shift": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "workItemId",
+        "team",
+        "branch",
+        "round",
+        "budgetUsd",
+        "spentUsd",
+        "reservedUsd",
+        "openedAt",
+        "closedAt",
+        "closeReason"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,18}$"
+        },
+        "workItemId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,18}$"
+        },
+        "team": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "round": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "budgetUsd": {
+          "type": "number"
+        },
+        "spentUsd": {
+          "type": "number"
+        },
+        "reservedUsd": {
+          "type": "number"
+        },
+        "openedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "closedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "closeReason": {
+          "type": "string"
+        }
+      }
+    },
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "provider",
+        "externalId",
+        "revision",
+        "team",
+        "state",
+        "title",
+        "description",
+        "url",
+        "priority",
+        "attempts",
+        "infraFailures",
+        "nextEligibleAt",
+        "createdAt",
+        "updatedAt",
+        "target",
+        "latestShift",
+        "lease"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,18}$"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "externalId": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "team": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "ingested",
+            "queued",
+            "leased",
+            "needs_human",
+            "stale",
+            "done"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "integer"
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "infraFailures": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "nextEligibleAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/target"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "latestShift": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/shift"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lease": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/lease"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "inputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "costUsd": {
+          "type": "number"
+        }
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "workItemId",
+        "shiftId",
+        "team",
+        "role",
+        "round",
+        "writes",
+        "state",
+        "startedAt",
+        "finishedAt",
+        "expiresAt",
+        "outcome",
+        "summary",
+        "stuckReason",
+        "links",
+        "findings",
+        "verdict",
+        "failureReason",
+        "authorizedUsd",
+        "usage",
+        "costStatus",
+        "keyAlias"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,18}$"
+        },
+        "workItemId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,18}$"
+        },
+        "shiftId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,18}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "team": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "round": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "writes": {
+          "type": "boolean"
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "running",
+            "finished"
+          ]
+        },
+        "startedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "finishedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expiresAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "enum": [
+                "pr_opened",
+                "pr_updated",
+                "issue_updated",
+                "follow_up_created",
+                "stuck",
+                "failed",
+                "no_change_needed"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "stuckReason": {
+          "type": "string"
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "findings": {
+          "type": "string"
+        },
+        "verdict": {
+          "enum": [
+            "",
+            "approve",
+            "request_changes"
+          ]
+        },
+        "failureReason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "authorizedUsd": {
+          "type": "number"
+        },
+        "usage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/usage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "costStatus": {
+          "enum": [
+            "observed",
+            "unknown"
+          ]
+        },
+        "keyAlias": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^ploeg-[a-f0-9]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "workItemId",
+        "phase",
+        "branch",
+        "prUrl",
+        "createdAt",
+        "nodeName",
+        "podUid"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,18}$"
+        },
+        "workItemId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,18}$"
+        },
+        "phase": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "prUrl": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "nodeName": {
+          "type": "string"
+        },
+        "podUid": {
+          "type": "string"
+        }
+      }
+    },
+    "eventDetail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "shiftId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,18}$"
+        },
+        "round": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "role": {
+          "type": "string"
+        },
+        "writes": {
+          "type": "boolean"
+        },
+        "authorizedUsd": {
+          "type": "number"
+        },
+        "phase": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "infraFailures": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "at",
+        "actor",
+        "action",
+        "workItemId",
+        "team",
+        "detail"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,18}$"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "actor": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "workItemId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,18}$"
+        },
+        "team": {
+          "type": "string"
+        },
+        "detail": {
+          "$ref": "#/$defs/eventDetail"
+        }
+      }
+    },
+    "truncated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shifts",
+        "runs",
+        "checkpoints",
+        "events"
+      ],
+      "properties": {
+        "shifts": {
+          "type": "boolean"
+        },
+        "runs": {
+          "type": "boolean"
+        },
+        "checkpoints": {
+          "type": "boolean"
+        },
+        "events": {
+          "type": "boolean"
+        }
+      }
+    },
+    "teamsResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "teams"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "teams": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/team"
+          }
+        }
+      }
+    },
+    "itemsResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/item"
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,18}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "itemResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "item",
+        "shifts",
+        "runs",
+        "checkpoints",
+        "events",
+        "truncated"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "item": {
+          "$ref": "#/$defs/item"
+        },
+        "shifts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/shift"
+          }
+        },
+        "runs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/run"
+          }
+        },
+        "checkpoints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/checkpoint"
+          }
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/event"
+          }
+        },
+        "truncated": {
+          "$ref": "#/$defs/truncated"
+        }
+      }
+    },
+    "runResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "run"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "run": {
+          "$ref": "#/$defs/run"
+        }
+      }
+    },
+    "eventsResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "events",
+        "nextCursor",
+        "lastCursor",
+        "hasMore",
+        "consistency"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/event"
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,18}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lastCursor": {
+          "type": "string",
+          "pattern": "^[0-9]{1,19}$"
+        },
+        "hasMore": {
+          "type": "boolean"
+        },
+        "consistency": {
+          "const": "snapshot"
+        }
+      }
+    },
+    "errorResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "error"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

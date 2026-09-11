@@ -8,6 +8,12 @@ An open-source, self-hostable dispatch plane. Bring your own board, forge, and a
 
 > **Status: pre-alpha.** Ploeg is being extracted from a running autonomous-agent setup (a "dark factory": agents working a ticket board unattended on a homelab Kubernetes cluster). The dispatch core and both executors (KEDA `ScaledJob` and a KEDA-free CronJob) ship in the chart — opt-in via `executor.enabled` — and dispatch the originating factory today; a local prototype runs the same core over Docker Compose (see below). Provider write-backs, a Forgejo forge provider, and team manifests are still to come. Watch, don't install.
 
+## Human workbench integration
+
+[De Vloer](https://forgejo.webgrip.dev/webgrip/de-vloer) is the human surface for Ploeg. The authenticated [operator API](docs/contracts/README.md#operator-read-consumers) exposes scoped work, runs, evidence and spending snapshots. An opt-in manual execution path admits a workbench session as one Work Item, Shift and operator Run, with durable commands and explicit pause, cancellation and supervision. Existing unattended executors continue alongside that delegated path.
+
+Management credentials remain in the controller; workers use [scoped control and inference capabilities](docs/contracts/worker-control.md). [Operational configuration and recovery](docs/ops/managed-workers.md) distinguish unresolved spending from final accounting. The [real cross-service test](pkg/httpapi/operator_workbench_qualification_test.go) exercises Ploeg, PostgreSQL and De Vloer together without model calls. The implementation remains pre-alpha; live gateway/cluster qualification and canonical tracker-to-workbench handoff are separate gates.
+
 ## What Ploeg is
 
 - **A dispatch plane, not a board.** Your tracker (Vikunja, Jira, GitHub Issues, …) stays the source of truth for *what* to do. Ploeg owns *how work gets executed*: assignment events in, ephemeral agent runs out.

@@ -87,10 +87,11 @@ func reset(t *testing.T) {
 func apiServer(t *testing.T, plans plan.Plans) http.Handler {
 	t.Helper()
 	return (&Server{
-		Store:    testStore,
-		LeaseTTL: time.Minute,
-		Log:      slog.New(slog.DiscardHandler),
-		RoleCaps: plans,
+		Store:          testStore,
+		LeaseTTL:       time.Minute,
+		Log:            slog.New(slog.DiscardHandler),
+		RoleCaps:       plans,
+		WorkerSecurity: &WorkerSecurity{AllowLegacy: true},
 	}).Handler()
 }
 
