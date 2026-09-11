@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import type { AppConfig, Repository, Crew, Placement, WorkspaceBackend } from './types.ts';
 import { validateTaskSources } from './tasks.ts';
 import { validatePloeg } from './ploeg.ts';
+import { validateDeliveryConfig } from './delivery-config.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 export const defaultCrews: Crew[] = [
@@ -236,5 +237,6 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   config.runtime.briefCheck = raw.runtime?.briefCheck ?? true;
   if (!existsSync(config.publicDir)) throw new Error('Browser application directory is missing');
   if (config.taskSources?.some(source => source.ploeg) && !config.execution) throw new Error('Ploeg tracker targets require shared execution configuration');
+  config.delivery = validateDeliveryConfig(raw.delivery, config);
   return config;
 }

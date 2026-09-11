@@ -15,6 +15,7 @@ import type { Links } from './links.ts';
 import type { Oidc } from './oidc.ts';
 import { readFileSync } from 'node:fs';
 import { PloegClient, PloegError, type PloegState } from './ploeg.ts';
+import { DeliveryService } from './delivery.ts';
 
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
 
@@ -68,8 +69,9 @@ function mutationGuard(req: IncomingMessage, config: AppConfig): void {
 export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost, links?: Links, oidc?: Oidc) {
   const auth = new Auth(store, config);
   const ploeg = new PloegClient(config);
+  const delivery = new DeliveryService(config, store);
   const streams = new Set<ServerResponse>();
-  const knownSecrets = [config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword, config.ploeg?.tokenEnv ? process.env[config.ploeg.tokenEnv] : undefined, ...(config.taskSources ?? []).map(source => source.token)].filter((value): value is string => Boolean(value));
+  const knownSecrets = [config.delivery?.verifierTokenEnv ? process.env[config.delivery.verifierTokenEnv] : undefined, config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword, config.ploeg?.tokenEnv ? process.env[config.ploeg.tokenEnv] : undefined, ...(config.taskSources ?? []).map(source => source.token)].filter((value): value is string => Boolean(value));
   function sanitize<T>(value: T): T {
     if (typeof value === 'string') {
       let cleaned: string = value;
@@ -167,7 +169,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         const user = auth.user(req);
         if (!user) return json(res, 401, { error: { code: 'unauthenticated', message: 'Sign in to your workbench.' } });
         if (method === 'GET' && path === '/api/bootstrap') return json(res, 200, sanitize({
-          user, mode: config.mode, sharedExecution: Boolean(config.execution), gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined,
+          user, mode: config.mode, sharedExecution: Boolean(config.execution), deliveryRepositories: config.delivery?.policies.map(policy => policy.repositoryId) ?? [], gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined,
           gatewayPolicy: config.gatewayPolicy ?? null,
           observability: config.observability ?? null,
           repositories: config.repositories.map(({ id, name, description, baseBranch, trackerUrl, executionOwner }) => ({ id, name, description, baseBranch, trackerUrl, executionOwner: executionOwner ?? 'interactive' })),
@@ -275,6 +277,11 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const [, id, action = ''] = match;
           const session = visible(id, user);
           if (method === 'GET' && !action) return json(res, 200, sanitize(publicSession(session)));
+          if (method === 'GET' && action === 'delivery') return json(res, 200, sanitize(await delivery.view(id, user)));
+          if (method === 'GET' && action === 'delivery/download') {
+            const content = await delivery.download(id, user);
+            res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="canonical-candidate.git.bundle"', 'Content-Length': content.length, 'Cache-Control': 'no-store' }); res.end(content); return;
+          }
           if (method === 'GET' && action === 'candidate') return json(res, 200, sanitize(session.candidate ?? unavailableCandidate(['completed', 'failed', 'cancelled'].includes(session.status) ? 'unsupported_workspace' : 'not_ready')));
           if (method === 'GET' && action === 'candidate/download') {
             const format = url.searchParams.get('format');
@@ -317,6 +324,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           if (method === 'POST') {
             if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot change work.');
             const data = await body(req);
+            if (action === 'delivery/verify') return json(res, 200, sanitize(await delivery.verify(id, user)));
+            if (action === 'delivery/approve') return json(res, 200, sanitize(await delivery.approve(id, user, data)));
             let result: Session;
             if (action === 'start') result = await engine.start(id, user);
             else if (action === 'pause') result = await engine.pause(id, user);
@@ -341,7 +350,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         }
         return fault(404, 'not_found', 'API route not found.');
       }
-      const assets: Record<string, string> = { '/': 'index.html', '/app.js': 'app.js', '/ploeg.js': 'ploeg.js', '/styles.css': 'styles.css', '/favicon.svg': 'favicon.svg' };
+      const assets: Record<string, string> = { '/': 'index.html', '/app.js': 'app.js', '/ploeg.js': 'ploeg.js', '/delivery.js': 'delivery.js', '/styles.css': 'styles.css', '/favicon.svg': 'favicon.svg' };
       if (method !== 'GET' || !assets[path]) return fault(404, 'not_found', 'Page not found.');
       const file = assets[path];
       const content = await readFile(join(config.publicDir, file));

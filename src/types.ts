@@ -1,6 +1,7 @@
 import type { ExecutionFailure } from './failures.ts';
 import type { Candidate } from './candidates.ts';
 import type { TaskSourceConfig, TaskSnapshot } from './tasks.ts';
+import type { DeliveryConfig } from './delivery-config.ts';
 
 export type SessionStatus = 'queued' | 'running' | 'waiting_input' | 'exporting' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
 export type RunStatus = 'queued' | 'running' | 'waiting_input' | 'completed' | 'failed' | 'cancelled' | 'paused';
@@ -26,6 +27,7 @@ export type Workspace = { id: string; backend: 'demo' | 'local' | 'external' | '
 export type PermissionRequest = { id: string; sessionId: string; runId: string; nativeId: string; kind: 'permission' | 'question'; title: string; detail: string; options?: string[]; questions?: unknown[]; resolved?: boolean };
 export type ModelConfig = { id: string; name: string; providerId: string; modelId: string };
 export type AppConfig = {
+  delivery?: DeliveryConfig;
   mode: 'demo' | 'live'; host: string; port: number; dataDir: string; publicDir: string; baseUrl?: string;
   repositories: Repository[]; crews: Crew[]; models: ModelConfig[];
   taskSources?: TaskSourceConfig[];
