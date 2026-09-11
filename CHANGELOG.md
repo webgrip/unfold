@@ -1,3 +1,13 @@
+## [0.3.0-rc.14](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.13...v0.3.0-rc.14) (2026-09-11)
+
+### Fixed
+
+* **kubernetes:** frame API request bodies and use writable state directory ([6bce630](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/6bce630eb56a1f993d92ce87b6ce6cd0d49b0560))
+
+### Docs
+
+* **product:** clarify tickets and research outcomes ([aba2beb](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/aba2beb0828505b2ee0badd8a97fdd3f1d8dde22))
+
 ## [0.3.0-rc.13](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.12...v0.3.0-rc.13) (2026-09-11)
 
 ### Added
