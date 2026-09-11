@@ -23,3 +23,6 @@ Trunk is `development`. Each accepted decision records its consequences and a tr
 | [0017 — Delegate interactive execution to Ploeg](0017-delegate-interactive-execution-to-ploeg.md) | Opt-in implementation; proposed for architecture ratification |
 | [0018 — Bind tracker selections to canonical Ploeg work](0018-bind-tracker-imports-to-existing-ploeg-work.md) | Opt-in implementation; proposed for architecture ratification |
 | [0019 — Verify canonical candidates outside agent workspaces](0019-verify-canonical-candidates-outside-agent-workspaces.md) | Bounded Docker verifier and Ploeg approval; proposed for architecture ratification |
+| [0020 — The name and mark are trademarks](0020-the-name-and-mark-are-trademarks.md) | Accepted for 0.3.0 with its CI check |
+| [0021 — The extension ships through Open VSX first](0021-the-extension-ships-through-open-vsx-first.md) | Accepted for 0.3.0; publishers not yet claimed |
+| [0022 — Apache-2.0 is a decision here, not an inheritance](0022-apache-2-0-is-the-estate-licence.md) | Accepted; licence, copyright line and CI check ship together |

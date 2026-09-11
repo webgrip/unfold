@@ -1,0 +1,32 @@
+:root {
+  --vloer-vlak:       #15191C;
+  --vloer-peil:       #3D84E8;
+  --vloer-peil-diep:  #2A66D6;
+  --vloer-krijt:      #F3F5F4;
+  --vloer-hal:        #0F1416;
+  --vloer-stof:       #5C6A6B;
+  --vloer-stof-licht: #8B9A9A;
+
+  --vloer-grond:  var(--vloer-krijt);
+  --vloer-tekst:  var(--vloer-vlak);
+  --vloer-zacht:  var(--vloer-stof);
+  --vloer-accent: var(--vloer-peil-diep);
+
+  --vloer-sans: "Archivo", "Helvetica Neue", Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --vloer-grond:  var(--vloer-hal);
+    --vloer-tekst:  var(--vloer-krijt);
+    --vloer-zacht:  var(--vloer-stof-licht);
+    --vloer-accent: var(--vloer-peil);
+  }
+}
+
+:root[data-theme="dark"] {
+  --vloer-grond:  var(--vloer-hal);
+  --vloer-tekst:  var(--vloer-krijt);
+  --vloer-zacht:  var(--vloer-stof-licht);
+  --vloer-accent: var(--vloer-peil);
+}

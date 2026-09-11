@@ -17,11 +17,15 @@ jobs:
       - run: npm test
       - run: npm run check
       - run: npm run design:check
+      - run: npm run brand:check
+      - run: npm run license:check
+      - run: npm run license:reuse
       - run: npm run backlog -- check
       - run: npm ci --no-audit --no-fund --prefix extensions/vscode
       - run: npm run extension:build
       - run: npm run extension:test
       - run: npm run extension:package
+      - run: npm run extension:verify
       - uses: https://github.com/azure/setup-helm@v4
         with:
           version: v4.2.4
