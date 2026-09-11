@@ -40,3 +40,7 @@ jobs:
       # ships with no stated terms at all.
       - name: name and mark carry their policy
         run: ./scripts/brand-marks.sh
+      - name: License consistency
+        run: ./scripts/license-check.sh
+      - name: REUSE compliance
+        run: uvx --from 'reuse[charset-normalizer]==6.2.0' reuse lint
