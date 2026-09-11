@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strings"
@@ -50,6 +51,7 @@ func NewClient(baseURL, masterKey string) *Client {
 
 // MintRequest is the JSON body for POST /key/generate.
 type MintRequest struct {
+	KeyType   string   `json:"key_type,omitempty"`
 	KeyAlias  string   `json:"key_alias"`
 	MaxBudget float64  `json:"max_budget,omitempty"`
 	Models    []string `json:"models,omitempty"`
@@ -77,25 +79,24 @@ func (c *Client) Mint(ctx context.Context, req MintRequest) (string, error) {
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/key/generate", bytes.NewReader(body))
 	if err != nil {
-		return "", fmt.Errorf("litellm: create mint request: %w", err)
+		return "", fmt.Errorf("litellm: invalid mint endpoint")
 	}
 	httpReq.Header.Set("Authorization", "Bearer "+c.masterKey)
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpCli.Do(httpReq)
 	if err != nil {
-		return "", fmt.Errorf("litellm: mint request: %w", err)
+		return "", fmt.Errorf("litellm: mint request failed")
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("litellm: mint request got HTTP %d: %s", resp.StatusCode, string(respBody))
+		return "", fmt.Errorf("litellm: mint request got HTTP %d", resp.StatusCode)
 	}
 
 	var mr MintResponse
-	if err := json.NewDecoder(resp.Body).Decode(&mr); err != nil {
-		return "", fmt.Errorf("litellm: decode mint response: %w", err)
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&mr); err != nil {
+		return "", fmt.Errorf("litellm: invalid mint response")
 	}
 	if mr.Key == "" {
 		return "", fmt.Errorf("litellm: mint response returned empty key")
@@ -116,8 +117,8 @@ func (c *Client) Revoke(ctx context.Context, key string) error {
 // reported about itself.
 type keyInfoResponse struct {
 	Info struct {
-		Spend     float64 `json:"spend"`
-		MaxBudget float64 `json:"max_budget"`
+		Spend     *float64 `json:"spend"`
+		MaxBudget float64  `json:"max_budget"`
 	} `json:"info"`
 }
 
@@ -126,24 +127,26 @@ type keyInfoResponse struct {
 func (c *Client) KeySpend(ctx context.Context, key string) (float64, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/key/info?key="+url.QueryEscape(key), nil)
 	if err != nil {
-		return 0, fmt.Errorf("litellm: create key info request: %w", err)
+		return 0, fmt.Errorf("litellm: invalid key info endpoint")
 	}
 	req.Header.Set("Authorization", "Bearer "+c.masterKey)
 
 	resp, err := c.httpCli.Do(req)
 	if err != nil {
-		return 0, fmt.Errorf("litellm: key info request: %w", err)
+		return 0, fmt.Errorf("litellm: key info request failed")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return 0, fmt.Errorf("litellm: key info got HTTP %d: %s", resp.StatusCode, string(body))
+		return 0, fmt.Errorf("litellm: key info got HTTP %d", resp.StatusCode)
 	}
 	var ki keyInfoResponse
-	if err := json.NewDecoder(resp.Body).Decode(&ki); err != nil {
-		return 0, fmt.Errorf("litellm: decode key info: %w", err)
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&ki); err != nil {
+		return 0, fmt.Errorf("litellm: invalid key info response")
 	}
-	return ki.Info.Spend, nil
+	if ki.Info.Spend == nil || *ki.Info.Spend < 0 || math.IsNaN(*ki.Info.Spend) || math.IsInf(*ki.Info.Spend, 0) {
+		return 0, fmt.Errorf("litellm: spend is unavailable or invalid")
+	}
+	return *ki.Info.Spend, nil
 }
 
 // KeyInfo is a single entry from the /key/list response (with
@@ -151,6 +154,35 @@ func (c *Client) KeySpend(ctx context.Context, key string) (float64, error) {
 type KeyInfo struct {
 	Token    string `json:"token"`
 	KeyAlias string `json:"key_alias"`
+	Blocked  bool   `json:"blocked"`
+}
+
+func (c *Client) BlockKey(ctx context.Context, key string) error {
+	body, err := json.Marshal(map[string]string{"key": key})
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/key/block", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("litellm: invalid block endpoint")
+	}
+	req.Header.Set("Authorization", "Bearer "+c.masterKey)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.httpCli.Do(req)
+	if err != nil {
+		return fmt.Errorf("litellm: block request failed")
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("litellm: block got HTTP %d", resp.StatusCode)
+	}
+	var result struct {
+		Blocked bool `json:"blocked"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&result); err != nil || !result.Blocked {
+		return fmt.Errorf("litellm: gateway did not confirm key blocked")
+	}
+	return nil
 }
 
 // listKeysResponse is the full /key/list response shape.
@@ -171,19 +203,19 @@ func (c *Client) ListKeys(ctx context.Context, prefix string) ([]KeyInfo, error)
 		url := fmt.Sprintf("%s/key/list?return_full_object=true&size=100&page=%d", c.baseURL, page)
 		httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
-			return nil, fmt.Errorf("litellm: create list request: %w", err)
+			return nil, fmt.Errorf("litellm: invalid list endpoint")
 		}
 		httpReq.Header.Set("Authorization", "Bearer "+c.masterKey)
 
 		resp, err := c.httpCli.Do(httpReq)
 		if err != nil {
-			return nil, fmt.Errorf("litellm: list request: %w", err)
+			return nil, fmt.Errorf("litellm: list request failed")
 		}
 
 		var lr listKeysResponse
-		if err := json.NewDecoder(resp.Body).Decode(&lr); err != nil {
+		if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&lr); err != nil {
 			resp.Body.Close()
-			return nil, fmt.Errorf("litellm: decode list response: %w", err)
+			return nil, fmt.Errorf("litellm: invalid list response")
 		}
 		resp.Body.Close()
 
@@ -220,21 +252,20 @@ func (c *Client) DeleteKeys(ctx context.Context, tokens []string) error {
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/key/delete", bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("litellm: create delete request: %w", err)
+		return fmt.Errorf("litellm: invalid delete endpoint")
 	}
 	httpReq.Header.Set("Authorization", "Bearer "+c.masterKey)
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpCli.Do(httpReq)
 	if err != nil {
-		return fmt.Errorf("litellm: delete request: %w", err)
+		return fmt.Errorf("litellm: delete request failed")
 	}
 	defer resp.Body.Close()
 
 	// 200 = at least some deleted; 404 = none found (idempotent).
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
-		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("litellm: delete request got HTTP %d: %s", resp.StatusCode, string(respBody))
+		return fmt.Errorf("litellm: delete request got HTTP %d", resp.StatusCode)
 	}
 	return nil
 }

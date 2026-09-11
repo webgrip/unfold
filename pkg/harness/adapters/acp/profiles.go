@@ -132,7 +132,7 @@ func opencodeConfigDoc(l harness.LLMEnv) (string, error) {
 				"npm": "@ai-sdk/openai-compatible",
 				"options": map[string]any{
 					"baseURL": l.BaseURL,
-					"apiKey":  l.APIKey,
+					"apiKey":  "{env:LLM_API_KEY}",
 				},
 				"models": map[string]any{model: map[string]any{}},
 			},

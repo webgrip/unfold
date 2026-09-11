@@ -2,6 +2,8 @@ package llmbroker
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -18,16 +20,37 @@ type fakeAdmin struct {
 	keys     map[string]string // hashed token -> alias
 	minted   []litellm.MintRequest
 	deleted  []string
+	blocked  map[string]bool
 	mintFail bool
 	spend    float64 // what /key/info reports for any live key
 }
 
-func newFakeAdmin() *fakeAdmin { return &fakeAdmin{keys: map[string]string{}} }
+func newFakeAdmin() *fakeAdmin {
+	return &fakeAdmin{keys: map[string]string{}, blocked: map[string]bool{}}
+}
 
 func (f *fakeAdmin) server(t *testing.T) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/key/block":
+			var req struct {
+				Key string `json:"key"`
+			}
+			if json.NewDecoder(r.Body).Decode(&req) != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			key := req.Key
+			if _, ok := f.keys[key]; !ok {
+				key = fixtureKeyID(key)
+			}
+			if _, ok := f.keys[key]; !ok {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			f.blocked[key] = true
+			_ = json.NewEncoder(w).Encode(map[string]bool{"blocked": true})
 		case "/key/generate":
 			if f.mintFail {
 				http.Error(w, `{"error":"test error"}`, http.StatusInternalServerError)
@@ -50,7 +73,7 @@ func (f *fakeAdmin) server(t *testing.T) *httptest.Server {
 			}
 			f.minted = append(f.minted, req)
 			key := "sk-" + req.KeyAlias
-			f.keys["hashed-"+key] = req.KeyAlias
+			f.keys[fixtureKeyID(key)] = req.KeyAlias
 			_ = json.NewEncoder(w).Encode(map[string]string{"key": key})
 		case "/key/delete":
 			var req struct {
@@ -68,14 +91,13 @@ func (f *fakeAdmin) server(t *testing.T) *httptest.Server {
 			for _, k := range req.Keys {
 				f.deleted = append(f.deleted, k)
 				delete(f.keys, k)
-				delete(f.keys, "hashed-"+k) // plaintext revoke path
+				delete(f.keys, fixtureKeyID(k)) // plaintext revoke path
 			}
 			_ = json.NewEncoder(w).Encode(map[string]string{"message": "deleted"})
 		case "/key/info":
 			key := r.URL.Query().Get("key")
-			if _, ok := f.keys["hashed-"+key]; !ok {
-				// Revoking deletes the row this reads, which is exactly why
-				// spend has to be settled BEFORE revoke.
+			_, hashed := f.keys[key]
+			if _, ok := f.keys[fixtureKeyID(key)]; !ok && !hashed {
 				http.Error(w, `{"error":"key not found"}`, http.StatusNotFound)
 				return
 			}
@@ -85,7 +107,7 @@ func (f *fakeAdmin) server(t *testing.T) *httptest.Server {
 		case "/key/list":
 			keys := make([]litellm.KeyInfo, 0, len(f.keys))
 			for tok, alias := range f.keys {
-				keys = append(keys, litellm.KeyInfo{Token: tok, KeyAlias: alias})
+				keys = append(keys, litellm.KeyInfo{Token: tok, KeyAlias: alias, Blocked: f.blocked[tok]})
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"keys": keys, "total_count": len(keys), "total_pages": 1, "current_page": 1,
@@ -182,7 +204,7 @@ func TestMint_ShortTokenRejected(t *testing.T) {
 	}
 }
 
-func TestRevoke_DeletesTheKey(t *testing.T) {
+func TestRevoke_BlocksKeyAndPreservesUsage(t *testing.T) {
 	f := newFakeAdmin()
 	b := f.broker(t)
 	cred, err := b.Mint(context.Background(), MintRequest{RunToken: runToken, BudgetUSD: 1, TTL: time.Hour})
@@ -192,8 +214,12 @@ func TestRevoke_DeletesTheKey(t *testing.T) {
 	if err := b.Revoke(context.Background(), cred); err != nil {
 		t.Fatal(err)
 	}
-	if len(f.deleted) != 1 || f.deleted[0] != cred.APIKey {
-		t.Errorf("deleted %v, want [%s]", f.deleted, cred.APIKey)
+	if len(f.deleted) != 0 || !f.blocked[fixtureKeyID(cred.APIKey)] {
+		t.Fatal("revocation did not retain a blocked accounting identity")
+	}
+	f.spend = 0.7
+	if got, err := b.Spend(context.Background(), cred); err != nil || got != 0.7 {
+		t.Fatalf("late spend=%v, err=%v", got, err)
 	}
 }
 
@@ -216,8 +242,8 @@ func TestRevokeForRun_ResolvesAliasToHashedTokens(t *testing.T) {
 	if err := b.RevokeForRun(context.Background(), runToken); err != nil {
 		t.Fatal(err)
 	}
-	if len(f.keys) != 0 {
-		t.Errorf("keys left after RevokeForRun: %v", f.keys)
+	if len(f.keys) != 1 || len(f.blocked) != 1 || len(f.deleted) != 0 {
+		t.Fatal("run cleanup must block and retain accounting identity")
 	}
 }
 
@@ -237,13 +263,16 @@ func TestSweepOrphans_RevokesOnlyDeadRuns(t *testing.T) {
 	if n != 1 {
 		t.Errorf("swept %d keys, want 1", n)
 	}
-	for _, alias := range f.keys {
-		if alias != "ploeg-aaaaaaaaaaaa" {
-			t.Errorf("live key %q was swept", alias)
+	for key, alias := range f.keys {
+		if f.blocked[key] == (alias == "ploeg-aaaaaaaaaaaa") {
+			t.Fatal("wrong key blocked")
 		}
 	}
-	if len(f.keys) != 1 {
-		t.Errorf("remaining keys = %v, want exactly the live one", f.keys)
+	if len(f.keys) != 2 || len(f.deleted) != 0 {
+		t.Fatal("orphan cleanup deleted accounting identity")
+	}
+	if n, err := b.SweepOrphans(context.Background(), []string{aliveToken}); err != nil || n != 0 {
+		t.Fatalf("repeated cleanup=%d, %v", n, err)
 	}
 }
 
@@ -269,4 +298,9 @@ func TestStatic_MintEchoesKeyAndKeepsTraceFormat(t *testing.T) {
 	if err := (Static{}).Revoke(context.Background(), cred); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func fixtureKeyID(key string) string {
+	digest := sha256.Sum256([]byte(key))
+	return hex.EncodeToString(digest[:])
 }

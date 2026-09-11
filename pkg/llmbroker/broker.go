@@ -58,6 +58,7 @@ type MintRequest struct {
 // (exported to the harness as LLM_TRACE_ID); an empty APIKey means the
 // harness image authenticates itself.
 type Credential struct {
-	APIKey string
-	Alias  string
+	APIKey   string `json:"apiKey"`
+	Alias    string `json:"alias"`
+	RunToken string `json:"-"`
 }

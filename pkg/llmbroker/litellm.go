@@ -2,7 +2,10 @@ package llmbroker
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -22,13 +25,13 @@ var _ Broker = (*LiteLLM)(nil)
 var _ Sweeper = (*LiteLLM)(nil)
 var _ Metered = (*LiteLLM)(nil)
 
-// Spend asks the proxy what this key has spent. Must be called before Revoke:
-// deleting the key deletes the row this reads.
+// Spend returns provisional gateway usage for a retained accounting identity.
 func (b *LiteLLM) Spend(ctx context.Context, cred Credential) (float64, error) {
 	if cred.APIKey == "" {
 		return 0, fmt.Errorf("no credential to meter")
 	}
-	return b.cli.KeySpend(ctx, cred.APIKey)
+	keyID := sha256.Sum256([]byte(cred.APIKey))
+	return b.cli.KeySpend(ctx, hex.EncodeToString(keyID[:]))
 }
 
 func (b *LiteLLM) Mint(ctx context.Context, req MintRequest) (Credential, error) {
@@ -42,10 +45,11 @@ func (b *LiteLLM) Mint(ctx context.Context, req MintRequest) (Credential, error)
 	// LITELLM_KEY_BUDGET, a team with no cap and no budget), and an
 	// unattended agent with an unlimited credential is the one outcome this
 	// package exists to prevent.
-	if req.BudgetUSD <= 0 {
+	if req.BudgetUSD <= 0 || math.IsNaN(req.BudgetUSD) || math.IsInf(req.BudgetUSD, 0) {
 		return Credential{}, fmt.Errorf("refusing to mint an uncapped key: budget is %v", req.BudgetUSD)
 	}
 	key, err := b.cli.Mint(ctx, litellm.MintRequest{
+		KeyType:   "llm_api",
 		KeyAlias:  alias,
 		MaxBudget: req.BudgetUSD,
 		Models:    req.Models,
@@ -73,11 +77,10 @@ func (b *LiteLLM) Revoke(ctx context.Context, cred Credential) error {
 	if cred.APIKey == "" {
 		return nil
 	}
-	return b.cli.Revoke(ctx, cred.APIKey)
+	return b.cli.BlockKey(ctx, cred.APIKey)
 }
 
-// RevokeForRun looks the run's key(s) up by exact alias and batch-deletes
-// them — the lease-expiry path, where the plaintext key is long gone.
+// RevokeForRun blocks the run's keys by exact alias, preserving their accounting identities.
 func (b *LiteLLM) RevokeForRun(ctx context.Context, runToken string) error {
 	alias := litellm.Alias(runToken)
 	if alias == "" {
@@ -89,16 +92,22 @@ func (b *LiteLLM) RevokeForRun(ctx context.Context, runToken string) error {
 	}
 	tokens := make([]string, 0, len(keys))
 	for _, k := range keys {
-		tokens = append(tokens, k.Token)
+		if k.KeyAlias == alias && !k.Blocked {
+			tokens = append(tokens, k.Token)
+		}
 	}
 	if len(tokens) == 0 {
 		return nil
 	}
-	return b.cli.DeleteKeys(ctx, tokens)
+	for _, token := range tokens {
+		if err := b.cli.BlockKey(ctx, token); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-// SweepOrphans deletes every ploeg-* key whose alias does not belong to an
-// unfinished run.
+// SweepOrphans blocks every active ploeg-* key without an unfinished run.
 func (b *LiteLLM) SweepOrphans(ctx context.Context, aliveRunTokens []string) (int, error) {
 	keys, err := b.cli.ListKeys(ctx, litellm.AliasPrefix)
 	if err != nil {
@@ -115,15 +124,45 @@ func (b *LiteLLM) SweepOrphans(ctx context.Context, aliveRunTokens []string) (in
 	}
 	var stale []string
 	for _, k := range keys {
-		if _, live := alive[k.KeyAlias]; !live {
+		if _, live := alive[k.KeyAlias]; !live && !k.Blocked {
 			stale = append(stale, k.Token)
 		}
 	}
 	if len(stale) == 0 {
 		return 0, nil
 	}
-	if err := b.cli.DeleteKeys(ctx, stale); err != nil {
-		return 0, err
+	for i, token := range stale {
+		if err := b.cli.BlockKey(ctx, token); err != nil {
+			return i, err
+		}
 	}
 	return len(stale), nil
+}
+
+func (b *LiteLLM) SpendForRun(ctx context.Context, runToken string) (float64, error) {
+	alias := litellm.Alias(runToken)
+	if alias == "" {
+		return 0, fmt.Errorf("invalid run identity")
+	}
+	keys, err := b.cli.ListKeys(ctx, alias)
+	if err != nil {
+		return 0, err
+	}
+	var total float64
+	found := false
+	for _, key := range keys {
+		if key.KeyAlias != alias {
+			continue
+		}
+		spend, err := b.cli.KeySpend(ctx, key.Token)
+		if err != nil {
+			return 0, err
+		}
+		total += spend
+		found = true
+	}
+	if !found {
+		return 0, fmt.Errorf("gateway accounting identity unavailable")
+	}
+	return total, nil
 }

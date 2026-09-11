@@ -379,3 +379,38 @@ func TestListKeys_WithoutFullObject(t *testing.T) {
 		}
 	}
 }
+
+func TestMissingGatewaySpendIsNotZero(t *testing.T) {
+	for _, body := range []string{`{}`, `{"info":{}}`, `{"info":{"spend":null}}`, `{"info":{"spend":-1}}`} {
+		t.Run(body, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(body)) }))
+			defer srv.Close()
+			if _, err := NewClient(srv.URL, "fixture-master").KeySpend(context.Background(), "fixture-key-id"); err == nil {
+				t.Fatal("missing or invalid gateway spend accepted as zero")
+			}
+		})
+	}
+}
+
+func TestGatewayErrorsNeverEchoCredentialOrResponseBody(t *testing.T) {
+	const canary = "fixture-secret-canary"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte(canary))
+	}))
+	defer srv.Close()
+	cli := NewClient(srv.URL, canary)
+	ctx := context.Background()
+	_, mintErr := cli.Mint(ctx, MintRequest{KeyAlias: "fixture", MaxBudget: 1})
+	_, spendErr := cli.KeySpend(ctx, canary)
+	_, listErr := cli.ListKeys(ctx, "fixture")
+	for _, err := range []error{mintErr, spendErr, listErr, cli.BlockKey(ctx, canary), cli.DeleteKeys(ctx, []string{canary})} {
+		if err == nil || strings.Contains(err.Error(), canary) {
+			t.Fatalf("unsafe gateway error: %v", err)
+		}
+	}
+	invalid := NewClient("://"+canary, "fixture-master")
+	if _, err := invalid.KeySpend(ctx, canary); err == nil || strings.Contains(err.Error(), canary) {
+		t.Fatalf("invalid endpoint disclosed credential: %v", err)
+	}
+}

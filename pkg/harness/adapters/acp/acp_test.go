@@ -213,12 +213,11 @@ func TestProfile_OpencodeWritesATraceScopedConfig(t *testing.T) {
 	if err := json.Unmarshal(b, &doc); err != nil {
 		t.Fatalf("config is not valid JSON: %v", err)
 	}
-	if !strings.Contains(string(b), env.LLM.BaseURL) || !strings.Contains(string(b), env.LLM.APIKey) {
+	if !strings.Contains(string(b), env.LLM.BaseURL) || !strings.Contains(string(b), "{env:LLM_API_KEY}") || strings.Contains(string(b), env.LLM.APIKey) {
 		t.Error("config does not point the agent at the LiteLLM proxy")
 	}
-	// 0600: the file holds a live per-run key.
 	if fi, _ := os.Stat(cfgPath); fi != nil && fi.Mode().Perm() != 0o600 {
-		t.Errorf("config mode = %v, want 0600 (it contains an API key)", fi.Mode().Perm())
+		t.Errorf("config mode = %v, want 0600", fi.Mode().Perm())
 	}
 }
 
