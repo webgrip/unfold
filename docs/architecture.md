@@ -9,26 +9,32 @@ The design shifts repeated workspace setup and supervision out of individual ter
 | System | Authority |
 | --- | --- |
 | Tracker | Work content, priority and assignment |
-| Ploeg | Unattended dispatch and its existing Shift/Run lifecycle |
-| De Vloer | Interactive operator sessions, human intervention and their audit trail |
+| Ploeg | Unattended dispatch and opt-in operator admission, Shift/Run lifecycle, commands and inference authorization |
+| De Vloer | Interactive sessions, delegated crew execution, human intervention, native workspaces and reviewable evidence |
 | Agent harness | Native reasoning/tool loop and opaque conversation state |
 | LiteLLM | Model routing, scoped virtual credentials and available spend records |
 | Docker Engine | Container isolation of workspaces on the workbench host |
 | Kubernetes | Pod isolation of workspaces in a team deployment |
 
-The Ploeg connector reads its configured queue endpoint. It neither invents a dispatch API nor claims to mutate tracker state. A tracker link provides context; it does not grant authority over the linked item. Converting interactive work into unattended work remains an explicit tracker workflow.
+The authenticated Ploeg read API supplies scoped work and evidence snapshots. With `execution.team` configured, an interactive session becomes one Ploeg Work Item, Shift and operator Run; De Vloer executes its crew under that authority. Human and background supervision preserve the same execution. [The execution contract](contracts/ploeg-execution.md) specifies this boundary, and [the operating guide](operations/unified-baseline.md) covers setup and recovery.
 
 ```mermaid
 flowchart TD
-  Human[Operator browser] --> Workbench[De Vloer]
-  Workbench --> State[SQLite and events]
-  Workbench --> Broker[LiteLLM broker]
-  Workbench --> Workspace[Session workspace]
-  Workspace --> Harness[Agent harness]
-  Harness --> Gateway[LiteLLM inference]
-  Workbench -. read only .-> Ploeg[Ploeg queue]
-  Ploeg --> Tracker[Tracker authority]
+  Human[Browser or editor] --> Workbench[De Vloer workbench]
+  Workbench --> State[Durable session and evidence]
+  Workbench --> Authority[Ploeg admission and commands]
+  Tracker[Tracker assignment] --> Authority
+  Authority --> Dispatch[Unattended executor]
+  Authority --> Grant[Scoped execution grant]
+  Grant --> Workbench
+  Workbench --> Workspace[Remote workspace and harness]
+  Authority --> Broker[Inference authorization and accounting]
+  Broker --> Gateway[LiteLLM routing to model providers]
+  Workspace --> Gateway
+  Dispatch --> Gateway
 ```
+
+Standalone workbench sessions retain their existing broker behavior when shared execution is not enabled. Bound sessions cannot silently fall back to standalone authority. [Registered Vikunja and ClickUp imports](contracts/ploeg-tracker-binding.md) bind to the existing queued Ploeg Work Item and claim it atomically on Start. General WorkOrders and adoption of already executing harness work remain outside this boundary.
 
 ## Implementation map
 
@@ -38,7 +44,8 @@ flowchart TD
 | `src/http.ts`, `src/auth.ts`, `public/` | HTTP, identity, object authorization, browser workbench |
 | `src/store.ts`, `src/engine.ts` | Durable state, events and session lifecycle |
 | `src/runtime/` | Runtime adapters and the local, Docker and Kubernetes workspace backends |
-| `src/broker.ts` | LiteLLM credential lifecycle and spend reconciliation |
+| [`src/broker.ts`](../src/broker.ts) | Standalone LiteLLM credential lifecycle and spend reconciliation |
+| [`src/ploeg.ts`](../src/ploeg.ts), [`src/execution-authority.ts`](../src/execution-authority.ts) | Scoped Ploeg snapshots and delegated execution authority |
 | `src/types.ts` | Shared domain and adapter contracts |
 | `ops/` | Images and Kubernetes deployment |
 | `skills/`, `.agents/contracts/` | Portable operator procedure and repository-specific facts |
@@ -57,9 +64,9 @@ Session events are persisted before they are exposed through the event stream. A
 
 Configuration supplies the allowed repository, crew, model and runtime IDs. User requests select from those registrations. Arbitrary process arguments and workspace endpoints are administrator configuration, not prompt-controlled inputs.
 
-The control plane holds its login secrets, LiteLLM minting credential, Docker socket and Kubernetes authority. A worker receives only its session's inference key, explicitly provisioned repository access and the environment names or Kubernetes Secrets an administrator listed for it. Placement is chosen per session from the backends a deployment enables ([ADR 0009](adrs/0009-workspace-placement-is-a-session-choice.md)). The `docker` backend runs the clone and the harness in a hardened container from the pinned agent image on the workbench host; it is the default for a workstation. The `local` backend shares the control server’s OS user and permits access to server files through approved shell commands; use it only for trusted single-user development. Kubernetes is the intended isolated team backend for a workbench deployed in the cluster, with network policy enforcement dependent on the target cluster. Remote HTTP adapters are integrations with trusted, authenticated endpoints. A read-only role instruction is not a filesystem or credential boundary; review actual adapter and workspace enforcement before giving it production push access.
+The standalone control plane holds its login secrets, LiteLLM minting credential, Docker socket and Kubernetes authority. In shared execution mode, the LiteLLM minting credential stays in Ploeg; De Vloer receives only the per-execution inference capability. A worker receives only its session's inference key, explicitly provisioned repository access and the environment names or Kubernetes Secrets an administrator listed for it. Placement is chosen per session from the backends a deployment enables ([ADR 0009](adrs/0009-workspace-placement-is-a-session-choice.md)). The `docker` backend runs the clone and the harness in a hardened container from the pinned agent image on the workbench host; it is the default for a workstation. The `local` backend shares the control server’s OS user and permits access to server files through approved shell commands; use it only for trusted single-user development. Kubernetes is the intended isolated team backend for a workbench deployed in the cluster, with network policy enforcement dependent on the target cluster. Remote HTTP adapters are integrations with trusted, authenticated endpoints. A read-only role instruction is not a filesystem or credential boundary; review actual adapter and workspace enforcement before giving it production push access.
 
-`budgetUsd` is authorized spend. `spentUsd` is observed spend, accompanied by `costStatus`. Demo work has no model calls. Pending or unavailable live metering must remain visible, and an administrator must explicitly authorize an increase. Gateway budgets, TTL and revocation reduce exposure; they are not proof of an exact monetary ceiling for in-flight requests.
+`budgetUsd` is authorized spend. `spentUsd` is the standalone accounting total, accompanied by `costStatus`. Shared executions expose provisional Ploeg readings through `observedUsd` and retain pending or unknown status until independent accounting is resolved. Demo work has no model calls. Pending or unavailable live metering must remain visible, and an administrator must explicitly authorize an increase. Gateway budgets, TTL and revocation reduce exposure; they are not proof of an exact monetary ceiling for in-flight requests.
 
 ## v0.1 operating envelope
 

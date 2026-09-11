@@ -2181,13 +2181,26 @@ Here `vloer` and `delivery` must be real configured profile IDs; `2` is an examp
 
 Before starting, add the actual issue URL and current accepted revision to the objective, resolve dependencies against the real tracker, and check the server's allowed target and budget. The generator deliberately does not invent a structured issue reference that today's API cannot store. In demo mode, the runtime always runs its fixed order-service demonstration; it cannot implement this backlog.
 
-A human must independently run the approved checks, preserve the complete result, publish the proposal and review it. Today's Ploeg integration is read-only in Vloer. Setting a task to `Ready` does not make this Vloer release automatically ingest it.
+A human must independently run the approved checks, preserve the complete result, publish the proposal and review it. The [shared manual execution baseline](operations/unified-baseline.md) now links operator sessions to Ploeg. The [tracker binding](contracts/ploeg-tracker-binding.md) and [independent verifier](contracts/candidate-delivery.md) extend that baseline; a live publisher remains separate backlog work. Setting a task to `Ready` does not make this Vloer release automatically ingest it.
 
 ### When the governed loop is implemented
 
 The proposed contract admits a current source revision into a Ploeg WorkOrder, claims one fenced DeliveryAttempt, and links the operator's Vloer Session. The worker receives a bounded task and scoped inference capability. The publisher, not the worker, holds Git write credentials and checks the current attempt generation. A trusted verifier executes policy-owned gates against an immutable candidate. A draft proposal and one updated tracker summary give the reviewer a complete handoff.
 
 The runtime can suggest that a ticket's acceptance criteria are unclear, but it cannot rewrite the authoritative brief and proceed under its own approval. Work that changes access control, budget enforcement, verification policy, release infrastructure or deployment permissions needs an explicitly reviewed risk lane. Mark completion according to the tracker's actual workflow after the corresponding forge event; a model message saying “done” is not a merge event.
+
+### Unification baseline and adoption triggers
+
+Recommendation recorded 2026-09-10, with [source evidence and the proposed baseline](research/2026-09-10-unified-workbench-baseline.md) and an [alternatives ledger entry](research/conventions-and-alternatives.md#alternatives-worth-comparing-against-a-real-workflow). This section does not change tracker priority or planning-record status.
+
+Begin with PV-079/PV-080 and then PV-081 for an authenticated view of Ploeg work in De Vloer. The integration milestone is one Ploeg-owned execution that a person starts, leaves, rejoins and steers. PV-022 through PV-026 and their dependencies cover the common authority and takeover path; PV-071 through PV-073 cover worker authority and crash-accounting prerequisites. Resolve their existing acceptance criteria in the [planning seed](../backlog/README.md), rather than creating a competing unification backlog.
+
+Conditional adoption decisions reopen on these concrete triggers:
+
+- **Kandev, OpenHands or Paperclip:** use PV-057's workflow comparison, respecting PV-004/PV-033 prerequisites for a qualified comparison. Reconsider the custom workbench when a pinned alternative passes the actual OpenCode/LiteLLM, external-tracker, disconnect/intervention, cancellation and evidence workflow with less setup and human review effort. Adopt only with one explicitly chosen execution authority. A local feature trial can precede that qualification, but cannot claim the gate passed.
+- **A2A:** reconsider when an identified independently deployed agent service requires its discovery/task/artifact contract. First establish authenticated work identity and attempts through PV-022 through PV-025. Reject a second internal task authority; the adapter must preserve existing identities, budget admission and cancellation semantics.
+- **Temporal or DBOS:** reconsider behind Ploeg when a concrete long-lived timer, human wait or branching workflow cannot meet the crash/recovery acceptance cases using the current implementation at reasonable maintenance cost. First preserve the WorkOrder and attempt contracts from PV-022/PV-023 and operation accounting from PV-073. A spike must survive a crash after external acceptance without automatically repeating paid work; workflow recovery alone does not satisfy that test.
+- **Agent Sandbox:** the existing provider decision remains in force. Revisit adapter compatibility when the pinned controller/API differs from the tested contract; qualify actual claim, retention, stop and cleanup behavior on the target cluster before expanding concurrency. The [upstream v1.0.1 release](https://github.com/kubernetes-sigs/agent-sandbox/releases/tag/v1.0.1) is new evidence, not permission to hand-bump a Renovate-owned dependency.
 
 ### Maintain the design without drifting
 
@@ -2202,6 +2215,10 @@ npm run check
 ```
 
 The consolidated document is [PRODUCT-DESIGN.md](PRODUCT-DESIGN.md). Its build check detects stale generated content and local documentation links. Tests validate dependency order, gap coverage, export quoting and explicit session-payload inputs. They do not validate the implemented status of the proposed features. Close a gap only with merged code and the acceptance evidence specified in its ticket.
+
+### Implemented unification increment
+
+The [shared manual baseline](operations/unified-baseline.md) implements scoped Ploeg snapshots, browser/editor navigation, delegated operator execution, command replay, human/background supervision and conservative inference accounting. It reuses existing Work Item/Shift/Run records. The next increment adds pristine tracker revision binding, a bounded independent verifier, canonical approval and a publication barrier. It does not close the broader WorkOrder/active takeover lifecycle, live publisher, durable inter-agent messaging or multi-replica acceptance criteria. Current executable evidence is in [validation](validation.md); the earlier audit and ticket seeds remain a historical planning baseline.
 
 ## 10. Implementation map
 

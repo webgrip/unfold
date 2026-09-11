@@ -1,5 +1,17 @@
 # Validation evidence
 
+## Unified tracker and delivery increment — 2026-09-11
+
+The current local tree passes **206 application tests**, TypeScript checking and the source/JSON check (**117 modules, 28 JSON files** at the recorded run), plus **41 editor extension tests**. The consolidated design rebuild and link check pass. The ordinary browser and Ploeg browser suites pass on Chromium **151.0.7922.34**, including desktop/mobile layout and outage recovery. New tracker browser fixtures additionally validate canonical-source preview, import, stale Start and inert tracker content.
+
+Ploeg passes the full Go test suite with embedded PostgreSQL, `go vet ./...`, `go build ./...`, Helm lint, four chart golden renderings, ADR ledger and both new OpenSpec changes. New store regressions exercise claim/admission lock inversion, a webhook upsert waiting on newly established ownership, pristine pending-Run retirement, stale source/target rejection, receipt/approval identity and publication uncertainty. The scope-retention regression was observed failing before its fix.
+
+The [evidence index](research/evidence/delivery-2026-09-11/README.md) separates browser fixtures from real cross-service qualification. Real PostgreSQL and both HTTP services prove one existing tracker Work Item survives a deliberately lost admission response. The independent verifier proves failure before a fix, passing checks after it, rejection of fake success output, canonical commit ancestry, and one receipt reused after restart. Desktop/mobile screenshots show the real candidate approval UI.
+
+These results qualify the implementation for a prerelease pilot. No provider inference, live tracker mutation, candidate publication, cluster deployment or scale qualification was performed. A live publisher executor and active-worker takeover remain unimplemented; the Ploeg publication barrier is implemented and defaults closed. Approved base bundles and verifier policy files are operator-provisioned. A configured verifier service is part of the trusted control plane, while candidate processes are isolated from its credentials.
+
+## Earlier qualification records
+
 This matrix distinguishes implementation from exercised behavior. Update the result column with the command, date and relevant revision when qualifying a release. Passing a local mock or rendered chart must not be recorded as a real provider or Kubernetes deployment.
 
 | Scope | Reproducible check | Current qualification |
@@ -33,6 +45,24 @@ This matrix distinguishes implementation from exercised behavior. Update the res
 The added design, schemas and backlog specify future behavior. Their validation does not establish that unattended ticket intake, canonical WorkOrders, independent live verification, fenced publication, team OIDC or cross-client isolation have been implemented. Audited Ploeg source was read at `67c4bc968455a99ef767bc8a24791ea1a87319cb`; The subsequent Ploeg candidate is commit `6c3e4f8`; its patch is included under `integrations/ploeg/`, with no deployment or Go/PostgreSQL qualification claimed.
 
 Independent implementation review on 2026-09-09 reported **8/8 passing API/security tests** covering the real demo flow, event replay, a child-process SIGKILL followed by interruption without automatic rerun, pause/message/resume/cancel persistence, login/logout and request-origin controls, ownership/role restrictions, profile validation and credential redaction. Its standalone demo smoke also passed with retained baseline, repaired tests, independent review, a Git diff and 15 durable events. These results involved no paid provider or Kubernetes deployment. The final integrated suite may contain additional checks; record its result above separately.
+
+## Unified baseline, 10 September 2026
+
+The [connected qualification record](research/evidence/unified-2026-09-10/README.md) supersedes earlier pending Ploeg integration notes for this increment. It includes screenshots from the actual Ploeg/PostgreSQL and De Vloer services, with real Git fixture verification and zero inference calls.
+
+| Gate | Result |
+| --- | --- |
+| Workbench application tests | PASS: 174 tests, zero failures or skips |
+| Workbench source check and strict types | PASS: native Node check and TypeScript no-emit |
+| Existing full browser workflow | PASS: actual demo checks, exports, pause/resume/cancel, auth, desktop and mobile |
+| Ploeg operator browser workflow | PASS: scoped lanes/details, bigint pages, unknown spend, stale-data clearing and inert hostile evidence |
+| Editor client | PASS: 41 tests and compilation; native VS Code UI not run |
+| Ploeg | PASS: all Go packages across the full run and corrected HTTP fixture rerun; final complete HTTP/store packages, build and vet after the last lifecycle fixes |
+| Chart | PASS: lint, four goldens, actual worker secret-isolation assertions and before/after baseline renders |
+| Actual cross-service integration | PASS: real PostgreSQL/HTTP authority, same-execution supervision, durable replay, pause/resume, cancel, application restart and retained candidate |
+| Live provider/cluster/scale | Not run; no paid calls, deployment, settlement or throughput claim |
+
+The implemented operator binding reuses Work Item/Shift/Run. Canonical tracker WorkOrders, independent verifier/publisher enforcement and general agent messaging remain proposed. Configured shared execution cannot silently fall back to the standalone broker. A confirmed pause may retain a capped gateway key until TTL; this is documented cooperative execution control rather than per-request hostile-process fencing.
 
 ## Release acceptance
 

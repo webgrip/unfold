@@ -2,7 +2,7 @@
 
 A self-hosted workbench for people steering remote agent crews. Bring a task from **Vikunja, ClickUp, Forgejo, GitHub or GitLab**, choose a reusable crew and budget, and supervise the work from a browser or VS Code. Your configured server runs the agents; your workstation remains the place you steer and review them.
 
-De Vloer sits beside [Ploeg](https://forgejo.webgrip.dev/webgrip/ploeg). The tracker owns priorities, Ploeg owns unattended dispatch, and De Vloer owns interactive sessions and human intervention. Task connections and the Ploeg queue connection are read-only. [See the 0.2.0 iteration guide](docs/operations/iteration-0.2.0.md).
+De Vloer sits beside [Ploeg](https://forgejo.webgrip.dev/webgrip/ploeg). The tracker owns priorities, Ploeg owns unattended dispatch, and De Vloer owns interactive sessions and human intervention. The Ploeg workbench now exposes scoped work, evidence and spending snapshots. An opt-in shared execution path lets Ploeg admit interactive sessions while De Vloer provides their workspace and human controls. [Run the unified baseline](docs/operations/unified-baseline.md). A completed shared session can now pass through a [canonical candidate, independent Docker checks and candidate-bound approval](docs/contracts/candidate-delivery.md); Ploeg retains the authority and evidence. Live publication remains disabled.
 
 ## Try it in ten minutes
 
@@ -50,7 +50,7 @@ The portable model interface is the configured LiteLLM gateway. Use API-backed m
 
 [Task connections](docs/operations/task-connections.md) includes copyable configuration for all five providers. Start with [config/task-sources.example.json](config/task-sources.example.json), retain the connections you use, and supply their tokens to the server through the named environment variables.
 
-Task management and code hosting are independent choices. For example, a Vikunja project can map to a repository hosted on Forgejo, or a ClickUp List can map to GitLab. Repository registration fixes the clone URL and branch; a task cannot choose its own execution endpoint. A source marked for Ploeg remains available for context, while interactive execution is restricted to repositories assigned to Vloer.
+Task management and code hosting are independent choices. For example, a Vikunja project can map to a repository hosted on Forgejo, or a ClickUp List can map to GitLab. Repository registration fixes the clone URL and branch; a task cannot choose its own execution endpoint. A source marked for Ploeg remains available for context, while standalone execution is restricted to repositories assigned to Vloer. Shared execution uses an explicit Ploeg registration. [Vikunja and ClickUp binding](docs/contracts/ploeg-tracker-binding.md) adopts an existing unstarted Ploeg Work Item after source, scope and routing checks.
 
 Connection registration in this iteration is administrator configuration. OAuth installation, a graphical connection-management wizard, bidirectional task updates and unattended intake are roadmap items.
 
@@ -72,7 +72,7 @@ The [validation matrix](docs/validation.md) records actual-server integration, b
 
 ## Improve Vloer with Vloer
 
-The [0.2.0 iteration](docs/operations/iteration-0.2.0.md) connects task selection to an interactive session and retained review evidence. The earlier [implementation increment](docs/operations/implementation-progress.md) added keyboard evidence navigation, stable reading/draft behavior and actionable failures. The release also includes [reviewable Ploeg prerequisite patches](integrations/ploeg/README.md), whose Go/PostgreSQL qualification remains pending.
+The [0.2.0 iteration](docs/operations/iteration-0.2.0.md) connects task selection to an interactive session and retained review evidence. The earlier [implementation increment](docs/operations/implementation-progress.md) added keyboard evidence navigation, stable reading/draft behavior and actionable failures. The release also includes [reviewable Ploeg prerequisite patches](integrations/ploeg/README.md), whose historical qualification notes are superseded for this increment by the [real cross-service baseline](docs/operations/unified-baseline.md#reproduce-qualification).
 
 Run the stable service separately from the candidate checkout, register the Vloer repository, and connect the task source that holds its backlog. Preview one bounded task, import it, authorize a small LiteLLM budget and start the crew. Export and independently verify the candidate before a human publishes the proposal and reviews the merge. The [iteration guide](docs/operations/iteration-0.2.0.md) describes the current loop; the [self-improvement design](docs/design/self-improvement.md) specifies its planned automation.
 
