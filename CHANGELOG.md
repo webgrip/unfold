@@ -4,10 +4,6 @@
 
 * **release:** use available outputs to enable Forgejo publishers ([6eecf01](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6eecf01afab7772be504a8033d53ea33950fd489))
 
-### Docs
-
-* **release:** record corrected prerelease publication ([43c29be](https://forgejo.webgrip.dev/webgrip/ploeg/commit/43c29be95ce7168091d2d6058d3e01022745948c))
-
 ## [0.3.0-rc.5](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.3.0-rc.4...v0.3.0-rc.5) (2026-09-11)
 
 ### ⚠ BREAKING CHANGES
@@ -33,37 +29,6 @@
 * **agents:** adopt the estate no-comments rule ([67c4bc9](https://forgejo.webgrip.dev/webgrip/ploeg/commit/67c4bc968455a99ef767bc8a24791ea1a87319cb))
 * **architecture:** define unified execution and delivery authority ([0992441](https://forgejo.webgrip.dev/webgrip/ploeg/commit/099244146077926ac3f2084d47cd31135e968a43))
 * **domain:** ground work in tickets and useful research ([188f0fe](https://forgejo.webgrip.dev/webgrip/ploeg/commit/188f0fe54542f6be30b51520a05a97fabafcc561))
-* **release:** record withdrawal of the mistaken 1.x release ([04a81d0](https://forgejo.webgrip.dev/webgrip/ploeg/commit/04a81d0e4afba9ce74acb97f7f395faab4f20e9f))
-
-### Internal
-
-* **release:** v1.0.0-rc.1 [skip ci] ([47c078d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/47c078da2f41548ac6903482160ca29c9a87f872))
-
-## Withdrawn: [1.0.0-rc.1](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.3.0-rc.4...withdrawn-v1.0.0-rc.1) (2026-09-11)
-
-The release automation selected the wrong major version. Ploeg is experimental and is not ready for general availability. This release is [withdrawn](https://forgejo.webgrip.dev/webgrip/ploeg/releases/tag/withdrawn-v1.0.0-rc.1); do not deploy its images or charts. Original notes remain below. See the [release policy and correction record](docs/ops/release-versioning.md).
-
-### ⚠ BREAKING CHANGES
-
-* **control-plane:** managed worker authentication is now the default. Configure
-  controller signing/bootstrap Secret references and LLM policies, remove
-  administrative worker credentials, and roll controller and workers together.
-  Compatibility requires explicit legacy authentication and static-compatibility
-  inference. See docs/ops/managed-workers.md for the existing-deployment upgrade.
-
-### Added
-
-* **control-plane:** unify managed execution and verified delivery ([7714cd5](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7714cd5eb3268fd8291075a13fcb3736ddc88c76))
-
-### Fixed
-
-* **llm:** scope gateway keys and preserve accounting identities ([3536a7a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3536a7a1456d80151fa7e688fae35c33b620ec31))
-* **tracker:** retain authoritative scope and expose fresh execution state ([bbf5c82](https://forgejo.webgrip.dev/webgrip/ploeg/commit/bbf5c82a90a53e347ec7b97aa7b8dad532586781))
-
-### Docs
-
-* **agents:** adopt the estate no-comments rule ([67c4bc9](https://forgejo.webgrip.dev/webgrip/ploeg/commit/67c4bc968455a99ef767bc8a24791ea1a87319cb))
-* **architecture:** define unified execution and delivery authority ([0992441](https://forgejo.webgrip.dev/webgrip/ploeg/commit/099244146077926ac3f2084d47cd31135e968a43))
 
 ## [0.3.0-rc.4](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.3.0-rc.3...v0.3.0-rc.4) (2026-09-02)
 
@@ -224,7 +189,6 @@ The release automation selected the wrong major version. Ploeg is experimental a
 * archive run-multi-agent-shifts and correct the divergence list ([6b4b90c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6b4b90c19ebdaafd2952df1a06d6385323467d78))
 * **brand:** a visual identity for Ploeg, and terms for its mark ([b9c9b2c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/b9c9b2ce09930e109cb923b0f30260a30c23cfec)), references [#E4572E](https://forgejo.webgrip.dev/webgrip/ploeg/issues/E4572E)
 * **brand:** transparent PNG exports of every logo variant ([a48abdf](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a48abdf47e395a736a95e5bc2aa152a4a2416d45))
-* **changelog:** drop duplicate 1.0.0-rc.1 section ([5d88389](https://forgejo.webgrip.dev/webgrip/ploeg/commit/5d883894f71849fafe6161d7598972fab222d4d5))
 * **ci:** name the helm-version trap in the golden check's own advice ([29bd394](https://forgejo.webgrip.dev/webgrip/ploeg/commit/29bd394618dde4d1b71c25e404480fa9dbe58551))
 * cite model.yaml entities by name, not by line number ([cca8e85](https://forgejo.webgrip.dev/webgrip/ploeg/commit/cca8e85568a3551fc58ab39fc4a92886ba40d95c))
 * close out the ACP work in the backlog, design §5 and the divergence list ([4793d1a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/4793d1a376aed175f3e14cdc967bc4a2aba68ed4)), references [#64](https://forgejo.webgrip.dev/webgrip/ploeg/issues/64) [#63](https://forgejo.webgrip.dev/webgrip/ploeg/issues/63) [#64](https://forgejo.webgrip.dev/webgrip/ploeg/issues/64) [#44](https://forgejo.webgrip.dev/webgrip/ploeg/issues/44) [#69](https://forgejo.webgrip.dev/webgrip/ploeg/issues/69)
@@ -623,10 +587,6 @@ The release automation selected the wrong major version. Ploeg is experimental a
 * worker owns the per-run LiteLLM key lifecycle (mint + always-revoke) ([1edb4af](https://forgejo.webgrip.dev/webgrip/ploeg/commit/1edb4af494130c06450763dfd288d9cb283cd951))
 * worker targets a configurable base branch end to end ([18f80de](https://forgejo.webgrip.dev/webgrip/ploeg/commit/18f80de7314e11df8521f3eb5897f17924fa273c)), references [#6](https://forgejo.webgrip.dev/webgrip/ploeg/issues/6)
 
-### Docs
-
-* **changelog:** drop duplicate 1.0.0-rc.1 section ([5d88389](https://forgejo.webgrip.dev/webgrip/ploeg/commit/5d883894f71849fafe6161d7598972fab222d4d5))
-
 ### CI
 
 * **actions:** Pin dependencies ([27ddc29](https://forgejo.webgrip.dev/webgrip/ploeg/commit/27ddc2964426da2ef01581c22fa9893ac59c6e28))
@@ -637,48 +597,6 @@ The release automation selected the wrong major version. Ploeg is experimental a
 * **release:** drop the local semantic-release toolchain — the shared config pins it ([faad578](https://forgejo.webgrip.dev/webgrip/ploeg/commit/faad5783e5010f438c7785bc98ce078b34c4227b))
 * retrigger release job (composite now falls back to setup-node on node<22.14 hosts) ([c39fd88](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c39fd88ed43f99009c6122f791b5df6240c0124e))
 * retrigger release train (rc release died on missing yq, now fixed) ([4dcbf12](https://forgejo.webgrip.dev/webgrip/ploeg/commit/4dcbf129442e945804d7a8588236f8cc7a17a83f))
-
-## [1.0.0-rc.1](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0...v1.0.0-rc.1) (2026-07-26)
-
-### ⚠ BREAKING CHANGES
-
-* **deps:** Update postgres Docker tag ( 17 ➔ 18 )
-
-### Added
-
-* **deps:** update docker.io/golang docker tag ( 1.24 ➔ 1.26 ) ([999eda8](https://forgejo.webgrip.dev/webgrip/ploeg/commit/999eda8942e83d47c31d8144171fbb4fc511417d))
-* **deps:** Update postgres Docker tag ( 17 ➔ 18 ) ([41cba65](https://forgejo.webgrip.dev/webgrip/ploeg/commit/41cba65819694ce00ed58ae7c0e764eada76d4c4))
-
-### Fixed
-
-* assignment webhooks revive finished work items ([30558e5](https://forgejo.webgrip.dev/webgrip/ploeg/commit/30558e5f3ff032c161d41665ae5b121f32764284))
-* **ci:** adopt the shared forgejo-distribute reusable for the Forgejo mirror ([5d524a9](https://forgejo.webgrip.dev/webgrip/ploeg/commit/5d524a9b5cd57cd28eadf1d2858e035187fc242d))
-* **ci:** mirror image and chart to the Forgejo registry and link them to the repo ([0ad0ced](https://forgejo.webgrip.dev/webgrip/ploeg/commit/0ad0ced79b82c4092c5c7e0280af6f6fad131e33))
-* **ci:** release and publish as the webgrip-ci bot, not the per-job token ([8a5a994](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8a5a994c05228017e363da8e446a5ac1231f72e1))
-* **deps:** update harbor.webgrip.dev/webgrip/agent-runner docker tag ( 1.0.1 ➔ 1.0.2 ) ([2cfdc01](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2cfdc01c767ff5cf9d8c87a54a210d00d3160839))
-* Guaranteed QoS for every factory pod — out of the OOMController's kill zone ([cbde89d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/cbde89d4625a0e55a95673646e3a16d9caff67c2))
-* ploeg-worker owns the per-run LiteLLM key lifecycle (mint + always-revoke) ([450ec5f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/450ec5f67f821e24e7e8b20a0ea6c56d9bb7f7de))
-* worker owns the per-run LiteLLM key lifecycle (mint + always-revoke) ([1edb4af](https://forgejo.webgrip.dev/webgrip/ploeg/commit/1edb4af494130c06450763dfd288d9cb283cd951))
-* worker targets a configurable base branch end to end ([18f80de](https://forgejo.webgrip.dev/webgrip/ploeg/commit/18f80de7314e11df8521f3eb5897f17924fa273c)), closes [#6](https://forgejo.webgrip.dev/webgrip/ploeg/issues/6)
-
-### CI
-
-* **actions:** Pin dependencies ([27ddc29](https://forgejo.webgrip.dev/webgrip/ploeg/commit/27ddc2964426da2ef01581c22fa9893ac59c6e28))
-* **actions:** Update dependency helm ( v3.18.4 ➔ v4.2.3 ) ([c72b289](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c72b289ef7a09a304151a037d0e2fa52bbbb17d0))
-* **actions:** Update https://github.com/actions/setup-go action ( v6.5.0 ➔ v7.0.0 ) ([6a97b93](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6a97b93da496e36927dc94b4fd11c1215935329d))
-* adopt @webgrip/semantic-release-config ([ab021b7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/ab021b7ec1cfd72fd36b1f50e0a2427a6b528b00))
-* drop the manual release dispatch — bot-cut releases fire the release event natively ([ffa5158](https://forgejo.webgrip.dev/webgrip/ploeg/commit/ffa515890c296161ca9eb782458688f4ec0bbae5))
-* **release:** drop the local semantic-release toolchain — the shared config pins it ([faad578](https://forgejo.webgrip.dev/webgrip/ploeg/commit/faad5783e5010f438c7785bc98ce078b34c4227b))
-* retrigger release train (rc release died on missing yq, now fixed) ([4dcbf12](https://forgejo.webgrip.dev/webgrip/ploeg/commit/4dcbf129442e945804d7a8588236f8cc7a17a83f))
-
-### Internal
-
-* **release:** v0.1.0-rc.5 [skip ci] ([ec87f95](https://forgejo.webgrip.dev/webgrip/ploeg/commit/ec87f950ecd8e9df2708457fc7ab8aebdac3912e))
-* **release:** v0.1.0-rc.6 [skip ci] ([e54e015](https://forgejo.webgrip.dev/webgrip/ploeg/commit/e54e015a37125af130e6e0d59156d3242664de32))
-* **release:** v0.1.0-rc.7 [skip ci] ([5191286](https://forgejo.webgrip.dev/webgrip/ploeg/commit/51912865704ce97db6c044e946976650b5893026))
-* **release:** v0.1.0-rc.8 [skip ci] ([de8c498](https://forgejo.webgrip.dev/webgrip/ploeg/commit/de8c4988e0a887ccc9c9cf5cdfe7ae949a94c281))
-* **release:** v0.1.0-rc.9 [skip ci] ([4e84645](https://forgejo.webgrip.dev/webgrip/ploeg/commit/4e84645a92538895650f912037e67da23cf54252))
-* **release:** v1.0.0-rc.1 [skip ci] ([08963a6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/08963a652cd09a24396549ecf04dc213c8746e48))
 
 ## [0.1.0-rc.9](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0-rc.8...v0.1.0-rc.9) (2026-07-26)
 
