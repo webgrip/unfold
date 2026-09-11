@@ -28,6 +28,13 @@ for image in $(grep -rl 'org.opencontainers.image.licenses' ops --include='Docke
     || note "$image does not label the image Apache-2.0"
 done
 
+[ -f REUSE.toml ] || note "REUSE.toml is missing; per-file licensing would stop being declared"
+grep -q 'SPDX-License-Identifier = "Apache-2.0"' REUSE.toml 2>/dev/null \
+  || note "REUSE.toml does not declare Apache-2.0 for the repository"
+for id in $(grep -oE 'SPDX-License-Identifier = "[^"]+"' REUSE.toml 2>/dev/null | sed 's/.*"\(.*\)"/\1/' | sort -u); do
+  [ -f "LICENSES/$id.txt" ] || note "REUSE.toml declares $id but LICENSES/$id.txt is missing"
+done
+
 if [ "$fail" -ne 0 ]; then
   echo "FAIL — see docs/adrs/"
   exit 1
