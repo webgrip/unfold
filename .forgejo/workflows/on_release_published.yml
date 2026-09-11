@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag, e.g. v0.1.0"
+        description: "Experimental release tag, e.g. v0.3.0-rc.5"
         required: true
         type: string
 
@@ -29,17 +29,15 @@ jobs:
     steps:
       - id: parse
         shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
         run: |
           set -euo pipefail
-          tag='${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}'
-          [[ "$tag" =~ ^v(.+)$ ]] || { echo "Unsupported tag: $tag (expected v<semver>)" >&2; exit 1; }
-          version="${BASH_REMATCH[1]}"
+          tag="${RELEASE_TAG:-}"
+          [[ "$tag" =~ ^v0\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-rc\.[1-9][0-9]*$ ]] || { echo "Ploeg publishes only v0.x.y-rc.N tags; stable and 1.x releases require an explicit policy change." >&2; exit 1; }
+          version="${tag#v}"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          # Prereleases (semver with a hyphen, e.g. 0.1.0-rc.1 from development) must not
-          # move :latest; the build composite skips the resulting empty tag line.
-          latest_tag="webgrip/ploegd:latest"
-          [[ "$version" == *-* ]] && latest_tag=""
-          echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
+          echo "latest_tag=" >> "$GITHUB_OUTPUT"
 
   # Distribute: normal job + step-level -fast composite (infra's production shape from
   # Forgejo) — no job-level reusable chains, so no flattened-job-id collisions. The
@@ -48,14 +46,12 @@ jobs:
   # Job-level reusable. Two DIFFERENT reusables coexist fine in this caller
   # (helm-chart-push here + forgejo-distribute below, proven green in run 60) —
   # the flattened-job-id collision only bites two instances of the SAME reusable.
-  # `enabled: true` is safe because this workflow never runs without a parsed
-  # tag. `ref` decouples the v-prefixed git tag from the bare chart version.
   release-publish-chart:
     name: Publish Helm chart (Harbor)
     needs: [parse-release-tag]
     uses: webgrip/workflows/.forgejo/workflows/helm-chart-push.yml@v1.10.0
     with:
-      enabled: true
+      enabled: ${{ needs.parse-release-tag.result == 'success' && needs.parse-release-tag.outputs.version != '' }}
       registry: harbor.webgrip.dev
       path: ops/helm/ploeg
       name: ploeg
@@ -334,7 +330,7 @@ jobs:
     needs: [parse-release-tag, release-distribute-harbor]
     uses: webgrip/workflows/.forgejo/workflows/forgejo-distribute.yml@v1.11.3
     with:
-      enabled: true
+      enabled: ${{ needs.parse-release-tag.result == 'success' && needs.parse-release-tag.outputs.version != '' && needs.release-distribute-harbor.result == 'success' }}
       version: ${{ needs.parse-release-tag.outputs.version }}
       ref: v${{ needs.parse-release-tag.outputs.version }}
       link-repo: ploeg
@@ -373,7 +369,7 @@ jobs:
     needs: [parse-release-tag, release-distribute-harbor]
     uses: webgrip/workflows/.forgejo/workflows/github-distribute.yml@v1.11.1
     with:
-      enabled: true
+      enabled: ${{ needs.parse-release-tag.result == 'success' && needs.parse-release-tag.outputs.version != '' && needs.release-distribute-harbor.result == 'success' }}
       version: ${{ needs.parse-release-tag.outputs.version }}
       repo: webgrip/ploeg
       branches: main development

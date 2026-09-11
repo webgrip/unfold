@@ -1,0 +1,22 @@
+feat(control-plane)!: unify managed execution and verified delivery
+
+Make Ploeg the authenticated authority for workbench execution, worker
+capabilities and conservative inference accounting. Bind tracker selections
+to the existing pristine Work Item, fence unattended dispatch, and retain
+canonical candidates, trusted verification, approval and publication barriers.
+
+Wire controller-only secrets and named operator consumers through Helm. Keep
+worker/controller authentication, generation checks and their database
+migrations together so this layer is independently deployable after its
+explicit configuration migration. Publish the contracts and operating guide.
+
+Validation: independently exported staged tree passes go build ./...,
+go vet ./..., go test ./..., gofmt, Helm lint, all four chart golden renders,
+brand checks and all nine OpenSpec validations. Real cross-service tracker
+and Docker delivery qualifications passed without model calls or publication.
+
+BREAKING CHANGE: managed worker authentication is now the default. Configure
+controller signing/bootstrap Secret references and LLM policies, remove
+administrative worker credentials, and roll controller and workers together.
+Compatibility requires explicit legacy authentication and static-compatibility
+inference. See docs/ops/managed-workers.md for the existing-deployment upgrade.

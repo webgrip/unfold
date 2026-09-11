@@ -1,13 +1,26 @@
 'use strict';
 
-// Ploeg ships an app (ploegd image) + its Helm chart on ONE v* train (Go modules need the
-// v-prefix). manifest:'helm' bumps ops/helm/ploeg/Chart.yaml `.version` AND `.appVersion`
-// in lockstep (shared-config ≥1.1.0, dependency-free node — the old yq prepareCmd here
-// failed the 2026-07-26 release: yq wasn't on the runner). The image is built separately
-// by on_release_published.
 const { makeConfig } = require('@webgrip/semantic-release-config');
 
-module.exports = makeConfig({
+const config = makeConfig({
   manifest: 'helm',
   chartPath: 'ops/helm/ploeg',
 });
+
+const analyzers = config.plugins.filter((plugin) => Array.isArray(plugin) && plugin[0] === '@semantic-release/commit-analyzer');
+if (analyzers.length !== 1 || !Array.isArray(analyzers[0][1]?.releaseRules)) {
+  throw new Error('Ploeg release policy requires one configured commit analyzer.');
+}
+const rules = analyzers[0][1].releaseRules;
+if (!rules.some((rule) => rule.breaking === true && rule.release === 'major')) {
+  throw new Error('Ploeg release policy requires review of the changed breaking rule.');
+}
+analyzers[0][1].releaseRules = rules.map((rule) => rule.breaking === true && rule.release === 'major'
+  ? { ...rule, release: 'minor' }
+  : rule);
+if (analyzers[0][1].releaseRules.some((rule) => rule.release === 'major')) {
+  throw new Error('Ploeg release policy rejects additional major release rules.');
+}
+config.plugins.unshift('./scripts/release-policy.cjs');
+
+module.exports = config;

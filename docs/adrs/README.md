@@ -101,6 +101,7 @@ fails otherwise.
 | [0025](0025-management-authority-stays-in-the-control-plane.md) | Management authority stays in the control plane and unresolved accounting retains authorization | proposed | 2026-09-10 |
 | [0026](0026-tracker-selections-bind-the-canonical-work-item.md) | Tracker selections bind canonical Work Items under durable operator ownership | proposed | 2026-09-11 |
 | [0027](0027-candidate-delivery-uses-trusted-evidence-and-a-publication-barrier.md) | Candidate delivery uses trusted evidence and a publication barrier | proposed | 2026-09-11 |
+| [0028](0028-automatic-releases-stay-zero-major-candidates.md) | Automatic releases stay zero-major candidates | proposed | 2026-09-11 |
 
 ## Review calendar
 

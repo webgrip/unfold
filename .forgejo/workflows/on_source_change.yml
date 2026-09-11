@@ -62,6 +62,9 @@ jobs:
       pull-requests: write
       statuses: write
     steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - name: Verify experimental release policy
+        run: NODE_PATH="${SEMREL_PREBAKED:?release toolchain is required}" node --test scripts/release-policy.test.cjs
       # WEBGRIP_CI_TOKEN (org secret, webgrip-ci bot) — NOT secrets.FORGEJO_TOKEN, which is
       # the built-in per-job token (FORGEJO_ is a reserved prefix, so an org secret can never
       # shadow it). The per-job token works for releases/dispatch but attributes everything
@@ -89,4 +92,3 @@ jobs:
         uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release@v1.2.0
         with:
           token: ${{ secrets.WEBGRIP_CI_TOKEN }}
-
