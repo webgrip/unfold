@@ -19,6 +19,19 @@ const openRuns = new Set();
 const decisions = new Map();
 const confirming = new Set();
 
+function brandMark() {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 64 64');
+  svg.setAttribute('width', '15');
+  svg.setAttribute('height', '15');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', 'M10.571 17.371L25.071 52.371A7.5 7.5 0 0 0 38.929 52.371L53.429 17.371A7.5 7.5 0 0 0 39.571 11.629L32 29.904L24.429 11.629A7.5 7.5 0 0 0 10.571 17.371ZM10 42V50H54V42Z');
+  path.setAttribute('fill', 'currentColor');
+  svg.append(path);
+  return svg;
+}
+
 function element(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
   for (const [name, value] of Object.entries(attributes)) {
@@ -642,7 +655,7 @@ function render() {
   const host = (() => { try { return new URL(origin).host; } catch { return ''; } })();
 
   const header = element('header', { className: 'session-header' },
-    element('div', { className: 'eyebrow' }, element('span', { className: 'brand-mark', 'aria-hidden': 'true' }, '▦'), 'DE VLOER', element('span', { className: 'remote-label' }, 'WORKBENCH SESSION'), host ? element('span', { className: 'remote-label' }, host) : null, element('span', { className: 'remote-label' }, placementText(session.placement, host).toUpperCase())),
+    element('div', { className: 'eyebrow' }, element('span', { className: 'brand-mark', 'aria-hidden': 'true' }, brandMark()), 'DE VLOER', element('span', { className: 'remote-label' }, 'WORKBENCH SESSION'), host ? element('span', { className: 'remote-label' }, host) : null, element('span', { className: 'remote-label' }, placementText(session.placement, host).toUpperCase())),
     element('div', { className: 'title-row' }, element('h1', {}, session.title), element('span', { className: `pill status-${session.status}` }, session.status === 'completed' && session.review ? (session.review.decision === 'accepted' ? 'Accepted' : 'Rejected') : statusNames[session.status] || readable(session.status))),
     element('p', { className: 'subtitle' }, element('span', {}, session.repositoryId), ' / ', element('span', {}, session.crewId), ' · ', session.runtime, session.placement ? ` · ${session.placement}` : '', session.approval === 'auto' ? ' · approves automatically' : '', ' · ', element('code', {}, session.branch)),
     element('div', { className: `situation situation-${session.status}` }, element('p', { className: 'headline' }, headline), next ? element('p', { className: 'next' }, next) : null),

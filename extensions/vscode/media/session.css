@@ -28,7 +28,7 @@ p { margin: 8px 0; }
 .session-header { margin-bottom: 20px; }
 .eyebrow { font-size: 10px; letter-spacing: .14em; font-weight: 700; color: var(--muted); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .eyebrow-detail { font-weight: 400; letter-spacing: .04em; }
-.brand-mark { color: var(--accent); font-size: 23px; line-height: 1; }
+.brand-mark { color: var(--accent); display: inline-flex; align-items: center; line-height: 0; }
 .remote-label { border-left: 1px solid var(--border); padding-left: 12px; margin-left: 4px; font-weight: 400; }
 .title-row { display: flex; align-items: start; gap: 16px; margin-top: 14px; }
 .subtitle { color: var(--muted); margin: 8px 0 14px; }

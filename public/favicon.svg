@@ -1,1 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#111b26"/><path d="M14 19h16v12H14zm20 0h16v12H34zM14 35h36v12H14z" fill="#ee7848"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none" role="img" aria-label="De Vloer">
+<style>.grond{fill:#15191C}@media (prefers-color-scheme:dark){.grond{fill:#F3F5F4}}</style>
+<path d="M15.5 11.5L32 51.5L48.5 11.5" stroke="#3D84E8" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect class="grond" x="8" y="44" width="48" height="8"/>
+</svg>

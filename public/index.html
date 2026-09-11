@@ -3,16 +3,32 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#111b26">
+  <meta name="theme-color" content="#15191C">
   <meta name="description" content="Your team's workbench for remote agent crews.">
   <title>De Vloer — Agent workbench</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="De Vloer">
+  <meta property="og:title" content="De Vloer — agent workbench">
+  <meta property="og:description" content="Self-hosted workbench for remote agent crews. Bring a task from your tracker, choose a crew and a budget, and supervise the work.">
+  <meta property="og:image" content="/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="The De Vloer lockup standing on its floor line">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="De Vloer — agent workbench">
+  <meta name="twitter:description" content="Self-hosted workbench for remote agent crews.">
+  <meta name="twitter:image" content="/og-image.png">
+  <link rel="preload" href="/fonts/archivo-latin-wght-wdth110.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/styles.css">
   <script type="module" src="/app.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to workbench</a>
-  <div id="app"><main class="boot" id="main"><span class="brand-symbol">▰</span><h1>Opening your workbench</h1><p>Connecting to De Vloer…</p></main></div>
+  <div id="app"><main class="boot" id="main"><svg class="brand-mark" viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M17.5 14.5L32 49.5L46.5 14.5" stroke="var(--peil)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/><rect x="10" y="42" width="44" height="8" fill="currentColor"/></svg><h1>Opening your workbench</h1><p>Connecting to De Vloer…</p></main></div>
   <dialog id="new-session" aria-labelledby="new-title"></dialog>
   <dialog id="confirm-dialog" aria-labelledby="confirm-title"></dialog>
   <dialog id="task-connections" aria-labelledby="connections-title"></dialog>

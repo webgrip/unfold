@@ -1,1 +1,3 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M3 4h7v7H3zM14 4h7v7h-7zM3 15h18v6H3z"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="24" height="24" fill="none" role="img" aria-label="De Vloer">
+<path d="M10.571 17.371L25.071 52.371A7.5 7.5 0 0 0 38.929 52.371L53.429 17.371A7.5 7.5 0 0 0 39.571 11.629L32 29.904L24.429 11.629A7.5 7.5 0 0 0 10.571 17.371ZM10 42V50H54V42Z" fill="currentColor"/>
+</svg>
