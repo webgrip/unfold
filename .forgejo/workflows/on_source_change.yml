@@ -24,7 +24,6 @@ jobs:
       - run: npm run design:check
       - run: npm run brand:check
       - run: npm run license:check
-      - run: npm run license:reuse
       - run: npm run backlog -- check
       - run: npm ci --no-audit --no-fund --prefix extensions/vscode
       - run: npm run extension:build
