@@ -185,8 +185,15 @@ func (p *Provider) do(ctx context.Context, method, path string, body, out any) e
 // half (backlog #7). Unconfigured, it errors so the caller falls back to the
 // webhook snapshot, which is exactly the prototype's behaviour.
 func (p *Provider) FetchItem(ctx context.Context, externalID string) (work.WorkItem, error) {
+	result, err := p.FetchExecutionItem(ctx, externalID)
+	return result.Item, err
+}
+
+func (p *Provider) TrackerAPIBaseURL() string { return strings.TrimRight(p.BaseURL, "/") }
+
+func (p *Provider) FetchExecutionItem(ctx context.Context, externalID string) (provider.ExecutionItem, error) {
 	if !p.configured() {
-		return work.WorkItem{}, errors.New("vikunja: no API credentials configured (falling back to the webhook snapshot)")
+		return provider.ExecutionItem{}, errors.New("vikunja: no API credentials configured (falling back to the webhook snapshot)")
 	}
 	var task struct {
 		ID          int64  `json:"id"`
@@ -195,24 +202,28 @@ func (p *Provider) FetchItem(ctx context.Context, externalID string) (work.WorkI
 		Priority    int    `json:"priority"`
 		ProjectID   int64  `json:"project_id"`
 		Updated     string `json:"updated"`
+		Done        *bool  `json:"done"`
 	}
 	if err := p.do(ctx, http.MethodGet, "/tasks/"+externalID, nil, &task); err != nil {
-		return work.WorkItem{}, err
+		return provider.ExecutionItem{}, err
 	}
 	if task.ID == 0 {
-		return work.WorkItem{}, fmt.Errorf("vikunja: task %s not found", externalID)
+		return provider.ExecutionItem{}, fmt.Errorf("vikunja: task %s not found", externalID)
 	}
-	return work.WorkItem{
-		Provider:    p.Name(),
-		ExternalID:  fmt.Sprint(task.ID),
-		Revision:    task.Updated,
-		Origin:      work.OriginAssignment,
-		Priority:    task.Priority,
-		Title:       task.Title,
-		Description: task.Description,
-		// Team and ExternalScope are the caller's routing decision, not the
-		// tracker's view of the task; httpapi.mirror overwrites them.
-	}, nil
+	scope := ""
+	if task.ProjectID > 0 {
+		scope = fmt.Sprint(task.ProjectID)
+	}
+	return provider.ExecutionItem{Open: task.Done != nil && !*task.Done, Item: work.WorkItem{
+		Provider:      p.Name(),
+		ExternalID:    fmt.Sprint(task.ID),
+		Revision:      task.Updated,
+		Origin:        work.OriginAssignment,
+		Priority:      task.Priority,
+		Title:         task.Title,
+		Description:   task.Description,
+		ExternalScope: scope,
+	}}, nil
 }
 
 // Comment writes back to the task's conversation — how a finished Shift

@@ -208,10 +208,10 @@ func (s *Server) handleForgeWebhook(w http.ResponseWriter, r *http.Request) {
 // read, fall back to the webhook snapshot.
 func (s *Server) mirror(ctx context.Context, tp provider.TrackerProvider, ev provider.TrackerEvent) work.WorkItem {
 	if item, err := tp.FetchItem(ctx, ev.ExternalID); err == nil {
-		// The event's routing facts win over the read: FetchItem returns the
-		// tracker's view of the item, not Ploeg's dispatch decision.
 		item.Team = ev.Team
-		item.ExternalScope = ev.Scope.ID
+		if item.ExternalScope == "" {
+			item.ExternalScope = ev.Scope.ID
+		}
 		return item
 	}
 	if ev.Item != nil {

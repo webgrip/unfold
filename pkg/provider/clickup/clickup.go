@@ -248,6 +248,7 @@ type task struct {
 	Description string `json:"description"`
 	TextContent string `json:"text_content"`
 	DateUpdated string `json:"date_updated"`
+	Archived    bool   `json:"archived"`
 	Status      struct {
 		Status string `json:"status"`
 		Type   string `json:"type"`
@@ -270,22 +271,29 @@ type task struct {
 //
 // Unconfigured, it errors so the caller falls back to the webhook snapshot.
 func (p *Provider) FetchItem(ctx context.Context, externalID string) (work.WorkItem, error) {
+	result, err := p.FetchExecutionItem(ctx, externalID)
+	return result.Item, err
+}
+
+func (p *Provider) TrackerAPIBaseURL() string { return p.baseURL() }
+
+func (p *Provider) FetchExecutionItem(ctx context.Context, externalID string) (provider.ExecutionItem, error) {
 	if !p.configured() {
-		return work.WorkItem{}, errors.New("clickup: no API credentials configured (falling back to the webhook snapshot)")
+		return provider.ExecutionItem{}, errors.New("clickup: no API credentials configured (falling back to the webhook snapshot)")
 	}
 	var t task
 	if err := p.do(ctx, http.MethodGet, "/task/"+externalID, nil, &t); err != nil {
-		return work.WorkItem{}, err
+		return provider.ExecutionItem{}, err
 	}
 	if t.ID == "" {
-		return work.WorkItem{}, fmt.Errorf("clickup: task %s not found", externalID)
+		return provider.ExecutionItem{}, fmt.Errorf("clickup: task %s not found", externalID)
 	}
 	// description is markdown and may be empty where text_content is not.
 	desc := t.Description
 	if desc == "" {
 		desc = t.TextContent
 	}
-	return work.WorkItem{
+	return provider.ExecutionItem{Open: !t.Archived && (t.Status.Type == "open" || t.Status.Type == "custom"), Item: work.WorkItem{
 		Provider:    p.Name(),
 		ExternalID:  t.ID,
 		Revision:    t.DateUpdated,
@@ -297,7 +305,7 @@ func (p *Provider) FetchItem(ctx context.Context, externalID string) (work.WorkI
 		// core resolves a Work Target from. Team is the caller's routing
 		// decision, not the tracker's view; httpapi.mirror overwrites it.
 		ExternalScope: t.List.ID,
-	}, nil
+	}}, nil
 }
 
 // priority flips ClickUp's scale. ClickUp: 1 urgent, 2 high, 3 normal, 4 low,
