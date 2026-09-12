@@ -107,7 +107,7 @@ func TestLauncher_BannerNeverReachesTheProtocolChannel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lines := readLines(t, p.Stdout, 1, 5*time.Second)
+	lines := drainLines(t, p.Stdout, 5*time.Second)
 	if len(lines) != 1 || !strings.Contains(lines[0], `"protocolVersion":1`) {
 		t.Fatalf("protocol channel got %q", lines)
 	}

@@ -74,5 +74,18 @@
     "total": 138
   },
   "freshRemoteCloneImportVerification": "passed for all 788 imported files, 70 tag objects and original source ancestry",
-  "publicationMethod": "Owner created the repository; agent pushed development, namespaced tags and release-channel notes atomically over SSH"
+  "publicationMethod": "Owner created the repository; agent pushed development, namespaced tags and release-channel notes atomically over SSH",
+  "followupFailure": {
+    "runUrl": "https://forgejo.webgrip.dev/webgrip/glide/actions/runs/2",
+    "commit": "1a806cac668e4a23c31df7e7516428a7f7be79b2",
+    "test": "TestLauncher_BannerNeverReachesTheProtocolChannel",
+    "failure": "noise channel missing \"thanks for using opencode\"",
+    "cause": "The test read one protocol line, then called process Wait and asserted noise before the stdout filter had necessarily drained the remaining child output.",
+    "repair": "Drain the protocol channel to EOF before calling Wait and inspecting captured noise. Production launcher behavior is unchanged.",
+    "localChecks": {
+      "baseline": "100 repetitions passed locally; the remote failure demonstrates intermittent scheduling sensitivity",
+      "corrected": "200 repetitions passed",
+      "raceDetector": "10 repetitions passed"
+    }
+  }
 }
