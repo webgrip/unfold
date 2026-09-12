@@ -1,0 +1,29 @@
+name: '[Workflow] On Pull Request'
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: pull-request-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: docker
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+      - uses: ./.forgejo/actions/verify
+
+  release-policy:
+    runs-on: docker
+    container:
+      image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.3
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+      - uses: ./.forgejo/actions/release-policy

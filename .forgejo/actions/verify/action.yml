@@ -1,0 +1,30 @@
+name: Verify both applications and their build contexts
+description: Verify both applications and their build contexts
+runs:
+  using: composite
+  steps:
+    - name: Fetch imported release metadata
+      shell: bash
+      run: git fetch origin '+refs/notes/*:refs/notes/*'
+    - uses: https://github.com/jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+      with:
+        version: 2026.6.14
+        cache: false
+        github_token: ''
+    - run: mise trust apps/vloer/mise.toml && mise trust apps/ploeg/mise.toml
+      shell: bash
+    - run: mise -C apps/vloer install
+      shell: bash
+    - run: mise -C apps/ploeg install
+      shell: bash
+    - run: mise run setup
+      shell: bash
+    - run: mise run verify
+      shell: bash
+    - name: Container build contexts
+      shell: bash
+      run: |
+        set -euo pipefail
+        docker build --file apps/vloer/Dockerfile --target app --build-arg REGISTRY_DHI=harbor.webgrip.dev/dhi --output=type=cacheonly apps/vloer
+        docker build --file apps/vloer/ops/agent/Dockerfile --build-arg REGISTRY_DHI=harbor.webgrip.dev/dhi --output=type=cacheonly apps/vloer/ops/agent
+        docker build --file apps/ploeg/ops/docker/ploegd/Dockerfile --output=type=cacheonly apps/ploeg

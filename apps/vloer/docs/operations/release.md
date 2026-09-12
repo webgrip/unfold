@@ -11,7 +11,7 @@ In Glide, tags use `vloer-v<version>`. Publication remains disabled until the [d
 | Validate | [Source workflow](../../.forgejo/workflows/on_source_change.yml), [pull-request workflow](../../.forgejo/workflows/on_pull_request.yml) | Application, extension, generated-document and chart checks; cache-only image builds |
 | Version | [Release configuration](../../.releaserc.cjs), [prepare script](../../scripts/release-prepare.mjs) | Updated manifests and changelogs, version tag and Forgejo release |
 | Publish | [Publication workflow](../../.forgejo/workflows/on_release_published.yml) | Chart, both images, signatures and attestations, VSIX and checksum; configured registry copies |
-| Build documentation | [Root checks](../../../../.forgejo/workflows/checks.yml) | Combined site built from [Glide MkDocs](../../../../mkdocs.yml); remote documentation deployment is a cutover step |
+| Build documentation | [Documentation workflow](../../../../.forgejo/workflows/on_docs_change.yml) and [source checks](../../../../.forgejo/workflows/on_source_change.yml) | Combined site built from [Glide MkDocs](../../../../mkdocs.yml); remote documentation deployment is a cutover step |
 
 Glide checks pushes to `development` and pull requests. The shared semantic-release configuration determines release eligibility from conventional commits. The prepare script synchronizes chart and package versions; do not hand-bump them to repair a failed publication.
 

@@ -13,4 +13,5 @@
 - [Ploeg contracts](apps/ploeg/docs/contracts/README.md): producing schemas and worker control.
 - [Managed workflow](docs/workflows/managed-execution.md): integration and recovery.
 - [First cutover](docs/operations/first-cutover.md): preparation gates, release preview, artifact verification, live pilot and rollback.
+- [CI and releases](docs/operations/ci.md): event entry points, shared checks, separate application versions and publication guards.
 - [Documentation policy](docs/documentation.md): sources, generation and review.

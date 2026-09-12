@@ -1,4 +1,4 @@
-name: Preview Glide releases
+name: '[Workflow] On Release Preview'
 
 on:
   workflow_dispatch:

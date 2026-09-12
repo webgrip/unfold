@@ -36,5 +36,5 @@ run = "npm run demo:unified"
 description = "Run both applications and PostgreSQL with a deterministic runtime"
 
 [tasks.release-check]
-run = '''docker run --rm --platform linux/amd64 --network none -v "$PWD:/repo:ro" -w /repo --entrypoint sh harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.3 -c 'node --test scripts/release-isolation.test.cjs && cd apps/ploeg && node --test scripts/release-policy.test.cjs' '''
+run = '''docker run --rm --platform linux/amd64 --network none -v "$PWD:/repo:ro" -w /repo --entrypoint sh harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.3 -c 'node --test scripts/release-isolation.test.cjs scripts/workflow-policy.test.cjs && cd apps/ploeg && node --test scripts/release-policy.test.cjs' '''
 description = "Test release isolation and guards in the pinned release toolchain"

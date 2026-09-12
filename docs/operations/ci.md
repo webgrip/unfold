@@ -1,0 +1,33 @@
+# CI and release workflows
+
+Glide uses Webgrip's event-named entry points. The executable definitions live in the root [workflow directory](../../.forgejo/workflows/). Application-local workflow links point there, so existing application guides still lead to the active configuration.
+
+| Entry point | Trigger | Responsibility |
+| --- | --- | --- |
+| [on_source_change.yml](../../.forgejo/workflows/on_source_change.yml) | Push to `development`; manual validation | Validate both applications, container build contexts and release policy. An enabled push can then release Vloer followed by Ploeg. |
+| [on_pull_request.yml](../../.forgejo/workflows/on_pull_request.yml) | Pull request; manual validation | Run the same application and release-policy gates without release credentials or versioning jobs. |
+| [on_docs_change.yml](../../.forgejo/workflows/on_docs_change.yml) | Documentation or docs-tooling changes on `development`; manual validation | Check generated pages, repository links and the strict combined TechDocs build. |
+| [on_release_preview.yml](../../.forgejo/workflows/on_release_preview.yml) | Manual, on `development` | Preview each application's release decision with the pinned release toolchain and `dry-run: 'true'`. |
+| [on_release_published.yml](../../.forgejo/workflows/on_release_published.yml) | Published release; manual retry for an exact tag | Route `vloer-v…` and `ploeg-v…` to their own artifact jobs. |
+
+## Shared checks and separate versions
+
+Source changes and pull requests use the same local [verification action](../../.forgejo/actions/verify/action.yml) and [release-policy action](../../.forgejo/actions/release-policy/action.yml). Each caller checks out the repository before invoking a local action. The existing application gates remain in [mise verification](../../scripts/verify.mjs), including generated docs, Helm goldens and deterministic integration. The dedicated docs workflow gives documentation changes their own result; the source gate still validates the complete tree.
+
+Releases use the pinned Webgrip semantic-release monorepo composite, with [Vloer's configuration](../../apps/vloer/.releaserc.cjs) and [Ploeg's configuration](../../apps/ploeg/.releaserc.cjs). There is no umbrella Glide version. Both source checks and release-policy checks must pass before versioning. The versioning jobs run sequentially because they push preparation commits to the same branch.
+
+`GLIDE_RELEASES_ENABLED` must equal `true` to version or publish. A manual source-validation run never releases, even with the gate enabled. Keep the `main` release baseline required by the shared preset; `development` remains trunk and the only automatic release branch. Use the [first cutover playbook](first-cutover.md) before enabling publication.
+
+## Publication and recovery
+
+The release entry point keeps each application's job dependencies separate. Ploeg accepts only zero-major release candidates. A manual publication retry requires the selected workflow ref to be the same tag as its `tag` input. Publication runs for the same tag are serialized; a newer invocation does not cancel a partially completed publication.
+
+Reusable publishers use Webgrip's shorthand references and receive explicit `enabled` inputs derived from validated application outputs. This preserves the [shared workflow library's Forgejo conventions](https://forgejo.webgrip.dev/webgrip/workflows/src/branch/main/AGENTS.md), including its warning that a caller-level `if` does not reliably gate flattened reusable jobs. Ploeg's registry mirrors also require the signing job's completion output. Destination signature verification remains a cutover check.
+
+The naming and separation follow the original [Vloer entry points](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/.forgejo/workflows/) and the [infrastructure monorepo](https://forgejo.webgrip.dev/webgrip/infrastructure/src/branch/main/.forgejo/workflows/). Forgejo's [workflow reference](https://forgejo.org/docs/latest/user/actions/reference/) describes the event, dependency and composite-action syntax. Shared actions and reusable workflows retain their existing pinned versions; Renovate owns updates.
+
+## Validation and remaining qualification
+
+Run `mise run verify` and `mise run release-check`. The latter executes [release-isolation tests](../../scripts/release-isolation.test.cjs), [workflow routing tests](../../scripts/workflow-policy.test.cjs) and [Ploeg's release-policy tests](../../apps/ploeg/scripts/release-policy.test.cjs) in the pinned release container. They cover cross-application tag rejection, manual ref matching, disabled publication, signing prerequisites and dependency integrity.
+
+The docs workflow builds the site locally in its runner. Remote TechDocs deployment, source exports, destination permissions and complete artifact delivery still require the evidence listed in the [cutover preparation gates](first-cutover.md#2-close-the-release-blockers). Passing workflow tests or a release preview does not close those gates.

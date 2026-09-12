@@ -20,7 +20,7 @@ mise run demo
 | [apps/ploeg](apps/ploeg/) | Go controller and worker, published schemas and deployment |
 | [docs](docs/index.md) | Shared product language, system explanation and cross-application workflows |
 
-`mise run integration` qualifies both execution modes without paid providers. `mise run docs-check` checks generated domain pages and builds TechDocs strictly; `mise run docs-build` writes the site to `.build/site`. Both app gates also run in the [root CI workflow](.forgejo/workflows/checks.yml).
+`mise run integration` qualifies both execution modes without paid providers. `mise run docs-check` checks generated domain pages and builds TechDocs strictly; `mise run docs-build` writes the site to `.build/site`. Both app gates also run in the [root CI workflow](.forgejo/workflows/on_source_change.yml).
 
 The import preserves both histories and 70 namespaced tags. Existing packages, Go module, images and charts retain their names. [The migration record](docs/migration.md) distinguishes local qualification from remote publication and production cutover.
 

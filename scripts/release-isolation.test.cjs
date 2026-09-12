@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
+const { parse } = require('yaml');
 
 process.env.SEMANTIC_RELEASE_GITEA = 'true';
 const root = path.resolve(__dirname, '..');
@@ -105,9 +106,8 @@ test('publisher shells reject the other application and mismatched manual refs b
   const output = path.join(directory, 'output');
   try {
     for (const app of ['vloer', 'ploeg']) {
-      const workflow = fs.readFileSync(path.join(root, '.forgejo/workflows', `publish-${app}.yml`), 'utf8');
-      const job = workflow.slice(workflow.indexOf('  parse-release-tag:'), workflow.indexOf('\n  release-publish-chart:'));
-      const shell = job.slice(job.indexOf('          set -euo pipefail')).replace(/^          /gm, '');
+      const workflow = parse(fs.readFileSync(path.join(root, '.forgejo/workflows/on_release_published.yml'), 'utf8'));
+      const shell = workflow.jobs[`${app}-parse-release-tag`].steps.find(step => step.id === 'parse').run;
       const valid = `${app}-v0.3.0-rc.5`;
       for (const [tag, ref, accepted] of [
         [valid, `refs/tags/${valid}`, true],

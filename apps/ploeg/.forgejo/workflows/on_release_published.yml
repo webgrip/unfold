@@ -1,1 +1,1 @@
-../../../../.forgejo/workflows/publish-ploeg.yml
+../../../../.forgejo/workflows/on_release_published.yml

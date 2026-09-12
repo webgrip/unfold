@@ -25,6 +25,7 @@ nav:
       - Ploeg: ploeg/index.md
       - Managed execution: workflows/managed-execution.md
   - Maintain:
+      - CI and releases: operations/ci.md
       - Documentation: documentation.md
       - Migration: migration.md
       - System decisions: adr/index.md

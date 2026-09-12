@@ -8,6 +8,7 @@ const { pathToFileURL } = require('node:url');
 const { spawnSync } = require('node:child_process');
 const os = require('node:os');
 const vm = require('node:vm');
+const { parse } = require('yaml');
 
 process.env.SEMANTIC_RELEASE_GITEA = 'true';
 const { makeConfig } = require('@webgrip/semantic-release-config');
@@ -129,18 +130,20 @@ test('the installed release engine checks conditions before promotion and verifi
 test('effective configuration retains standard tags and CI tests it before invoking release', () => {
   assert.equal(config.tagFormat, 'ploeg-v${version}');
   assert.equal(config.plugins[0], path.join(__dirname, 'release-policy.cjs'));
-  const workflow = fs.readFileSync(path.resolve(root, '../../.forgejo/workflows/checks.yml'), 'utf8');
-  const gate = workflow.indexOf('node --test scripts/release-policy.test.cjs');
-  assert.ok(gate > 0);
-  assert.ok(gate < workflow.indexOf('id: release'));
-  assert.match(workflow, /NODE_PATH="\$\{SEMREL_PREBAKED:\?/);
+  const workflow = parse(fs.readFileSync(path.resolve(root, '../../.forgejo/workflows/on_source_change.yml'), 'utf8'));
+  assert.ok(workflow.jobs['release-ploeg'].needs.includes('release-policy'));
+  assert.ok(workflow.jobs['release-policy'].steps.some(step => step.uses === './.forgejo/actions/release-policy'));
+  const action = parse(fs.readFileSync(path.resolve(root, '../../.forgejo/actions/release-policy/action.yml'), 'utf8'));
+  const gate = action.runs.steps.find(step => step.run?.includes('node --test scripts/release-policy.test.cjs'));
+  assert.equal(gate['working-directory'], 'apps/ploeg');
+  assert.match(gate.run, /NODE_PATH="\$\{SEMREL_PREBAKED:\?/);
 });
 
 test('the actual artifact-publisher shell rejects major and stable tags before emitting outputs', () => {
-  const workflow = fs.readFileSync(path.resolve(root, '../../.forgejo/workflows/publish-ploeg.yml'), 'utf8');
-  const parseJob = workflow.slice(workflow.indexOf('  parse-release-tag:'), workflow.indexOf('\n  release-publish-chart:'));
-  const shell = parseJob.slice(parseJob.indexOf('          set -euo pipefail')).replace(/^          /gm, '');
-  assert.match(parseJob, /RELEASE_TAG: \$\{\{/);
+  const workflow = parse(fs.readFileSync(path.resolve(root, '../../.forgejo/workflows/on_release_published.yml'), 'utf8'));
+  const parseStep = workflow.jobs['ploeg-parse-release-tag'].steps.find(step => step.id === 'parse');
+  const shell = parseStep.run;
+  assert.match(parseStep.env.RELEASE_TAG, /\$\{\{/);
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ploeg-release-policy-'));
   const output = path.join(directory, 'output');
   try {
@@ -178,9 +181,9 @@ test('the actual current Git history calculates the corrected replacement withou
 });
 
 test('reusable artifact jobs accept validated parse output without unavailable job results', () => {
-  const workflow = fs.readFileSync(path.resolve(root, '../../.forgejo/workflows/publish-ploeg.yml'), 'utf8');
-  const parseJob = workflow.slice(workflow.indexOf('  parse-release-tag:'), workflow.indexOf('\n  release-publish-chart:'));
-  const shell = parseJob.slice(parseJob.indexOf('          set -euo pipefail')).replace(/^          /gm, '');
+  const workflow = parse(fs.readFileSync(path.resolve(root, '../../.forgejo/workflows/on_release_published.yml'), 'utf8'));
+  const parseStep = workflow.jobs['ploeg-parse-release-tag'].steps.find(step => step.id === 'parse');
+  const shell = parseStep.run;
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ploeg-publish-input-'));
   const output = path.join(directory, 'output');
   try {
@@ -189,20 +192,22 @@ test('reusable artifact jobs accept validated parse output without unavailable j
       const result = spawnSync('bash', ['-c', shell], { env: { ...process.env, RELEASE_TAG: tag, GITHUB_OUTPUT: output }, encoding: 'utf8' });
       const version = fs.readFileSync(output, 'utf8').match(/^version=(.*)$/m)?.[1] || '';
       for (const name of ['release-publish-chart', 'release-distribute-forgejo', 'release-distribute-github']) {
-        const job = workflow.slice(workflow.indexOf(`  ${name}:`)).split(/\n  [a-z]+[a-z-]*:/)[0];
-        const expression = job.match(/enabled: \$\{\{ (.+) \}\}/)?.[1];
+        const job = workflow.jobs[`ploeg-${name}`];
+        const expression = job.with.enabled.match(/\$\{\{ (.+) \}\}/)?.[1];
         assert.ok(expression, `${name} must pass an explicit guarded enabled input`);
         for (const unavailableResult of [undefined, '']) {
           const enabled = vm.runInNewContext(expression.replace(/needs\.([a-z-]+)/g, "needs['$1']"), {
             needs: {
-              'parse-release-tag': { outputs: { version }, result: unavailableResult },
-              'release-distribute-harbor': { outputs: {}, result: unavailableResult },
+              'ploeg-parse-release-tag': { outputs: { version }, result: unavailableResult },
+              'ploeg-release-distribute-harbor': { outputs: {}, result: unavailableResult },
+              'ploeg-release-sign-harbor': { outputs: { signed: 'true' }, result: unavailableResult },
             },
           });
           assert.equal(enabled, result.status === 0, `${name} input gate for ${tag}`);
         }
         if (name !== 'release-publish-chart') {
-          assert.match(job, /needs: \[parse-release-tag, release-distribute-harbor\]/);
+          assert.ok(job.needs.includes('ploeg-release-distribute-harbor'));
+          assert.ok(job.needs.includes('ploeg-release-sign-harbor'));
         }
       }
     }
