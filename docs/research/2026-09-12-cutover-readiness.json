@@ -89,5 +89,28 @@
     "renovate": "https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/commit/80f553ae62744befa86229cfade452a3bec901f1/.renovaterc.json5",
     "vloer_github_distributor": "https://forgejo.webgrip.dev/webgrip/workflows/src/tag/v2.6.2/.forgejo/workflows/github-distribute.yml",
     "ploeg_github_distributor": "https://forgejo.webgrip.dev/webgrip/workflows/src/tag/v1.11.1/.forgejo/workflows/github-distribute.yml"
-  }
+  },
+  "follow_up_observations": [
+    {
+      "at": "2026-09-12T16:17:18Z",
+      "source_sha": "d39a1805b67d83922f4c57c119c35645659da60d",
+      "initial_preview": {"url": "https://forgejo.webgrip.dev/webgrip/glide/actions/runs/5", "status": "failed", "error": "ERELEASEBRANCHES: no normal release branch existed alongside development prereleases"},
+      "repair": {
+        "remote_main_baseline": "479e193136dc2c580551b65839a853d4c8f89624",
+        "trunk": "development",
+        "stable_publication_enabled": false,
+        "regression_test": "The installed semantic-release branch resolver fails without main and accepts the baseline while retaining development as an rc prerelease branch.",
+        "release_isolation_tests": {"passed": 3, "failed": 0},
+        "ploeg_release_policy_tests": {"passed": 13, "failed": 0, "skipped": 1}
+      },
+      "preview": {
+        "url": "https://forgejo.webgrip.dev/webgrip/glide/actions/runs/7",
+        "status": "passed",
+        "vloer": {"recognized_tag": "vloer-v0.3.0-rc.16", "push_permission": "verified", "next_release": null, "reason": "No relevant changes"},
+        "ploeg": {"recognized_tag": "ploeg-v0.3.0-rc.7", "push_permission": "verified", "next_release": null, "reason": "No relevant changes"}
+      },
+      "supersedes_gate_observation": "preview",
+      "limits": ["The dry run skipped prepare, publish, addChannel, success and fail hooks.", "No next-release version was calculated because neither application had eligible changes.", "Source exports, artifact publication, signing authorization, destination access, recovery and live sessions remain unqualified."]
+    }
+  ]
 }

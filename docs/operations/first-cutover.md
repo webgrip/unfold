@@ -8,7 +8,7 @@ This procedure does not enable general availability. Vloer and Ploeg keep indepe
 
 ## 1. Choose the test and capture the starting state
 
-Use one operator, one registered test repository, one concurrent session and an explicitly approved model budget. The existing managed deployment caps a session at USD 0.25; confirm that setting and model access before using it. An in-flight request can settle after cancellation, so the configured budget is not proof of an exact final charge. Do not enable unattended dispatch for this first interactive test.
+Use one operator, one registered test repository, one concurrent session and an explicitly approved model budget. The current GitOps configuration sets a per-session ceiling of USD 0.25; confirm the effective setting and model access before using it. An in-flight request can settle after cancellation, so the configured budget is not proof of an exact final charge. Do not enable unattended dispatch for this first interactive test.
 
 Choose either an isolated pilot with a separate database and Vloer volume, or an upgrade of the existing installation. An isolated pilot can qualify the new application pair without proving an upgrade of existing data. Record which claim the test is meant to establish. The existing Vloer contract requires a registered repository and crew; use a disposable repository or an approved fixture branch and review the resulting change without publishing it.
 
@@ -64,6 +64,8 @@ Credential values remain in OpenBao and the existing bridges. The [secrets model
 Open [Glide Actions](https://forgejo.webgrip.dev/webgrip/glide/actions), select **Preview Glide releases**, choose `development`, and dispatch it. The [preview workflow](../../.forgejo/workflows/release-preview.yml) invokes the same pinned toolchain and application configs as the release jobs with `dry-run: 'true'`. It has no artifact publisher or deployment step and does not require opening `GLIDE_RELEASES_ENABLED`.
 
 Record each matrix job's source SHA, last recognized application tag, predicted next version, channel and release notes. Check that Vloer reads `vloer-v…` history and Ploeg reads `ploeg-v…` history. Imported histories must not be mistaken for a brand-new package. Check the proposed versions against every existing registry and extension destination; do not reuse a version already published with different contents.
+
+The [first successful preview](https://forgejo.webgrip.dev/webgrip/glide/actions/runs/7) recognized Vloer `rc.16` and Ploeg `rc.7` at source `d39a180`, with no release-worthy changes for either application. It proves configuration, branch/history resolution and push permission for that revision; it does not predict a release for a later change.
 
 The preview can legitimately report no release. Documentation, test and maintenance commits do not promise a version bump. Do not invent a feature or hand-edit versions merely to get a tag. If a first release is still required, land the actual reviewed release-related fix within the affected application scope, then preview again. A root workflow change alone is not selected by the current per-application commit filter.
 
