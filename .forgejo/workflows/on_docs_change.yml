@@ -25,6 +25,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  authorize-publication:
+    runs-on: docker
+    outputs:
+      enabled: ${{ steps.gate.outputs.enabled }}
+    steps:
+      - name: Resolve the documentation publication gate
+        id: gate
+        env:
+          DOCS_REF: ${{ github.ref }}
+          DOCS_ENABLED: ${{ vars.GLIDE_DOCS_PUBLISH_ENABLED }}
+        run: |
+          enabled=false
+          if [ "$DOCS_REF" = 'refs/heads/development' ] && [ "$DOCS_ENABLED" = 'true' ]; then
+            enabled=true
+          fi
+          printf 'enabled=%s\n' "$enabled" >> "$GITHUB_OUTPUT"
+          printf 'Documentation publication enabled: %s\n' "$enabled"
   generate-documentation:
     uses: webgrip/workflows/.forgejo/workflows/techdocs-generate.yml@v2.7.1
     with:
@@ -33,10 +50,10 @@ jobs:
       prepare-command: python3 scripts/docs.py --check --stage-only
       finalize-command: python3 scripts/docs-output.py --site techdocs-site
   deploy-docs-site:
-    needs: [generate-documentation]
+    needs: [generate-documentation, authorize-publication]
     uses: webgrip/workflows/.forgejo/workflows/techdocs-deploy-docs-site.yml@v2.7.1
     with:
-      enabled: ${{ github.ref == 'refs/heads/development' && vars.GLIDE_DOCS_PUBLISH_ENABLED == 'true' && 'true' || 'false' }}
+      enabled: ${{ needs.authorize-publication.outputs.enabled }}
       source-dir: '.'
       site-dir: '.build/site'
       bucket: docs-glide

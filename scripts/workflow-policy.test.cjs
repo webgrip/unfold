@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const os = require('node:os');
 const { spawnSync } = require('node:child_process');
 const { parse } = require('yaml');
 
@@ -150,13 +151,21 @@ test('workflow dependencies resolve, reusable calls are pinned and local actions
 
 test('documentation publication has its own gate and isolated storage', () => {
   const job = workflows['on_docs_change.yml'].jobs['deploy-docs-site'];
-  assert.deepEqual(job.needs, ['generate-documentation']);
+  assert.deepEqual(job.needs, ['generate-documentation', 'authorize-publication']);
   assert.equal(job.with.bucket, 'docs-glide');
   assert.equal(job.with.strict, 'true');
   assert.deepEqual(Object.keys(job.secrets).sort(), ['TECHDOCS_S3_ACCESS_KEY_ID', 'TECHDOCS_S3_SECRET_ACCESS_KEY']);
   for (const ref of ['refs/heads/development', 'refs/heads/main', 'refs/heads/topic']) {
     for (const gate of ['', 'false', 'true']) {
-      assert.equal(evaluate(job.with.enabled, { github: { ref }, vars: { GLIDE_DOCS_PUBLISH_ENABLED: gate } }), ref === 'refs/heads/development' && gate === 'true' ? 'true' : 'false');
+      const step = workflows['on_docs_change.yml'].jobs['authorize-publication'].steps[0];
+      const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-gate-'));
+      const output = path.join(temporary, 'output');
+      const result = spawnSync('sh', ['-c', step.run], { encoding: 'utf8', env: { ...process.env, DOCS_REF: ref, DOCS_ENABLED: gate, GITHUB_OUTPUT: output } });
+      assert.equal(result.status, 0);
+      const enabled = ref === 'refs/heads/development' && gate === 'true' ? 'true' : 'false';
+      assert.equal(fs.readFileSync(output, 'utf8'), `enabled=${enabled}\n`);
+      fs.rmSync(temporary, { recursive: true });
+      assert.equal(evaluate(job.with.enabled, { needs: { 'authorize-publication': { outputs: { enabled } } } }), enabled);
     }
   }
 });
