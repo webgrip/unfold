@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "kind": "dated-readiness-observation",
+  "observed_at": "2026-09-12T16:09:02Z",
+  "playbook": "../operations/first-cutover.md",
+  "verdict": "not_ready_for_release_cutover",
+  "scope": "Read-only Forgejo, Git and Kubernetes inspection; local application and release-policy verification. No publisher dispatch, production mutation or paid model call in this observation.",
+  "source": {
+    "glide_sha": "ac0d4a37012c10ed107f8860f076782590160ee6",
+    "remote_matches_local": true,
+    "latest_checks": {"status": "success", "url": "https://forgejo.webgrip.dev/webgrip/glide/actions/runs/3"},
+    "release_variable": "absent",
+    "glide_release_count": 0,
+    "old_vloer_tip": "7c8657e15b1525e30641b12e5175bf268a49b03d",
+    "old_vloer_highest_rc_tag": "v0.3.0-rc.16",
+    "old_ploeg_tip": "6f19c25fcc48f2335ad39237d06642adef1a5fcc",
+    "old_ploeg_highest_rc_tag": "v0.3.0-rc.7",
+    "gitops_remote_sha": "80f553ae62744befa86229cfade452a3bec901f1",
+    "flux_source_revision": "refs/heads/main@sha1:80f553ae62744befa86229cfade452a3bec901f1"
+  },
+  "local_qualification": {
+    "mise_run_verify": "passed",
+    "vloer_tests": {"passed": 211, "failed": 0},
+    "extension_tests": {"passed": 41, "failed": 0},
+    "ploeg_format_vet_build_tests": "passed",
+    "helm_render_and_golden_checks": "passed",
+    "openspec_strict": "passed",
+    "import_verification": "passed",
+    "deterministic_standalone_and_managed": "passed",
+    "model_calls": 0,
+    "spend_usd": 0,
+    "mise_run_release_check": "passed",
+    "release_isolation_tests": {"passed": 2, "failed": 0},
+    "ploeg_release_policy_tests": {"passed": 13, "failed": 0, "skipped": 1, "skip_reason": "Historical one-time version-correction assertion is intentionally opt-in."},
+    "limits": ["The commands ran at the source revision above, before adding this playbook and the preview workflow.", "No actual release dry run, ARM64 runtime, live provider, package export or destination publication was qualified by these commands."]
+  },
+  "live_baseline": {
+    "context": "homelab",
+    "namespace": "ploeg",
+    "vloer": {
+      "helm_ready": true,
+      "chart_version": "0.3.0-rc.14",
+      "chart_digest": "sha256:58a781c62377c213e468f0800ac7ccade6b25c1260af31090d1104769e6fded0",
+      "available_replicas": 1,
+      "image": "harbor.webgrip.dev/webgrip/de-vloer@sha256:31afd91c30bc05219f78c8823eaebf0d1135668a2566d43f27af1ca8d34f00bc",
+      "workspace_image_in_gitops": "harbor.webgrip.dev/webgrip/de-vloer-agent:0.3.0-rc.14@sha256:bdcb84fa38c0a52b5b764fe0f63e47b97246a248219be3b02aaebef1ae2dcda0",
+      "data_pvc": "de-vloer-data"
+    },
+    "ploeg": {
+      "helm_ready": true,
+      "chart_version": "0.3.0-rc.6",
+      "chart_digest": "sha256:348a07babca3f542277d66fe9096fb18990c59108d32a4c7980f40328e955fe2",
+      "available_replicas": 1,
+      "image": "harbor.webgrip.dev/webgrip/ploegd:0.3.0-rc.6@sha256:842613ab01655c89cbc6719eff8fddb329ddf486a2bda23bd8adce5b228efe23",
+      "database": "ploeg-db",
+      "database_ready_instances": 2,
+      "latest_observed_backup": "ploeg-db-daily-20260912025000",
+      "latest_observed_backup_phase": "completed"
+    },
+    "restore_test": {
+      "cluster": "cnpg-disaster-recovery",
+      "status": "Cluster cannot proceed to reconciliation due to an error while interacting with plugins",
+      "fresh_restore_verified": false
+    },
+    "external_secrets": {
+      "forgejo/forgejo-openvsx-publish": "SecretSynced",
+      "forgejo/forgejo-github-pat": "SecretSynced"
+    },
+    "limits": ["ExternalSecret readiness does not verify destination publishing permissions or the Glide repository bridge.", "No application session, admission queue, retained inference authorization, restore contents or Vloer backup was inspected."]
+  },
+  "remaining_gates": [
+    {"id": "release-authority", "status": "not_verified", "required": "Freeze old source/release automation and reconcile intervening tags before enabling Glide."},
+    {"id": "source-export", "status": "blocked", "required": "Qualify per-application GitHub distribution and Ploeg module export.", "evidence": "Pinned github-distribute workflows explicitly check out inputs.repo, mirror whole refs and use ordinary v-prefixed releases; callers still name the old application repositories."},
+    {"id": "source-metadata", "status": "blocked", "required": "Published source annotations and source revision must identify a repository containing the built Glide commit, or an explicitly mapped export."},
+    {"id": "oidc-signing", "status": "blocked", "required": "Git-managed OpenBao authorization and a Glide-origin authorization check.", "evidence": "The reconciled GitOps source allows infrastructure, ploeg and de-vloer; glide is absent from the cosign-signer repository claim list."},
+    {"id": "credentials", "status": "partially_observed", "required": "Verify every required publishing identity and extend the Open VSX bridge to Glide.", "evidence": "Secret stores are synced, but VSCODE_EXTENSION_REPO remains de-vloer and actual Glide registry access was not exercised."},
+    {"id": "renovate", "status": "blocked", "required": "Include Glide in source dependency maintenance and preserve reviewed deployment updates.", "evidence": "Glide is absent from the current repository list. Current Ploeg/Vloer deployment rules explicitly set automerge false; the older September 11 warning is historical."},
+    {"id": "signature-propagation", "status": "blocked", "required": "Ploeg mirrors must wait for signing; Vloer agent GHCR signatures and attestations need copying and verification.", "evidence": "Ploeg mirror dependencies stop at Harbor build. The Vloer agent mirror verifies the image digest only. Shared accessory copying can warn and succeed."},
+    {"id": "preview", "status": "not_run", "required": "Run both actual application release dry runs for the final candidate revision."},
+    {"id": "recovery", "status": "not_verified", "required": "For an upgrade of existing data, prove consistent backups and a working restore path; isolated pilots must use separate state."},
+    {"id": "artifact-delivery", "status": "not_run", "required": "First publication, required destination verification, module installation and retry qualification."},
+    {"id": "live-test", "status": "not_run", "required": "Bounded standalone and managed sessions, authority/recovery drills, accounting and cleanup on published artifacts."}
+  ],
+  "source_links": {
+    "glide_workflows": "https://forgejo.webgrip.dev/webgrip/glide/src/commit/ac0d4a37012c10ed107f8860f076782590160ee6/.forgejo/workflows",
+    "gitops": "https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/commit/80f553ae62744befa86229cfade452a3bec901f1",
+    "signing_role": "https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/commit/80f553ae62744befa86229cfade452a3bec901f1/kubernetes/apps/security/openbao/bootstrap/config.sh",
+    "credential_bridge": "https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/commit/80f553ae62744befa86229cfade452a3bec901f1/kubernetes/apps/forgejo/forgejo-actions-secrets/app/forgejo-actions-secrets.cronjob.yaml",
+    "renovate": "https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/commit/80f553ae62744befa86229cfade452a3bec901f1/.renovaterc.json5",
+    "vloer_github_distributor": "https://forgejo.webgrip.dev/webgrip/workflows/src/tag/v2.6.2/.forgejo/workflows/github-distribute.yml",
+    "ploeg_github_distributor": "https://forgejo.webgrip.dev/webgrip/workflows/src/tag/v1.11.1/.forgejo/workflows/github-distribute.yml"
+  }
+}

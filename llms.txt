@@ -12,4 +12,5 @@
 - [Vloer contracts](apps/vloer/docs/contracts/api.md): workbench HTTP interface.
 - [Ploeg contracts](apps/ploeg/docs/contracts/README.md): producing schemas and worker control.
 - [Managed workflow](docs/workflows/managed-execution.md): integration and recovery.
+- [First cutover](docs/operations/first-cutover.md): preparation gates, release preview, artifact verification, live pilot and rollback.
 - [Documentation policy](docs/documentation.md): sources, generation and review.

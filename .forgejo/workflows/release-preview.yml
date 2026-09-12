@@ -1,0 +1,35 @@
+name: Preview Glide releases
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: glide-release-preview
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    if: github.ref == 'refs/heads/development'
+    runs-on: docker
+    timeout-minutes: 15
+    container:
+      image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.3
+    strategy:
+      fail-fast: false
+      matrix:
+        application: [vloer, ploeg]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+      - name: Fetch release channels
+        run: git fetch origin '+refs/notes/*:refs/notes/*'
+      - name: Record candidate revision
+        run: git rev-parse HEAD
+      - name: Preview version and release notes
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v2.6.1
+        with:
+          package-path: apps/${{ matrix.application }}
+          package-name: ${{ matrix.application }}
+          token: ${{ secrets.WEBGRIP_CI_TOKEN }}
+          dry-run: 'true'

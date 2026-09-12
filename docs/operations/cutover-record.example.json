@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "kind": "glide-cutover-execution-record",
+  "status": "not_run",
+  "operator": null,
+  "started_at": null,
+  "completed_at": null,
+  "scope": {
+    "environment": null,
+    "namespace": null,
+    "isolated_or_existing_installation": null,
+    "repository": null,
+    "branch": null,
+    "approved_total_budget_usd": null,
+    "unattended_dispatch_enabled": false
+  },
+  "source": {
+    "glide_candidate_sha": null,
+    "checks_run_url": null,
+    "preview_run_url": null,
+    "old_vloer_tip": null,
+    "old_ploeg_tip": null,
+    "old_release_authorities_frozen_at": null
+  },
+  "prerequisites": [],
+  "releases": {
+    "vloer": {"status": "not_run", "version": null, "tag": null, "commit": null, "release_url": null, "publisher_run_url": null},
+    "ploeg": {"status": "not_run", "version": null, "tag": null, "commit": null, "export_commit": null, "module_install_evidence": null, "release_url": null, "publisher_run_url": null}
+  },
+  "artifacts": [],
+  "artifact_entry_fields": ["application", "artifact", "destination", "required", "version", "digest_or_checksum", "platforms", "source_revision", "signature_result", "install_result", "status", "evidence_url", "exclusion_reason"],
+  "deployment": {
+    "before_gitops_commit": null,
+    "after_gitops_commit": null,
+    "before_pins": [],
+    "after_pins": [],
+    "observed_images": [],
+    "reconciled_revision": null,
+    "backup_evidence": null,
+    "restore_evidence": null,
+    "rollback_result": "not_run"
+  },
+  "sessions": [],
+  "session_entry_fields": ["test", "mode", "session_id", "work_item_id", "shift_id", "run_id", "approved_budget_usd", "observed_spend_usd", "settlement_status", "candidate", "status", "evidence_url"],
+  "allowed_results": ["passed", "failed", "not_run", "excluded"],
+  "release_gate_final_state": null,
+  "operator_decision": null,
+  "follow_up_links": []
+}

@@ -20,6 +20,7 @@ nav:
       - Product language: domain/overview.md
       - Open choices: landscape/questions.md
   - Operate:
+      - First release and live test: operations/first-cutover.md
       - Vloer: vloer/index.md
       - Ploeg: ploeg/index.md
       - Managed execution: workflows/managed-execution.md

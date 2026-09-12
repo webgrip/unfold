@@ -13,6 +13,7 @@ Use [Vloer on its own](../apps/vloer/docs/operations/demo.md) for local interact
 | Read product terms | [Generated glossary](domain/glossary.md) and its [YAML source](domain/model.yaml) |
 | Make a change | [Repository instructions](../AGENTS.md) and [documentation policy](documentation.md) |
 | Understand the migration | [Import and qualification](migration.md) |
+| Switch releases to Glide and run a live pilot | [First cutover playbook](operations/first-cutover.md) |
 
 The [system decision ledger](adr/index.md), [Vloer ledger](../apps/vloer/docs/adrs/README.md) and [Ploeg ledger](../apps/ploeg/docs/adrs/README.md) have different scopes. Existing proposed records remain proposed. Ploeg's [execution domain](../apps/ploeg/docs/domain/overview.md) defines its implementation vocabulary; a Ploeg Run may contain several Vloer role runs.
 
