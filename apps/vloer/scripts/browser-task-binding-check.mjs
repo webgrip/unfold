@@ -1,0 +1,44 @@
+import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
+import { resolve, join } from 'node:path';
+import { chromium } from 'playwright';
+import { fixture, itemId } from '../test/task-binding-support.ts';
+
+const cleanup = [];
+const f = await fixture({ after(fn) { cleanup.push(fn); } });
+f.state.task.title = '[Fixture · no model calls] Review checkout rounding';
+f.state.task.description = 'Browser qualification with a fixture tracker and fixture Ploeg API. No agents or model calls are started. The real De Vloer server checks the source, creates one queued session and rejects a stale Start.';
+const evidence = process.env.VLOER_SCREENSHOTS ? resolve(process.env.VLOER_SCREENSHOTS) : undefined;
+let browser;
+try {
+  browser = await chromium.launch({ headless: true, ...(process.env.VLOER_CHROMIUM_BIN ? { executablePath: process.env.VLOER_CHROMIUM_BIN } : {}) });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1040 } });
+  const split = f.admin.cookie.indexOf('=');
+  await context.addCookies([{ name: f.admin.cookie.slice(0, split), value: f.admin.cookie.slice(split + 1), url: f.server.url }]);
+  const page = await context.newPage();
+  page.setDefaultTimeout(10000);
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  const shot = async name => { if (evidence) { await mkdir(evidence, { recursive: true }); await page.screenshot({ path: join(evidence, `${name}.png`), fullPage: true }); } };
+  await page.goto(`${f.server.url}/#tasks`);
+  await page.locator('[data-action="task-preview"][data-id="17"]').click();
+  await page.getByText('Continue the existing Ploeg work item.', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('link', { name: `Work item #${itemId}`, exact: true }).getAttribute('href'), `#ploeg/${itemId}`);
+  await shot('tracker-binding-preview');
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'Tracker preview overflows mobile');
+  await shot('tracker-binding-preview-mobile');
+  await page.getByRole('button', { name: 'Create session', exact: false }).click();
+  await page.getByRole('button', { name: 'Start crew', exact: false }).waitFor();
+  const sessions = f.server.app.store.listSessions();
+  assert.equal(sessions.length, 1); assert.equal(sessions[0].sourceTask.ploeg.workItemId, itemId); assert.equal(sessions[0].status, 'queued'); assert.equal(f.state.admissions.length, 0);
+  await shot('tracker-binding-queued-mobile');
+  f.state.task.done = true;
+  await page.getByRole('button', { name: 'Start crew', exact: false }).click();
+  await page.getByText('The source task changed after import. Review its current version before starting work.', { exact: true }).waitFor();
+  assert.equal(f.state.admissions.length, 0); assert.equal(f.state.inference, 0); assert.equal(f.state.prepared, 0);
+  assert.equal(f.server.app.store.getSession(sessions[0].id).status, 'queued');
+  await shot('tracker-binding-stale-start');
+  assert.deepEqual(errors, []);
+  console.log(JSON.stringify({ qualification: 'Fixture tracker and Ploeg API; real De Vloer import and source checks; no model calls', checks: ['linked existing Work Item', 'desktop and mobile preview', 'one queued session', 'stale Start rejected before admission'], screenshots: evidence ?? null }));
+} finally { await browser?.close(); for (const close of cleanup.reverse()) await close(); }

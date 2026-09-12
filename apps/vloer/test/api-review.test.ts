@@ -1,0 +1,30 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { application, request, createSession, sessionUntil } from './api-support.ts';
+
+test('a person records the human review once a session is completed, and only once', async t => {
+  const server = await application('demo');
+  t.after(() => server.close());
+  const cookie = undefined;
+  const created = await createSession(server.url, { cookie });
+  const early = await request(server.url, `/api/sessions/${created.id}/review`, { method: 'POST', body: { decision: 'accepted' }, cookie, csrf: true });
+  assert.equal(early.status, 409);
+  await request(server.url, `/api/sessions/${created.id}/start`, { method: 'POST', body: {}, cookie, csrf: true });
+  const done = await sessionUntil(server.url, created.id, session => session.status === 'completed', cookie);
+  assert.equal(done.review, undefined);
+  const noReason = await request(server.url, `/api/sessions/${created.id}/review`, { method: 'POST', body: { decision: 'rejected' }, cookie, csrf: true });
+  assert.equal(noReason.status, 400);
+  assert.equal(noReason.body.error.code, 'note_required');
+  const bad = await request(server.url, `/api/sessions/${created.id}/review`, { method: 'POST', body: { decision: 'maybe' }, cookie, csrf: true });
+  assert.equal(bad.status, 400);
+  const accepted = await request(server.url, `/api/sessions/${created.id}/review`, { method: 'POST', body: { decision: 'accepted', note: 'Diff matches the brief; checks ran.' }, cookie, csrf: true });
+  assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
+  assert.equal(accepted.body.review.decision, 'accepted');
+  assert.equal(accepted.body.review.note, 'Diff matches the brief; checks ran.');
+  assert.ok(accepted.body.review.byName);
+  const again = await request(server.url, `/api/sessions/${created.id}/review`, { method: 'POST', body: { decision: 'rejected', note: 'changed my mind' }, cookie, csrf: true });
+  assert.equal(again.status, 409);
+  assert.equal(again.body.error.code, 'already_reviewed');
+  const events = await request(server.url, `/api/sessions/${created.id}/history`, { cookie });
+  assert.ok(events.body.some((event: any) => event.type === 'review.recorded' && event.data.decision === 'accepted'));
+});

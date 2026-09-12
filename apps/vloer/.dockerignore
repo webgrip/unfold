@@ -1,0 +1,13 @@
+.git
+.vloer
+node_modules
+config/local.json
+config/*.local.json
+*.local.yaml
+ops/local/config.live.json
+*.log
+*.key
+*.pem
+.env
+.env.*
+test

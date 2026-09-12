@@ -1,0 +1,504 @@
+{
+  "schema_version": 1,
+  "title": "Ploeg + De Vloer competitive research evidence",
+  "accessed_at": "2026-09-09",
+  "method": "Primary official documentation, source repositories, product announcements and pricing pages inspected using web retrieval. Competitors were not deployed or independently benchmarked.",
+  "claims_policy": "Documented and advertised behavior is distinguished from tested behavior. Absence of evidence is not evidence of absence. Main branch documentation may lead stable releases.",
+  "pricing_currency": "USD where a numeric vendor price is stated; no exchange-rate conversion performed.",
+  "sources": [
+    {
+      "id": "kandev-repository",
+      "title": "Kandev repository",
+      "url": "https://github.com/kdlbs/kandev",
+      "kind": "repository",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "AGPL-3.0 workbench; heterogeneous agents, workflows and remote executors.",
+      "limitations": "README operator roadmap must not be read as absence of the separately documented Kubernetes executor."
+    },
+    {
+      "id": "kandev-status",
+      "title": "Kandev feature status",
+      "url": "https://kandev.ai/docs/feature-status",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Status distinctions for authentication, tenancy, Office and Kubernetes executor.",
+      "limitations": "Describes current main; released builds may lag. Team and tenancy limitations are version-specific."
+    },
+    {
+      "id": "kandev-kubernetes",
+      "title": "Kandev Kubernetes guide",
+      "url": "https://kandev.ai/docs/k8s",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Per-session Pod execution, workspace storage and resource identity/recovery.",
+      "limitations": "Documentation inspected; no cluster deployment performed."
+    },
+    {
+      "id": "kandev-integrations",
+      "title": "Kandev integrations",
+      "url": "https://kandev.ai/docs/integrations",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Specific integrations require configured credentials and provider capabilities.",
+      "limitations": "No exact ClickUp or Forgejo lifecycle qualification established."
+    },
+    {
+      "id": "kandev-team",
+      "title": "Kandev team access",
+      "url": "https://kandev.ai/docs/team-access",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Team-oriented access is documented within the authenticated product path.",
+      "limitations": "Use feature-status caveats when assessing isolation."
+    },
+    {
+      "id": "openhands-repository",
+      "title": "OpenHands Agent Canvas repository",
+      "url": "https://github.com/OpenHands/OpenHands",
+      "kind": "repository",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "MIT Agent Canvas, multiple agent backends, ACP and separate SDK/automation repositories.",
+      "limitations": "Read current repository identity; old OpenHands application comparisons can be stale."
+    },
+    {
+      "id": "openhands-editions",
+      "title": "OpenHands Enterprise versus Open Source",
+      "url": "https://docs.openhands.dev/enterprise/enterprise-vs-oss",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Canvas automation options differ from enterprise authentication, organizations and scalable sandbox features.",
+      "limitations": "A Docker-wrapped local stack is not equivalent to multi-tenant isolation."
+    },
+    {
+      "id": "openhands-enterprise",
+      "title": "OpenHands Enterprise repository",
+      "url": "https://github.com/OpenHands/enterprise",
+      "kind": "repository",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Enterprise integrations, team controls and usage monitoring advertised.",
+      "limitations": "Commercial component boundary; no deployment or contract tested."
+    },
+    {
+      "id": "openhands-self-hosting",
+      "title": "OpenHands self-hosting guide",
+      "url": "https://github.com/OpenHands/OpenHands/blob/main/docs/SELF_HOSTING.md",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Self-hosting has separate component and hardening considerations.",
+      "limitations": "Main branch documentation may differ from selected deployed version."
+    },
+    {
+      "id": "openhands-pricing",
+      "title": "OpenHands pricing",
+      "url": "https://www.openhands.dev/pricing",
+      "kind": "pricing",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Open Source and commercial offerings; bring-your-own-model-key support.",
+      "limitations": "No enterprise numerical quote established; website tables may omit icon semantics in text extraction."
+    },
+    {
+      "id": "coder-agents",
+      "title": "Coder Agents",
+      "url": "https://coder.com/docs/ai-coder/agents",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Native control-plane agent, subagents, configurable models and separate workspace execution.",
+      "limitations": "Documented architecture, not independent security validation."
+    },
+    {
+      "id": "coder-pricing",
+      "title": "Coder plans",
+      "url": "https://coder.com/pricing",
+      "kind": "pricing",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Community free; Premium and AI Premium packaging.",
+      "limitations": "No public custom-tier numeric quote; do not infer missing feature checkmarks from text extraction."
+    },
+    {
+      "id": "coder-licensing",
+      "title": "Coder Agents licensing and usage",
+      "url": "https://coder.com/docs/ai-coder/agents/licensing-usage",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Community five-agent concurrency; AI Premium Agent Time and usage reporting.",
+      "limitations": "Capability access and legal source rights are separate questions; review exact components."
+    },
+    {
+      "id": "coder-license",
+      "title": "Coder repository license",
+      "url": "https://github.com/coder/coder/blob/main/LICENSE",
+      "kind": "license",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Top-level repository license text is GNU AGPL version 3.",
+      "limitations": "Does not establish identical licensing of every commercial feature or bundled dependency."
+    },
+    {
+      "id": "paperclip-repository",
+      "title": "Paperclip repository",
+      "url": "https://github.com/paperclipai/paperclip",
+      "kind": "repository",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Organizational agent orchestration, task checkout, budgets, approvals and routines.",
+      "limitations": "Product assertions such as complete isolation or atomic correctness were not independently tested."
+    },
+    {
+      "id": "paperclip-license",
+      "title": "Paperclip license",
+      "url": "https://github.com/paperclipai/paperclip/blob/master/LICENSE",
+      "kind": "license",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "MIT license.",
+      "limitations": "No source code was copied into this project."
+    },
+    {
+      "id": "gitlab-platform",
+      "title": "GitLab Duo Agent Platform",
+      "url": "https://docs.gitlab.com/user/duo_agent_platform/",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Agents, flows, sessions, developer issue-to-MR flow and version/availability conditions.",
+      "limitations": "Edition, version and feature conditions must be checked for a real installation."
+    },
+    {
+      "id": "gitlab-selfhosted",
+      "title": "GitLab self-hosted models",
+      "url": "https://docs.gitlab.com/administration/gitlab_duo_self_hosted/",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Private/self-hosted models with separate online and offline billing conditions.",
+      "limitations": "Self-managed GitLab does not imply all AI capabilities are included in its base license."
+    },
+    {
+      "id": "gitlab-offline",
+      "title": "GitLab offline agent deployment",
+      "url": "https://docs.gitlab.com/administration/gitlab_duo_self_hosted/offline_deployment/",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Offline setup requires imported gateway, model and executor artifacts.",
+      "limitations": "No actual offline environment qualified."
+    },
+    {
+      "id": "github-cloud-agent",
+      "title": "GitHub Copilot cloud agent",
+      "url": "https://docs.github.com/en/copilot/concepts/agents/cloud-agent/about-cloud-agent",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "GitHub repository workflow, issues/VS Code entrypoints, Actions and AI-credit usage.",
+      "limitations": "Cloud orchestration remains distinct from self-hosting an execution runner."
+    },
+    {
+      "id": "github-runners",
+      "title": "GitHub cloud agent development environment",
+      "url": "https://docs.github.com/copilot/how-tos/use-copilot-agents/coding-agent/customize-the-agent-environment",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Self-hosted runners supported with compatibility and network requirements.",
+      "limitations": "Do not claim GitHub requires GitHub-hosted compute for every cloud-agent execution."
+    },
+    {
+      "id": "factory-deployment",
+      "title": "Factory deployment patterns",
+      "url": "https://docs.factory.ai/enterprise/network-and-deployment",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Cloud, hybrid, airgapped and enterprise EU deployment patterns; gateway routing.",
+      "limitations": "Commercial deployment availability does not establish open-source rights."
+    },
+    {
+      "id": "factory-software-factory",
+      "title": "Factory Software Factory overview",
+      "url": "https://docs.factory.ai/software-factory/overview",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Delivery automation and coverage dashboard described as private preview.",
+      "limitations": "Do not promote preview features to generally available capability."
+    },
+    {
+      "id": "factory-subagents",
+      "title": "Factory custom droids",
+      "url": "https://docs.factory.ai/harness/subagents",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Subagents declare prompt, model and tooling; distinct from reusable skills.",
+      "limitations": "Runtime-specific limits apply; these are product design references."
+    },
+    {
+      "id": "devin-integrations",
+      "title": "Devin integrations",
+      "url": "https://docs.devin.ai/integrations/overview",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "SCM/ticket integrations and API session automation.",
+      "limitations": "No native ClickUp/Forgejo guarantee established by this overview."
+    },
+    {
+      "id": "devin-pricing",
+      "title": "Devin plans and pricing",
+      "url": "https://devin.ai/pricing",
+      "kind": "pricing",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Pro $20/month, Max $200/month; model choice and enterprise deployment options.",
+      "limitations": "Teams wording conflicts with self-serve billing explanation; no team total calculated."
+    },
+    {
+      "id": "devin-billing",
+      "title": "Devin self-serve billing",
+      "url": "https://docs.devin.ai/admin/billing/self-serve",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Self-serve plan mechanics, credits, review and automation billing.",
+      "limitations": "Describes $80 minimum satisfied through seats/credits, conflicting with base-plus-seat presentation on pricing page."
+    },
+    {
+      "id": "cursor-cloud",
+      "title": "Cursor cloud agents",
+      "url": "https://cursor.com/docs/cloud-agent",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Remote agents with selected-model usage billing and spending limits.",
+      "limitations": "No open-source or independently self-hosted platform claim established."
+    },
+    {
+      "id": "cursor-automations",
+      "title": "Cursor automations",
+      "url": "https://cursor.com/docs/cloud-agent/automations",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Event/schedule automation and associated cloud-agent billing.",
+      "limitations": "Exact connectors and account scope should be validated before a customer comparison."
+    },
+    {
+      "id": "cursor-announcement",
+      "title": "Cursor automations announcement",
+      "url": "https://cursor.com/blog/automations",
+      "kind": "vendor_announcement",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Public introduction of scheduled/event agent automation.",
+      "limitations": "Published 2026-03-05; current docs take precedence for behavior."
+    },
+    {
+      "id": "opencode-repository",
+      "title": "OpenCode repository",
+      "url": "https://github.com/anomalyco/opencode",
+      "kind": "repository",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "MIT coding harness with native agent concepts.",
+      "limitations": "Does not itself demonstrate the full proposed ticket-to-release control plane."
+    },
+    {
+      "id": "opencode-server",
+      "title": "OpenCode server API",
+      "url": "https://opencode.ai/docs/server/",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "HTTP session/event/control surface for clients.",
+      "limitations": "Actual adapter protocol qualification is in agent-apis.md and validation.md."
+    },
+    {
+      "id": "opencode-ide",
+      "title": "OpenCode IDE integration",
+      "url": "https://opencode.ai/docs/ide/",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Existing editor integration.",
+      "limitations": "New De Vloer extension should focus on shared remote workflow, not duplicate generic chat."
+    },
+    {
+      "id": "opencode-providers",
+      "title": "OpenCode providers",
+      "url": "https://opencode.ai/docs/providers/",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Configurable provider/gateway surface.",
+      "limitations": "Model support does not imply subscription-account authorization for a shared fleet."
+    },
+    {
+      "id": "claude-remote",
+      "title": "Claude Code Remote Control",
+      "url": "https://code.claude.com/docs/en/remote-control",
+      "kind": "documentation",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Session executes on originating machine; subscription login and endpoint restrictions.",
+      "limitations": "Remote Control differs from cloud execution. Current docs restrict gateway/proxy endpoints."
+    },
+    {
+      "id": "continue-current",
+      "title": "Continue acquisition announcement",
+      "url": "https://continue.dev/",
+      "kind": "vendor_announcement",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Continue acquired by Cursor; open source remains available.",
+      "limitations": "Older Mission Control product pages are not evidence of an active independent service."
+    },
+    {
+      "id": "continue-repository",
+      "title": "Continue repository",
+      "url": "https://github.com/continuedev/continue",
+      "kind": "repository",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Read-only, no longer actively maintained; final 2.0.0 and Apache-2.0 source.",
+      "limitations": "Historical inspiration or maintained-fork evaluation only."
+    },
+    {
+      "id": "continue-history",
+      "title": "Continue reusable agents announcement",
+      "url": "https://continue.ghost.io/what-are-continue-agents-any-workflow-your-teams-way/",
+      "kind": "vendor_announcement",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Earlier reusable workflow/agent concept across surfaces.",
+      "limitations": "Published 2025-10-29; historical design inspiration, not a present service recommendation."
+    },
+    {
+      "id": "vibe-current",
+      "title": "Vibe Kanban official site",
+      "url": "https://www.vibekanban.com/",
+      "kind": "vendor_announcement",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Sunsetting notice and community-maintained continuation.",
+      "limitations": "Do not imply ongoing commercial support based on older product material."
+    },
+    {
+      "id": "vibe-remote",
+      "title": "Vibe Kanban remote access",
+      "url": "https://www.vibekanban.com/blog/remote-access",
+      "kind": "vendor_announcement",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Remote operation of an existing execution host.",
+      "limitations": "Published 2026-02-28; current lifecycle notice takes precedence."
+    },
+    {
+      "id": "acp",
+      "title": "Agent Client Protocol introduction",
+      "url": "https://agentclientprotocol.com/get-started/introduction",
+      "kind": "specification",
+      "accessed_at": "2026-09-09",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Standardized communication between coding agents and clients/editors.",
+      "limitations": "Does not itself provide durable dispatch, tracker state, identity policy or workspace isolation."
+    }
+  ],
+  "conflicts": [
+    {
+      "id": "kandev-kubernetes-roadmap",
+      "sources": [
+        "kandev-repository",
+        "kandev-kubernetes",
+        "kandev-status"
+      ],
+      "resolution": "Dedicated current guide and feature inventory document a Kubernetes executor. README operator roadmap does not negate that implementation."
+    },
+    {
+      "id": "devin-teams-price",
+      "sources": [
+        "devin-pricing",
+        "devin-billing"
+      ],
+      "resolution": "Do not calculate Teams TCO. Obtain current checkout or written quote; public sources disagree on base-plus-seat versus minimum wording."
+    },
+    {
+      "id": "continue-stale-offering",
+      "sources": [
+        "continue-current",
+        "continue-repository",
+        "continue-history"
+      ],
+      "resolution": "Treat older Mission Control content as historical inspiration; current acquisition and read-only repository notices govern recommendation."
+    }
+  ],
+  "research_gaps": [
+    "No hands-on competitor bakeoff",
+    "No independently verified security or tenancy boundary",
+    "No paid customer interviews or measured willingness to pay",
+    "No TAM or market-share estimate",
+    "No trademark/domain clearance",
+    "No current enterprise quotes",
+    "No validation of specific ClickUp/Forgejo ingestion-writeback contracts in competitors"
+  ],
+  "refresh_triggers": [
+    "Before public comparison publication",
+    "Before committing to a major workbench or workspace-platform investment",
+    "Before selecting a customer deployment edition",
+    "After relevant agent protocol or pricing change"
+  ]
+}

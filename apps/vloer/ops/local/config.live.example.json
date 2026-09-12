@@ -1,0 +1,44 @@
+{
+  "mode": "live",
+  "runtime": {
+    "kind": "opencode",
+    "backends": [
+      "docker"
+    ],
+    "timeoutMs": 3600000,
+    "agentEnvironment": []
+  },
+  "maxConcurrentSessions": 1,
+  "maxBudgetUsd": 10,
+  "models": [
+    {
+      "id": "coding",
+      "name": "Configured coding model",
+      "providerId": "gateway",
+      "modelId": "replace-with-your-litellm-model-alias"
+    }
+  ],
+  "repositories": [
+    {
+      "id": "application",
+      "name": "Application",
+      "description": "Operator-approved repository",
+      "url": "https://forge.example/organization/application.git",
+      "baseBranch": "main",
+      "verify": [
+        "node",
+        "--test"
+      ]
+    }
+  ],
+  "litellm": {
+    "ttl": "4h",
+    "settlementDelayMs": 60000
+  },
+  "docker": {
+    "image": "harbor.webgrip.dev/webgrip/de-vloer-agent:0.3.0",
+    "cpus": 2,
+    "memoryMb": 4096,
+    "pidsLimit": 512
+  }
+}

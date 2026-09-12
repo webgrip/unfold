@@ -1,0 +1,1 @@
+export function captureUnified(base: string, sessionId: string, workItemId: string, outputDir: string, phase?: string): Promise<{ browser: string; sessionId: string; workItemId: string; paths: string[] }>;

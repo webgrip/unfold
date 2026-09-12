@@ -1,0 +1,80 @@
+{
+  "at": "2026-09-11T03:38:17.074Z",
+  "qualification": "real Git and fresh Docker containers; deterministic fixture; no model calls or external publication",
+  "image": "sha256:cb4e8f7c443347358b7875e717c29e27bf9befc8f5a26cf18af3c3dec80e58c5",
+  "approvedBaseSha": "bf29d0a144a6a7af08dbb7f6da6bf24a0dcebb9d",
+  "canonicalSha": "6b2a80000ed622e2d4f2b12e1ef0f7efc2ca4130",
+  "policySha256": "1f5cbd76d705fe6500df7a50cf1b9412978bb295c457937f0c32e1935bb403b0",
+  "beforeFix": {
+    "verifierId": "de-vloer-docker-v1",
+    "passed": false,
+    "testCount": 2,
+    "evidenceSha256": "792adb4917c1ddd9ef979611d6de98cc22098fb95a97e48cdba4ce149150d3a5",
+    "checks": [
+      {
+        "id": "multiply",
+        "passed": false,
+        "exitCode": 0,
+        "stdoutSha256": "238903180cc104ec2c5d8b3f20c5bc61b389ec0a967df8cc208cdc7cd454174f",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "reason": "assertion_failed"
+      },
+      {
+        "id": "zero",
+        "passed": false,
+        "exitCode": 0,
+        "stdoutSha256": "a1fb50e6c86fae1679ef3351296fd6713411a08cf8dd1790a4fd05fae8688164",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "reason": "assertion_failed"
+      }
+    ]
+  },
+  "afterFix": {
+    "verifierId": "de-vloer-docker-v1",
+    "passed": true,
+    "testCount": 2,
+    "evidenceSha256": "c26c8c95197f918a68b23945d47f7b576658330e38322097054c1f54830ce826",
+    "checks": [
+      {
+        "id": "multiply",
+        "passed": true,
+        "exitCode": 0,
+        "stdoutSha256": "a4b2c5db15348c29451e18b8307e5ef81625ea638e807935f39ceaa8d9ac7758",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "id": "zero",
+        "passed": true,
+        "exitCode": 0,
+        "stdoutSha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ]
+  },
+  "fakePass": {
+    "verifierId": "de-vloer-docker-v1",
+    "passed": false,
+    "testCount": 2,
+    "evidenceSha256": "3920d4c230ed31df1714df21da4fa05a93d637989c26b72729d90e2ce68caeb8",
+    "checks": [
+      {
+        "id": "multiply",
+        "passed": false,
+        "exitCode": 1,
+        "stdoutSha256": "a4b2c5db15348c29451e18b8307e5ef81625ea638e807935f39ceaa8d9ac7758",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "reason": "assertion_failed"
+      },
+      {
+        "id": "zero",
+        "passed": false,
+        "exitCode": 1,
+        "stdoutSha256": "a4b2c5db15348c29451e18b8307e5ef81625ea638e807935f39ceaa8d9ac7758",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "reason": "assertion_failed"
+      }
+    ]
+  },
+  "modelCalls": 0,
+  "spendUsd": 0
+}

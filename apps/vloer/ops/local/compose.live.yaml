@@ -1,0 +1,33 @@
+services:
+  workbench:
+    build:
+      context: ../..
+      target: app
+    environment:
+      VLOER_MODE: live
+      VLOER_HOST: 0.0.0.0
+      VLOER_DATA_DIR: ${VLOER_DATA_DIR:?Set an absolute host directory that is mounted at the same path inside the container}
+      VLOER_CONFIG: /etc/de-vloer/config.json
+      VLOER_ADMIN_NAME: ${VLOER_ADMIN_NAME:-admin}
+      VLOER_ADMIN_PASSWORD: ${VLOER_ADMIN_PASSWORD:?Set a unique administrative password}
+      LITELLM_BASE_URL: ${LITELLM_BASE_URL:?Set the LiteLLM completion base URL}
+      LITELLM_ADMIN_URL: ${LITELLM_ADMIN_URL:?Set the LiteLLM administrative base URL}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?Set the LiteLLM administrative key}
+    ports:
+      - "127.0.0.1:4080:4080"
+    volumes:
+      - ${VLOER_DATA_DIR}:${VLOER_DATA_DIR}
+      - ${VLOER_CONFIG_FILE:-./config.live.json}:/etc/de-vloer/config.json:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,size=256m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5

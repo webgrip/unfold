@@ -1,0 +1,12 @@
+# De Vloer
+
+> Human workbench for agent sessions, intervention and reviewable evidence.
+
+## Current documentation
+
+- [Start here](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/index.md): human and agent reading path.
+- [Architecture](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/architecture.md): implemented boundaries and limits.
+- [HTTP API](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/contracts/api.md): current workbench interface.
+- [Shared execution](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/contracts/ploeg-execution.md): Ploeg authority and Vloer execution.
+- [Product domain source](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/domain/model.yaml): shared product language, intentions and open choices.
+- [Decisions](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/adrs/README.md): decision status and rationale.

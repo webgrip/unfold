@@ -1,0 +1,23 @@
+{{- $cfg := deepCopy .Values.config -}}
+{{- $_ := set $cfg "mode" .Values.mode -}}
+{{- $_ := set $cfg "dataDir" "/data/workbench" -}}
+{{- $_ := set $cfg "publicDir" "/app/public" -}}
+{{- if .Values.baseUrl -}}{{- $_ := set $cfg "baseUrl" .Values.baseUrl -}}{{- end -}}
+{{- $_ := set $cfg "runtime" (dict "kind" (ternary "demo" "opencode" (eq .Values.mode "demo")) "backend" "kubernetes" "backends" (list "kubernetes") "timeoutMs" 3600000) -}}
+{{- $peer := dict "namespaceSelector" (dict "matchLabels" (dict "kubernetes.io/metadata.name" .Release.Namespace)) "podSelector" (dict "matchLabels" (dict "app.kubernetes.io/name" "de-vloer" "app.kubernetes.io/instance" .Release.Name)) -}}
+{{- $kube := dict "namespace" .Values.workspaceNamespace "image" (include "vloer.workspaceImage" .) "storageSize" .Values.workspaceStorageSize "cpu" .Values.workspaceCpu "memory" .Values.workspaceMemory "ingressFrom" (list $peer) "egress" .Values.workspaceEgress "imagePullSecrets" .Values.workspaceImagePullSecrets -}}
+{{- if .Values.workspaceStorageClass -}}{{- $_ := set $kube "storageClass" .Values.workspaceStorageClass -}}{{- end -}}
+{{- if .Values.workspaceGitSecretName -}}{{- $_ := set $kube "gitSecretName" .Values.workspaceGitSecretName -}}{{- end -}}
+{{- if .Values.workspaceAgentSecrets -}}{{- $_ := set $kube "agentSecrets" .Values.workspaceAgentSecrets -}}{{- end -}}
+{{- if .Values.workspaceUserNamespaces -}}{{- $_ := set $kube "userNamespaces" true -}}{{- end -}}
+{{- $_ := set $kube "transport" .Values.workspaceTransport -}}
+{{- if eq .Values.workspaceTransport "pull" -}}{{- $_ := set $kube "relayUrl" (default (printf "http://%s.%s.svc:%d" (include "vloer.name" .) .Release.Namespace (int .Values.service.port)) .Values.workspaceRelayUrl) -}}{{- end -}}
+{{- $_ := set $kube "provisioner" .Values.workspaceProvisioner -}}
+{{- if eq .Values.workspaceProvisioner "sandbox" -}}{{- $_ := set $kube "sandbox" (dict "runtimeClassName" .Values.workspaceRuntimeClassName "warmPool" .Values.workspaceWarmPool "poolTokenEnv" "VLOER_POOL_TOKEN") -}}{{- end -}}
+{{- $_ := set $cfg "kubernetes" $kube -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "vloer.name" . }}-config
+data:
+  config.json: {{ toJson $cfg | quote }}

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string" },
+        "digest": { "type": "string", "pattern": "^$|^sha256:[a-f0-9]{64}$" },
+        "pullPolicy": { "enum": ["Always", "IfNotPresent", "Never"] }
+      },
+      "required": ["repository", "tag", "pullPolicy"]
+    },
+    "mode": { "enum": ["demo", "live"] },
+    "workspaceNamespace": { "type": "string", "maxLength": 63, "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$" },
+    "createWorkspaceNamespace": { "type": "boolean" },
+    "workspaceImage": { "type": "string" },
+    "workspaceStorageSize": { "type": "string", "minLength": 1 },
+    "workspaceStorageClass": { "type": "string" },
+    "workspaceCpu": { "type": "string", "minLength": 1 },
+    "workspaceMemory": { "type": "string", "minLength": 1 },
+    "workspaceEgress": { "type": "array", "items": { "type": "object" } },
+    "workspaceImagePullSecrets": { "type": "array", "items": { "type": "string" } },
+    "workspaceGitSecretName": { "type": "string" },
+    "workspaceTransport": { "enum": ["publish", "pull"] },
+    "workspaceRelayUrl": { "type": "string" },
+    "workspaceProvisioner": { "enum": ["pod", "sandbox"] },
+    "workspaceRuntimeClassName": { "type": "string" },
+    "workspaceWarmPool": { "type": "string" },
+    "workspaceUserNamespaces": { "type": "boolean" },
+    "workspaceAgentSecrets": { "type": "array", "items": { "type": "string", "pattern": "^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$" } },
+    "credentialsSecret": { "type": "string", "minLength": 1 },
+    "config": { "type": "object" },
+    "ingress": {
+      "type": "object",
+      "properties": { "enabled": { "type": "boolean" }, "host": { "type": "string" }, "className": { "type": "string" }, "tlsSecret": { "type": "string" } }
+    }
+  },
+  "required": ["mode", "workspaceNamespace", "credentialsSecret"]
+}

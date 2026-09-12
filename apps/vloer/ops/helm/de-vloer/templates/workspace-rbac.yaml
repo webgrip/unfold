@@ -1,0 +1,49 @@
+{{- if and (eq .Values.mode "live") (eq .Values.workspaceNamespace .Release.Namespace) -}}
+{{- fail "Live agent workspaces require a separate namespace from the workbench administrative credentials" -}}
+{{- end -}}
+{{- if .Values.createWorkspaceNamespace }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.workspaceNamespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+{{- end }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "vloer.name" . }}-provisioner
+  namespace: {{ .Values.workspaceNamespace }}
+rules:
+  - apiGroups: [""]
+    resources: [pods, services, secrets, persistentvolumeclaims]
+    verbs: [get, create, update, delete]
+  - apiGroups: [""]
+    resources: [pods/log]
+    verbs: [get]
+  - apiGroups: [networking.k8s.io]
+    resources: [networkpolicies]
+    verbs: [get, create, update, delete]
+  - apiGroups: [agents.x-k8s.io]
+    resources: [sandboxes]
+    verbs: [get, create, update, delete]
+  - apiGroups: [extensions.agents.x-k8s.io]
+    resources: [sandboxclaims]
+    verbs: [get, create, update, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "vloer.name" . }}-provisioner
+  namespace: {{ .Values.workspaceNamespace }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "vloer.name" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "vloer.name" . }}-provisioner

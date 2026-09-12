@@ -1,0 +1,72 @@
+[
+  {
+    "file": "docs/operations/release.md",
+    "lang": "en",
+    "markdown": true,
+    "metrics": {
+      "words": 767,
+      "em_dashes_per_500_words": 0.0,
+      "spaced_en_dashes_per_500_words": 0.0,
+      "sentence_length_variation": 0.85,
+      "paragraph_length_variation": 0.69,
+      "sentences": 38,
+      "paragraphs": 18,
+      "prose_paragraphs": 12,
+      "headings": 5,
+      "bullets": 0,
+      "bold_spans": 1,
+      "sentence_length_mean": 20.2,
+      "long_sentences_per_1000_words": 24.8,
+      "em_dashes_per_1000_words": 0.0,
+      "type_token_ratio": 0.45
+    },
+    "findings": [],
+    "structure": [],
+    "compare": {
+      "before": "/tmp/ploeg-vloer-second-pass.rwW0Ip/before/de-vloer/docs/operations/release.md",
+      "after": "docs/operations/release.md",
+      "change_rate": 0.821,
+      "words_before": 1996,
+      "words_after": 626,
+      "words_dropped_rate": 0.686,
+      "numbers_injected": [
+        "64."
+      ],
+      "numbers_dropped": [
+        "0",
+        "0.2.0",
+        "0.3.0-",
+        "0.3.0-",
+        "1.",
+        "14",
+        "200.",
+        "2026",
+        "2026-09-10:",
+        "2026-09-11.",
+        "2026-09-11:",
+        "2026-12-01",
+        "2026-12-01,",
+        "256",
+        "256,",
+        "3",
+        "3",
+        "3",
+        "3",
+        "64,",
+        "99"
+      ],
+      "rhythm": {
+        "variation_before": 0.93,
+        "variation_after": 0.85,
+        "long_sentences_before": 21.4,
+        "long_sentences_after": 24.8,
+        "flattened": false
+      },
+      "verdict": "abort",
+      "reasons": [
+        "change rate 0.821 over 0.5",
+        "numbers injected: ['64.']"
+      ]
+    }
+  }
+]

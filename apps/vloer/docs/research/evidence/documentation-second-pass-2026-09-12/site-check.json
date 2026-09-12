@@ -1,0 +1,9 @@
+{
+  "checks": 18,
+  "result": "pass",
+  "searchDocuments": 32,
+  "searchEntries": 314,
+  "sourceLinks": "resolved to Forgejo",
+  "historicalPages": "retained and omitted from local search",
+  "limits": "Backstage ingestion and external crawling are not covered"
+}

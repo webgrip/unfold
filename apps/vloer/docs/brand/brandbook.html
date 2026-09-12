@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>De Vloer — brand</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="tokens.css">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100,800;110,400;110,600;110,700;110,800&family=Chivo:wght@700;800&family=Familjen+Grotesk:wght@700&family=Instrument+Sans:wght@700&family=Inter:wght@800&family=Manrope:wght@800&family=Public+Sans:wght@800&family=Space+Grotesk:wght@700&display=swap">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:var(--vloer-grond);color:var(--vloer-tekst);font-family:var(--vloer-sans);font-stretch:110%;font-size:15px;line-height:1.6}
+main{max-width:960px;margin:0 auto;padding:48px 24px 96px}
+h1{font-size:15px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--vloer-zacht);margin:0 0 32px}
+h2{font-size:28px;font-weight:800;letter-spacing:-.02em;margin:64px 0 8px}
+h3{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--vloer-zacht);margin:32px 0 12px}
+p{max-width:68ch;margin:0 0 16px}
+a{color:var(--vloer-accent)}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86em}
+.row{display:flex;align-items:flex-end;gap:28px;flex-wrap:wrap}
+.panel{border:1px solid color-mix(in srgb, var(--vloer-zacht) 34%, transparent);border-radius:14px;padding:28px;margin:20px 0}
+table{border-collapse:collapse;width:100%;margin:12px 0 4px}
+th,td{text-align:left;padding:9px 14px 9px 0;border-bottom:1px solid color-mix(in srgb, var(--vloer-zacht) 26%, transparent);vertical-align:baseline}
+th{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--vloer-zacht);font-weight:600}
+.chip{width:44px;height:44px;border-radius:9px;display:inline-block;border:1px solid color-mix(in srgb, var(--vloer-zacht) 40%, transparent)}
+.toggle{position:fixed;top:20px;right:20px;background:var(--vloer-accent);color:var(--vloer-grond);border:0;border-radius:999px;padding:9px 18px;font:inherit;font-weight:600;cursor:pointer}
+.dont{color:var(--vloer-zacht)}
+.dont b{color:var(--vloer-tekst);font-weight:600}
+.specimen{font-size:34px;line-height:1.1;letter-spacing:-.02em}
+.note{color:var(--vloer-zacht);font-size:13.5px}
+.ground{background:var(--vloer-hal);border-radius:14px;padding:28px}
+.tilebed{display:inline-flex;align-items:center;gap:18px;padding:16px 20px;border-radius:12px;background:color-mix(in srgb, var(--vloer-zacht) 28%, transparent)}
+</style>
+</head>
+<body>
+<button class="toggle" id="ground">Invert</button>
+<main>
+<h1>De Vloer — brand identity · v1 · 2026-09-11</h1>
+<div class="row"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 358.301 50.803" width="505.412" height="72" fill="none" role="img" aria-label="De Vloer">
+<g transform="translate(-10 -7)">
+<path d="M17.5 14.5L32 49.5L46.5 14.5" stroke="#3D84E8" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="10" y="42" width="44" height="8" fill="currentColor"/>
+<g transform="translate(63.71 57) scale(0.067)"><path d="M405 0L79 0L79-687L405-687Q523-687 606-649Q689-611 733-535Q777-459 777-344L777-344Q777-229 733-152.50Q689-76 606-38Q523 0 405 0L405 0ZM268-543L268-145L399-145Q443-145 477-157Q511-169 535-192Q559-215 571-249Q583-283 583-326L583-326L583-361Q583-405 571-439Q559-473 535-496Q511-519 477-531Q443-543 399-543L399-543L268-543ZM1164 12L1164 12Q1066 12 996-17.50Q926-47 888.50-108Q851-169 851-264L851-264Q851-357 888.50-418Q926-479 994-509Q1062-539 1157-539L1157-539Q1252-539 1319-510Q1386-481 1421-421Q1456-361 1456-268L1456-268L1456-230L1028-230Q1029-188 1044-159.50Q1059-131 1089-117Q1119-103 1164-103L1164-103Q1189-103 1211-108.50Q1233-114 1249-125Q1265-136 1274-152Q1283-168 1283-187L1283-187L1455-187Q1455-140 1434.50-103Q1414-66 1375.50-40.50Q1337-15 1283.50-1.50Q1230 12 1164 12ZM1029-323L1029-323L1277-323Q1277-348 1268.50-366.50Q1260-385 1245-398Q1230-411 1209-417.50Q1188-424 1162-424L1162-424Q1121-424 1093-412Q1065-400 1049.50-377.50Q1034-355 1029-323ZM2207 0L1996 0L1715-687L1921-687L2057-321Q2063-306 2071-283Q2079-260 2087.50-236Q2096-212 2102-193L2102-193L2109-193Q2115-210 2123-233Q2131-256 2139-279.50Q2147-303 2154-320L2154-320L2290-687L2488-687L2207 0ZM2723 0L2550 0L2550-687L2723-687L2723 0ZM3119 12L3119 12Q3024 12 2955-18.50Q2886-49 2848.50-110Q2811-171 2811-264L2811-264Q2811-357 2848.50-418Q2886-479 2955-509Q3024-539 3119-539L3119-539Q3214-539 3283-509Q3352-479 3389-418Q3426-357 3426-264L3426-264Q3426-171 3389-110Q3352-49 3283-18.50Q3214 12 3119 12ZM3119-110L3119-110Q3164-110 3193.50-126.50Q3223-143 3237-174Q3251-205 3251-248L3251-248L3251-279Q3251-322 3237-353.50Q3223-385 3193.50-401.50Q3164-418 3119-418L3119-418Q3073-418 3044-401.50Q3015-385 3001-353.50Q2987-322 2987-279L2987-279L2987-248Q2987-205 3001-174Q3015-143 3044-126.50Q3073-110 3119-110ZM3804 12L3804 12Q3706 12 3636-17.50Q3566-47 3528.50-108Q3491-169 3491-264L3491-264Q3491-357 3528.50-418Q3566-479 3634-509Q3702-539 3797-539L3797-539Q3892-539 3959-510Q4026-481 4061-421Q4096-361 4096-268L4096-268L4096-230L3668-230Q3669-188 3684-159.50Q3699-131 3729-117Q3759-103 3804-103L3804-103Q3829-103 3851-108.50Q3873-114 3889-125Q3905-136 3914-152Q3923-168 3923-187L3923-187L4095-187Q4095-140 4074.50-103Q4054-66 4015.50-40.50Q3977-15 3923.50-1.50Q3870 12 3804 12ZM3669-323L3669-323L3917-323Q3917-348 3908.50-366.50Q3900-385 3885-398Q3870-411 3849-417.50Q3828-424 3802-424L3802-424Q3761-424 3733-412Q3705-400 3689.50-377.50Q3674-355 3669-323ZM4357 0L4184 0L4184-527L4325-527L4337-443L4345-443Q4358-472 4378.50-494Q4399-516 4426.50-528Q4454-540 4487-540L4487-540Q4506-540 4522-536.50Q4538-533 4549-529L4549-529L4549-385L4483-385Q4450-385 4426-375Q4402-365 4386.50-347Q4371-329 4364-304Q4357-279 4357-248L4357-248L4357 0Z" fill="currentColor"/></g>
+</g>
+</svg>
+</div>
+<p style="margin-top:28px"><em>Vloer</em> is Dutch for floor, and <em>de werkvloer</em> is where the work actually
+happens. De Vloer is the shop floor of an agent estate: it does not do the work, it carries it and gives a person
+somewhere to stand while they watch. The mark draws that, and everything below is built from one measure.</p>
+<p class="note">Full written guide: <a href="https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/brand/README.md">README.md</a>. Terms for the name and mark:
+<a href="https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/brand/TRADEMARK.md">TRADEMARK.md</a>.</p>
+
+<h2>The mark</h2>
+<p>A capital V standing on a floor, with the floor drawn over its foot. The V is the work, the floor is what carries
+it, and the colour codes exactly that. The point sits below the floor's underside: set into the ground, not balanced
+on a plinth.</p>
+<div class="panel"><div class="row"><svg viewBox="-6 -8 78 78" width="420" height="420" fill="none" aria-hidden="true">
+<g stroke="var(--vloer-zacht)" stroke-width="0.4" opacity="0.5">
+<rect x="10" y="7" width="44" height="50" stroke-dasharray="2 2"/>
+<path d="M32 -6V68" stroke-dasharray="1 3"/>
+<path d="M17.5 14.5L32 49.5L46.5 14.5"/>
+<path d="M-4 29.904H54M-4 42H54M-4 57H54" stroke-dasharray="1 3"/>
+</g>
+<path d="M17.5 14.5L32 49.5L46.5 14.5" stroke="#3D84E8" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="10" y="42" width="44" height="8" fill="currentColor"/>
+<g fill="var(--vloer-zacht)" font-size="2.8" font-family="ui-monospace, monospace">
+<text x="17.5" y="-3" text-anchor="middle">17.5</text>
+<text x="46.5" y="-3" text-anchor="middle">46.5</text>
+<text x="56" y="30.904">29.9</text>
+<text x="56" y="43">42</text>
+<text x="56" y="58">57</text>
+<text x="32" y="66" text-anchor="middle">32, 49.5</text>
+</g>
+</svg>
+<div>
+<table>
+<tr><th>Stroke <span class="mono">w</span></th><td class="mono">15</td></tr>
+<tr><th>Arm ends</th><td class="mono">17.5, 14.5 · 46.5, 14.5</td></tr>
+<tr><th>Point</th><td class="mono">32, 49.5</td></tr>
+<tr><th>Arms</th><td class="mono">22.5° from vertical</td></tr>
+<tr><th>Floor</th><td class="mono">x 10, y 42, 44 × 8</td></tr>
+<tr><th>Envelope</th><td class="mono">44 × 50 on (32, 32)</td></tr>
+<tr><th>Counter closes</th><td class="mono">y 29.9</td></tr>
+</table>
+<p class="note">The floor never rises above the line where the counter closes. Drawn higher, the counter shows
+through it and the mark falls apart into two wedges above a bar.</p>
+</div></div></div>
+
+<h3>At size · 160 / 64 / 32 / 24 / 16</h3>
+<div class="row"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="160" height="160" fill="none" role="img" aria-label="De Vloer">
+<path d="M17.5 14.5L32 49.5L46.5 14.5" stroke="#3D84E8" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="10" y="42" width="44" height="8" fill="currentColor"/>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none" role="img" aria-label="De Vloer">
+<path d="M17.5 14.5L32 49.5L46.5 14.5" stroke="#3D84E8" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="10" y="42" width="44" height="8" fill="currentColor"/>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="32" height="32" fill="none" role="img" aria-label="De Vloer">
+<path d="M17.5 14.5L32 49.5L46.5 14.5" stroke="#3D84E8" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="10" y="42" width="44" height="8" fill="currentColor"/>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="24" height="24" fill="none" role="img" aria-label="De Vloer">
+<path d="M17.5 14.5L32 49.5L46.5 14.5" stroke="#3D84E8" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="10" y="42" width="44" height="8" fill="currentColor"/>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="16" height="16" fill="none" role="img" aria-label="De Vloer">
+<path d="M17.5 14.5L32 49.5L46.5 14.5" stroke="#3D84E8" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="10" y="42" width="44" height="8" fill="currentColor"/>
+</svg>
+</div>
+<h3>Favicon at 16, beside the master at 16</h3>
+<div class="row"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none" role="img" aria-label="De Vloer">
+<path d="M15.5 11.5L32 51.5L48.5 11.5" stroke="#3D84E8" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="8" y="44" width="48" height="8" fill="currentColor"/>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="32" height="32" fill="none" role="img" aria-label="De Vloer">
+<path d="M15.5 11.5L32 51.5L48.5 11.5" stroke="#3D84E8" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="8" y="44" width="48" height="8" fill="currentColor"/>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="16" height="16" fill="none" role="img" aria-label="De Vloer">
+<path d="M15.5 11.5L32 51.5L48.5 11.5" stroke="#3D84E8" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="8" y="44" width="48" height="8" fill="currentColor"/>
+</svg>
+
+<span style="width:24px"></span><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="16" height="16" fill="none" role="img" aria-label="De Vloer">
+<path d="M17.5 14.5L32 49.5L46.5 14.5" stroke="#3D84E8" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="10" y="42" width="44" height="8" fill="currentColor"/>
+</svg>
+</div>
+<p class="note">The favicon is framed fuller and stroked lighter in proportion — 27.3 % of its height against 30 %
+in the master. Heavy strokes clog small; you thin them relative to the frame rather than thickening them.</p>
+
+<h2>Colour</h2>
+<table>
+<tr><th></th><th>Name</th><th>Hex</th><th>on Krijt</th><th>on Hal</th><th>Role</th></tr>
+<tr>
+<td><span class="chip" style="background:#15191C"></span></td>
+<td><b>Vlak</b></td><td class="mono">#15191C</td>
+<td class="mono">16.15:1</td>
+<td class="mono">1.05:1</td>
+<td class="note">ink — the plane that carries</td></tr>
+<tr>
+<td><span class="chip" style="background:#3D84E8"></span></td>
+<td><b>Peil</b></td><td class="mono">#3D84E8</td>
+<td class="mono">3.39:1</td>
+<td class="mono">5.00:1</td>
+<td class="note">accent — the level a floor is checked against</td></tr>
+<tr>
+<td><span class="chip" style="background:#2A66D6"></span></td>
+<td><b>Peil Diep</b></td><td class="mono">#2A66D6</td>
+<td class="mono">4.83:1</td>
+<td class="mono">3.51:1</td>
+<td class="note">accent for small text on light</td></tr>
+<tr>
+<td><span class="chip" style="background:#F3F5F4"></span></td>
+<td><b>Krijt</b></td><td class="mono">#F3F5F4</td>
+<td class="mono">1.00:1</td>
+<td class="mono">16.94:1</td>
+<td class="note">paper</td></tr>
+<tr>
+<td><span class="chip" style="background:#0F1416"></span></td>
+<td><b>Hal</b></td><td class="mono">#0F1416</td>
+<td class="mono">16.94:1</td>
+<td class="mono">1.00:1</td>
+<td class="note">dark ground</td></tr>
+<tr>
+<td><span class="chip" style="background:#5C6A6B"></span></td>
+<td><b>Stof</b></td><td class="mono">#5C6A6B</td>
+<td class="mono">5.14:1</td>
+<td class="mono">3.29:1</td>
+<td class="note">muted text on light</td></tr>
+<tr>
+<td><span class="chip" style="background:#8B9A9A"></span></td>
+<td><b>Stof Licht</b></td><td class="mono">#8B9A9A</td>
+<td class="mono">2.67:1</td>
+<td class="mono">6.35:1</td>
+<td class="note">muted text on dark</td></tr>
+</table>
+<p>Peil clears the graphic threshold on a light ground and not the text one, so it is a mark colour there and not a
+link colour; Peil Diep takes small text on Krijt, and on Hal the two swap. <code>tokens.css</code> makes that swap
+through <code>--vloer-accent</code>.</p>
+<p class="note">Peil carries the same weight as Ploeg's Klei on both grounds — Klei measures 3.39:1 and 4.95:1,
+Peil 3.39:1 and 5.00:1. The hue is what tells the two
+products apart, not the strength.</p>
+
+<h2>Type</h2>
+<p class="specimen" style="font-weight:800;letter-spacing:-.014em">De Vloer · Archivo 800 / wdth 110</p>
+<p>The same face Ploeg uses, at the same setting. Two products in one estate, one typographic voice; what tells
+them apart is the mark and the accent, not the lettering. The weight still has to measure: the mark's stroke is
+30.0 % of its height and the wordmark sits just under at 27.5 %, because the mark is a solid object and should
+read slightly heavier than the text beside it.</p>
+<table>
+<tr><th>Candidate</th><th>Stem / cap</th><th>Set in the face</th><th></th></tr>
+<tr>
+<td>Space Grotesk 700</td><td class="mono">18.9 %</td>
+<td style="font-family:'Space Grotesk',var(--vloer-sans);font-weight:700;font-stretch:100%;font-size:22px;letter-spacing:-.014em">De Vloer</td>
+<td class="note">far too light</td></tr>
+<tr>
+<td>Manrope 800</td><td class="mono">18.9 %</td>
+<td style="font-family:'Manrope',var(--vloer-sans);font-weight:800;font-stretch:100%;font-size:22px;letter-spacing:-.014em">De Vloer</td>
+<td class="note">far too light</td></tr>
+<tr>
+<td>Instrument Sans 700</td><td class="mono">21.4 %</td>
+<td style="font-family:'Instrument Sans',var(--vloer-sans);font-weight:700;font-stretch:100%;font-size:22px;letter-spacing:-.014em">De Vloer</td>
+<td class="note"></td></tr>
+<tr>
+<td>Familjen Grotesk 700</td><td class="mono">21.5 %</td>
+<td style="font-family:'Familjen Grotesk',var(--vloer-sans);font-weight:700;font-stretch:100%;font-size:22px;letter-spacing:-.014em">De Vloer</td>
+<td class="note"></td></tr>
+<tr>
+<td>Public Sans 800</td><td class="mono">23.5 %</td>
+<td style="font-family:'Public Sans',var(--vloer-sans);font-weight:800;font-stretch:100%;font-size:22px;letter-spacing:-.014em">De Vloer</td>
+<td class="note"></td></tr>
+<tr>
+<td>Inter 800</td><td class="mono">23.6 %</td>
+<td style="font-family:'Inter',var(--vloer-sans);font-weight:800;font-stretch:100%;font-size:22px;letter-spacing:-.014em">De Vloer</td>
+<td class="note"></td></tr>
+<tr>
+<td>Chivo 700</td><td class="mono">24.3 %</td>
+<td style="font-family:'Chivo',var(--vloer-sans);font-weight:700;font-stretch:100%;font-size:22px;letter-spacing:-.014em">De Vloer</td>
+<td class="note"></td></tr>
+<tr>
+<td>Archivo 800</td><td class="mono">26.1 %</td>
+<td style="font-family:'Archivo',var(--vloer-sans);font-weight:800;font-stretch:100%;font-size:22px;letter-spacing:-.014em">De Vloer</td>
+<td class="note">the same face at its default width</td></tr>
+<tr>
+<td>Archivo 800 / wdth 110</td><td class="mono">27.5 %</td>
+<td style="font-family:'Archivo',var(--vloer-sans);font-weight:800;font-stretch:110%;font-size:22px;letter-spacing:-.014em">De Vloer</td>
+<td class="note">chosen</td></tr>
+<tr>
+<td>Chivo 800</td><td class="mono">27.6 %</td>
+<td style="font-family:'Chivo',var(--vloer-sans);font-weight:800;font-stretch:100%;font-size:22px;letter-spacing:-.014em">De Vloer</td>
+<td class="note"></td></tr>
+</table>
+<p class="note">Measured by scanning a line across the H at 15 % below its cap line, above the crossbar. The
+wdth 110 instance is cut from the variable font with <code>fontTools.varLib.instancer</code> — Google Fonts serves
+the same default-width static file whichever wdth you ask its CSS API for. A different scanline moves the absolute
+numbers; only the ordering and the gaps matter.</p>
+
+<h2>Lockups</h2>
+<div class="panel"><div class="row"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 358.301 50.803" width="421.176" height="60" fill="none" role="img" aria-label="De Vloer">
+<g transform="translate(-10 -7)">
+<path d="M17.5 14.5L32 49.5L46.5 14.5" stroke="#3D84E8" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="10" y="42" width="44" height="8" fill="currentColor"/>
+<g transform="translate(63.71 57) scale(0.067)"><path d="M405 0L79 0L79-687L405-687Q523-687 606-649Q689-611 733-535Q777-459 777-344L777-344Q777-229 733-152.50Q689-76 606-38Q523 0 405 0L405 0ZM268-543L268-145L399-145Q443-145 477-157Q511-169 535-192Q559-215 571-249Q583-283 583-326L583-326L583-361Q583-405 571-439Q559-473 535-496Q511-519 477-531Q443-543 399-543L399-543L268-543ZM1164 12L1164 12Q1066 12 996-17.50Q926-47 888.50-108Q851-169 851-264L851-264Q851-357 888.50-418Q926-479 994-509Q1062-539 1157-539L1157-539Q1252-539 1319-510Q1386-481 1421-421Q1456-361 1456-268L1456-268L1456-230L1028-230Q1029-188 1044-159.50Q1059-131 1089-117Q1119-103 1164-103L1164-103Q1189-103 1211-108.50Q1233-114 1249-125Q1265-136 1274-152Q1283-168 1283-187L1283-187L1455-187Q1455-140 1434.50-103Q1414-66 1375.50-40.50Q1337-15 1283.50-1.50Q1230 12 1164 12ZM1029-323L1029-323L1277-323Q1277-348 1268.50-366.50Q1260-385 1245-398Q1230-411 1209-417.50Q1188-424 1162-424L1162-424Q1121-424 1093-412Q1065-400 1049.50-377.50Q1034-355 1029-323ZM2207 0L1996 0L1715-687L1921-687L2057-321Q2063-306 2071-283Q2079-260 2087.50-236Q2096-212 2102-193L2102-193L2109-193Q2115-210 2123-233Q2131-256 2139-279.50Q2147-303 2154-320L2154-320L2290-687L2488-687L2207 0ZM2723 0L2550 0L2550-687L2723-687L2723 0ZM3119 12L3119 12Q3024 12 2955-18.50Q2886-49 2848.50-110Q2811-171 2811-264L2811-264Q2811-357 2848.50-418Q2886-479 2955-509Q3024-539 3119-539L3119-539Q3214-539 3283-509Q3352-479 3389-418Q3426-357 3426-264L3426-264Q3426-171 3389-110Q3352-49 3283-18.50Q3214 12 3119 12ZM3119-110L3119-110Q3164-110 3193.50-126.50Q3223-143 3237-174Q3251-205 3251-248L3251-248L3251-279Q3251-322 3237-353.50Q3223-385 3193.50-401.50Q3164-418 3119-418L3119-418Q3073-418 3044-401.50Q3015-385 3001-353.50Q2987-322 2987-279L2987-279L2987-248Q2987-205 3001-174Q3015-143 3044-126.50Q3073-110 3119-110ZM3804 12L3804 12Q3706 12 3636-17.50Q3566-47 3528.50-108Q3491-169 3491-264L3491-264Q3491-357 3528.50-418Q3566-479 3634-509Q3702-539 3797-539L3797-539Q3892-539 3959-510Q4026-481 4061-421Q4096-361 4096-268L4096-268L4096-230L3668-230Q3669-188 3684-159.50Q3699-131 3729-117Q3759-103 3804-103L3804-103Q3829-103 3851-108.50Q3873-114 3889-125Q3905-136 3914-152Q3923-168 3923-187L3923-187L4095-187Q4095-140 4074.50-103Q4054-66 4015.50-40.50Q3977-15 3923.50-1.50Q3870 12 3804 12ZM3669-323L3669-323L3917-323Q3917-348 3908.50-366.50Q3900-385 3885-398Q3870-411 3849-417.50Q3828-424 3802-424L3802-424Q3761-424 3733-412Q3705-400 3689.50-377.50Q3674-355 3669-323ZM4357 0L4184 0L4184-527L4325-527L4337-443L4345-443Q4358-472 4378.50-494Q4399-516 4426.50-528Q4454-540 4487-540L4487-540Q4506-540 4522-536.50Q4538-533 4549-529L4549-529L4549-385L4483-385Q4450-385 4426-375Q4402-365 4386.50-347Q4371-329 4364-304Q4357-279 4357-248L4357-248L4357 0Z" fill="currentColor"/></g>
+</g>
+</svg>
+</div></div>
+<div class="panel"><div class="row" style="align-items:center"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 299.301 144.303" width="269.931" height="130" fill="none" role="img" aria-label="De Vloer">
+<g transform="translate(117.651 -7)">
+<g transform="translate(32 7) scale(1.5) translate(-32 -7)">
+<path d="M17.5 14.5L32 49.5L46.5 14.5" stroke="#3D84E8" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="10" y="42" width="44" height="8" fill="currentColor"/>
+</g>
+<g transform="translate(-122.94 150.5) scale(0.067)"><path d="M405 0L79 0L79-687L405-687Q523-687 606-649Q689-611 733-535Q777-459 777-344L777-344Q777-229 733-152.50Q689-76 606-38Q523 0 405 0L405 0ZM268-543L268-145L399-145Q443-145 477-157Q511-169 535-192Q559-215 571-249Q583-283 583-326L583-326L583-361Q583-405 571-439Q559-473 535-496Q511-519 477-531Q443-543 399-543L399-543L268-543ZM1164 12L1164 12Q1066 12 996-17.50Q926-47 888.50-108Q851-169 851-264L851-264Q851-357 888.50-418Q926-479 994-509Q1062-539 1157-539L1157-539Q1252-539 1319-510Q1386-481 1421-421Q1456-361 1456-268L1456-268L1456-230L1028-230Q1029-188 1044-159.50Q1059-131 1089-117Q1119-103 1164-103L1164-103Q1189-103 1211-108.50Q1233-114 1249-125Q1265-136 1274-152Q1283-168 1283-187L1283-187L1455-187Q1455-140 1434.50-103Q1414-66 1375.50-40.50Q1337-15 1283.50-1.50Q1230 12 1164 12ZM1029-323L1029-323L1277-323Q1277-348 1268.50-366.50Q1260-385 1245-398Q1230-411 1209-417.50Q1188-424 1162-424L1162-424Q1121-424 1093-412Q1065-400 1049.50-377.50Q1034-355 1029-323ZM2207 0L1996 0L1715-687L1921-687L2057-321Q2063-306 2071-283Q2079-260 2087.50-236Q2096-212 2102-193L2102-193L2109-193Q2115-210 2123-233Q2131-256 2139-279.50Q2147-303 2154-320L2154-320L2290-687L2488-687L2207 0ZM2723 0L2550 0L2550-687L2723-687L2723 0ZM3119 12L3119 12Q3024 12 2955-18.50Q2886-49 2848.50-110Q2811-171 2811-264L2811-264Q2811-357 2848.50-418Q2886-479 2955-509Q3024-539 3119-539L3119-539Q3214-539 3283-509Q3352-479 3389-418Q3426-357 3426-264L3426-264Q3426-171 3389-110Q3352-49 3283-18.50Q3214 12 3119 12ZM3119-110L3119-110Q3164-110 3193.50-126.50Q3223-143 3237-174Q3251-205 3251-248L3251-248L3251-279Q3251-322 3237-353.50Q3223-385 3193.50-401.50Q3164-418 3119-418L3119-418Q3073-418 3044-401.50Q3015-385 3001-353.50Q2987-322 2987-279L2987-279L2987-248Q2987-205 3001-174Q3015-143 3044-126.50Q3073-110 3119-110ZM3804 12L3804 12Q3706 12 3636-17.50Q3566-47 3528.50-108Q3491-169 3491-264L3491-264Q3491-357 3528.50-418Q3566-479 3634-509Q3702-539 3797-539L3797-539Q3892-539 3959-510Q4026-481 4061-421Q4096-361 4096-268L4096-268L4096-230L3668-230Q3669-188 3684-159.50Q3699-131 3729-117Q3759-103 3804-103L3804-103Q3829-103 3851-108.50Q3873-114 3889-125Q3905-136 3914-152Q3923-168 3923-187L3923-187L4095-187Q4095-140 4074.50-103Q4054-66 4015.50-40.50Q3977-15 3923.50-1.50Q3870 12 3804 12ZM3669-323L3669-323L3917-323Q3917-348 3908.50-366.50Q3900-385 3885-398Q3870-411 3849-417.50Q3828-424 3802-424L3802-424Q3761-424 3733-412Q3705-400 3689.50-377.50Q3674-355 3669-323ZM4357 0L4184 0L4184-527L4325-527L4337-443L4345-443Q4358-472 4378.50-494Q4399-516 4426.50-528Q4454-540 4487-540L4487-540Q4506-540 4522-536.50Q4538-533 4549-529L4549-529L4549-385L4483-385Q4450-385 4426-375Q4402-365 4386.50-347Q4371-329 4364-304Q4357-279 4357-248L4357-248L4357 0Z" fill="currentColor"/></g>
+</g>
+</svg>
+
+<span class="tilebed"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="96" height="96" fill="none" role="img" aria-label="De Vloer">
+<rect width="64" height="64" rx="14" fill="#15191C"/>
+<g transform="translate(32 32) scale(0.75) translate(-32 -32)">
+<path d="M17.5 14.5L32 49.5L46.5 14.5" stroke="#3D84E8" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="10" y="42" width="44" height="8" fill="#F3F5F4"/>
+</g>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="48" height="48" fill="none" role="img" aria-label="De Vloer">
+<rect width="64" height="64" rx="14" fill="#15191C"/>
+<g transform="translate(32 32) scale(0.75) translate(-32 -32)">
+<path d="M17.5 14.5L32 49.5L46.5 14.5" stroke="#3D84E8" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="10" y="42" width="44" height="8" fill="#F3F5F4"/>
+</g>
+</svg>
+</span></div></div>
+<p>Wordmark cap height is 46 against a mark height of 50, the baseline sits on the mark's foot, and the space between
+them is one stroke width measured ink to ink. Stacked, the mark is set at 1.5× — at 1× a mark this open reads as an
+afterthought above a word this long. Keep one stroke width clear on every side of either lockup.</p>
+
+<h2>On a dark ground</h2>
+<div class="ground"><div class="row" style="align-items:center"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 358.301 50.803" width="393.098" height="56" fill="none" role="img" aria-label="De Vloer">
+<g transform="translate(-10 -7)">
+<path d="M17.5 14.5L32 49.5L46.5 14.5" stroke="#3D84E8" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="10" y="42" width="44" height="8" fill="#F3F5F4"/>
+<g transform="translate(63.71 57) scale(0.067)"><path d="M405 0L79 0L79-687L405-687Q523-687 606-649Q689-611 733-535Q777-459 777-344L777-344Q777-229 733-152.50Q689-76 606-38Q523 0 405 0L405 0ZM268-543L268-145L399-145Q443-145 477-157Q511-169 535-192Q559-215 571-249Q583-283 583-326L583-326L583-361Q583-405 571-439Q559-473 535-496Q511-519 477-531Q443-543 399-543L399-543L268-543ZM1164 12L1164 12Q1066 12 996-17.50Q926-47 888.50-108Q851-169 851-264L851-264Q851-357 888.50-418Q926-479 994-509Q1062-539 1157-539L1157-539Q1252-539 1319-510Q1386-481 1421-421Q1456-361 1456-268L1456-268L1456-230L1028-230Q1029-188 1044-159.50Q1059-131 1089-117Q1119-103 1164-103L1164-103Q1189-103 1211-108.50Q1233-114 1249-125Q1265-136 1274-152Q1283-168 1283-187L1283-187L1455-187Q1455-140 1434.50-103Q1414-66 1375.50-40.50Q1337-15 1283.50-1.50Q1230 12 1164 12ZM1029-323L1029-323L1277-323Q1277-348 1268.50-366.50Q1260-385 1245-398Q1230-411 1209-417.50Q1188-424 1162-424L1162-424Q1121-424 1093-412Q1065-400 1049.50-377.50Q1034-355 1029-323ZM2207 0L1996 0L1715-687L1921-687L2057-321Q2063-306 2071-283Q2079-260 2087.50-236Q2096-212 2102-193L2102-193L2109-193Q2115-210 2123-233Q2131-256 2139-279.50Q2147-303 2154-320L2154-320L2290-687L2488-687L2207 0ZM2723 0L2550 0L2550-687L2723-687L2723 0ZM3119 12L3119 12Q3024 12 2955-18.50Q2886-49 2848.50-110Q2811-171 2811-264L2811-264Q2811-357 2848.50-418Q2886-479 2955-509Q3024-539 3119-539L3119-539Q3214-539 3283-509Q3352-479 3389-418Q3426-357 3426-264L3426-264Q3426-171 3389-110Q3352-49 3283-18.50Q3214 12 3119 12ZM3119-110L3119-110Q3164-110 3193.50-126.50Q3223-143 3237-174Q3251-205 3251-248L3251-248L3251-279Q3251-322 3237-353.50Q3223-385 3193.50-401.50Q3164-418 3119-418L3119-418Q3073-418 3044-401.50Q3015-385 3001-353.50Q2987-322 2987-279L2987-279L2987-248Q2987-205 3001-174Q3015-143 3044-126.50Q3073-110 3119-110ZM3804 12L3804 12Q3706 12 3636-17.50Q3566-47 3528.50-108Q3491-169 3491-264L3491-264Q3491-357 3528.50-418Q3566-479 3634-509Q3702-539 3797-539L3797-539Q3892-539 3959-510Q4026-481 4061-421Q4096-361 4096-268L4096-268L4096-230L3668-230Q3669-188 3684-159.50Q3699-131 3729-117Q3759-103 3804-103L3804-103Q3829-103 3851-108.50Q3873-114 3889-125Q3905-136 3914-152Q3923-168 3923-187L3923-187L4095-187Q4095-140 4074.50-103Q4054-66 4015.50-40.50Q3977-15 3923.50-1.50Q3870 12 3804 12ZM3669-323L3669-323L3917-323Q3917-348 3908.50-366.50Q3900-385 3885-398Q3870-411 3849-417.50Q3828-424 3802-424L3802-424Q3761-424 3733-412Q3705-400 3689.50-377.50Q3674-355 3669-323ZM4357 0L4184 0L4184-527L4325-527L4337-443L4345-443Q4358-472 4378.50-494Q4399-516 4426.50-528Q4454-540 4487-540L4487-540Q4506-540 4522-536.50Q4538-533 4549-529L4549-529L4549-385L4483-385Q4450-385 4426-375Q4402-365 4386.50-347Q4371-329 4364-304Q4357-279 4357-248L4357-248L4357 0Z" fill="#F3F5F4"/></g>
+</g>
+</svg>
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="72" height="72" fill="none" role="img" aria-label="De Vloer">
+<path d="M17.5 14.5L32 49.5L46.5 14.5" stroke="#3D84E8" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="10" y="42" width="44" height="8" fill="#F3F5F4"/>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="48" height="48" fill="none" role="img" aria-label="De Vloer">
+<path d="M15.5 11.5L32 51.5L48.5 11.5" stroke="#3D84E8" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="8" y="44" width="48" height="8" fill="#F3F5F4"/>
+</svg>
+</div></div>
+<p class="note">The ink mark never goes on Hal: Vlak against Hal is 1.05:1 and the
+floor disappears, leaving a floating V. Use <code>mark-reverse.svg</code> or
+<code>mark-currentcolor.svg</code>.</p>
+
+<h2>What not to do</h2>
+<div class="panel">
+<p class="dont"><b>Do not</b> swap the two colours. The floor is ink because it carries; the V is Peil because it is
+what stands on it.</p>
+<p class="dont"><b>Do not</b> move the floor up into the counter, change the stroke width, the 22.5° arms or the
+envelope. Scale the file.</p>
+<p class="dont"><b>Do not</b> set Peil as small text on a light ground, or re-set the wordmark in a live font.</p>
+<p class="dont"><b>Do not</b> rotate the mark. A floor is level; that is the only thing the word means.</p>
+<p class="dont"><b>Do not</b> edit files in this directory. They are written by
+<code>scripts/build-brand.mjs</code>, and <code>npm run brand:check</code> fails when a committed file no longer
+matches the construction.</p>
+</div>
+</main>
+<script>
+document.getElementById('ground').addEventListener('click', () => {
+  const root = document.documentElement;
+  const dark = getComputedStyle(root).getPropertyValue('--vloer-grond').trim() === getComputedStyle(root).getPropertyValue('--vloer-hal').trim();
+  root.setAttribute('data-theme', dark ? 'light' : 'dark');
+});
+</script>
+</body>
+</html>

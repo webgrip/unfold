@@ -1,0 +1,52 @@
+image:
+  repository: harbor.webgrip.dev/webgrip/de-vloer
+  tag: ""
+  digest: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+service:
+  port: 4080
+storage:
+  size: 4Gi
+  className: ""
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+mode: demo
+baseUrl: ""
+credentialsSecret: de-vloer-credentials
+workspaceNamespace: de-vloer-workspaces
+createWorkspaceNamespace: true
+workspaceImage: ""
+workspaceStorageSize: 8Gi
+workspaceStorageClass: ""
+workspaceCpu: "1"
+workspaceMemory: 2Gi
+workspaceImagePullSecrets: []
+workspaceGitSecretName: ""
+workspaceAgentSecrets: []
+workspaceUserNamespaces: false
+workspaceTransport: pull
+workspaceRelayUrl: ""
+workspaceProvisioner: pod
+workspaceRuntimeClassName: kata
+workspaceWarmPool: ""
+workspaceEgress: []
+config:
+  maxConcurrentSessions: 2
+  maxBudgetUsd: 10
+  models: []
+  repositories: []
+  taskSources: []
+  litellm:
+    ttl: 4h
+    settlementDelayMs: 60000
+ingress:
+  enabled: false
+  className: ""
+  host: ""
+  tlsSecret: ""

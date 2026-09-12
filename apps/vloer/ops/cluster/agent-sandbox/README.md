@@ -1,0 +1,7 @@
+# Warm Kata sandboxes for De Vloer
+
+These manifests describe the cluster side of the `sandbox` provisioner: a `SandboxTemplate` that runs the agent image under the `kata` RuntimeClass in warm-pool bootstrap mode, a `SandboxWarmPool` that keeps a few of them ready, the pool token both sides share, and the network policy that lets a warm pod reach the workbench and nothing else until it is assigned.
+
+They are an example overlay for [homelab-cluster](https://forgejo.webgrip.dev/webgrip/homelab-cluster), not something the chart applies: the [agent-sandbox controller](https://github.com/kubernetes-sigs/agent-sandbox/releases/tag/v1.0.1) must be installed first (`sandbox-with-extensions.yaml`), the workspace namespace must exist, and the pool token must come from OpenBao through an External Secret into both the workbench Deployment (`VLOER_POOL_TOKEN`) and the template's Secret. Nothing here is qualified against the homelab cluster yet; the Talos Kata extension is 3.32 (Go runtime, Cloud Hypervisor handler `kata`, QEMU handler `kata-qemu`), which the template uses unchanged.
+
+Flow: the workbench creates a `SandboxClaim` per session, reads the bound pod name, and hands that pod its session environment, repository and relay token over the pull channel. The pod clones, starts OpenCode on loopback and relays; no per-session Secret, Service or ingress rule exists in the cluster, and the session's LiteLLM key never lands in a Kubernetes object.

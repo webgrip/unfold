@@ -1,0 +1,6 @@
+{
+  "name": "de-vloer-order-service-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test test/order.test.js" }
+}
