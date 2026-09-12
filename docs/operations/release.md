@@ -35,7 +35,7 @@ The publish job runs four steps in order. It packages the VSIX; it runs [extensi
 | Registry | Gets | Credential |
 | --- | --- | --- |
 | [Open VSX](https://open-vsx.org/) | every release, prereleases with `--pre-release` | `OVSX_PAT` |
-| [Visual Studio Marketplace](https://marketplace.visualstudio.com/) | stable `X.Y.Z` only | `VSCE_PAT`, or a federated Entra identity |
+| [Visual Studio Marketplace](https://marketplace.visualstudio.com/) | deferred; stable `X.Y.Z` only when picked up | `VSCE_PAT`, or a federated Entra identity |
 | Forgejo release asset | every release, with a SHA-256 checksum | `WEBGRIP_CI_TOKEN` |
 
 The split is not a preference. The Marketplace version string must be one to four integers separated by periods, so `0.3.0-rc.14` is rejected outright and no flag changes that; `--pre-release` marks a plain `X.Y.Z` as a pre-release channel but does not make a `-rc` suffix acceptable. Open VSX takes the full semver. The job therefore skips the Marketplace for any version containing a hyphen and says so in a notice, warns when a stable version finds no Marketplace credential, and never rewrites a version to force one through.
@@ -44,18 +44,13 @@ Both publishers run from the lockfile: `@vscode/vsce` and `ovsx` are pinned devD
 
 Open VSX is the default registry for the VS Code forks: VSCodium, Cursor, Windsurf, code-server, Gitpod, Theia, Kiro and Antigravity. Cursor puts its own malware and supply-chain scan in front of it. Only plain VS Code is Marketplace-or-VSIX, so Open VSX is the registry that reaches most of the ecosystem and it is the one to get right first.
 
-### The Marketplace credential, and its deadline
+### The Marketplace is deferred
 
-Azure DevOps retires global personal access tokens on **2026-12-01**. `VSCE_PAT` works until then and stops working after, so the Marketplace step is written to prefer a federated identity whenever `MARKETPLACE_AZURE_CLIENT_ID` and `MARKETPLACE_AZURE_TENANT_ID` are set, and to fall back to `VSCE_PAT`. Migrating is a secrets change, not a workflow change.
+Publishing to the Visual Studio Marketplace needs a personal access token, a token needs an Azure DevOps organisation, and since 2026 a new organisation must be [linked to an active Azure subscription](https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/create-organization?view=azure-devops). Azure DevOps also retires global PATs on 2026-12-01, and the successor — Entra ID workload identity federation — needs that same subscription plus a user-assigned managed identity, a federated credential trusting `https://forgejo.webgrip.dev`, and an undocumented API call to learn the id the Marketplace recognises. An App Registration is not a substitute: it authenticates and then fails at publish with `InvalidAccessException`.
 
-The replacement is Entra ID workload identity federation, and it is more involved than it sounds:
+De Vloer ships to Open VSX only until that trade is worth making ([ADR 0021](../adrs/0021-the-extension-ships-through-open-vsx-first.md)). The publisher name `WebGrip` is reserved, so picking it up later costs nothing but the setup. The release job keeps its Marketplace step: it records a notice and stays inert until `VSCE_PAT`, or `MARKETPLACE_AZURE_CLIENT_ID` with `MARKETPLACE_AZURE_TENANT_ID`, appears on the repository. Enabling it is a secrets change, not a workflow change.
 
-- It needs an Azure subscription. The free tier is enough, but a user-assigned managed identity is a real Azure resource and has to live somewhere.
-- It must be a **user-assigned managed identity**. An App Registration authenticates fine and then fails at publish with `InvalidAccessException`.
-- The identity needs a federated credential trusting `https://forgejo.webgrip.dev` as the issuer, with the subject Forgejo Actions presents for this repository.
-- The Marketplace recognises the identity by an id that only an undocumented Azure DevOps API call returns; the publisher then grants that id Contributor access.
-
-Budget an afternoon, and do it before November so a failed migration does not land on top of a release.
+Plain VS Code is the one editor Open VSX does not reach. Its users install the VSIX from the Forgejo release, verify it against the attached `.sha256`, and do not get auto-updates.
 
 ## Secrets and identities
 
@@ -67,8 +62,8 @@ Bridge-level Forgejo Actions secrets, provisioned from OpenBao by the estate's r
 | `TECHDOCS_S3_ACCESS_KEY_ID`, `TECHDOCS_S3_SECRET_ACCESS_KEY` | repository | Docs site deploy |
 | `GHCR_USERNAME`, `GHCR_TOKEN` | repository | GitHub mirror, release and GHCR copy |
 | `OVSX_PAT` | repository | Open VSX namespace `webgrip` |
-| `VSCE_PAT` | repository, optional | Visual Studio Marketplace publisher `webgrip`, until 2026-12-01 |
-| `MARKETPLACE_AZURE_CLIENT_ID`, `MARKETPLACE_AZURE_TENANT_ID` | repository, optional | Federated Marketplace identity; neither is a secret value, and setting both takes precedence over `VSCE_PAT` |
+| `VSCE_PAT` | not provisioned | Visual Studio Marketplace; deferred, and unmintable after 2026-12-01 |
+| `MARKETPLACE_AZURE_CLIENT_ID`, `MARKETPLACE_AZURE_TENANT_ID` | not provisioned | Federated Marketplace identity; neither is a secret value, and setting both takes precedence over `VSCE_PAT` |
 
 Signing uses no secret: the job's OIDC token is exchanged at OpenBao for a short-lived Transit signing lease, which requires `webgrip/de-vloer` in the `cosign-signer` role's bound repositories in homelab-cluster.
 
@@ -76,17 +71,15 @@ Signing uses no secret: the job's OIDC token is exchanged at OpenBao for a short
 
 Done on 2026-09-10: `webgrip/de-vloer` is in the OpenBao `cosign-signer` role ([homelab-cluster 0ae3e99a](https://forgejo.webgrip.dev/webgrip/homelab-cluster/commit/0ae3e99a)); the OpenBao config CronJob applies it within minutes. `WEBGRIP_CI_TOKEN`, `HARBOR_ROBOT_*`, `GHCR_*`, `GH_RELEASE_TOKEN` and `TECHDOCS_S3_*` are organization-wide secrets and need no repository entry. The first push of `development` with this pipeline is the qualification run; its outcome belongs in [validation](../validation.md).
 
-Deferred, because each needs an account only a person can create: the `webgrip` namespace and `OVSX_PAT` on Open VSX, and `VSCE_PAT` for the Marketplace. Claimed on 2026-09-11: the Open VSX namespace `webgrip`, with a token verified against it. The Marketplace publisher exists as well, with the canonical id `WebGrip` — the Marketplace resolves extension identifiers case-insensitively, so the lowercase `publisher` field in the manifest matches it, and `vsce verify-pat webgrip` is the check that proves it before a release depends on it. Outstanding: the Azure DevOps token itself, and seeding both values into OpenBao. Until then the publish job warns and the VSIX remains a Forgejo release asset.
+Deferred, because each needs an account only a person can create: the `webgrip` namespace and `OVSX_PAT` on Open VSX, and `VSCE_PAT` for the Marketplace. Claimed on 2026-09-11: the Open VSX namespace `webgrip`, with a token verified against it. The Marketplace publisher exists as well, with the canonical id `WebGrip` — the Marketplace resolves extension identifiers case-insensitively, so the lowercase `publisher` field in the manifest matches it, and `vsce verify-pat webgrip` is the check that proves it before a release depends on it. Outstanding: seeding `OVSX_PAT` into OpenBao. The Marketplace is deferred rather than pending. Until then the publish job warns and the VSIX remains a Forgejo release asset.
 
 ### Claiming the publishers
 
-Do Open VSX first; it reaches more of the ecosystem, needs no Microsoft account and is reversible.
+**Open VSX, done on 2026-09-11.** Sign in at [open-vsx.org](https://open-vsx.org/) with a GitHub account, link an Eclipse account and sign the publisher agreement — publishing fails until it is signed — then generate an access token under avatar → Settings → Access Tokens. Claim the namespace with `npx ovsx create-namespace webgrip -p "$TOKEN"`, which is itself the token's first real test, and confirm with `npx ovsx verify-pat webgrip -p "$TOKEN"`. A namespace claimed by a personal account can be transferred to an organisation later.
 
-**Open VSX.** Sign in at [open-vsx.org](https://open-vsx.org/) with a GitHub account, sign the Eclipse Foundation publisher agreement under your Eclipse account, then create an access token from the profile page. Claim the namespace once with `npx ovsx create-namespace webgrip -p "$TOKEN"`; the token becomes `OVSX_PAT`. A namespace claimed by a personal account can be transferred to an organisation later, so this does not have to be right the first time.
+**Visual Studio Marketplace, when it is picked up.** The publisher exists under the canonical id `WebGrip`, created at [marketplace.visualstudio.com/manage](https://marketplace.visualstudio.com/manage) — which has no token UI of its own. A token comes from Azure DevOps: sign in to [dev.azure.com](https://dev.azure.com/) with the same Microsoft account, create an organisation (this is the step that now demands an Azure subscription), then User settings → **Personal access tokens** → **+ New Token**, organisation **All accessible organizations**, scopes **Custom defined** → **Show all scopes** → **Marketplace → Manage**. The Marketplace scope is not in the short list; the *Show all scopes* link at the foot of the panel is the step people miss. Verify with `npx vsce verify-pat webgrip` before seeding it anywhere. A published-then-removed extension name is permanent, so `webgrip.de-vloer` is a one-way door.
 
-**Visual Studio Marketplace.** Sign in to [dev.azure.com](https://dev.azure.com/) with a Microsoft account and create an organisation; it is free and asks for no card. Create the publisher `webgrip` at [marketplace.visualstudio.com/manage](https://marketplace.visualstudio.com/manage), matching the `publisher` field in the extension manifest. Then create a personal access token with organisation **All accessible organizations** and the single scope **Marketplace → Manage**; that token is `VSCE_PAT`. Both the publisher id and a removed extension name are permanent, so `webgrip.de-vloer` is a one-way door.
-
-Put each token in OpenBao; the bridge that carries it to Forgejo is already written. `OVSX_PAT` lives at `secret/openvsx/de-vloer` and `VSCE_PAT` at `secret/vsmarketplace/de-vloer`, each read by an ExternalSecret in [forgejo-actions-secrets](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/forgejo/forgejo-actions-secrets/app) and published as a repo-scoped Actions secret on the hourly tick. Both are validated against their provider on every tick, so a revoked token fails that job and alerts rather than surfacing at the next release. Neither token is ever typed into a file in this repository.
+Put the token in OpenBao with `just openvsx-cred` in homelab-cluster, which prompts for it rather than taking it on a command line and refuses a token Open VSX rejects; the bridge that carries it to Forgejo is already written. `OVSX_PAT` lives at `secret/openvsx/de-vloer`, read by the `forgejo-openvsx-publish` ExternalSecret in [forgejo-actions-secrets](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/forgejo/forgejo-actions-secrets/app) and published as a repo-scoped Actions secret on the hourly tick. It is validated against Open VSX on every tick, so a revoked token fails that job and alerts rather than surfacing at the next release. The token is never typed into a file in this repository.
 
 **Verified publisher.** The blue check needs an extension published for six months and a domain registered for six, so it cannot be applied for at the first release. `webgrip.nl` qualifies when the time comes: it is an apex domain, serves HTTPS and answers a HEAD request with 200. Verification is a TXT record plus about five business days of review.
 

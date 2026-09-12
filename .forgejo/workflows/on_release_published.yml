@@ -246,7 +246,7 @@ jobs:
           elif [ -n "${VSCE_PAT:-}" ]; then
             npx --no-install vsce publish --packagePath "de-vloer-${VERSION}.vsix" --skip-duplicate
           else
-            echo "::warning::${VERSION} is a stable release and no Marketplace credential is configured; it did not reach the Visual Studio Marketplace."
+            echo "::notice::No Marketplace credential is configured. ${VERSION} ships to Open VSX only, by decision; see docs/adrs/0021-the-extension-ships-through-open-vsx-first.md."
           fi
 
   release-distribute-forgejo:

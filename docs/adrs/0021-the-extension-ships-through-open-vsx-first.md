@@ -26,12 +26,18 @@ does nothing for a `-rc` suffix. Since `development` cuts every `-rc.N` and only
 stable version, a single publish step aimed at both registries would fail on every release
 candidate.
 
-Its credential is on a clock as well. Azure DevOps retires global personal access tokens on
-2026-12-01. The replacement is Entra ID workload identity federation, which wants an Azure
-subscription, a user-assigned managed identity rather than an App Registration, a federated
-credential trusting the Forgejo issuer, and an undocumented API call to learn the id the
-Marketplace will recognise. None of that exists in this estate today, and waiting for it would
-hold up distribution for the sake of a credential that still has eleven weeks of life in it.
+Its credential costs more than it first appears. Publishing needs a personal access token, a
+token needs an Azure DevOps organisation, and since 2026 a new organisation must be linked to an
+active Azure subscription — so the Marketplace asks for a billing relationship before it will
+carry a free extension. That token is then retired on 2026-12-01 anyway. Its replacement, Entra
+ID workload identity federation, wants the same subscription plus a user-assigned managed
+identity (an App Registration authenticates and then fails at publish with
+`InvalidAccessException`), a federated credential trusting the Forgejo issuer, and an
+undocumented API call to learn the id the Marketplace will recognise.
+
+The PAT was worth doing while it looked like the cheap path. Once both routes require the same
+Azure subscription and one of them expires in eleven weeks, doing the expiring one first buys
+nothing.
 
 One detail makes the whole thing worth deciding carefully rather than trying: a Marketplace
 publisher id is permanent, and so is an extension name once it has been published and removed.
@@ -39,8 +45,10 @@ publisher id is permanent, and so is an extension name once it has been publishe
 
 ## Decision
 
-Every release goes to Open VSX, prereleases marked with `--pre-release`. Only a stable `X.Y.Z`
-goes to the Marketplace. Every release, stable or not, still attaches its VSIX and a SHA-256
+Every release goes to Open VSX, prereleases marked with `--pre-release`. The Visual Studio
+Marketplace is deferred: the publisher name `WebGrip` is reserved so nothing is lost by waiting,
+and the release job keeps a Marketplace step that stays inert until a credential appears. When
+one does, only a stable `X.Y.Z` goes there. Every release, stable or not, still attaches its VSIX and a SHA-256
 checksum to the Forgejo release, so a team that prefers to install nothing from a registry keeps
 a verifiable path. A version is never rewritten to force it past a registry's rules; the job
 skips the Marketplace, says why in a notice, and warns when a stable release finds no credential
@@ -72,9 +80,15 @@ eventually read that as the extension being stale. The listing is marked `previe
 product is pre-1.0, which is the honest signal, and the Forgejo release page remains the place
 where every build is visible.
 
-Claiming the two publishers is still a person's job and is not done. Until then the job warns
-and the release asset is the only distribution path — the same position as before this decision,
-now with a warning loud enough to notice.
+Plain VS Code is the one editor this does not reach, and its users sideload the VSIX from the
+Forgejo release or install a fork. That is the price of not opening an Azure billing account for
+a pre-1.0 extension, and it is reversible on an afternoon's notice.
+
+The Open VSX namespace `webgrip` was claimed on 2026-09-11 and its token verified against it. The
+Marketplace publisher exists under the canonical id `WebGrip`; extension identifiers resolve
+case-insensitively, so the lowercase `publisher` field in the manifest will match it whenever the
+Marketplace is picked up, and `vsce verify-pat webgrip` is the check that proves it before a
+release depends on it.
 
 The verified-publisher check is not available at the first release: it wants an extension
 published for six months and a domain registered for six. `webgrip.nl` qualifies on the domain
@@ -82,6 +96,7 @@ side already.
 
 ## Reconsider when
 
-The PAT stops working and federation is not in place, a registry changes its version rules, the
-extension leaves preview and the `preview` flag should come off, or De Vloer acquires a second
-publishable extension and the publisher identity deserves to be shared deliberately.
+A plain-VS-Code user asks for it and the Azure subscription becomes worth opening, a registry
+changes its version rules, the extension leaves preview and the `preview` flag should come off,
+or De Vloer acquires a second publishable extension and the publisher identity deserves to be
+shared deliberately.
