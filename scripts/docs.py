@@ -1,0 +1,101 @@
+import argparse
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
+
+import yaml
+
+root = Path(__file__).resolve().parent.parent
+parser = argparse.ArgumentParser()
+parser.add_argument('--check', action='store_true')
+args = parser.parse_args()
+staging = root / '.build/docs'
+site = root / '.build/site'
+source_url = 'https://forgejo.webgrip.dev/webgrip/glide/src/branch/development/'
+
+if args.check:
+    for name, expected in json.loads((root / 'docs/landscape/generated-sources.json').read_text()).items():
+        assert hashlib.sha256((root / name).read_bytes()).hexdigest() == expected, f'Stale landscape: {name}; rebuild with node apps/vloer/scripts/build-landscape.mjs'
+    for folder in [root / 'docs/domain', root / 'apps/ploeg/docs/domain']:
+        with tempfile.TemporaryDirectory(prefix='glide-domain-') as temporary:
+            subprocess.run([sys.executable, str(root / 'scripts/generate-domain.py'), str(folder / 'model.yaml'), '--out', temporary], check=True, stdout=subprocess.DEVNULL)
+            for generated in Path(temporary).glob('*.md'):
+                assert generated.read_bytes() == (folder / generated.name).read_bytes(), f'Stale generated domain view: {folder / generated.name}'
+    subprocess.run([sys.executable, str(root / 'scripts/validate_adr_consistency.py'), str(root)], check=True)
+
+if staging.exists():
+    shutil.rmtree(staging)
+staging.mkdir(parents=True)
+roots = [(root / 'docs', ''), (root / 'apps/vloer/docs', 'vloer'), (root / 'apps/ploeg/docs', 'ploeg')]
+mapping = {}
+for directory, prefix in roots:
+    for path in directory.rglob('*'):
+        if path.is_file() and '__pycache__' not in path.parts and not path.name.endswith('.template.html') and path.name != 'adr-0000-template.md':
+            mapping[path] = Path(prefix) / path.relative_to(directory)
+
+aliases = {root / entry['from']: root / entry['to'] for entry in json.loads((root / 'docs/research/2026-09-12-glide-document-paths.json').read_text())['moves']}
+failures = []
+checked = 0
+
+
+def target_url(target, source):
+    global checked
+    parts = urlsplit(target)
+    destination = None
+    for slug, app in [('de-vloer', 'vloer'), ('ploeg', 'ploeg')]:
+        old = f'https://forgejo.webgrip.dev/webgrip/{slug}/src/branch/development/'
+        if target.startswith(old):
+            destination = root / 'apps' / app / unquote(urlsplit(target[len(old):]).path)
+    if destination is None:
+        if parts.scheme or parts.netloc or not parts.path or parts.path.startswith('/'):
+            return target
+        destination = source.parent / unquote(parts.path)
+    destination = destination.resolve()
+    destination = aliases.get(destination, destination)
+    if not destination.is_relative_to(root):
+        return target
+    checked += 1
+    if not destination.exists():
+        failures.append(f'{source.relative_to(root)}: {target}')
+        return target
+    if destination.is_dir():
+        for index in ['index.md', 'README.md', 'index.html']:
+            if (destination / index).exists():
+                destination /= index
+                break
+    if destination in mapping:
+        result = os.path.relpath(mapping[destination], mapping[source].parent)
+        return urlunsplit(('', '', quote(result), parts.query, re.sub('-+', '-', parts.fragment)))
+    return source_url + quote(destination.relative_to(root).as_posix()) + (f'#{parts.fragment}' if parts.fragment else '')
+
+
+def rewrite(markdown, source):
+    chunks = re.split(r'(^[ \t]*`{3,}[^\n]*\n.*?^[ \t]*`{3,}[^\n]*$|^[ \t]*~{3,}[^\n]*\n.*?^[ \t]*~{3,}[^\n]*$|`+[^`\n]*`+)', markdown, flags=re.M | re.S)
+    for index in range(0, len(chunks), 2):
+        chunks[index] = re.sub(r'(\]\(<?)([^\s)>]+)(>?(?:\s+["\'][^\n]*?["\'])?\))', lambda m: m[1] + target_url(m[2], source) + m[3], chunks[index])
+        chunks[index] = re.sub(r'(^[ \t]*\[[^\]]+\]:[ \t]*<?)([^\s>]+)', lambda m: m[1] + target_url(m[2], source), chunks[index], flags=re.M)
+    return ''.join(chunks)
+
+
+for source, relative in mapping.items():
+    output = staging / relative
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if source.suffix == '.md':
+        output.write_text(rewrite(source.read_text(), source))
+    else:
+        shutil.copyfile(source, output)
+if failures:
+    raise SystemExit('Missing documentation targets:\n' + '\n'.join(sorted(set(failures))))
+subprocess.run([sys.executable, '-m', 'mkdocs', 'build', '--strict', '--config-file', str(root / 'mkdocs.yml')], cwd=root, check=True)
+index_path = site / 'search/search_index.json'
+index = json.loads(index_path.read_text())
+index['docs'] = [entry for entry in index['docs'] if not any(part in entry['location'].split('/') for part in ['research', 'adrs', 'adr', 'design']) and not entry['location'].startswith(('migration-proposal/', 'vloer/PRODUCT-DESIGN/', 'vloer/contracts/implementation/'))]
+index_path.write_text(json.dumps(index, ensure_ascii=False))
+print(f'Glide docs: {len(mapping)} sources, {checked} repository links, strict build; {len(index["docs"])} current search entries')

@@ -2,6 +2,8 @@
 
 Forgejo coordinates one version for the workbench image, workspace image, Helm chart and editor extension. Source checks run before a release tag is created; publication jobs consume that tag. A tag or green source job alone does not prove that every artifact was published.
 
+In Glide, tags use `vloer-v<version>`. Publication remains disabled until the [distribution cutover](../../../../docs/migration.md#distribution-cutover-remains-separate) is qualified. The existing repository remains the remote release authority during that transition.
+
 ## Follow the release
 
 | Stage | Source | Expected result |
@@ -9,17 +11,17 @@ Forgejo coordinates one version for the workbench image, workspace image, Helm c
 | Validate | [Source workflow](../../.forgejo/workflows/on_source_change.yml), [pull-request workflow](../../.forgejo/workflows/on_pull_request.yml) | Application, extension, generated-document and chart checks; cache-only image builds |
 | Version | [Release configuration](../../.releaserc.cjs), [prepare script](../../scripts/release-prepare.mjs) | Updated manifests and changelogs, version tag and Forgejo release |
 | Publish | [Publication workflow](../../.forgejo/workflows/on_release_published.yml) | Chart, both images, signatures and attestations, VSIX and checksum; configured registry copies |
-| Publish documentation | [TechDocs workflow](../../.forgejo/workflows/on_docs_change.yml) | Site built from [MkDocs configuration](../../mkdocs.yml); deployment from `development` |
+| Build documentation | [Root checks](../../../../.forgejo/workflows/checks.yml) | Combined site built from [Glide MkDocs](../../../../mkdocs.yml); remote documentation deployment is a cutover step |
 
-The source workflow covers `development` and `main`. The shared semantic-release configuration determines release eligibility from conventional commits. The prepare script synchronizes chart and package versions; do not hand-bump them to repair a failed publication.
+Glide checks pushes to `development` and pull requests. The shared semantic-release configuration determines release eligibility from conventional commits. The prepare script synchronizes chart and package versions; do not hand-bump them to repair a failed publication.
 
-Inspect the matching run in [Forgejo Actions](https://forgejo.webgrip.dev/webgrip/de-vloer/actions) and its [release assets](https://forgejo.webgrip.dev/webgrip/de-vloer/releases). Record missing artifacts and the failing job. The publication workflow supports a manual dispatch with the existing tag; examine which stages completed before rerunning it. Several stages skip an existing artifact, so a retry is not a blanket rebuild or replacement.
+Inspect the matching run in [Forgejo Actions](https://forgejo.webgrip.dev/webgrip/de-vloer/actions) and its [release assets](https://forgejo.webgrip.dev/webgrip/de-vloer/releases). Record missing artifacts and the failing job. The publication workflow supports a manual dispatch with the existing tag selected as both the workflow ref and tag input; examine which stages completed before rerunning it. Several stages skip an existing artifact, so a retry is not a blanket rebuild or replacement.
 
 ## Images and chart
 
 The publication workflow builds the [workbench image](../../Dockerfile) and [workspace image](../../ops/agent/Dockerfile) for AMD64 and ARM64. The [CVE gate](../../.forgejo/actions/cve-gate/action.yml) evaluates the published digest against [configured budgets](../../ops/security/cve-budgets.yaml) and [reviewed VEX statements](../../ops/vex/statements/). Signing and attestation follow that gate. Verify the digest, signer and attached evidence when qualifying a release; an old vulnerability scan is not a permanent assertion about an image.
 
-The [chart](../../ops/helm/de-vloer/) defaults image versions from its `appVersion`. Explicit image overrides can create version skew and need their own qualification. Registry destinations and mirror enablement belong to the publication workflow; consult it rather than a copied deployment inventory. It currently enables the GitHub distribution job and separately copies the workspace image to GHCR. Successful publication and public pull access must be checked from the actual run and destination.
+The [chart](../../ops/helm/de-vloer/) defaults image versions from its `appVersion`. Explicit image overrides can create version skew and need their own qualification. Registry destinations and mirror enablement belong to the publication workflow; consult it rather than a copied deployment inventory. Its prepared GitHub distribution jobs and workspace-image copy remain behind the Glide publication gate. Successful publication and public pull access must be checked from the actual run and destination.
 
 Deploy through the target environment's desired-state repository. [Live operation](live.md) covers workspace and runtime configuration. Publishing an image or chart does not deploy the workbench.
 

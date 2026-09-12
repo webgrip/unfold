@@ -48,3 +48,5 @@ ok github.com/webgrip/ploeg/internal/ledger 0.462s
 ## Notes
 
 0029 remains proposed. The owner's explicit instruction authorizes the local repository assembly and root decision; it does not imply production cutover.
+
+Local migration gates and [evidence](../../../../../docs/research/evidence/glide-2026-09-12/verification.json) passed. No published wire type, queue predicate or database migration changed. The owner requested a direct migration, so this record replaces a PR validation body.

@@ -8,7 +8,7 @@ Start with [the documentation index](index.md), [architecture](architecture.md) 
 
 ## Design and research baseline
 
-The design chapters began on 9 September 2026. They mix product proposals, commercial hypotheses and gaps found in the original implementation. Later implementation notes do not revalidate every earlier claim. Check current contracts and source before treating a gap as still open. Universal Ploeg authority and a common local or remote runner remain [open choices](landscape/questions.md).
+The design chapters began on 9 September 2026. They mix product proposals, commercial hypotheses and gaps found in the original implementation. Later implementation notes do not revalidate every earlier claim. Check current contracts and source before treating a gap as still open. Local Vloer work must remain usable without Ploeg. The engines remain separate; [open product choices](../../../docs/landscape/questions.md) are tracked explicitly.
 
 - [Product and system design](design/00-product-system-design.md)
 - [Self-improvement and dogfooding](design/self-improvement.md)
@@ -23,7 +23,7 @@ The design chapters began on 9 September 2026. They mix product proposals, comme
 ## Structured sources and decisions
 
 - [Backlog JSON](../backlog/backlog.json) generates [the readable backlog](../backlog/README.md). Its 85 records are planning data, not execution grants or proof of completed features.
-- [Domain YAML](domain/model.yaml) generates the [glossary](domain/glossary.md) and [rules](domain/rules.md). Product intentions and open choices are marked explicitly.
+- [Domain YAML](../../../docs/domain/model.yaml) generates the [glossary](../../../docs/domain/glossary.md) and [rules](../../../docs/domain/rules.md). Product intentions and open choices are marked explicitly.
 - [ADR index](adrs/README.md) records decisions and their status.
 - [Market source ledger](research/market-sources.json) retains research provenance.
 - [Proposed WorkOrder schema](contracts/work-order.v1.schema.json) and [event envelope](contracts/event-envelope.v1.schema.json) describe proposed interfaces; use [the HTTP API](contracts/api.md) for implemented requests.

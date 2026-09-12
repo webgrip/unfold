@@ -6,6 +6,8 @@ import type { Event } from '../src/types.ts';
 
 test('HTTP demo produces real failing and passing checks, review evidence, and replayable durable events', { timeout: 35_000 }, async t => {
   const server = await application();
+  assert.equal(server.config.ploeg, undefined);
+  assert.equal(server.config.execution, undefined);
   t.after(() => server.close());
   const bootstrap = await request(server.url, '/api/bootstrap');
   assert.equal(bootstrap.status, 200);

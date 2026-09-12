@@ -14,7 +14,7 @@ def source_url(target, source_path, docs_dir, repo_url):
     if parts.scheme or parts.netloc or not parts.path or parts.path.startswith('/'):
         return target
     destination = (source_path.parent / unquote(parts.path)).resolve()
-    root = docs_dir.parent
+    root = docs_dir.parent.parent.parent
     if not destination.is_relative_to(root) or not destination.exists():
         return target
     published = destination.is_relative_to(docs_dir)

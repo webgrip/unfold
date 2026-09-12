@@ -1,0 +1,15 @@
+# Glide
+
+> Vloer and Ploeg share a repository and documentation. Vloer supports standalone work; Ploeg owns authority for explicitly admitted work.
+
+## Current reading path
+
+- [Start here](docs/index.md): application boundaries and reading paths.
+- [Product model](docs/domain/model.yaml): shared language, intentions and open choices.
+- [System explanation](docs/landscape/index.md): responsibilities and current limits.
+- [Vloer architecture](apps/vloer/docs/architecture.md): interactive session implementation.
+- [Ploeg architecture](apps/ploeg/docs/architecture.md): managed execution implementation.
+- [Vloer contracts](apps/vloer/docs/contracts/api.md): workbench HTTP interface.
+- [Ploeg contracts](apps/ploeg/docs/contracts/README.md): producing schemas and worker control.
+- [Managed workflow](docs/workflows/managed-execution.md): integration and recovery.
+- [Documentation policy](docs/documentation.md): sources, generation and review.

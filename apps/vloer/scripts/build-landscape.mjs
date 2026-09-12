@@ -1,18 +1,19 @@
+import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve, dirname, relative } from 'node:path';
 import { chromium } from 'playwright';
 
-const root = resolve(import.meta.dirname, '..');
+const root = resolve(import.meta.dirname, '../../..');
 const sources = [
   ['start', 'Start here', 'docs/landscape/index.md'],
   ['components', 'Responsibilities', 'docs/landscape/components.md'],
   ['c4', 'C4 views', 'docs/landscape/c4.md'],
-  ['alternatives', 'Alternatives', 'docs/research/2026-09-11-ecosystem-alternatives.md'],
+  ['alternatives', 'Alternatives', 'apps/vloer/docs/research/2026-09-11-ecosystem-alternatives.md'],
   ['bottlenecks', 'Bottlenecks', 'docs/landscape/bottlenecks.md'],
   ['vocabulary', 'Vocabulary', 'docs/domain/glossary.md'],
   ['rules', 'Product rules', 'docs/domain/rules.md'],
   ['questions', 'Open questions', 'docs/landscape/questions.md'],
-  ['evidence', 'Implementation evidence', 'docs/research/2026-09-11-ecosystem-implementation.md'],
+  ['evidence', 'Implementation evidence', 'apps/vloer/docs/research/2026-09-11-ecosystem-implementation.md'],
 ];
 const inputs = await Promise.all(sources.map(async ([id, title, file]) => ({ id, title, file, markdown: await readFile(resolve(root, file), 'utf8') })));
 const browser = await chromium.launch({ headless: true });
@@ -59,7 +60,7 @@ const themed = (html) => html.replace(/#[\da-f]{6}\b|#[\da-f]{3}\b/gi, color => 
 const idForFile = new Map(sources.map(([id,, file]) => [resolve(root, file), id]));
 idForFile.set(resolve(root, 'docs/landscape/explorer.html'), 'start');
 const embeddedSources = new Map(await Promise.all([
-  'docs/domain/model.yaml', 'docs/domain/overview.md', 'docs/domain/entities.md', 'scripts/build-landscape.mjs',
+  'docs/domain/model.yaml', 'docs/domain/overview.md', 'docs/domain/entities.md', 'apps/vloer/scripts/build-landscape.mjs',
 ].map(async file => [resolve(root, file), { name: file.split('/').at(-1), content: await readFile(resolve(root, file), 'utf8') }])));
 for (const page of rendered.pages) {
   page.html = themed(page.html).replace(/href="([^"#][^"]*)"/g, (whole, href) => {
@@ -70,12 +71,15 @@ for (const page of rendered.pages) {
     if (pageId) return `href="#${pageId}"`;
     const embedded = embeddedSources.get(target);
     if (embedded) return `href="data:text/plain;charset=utf-8,${encodeURIComponent(embedded.content)}" download="${embedded.name}"`;
-    return `href="https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/${relative(root, target)}${fragment ? '#'+fragment : ''}"`;
+    return `href="https://forgejo.webgrip.dev/webgrip/glide/src/branch/development/${relative(root, target)}${fragment ? '#'+fragment : ''}"`;
   });
 }
 rendered.diagrams = rendered.diagrams.map(d => ({ ...d, svg: themed(d.svg) }));
 const data = JSON.stringify(rendered).replaceAll('<', '\\u003c');
 const template = await readFile(resolve(root, 'docs/landscape/explorer.template.html'), 'utf8');
+const sourceFiles = [...sources.map(([, , file]) => file), 'docs/landscape/explorer.template.html', 'docs/domain/model.yaml', 'docs/domain/overview.md', 'docs/domain/entities.md', 'apps/vloer/scripts/build-landscape.mjs'];
+const sourceHashes = Object.fromEntries(await Promise.all(sourceFiles.map(async file => [file, createHash('sha256').update(await readFile(resolve(root, file))).digest('hex')])));
+await writeFile(resolve(root, 'docs/landscape/generated-sources.json'), JSON.stringify(sourceHashes, null, 2) + '\n');
 await writeFile(resolve(root, 'docs/landscape/explorer.html'), template.replace('"__LANDSCAPE_DATA__"', data));
 await writeFile('/tmp/ploeg-vloer-landscape-rendered.json', JSON.stringify(rendered));
 const canvasOption = process.argv.indexOf('--canvas');

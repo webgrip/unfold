@@ -4,7 +4,7 @@ Use these sources for the current implementation. The [architecture](architectur
 
 ## Try it
 
-The [local shared demonstration](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/operations/local-unified-demo.md) runs Ploeg, De Vloer and PostgreSQL without model calls.
+The [local shared demonstration](../../../docs/workflows/local-demo.md) runs Ploeg, De Vloer and PostgreSQL without model calls.
 
 ## Operate
 
@@ -26,8 +26,8 @@ The [local shared demonstration](https://forgejo.webgrip.dev/webgrip/de-vloer/sr
 - [Domain source](domain/model.yaml), generated [glossary](domain/glossary.md) and [rules](domain/rules.md)
 - [Decision ledger](adrs/README.md)
 - [Product intent and design history](design.md)
-- [Shared product questions](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/landscape/questions.md)
-- [Documentation maintenance](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/documentation.md)
+- [Shared product questions](../../../docs/landscape/questions.md)
+- [Documentation maintenance](../../../docs/documentation.md)
 
 The [backlog](backlog.md), [OpenSpec changes](../openspec/changes/) and [research dossiers](research/) retain plans and evidence. Their existence does not establish implemented behavior or current priority. The [documentation audit](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/research/2026-09-12-documentation-audit.md) records review coverage.
 

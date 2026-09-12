@@ -1,0 +1,93 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 2.35kB done
+#1 DONE 0.0s
+
+#2 resolve image config for docker-image://docker.io/docker/dockerfile:1
+#2 DONE 0.3s
+
+#3 docker-image://docker.io/docker/dockerfile:1@sha256:ecfaec9ed6d810b56388c508f4121597bfbba70d41a6dfeee4d8cad5f295fc32
+#3 resolve docker.io/docker/dockerfile:1@sha256:ecfaec9ed6d810b56388c508f4121597bfbba70d41a6dfeee4d8cad5f295fc32 done
+#3 CACHED
+
+#4 [internal] load metadata for harbor.webgrip.dev/dhi/node:24.19.0-alpine3.24-dev@sha256:dc2989ad23938772abaf549ed7bde5d61d70377005229bb55bef94bff40f8bbd
+#4 DONE 0.0s
+
+#5 [internal] load .dockerignore
+#5 transferring context: 2B done
+#5 DONE 0.0s
+
+#6 [fetch 1/3] FROM harbor.webgrip.dev/dhi/node:24.19.0-alpine3.24-dev@sha256:dc2989ad23938772abaf549ed7bde5d61d70377005229bb55bef94bff40f8bbd
+#6 resolve harbor.webgrip.dev/dhi/node:24.19.0-alpine3.24-dev@sha256:dc2989ad23938772abaf549ed7bde5d61d70377005229bb55bef94bff40f8bbd done
+#6 CACHED
+
+#7 [stage-1 2/8] RUN sed -i '/dl-cdn.alpinelinux.org/d' /etc/apk/repositories  && apk upgrade --no-cache --available  && apk add --no-cache bash git ca-certificates ripgrep  && install -d -o node -g node -m 0755 /workspace /etc/opencode
+#7 ...
+
+#8 [internal] load build context
+#8 transferring context: 8.22kB done
+#8 DONE 0.0s
+
+#9 [fetch 2/3] WORKDIR /tmp/opencode
+#9 DONE 0.0s
+
+#10 [fetch 3/3] RUN case "amd64" in amd64) platform=x64 ;; arm64) platform=arm64 ;; *) echo "unsupported TARGETARCH amd64" >&2; exit 1 ;; esac  && npm pack --quiet "opencode-linux-${platform}-musl@1.18.30"  && tar -xzf "opencode-linux-${platform}-musl-1.18.30.tgz"  && install -m 0755 package/bin/opencode /opencode  && /opencode --version
+#10 4.941 opencode-linux-x64-musl-1.18.30.tgz
+#10 ...
+
+#7 [stage-1 2/8] RUN sed -i '/dl-cdn.alpinelinux.org/d' /etc/apk/repositories  && apk upgrade --no-cache --available  && apk add --no-cache bash git ca-certificates ripgrep  && install -d -o node -g node -m 0755 /workspace /etc/opencode
+#7 0.991 ( 1/14) Upgrading libcrypto3 (3.5.7-r1 -> 3.5.8-r1)
+#7 1.828 ( 2/14) Upgrading libssl3 (3.5.7-r1 -> 3.5.8-r1)
+#7 2.562 ( 3/14) Downgrading libgcc (15.2.0-r8 -> 15.2.0-r7)
+#7 2.826 ( 4/14) Downgrading libstdc++ (15.2.0-r8 -> 15.2.0-r7)
+#7 4.353 ( 5/14) Upgrading nodejs-24 (24.19.0-r0 -> 24.21.0-r0)
+#7 7.218 ( 6/14) Upgrading corepack (0.35.0-r0 -> 0.36.0-r0)
+#7 7.701 ( 7/14) Upgrading coreutils-env (9.11-r0 -> 9.11-r1)
+#7 8.014 ( 8/14) Upgrading libcurl (8.21.0-r0 -> 8.22.0-r0)
+#7 8.529 ( 9/14) Upgrading libexpat (2.8.3-r1 -> 2.8.4-r0)
+#7 8.756 (10/14) Upgrading pcre2 (10.47-r1 -> 10.48-r0)
+#7 ...
+
+#10 [fetch 3/3] RUN case "amd64" in amd64) platform=x64 ;; arm64) platform=arm64 ;; *) echo "unsupported TARGETARCH amd64" >&2; exit 1 ;; esac  && npm pack --quiet "opencode-linux-${platform}-musl@1.18.30"  && tar -xzf "opencode-linux-${platform}-musl-1.18.30.tgz"  && install -m 0755 package/bin/opencode /opencode  && /opencode --version
+#10 8.905 1.18.30
+#10 DONE 8.9s
+
+#7 [stage-1 2/8] RUN sed -i '/dl-cdn.alpinelinux.org/d' /etc/apk/repositories  && apk upgrade --no-cache --available  && apk add --no-cache bash git ca-certificates ripgrep  && install -d -o node -g node -m 0755 /workspace /etc/opencode
+#7 9.580 (11/14) Downgrading git (2.55.0-r1 -> 2.55.0-r0)
+#7 10.37 (12/14) Downgrading git-init-template (2.55.0-r1 -> 2.55.0-r0)
+#7 10.60 (13/14) Purging npm (11.19.0-r1)
+#7 10.86 (14/14) Installing npm-12 (12.0.2-r0)
+#7 12.28 Executing busybox-1.37.0_git20260817-r33.trigger
+#7 12.30 OK: 146.5 MiB in 29 packages
+#7 13.02 (1/7) Installing busybox-binsh (1.37.0_git20260817-r33)
+#7 13.22 (2/7) Installing ncurses-terminfo-base (6.6_p20260516-r0)
+#7 13.46 (3/7) Installing libncursesw (6.6_p20260516-r0)
+#7 13.84 (4/7) Installing readline (8.3.3-r1)
+#7 14.16 (5/7) Installing bash (5.3.9-r1)
+#7 14.83   Executing bash-5.3.9-r1.post-install
+#7 14.84 (6/7) Installing ca-certificates (20260611-r0)
+#7 15.20 (7/7) Installing ripgrep (15.1.0-r0)
+#7 16.47 Executing busybox-1.37.0_git20260817-r33.trigger
+#7 16.49 Executing ca-certificates-20260611-r0.trigger
+#7 16.58 OK: 151.8 MiB in 36 packages
+#7 DONE 16.6s
+
+#11 [stage-1 3/8] COPY --from=fetch /opencode /usr/local/bin/opencode
+#11 DONE 0.3s
+
+#12 [stage-1 4/8] RUN install -d -m 0755 /usr/local/lib/de-vloer
+#12 DONE 0.1s
+
+#13 [stage-1 5/8] COPY relay-worker.mjs /usr/local/lib/de-vloer/relay-worker.mjs
+#13 DONE 0.0s
+
+#14 [stage-1 6/8] RUN chmod 0644 /usr/local/lib/de-vloer/relay-worker.mjs && su node -s /bin/sh -c 'node --check /usr/local/lib/de-vloer/relay-worker.mjs'
+#14 DONE 0.5s
+
+#15 [stage-1 7/8] RUN opencode --version | grep -F "1.18.30"
+#15 1.885 1.18.30
+#15 DONE 1.9s
+
+#16 [stage-1 8/8] WORKDIR /workspace
+#16 DONE 0.0s

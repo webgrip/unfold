@@ -1,0 +1,5 @@
+[project]
+name = "glide-docs"
+version = "0.0.0"
+requires-python = ">=3.11"
+dependencies = ["mkdocs==1.6.1", "mkdocs-techdocs-core==1.7.1", "mkdocs-material==9.7.7", "PyYAML==6.0.3"]

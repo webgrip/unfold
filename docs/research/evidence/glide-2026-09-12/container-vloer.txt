@@ -1,0 +1,117 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 1.66kB done
+#1 DONE 0.0s
+
+#2 resolve image config for docker-image://docker.io/docker/dockerfile:1
+#2 DONE 1.0s
+
+#3 docker-image://docker.io/docker/dockerfile:1@sha256:ecfaec9ed6d810b56388c508f4121597bfbba70d41a6dfeee4d8cad5f295fc32
+#3 resolve docker.io/docker/dockerfile:1@sha256:ecfaec9ed6d810b56388c508f4121597bfbba70d41a6dfeee4d8cad5f295fc32 0.0s done
+#3 CACHED
+
+#4 [internal] load metadata for harbor.webgrip.dev/dhi/node:24.19.0-alpine3.24@sha256:17b2b728ef4250c311ee9fb80f3a4a1060db6996750e85c1bf2dec10ccc5b6e6
+#4 ...
+
+#5 [auth] dhi/node:pull token for harbor.webgrip.dev
+#5 DONE 0.0s
+
+#6 [internal] load metadata for harbor.webgrip.dev/dhi/node:24.19.0-alpine3.24-dev@sha256:dc2989ad23938772abaf549ed7bde5d61d70377005229bb55bef94bff40f8bbd
+#6 ...
+
+#4 [internal] load metadata for harbor.webgrip.dev/dhi/node:24.19.0-alpine3.24@sha256:17b2b728ef4250c311ee9fb80f3a4a1060db6996750e85c1bf2dec10ccc5b6e6
+#4 DONE 2.0s
+
+#6 [internal] load metadata for harbor.webgrip.dev/dhi/node:24.19.0-alpine3.24-dev@sha256:dc2989ad23938772abaf549ed7bde5d61d70377005229bb55bef94bff40f8bbd
+#6 DONE 2.5s
+
+#7 [internal] load .dockerignore
+#7 transferring context: 180B done
+#7 DONE 0.0s
+
+#8 [internal] load build context
+#8 transferring context: 1.13MB 0.0s done
+#8 DONE 0.1s
+
+#9 [stage 1/8] FROM harbor.webgrip.dev/dhi/node:24.19.0-alpine3.24-dev@sha256:dc2989ad23938772abaf549ed7bde5d61d70377005229bb55bef94bff40f8bbd
+#9 resolve harbor.webgrip.dev/dhi/node:24.19.0-alpine3.24-dev@sha256:dc2989ad23938772abaf549ed7bde5d61d70377005229bb55bef94bff40f8bbd 0.0s done
+#9 sha256:52b8243e8a23a8cbf1ac14751e504ee61a7567b072505406e3dedf800a24406e 0B / 374B 0.2s
+#9 sha256:7cbe04d197c7486e5b11e7a67a806c0955d46e7b4c9ebed90fc58fd0453a8b8a 0B / 48.96MB 0.2s
+#9 sha256:81fc8839de754be6864eac50aebb5560159a1a7d5c0f9eb838458cfdec0ebb4c 0B / 6.13kB 0.2s
+#9 sha256:81fc8839de754be6864eac50aebb5560159a1a7d5c0f9eb838458cfdec0ebb4c 6.13kB / 6.13kB 0.3s done
+#9 sha256:b9aa1c3e25dd1eb68cd9b2b33ddef7b32de828bdde5d4ebd390516daaa4ac243 0B / 2.37kB 0.2s
+#9 sha256:52b8243e8a23a8cbf1ac14751e504ee61a7567b072505406e3dedf800a24406e 374B / 374B 0.3s done
+#9 sha256:b9aa1c3e25dd1eb68cd9b2b33ddef7b32de828bdde5d4ebd390516daaa4ac243 2.37kB / 2.37kB 0.4s done
+#9 extracting sha256:b9aa1c3e25dd1eb68cd9b2b33ddef7b32de828bdde5d4ebd390516daaa4ac243 done
+#9 sha256:7cbe04d197c7486e5b11e7a67a806c0955d46e7b4c9ebed90fc58fd0453a8b8a 5.24MB / 48.96MB 0.8s
+#9 sha256:7cbe04d197c7486e5b11e7a67a806c0955d46e7b4c9ebed90fc58fd0453a8b8a 8.39MB / 48.96MB 0.9s
+#9 sha256:7cbe04d197c7486e5b11e7a67a806c0955d46e7b4c9ebed90fc58fd0453a8b8a 11.53MB / 48.96MB 1.2s
+#9 sha256:7cbe04d197c7486e5b11e7a67a806c0955d46e7b4c9ebed90fc58fd0453a8b8a 15.73MB / 48.96MB 1.4s
+#9 sha256:7cbe04d197c7486e5b11e7a67a806c0955d46e7b4c9ebed90fc58fd0453a8b8a 18.87MB / 48.96MB 1.5s
+#9 sha256:7cbe04d197c7486e5b11e7a67a806c0955d46e7b4c9ebed90fc58fd0453a8b8a 24.12MB / 48.96MB 1.8s
+#9 sha256:7cbe04d197c7486e5b11e7a67a806c0955d46e7b4c9ebed90fc58fd0453a8b8a 28.31MB / 48.96MB 2.0s
+#9 sha256:7cbe04d197c7486e5b11e7a67a806c0955d46e7b4c9ebed90fc58fd0453a8b8a 32.51MB / 48.96MB 2.3s
+#9 sha256:7cbe04d197c7486e5b11e7a67a806c0955d46e7b4c9ebed90fc58fd0453a8b8a 35.65MB / 48.96MB 2.4s
+#9 sha256:7cbe04d197c7486e5b11e7a67a806c0955d46e7b4c9ebed90fc58fd0453a8b8a 38.80MB / 48.96MB 2.6s
+#9 sha256:7cbe04d197c7486e5b11e7a67a806c0955d46e7b4c9ebed90fc58fd0453a8b8a 41.94MB / 48.96MB 2.9s
+#9 sha256:7cbe04d197c7486e5b11e7a67a806c0955d46e7b4c9ebed90fc58fd0453a8b8a 46.14MB / 48.96MB 3.2s
+#9 sha256:7cbe04d197c7486e5b11e7a67a806c0955d46e7b4c9ebed90fc58fd0453a8b8a 48.96MB / 48.96MB 3.3s done
+#9 extracting sha256:7cbe04d197c7486e5b11e7a67a806c0955d46e7b4c9ebed90fc58fd0453a8b8a
+#9 ...
+
+#10 [app 1/4] FROM harbor.webgrip.dev/dhi/node:24.19.0-alpine3.24@sha256:17b2b728ef4250c311ee9fb80f3a4a1060db6996750e85c1bf2dec10ccc5b6e6
+#10 resolve harbor.webgrip.dev/dhi/node:24.19.0-alpine3.24@sha256:17b2b728ef4250c311ee9fb80f3a4a1060db6996750e85c1bf2dec10ccc5b6e6 0.0s done
+#10 sha256:5e8af604e2addd2958df9308297a6d51b82b0441730c94df5db6057481de48d1 5.93kB / 5.93kB 0.3s done
+#10 sha256:dec8dcd44b96068a3c787b85c5bd744a77d98cba38f3f14c8bf7f17eea00fd45 374B / 374B 0.4s done
+#10 sha256:c2212a54efd24e9b58e36444f1e2e3df4975d647597d404c36524460d6730072 37.72MB / 37.72MB 3.0s done
+#10 sha256:04afe3531109f22868233b1eefce9f203af19d7cd6683b51c681d5d1f858ffa7 2.38kB / 2.38kB 2.3s done
+#10 extracting sha256:04afe3531109f22868233b1eefce9f203af19d7cd6683b51c681d5d1f858ffa7 done
+#10 extracting sha256:c2212a54efd24e9b58e36444f1e2e3df4975d647597d404c36524460d6730072 0.3s done
+#10 DONE 3.8s
+
+#10 [app 1/4] FROM harbor.webgrip.dev/dhi/node:24.19.0-alpine3.24@sha256:17b2b728ef4250c311ee9fb80f3a4a1060db6996750e85c1bf2dec10ccc5b6e6
+#10 extracting sha256:dec8dcd44b96068a3c787b85c5bd744a77d98cba38f3f14c8bf7f17eea00fd45 done
+#10 extracting sha256:c9aa97db5302a747a03cde3aa0898dab674399ed80b95ee0399eeee4401d0fd6 done
+#10 extracting sha256:5e8af604e2addd2958df9308297a6d51b82b0441730c94df5db6057481de48d1 done
+#10 DONE 3.9s
+
+#9 [stage 1/8] FROM harbor.webgrip.dev/dhi/node:24.19.0-alpine3.24-dev@sha256:dc2989ad23938772abaf549ed7bde5d61d70377005229bb55bef94bff40f8bbd
+#9 extracting sha256:7cbe04d197c7486e5b11e7a67a806c0955d46e7b4c9ebed90fc58fd0453a8b8a 0.5s done
+#9 DONE 4.0s
+
+#9 [stage 1/8] FROM harbor.webgrip.dev/dhi/node:24.19.0-alpine3.24-dev@sha256:dc2989ad23938772abaf549ed7bde5d61d70377005229bb55bef94bff40f8bbd
+#9 extracting sha256:52b8243e8a23a8cbf1ac14751e504ee61a7567b072505406e3dedf800a24406e done
+#9 extracting sha256:42c80098c0cf3b4559610cee8f2edf0a270cf0f1d13014b54cec798245ef6c26 done
+#9 extracting sha256:81fc8839de754be6864eac50aebb5560159a1a7d5c0f9eb838458cfdec0ebb4c done
+#9 DONE 4.0s
+
+#11 [stage 2/8] WORKDIR /app
+#11 DONE 0.1s
+
+#12 [stage 3/8] COPY package.json ./
+#12 DONE 0.0s
+
+#13 [stage 4/8] COPY src ./src
+#13 DONE 0.0s
+
+#14 [stage 5/8] COPY public ./public
+#14 DONE 0.0s
+
+#15 [stage 6/8] COPY examples ./examples
+#15 DONE 0.0s
+
+#16 [stage 7/8] COPY scripts ./scripts
+#16 DONE 0.0s
+
+#17 [stage 8/8] RUN install -d -o node -g node -m 0700 /data && chown -R node:node /app
+#17 DONE 0.2s
+
+#18 [app 2/4] COPY --from=stage --chown=node:node /app /app
+#18 DONE 0.0s
+
+#19 [app 3/4] COPY --from=stage --chown=node:node /data /data
+#19 DONE 0.0s
+
+#20 [app 4/4] WORKDIR /app
+#20 DONE 0.0s

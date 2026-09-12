@@ -1,5 +1,7 @@
 # Ploeg
 
+Developed in [Glide](../../README.md). Run repository-wide checks from the Glide root.
+
 Ploeg is a self-hosted service for authorizing and coordinating agent work. Tracker assignments can start unattended workers; De Vloer can run interactive sessions under the same execution authority. PostgreSQL retains the work, leases, outcomes, evidence and accounting.
 
 *Ploeg* is Dutch for a work crew or shift. The software is experimental and uses release-candidate versions. Qualification applies to specific tested paths, not every provider or deployment.
@@ -9,7 +11,7 @@ Ploeg is a self-hosted service for authorizing and coordinating agent work. Trac
 - [Documentation](docs/index.md): current guides, contracts and design history.
 - [Architecture](docs/architecture.md): what runs where and who holds authority.
 - [Managed workers](docs/ops/managed-workers.md): required configuration and recovery.
-- [De Vloer's local demonstration](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/operations/local-unified-demo.md): both applications and PostgreSQL, using a deterministic fixture with no model calls.
+- [De Vloer's local demonstration](../../docs/workflows/local-demo.md): both applications and PostgreSQL, using a deterministic fixture with no model calls.
 
 The older [Compose fixture](ops/local/docker-compose.yml) and [claim demo](ops/local/demo.sh) predate managed worker authentication. They do not configure the managed bootstrap and signing requirements. Use the shared demonstration above for current onboarding; the old fixture needs migration before it can serve as a current setup guide.
 

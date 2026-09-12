@@ -1,0 +1,92 @@
+name: Glide checks and independent releases
+
+on:
+  push:
+    branches: [development]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: glide-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    runs-on: docker
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+      - name: Fetch imported release metadata
+        run: git fetch origin '+refs/notes/*:refs/notes/*'
+      - uses: https://github.com/jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+        with:
+          version: 2026.6.14
+          cache: false
+          github_token: ''
+      - run: mise trust apps/vloer/mise.toml && mise trust apps/ploeg/mise.toml
+      - run: mise -C apps/vloer install
+      - run: mise -C apps/ploeg install
+      - run: mise run setup
+      - run: mise run verify
+      - name: Container build contexts
+        run: |
+          set -euo pipefail
+          docker build --file apps/vloer/Dockerfile --target app --build-arg REGISTRY_DHI=harbor.webgrip.dev/dhi --output=type=cacheonly apps/vloer
+          docker build --file apps/vloer/ops/agent/Dockerfile --build-arg REGISTRY_DHI=harbor.webgrip.dev/dhi --output=type=cacheonly apps/vloer/ops/agent
+          docker build --file apps/ploeg/ops/docker/ploegd/Dockerfile --output=type=cacheonly apps/ploeg
+
+  release-policy:
+    runs-on: docker
+    container:
+      image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.3
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+      - name: Verify independent release policy
+        working-directory: apps/ploeg
+        run: NODE_PATH="${SEMREL_PREBAKED:?release toolchain is required}" node --test scripts/release-policy.test.cjs
+      - name: Verify package commit selection
+        run: NODE_PATH="${SEMREL_PREBAKED:?release toolchain is required}" node --test scripts/release-isolation.test.cjs
+
+  release-vloer:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/development' && vars.GLIDE_RELEASES_ENABLED == 'true'
+    needs: [checks, release-policy]
+    runs-on: docker
+    container:
+      image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.3
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+      - name: Semantic Release
+        id: release
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v2.6.1
+        with:
+          package-path: apps/vloer
+          package-name: vloer
+          token: ${{ secrets.WEBGRIP_CI_TOKEN }}
+
+  release-ploeg:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/development' && vars.GLIDE_RELEASES_ENABLED == 'true'
+    needs: [checks, release-policy, release-vloer]
+    runs-on: docker
+    container:
+      image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.3
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+      - name: Semantic Release
+        id: release
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v2.6.1
+        with:
+          package-path: apps/ploeg
+          package-name: ploeg
+          token: ${{ secrets.WEBGRIP_CI_TOKEN }}

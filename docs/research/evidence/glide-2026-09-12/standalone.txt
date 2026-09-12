@@ -1,0 +1,12 @@
+✔ a real server crash recovers an interrupted session without silently executing it again (753.1575ms)
+✔ HTTP demo produces real failing and passing checks, review evidence, and replayable durable events (6859.780584ms)
+✔ pause, instructions, resume, and intentional cancel remain deliberate across reconnects (385.834541ms)
+✔ HTTP lifecycle rejects duplicate execution and invalid targets without producing work (36.102791ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7417.699875

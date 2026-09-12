@@ -1,0 +1,49 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "local>webgrip/renovate-config"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update ARGs annotated with '# renovate: datasource=\u2026 depName=\u2026'. The Dockerfiles compose their FROM refs from a registry variable and a digest-pinned tag, which the dockerfile manager cannot replace; tag and digest are captured separately so digest-pinned ARGs stay managed.",
+      "managerFilePatterns": [
+        "/(^|/)Dockerfile$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?\\s*\\nARG \\S+=\"?(?:\\S*?[:/])?(?<currentValue>[^@:/\\s\"]+)@(?<currentDigest>sha256:[a-f0-9]{64})",
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?\\s*\\nARG \\S+=\"?(?<currentValue>[^@\\s\"]+)\"?\\s"
+      ],
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "The annotated-ARG manager owns the composed base images and the opencode pin.",
+      "matchManagers": [
+        "dockerfile"
+      ],
+      "matchFileNames": [
+        "apps/vloer/Dockerfile",
+        "apps/vloer/ops/agent/Dockerfile"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Bare versions are reused outside the FROM line; digests are captured explicitly.",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "pinDigests": false
+    },
+    {
+      "description": "The agent image and the mise pin must move together: one OpenCode version is what the workbench, the probe and the image share.",
+      "matchPackageNames": [
+        "opencode-ai"
+      ],
+      "groupName": "opencode",
+      "semanticCommitType": "fix",
+      "semanticCommitScope": "agent"
+    }
+  ]
+}

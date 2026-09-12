@@ -21,11 +21,11 @@ const logger = { log() {}, success() {}, warn() {}, error() {}, scope() { return
 const historicalCommit = fs.readFileSync(path.join(__dirname, 'fixtures/managed-authentication-breaking.txt'), 'utf8');
 const branch = {
   name: 'development', type: 'prerelease', prerelease: 'rc', channel: 'development',
-  tags: [{ version: '0.3.0-rc.4', gitTag: 'v0.3.0-rc.4', channels: ['development'] }],
+  tags: [{ version: '0.3.0-rc.4', gitTag: 'ploeg-v0.3.0-rc.4', channels: ['development'] }],
 };
 const context = (version = '0.3.0-rc.5') => ({
   branch, options: { tagFormat: config.tagFormat },
-  nextRelease: { version, gitTag: `v${version}`, channel: 'development' },
+  nextRelease: { version, gitTag: `ploeg-v${version}`, channel: 'development' },
 });
 const loadCore = (name) => import(pathToFileURL(path.join(semanticReleaseRoot, 'lib', name)).href);
 const analyze = async (options, message = historicalCommit) => {
@@ -45,7 +45,7 @@ test('the actual historical breaking commit reproduces major before the policy a
   assert.equal(await analyze(pluginOptions(config, '@semantic-release/commit-analyzer')), 'minor');
 });
 
-test('the real version calculator advances the last valid candidate to v0.3.0-rc.5', async () => {
+test('the real version calculator advances the last valid candidate to ploeg-v0.3.0-rc.5', async () => {
   const { default: getLastRelease } = await loadCore('get-last-release.js');
   const { default: getNextVersion } = await loadCore('get-next-version.js');
   const lastRelease = getLastRelease({ branch, options: config });
@@ -58,7 +58,7 @@ test('the real version calculator advances the last valid candidate to v0.3.0-rc
 test('a remaining mistaken 1.x tag is rejected instead of producing another 1.x release', async () => {
   const { default: getLastRelease } = await loadCore('get-last-release.js');
   const { default: getNextVersion } = await loadCore('get-next-version.js');
-  const contaminated = { ...branch, tags: [...branch.tags, { version: '1.0.0-rc.1', gitTag: 'v1.0.0-rc.1', channels: ['development'] }] };
+  const contaminated = { ...branch, tags: [...branch.tags, { version: '1.0.0-rc.1', gitTag: 'ploeg-v1.0.0-rc.1', channels: ['development'] }] };
   const lastRelease = getLastRelease({ branch: contaminated, options: config });
   const version = getNextVersion({ branch: contaminated, lastRelease, nextRelease: { type: 'minor', channel: branch.channel }, logger });
   assert.match(version, /^1\./);
@@ -79,8 +79,8 @@ test('the actual release notes retain the managed-authentication compatibility w
   const { generateNotes } = await import(pathToFileURL(require.resolve('@semantic-release/release-notes-generator')).href);
   const notes = await generateNotes(pluginOptions(config, '@semantic-release/release-notes-generator'), {
     commits: [{ hash: '7714cd5eb3268fd8291075a13fcb3736ddc88c76', message: historicalCommit }],
-    lastRelease: { version: '0.3.0-rc.4', gitTag: 'v0.3.0-rc.4' },
-    nextRelease: { version: '0.3.0-rc.5', gitTag: 'v0.3.0-rc.5' },
+    lastRelease: { version: '0.3.0-rc.4', gitTag: 'ploeg-v0.3.0-rc.4' },
+    nextRelease: { version: '0.3.0-rc.5', gitTag: 'ploeg-v0.3.0-rc.5' },
     options: { repositoryUrl: 'https://forgejo.webgrip.dev/webgrip/ploeg.git' }, cwd: root, env: {}, logger,
   });
   assert.match(notes, /BREAKING CHANGES/);
@@ -127,9 +127,9 @@ test('the installed release engine checks conditions before promotion and verifi
 });
 
 test('effective configuration retains standard tags and CI tests it before invoking release', () => {
-  assert.equal(config.tagFormat, 'v${version}');
-  assert.equal(config.plugins[0], './scripts/release-policy.cjs');
-  const workflow = fs.readFileSync(path.join(root, '.forgejo/workflows/on_source_change.yml'), 'utf8');
+  assert.equal(config.tagFormat, 'ploeg-v${version}');
+  assert.equal(config.plugins[0], path.join(__dirname, 'release-policy.cjs'));
+  const workflow = fs.readFileSync(path.resolve(root, '../../.forgejo/workflows/checks.yml'), 'utf8');
   const gate = workflow.indexOf('node --test scripts/release-policy.test.cjs');
   assert.ok(gate > 0);
   assert.ok(gate < workflow.indexOf('id: release'));
@@ -137,20 +137,20 @@ test('effective configuration retains standard tags and CI tests it before invok
 });
 
 test('the actual artifact-publisher shell rejects major and stable tags before emitting outputs', () => {
-  const workflow = fs.readFileSync(path.join(root, '.forgejo/workflows/on_release_published.yml'), 'utf8');
-  const parseJob = workflow.slice(workflow.indexOf('  parse-release-tag:'), workflow.indexOf('\n  # Distribute:'));
+  const workflow = fs.readFileSync(path.resolve(root, '../../.forgejo/workflows/publish-ploeg.yml'), 'utf8');
+  const parseJob = workflow.slice(workflow.indexOf('  parse-release-tag:'), workflow.indexOf('\n  release-publish-chart:'));
   const shell = parseJob.slice(parseJob.indexOf('          set -euo pipefail')).replace(/^          /gm, '');
   assert.match(parseJob, /RELEASE_TAG: \$\{\{/);
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ploeg-release-policy-'));
   const output = path.join(directory, 'output');
   try {
-    for (const tag of ['v1.0.0-rc.1', 'v0.3.0', 'v1.0.0', 'v0.3.0-beta.1', 'withdrawn-v1.0.0-rc.1', 'v0.03.0-rc.1', "v0.3.0-rc.1'\nexit 0\n'", '']) {
+    for (const tag of ['ploeg-v1.0.0-rc.1', 'ploeg-v0.3.0', 'ploeg-v1.0.0', 'ploeg-v0.3.0-beta.1', 'withdrawn-v1.0.0-rc.1', 'ploeg-v0.03.0-rc.1', "ploeg-v0.3.0-rc.1'\nexit 0\n'", '']) {
       fs.writeFileSync(output, '');
       const result = spawnSync('bash', ['-c', shell], { env: { ...process.env, RELEASE_TAG: tag, GITHUB_OUTPUT: output }, encoding: 'utf8' });
       assert.equal(result.status, 1, `${tag}: ${result.stderr}`);
       assert.equal(fs.readFileSync(output, 'utf8'), '');
     }
-    const result = spawnSync('bash', ['-c', shell], { env: { ...process.env, RELEASE_TAG: 'v0.3.0-rc.5', GITHUB_OUTPUT: output }, encoding: 'utf8' });
+    const result = spawnSync('bash', ['-c', shell], { env: { ...process.env, RELEASE_TAG: 'ploeg-v0.3.0-rc.5', GITHUB_OUTPUT: output }, encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(fs.readFileSync(output, 'utf8'), 'version=0.3.0-rc.5\nlatest_tag=\n');
   } finally {
@@ -171,20 +171,20 @@ test('the actual current Git history calculates the corrected replacement withou
   const { analyzeCommits } = await import(pathToFileURL(require.resolve('@semantic-release/commit-analyzer')).href);
   const type = await analyzeCommits(pluginOptions(config, '@semantic-release/commit-analyzer'), { ...input, commits });
   const version = getNextVersion({ branch: actualBranch, lastRelease, nextRelease: { type, channel: actualBranch.channel }, logger });
-  assert.equal(lastRelease.gitTag, 'v0.3.0-rc.4');
+  assert.equal(lastRelease.gitTag, 'ploeg-v0.3.0-rc.4');
   assert.equal(version, '0.3.0-rc.5');
   policy.verifyRelease({}, context(version));
-  console.log(JSON.stringify({ lastRelease: lastRelease.gitTag, analyzedCommits: commits.length, type, nextRelease: `v${version}`, publication: false }));
+  console.log(JSON.stringify({ lastRelease: lastRelease.gitTag, analyzedCommits: commits.length, type, nextRelease: `ploeg-v${version}`, publication: false }));
 });
 
 test('reusable artifact jobs accept validated parse output without unavailable job results', () => {
-  const workflow = fs.readFileSync(path.join(root, '.forgejo/workflows/on_release_published.yml'), 'utf8');
-  const parseJob = workflow.slice(workflow.indexOf('  parse-release-tag:'), workflow.indexOf('\n  # Distribute:'));
+  const workflow = fs.readFileSync(path.resolve(root, '../../.forgejo/workflows/publish-ploeg.yml'), 'utf8');
+  const parseJob = workflow.slice(workflow.indexOf('  parse-release-tag:'), workflow.indexOf('\n  release-publish-chart:'));
   const shell = parseJob.slice(parseJob.indexOf('          set -euo pipefail')).replace(/^          /gm, '');
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ploeg-publish-input-'));
   const output = path.join(directory, 'output');
   try {
-    for (const tag of ['v0.3.0-rc.5', 'v1.0.0-rc.1', 'v0.3.0', '']) {
+    for (const tag of ['ploeg-v0.3.0-rc.5', 'ploeg-v1.0.0-rc.1', 'ploeg-v0.3.0', '']) {
       fs.writeFileSync(output, '');
       const result = spawnSync('bash', ['-c', shell], { env: { ...process.env, RELEASE_TAG: tag, GITHUB_OUTPUT: output }, encoding: 'utf8' });
       const version = fs.readFileSync(output, 'utf8').match(/^version=(.*)$/m)?.[1] || '';

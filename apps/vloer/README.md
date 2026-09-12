@@ -1,5 +1,7 @@
 ![De Vloer](docs/brand/png/banner-512.png)
 
+Developed in [Glide](../../README.md). Run repository-wide checks from the Glide root.
+
 A self-hosted workbench for people steering remote agent crews. Bring a task from **Vikunja, ClickUp, Forgejo, GitHub or GitLab**, choose a reusable crew and budget, and supervise the work from a browser or VS Code. Your configured server runs the agents; your workstation remains the place you steer and review them.
 
 De Vloer sits beside [Ploeg](https://forgejo.webgrip.dev/webgrip/ploeg). The tracker owns priorities, Ploeg owns unattended dispatch, and De Vloer owns interactive sessions and human intervention. The Ploeg workbench now exposes scoped work, evidence and spending snapshots. An opt-in shared execution path lets Ploeg admit interactive sessions while De Vloer provides their workspace and human controls. [Run the unified baseline](docs/operations/unified-baseline.md). A completed shared session can now pass through a [canonical candidate, independent Docker checks and candidate-bound approval](docs/contracts/candidate-delivery.md); Ploeg retains the authority and evidence. Live publication remains disabled.

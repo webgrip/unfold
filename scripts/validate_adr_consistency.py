@@ -140,14 +140,14 @@ def main() -> int:
     def err(name: str, msg: str) -> None:
         errors.append(f"{name}: {msg}")
 
-    records: dict[str, dict] = {}  # number -> {name, status, date}
+    records: dict[str, dict] = {}
     prefixes: set[str] = set()
     legacy = 0
 
     for path in sorted(adr_dir.glob("*.md")):
         m = RE_FILENAME.match(path.name)
         if not m:
-            continue  # index.md, README.md, prose pages — not records
+            continue
         if m.group(2) == "0000" or "template" in path.name:
             continue
         prefixes.add(m.group(1) or "")
@@ -166,15 +166,15 @@ def main() -> int:
 
         if fm_status and b_status:
             err(path.name, "mixes frontmatter status and `* Status:` bullet — pick one format")
-        if fm_status:  # MADR 4.0.0
+        if fm_status:
             status = fm_status.group(1)
             date = fm_date.group(1) if fm_date else None
             sections = REQUIRED_SECTIONS + ("## More Information",)
-        elif b_status:  # MADR 2.x
+        elif b_status:
             status = b_status.group(1)
             date = b_date.group(1) if b_date else None
             sections = REQUIRED_SECTIONS + ("## Links",)
-        elif n_status:  # legacy Nygard — tolerated, reduced checks
+        elif n_status:
             status = n_status.group(1)
             n_date = RE_NYGARD_DATE.search(text)
             date = n_date.group(1) if n_date else None

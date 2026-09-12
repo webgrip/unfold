@@ -1,0 +1,194 @@
+project: Glide
+description: >
+  A supported way to work with AI for developers and agents. Vloer is the human
+  workplace. This model includes intended product rules; it is not a feature
+  inventory. Current behavior is documented in ../index.md and the application architecture guides. Local work
+  must be usable without Ploeg. Glide retains separate engines; a future extraction needs evidence of equivalent responsibilities.
+version: "0.2"
+contexts:
+  - name: Work
+    description: Requested outcomes, their evidence, and their acceptance.
+  - name: Participation
+    description: How people take part in AI work and inspect what happened.
+  - name: Execution
+    description: Performing authorized AI work within its constraints.
+terms:
+  - name: Ticket
+    context: Work
+    definition: >
+      A recorded request for an outcome, including enough context and acceptance
+      conditions to judge the result. It remains the same request if an execution fails.
+    synonyms: [Tracker Item]
+    see_also: [Result, Acceptance Conditions, Workload, Repair Subticket]
+  - name: Workload
+    context: Execution
+    definition: >
+      AI work with instructions, recorded activity, an execution authority and
+      results. An external ticket is optional. Repository-free conversation is
+      intended product behavior; current Vloer sessions require a repository and crew.
+    see_also: [Ticket, Session, Execution, Result, Budget]
+  - name: Repair Subticket
+    context: Work
+    definition: >
+      An external ticket linked beneath the original ticket to track repair of a
+      failed CI check. Its purpose is to restore the required behavior and passing checks.
+    see_also: [Ticket, Acceptance Conditions, Evidence]
+  - name: Acceptance Conditions
+    context: Work
+    definition: >
+      The observable conditions a result must satisfy to answer the requested work.
+      They depend on the work; software tests alone cannot validate a business case.
+    see_also: [Ticket, Result, Review]
+  - name: Result
+    context: Work
+    definition: >
+      The outcome produced by a workload, together with the evidence needed to judge it.
+      It can be a code change, research conclusion, design, or another requested deliverable.
+    see_also: [Workload, Ticket, Evidence, Review]
+  - name: Evidence
+    context: Work
+    definition: >
+      Inspectable material supporting a claim about a result or execution, such as
+      cited research, an actual change, or the output of an executed check.
+    see_also: [Result, Review]
+  - name: Review
+    context: Work
+    definition: >
+      An assessment of a result against its acceptance conditions and supporting
+      evidence. A favorable assessment is distinct from releasing software to production.
+    see_also: [Result, Acceptance Conditions, Evidence]
+  - name: Session
+    context: Participation
+    definition: >
+      A continuing interaction around work, including instructions, questions,
+      actions, and results. Closing one browser connection does not erase its record.
+    see_also: [Workload, Ticket, Execution]
+  - name: Execution
+    context: Execution
+    definition: >
+      An authorized attempt to perform a workload, with a recorded state and limits.
+      A person may steer it live or allow agents to proceed within the agreed instructions.
+    avoid: [Ticket]
+    see_also: [Workload, Agent, Budget, Workspace, Session]
+  - name: Agent
+    context: Execution
+    definition: >
+      A software participant that uses a model and tools to perform assigned work
+      through a harness. A named agent role does not imply a separate running process.
+    see_also: [Harness, Model, Execution]
+  - name: Harness
+    context: Execution
+    definition: >
+      The program that manages the agent's conversation with a model and executes
+      permitted tools. OpenCode is the harness on the tested Vloer path.
+    see_also: [Agent, Model, Workspace]
+  - name: Model
+    context: Execution
+    definition: >
+      The trained system that generates responses from supplied input. Its
+      responses are used by a harness; the model is not the whole working agent.
+    see_also: [Harness, Model Provider]
+  - name: Model Provider
+    context: Execution
+    definition: >
+      The service that runs a model and answers inference requests. A provider
+      can run outside the cluster that hosts an agent's files and tools.
+    examples: [Fireworks.ai, DeepSeek]
+    see_also: [Model, Harness]
+  - name: Workspace
+    context: Execution
+    definition: >
+      The working environment containing the files and tools available to an execution.
+      Its contents are separate from the ticket and from the decision to accept a result.
+    see_also: [Execution, Harness, Evidence]
+  - name: Budget
+    context: Execution
+    definition: >
+      An authorized spending limit for work. It is separate from a provisional
+      usage estimate and from the eventual reconciled charge.
+    see_also: [Execution]
+rules:
+  - id: R1
+    statement: A Ticket can supply a Workload's intended outcome; an Execution records an attempt to perform the Workload.
+    rationale: Retrying work must not erase the request or hide the earlier attempt.
+    applies_to: [Ticket, Workload, Execution]
+  - id: R2
+    statement: A Model and Harness are implementation choices behind the working experience.
+    rationale: People should not have to change their way of organizing work merely to change an AI tool.
+    applies_to: [Model, Harness, Session]
+  - id: R3
+    statement: A research Result may satisfy its Ticket with convincing Evidence and a conclusion not to build.
+    rationale: A rejected business case should stop unnecessary implementation and design work.
+    applies_to: [Ticket, Result, Evidence]
+  - id: R4
+    statement: A completed Execution does not by itself prove that its Result is accepted or released.
+    rationale: Finishing a process, accepting its output, and changing production are separate decisions.
+    applies_to: [Execution, Result, Review]
+  - id: R5
+    statement: Evidence of executed checks is distinct from an Agent's assertion that checks passed.
+    rationale: A reviewer needs an inspectable basis for accepting a result.
+    applies_to: [Evidence, Agent, Review]
+  - id: R6
+    statement: An unknown or pending charge must not be described as zero spend against a Budget.
+    rationale: Missing cost data cannot justify more expenditure.
+    applies_to: [Budget, Execution]
+  - id: R7
+    statement: Intended behavior — a Workload may begin as an open conversation without a Ticket or repository; repository-free conversation is not implemented in the current session API.
+    rationale: Asking questions and exploring ideas are supported work in their own right.
+    applies_to: [Workload, Ticket, Session]
+  - id: R8
+    statement: An Execution has one explicit authority. Standalone local work uses the person's authorization without requiring Ploeg. Shared Vloer sessions require Ploeg admission and cannot fall back to standalone execution when that authority is unavailable.
+    rationale: Authority must stay explicit during intervention and recovery; runner location alone does not decide who authorizes work.
+    applies_to: [Workload, Execution, Session]
+  - id: R9
+    statement: Intended behavior — in projects with automatic repair enabled, failed CI creates a Repair Subticket and agents repair it before human Review, regardless of who wrote the change. This general workflow remains unimplemented.
+    rationale: The repair must be visible without replacing the original requested outcome.
+    applies_to: [Ticket, Repair Subticket, Evidence]
+  - id: R10
+    statement: Software Results go through automated checks and Agent Review before a person is asked to accept them.
+    rationale: Human reviewers should receive prepared results with unresolved failures made explicit.
+    applies_to: [Result, Agent, Review, Evidence]
+  - id: R11
+    statement: A person initially accepts Results; automatic acceptance requires a separately agreed rule.
+    rationale: Responsibility for accepting work must be explicit while the process is being established.
+    applies_to: [Result, Review]
+ambiguities:
+  - phrase: shared execution implementation
+    issue: Local work must be usable without Ploeg, but that requirement does not determine which execution code the applications should share.
+    options: [Keep separate implementations behind compatible contracts, Extract a runner callable by either application]
+    recommendation: The Glide fixture comparison passed for both modes. Retain separate engines until equivalent behavior needs a shared implementation; keep authorization and runner placement independent.
+  - phrase: a CI failure with no original ticket
+    issue: Repair subtickets require a parent, but a human-written change may not already have an external ticket.
+    options: [Create a parent work ticket linked to the change, Attach repair to a project incident ticket]
+    recommendation: Preserve a direct link to the failed change and agree the external parent-ticket rule.
+  - phrase: limits on automatic repair
+    issue: Repeated CI failures could create duplicate subtickets or consume an unbounded amount of work.
+    options: [One active repair subticket per failure with bounded attempts, A new subticket per failed check run]
+    recommendation: Reuse an active repair subticket for the same failure and stop at agreed limits.
+  - phrase: agents create and execute follow-up work
+    issue: Creating a proposed ticket and authorizing its execution grant different powers.
+    options: [Agents propose and people authorize, Explicit project rules authorize bounded follow-up work]
+    recommendation: Separate permission to propose from permission to spend and execute.
+  - phrase: which decision records are required
+    issue: Visibility into decisions needs a defined record beyond raw model messages and tool logs.
+    options: [Written decision with options and evidence, Transcript and actions alone]
+    recommendation: Capture the decision, responsible person or rule, evidence, and expected consequence.
+dialogues:
+  - title: Research can stop implementation
+    context: Work
+    lines:
+      - speaker: Developer
+        text: Does this research Ticket require a prototype?
+      - speaker: Product owner
+        text: The Evidence establishes that we should not build. The Result is the supported conclusion to stop.
+      - speaker: Developer
+        text: Then Review should judge that Evidence against the Acceptance Conditions.
+  - title: What a model can do
+    context: Execution
+    lines:
+      - speaker: Developer
+        text: Does changing the Model move the files to a new computer?
+      - speaker: Platform engineer
+        text: No. The Workspace holds the files. The Harness sends input to the Model Provider and runs permitted tools.
+      - speaker: Developer
+        text: So Model, Harness, and Workspace are separate choices in an Execution.

@@ -3,6 +3,7 @@
 const { makeConfig } = require('@webgrip/semantic-release-config');
 
 const config = makeConfig({
+  monorepo: true,
   manifest: 'helm',
   chartPath: 'ops/helm/ploeg',
 });
@@ -21,6 +22,7 @@ analyzers[0][1].releaseRules = rules.map((rule) => rule.breaking === true && rul
 if (analyzers[0][1].releaseRules.some((rule) => rule.release === 'major')) {
   throw new Error('Ploeg release policy rejects additional major release rules.');
 }
-config.plugins.unshift('./scripts/release-policy.cjs');
+config.tagFormat = 'ploeg-v${version}';
+config.plugins.unshift(require.resolve('./scripts/release-policy.cjs'));
 
 module.exports = config;

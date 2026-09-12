@@ -1,0 +1,36 @@
+site_name: Glide
+site_description: Vloer and Ploeg, independently usable and developed together
+site_url: https://docs.webgrip.dev/glide/
+repo_url: https://forgejo.webgrip.dev/webgrip/glide
+edit_uri: ''
+docs_dir: .build/docs
+site_dir: .build/site
+plugins:
+  - techdocs-core:
+      use_material_search: true
+nav:
+  - Start here: index.md
+  - Try it:
+      - Vloer without Ploeg: vloer/operations/demo.md
+      - Both applications: workflows/local-demo.md
+  - Understand:
+      - System: landscape/index.md
+      - Responsibilities: landscape/components.md
+      - Diagrams: landscape/c4.md
+      - Product language: domain/overview.md
+      - Open choices: landscape/questions.md
+  - Operate:
+      - Vloer: vloer/index.md
+      - Ploeg: ploeg/index.md
+      - Managed execution: workflows/managed-execution.md
+  - Maintain:
+      - Documentation: documentation.md
+      - Migration: migration.md
+      - System decisions: adr/index.md
+      - Execution comparison: research/2026-09-12-execution-boundary.md
+
+validation:
+  links:
+    anchors: warn
+    not_found: warn
+    unrecognized_links: warn

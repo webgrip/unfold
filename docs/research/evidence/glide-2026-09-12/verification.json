@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-12",
+  "localQualification": "passed",
+  "applicationTests": {
+    "vloer": 211,
+    "extension": 41,
+    "ploeg": "go vet, go build and all Go package tests passed; normal Go caching applied"
+  },
+  "charts": {
+    "vloer": "Helm 4.2.4, default and live example",
+    "ploeg": "Helm 4.2.3, default/executor/cronjob/GitLab plus unchanged golden renders"
+  },
+  "openspec": {
+    "passed": 12,
+    "failed": 0
+  },
+  "release": {
+    "isolationAndPublisherTests": 2,
+    "ploegPolicyTests": 13,
+    "skipped": 1,
+    "skipReason": "The one-time historical release-correction assertion is intentionally disabled",
+    "image": "harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.3",
+    "digest": "sha256:2f3f20de1f155cf1d4297cf2daecf33e2ec6b212bb7c58c91f42104ffdea61cb"
+  },
+  "containerBuilds": {
+    "platform": "linux/amd64",
+    "passed": [
+      "Vloer app",
+      "Vloer agent",
+      "Ploeg controller and worker"
+    ]
+  },
+  "history": {
+    "files": 788,
+    "tags": 70,
+    "notes": 67,
+    "originalHeads": [
+      "7c8657e15b1525e30641b12e5175bf268a49b03d",
+      "f2333b96c6b44f489c562f74d6a4654fed29cc01"
+    ]
+  },
+  "documentation": {
+    "build": "strict with link and anchor warnings treated as failures",
+    "domainViews": "regenerated comparison passed for both models",
+    "landscape": "9 pages and 15 diagrams, source freshness manifest checked",
+    "browser": "7 TechDocs pages and all 9 landscape tabs passed without page errors or horizontal overflow"
+  },
+  "limits": [
+    "No paid model or live gateway run",
+    "No new production deployment",
+    "No ARM64 container build in this migration pass",
+    "Remote CI and distribution are recorded separately from local qualification"
+  ],
+  "evidence": {
+    "application-gates.txt": "538f0f7c48c0c89424ef3d4a01c0e4e4cb0a03bd64e63edd50c9f99024346645",
+    "browser.json": "1cbf2b610b0bae0fd453437c270c5e50da039033a04d177933e277f6bd7ead2c",
+    "container-agent.txt": "3e30ea14b7c0915cf3fab9982083ccbfa9cfce041b5a867500a8cad98b831869",
+    "container-ploeg.txt": "847683514ea585be796bbb38915157804dc8161cbf36ffac84b6f0ad44ec69f5",
+    "container-vloer.txt": "b022bbe556b67eb9bb3e50091fd71b90f1bd355058fefe06e6e1801812090728",
+    "documentation.txt": "7de78027dcc2d94b85aea340590c57c8312f9cceb4e9de897f3a3e53087c6472",
+    "execution.json": "6cfe2bcd34875ce9e9318dc9b20ccfa429eac3af9637a31d0a1139111982ffe5",
+    "home.png": "f915a929bbbc301ab6ac06e928eca7761a11a374d9cdda3d5428a47a75ffc7dd",
+    "managed.txt": "33c3796f6eefda66a1c9aa095f0064379da349d2bc0d4589850d4e7b5aba2e2d",
+    "migration.png": "3a1ae17e7b652bc6833dd34be68e52f80248874c1811b204aba5f142b1ee6303",
+    "product.png": "b4fea700ed83ab41a9669c6bfe6e796979808ac81e038beba035390ba723b53c",
+    "release-gates.txt": "819d0cb7d2c358cfca871d0132ef4435da5cd056df0f03bd2298092e0f0a056f",
+    "standalone.txt": "b1cfd7f7c5305c78dea4fbbfeadf000aa68f133a53bcd53110c2661baea00495"
+  }
+}

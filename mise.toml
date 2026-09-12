@@ -1,0 +1,40 @@
+[tools]
+node = "24.19.0"
+go = "1.25.0"
+helm = "4.2.4"
+uv = "0.12.12"
+"npm:@fission-ai/openspec" = "1.6.0"
+
+[tasks.setup]
+run = ["mise trust apps/vloer/mise.toml", "mise trust apps/ploeg/mise.toml", "mise -C apps/vloer install", "mise -C apps/ploeg install", "npm --prefix apps/vloer ci --no-audit --no-fund", "npm --prefix apps/vloer/extensions/vscode ci --no-audit --no-fund", "uv sync --frozen"]
+description = "Install the locked application and documentation dependencies"
+
+[tasks.verify]
+run = "node scripts/verify.mjs"
+description = "Run both application gates and cross-application qualification"
+
+[tasks.integration]
+run = "node scripts/integration.mjs"
+description = "Qualify standalone and Ploeg-managed execution without paid models"
+
+[tasks.docs-check]
+run = "uv run --frozen python scripts/docs.py --check"
+description = "Check generated models, links and strict TechDocs output"
+
+[tasks.docs-build]
+run = "uv run --frozen python scripts/docs.py"
+description = "Build the shared and application TechDocs site"
+
+[tasks.demo]
+dir = "apps/vloer"
+run = "npm run demo"
+description = "Run Vloer without Ploeg or paid model calls"
+
+[tasks.demo-unified]
+dir = "apps/vloer"
+run = "npm run demo:unified"
+description = "Run both applications and PostgreSQL with a deterministic runtime"
+
+[tasks.release-check]
+run = '''docker run --rm --platform linux/amd64 --network none -v "$PWD:/repo:ro" -w /repo --entrypoint sh harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.3 -c 'node --test scripts/release-isolation.test.cjs && cd apps/ploeg && node --test scripts/release-policy.test.cjs' '''
+description = "Test release isolation and guards in the pinned release toolchain"

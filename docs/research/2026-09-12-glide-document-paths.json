@@ -1,0 +1,68 @@
+{
+  "moves": [
+    {
+      "from": "apps/vloer/docs/domain/overview.md",
+      "to": "docs/domain/overview.md"
+    },
+    {
+      "from": "apps/vloer/docs/domain/model.yaml",
+      "to": "docs/domain/model.yaml"
+    },
+    {
+      "from": "apps/vloer/docs/domain/glossary.md",
+      "to": "docs/domain/glossary.md"
+    },
+    {
+      "from": "apps/vloer/docs/domain/entities.md",
+      "to": "docs/domain/entities.md"
+    },
+    {
+      "from": "apps/vloer/docs/domain/rules.md",
+      "to": "docs/domain/rules.md"
+    },
+    {
+      "from": "apps/vloer/docs/landscape/bottlenecks.md",
+      "to": "docs/landscape/bottlenecks.md"
+    },
+    {
+      "from": "apps/vloer/docs/landscape/explorer.html",
+      "to": "docs/landscape/explorer.html"
+    },
+    {
+      "from": "apps/vloer/docs/landscape/components.md",
+      "to": "docs/landscape/components.md"
+    },
+    {
+      "from": "apps/vloer/docs/landscape/index.md",
+      "to": "docs/landscape/index.md"
+    },
+    {
+      "from": "apps/vloer/docs/landscape/explorer.template.html",
+      "to": "docs/landscape/explorer.template.html"
+    },
+    {
+      "from": "apps/vloer/docs/landscape/c4.md",
+      "to": "docs/landscape/c4.md"
+    },
+    {
+      "from": "apps/vloer/docs/landscape/questions.md",
+      "to": "docs/landscape/questions.md"
+    },
+    {
+      "from": "apps/vloer/docs/documentation.md",
+      "to": "docs/documentation.md"
+    },
+    {
+      "from": "apps/vloer/docs/monorepo-transition.md",
+      "to": "docs/migration-proposal.md"
+    },
+    {
+      "from": "apps/vloer/docs/operations/local-unified-demo.md",
+      "to": "docs/workflows/local-demo.md"
+    },
+    {
+      "from": "apps/vloer/docs/operations/unified-baseline.md",
+      "to": "docs/workflows/managed-execution.md"
+    }
+  ]
+}

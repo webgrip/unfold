@@ -1,0 +1,163 @@
+[docs-check] $ uv run --frozen python scripts/docs.py --check
+validate-adr-consistency: OK (1 record(s) in /Users/ryangrippeling/projects/webgrip/glide/docs/adr, registry-checked)
+
+[31m │  ⚠  Warning from the Material for MkDocs team[0m
+[31m │[0m
+[31m │[0m  MkDocs 2.0, the underlying framework of Material for MkDocs,
+[31m │[0m  will introduce backward-incompatible changes, including:
+[31m │[0m
+[31m │  × [0mAll plugins will stop working – the plugin system has been removed
+[31m │  × [0mAll theme overrides will break – the theming system has been rewritten
+[31m │  × [0mNo migration path exists – existing projects cannot be upgraded
+[31m │  × [0mClosed contribution model – community members can't report bugs
+[31m │  × [0mCurrently unlicensed – unsuitable for production use
+[31m │[0m
+[31m │[0m  Our full analysis:
+[31m │[0m
+[31m │[0m  [4mhttps://squidfunk.github.io/mkdocs-material/blog/2026/02/18/mkdocs-2.0/[0m
+[0m
+INFO    -  Cleaning site directory
+INFO    -  Building documentation to directory: /Users/ryangrippeling/projects/webgrip/glide/.build/site
+INFO    -  The following pages exist in the docs directory, but are not included in the "nav" configuration:
+  - migration-proposal.md
+  - adr/adr-0001-glide-contains-independent-applications.md
+  - domain/entities.md
+  - domain/glossary.md
+  - domain/rules.md
+  - landscape/bottlenecks.md
+  - ploeg/architecture.md
+  - ploeg/backlog.md
+  - ploeg/design.md
+  - ploeg/adrs/README.md
+  - ploeg/adrs/0001-adrs-are-the-decision-ledger.md
+  - ploeg/adrs/0002-go-as-the-implementation-language.md
+  - ploeg/adrs/0003-apache-2-0-license.md
+  - ploeg/adrs/0004-forgejo-leading-home-github-mirror-module-path.md
+  - ploeg/adrs/0005-build-a-dedicated-dispatch-plane.md
+  - ploeg/adrs/0006-ahp-is-the-wrong-layer.md
+  - ploeg/adrs/0007-a2a-adopt-nothing-watchlist-a-facade.md
+  - ploeg/adrs/0008-litellm-is-the-credential-and-metering-seam.md
+  - ploeg/adrs/0009-paperclip-mine-for-design-never-integrate.md
+  - ploeg/adrs/0010-shift-owns-the-item-lease-owns-the-branch.md
+  - ploeg/adrs/0011-the-pull-request-is-the-blackboard.md
+  - ploeg/adrs/0012-two-level-budgets-authorized-and-settled.md
+  - ploeg/adrs/0013-push-rights-are-minted-per-run.md
+  - ploeg/adrs/0014-work-target-is-a-work-item-attribute.md
+  - ploeg/adrs/0015-routing-is-core-policy-over-provider-opaque-scopes.md
+  - ploeg/adrs/0016-forge-registry-and-per-run-repo-scoped-credentials.md
+  - ploeg/adrs/0017-the-review-loop-is-verdict-driven-and-capped.md
+  - ploeg/adrs/0018-the-outcome-drop-box-is-every-harnesss-return-path.md
+  - ploeg/adrs/0019-a-failed-writing-run-reopens-its-round.md
+  - ploeg/adrs/0020-published-artifacts-name-the-mirror-as-source.md
+  - ploeg/adrs/0021-infra-failures-and-agent-failures-get-separate-retry-budgets.md
+  - ploeg/adrs/0022-the-name-and-mark-are-trademarks-not-cc-licensed-artwork.md
+  - ploeg/adrs/0023-the-forge-dialect-travels-on-the-work-item.md
+  - ploeg/adrs/0024-operator-work-uses-one-execution-authority.md
+  - ploeg/adrs/0025-management-authority-stays-in-the-control-plane.md
+  - ploeg/adrs/0026-tracker-selections-bind-the-canonical-work-item.md
+  - ploeg/adrs/0027-candidate-delivery-uses-trusted-evidence-and-a-publication-barrier.md
+  - ploeg/adrs/0028-automatic-releases-stay-zero-major-candidates.md
+  - ploeg/adrs/0029-qualify-glide-before-changing-distribution.md
+  - ploeg/adrs/adr-template.md
+  - ploeg/brand/README.md
+  - ploeg/brand/TRADEMARK.md
+  - ploeg/contracts/README.md
+  - ploeg/contracts/executor.md
+  - ploeg/contracts/operator-delivery.md
+  - ploeg/contracts/tracker-execution.md
+  - ploeg/contracts/worker-control.md
+  - ploeg/domain/entities.md
+  - ploeg/domain/events.md
+  - ploeg/domain/glossary.md
+  - ploeg/domain/overview.md
+  - ploeg/domain/rules.md
+  - ploeg/ops/board.md
+  - ploeg/ops/ci-and-infra.md
+  - ploeg/ops/managed-workers.md
+  - ploeg/ops/release-versioning.md
+  - ploeg/research/2026-07-28-a2a-fit.md
+  - ploeg/research/2026-07-28-agent-roster-ssot.md
+  - ploeg/research/2026-07-28-omniroute-fit.md
+  - ploeg/research/2026-07-28-paperclip-fit.md
+  - ploeg/research/2026-08-08-benchmarking-the-loop.md
+  - ploeg/research/2026-08-28-onboarding-friction.md
+  - ploeg/research/2026-09-11-release-policy-verification.md
+  - vloer/PRODUCT-DESIGN.md
+  - vloer/architecture.md
+  - vloer/documentation.md
+  - vloer/monorepo-transition.md
+  - vloer/validation.md
+  - vloer/adrs/README.md
+  - vloer/adrs/0001-the-human-workbench-beside-ploeg.md
+  - vloer/adrs/0002-native-node-and-single-writer-storage.md
+  - vloer/adrs/0003-runtime-workspace-and-credential-seams.md
+  - vloer/adrs/0004-portable-procedures-and-explicit-contracts.md
+  - vloer/adrs/0005-one-work-authority.md
+  - vloer/adrs/0006-trusted-verifier-and-publisher.md
+  - vloer/adrs/0007-thin-editor-client.md
+  - vloer/adrs/0008-task-connections-and-candidate-handoff.md
+  - vloer/adrs/0009-workspace-placement-is-a-session-choice.md
+  - vloer/adrs/0010-one-release-train-with-zero-cve-images.md
+  - vloer/adrs/0011-sandboxes-dial-out-through-a-relay.md
+  - vloer/adrs/0012-agent-host-protocol-host.md
+  - vloer/adrs/0013-sandbox-crd-placement-with-warm-kata-pools.md
+  - vloer/adrs/0014-signed-candidates.md
+  - vloer/adrs/0015-ploeg-operator-read-api.md
+  - vloer/adrs/0016-sign-in-and-link-your-own-accounts.md
+  - vloer/adrs/0017-delegate-interactive-execution-to-ploeg.md
+  - vloer/adrs/0018-bind-tracker-imports-to-existing-ploeg-work.md
+  - vloer/adrs/0019-verify-canonical-candidates-outside-agent-workspaces.md
+  - vloer/adrs/0020-the-name-and-mark-are-trademarks.md
+  - vloer/adrs/0021-the-extension-ships-through-open-vsx-first.md
+  - vloer/adrs/0022-apache-2-0-is-the-estate-licence.md
+  - vloer/brand/README.md
+  - vloer/brand/TRADEMARK.md
+  - vloer/brand/social-profile-copy.md
+  - vloer/contracts/api.md
+  - vloer/contracts/candidate-delivery.md
+  - vloer/contracts/implementation.md
+  - vloer/contracts/ploeg-execution.md
+  - vloer/contracts/ploeg-tracker-binding.md
+  - vloer/design/00-product-system-design.md
+  - vloer/design/gap-register.md
+  - vloer/design/ide-10x-plan.md
+  - vloer/design/ide-and-operator-experience.md
+  - vloer/design/platform-and-governance.md
+  - vloer/design/self-improvement.md
+  - vloer/design/ticket-integration.md
+  - vloer/domain/entities.md
+  - vloer/domain/glossary.md
+  - vloer/domain/overview.md
+  - vloer/domain/rules.md
+  - vloer/landscape/index.md
+  - vloer/landscape/bottlenecks.md
+  - vloer/landscape/c4.md
+  - vloer/landscape/components.md
+  - vloer/landscape/questions.md
+  - vloer/operations/backlog.md
+  - vloer/operations/implementation-progress.md
+  - vloer/operations/iteration-0.2.0.md
+  - vloer/operations/live.md
+  - vloer/operations/local-unified-demo.md
+  - vloer/operations/release.md
+  - vloer/operations/task-connections.md
+  - vloer/operations/unified-baseline.md
+  - vloer/product/go-to-market.md
+  - vloer/product/model-gateway-capabilities.md
+  - vloer/research/2026-09-10-agent-host-protocol.md
+  - vloer/research/2026-09-10-kubernetes-and-sandbox-crds.md
+  - vloer/research/2026-09-10-ploeg-and-de-vloer-split.md
+  - vloer/research/2026-09-10-sandbox-landscape.md
+  - vloer/research/2026-09-10-unified-workbench-baseline.md
+  - vloer/research/2026-09-11-ecosystem-alternatives.md
+  - vloer/research/2026-09-11-ecosystem-implementation.md
+  - vloer/research/2026-09-12-documentation-audit.md
+  - vloer/research/2026-09-12-documentation-second-pass.md
+  - vloer/research/agent-apis.md
+  - vloer/research/conventions-and-alternatives.md
+  - vloer/research/market-landscape.md
+  - vloer/research/task-connector-sources.md
+  - vloer/research/evidence/delivery-2026-09-11/README.md
+  - vloer/research/evidence/unified-2026-09-10/README.md
+INFO    -  Documentation built in 2.66 seconds
+Glide docs: 320 sources, 1100 repository links, strict build; 526 current search entries

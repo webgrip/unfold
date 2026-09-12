@@ -1,5 +1,3 @@
-# Entities — Ploeg and Vloer
+# Documentation moved
 
-*Generated from `model.yaml` — do not edit by hand.*
-
-_No entities defined yet._
+Read the [current Glide document](../../../../docs/domain/entities.md). This compatibility page preserves existing links.
