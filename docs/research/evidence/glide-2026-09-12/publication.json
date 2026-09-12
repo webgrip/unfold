@@ -4,9 +4,51 @@
   "localRepository": "/Users/ryangrippeling/projects/webgrip/glide",
   "localQualifiedCommit": "009261888079c4ec5735e40d2ca4729e800267f3",
   "intendedRemote": "ssh://git@forgejo-ssh.webgrip.dev/webgrip/glide.git",
-  "remoteRepositoryCreated": false,
-  "remoteChecks": "not run; source publication awaits authenticated repository creation",
-  "blocker": "Forgejo CLI token lacks write:organization or write:repository; browser requires owner sign-in",
+  "remoteRepositoryCreated": true,
+  "remoteChecks": {
+    "run": {
+      "id": 12201,
+      "index_in_repo": 1,
+      "commit_sha": "e1f40a9f0df4507196a04284f8d03935343927ce",
+      "workflow_id": "checks.yml",
+      "status": "success",
+      "html_url": "https://forgejo.webgrip.dev/webgrip/glide/actions/runs/1",
+      "started": "2026-09-12T14:36:54Z",
+      "stopped": "2026-09-12T14:39:53Z",
+      "updated": "2026-09-12T14:39:53Z"
+    },
+    "checks": {
+      "state": "success",
+      "sha": "e1f40a9f0df4507196a04284f8d03935343927ce",
+      "statuses": [
+        {
+          "context": "Glide checks and independent releases / release-policy (push)",
+          "status": "success",
+          "description": "Successful in 9s",
+          "target_url": "/webgrip/glide/actions/runs/1/jobs/1"
+        },
+        {
+          "context": "Glide checks and independent releases / checks (push)",
+          "status": "success",
+          "description": "Successful in 2m54s",
+          "target_url": "/webgrip/glide/actions/runs/1/jobs/0"
+        },
+        {
+          "context": "Glide checks and independent releases / release-vloer (push)",
+          "status": "success",
+          "description": "Has been skipped",
+          "target_url": "/webgrip/glide/actions/runs/1/jobs/2"
+        },
+        {
+          "context": "Glide checks and independent releases / release-ploeg (push)",
+          "status": "success",
+          "description": "Has been skipped",
+          "target_url": "/webgrip/glide/actions/runs/1/jobs/3"
+        }
+      ]
+    }
+  },
+  "blocker": null,
   "remoteSourceCatchup": {
     "repository": "ploeg",
     "revision": "6f19c25fcc48f2335ad39237d06642adef1a5fcc",
@@ -20,5 +62,17 @@
       "immutable import verifier"
     ]
   },
-  "artifactPublication": "disabled until source mirror and CI secret requirements are satisfied"
+  "artifactPublication": "disabled; GLIDE_RELEASES_ENABLED is absent at repository scope, both release jobs skipped, no Glide releases exist",
+  "repositoryUrl": "https://forgejo.webgrip.dev/webgrip/glide",
+  "remoteVisibility": "public; as created by the owner",
+  "defaultBranch": "development",
+  "publishedCommit": "e1f40a9f0df4507196a04284f8d03935343927ce",
+  "refsVerified": {
+    "branches": 1,
+    "tags": 70,
+    "notes": 67,
+    "total": 138
+  },
+  "freshRemoteCloneImportVerification": "passed for all 788 imported files, 70 tag objects and original source ancestry",
+  "publicationMethod": "Owner created the repository; agent pushed development, namespaced tags and release-channel notes atomically over SSH"
 }
