@@ -45,6 +45,8 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           fetch-depth: 0
+      - name: Verify release baseline branch
+        run: git show-ref --verify refs/remotes/origin/main
       - name: Verify independent release policy
         working-directory: apps/ploeg
         run: NODE_PATH="${SEMREL_PREBAKED:?release toolchain is required}" node --test scripts/release-policy.test.cjs

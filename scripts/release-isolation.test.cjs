@@ -16,6 +16,38 @@ function git(cwd, ...args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
 }
 
+test('the shared prerelease configuration needs an existing main baseline', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'glide-release-branches-'));
+  const remote = path.join(directory, 'origin.git');
+  const cwd = path.join(directory, 'checkout');
+  try {
+    git(directory, 'init', '--bare', '-b', 'development', remote);
+    git(directory, 'init', '-b', 'development', cwd);
+    git(cwd, 'config', 'user.name', 'Glide qualification');
+    git(cwd, 'config', 'user.email', 'qualification@example.invalid');
+    git(cwd, 'commit', '--allow-empty', '-m', 'chore: establish fixture');
+    git(cwd, 'remote', 'add', 'origin', remote);
+    git(cwd, 'push', 'origin', 'development');
+    const moduleRoot = path.dirname(require.resolve('semantic-release'));
+    const { default: getBranches } = await import(pathToFileURL(path.join(moduleRoot, 'lib/branches/index.js')).href);
+    const options = require(path.join(root, 'apps/vloer/.releaserc.cjs'));
+    assert.deepEqual(options.branches, require(path.join(root, 'apps/ploeg/.releaserc.cjs')).branches);
+    const context = { cwd, env: process.env, options, logger };
+    await assert.rejects(getBranches(remote, 'development', context), error => {
+      assert.ok(error.errors, error.stack);
+      return error.errors.some(item => item.code === 'ERELEASEBRANCHES');
+    });
+    git(cwd, 'push', 'origin', 'HEAD:refs/heads/main');
+    const branches = await getBranches(remote, 'development', context);
+    assert.equal(branches.find(branch => branch.name === 'main').type, 'release');
+    const development = branches.find(branch => branch.name === 'development');
+    assert.equal(development.type, 'prerelease');
+    assert.equal(development.prerelease, 'rc');
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('the installed release pipeline selects only commits within the application package', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'glide-release-'));
   const previous = process.cwd();
