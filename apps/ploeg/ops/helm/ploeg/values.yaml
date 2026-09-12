@@ -1,0 +1,306 @@
+image:
+  repository: harbor.webgrip.dev/webgrip/ploegd
+  tag: "" # empty = .Chart.AppVersion (kept in lockstep with the chart by the release train)
+imagePullSecrets: [] # homelab sets [{name: harbor-pull}]
+
+service:
+  port: 8080
+
+operator:
+  consumers: []
+  deliveryPolicies: []
+
+# Plain PLOEG_* env rendered onto the deployment.
+env:
+  PLOEG_DEFAULT_TEAM: default
+  PLOEG_TEAM_MAP: ""
+  PLOEG_LEASE_TTL: 15m
+  PLOEG_SWEEP_INTERVAL: 15s
+
+database:
+  # CNPG auto-creates <cluster>-app with a `uri` key; ploegd consumes it whole.
+  existingSecret:
+    name: ploeg-db-app
+    key: uri
+
+webhook:
+  existingSecret:
+    name: ploeg-webhook-secret
+    key: PLOEG_VIKUNJA_SECRET
+
+# Guaranteed QoS: ploegd runs the sweeper — the self-heal backbone (lease
+# expiry, requeue, key revocation). It must survive the node pressure that
+# kills everything else, and only requests==limits keeps it out of the
+# burstable cgroup tree the Talos OOMController sweeps (ADR-0049).
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 100m
+    memory: 256Mi
+
+nodeSelector:
+  node.webgrip.io/pool: worker
+
+# Tracker write-backs (backlog #31): how a closed Shift reaches a person with
+# the pull request link. Unset = the Vikunja provider keeps its logging no-op —
+# runs still finish, the board simply is not updated. Ingest (the webhook) is
+# configured separately and needs no token.
+tracker:
+  # e.g. https://vikunja.example/api/v1
+  url: ""
+  # tokenSecret: {name: agent-vikunja-token, key: VIKUNJA_API_TOKEN}
+  tokenSecret: {}
+  # The ClickUp tracker (pkg/provider/clickup). Ingest and write-backs are
+  # independent: webhookSecret alone verifies deliveries, tokenSecret alone
+  # enables reads and write-backs, either without the other degrades rather
+  # than fails. ClickUp GENERATES the webhook secret on registration — capture
+  # it from the create-webhook response; there is nothing to invent.
+  clickup:
+    url: "" # empty = https://api.clickup.com/api/v2
+    # tokenSecret: {name: agent-clickup-token, key: CLICKUP_TOKEN}
+    tokenSecret: {}
+    # webhookSecret: {name: ploeg-clickup-webhook, key: PLOEG_CLICKUP_SECRET}
+    webhookSecret: {}
+    # Statuses are per-List custom strings, so the finished-status must be
+    # NAMED; empty leaves the board untouched.
+    doneStatus: ""
+
+executor:
+  # The executor (design §6, docs/contracts/executor.md). Disabled until the
+  # ingest path is verified in-cluster; flipping it on requires the LiteLLM +
+  # agent-builder secrets and (for dind harnesses) the privileged-DinD
+  # PolicyException in the namespace.
+  enabled: false
+  # keda (flagship: ScaledJob + Postgres scaler) | cronjob (KEDA-free polling
+  # executor). Any other launcher can implement docs/contracts/executor.md
+  # out-of-chart against the run API.
+  type: keda
+  forge: forgejo
+  nodeSelector:
+    node.webgrip.io/pool: worker
+  # Global harness defaults; a team's optional `harness:` block overrides
+  # these field-by-field (see teams below).
+  harness:
+    name: openhands # openhands | exec | claude-code | acp (PLOEG_HARNESS)
+    image: ""       # agent image; "" = runnerImage below
+    entrypoint: ""  # binary override (PLOEG_HARNESS_ENTRYPOINT); "" = adapter default
+    args: []        # exec harness only: argv template with {taskspec}/{taskfile}
+    outcomeFile: "" # exec harness only: OutcomeReport JSON path override
+    dind: true      # privileged DinD sidecar + DOCKER_* wiring (OpenHands + gates need it)
+    # acp harness only. One adapter speaks Zed's Agent CLIENT Protocol (stdio
+    # JSON-RPC, wire version 1) to any ACP-capable agent. Unrelated to IBM's
+    # former Agent COMMUNICATION Protocol, which merged into A2A — see ADR-0007.
+    acp:
+      profile: opencode  # opencode | custom (PLOEG_ACP_PROFILE)
+      argv: []           # whole launch command; REQUIRED when profile is custom
+      permissionMode: "" # allow_always (default) | allow_read_only | deny_all
+      promptTimeout: ""  # Go duration; "" = adapter default (45m)
+      idleTimeout: ""    # Go duration; "" = adapter default (10m) with no protocol traffic
+      # Replaces the profile's generated agent config wholesale, so a wrong
+      # provider block is a values edit rather than an agent image rebuild.
+      configJson: ""
+  # DEPRECATED in favor of harness.image (kept as the fallback so existing
+  # value overrides keep working).
+  # agent-runner >=1.0.1 only: 1.0.0 mints LiteLLM keys without key_alias (400).
+  runnerImage: harbor.webgrip.dev/webgrip/agent-runner:1.0.2@sha256:086b4bc0d3fda0e3c179f9501bb46a612f5f33e60d96405a5d94471a26279596
+  dindImage: harbor.webgrip.dev/dockerhub/library/docker:29.6.2-dind
+  workerImage: "" # empty = image.repository:tag (carries /usr/local/bin/ploeg-worker)
+  # ServiceAccount for the WORKER pods (not ploegd). Workers mount no token
+  # either way; this is an identity/audit fix, and what
+  # require-non-default-serviceaccount wants.
+  #
+  # create and name are separate questions ON PURPOSE. The first shape here
+  # inferred one from the other — a name meant "an external account exists, do
+  # not create one" — so naming the chart's own default suppressed the account
+  # the pods referenced and every Job died at admission. Set create: false
+  # only when something outside the chart really owns the account.
+  serviceAccount:
+    create: true
+    name: "" # empty = <fullname>-worker
+  apiUrl: ""      # empty = http://<fullname>:<service.port>
+  cronjob:
+    # type=cronjob only: how often each team polls for work. Idle ticks are
+    # free (empty-handed claim = exit 0).
+    schedule: "*/2 * * * *"
+  # Fallback repository for teams that pin none. The repository belongs to the
+  # WORK ITEM — resolved at ingest from its tracker scope via ploegd's
+  # PLOEG_TARGET_MAP (rendered from the org.yaml roster manifest) and delivered
+  # on the claim (R11, ADR-0001). Leave empty once every team's work resolves a
+  # target: a run that resolves none then reports stuck instead of silently
+  # using a stale repo.
+  defaultTarget:
+    owner: ""
+    name: ""
+    baseBranch: ""
+  litellm:
+    baseUrl: http://litellm.ai.svc.cluster.local:4000/v1
+    adminUrl: http://litellm.ai.svc.cluster.local:4000
+    masterKeySecret:
+      name: agent-litellm-master
+      key: LITELLM_MASTER_KEY
+    keyDuration: 4h
+  workerAuth:
+    mode: managed
+    signingKeySecret:
+      name: ploeg-worker-signing
+      key: key
+    bootstrapSecret:
+      name: ploeg-worker-bootstrap
+      registryKey: registry.json
+    staticInferenceSecret: {}
+    additionalLLMPolicies: []
+  forgejo:
+    url: http://forgejo-http.forgejo.svc.cluster.local:3000
+    tokenSecret:
+      name: agent-builder-token
+      key: FORGEJO_TOKEN
+    # ADR-0013 tier 1: the credential handed to READING Roles, which must not
+    # be able to push to the branch they review. Enforcing the reader/writer
+    # split at the forge as well as in Ploeg's scheduling is the whole point —
+    # either alone is a single point of failure.
+    #
+    # UNSET IS A KNOWN GAP, not a safe default: readers then run with the
+    # read-write builder token below and only scheduling separates them. The
+    # repos are private, so "no credential" cannot clone; a read-only token is
+    # the honest tier 1. Closing the gap is one OpenBao entry plus one
+    # ExternalSecret in homelab-cluster — no chart or code change.
+    readTokenSecret: {}
+    #  name: agent-reader-token
+    #  key: FORGEJO_TOKEN
+    # ADR-0013 tier 2: ploegd mints a push credential per WRITING Run and
+    # revokes it when the Run settles or its Lease lapses, so holding the
+    # Lease and being able to push are one fact. Closes the zombie-writer
+    # case: a partitioned pod whose Lease expired loses the ABILITY to push,
+    # not merely the right to.
+    #
+    # This credential can create tokens for botUser, so it is an escalation —
+    # accepted deliberately on ADR-0008's reasoning, and it lives only in
+    # ploegd, never in a worker pod (R6). Unset = nothing is minted and every
+    # run uses the shared token below, which is the pre-tier-2 behaviour.
+    adminTokenSecret: {}
+    #  name: agent-builder-admin-token
+    #  key: FORGEJO_ADMIN_TOKEN
+    botUser: agent-builder
+  gitlab:
+    url: ""
+    tokenSecret:
+      name: agent-builder-token
+      key: GITLAB_TOKEN
+    readTokenSecret: {}
+    webhookSecret: {}
+  scaler:
+    # Empty = ploeg-db-rw.<release namespace>.svc.cluster.local. Must be a
+    # name the KEDA operator can resolve from its own namespace (FQDN).
+    host: ""
+    port: "5432"
+    dbName: app
+    sslmode: require
+    userName: ploeg_scaler
+    passwordSecret:
+      name: ploeg-scaler
+      key: password
+  pollingInterval: 30
+  # Backstop only: the DB lease always expires first, so Ploeg decides
+  # requeue/stale; this just guarantees the pod dies (backlog #52).
+  activeDeadlineSeconds: 7200
+  # Long enough for ploeg-worker to abort the harness, revoke the per-run key,
+  # settle its spend and POST the outcome — not long enough to be a hiding
+  # place. A worker that needs more than this is not shutting down, and the
+  # kubelet's SIGKILL is the right answer.
+  terminationGracePeriodSeconds: 90
+  # Guaranteed QoS (requests == limits on EVERY container): factory pods leave
+  # the /kubepods/burstable/ cgroup tree, which Talos's OOMController SIGKILLs
+  # wholesale under PSI memory pressure (killed runs 9+10 on 2026-07-25;
+  # ADR-0049 P1, VIK-595 S1). Under scarcity the scheduler now queues runs
+  # honestly (Pending holds no lease, burns no attempt, spends no money)
+  # instead of starting them into a death zone. Sized from run 8's measured
+  # peaks (worker 438Mi, dind 108Mi) with headroom for gate builds inside
+  # dind; a build exceeding dind's limit fails THAT build visibly, never the
+  # pod. Changing any of these away from requests==limits silently re-enters
+  # the burstable tree — don't.
+  # Worker CPU is 1 full core: at 500m the OpenHands CLI's single-threaded
+  # Python cold import alone took 2m20s before the agent did anything
+  # (measured, silver run 2026-07-27). More than 1 core buys that phase
+  # nothing; less throttles every runner-side step.
+  workerBinResources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: 50m, memory: 64Mi}
+  workerResources:
+    requests: {cpu: "1", memory: 1Gi}
+    limits: {cpu: "1", memory: 1Gi}
+  dindResources:
+    requests: {cpu: "1", memory: 1536Mi}
+    limits: {cpu: "1", memory: 1536Mi}
+  teams: []
+  # - name: bronze
+  #   model: litellm_proxy/deepseek-chat
+  #   budget: "2"
+  #   # DEPRECATED per-team fallback. The repository belongs to the work item,
+  #   # resolved at ingest from its tracker scope (R11, ADR-0001) — omit these
+  #   # once the item's scope resolves a target, and onboarding a repo becomes
+  #   # one map entry plus a webhook instead of a whole new team.
+  #   repoOwner: webgrip
+  #   repoName: some-repo
+  #   # Branch the worker clones, branches from, and opens the PR against.
+  #   # Unset = the repo's default branch (which may be a stale stub — pin
+  #   # this to the repo's actual trunk; VIK-589).
+  #   baseBranch: main
+  #   # env = ignore the claim's target and use the fallback above. The
+  #   # per-team lever for rolling the decoupling forward or back.
+  #   targetSource: claim
+  #   maxReplicaCount: 1
+  #   # Optional: override the executor.harness defaults for this team — the
+  #   # single axis of variation (harness AND agent image swap per team).
+  #   harness:
+  #     name: claude-code
+  #     image: harbor.webgrip.dev/webgrip/claude-runner:0.1.0
+  #     dind: false # claude-code needs no Docker daemon (PolicyException scope review!)
+  #   # Optional: a Shift plan (run-multi-agent-shifts). With one, this team
+  #   # runs each work item through ordered Rounds — a fan-out of readers or a
+  #   # single writer per round (ADR-0010) — and `budget` becomes the Shift
+  #   # POOL the rounds share (ADR-0012). Without one, dispatch is unchanged.
+  #   # The same plan is serialised to ploegd as PLOEG_TEAM_PLANS (validated at
+  #   # boot: a malformed plan refuses to start) and, in a later chart change,
+  #   # partitions the workloads per (team, role). Role caps are per-Run
+  #   # ceilings; a role recurring across rounds is ONE workload.
+  #   plan:
+  #     - roles:
+  #         - {name: analyst, writes: false, cap: "0.50", harness: {dind: false}}
+  #         - {name: tests,   writes: false, cap: "0.50", harness: {dind: false}}
+  #     - roles:
+  #         - {name: builder, writes: true, cap: "3.00", model: litellm_proxy/claude-sonnet-5}
+  #     - roles:
+  #         - {name: reviewer, writes: false, cap: "0.75", model: litellm_proxy/claude-sonnet-5, harness: {dind: false}}
+
+# ploegd's routing and roster as a FILE (rendered to a ConfigMap, mounted at
+# /etc/ploeg/ploeg.yaml). Empty = the legacy PLOEG_TARGET_MAP / PLOEG_TEAM_MAP /
+# PLOEG_TEAM_PLANS env vars still apply, so this migrates one deployment at a
+# time.
+#
+# Projects are NAMED, never numbered: ploegd asks the tracker for the id at
+# boot, logs what it resolved, and refuses to start if a name matches nothing.
+# A bare project id in cluster config cannot be reviewed and silently routes
+# work to the wrong repository the day the project is rebuilt.
+config: {}
+#   trackers:
+#     vikunja:
+#       projects:
+#         - name: "Ploeg Test"        # or: id: "11" to pin, skipping resolution
+#           repo: webgrip/ploeg
+#           branch: development       # unset = the repo default, may be a stub
+#           team: bronze              # unset = the assignee decides
+#   teams:
+#     bronze:
+#       assignees: [jake, bronze]     # replaces PLOEG_TEAM_MAP
+#       plan:                         # replaces PLOEG_TEAM_PLANS; omit for one writer
+#         pool: "6"
+#         maxFixRounds: 2
+#         rounds:
+#           - roles:
+#               - {name: analyst, writes: false, cap: "0.50", harness: {dind: false}}
+#           - roles:
+#               - {name: builder, writes: true, cap: "3.00"}
+#           - roles:
+#               - {name: reviewer, writes: false, cap: "0.75", harness: {dind: false}}

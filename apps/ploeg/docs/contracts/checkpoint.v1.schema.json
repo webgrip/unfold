@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://webgrip.dev/ploeg/contracts/checkpoint.v1.schema.json",
+  "title": "Checkpoint",
+  "description": "The small durable progress record enabling resume (work.Checkpoint). Everything else is re-derived from git/forge state.",
+  "type": "object",
+  "properties": {
+    "workItemId": { "type": "string" },
+    "phase": {
+      "type": "string",
+      "description": "e.g. branch_created, changes_made, pr_opened"
+    },
+    "branch": { "type": "string" },
+    "prUrl": { "type": "string" },
+    "at": { "type": "string", "format": "date-time" }
+  },
+  "required": ["phase"],
+  "additionalProperties": false
+}

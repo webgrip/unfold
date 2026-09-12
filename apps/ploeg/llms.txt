@@ -1,0 +1,11 @@
+# Ploeg
+
+> Self-hosted authorization and coordination for agent work.
+
+## Current documentation
+
+- [Start here](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/docs/index.md): human and agent reading path.
+- [Architecture](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/docs/architecture.md): implemented boundaries and limits.
+- [Contracts](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/docs/contracts/README.md): published schemas and integration requirements.
+- [Domain source](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/docs/domain/model.yaml): structured Ploeg vocabulary.
+- [Decisions](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/docs/adrs/README.md): check acceptance and supersession status.

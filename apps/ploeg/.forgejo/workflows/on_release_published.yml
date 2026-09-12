@@ -1,0 +1,398 @@
+name: On Release Published
+
+on:
+  release:
+    types: [published]
+  # CI-cut releases fire this natively: semantic-release publishes with the webgrip-ci
+  # bot PAT, and only same-token actions are loop-suppressed. workflow_dispatch remains
+  # for manual re-publish/backfill of an existing tag. That path is genuinely idempotent
+  # since v1.10.0: the image and both chart pushes probe their registry first and skip a
+  # version that is already published, rather than dying on Harbor's immutable tags
+  # (run 173 lost the whole chain that way; run 184 was green end to end).
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Experimental release tag, e.g. v0.3.0-rc.5"
+        required: true
+        type: string
+
+concurrency:
+  group: release-publish-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: true
+
+jobs:
+  parse-release-tag:
+    runs-on: docker
+    outputs:
+      version: ${{ steps.parse.outputs.version }}
+      latest_tag: ${{ steps.parse.outputs.latest_tag }}
+    steps:
+      - id: parse
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          tag="${RELEASE_TAG:-}"
+          [[ "$tag" =~ ^v0\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-rc\.[1-9][0-9]*$ ]] || { echo "Ploeg publishes only v0.x.y-rc.N tags; stable and 1.x releases require an explicit policy change." >&2; exit 1; }
+          version="${tag#v}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "latest_tag=" >> "$GITHUB_OUTPUT"
+
+  # Distribute: normal job + step-level -fast composite (infra's production shape from
+  # Forgejo) — no job-level reusable chains, so no flattened-job-id collisions. The
+  # composite reads REGISTRY_USERNAME/REGISTRY_TOKEN from env. Explicit platforms re-enables
+  # QEMU in -fast; arm64 is cheap because the Dockerfile cross-compiles via $BUILDPLATFORM.
+  # Job-level reusable. Two DIFFERENT reusables coexist fine in this caller
+  # (helm-chart-push here + forgejo-distribute below, proven green in run 60) —
+  # the flattened-job-id collision only bites two instances of the SAME reusable.
+  release-publish-chart:
+    name: Publish Helm chart (Harbor)
+    needs: [parse-release-tag]
+    uses: webgrip/workflows/.forgejo/workflows/helm-chart-push.yml@v1.10.0
+    with:
+      enabled: ${{ needs.parse-release-tag.outputs.version != '' }}
+      registry: harbor.webgrip.dev
+      path: ops/helm/ploeg
+      name: ploeg
+      version: ${{ needs.parse-release-tag.outputs.version }}
+      ref: v${{ needs.parse-release-tag.outputs.version }}
+      oci-path: webgrip/charts
+    secrets:
+      REGISTRY_USERNAME: ${{ secrets.HARBOR_ROBOT_USER }}
+      REGISTRY_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
+
+  release-distribute-harbor:
+    name: Distribute (Harbor)
+    needs: [parse-release-tag]
+    runs-on: docker
+    env:
+      REGISTRY_USERNAME: ${{ secrets.HARBOR_ROBOT_USER }}
+      REGISTRY_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
+    steps:
+      # 0.2.0-rc.21 shipped with org.opencontainers.image.created=1970-01-01T00:00:00Z — the
+      # Dockerfile ARG default — while version and revision, three lines below it in the same
+      # docker-build-args block, both came through. That is only reachable if the key
+      # `IMAGE_CREATED` never landed in BuildKit's build-arg map: buildx keys that map on
+      # presence (`strings.Cut` on the first `=`, so even `KEY=` is present-with-empty), and
+      # BuildKit falls back to the ARG default only when the key is ABSENT. An empty value
+      # would have produced an empty label, not the default.
+      #
+      # Root cause unconfirmed — Forgejo exposes no job-log API and the SLSA provenance that
+      # would name the args needs Harbor auth. So this removes the fragile path rather than
+      # patching a guess: the value is computed in THIS job (no cross-job outputs hop), the
+      # release contexts arrive as env instead of being interpolated into the script body,
+      # and the result is asserted ISO-8601 before it can reach a build-arg.
+      - name: Stamp image creation timestamp
+        id: stamp
+        shell: bash
+        env:
+          RELEASE_PUBLISHED_AT: ${{ github.event.release.published_at }}
+          RELEASE_CREATED_AT: ${{ github.event.release.created_at }}
+        run: |
+          set -euo pipefail
+          # Forgejo hands back a ZERO TIME, not an empty string, for a release published
+          # through the API — which is how semantic-release cuts every rc. Two spellings
+          # have been seen: Go's zero value (0001-01-01) and the Unix epoch (1970-01-01,
+          # rc.29). Only the first was rejected, so rc.29 shipped claiming it was built in
+          # 1970 — the very label this step exists to protect, reached by a different route
+          # than the build-arg loss it was originally written for.
+          #
+          # Enumerating sentinels is a losing game, so the real test is plausibility:
+          # nothing this project publishes was created before the project existed, so
+          # anything earlier is a sentinel whatever it spells itself. One predicate serves
+          # both jobs below — choosing a candidate, and asserting the result — because a
+          # value good enough to pick is exactly a value good enough to ship.
+          plausible() {
+            local v="${1:-}"
+            [[ -n "$v" ]] || return 1
+            [[ "$v" =~ ^([0-9]{4})-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2} ]] || return 1
+            (( BASH_REMATCH[1] >= 2020 ))
+          }
+
+          # A rejected candidate is announced, never silently dropped. Substituting build
+          # time keeps the release moving — the label stays correct either way — but a
+          # forge sending an unusable timestamp is a fact someone should be able to see in
+          # the log rather than infer from a date that looks plausible but is not the one
+          # the release carries.
+          created=""
+          for cand in "${RELEASE_PUBLISHED_AT:-}" "${RELEASE_CREATED_AT:-}"; do
+            [[ -n "$cand" ]] || continue
+            if plausible "$cand"; then created="$cand"; break; fi
+            echo "NOTE:  release timestamp '$cand' is a zero time or implausible — ignoring it."
+          done
+          # workflow_dispatch has no release event at all, and build time is the
+          # OCI-conventional meaning of image.created anyway.
+          [[ -n "$created" ]] || created="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          # Asserted, not merely applied: the label gate downstream compares the built
+          # image against THIS value, so a bad value here would be verified as correct.
+          plausible "$created" || {
+            echo "ERROR: refusing to build — IMAGE_CREATED is not a plausible instant: '$created'"
+            echo "       A bad timestamp here bakes a wrong org.opencontainers.image.created"
+            echo "       into the release image silently, so fail the build instead."
+            exit 1
+          }
+          echo "created=$created" >> "$GITHUB_OUTPUT"
+
+      # Harbor tags are immutable, so re-pushing a version that is already published is a
+      # hard failure, not a no-op: the rc.21 backfill (run 173) died here with
+      # "'ploegd:0.2.0-rc.21' configured as immutable" and took the whole chain with it —
+      # sign skipped, both mirrors dead, the GitHub jobs never even instantiated. But an
+      # already-published version IS the desired end state, and every downstream job only
+      # ever copies the image from Harbor by digest. So probe first and skip the build.
+      #
+      # Fail-open by design: anything other than a clean 200 falls through to the build,
+      # which is exactly today's behaviour. A fresh tag 404s here and builds as normal, so
+      # this is inert on the release path and only bites on a re-publish.
+      - name: Probe Harbor for an existing image
+        id: probe
+        shell: bash
+        env:
+          VERSION: ${{ needs.parse-release-tag.outputs.version }}
+        run: |
+          set -uo pipefail
+          code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
+            -u "${REGISTRY_USERNAME}:${REGISTRY_TOKEN}" \
+            -H 'Accept: application/vnd.oci.image.index.v1+json' \
+            -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \
+            "https://harbor.webgrip.dev/v2/webgrip/ploegd/manifests/${VERSION}")" || true
+          # curl already prints 000 on a transport failure; the `|| true` only stops its
+          # non-zero exit from propagating.
+          [ -n "$code" ] || code=000
+          if [ "$code" = 200 ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "harbor.webgrip.dev/webgrip/ploegd:${VERSION} is already published — skipping the build."
+            echo "Harbor tags are immutable; a re-push would fail, and the digest the mirrors"
+            echo "copy is already in place."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Harbor answered HTTP ${code} for ${VERSION} — building."
+          fi
+
+      - name: Build and push (Harbor)
+        if: steps.probe.outputs.exists != 'true'
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/docker-build-push-registry-fast@v1.11.0
+        with:
+          registry: harbor.webgrip.dev
+          docker-context: "."
+          docker-file: "ops/docker/ploegd/Dockerfile"
+          platforms: "linux/amd64,linux/arm64"
+          # TEMPORARY Docker Hub proxy bypass (all three image inputs + REGISTRY_DOCKERHUB,
+          # same digests as the composite's proxy defaults): Harbor's docker-hub upstream
+          # credential is expired/revoked — harbor-proxy-config says so every hour,
+          # HarborProxyReconcileStale — so every cache-miss through
+          # harbor.webgrip.dev/dockerhub 404s (rc.18 run 166 twice on binfmt, rc.19 run 168
+          # on the syft scanner; the weekly delete_untagged GC evicts digest manifests).
+          # buildkit-image bypassed too: run 168 only survived it via a stale local copy on
+          # that one runner node. Anonymous direct pulls are fine at this volume (~4/release
+          # vs 100/h). REVERT these four lines to the proxy once
+          # `bao kv patch secret/harbor/registry-proxy DOCKERHUB_TOKEN=...` has a fresh
+          # read-only token and the registry health check goes green.
+          binfmt-image: "docker.io/tonistiigi/binfmt:latest@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0"
+          sbom-generator: "docker.io/docker/buildkit-syft-scanner:stable-1@sha256:79e7b013cbec16bbb436f312819a49a4a57752b2270c1a9332ae1a10fcc82a68"
+          buildkit-image: "docker.io/moby/buildkit:buildx-stable-1@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec"
+          # OCI annotations on the INDEX. The Dockerfile's LABEL of the same name lands in
+          # each platform's image config, which `docker inspect` reads and a registry does
+          # not: GHCR resolves a package's repository link from the manifest, so ploegd
+          # published label-correct and link-less for four releases (ADR-0020). Annotating
+          # here rather than at copy time keeps Harbor, Forgejo and GHCR on one index
+          # digest — a plain `imagetools create` preserves these.
+          annotations: |
+            index:org.opencontainers.image.source=https://github.com/webgrip/ploeg
+            index:org.opencontainers.image.url=https://forgejo.webgrip.dev/webgrip/ploeg
+          docker-build-args: |
+            IMAGE_CREATED=${{ steps.stamp.outputs.created }}
+            IMAGE_VERSION=${{ needs.parse-release-tag.outputs.version }}
+            IMAGE_REVISION=${{ github.sha }}
+            REGISTRY_DOCKERHUB=docker.io
+          # Owner hardcoded: github.repository_owner is EMPTY on Forgejo workflow_dispatch.
+          docker-tags: |
+            webgrip/ploegd:${{ needs.parse-release-tag.outputs.version }}
+            ${{ needs.parse-release-tag.outputs.latest_tag }}
+
+      # The rc.21 defect was silent: a plausible-looking timestamp shipped, got signed, and
+      # sat in Harbor until someone read the config by hand. Whatever swallowed the build-arg
+      # is still unproven, so assert on the artifact itself rather than on the input — any
+      # future recurrence, from any cause, turns the release red here instead of publishing
+      # provenance that misstates when the image was built.
+      # Gated with the build: this asserts image.created against the timestamp stamped in
+      # THIS run, and an image that was already published legitimately carries the one from
+      # when it was actually built. Verifying a build we did not do would fail on a value
+      # that is correct.
+      - name: Verify image metadata labels
+        if: steps.probe.outputs.exists != 'true'
+        shell: bash
+        env:
+          IMAGE: harbor.webgrip.dev/webgrip/ploegd:${{ needs.parse-release-tag.outputs.version }}
+          EXPECTED_CREATED: ${{ steps.stamp.outputs.created }}
+          EXPECTED_VERSION: ${{ needs.parse-release-tag.outputs.version }}
+          EXPECTED_REVISION: ${{ github.sha }}
+          # ADR-0020: published artifacts name the publicly resolvable mirror, so a
+          # regression here silently orphans the GHCR packages again.
+          EXPECTED_SOURCE: https://github.com/webgrip/ploeg
+        run: |
+          set -euo pipefail
+          # The composite logs in inside its own step; re-auth explicitly so this does not
+          # depend on that login still being in the job's docker config.
+          echo "$REGISTRY_TOKEN" | docker login harbor.webgrip.dev \
+            -u "$REGISTRY_USERNAME" --password-stdin >/dev/null
+          # Assert on PARSED json, not on the rendered text. The previous grep -F looked for
+          # `"key":"value"` while imagetools pretty-prints `"key": "value"` — so every
+          # assertion failed on a perfectly correct image (run 175, rc.22). The blanket
+          # search for the 1970 epoch was wrong for the same class of reason: BuildKit
+          # stamps every layer's history entry with it for reproducibility (12 of them
+          # here), so a good build always contains that string. Comparing the label itself
+          # against the expected value covers the ARG-default case exactly.
+          #
+          # .Image is a per-platform map for a multi-platform build and a single object for
+          # one platform; normalise to a list so both shapes assert identically.
+          docker buildx imagetools inspect "$IMAGE" --format '{{ json .Image }}' > /tmp/img.json
+          jq -e --arg created "$EXPECTED_CREATED" \
+                --arg version "$EXPECTED_VERSION" \
+                --arg revision "$EXPECTED_REVISION" \
+                --arg source "$EXPECTED_SOURCE" '
+            (if has("config") then [.] else [.[]] end)
+            | map(.config.Labels // {})
+            | (length > 0) and all(
+                .["org.opencontainers.image.created"]  == $created and
+                .["org.opencontainers.image.version"]  == $version and
+                .["org.opencontainers.image.revision"] == $revision and
+                .["org.opencontainers.image.source"]   == $source
+              )
+          ' /tmp/img.json >/dev/null || {
+            echo "ERROR: image label check failed for $IMAGE"
+            echo "       expected created=$EXPECTED_CREATED version=$EXPECTED_VERSION revision=$EXPECTED_REVISION"
+            echo "                source=$EXPECTED_SOURCE"
+            echo "       actual:"
+            jq -r '(if has("config") then {".": .} else . end)
+                   | to_entries[]
+                   | "         \(.key): created=\(.value.config.Labels["org.opencontainers.image.created"] // "<none>") version=\(.value.config.Labels["org.opencontainers.image.version"] // "<none>") revision=\(.value.config.Labels["org.opencontainers.image.revision"] // "<none>") source=\(.value.config.Labels["org.opencontainers.image.source"] // "<none>")"' /tmp/img.json
+            exit 1
+          }
+          echo "labels verified on every platform: created=$EXPECTED_CREATED version=$EXPECTED_VERSION"
+
+          # And the INDEX annotation, which is a different fact from the label above.
+          # ADR-0020 assumed the Dockerfile LABEL was what GHCR reads; it is not. The
+          # label sits in each platform's image config, the registry reads the manifest,
+          # and this gate passed on four releases that published orphaned packages. A
+          # check that is green while the thing it guards is broken is worse than none —
+          # so assert the annotation the registry actually consumes.
+          docker buildx imagetools inspect --raw "$IMAGE" > /tmp/idx.json
+          jq -e --arg source "$EXPECTED_SOURCE" \
+            '.annotations["org.opencontainers.image.source"] == $source' /tmp/idx.json >/dev/null || {
+            echo "ERROR: index annotation check failed for $IMAGE"
+            echo "       expected org.opencontainers.image.source=$EXPECTED_SOURCE on the index"
+            echo "       actual: $(jq -c '.annotations // "<no annotations on the index>"' /tmp/idx.json)"
+            echo "       A LABEL alone does not satisfy this: GHCR links a package from the"
+            echo "       manifest, so the build needs the composite's `annotations:` input."
+            exit 1
+          }
+          echo "index annotation verified: source=$EXPECTED_SOURCE"
+
+  # ── Supply chain security ────────────────────────────────────────────────────
+  # cosign sign + CycloneDX SBOM attest by digest via the shared composite (OpenBao
+  # Transit — the key never leaves OpenBao). The per-job Forgejo OIDC token needs
+  # enable-openid-connect AND this repo listed in the OpenBao cosign-signer role's
+  # bound_claims.repository (homelab-cluster openbao bootstrap config.sh) — a missing
+  # entry 400s the token exchange. Harbor-only by design: cosign accessories are not
+  # mirrored to Forgejo (imagetools copies just the image manifest list) and Kyverno
+  # verifies against Harbor. Signs prereleases and finals alike. No checkout: the
+  # action is remote and operates on the registry image.
+  release-sign-harbor:
+    name: "Sign & Attest (Harbor)"
+    needs: [parse-release-tag, release-distribute-harbor]
+    runs-on: docker
+    enable-openid-connect: true
+    steps:
+      - name: Sign, attest and SBOM (Harbor)
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/cosign-sign-attest@v1.11.2
+        with:
+          registry: harbor.webgrip.dev
+          image-name: harbor.webgrip.dev/webgrip/ploegd
+          image-version: ${{ needs.parse-release-tag.outputs.version }}
+        env:
+          REGISTRY_USERNAME: ${{ secrets.HARBOR_ROBOT_USER }}
+          REGISTRY_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
+          # No DT_API_KEY here on purpose: the composite reads it from OpenBao KV
+          # (secret/dependency-track/api-key) with the same OIDC-exchanged token it
+          # signs with — no Forgejo org secret. Fail-soft if the read/policy lags.
+
+  # Forgejo registry mirror via the shared reusable (the inline jobs that shipped
+  # v0.1.0-rc.9 were extracted verbatim into webgrip/workflows forgejo-distribute.yml):
+  # image + OCI chart into the Forgejo registry, LINKED to this repo so /packages stays
+  # populated. Bot identity: WEBGRIP_CI_TOKEN — never secrets.FORGEJO_TOKEN, the built-in
+  # per-job token cannot write org packages (run 43: login OK, push 401).
+  # mirror-from-registry: the image is built ONCE (Harbor job above) and copied here by
+  # digest via buildx imagetools — no duplicate multi-arch build, and both registries
+  # serve the identical manifest list. Hence the needs on the Harbor job.
+  release-distribute-forgejo:
+    name: Distribute (Forgejo)
+    needs: [parse-release-tag, release-distribute-harbor]
+    uses: webgrip/workflows/.forgejo/workflows/forgejo-distribute.yml@v1.11.3
+    with:
+      enabled: ${{ needs.parse-release-tag.outputs.version != '' }}
+      version: ${{ needs.parse-release-tag.outputs.version }}
+      ref: v${{ needs.parse-release-tag.outputs.version }}
+      link-repo: ploeg
+      image-name: ploegd
+      mirror-from-registry: harbor.webgrip.dev
+      push-latest: ${{ needs.parse-release-tag.outputs.latest_tag != '' }}
+      # Same defect the GHCR mirror had: imagetools copies the manifest list, so BuildKit's
+      # provenance and SBOM ride inside the index for free while cosign's .sig/.att are left
+      # behind. Without this, "the image is signed" was true of Harbor alone.
+      copy-accessories: true
+      chart-path: ops/helm/ploeg
+      chart-name: ploeg
+    secrets:
+      REGISTRY_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
+      SOURCE_REGISTRY_USER: ${{ secrets.HARBOR_ROBOT_USER }}
+      SOURCE_REGISTRY_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
+
+  # ── GitHub track (reopened 2026-08-24; parked in `ci: park GHCR publish`) ────────
+  # Job-level reusable, a THIRD distinct one in this caller — safe, the flattened-job-id
+  # collision only bites two instances of the SAME reusable, and its inner job ids are
+  # distinct from forgejo-distribute's on purpose. It force-pushes main/development and
+  # all tags to github.com/webgrip/ploeg (Forgejo stays the source of truth — never
+  # commit on the GitHub side), creates the GitHub Release (idempotent; notes come from
+  # the Forgejo release API, so the dispatch backfill path keeps them; prerelease flag
+  # from the hyphen in the version), and digest-copies the Harbor image to
+  # ghcr.io/webgrip/ploegd — hence the needs on the Harbor build, same as the Forgejo
+  # mirror. cosign accessories are not mirrored (Harbor-only by design, see the sign
+  # job). NB: the first push creates the GHCR package PRIVATE — flip it public once in
+  # the package settings on GitHub, or anonymous pulls 401.
+  #
+  # Secrets: GHCR_USERNAME (GitHub username) + GHCR_TOKEN — one CLASSIC PAT with
+  # `repo` + `write:packages` drives git, the Releases API and GHCR (fine-grained
+  # PATs cannot write GHCR).
+  release-distribute-github:
+    name: Distribute (GitHub)
+    needs: [parse-release-tag, release-distribute-harbor]
+    uses: webgrip/workflows/.forgejo/workflows/github-distribute.yml@v1.11.1
+    with:
+      enabled: ${{ needs.parse-release-tag.outputs.version != '' }}
+      version: ${{ needs.parse-release-tag.outputs.version }}
+      repo: webgrip/ploeg
+      branches: main development
+      image-name: ploegd
+      mirror-from-registry: harbor.webgrip.dev
+      push-latest: ${{ needs.parse-release-tag.outputs.latest_tag != '' }}
+      # imagetools copies the manifest list, so BuildKit's SLSA provenance and SBOM ride
+      # along inside the index for free — but cosign's signature and CycloneDX attestation
+      # live as separate .sig/.att tags and were being left behind, publishing an UNSIGNED
+      # mirror of a signed image. A copied signature still verifies at the mirror (cosign
+      # checks the digest); its payload keeps the Harbor reference, so Kyverno must go on
+      # verifying against Harbor, which it already does.
+      copy-accessories: true
+      # Chart to GHCR alongside the image, landing at ghcr.io/webgrip/charts/ploeg —
+      # the same layout Harbor uses. Built from the tagged tree, not copied from Harbor:
+      # imagetools handles image manifest lists, not Helm's config media type. A second
+      # helm-chart-push call was not an option — Forgejo v15 flattening collides two
+      # instances of the SAME reusable in one caller.
+      ref: v${{ needs.parse-release-tag.outputs.version }}
+      chart-path: ops/helm/ploeg
+      chart-name: ploeg
+    secrets:
+      GH_USERNAME: ${{ secrets.GHCR_USERNAME }}
+      GH_TOKEN: ${{ secrets.GHCR_TOKEN }}
+      SOURCE_REGISTRY_USER: ${{ secrets.HARBOR_ROBOT_USER }}
+      SOURCE_REGISTRY_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}

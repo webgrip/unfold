@@ -1,0 +1,9 @@
+{
+  "name": "ploeg-release-tooling",
+  "private": true,
+  "description": "Dep-less stub: the release toolchain (and its version pins) comes entirely from @webgrip/semantic-release-config, installed by the shared semantic-release composite.",
+  "scripts": {
+    "build": "exit 0"
+  },
+  "license": "Apache-2.0"
+}

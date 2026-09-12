@@ -1,0 +1,633 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "ploeg chart values",
+  "type": "object",
+  "properties": {
+    "operator": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "consumers": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "tokenSecret"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+              },
+              "teams": {
+                "type": "array",
+                "maxItems": 100,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                }
+              },
+              "execute": {
+                "type": "boolean"
+              },
+              "maxBudgetUsd": {
+                "type": "number",
+                "minimum": 0.01,
+                "maximum": 10000
+              },
+              "tokenSecret": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "key"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 253,
+                    "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+                  },
+                  "key": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 253,
+                    "pattern": "^[A-Za-z0-9._-]+$"
+                  }
+                }
+              },
+              "verify": {
+                "type": "boolean"
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "required": [
+                    "maxBudgetUsd"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "execute"
+                  ],
+                  "properties": {
+                    "execute": {
+                      "const": true
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "deliveryPolicies": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "repositoryId",
+              "policySha256",
+              "verifierId",
+              "minTests"
+            ],
+            "properties": {
+              "repositoryId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+              },
+              "policySha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "verifierId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+              },
+              "minTests": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100000
+              },
+              "publicationEnabled": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "executor": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "type": {
+          "enum": [
+            "keda",
+            "cronjob"
+          ]
+        },
+        "harness": {
+          "$ref": "#/definitions/harness"
+        },
+        "runnerImage": {
+          "type": "string"
+        },
+        "dindImage": {
+          "type": "string"
+        },
+        "workerImage": {
+          "type": "string"
+        },
+        "apiUrl": {
+          "type": "string"
+        },
+        "cronjob": {
+          "type": "object",
+          "properties": {
+            "schedule": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "defaultTarget": {
+          "type": "object",
+          "description": "fallback repo for teams that declare none; empty = a team with no repoOwner/repoName gets no env target and relies entirely on the work item's resolved target",
+          "properties": {
+            "owner": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "baseBranch": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "teams": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+              },
+              "model": {
+                "type": "string",
+                "minLength": 1
+              },
+              "budget": {
+                "type": "string",
+                "pattern": "^[0-9]+(\\.[0-9]+)?$"
+              },
+              "perRunBudget": {
+                "//": "Per-run key ceiling for a team with no plan. Optional; falls back to budget, which for a PLANNED team is the Shift pool and not a per-run figure.",
+                "type": "string",
+                "pattern": "^[0-9]+(\\.[0-9]+)?$"
+              },
+              "repoOwner": {
+                "type": "string",
+                "minLength": 1
+              },
+              "repoName": {
+                "type": "string",
+                "minLength": 1
+              },
+              "baseBranch": {
+                "type": "string"
+              },
+              "targetSource": {
+                "enum": [
+                  "claim",
+                  "env"
+                ]
+              },
+              "maxReplicaCount": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "harness": {
+                "$ref": "#/definitions/harness"
+              },
+              "plan": {
+                "type": "array",
+                "minItems": 1,
+                "description": "ordered Rounds of a Shift (run-multi-agent-shifts): each round a reader fan-out or one writer. A team with a plan runs multi-role; without one, dispatch is unchanged. budget doubles as the Shift pool.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "roles": {
+                      "type": "array",
+                      "minItems": 1,
+                      "items": {
+                        "$ref": "#/definitions/planRole"
+                      }
+                    }
+                  },
+                  "required": [
+                    "roles"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "maxFixRounds": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "ADR-0017: how many times a reviewer request_changes may re-open the writing Round of this plan. 0 = loop off, the plan runs to exhaustion."
+              }
+            },
+            "//": "repoOwner/repoName are NOT required: the repository belongs to the work item, resolved at ingest (R11). They remain as a per-team fallback while teams migrate.",
+            "required": [
+              "name",
+              "model",
+              "budget"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "forge": {
+          "type": "string",
+          "enum": [
+            "forgejo",
+            "gitlab"
+          ],
+          "description": "Which forge the workers act against; selects the sibling block of the same name. Also the default dialect for a Work Item whose target names no forge (ADR-0023). One active forge per release: a worker pod holds one forge URL and one credential."
+        },
+        "gitlab": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "Base URL, no /api/v4. Empty = ploegd configures no GitLab provider, so findings never reach a merge request."
+            },
+            "tokenSecret": {
+              "$ref": "#/definitions/secretRef",
+              "description": "Token with api scope on the target projects, sent as PRIVATE-TOKEN. ADR-0013 tier 2 does not apply on GitLab: per-run push credentials are minted through a Forgejo admin endpoint with no GitLab equivalent, so this shared token is what writing Runs use."
+            },
+            "readTokenSecret": {
+              "$ref": "#/definitions/secretRef",
+              "description": "ADR-0013 tier 1, as for forgejo: a read-only credential for reading Roles, so the reader/writer split is enforced at the forge and not only by scheduling. On GitLab a second project access token at read_repository scope. Empty = readers fall back to the read-write token."
+            },
+            "webhookSecret": {
+              "$ref": "#/definitions/secretRef",
+              "description": "Shared secret GitLab sends as X-Gitlab-Token to POST /webhooks/forge/gitlab. Unset = forge webhooks are rejected, so a human review opens no fix Round and the review loop stays open."
+            }
+          }
+        },
+        "forgejo": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "url": {
+              "type": "string"
+            },
+            "tokenSecret": {
+              "$ref": "#/definitions/secretRef"
+            },
+            "readTokenSecret": {
+              "$ref": "#/definitions/secretRef",
+              "description": "ADR-0013 tier 1: read-only credential for reading Roles. Empty = readers fall back to the read-write builder token and scheduling is the only boundary (a known gap, closed by creating the secret)."
+            },
+            "adminTokenSecret": {
+              "$ref": "#/definitions/secretRef",
+              "description": "ADR-0013 tier 2: credential ploegd uses to MINT per-run push tokens. Held only by ploegd, never by a worker. Unset = nothing is minted."
+            },
+            "botUser": {
+              "type": "string",
+              "description": "the forge user whose tokens are minted (default agent-builder)"
+            }
+          },
+          "additionalProperties": true
+        },
+        "serviceAccount": {
+          "type": "object",
+          "properties": {
+            "create": {
+              "type": "boolean"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Worker pods ServiceAccount. create and name are independent: naming an account never suppresses creating it."
+        },
+        "nodeSelector": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "Node selector for WORKER pods, not ploegd (that is the top-level nodeSelector). Keeps agent Jobs off control-plane nodes (ADR-0002: no DinD beside etcd). The default label exists in the homelab and on no other cluster, so a different estate must override it with its own label or clear it with null \u2014 Helm deep-merges maps, so {} leaves the default in place and only null removes the block.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "workerAuth": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "enum": [
+                "managed",
+                "legacy"
+              ]
+            },
+            "signingKeySecret": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "key": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "name",
+                "key"
+              ],
+              "additionalProperties": false
+            },
+            "bootstrapSecret": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "registryKey": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "name",
+                "registryKey"
+              ],
+              "additionalProperties": false
+            },
+            "staticInferenceSecret": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "key": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "key"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "additionalLLMPolicies": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "team": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "role": {
+                    "type": "string"
+                  },
+                  "budgetUsd": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "models": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "ttl": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "team",
+                  "role",
+                  "budgetUsd",
+                  "models",
+                  "ttl"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "mode",
+            "signingKeySecret",
+            "bootstrapSecret"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "tracker": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "tokenSecret": {
+          "$ref": "#/definitions/secretRef"
+        },
+        "clickup": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "ClickUp API root; empty = https://api.clickup.com/api/v2"
+            },
+            "tokenSecret": {
+              "$ref": "#/definitions/secretRef",
+              "description": "Personal token (pk_\u2026) for reads and write-backs. Empty = the provider logs and no-ops instead of failing runs."
+            },
+            "webhookSecret": {
+              "$ref": "#/definitions/secretRef",
+              "description": "Verifies X-Signature on POST /webhooks/tracker/clickup. ClickUp generates this on webhook registration \u2014 capture it, never invent it. Empty = deliveries are rejected."
+            },
+            "doneStatus": {
+              "type": "string",
+              "description": "List status name applied when a Shift finishes, e.g. 'for review'. Statuses are per-List custom strings; empty leaves the board untouched."
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "config": {
+      "type": "object",
+      "description": "ploegd's routing and roster as a file (mounted at /etc/ploeg/ploeg.yaml). Projects are NAMED and resolved to tracker ids at boot, so no magic numbers live in cluster config. Empty = the legacy PLOEG_TARGET_MAP/PLOEG_TEAM_MAP/PLOEG_TEAM_PLANS env vars still apply."
+    }
+  },
+  "definitions": {
+    "planRole": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 30,
+          "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+        },
+        "writes": {
+          "type": "boolean"
+        },
+        "cap": {
+          "type": "string",
+          "pattern": "^[0-9]+(\\.[0-9]+)?$"
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "maxReplicaCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "harness": {
+          "$ref": "#/definitions/harness"
+        },
+        "workerResources": {
+          "type": "object",
+          "description": "Overrides executor.workerResources for this role's workload. Readers do not build, so a fan-out round need not book writer-sized pods."
+        },
+        "dindResources": {
+          "type": "object",
+          "description": "Overrides executor.dindResources for this role's DinD sidecar (only rendered when the role runs harness.dind)."
+        }
+      },
+      "//": "name becomes the workload suffix (ploeg-worker-<team>-<role>); writes marks the round's single writer (ADR-0010); cap bounds one Run's spend against the pool (ADR-0012); model/maxReplicaCount/harness override the team's values for this role's workload.",
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "harness": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "enum": [
+            "openhands",
+            "exec",
+            "claude-code",
+            "acp"
+          ]
+        },
+        "image": {
+          "type": "string"
+        },
+        "entrypoint": {
+          "type": "string"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "outcomeFile": {
+          "type": "string"
+        },
+        "dind": {
+          "type": "boolean"
+        },
+        "acp": {
+          "$ref": "#/definitions/acp"
+        }
+      },
+      "additionalProperties": false
+    },
+    "acp": {
+      "type": "object",
+      "properties": {
+        "profile": {
+          "enum": [
+            "opencode",
+            "custom"
+          ]
+        },
+        "argv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "permissionMode": {
+          "enum": [
+            "",
+            "allow_always",
+            "allow_read_only",
+            "deny_all"
+          ]
+        },
+        "promptTimeout": {
+          "type": "string",
+          "pattern": "^$|^[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)$"
+        },
+        "idleTimeout": {
+          "type": "string",
+          "pattern": "^$|^[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)$"
+        },
+        "configJson": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "secretRef": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

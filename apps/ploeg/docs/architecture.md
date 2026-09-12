@@ -1,0 +1,85 @@
+# Ploeg architecture
+
+Ploeg authorizes and records agent work. It accepts tracker events and explicit operator admission, stores durable execution state in PostgreSQL, and supports unattended workers alongside delegated execution in De Vloer.
+
+This page describes the source reviewed on 12 September 2026. It does not establish what is currently deployed. See the [published contracts](contracts/README.md), [managed worker guide](ops/managed-workers.md) and [qualification tests](../pkg/httpapi/operator_workbench_qualification_test.go) for the implementation boundaries.
+
+## 1. System boundaries
+
+| Component | Responsibility |
+| --- | --- |
+| Tracker | Requested work, priority and assignment; Ploeg retains source identity |
+| [ploegd](../cmd/ploegd/main.go) | Admission, commands, claims, execution state and inference authorization |
+| [PostgreSQL store](../pkg/store/) | Work Items, Shifts, Runs, Leases, outcomes, accounting and audit records |
+| [Shift engine](../pkg/shiftengine/engine.go) | Advance configured rounds and roles; close or stop a Shift |
+| [Unattended worker](../pkg/worker/worker.go) | Claim authorized work, prepare a repository, invoke a harness and report results |
+| [De Vloer](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/architecture.md) | Interactive sessions, delegated workspace execution, intervention and evidence |
+| [LiteLLM integration](../pkg/httpapi/llm_control.go) | Scoped inference capability lifecycle and accounting observations |
+| [Tracker and forge providers](../pkg/provider/) | Translate configured external systems at the integration boundary |
+
+A manual-origin Operator Execution need not have an external ticket. It still needs authenticated admission and registered authority. In Vloer's shared mode, Start requests that admission. Creating a queued session alone does not start paid work. Vloer's standalone mode runs without Ploeg, and the product direction requires that independence for local work. Reusing a runner across both paths remains a [proposal to test](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/monorepo-transition.md).
+
+## 2. Execution paths
+
+On the unattended path, a verified tracker event queues a Work Item. The Shift engine establishes its plan. An executor starts an eligible worker; that worker must obtain an authorized claim before running. A queue-depth signal alone grants no ownership. The worker renews its Lease and reports checkpoints and an outcome. The Shift engine evaluates completed rounds and configured review limits.
+
+On the delegated path, an Operator Consumer admits one session linked to a Work Item, Shift and operator Run. De Vloer performs the crew steps and reports through the operator contract. These steps do not each become a new Ploeg Run. Changes between human and background supervision retain the execution identity.
+
+[Canonical tracker binding](contracts/tracker-execution.md) allows registered selections to retain an existing Work Item and exclude an unattended claim atomically. It is qualified for the supported tracker paths in the [cross-service tracker tests](../pkg/httpapi/operator_tracker_qualification_test.go), not for arbitrary trackers or already-running harness sessions.
+
+## 3. Executors and workspace placement
+
+The [Helm chart](../ops/helm/ploeg/) supports KEDA ScaledJobs and a KEDA-free CronJob executor. Configured team plans can render separate workloads for roles with their own harness settings. KEDA polls queue depth; neither that polling nor idle controller activity requires model inference.
+
+A delegated operator Run executes through Vloer's workspace backend, which can be local, Docker or Kubernetes. It need not correspond to a Ploeg Kubernetes Job. See the [executor contract](contracts/executor.md) for the unattended interface.
+
+## 4. Claims, interruption and recovery
+
+[Store transactions](../pkg/store/) and [worker authorization](../pkg/httpapi/worker_auth.go) govern claims and renewal. Lease expiry is detected by controller recovery, so safety cannot depend on a dying agent performing cleanup. Unattended retry behavior follows the configured execution policy.
+
+Operator commands carry identity, revision and generation. Accepted command replays return the recorded result. Operator expiry interrupts work; cancellation intent and unresolved spending survive it. A restart must not silently repeat paid work. Pause, cancel, resume and a new execution are distinct operations. See [operator contracts](contracts/README.md) and [recovery procedures](ops/managed-workers.md).
+
+## 5. Credentials and accounting
+
+Managed mode is the current default in [controller startup](../cmd/ploegd/main.go) and [worker startup](../cmd/ploeg-worker/main.go). The controller holds management authority. Workers receive scoped control and inference capabilities; the harness receives its allowed environment and inference credential. A worker process and the harness it starts are not automatically separate security boundaries. The [environment policy](../pkg/worker/environment.go) and deployment isolation both matter.
+
+An Inference Account records authorization independently from observed spend. Failed issuance, interruption, expiry or blocked access can leave that authorization unresolved. A provisional gateway observation is not final settlement. Trusted reconciliation releases the remaining hold; there is no general public settlement endpoint.
+
+Legacy worker authorization and static credential compatibility are explicit migration modes. Do not use the old worker-mints-master-key description as the managed deployment model. The [worker control contract](contracts/worker-control.md) is the canonical reference.
+
+## 6. Providers, harnesses and delivery
+
+The source includes [Vikunja](../pkg/provider/vikunja/), [ClickUp](../pkg/provider/clickup/), [Forgejo](../pkg/provider/forgejo/) and [GitLab](../pkg/provider/gitlab/) integrations. Supported operations differ by provider and configuration. Tracker write-backs, forge operations, team plans and Shift orchestration exist; they are no longer future implementation gaps.
+
+The [harness package](../pkg/harness/) defines Task Spec, Outcome Report and adapters. Published [JSON schemas](contracts/README.md) describe the wire formats. Harness-native conversation state is not a portable checkpoint.
+
+The unattended publication path and delegated candidate-delivery path have different controls. [Operator delivery](contracts/operator-delivery.md) records immutable candidates, trusted verification, candidate-bound approval and a publication barrier. A reservation or successful verification is not a published change. The delegated path has no enabled live publisher executor.
+
+## 7. HTTP trust boundary
+
+Worker calls use the scoped authorization described in [worker control](contracts/worker-control.md). A Run token alone is not managed authentication. Operator calls use a scoped consumer identity and authenticated actor context; read access does not imply permission to execute. See [operator route authorization](../pkg/httpapi/operator.go) and [worker authorization tests](../pkg/httpapi/worker_auth_test.go).
+
+## 8. Configuration and development
+
+Team plans, target mapping, provider configuration and executor settings are defined by [controller startup](../cmd/ploegd/main.go), [chart values](../ops/helm/ploeg/values.yaml) and the [operations guides](index.md#operate). Desired deployed state belongs to the deployment repository. A copied team roster, IP address or image tag in this explanation would become stale independently.
+
+Run the gates in the [pull-request workflow](../.forgejo/workflows/on_pull_request.yml). Mock services and cross-service fixtures provide implementation evidence. Some tests need a PostgreSQL runtime; tool or database provisioning may need network access.
+
+## 9. Where the code diverges from design.md
+
+The current boundaries that matter to this audit are:
+
+- Repository-free conversation is a Vloer product intention; its current session API requires a repository and crew.
+- Local work must remain usable without Ploeg; a common runner has not been selected or extracted.
+- Delegated candidate verification and approval do not provide live publication.
+- Native harness state is opaque; cross-harness continuation is not guaranteed.
+- Automated checks and a small paid fixture do not qualify arbitrary providers, production deployments or high concurrency.
+- Forge webhooks currently record and deduplicate events; they do not automatically create Follow-Ups. The worker accepts a checkpoint field in its contract but does not automatically populate it from stored progress.
+- The intended Work Target model forbids team-to-repository coupling; legacy executor target defaults remain compatibility behavior. Static forge credentials do not provide per-Run push revocation.
+- Historical gap lists and backlog status require a fresh source check before implementing a ticket.
+
+The [pre-audit architecture](https://forgejo.webgrip.dev/webgrip/ploeg/src/commit/f2333b96c6b44f489c562f74d6a4654fed29cc01/docs/architecture.md) retains the detailed July observations and later additions. It is evidence of earlier understanding, not a second current specification. The [backlog](backlog.md) retains planning history; the tracker owns priority.
+
+## Decisions and evidence
+
+The [ADR index](adrs/README.md) is the decision ledger. Proposed records remain proposed even when related code exists. The [documentation audit](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/research/2026-09-12-documentation-audit.md) records this correction pass and its verification limits.

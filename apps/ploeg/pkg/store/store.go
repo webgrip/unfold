@@ -1,0 +1,742 @@
+// Package store is Ploeg's Postgres data layer: work items, leases,
+// checkpoints, runs, and the audit log. Every mutation commits its audit row
+// in the same transaction (backlog #25); the lease columns are the lock,
+// never a held transaction (backlog #23).
+package store
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"embed"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"sort"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/webgrip/ploeg/pkg/work"
+)
+
+//go:embed migrations/*.sql
+var migrationsFS embed.FS
+
+// ErrNoWork is returned by Claim when no claimable item exists for the team.
+var ErrNoWork = errors.New("no claimable work item")
+
+// ErrUnknownRun is returned when a run token does not match a live lease/run.
+var ErrUnknownRun = errors.New("unknown or finished run")
+
+// ExpiredLease carries the result of a single expired lease for callers
+// that need the run token for post-expiry cleanup (e.g. LiteLLM key revoke).
+type ExpiredLease struct {
+	WorkItemID    int64
+	Team          string
+	RunToken      string
+	InfraFailures int
+}
+
+// MaxAttempts is the retry threshold after which a repeatedly released item
+// goes stale instead of re-queuing (R5).
+const MaxAttempts = 3
+
+// MaxInfraFailures is the cap on consecutive infrastructure failures (lease
+// expiry without outcome). Beyond this the item goes stale with audit reason
+// infra_cap instead of re-queuing (VIK-596).
+const MaxInfraFailures = 10
+
+type Store struct {
+	pool *pgxpool.Pool
+}
+
+func New(ctx context.Context, databaseURL string) (*Store, error) {
+	pool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("connect: %w", err)
+	}
+	return &Store{pool: pool}, nil
+}
+
+func (s *Store) Close()                         { s.pool.Close() }
+func (s *Store) Ping(ctx context.Context) error { return s.pool.Ping(ctx) }
+
+// UnfinishedRunTokens returns the run tokens of all runs that have not yet
+// finished. Used by the boot-time orphan sweep to distinguish live keys from
+// leaked ones.
+func (s *Store) UnfinishedRunTokens(ctx context.Context) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `SELECT run_token FROM agent_runs WHERE finished_at IS NULL`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tokens []string
+	for rows.Next() {
+		var tok string
+		if err := rows.Scan(&tok); err != nil {
+			return nil, err
+		}
+		tokens = append(tokens, tok)
+	}
+	return tokens, rows.Err()
+}
+
+// Migrate applies embedded migrations in filename order, tracked in
+// schema_migrations. Safe to run on every boot.
+func (s *Store) Migrate(ctx context.Context) error {
+	if _, err := s.pool.Exec(ctx,
+		`CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`); err != nil {
+		return err
+	}
+	entries, err := migrationsFS.ReadDir("migrations")
+	if err != nil {
+		return err
+	}
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		var applied bool
+		if err := s.pool.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE name = $1)`, name).Scan(&applied); err != nil {
+			return err
+		}
+		if applied {
+			continue
+		}
+		sql, err := migrationsFS.ReadFile("migrations/" + name)
+		if err != nil {
+			return err
+		}
+		tx, err := s.pool.Begin(ctx)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, string(sql)); err != nil {
+			_ = tx.Rollback(ctx)
+			return fmt.Errorf("migration %s: %w", name, err)
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO schema_migrations (name) VALUES ($1)`, name); err != nil {
+			_ = tx.Rollback(ctx)
+			return err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func audit(ctx context.Context, tx pgx.Tx, actor, action string, workItemID *int64, detail any) error {
+	b, err := json.Marshal(detail)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx,
+		`INSERT INTO audit_log (actor, action, work_item_id, detail) VALUES ($1, $2, $3, $4)`,
+		actor, action, workItemID, b)
+	return err
+}
+
+// IngestAssigned mirrors a tracker item and queues it for a team: upsert on
+// (provider, external id). Re-assignment of a live item (queued/leased) only
+// refreshes the mirror; re-assignment of a finished item (done, stale,
+// needs_human) is a fresh human mandate — it re-queues the item and resets
+// the attempt budget (VIK-588). The returned state is the item's actual
+// post-upsert state so callers can log the truth.
+func (s *Store) IngestAssigned(ctx context.Context, item work.WorkItem) (int64, work.State, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return 0, "", err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	var t work.Target
+	if item.Target != nil {
+		t = *item.Target
+	}
+	var id int64
+	var state string
+	err = tx.QueryRow(ctx, `
+		INSERT INTO work_items (provider, external_id, revision, team, state, origin, priority, title, description, url,
+			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		ON CONFLICT (provider, external_id) DO UPDATE SET
+			revision = EXCLUDED.revision,
+			team     = CASE WHEN work_items.operator_owned THEN work_items.team ELSE EXCLUDED.team END,
+			priority = EXCLUDED.priority,
+			title    = EXCLUDED.title,
+			description = EXCLUDED.description,
+			url      = EXCLUDED.url,
+			external_scope = EXCLUDED.external_scope,
+			-- Never re-target a live run: the worker has already cloned, and a
+			-- review round that silently moved repo would orphan its own branch
+			-- and PR (R12). A re-target takes effect on the NEXT dispatch.
+			target_forge       = CASE WHEN work_items.operator_owned OR work_items.state = 'leased' THEN work_items.target_forge       ELSE EXCLUDED.target_forge       END,
+			target_owner       = CASE WHEN work_items.operator_owned OR work_items.state = 'leased' THEN work_items.target_owner       ELSE EXCLUDED.target_owner       END,
+			target_repo        = CASE WHEN work_items.operator_owned OR work_items.state = 'leased' THEN work_items.target_repo        ELSE EXCLUDED.target_repo        END,
+			target_base_branch = CASE WHEN work_items.operator_owned OR work_items.state = 'leased' THEN work_items.target_base_branch ELSE EXCLUDED.target_base_branch END,
+			route_rule         = CASE WHEN work_items.operator_owned OR work_items.state = 'leased' THEN work_items.route_rule         ELSE EXCLUDED.route_rule         END,
+			state    = CASE WHEN NOT work_items.operator_owned AND work_items.state IN ('ingested', 'stale', 'done', 'needs_human') THEN 'queued' ELSE work_items.state END,
+			attempts = CASE WHEN NOT work_items.operator_owned AND work_items.state IN ('stale', 'done', 'needs_human') THEN 0 ELSE work_items.attempts END,
+			next_eligible_at  = CASE WHEN work_items.operator_owned THEN work_items.next_eligible_at ELSE NULL END,
+			infra_failures = CASE WHEN NOT work_items.operator_owned AND work_items.state IN ('stale', 'done', 'needs_human') THEN 0 ELSE work_items.infra_failures END,
+			updated_at = now()
+		RETURNING id, state`,
+		item.Provider, item.ExternalID, item.Revision, item.Team,
+		string(work.StateQueued), string(work.OriginAssignment), item.Priority, item.Title, item.Description, item.URL,
+		item.ExternalScope, t.Forge, t.Owner, t.Repo, t.BaseBranch, item.RouteRule).Scan(&id, &state)
+	if err != nil {
+		return 0, "", err
+	}
+	action := "work_item.refreshed"
+	if state == string(work.StateQueued) {
+		action = "work_item.queued"
+	}
+	detail := map[string]any{"external_id": item.ExternalID, "team": item.Team, "title": item.Title, "state": state,
+		"external_scope": item.ExternalScope}
+	if t.Resolved() {
+		detail["target"] = t.Key()
+		detail["route_rule"] = item.RouteRule
+	}
+	if err := audit(ctx, tx, "webhook:"+item.Provider, action, &id, detail); err != nil {
+		return 0, "", err
+	}
+	return id, work.State(state), tx.Commit(ctx)
+}
+
+// Claimed is what a worker gets back from Claim: the item plus the run token
+// it must use for renew/checkpoint/outcome calls.
+type Claimed struct {
+	Item     work.WorkItem
+	RunToken string
+	Deadline time.Time
+}
+
+// Claim atomically leases the highest-priority queued item for a team using
+// FOR UPDATE SKIP LOCKED, committed immediately (backlog #23). Returns
+// ErrNoWork when the queue is empty — the empty-handed worker convention
+// (backlog #49).
+func (s *Store) Claim(ctx context.Context, team string, ttl time.Duration) (*Claimed, error) {
+	token, err := newToken()
+	if err != nil {
+		return nil, err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	var it work.WorkItem
+	var id int64
+	var t work.Target
+	err = tx.QueryRow(ctx, `
+		UPDATE work_items SET state = 'leased', attempts = attempts + 1, updated_at = now()
+		WHERE id = (
+			SELECT id FROM work_items
+			WHERE team = $1 AND state = 'queued' AND NOT operator_owned AND (next_eligible_at IS NULL OR next_eligible_at <= now())
+			ORDER BY priority DESC, created_at
+			FOR UPDATE SKIP LOCKED
+			LIMIT 1
+		)
+		RETURNING id, provider, external_id, revision, team, origin, priority, title, description, url,
+			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule`,
+		team).Scan(&id, &it.Provider, &it.ExternalID, &it.Revision, &it.Team, &it.Origin, &it.Priority, &it.Title, &it.Description, &it.URL,
+		&it.ExternalScope, &t.Forge, &t.Owner, &t.Repo, &t.BaseBranch, &it.RouteRule)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNoWork
+	}
+	if err != nil {
+		return nil, err
+	}
+	it.ID = fmt.Sprint(id)
+	it.State = work.StateLeased
+	if t.Resolved() {
+		it.Target = &t
+	}
+
+	deadline := time.Now().Add(ttl)
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO leases (work_item_id, team, run_token, expires_at) VALUES ($1, $2, $3, $4)`,
+		id, team, token, deadline); err != nil {
+		return nil, err
+	}
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO agent_runs (work_item_id, team, run_token) VALUES ($1, $2, $3)`,
+		id, team, token); err != nil {
+		return nil, err
+	}
+	leaseDetail := map[string]any{"expires_at": deadline}
+	if t.Resolved() {
+		// Per-run target history without a schema change: the item may be
+		// re-targeted later, but this row records where THIS run went.
+		leaseDetail["target"] = t.Key()
+	}
+	if err := audit(ctx, tx, "team:"+team, "lease.acquired", &id, leaseDetail); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return &Claimed{Item: it, RunToken: token, Deadline: deadline}, nil
+}
+
+// Renew extends the deadline held by a run token (backlog #13).
+//
+// Two deadlines move together. The Lease is the writer's exclusivity; the
+// Run's own expires_at is its liveness (ADR-0010 — readers hold no Lease, so
+// lease expiry could never detect a dead reader). A reader renews only its
+// Run; a writer renews both, or ExpireRuns would reclaim its Run out from
+// under a perfectly live Lease. Legacy runs (no expires_at) renew only the
+// Lease, exactly as before.
+func (s *Store) Renew(ctx context.Context, runToken string, ttl time.Duration) (time.Time, error) {
+	deadline := time.Now().Add(ttl)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return time.Time{}, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	runTag, err := tx.Exec(ctx,
+		`UPDATE agent_runs SET expires_at = $1
+		 WHERE run_token = $2 AND state = 'running' AND expires_at IS NOT NULL`,
+		deadline, runToken)
+	if err != nil {
+		return time.Time{}, err
+	}
+	leaseTag, err := tx.Exec(ctx,
+		`UPDATE leases SET expires_at = $1, renewed_at = now() WHERE run_token = $2`,
+		deadline, runToken)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if runTag.RowsAffected() == 0 && leaseTag.RowsAffected() == 0 {
+		return time.Time{}, ErrUnknownRun
+	}
+	return deadline, tx.Commit(ctx)
+}
+
+// Checkpoint records durable progress for the item owned by the run token.
+func (s *Store) Checkpoint(ctx context.Context, runToken string, cp work.Checkpoint) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	// Resolve via the Lease when one exists; a reader holds none (ADR-0010),
+	// so fall back to its running Run — progress records must not be a
+	// writer-only privilege.
+	var id int64
+	var team string
+	err = tx.QueryRow(ctx,
+		`SELECT work_item_id, team FROM leases WHERE run_token = $1`, runToken).Scan(&id, &team)
+	if errors.Is(err, pgx.ErrNoRows) {
+		err = tx.QueryRow(ctx,
+			`SELECT work_item_id, team FROM agent_runs WHERE run_token = $1 AND state = 'running'`,
+			runToken).Scan(&id, &team)
+	}
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrUnknownRun
+		}
+		return err
+	}
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO checkpoints (work_item_id, phase, branch, pr_url, node_name, pod_uid) VALUES ($1, $2, $3, $4, $5, $6)`,
+		id, cp.Phase, cp.Branch, cp.PRURL, cp.NodeName, cp.PodUID); err != nil {
+		return err
+	}
+	if err := audit(ctx, tx, "team:"+team, "checkpoint.written", &id,
+		map[string]any{"phase": cp.Phase, "branch": cp.Branch, "pr_url": cp.PRURL, "node_name": cp.NodeName, "pod_uid": cp.PodUID}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// OutcomeResult tells the caller what a report landed on, so the outcome
+// handler knows whether a Shift may want evaluating.
+type OutcomeResult struct {
+	WorkItemID int64
+	// ShiftID is nil for a legacy (shift-less) run.
+	ShiftID *int64
+	// ForgeTokenID is the per-run push credential to revoke, if one was
+	// minted (ADR-0013 tier 2). Empty for readers and for deployments
+	// without a forge admin credential.
+	ForgeTokenID string
+}
+
+// ReportOutcome ends the run: records the outcome and findings, releases the
+// lease, and settles spend. A stuck outcome requires a reason (R4).
+//
+// Who moves the Work Item depends on who owns its lifecycle. A legacy run is
+// the item's whole engagement, so its report transitions the item per
+// StateForOutcome, exactly as always. A Shift run is one voice among several —
+// three readers reporting must not flip the item's state three times — so the
+// item moves only when the shift engine closes the Shift.
+func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessReport) (OutcomeResult, error) {
+	if rep.Outcome == work.OutcomeStuck && rep.StuckReason == "" {
+		return OutcomeResult{}, errors.New("stuck outcome requires a stuck_reason (R4)")
+	}
+	if rep.Links == nil {
+		// links is NOT NULL; a linkless outcome (stuck, no_change_needed)
+		// must not be rejected — that would swallow the failure it reports.
+		rep.Links = []string{}
+	}
+	next := work.StateForOutcome(rep.Outcome)
+	encoded, err := json.Marshal(rep)
+	if err != nil {
+		return OutcomeResult{}, err
+	}
+	digest := fmt.Sprintf("%x", sha256.Sum256(encoded))
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return OutcomeResult{}, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	// The advance-once compare-and-swap. This used to be the lease DELETE, but
+	// readers hold no Lease (ADR-0010), so the lease can no longer be the thing
+	// exactly one transaction wins. The Run's state transition can: only one
+	// caller moves a row out of 'running', and a swept or replayed token finds
+	// nothing to move.
+	var id int64
+	var team string
+	var shiftID *int64
+	if err := tx.QueryRow(ctx, `
+		UPDATE agent_runs
+		SET state = 'finished', finished_at = now(), outcome = $1, summary = $2,
+		    stuck_reason = $3, links = $4, usage = $5, failure_reason = $6, findings = $7,
+		    verdict = CASE WHEN writes THEN '' ELSE $8 END, outcome_digest = $10
+		WHERE run_token = $9 AND state = 'running'
+		RETURNING work_item_id, team, shift_id`,
+		string(rep.Outcome), rep.Summary, rep.StuckReason, rep.Links, rep.Usage,
+		rep.FailureReason, rep.Findings, rep.Verdict, runToken, digest).Scan(&id, &team, &shiftID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			if err := tx.QueryRow(ctx, `SELECT work_item_id,shift_id FROM agent_runs
+				WHERE run_token=$1 AND state='finished' AND outcome_digest=$2
+				AND EXISTS (SELECT 1 FROM run_llm_accounts WHERE run_token=$1)`, runToken, digest).
+				Scan(&id, &shiftID); err == nil {
+				return OutcomeResult{WorkItemID: id, ShiftID: shiftID}, nil
+			}
+			return OutcomeResult{}, ErrUnknownRun
+		}
+		return OutcomeResult{}, err
+	}
+	// Writers hold a Lease; readers do not, so zero rows here is normal rather
+	// than an error. Releasing it revokes the push credential minted with it
+	// (ADR-0013).
+	var forgeTokenID string
+	if err := tx.QueryRow(ctx,
+		`DELETE FROM leases WHERE run_token = $1 RETURNING forge_token_id`, runToken).
+		Scan(&forgeTokenID); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return OutcomeResult{}, err
+	}
+	// Settlement (ADR-0012): record what was actually spent. The authorization
+	// needs no explicit release — `reserved` is summed over running Runs, and
+	// this one is no longer running.
+	if shiftID != nil {
+		if _, err := tx.Exec(ctx, `
+			UPDATE shifts SET spent = spent + COALESCE(($2::jsonb->>'costUsd')::numeric, 0)
+			WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM run_llm_accounts WHERE run_token = $3)`, *shiftID, rep.Usage, runToken); err != nil {
+			return OutcomeResult{}, err
+		}
+	}
+	if shiftID == nil {
+		// A failed outcome re-queues until the retry threshold, then stale (R5).
+		if next == work.StateQueued {
+			if _, err := tx.Exec(ctx, `
+				UPDATE work_items
+				SET state = CASE WHEN attempts >= $2 THEN 'stale' ELSE 'queued' END, updated_at = now()
+				WHERE id = $1`, id, MaxAttempts); err != nil {
+				return OutcomeResult{}, err
+			}
+		} else {
+			if _, err := tx.Exec(ctx,
+				`UPDATE work_items SET state = $2, updated_at = now() WHERE id = $1`, id, string(next)); err != nil {
+				return OutcomeResult{}, err
+			}
+		}
+	}
+	if err := audit(ctx, tx, "team:"+team, "outcome."+string(rep.Outcome), &id,
+		map[string]any{"summary": rep.Summary, "stuck_reason": rep.StuckReason, "links": rep.Links}); err != nil {
+		return OutcomeResult{}, err
+	}
+	return OutcomeResult{WorkItemID: id, ShiftID: shiftID, ForgeTokenID: forgeTokenID}, tx.Commit(ctx)
+}
+
+// harnessReport mirrors harness.OutcomeReport without importing the package
+// (store stays ignorant of transport shapes). Usage is opaque JSON
+// (harness.Usage), persisted as-is into agent_runs.usage. FailureReason is
+// the ploeg-internal failure taxonomy (VIK-597) — never transmitted to a
+// harness.
+type harnessReport struct {
+	Outcome       work.Outcome
+	Summary       string
+	StuckReason   string
+	Links         []string
+	Usage         json.RawMessage
+	FailureReason *string // nil = unclassified; set for failed outcomes (infra_llm, lease_lost, etc.)
+	Findings      string  // a reading Run's blackboard contribution (ADR-0011); empty for most writers
+	Verdict       string  // a reading Run's approve/request_changes (ADR-0017); empty = no opinion
+}
+
+// Report is the store-level outcome input. usage and failureReason may be nil.
+func Report(outcome work.Outcome, summary, stuckReason string, links []string, usage json.RawMessage, failureReason *string) harnessReport {
+	return harnessReport{Outcome: outcome, Summary: summary, StuckReason: stuckReason, Links: links, Usage: usage, FailureReason: failureReason}
+}
+
+// WithFindings attaches a reading Run's findings to the report.
+func (r harnessReport) WithFindings(findings string) harnessReport {
+	r.Findings = findings
+	return r
+}
+
+// WithVerdict attaches a reading Run's verdict (ADR-0017).
+func (r harnessReport) WithVerdict(verdict string) harnessReport {
+	r.Verdict = verdict
+	return r
+}
+
+// AuditForgeEvent records a normalized forge event. The audit log is the
+// whole of what this change does with one: the trail exists from the day the
+// endpoint is wired, so when routing lands there is evidence of what has been
+// arriving rather than a guess.
+//
+// The event BODY is deliberately not stored here. It is text written outside
+// the factory (backlog #9), and an audit row is read by humans and by future
+// prompts alike; the metadata is what routing will need.
+func (s *Store) AuditForgeEvent(ctx context.Context, provider, kind, repo, branch string, pr int) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	if err := audit(ctx, tx, "webhook:"+provider, "forge."+kind, nil, map[string]any{
+		"repo": repo, "pr": pr, "branch": branch,
+	}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// WorkItem reads one item by id — what the shift engine needs to know where
+// to publish: the Work Target names the repository, the provider names the
+// tracker to write back to.
+func (s *Store) WorkItem(ctx context.Context, id int64) (work.WorkItem, error) {
+	var it work.WorkItem
+	var t work.Target
+	err := s.pool.QueryRow(ctx, `
+		SELECT provider, external_id, revision, team, state, origin, priority, title, description, url,
+			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule
+		FROM work_items WHERE id = $1`, id).
+		Scan(&it.Provider, &it.ExternalID, &it.Revision, &it.Team, &it.State, &it.Origin,
+			&it.Priority, &it.Title, &it.Description, &it.URL,
+			&it.ExternalScope, &t.Forge, &t.Owner, &t.Repo, &t.BaseBranch, &it.RouteRule)
+	if err != nil {
+		return work.WorkItem{}, err
+	}
+	it.ID = fmt.Sprint(id)
+	if t.Resolved() {
+		it.Target = &t
+	}
+	return it, nil
+}
+
+// SettleItem moves a Work Item to its post-Shift state, with the reason on
+// the audit row. This is the shift engine's transition: for Shift runs
+// ReportOutcome leaves the item alone, and the engine moves it exactly once —
+// at close, at a terminal stuck, or when the pool runs dry (R4: the reason
+// travels with it).
+//
+// A failed outcome still respects the retry threshold, so a Shift that ends
+// in failure re-queues and stales exactly like a legacy run (R5).
+//
+// Returns the state actually written, which is not always the one asked for:
+// queued coerces to stale at the attempt cap. The caller needs the difference
+// — "failed, retrying" is not terminal and must not notify the tracker, while
+// "failed, gave up" is and must. The audit row records the effective state for
+// the same reason: it used to claim work_item.queued for a row that went stale.
+func (s *Store) SettleItem(ctx context.Context, workItemID int64, next work.State, reason string) (work.State, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	var operatorOwned bool
+	if err := tx.QueryRow(ctx, `SELECT operator_owned FROM work_items WHERE id=$1 FOR UPDATE`, workItemID).Scan(&operatorOwned); err != nil {
+		return "", err
+	}
+	if operatorOwned {
+		return "", ErrExecutionConflict
+	}
+
+	var written string
+	if next == work.StateQueued {
+		if err := tx.QueryRow(ctx, `
+			UPDATE work_items
+			SET state = CASE WHEN attempts >= $2 THEN 'stale' ELSE 'queued' END, updated_at = now()
+			WHERE id = $1
+			RETURNING state`, workItemID, MaxAttempts).Scan(&written); err != nil {
+			return "", err
+		}
+	} else if err := tx.QueryRow(ctx,
+		`UPDATE work_items SET state = $2, updated_at = now() WHERE id = $1 RETURNING state`,
+		workItemID, string(next)).Scan(&written); err != nil {
+		return "", err
+	}
+	settled := work.State(written)
+	if err := audit(ctx, tx, "ploegd:shift-engine", "work_item."+written, &workItemID,
+		map[string]any{"reason": reason}); err != nil {
+		return "", err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return "", err
+	}
+	return settled, nil
+}
+
+// ExpireLeases releases every overdue lease: the run is recorded as failed
+// (reason lease_expired) and the item re-queues or goes stale per the retry
+// threshold — the crash-safety mechanic (R2/R5). Returns expired lease info
+// including run tokens so callers can perform post-expiry cleanup (e.g.
+// LiteLLM key revoke).
+//
+// Shift leases (shift_id set) are deliberately excluded: a Shift writer's
+// liveness is its Run's expires_at, reclaimed by ExpireRuns — which also
+// drops the lease — and its Work Item belongs to the shift engine. Processing
+// it here would bounce the item back to 'queued' mid-Shift and charge the
+// infra-failure backoff for a lifecycle this sweep does not own.
+func (s *Store) ExpireLeases(ctx context.Context) ([]ExpiredLease, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	rows, err := tx.Query(ctx,
+		`DELETE FROM leases WHERE expires_at < now() AND shift_id IS NULL
+		 RETURNING work_item_id, team, run_token`)
+	if err != nil {
+		return nil, err
+	}
+	var exp []ExpiredLease
+	for rows.Next() {
+		var e ExpiredLease
+		if err := rows.Scan(&e.WorkItemID, &e.Team, &e.RunToken); err != nil {
+			return nil, err
+		}
+		exp = append(exp, e)
+	}
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+
+	for i := range exp {
+		e := &exp[i]
+		// state = 'finished' matters as much as finished_at: it closes the
+		// advance-once CAS in ReportOutcome so a swept run cannot report, and
+		// it releases the run's budget authorization, which is summed over
+		// running rows only (ADR-0012).
+		if _, err := tx.Exec(ctx, `
+			UPDATE agent_runs SET state = 'finished', finished_at = now(), outcome = 'failed',
+			    summary = 'lease expired', failure_reason = 'lease_lost'
+			WHERE run_token = $1 AND finished_at IS NULL`, e.RunToken); err != nil {
+			return nil, err
+		}
+		// Infra failure: lease expired without a reported outcome — refund the
+		// attempt that Claim already charged and apply the infra-failure backoff.
+		// Agent failures (reported outcomes) go through ReportOutcome instead.
+		var newState string
+		if err := tx.QueryRow(ctx, `
+			UPDATE work_items
+			SET state = CASE WHEN infra_failures + 1 >= $2 THEN 'stale' ELSE 'queued' END,
+			    attempts = GREATEST(attempts - 1, 0),
+			    infra_failures = infra_failures + 1,
+			    next_eligible_at = CASE
+				WHEN infra_failures + 1 >= $2 THEN NULL
+				ELSE now() + (CASE infra_failures
+				    WHEN 0 THEN INTERVAL '1 minute'
+				    WHEN 1 THEN INTERVAL '5 minutes'
+				    WHEN 2 THEN INTERVAL '15 minutes'
+				    ELSE INTERVAL '60 minutes'
+				END)
+			    END,
+			    updated_at = now()
+			WHERE id = $1 AND state = 'leased'
+			RETURNING state, infra_failures`,
+			e.WorkItemID, MaxInfraFailures).Scan(&newState, &e.InfraFailures); err != nil {
+			return nil, err
+		}
+		action := "lease.expired"
+		if newState == "stale" {
+			action = "infra_cap"
+		}
+		if err := audit(ctx, tx, "ploegd:sweeper", action, &e.WorkItemID,
+			map[string]any{"team": e.Team, "infra_failures": e.InfraFailures}); err != nil {
+			return nil, err
+		}
+	}
+	return exp, tx.Commit(ctx)
+}
+
+// QueueDepth counts a team's claimable items — the same predicate the KEDA
+// postgresql scaler polls (served index-only by work_items_claimable). It
+// exists so alternative executors can read the scale signal over HTTP
+// without Postgres credentials (docs/contracts/executor.md).
+func (s *Store) QueueDepth(ctx context.Context, team string) (int, error) {
+	var n int
+	err := s.pool.QueryRow(ctx, `
+		SELECT COUNT(*) FROM work_items
+		WHERE team = $1 AND state = 'queued' AND NOT operator_owned AND (next_eligible_at IS NULL OR next_eligible_at <= now())`,
+		team).Scan(&n)
+	return n, err
+}
+
+// QueueSnapshot lists a team's queue (and everything else non-done) for
+// operator visibility — deliberately not a board.
+func (s *Store) QueueSnapshot(ctx context.Context, team string) ([]work.WorkItem, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, provider, external_id, revision, team, state, origin, priority, title, description, url, created_at, updated_at,
+			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule
+		FROM work_items
+		WHERE team = $1 AND state <> 'done'
+		ORDER BY priority DESC, created_at`, team)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []work.WorkItem
+	for rows.Next() {
+		var it work.WorkItem
+		var id int64
+		var t work.Target
+		if err := rows.Scan(&id, &it.Provider, &it.ExternalID, &it.Revision, &it.Team, &it.State,
+			&it.Origin, &it.Priority, &it.Title, &it.Description, &it.URL, &it.CreatedAt, &it.UpdatedAt,
+			&it.ExternalScope, &t.Forge, &t.Owner, &t.Repo, &t.BaseBranch, &it.RouteRule); err != nil {
+			return nil, err
+		}
+		it.ID = fmt.Sprint(id)
+		if t.Resolved() {
+			it.Target = &t
+		}
+		items = append(items, it)
+	}
+	return items, rows.Err()
+}
+
+func newToken() (string, error) {
+	b := make([]byte, 24)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
