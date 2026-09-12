@@ -17,6 +17,8 @@ Service API schemas, application architecture, operating details and existing AD
 
 The import preserves 396 Vloer files and 392 Ploeg files, including the audited working trees. Original commit objects are retained. Separate snapshot and directory-move commits make file history traceable with `git log --follow`. Tags become `vloer-v…` and `ploeg-v…`; non-version tags keep the same application prefix. Release-channel notes use the same namespace. The [import manifest](research/2026-09-12-glide-import.json) records source revisions, tag objects, file modes and SHA-256 digests. Run `mise exec -- python3 scripts/verify-import.py` to verify the immutable import against that manifest.
 
+A final comparison with the original remotes found Ploeg's existing [rc.7 release commit](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6f19c25fcc48f2335ad39237d06642adef1a5fcc) beyond the audited local checkout. Its changelog and chart metadata are merged into Glide, with the original commit retained as a parent. The immutable import manifest continues to describe the audited snapshots.
+
 The earlier [proposal](migration-proposal.md) remains as history. The [system decision](adr/adr-0001-glide-contains-independent-applications.md) records the owner-approved scope.
 
 ## Execution boundary
@@ -32,6 +34,19 @@ The [CI workflow](../.forgejo/workflows/checks.yml) uses separate semantic-relea
 The combined [TechDocs build](../scripts/docs.py) renders the maintained Markdown files. It checks structured-source generation and repository links, then excludes dated research and design/decision history from its local search index. These exclusions do not configure an external crawler or Backstage search ingestion.
 
 The [local qualification record](research/evidence/glide-2026-09-12/verification.json) records 211 workbench tests, 41 extension tests, all Go gates, both execution modes, chart snapshots, three AMD64 container builds and strict documentation checks. `mise run release-check` repeats release isolation and policy checks in the pinned image without network access or publication.
+
+## Source publication
+
+The validated local repository is committed. Remote publication is pending: the available Forgejo CLI token can read repositories but repository creation was rejected because it lacks `write:organization` or `write:repository` scope. Browser single sign-on also requires the owner's login. No new token or permission was created. The [publication record](research/evidence/glide-2026-09-12/publication.json) distinguishes this access blocker from the passing local checks.
+
+Create an empty private repository named `webgrip/glide` through [Forgejo](https://forgejo.webgrip.dev/repo/create), with `development` as its default branch and no generated README. The local `origin` already points at the intended SSH URL. Once the repository exists, publish all three ref groups together:
+
+```sh
+git push --atomic --set-upstream origin development 'refs/tags/*:refs/tags/*' 'refs/notes/*:refs/notes/*'
+git ls-remote --symref origin HEAD
+```
+
+Confirm that `HEAD` points at `refs/heads/development`, then inspect the first checks in Forgejo. The notes are required by the import verifier and release-channel history.
 
 ## Distribution cutover remains separate
 

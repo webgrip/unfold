@@ -65,6 +65,8 @@
     "migration.png": "3a1ae17e7b652bc6833dd34be68e52f80248874c1811b204aba5f142b1ee6303",
     "product.png": "b4fea700ed83ab41a9669c6bfe6e796979808ac81e038beba035390ba723b53c",
     "release-gates.txt": "819d0cb7d2c358cfca871d0132ef4435da5cd056df0f03bd2298092e0f0a056f",
-    "standalone.txt": "b1cfd7f7c5305c78dea4fbbfeadf000aa68f133a53bcd53110c2661baea00495"
-  }
+    "standalone.txt": "b1cfd7f7c5305c78dea4fbbfeadf000aa68f133a53bcd53110c2661baea00495",
+    "publication.json": "2c69e4673b51393b94704bfb81c857f5e586c9b580af4ccbc3db6fb8e71cf37d"
+  },
+  "sourcePublication": "publication.json"
 }
