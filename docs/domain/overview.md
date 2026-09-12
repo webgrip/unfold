@@ -1,8 +1,8 @@
 # Ploeg and Vloer — Domain Overview
 
-A supported way to work with AI for developers and agents. Vloer is the human workplace; the working product direction gives Ploeg responsibility for AI execution. Workloads can begin as open conversations or external tickets, and results carry evidence for review.
+A supported way to work with AI for developers and agents. Vloer is the human workplace. This model includes intended product rules; it is not a feature inventory. Current behavior is documented in ../architecture.md. Local work must be usable without Ploeg. A common runner remains a proposed implementation.
 
-*Model version 0.1. Generated from `model.yaml` — do not edit by hand.*
+*Model version 0.2. Generated from `model.yaml` — do not edit by hand.*
 
 ## Bounded contexts
 
@@ -14,6 +14,9 @@ A supported way to work with AI for developers and agents. Vloer is the human wo
 
 These terms are contested or vague. Resolve them before writing specs that depend on them.
 
+- **shared execution implementation** — Local work must be usable without Ploeg, but that requirement does not determine which execution code the applications should share.
+  - Options: Keep separate implementations behind compatible contracts, Extract a runner callable by either application
+  - Recommendation: Compare one standalone run and one Ploeg-managed run before extracting common behavior. Keep authorization, runner placement and code reuse separate.
 - **a CI failure with no original ticket** — Repair subtickets require a parent, but a human-written change may not already have an external ticket.
   - Options: Create a parent work ticket linked to the change, Attach repair to a project incident ticket
   - Recommendation: Preserve a direct link to the failed change and agree the external parent-ticket rule.

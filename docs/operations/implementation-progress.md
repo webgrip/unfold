@@ -30,4 +30,4 @@ The [Ploeg integration directory](../../integrations/ploeg/README.md) contains t
 
 Review PV-001/PV-002's existing candidates before assigning them again. PV-003 prepares a qualified development image; PV-004 then exercises a bounded live improvement using the stable service. Keep the candidate's source, tests and state separate from that service. The independent verifier, complete candidate export and publisher remain future work; the current manual lane still requires a trusted person to verify and publish changes.
 
-The [validation matrix](../validation.md) records the executed checks. The [backlog guide](backlog.md) explains export and assignment. The [system design](../PRODUCT-DESIGN.md) remains the full roadmap, with implementation notes layered over its original audit baseline.
+The [validation matrix](../validation.md) records the executed checks. The [backlog guide](backlog.md) explains export and assignment. The [design chapter guide](../PRODUCT-DESIGN.md) links the planning baseline and implementation notes; use [current architecture](../architecture.md) to check what now exists.

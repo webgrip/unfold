@@ -1,5 +1,9 @@
 # Ecosystem alternatives: what exists, what we use, and what we actually evaluated
 
+The [12 September transition proposal](../monorepo-transition.md) requires local work without Ploeg and keeps a shared runner under evaluation. This report retains the earlier comparison.
+
+> Historical scope: this survey records the 11 September discussion. On 12 September the owner reopened universal Ploeg authority and local execution without Ploeg. See [current product questions](../landscape/questions.md). The survey below retains its original evidence and assumptions.
+
 Research date: **11 September 2026**. Audience: product leadership and the CTO. Scope: twelve relevant products and components, checked against their official documentation and the Ploeg/De Vloer decision history. This is a documentation and source review, not a new installation, benchmark, procurement decision or claim of uniqueness.
 
 **Several existing products could replace substantial parts of Ploeg and De Vloer.** The evidence supports keeping them on the comparison list. It does not establish that this combination is the only way to support people and background agents together. The useful question is which responsibilities we want to own, and which existing product can take those responsibilities without changing the intended way of working. The closest complete alternatives are OpenHands, Kandev, Coder and Paperclip; their documented boundaries are compared below.

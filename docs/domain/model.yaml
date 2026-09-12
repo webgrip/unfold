@@ -1,10 +1,10 @@
 project: Ploeg and Vloer
 description: >
   A supported way to work with AI for developers and agents. Vloer is the human
-  workplace; the working product direction gives Ploeg responsibility for AI
-  execution. Workloads can begin as open conversations or external tickets,
-  and results carry evidence for review.
-version: "0.1"
+  workplace. This model includes intended product rules; it is not a feature
+  inventory. Current behavior is documented in ../architecture.md. Local work
+  must be usable without Ploeg. A common runner remains a proposed implementation.
+version: "0.2"
 contexts:
   - name: Work
     description: Requested outcomes, their evidence, and their acceptance.
@@ -23,8 +23,9 @@ terms:
   - name: Workload
     context: Execution
     definition: >
-      AI work managed by Ploeg, with instructions, recorded activity, and results.
-      It can begin as a conversation in Vloer without an external ticket.
+      AI work with instructions, recorded activity, an execution authority and
+      results. An external ticket is optional. Repository-free conversation is
+      intended product behavior; current Vloer sessions require a repository and crew.
     see_also: [Ticket, Session, Execution, Result, Budget]
   - name: Repair Subticket
     context: Work
@@ -132,15 +133,15 @@ rules:
     rationale: Missing cost data cannot justify more expenditure.
     applies_to: [Budget, Execution]
   - id: R7
-    statement: A Workload may begin as an open conversation without a Ticket or repository.
+    statement: Intended behavior — a Workload may begin as an open conversation without a Ticket or repository; repository-free conversation is not implemented in the current session API.
     rationale: Asking questions and exploring ideas are supported work in their own right.
     applies_to: [Workload, Ticket, Session]
   - id: R8
-    statement: Ploeg is responsible for every Workload's Execution, including work a person steers live through Vloer.
-    rationale: Human participation should not create a competing execution owner.
+    statement: An Execution has one explicit authority. Standalone local work uses the person's authorization without requiring Ploeg. Shared Vloer sessions require Ploeg admission and cannot fall back to standalone execution when that authority is unavailable.
+    rationale: Authority must stay explicit during intervention and recovery; runner location alone does not decide who authorizes work.
     applies_to: [Workload, Execution, Session]
   - id: R9
-    statement: In projects with automatic repair enabled, failed CI creates a Repair Subticket and agents repair it before human Review, regardless of who wrote the change.
+    statement: Intended behavior — in projects with automatic repair enabled, failed CI creates a Repair Subticket and agents repair it before human Review, regardless of who wrote the change. This general workflow remains unimplemented.
     rationale: The repair must be visible without replacing the original requested outcome.
     applies_to: [Ticket, Repair Subticket, Evidence]
   - id: R10
@@ -152,6 +153,10 @@ rules:
     rationale: Responsibility for accepting work must be explicit while the process is being established.
     applies_to: [Result, Review]
 ambiguities:
+  - phrase: shared execution implementation
+    issue: Local work must be usable without Ploeg, but that requirement does not determine which execution code the applications should share.
+    options: [Keep separate implementations behind compatible contracts, Extract a runner callable by either application]
+    recommendation: Compare one standalone run and one Ploeg-managed run before extracting common behavior. Keep authorization, runner placement and code reuse separate.
   - phrase: a CI failure with no original ticket
     issue: Repair subtickets require a parent, but a human-written change may not already have an external ticket.
     options: [Create a parent work ticket linked to the change, Attach repair to a project incident ticket]

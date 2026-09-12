@@ -1,8 +1,8 @@
 # Connect a task system
 
-De Vloer 0.2.0 reads tasks from **Vikunja, ClickUp, Forgejo, GitHub and GitLab** through the same operator workflow: choose a connection, browse tasks, inspect a preview, and explicitly import one into a queued session. Browser and VS Code use the same server registrations and API. Importing does not start agents, assign the task, post a comment or change its status.
+De Vloer reads tasks from **Vikunja, ClickUp, Forgejo, GitHub and GitLab** through the same operator workflow: choose a connection, browse tasks, inspect a preview, and explicitly import one into a queued session. Browser and VS Code use the same server registrations and API. Importing does not start agents, assign the task, post a comment or change its status.
 
-An administrator links each source once in the server configuration. This release supplies five adapters; it does not yet have OAuth installation or a graphical connection-management wizard. Adding another system requires a server adapter that implements the same list/get normalization contract.
+An administrator registers each source in the server configuration. The application supplies five task adapters. Personal GitLab and ClickUp account links are also implemented, including optional OAuth; see [account linking](live.md#linking-clickup). Those account links do not replace administrator source registration. Adding another system requires a server adapter that implements the same list/get normalization contract.
 
 ## Task source and code host are separate choices
 
@@ -26,7 +26,7 @@ Copy the complete example, keep only the sources you need, and replace its examp
 cp config/task-sources.example.json config/live.local.json
 ```
 
-Set the server environment and live runtime prerequisites using [live operation](live.md). Supply each task token through the environment variable named by `tokenEnv`. An ignored private `.env` works for a trusted development host because `npm start` loads it; a remote deployment should inject those variables through its existing secret mechanism. The checked-in JSON contains variable names, never token values.
+Set the server environment and live runtime prerequisites using [live operation](live.md). Supply each registered task token through the environment variable named by `tokenEnv`, populated through the deployment's secret mechanism or a short-lived vault-backed shell. The JSON contains variable names, never token values.
 
 Start the configured server:
 
@@ -177,8 +177,8 @@ The [binding contract](../contracts/ploeg-tracker-binding.md) separates preview 
 
 The tests exercise provider contracts with local HTTP fixtures. They do not demonstrate live authentication against your accounts, verify every self-hosted version, or create external tasks. The [connector source notes](../research/task-connector-sources.md) record the inspected official API contracts and adapter limits. Record the instance version and a real list → preview → import result in [validation](../validation.md) during qualification.
 
-## What follows this release
+## Proposed extensions
 
-The next connection-management design adds an administrator wizard, provider authorization where applicable, scope discovery, credential rotation, a health view and explicit source-to-repository mappings. The next unattended delivery layer adds authenticated webhooks and reconciliation through Ploeg, transactional deduplication, one canonical WorkOrder, independent verification and fenced publication. Both clients should remain thin views over those shared contracts.
+The connection-management proposal includes an administrator wizard, provider authorization where applicable, scope discovery, credential rotation, a health view and explicit source-to-repository mappings. The broader unattended delivery proposal includes authenticated webhooks and reconciliation through Ploeg, transactional deduplication, one canonical WorkOrder, independent verification and fenced publication. Both clients should remain thin views over those shared contracts.
 
 The [ticket integration design](../design/ticket-integration.md), [system design](../PRODUCT-DESIGN.md) and [backlog](../../backlog/README.md) describe that larger system. The five implemented read adapters are a starting point for it; they do not make arbitrary project-management APIs automatically compatible.

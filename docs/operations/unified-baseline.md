@@ -84,11 +84,9 @@ The Go test starts real PostgreSQL and Ploeg HTTP handlers, creates an ephemeral
 
 See [validation](../validation.md) for the recorded result. A production pilot still needs one live scoped OpenCode run against the estate's LiteLLM/Fireworks route, actual workspace isolation, attributable metering, intervention, key blocking and cleanup. Start with one team and measure time to reviewed result and human intervention minutes before increasing concurrency.
 
-## Next development focus
+## Planning beyond this baseline
 
-The next bounded implementation is a Forgejo publisher executor using Ploeg's durable reservation and positive reconciliation. Qualify a timeout after the forge accepts a request, then prove it never creates a duplicate proposal. Keep direct agent Git writers outside this lane until their credentials can actually be revoked.
-
-After that, add a durable addressed mailbox with acknowledgements, budgeted delegation and a maximum pending review count. Start with one research → plan → execute → measure loop carrying an explicit objective, evidence, budget and stopping condition. Measure accepted changes and reviewer minutes before scaling the number of agents. Use [the research baseline](../research/2026-09-10-unified-workbench-baseline.md) and [the existing backlog](backlog.md) to keep those steps connected to the current product.
+Live publication, agent delegation and broader repair workflows require separate design and qualification. Use the [product questions](../landscape/questions.md), [research baseline](../research/2026-09-10-unified-workbench-baseline.md) and [planning guide](backlog.md). This operating procedure does not set implementation priority.
 
 ## Adopt an existing tracker item
 

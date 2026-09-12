@@ -1,5 +1,7 @@
 # VS Code extension: the 0.3 operator experience
 
+> Design baseline: September 2026. This chapter preserves proposals and the original audit; some gaps have since closed. Check [current architecture](../architecture.md), [contracts](../contracts/ploeg-execution.md) and [open product choices](../landscape/questions.md) before treating a statement as current behavior.
+
 Status: execution plan for the 0.3.0 extension, written 2026-09-09 against the shipped 0.2.0 baseline. The [IDE and operator experience design](ide-and-operator-experience.md) remains the product target; this document turns its editor sections into concrete, testable work for the current server API. Nothing here adds server capability. Every item projects existing routes in [the HTTP contract](../contracts/api.md).
 
 ## What the 0.2.0 extension gets wrong for an operator

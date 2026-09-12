@@ -80,7 +80,7 @@ A research Result may satisfy its Ticket with convincing Evidence and a conclusi
 
 ### R9
 
-In projects with automatic repair enabled, failed CI creates a Repair Subticket and agents repair it before human Review, regardless of who wrote the change.
+Intended behavior — in projects with automatic repair enabled, failed CI creates a Repair Subticket and agents repair it before human Review, regardless of who wrote the change. This general workflow remains unimplemented.
 
 **Why:** The repair must be visible without replacing the original requested outcome.
 
@@ -90,7 +90,7 @@ In projects with automatic repair enabled, failed CI creates a Repair Subticket 
 
 ### R7
 
-A Workload may begin as an open conversation without a Ticket or repository.
+Intended behavior — a Workload may begin as an open conversation without a Ticket or repository; repository-free conversation is not implemented in the current session API.
 
 **Why:** Asking questions and exploring ideas are supported work in their own right.
 
@@ -98,8 +98,8 @@ A Workload may begin as an open conversation without a Ticket or repository.
 
 ### R8
 
-Ploeg is responsible for every Workload's Execution, including work a person steers live through Vloer.
+An Execution has one explicit authority. Standalone local work uses the person's authorization without requiring Ploeg. Shared Vloer sessions require Ploeg admission and cannot fall back to standalone execution when that authority is unavailable.
 
-**Why:** Human participation should not create a competing execution owner.
+**Why:** Authority must stay explicit during intervention and recovery; runner location alone does not decide who authorizes work.
 
 **Also applies to:** Execution, Session

@@ -1,5 +1,7 @@
 # Evidence-based gap register
 
+> Design baseline: September 2026. This chapter preserves proposals and the original audit; some gaps have since closed. Check [current architecture](../architecture.md), [contracts](../contracts/ploeg-execution.md) and [open product choices](../landscape/questions.md) before treating a statement as current behavior.
+
 Status: proposed remediation plan, with implementation evidence from the delivered v0.1 baseline. Review date: 2026-09-09.
 
 Implementation update: [the first increment](../operations/implementation-progress.md) adds Vloer operator fixes and a source-reviewed Ploeg patch affecting parts of GAP-11, GAP-13 and GAP-17. The rows below preserve the original audit evidence. None of those broader gaps is declared closed: Ploeg execution qualification, strict routing, durable inbox/audit and governed follow-up work remain outstanding.

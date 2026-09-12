@@ -1,5 +1,7 @@
 # Platform, governance and reliable execution
 
+> Design baseline: September 2026. This chapter preserves proposals and the original audit; some gaps have since closed. Check [current architecture](../architecture.md), [contracts](../contracts/ploeg-execution.md) and [open product choices](../landscape/questions.md) before treating a statement as current behavior.
+
 Status: proposed target design. Research checked 2026-09-09. This document describes implementation work to schedule; it does not upgrade the qualification claims in [validation](../validation.md).
 
 ## 1. The operating model

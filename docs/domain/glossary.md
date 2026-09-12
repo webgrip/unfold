@@ -99,7 +99,7 @@ A recorded request for an outcome, including enough context and acceptance condi
 ## Workload
 *Context: Execution*
 
-AI work managed by Ploeg, with instructions, recorded activity, and results. It can begin as a conversation in Vloer without an external ticket.
+AI work with instructions, recorded activity, an execution authority and results. An external ticket is optional. Repository-free conversation is intended product behavior; current Vloer sessions require a repository and crew.
 
 **See also:** [Ticket](#ticket), [Session](#session), [Execution](#execution), [Result](#result), [Budget](#budget)  
 
@@ -133,6 +133,13 @@ Short exchanges showing the terms used precisely at concept boundaries.
 ---
 
 ## ⚠ Flagged ambiguities
+
+### shared execution implementation
+
+Local work must be usable without Ploeg, but that requirement does not determine which execution code the applications should share.
+
+**Options:** Keep separate implementations behind compatible contracts, Extract a runner callable by either application  
+**Recommendation:** Compare one standalone run and one Ploeg-managed run before extracting common behavior. Keep authorization, runner placement and code reuse separate.  
 
 ### a CI failure with no original ticket
 

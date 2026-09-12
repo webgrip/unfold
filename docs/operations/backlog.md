@@ -118,7 +118,7 @@ npm test
 npm run check
 ```
 
-The consolidated document is [PRODUCT-DESIGN.md](../PRODUCT-DESIGN.md). Its build check detects stale generated content and local documentation links. Tests validate dependency order, gap coverage, export quoting and explicit session-payload inputs. They do not validate the implemented status of the proposed features. Close a gap only with merged code and the acceptance evidence specified in its ticket.
+The generated [design chapter guide](../PRODUCT-DESIGN.md) links the source documents without copying their prose. Its build check detects stale generated content and local documentation links. Tests validate dependency order, gap coverage, export quoting and explicit session-payload inputs. They do not validate the implemented status of the proposed features. Close a gap only with merged code and the acceptance evidence specified in its ticket.
 
 ## Implemented unification increment
 

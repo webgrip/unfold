@@ -24,7 +24,7 @@ With the server running, a second terminal can verify the full demonstration:
 npm run smoke
 ```
 
-## What 0.2.0 provides
+## Current capabilities
 
 - One task connection contract for Forgejo issues, GitHub issues, GitLab issues, ClickUp List tasks and Vikunja project tasks. An administrator registers each connection once; browser and editor use the same sources.
 - An explicit task preview and import into a queued session, with source identity and revision retained. Importing a task does not start a model request or change the tracker.
@@ -58,17 +58,16 @@ Connection registration in this iteration is administrator configuration. OAuth 
 
 ## Use it from VS Code
 
-The [desktop extension](extensions/vscode/README.md) adds a native session tree, task import, remote crew controls, a themed work/evidence/activity panel, human decisions and evidence export. Share a selection or file only after previewing its exact destination and content. Agents and model calls stay on the configured server.
+The [desktop extension](extensions/vscode/README.md) adds a native session tree, task import, remote crew controls, a themed work/evidence/activity panel, human decisions and evidence export. Share a selection or file only after previewing its exact destination and content. The configured workbench runs the session's workspace and harness; it may be on your machine or on a remote host.
 
-The release archive includes `extensions/vscode/de-vloer-0.2.0.vsix`. Install it with **Extensions → … → Install from VSIX**, connect to the demo or your remote HTTPS workbench, and import a task or create a session. To build from source:
+Use the VSIX included in the chosen release. Install it with **Extensions → … → Install from VSIX**, connect to the demo or your remote HTTPS workbench, and import a task or create a session. To build from source:
 
 ```sh
 npm ci --prefix extensions/vscode
 npm run extension:package
-code --install-extension extensions/vscode/de-vloer-0.2.0.vsix
 ```
 
-The [validation matrix](docs/validation.md) records actual-server integration, browser webview and package checks. Installation and native behavior in an actual VS Code Extension Host still require desktop qualification. The package is not published to a marketplace.
+The [validation matrix](docs/validation.md) records actual-server integration, browser webview and package checks. Installation and native behavior in an actual VS Code Extension Host still require desktop qualification. See the [release guide](docs/operations/release.md#extension-distribution) for distribution conditions and the [extension guide](extensions/vscode/README.md#install) for VSIX installation.
 
 ![Actual 0.2.0 extension webview rendering a retained task snapshot and downloadable candidate evidence](docs/images/vscode-session.png)
 
@@ -76,11 +75,11 @@ The [validation matrix](docs/validation.md) records actual-server integration, b
 
 The [0.2.0 iteration](docs/operations/iteration-0.2.0.md) connects task selection to an interactive session and retained review evidence. The earlier [implementation increment](docs/operations/implementation-progress.md) added keyboard evidence navigation, stable reading/draft behavior and actionable failures. The release also includes [reviewable Ploeg prerequisite patches](integrations/ploeg/README.md), whose historical qualification notes are superseded for this increment by the [real cross-service baseline](docs/operations/unified-baseline.md#reproduce-qualification).
 
-Run the stable service separately from the candidate checkout, register the Vloer repository, and connect the task source that holds its backlog. Preview one bounded task, import it, authorize a small LiteLLM budget and start the crew. Export and independently verify the candidate before a human publishes the proposal and reviews the merge. The [iteration guide](docs/operations/iteration-0.2.0.md) describes the current loop; the [self-improvement design](docs/design/self-improvement.md) specifies its planned automation.
+Run the stable service separately from the candidate checkout, register the Vloer repository, and connect the task source that holds its backlog. Preview one bounded task, import it, authorize a small LiteLLM budget and start the crew. Export and independently verify the candidate before a human publishes the proposal and reviews the merge. The [iteration guide](docs/operations/iteration-0.2.0.md) records the 0.2.0 loop; the [self-improvement design](docs/design/self-improvement.md) specifies its planned automation.
 
-The [complete product and market design](docs/PRODUCT-DESIGN.md) specifies the full system: one Ploeg work authority, interchangeable task adapters, immutable candidates, trusted verification and publication, browser/editor intervention, client boundaries and operational recovery. It includes competitive research and a marketing/pilot plan. The [release scope](docs/operations/iteration-0.2.0.md) distinguishes implemented behavior from the larger roadmap.
+Use the [documentation index](docs/index.md) for current guidance. The [design chapter guide](docs/PRODUCT-DESIGN.md) links the September planning baseline and market hypotheses. Those chapters contain proposals and dated gaps; the [architecture](docs/architecture.md) describes current behavior. Universal Ploeg authority and a common local or remote runner remain [open choices](docs/landscape/questions.md).
 
-The [78-ticket backlog](backlog/README.md) maps every one of [30 audited gaps](docs/design/gap-register.md) to acceptance criteria and dependencies. [Import instructions](docs/operations/backlog.md) cover the included ClickUp CSV and Forgejo payloads. No external tickets have been created. To inspect the first candidate and its remaining acceptance work:
+The [planning backlog](backlog/README.md) maps every one of [30 audited gaps](docs/design/gap-register.md) to acceptance criteria and dependencies. [Import instructions](docs/operations/backlog.md) cover the included ClickUp CSV and Forgejo payloads. No external tickets have been created. To inspect the first candidate and its remaining acceptance work:
 
 ```sh
 npm run backlog -- validate
@@ -103,7 +102,7 @@ helm template de-vloer ops/helm/de-vloer
 
 Releases, images, the chart and the extension ship from one Forgejo train; see [releases](docs/operations/release.md). Read [architecture](docs/architecture.md), [decisions](docs/adrs/README.md), the [HTTP contract](docs/contracts/api.md) and [source research](docs/research/conventions-and-alternatives.md). The [operator skill](skills/operate-agent-session/SKILL.md) is portable procedure; its [local contract](.agents/contracts/operate-agent-session.md) contains repository facts. Copying it does not install client hooks.
 
-The distributable ZIP contains a complete Git repository on `development`, including its commit history, design, importable backlog and packaged extension. No remote is configured. Create an empty repository on your forge, add it as `origin`, and push `development` to run the hosted checks.
+The [Forgejo repository](https://forgejo.webgrip.dev/webgrip/de-vloer) is the source home. Release-specific walkthroughs and screenshots retain the version they actually demonstrate.
 
 Trunk: `development`. License: [Apache-2.0](LICENSE).
 

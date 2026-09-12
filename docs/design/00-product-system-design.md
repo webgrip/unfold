@@ -1,5 +1,7 @@
 # Ploeg and De Vloer product and system design
 
+> Design baseline: September 2026. This chapter preserves proposals and the original audit; some gaps have since closed. Check [current architecture](../architecture.md), [contracts](../contracts/ploeg-execution.md) and [open product choices](../landscape/questions.md) before treating a statement as current behavior.
+
 ## Product decision
 
 Build an open delivery control plane for teams that work across client repositories, trackers, model providers and execution environments. The product should make delegated engineering work attributable, bounded, inspectable and easy to take over. The unit of value is an accepted change with evidence and an accountable human owner. Agent count, token volume and an attractive chat window are insufficient measures of success.

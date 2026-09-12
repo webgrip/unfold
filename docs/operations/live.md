@@ -4,9 +4,11 @@ Live mode runs paid or otherwise metered agent work. The intended first deployme
 
 Read [validation](../validation.md) for the actual qualification level. The local fixture demonstration does not validate these external integrations.
 
-## First real OpenCode session
+## First standalone OpenCode session
 
-Prepare Node 24, Git and OpenCode `1.18.30`, the version pinned in the agent image. Register a repository the execution environment can clone. For the first qualification use a disposable public test repository; private forge credential provisioning is a separate deployment concern and must not inherit an operator's workstation login.
+For Ploeg-authorized execution, start with [the unified guide](unified-baseline.md). The management-key setup below applies to standalone Vloer. Shared execution keeps that authority in Ploeg.
+
+Prepare Node 24, Git and the OpenCode version pinned in [the agent image](../../ops/agent/Dockerfile). Register a repository the execution environment can clone. For the first qualification use a disposable public test repository; private forge credential provisioning is a separate deployment concern and must not inherit an operator's workstation login.
 
 Prepare a LiteLLM proxy with virtual-key management enabled and a working model alias such as `coding`. The gateway must support the model's required tool calls. De Vloer uses the inference URL and a separately configurable management URL. Confirm model access and spend tracking in the gateway before supervising a paid session. The [LiteLLM virtual-key guide](https://docs.litellm.ai/docs/proxy/virtual_keys) documents the gateway prerequisites.
 
@@ -42,7 +44,7 @@ This is the `runtime` object, not a full configuration file, and it enables exac
 
 `local` means local to the **De Vloer server**. A remote server with this backend already moves agent CPU, memory and repository checks off the operator's laptop. Use this backend only for trusted single-user development on a dedicated host. It separates working directories and selected environment variables, but runs under the control server’s OS user. Approved shell commands or repository scripts can access server files, process environments and sibling workspaces. This is not a boundary for protecting the master key against hostile code. Use the Kubernetes backend with the supplied separate namespace and pod restrictions for a shared team pilot.
 
-Supply secrets through the deployment environment, or a private ignored `.env` for a single trusted server. `npm start` loads `.env` if present. Never put real credentials in checked-in JSON.
+Supply credentials through the deployment's secret mechanism or a short-lived shell environment populated from the vault. Keep secret values out of configuration files. The application supports loading `.env`, but Webgrip's operating policy keeps originals in OpenBao; use the [estate secrets model](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/docs/techdocs/docs/adr/adr-0055-one-secrets-model-six-levels.md).
 
 | Setting | Purpose |
 | --- | --- |
@@ -64,11 +66,13 @@ npm start -- --config config/live.local.json
 
 Select the registered repository and delivery crew, authorize a small budget and start one session. Inspect actual tool activity, changes, verification output and the explicit review verdict. Exercise a human permission response when one occurs. Reload the browser to verify continuity. At completion verify the final spend state and gateway key revocation; `unknown` is a blocker to investigate, not zero cost. The default 60-second settlement delay is a configurable grace period for gateway reporting, not a guarantee that delayed upstream charges can never arrive. Qualify it against the gateway’s spend update interval; budget enforcement has the gateway’s concurrency and in-flight request limits.
 
-The workspace manager starts an authenticated OpenCode server per managed workspace and injects a session-scoped LiteLLM inference key. Do **not** set `OPENCODE_URL` for this managed path. Although configuration can describe an external endpoint, v0.1 rejects giving a managed session credential to a shared pre-existing OpenCode server. Use local provisioning on the remote host or Kubernetes provisioning.
+The workspace manager starts an authenticated OpenCode server per managed workspace and injects a session-scoped LiteLLM inference key. Do **not** set `OPENCODE_URL` for this managed path. Although configuration can describe an external endpoint, the managed path rejects giving a managed session credential to a shared pre-existing OpenCode server. Use local provisioning on the remote host or Kubernetes provisioning.
 
-For another operator, run `npm run user:add` against the same `VLOER_DATA_DIR` while the server is stopped, then restart it. The helper asks for a name and role and generates a password shown once unless `VLOER_USER_PASSWORD` is supplied through the environment. Keep that output private. This is local account provisioning; SSO and shared session membership are not implemented.
+For another operator, run `npm run user:add` against the same `VLOER_DATA_DIR` while the server is stopped, then restart it. The helper asks for a name and role and generates a password shown once unless `VLOER_USER_PASSWORD` is supplied through the environment. Keep that output private. This helper provisions local accounts. OIDC sign-in is also implemented; see [signing in with the estate](#signing-in-with-the-estate). Shared session membership is a separate capability.
 
 ## A second estate as a profile
+
+The named estate examples in this section are recorded setup experience. Resolve current ports, identity-provider mounts, vault policies and model routes from that estate's deployment configuration before using them.
 
 A profile is a config file plus a launcher; nothing in the source knows which estate it serves. The webgrip pilot runs on port 4080 with its data under `.vloer`, and a acme profile runs beside it on 4081 with its data under `.vloer/second`, each pointing at its own LiteLLM, task source, repositories and Ploeg. Both files are ignored by Git (`config/*.local.json`, `*.local.sh`) so no estate detail is committed.
 
@@ -114,7 +118,7 @@ Each role's brief is recorded with the run and shown in the Activity stream, and
 
 ## Keeping a thin brief from spending the budget
 
-A session titled "Hiya" with the same one word as its brief once cost two dollars: the analyst explored the repository looking for a task and the reviewer verified the exploration with a larger model. Three things now stand in the way. The form refuses a brief under twenty characters or four words. At start, before any workspace exists, the cheapest listed model is asked whether the brief is actionable, for about a cent; if not, the session waits with the model's questions in the decision panel and starts once they are answered, with the answers appended to the brief. And every role has a tool-call limit, eighty by default, so a role that keeps reading without finishing is stopped as a runaway rather than allowed to run the budget down.
+For a manually written objective, the API requires at least twenty characters and four words. When enabled and applicable, the brief check asks a configured model whether the instructions are actionable; it prefers a model whose name matches a small/fast heuristic, not a measured cheapest model. Tracker imports and already-checked briefs skip this step. An unavailable or malformed check is recorded as skipped, so it is not an authorization gate. A request for clarification waits for the person's answers. Each role also has a configurable tool-call limit, eighty by default. See [the session engine](../../src/engine.ts) for the conditions. Do not assume a fixed price for the brief check.
 
 The model choice on the new-session form shows what the gateway will do with it: the provider that serves a pinned model, or for an auto-router each tier and where it goes. At acme, `auto` routes every tier to Anthropic, while `auto-frugal` sends its low tiers to open-weight models on Fireworks; a session that should reach Fireworks needs `auto-frugal` or a Fireworks model pinned.
 
@@ -124,17 +128,17 @@ An investigation crew, one with no writer, completes with its challenger's verdi
 
 Every OpenCode session starts with `ask` for every tool, so each read, search and shell command waits for the operator. That is the right default on the `local` backend, where the crew shares the workbench's files. In a container or a pod the sandbox is the boundary, so a session there can be created with automatic approval, or switched to it from the decision panel while it runs. The switch answers the permissions already waiting and creates later roles with allow rules; read roles still cannot edit or run commands, and a crew's questions still wait for a person. Automatic approval is refused on the `local` backend.
 
-Budgets are enforced by the gateway key, so a session whose ceiling is reached fails mid-turn with `budget_exhausted`, and the spend shown while it runs is the gateway's live attribution, which settles a minute later. Size the budget to the crew: reading a repository with a Sonnet-class model costs a few cents per turn, and an investigation crew can spend a quarter in under a minute.
+The gateway can refuse requests with `budget_exhausted`. Displayed spend is an observation, and final accounting may arrive later. The settlement delay is configurable; it does not guarantee provider billing latency or a strict ceiling for requests in flight. Qualify the configured model and crew with a small explicit budget.
 
 ## What "awaiting your review" means
 
 A completed session has done everything the machine does: every role finished, the final reviewer's verdict is on its run, the candidate is captured as a bundle, patch and manifest with two signed statements over them, the workspace is released, and nothing was pushed or merged. The label now says what is missing: a person's review. Accept records that you inspected the candidate and consider it fit to take further, with an optional note; reject requires a reason, which the next attempt receives. Both are recorded with your name in the session history and shown on the session instead of the label. Until the publish action exists, taking an accepted candidate further is still a manual push and merge request from the downloaded bundle.
 
-While the crew's last requests settle at the gateway, the spend shows as observed and the hold as reserved; a settled figure follows about a minute after the crew finishes.
+Pending or unknown spend stays visible after the crew finishes. Standalone settlement uses the configured grace period. Shared execution retains its authorization until trusted accounting reconciles it; see [shared recovery](unified-baseline.md#recovery).
 
 ## Trying a failed session again
 
-A session that failed before or during execution shows "Try again" once its spend has settled: the workspace is released, every role returns to queued, artifacts and ledger rows from the failed attempt are cleared, and the crew starts from the beginning with the same brief, budget and links. "Duplicate as a new session" opens the new-session form filled from the failed one, for changing the model, crew or budget instead. A clone refused for credentials names the missing or refused link in its detail.
+A failed standalone session can use "Try again" after unresolved spend is reconciled. It releases the old workspace, resets crew roles and replaces the current candidate view while retaining durable session history and spent budget. Shared Ploeg executions cannot use this reset: reconcile the failed authorization and create an explicit new session. "Duplicate as a new session" prepares a new brief, model, crew or budget selection; it does not itself authorize execution. See [the retry implementation](../../src/engine.ts).
 
 ## Linking ClickUp
 
@@ -217,10 +221,10 @@ helm lint ops/helm/de-vloer -f values.live.local.yaml
 helm template de-vloer ops/helm/de-vloer --namespace de-vloer -f values.live.local.yaml > /tmp/de-vloer-live.yaml
 ```
 
-After the images, namespace policy, persistent storage and application Secret are prepared, an authorized operator can install the reviewed configuration:
+After preparing images, namespace policy, persistent storage and Secret references, render the configuration for review. Apply desired state through the deployment repository's GitOps reconciliation:
 
 ```sh
-helm upgrade --install de-vloer ops/helm/de-vloer --namespace de-vloer --create-namespace -f values.live.local.yaml
+mise exec -- helm template de-vloer ops/helm/de-vloer --namespace de-vloer -f values.live.local.yaml
 ```
 
 The manager provisions real Kubernetes resources through the API. It retains workspace PVCs after runtime disposal so changes and native state can survive; volume retention has an operational cost. Cleanup policy must preserve reviewable work before deleting retained volumes. Configure `workspaceEgress` for the actual forge and inference gateway; example selectors are not universal access rules. Kubernetes network isolation depends on the cluster's network-policy implementation, so chart rendering cannot prove enforcement.

@@ -6,6 +6,7 @@ on:
     paths:
       - 'docs/**'
       - 'mkdocs.yml'
+      - 'scripts/techdocs.py'
       - '.forgejo/workflows/on_docs_change.yml'
   workflow_dispatch:
 

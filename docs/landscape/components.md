@@ -1,16 +1,16 @@
 # What each component means
 
-The product definitions below describe intent. The implementation notes describe the inspected prereleases. Existing source and deployment links are collected in the [implementation evidence](../research/2026-09-11-ecosystem-implementation.md).
+The definitions distinguish product intent from implementation. Deployment notes refer to the 11 September inspection, not a live inventory. Existing source and deployment links are collected in the [dated implementation evidence](../research/2026-09-11-ecosystem-implementation.md).
 
 ## Vloer
 
 **The place where a person works with AI and follows work given to agents.** Its human responsibilities are selecting a ticket, supplying context, discussing the work, seeing activity and results, making interventions, and recording review decisions.
 
-Today it is a browser application and a server, with an editor client also present in the repository. Its server stores sessions, imports ticket snapshots, manages workspaces, runs an implementer followed by reviewers, and saves downloadable changes. Calling it only a front end conceals these server responsibilities. The desired open conversation without a ticket or repository is broader than today's repository-and-crew session setup. In shared mode, every started session is authorized by Ploeg, but its workspace execution still lives in Vloer. See the [architecture](../architecture.md) and [execution contract](../contracts/ploeg-execution.md).
+Today it is a browser application and a server, with an editor client also present in the repository. Its server stores sessions, imports ticket snapshots, manages workspaces, runs a sequential crew with an optional writer and a final reviewer, and saves downloadable changes. Calling it only a front end conceals these server responsibilities. The desired open conversation without a ticket or repository is broader than today's repository-and-crew session setup. In shared mode, every started session is authorized by Ploeg, but its workspace execution still lives in Vloer. See the [architecture](../architecture.md) and [execution contract](../contracts/ploeg-execution.md).
 
 ## Ploeg
 
-**The service responsible for AI execution, including work a developer steers live.** It records what work is eligible, which execution owns it, the authorized budget, what happened, and when it must stop or needs human attention. This is the working product direction; responsibility for interactive execution is currently split with Vloer.
+**The service that authorizes and coordinates admitted agent work.** It records eligibility, execution ownership, budget, activity and stop conditions. Vloer performs the interactive workspace execution in shared mode. Standalone local work must remain usable without this service. A common runner for both paths remains an [open implementation choice](questions.md).
 
 Its unattended workers can claim queued work and run it. Vloer can also ask Ploeg to authorize an execution and then perform that execution itself. These are two current execution paths. Ploeg does not choose business priorities; those remain in the tracker. It does not itself host the language model. See [Ploeg's architecture](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/docs/architecture.md) and [operator execution decision](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/docs/adrs/0024-operator-work-uses-one-execution-authority.md).
 

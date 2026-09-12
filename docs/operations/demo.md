@@ -46,6 +46,6 @@ The smoke script refuses a non-demo server. It creates and runs a session, check
 
 The proposition is a shared operating contract: people choose an objective and authorization, then spend their attention on blockers and evidence. Crew configuration and portable procedures carry reusable knowledge; the harness can change behind a maintained adapter. Workspaces run remotely when the service is deployed remotely.
 
-The first release deliberately makes fewer promises than a production agent platform. Roles execute in sequence; there is one control-plane writer, no built-in SSO, no automatic merge, and no claim that prompts provide a hard read-only sandbox. See the [architecture](../architecture.md) and [validation evidence](../validation.md).
+Roles execute in sequence and the control plane has one writer. The fixture does not exercise live model access, OIDC sign-in or cluster isolation. Completing it does not merge a change, and a read-only prompt is not a sandbox. See the [architecture](../architecture.md) and [validation evidence](../validation.md).
 
 The next useful experiment is one real repository and one small live budget. Time registration through reviewed result, test an interrupted connection, exercise a human response, settle the spend and verify cleanup. Compare that complete workflow with an existing workbench before expanding this implementation.

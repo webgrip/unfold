@@ -1,14 +1,38 @@
-# De Vloer
+# De Vloer documentation
 
-De Vloer is the human workbench beside Ploeg: durable operator sessions, isolated agent workspaces, interchangeable harnesses and evidence people can review.
+De Vloer provides durable operator sessions, agent workspaces, intervention and reviewable evidence. Start with the guide for your task.
 
-Start with [the ecosystem explanation](landscape/index.md) for plain definitions, C4 views, bottlenecks, alternatives, and the product questions being worked through with the owner.
+## Try it
 
-- [Architecture](architecture.md) and the [decisions](adrs/README.md) behind it
-- [Live operation](operations/live.md), [releases](operations/release.md) and [task connections](operations/task-connections.md)
-- [Unified Ploeg workbench](operations/unified-baseline.md) and [shared execution contract](contracts/ploeg-execution.md)
-- [Local shared execution demonstration](operations/local-unified-demo.md): both applications and PostgreSQL with no model calls
-- [HTTP contract](contracts/api.md) and [validation evidence](validation.md)
-- [Product design](PRODUCT-DESIGN.md), the [model gateway capabilities](product/model-gateway-capabilities.md) De Vloer can offer through LiteLLM, and the [research](research/agent-apis.md) that informed the runtime adapters
+- [Local fixture demonstration](operations/demo.md)
+- [Shared Ploeg demonstration](operations/local-unified-demo.md): both applications and PostgreSQL without model calls
 
-See [tracker binding](contracts/ploeg-tracker-binding.md) and [candidate delivery](contracts/candidate-delivery.md) for the second unified baseline, with [reproducible evidence](research/evidence/delivery-2026-09-11/README.md).
+## Operate
+
+- [Live operation](operations/live.md): standalone setup, identity, workspaces and intervention
+- [Shared execution setup and recovery](operations/unified-baseline.md)
+- [Task connections](operations/task-connections.md)
+- [Release procedure](operations/release.md)
+
+## Integrate
+
+- [HTTP API](contracts/api.md)
+- [Ploeg execution](contracts/ploeg-execution.md)
+- [Canonical tracker binding](contracts/ploeg-tracker-binding.md)
+- [Candidate verification and approval](contracts/candidate-delivery.md)
+
+## Understand and change
+
+- [Current architecture](architecture.md) and [ADR index](adrs/README.md)
+- [Shared product explanation](landscape/index.md), [diagrams](landscape/c4.md) and [open choices](landscape/questions.md)
+- [Product domain YAML](domain/model.yaml) and generated [glossary](domain/glossary.md) and [rules](domain/rules.md)
+- [Monorepo and runner proposal](monorepo-transition.md)
+- [Documentation maintenance](documentation.md)
+
+## Evidence and planning
+
+[Validation](validation.md) records exercised paths and limitations. [Dated delivery evidence](research/evidence/delivery-2026-09-11/README.md) supports the candidate path. These are observations at their recorded revisions, not blanket production qualification.
+
+The [design chapter guide](PRODUCT-DESIGN.md) links the September planning baseline. [Planning exports](../backlog/README.md) retain acceptance criteria and dependencies; the tracker owns priority. [The documentation audit](research/2026-09-12-documentation-audit.md) records the inventory, corrections and review limits.
+
+People and agents use these same Markdown sources. [llms.txt](../llms.txt) is a short discovery index; structured schemas and domain models supply the machine-readable data.

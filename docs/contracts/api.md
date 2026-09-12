@@ -1,12 +1,12 @@
 # HTTP contract
 
-This guide describes the v0.2 routes implemented by `src/http.ts` and session rules in `src/engine.ts`. The internal [implementation coordination contract](implementation.md) records the initial team agreement; executable tests and source resolve drift. Routes return JSON objects or arrays directly. Errors have the form `{"error":{"code":"...","message":"..."}}`.
+This guide describes routes implemented by [HTTP handlers](../../src/http.ts) and lifecycle rules in [the session engine](../../src/engine.ts). Executable tests and source resolve implementation drift. Routes return JSON objects or arrays directly. Errors have the form `{"error":{"code":"...","message":"..."}}`.
 
 ## Identity and mutation requests
 
 Live API access requires a login cookie. Every mutation, including login, requires `X-Vloer-Request: 1`; JSON requests require `Content-Type: application/json`. Browser requests also pass same-origin checks. Cross-origin access is not enabled. Login cookies are HttpOnly and SameSite Strict; an HTTPS base URL enables secure cookies. Configure the public base URL accurately behind a reverse proxy.
 
-Operators can read and change sessions they own. Administrators can access all sessions and authorize budget additions. Viewers cannot mutate work. Inaccessible session IDs return 404. v0.1 does not expose shared team membership or invitation management.
+Operators can read and change sessions they own. Administrators can access all sessions and authorize budget additions. Viewers cannot mutate work. Inaccessible session IDs return 404. The current API does not expose shared team membership or invitation management.
 
 | Method and path | Request or response |
 | --- | --- |
@@ -29,13 +29,13 @@ An editor signs in through the same browser flow. `POST /api/auth/editor` (publi
 | `GET /api/sessions` | Sessions visible to the current user |
 | `POST /api/sessions` | `{title,objective,repositoryId,crewId,runtime,placement?,approval?,budgetUsd,trackerUrl?}` → created session, status 201. `model` pins one configured model id for every role of the session, overriding the crew's role models, which is how the same objective is run pinned and auto-routed for comparison; `approval` is `manual` (default) or `auto`; `auto` needs a `docker` or `kubernetes` placement and answers every tool permission inside the sandbox itself, while questions still reach the operator |
 | `GET /api/sessions/:id` | Public session view, runs, retained artifacts and accounting status |
-| `POST /api/sessions/:id/retry` | Tries a failed session again from the beginning: after spend has settled, the workspace is released, every run returns to queued, artifacts and ledger rows are cleared, `session.retried` is recorded with the attempt number, and the crew launches. 409 `spend_unresolved` while accounting is still open |
+| `POST /api/sessions/:id/retry` | Standalone only: after unresolved spend is reconciled, releases the workspace, resets crew roles and current artifacts, records `session.retried`, and launches. Durable history and spent budget remain. Returns 409 `spend_unresolved` for open accounting or `new_authorization_required` for shared Ploeg execution; shared work requires an explicit new session |
 | `POST /api/sessions/:id/start` | `{}`; start queued work in the background |
 | `POST /api/sessions/:id/pause` | `{}`; deliberately stop active execution while retaining the session |
 | `POST /api/sessions/:id/resume` | `{}`; explicitly continue paused/interrupted work subject to spend reconciliation |
 | `POST /api/sessions/:id/cancel` | `{}`; intentional cancellation, with no automatic replacement run |
 | `POST /api/sessions/:id/messages` | `{text}`; persist an operator instruction |
-| `POST /api/sessions/:id/budget` | `{amountUsd}`; administrator authorizes an additional positive amount within the total limit |
+| `POST /api/sessions/:id/budget` | Standalone only: `{amountUsd}`; administrator authorizes an additional positive amount within the total limit. Shared budget extension is not implemented |
 
 Selection values must come from the registered profiles. `placement` is one of the workspace backends listed in `placements` (`docker`, `kubernetes` or `local`); omitted, it takes the deployment default, and a demonstration deployment lists none. The created session records `placement`, and the `workspace.ready` event reports the resulting `backend` and `isolation` (`container`, `pod` or `working-directory`). Budgets are positive amounts in USD; they are not token allocations. One optional writer may precede reviewers, and roles execute sequentially. Completion requires explicit approval from required reviewers. A review requesting changes is a human decision point rather than an automatic rewriting loop.
 
@@ -43,7 +43,7 @@ A message does not promise immediate insertion into an executing model request. 
 
 `POST /api/sessions/:id/approval` with `{approval}` switches a live session between `manual` and `auto`, records `approval.changed`, and when switching to `auto` answers the permissions already waiting with `always`. Later roles are created with allow rules; a read role keeps its edit, bash and task denials.
 
-While a session runs, the workbench reads each held gateway key every fifteen seconds and records `budget.observed` with the spend the gateway has already attributed; the session carries it as `observedUsd`. The same tick reads the gateway's request ledger for the key and records per-model usage on the session as `usage`: the model that actually answered, the routed group when an auto-router chose it, requests, refusals, cost and tokens. The session also carries `requests`, one row per gateway request with the provider and endpoint host that served it, the inference region, the routed group with the router's tier and cause, the router's savings, retries, fallbacks, guardrails, cache hits and cached tokens, tokens, cost, duration and time to first token, the calling harness, the gateway call id for trace lookup, the error class on refusal, and the role it is attributed to by time. Settlement refreshes both once more. The Gateway tab shows the rows; the signed provenance records the usage and the set of providers. It is a live reading, not the settled figure `spentUsd`, which still arrives after reconciliation. A turn refused by the gateway because the key's ceiling is reached fails with category `budget_exhausted`, whose remediation is to authorize more budget and resume.
+In standalone mode, while a session runs, the workbench reads each held gateway key every fifteen seconds and records `budget.observed` with the spend the gateway has already attributed; the session carries it as `observedUsd`. The same tick reads the gateway's request ledger for the key and records per-model usage on the session as `usage`: the model that actually answered, the routed group when an auto-router chose it, requests, refusals, cost and tokens. The session also carries `requests`, one row per gateway request with the provider and endpoint host that served it, the inference region, the routed group with the router's tier and cause, the router's savings, retries, fallbacks, guardrails, cache hits and cached tokens, tokens, cost, duration and time to first token, the calling harness, the gateway call id for trace lookup, the error class on refusal, and the role it is attributed to by time. Settlement refreshes both once more. The Gateway tab shows the rows; the signed provenance records the usage and the set of providers. It is a live reading, not the settled figure `spentUsd`, which still arrives after reconciliation. A turn refused by the gateway because the key's ceiling is reached fails with category `budget_exhausted`, which requires mode-specific recovery; failed shared execution needs new explicit authorization.
 
 A crew's read roles are not all reviewers. Only the final role of a crew carries the review verdict and is prompted for it; an earlier read role is an analysis role that answers the objective with evidence and returns no verdict, so an investigation crew of analyst then challenger completes on the challenger's approval alone. Run cards label the two as analysis and independent review.
 
@@ -57,7 +57,7 @@ A crew's read roles are not all reviewers. Only the final role of a crew carries
 
 ### Before the crew spends
 
-`POST /api/sessions` refuses an objective under twenty characters or four words with 400 `objective_too_thin`; an imported task is exempt because its brief is generated from the ticket. When a session starts and the gateway is configured, the workbench first asks the cheapest listed model, with the session's own credential, whether the brief is actionable, and records `brief.checked`. If it is not, the session waits with a question titled "The brief needs more before the crew starts", carrying the model's reason and up to three questions, and `brief.unclear` is recorded; nothing else is spent. Answering the question through the permissions route appends the answers to the objective as an operator clarification, records `brief.clarified`, and starts the crew. `runtime.briefCheck: false` disables the check.
+`POST /api/sessions` refuses a manually written objective under twenty characters or four words with 400 `objective_too_thin`; an imported task is exempt. The optional brief check uses the session's credential and prefers a model whose identifier matches the small/fast heuristic, falling back to the first configured model. It does not compare prices. Imported tasks, already-checked briefs and `runtime.briefCheck: false` skip the check. An unavailable or malformed result is recorded as skipped; the check is not an authorization gate. An unclear result records `brief.unclear` and asks up to three questions. Answering through the permissions route appends the answers, records `brief.clarified`, and continues the crew.
 
 Each role may make at most `runtime.maxToolCalls` tool calls, eighty by default, or the role's own `maxToolCalls`; beyond that the session fails with category `runaway` and `run.runaway` is recorded. A crew without a write role, an investigation, completes with its final reader's verdict on the run instead of failing when that verdict is not approve; only a crew with a writer treats a missing approval as `review_incomplete`.
 
@@ -86,7 +86,7 @@ Permission and question details depend on the adapter. Answer only the actual un
 
 ## Ploeg
 
-`GET /api/ploeg` reads configured team depths from Ploeg's `/api/v1/queue/depth?team=...`. It returns configuration/reachability information and any configured tracker link. The connector does not expose a dispatch action, create tickets, assign work or modify Ploeg state.
+The scoped read surface and shared-session mutations are described under [Ploeg workbench](#ploeg-workbench). Reads use Ploeg's operator API through [the connector](../../src/ploeg.ts); worker queue authentication is a different interface.
 
 ## Linked accounts
 
@@ -120,7 +120,7 @@ A snapshot includes `key`, `sourceId`, `provider`, `id`, `revision`, `title`, `d
 
 Import requires an operator or administrator and passes the same mutation guard as other actions. It does not call a model, assign a tracker task or start execution. Calling import twice for the same canonical task and revision returns the existing session across reconnects and process restarts. Another operator receives a generic conflict, without private session details. A changed revision cannot create competing work while an earlier session is active, stopping or has unresolved reservations. Finished revisions remain inspectable; importing is not a retry command.
 
-Set `executionOwner: "ploeg"` on repositories assigned to unattended Ploeg execution. Vloer rejects both imported and ad hoc execution for those repositories, and rechecks this policy at start and resume. A Ploeg-owned source is also blocked. This is an administrator-configured separation of execution lanes, not a shared distributed claim with Ploeg. [Connection setup](../operations/task-connections.md) covers all providers.
+Set `executionOwner: "ploeg"` on repositories assigned to Ploeg execution. Standalone Vloer refuses to execute those repositories. With shared authority configured, supported tracker imports instead require the current registered Ploeg binding and canonical admission checks at Start. See [tracker binding](ploeg-tracker-binding.md) and [connection setup](../operations/task-connections.md).
 
 ### Transcript detail
 

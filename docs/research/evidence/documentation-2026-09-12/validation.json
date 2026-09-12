@@ -1,0 +1,138 @@
+{
+  "date": "2026-09-12",
+  "vloerTests": {
+    "passed": 211,
+    "failed": 0,
+    "skipped": 0
+  },
+  "ploegGates": [
+    {
+      "command": [
+        "gofmt",
+        "-l",
+        "."
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "helm",
+        "lint",
+        "ops/helm/ploeg"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "helm",
+        "template",
+        "ploeg",
+        "ops/helm/ploeg"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "helm",
+        "template",
+        "ploeg",
+        "ops/helm/ploeg",
+        "-f",
+        "ops/helm/ploeg/ci/executor-values.yaml"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "helm",
+        "template",
+        "ploeg",
+        "ops/helm/ploeg",
+        "-f",
+        "ops/helm/ploeg/ci/executor-cronjob-values.yaml"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "helm",
+        "template",
+        "ploeg",
+        "ops/helm/ploeg",
+        "-f",
+        "ops/helm/ploeg/ci/executor-gitlab-values.yaml"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "sh",
+        "scripts/helm-golden.sh",
+        "check"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "sh",
+        "scripts/brand-marks.sh"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "sh",
+        "scripts/license-check.sh"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "./pkg/harness",
+        "./internal/ledger/"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "openspec",
+        "validate",
+        "audit-current-documentation",
+        "--strict"
+      ],
+      "exitCode": 0
+    }
+  ],
+  "links": {
+    "resolved": 1298,
+    "problems": [],
+    "scope": "Markdown relative paths and heading anchors plus development-branch links mapped to these two local checkouts; no full external-link availability check"
+  },
+  "landscape": {
+    "pagesOpened": 9,
+    "diagramsRendered": 15,
+    "javascriptErrors": 0,
+    "openRunnerQuestionVisible": true
+  },
+  "style": {
+    "pagesScanned": 32,
+    "beforeFindings": 252,
+    "afterFindings": 163,
+    "note": "Advisory findings, including legitimate domain vocabulary; not an authorship or correctness score"
+  },
+  "format": {
+    "generatedMarkdownHardBreaks": {
+      "de-vloer": 2,
+      "ploeg": 90
+    },
+    "otherWhitespaceErrors": 0
+  },
+  "notPerformed": [
+    "live provider calls",
+    "cluster changes or requalification",
+    "full TechDocs site build or search exclusion",
+    "human fresh-reader task study"
+  ]
+}

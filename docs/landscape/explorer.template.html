@@ -14,7 +14,7 @@
 </style>
 </head>
 <body>
-<header><div><div class="brand">Ploeg + Vloer</div><p>Understand the work, the responsibilities, and the choices.</p></div><div><small>Discussion baseline · 11 September 2026</small><br><button id="print" type="button">Print current view</button></div></header>
+<header><div><div class="brand">Ploeg + Vloer</div><p>Understand the work, the responsibilities, and the choices.</p></div><div><small>Documentation review · 12 September 2026</small><br><button id="print" type="button">Print current view</button></div></header>
 <div class="layout"><nav id="navigation" aria-label="Architecture guide"></nav><main id="content"></main></div>
 <script>
 const landscape="__LANDSCAPE_DATA__";
@@ -37,7 +37,6 @@ function show(){
     document.getElementById('next').onclick=()=>location.hash='c4/'+Math.min(views.length-1,selected+1);
   }else{
     content.innerHTML=page.html;
-    if(page.id==='start')content.insertAdjacentHTML('afterbegin','<div class="intro-strip"><strong>Agreed direction:</strong> Vloer is where people work with AI. Ploeg runs the AI work. Tickets are external and optional for starting a conversation.</div>');
     if(page.id==='bottlenecks')insertCapacityDemo();
   }
   window.scrollTo(0,0);

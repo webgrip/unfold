@@ -1,5 +1,7 @@
 # IDE and operator experience
 
+> Design baseline: September 2026. This chapter preserves proposals and the original audit; some gaps have since closed. Check [current architecture](../architecture.md), [contracts](../contracts/ploeg-execution.md) and [open product choices](../landscape/questions.md) before treating a statement as current behavior.
+
 ## 0.3.0 implementation update
 
 The 0.3.0 extension implements the editor sections of this design that the current API can support: a situation sentence and next action on every surface, inline permission and question decisions with scope and confirmation, per-file changes and check outcomes as native documents, a chronological filterable activity stream, four composer delivery states, live updates from the server event stream with polling as fallback, an orienting sidebar with badge and status bar, attention notifications, guided creation with back navigation, and panel restoration after reload. The [0.3 execution plan](ide-10x-plan.md) records the friction it removes and the acceptance checks; the extension's [README](../../extensions/vscode/README.md) and [CHANGELOG](../../extensions/vscode/CHANGELOG.md) describe the shipped behavior. Team handoff, review workspaces, tracker write-back, device login and true side-by-side diffs still need the server work described below.

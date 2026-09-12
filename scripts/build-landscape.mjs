@@ -10,7 +10,7 @@ const sources = [
   ['alternatives', 'Alternatives', 'docs/research/2026-09-11-ecosystem-alternatives.md'],
   ['bottlenecks', 'Bottlenecks', 'docs/landscape/bottlenecks.md'],
   ['vocabulary', 'Vocabulary', 'docs/domain/glossary.md'],
-  ['rules', 'Agreed rules', 'docs/domain/rules.md'],
+  ['rules', 'Product rules', 'docs/domain/rules.md'],
   ['questions', 'Open questions', 'docs/landscape/questions.md'],
   ['evidence', 'Implementation evidence', 'docs/research/2026-09-11-ecosystem-implementation.md'],
 ];

@@ -5,4 +5,37 @@ docs_dir: docs
 repo_url: https://forgejo.webgrip.dev/webgrip/de-vloer
 edit_uri: _edit/development/docs/
 plugins:
-  - techdocs-core
+  - techdocs-core:
+      use_material_search: true
+hooks:
+  - scripts/techdocs.py
+nav:
+  - Start here: index.md
+  - Try it:
+      - Local demo: operations/demo.md
+      - Shared demo: operations/local-unified-demo.md
+  - Operate:
+      - Live setup: operations/live.md
+      - Shared execution: operations/unified-baseline.md
+      - Task connections: operations/task-connections.md
+      - Releases: operations/release.md
+  - Reference:
+      - HTTP API: contracts/api.md
+      - Ploeg execution: contracts/ploeg-execution.md
+      - Tracker binding: contracts/ploeg-tracker-binding.md
+      - Candidate delivery: contracts/candidate-delivery.md
+      - Product language: domain/overview.md
+  - Understand:
+      - Architecture: architecture.md
+      - System landscape: landscape/index.md
+      - Diagrams: landscape/c4.md
+      - Open choices: landscape/questions.md
+      - Monorepo proposal: monorepo-transition.md
+  - Evidence and maintenance:
+      - Validation: validation.md
+      - Decisions: adrs/README.md
+      - Design baseline: PRODUCT-DESIGN.md
+      - Documentation policy: documentation.md
+      - Audit: research/2026-09-12-documentation-audit.md
+exclude_docs: |
+  /landscape/explorer.template.html

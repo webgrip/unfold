@@ -1,0 +1,2171 @@
+{
+  "date": "2026-09-12",
+  "phase": "second-pass",
+  "status": "reviewed",
+  "baseline": "working trees after first pass, before follow-up edits",
+  "baselineFileCount": 268,
+  "coverage": {
+    "selected-current-claims-checked-against-source": 17,
+    "structural-recheck-and-prior-classification": 234,
+    "generated-view": 11,
+    "structure-or-provenance": 6
+  },
+  "scopeNote": "Selected claims received source review; automated structural checks are not recertification of every historical claim.",
+  "newPaths": [
+    "docs/monorepo-transition.md",
+    "docs/research/2026-09-12-documentation-second-pass.md",
+    "docs/research/2026-09-12-documentation-second-pass.json",
+    "scripts/techdocs.py"
+  ],
+  "supportingChangesOutsideSnapshot": [
+    ".forgejo/workflows/on_docs_change.yml"
+  ],
+  "evidenceDirectory": "evidence/documentation-second-pass-2026-09-12",
+  "validation": "evidence/documentation-second-pass-2026-09-12/validation.json",
+  "files": [
+    {
+      "repository": "de-vloer",
+      "path": ".agents/contracts/operate-agent-session.md",
+      "beforeSha256": "38a05e649b01e05c358f933951967e43ec81d90fb63fcbd27ff1d8fae0cf135c",
+      "afterSha256": "b768e9b7a1b9f86624bd5944ca9d6406d080c19740ba520481ae69ec433c035c",
+      "review": "selected-current-claims-checked-against-source",
+      "disposition": "corrected"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "AGENTS.md",
+      "beforeSha256": "75379d8f9d816949b6ac2045e8a3fef43b4ecfa98f4189af4ec88d2bfa9cf3a8",
+      "afterSha256": "75379d8f9d816949b6ac2045e8a3fef43b4ecfa98f4189af4ec88d2bfa9cf3a8",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "CHANGELOG.md",
+      "beforeSha256": "ec9ac8ef00d37a648dd1111c22534d5201e724f677e3d8a5ae8b3972323c0787",
+      "afterSha256": "ec9ac8ef00d37a648dd1111c22534d5201e724f677e3d8a5ae8b3972323c0787",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "CONTRIBUTING.md",
+      "beforeSha256": "e4057f185419d5200268f4d4809be41ecd75d00e2afd053b102a5345c8e698ec",
+      "afterSha256": "e4057f185419d5200268f4d4809be41ecd75d00e2afd053b102a5345c8e698ec",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "README.md",
+      "beforeSha256": "1b444eaaadb7ffc2e691ae5ade071c40b9a23407b2be1044d4ed8839011aeff7",
+      "afterSha256": "d8b695f777efbd40811e38cdf4a3fa7f69b719f7b2449001aaa9b255983eb51c",
+      "review": "selected-current-claims-checked-against-source",
+      "disposition": "corrected"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/PRODUCT-DESIGN.md",
+      "beforeSha256": "a6f16bfd7cc53098373128a3011cda0cd2ae18f554f33ad5e132bf1469101f4d",
+      "afterSha256": "a6f16bfd7cc53098373128a3011cda0cd2ae18f554f33ad5e132bf1469101f4d",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/0001-the-human-workbench-beside-ploeg.md",
+      "beforeSha256": "6eb9de4f50fabb1a44cd8d16bf6fb5056b5cc4c0c3013e09464009bed7f4f9cf",
+      "afterSha256": "6eb9de4f50fabb1a44cd8d16bf6fb5056b5cc4c0c3013e09464009bed7f4f9cf",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/0002-native-node-and-single-writer-storage.md",
+      "beforeSha256": "9890c294fb102121e564da0b9ac1335d826aac15d5c978746764ef4de9969432",
+      "afterSha256": "9890c294fb102121e564da0b9ac1335d826aac15d5c978746764ef4de9969432",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/0003-runtime-workspace-and-credential-seams.md",
+      "beforeSha256": "d278b6d121bd76a7dbfe5d981c3cc122cf906656ac098a5ec456ecb87edca400",
+      "afterSha256": "d278b6d121bd76a7dbfe5d981c3cc122cf906656ac098a5ec456ecb87edca400",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/0004-portable-procedures-and-explicit-contracts.md",
+      "beforeSha256": "29520aa4df7ebdbb19beeabb28a98fb0e3191be646364e5bf72af35006ff7bae",
+      "afterSha256": "29520aa4df7ebdbb19beeabb28a98fb0e3191be646364e5bf72af35006ff7bae",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/0005-one-work-authority.md",
+      "beforeSha256": "b2126fe626d5252f7540eee16fcc242b312bb72d25a9ba4fdc94eab90846be7e",
+      "afterSha256": "b2126fe626d5252f7540eee16fcc242b312bb72d25a9ba4fdc94eab90846be7e",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/0006-trusted-verifier-and-publisher.md",
+      "beforeSha256": "81616bc58c23b33db9a0294c97b7d1358a2c3591bc5e773f4620095d96d1e40c",
+      "afterSha256": "81616bc58c23b33db9a0294c97b7d1358a2c3591bc5e773f4620095d96d1e40c",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/0007-thin-editor-client.md",
+      "beforeSha256": "ff2350318f1e1f6e9c527ce7987e2c95f4076cb74a276664aa3626180c147c62",
+      "afterSha256": "ff2350318f1e1f6e9c527ce7987e2c95f4076cb74a276664aa3626180c147c62",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/0008-task-connections-and-candidate-handoff.md",
+      "beforeSha256": "b75e398d560c417fe9b14bf40eb6157f19ce28cd2beee39b95ce02014152f4df",
+      "afterSha256": "b75e398d560c417fe9b14bf40eb6157f19ce28cd2beee39b95ce02014152f4df",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/0009-workspace-placement-is-a-session-choice.md",
+      "beforeSha256": "7de0b5197186a300bca04d4255e89c9f0e73bef5ec0c2b88c7d7a763db5b2a9d",
+      "afterSha256": "7de0b5197186a300bca04d4255e89c9f0e73bef5ec0c2b88c7d7a763db5b2a9d",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/0010-one-release-train-with-zero-cve-images.md",
+      "beforeSha256": "f4fff5a6a9544423f2c748a638df23d7c0513431fd0cf6f48700cf6b4be5fda7",
+      "afterSha256": "f4fff5a6a9544423f2c748a638df23d7c0513431fd0cf6f48700cf6b4be5fda7",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/0011-sandboxes-dial-out-through-a-relay.md",
+      "beforeSha256": "8b7d11cfe8f7f71fb92fb42ef3901e6ce98af906d7f346b055ca8e7562a7602c",
+      "afterSha256": "8b7d11cfe8f7f71fb92fb42ef3901e6ce98af906d7f346b055ca8e7562a7602c",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/0012-agent-host-protocol-host.md",
+      "beforeSha256": "859ccfc8faceafe51957dc19e164e19a12c03ea316a473ef2c0c2627a2416b96",
+      "afterSha256": "859ccfc8faceafe51957dc19e164e19a12c03ea316a473ef2c0c2627a2416b96",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/0013-sandbox-crd-placement-with-warm-kata-pools.md",
+      "beforeSha256": "8a9be666e64a1f69aeb8c727fa8f01868be8f5c94e53ec7f84ab03c7c636fadb",
+      "afterSha256": "8a9be666e64a1f69aeb8c727fa8f01868be8f5c94e53ec7f84ab03c7c636fadb",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/0014-signed-candidates.md",
+      "beforeSha256": "36de67d47c52e728e256c622d7d029b4672fbd26b1ca891b0e01290be92b5317",
+      "afterSha256": "36de67d47c52e728e256c622d7d029b4672fbd26b1ca891b0e01290be92b5317",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/0015-ploeg-operator-read-api.md",
+      "beforeSha256": "8470a89c9b3daf79d6b960ae3527c0fa0ab824c6575a078a6fc989c1f75111e5",
+      "afterSha256": "8470a89c9b3daf79d6b960ae3527c0fa0ab824c6575a078a6fc989c1f75111e5",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/0016-sign-in-and-link-your-own-accounts.md",
+      "beforeSha256": "c5f0ce82277381d626462a0c1d58dffdd36e4776cc950b6361fd9f2378b7a6ba",
+      "afterSha256": "c5f0ce82277381d626462a0c1d58dffdd36e4776cc950b6361fd9f2378b7a6ba",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/0017-delegate-interactive-execution-to-ploeg.md",
+      "beforeSha256": "43bc98903da5d93b052866b2d1942a92e1d4c4e55d3a938c53bff0301703a7c0",
+      "afterSha256": "43bc98903da5d93b052866b2d1942a92e1d4c4e55d3a938c53bff0301703a7c0",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/0018-bind-tracker-imports-to-existing-ploeg-work.md",
+      "beforeSha256": "8b6bbcc906e6f05959863eda034b0c1e6003175ec2fb748bf94d2b54537080a9",
+      "afterSha256": "8b6bbcc906e6f05959863eda034b0c1e6003175ec2fb748bf94d2b54537080a9",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/0019-verify-canonical-candidates-outside-agent-workspaces.md",
+      "beforeSha256": "8f296130035df6402e80e8b952952d4a7ef1dc23a78dbcd5a2deae1df31d6755",
+      "afterSha256": "8f296130035df6402e80e8b952952d4a7ef1dc23a78dbcd5a2deae1df31d6755",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/0020-the-name-and-mark-are-trademarks.md",
+      "beforeSha256": "dd39c7152289de524d6e7232bb969db97767f15b6b3776c3b69c77d7e2ec98db",
+      "afterSha256": "dd39c7152289de524d6e7232bb969db97767f15b6b3776c3b69c77d7e2ec98db",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/0021-the-extension-ships-through-open-vsx-first.md",
+      "beforeSha256": "f637dcce156573ce2c58ca3258d46af38486c9ace05f45b96b26c0ffa00e1286",
+      "afterSha256": "f637dcce156573ce2c58ca3258d46af38486c9ace05f45b96b26c0ffa00e1286",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/0022-apache-2-0-is-the-estate-licence.md",
+      "beforeSha256": "2af64037017861f27660ddb3a17b39fba684cd2cb87929f68215e85b358101ad",
+      "afterSha256": "2af64037017861f27660ddb3a17b39fba684cd2cb87929f68215e85b358101ad",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/adrs/README.md",
+      "beforeSha256": "c37781f8b8e9ec6156e3e6df4952883576d90fcc59c83f8c14ab73d0d5805f16",
+      "afterSha256": "c37781f8b8e9ec6156e3e6df4952883576d90fcc59c83f8c14ab73d0d5805f16",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/architecture.md",
+      "beforeSha256": "0a3ca5dae2bb8f0894ac6be7ea8fc1c033a8e1205c263b5ee560c2e4ad2410be",
+      "afterSha256": "1acee25ccb8521b8bc5394686fd338bf73d89426f46c5e6b6f55a225eec25a26",
+      "review": "selected-current-claims-checked-against-source",
+      "disposition": "corrected"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/brand/README.md",
+      "beforeSha256": "f8063abd8bd614850b919a2b60f35339714b1c207e2c36ce4779491495e406f1",
+      "afterSha256": "f8063abd8bd614850b919a2b60f35339714b1c207e2c36ce4779491495e406f1",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/brand/TRADEMARK.md",
+      "beforeSha256": "baf86a52a836ad5bfce01a0ebf234da5af3124844a60047df6c9ae5a23d40209",
+      "afterSha256": "baf86a52a836ad5bfce01a0ebf234da5af3124844a60047df6c9ae5a23d40209",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/brand/brandbook.html",
+      "beforeSha256": "2dfeddac96fa46a4da4fc2311e87bdc06652e7ee48796ee53e4937957c85ddee",
+      "afterSha256": "462d123c4325fe3b6d5f8821845851d842266296d01251e33eaaeb3a6bbf0891",
+      "review": "generated-view",
+      "disposition": "regenerated"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/brand/social-profile-copy.md",
+      "beforeSha256": "cd2acd6291e9c249e1924b0a2adac0ff02c42ee7b2db6498d216a9706c14228a",
+      "afterSha256": "cd2acd6291e9c249e1924b0a2adac0ff02c42ee7b2db6498d216a9706c14228a",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/contracts/api.md",
+      "beforeSha256": "cc6dddc5f17e76e29383c5fb493cf6317948a36488e3e3ad52dc43e84297f5a8",
+      "afterSha256": "cc6dddc5f17e76e29383c5fb493cf6317948a36488e3e3ad52dc43e84297f5a8",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/contracts/candidate-delivery.md",
+      "beforeSha256": "5ac4244fd9903524c9db1538848e23226f2a42ff5c2a7de4f676549f505e084c",
+      "afterSha256": "5ac4244fd9903524c9db1538848e23226f2a42ff5c2a7de4f676549f505e084c",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/contracts/event-envelope.v1.schema.json",
+      "beforeSha256": "955f99e461efdac11316235dd479d2465598a7a4c17297f8e85c83631a4d4bdb",
+      "afterSha256": "955f99e461efdac11316235dd479d2465598a7a4c17297f8e85c83631a4d4bdb",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/contracts/implementation.md",
+      "beforeSha256": "c8315182257fc6b1b2d5d4cfc4b6eef2da9d6ab781c912f1fdfb3e2aa584301d",
+      "afterSha256": "c8315182257fc6b1b2d5d4cfc4b6eef2da9d6ab781c912f1fdfb3e2aa584301d",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/contracts/ploeg-execution.md",
+      "beforeSha256": "ffc7f9e97f861086fb8ed0b6b10b9f00ea68fd9a15a077aa300497eab2c8540b",
+      "afterSha256": "ffc7f9e97f861086fb8ed0b6b10b9f00ea68fd9a15a077aa300497eab2c8540b",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/contracts/ploeg-tracker-binding.md",
+      "beforeSha256": "1fdde56d7102ff50a4f632d7fee4b42e9ced7c4c97efc8fe669734a585ac370d",
+      "afterSha256": "1fdde56d7102ff50a4f632d7fee4b42e9ced7c4c97efc8fe669734a585ac370d",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/contracts/work-order.v1.schema.json",
+      "beforeSha256": "d29275d5799ebefbd199e9e6d1031270b5dcd149e82338da0bb29a2c99062694",
+      "afterSha256": "d29275d5799ebefbd199e9e6d1031270b5dcd149e82338da0bb29a2c99062694",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/design/00-product-system-design.md",
+      "beforeSha256": "bb2c651b2e3d765738528cefe4adab83d97023274536e7e2251b4b0a6c99860e",
+      "afterSha256": "bb2c651b2e3d765738528cefe4adab83d97023274536e7e2251b4b0a6c99860e",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/design/gap-register.md",
+      "beforeSha256": "d08a9c10a128b6295a8e90abff2ebdf26cdb27ec6b531e6bdd63313f318b147a",
+      "afterSha256": "d08a9c10a128b6295a8e90abff2ebdf26cdb27ec6b531e6bdd63313f318b147a",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/design/ide-10x-plan.md",
+      "beforeSha256": "faf045c707558fa3509820e8f25f228b6c142bea656442c10106c4f6a4f16d28",
+      "afterSha256": "faf045c707558fa3509820e8f25f228b6c142bea656442c10106c4f6a4f16d28",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/design/ide-and-operator-experience.md",
+      "beforeSha256": "0233ea197215ab5acdc455aeb90ee80270502b87dc8b36a85e35e430319bb33a",
+      "afterSha256": "0233ea197215ab5acdc455aeb90ee80270502b87dc8b36a85e35e430319bb33a",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/design/platform-and-governance.md",
+      "beforeSha256": "f885ca451b78188b030762ca967177bffc8a6f8c38402a667ad16d4e69b86c8b",
+      "afterSha256": "f885ca451b78188b030762ca967177bffc8a6f8c38402a667ad16d4e69b86c8b",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/design/self-improvement.md",
+      "beforeSha256": "f97f15aa78b2723a6b26aef3fea72b0a2185cc3eccf7487d23897b665d54aa3d",
+      "afterSha256": "f97f15aa78b2723a6b26aef3fea72b0a2185cc3eccf7487d23897b665d54aa3d",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/design/ticket-integration.md",
+      "beforeSha256": "b9dc3badfe7938d6132482ff50868d03a183934c0b32c149b6e0880536c01fbe",
+      "afterSha256": "b9dc3badfe7938d6132482ff50868d03a183934c0b32c149b6e0880536c01fbe",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/documentation.md",
+      "beforeSha256": "416f24d1bdec40f376ae3f12aef53b1f86bd3e5b2b9891a14a9fa2f1ca18d26f",
+      "afterSha256": "75ab2df37c2be620752eb64612e67dee8b8d0157e7f00fa82677328e4b7f1225",
+      "review": "selected-current-claims-checked-against-source",
+      "disposition": "corrected"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/domain/entities.md",
+      "beforeSha256": "def4758913443ce7b378d2bc68789aea2354b01745cf7110945022c188ee1bca",
+      "afterSha256": "def4758913443ce7b378d2bc68789aea2354b01745cf7110945022c188ee1bca",
+      "review": "generated-view",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/domain/glossary.md",
+      "beforeSha256": "d9902f936c6aa299c6e5b2425da42505d6592d7d9de5fe67ad6d288ba864b420",
+      "afterSha256": "596d3c53d517d00b66a21549d5c0c38cc0df5798a13dab563ba94149d130fac9",
+      "review": "generated-view",
+      "disposition": "regenerated"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/domain/model.yaml",
+      "beforeSha256": "05538f10653b548e9cb79bac97dece50306b47c946837e5acc9cfdc49a0c9b18",
+      "afterSha256": "24e3c8fa9bba6dc8703555b7915aa58c6876621861d0b44e1aae81e3aeb96dfd",
+      "review": "selected-current-claims-checked-against-source",
+      "disposition": "corrected"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/domain/overview.md",
+      "beforeSha256": "c33bd654176534bf1a2e9c7af67d4edebca10626c9b8a017179920967c8a8240",
+      "afterSha256": "1ee4a2eec53c10c7116f02799008dca22b366ca90e673dd4957cb9a597c14b07",
+      "review": "generated-view",
+      "disposition": "regenerated"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/domain/rules.md",
+      "beforeSha256": "40a009890ef6821fac1d6743b1fda078f44318145efac06cbe433948d18afe8e",
+      "afterSha256": "2c0654f88ede03016576b3452adde4d492842b99b69bb94c888420f32fc6e4b2",
+      "review": "generated-view",
+      "disposition": "regenerated"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/index.md",
+      "beforeSha256": "668f2310558b222c582cc98f508b6ea9a53e57e8d89c313585dd3320a5efa475",
+      "afterSha256": "4481ca945fdc1cb012c05a400f64d8fe95641a54df457f43a0406903f33f32a4",
+      "review": "structure-or-provenance",
+      "disposition": "updated"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/landscape/bottlenecks.md",
+      "beforeSha256": "c63108e238010f5f66e563abe26ca9b9bec7faa8d4e113af6aabeb3cfc7e99e4",
+      "afterSha256": "c63108e238010f5f66e563abe26ca9b9bec7faa8d4e113af6aabeb3cfc7e99e4",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/landscape/c4.md",
+      "beforeSha256": "854fea527c8ccd567a56996c7da049d4d303b7c4d3ddf2efafebc8ae17cee0a0",
+      "afterSha256": "c5b9878e2428d1c17a934ce16a49a0ad0fc094187e8883f5da233b9b896e84d9",
+      "review": "selected-current-claims-checked-against-source",
+      "disposition": "corrected"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/landscape/components.md",
+      "beforeSha256": "a96442b0ba3c2f806e274af1e28f880fa99b2bbfab2d76063192d74d28b8dfc7",
+      "afterSha256": "0fce6853854e3edabf9e3dcc12e6512ca0a16b5acad3ad1218ab1f5958f4221b",
+      "review": "selected-current-claims-checked-against-source",
+      "disposition": "corrected"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/landscape/explorer.html",
+      "beforeSha256": "b48efa29914f1a5bef059e7084088eb04b4fde0c60f8137dfc6dc23de5262e4c",
+      "afterSha256": "16906ac62192c52f2594c9448acc38328f77f66a9fe59a608ed8bf33bd6d8fd9",
+      "review": "generated-view",
+      "disposition": "regenerated"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/landscape/explorer.template.html",
+      "beforeSha256": "c158ccfb71588702d23ca35014b4f1b6ab2217e81438db977f00851219ab871c",
+      "afterSha256": "c158ccfb71588702d23ca35014b4f1b6ab2217e81438db977f00851219ab871c",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/landscape/index.md",
+      "beforeSha256": "754c89df9a544e6f33e09a00c2a583227bc8a66383e45a6d95e6c27799bbb43e",
+      "afterSha256": "4d7e96b280fcefad7c24c7792cff6432262d178fb71220b382bedcf8520dcfd1",
+      "review": "selected-current-claims-checked-against-source",
+      "disposition": "corrected"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/landscape/questions.md",
+      "beforeSha256": "4038a3ff901ca8192efcc6cb0282813996ec357139e83abc0a15f7bd712d39cc",
+      "afterSha256": "b592b955379ee121a5509567cefdc14667dfa53c4e3c488a95e00b161a7c5e07",
+      "review": "selected-current-claims-checked-against-source",
+      "disposition": "corrected"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/operations/backlog.md",
+      "beforeSha256": "df4c622cb0f9587dd366c5d3c5071b6e1ef2672763e1f9f7d6a6dbe7ff5005dd",
+      "afterSha256": "df4c622cb0f9587dd366c5d3c5071b6e1ef2672763e1f9f7d6a6dbe7ff5005dd",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/operations/demo.md",
+      "beforeSha256": "3df2d9976a23b115e8424c36447d5dad65510f0f52cffaecce90aba35ff2332d",
+      "afterSha256": "ad62ede323d93a4d445e7f73e234896e10b3a97e074522866b90c93fe09c022f",
+      "review": "selected-current-claims-checked-against-source",
+      "disposition": "corrected"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/operations/implementation-progress.md",
+      "beforeSha256": "6b75e867ba95625fa90fdfc61778c89f965591fc0aff60a6a417110c9a4a343d",
+      "afterSha256": "6b75e867ba95625fa90fdfc61778c89f965591fc0aff60a6a417110c9a4a343d",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/operations/iteration-0.2.0.md",
+      "beforeSha256": "073f1867b59aa55f1eaf3f962640f10435d068fb63066e1f86ae68e8bb16b8c2",
+      "afterSha256": "073f1867b59aa55f1eaf3f962640f10435d068fb63066e1f86ae68e8bb16b8c2",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/operations/live.md",
+      "beforeSha256": "2554e5437f0f3bd928d615752d9fa90e79a9321f1178f8711aba8ace9283c440",
+      "afterSha256": "2554e5437f0f3bd928d615752d9fa90e79a9321f1178f8711aba8ace9283c440",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/operations/local-unified-demo.md",
+      "beforeSha256": "efc001b3a27edcf05fdff6fd471156ea7589164c86737c7de43b62592d0233e9",
+      "afterSha256": "efc001b3a27edcf05fdff6fd471156ea7589164c86737c7de43b62592d0233e9",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/operations/release.md",
+      "beforeSha256": "8cc157460e4977ff8bccbcc893ddf13a0b6d93a62e02eca326c344e65d86e28d",
+      "afterSha256": "3dde99cbeeb989f3301e24bc60dca85c45d50dd8ef15c2b4086eb63fb6dca2a3",
+      "review": "selected-current-claims-checked-against-source",
+      "disposition": "corrected"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/operations/task-connections.md",
+      "beforeSha256": "ecdd386a2c2e6014f2b4f589c0a609f948d7426a735a14ea330bb12739ee1c21",
+      "afterSha256": "0aa6550e9aad477044c03bdf16ec264ad8a628dc5bc79878a5ac7fa41a5e0c8e",
+      "review": "selected-current-claims-checked-against-source",
+      "disposition": "corrected"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/operations/unified-baseline.md",
+      "beforeSha256": "05ad8e55138ebb626e129285cd58c05022ec253821e7bf84f0b5d8a124110070",
+      "afterSha256": "05ad8e55138ebb626e129285cd58c05022ec253821e7bf84f0b5d8a124110070",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/product/go-to-market.md",
+      "beforeSha256": "c291824034a9c1ce4b9745628e16327df8b923d8ac29119efcdfc55f8ae0277e",
+      "afterSha256": "c291824034a9c1ce4b9745628e16327df8b923d8ac29119efcdfc55f8ae0277e",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/product/model-gateway-capabilities.md",
+      "beforeSha256": "90868a1c1be9f2c8c6b34f4d8704ad285f7d213384dc3cf849a54f3602bd66a3",
+      "afterSha256": "90868a1c1be9f2c8c6b34f4d8704ad285f7d213384dc3cf849a54f3602bd66a3",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/research/2026-09-10-agent-host-protocol.md",
+      "beforeSha256": "d9816380b19f20913fe8277fabfd69e4efe084e05d1b70ca25538d007b0a40d8",
+      "afterSha256": "d9816380b19f20913fe8277fabfd69e4efe084e05d1b70ca25538d007b0a40d8",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/research/2026-09-10-kubernetes-and-sandbox-crds.md",
+      "beforeSha256": "f30f1994491486187098347c84e29e21950a7b40d5d4a17dd6d8ee45f5778ab3",
+      "afterSha256": "f30f1994491486187098347c84e29e21950a7b40d5d4a17dd6d8ee45f5778ab3",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/research/2026-09-10-ploeg-and-de-vloer-split.md",
+      "beforeSha256": "e911b5f82d87c1e1a6859f54584835a511be61336c19b35c3d75ca50c6e77ddc",
+      "afterSha256": "e911b5f82d87c1e1a6859f54584835a511be61336c19b35c3d75ca50c6e77ddc",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/research/2026-09-10-sandbox-landscape.md",
+      "beforeSha256": "e7ededdadff7c70be681b4c551c866765c0028e9ab21b9649892dae04613193f",
+      "afterSha256": "e7ededdadff7c70be681b4c551c866765c0028e9ab21b9649892dae04613193f",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/research/2026-09-10-unified-workbench-baseline.md",
+      "beforeSha256": "78a390c138d9bfaeed298952ce4a4b4eb08061dd3aee2b389aa18d1643204369",
+      "afterSha256": "78a390c138d9bfaeed298952ce4a4b4eb08061dd3aee2b389aa18d1643204369",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/research/2026-09-11-ecosystem-alternatives.md",
+      "beforeSha256": "dd9f0b021a2a0eb791e95fdcc92be7d5bc2bbe2dceab3bd8b65cae6a32648b3e",
+      "afterSha256": "2725755b32c4e60c1416194a3cb5644bc588d769df9fd1a1b9e27e6f47cc4150",
+      "review": "structure-or-provenance",
+      "disposition": "updated"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/research/2026-09-11-ecosystem-implementation.md",
+      "beforeSha256": "8da59941849e084fb7dd916c8b2a767d523f4692303c77058312d4197b5a4ce6",
+      "afterSha256": "8da59941849e084fb7dd916c8b2a767d523f4692303c77058312d4197b5a4ce6",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/research/2026-09-12-documentation-audit.json",
+      "beforeSha256": "a36423d60ef2f478c4e2700fd0be72b7711f32b05146b7faf527624e37432af0",
+      "afterSha256": "a36423d60ef2f478c4e2700fd0be72b7711f32b05146b7faf527624e37432af0",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/research/2026-09-12-documentation-audit.md",
+      "beforeSha256": "b29b9af08cfe377ffc44daef89f1578a539e91b5ca1b76755b9252be88b99ea6",
+      "afterSha256": "2430035c55c422adb7c25f7269a23fb12a10cee9003d009709412fdf2305c059",
+      "review": "structure-or-provenance",
+      "disposition": "updated"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/research/agent-apis.md",
+      "beforeSha256": "b7bc60cdb8390db2482b9ab08f01708d26e597e0e9a96fcd5c07789adb775195",
+      "afterSha256": "b7bc60cdb8390db2482b9ab08f01708d26e597e0e9a96fcd5c07789adb775195",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/research/conventions-and-alternatives.md",
+      "beforeSha256": "2cd7b465c5bc8cea7d90eed4c471e165bbbc1ee2aabc4dba26255b8a13abbaf8",
+      "afterSha256": "2cd7b465c5bc8cea7d90eed4c471e165bbbc1ee2aabc4dba26255b8a13abbaf8",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/research/evidence/delivery-2026-09-11/README.md",
+      "beforeSha256": "3716643d292789c42678bddf1d3fd21667c5b399e34e560b97b5d6f0f168e075",
+      "afterSha256": "3716643d292789c42678bddf1d3fd21667c5b399e34e560b97b5d6f0f168e075",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/research/evidence/delivery-2026-09-11/authority-qualification.json",
+      "beforeSha256": "25fc4c524b8f4031612d142369a752643e661df6c0f42a0cc2c1a927cfea635b",
+      "afterSha256": "25fc4c524b8f4031612d142369a752643e661df6c0f42a0cc2c1a927cfea635b",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/research/evidence/delivery-2026-09-11/docker-verification.json",
+      "beforeSha256": "4db0c5f747293cc856ae59512bef756f44beba7c6a11f793c0ffd40033f4e71f",
+      "afterSha256": "4db0c5f747293cc856ae59512bef756f44beba7c6a11f793c0ffd40033f4e71f",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/research/evidence/delivery-2026-09-11/tracker-authority-qualification.json",
+      "beforeSha256": "557cd48a75cea7e672eee2111af6e91edf6f4b87186ae1fea77fdec9d6240107",
+      "afterSha256": "557cd48a75cea7e672eee2111af6e91edf6f4b87186ae1fea77fdec9d6240107",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/research/evidence/documentation-2026-09-12/validation.json",
+      "beforeSha256": "5c5fdc4d3e348e184c632b3cba2e307930e41c8d3244fe956d6f599d1b5ef631",
+      "afterSha256": "5c5fdc4d3e348e184c632b3cba2e307930e41c8d3244fe956d6f599d1b5ef631",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/research/evidence/documentation-2026-09-12/validation.txt",
+      "beforeSha256": "e37f87ec947ab037e6eb3af31f5849b44658449ab236e0664fa1650febfb0d76",
+      "afterSha256": "e37f87ec947ab037e6eb3af31f5849b44658449ab236e0664fa1650febfb0d76",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/research/evidence/tracker-delivery-2026-09-11/tracker-authority-qualification.json",
+      "beforeSha256": "d317380de7c8cb6005f539d774220a20cc9c1dec203fe8a91da2db5856bb60ec",
+      "afterSha256": "d317380de7c8cb6005f539d774220a20cc9c1dec203fe8a91da2db5856bb60ec",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/research/evidence/unified-2026-09-10/README.md",
+      "beforeSha256": "62d3c22538c1667d1b0b5b59966c22090ecc0ed5f2d6b37cc71149b3d7299c49",
+      "afterSha256": "62d3c22538c1667d1b0b5b59966c22090ecc0ed5f2d6b37cc71149b3d7299c49",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/research/market-landscape.md",
+      "beforeSha256": "2df2d342ed8ef37177a5777bf92466421752b9d92ba5a482d033ff75ba839280",
+      "afterSha256": "2df2d342ed8ef37177a5777bf92466421752b9d92ba5a482d033ff75ba839280",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/research/market-sources.json",
+      "beforeSha256": "b876921c91500180ab8f1d85f6053434ae47037cb4db0242466872b6e0061889",
+      "afterSha256": "b876921c91500180ab8f1d85f6053434ae47037cb4db0242466872b6e0061889",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/research/task-connector-sources.md",
+      "beforeSha256": "bd50052628c637c28b9f2f235924cfee3752c70198d897f1b36a1a5d9f3bb30d",
+      "afterSha256": "bd50052628c637c28b9f2f235924cfee3752c70198d897f1b36a1a5d9f3bb30d",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "docs/validation.md",
+      "beforeSha256": "7b0f4f66fc3a186b13253930e15f32ee6bbfcb2b008679cccab2fbd2af09972a",
+      "afterSha256": "7b0f4f66fc3a186b13253930e15f32ee6bbfcb2b008679cccab2fbd2af09972a",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "extensions/vscode/.vscode/launch.json",
+      "beforeSha256": "05aca2e6ffbbe23568a90b667fb8b67217ea21805bd11b77c3db24036b05e8ba",
+      "afterSha256": "05aca2e6ffbbe23568a90b667fb8b67217ea21805bd11b77c3db24036b05e8ba",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "extensions/vscode/.vscode/tasks.json",
+      "beforeSha256": "16e7eb0eedf840a0536d8bf03753cb1af8453670782dfa7ae64e233d797191f6",
+      "afterSha256": "16e7eb0eedf840a0536d8bf03753cb1af8453670782dfa7ae64e233d797191f6",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "extensions/vscode/CHANGELOG.md",
+      "beforeSha256": "854b041869b636f7b8ec4b7058d0cacf5fe27d1800435acdedf92df784fe5c1a",
+      "afterSha256": "854b041869b636f7b8ec4b7058d0cacf5fe27d1800435acdedf92df784fe5c1a",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "extensions/vscode/README.md",
+      "beforeSha256": "5b3071230039adb2a4e9c860b045c765b256317eed83466a0db36a37baa80011",
+      "afterSha256": "dbbd7740ecbe59ba2921841b443f71db37ee03310b69df1b330bdd2fafc1a62a",
+      "review": "selected-current-claims-checked-against-source",
+      "disposition": "corrected"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "extensions/vscode/media/walkthrough/connect.md",
+      "beforeSha256": "e385d887cd100718abb520c09d66122d08c70e82d525d8da583677c12f395d77",
+      "afterSha256": "e385d887cd100718abb520c09d66122d08c70e82d525d8da583677c12f395d77",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "extensions/vscode/media/walkthrough/review.md",
+      "beforeSha256": "fe14b2d2738ccbc3e5c8e3fff2873850e49a4471a81efe074cb8cfbc889eb6bd",
+      "afterSha256": "fe14b2d2738ccbc3e5c8e3fff2873850e49a4471a81efe074cb8cfbc889eb6bd",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "extensions/vscode/media/walkthrough/start.md",
+      "beforeSha256": "0f3478a3f68ffaa0091e2550d8183d4cbc2b6bb00b8254cc092d22a3732e9fe8",
+      "afterSha256": "0f3478a3f68ffaa0091e2550d8183d4cbc2b6bb00b8254cc092d22a3732e9fe8",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "extensions/vscode/media/walkthrough/tasks.md",
+      "beforeSha256": "b13e62fb998549573f6d25de63efdbaa2c141f6d43d78e1359f4ee104a3d1791",
+      "afterSha256": "b13e62fb998549573f6d25de63efdbaa2c141f6d43d78e1359f4ee104a3d1791",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "extensions/vscode/package-lock.json",
+      "beforeSha256": "50e09207dbc42aa04c7f4ec9f07c6a9f7c1b47d78e1df4665c73a949aff2139c",
+      "afterSha256": "50e09207dbc42aa04c7f4ec9f07c6a9f7c1b47d78e1df4665c73a949aff2139c",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "extensions/vscode/package.json",
+      "beforeSha256": "b286d9e59490fb3f569bf881ea65b3143e92d24e21d5ed42f9997b961d01f705",
+      "afterSha256": "26794134b2edd7e86842eba124349ce1231dd74cb2436564a097467bad79330f",
+      "review": "selected-current-claims-checked-against-source",
+      "disposition": "corrected"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "extensions/vscode/test/webview.mjs",
+      "beforeSha256": "4e9e9b77bb327e6aa054cf9f6bdaa2cbe52e5ebe54d200bba39a335b05094567",
+      "afterSha256": "4e9e9b77bb327e6aa054cf9f6bdaa2cbe52e5ebe54d200bba39a335b05094567",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "extensions/vscode/tsconfig.json",
+      "beforeSha256": "e085dfb5e0fedc6d34f890ab35b11f452c3a7ba8877feb83bb9da423d151e2ff",
+      "afterSha256": "e085dfb5e0fedc6d34f890ab35b11f452c3a7ba8877feb83bb9da423d151e2ff",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "llms.txt",
+      "beforeSha256": "e452edc95560fe28805f353c01335d782749d9c4558a0a069087ab873fd314c7",
+      "afterSha256": "e452edc95560fe28805f353c01335d782749d9c4558a0a069087ab873fd314c7",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "mkdocs.yml",
+      "beforeSha256": "a0d710dc7de60f77ea4e4319518323cde857fa9f316021bb319902bc2dd6d895",
+      "afterSha256": "fdb7204a68d9726358e064a46dd078f337723e6b8f3e8e5384515675165af5a4",
+      "review": "structure-or-provenance",
+      "disposition": "updated"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "package-lock.json",
+      "beforeSha256": "500be4c1c236330bbf44932c2b74bf7b6432b0fc04c86e6271ba3ed7c8dd6d9c",
+      "afterSha256": "500be4c1c236330bbf44932c2b74bf7b6432b0fc04c86e6271ba3ed7c8dd6d9c",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "package.json",
+      "beforeSha256": "7122c139231773db57afec809b224c84a8dd4c0347fb6d4286e58eec95f652f5",
+      "afterSha256": "7122c139231773db57afec809b224c84a8dd4c0347fb6d4286e58eec95f652f5",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "renovate.json",
+      "beforeSha256": "83d0b06d8c373877fe8a407e2000f3c93b19e6596b26db074893869e7ac5202d",
+      "afterSha256": "83d0b06d8c373877fe8a407e2000f3c93b19e6596b26db074893869e7ac5202d",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "scripts/backlog.mjs",
+      "beforeSha256": "a3987ffa5a22671cf8286cd66f169fb24816f35333f5cecec3c6d7f9ecdd11b4",
+      "afterSha256": "a3987ffa5a22671cf8286cd66f169fb24816f35333f5cecec3c6d7f9ecdd11b4",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "scripts/browser-check.mjs",
+      "beforeSha256": "329ceab71387a1aa525241160be5188e199cfe295b4d6d9e7e0cd22756f127b2",
+      "afterSha256": "329ceab71387a1aa525241160be5188e199cfe295b4d6d9e7e0cd22756f127b2",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "scripts/browser-ploeg-check.mjs",
+      "beforeSha256": "da8a019ad359c9a5d29e56ff084531af5513f512d5102cc174d91b123a55b3ad",
+      "afterSha256": "da8a019ad359c9a5d29e56ff084531af5513f512d5102cc174d91b123a55b3ad",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "scripts/browser-task-binding-check.mjs",
+      "beforeSha256": "e0cd7f41ff8e031a6dc1dd2e8cafe6075e07a8f47eac4ba3e35a864faf002e8b",
+      "afterSha256": "e0cd7f41ff8e031a6dc1dd2e8cafe6075e07a8f47eac4ba3e35a864faf002e8b",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "scripts/build-brand.mjs",
+      "beforeSha256": "065c7932ad7b74368b616386a647cd1f25e0d0ae5f857a0a14e7f81c2cc61eff",
+      "afterSha256": "28fc84d6d1e709dfdade2a71197690538b1d4827e305dff2ad8f6efff7bc37d7",
+      "review": "structure-or-provenance",
+      "disposition": "updated"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "scripts/build-design.mjs",
+      "beforeSha256": "8a6f24e45fca02539696877fd26a9e5567056233a33e2852a25581d8276329dd",
+      "afterSha256": "8a6f24e45fca02539696877fd26a9e5567056233a33e2852a25581d8276329dd",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "scripts/build-landscape.mjs",
+      "beforeSha256": "e047d8ba062361ae1fecbccadf5db675e5c4ebd7e6859df5a878dff7a8572283",
+      "afterSha256": "e047d8ba062361ae1fecbccadf5db675e5c4ebd7e6859df5a878dff7a8572283",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "scripts/capture-unified.mjs",
+      "beforeSha256": "5600b24ea450847ce89f898af21a807c690dbe018bf777e37167efc5d94bc80f",
+      "afterSha256": "5600b24ea450847ce89f898af21a807c690dbe018bf777e37167efc5d94bc80f",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "scripts/check.mjs",
+      "beforeSha256": "68d9af513a59420425e4f33af9d4e6d86a448f86ba9fd2ccbab275bf95427d16",
+      "afterSha256": "68d9af513a59420425e4f33af9d4e6d86a448f86ba9fd2ccbab275bf95427d16",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "scripts/extension-verify.mjs",
+      "beforeSha256": "25738edda413714015a749042df8e6d5601a78a79aac0fdb0555b971b89a010b",
+      "afterSha256": "25738edda413714015a749042df8e6d5601a78a79aac0fdb0555b971b89a010b",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "scripts/license-check.mjs",
+      "beforeSha256": "6a80b80f86a210058736473ad7eea978eb04b5b2e08d93d93c1822c9355a03c1",
+      "afterSha256": "6a80b80f86a210058736473ad7eea978eb04b5b2e08d93d93c1822c9355a03c1",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "scripts/probe-docker.mjs",
+      "beforeSha256": "4d464899a278100fb46399af843f809a3cb86605f241fd29a0ca0cfd4f4bade1",
+      "afterSha256": "4d464899a278100fb46399af843f809a3cb86605f241fd29a0ca0cfd4f4bade1",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "scripts/probe-opencode.mjs",
+      "beforeSha256": "6da92906d8448c6b8bf00884bfabe3a78146b5931003b6c6ef335882e781b674",
+      "afterSha256": "6da92906d8448c6b8bf00884bfabe3a78146b5931003b6c6ef335882e781b674",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "scripts/release-prepare.mjs",
+      "beforeSha256": "d2ab3df706e94f9ee6c7faef46b2e5123c8cd78927d675bef6aa03dbf0151e29",
+      "afterSha256": "d2ab3df706e94f9ee6c7faef46b2e5123c8cd78927d675bef6aa03dbf0151e29",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "scripts/smoke.mjs",
+      "beforeSha256": "f93bde20f919a19687b928fa8b52d159deed72f5df9e7adedc334b05d8da443b",
+      "afterSha256": "f93bde20f919a19687b928fa8b52d159deed72f5df9e7adedc334b05d8da443b",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "scripts/verify-candidate.mjs",
+      "beforeSha256": "f00884a7d9d21cb7909ffc33e7020ddc9adf7a69dd2c8594b44909717c80394c",
+      "afterSha256": "f00884a7d9d21cb7909ffc33e7020ddc9adf7a69dd2c8594b44909717c80394c",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "de-vloer",
+      "path": "tsconfig.json",
+      "beforeSha256": "75f9808b8f15c734d596878d6568aa7a9bd1a5b724ba3157aae54564c9cd4069",
+      "afterSha256": "75f9808b8f15c734d596878d6568aa7a9bd1a5b724ba3157aae54564c9cd4069",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "AGENTS.md",
+      "beforeSha256": "eb4d3d14034754b4c90de0405034df6e69f42f501c30e9280a38dc15889fb9fc",
+      "afterSha256": "eb4d3d14034754b4c90de0405034df6e69f42f501c30e9280a38dc15889fb9fc",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "CHANGELOG.md",
+      "beforeSha256": "0dd6d356733ff418e0d0b3f22f1d9cb0f08672cd771d352e70505c64bdc88899",
+      "afterSha256": "0dd6d356733ff418e0d0b3f22f1d9cb0f08672cd771d352e70505c64bdc88899",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "CLAUDE.md",
+      "beforeSha256": "eb4d3d14034754b4c90de0405034df6e69f42f501c30e9280a38dc15889fb9fc",
+      "afterSha256": "eb4d3d14034754b4c90de0405034df6e69f42f501c30e9280a38dc15889fb9fc",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "CONTRIBUTING.md",
+      "beforeSha256": "2574667f61d89861bedeb59b345890b0e2c71f2bbe7af5cb3889d41c858d05c4",
+      "afterSha256": "2574667f61d89861bedeb59b345890b0e2c71f2bbe7af5cb3889d41c858d05c4",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "README.md",
+      "beforeSha256": "4f0372f287220a635f7b794582f830a89c5b409f74865dd38483dbf00252e9f2",
+      "afterSha256": "4f0372f287220a635f7b794582f830a89c5b409f74865dd38483dbf00252e9f2",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0001-adrs-are-the-decision-ledger.md",
+      "beforeSha256": "fc108b90fd77d0293ab02fbf55ca14241cf7dabd2c09773a679a17f090169d0c",
+      "afterSha256": "fc108b90fd77d0293ab02fbf55ca14241cf7dabd2c09773a679a17f090169d0c",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0002-go-as-the-implementation-language.md",
+      "beforeSha256": "4d0202431c4357a97e7a1f6b73bbafc000f27f481791af876641d22514c2e1be",
+      "afterSha256": "4d0202431c4357a97e7a1f6b73bbafc000f27f481791af876641d22514c2e1be",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0003-apache-2-0-license.md",
+      "beforeSha256": "7a3c9c1682d78231d227d266c346f84727cb839182f2428c099192b3f5c459c0",
+      "afterSha256": "7a3c9c1682d78231d227d266c346f84727cb839182f2428c099192b3f5c459c0",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0004-forgejo-leading-home-github-mirror-module-path.md",
+      "beforeSha256": "945e75bac416b0503896bd0f85f6a760fc3e9f4618d8c00b1f5af7d4ad588a95",
+      "afterSha256": "945e75bac416b0503896bd0f85f6a760fc3e9f4618d8c00b1f5af7d4ad588a95",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0005-build-a-dedicated-dispatch-plane.md",
+      "beforeSha256": "3e6b062edf7b092c5f76b95ed70c789c968fe9ee3c7be5e3e1bc339c42b15dde",
+      "afterSha256": "3e6b062edf7b092c5f76b95ed70c789c968fe9ee3c7be5e3e1bc339c42b15dde",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0006-ahp-is-the-wrong-layer.md",
+      "beforeSha256": "39f3a442d692a39d18b31bddd47ffba27ba2e638c0abd351e7506512997a99b5",
+      "afterSha256": "39f3a442d692a39d18b31bddd47ffba27ba2e638c0abd351e7506512997a99b5",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0007-a2a-adopt-nothing-watchlist-a-facade.md",
+      "beforeSha256": "6f0889dbdae715d15d89078d3509ced367603a7ca9ccbf52843435bdd880deed",
+      "afterSha256": "6f0889dbdae715d15d89078d3509ced367603a7ca9ccbf52843435bdd880deed",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0008-litellm-is-the-credential-and-metering-seam.md",
+      "beforeSha256": "32ec29db6b7c6384fb6b2812a8afae5ed609517961a3ca23d51a7ed09b354d05",
+      "afterSha256": "32ec29db6b7c6384fb6b2812a8afae5ed609517961a3ca23d51a7ed09b354d05",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0009-paperclip-mine-for-design-never-integrate.md",
+      "beforeSha256": "121db42998eefcc30d61e6ab1b49120be90436196629e2f4065bef6209c21b14",
+      "afterSha256": "121db42998eefcc30d61e6ab1b49120be90436196629e2f4065bef6209c21b14",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0010-shift-owns-the-item-lease-owns-the-branch.md",
+      "beforeSha256": "0e282d50657771dbce808eca6ad2e52924711810414c36ea073e6982824cb8a1",
+      "afterSha256": "0e282d50657771dbce808eca6ad2e52924711810414c36ea073e6982824cb8a1",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0011-the-pull-request-is-the-blackboard.md",
+      "beforeSha256": "5c5ace5b25a66d97a7be0a0bc542103c9f121ec3ba1f4b0b6553da6aaf500169",
+      "afterSha256": "5c5ace5b25a66d97a7be0a0bc542103c9f121ec3ba1f4b0b6553da6aaf500169",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0012-two-level-budgets-authorized-and-settled.md",
+      "beforeSha256": "0c4539574dfca7cee2f45b3804588100cbf395387f5a5699184055c643ee78e6",
+      "afterSha256": "0c4539574dfca7cee2f45b3804588100cbf395387f5a5699184055c643ee78e6",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0013-push-rights-are-minted-per-run.md",
+      "beforeSha256": "87a6528d543d2df310ddaeedfada9286f538961af65826643590ee029c6b57cb",
+      "afterSha256": "87a6528d543d2df310ddaeedfada9286f538961af65826643590ee029c6b57cb",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0014-work-target-is-a-work-item-attribute.md",
+      "beforeSha256": "babac2326876cfab2afe8a08c5e2306078a4775d8cb4dbe2450cbbca20a03a90",
+      "afterSha256": "babac2326876cfab2afe8a08c5e2306078a4775d8cb4dbe2450cbbca20a03a90",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0015-routing-is-core-policy-over-provider-opaque-scopes.md",
+      "beforeSha256": "0c3ba6c3ee8f54e1ea0be964a959132be430662feb3bcc5e3e39b3374f403896",
+      "afterSha256": "0c3ba6c3ee8f54e1ea0be964a959132be430662feb3bcc5e3e39b3374f403896",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0016-forge-registry-and-per-run-repo-scoped-credentials.md",
+      "beforeSha256": "e292df7e8dea47f460aa460a9fe966657a5406c96061da4483d2bf55027ebaec",
+      "afterSha256": "e292df7e8dea47f460aa460a9fe966657a5406c96061da4483d2bf55027ebaec",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0017-the-review-loop-is-verdict-driven-and-capped.md",
+      "beforeSha256": "e2eef22b71c839d817464c24698beed000dfb35d23a3f3c41639d7bbfc93533e",
+      "afterSha256": "e2eef22b71c839d817464c24698beed000dfb35d23a3f3c41639d7bbfc93533e",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0018-the-outcome-drop-box-is-every-harnesss-return-path.md",
+      "beforeSha256": "34ad19619b857af549554b6e9e97e84165de3e937ca9769f7b088c27268c0ae0",
+      "afterSha256": "34ad19619b857af549554b6e9e97e84165de3e937ca9769f7b088c27268c0ae0",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0019-a-failed-writing-run-reopens-its-round.md",
+      "beforeSha256": "1cba5293c98868e82f6d85704832bbe2ec34c076b0c367cc155d6687a567c620",
+      "afterSha256": "1cba5293c98868e82f6d85704832bbe2ec34c076b0c367cc155d6687a567c620",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0020-published-artifacts-name-the-mirror-as-source.md",
+      "beforeSha256": "ca97bfe954214099c68c060203b3a4f3f8bf7b6ab2e5e88a32c07200f31ae2bc",
+      "afterSha256": "ca97bfe954214099c68c060203b3a4f3f8bf7b6ab2e5e88a32c07200f31ae2bc",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0021-infra-failures-and-agent-failures-get-separate-retry-budgets.md",
+      "beforeSha256": "a97ec2501e12f096fd9427106b1160dde05c2702192fb5f6bca1fc4039e496f3",
+      "afterSha256": "a97ec2501e12f096fd9427106b1160dde05c2702192fb5f6bca1fc4039e496f3",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0022-the-name-and-mark-are-trademarks-not-cc-licensed-artwork.md",
+      "beforeSha256": "d7f38736881c1e9f5d1119c9120c4d69888781dcd24edc6a30edac620a3fba1d",
+      "afterSha256": "d7f38736881c1e9f5d1119c9120c4d69888781dcd24edc6a30edac620a3fba1d",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0023-the-forge-dialect-travels-on-the-work-item.md",
+      "beforeSha256": "394ce89a9e275df172902299b9d25e211b4cbcac670b68bdde8b9ed685bb2527",
+      "afterSha256": "394ce89a9e275df172902299b9d25e211b4cbcac670b68bdde8b9ed685bb2527",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0024-operator-work-uses-one-execution-authority.md",
+      "beforeSha256": "5a7bc0a3dead898d6408ff9242afbf5c25ba2b6b52d6e2dcefbdb38f83c17ad7",
+      "afterSha256": "5a7bc0a3dead898d6408ff9242afbf5c25ba2b6b52d6e2dcefbdb38f83c17ad7",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0025-management-authority-stays-in-the-control-plane.md",
+      "beforeSha256": "ccfb52471b63be18a51474de78ae88cc317ca77181d3c83ddbd3c4d67b3ed5ed",
+      "afterSha256": "ccfb52471b63be18a51474de78ae88cc317ca77181d3c83ddbd3c4d67b3ed5ed",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0026-tracker-selections-bind-the-canonical-work-item.md",
+      "beforeSha256": "5a8262582fb38a06d207c0c567bd40a17971e28b288a36f26dd739e788f57769",
+      "afterSha256": "5a8262582fb38a06d207c0c567bd40a17971e28b288a36f26dd739e788f57769",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0027-candidate-delivery-uses-trusted-evidence-and-a-publication-barrier.md",
+      "beforeSha256": "5fb5bedda4c37730f3e8a0490d8e4037e45fddea3f227887d7833f8544b52cf2",
+      "afterSha256": "5fb5bedda4c37730f3e8a0490d8e4037e45fddea3f227887d7833f8544b52cf2",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/0028-automatic-releases-stay-zero-major-candidates.md",
+      "beforeSha256": "9b44e71161c4d76325b03aa1e752f53c1b4b9faa31adaa612ceb33542463d889",
+      "afterSha256": "9b44e71161c4d76325b03aa1e752f53c1b4b9faa31adaa612ceb33542463d889",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/README.md",
+      "beforeSha256": "b7d3c05f028fe2fbe8309c2603b82a1d42bacc24e6098fca6e27819164c514d7",
+      "afterSha256": "b7d3c05f028fe2fbe8309c2603b82a1d42bacc24e6098fca6e27819164c514d7",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/adrs/adr-template.md",
+      "beforeSha256": "e4108652c2947b85048d31ec424974b618e1686697a81761b3f8a6be3c83daea",
+      "afterSha256": "e4108652c2947b85048d31ec424974b618e1686697a81761b3f8a6be3c83daea",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/architecture.md",
+      "beforeSha256": "fec98bf42ea062fd9a12078d9f399cd82f4dcbb02520d0d670bc7928c64d90d2",
+      "afterSha256": "c50cc9513c3995a88d01d8f9cf37c86adf1ff19f50d083d1a958665b56a74fdf",
+      "review": "selected-current-claims-checked-against-source",
+      "disposition": "corrected"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/backlog.md",
+      "beforeSha256": "e2f5b9bed2fdabee5714406951e9d1dea8337920e9093a1c90d2f07fd4714103",
+      "afterSha256": "e2f5b9bed2fdabee5714406951e9d1dea8337920e9093a1c90d2f07fd4714103",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/brand/README.md",
+      "beforeSha256": "492c7bdf59077e21e7df16fa1168083ce4e1d648ad7be4f71d1deb5abf5574fb",
+      "afterSha256": "492c7bdf59077e21e7df16fa1168083ce4e1d648ad7be4f71d1deb5abf5574fb",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/brand/TRADEMARK.md",
+      "beforeSha256": "a45d2f260ea3d8d9f207e20e121b4ea6cb80a4f5d9de09d139bf8d2c8f4fdb21",
+      "afterSha256": "a45d2f260ea3d8d9f207e20e121b4ea6cb80a4f5d9de09d139bf8d2c8f4fdb21",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/brand/merkgids.html",
+      "beforeSha256": "e6d8161551737188ae552810ea2bd15b8152c597e86a5d407218cb28d787c76d",
+      "afterSha256": "e6d8161551737188ae552810ea2bd15b8152c597e86a5d407218cb28d787c76d",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/contracts/README.md",
+      "beforeSha256": "16aeaeecd85782e9dc3ecb9d1b6eb3f030b6ae17eccd62e857bc6373c7f52c07",
+      "afterSha256": "16aeaeecd85782e9dc3ecb9d1b6eb3f030b6ae17eccd62e857bc6373c7f52c07",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/contracts/checkpoint.v1.schema.json",
+      "beforeSha256": "8f94d7592e1014fe12c1f60626238f45a49138a728d131c28991f5c5ab34c924",
+      "afterSha256": "8f94d7592e1014fe12c1f60626238f45a49138a728d131c28991f5c5ab34c924",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/contracts/executor.md",
+      "beforeSha256": "49e4df0c08709c639d9f36828020a573ee346c6b88f611dd35be45c8540422d2",
+      "afterSha256": "49e4df0c08709c639d9f36828020a573ee346c6b88f611dd35be45c8540422d2",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/contracts/operator-api.v1.schema.json",
+      "beforeSha256": "608f32fd7b1451824ee0f681b0b50c3410246ced8da15c4be7d77e27582ebde2",
+      "afterSha256": "608f32fd7b1451824ee0f681b0b50c3410246ced8da15c4be7d77e27582ebde2",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/contracts/operator-delivery.md",
+      "beforeSha256": "28f5c49d92ba661390302052891a9e75ad13adca91ab2a074df9c3f4da8099f3",
+      "afterSha256": "28f5c49d92ba661390302052891a9e75ad13adca91ab2a074df9c3f4da8099f3",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/contracts/operator-delivery.schema.json",
+      "beforeSha256": "4df3a6042fd4d9d2b4370a0dd9468f3cee0b69d2530bf3c7579d3736bfaaf967",
+      "afterSha256": "4df3a6042fd4d9d2b4370a0dd9468f3cee0b69d2530bf3c7579d3736bfaaf967",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/contracts/outcomereport.v1.schema.json",
+      "beforeSha256": "0132239e8c7351c3f3b7328406d9aa14bd0039ca85af5e98daa853eec4827f34",
+      "afterSha256": "0132239e8c7351c3f3b7328406d9aa14bd0039ca85af5e98daa853eec4827f34",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/contracts/run-api.v1.schema.json",
+      "beforeSha256": "8454f530748995edc1ba3527038a1ce2e6c7bbfd6200c0398f17fd93e50db55b",
+      "afterSha256": "8454f530748995edc1ba3527038a1ce2e6c7bbfd6200c0398f17fd93e50db55b",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/contracts/taskspec.v1.schema.json",
+      "beforeSha256": "27465c0cdf3dfb70ecdf7c1d80f501711f78833eae74689b43a490519a769dbd",
+      "afterSha256": "27465c0cdf3dfb70ecdf7c1d80f501711f78833eae74689b43a490519a769dbd",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/contracts/tracker-execution.md",
+      "beforeSha256": "cedf4c682fc05c5a96779fc1bb1417c4024fa00b2e6dbf86b9063d7170f58888",
+      "afterSha256": "cedf4c682fc05c5a96779fc1bb1417c4024fa00b2e6dbf86b9063d7170f58888",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/contracts/tracker-execution.v1.schema.json",
+      "beforeSha256": "599e561f32730ee72a1dace253ee8c8d26c13fa4715b9fcc20eec65fd208e6a0",
+      "afterSha256": "599e561f32730ee72a1dace253ee8c8d26c13fa4715b9fcc20eec65fd208e6a0",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/contracts/worker-control.md",
+      "beforeSha256": "97409dfb09c7ed5d828587c2ebfa069c26d89edb95dc5aaaba43100698b8de5d",
+      "afterSha256": "97409dfb09c7ed5d828587c2ebfa069c26d89edb95dc5aaaba43100698b8de5d",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/design.md",
+      "beforeSha256": "671b7ea94fe641e000e4189ba9ea3b1af618c483465c6943864f8a71c48b8d69",
+      "afterSha256": "671b7ea94fe641e000e4189ba9ea3b1af618c483465c6943864f8a71c48b8d69",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/domain/entities.md",
+      "beforeSha256": "ce8615de5acecc82c9aa987001401bb0c0de50186e4e500b7466e93d1241e8f9",
+      "afterSha256": "dd12c5df31d49504836ef76ad90e85b6393f34e2fb756850908fff7bec3e56cc",
+      "review": "generated-view",
+      "disposition": "regenerated"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/domain/events.md",
+      "beforeSha256": "a3c67fd798b05e34b88769571f60552de4ad704a837d1fad60dd4a5698ea06f5",
+      "afterSha256": "34b77c5fcc3cba86b90f2ae2fbc6e0e8584237efa596a57a61a55b4fff1e0afa",
+      "review": "generated-view",
+      "disposition": "regenerated"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/domain/glossary.md",
+      "beforeSha256": "911e0387f0f9d5892f55b9dd851b24f5d0e757d83de8483a715aef34e635d6d2",
+      "afterSha256": "c3c4a88ea093902e0ee4f61c4f3352e80b3e4944c6e839a089782d43f949c802",
+      "review": "generated-view",
+      "disposition": "regenerated"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/domain/model.yaml",
+      "beforeSha256": "20f3f05e0c526c7b787bed1170bad610c37d2dd4916509f0ae53945f937eac87",
+      "afterSha256": "47e509d61862340fbf641500c2b14a07c1156c8c6e329b225ca560bdad9d9346",
+      "review": "selected-current-claims-checked-against-source",
+      "disposition": "corrected"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/domain/overview.md",
+      "beforeSha256": "b333b8ac6aa9f4a1a5316b2674297e84331d6e405e2ed137ff396793a09491e9",
+      "afterSha256": "b6b86a797ff0925f8e5a98f8eab4dd0663a0d2fe83a7245eb4c371256e03b179",
+      "review": "generated-view",
+      "disposition": "regenerated"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/domain/rules.md",
+      "beforeSha256": "86000a86e1b65671e82a64d1c630a2ea7287222b11d40a08a389b7721a99123e",
+      "afterSha256": "e4607e45d1be3083fffad6d9fa493c1cbf7424e0ae247b38720a27ece87513f0",
+      "review": "generated-view",
+      "disposition": "regenerated"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/index.md",
+      "beforeSha256": "0dbe4cfdaa0400b41f265a01f83a69b38813cd8224a74551244dd36fd0c964f3",
+      "afterSha256": "0dbe4cfdaa0400b41f265a01f83a69b38813cd8224a74551244dd36fd0c964f3",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/ops/board.md",
+      "beforeSha256": "f80b012e45b316e3725416710c9df882cb87d2abdb167c4a44321a845c8f1ff0",
+      "afterSha256": "f80b012e45b316e3725416710c9df882cb87d2abdb167c4a44321a845c8f1ff0",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/ops/ci-and-infra.md",
+      "beforeSha256": "01bee4b35f64bb1be5d9583c2ffb841ff31151e913d16aa5cfc25feabac53604",
+      "afterSha256": "01bee4b35f64bb1be5d9583c2ffb841ff31151e913d16aa5cfc25feabac53604",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/ops/managed-workers.md",
+      "beforeSha256": "b16622262b46ebe7f68d2ae1490d6efeb27fabec4ea0f30d8a64ea17c5ea352c",
+      "afterSha256": "b16622262b46ebe7f68d2ae1490d6efeb27fabec4ea0f30d8a64ea17c5ea352c",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/ops/release-versioning.md",
+      "beforeSha256": "e19fa1587fb64bb400e28f7fd1db80a6a4576a963776149fefa0b296076037e6",
+      "afterSha256": "e19fa1587fb64bb400e28f7fd1db80a6a4576a963776149fefa0b296076037e6",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/research/2026-07-28-a2a-fit.md",
+      "beforeSha256": "9675fd90be3d2bdef5b2b0e1cc5d5b913bd1213e05f1e67196a95933262df303",
+      "afterSha256": "9675fd90be3d2bdef5b2b0e1cc5d5b913bd1213e05f1e67196a95933262df303",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/research/2026-07-28-agent-roster-ssot.md",
+      "beforeSha256": "f91e9b3fe8a359b190f831822650234bfff81b4001c102126ea30d5b8d5e74eb",
+      "afterSha256": "f91e9b3fe8a359b190f831822650234bfff81b4001c102126ea30d5b8d5e74eb",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/research/2026-07-28-omniroute-fit.md",
+      "beforeSha256": "2e2e3a4407f87e18da78ab68e668a1b0edc0c15c0cdaa8a2a86bc58ca3b01bb5",
+      "afterSha256": "2e2e3a4407f87e18da78ab68e668a1b0edc0c15c0cdaa8a2a86bc58ca3b01bb5",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/research/2026-07-28-paperclip-fit.md",
+      "beforeSha256": "829544f8ff6b878315bf0617431db5cdd4e21ce173642e6b24bfd6e7a1d23f7e",
+      "afterSha256": "829544f8ff6b878315bf0617431db5cdd4e21ce173642e6b24bfd6e7a1d23f7e",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/research/2026-08-08-benchmarking-the-loop.md",
+      "beforeSha256": "a1d563b863e64283fb70087b0ce76e309cce54d361db2c92dd921fb79e2f1624",
+      "afterSha256": "a1d563b863e64283fb70087b0ce76e309cce54d361db2c92dd921fb79e2f1624",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/research/2026-08-28-onboarding-friction.md",
+      "beforeSha256": "cb03daa33fae381263420163c1be09beab6c1c29461b7b4faf480a031e6ac1a8",
+      "afterSha256": "cb03daa33fae381263420163c1be09beab6c1c29461b7b4faf480a031e6ac1a8",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "docs/research/2026-09-11-release-policy-verification.md",
+      "beforeSha256": "9d5051e6fa0f38d6811bb6e99ac3ec9420f73e5702c760c40795bbfd709a2ce7",
+      "afterSha256": "9d5051e6fa0f38d6811bb6e99ac3ec9420f73e5702c760c40795bbfd709a2ce7",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "llms.txt",
+      "beforeSha256": "0628c5d4d4b53ca3ed5864df1f46f8466115637073e7af6ab8449533dedb099c",
+      "afterSha256": "0628c5d4d4b53ca3ed5864df1f46f8466115637073e7af6ab8449533dedb099c",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/archive/2026-07-29-run-multi-agent-shifts/adr.md",
+      "beforeSha256": "b6011a2f3d28952d2080cb456590ec015aebcfa1d25c70691bd241ba23ef446f",
+      "afterSha256": "b6011a2f3d28952d2080cb456590ec015aebcfa1d25c70691bd241ba23ef446f",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/archive/2026-07-29-run-multi-agent-shifts/design.md",
+      "beforeSha256": "b82ef1527b09c3a2635100655264d1380b1a5cd3bcc5e2ceadb988d2509f7aa6",
+      "afterSha256": "b82ef1527b09c3a2635100655264d1380b1a5cd3bcc5e2ceadb988d2509f7aa6",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/archive/2026-07-29-run-multi-agent-shifts/proposal.md",
+      "beforeSha256": "f40d9f4ebfff8b10a4a9761cc3b9c248cb5f1e136eccb11cdae701ae7262d18d",
+      "afterSha256": "f40d9f4ebfff8b10a4a9761cc3b9c248cb5f1e136eccb11cdae701ae7262d18d",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/archive/2026-07-29-run-multi-agent-shifts/specs/blackboard/spec.md",
+      "beforeSha256": "4dcc8ea6cd2f42dd412fb31f174577432a1da184945bd03f2c4f079f988b94ad",
+      "afterSha256": "4dcc8ea6cd2f42dd412fb31f174577432a1da184945bd03f2c4f079f988b94ad",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/archive/2026-07-29-run-multi-agent-shifts/specs/forge-provider-forgejo/spec.md",
+      "beforeSha256": "b8a802c223741723805410d199b1c06d4337f4c02d9cb3073a83c754adad8359",
+      "afterSha256": "b8a802c223741723805410d199b1c06d4337f4c02d9cb3073a83c754adad8359",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/archive/2026-07-29-run-multi-agent-shifts/specs/role-claim/spec.md",
+      "beforeSha256": "34b022824260d43d98bece164795d68546ee7e3a54bce8f7e8bf034a6a2c7e90",
+      "afterSha256": "34b022824260d43d98bece164795d68546ee7e3a54bce8f7e8bf034a6a2c7e90",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/archive/2026-07-29-run-multi-agent-shifts/specs/shift-orchestration/spec.md",
+      "beforeSha256": "9d0f64e741e9b00e4d709d7504dd4a7df018bab8649fbb3f4a94cab7a66733cf",
+      "afterSha256": "9d0f64e741e9b00e4d709d7504dd4a7df018bab8649fbb3f4a94cab7a66733cf",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/archive/2026-07-29-run-multi-agent-shifts/tasks.md",
+      "beforeSha256": "dab5fe26f7d0d2fbdf15677ddc9d80054e7ff486e94ef106deee587cb2a0f1dd",
+      "afterSha256": "dab5fe26f7d0d2fbdf15677ddc9d80054e7ff486e94ef106deee587cb2a0f1dd",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/audit-current-documentation/.openspec.yaml",
+      "beforeSha256": "811ca9a28f1f71ee59cca0c345e9914c7a8e7cb7515f53c7cef5bc03842e15c1",
+      "afterSha256": "811ca9a28f1f71ee59cca0c345e9914c7a8e7cb7515f53c7cef5bc03842e15c1",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/audit-current-documentation/adr.md",
+      "beforeSha256": "2dbf838ba54c04fa1495c5b853637299a4cf183d86b4a6ec28329c6570b68904",
+      "afterSha256": "2dbf838ba54c04fa1495c5b853637299a4cf183d86b4a6ec28329c6570b68904",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/audit-current-documentation/design.md",
+      "beforeSha256": "31c9079e8a63d478e7c192078ad71d35763cf0b953c9b61cad74a676b3d44ac7",
+      "afterSha256": "31c9079e8a63d478e7c192078ad71d35763cf0b953c9b61cad74a676b3d44ac7",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/audit-current-documentation/proposal.md",
+      "beforeSha256": "c94e725373aa53add8198758c1eca36283b867d7a7cda313e6375d11cfdda1d4",
+      "afterSha256": "c94e725373aa53add8198758c1eca36283b867d7a7cda313e6375d11cfdda1d4",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/audit-current-documentation/specs/documentation-discovery/spec.md",
+      "beforeSha256": "2bd9666638fb8c1a490ce6bb0c4399c4c28705fbfa20d2f9548c5dbddc82528a",
+      "afterSha256": "5fc5673d391464e6efebe3ada0fc0212acf8a5ad0a62603f7d7f8ec8914b0ec8",
+      "review": "selected-current-claims-checked-against-source",
+      "disposition": "corrected"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/audit-current-documentation/tasks.md",
+      "beforeSha256": "a77d613b8cd59c6863fe326c7110ebf33470025314493d85eadeea989183680b",
+      "afterSha256": "0470908817ffe45e6c797f0b88ca6d6b2ab5fd195e8bda653b7c50b8b3b3a31b",
+      "review": "structure-or-provenance",
+      "disposition": "updated"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/bind-tracker-execution/.openspec.yaml",
+      "beforeSha256": "d70ec2185f76d1d3265b72c064149f39dee5a4734fe7c83d838d6686e5274868",
+      "afterSha256": "d70ec2185f76d1d3265b72c064149f39dee5a4734fe7c83d838d6686e5274868",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/bind-tracker-execution/adr.md",
+      "beforeSha256": "073cf816644d37ed22568953d7e0250cfa9f9a4cabf227cbe7f1bf8e0256aba5",
+      "afterSha256": "073cf816644d37ed22568953d7e0250cfa9f9a4cabf227cbe7f1bf8e0256aba5",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/bind-tracker-execution/design.md",
+      "beforeSha256": "34a41b51bf4ac576f65d79eb0d03ec2be043b7842fc15aa2af3668b9e7409cb0",
+      "afterSha256": "34a41b51bf4ac576f65d79eb0d03ec2be043b7842fc15aa2af3668b9e7409cb0",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/bind-tracker-execution/proposal.md",
+      "beforeSha256": "9f2dbe77a45ac785581443b79c634879c3efed95590d7cb780ee4c705b360cf1",
+      "afterSha256": "9f2dbe77a45ac785581443b79c634879c3efed95590d7cb780ee4c705b360cf1",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/bind-tracker-execution/qualification.md",
+      "beforeSha256": "38dde179aee29c8898109b214525b01e5fb2599f85c820ea25b5e5731c4ede8e",
+      "afterSha256": "38dde179aee29c8898109b214525b01e5fb2599f85c820ea25b5e5731c4ede8e",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/bind-tracker-execution/specs/tracker-execution-binding/spec.md",
+      "beforeSha256": "6b23b426b66569fb354e12208c93ec07ec6502a57ff0080e6fe0e9be0ddeefed",
+      "afterSha256": "6b23b426b66569fb354e12208c93ec07ec6502a57ff0080e6fe0e9be0ddeefed",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/bind-tracker-execution/tasks.md",
+      "beforeSha256": "da0d597ad0fd44fe43852b0ad4f2c6ae6be58f1a1231b3d634f568649cefb2e5",
+      "afterSha256": "da0d597ad0fd44fe43852b0ad4f2c6ae6be58f1a1231b3d634f568649cefb2e5",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/close-the-review-loop/adr.md",
+      "beforeSha256": "ac246863b99ab11819dced2dc15f6def7788a3226492d247db5351e2a15e6673",
+      "afterSha256": "ac246863b99ab11819dced2dc15f6def7788a3226492d247db5351e2a15e6673",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/close-the-review-loop/design.md",
+      "beforeSha256": "68471f880fc8bd9958488bce4cc4189e4ebbc816f8fa02e0e4fdfa92a8c99c73",
+      "afterSha256": "68471f880fc8bd9958488bce4cc4189e4ebbc816f8fa02e0e4fdfa92a8c99c73",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/close-the-review-loop/proposal.md",
+      "beforeSha256": "cd4dccc6cf060fce711688e08ec3b76b6f91eed1482b5a86ea67ac31d19634d5",
+      "afterSha256": "cd4dccc6cf060fce711688e08ec3b76b6f91eed1482b5a86ea67ac31d19634d5",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/close-the-review-loop/specs/forge-ingest/spec.md",
+      "beforeSha256": "b213a888483d74299089055f9b7518e2cd29490a3a8f0baf8af9f5a8f1587f49",
+      "afterSha256": "b213a888483d74299089055f9b7518e2cd29490a3a8f0baf8af9f5a8f1587f49",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/close-the-review-loop/specs/verdict-advancement/spec.md",
+      "beforeSha256": "0003edf2e629910d336da154ad3c8d20f7836248b3a723b6a626a1b45f968685",
+      "afterSha256": "0003edf2e629910d336da154ad3c8d20f7836248b3a723b6a626a1b45f968685",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/close-the-review-loop/tasks.md",
+      "beforeSha256": "4e4576ec6b511860b5490ac5525e768004362c157e1d0001306ef15b4c257507",
+      "afterSha256": "4e4576ec6b511860b5490ac5525e768004362c157e1d0001306ef15b4c257507",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/govern-candidate-delivery/.openspec.yaml",
+      "beforeSha256": "d70ec2185f76d1d3265b72c064149f39dee5a4734fe7c83d838d6686e5274868",
+      "afterSha256": "d70ec2185f76d1d3265b72c064149f39dee5a4734fe7c83d838d6686e5274868",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/govern-candidate-delivery/adr.md",
+      "beforeSha256": "ce36036dd3740a531634b2e106a3c246e113aceb094c506c4012a49b5321025b",
+      "afterSha256": "ce36036dd3740a531634b2e106a3c246e113aceb094c506c4012a49b5321025b",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/govern-candidate-delivery/design.md",
+      "beforeSha256": "7fb22346e743adffaf31bcb1f83d5bed8430bb69175269547ee8f714b0cc3e9e",
+      "afterSha256": "7fb22346e743adffaf31bcb1f83d5bed8430bb69175269547ee8f714b0cc3e9e",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/govern-candidate-delivery/proposal.md",
+      "beforeSha256": "8035f1d8b9a6b5759c7f313709e5386ba2eb748ee23ccceb3c685eb3299afc65",
+      "afterSha256": "8035f1d8b9a6b5759c7f313709e5386ba2eb748ee23ccceb3c685eb3299afc65",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/govern-candidate-delivery/specs/operator-delivery/spec.md",
+      "beforeSha256": "bd98ce9529778e9b3f978e34adf3a393700e564057ef2607a29262b90a64c67e",
+      "afterSha256": "bd98ce9529778e9b3f978e34adf3a393700e564057ef2607a29262b90a64c67e",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/govern-candidate-delivery/tasks.md",
+      "beforeSha256": "93b1f76e00a2ad3f8b12f04ccdc19e39a6490c81c7cae16c6c242249bfe139ac",
+      "afterSha256": "93b1f76e00a2ad3f8b12f04ccdc19e39a6490c81c7cae16c6c242249bfe139ac",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/guard-zero-major-prereleases/.openspec.yaml",
+      "beforeSha256": "d70ec2185f76d1d3265b72c064149f39dee5a4734fe7c83d838d6686e5274868",
+      "afterSha256": "d70ec2185f76d1d3265b72c064149f39dee5a4734fe7c83d838d6686e5274868",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/guard-zero-major-prereleases/adr.md",
+      "beforeSha256": "71f581df2ec138924505bd1087f4afe72557dfc72c73fa90b5cf3596007ca067",
+      "afterSha256": "71f581df2ec138924505bd1087f4afe72557dfc72c73fa90b5cf3596007ca067",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/guard-zero-major-prereleases/design.md",
+      "beforeSha256": "2d40d5decb7fd80fa793600dfc461aedf64849305a0d7f89ad572a8a14833aff",
+      "afterSha256": "2d40d5decb7fd80fa793600dfc461aedf64849305a0d7f89ad572a8a14833aff",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/guard-zero-major-prereleases/proposal.md",
+      "beforeSha256": "78999991fa02c13007e66e9cff9cdb7898b0a308656b59824a9151169f1ce09f",
+      "afterSha256": "78999991fa02c13007e66e9cff9cdb7898b0a308656b59824a9151169f1ce09f",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/guard-zero-major-prereleases/specs/experimental-release-policy/spec.md",
+      "beforeSha256": "7f472c3aea1a7d68a7ebd7f9c4be0015f1def700f8ece4847ebfc9a582f5a473",
+      "afterSha256": "7f472c3aea1a7d68a7ebd7f9c4be0015f1def700f8ece4847ebfc9a582f5a473",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/guard-zero-major-prereleases/tasks.md",
+      "beforeSha256": "238fcd134c7b514c20722964aec2b94e6ee1de75e918bc9dc57e85d77880b5bc",
+      "afterSha256": "238fcd134c7b514c20722964aec2b94e6ee1de75e918bc9dc57e85d77880b5bc",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/open-change-requests-on-gitlab/adr.md",
+      "beforeSha256": "c78236662c784bae6dc34b920808de2fb4b1d5e187d6a191ee3430f9472a272f",
+      "afterSha256": "c78236662c784bae6dc34b920808de2fb4b1d5e187d6a191ee3430f9472a272f",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/open-change-requests-on-gitlab/design.md",
+      "beforeSha256": "45039c5b250e5ecb7e5f8ffe414ea1c0c732a6c08756b9a960ced5ff39953e09",
+      "afterSha256": "45039c5b250e5ecb7e5f8ffe414ea1c0c732a6c08756b9a960ced5ff39953e09",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/open-change-requests-on-gitlab/proposal.md",
+      "beforeSha256": "cadaf9412b237badba37dcd6bfc8b6da75324a111a454b53e4127dcf8410124e",
+      "afterSha256": "cadaf9412b237badba37dcd6bfc8b6da75324a111a454b53e4127dcf8410124e",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/open-change-requests-on-gitlab/specs/forge-dialect/spec.md",
+      "beforeSha256": "bf31bb6cea70731839f4f8edb26015e40db4fe70e44a2facacad3d4201ab0c73",
+      "afterSha256": "bf31bb6cea70731839f4f8edb26015e40db4fe70e44a2facacad3d4201ab0c73",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/open-change-requests-on-gitlab/tasks.md",
+      "beforeSha256": "13deceb734ed77ba46c3ab092a0432dc3abdaa3e29729cf3f38d3076b3bd7aca",
+      "afterSha256": "13deceb734ed77ba46c3ab092a0432dc3abdaa3e29729cf3f38d3076b3bd7aca",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/unified-operator-execution/.openspec.yaml",
+      "beforeSha256": "eba80b6190fe54e4de226a5122ca6223f47d00412ebe5339a9baa6cce909ddee",
+      "afterSha256": "eba80b6190fe54e4de226a5122ca6223f47d00412ebe5339a9baa6cce909ddee",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/unified-operator-execution/adr.md",
+      "beforeSha256": "8d5943628f53f7dbd8ebf9c18b235a1f2e96befeee2ba3da4ec6d2d957e1631a",
+      "afterSha256": "8d5943628f53f7dbd8ebf9c18b235a1f2e96befeee2ba3da4ec6d2d957e1631a",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/unified-operator-execution/design.md",
+      "beforeSha256": "0183509562d22c2217378c1ba0e1f518bdbb939e6b116d1fd3c0c53dedcea23b",
+      "afterSha256": "0183509562d22c2217378c1ba0e1f518bdbb939e6b116d1fd3c0c53dedcea23b",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/unified-operator-execution/proposal.md",
+      "beforeSha256": "a60fa090c0d081eaf5d964c696c38d68305b4f908decac681db72f5b1adf3732",
+      "afterSha256": "a60fa090c0d081eaf5d964c696c38d68305b4f908decac681db72f5b1adf3732",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/unified-operator-execution/specs/operator-api/spec.md",
+      "beforeSha256": "cc4d2844e11e2d3151eed8e5fd2774a50b5f4d2f97b0efc33d6530fa9b43c320",
+      "afterSha256": "cc4d2844e11e2d3151eed8e5fd2774a50b5f4d2f97b0efc33d6530fa9b43c320",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/unified-operator-execution/specs/worker-authority/spec.md",
+      "beforeSha256": "6dcd86fda3e10b4ed30117a41721f72bcdb6efa7795ad6748aa20e2d9f7ce2a5",
+      "afterSha256": "6dcd86fda3e10b4ed30117a41721f72bcdb6efa7795ad6748aa20e2d9f7ce2a5",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/changes/unified-operator-execution/tasks.md",
+      "beforeSha256": "1d6aee624c7f3a5a936887ebfc3b7b239cc802998a3369481b0ec13710f02d72",
+      "afterSha256": "1d6aee624c7f3a5a936887ebfc3b7b239cc802998a3369481b0ec13710f02d72",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/config.yaml",
+      "beforeSha256": "dda71a7101f3179d7f1af625389c4353c7648e5ddc117d30fa4335e9284b2d80",
+      "afterSha256": "dda71a7101f3179d7f1af625389c4353c7648e5ddc117d30fa4335e9284b2d80",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/schemas/spec-driven-with-adr/README.md",
+      "beforeSha256": "a57d75bd2449c5e7d77da342ad3dca54c5bca1d4fb13cb9e648d3f4f24947ca2",
+      "afterSha256": "a57d75bd2449c5e7d77da342ad3dca54c5bca1d4fb13cb9e648d3f4f24947ca2",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/schemas/spec-driven-with-adr/schema.yaml",
+      "beforeSha256": "c3fe1982fccf68158ded2cdf97a1e422bfa87a4369c23f38f4d9cd3ec31df673",
+      "afterSha256": "c3fe1982fccf68158ded2cdf97a1e422bfa87a4369c23f38f4d9cd3ec31df673",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/schemas/spec-driven-with-adr/templates/adr.md",
+      "beforeSha256": "67fd52e8ce8903e8815ac0c384deb2221b4f7b79b4ca54d279419b8c9ba54c4d",
+      "afterSha256": "67fd52e8ce8903e8815ac0c384deb2221b4f7b79b4ca54d279419b8c9ba54c4d",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/schemas/spec-driven-with-adr/templates/design.md",
+      "beforeSha256": "3251f08057d142f6e3c26f65f5f100ab602ee7ce880d5503bfaa45668ba19f59",
+      "afterSha256": "3251f08057d142f6e3c26f65f5f100ab602ee7ce880d5503bfaa45668ba19f59",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/schemas/spec-driven-with-adr/templates/proposal.md",
+      "beforeSha256": "9c554e0dbe918e3dc745dcc143a999e1d102954d75fb6e51e231c4cba78f06f3",
+      "afterSha256": "9c554e0dbe918e3dc745dcc143a999e1d102954d75fb6e51e231c4cba78f06f3",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/schemas/spec-driven-with-adr/templates/spec.md",
+      "beforeSha256": "e025078f238dc6e4df552a1e0a140cf9efce0bbdecbeb9f45837d45ed91dca01",
+      "afterSha256": "e025078f238dc6e4df552a1e0a140cf9efce0bbdecbeb9f45837d45ed91dca01",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/schemas/spec-driven-with-adr/templates/tasks.md",
+      "beforeSha256": "b2a6a4c08c15f347a1d8c3e2d43e0c8fb066dc5cc0feb795f47555f176f9c421",
+      "afterSha256": "b2a6a4c08c15f347a1d8c3e2d43e0c8fb066dc5cc0feb795f47555f176f9c421",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/specs/blackboard/spec.md",
+      "beforeSha256": "67a209df2e29daec2d404bbb23918bd1b941f4efbe7c7733a0be190d73493640",
+      "afterSha256": "67a209df2e29daec2d404bbb23918bd1b941f4efbe7c7733a0be190d73493640",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/specs/forge-provider-forgejo/spec.md",
+      "beforeSha256": "4934d965a906c29dc4113d7e002a5f61dd745947d3ab2fa27270905f081eb5d5",
+      "afterSha256": "4934d965a906c29dc4113d7e002a5f61dd745947d3ab2fa27270905f081eb5d5",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/specs/role-claim/spec.md",
+      "beforeSha256": "bd066737bd054cf07937d3703c1c47fab843a3f18735c5c20ab164eb92aae0d1",
+      "afterSha256": "bd066737bd054cf07937d3703c1c47fab843a3f18735c5c20ab164eb92aae0d1",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "openspec/specs/shift-orchestration/spec.md",
+      "beforeSha256": "be1fff5b9457c5f9bcfbf87aa39e06c046285751096eb48c5cf45178df577277",
+      "afterSha256": "be1fff5b9457c5f9bcfbf87aa39e06c046285751096eb48c5cf45178df577277",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "package.json",
+      "beforeSha256": "8f433172799331740a7ff4849acbbb0d50b7ead24db9fce8da38db7183ff520a",
+      "afterSha256": "8f433172799331740a7ff4849acbbb0d50b7ead24db9fce8da38db7183ff520a",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "renovate.json",
+      "beforeSha256": "b23a1b554aab11fb9ef713f087768acd21cfb99ee07704d7e99582979356ca8c",
+      "afterSha256": "b23a1b554aab11fb9ef713f087768acd21cfb99ee07704d7e99582979356ca8c",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    },
+    {
+      "repository": "ploeg",
+      "path": "scripts/fixtures/managed-authentication-breaking.txt",
+      "beforeSha256": "2508617f5b6ecd5acfc62024477cb42b690a33ae7404b05db30cf5a26e32fcdd",
+      "afterSha256": "2508617f5b6ecd5acfc62024477cb42b690a33ae7404b05db30cf5a26e32fcdd",
+      "review": "structural-recheck-and-prior-classification",
+      "disposition": "retained"
+    }
+  ]
+}

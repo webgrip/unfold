@@ -2,12 +2,12 @@
 
 This is a discussion guide, not an implementation backlog. Open language choices also appear in the [domain model](../domain/model.yaml). Agreed answers should update the definitions and diagrams; do not preserve answered questions as competing meanings.
 
-## Already clear
+## Product intentions
 
 - The aim is a supported way to work with AI for developers and non-human operators, with visibility into telemetry, costs, decisions, and results.
 - Vloer is the place the developer starts. The particular harness is an implementation choice.
 - Vloer supports the intended start of open AI conversations without a ticket. Ticket systems remain external.
-- Ploeg is responsible for all AI execution, including sessions a developer steers live.
+- Local work must be usable without any Ploeg service. Each execution has one explicit authority; Ploeg-managed work cannot switch itself to standalone authority.
 - Software work should be checked and reviewed by agents before human review. A CI failure gets a repair subticket; agents automatically fix it in projects where the behavior is enabled, including human-written changes.
 - A person initially reviews and accepts the prepared result. Automatic acceptance can be agreed later.
 - Large agent counts are a possible execution capacity. Ticket quality, testable results, and production delivery must keep up.
@@ -15,9 +15,13 @@ This is a discussion guide, not an implementation backlog. Open language choices
 
 ## Round one: responsibility
 
-**A developer starts talking to AI.** Ploeg manages the workload behind the conversation. What information and default budget make this immediate without hiding authorization? Keep the interaction natural; handing work to Ploeg must not impose a batch-job experience.
+**A developer starts local work.** The product direction requires this to work without Ploeg. Current standalone Vloer supports that path, with a registered repository and crew. Repository-free conversation and fully offline model inference are separate capabilities; neither follows from independence from Ploeg.
 
-**A worker fails.** Ploeg owns the decision whether another attempt is allowed; an executor reports what actually happened. Which failures permit another attempt, and what budget or attempt limit makes Ploeg stop and ask for help?
+**Both applications need execution machinery.** Separate three choices: who authorizes work, where the runner executes, and which code is reused. A common runner could implement workspace setup, harness invocation, interruption and evidence capture while Ploeg retains scheduling and budgets and Vloer retains interaction. This is a proposal, not a new accepted component. First compare the two existing execution paths and identify behavior that actually must match. Go and TypeScript do not become a shared library merely by moving into one repository; a process or wire contract may be the useful boundary.
+
+**A Ploeg-managed runner loses its connection.** It retains Ploeg's authority; it cannot turn itself into standalone work. Define whether it stops immediately or continues within an unexpired grant, then test expiry, revocation, duplicate-start prevention and evidence reconciliation. A deliberately standalone run has no Ploeg connection to lose. The [transition plan](../monorepo-transition.md) makes these two cases the first comparison.
+
+**A worker fails.** Its execution authority owns the decision whether another attempt is allowed; the runner reports what actually happened. Which failures permit another attempt, and what budget or attempt limit requires human intervention?
 
 **The result looks good.** A person initially accepts it after checks and agent review. Who may deploy it afterward, and how do we confirm its actual effect? Keep execution completion, acceptance, and production release separate.
 

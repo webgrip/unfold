@@ -36,9 +36,7 @@ flowchart TD
 
 Standalone workbench sessions retain their existing broker behavior when shared execution is not enabled. Bound sessions cannot silently fall back to standalone authority. [Registered Vikunja and ClickUp imports](contracts/ploeg-tracker-binding.md) bind to the existing queued Ploeg Work Item and claim it atomically on Start. General WorkOrders and adoption of already executing harness work remain outside this boundary.
 
-The intended product starts in De Vloer as an open AI conversation or work linked to an external ticket. Ploeg is responsible for all AI execution, including work a developer steers hands-on. OpenCode, OpenHands and other agent tools are replaceable implementation details. The current shared configuration supplies Ploeg authorization to every session, but De Vloer still performs workspace and crew execution itself. Ticket-free, repository-free conversation and the clearer execution boundary remain product work. The [ecosystem guide](landscape/index.md) and [domain model](domain/model.yaml) record the current owner-defined direction separately from this implementation.
-
-Research is useful work in its own right. A ticket asking whether a product is worth building may finish with convincing evidence, a business case and a clear conclusion to stop. It need not produce a technical design or prototype when the evidence supports stopping. When building is justified, the expected result includes a usable design, recorded decisions, graphs, documentation, a business case and a conclusion, possibly supported by a proof of concept. A person initially accepts results after checks and agent review. In projects with automatic CI repair enabled, failures should create repair subtickets and receive agent fixes before human review, including human-written changes. This general repair loop remains intended behavior. Who may start other follow-up work and what limits constrain repair remain open product questions.
+Session creation currently requires a registered repository and crew. An external ticket is optional. Repository-free conversation and automatic CI repair are product intentions, not general implemented workflows. The product direction requires local work to remain usable without any Ploeg service. Existing standalone mode provides that execution path; it still needs the configured harness and model access for live AI work. A common runner is a proposal to test, not an implemented component. See the [transition plan](monorepo-transition.md) and [product rule R8](domain/rules.md#r8).
 
 ## Implementation map
 
@@ -58,7 +56,7 @@ Node 24 runs erasable TypeScript directly. The production application has zero t
 
 ## Sessions, runs and handoffs
 
-A session owns its objective, repository, branch, budget and human history. Crew roles become runs, executed sequentially in v0.1. A crew may begin with one writer and must contain at least one reviewer; all subsequent roles are readers. Reviewers produce findings and must explicitly approve for the session to complete. This is a delivery/review sequence, not distributed negotiation or parallel writers.
+A session owns its objective, repository, branch, budget and human history. Crew roles execute sequentially. A crew may begin with one writer; every subsequent role is read-only, and at least one read role is required. The final read role reviews the work. Writing crews require its explicit approval to complete; earlier read roles supply analysis, and a wholly read-only crew does not use the same approval gate. See the [engine](../src/engine.ts). In shared mode these crew steps belong to one Ploeg operator Run; the two systems' run identifiers are not interchangeable.
 
 Native harness session IDs are adapter details. They can support continuation within that harness, but are not portable conversation formats. The portable handoff consists of repository changes, an objective, remaining constraints, a summary, checks and review findings. Changing a model or harness does not migrate its hidden context.
 
@@ -72,7 +70,7 @@ The standalone control plane holds its login secrets, LiteLLM minting credential
 
 `budgetUsd` is authorized spend. `spentUsd` is the standalone accounting total, accompanied by `costStatus`. Shared executions expose provisional Ploeg readings through `observedUsd` and retain pending or unknown status until independent accounting is resolved. Demo work has no model calls. Pending or unavailable live metering must remain visible, and an administrator must explicitly authorize an increase. Gateway budgets, TTL and revocation reduce exposure; they are not proof of an exact monetary ceiling for in-flight requests.
 
-## v0.1 operating envelope
+## Operating envelope
 
 SQLite is a **single writer, single application replica** store in this release. Durable storage does not provide distributed leases, high availability or cross-replica scheduling. Keep one server and one persistent volume. Scale remote workspace capacity independently; do not scale the server Deployment to obtain more control-plane throughput.
 

@@ -2,216 +2,110 @@
 
 # De Vloer for VS Code
 
-Direct agent crews from your editor. The checkout, tool execution and model calls run where the session is placed, a container on the workbench host or a pod in the cluster, while you inspect progress, make decisions and review evidence in VS Code.
+Start agent work, respond to questions and review results from your editor. A Vloer workbench prepares the workspace and runs the harness; that workbench can be on your machine or on a remote host. The extension connects to its authenticated API.
 
-This is the **implemented v0.3 desktop extension** for the current De Vloer API. The wider product design, connector roadmap and future IDE experience are documented in [the parent repository](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/design). Proposed capabilities there are not automatically extension features.
+The [product designs](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/PRODUCT-DESIGN.md) include proposals beyond the implemented extension. This guide describes the current client.
 
 ## Install
 
-Search for **De Vloer** in the Extensions view, or install it by identifier:
+Download the VSIX and its matching `.sha256` file from a completed [Forgejo release](https://forgejo.webgrip.dev/webgrip/de-vloer/releases). In the download directory, run `shasum -a 256 -c` with that checksum filename and confirm the VSIX reports **OK**. Then choose **Extensions → … → Install from VSIX** and select that file. Use the filenames attached to your chosen release; a release page without the assets is not ready for this installation path.
+
+[Open VSX](https://open-vsx.org/extension/webgrip/de-vloer) is the preferred registry publication target. Availability depends on successful publication for the chosen version. Marketplace distribution remains conditional; do not assume that searching by identifier in every editor will find the extension. The [release guide](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/operations/release.md#extension-distribution) explains those conditions.
+
+A sideloaded VSIX does not receive registry updates automatically. Use VS Code 1.99 or later. The extension runs in the editor's Node extension host and does not require provider keys, a harness or Kubernetes tools on the client machine. A local workbench has its own runtime requirements.
+
+## Try the local demonstration
+
+With Node 24 and Git available through the repository's tool configuration, run this from the repository root:
 
 ```sh
-code --install-extension webgrip.de-vloer
+mise exec -- npm run demo
 ```
 
-Stable releases go to both the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=webgrip.de-vloer) and the [Open VSX Registry](https://open-vsx.org/extension/webgrip/de-vloer), which is what VSCodium, Cursor, Windsurf, code-server, Gitpod and Theia install from. Release candidates go to Open VSX only, because the Marketplace accepts no version carrying a `-rc` suffix.
+1. Open the **De Vloer** activity bar and run **Vloer: Connect to Workbench**. Enter `http://127.0.0.1:4080`; demo mode supplies its identified demonstration user.
+2. Expand **Linked Tasks → Demo tasks**, open the fixture task and inspect its preview.
+3. Choose **Set up session**, select a crew, runtime and budget, then confirm **Import task**. The wizard supports going back before confirmation.
+4. Choose **Start remote crew** in the queued session. This command name also controls work on a local workbench.
+5. Inspect **Checks**, **Changes** and the final review, then download the Git bundle, patch or manifest from **Brief**.
 
-Every release also attaches its VSIX and a SHA-256 checksum to the [Forgejo release](https://forgejo.webgrip.dev/webgrip/de-vloer/releases). Verify and sideload it with **Extensions → … → Install from VSIX** when you would rather not install from a registry:
+The demo runs a fixed repository fixture and real checks without AI calls or Ploeg. An arbitrary objective in demo mode does not turn the fixture into a live coding agent. **New Remote Session** creates an ad hoc session; live work requires a configured live runtime. See the [demo guide](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/operations/demo.md).
 
-```sh
-shasum -a 256 -c de-vloer-0.3.0.vsix.sha256
-code --install-extension de-vloer-0.3.0.vsix
-```
+## Connect and sign in
 
-A sideloaded VSIX does not auto-update.
+Run **Vloer: Connect to Workbench** with the deployed HTTPS origin. When configured, **Sign in with <provider>** opens the workbench's browser sign-in with a one-time code. The editor then acts as the same person. Local-account login is also supported.
 
-## Start in five minutes
+The returned session cookie stays in VS Code SecretStorage, scoped to that origin. There are no password or API-key settings. The extension runs in the local UI host even in a Remote SSH window, so the workbench must be reachable from your machine. HTTPS is required except for loopback development. Use an origin at `/`; reverse-proxy subpaths and browser-only SSO interception are unsupported.
 
-Requirements: Node 24 and Git for the server/demo; VS Code 1.99 or later for the extension. The extension uses the editor's Node extension host and has no runtime npm dependencies. It does not require local OpenCode, Claude Code, Kubernetes tools or provider keys.
+The server enforces identity and session ownership. Viewers inspect visible sessions, operators change their own sessions, and administrators can access all sessions. Changing the connection invalidates pending actions so they cannot be submitted to the wrong workbench.
 
-Run the demo server in the repository root:
+## Work and review
 
-```sh
-npm run demo
-```
-
-Open the **De Vloer** activity bar, run **Vloer: Connect to Workbench**, and enter `http://127.0.0.1:4080`. Demo mode supplies its clearly identified demonstration user automatically. Expand **Linked Tasks → Demo tasks**, select the fixture task, inspect its read-only preview, and choose **Set up session**. Select a crew, runtime and budget (each step has a back button), then confirm **Import task**. Choose **Start remote crew** in the queued session and watch it live. Read the baseline failure and passing verification under **Checks**, the per-file patch under **Changes**, and the reviewer's findings in the crew strip, then download the captured Git bundle, binary patch or manifest. **New Remote Session** remains available for an ad hoc objective. The **Get Started with De Vloer** walkthrough covers the same path.
-
-The demo runs a fixed, real test fixture with no AI calls. An arbitrary objective in demo mode does not turn it into a live coding agent.
-
-## Connect to the team server
-
-When the workbench has single sign-on, connecting offers "Sign in with <provider>" first. The extension opens your browser on the workbench's own sign-in with a one-time code and collects its session once you have signed in, so the editor acts as the same person as the browser. The local account remains as a second choice.
-
-
-Run **Vloer: Connect to Workbench** and enter the deployed HTTPS origin, such as `https://vloer.example.org`. Sign in using your Vloer account when prompted. The password is used only for that login; the returned opaque session cookie is stored in VS Code SecretStorage, scoped to the server origin. There are no password or API-key settings.
-
-The extension runs in the local UI extension host, including in a Remote SSH window. The configured server must therefore be reachable from the laptop. HTTPS is mandatory except for loopback development. Certificate verification remains enabled. The current API expects an origin at `/`; reverse-proxy subpaths and browser-only SSO interception are not supported by this release.
-
-The server still enforces account roles and session ownership. v0.2 has no shared-team invitation or delegation API. A viewer can inspect its visible sessions; operators mutate their own sessions; administrators can access all sessions. Future OIDC/device login is a separate server and extension feature.
-
-## The working surface
-
-| Surface | Implemented behavior |
+| Surface | What to use it for |
 | --- | --- |
-| Sessions tree | Groups attention, active, ready and historical work; items show repository, active role, observed spend and age, and expand into pending decisions, crew roles, retained evidence, the review candidate and the imported task. Crew roles are labelled **implementation**, **analysis** (a read role that is not the last run) or **independent review** (the final read role); transcripts carry their own icon. The session tooltip states the approval mode and, while running, the spend observed at the gateway. Inline actions start, resume, pause or open the decision for the current state |
-| Activity bar and status bar | The view badge counts sessions needing attention. The status bar turns amber with the number of waiting decisions and opens the oldest one; otherwise it shows running work |
-| Notifications | New decisions, failures, interruptions and sessions ready for human review, each with a direct action. Streamed tokens and tool completions never notify. `vloer.notifications` selects all, decisions and failures only, or none |
-| Linked Tasks tree | Browse registered Forgejo, GitHub, GitLab, ClickUp and Vikunja sources; inspect task snapshots, open the original task in its tracker, and explicitly import an open task |
-| Session panel | Leads with one sentence stating the situation and the next permitted action; only the final read role counts as the reviewer. Crew strip with elapsed time, verdicts and findings rendered as safe Markdown. Tabs: **Brief** (objective, imported task, candidate, handoff and collapsible **transcripts** rendered as Markdown), **Changes** (per-file list with added and removed counts), **Checks** (passed, failed or expected failure per artifact), **Activity** and **Gateway** |
-| Activity | Chronological and filterable. Streamed text coalesces per part; tool cards collapse per `partId` so the latest state wins, and show the tool's title or input, folded input and output, and any error text. A `run.started` event renders as an expandable **brief** card with the objective, role instruction, operator notes, prior work, evidence supplied and guidance, the model and the prompt digest. `run.finished` shows the role and verdict rather than repeating the summary. Assistant text is rendered through the same escape-first Markdown renderer as findings |
-| Gateway | The gateway host, the providers and endpoints that answered, request and refusal counts, attributed cost and router savings, then one row per request: time, role, answered-by model/provider/host/geo, route group, tier and cause, tokens, cost, latency and first-token time, and flags for refused, retries, fallback, cache hits, cached tokens, guardrails and outside-policy answers, with the error and harness when recorded |
-| Approval | The side column states whether tool use asks you or is approved automatically. While a session on a `docker` or `kubernetes` placement is active, **Approve automatically** and **Ask me again** switch the mode through `POST /api/sessions/:id/approval`; sessions on the local backend always ask. Questions from the crew wait for you either way |
-| Decisions | Permission and question cards inline at the top of the panel. Scope is read from the adapter payload; **Allow once** is prominent, **Reject** equally reachable, and a broader grant appears only when patterns are declared. Questions keep options, multiple selection and custom answers, and show a confirmation before sending. Nothing is approved by navigation or by Enter in the composer |
-| Live updates | Open panels read the server event stream from the extension host and refetch the session snapshot on each burst. Polling remains the fallback. The footer states live, polling or disconnected with the last observed time. `vloer.liveUpdates` turns the stream off |
-| Session controls | Explicit start, pause, resume and cancel; cancellation requires a confirmation and does not create replacement work |
-| Evidence | Stable `vloer-evidence:` documents: diffs open with diff highlighting at the chosen file, checks as logs, summaries as Markdown. Reopening reuses the tab |
-| Review candidate | Download retained Git bundle, binary patch or manifest to an explicit local destination; bundle and patch digests are checked before saving |
-| Instructions | Composer with four delivery states: draft on this device, sending, saved for the next execution, delivery unknown. **Pause the active run first** pauses before saving so the next execution starts with the instruction |
-| Budget | Authorized, observed and reserved amounts with settlement status. While a session runs and the gateway's attribution exceeds the settled figure, the card shows that amount labelled **observed at the gateway**, lists usage per model or route group, and draws the cumulative cost curve against the ceiling with policy violations marked. Administrators authorize more from the panel or the tree |
-| Guided creation | New session and task import run in one multi-step flow with a back button, retained draft, budget presets and a final confirmation of destination, repository, crew, runtime and authorization. When the chosen or default placement is `docker` or `kubernetes`, **New Remote Session** adds an **Approve tool use automatically** step; the confirmation states the resulting approval mode |
-| Linked accounts | **Vloer: Linked Accounts** reads `/api/links` and offers **Link GitLab** (opens the authorization URL the workbench returns in your external browser) or **Unlink GitLab** after a confirmation. Tokens stay on the workbench; the extension never sees them |
-| Editor context | Sends a chosen selection or current text file only after a preview and explicit destination confirmation |
-| Connection states | Shows stale or offline state, disables panel mutations while disconnected, clears expired credentials and exposes reconnection. Panels are restored after a window reload |
-| Execution failures | Displays the server's safe diagnosis, next action, recorded cause and uncertain submission state; a `policy_violation` is labelled **Gateway policy**. Retains blocker compatibility with older servers |
+| Sessions tree | Find active work, pending decisions, queued sessions and history. Expand a session for its crew, evidence and source task |
+| Brief | Read the objective, imported snapshot, retained transcripts, review candidate and handoff |
+| Changes | Inspect captured patches by file |
+| Checks | Read recorded check output and distinguish passing, failing and expected fixture failures |
+| Activity | Inspect durable events, tool input/output and the brief supplied to each role |
+| Gateway | Inspect attributed model requests, routing, cost and errors; open configured Grafana links |
+| Ploeg tree | Browse allowed teams and bounded work snapshots, then open workbench details for shifts, runs and accounting |
 
-The panel keeps at most 2,000 recent events in memory and displays the latest 300. **Open complete history** fetches the server's retained history. Cursor values are global event IDs; gaps within one session are normal. Session polling is configurable from two to 60 seconds and occurs while either tree or a session panel is visible. Task pages load when you expand a source; **Refresh Linked Tasks** explicitly reloads them, avoiding a background polling loop against every tracker. Hiding or closing VS Code does not stop remote work.
+The crew strip distinguishes implementation, analysis and the final independent review. Earlier read roles supply analysis. Writing crews require an explicit final approval. A completed session awaits the person's review; accept or reject it from the toolbar or **Record Review** command. Rejection requires a reason, and the decision records the person who made it.
 
-No API mutation is retried automatically. If a request loses its response, the composer reports **Delivery unknown** and keeps the draft; refresh the session before repeating the action, because delivery may have succeeded even when the client could not confirm it. Budgets display **observed** spend and its settlement status, never invented real-time exactness.
+Permission and question cards wait for an explicit answer. **Allow once** grants the displayed request; broader choices appear only for declared patterns. Container and Kubernetes sessions can switch between **Approve automatically** and **Ask me again** while active. Local-backend sessions always ask, and questions require an answer in either mode.
 
-## Link your task systems
+Start, pause, resume and cancel follow the server's permitted transitions. Cancellation does not create replacement work. An instruction is saved for the next execution; **Pause the active run first** pauses before saving it. The composer distinguishes a local draft, sending, saved and delivery unknown.
 
-Configure connections once on the workbench server. The same sources appear in the browser and the extension; no tracker token is entered in VS Code. A source selects its provider, API root, native project/repository/list ID, registered code repository, credential environment variable and explicit execution owner. The server example `config/task-sources.example.json` and parent task-connection guide describe each provider.
+No API mutation is retried automatically. If a response is lost, refresh before repeating the action: the server may have accepted it. Shared execution also has stricter recovery and budget rules than standalone mode. In particular, the current shared API does not support the standalone additional-budget operation. See the [HTTP contract](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/contracts/api.md).
 
-In the **Linked Tasks** view, expand a source and select a task. **Vloer: Browse Linked Tasks** also supports filtering a page, pagination and opening a native task ID directly. GitHub, Forgejo and GitLab connections read issues. ClickUp connections read a configured home list; Vikunja connections read a configured project. Task content is always opened as inert plain text.
+The spending card distinguishes authorization, observations, reservations and settlement. Unknown spend is not zero. Gateway data can arrive late and cannot prove an exact ceiling for requests already in flight.
 
-Import uses a deliberate sequence:
+## Import a linked task
 
-1. Inspect the fetched task snapshot and mapped repository.
-2. Choose a registered crew, the model, the placement and the spending authorization, then review the summary.
-3. Confirm the destination workbench, repository and task revision.
-4. Start the crew from the review step, or later from the session.
+An administrator configures sources on the workbench. Registered Forgejo, GitHub, GitLab, ClickUp and Vikunja sources appear in both clients. Tracker credentials stay on the server. Personal GitLab account linking is available through **Vloer: Linked Accounts**; it does not automatically register a task source. Configuration and scope limits are in the [task connection guide](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/operations/task-connections.md).
 
-If the source changes after preview, the server rejects the stale revision. **Reload task** reopens its current snapshot for another explicit review. Repeating an import of the same revision reopens the existing session; it does not create replacement paid work. The server also blocks a second active session for an already active task revision lineage.
+Open a task's inert text preview, inspect its mapped repository, choose the crew and authorization, then confirm the workbench and task revision. A stale revision requires a fresh preview. Repeating the same import reopens its existing session; it does not create another paid attempt. Import prepares queued work; Start begins execution.
 
-Sources owned by Ploeg remain available for inspection, with interactive import blocked. Import does not claim, assign, close or update a tracker task. Repository routing comes from the administrator's source mapping. A link in a task description cannot select another repository or change its execution owner.
+Standalone import requires an interactive source and repository. In shared mode, registered Vikunja and ClickUp targets can bind to the existing Ploeg Work Item, which is claimed on Start. Missing or unsupported bindings remain unavailable for import. Import itself does not mutate the tracker. Source text cannot select another repository or change execution authority.
 
-## Bring back a complete review candidate
+## Bring back evidence
 
-The **Evidence** tab shows **Preparing review** while the server captures the final repository state. When available, **Download Git bundle**, **Download patch** and **Download manifest** open a local save dialog. **Vloer: Download Review Candidate** offers the same choices from the Command Palette.
+The **Brief** tab shows the review candidate when capture is available. **Download Git bundle**, **Download patch** and **Download manifest** each ask for a local destination. **Vloer: Download Review Candidate** offers the same choices.
 
-A Git bundle retains the exported objects needed for a separate review checkout, including binary content, file modes and deletions. The binary patch describes the captured changes against the recorded base. The manifest records the capture's revision and export metadata. These files are evidence of the captured state; an export alone does not certify independent trusted verification or approval to publish.
+The bundle preserves exported Git objects, including binary content, modes and deletions. The patch describes changes against the recorded base; the manifest identifies the captured state. An export alone does not certify independent verification or permission to publish.
 
-Downloads are authenticated, capped at 128 MiB, refuse redirects, and verify the recorded bundle/patch digest before saving. Interrupted transfers do not leave a partial destination file. Existing local files are kept intact; choose a new filename. The extension does not automatically execute, apply, commit, push or merge downloaded content.
+Downloads authenticate to the workbench, refuse redirects, enforce a size limit and verify bundle/patch digests before saving. Existing destination files are preserved. An unavailable capture keeps its explanation visible. The extension does not execute, apply or merge downloaded changes automatically.
 
-If capture is unavailable, the panel displays the server's explanation and keeps the other evidence visible. An unavailable complete export is never presented as a successful candidate.
+**Open Evidence** opens retained patches, checks and summaries as read-only documents. A patch view is not a live remote filesystem or native comparison of complete base/head files.
 
-## Send local context deliberately
+## Send editor context
 
-Use the editor context menu **Vloer: Send Selection to Remote Session…**, or run **Vloer: Send Current File to Remote Session…** from the Command Palette.
+Use **Vloer: Send Selection to Remote Session…** or **Vloer: Send Current File to Remote Session…**. Select the destination, inspect the preview and confirm. The preview names the workbench, session, repository, file, range and unsaved-buffer state.
 
-1. Select the remote session.
-2. Inspect the read-only preview. It names the destination server, session, configured repository, source path, line range and whether the editor buffer is unsaved.
-3. Confirm **Send to session**. The selected text becomes a durable operator instruction.
+Each attachment is limited to 12,000 characters and becomes a durable instruction. It does not upload the repository or synchronize the checkout. Workspace Trust is required. Review the content before sending; this is not a channel for credentials.
 
-Each attachment is limited to 12,000 characters; larger files require a smaller selection. An attachment never uploads the repository or silently applies local changes to the remote checkout. Workspace Trust is required for this action. Changing the connection or login while a pending action is open invalidates it; start again on the intended destination.
+## Connection and privacy
 
-The extension never applies a returned patch to your local checkout automatically. A retained unified patch is shown with diff syntax highlighting. Native side-by-side file comparison requires future base/head artifact content support; calling the current view a live remote filesystem would be inaccurate.
+Open panels consume the server event stream, with polling as a fallback. The footer distinguishes live, polling and disconnected states. Disconnection disables panel mutations; closing the editor does not stop remote work. **Open complete history** fetches retained events beyond the bounded panel buffer. The Ploeg tree uses refreshed snapshots rather than a lossless subscription.
 
-## Commands
+Notifications cover decisions, failures and results ready for review. Configure `vloer.notifications`, `vloer.liveUpdates` and the polling interval in settings. No global keyboard shortcuts are registered; the composer supports Ctrl+Enter or Cmd+Enter.
 
-All commands use the **Vloer:** prefix in the Command Palette.
+Cookies remain in the extension host. The webview receives public session data through a narrow message protocol, never login secrets, inference keys or Kubernetes credentials. Its scripts and styles are packaged locally; the content security policy blocks network connections and remote code. The server origin is application-scoped, so workspace settings cannot redirect it. There is no cross-origin credential forwarding or disabled certificate verification.
 
-| Command | Use |
-| --- | --- |
-| Connect to Workbench / Sign Out | Manage the current server session |
-| Find Session | Search visible sessions by title, state, repository, imported task or ID |
-| Review Next Decision / Review Decision | Open the oldest waiting decision, or a specific one, inside its session |
-| Browse Linked Tasks / Refresh Linked Tasks | Browse connected task systems and explicitly refresh their pages |
-| Import Linked Task into Session | Preview a pinned task revision, configure a crew and create queued work |
-| Open Imported Task Snapshot / Open Original Task in Tracker | Inspect the source snapshot used by a session, or open its HTTPS tracker link |
-| Download Review Candidate | Save a Git bundle, binary patch or manifest to an explicit local file |
-| New Remote Session | Guided repository, crew, runtime, title, objective and authorization steps with a back button |
-| Open Session / Refresh Sessions | Inspect current durable server state |
-| Open Evidence | Open a retained diff, check log or summary as a read-only document |
-| Start / Pause / Resume / Cancel Session | Control deliberate remote execution |
-| Send Instruction to Session | Steer the next execution |
-| Authorize Additional Budget | Administrators add authorization within the deployment limit |
-| Set Tool Approval | Switch an active session on a container or pod between asking before each tool and approving automatically |
-| Linked Accounts | Link or unlink GitLab for the signed-in workbench account |
-| Send Selection / Send Current File to Remote Session… | Explicitly share bounded editor context |
-| Open Durable Session History | Open retained JSON events |
-| Open Web Dashboard / Copy Session Link | Open the same session in the browser workbench, or copy its link |
-
-The session composer supports **Ctrl+Enter / Cmd+Enter**. Tab navigation follows the usual arrow, Home and End behavior. Colors use VS Code theme variables, with visible focus outlines and narrow-editor layouts. No global keyboard shortcuts are registered.
+The extension implements no analytics or background repository uploads. Drafts can persist in local webview state; saved instructions and evidence follow the workbench's retention policy.
 
 ## Develop and validate
 
-Open this directory as a separate VS Code workspace:
+Open this directory in VS Code, install its dependencies, then use the included **Run De Vloer Extension** F5 configuration. Keep the local demo server available. From the repository root:
 
 ```sh
-code extensions/vscode
+mise exec -- npm ci --prefix extensions/vscode
+mise exec -- npm run extension:build
+mise exec -- npm run extension:test
+mise exec -- npm run extension:package
+mise exec -- npm run extension:verify
 ```
 
-Run `npm ci`, then press **F5** using the included **Run De Vloer Extension** launch configuration. It compiles the extension and opens the Extension Development Host. Keep the demo server running from the repository root.
+[Client integration tests](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/extensions/vscode/test/client.test.ts) exercise the actual server with local fixtures. [Webview tests](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/extensions/vscode/test/webview.test.ts) inspect the shipped panel script; other tests cover status, authorization and account flows. These checks do not use paid providers. Node tests and browser rendering do not substitute for an actual Extension Development Host check. The [validation matrix](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/validation.md) records what has been exercised.
 
-From this directory:
-
-```sh
-npm run compile
-npm test
-npm run package
-```
-
-The thirteen client tests exercise isolated instances of the actual De Vloer server, plus controlled upstream and transport fixtures. They cover real demonstration checks and candidate downloads; idempotent task import; authenticated Vloer-to-Vikunja ingestion with a local upstream fixture; stale revision and Ploeg-lane rejection; lifecycle controls; live-cookie login/expiry/logout; operator isolation; origin validation; path rejection; redirect/oversize download safety; the live event stream with cursor replay and abort; and administrator budget authorization. No provider credentials or live model calls are used.
-
-The remaining tests run without a browser or server. `test/webview.test.ts` loads the shipped `media/session.js` into a `vm` context with a minimal DOM stub and checks that Markdown keeps hostile text inert, that tool events collapse per `partId` with the latest state winning, the brief card, the gateway tab, the budget card's observed spend and cost curve, the approval card and transcript sections. `test/status.test.ts` covers the run labels, the final-read-role reviewer rule and the gateway policy label. `test/approval.test.ts` and `test/accounts.test.ts` drive the approval and linked-account flows against fake clients and a fake HTTP server, asserting the exact route, method, headers and payload.
-
-For the browser-based webview check, first install the root repository's development dependencies and Playwright Chromium:
-
-```sh
-cd ../..
-npm ci
-npx playwright install chromium
-cd extensions/vscode
-npm run test:webview
-```
-
-`VLOER_CHROMIUM_BIN` can select an already installed Chromium binary. This check renders real demo output through the shipped webview script and tests the situation sentence, Markdown findings, the per-file changes list, check outcomes, activity filters and folded tool output, inline permission and question decisions with confirmation, composer delivery states with pause-first, disconnect and reconnect, hostile text kept inert, failure guidance with its recorded cause, the administrator budget form, and desktop and narrow layouts. It **does not run the VS Code Extension Host**. Screenshots go to the ignored `.screenshots/` directory.
-
-Before wider distribution, qualify installation, native commands, SecretStorage behavior and accessibility in an actual VS Code Extension Development Host on the supported desktop operating systems. This build environment did not contain a working VS Code desktop installation, so that qualification is not claimed. Real cluster/provider qualification is governed by the parent repository's validation document.
-
-## Boundaries and privacy
-
-- The extension is a thin client for the existing authenticated API. Agents, model routing, budgets and workspaces remain server responsibilities.
-- Cookies stay in the extension host. The webview receives public session data and uses a narrow message protocol; it never receives passwords, cookies, LiteLLM keys or Kubernetes credentials.
-- The server URL is an application-scoped setting. Workspace settings cannot redirect the operator's deployment.
-- API redirects are rejected. Requests include the required mutation header and matching Origin. There is no cross-origin credential forwarding or disabled TLS verification.
-- Webview scripts and styles are packaged locally. Its CSP denies network connections and remote code; server content is constructed as DOM text nodes. The Markdown renderer emits headings, lists, code, tables and emphasis only; links are shown as text with their target, never as navigable anchors.
-- The event stream is read in the extension host with the stored cookie; the webview never opens a connection.
-- No analytics, advertising, external font downloads or background repository uploads are implemented. Draft instructions can be retained in VS Code's local webview state; server-side instructions, artifacts and history follow the workbench's retention policy.
-- Current-file context is an explicit text instruction, not a safe mechanism for sharing secrets. Review the exact preview before sending it.
-
-## API and design sources
-
-Reviewed against official sources on 2026-09-09:
-
-- [VS Code Tree View API](https://code.visualstudio.com/api/extension-guides/tree-view): native hierarchy, commands and view contributions.
-- [VS Code Views UX guidance](https://code.visualstudio.com/api/ux-guidelines/views): familiar workbench navigation and restrained use of custom views.
-- [VS Code Webview API](https://code.visualstudio.com/api/extension-guides/webview): local resource roots, restrictive CSP, message passing, accessible theming and lifecycle handling.
-- [VS Code SecretStorage API](https://code.visualstudio.com/api/references/vscode-api#SecretStorage): platform-specific encrypted secret storage, independent of the workspace and not synchronized across machines.
-- [VS Code Extension Host](https://code.visualstudio.com/api/advanced-topics/extension-host): the `ui` extension placement used by this remote control client.
-- [Testing extensions](https://code.visualstudio.com/api/working-with-extensions/testing-extension): actual Extension Development Host testing is distinct from Node and browser tests.
-- [Publishing extensions](https://code.visualstudio.com/api/working-with-extensions/publishing-extension): VSIX packaging and distribution.
-
-The executable server contract is in the parent repository at `src/http.ts` and `src/engine.ts`; `docs/contracts/api.md` describes that contract. The extension uses the server task-source, task-import and retained-candidate APIs. It adds no ticket creation, tracker write-back, remote filesystem mounting, Ploeg dispatch or automatic merge authority.
-
-
-The Gateway tab links each request and the whole session to the estate's Grafana when the workbench names one: traces and logs for the request's window, and the spend, reliability and FinOps dashboards.
-
-
-A completed session reads "Awaiting your review" until you accept or reject it from the panel toolbar or the **Record Review** command; a rejection needs a reason, and both are recorded with your name.
-
-## Ploeg work
-
-The Ploeg tree uses the same signed-in workbench identity to list allowed teams, attention/running/queue lanes and paginated work. Selecting an item opens its workbench detail with shifts, runs, cost uncertainty and links to existing interactive sessions. Refresh reads a new bounded snapshot; it is not a lossless subscription. The editor holds no Ploeg service credential. Configure access with [the unified workbench guide](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/operations/unified-baseline.md).
+For API maintenance, use the official [extension host](https://code.visualstudio.com/api/advanced-topics/extension-host), [webview](https://code.visualstudio.com/api/extension-guides/webview), [SecretStorage](https://code.visualstudio.com/api/references/vscode-api#SecretStorage) and [extension testing](https://code.visualstudio.com/api/working-with-extensions/testing-extension) documentation.

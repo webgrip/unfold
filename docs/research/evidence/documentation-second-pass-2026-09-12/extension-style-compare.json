@@ -1,0 +1,216 @@
+[
+  {
+    "file": "extensions/vscode/README.md",
+    "lang": "en",
+    "markdown": true,
+    "metrics": {
+      "words": 1705,
+      "em_dashes_per_500_words": 0.0,
+      "spaced_en_dashes_per_500_words": 0.0,
+      "sentence_length_variation": 0.71,
+      "paragraph_length_variation": 0.69,
+      "sentences": 120,
+      "paragraphs": 44,
+      "prose_paragraphs": 32,
+      "headings": 10,
+      "bullets": 5,
+      "bold_spans": 21,
+      "sentence_length_mean": 14.2,
+      "long_sentences_per_1000_words": 22.3,
+      "em_dashes_per_1000_words": 0.0,
+      "type_token_ratio": 0.38
+    },
+    "findings": [
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 5,
+        "column": 131,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "line": 11,
+        "column": 249,
+        "match": "**OK**. Then choose **Extensions → … → Install from VSIX**",
+        "hint": "Boldface applied mechanically instead of marking one real emphasis point: every term or acronym in a sentence, a bolded key phrase in every ",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 15,
+        "column": 188,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "line": 25,
+        "column": 13,
+        "match": "**De Vloer** activity bar and run **Vloer: Connect to Workbench**",
+        "hint": "Boldface applied mechanically instead of marking one real emphasis point: every term or acronym in a sentence, a bolded key phrase in every ",
+        "kind": "pattern"
+      },
+      {
+        "id": "unicode-arrows",
+        "category": "punctuation-format",
+        "severity": "context",
+        "line": 26,
+        "column": 24,
+        "match": "s → D",
+        "hint": "Typographic arrows (→, ⇒) or their ASCII forms (->, =>) used in running prose where a writer would say 'leads to', 'then' or write a sentenc",
+        "kind": "pattern"
+      },
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "line": 27,
+        "column": 11,
+        "match": "**Set up session**, select a crew, runtime and budget, then confirm **Import task**",
+        "hint": "Boldface applied mechanically instead of marking one real emphasis point: every term or acronym in a sentence, a bolded key phrase in every ",
+        "kind": "pattern"
+      },
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "line": 29,
+        "column": 12,
+        "match": "**Checks**, **Changes**",
+        "hint": "Boldface applied mechanically instead of marking one real emphasis point: every term or acronym in a sentence, a bolded key phrase in every ",
+        "kind": "pattern"
+      },
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "line": 35,
+        "column": 5,
+        "match": "**Vloer: Connect to Workbench** with the deployed HTTPS origin. When configured, **Sign in with <provider>**",
+        "hint": "Boldface applied mechanically instead of marking one real emphasis point: every term or acronym in a sentence, a bolded key phrase in every ",
+        "kind": "pattern"
+      },
+      {
+        "id": "colon-reveal",
+        "category": "rhetoric",
+        "severity": "cluster",
+        "line": 35,
+        "column": 1,
+        "match": "Run **Vloer: Connect to Workbench** with the deployed HTTPS origin.",
+        "hint": "A setup clause, a colon, then a tidy payload in lower case: the colon is used for suspense rather than to introduce a list, a label or a quo",
+        "kind": "pattern"
+      },
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "line": 55,
+        "column": 72,
+        "match": "** grants the displayed request; broader choices appear only for declared patterns. Container and Kubernetes sessions can switch between **Approve automatically** and **",
+        "hint": "Boldface applied mechanically instead of marking one real emphasis point: every term or acronym in a sentence, a bolded key phrase in every ",
+        "kind": "pattern"
+      },
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "line": 73,
+        "column": 5,
+        "match": "**Brief** tab shows the review candidate when capture is available. **Download Git bundle**",
+        "hint": "Boldface applied mechanically instead of marking one real emphasis point: every term or acronym in a sentence, a bolded key phrase in every ",
+        "kind": "pattern"
+      },
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "line": 73,
+        "column": 98,
+        "match": "**Download patch** and **Download manifest**",
+        "hint": "Boldface applied mechanically instead of marking one real emphasis point: every term or acronym in a sentence, a bolded key phrase in every ",
+        "kind": "pattern"
+      },
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "line": 73,
+        "column": 5,
+        "match": "**Brief** tab shows the review candidate when capture is available. **Download Git bundle**, **Download patch** and **Download manifest** each ask for a local destination. ",
+        "hint": "Boldface applied mechanically instead of marking one real emphasis point: every term or acronym in a sentence, a bolded key phrase in every ",
+        "kind": "pattern"
+      },
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "line": 83,
+        "column": 5,
+        "match": "**Vloer: Send Selection to Remote Session…** or **Vloer: Send Current File to Remote Session…**",
+        "hint": "Boldface applied mechanically instead of marking one real emphasis point: every term or acronym in a sentence, a bolded key phrase in every ",
+        "kind": "pattern"
+      }
+    ],
+    "structure": [
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "kind": "structure",
+        "line": 1,
+        "column": 1,
+        "match": "21 bold spans in 1705 words of prose",
+        "hint": "21 bold spans in 1705 words of prose",
+        "evidence": {
+          "bold_spans": 21,
+          "words": 1705
+        }
+      }
+    ],
+    "compare": {
+      "before": "/tmp/ploeg-vloer-second-pass.rwW0Ip/before/de-vloer/extensions/vscode/README.md",
+      "after": "extensions/vscode/README.md",
+      "change_rate": 0.717,
+      "words_before": 3489,
+      "words_after": 1520,
+      "words_dropped_rate": 0.564,
+      "numbers_injected": [
+        "127.0.0.1:4080",
+        "256"
+      ],
+      "numbers_dropped": [
+        "0.2",
+        "0.3",
+        "127.0.0.1:4080.",
+        "128",
+        "2,000",
+        "2026-09-09:",
+        "300.",
+        "60"
+      ],
+      "rhythm": {
+        "variation_before": 1.1,
+        "variation_after": 0.71,
+        "long_sentences_before": 24.8,
+        "long_sentences_after": 22.3,
+        "flattened": false
+      },
+      "verdict": "abort",
+      "reasons": [
+        "change rate 0.717 over 0.5",
+        "numbers injected: ['127.0.0.1:4080', '256']"
+      ]
+    }
+  }
+]
