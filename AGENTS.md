@@ -1,7 +1,7 @@
 # AGENTS.md — webgrip/ploeg
 
-Ploeg is the dark factory's dispatch plane: a Vikunja assignment webhook becomes a leased,
-audited, budgeted agent run that ends in a Forgejo PR. Go plus a Helm chart.
+Ploeg authorizes and coordinates tracker-originated and operator-admitted agent work.
+Read [the documentation index](docs/index.md) for current guides and published contracts.
 
 **Trunk is `development`**; `main` is a release-promotion stub. When automation opens your PR
 against `main`, a human retargets it at review. Commits use conventional types (`fix:`/`feat:`
@@ -30,9 +30,9 @@ migration.
 ## Before opening a PR
 
 Run the gates from [.forgejo/workflows/on_pull_request.yml](.forgejo/workflows/on_pull_request.yml)
-— Go build/vet/test plus `helm lint` and all three chart renderings — with the local toolchain,
-and put their output in the PR body. Tests fake external services with `net/http/httptest` and
-never need network; a bug fix lands with the regression test that fails against the old code.
+— Go build/vet/test plus `helm lint` and all four chart renderings — with the local toolchain,
+and put their output in the PR body. Tests fake external services with `net/http/httptest`; database and toolchain provisioning may
+need network access; a bug fix lands with the regression test that fails against the old code.
 
 **In the Ploeg worker sandbox, a gate you cannot run is CI's job — do not fight the network.**
 The sandbox has no registry egress: `docker pull` of any image (docker.io, ghcr.io, the in-house

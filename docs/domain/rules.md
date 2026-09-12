@@ -18,7 +18,7 @@ Publication requires an immutable Delivery Candidate, a matching trusted Verific
 ### R9
 *Context: Dispatch*
 
-Follow-Ups are routed to the Team owning the source branch and never gate other Teams' new work.
+Intended behavior — Follow-Ups are routed to the Team owning the source branch and never gate other Teams' new work.
 
 **Why:** Feedback loops must stay local — one team's red CI must not stall the whole factory.
 
@@ -42,7 +42,7 @@ Management credentials stay in the control plane. Inference Account authorizatio
 
 A Lease must be renewed on a fixed interval by the running Run. Tracker execution expiry enters the configured recovery policy; Operator Execution expiry interrupts work and preserves pending stop intent and unresolved Inference Account authorization.
 
-**Why:** Crash-safety must never depend on an agent behaving well at death — a crashed pod releases its item with no cleanup code running.
+**Why:** Controller recovery must work when an executor dies without cleanup, while preserving the applicable lane's stop intent and accounting holds.
 
 **Also applies to:** Run
 
@@ -82,7 +82,7 @@ A stuck Outcome carries a mandatory reason and transitions the Work Item to need
 ### R3
 *Context: Execution*
 
-Every Run ends with an Outcome Report; a container that exits without one is recorded as a failed Outcome by the Executor's watch.
+Every Run must retain a queryable outcome or recovery state. The runner submits an Outcome Report; controller expiry and reconciliation handle missing reports. Operator pause, cancel and uncertain external effects must not become automatic retries.
 
 **Why:** Audit completeness — no Run may vanish without a queryable terminal row.
 
@@ -102,7 +102,7 @@ Authoritative Ploeg execution state lives in Postgres and durable repository evi
 ### R8
 *Context: Harness*
 
-Credentials are delivered to an Agent Container out-of-band as mounted secrets, never inside a Task Spec.
+Credentials are delivered to an Agent Container through scoped runtime configuration outside the Task Spec. Only the credentials needed by that Run may be exposed.
 
 **Why:** Task Specs are logged, audited, and checkpointed; secrets in them would leak into every one of those stores.
 
@@ -144,9 +144,9 @@ Core semantics must never encode a provider-specific workaround; everything vend
 ### R18
 *Context: Dispatch*
 
-For work begun hands-on in De Vloer, creating a Work Item or Operator Execution requires that person to explicitly hand the work to agents through Ploeg. Starting hands-on work alone does not create these records. The chosen agent tool does not change this rule.
+An Operator Execution requires authenticated admission. Creating a queued Vloer session alone does not admit it; Start in shared mode does, including hands-on work. Standalone Vloer does not create these Ploeg records.
 
-**Why:** Using an assistant while coding and asking agents to take responsibility for work are different choices.
+**Why:** Admission follows the configured execution mode and explicit start, not whether a person is currently watching the work.
 
 **Also applies to:** Operator Execution
 
@@ -171,7 +171,7 @@ A Work Item is held by at most one Team at a time; a Lease is unique per Work It
 ### R5
 *Context: Dispatch*
 
-For unattended tracker work, Lease expiry or a failed Outcome re-queues the Work Item; after the retry threshold is reached without an Outcome, the item goes stale, and only a human or explicit policy leaves stale.
+Unattended tracker recovery has bounded retries. Infrastructure expiry and reported agent failure use separate counters and backoff rules; exhausted work requires intervention. Operator-owned work follows its own explicit lifecycle and never enters this automatic retry path.
 
 **Why:** Retrying is cheap once and ruinous forever — stale is the circuit breaker that stops burning tokens on repeatedly abandoned work.
 
@@ -180,7 +180,7 @@ For unattended tracker work, Lease expiry or a failed Outcome re-queues the Work
 ### R11
 *Context: Dispatch*
 
-A Work Item carries its own Work Target (forge, owner, repository, base branch), resolved at ingest and independent of the Team that claims it. A Team is a capability manifest and never names a repository. A Work Item without a resolved Work Target is not claimable, and the set of reachable Work Targets is closed and operator-declared.
+Intended target model — a Work Item carries its own Work Target (forge, owner, repository, base branch), resolved at ingest and independent of the Team that claims it. A Team is a capability manifest and never names a repository. A Work Item without a resolved Work Target is not claimable, and the set of reachable Work Targets is closed and operator-declared.
 
 **Why:** A Team is a crew, not a codebase. Binding them makes every capability change a repository migration and vice versa, leaves "two Teams on one repository" and "one Team across many repositories" both unrepresentable, and makes per-Run repo-scoped credentials impossible to express. The closed set keeps tracker content — untrusted input — from pointing a write-scoped credential at an arbitrary repository.
 

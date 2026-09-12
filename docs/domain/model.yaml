@@ -2,11 +2,14 @@ project: Ploeg
 description: >
   Ploeg schedules and runs work handed to agents, tracks progress and cost,
   and supports cooperation between agents. De Vloer is where people work on
-  tickets, give work to agents and review the results. The intended workflow
-  starts with a ticket in De Vloer. Starting hands-on work does not itself
-  give work to Ploeg. OpenCode and other agent tools are replaceable
-  implementation details. Trackers keep their work content and priorities.
-version: 0.4.0
+  tickets, give work to agents and review the results. Shared-mode Vloer Start
+  requests Ploeg admission; a manual-origin request need not have a tracker
+  ticket. Local Vloer work must remain usable without Ploeg. A common runner
+  remains a proposed implementation; it does not make Ploeg admission universal.
+  Trackers keep their work content and priorities. This vocabulary includes
+  intended domain rules; it is not a database or API field inventory. The
+  architecture and published contracts identify current implementation limits.
+version: 0.5.0
 
 contexts:
   - name: Dispatch
@@ -19,8 +22,8 @@ contexts:
       normalized events, write-backs. Everything vendor-specific lives here.
   - name: Execution
     description: >
-      How runs happen on Kubernetes: the executor, jobs, watches, security
-      posture. KEDA is the default implementation, not part of the language.
+      How admitted work executes, including Kubernetes workers and delegated
+      workbench runs. KEDA is one implementation, not part of the language.
   - name: Harness
     description: >
       The contract between Ploeg and an agent container: Task Spec in,
@@ -53,10 +56,10 @@ terms:
 
   - name: Operator Execution
     definition: >
-      A record of work a person explicitly hands to agents through De Vloer,
-      kept in Ploeg and linked to that person's session. Hands-on work in De Vloer alone
-      does not create one. It links one Work Item, Shift and Run and retains
-      its identity when a person steps in to supervise.
+      A Ploeg record admitted for an authenticated Operator Consumer and linked
+      to its session. In shared Vloer mode, Start requests admission even when
+      the person will steer the work live. It links one Work Item, Shift and
+      Run and retains its identity through changes in supervision.
     context: Dispatch
     see_also: [Work Item, Shift, Run, Operator Consumer, Inference Account]
 
@@ -184,8 +187,8 @@ terms:
     definition: >
       One execution of one Role against a Work Item, realized by an Executor
       as a Kubernetes Job or a delegated workbench execution. A Lease may accumulate several Runs (roles,
-      retries, resumes); each Run ends in an Outcome Report or is recorded as
-      failed by the Executor's watch. "Job" is reserved for the Kubernetes
+      retries, resumes). The runner reports its outcome; controller expiry and
+      reconciliation recover missing reports while preserving operator stop intent. "Job" is reserved for the Kubernetes
       object and is never a domain term.
     context: Execution
     avoid: [job (as a domain term)]
@@ -196,26 +199,29 @@ terms:
       The terminal result of a Run, one of: pr_opened, pr_updated,
       issue_updated, follow_up_created, stuck, failed, no_change_needed.
       A stuck Outcome carries a mandatory reason and moves the Work Item to
-      needs_human; a failed Outcome releases the Lease for retry.
+      needs_human on the tracker path. A failed Outcome follows the applicable
+      tracker or operator recovery policy; it does not universally authorize retry.
     context: Dispatch
     see_also: [Outcome Report, Run]
 
   - name: Checkpoint
     definition: >
       The small durable progress record (phase, branch, PR URL) a Run writes
-      via the report API. Resume means respawning with the last Checkpoint
-      injected; everything else is re-derived from git/forge state, which
-      stays the durable medium.
+      via the report API. The Task Spec can carry one, but the current unattended
+      worker does not inject the last stored Checkpoint automatically. Retained
+      repository changes and evidence support recovery; native harness state
+      is not a portable Checkpoint.
     context: Dispatch
     see_also: [Run, Task Spec]
 
   - name: Follow-Up
     definition: >
-      A Work Item created from a Forge Event (review submitted, check failed,
+      An intended Work Item created from a Forge Event (review submitted, check failed,
       merge-state dirty) rather than from an Assignment. It references its
       source PR and Work Item, carries that Work Item's Work Target, is routed
       to the Team owning the source branch, and enters the lifecycle directly
-      at queued — there is no Tracker Item to mirror at creation time.
+      at queued. Current forge webhook ingestion records the event without
+      automatically creating this Work Item.
     context: Dispatch
     see_also: [Work Item, Forge Event, Team, Work Target]
 
@@ -311,10 +317,10 @@ terms:
 
   - name: Executor
     definition: >
-      The pluggable component that spawns, watches, and cancels Runs. Its
-      watch — not agent goodwill — records Job termination, feeding the lease
-      manager and audit log. The default implementation is a KEDA ScaledJob
-      per Team with the Postgres scaler; KEDA is a detail, not identity.
+      The component that performs admitted Runs and reports progress and outcomes.
+      Current unattended execution uses Kubernetes workers; Vloer performs delegated
+      operator execution. The controller recovers missing reports through expiry
+      and reconciliation, without a Kubernetes Job watcher.
     context: Execution
     see_also: [Run]
 
@@ -339,7 +345,7 @@ terms:
     definition: >
       The container a Run executes: a Harness plus its Adapter, invoked with a
       Task Spec and obligated to write an Outcome Report before exit.
-      Credentials arrive out-of-band as mounted secrets, never in the spec.
+      Credentials arrive through scoped runtime configuration, never in the spec.
     context: Harness
     see_also: [Run, Task Spec, Outcome Report]
 
@@ -355,8 +361,8 @@ terms:
   - name: Outcome Report
     definition: >
       The output contract of an Agent Container: Outcome, summary, links, and
-      optionally a new Checkpoint, written before exit. Exit without a report
-      is recorded as a failed Outcome by the Executor's watch.
+      optionally a new Checkpoint, written before exit. An absent report is not
+      a successful outcome; expiry and reconciliation record the recovery state.
     context: Harness
     see_also: [Task Spec, Outcome]
 
@@ -592,7 +598,7 @@ entities:
         description: The writing Run holding write access.
 
   - name: Run
-    description: One execution of one Role, realized as one Kubernetes Job.
+    description: One execution of one Role, realized as a Kubernetes Job or a delegated workbench execution.
     context: Execution
     attributes:
       - name: work_item_id
@@ -607,7 +613,7 @@ entities:
         required: true
       - name: job_name
         type: string
-        description: The Kubernetes Job realizing this Run.
+        description: The Kubernetes Job realizing this Run, when an executor uses one.
       - name: round
         type: int
         description: The Round this Run belongs to; Runs sharing a Round never observe each other.
@@ -625,7 +631,7 @@ entities:
         description: This Run's own liveness deadline. Not the Lease's — a reader has no Lease to expire.
       - name: outcome
         type: "enum(pr_opened, pr_updated, issue_updated, follow_up_created, stuck, failed, no_change_needed)"
-        description: Terminal result; failed when the container exits without a report.
+        description: Reported terminal result, or failure recorded by controller recovery when the applicable expiry rule fires.
       - name: started_at
         type: timestamp
       - name: finished_at
@@ -804,8 +810,8 @@ entities:
 
 rules:
   - id: R18
-    statement: For work begun hands-on in De Vloer, creating a Work Item or Operator Execution requires that person to explicitly hand the work to agents through Ploeg. Starting hands-on work alone does not create these records. The chosen agent tool does not change this rule.
-    rationale: Using an assistant while coding and asking agents to take responsibility for work are different choices.
+    statement: An Operator Execution requires authenticated admission. Creating a queued Vloer session alone does not admit it; Start in shared mode does, including hands-on work. Standalone Vloer does not create these Ploeg records.
+    rationale: Admission follows the configured execution mode and explicit start, not whether a person is currently watching the work.
     applies_to: [Work Item, Operator Execution]
     context: Dispatch
   - id: R19
@@ -846,12 +852,12 @@ rules:
 
   - id: R2
     statement: A Lease must be renewed on a fixed interval by the running Run. Tracker execution expiry enters the configured recovery policy; Operator Execution expiry interrupts work and preserves pending stop intent and unresolved Inference Account authorization.
-    rationale: Crash-safety must never depend on an agent behaving well at death — a crashed pod releases its item with no cleanup code running.
+    rationale: Controller recovery must work when an executor dies without cleanup, while preserving the applicable lane's stop intent and accounting holds.
     applies_to: [Lease, Run]
     context: Dispatch
 
   - id: R3
-    statement: Every Run ends with an Outcome Report; a container that exits without one is recorded as a failed Outcome by the Executor's watch.
+    statement: Every Run must retain a queryable outcome or recovery state. The runner submits an Outcome Report; controller expiry and reconciliation handle missing reports. Operator pause, cancel and uncertain external effects must not become automatic retries.
     rationale: Audit completeness — no Run may vanish without a queryable terminal row.
     applies_to: [Run, Outcome Report, Executor]
     context: Execution
@@ -863,7 +869,7 @@ rules:
     context: Dispatch
 
   - id: R5
-    statement: For unattended tracker work, Lease expiry or a failed Outcome re-queues the Work Item; after the retry threshold is reached without an Outcome, the item goes stale, and only a human or explicit policy leaves stale.
+    statement: Unattended tracker recovery has bounded retries. Infrastructure expiry and reported agent failure use separate counters and backoff rules; exhausted work requires intervention. Operator-owned work follows its own explicit lifecycle and never enters this automatic retry path.
     rationale: Retrying is cheap once and ruinous forever — stale is the circuit breaker that stops burning tokens on repeatedly abandoned work.
     applies_to: [Work Item, Lease]
     context: Dispatch
@@ -881,13 +887,13 @@ rules:
     context: Integration
 
   - id: R8
-    statement: Credentials are delivered to an Agent Container out-of-band as mounted secrets, never inside a Task Spec.
+    statement: Credentials are delivered to an Agent Container through scoped runtime configuration outside the Task Spec. Only the credentials needed by that Run may be exposed.
     rationale: Task Specs are logged, audited, and checkpointed; secrets in them would leak into every one of those stores.
     applies_to: [Task Spec, Agent Container]
     context: Harness
 
   - id: R9
-    statement: Follow-Ups are routed to the Team owning the source branch and never gate other Teams' new work.
+    statement: Intended behavior — Follow-Ups are routed to the Team owning the source branch and never gate other Teams' new work.
     rationale: Feedback loops must stay local — one team's red CI must not stall the whole factory.
     applies_to: [Follow-Up, Team]
     context: Dispatch
@@ -899,7 +905,7 @@ rules:
     context: Dispatch
 
   - id: R11
-    statement: A Work Item carries its own Work Target (forge, owner, repository, base branch), resolved at ingest and independent of the Team that claims it. A Team is a capability manifest and never names a repository. A Work Item without a resolved Work Target is not claimable, and the set of reachable Work Targets is closed and operator-declared.
+    statement: Intended target model — a Work Item carries its own Work Target (forge, owner, repository, base branch), resolved at ingest and independent of the Team that claims it. A Team is a capability manifest and never names a repository. A Work Item without a resolved Work Target is not claimable, and the set of reachable Work Targets is closed and operator-declared.
     rationale: A Team is a crew, not a codebase. Binding them makes every capability change a repository migration and vice versa, leaves "two Teams on one repository" and "one Team across many repositories" both unrepresentable, and makes per-Run repo-scoped credentials impossible to express. The closed set keeps tracker content — untrusted input — from pointing a write-scoped credential at an arbitrary repository.
     applies_to: [Work Item, Work Target, Team, Routing Rule]
     context: Dispatch
@@ -926,7 +932,7 @@ events:
   - name: WorkItemIngested
     description: A tracker webhook was mirrored into a new Work Item, recording the Scope it arrived in.
     entity: Work Item
-    triggers: Nothing until an Assignment arrives.
+    triggers: Eligible assignments are routed at ingestion; an intermediate ingested database state is not required.
 
   - name: WorkItemAssigned
     description: An Assignment matched a Routing Rule; the Work Item is queued with its Team and its pinned Work Target.
@@ -944,34 +950,34 @@ events:
     triggers: Each Run receives the same injected state; none observes the others.
 
   - name: LeaseAcquired
-    description: A writing Run took exclusive write access to its Shift's branch; a scoped push credential was minted for it.
+    description: A writing Run acquired the recorded lease for its Shift's branch. External credential issuance is a separate operation.
     entity: Lease
-    triggers: The Run may push; no other Run in the Shift holds a push credential at all.
+    triggers: The configured credential broker supplies access. The database lease alone does not prove external push fencing; legacy static credentials have weaker guarantees.
 
   - name: PushRightsRevoked
-    description: A Lease settled or lapsed; the Run's scoped forge token was revoked.
+    description: The configured broker confirmed revocation of a Run's scoped forge token.
     entity: Lease
-    triggers: A zombie Run can no longer push, without any cleanup code running inside it (R2).
+    triggers: Access through that token is removed. Lease expiry alone cannot establish this event, and a shared static token cannot provide per-Run revocation.
 
   - name: BudgetAuthorized
     description: A Run reserved min(roleCap, poolRemaining) against its Shift before spawning.
     entity: Shift
-    triggers: A LiteLLM key is minted for exactly the authorized amount; a zero-row update means the Run is never spawned.
+    triggers: Managed credential issuance may proceed after the durable reservation. Reservation, external key creation and confirmation have separate states; uncertainty retains the hold.
 
   - name: BudgetSettled
-    description: A Run reported; its authorization was released and actual spend recorded.
+    description: Accounting finalized a Run's spend and released the corresponding reservation. A managed Run's outcome report alone does not settle its inference account.
     entity: Shift
-    triggers: Unspent allowance returns to the pool for later Runs.
+    triggers: Unused allowance becomes available only after settlement; missing or uncertain accounting retains a conservative hold.
 
   - name: LeaseExpired
     description: A Lease TTL lapsed without renewal.
     entity: Lease
-    triggers: Re-queue, or stale after the retry threshold (R5); reason recorded in the audit log.
+    triggers: Apply the lane's recovery policy and record the reason. Legacy tracker work may requeue; operator-owned work is excluded and reconciled without an automatic replacement.
 
   - name: CheckpointWritten
     description: A Run reported durable progress via the report API.
     entity: Checkpoint
-    triggers: Future resumes inject this Checkpoint into the Task Spec.
+    triggers: Progress is available for audit and recovery. The Task Spec supports a Checkpoint, but the current unattended worker does not populate it automatically.
 
   - name: OutcomeReported
     description: A Run ended with an Outcome Report.
@@ -979,7 +985,7 @@ events:
     triggers: Work Item transitions per the Outcome; write-back to tracker/forge through providers.
 
   - name: FollowUpCreated
-    description: A Forge Event was classified as actionable and became a Follow-Up.
+    description: Intended event — an actionable Forge Event becomes a Follow-Up. Current forge webhook ingestion records and deduplicates events without creating this work.
     entity: Work Item
     triggers: The owning Team's Queue grows; vague or security-sensitive feedback goes to needs_human instead.
 
@@ -1060,7 +1066,7 @@ dialogues:
       - speaker: Developer
         text: Where do I start working?
       - speaker: Product owner
-        text: In De Vloer, with a ticket. You can work on it yourself or give work to agents through Ploeg.
+        text: In De Vloer. A ticket can supply the objective. Local work can run without Ploeg; shared work requests Ploeg admission on Start.
       - speaker: Developer
         text: Does that require OpenCode?
       - speaker: Product owner
@@ -1081,11 +1087,11 @@ dialogues:
       - speaker: Dev
         text: The implementer pod got OOM-killed halfway. Who cleans up its claim?
       - speaker: Domain expert
-        text: Nobody, and that's the point. The **Lease** just stops being renewed and expires. Per **R2**, expiry releases the **Work Item** mechanically — no cleanup code runs.
+        text: The controller detects the expired **Lease** and applies the recovery policy (**R2**). Recovery does not depend on the dead pod running cleanup.
       - speaker: Dev
         text: So the item is lost?
       - speaker: Domain expert
-        text: No, it goes back to queued and another **Run** picks it up with the last **Checkpoint** injected. If that keeps happening, **R5** trips it to stale so we stop burning tokens.
+        text: The retained record remains queryable. Unattended tracker work may retry within **R5**; operator-owned work keeps its stop intent. A stored **Checkpoint** does not guarantee automatic restoration of the harness session.
       - speaker: Dev
         text: And "claim" — is that a table?
       - speaker: Domain expert
@@ -1097,7 +1103,7 @@ dialogues:
       - speaker: Dev
         text: The agent container exited zero but never wrote anything. Is that stuck?
       - speaker: Domain expert
-        text: That's failed — exit without an **Outcome Report** is recorded as a failed **Outcome** by the **Executor**'s watch (**R3**). The item re-queues for retry.
+        text: A missing **Outcome Report** needs expiry or reconciliation (**R3**). Legacy tracker work may requeue, but operator-owned work must preserve stop intent and uncertain effects.
       - speaker: Dev
         text: Then what's stuck?
       - speaker: Domain expert

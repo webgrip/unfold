@@ -8,10 +8,10 @@ schema: spec-driven-with-adr
 context: |
   ## Product
 
-  Ploeg is a dispatch plane for AI agent work, not a board. A ticket assigned on
-  a tracker becomes a leased, audited, budgeted, ephemeral agent run that ends in
-  a pull request. The tracker stays the source of truth for *what* to do; Ploeg
-  owns *how work gets executed*. Go plus a Helm chart, Apache-2.0, self-hostable.
+  Ploeg authorizes and coordinates agent work from tracker events and explicit
+  operator admission. Trackers retain work content and priorities. Ploeg records
+  execution authority; unattended workers or De Vloer perform the work. Read
+  docs/index.md for current guidance. Go plus a Helm chart, Apache-2.0.
 
   Read before designing anything non-trivial:
 
@@ -24,7 +24,7 @@ context: |
   - `docs/contracts/` — the published wire contracts (TaskSpec, OutcomeReport,
     Checkpoint, run API) plus the executor SPI. Versioned; v1 permits additive
     optional fields only.
-  - `docs/domain/` — glossary, entities, rules (R1-R10), events, and the
+  - `docs/domain/` — glossary, entities, rules, events, and the
     `model.yaml` they are generated from.
   - `docs/backlog.md` — numbered roadmap. Cite items by number.
   - `docs/research/` — evidence trails behind the verdicts in `docs/adrs/`.
@@ -37,7 +37,7 @@ context: |
   concept is missing, update `docs/domain/model.yaml` first and regenerate the
   docs, then write the artifact.
 
-  Cite business rules by id (R1-R10, `docs/domain/rules.md`) instead of restating
+  Cite business rules by id (`docs/domain/rules.md`) instead of restating
   them. The load-bearing ones in almost every change: R1 one live Lease per Work
   Item, R2 crash-safety never depends on an agent behaving well, R4 a stuck
   Outcome always carries a reason, R6 the worker stays single-purpose.
@@ -55,18 +55,20 @@ context: |
   - **Executor** — dispatcher → worker pod (`docs/contracts/executor.md`,
     `ops/helm/ploeg`)
   - **Harness** — worker → coding agent (`pkg/harness`, adapters underneath)
-  - **LLM broker** — per-run credential mint/revoke and metering (`pkg/llmbroker`,
-    `pkg/litellm`)
+  - **LLM control** — managed authorization, credential lifecycle and accounting
+    (`pkg/httpapi/llm_control.go`, `pkg/store/llm_accounts.go`;
+    `docs/contracts/worker-control.md`)
 
   ## Invariants that outrank convenience
 
-  - **The tracker stays authoritative.** No second front door that creates work
-    items the board has never seen (`design.md` §2).
+  - **Tracker-originated content stays authoritative at the tracker.** Explicit
+    authenticated operator admission may also create manual-origin work without
+    a tracker ticket (`docs/contracts/README.md`).
   - **Leases are the crash-safety mechanism**, not agent cooperation. A dead pod
     releases its ticket because a TTL expires (R2).
-  - **Money is metered at a boundary the agent cannot bypass.** Per-run keys are
-    minted and revoked by `pkg/llmbroker`; the `ploeg-<12hex>` alias is the join
-    key to Grafana. Never log a secret value (ADR 0008).
+  - **Management authority stays in the controller.** Follow the managed worker
+    contract for scoped capabilities and unresolved accounting. A gateway
+    observation is not final settlement. Never log a secret value (ADR 0008).
   - **Published contracts change with their Go types**, in the same change, and
     additively (`docs/contracts/README.md`).
   - **Migrations are append-only.** Change schema by adding the next numbered
@@ -79,14 +81,14 @@ context: |
   Trunk is `development`; `main` is a release-promotion stub. Work on
   `agent/<slug>`. Conventional commits — `fix:`/`feat:` cut an rc release,
   `docs:`/`chore:`/`test:` do not. Gates are `.forgejo/workflows/on_pull_request.yml`
-  and their output goes in the PR body. Tests fake external services with
-  `net/http/httptest` and never need network.
+  and their output goes in the PR body. Tests use fake external services;
+  database and toolchain provisioning may need network access.
 
 rules:
   proposal:
     - Name the seam(s) the change touches; a change crossing two seams probably
       wants to be two changes
-    - Use canonical domain terms exactly; cite rules by id (R1-R10), do not
+    - Use canonical domain terms exactly; cite rules by id, do not
       restate them
     - Include a "Non-goals" section, and check the change against design.md §2
       before writing it

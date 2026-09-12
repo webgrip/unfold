@@ -1,41 +1,38 @@
 # Executor contract
 
-An **executor** is anything that launches worker processes against ploegd's
-run API. KEDA is the flagship implementation, not the identity (design §6):
-the chart also ships a plain CronJob executor (`executor.type: cronjob`),
-and `demo.sh` — a human with curl — is a conforming executor too. There is
-deliberately **no Go interface** for this seam: with zero Kubernetes code in
-ploeg, the HTTP surface below *is* the SPI. (A Go interface returns to the
-table when a controller-based executor lands — backlog #55/#58.)
+This contract covers unattended worker launch against ploegd's run API. The
+[chart](../../ops/helm/ploeg/) supports KEDA ScaledJobs and a CronJob executor
+(`executor.type: cronjob`). The HTTP surface is the integration boundary.
+Managed requests also require [worker control authentication](worker-control.md).
+The old [curl demo](../../ops/local/demo.sh) predates those requirements.
+Delegated workbench execution uses the separate [operator contract](README.md).
 
 ## The scale signal
 
 Spawn workers for a team while its claimable count is above zero. Read it
 either way:
 
-- **SQL** (what the KEDA postgresql scaler uses; served index-only by
-  `work_items_claimable`):
-  `SELECT COUNT(*) FROM work_items WHERE team = $1 AND state = 'queued' AND (next_eligible_at IS NULL OR next_eligible_at <= now())`
-- **HTTP** (no Postgres credentials needed):
-  `GET /api/v1/queue/depth?team=<name>` → `{"team": "...", "depth": n}`
+- **SQL:** use the predicates in [the ScaledJob template](../../ops/helm/ploeg/templates/scaledjob.yaml), including role eligibility and exclusion of operator-owned work. Do not reconstruct them from the old queued-item example.
+- **HTTP:** use `GET /api/v1/queue/depth` with the team and role scopes and bootstrap authentication described in [worker control](worker-control.md).
 
-Polling on a schedule (the CronJob executor) is equally valid — an
-empty-handed spawn is free by design.
+Polling on a schedule is supported. An empty-handed spawn performs no model
+inference, though it still consumes infrastructure resources.
 
 ## The run protocol
 
 The spawned process (normally `ploeg-worker`, but anything speaking the run
 API qualifies — schemas in [run-api.v1.schema.json](run-api.v1.schema.json)):
 
-1. `POST /api/v1/claim {"team": ...}` — **204 means exit 0** immediately
-   (the empty-handed convention, backlog #49; this neutralizes every
-   scaler-overshoot failure mode).
+1. Send an authenticated claim with the worker's configured team and role.
+   **204 means exit 0** immediately; no eligible work was claimed.
 2. Renew the lease at TTL/3 via `POST /api/v1/runs/{token}/renew`; a 404
    means the lease is gone — kill the harness and stop.
 3. Report progress via `.../checkpoint` (best-effort) and exactly one
    terminal `.../outcome` before exit (stuck requires a reason).
 
-The 48-hex run token is the run's only credential.
+The Run token identifies the Run. Managed renewal, checkpoint and outcome
+requests also require the returned signed control capability and worker identity.
+Explicit legacy mode retains the old authentication behavior.
 
 ## Executor obligations
 

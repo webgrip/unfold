@@ -135,20 +135,20 @@ The exclusive right to write a Shift's branch, crash-safe and TTL-renewed. Held 
 ## Run
 *Context: Execution*
 
-One execution of one Role, realized as one Kubernetes Job.
+One execution of one Role, realized as a Kubernetes Job or a delegated workbench execution.
 
 | Attribute | Type | Required | Description |
 |---|---|---|---|
 | `work_item_id` | `string` | yes |  |
 | `team` | `string` | yes |  |
 | `role` | `string` | yes | The Role this Run executes. |
-| `job_name` | `string` |  | The Kubernetes Job realizing this Run. |
+| `job_name` | `string` |  | The Kubernetes Job realizing this Run, when an executor uses one. |
 | `round` | `int` |  | The Round this Run belongs to; Runs sharing a Round never observe each other. |
 | `writes` | `boolean` |  | A writer takes the Shift's Lease and runs alone; a reader takes none and runs beside others. |
 | `state` | `enum(pending, running, finished)` |  | A Round materialises its Runs as pending rows; pending rows are also the scale signal. |
 | `authorized` | `decimal` |  | The budget hold, summed over running Runs to give the Shift's reserved figure (ADR-0012). |
 | `expires_at` | `timestamp` |  | This Run's own liveness deadline. Not the Lease's — a reader has no Lease to expire. |
-| `outcome` | `enum(pr_opened, pr_updated, issue_updated, follow_up_created, stuck, failed, no_change_needed)` |  | Terminal result; failed when the container exits without a report. |
+| `outcome` | `enum(pr_opened, pr_updated, issue_updated, follow_up_created, stuck, failed, no_change_needed)` |  | Reported terminal result, or failure recorded by controller recovery when the applicable expiry rule fires. |
 | `started_at` | `timestamp` |  |  |
 | `finished_at` | `timestamp` |  |  |
 

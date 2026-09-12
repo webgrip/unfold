@@ -103,6 +103,8 @@ fails otherwise.
 | [0027](0027-candidate-delivery-uses-trusted-evidence-and-a-publication-barrier.md) | Candidate delivery uses trusted evidence and a publication barrier | proposed | 2026-09-11 |
 | [0028](0028-automatic-releases-stay-zero-major-candidates.md) | Automatic releases stay zero-major candidates | proposed | 2026-09-11 |
 
+| [0029](0029-qualify-glide-before-changing-distribution.md) | Qualify Glide before changing Ploeg distribution | proposed | 2026-09-12 |
+
 ## Review calendar
 
 Derived from `review-by`; the validator guarantees every dated entry has named

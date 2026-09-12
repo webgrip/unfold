@@ -1,14 +1,14 @@
 # Ploeg — Domain Overview
 
-Ploeg schedules and runs work handed to agents, tracks progress and cost, and supports cooperation between agents. De Vloer is where people work on tickets, give work to agents and review the results. The intended workflow starts with a ticket in De Vloer. Starting hands-on work does not itself give work to Ploeg. OpenCode and other agent tools are replaceable implementation details. Trackers keep their work content and priorities.
+Ploeg schedules and runs work handed to agents, tracks progress and cost, and supports cooperation between agents. De Vloer is where people work on tickets, give work to agents and review the results. Shared-mode Vloer Start requests Ploeg admission; a manual-origin request need not have a tracker ticket. Local Vloer work must remain usable without Ploeg. A common runner remains a proposed implementation; it does not make Ploeg admission universal. Trackers keep their work content and priorities. This vocabulary includes intended domain rules; it is not a database or API field inventory. The architecture and published contracts identify current implementation limits.
 
-*Model version 0.4.0. Generated from `model.yaml` — do not edit by hand.*
+*Model version 0.5.0. Generated from `model.yaml` — do not edit by hand.*
 
 ## Bounded contexts
 
 - **Dispatch** — Core semantics owned by ploegd and Postgres: work items, leases, queues, checkpoints, outcomes, audit. Provider- and runtime-agnostic by rule.
 - **Integration** — The provider SPI boundary: tracker and forge adapters, webhook parsing, normalized events, write-backs. Everything vendor-specific lives here.
-- **Execution** — How runs happen on Kubernetes: the executor, jobs, watches, security posture. KEDA is the default implementation, not part of the language.
+- **Execution** — How admitted work executes, including Kubernetes workers and delegated workbench runs. KEDA is one implementation, not part of the language.
 - **Harness** — The contract between Ploeg and an agent container: Task Spec in, Outcome Report out. Isolates the fast-churning agent-tool boundary.
 
 ## Context map

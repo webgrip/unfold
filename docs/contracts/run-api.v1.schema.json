@@ -23,7 +23,7 @@
         "runToken": {
           "type": "string",
           "pattern": "^[0-9a-f]{48}$",
-          "description": "the run's only credential; renew/checkpoint/outcome key on it"
+          "description": "Run identifier used by renew/checkpoint/outcome routes; managed mode also requires the scoped control capability and worker identity described in worker-control.md"
         },
         "deadline": { "type": "string", "format": "date-time" },
         "workItem": { "$ref": "taskspec.v1.schema.json#/$defs/workItem" },

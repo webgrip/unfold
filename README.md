@@ -1,65 +1,33 @@
 # Ploeg
 
-**Assign a ticket on your own board and Ploeg spins up an ephemeral team of AI agents on your Kubernetes cluster that works it, opens a pull request, reports the outcome, and disappears — every run leased, audited, and crash-safe, with no lock-in on tracker, forge, or agent harness.**
+Ploeg is a self-hosted service for authorizing and coordinating agent work. Tracker assignments can start unattended workers; De Vloer can run interactive sessions under the same execution authority. PostgreSQL retains the work, leases, outcomes, evidence and accounting.
 
-An open-source, self-hostable dispatch plane. Bring your own board, forge, and agent harness.
+*Ploeg* is Dutch for a work crew or shift. The software is experimental and uses release-candidate versions. Qualification applies to specific tested paths, not every provider or deployment.
 
-*Ploeg* is Dutch for a work crew or shift. Teams of specialist agents pick up a ticket, work it, report an outcome, and disappear.
+## Start here
 
-> **Status: pre-alpha.** Ploeg is being extracted from a running autonomous-agent setup (a "dark factory": agents working a ticket board unattended on a homelab Kubernetes cluster). The dispatch core and both executors (KEDA `ScaledJob` and a KEDA-free CronJob) ship in the chart — opt-in via `executor.enabled` — and dispatch the originating factory today; a local prototype runs the same core over Docker Compose (see below). Provider write-backs, a Forgejo forge provider, and team manifests are still to come. Watch, don't install.
+- [Documentation](docs/index.md): current guides, contracts and design history.
+- [Architecture](docs/architecture.md): what runs where and who holds authority.
+- [Managed workers](docs/ops/managed-workers.md): required configuration and recovery.
+- [De Vloer's local demonstration](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/operations/local-unified-demo.md): both applications and PostgreSQL, using a deterministic fixture with no model calls.
 
-## Human workbench integration
+The older [Compose fixture](ops/local/docker-compose.yml) and [claim demo](ops/local/demo.sh) predate managed worker authentication. They do not configure the managed bootstrap and signing requirements. Use the shared demonstration above for current onboarding; the old fixture needs migration before it can serve as a current setup guide.
 
-[De Vloer](https://forgejo.webgrip.dev/webgrip/de-vloer) is the human surface for Ploeg. The authenticated [operator API](docs/contracts/README.md#operator-read-consumers) exposes scoped work, runs, evidence and spending snapshots. An opt-in manual execution path admits a workbench session as one Work Item, Shift and operator Run, with durable commands and explicit pause, cancellation and supervision. Existing unattended executors continue alongside that delegated path.
+## How it works
 
-Management credentials remain in the controller; workers use [scoped control and inference capabilities](docs/contracts/worker-control.md). [Operational configuration and recovery](docs/ops/managed-workers.md) distinguish unresolved spending from final accounting. The [real cross-service test](pkg/httpapi/operator_workbench_qualification_test.go) exercises Ploeg, PostgreSQL and De Vloer together without model calls. The implementation remains pre-alpha; live gateway/cluster qualification and canonical tracker-to-workbench handoff are separate gates.
+Verified tracker webhooks enqueue work. KEDA or the CronJob executor starts workers that must claim authorized work. Configured Shift plans coordinate roles and review rounds. Workers invoke a harness, report results and renew their leases. KEDA polls queue depth; idle queue checks do not require model calls.
 
-## What Ploeg is
+[De Vloer](https://forgejo.webgrip.dev/webgrip/de-vloer) supplies the human workbench and delegated workspace execution. Its shared path retains one Ploeg Work Item, Shift and operator Run across changes in supervision. Supported [tracker selections](docs/contracts/tracker-execution.md) can bind an existing queued Work Item. Manual-origin admission need not create a tracker ticket.
 
-- **A dispatch plane, not a board.** Your tracker (Vikunja, Jira, GitHub Issues, …) stays the source of truth for *what* to do. Ploeg owns *how work gets executed*: assignment events in, ephemeral agent runs out.
-- **Event-driven, never polling.** Assigning a ticket fires a webhook; Ploeg spawns a Kubernetes Job for it. No heartbeat crons burning tokens to discover there is no work.
-- **Ephemeral by design.** Every run is a Job that starts, produces a structured outcome, and dies. Durable state lives in Postgres (work items, leases, checkpoints, outcomes, audit) and in git (branches, PRs) — never in a long-lived agent process.
-- **Leased, not labeled.** Claims are rows with a TTL renewed by the running Job. A crashed pod releases its ticket mechanically; nothing depends on an agent behaving well at death.
-- **Teams of specialists.** A work item is claimed by a *team* — a declarative manifest of specialist roles (implementer, reviewer on a different model family, tester) — not by a single agent identity.
-- **Audited end to end.** Every mutation, lease, run, and outcome is a Postgres row. Grafana dashboards ship as code.
+Management credentials remain in the controller. [Scoped worker capabilities](docs/contracts/worker-control.md) authorize control and inference. Unknown spending stays unresolved until trusted reconciliation.
 
-## What Ploeg is not
+The source includes Vikunja and ClickUp tracker integrations, Forgejo and GitLab forge integrations, team plans, tracker write-backs and multiple harness adapters. Capabilities differ by provider. See the [implementation map](docs/architecture.md#6-providers-harnesses-and-delivery) and [published contracts](docs/contracts/README.md).
 
-- Not another kanban UI. The market has plenty; Ploeg has none.
-- Not a persistent-agent platform (see [kagent](https://kagent.dev/)) or model serving.
-- Not a promise of every integration. Ploeg ships a small, stable **provider SPI** and two reference providers (Vikunja tracker, Forgejo forge). Further providers are community-owned.
+Delegated [candidate delivery](docs/contracts/operator-delivery.md) records verified evidence and candidate-bound approval. Its live publisher executor is not enabled. A completed Run is not automatically a published or accepted result.
 
-## Architecture (v0 sketch)
+## Develop
 
-```
-tracker webhook ─┐                        ┌─> KEDA ScaledJob (per team) ─> agent Job (ephemeral)
-forge webhook  ──┼─> ploegd ─> Postgres ──┤        │ lease renewal · checkpoints
-                 │   (ingest,  (work items,        └─> outcome report ─> ploegd ─> tracker/forge writeback
-                 │    SPI)      leases, runs,
-                 └─────────────  audit)  ──────> Grafana (dashboards as code)
-```
-
-- **`ploegd`** — single Go binary: webhook ingest, provider SPI, lease manager, outcome ingestion.
-- **Executor** — KEDA `ScaledJob` with the Postgres scaler is the flagship default; executors are pluggable behind the run-API contract ([docs/contracts/executor.md](docs/contracts/executor.md)) — a KEDA-free CronJob executor ships in the same chart (`executor.type`).
-- **Harness contract** — an agent container receives a `TaskSpec`, must emit an `OutcomeReport` ([schemas](docs/contracts/)). Harness adapters live behind `pkg/harness.Adapter`: `openhands` (default), `exec` (any binary), `claude-code` — selected per team, along with the agent image, via the team's `harness` block.
-
-## Try the prototype
-
-```sh
-docker compose -f ops/local/docker-compose.yml up -d --build
-ops/local/demo.sh
-```
-
-The demo plays both tracker and agent: a signed Vikunja webhook queues a work item, a claim
-leases it (`FOR UPDATE SKIP LOCKED` + TTL lease), checkpoint and outcome complete it, and the
-audit trail records every step as a Postgres row. Crash-safety is real: claim an item, report
-nothing, and the sweeper releases the lease and re-queues the item when the TTL expires.
-
-## Roadmap
-
-1. **Extraction** — core service, Vikunja + Forgejo providers, one harness adapter, audit + dashboards. Exit criterion: the originating dark factory runs on Ploeg in production.
-2. **Teams & follow-ups** — team manifests, checkpoint/resume, PR-feedback ingestion routed to the owning team, a dry-run grooming worker.
-3. **On demonstrated pull** — GitHub provider, CRD/operator graduation, [agent-sandbox](https://agent-sandbox.sigs.k8s.io/) runtimes, further providers by contribution.
+Run tooling through mise and follow the [repository instructions](AGENTS.md). The [CI workflow](.forgejo/workflows/on_pull_request.yml) defines Go build, vet and tests, Helm validation and golden renders, and brand/license checks. The [backlog](docs/backlog.md) records planning history; the tracker owns priority.
 
 ## License
 
