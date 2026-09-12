@@ -57,6 +57,7 @@ jobs:
       source-dir: '.'
       site-dir: '.build/site'
       bucket: docs-glide
+      dest-prefix: glide
       strict: 'true'
       prepare-command: python3 scripts/docs.py --check --stage-only
       finalize-command: python3 scripts/docs-output.py --site .build/site

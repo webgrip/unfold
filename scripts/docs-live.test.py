@@ -2,6 +2,7 @@ import importlib.util
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 spec = importlib.util.spec_from_file_location('docs_live', Path(__file__).with_name('docs-live.py'))
@@ -28,7 +29,19 @@ class LivePublication(unittest.TestCase):
         }
 
     def verify(self):
-        return live.verify('https://example.test/glide/', self.staging, lambda url: self.responses[url.removeprefix('https://example.test/glide/')])
+        return live.verify('https://example.test/glide/', self.staging, lambda url: self.responses['' if url == 'https://example.test/glide' else url.removeprefix('https://example.test/glide/')])
+
+    def test_directory_redirect_must_keep_the_public_prefix(self):
+        url = 'https://example.test/glide/vloer'
+        with patch.object(live, 'urlopen') as request:
+            response = request.return_value.__enter__.return_value
+            response.status = 200
+            response.read.return_value = b'page'
+            response.url = url + '/'
+            self.assertEqual(live.read_url(url), b'page')
+            response.url = 'https://example.test/vloer/'
+            with self.assertRaisesRegex(AssertionError, 'Unexpected redirect'):
+                live.read_url(url)
 
     def test_matching_publication_passes(self):
         self.assertEqual(self.verify()['human_pages'], 1)

@@ -153,6 +153,7 @@ test('documentation publication has its own gate and isolated storage', () => {
   const job = workflows['on_docs_change.yml'].jobs['deploy-docs-site'];
   assert.deepEqual(job.needs, ['generate-documentation', 'authorize-publication']);
   assert.equal(job.with.bucket, 'docs-glide');
+  assert.equal(job.with['dest-prefix'], 'glide');
   assert.equal(job.with.strict, 'true');
   assert.deepEqual(Object.keys(job.secrets).sort(), ['TECHDOCS_S3_ACCESS_KEY_ID', 'TECHDOCS_S3_SECRET_ACCESS_KEY']);
   for (const ref of ['refs/heads/development', 'refs/heads/main', 'refs/heads/topic']) {

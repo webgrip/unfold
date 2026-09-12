@@ -14,6 +14,7 @@ root = Path(__file__).resolve().parent.parent
 def read_url(url):
     with urlopen(Request(url, headers={'Cache-Control': 'no-cache'}), timeout=25) as response:
         assert response.status == 200, f'Unexpected response: {url} ({response.status})'
+        assert response.url.rstrip('/') == url.rstrip('/'), f'Unexpected redirect: {url} -> {response.url}'
         return response.read()
 
 
@@ -28,9 +29,12 @@ def verify(base, staging, read=read_url):
         path = PurePosixPath(name)
         location = str(path.parent).strip('.') + '/' if path.name in ['index.md', 'README.md'] else name.removesuffix('.md') + '/'
         assert b'zensical-' in read(urljoin(base, location.lstrip('/'))), f'Missing Zensical page: {name}'
+        if location.strip('/'):
+            assert b'zensical-' in read(urljoin(base, location.strip('/'))), f'Broken slashless page: {name}'
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
         list(pool.map(check_page, pages))
+    assert b'zensical-' in read(base.rstrip('/')), 'Broken slashless site root'
     index = read(urljoin(base, 'llms.txt')).decode()
     bundle = read(urljoin(base, 'llms-full.txt')).decode()
     assert expected['revision'] in bundle, 'Published reading bundle has a stale revision'
