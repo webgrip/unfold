@@ -15,7 +15,7 @@ const source = workflows['on_source_change.yml'];
 const publisher = workflows['on_release_published.yml'];
 const evaluate = (expression, context) => vm.runInNewContext(expression.replace(/^\$\{\{\s*|\s*\}\}$/g, '').replace(/needs\.([a-z-]+)/g, "needs['$1']"), { startsWith: (value, prefix) => value.startsWith(prefix), ...context });
 
-test('event entry points preserve validation and keep publication out of pull requests and docs', () => {
+test('event entry points preserve validation and keep application publication out of pull requests and docs', () => {
   assert.deepEqual(Object.keys(workflows).sort(), ['on_docs_change.yml', 'on_pull_request.yml', 'on_release_preview.yml', 'on_release_published.yml', 'on_source_change.yml']);
   assert.deepEqual(Object.keys(source.on).sort(), ['push', 'workflow_dispatch']);
   const pr = workflows['on_pull_request.yml'];
@@ -23,11 +23,12 @@ test('event entry points preserve validation and keep publication out of pull re
   assert.deepEqual(Object.keys(pr.jobs).sort(), ['checks', 'release-policy']);
   for (const job of Object.keys(pr.jobs)) assert.deepEqual(pr.jobs[job], source.jobs[job]);
   for (const name of ['on_pull_request.yml', 'on_docs_change.yml']) {
-    assert.doesNotMatch(JSON.stringify(workflows[name]), /secrets\.|contents":"write|semantic-release-monorepo@/);
+    assert.doesNotMatch(JSON.stringify(workflows[name]), /GLIDE_RELEASES_ENABLED|contents":"write|semantic-release-monorepo@/);
   }
   const verification = read('.forgejo/actions/verify/action.yml');
   assert.ok(verification.runs.steps.some(step => step.run === 'mise run verify'));
-  assert.ok(workflows['on_docs_change.yml'].jobs['generate-documentation'].steps.some(step => step.run === 'mise run docs-check'));
+  assert.doesNotMatch(JSON.stringify(pr), /secrets\./);
+  assert.equal(workflows['on_docs_change.yml'].jobs['generate-documentation'].with['prepare-command'], 'python3 scripts/docs.py --check --stage-only');
 });
 
 test('only an enabled development push can version applications after both gates', () => {
@@ -143,5 +144,19 @@ test('workflow dependencies resolve, reusable calls are pinned and local actions
   for (const app of ['vloer', 'ploeg']) {
     const directory = path.join(root, `apps/${app}/.forgejo/workflows`);
     for (const file of fs.readdirSync(directory)) assert.equal(fs.realpathSync(path.join(directory, file)), path.join(root, '.forgejo/workflows', file));
+  }
+});
+
+
+test('documentation publication has its own gate and isolated storage', () => {
+  const job = workflows['on_docs_change.yml'].jobs['deploy-docs-site'];
+  assert.deepEqual(job.needs, ['generate-documentation']);
+  assert.equal(job.with.bucket, 'docs-glide');
+  assert.equal(job.with.strict, 'true');
+  assert.deepEqual(Object.keys(job.secrets).sort(), ['TECHDOCS_S3_ACCESS_KEY_ID', 'TECHDOCS_S3_SECRET_ACCESS_KEY']);
+  for (const ref of ['refs/heads/development', 'refs/heads/main', 'refs/heads/topic']) {
+    for (const gate of ['', 'false', 'true']) {
+      assert.equal(evaluate(job.with.enabled, { github: { ref }, vars: { GLIDE_DOCS_PUBLISH_ENABLED: gate } }), ref === 'refs/heads/development' && gate === 'true' ? 'true' : 'false');
+    }
   }
 });

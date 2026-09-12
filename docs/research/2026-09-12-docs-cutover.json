@@ -1,0 +1,312 @@
+{
+  "status": "prepared",
+  "archive": {
+    "file": "legacy-vloer-2026-09-12.tar.gz",
+    "sha256": "28157947600dda4d9b263d9e394e55504bc2777b744ab72fe6bca49059d579ef",
+    "sitemap_pages": 75,
+    "files": 99,
+    "retained_object_prefix": "docs-site/de-vloer"
+  },
+  "redirects": [
+    {
+      "from": "/de-vloer/",
+      "to": "/glide/vloer/"
+    },
+    {
+      "from": "/de-vloer/PRODUCT-DESIGN/",
+      "to": "/glide/vloer/PRODUCT-DESIGN/"
+    },
+    {
+      "from": "/de-vloer/architecture/",
+      "to": "/glide/vloer/architecture/"
+    },
+    {
+      "from": "/de-vloer/validation/",
+      "to": "/glide/vloer/validation/"
+    },
+    {
+      "from": "/de-vloer/adrs/",
+      "to": "/glide/vloer/adrs/"
+    },
+    {
+      "from": "/de-vloer/adrs/0001-the-human-workbench-beside-ploeg/",
+      "to": "/glide/vloer/adrs/0001-the-human-workbench-beside-ploeg/"
+    },
+    {
+      "from": "/de-vloer/adrs/0002-native-node-and-single-writer-storage/",
+      "to": "/glide/vloer/adrs/0002-native-node-and-single-writer-storage/"
+    },
+    {
+      "from": "/de-vloer/adrs/0003-runtime-workspace-and-credential-seams/",
+      "to": "/glide/vloer/adrs/0003-runtime-workspace-and-credential-seams/"
+    },
+    {
+      "from": "/de-vloer/adrs/0004-portable-procedures-and-explicit-contracts/",
+      "to": "/glide/vloer/adrs/0004-portable-procedures-and-explicit-contracts/"
+    },
+    {
+      "from": "/de-vloer/adrs/0005-one-work-authority/",
+      "to": "/glide/vloer/adrs/0005-one-work-authority/"
+    },
+    {
+      "from": "/de-vloer/adrs/0006-trusted-verifier-and-publisher/",
+      "to": "/glide/vloer/adrs/0006-trusted-verifier-and-publisher/"
+    },
+    {
+      "from": "/de-vloer/adrs/0007-thin-editor-client/",
+      "to": "/glide/vloer/adrs/0007-thin-editor-client/"
+    },
+    {
+      "from": "/de-vloer/adrs/0008-task-connections-and-candidate-handoff/",
+      "to": "/glide/vloer/adrs/0008-task-connections-and-candidate-handoff/"
+    },
+    {
+      "from": "/de-vloer/adrs/0009-workspace-placement-is-a-session-choice/",
+      "to": "/glide/vloer/adrs/0009-workspace-placement-is-a-session-choice/"
+    },
+    {
+      "from": "/de-vloer/adrs/0010-one-release-train-with-zero-cve-images/",
+      "to": "/glide/vloer/adrs/0010-one-release-train-with-zero-cve-images/"
+    },
+    {
+      "from": "/de-vloer/adrs/0011-sandboxes-dial-out-through-a-relay/",
+      "to": "/glide/vloer/adrs/0011-sandboxes-dial-out-through-a-relay/"
+    },
+    {
+      "from": "/de-vloer/adrs/0012-agent-host-protocol-host/",
+      "to": "/glide/vloer/adrs/0012-agent-host-protocol-host/"
+    },
+    {
+      "from": "/de-vloer/adrs/0013-sandbox-crd-placement-with-warm-kata-pools/",
+      "to": "/glide/vloer/adrs/0013-sandbox-crd-placement-with-warm-kata-pools/"
+    },
+    {
+      "from": "/de-vloer/adrs/0014-signed-candidates/",
+      "to": "/glide/vloer/adrs/0014-signed-candidates/"
+    },
+    {
+      "from": "/de-vloer/adrs/0015-ploeg-operator-read-api/",
+      "to": "/glide/vloer/adrs/0015-ploeg-operator-read-api/"
+    },
+    {
+      "from": "/de-vloer/adrs/0016-sign-in-and-link-your-own-accounts/",
+      "to": "/glide/vloer/adrs/0016-sign-in-and-link-your-own-accounts/"
+    },
+    {
+      "from": "/de-vloer/adrs/0017-delegate-interactive-execution-to-ploeg/",
+      "to": "/glide/vloer/adrs/0017-delegate-interactive-execution-to-ploeg/"
+    },
+    {
+      "from": "/de-vloer/adrs/0018-bind-tracker-imports-to-existing-ploeg-work/",
+      "to": "/glide/vloer/adrs/0018-bind-tracker-imports-to-existing-ploeg-work/"
+    },
+    {
+      "from": "/de-vloer/adrs/0019-verify-canonical-candidates-outside-agent-workspaces/",
+      "to": "/glide/vloer/adrs/0019-verify-canonical-candidates-outside-agent-workspaces/"
+    },
+    {
+      "from": "/de-vloer/adrs/0020-the-name-and-mark-are-trademarks/",
+      "to": "/glide/vloer/adrs/0020-the-name-and-mark-are-trademarks/"
+    },
+    {
+      "from": "/de-vloer/adrs/0021-the-extension-ships-through-open-vsx-first/",
+      "to": "/glide/vloer/adrs/0021-the-extension-ships-through-open-vsx-first/"
+    },
+    {
+      "from": "/de-vloer/adrs/0022-apache-2-0-is-the-estate-licence/",
+      "to": "/glide/vloer/adrs/0022-apache-2-0-is-the-estate-licence/"
+    },
+    {
+      "from": "/de-vloer/brand/",
+      "to": "/glide/vloer/brand/"
+    },
+    {
+      "from": "/de-vloer/brand/TRADEMARK/",
+      "to": "/glide/vloer/brand/TRADEMARK/"
+    },
+    {
+      "from": "/de-vloer/brand/social-profile-copy/",
+      "to": "/glide/vloer/brand/social-profile-copy/"
+    },
+    {
+      "from": "/de-vloer/contracts/api/",
+      "to": "/glide/vloer/contracts/api/"
+    },
+    {
+      "from": "/de-vloer/contracts/candidate-delivery/",
+      "to": "/glide/vloer/contracts/candidate-delivery/"
+    },
+    {
+      "from": "/de-vloer/contracts/implementation/",
+      "to": "/glide/vloer/contracts/implementation/"
+    },
+    {
+      "from": "/de-vloer/contracts/ploeg-execution/",
+      "to": "/glide/vloer/contracts/ploeg-execution/"
+    },
+    {
+      "from": "/de-vloer/contracts/ploeg-tracker-binding/",
+      "to": "/glide/vloer/contracts/ploeg-tracker-binding/"
+    },
+    {
+      "from": "/de-vloer/design/00-product-system-design/",
+      "to": "/glide/vloer/design/00-product-system-design/"
+    },
+    {
+      "from": "/de-vloer/design/gap-register/",
+      "to": "/glide/vloer/design/gap-register/"
+    },
+    {
+      "from": "/de-vloer/design/ide-10x-plan/",
+      "to": "/glide/vloer/design/ide-10x-plan/"
+    },
+    {
+      "from": "/de-vloer/design/ide-and-operator-experience/",
+      "to": "/glide/vloer/design/ide-and-operator-experience/"
+    },
+    {
+      "from": "/de-vloer/design/platform-and-governance/",
+      "to": "/glide/vloer/design/platform-and-governance/"
+    },
+    {
+      "from": "/de-vloer/design/self-improvement/",
+      "to": "/glide/vloer/design/self-improvement/"
+    },
+    {
+      "from": "/de-vloer/design/ticket-integration/",
+      "to": "/glide/vloer/design/ticket-integration/"
+    },
+    {
+      "from": "/de-vloer/domain/entities/",
+      "to": "/glide/domain/entities/"
+    },
+    {
+      "from": "/de-vloer/domain/glossary/",
+      "to": "/glide/domain/glossary/"
+    },
+    {
+      "from": "/de-vloer/domain/overview/",
+      "to": "/glide/domain/overview/"
+    },
+    {
+      "from": "/de-vloer/domain/rules/",
+      "to": "/glide/domain/rules/"
+    },
+    {
+      "from": "/de-vloer/landscape/",
+      "to": "/glide/landscape/"
+    },
+    {
+      "from": "/de-vloer/landscape/bottlenecks/",
+      "to": "/glide/landscape/bottlenecks/"
+    },
+    {
+      "from": "/de-vloer/landscape/c4/",
+      "to": "/glide/landscape/c4/"
+    },
+    {
+      "from": "/de-vloer/landscape/components/",
+      "to": "/glide/landscape/components/"
+    },
+    {
+      "from": "/de-vloer/landscape/questions/",
+      "to": "/glide/landscape/questions/"
+    },
+    {
+      "from": "/de-vloer/operations/backlog/",
+      "to": "/glide/vloer/operations/backlog/"
+    },
+    {
+      "from": "/de-vloer/operations/demo/",
+      "to": "/glide/vloer/operations/demo/"
+    },
+    {
+      "from": "/de-vloer/operations/implementation-progress/",
+      "to": "/glide/vloer/operations/implementation-progress/"
+    },
+    {
+      "from": "/de-vloer/operations/iteration-0.2.0/",
+      "to": "/glide/vloer/operations/iteration-0.2.0/"
+    },
+    {
+      "from": "/de-vloer/operations/live/",
+      "to": "/glide/vloer/operations/live/"
+    },
+    {
+      "from": "/de-vloer/operations/local-unified-demo/",
+      "to": "/glide/workflows/local-demo/"
+    },
+    {
+      "from": "/de-vloer/operations/release/",
+      "to": "/glide/vloer/operations/release/"
+    },
+    {
+      "from": "/de-vloer/operations/task-connections/",
+      "to": "/glide/vloer/operations/task-connections/"
+    },
+    {
+      "from": "/de-vloer/operations/unified-baseline/",
+      "to": "/glide/workflows/managed-execution/"
+    },
+    {
+      "from": "/de-vloer/product/go-to-market/",
+      "to": "/glide/vloer/product/go-to-market/"
+    },
+    {
+      "from": "/de-vloer/product/model-gateway-capabilities/",
+      "to": "/glide/vloer/product/model-gateway-capabilities/"
+    },
+    {
+      "from": "/de-vloer/research/2026-09-10-agent-host-protocol/",
+      "to": "/glide/vloer/research/2026-09-10-agent-host-protocol/"
+    },
+    {
+      "from": "/de-vloer/research/2026-09-10-kubernetes-and-sandbox-crds/",
+      "to": "/glide/vloer/research/2026-09-10-kubernetes-and-sandbox-crds/"
+    },
+    {
+      "from": "/de-vloer/research/2026-09-10-ploeg-and-de-vloer-split/",
+      "to": "/glide/vloer/research/2026-09-10-ploeg-and-de-vloer-split/"
+    },
+    {
+      "from": "/de-vloer/research/2026-09-10-sandbox-landscape/",
+      "to": "/glide/vloer/research/2026-09-10-sandbox-landscape/"
+    },
+    {
+      "from": "/de-vloer/research/2026-09-10-unified-workbench-baseline/",
+      "to": "/glide/vloer/research/2026-09-10-unified-workbench-baseline/"
+    },
+    {
+      "from": "/de-vloer/research/2026-09-11-ecosystem-alternatives/",
+      "to": "/glide/vloer/research/2026-09-11-ecosystem-alternatives/"
+    },
+    {
+      "from": "/de-vloer/research/2026-09-11-ecosystem-implementation/",
+      "to": "/glide/vloer/research/2026-09-11-ecosystem-implementation/"
+    },
+    {
+      "from": "/de-vloer/research/agent-apis/",
+      "to": "/glide/vloer/research/agent-apis/"
+    },
+    {
+      "from": "/de-vloer/research/conventions-and-alternatives/",
+      "to": "/glide/vloer/research/conventions-and-alternatives/"
+    },
+    {
+      "from": "/de-vloer/research/market-landscape/",
+      "to": "/glide/vloer/research/market-landscape/"
+    },
+    {
+      "from": "/de-vloer/research/task-connector-sources/",
+      "to": "/glide/vloer/research/task-connector-sources/"
+    },
+    {
+      "from": "/de-vloer/research/evidence/delivery-2026-09-11/",
+      "to": "/glide/vloer/research/evidence/delivery-2026-09-11/"
+    },
+    {
+      "from": "/de-vloer/research/evidence/unified-2026-09-10/",
+      "to": "/glide/vloer/research/evidence/unified-2026-09-10/"
+    }
+  ]
+}

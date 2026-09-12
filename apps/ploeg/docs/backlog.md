@@ -3,7 +3,7 @@
 Compiled 2026-07-22 from the design doc, the domain model, the code skeleton, and a
 research sweep of adjacent solutions (misospace/dispatch, kandev, vibe-kanban,
 untra/operator, Argo Workflows, Tekton, KEDA, kubernetes-sigs/agent-sandbox, kagent,
-ACP, Claude Code/opencode headless, Postgres-as-queue prior art, forge token scoping,
+ACP, Claude Code/opencode headless, Postgres-as-queue prior art, credential permissions for Git forges,
 Vikunja/Forgejo webhook mechanics, sandboxing practice). Items marked *[research]*
 are directly sourced from that sweep.
 

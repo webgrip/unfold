@@ -6,7 +6,7 @@ Glide uses Webgrip's event-named entry points. The executable definitions live i
 | --- | --- | --- |
 | [on_source_change.yml](../../.forgejo/workflows/on_source_change.yml) | Push to `development`; manual validation | Validate both applications, container build contexts and release policy. An enabled push can then release Vloer followed by Ploeg. |
 | [on_pull_request.yml](../../.forgejo/workflows/on_pull_request.yml) | Pull request; manual validation | Run the same application and release-policy gates without release credentials or versioning jobs. |
-| [on_docs_change.yml](../../.forgejo/workflows/on_docs_change.yml) | Documentation or docs-tooling changes on `development`; manual validation | Check generated pages, repository links and the strict combined TechDocs build. |
+| [on_docs_change.yml](../../.forgejo/workflows/on_docs_change.yml) | Documentation or docs-tooling changes on `development`; manual validation | Validate the combined documentation, then publish Zensical and Markdown when the docs gate is enabled. |
 | [on_release_preview.yml](../../.forgejo/workflows/on_release_preview.yml) | Manual, on `development` | Preview each application's release decision with the pinned release toolchain and `dry-run: 'true'`. |
 | [on_release_published.yml](../../.forgejo/workflows/on_release_published.yml) | Published release; manual retry for an exact tag | Route `vloer-v…` and `ploeg-v…` to their own artifact jobs. |
 
@@ -30,4 +30,4 @@ The naming and separation follow the original [Vloer entry points](https://forge
 
 Run `mise run verify` and `mise run release-check`. The latter executes [release-isolation tests](../../scripts/release-isolation.test.cjs), [workflow routing tests](../../scripts/workflow-policy.test.cjs) and [Ploeg's release-policy tests](../../apps/ploeg/scripts/release-policy.test.cjs) in the pinned release container. They cover cross-application tag rejection, manual ref matching, disabled publication, signing prerequisites and dependency integrity.
 
-The docs workflow builds the site locally in its runner. Remote TechDocs deployment, source exports, destination permissions and complete artifact delivery still require the evidence listed in the [cutover preparation gates](first-cutover.md#2-close-the-release-blockers). Passing workflow tests or a release preview does not close those gates.
+The [documentation publisher](docs-publishing.md) has its own `GLIDE_DOCS_PUBLISH_ENABLED` gate and dedicated Garage bucket. It uses the shared TechDocs generation and Zensical deployment workflows at `v2.7.1`. Its scoped credentials cannot publish application packages. Source exports, application destination permissions and complete artifact delivery still require the evidence listed in the [cutover preparation gates](first-cutover.md#2-close-the-release-blockers). Passing workflow tests or a release preview does not close those gates.

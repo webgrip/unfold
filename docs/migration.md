@@ -33,7 +33,7 @@ The [source workflow](../.forgejo/workflows/on_source_change.yml) uses separate 
 
 The first [actual release preview](https://forgejo.webgrip.dev/webgrip/glide/actions/runs/5) exposed a missing remote `main` baseline (`ERELEASEBRANCHES`). The shared preset needs a normal release branch alongside `development` prereleases. `main` is reserved at the initial Glide boundary commit; source work and automatic prereleases remain on `development`. CI checks this prerequisite and the release-isolation suite exercises semantic-release's branch resolver.
 
-The combined [TechDocs build](../scripts/docs.py) renders the maintained Markdown files. It checks structured-source generation and repository links, then excludes dated research and design/decision history from its local search index. These exclusions do not configure an external crawler or Backstage search ingestion.
+The combined [documentation build](../scripts/docs.py) assembles the maintained Markdown files for TechDocs and Zensical. The [publishing guide](operations/docs-publishing.md) covers the human site, machine-readable output and legacy URLs. It checks structured-source generation and repository links, then excludes dated research and design/decision history from its local search index. These exclusions do not configure an external crawler or Backstage search ingestion.
 
 The [local qualification record](research/evidence/glide-2026-09-12/verification.json) records 211 workbench tests, 41 extension tests, all Go gates, both execution modes, chart snapshots, three AMD64 container builds and strict documentation checks. `mise run release-check` repeats release isolation and policy checks in the pinned image without network access or publication.
 

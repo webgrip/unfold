@@ -15,12 +15,15 @@ import yaml
 root = Path(__file__).resolve().parent.parent
 parser = argparse.ArgumentParser()
 parser.add_argument('--check', action='store_true')
+parser.add_argument('--stage-only', action='store_true')
 args = parser.parse_args()
 staging = root / '.build/docs'
 site = root / '.build/site'
-source_url = 'https://forgejo.webgrip.dev/webgrip/glide/src/branch/development/'
+revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
+source_url = f'https://forgejo.webgrip.dev/webgrip/glide/src/commit/{revision}/'
 
 if args.check:
+    subprocess.run([sys.executable, str(root / 'scripts/docs-output.test.py')], check=True)
     for name, expected in json.loads((root / 'docs/landscape/generated-sources.json').read_text()).items():
         assert hashlib.sha256((root / name).read_bytes()).hexdigest() == expected, f'Stale landscape: {name}; rebuild with node apps/vloer/scripts/build-landscape.mjs'
     for folder in [root / 'docs/domain', root / 'apps/ploeg/docs/domain']:
@@ -93,9 +96,15 @@ for source, relative in mapping.items():
         shutil.copyfile(source, output)
 if failures:
     raise SystemExit('Missing documentation targets:\n' + '\n'.join(sorted(set(failures))))
-subprocess.run([sys.executable, '-m', 'mkdocs', 'build', '--strict', '--config-file', str(root / 'mkdocs.yml')], cwd=root, check=True)
-index_path = site / 'search/search_index.json'
-index = json.loads(index_path.read_text())
-index['docs'] = [entry for entry in index['docs'] if not any(part in entry['location'].split('/') for part in ['research', 'adrs', 'adr', 'design']) and not entry['location'].startswith(('migration-proposal/', 'vloer/PRODUCT-DESIGN/', 'vloer/contracts/implementation/'))]
-index_path.write_text(json.dumps(index, ensure_ascii=False))
-print(f'Glide docs: {len(mapping)} sources, {checked} repository links, strict build; {len(index["docs"])} current search entries')
+mapping[root / 'llms.txt'] = Path('llms.txt')
+(staging / 'llms.txt').write_text(rewrite((root / 'llms.txt').read_text(), root / 'llms.txt'))
+if failures:
+    raise SystemExit('Missing index targets:\n' + '\n'.join(sorted(set(failures))))
+(staging / 'docs-sources.json').write_text(json.dumps({
+    'revision': revision,
+    'sources': [{'source': source.relative_to(root).as_posix(), 'path': relative.as_posix(), 'sha256': hashlib.sha256(source.read_bytes()).hexdigest()} for source, relative in sorted(mapping.items())],
+}, indent=2) + '\n')
+print(f'Glide docs: {len(mapping)} sources, {checked} repository links')
+if not args.stage_only:
+    subprocess.run([sys.executable, '-m', 'mkdocs', 'build', '--strict', '--config-file', str(root / 'mkdocs.yml')], cwd=root, check=True)
+    subprocess.run([sys.executable, str(root / 'scripts/docs-output.py'), '--site', str(site)], cwd=root, check=True)

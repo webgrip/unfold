@@ -13,7 +13,8 @@ on:
       - 'pyproject.toml'
       - 'uv.lock'
       - 'mise.toml'
-      - 'scripts/docs.py'
+      - 'scripts/docs*.py'
+      - 'scripts/docs-site.sh'
       - 'scripts/generate-domain.py'
       - 'scripts/validate_adr_consistency.py'
       - '.forgejo/workflows/on_docs_change.yml'
@@ -25,14 +26,23 @@ concurrency:
 
 jobs:
   generate-documentation:
-    runs-on: docker
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-      - uses: https://github.com/jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
-        with:
-          version: 2026.6.14
-          cache: false
-          github_token: ''
-      - name: Validate generated pages, links and strict TechDocs output
-        run: mise run docs-check
+    uses: webgrip/workflows/.forgejo/workflows/techdocs-generate.yml@v2.7.1
+    with:
+      enabled: 'true'
+      source-dir: '.'
+      prepare-command: python3 scripts/docs.py --check --stage-only
+      finalize-command: python3 scripts/docs-output.py --site techdocs-site
+  deploy-docs-site:
+    needs: [generate-documentation]
+    uses: webgrip/workflows/.forgejo/workflows/techdocs-deploy-docs-site.yml@v2.7.1
+    with:
+      enabled: ${{ github.ref == 'refs/heads/development' && vars.GLIDE_DOCS_PUBLISH_ENABLED == 'true' && 'true' || 'false' }}
+      source-dir: '.'
+      site-dir: '.build/site'
+      bucket: docs-glide
+      strict: 'true'
+      prepare-command: python3 scripts/docs.py --check --stage-only
+      finalize-command: python3 scripts/docs-output.py --site .build/site
+    secrets:
+      TECHDOCS_S3_ACCESS_KEY_ID: ${{ secrets.TECHDOCS_S3_ACCESS_KEY_ID }}
+      TECHDOCS_S3_SECRET_ACCESS_KEY: ${{ secrets.TECHDOCS_S3_SECRET_ACCESS_KEY }}

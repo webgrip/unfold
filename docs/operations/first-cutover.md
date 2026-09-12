@@ -104,7 +104,7 @@ The [release publication workflow](../../.forgejo/workflows/on_release_published
 | Vloer extension | VSIX and matching checksum attached to the Glide release; package verification succeeds; install that exact VSIX in the editor. Verify Open VSX listing and download if it is a required destination. Marketplace is intentionally excluded for these prerelease versions. |
 | Ploeg Go module | The compatibility export at the new ordinary version tag installs through `github.com/webgrip/ploeg` in a fresh consumer. Record the export revision and file comparison. |
 | npm and Composer | No publishable package is currently configured. Both application npm manifests are private; no Composer manifest was found. Record these as out of scope. Adding an SDK or PHP package requires its own package identity, version policy, publisher and install test. |
-| Documentation | The strict combined site builds and the playbook is accessible in Forgejo. A remote TechDocs deployment and `docs.webgrip.dev/glide/` reachability require separate evidence; a `site_url` is not a deployment. |
+| Documentation | Follow the [documentation publishing guide](docs-publishing.md). Check the Zensical home page, both applications, raw Markdown, LLM indexes and source revision. Documentation publication has a separate gate; a successful docs deployment does not authorize application releases. |
 
 For OCI images, an example read-only digest inspection is:
 
