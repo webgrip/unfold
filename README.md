@@ -12,7 +12,7 @@ mise run verify
 mise run demo
 ```
 
-`mise run demo` starts a deterministic Vloer fixture without Ploeg or model charges. `mise run demo-unified` runs both applications with PostgreSQL; see its [prerequisites](docs/workflows/local-demo.md). Use [the documentation index](docs/index.md) for live setup and contracts.
+`mise run demo` starts a deterministic Vloer fixture without Ploeg or model charges. `mise run demo-unified` runs both applications with PostgreSQL; see its [prerequisites](docs/workflows/local-demo.md). Use the [published documentation](https://docs.webgrip.dev/glide/) for live setup and contracts, or read the [Markdown index](docs/index.md) in the repository. Agents can start from [llms.txt](https://docs.webgrip.dev/glide/llms.txt).
 
 | Location | Contents |
 | --- | --- |
@@ -20,7 +20,7 @@ mise run demo
 | [apps/ploeg](apps/ploeg/) | Go controller and worker, published schemas and deployment |
 | [docs](docs/index.md) | Shared product language, system explanation and cross-application workflows |
 
-`mise run integration` qualifies both execution modes without paid providers. `mise run docs-check` checks generated domain pages and builds TechDocs strictly; `mise run docs-build` writes the site to `.build/site`. Both app gates also run in the [root CI workflow](.forgejo/workflows/on_source_change.yml).
+`mise run integration` qualifies both execution modes without paid providers. `mise run docs-check` checks generated domain pages and builds TechDocs strictly; `mise run docs-build` writes the TechDocs site to `.build/site`. `mise run docs-site-check` builds and scans the Zensical publication using the pinned CI image; see [publishing and recovery](docs/operations/docs-publishing.md). Both app gates also run in the [root CI workflow](.forgejo/workflows/on_source_change.yml).
 
 The import preserves both histories and 70 namespaced tags. Existing packages, Go module, images and charts retain their names. [The migration record](docs/migration.md) distinguishes local qualification from remote publication and production cutover.
 

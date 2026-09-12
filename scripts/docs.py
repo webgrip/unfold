@@ -23,7 +23,8 @@ revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=
 source_url = f'https://forgejo.webgrip.dev/webgrip/glide/src/commit/{revision}/'
 
 if args.check:
-    subprocess.run([sys.executable, str(root / 'scripts/docs-output.test.py')], check=True)
+    for test in ['docs-output.test.py', 'docs-live.test.py']:
+        subprocess.run([sys.executable, str(root / 'scripts' / test)], check=True)
     for name, expected in json.loads((root / 'docs/landscape/generated-sources.json').read_text()).items():
         assert hashlib.sha256((root / name).read_bytes()).hexdigest() == expected, f'Stale landscape: {name}; rebuild with node apps/vloer/scripts/build-landscape.mjs'
     for folder in [root / 'docs/domain', root / 'apps/ploeg/docs/domain']:
@@ -42,6 +43,8 @@ for directory, prefix in roots:
     for path in directory.rglob('*'):
         if path.is_file() and '__pycache__' not in path.parts and not path.name.endswith('.template.html') and path.name != 'adr-0000-template.md':
             mapping[path] = Path(prefix) / path.relative_to(directory)
+
+mapping[root / 'llms.txt'] = Path('llms.txt')
 
 aliases = {root / entry['from']: root / entry['to'] for entry in json.loads((root / 'docs/research/2026-09-12-glide-document-paths.json').read_text())['moves']}
 failures = []
@@ -96,7 +99,6 @@ for source, relative in mapping.items():
         shutil.copyfile(source, output)
 if failures:
     raise SystemExit('Missing documentation targets:\n' + '\n'.join(sorted(set(failures))))
-mapping[root / 'llms.txt'] = Path('llms.txt')
 (staging / 'llms.txt').write_text(rewrite((root / 'llms.txt').read_text(), root / 'llms.txt'))
 if failures:
     raise SystemExit('Missing index targets:\n' + '\n'.join(sorted(set(failures))))

@@ -63,3 +63,14 @@ jobs:
     secrets:
       TECHDOCS_S3_ACCESS_KEY_ID: ${{ secrets.TECHDOCS_S3_ACCESS_KEY_ID }}
       TECHDOCS_S3_SECRET_ACCESS_KEY: ${{ secrets.TECHDOCS_S3_SECRET_ACCESS_KEY }}
+  verify-publication:
+    needs: [authorize-publication, deploy-docs-site]
+    if: ${{ needs.authorize-publication.outputs.enabled == 'true' }}
+    runs-on: docker
+    timeout-minutes: 5
+    container: harbor.webgrip.dev/webgrip/techdocs-builder:1.6.0
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - run: python3 scripts/docs.py --stage-only
+      - name: Verify live pages, Markdown, revision and search
+        run: python3 scripts/docs-live.py

@@ -169,3 +169,13 @@ test('documentation publication has its own gate and isolated storage', () => {
     }
   }
 });
+
+
+test('live verification follows publication and only runs for an authorized publish', () => {
+  const job = workflows['on_docs_change.yml'].jobs['verify-publication'];
+  assert.deepEqual(job.needs, ['authorize-publication', 'deploy-docs-site']);
+  assert.ok(job.steps.some(step => step.run === 'python3 scripts/docs-live.py'));
+  for (const enabled of ['', 'false', 'true']) {
+    assert.equal(evaluate(job.if, { needs: { 'authorize-publication': { outputs: { enabled } } } }), enabled === 'true');
+  }
+});

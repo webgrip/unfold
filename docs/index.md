@@ -18,4 +18,4 @@ Use [Vloer on its own](../apps/vloer/docs/operations/demo.md) for local interact
 
 The [system decision ledger](adr/index.md), [Vloer ledger](../apps/vloer/docs/adrs/README.md) and [Ploeg ledger](../apps/ploeg/docs/adrs/README.md) have different scopes. Existing proposed records remain proposed. Ploeg's [execution domain](../apps/ploeg/docs/domain/overview.md) defines its implementation vocabulary; a Ploeg Run may contain several Vloer role runs.
 
-Markdown is the readable source for both people and agents. TechDocs renders those files; [llms.txt](../llms.txt) provides a short reading index. The schemas and models remain beside their owner. Generated pages are checked against their structured source.
+Markdown is the readable source for both people and agents. Zensical renders the published site from those files; [llms.txt](../llms.txt) provides a short reading index. The schemas and models remain beside their owner. Generated pages are checked against their structured source.

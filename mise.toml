@@ -42,3 +42,7 @@ description = "Test release isolation and guards in the pinned release toolchain
 [tasks.docs-site-check]
 run = "sh scripts/docs-site.sh"
 description = "Build and scan the Zensical publishing output in the pinned CI image"
+
+[tasks.docs-live-check]
+run = ["uv run --frozen python scripts/docs.py --stage-only", "uv run --frozen python scripts/docs-live.py"]
+description = "Verify that the published human and machine docs match this checkout"

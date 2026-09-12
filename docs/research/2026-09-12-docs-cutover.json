@@ -1,11 +1,12 @@
 {
-  "status": "prepared",
+  "status": "qualified",
   "archive": {
     "file": "legacy-vloer-2026-09-12.tar.gz",
     "sha256": "28157947600dda4d9b263d9e394e55504bc2777b744ab72fe6bca49059d579ef",
     "sitemap_pages": 75,
     "files": 99,
-    "retained_object_prefix": "docs-site/de-vloer"
+    "retained_object_prefix": "docs-site/de-vloer",
+    "url": "https://docs.webgrip.dev/glide-legacy/de-vloer/"
   },
   "redirects": [
     {
@@ -308,5 +309,23 @@
       "from": "/de-vloer/research/evidence/unified-2026-09-10/",
       "to": "/glide/vloer/research/evidence/unified-2026-09-10/"
     }
-  ]
+  ],
+  "first_published_revision": "0ac98d8ccd99dbc8ca302e43fb2f3a1e9ce6c554",
+  "publication_run": "https://forgejo.webgrip.dev/webgrip/glide/actions/runs/15",
+  "application_checks_run": "https://forgejo.webgrip.dev/webgrip/glide/actions/runs/16",
+  "legacy_publisher_retired_at": "52afa4a",
+  "gitops_redirect_revision": "b4e741c3cd2dac932cbe99edfb16c011d617e9f4",
+  "verified": {
+    "human_pages": 158,
+    "markdown_pages": 158,
+    "source_hashes": 338,
+    "machine_index_links": 11,
+    "zensical_search_entries": 533,
+    "pagefind_pages": 68,
+    "legacy_redirects": 75,
+    "byte_identical_recovery_files": 99,
+    "legacy_section_links_checked": 1092,
+    "legacy_sections_only_in_recovery": 256,
+    "application_releases_enabled": false
+  }
 }
