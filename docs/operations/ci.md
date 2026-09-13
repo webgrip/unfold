@@ -7,7 +7,7 @@ Glide uses Webgrip's event-named entry points. The executable definitions live i
 | [on_source_change.yml](../../.forgejo/workflows/on_source_change.yml) | Push to `development`; manual validation | Validate both applications, container build contexts and release policy. An enabled push can then release Vloer followed by Ploeg. |
 | [on_pull_request.yml](../../.forgejo/workflows/on_pull_request.yml) | Pull request; manual validation | Run the same application and release-policy gates without release credentials or versioning jobs. |
 | [on_docs_change.yml](../../.forgejo/workflows/on_docs_change.yml) | Documentation or docs-tooling changes on `development`; manual validation | Validate the combined documentation, then publish Zensical and Markdown when the docs gate is enabled. |
-| [on_release_preview.yml](../../.forgejo/workflows/on_release_preview.yml) | Manual, on `development` | Preview each application's release decision with the pinned release toolchain and `dry-run: 'true'`. |
+| [on_release_preview.yml](../../.forgejo/workflows/on_release_preview.yml) | Manual, on `development` | Check the mirror, credential access and Glide signing identity; preview each application's version with `dry-run: 'true'`. |
 | [on_release_published.yml](../../.forgejo/workflows/on_release_published.yml) | Published release; manual retry for an exact tag | Route `vloer-v…` and `ploeg-v…` to their own artifact jobs. |
 
 ## Shared checks and separate versions
@@ -22,7 +22,7 @@ Releases use the pinned Webgrip semantic-release monorepo composite, with [Vloer
 
 The release entry point keeps each application's job dependencies separate. Ploeg accepts only zero-major release candidates. A manual publication retry requires the selected workflow ref to be the same tag as its `tag` input. Publication runs for the same tag are serialized; a newer invocation does not cancel a partially completed publication.
 
-Reusable publishers use Webgrip's shorthand references and receive explicit `enabled` inputs derived from validated application outputs. This preserves the [shared workflow library's Forgejo conventions](https://forgejo.webgrip.dev/webgrip/workflows/src/branch/main/AGENTS.md), including its warning that a caller-level `if` does not reliably gate flattened reusable jobs. Ploeg's registry mirrors also require the signing job's completion output. Destination signature verification remains a cutover check.
+Application publication uses normal, explicitly gated jobs and the existing pinned build/sign composites. This avoids the [Forgejo reusable-workflow flattening trap](https://forgejo.webgrip.dev/webgrip/workflows/src/branch/main/AGENTS.md). Ploeg distribution also requires the signing job's completion output. The [artifact guide](artifacts.md) defines source mirroring, package paths, cryptographic verification and retry behavior.
 
 The naming and separation follow the original [Vloer entry points](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/.forgejo/workflows/) and the [infrastructure monorepo](https://forgejo.webgrip.dev/webgrip/infrastructure/src/branch/main/.forgejo/workflows/). Forgejo's [workflow reference](https://forgejo.org/docs/latest/user/actions/reference/) describes the event, dependency and composite-action syntax. Shared actions and reusable workflows retain their existing pinned versions; Renovate owns updates.
 

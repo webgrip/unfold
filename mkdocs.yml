@@ -26,6 +26,7 @@ nav:
       - Managed execution: workflows/managed-execution.md
   - Maintain:
       - CI and releases: operations/ci.md
+      - Source and artifacts: operations/artifacts.md
       - Documentation publishing: operations/docs-publishing.md
       - Documentation: documentation.md
       - Migration: migration.md

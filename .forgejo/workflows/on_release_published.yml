@@ -57,20 +57,28 @@ jobs:
   vloer-release-publish-chart:
     name: Vloer - Publish Helm chart (Harbor)
     needs: [vloer-parse-release-tag]
-    uses: webgrip/workflows/.forgejo/workflows/helm-chart-push.yml@v1.10.0
-    with:
-      enabled: ${{ needs.vloer-parse-release-tag.outputs.version != '' }}
-      registry: harbor.webgrip.dev
-      path: apps/vloer/ops/helm/de-vloer
-      name: de-vloer
-      version: ${{ needs.vloer-parse-release-tag.outputs.version }}
-      ref: vloer-v${{ needs.vloer-parse-release-tag.outputs.version }}
-      oci-path: webgrip/charts
-    secrets:
-      REGISTRY_USERNAME: ${{ secrets.HARBOR_ROBOT_USER }}
-      REGISTRY_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
+    if: needs.vloer-parse-release-tag.outputs.version != ''
+    runs-on: docker
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: vloer-v${{ needs.vloer-parse-release-tag.outputs.version }}
+      - name: Publish the canonical chart
+        shell: bash
+        env:
+          VERSION: ${{ needs.vloer-parse-release-tag.outputs.version }}
+          HARBOR_ROBOT_USER: ${{ secrets.HARBOR_ROBOT_USER }}
+          HARBOR_ROBOT_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
+        run: |
+          set -euo pipefail
+          export DOCKER_CONFIG="$(mktemp -d)" PATH="$PWD/scripts:$PATH"
+          export HELM_REGISTRY_CONFIG="$DOCKER_CONFIG/config.json"
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          printf '%s' '{"credHelpers":{"harbor.webgrip.dev":"glide"}}' > "$DOCKER_CONFIG/config.json"
+          python3 scripts/publish_chart.py vloer "$VERSION"
 
   vloer-release-distribute-harbor:
+    if: needs.vloer-parse-release-tag.outputs.version != ''
     name: Vloer - Build, gate and sign images (Harbor)
     needs: [vloer-parse-release-tag]
     runs-on: docker
@@ -115,9 +123,12 @@ jobs:
           if [ "$code" = 200 ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
             echo "harbor.webgrip.dev/webgrip/${IMAGE}:${VERSION} is already published; skipping the build."
-          else
+          elif [ "$code" = 404 ]; then
             echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "Harbor answered HTTP ${code} for ${IMAGE}:${VERSION}; building."
+          else
+            echo "Harbor probe failed with HTTP $code; refusing to rebuild an unknown version." >&2
+            exit 1
           fi
 
       - name: Build and push (Harbor)
@@ -131,8 +142,8 @@ jobs:
           docker-target: ${{ matrix.target }}
           platforms: "linux/amd64,linux/arm64"
           annotations: |
-            index:org.opencontainers.image.source=https://github.com/webgrip/de-vloer
-            index:org.opencontainers.image.url=https://forgejo.webgrip.dev/webgrip/de-vloer
+            index:org.opencontainers.image.source=https://github.com/webgrip/glide
+            index:org.opencontainers.image.url=https://forgejo.webgrip.dev/webgrip/glide
           docker-build-args: |
             IMAGE_CREATED=${{ needs.vloer-parse-release-tag.outputs.created }}
             IMAGE_VERSION=${{ needs.vloer-parse-release-tag.outputs.version }}
@@ -171,6 +182,7 @@ jobs:
           image-version: ${{ needs.vloer-parse-release-tag.outputs.version }}
 
   vloer-release-publish-extension:
+    if: needs.vloer-parse-release-tag.outputs.version != ''
     name: Vloer - Publish VS Code extension
     needs: [vloer-parse-release-tag]
     runs-on: docker
@@ -221,6 +233,15 @@ jobs:
               echo "attached ${asset} to release ${release_id}"
             fi
           done
+      - name: Reuse and verify the canonical release asset
+        shell: bash
+        env:
+          VERSION: ${{ needs.vloer-parse-release-tag.outputs.version }}
+          WEBGRIP_CI_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
+          VSIX_PATH: extensions/vscode/de-vloer-${{ needs.vloer-parse-release-tag.outputs.version }}.vsix
+        run: |
+          python3 scripts/restore_extension_asset.py "$VERSION"
+          npm --prefix apps/vloer run extension:verify
       - name: Publish to Open VSX
         shell: bash
         env:
@@ -230,8 +251,8 @@ jobs:
           set -euo pipefail
           cd apps/vloer/extensions/vscode
           if [ -z "${OVSX_PAT:-}" ]; then
-            echo "::warning::OVSX_PAT is not configured; ${VERSION} reaches VS Code forks only as a sideloaded release asset."
-            exit 0
+            echo "OVSX_PAT is required for the public extension release." >&2
+            exit 1
           fi
           prerelease=""
           [[ "$VERSION" == *-* ]] && prerelease="--pre-release"
@@ -257,75 +278,6 @@ jobs:
           else
             echo "::notice::No Marketplace credential is configured. ${VERSION} ships to Open VSX only, by decision; see docs/adrs/0021-the-extension-ships-through-open-vsx-first.md."
           fi
-
-  vloer-release-distribute-forgejo:
-    name: Vloer - Distribute (Forgejo)
-    needs: [vloer-parse-release-tag, vloer-release-distribute-harbor]
-    uses: webgrip/workflows/.forgejo/workflows/forgejo-distribute.yml@v2.6.2
-    with:
-      enabled: ${{ needs.vloer-parse-release-tag.outputs.version != '' }}
-      version: ${{ needs.vloer-parse-release-tag.outputs.version }}
-      ref: vloer-v${{ needs.vloer-parse-release-tag.outputs.version }}
-      link-repo: de-vloer
-      image-name: de-vloer
-      mirror-from-registry: harbor.webgrip.dev
-      push-latest: ${{ needs.vloer-parse-release-tag.outputs.latest == 'true' }}
-      copy-accessories: true
-      chart-path: apps/vloer/ops/helm/de-vloer
-      chart-name: de-vloer
-    secrets:
-      REGISTRY_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
-      SOURCE_REGISTRY_USER: ${{ secrets.HARBOR_ROBOT_USER }}
-      SOURCE_REGISTRY_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
-
-  vloer-release-distribute-github:
-    name: Vloer - Distribute (GitHub)
-    needs: [vloer-parse-release-tag, vloer-release-distribute-harbor]
-    uses: webgrip/workflows/.forgejo/workflows/github-distribute.yml@v2.6.2
-    with:
-      enabled: ${{ needs.vloer-parse-release-tag.outputs.version != '' }}
-      version: ${{ needs.vloer-parse-release-tag.outputs.version }}
-      repo: webgrip/de-vloer
-      branches: main development
-      image-name: de-vloer
-      mirror-from-registry: harbor.webgrip.dev
-      push-latest: ${{ needs.vloer-parse-release-tag.outputs.latest == 'true' }}
-      copy-accessories: true
-      ref: vloer-v${{ needs.vloer-parse-release-tag.outputs.version }}
-      chart-path: apps/vloer/ops/helm/de-vloer
-      chart-name: de-vloer
-    secrets:
-      GH_USERNAME: ${{ secrets.GHCR_USERNAME }}
-      GH_TOKEN: ${{ secrets.GHCR_TOKEN }}
-      SOURCE_REGISTRY_USER: ${{ secrets.HARBOR_ROBOT_USER }}
-      SOURCE_REGISTRY_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
-
-  vloer-release-mirror-agent-github:
-    name: Vloer - Mirror the agent image (GHCR)
-    needs: [vloer-parse-release-tag, vloer-release-distribute-harbor]
-    if: needs.vloer-parse-release-tag.outputs.version != ''
-    runs-on: docker
-    steps:
-      - name: Copy de-vloer-agent from Harbor to GHCR
-        shell: bash
-        env:
-          VERSION: ${{ needs.vloer-parse-release-tag.outputs.version }}
-          HARBOR_USER: ${{ secrets.HARBOR_ROBOT_USER }}
-          HARBOR_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
-          GHCR_USER: ${{ secrets.GHCR_USERNAME }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-        run: |
-          set -euo pipefail
-          source="harbor.webgrip.dev/webgrip/de-vloer-agent:${VERSION}"
-          target="ghcr.io/webgrip/de-vloer-agent:${VERSION}"
-          echo "$HARBOR_TOKEN" | docker login harbor.webgrip.dev -u "$HARBOR_USER" --password-stdin >/dev/null
-          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin >/dev/null
-          digest="$(docker buildx imagetools inspect "$source" --format '{{ .Manifest.Digest }}')"
-          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "no digest resolved for $source" >&2; exit 1; }
-          docker buildx imagetools create --tag "$target" "harbor.webgrip.dev/webgrip/de-vloer-agent@${digest}"
-          mirrored="$(docker buildx imagetools inspect "$target" --format '{{ .Manifest.Digest }}')"
-          test "$mirrored" = "$digest"
-          echo "mirrored de-vloer-agent ${VERSION} at ${digest}"
 
   ploeg-parse-release-tag:
     if: vars.GLIDE_RELEASES_ENABLED == 'true' && startsWith(github.event.release.tag_name || inputs.tag, 'ploeg-v')
@@ -354,20 +306,28 @@ jobs:
   ploeg-release-publish-chart:
     name: Ploeg - Publish Helm chart (Harbor)
     needs: [ploeg-parse-release-tag]
-    uses: webgrip/workflows/.forgejo/workflows/helm-chart-push.yml@v1.10.0
-    with:
-      enabled: ${{ needs.ploeg-parse-release-tag.outputs.version != '' }}
-      registry: harbor.webgrip.dev
-      path: apps/ploeg/ops/helm/ploeg
-      name: ploeg
-      version: ${{ needs.ploeg-parse-release-tag.outputs.version }}
-      ref: ploeg-v${{ needs.ploeg-parse-release-tag.outputs.version }}
-      oci-path: webgrip/charts
-    secrets:
-      REGISTRY_USERNAME: ${{ secrets.HARBOR_ROBOT_USER }}
-      REGISTRY_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
+    if: needs.ploeg-parse-release-tag.outputs.version != ''
+    runs-on: docker
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ploeg-v${{ needs.ploeg-parse-release-tag.outputs.version }}
+      - name: Publish the canonical chart
+        shell: bash
+        env:
+          VERSION: ${{ needs.ploeg-parse-release-tag.outputs.version }}
+          HARBOR_ROBOT_USER: ${{ secrets.HARBOR_ROBOT_USER }}
+          HARBOR_ROBOT_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
+        run: |
+          set -euo pipefail
+          export DOCKER_CONFIG="$(mktemp -d)" PATH="$PWD/scripts:$PATH"
+          export HELM_REGISTRY_CONFIG="$DOCKER_CONFIG/config.json"
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          printf '%s' '{"credHelpers":{"harbor.webgrip.dev":"glide"}}' > "$DOCKER_CONFIG/config.json"
+          python3 scripts/publish_chart.py ploeg "$VERSION"
 
   ploeg-release-distribute-harbor:
+    if: needs.ploeg-parse-release-tag.outputs.version != ''
     name: Ploeg - Distribute (Harbor)
     needs: [ploeg-parse-release-tag]
     runs-on: docker
@@ -423,9 +383,12 @@ jobs:
             echo "harbor.webgrip.dev/webgrip/ploegd:${VERSION} is already published — skipping the build."
             echo "Harbor tags are immutable; a re-push would fail, and the digest the mirrors"
             echo "copy is already in place."
-          else
+          elif [ "$code" = 404 ]; then
             echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "Harbor answered HTTP ${code} for ${VERSION} — building."
+          else
+            echo "Harbor probe failed with HTTP $code; refusing to rebuild an unknown version." >&2
+            exit 1
           fi
 
       - name: Build and push (Harbor)
@@ -440,8 +403,8 @@ jobs:
           sbom-generator: "docker.io/docker/buildkit-syft-scanner:stable-1@sha256:79e7b013cbec16bbb436f312819a49a4a57752b2270c1a9332ae1a10fcc82a68"
           buildkit-image: "docker.io/moby/buildkit:buildx-stable-1@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec"
           annotations: |
-            index:org.opencontainers.image.source=https://github.com/webgrip/ploeg
-            index:org.opencontainers.image.url=https://forgejo.webgrip.dev/webgrip/ploeg
+            index:org.opencontainers.image.source=https://github.com/webgrip/glide
+            index:org.opencontainers.image.url=https://forgejo.webgrip.dev/webgrip/glide
           docker-build-args: |
             IMAGE_CREATED=${{ steps.stamp.outputs.created }}
             IMAGE_VERSION=${{ needs.ploeg-parse-release-tag.outputs.version }}
@@ -459,7 +422,7 @@ jobs:
           EXPECTED_CREATED: ${{ steps.stamp.outputs.created }}
           EXPECTED_VERSION: ${{ needs.ploeg-parse-release-tag.outputs.version }}
           EXPECTED_REVISION: ${{ github.sha }}
-          EXPECTED_SOURCE: https://github.com/webgrip/ploeg
+          EXPECTED_SOURCE: https://github.com/webgrip/glide
         run: |
           set -euo pipefail
           echo "$REGISTRY_TOKEN" | docker login harbor.webgrip.dev \
@@ -502,6 +465,7 @@ jobs:
           echo "index annotation verified: source=$EXPECTED_SOURCE"
 
   ploeg-release-sign-harbor:
+    if: needs.ploeg-parse-release-tag.outputs.version != ''
     outputs:
       signed: ${{ steps.signed.outputs.ready }}
     name: Ploeg - Sign & Attest (Harbor)
@@ -523,44 +487,60 @@ jobs:
         shell: bash
         run: echo "ready=true" >> "$GITHUB_OUTPUT"
 
-  ploeg-release-distribute-forgejo:
-    name: Ploeg - Distribute (Forgejo)
-    needs: [ploeg-parse-release-tag, ploeg-release-distribute-harbor, ploeg-release-sign-harbor]
-    uses: webgrip/workflows/.forgejo/workflows/forgejo-distribute.yml@v1.11.3
-    with:
-      enabled: ${{ needs.ploeg-parse-release-tag.outputs.version != '' && needs.ploeg-release-sign-harbor.outputs.signed == 'true' }}
-      version: ${{ needs.ploeg-parse-release-tag.outputs.version }}
-      ref: ploeg-v${{ needs.ploeg-parse-release-tag.outputs.version }}
-      link-repo: ploeg
-      image-name: ploegd
-      mirror-from-registry: harbor.webgrip.dev
-      push-latest: ${{ needs.ploeg-parse-release-tag.outputs.latest_tag != '' }}
-      copy-accessories: true
-      chart-path: apps/ploeg/ops/helm/ploeg
-      chart-name: ploeg
-    secrets:
-      REGISTRY_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
-      SOURCE_REGISTRY_USER: ${{ secrets.HARBOR_ROBOT_USER }}
-      SOURCE_REGISTRY_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
+  vloer-release-distribute:
+    name: Vloer - Verify and publish all destinations
+    needs: [vloer-parse-release-tag, vloer-release-distribute-harbor, vloer-release-publish-chart, vloer-release-publish-extension]
+    if: needs.vloer-parse-release-tag.outputs.version != ''
+    runs-on: docker
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+          ref: vloer-v${{ needs.vloer-parse-release-tag.outputs.version }}
+      - name: Copy and verify release artifacts
+        shell: bash
+        env:
+          VERSION: ${{ needs.vloer-parse-release-tag.outputs.version }}
+          HARBOR_ROBOT_USER: ${{ secrets.HARBOR_ROBOT_USER }}
+          HARBOR_ROBOT_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
+          WEBGRIP_CI_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          set -euo pipefail
+          export DOCKER_CONFIG="$(mktemp -d)" PATH="$PWD/scripts:$PATH"
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          printf '%s' '{"credHelpers":{"harbor.webgrip.dev":"glide","forgejo.webgrip.dev":"glide","ghcr.io":"glide"}}' > "$DOCKER_CONFIG/config.json"
+          python3 scripts/publish_release.py vloer "$VERSION"
 
-  ploeg-release-distribute-github:
-    name: Ploeg - Distribute (GitHub)
-    needs: [ploeg-parse-release-tag, ploeg-release-distribute-harbor, ploeg-release-sign-harbor]
-    uses: webgrip/workflows/.forgejo/workflows/github-distribute.yml@v1.11.1
-    with:
-      enabled: ${{ needs.ploeg-parse-release-tag.outputs.version != '' && needs.ploeg-release-sign-harbor.outputs.signed == 'true' }}
-      version: ${{ needs.ploeg-parse-release-tag.outputs.version }}
-      repo: webgrip/ploeg
-      branches: main development
-      image-name: ploegd
-      mirror-from-registry: harbor.webgrip.dev
-      push-latest: ${{ needs.ploeg-parse-release-tag.outputs.latest_tag != '' }}
-      copy-accessories: true
-      ref: ploeg-v${{ needs.ploeg-parse-release-tag.outputs.version }}
-      chart-path: apps/ploeg/ops/helm/ploeg
-      chart-name: ploeg
-    secrets:
-      GH_USERNAME: ${{ secrets.GHCR_USERNAME }}
-      GH_TOKEN: ${{ secrets.GHCR_TOKEN }}
-      SOURCE_REGISTRY_USER: ${{ secrets.HARBOR_ROBOT_USER }}
-      SOURCE_REGISTRY_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
+  ploeg-release-distribute:
+    name: Ploeg - Verify and publish all destinations
+    needs: [ploeg-parse-release-tag, ploeg-release-distribute-harbor, ploeg-release-publish-chart, ploeg-release-sign-harbor]
+    if: needs.ploeg-parse-release-tag.outputs.version != '' && needs.ploeg-release-sign-harbor.outputs.signed == 'true'
+    runs-on: docker
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+          ref: ploeg-v${{ needs.ploeg-parse-release-tag.outputs.version }}
+      - uses: https://github.com/actions/setup-go@v5
+        with:
+          go-version-file: apps/ploeg/go.mod
+          cache: false
+      - name: Copy and verify release artifacts
+        shell: bash
+        env:
+          VERSION: ${{ needs.ploeg-parse-release-tag.outputs.version }}
+          HARBOR_ROBOT_USER: ${{ secrets.HARBOR_ROBOT_USER }}
+          HARBOR_ROBOT_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
+          WEBGRIP_CI_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          set -euo pipefail
+          export DOCKER_CONFIG="$(mktemp -d)" PATH="$PWD/scripts:$PATH"
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          printf '%s' '{"credHelpers":{"harbor.webgrip.dev":"glide","forgejo.webgrip.dev":"glide","ghcr.io":"glide"}}' > "$DOCKER_CONFIG/config.json"
+          python3 scripts/publish_release.py ploeg "$VERSION"

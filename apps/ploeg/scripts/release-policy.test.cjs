@@ -180,7 +180,7 @@ test('the actual current Git history calculates the corrected replacement withou
   console.log(JSON.stringify({ lastRelease: lastRelease.gitTag, analyzedCommits: commits.length, type, nextRelease: `ploeg-v${version}`, publication: false }));
 });
 
-test('reusable artifact jobs accept validated parse output without unavailable job results', () => {
+test('artifact jobs accept validated parse output without unavailable job results', () => {
   const workflow = parse(fs.readFileSync(path.resolve(root, '../../.forgejo/workflows/on_release_published.yml'), 'utf8'));
   const parseStep = workflow.jobs['ploeg-parse-release-tag'].steps.find(step => step.id === 'parse');
   const shell = parseStep.run;
@@ -191,10 +191,10 @@ test('reusable artifact jobs accept validated parse output without unavailable j
       fs.writeFileSync(output, '');
       const result = spawnSync('bash', ['-c', shell], { env: { ...process.env, RELEASE_TAG: tag, GITHUB_OUTPUT: output }, encoding: 'utf8' });
       const version = fs.readFileSync(output, 'utf8').match(/^version=(.*)$/m)?.[1] || '';
-      for (const name of ['release-publish-chart', 'release-distribute-forgejo', 'release-distribute-github']) {
+      for (const name of ['release-publish-chart', 'release-distribute']) {
         const job = workflow.jobs[`ploeg-${name}`];
-        const expression = job.with.enabled.match(/\$\{\{ (.+) \}\}/)?.[1];
-        assert.ok(expression, `${name} must pass an explicit guarded enabled input`);
+        const expression = job.if;
+        assert.ok(expression, `${name} must have an explicit publication condition`);
         for (const unavailableResult of [undefined, '']) {
           const enabled = vm.runInNewContext(expression.replace(/needs\.([a-z-]+)/g, "needs['$1']"), {
             needs: {

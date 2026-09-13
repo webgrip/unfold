@@ -56,7 +56,7 @@ test('only an enabled development push can version applications after both gates
 test('preview uses the release toolchain and remains a manual dry run', () => {
   const preview = workflows['on_release_preview.yml'];
   assert.deepEqual(Object.keys(preview.on), ['workflow_dispatch']);
-  assert.deepEqual(Object.keys(preview.jobs), ['preview']);
+  assert.deepEqual(Object.keys(preview.jobs), ['preflight', 'preview']);
   const job = preview.jobs.preview;
   assert.deepEqual(job.container, source.jobs['release-vloer'].container);
   assert.deepEqual(job.strategy.matrix.application, ['vloer', 'ploeg']);
@@ -67,7 +67,7 @@ test('preview uses the release toolchain and remains a manual dry run', () => {
   assert.equal(evaluate(job.if, { github: { ref: 'refs/heads/main' } }), false);
 });
 
-test('release routing disables every reusable publisher for a closed gate or the other application', () => {
+test('release routing disables every publisher for a closed gate or the other application', () => {
   assert.deepEqual(Object.keys(publisher.on).sort(), ['release', 'workflow_dispatch']);
   assert.deepEqual(publisher.on.release.types, ['published']);
   assert.equal(publisher.concurrency['cancel-in-progress'], false);
@@ -82,8 +82,8 @@ test('release routing disables every reusable publisher for a closed gate or the
           context.needs[`${app}-parse-release-tag`] = { outputs: { version: parsed ? '0.3.0-rc.5' : '' } };
         }
         context.needs['ploeg-release-sign-harbor'] = { outputs: { signed: 'true' } };
-        for (const [name, job] of Object.entries(publisher.jobs).filter(([, job]) => job.uses)) {
-          assert.equal(evaluate(job.with.enabled, context), name.startsWith(`${selected}-`) && gate === 'true', name);
+        for (const [name, job] of Object.entries(publisher.jobs).filter(([name]) => !name.endsWith('-parse-release-tag'))) {
+          assert.equal(evaluate(job.uses ? job.with.enabled : job.if, context), name.startsWith(`${selected}-`) && gate === 'true', name);
         }
       }
     }
@@ -94,11 +94,11 @@ test('Ploeg mirrors require completed signing even when Forgejo omits job result
   const sign = publisher.jobs['ploeg-release-sign-harbor'];
   assert.equal(sign.outputs.signed, '${{ steps.signed.outputs.ready }}');
   assert.ok(sign.steps.findIndex(step => step.id === 'signed') > sign.steps.findIndex(step => step.uses?.includes('/cosign-sign-attest@')));
-  for (const name of ['ploeg-release-distribute-forgejo', 'ploeg-release-distribute-github']) {
+  for (const name of ['ploeg-release-distribute']) {
     const job = publisher.jobs[name];
     assert.ok(job.needs.includes('ploeg-release-sign-harbor'));
     for (const signed of ['', 'false', 'true']) {
-      assert.equal(evaluate(job.with.enabled, { needs: {
+      assert.equal(evaluate(job.if, { needs: {
         'ploeg-parse-release-tag': { outputs: { version: '0.3.0-rc.5' } },
         'ploeg-release-sign-harbor': { outputs: { signed } },
       } }), signed === 'true', `${name}: ${signed}`);

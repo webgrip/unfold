@@ -26,7 +26,7 @@ EXPOSE 4080
 USER node
 LABEL org.opencontainers.image.title="De Vloer" \
     org.opencontainers.image.description="Operator workbench control plane: shell-less hardened Node runtime with no package manager; agent work runs in separate workspaces." \
-    org.opencontainers.image.source="https://forgejo.webgrip.dev/webgrip/de-vloer" \
+    org.opencontainers.image.source="https://github.com/webgrip/glide" \
     org.opencontainers.image.vendor="WebGrip" \
     org.opencontainers.image.licenses="Apache-2.0" \
     org.opencontainers.image.created="${IMAGE_CREATED}" \
