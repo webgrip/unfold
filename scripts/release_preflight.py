@@ -3,7 +3,7 @@ import json
 import os
 import urllib.parse
 
-from publish_release import FORGEJO, GITHUB, api
+from publish_release import GITHUB, api, git
 from release_registry import Registry, request, require_same
 
 
@@ -16,9 +16,20 @@ require_same(repo['permissions']['push'], True, 'GitHub publication permission')
 for old in ['de-vloer', 'ploeg']:
     state = api(f'https://forgejo.webgrip.dev/api/v1/repos/webgrip/{old}', forge_token)
     require_same(state['has_actions'], False, old + ' old release authority')
-mirrors = api(FORGEJO + '/push_mirrors', forge_token)
-if len(mirrors) != 1 or mirrors[0]['last_error'] or not mirrors[0]['sync_on_commit']:
-    raise RuntimeError('Glide requires a healthy continuous GitHub mirror')
+
+
+def mirrored_refs(remote):
+    listing = git('ls-remote', remote, 'refs/heads/development', 'refs/tags/*', 'refs/notes/*')
+    return {ref: sha for sha, ref in (line.split('\t') for line in listing.splitlines()) if not ref.endswith('^{}')}
+
+
+source = mirrored_refs('origin')
+require_same(source['refs/heads/development'], git('rev-parse', 'HEAD'), 'Forgejo trunk')
+mirror = mirrored_refs('https://github.com/webgrip/glide.git')
+stale = sorted(ref for ref in source.keys() | mirror.keys() if source.get(ref) != mirror.get(ref))
+if stale:
+    raise RuntimeError('GitHub mirror differs from Forgejo at ' + ', '.join(stale))
+print(f'GitHub mirror matches Forgejo across {len(source)} refs')
 for host, user, token in [('harbor.webgrip.dev', os.environ['HARBOR_ROBOT_USER'], os.environ['HARBOR_ROBOT_TOKEN']), ('ghcr.io', os.environ['GHCR_USERNAME'], github_token), ('forgejo.webgrip.dev', 'webgrip-ci', forge_token)]:
     registry = Registry(host, user, token)
     for name in ['de-vloer', 'de-vloer-agent', 'ploegd', 'charts/de-vloer', 'charts/ploeg']:
