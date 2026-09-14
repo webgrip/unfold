@@ -53,6 +53,22 @@ test('only an enabled development push can version applications after both gates
   }
 });
 
+test('release channel notes mirror only after both source gates pass, whether or not a release ran', () => {
+  const job = source.jobs['mirror-source-metadata'];
+  assert.deepEqual(job.needs, ['checks', 'release-policy', 'release-ploeg']);
+  assert.ok(job.steps.some(step => step.run === 'python3 scripts/sync_release_notes.py'));
+  for (const ref of ['refs/heads/development', 'refs/heads/main']) {
+    for (const checks of ['success', 'failure', 'skipped']) {
+      for (const policy of ['success', 'failure']) {
+        for (const release of ['success', 'skipped', 'failure']) {
+          const context = { always: () => true, github: { ref }, needs: { checks: { result: checks }, 'release-policy': { result: policy }, 'release-ploeg': { result: release } } };
+          assert.equal(evaluate(job.if, context), ref === 'refs/heads/development' && checks === 'success' && policy === 'success', `${ref} ${checks} ${policy} ${release}`);
+        }
+      }
+    }
+  }
+});
+
 test('preview uses the release toolchain and remains a manual dry run', () => {
   const preview = workflows['on_release_preview.yml'];
   assert.deepEqual(Object.keys(preview.on), ['workflow_dispatch']);

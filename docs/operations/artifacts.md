@@ -1,6 +1,6 @@
 # Source mirrors and release artifacts
 
-[Forgejo](https://forgejo.webgrip.dev/webgrip/glide) owns source changes and versioning. [GitHub](https://github.com/webgrip/glide) receives the same branches and tags through a native SSH push mirror. The source workflow also copies semantic-release's Git notes, which Forgejo's native mirror omits. GitHub Actions is disabled for the mirror.
+[Forgejo](https://forgejo.webgrip.dev/webgrip/glide) owns source changes and versioning. [GitHub](https://github.com/webgrip/glide) receives the same branches and tags through a native SSH push mirror. The source workflow also copies semantic-release's Git notes, which Forgejo's native mirror omits; it does so only after both source gates pass, because the copy prunes GitHub to Forgejo's note set and the [import verifier](../../scripts/verify-import.py) is what proves that set is complete. GitHub Actions is disabled for the mirror.
 
 Vloer and Ploeg retain independent `vloer-v0.x.y-rc.N` and `ploeg-v0.x.y-rc.N` tags. The [release workflow](../../.forgejo/workflows/on_release_published.yml) builds each image once in Harbor, signs it through OpenBao, and copies the resulting OCI index and signing artifacts to the other registries. A chart is packaged once; subsequent destinations receive the original OCI manifest and blobs.
 
