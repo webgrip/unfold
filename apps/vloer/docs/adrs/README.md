@@ -15,7 +15,7 @@ Trunk is `development`. Each accepted decision records its consequences and a tr
 | [0009 — Workspace placement is a per-session choice](0009-workspace-placement-is-a-session-choice.md) | Accepted for 0.3.0; Docker qualified locally, Kubernetes unqualified on a cluster |
 | [0010 — One release train, hardened images with a zero-finding budget](0010-one-release-train-with-zero-cve-images.md) | Accepted; first pipeline release pending estate prerequisites |
 | [0011 — Sandboxes dial out through a relay](0011-sandboxes-dial-out-through-a-relay.md) | Accepted; Docker qualified, Kubernetes by fixture |
-| [0012 — Every session is an Agent Host Protocol host](0012-agent-host-protocol-host.md) | Accepted for 0.3.0; VS Code attachment documented |
+| [0012 — Every session is an Agent Host Protocol host](0012-agent-host-protocol-host.md) | Accepted for 0.3.0; 1.138 handshake verified, single-minor negotiation recorded as a defect |
 | [0013 — Sandbox CRD placement with warm Kata pools](0013-sandbox-crd-placement-with-warm-kata-pools.md) | Accepted as an option; unqualified on the cluster |
 | [0014 — Candidates are signed](0014-signed-candidates.md) | Accepted for 0.3.0 |
 | [0015 — Ploeg exposes a read-only operator API and De Vloer projects it](0015-ploeg-operator-read-api.md) | Read projection implemented; fleet lossless events and AHP projection remain proposed |
