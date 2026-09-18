@@ -77,6 +77,8 @@ The detailed feature inventory is unusually valuable: authenticated team access 
 
 Borrow its visible review stages, task-level resource disclosures, and workflow portability concept. Do not copy source into this Apache-licensed repository without an explicit dependency and license decision. A separate deployment behind an adapter and a source-code fork are different product commitments.
 
+**Correction, 18 September 2026.** The description above understates Kandev's coordination. It ships an inter-agent FIFO message bus with interrupt semantics, parent and child workflow gates, and explicit profile handoffs, on a per-session Kubernetes Pod executor with namespaced RBAC across six trackers — AGPL, one Go binary, no telemetry, releasing weekly through v0.94.0 on 9 September. Coordination and workspace placement are therefore substantively covered, not in progress. What it still has no documentation for is budgets, spend attribution, provenance, ACP and replay. At 804 stars with no company behind it this is an architectural comparison rather than a commercial threat, but the budget gap is closable with the same LiteLLM integration this project uses. [Changelog](https://kandev.ai/changelog), [refresh evidence](2026-09-18-band-and-the-interaction-layer.md).
+
 ### 4.2 OpenHands: an execution component and a full alternative
 
 Agent Canvas supports multiple agent backends and ACP-compatible agents, while the SDK owns canonical execution APIs and the automation service owns scheduling and webhooks. That separation closely resembles the proposed Ploeg/workbench boundary. [Repository architecture](https://github.com/OpenHands/OpenHands).

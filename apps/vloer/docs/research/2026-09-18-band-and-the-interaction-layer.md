@@ -184,6 +184,43 @@ Design ideas worth taking, with the acceptance test that would prove each one he
 
 **The serious long-run competitor is not BAND.** Microsoft Foundry Agent Service now runs hosted agents in your own container across Agent Framework, LangGraph, the OpenAI Agents SDK, the Anthropic Agent SDK and the GitHub Copilot SDK; gives **each hosted agent a dedicated Entra identity**; curates tools behind a single managed MCP-compatible endpoint; ships A2A v1.0 GA; and distributes through Teams, M365 Copilot and the Entra Agent Registry. Entra Agent ID is GA through Agent 365. Inside a Microsoft tenant that is the most complete first-party stack in this landscape. It documents **no per-agent budget caps**.
 
+### The workbench category, refreshed
+
+The [9 September shortlist](market-landscape.md#4-shortlist-products-that-should-influence-the-decision) needs two corrections and one warning.
+
+**Kandev was understated.** It is not parallel sessions with a board. It ships an inter-agent FIFO message bus with interrupt semantics, parent and child workflow gates, explicit profile handoffs, and a per-session Kubernetes Pod executor with namespaced RBAC across six trackers — AGPL, one Go binary, no telemetry, weekly releases through v0.94.0 on 9 September. Coordination and workspace placement are substantively covered. It has no budgets, no spend attribution, no provenance, no ACP and no documented replay. At 804 stars with no company behind it, it is an architectural threat rather than a commercial one: a determined team could bolt LiteLLM onto it in a month.
+
+**OpenHands Enterprise is the closest funded version of this thesis.** Self-hosted on your own Kubernetes via Helm, Sysbox-isolated sandboxes, SAML and Keycloak RBAC, multi-user organisations, **budgeting through LiteLLM — the same gateway we use** — per-run cost display, ACP in both directions, and Jira Cloud plus Data Center. It shipped twelve releases in August and September. A prospect who writes down the requirements and shops them will get a doc URL for most lines. The gaps that remain are precise: per-task budget with a virtual-key lifecycle attributed to a ticket, declared reviewer crews, provenance, and per-customer tenancy.
+
+**The attrition is the story.** Terragon shut down in February 2026. Vibe Kanban is sunsetting with 28.1k stars. Continue was acquired and archived. Coder removed Tasks in 2.37. Sculptor has been silent since April. Meanwhile a ~250-entry census of the category exists, almost all of it "N isolated agents in git worktrees plus a dashboard", and the largest open-source entry by an order of magnitude (~71,400 stars) is exactly that pattern. **Stars are not survival: 28k did not save Vibe Kanban.**
+
+### The empty columns
+
+Checked against each product's own documentation. Nothing in the category does any of these.
+
+1. **Artifact provenance or signing.** Zero products document in-toto, SLSA or signed commits on agent-produced candidates. The closest anyone gets is audit *logs of what happened* rather than attestations verifiable off-platform. This is [ADR-0014](../adrs/0014-signed-candidates.md), and it is the single most defensible position available.
+2. **Per-task budget with spend attributed to the originating ticket.** Every budget in the category is per-user, per-organisation or per-agent, on a monthly or lifetime cycle. Devin comes closest with per-run and per-repository cost visibility, and still caps at the org. **Nobody binds a budget to a task, mints a scoped credential for it, and revokes it when the task closes.** That is Ploeg's Inference Account, and it is a whole product axis with no occupant.
+3. **Event-sourced durable sessions with replay as a user-visible contract.** Resume and persistence are common; *replay* appears once in ~250 catalogued projects, as a primitive rather than a product.
+4. **Reusable reviewer crews as a declarable object.** Coordination exists — handoffs, gates, coordinator-and-subagent trees. Declared, reusable review structure does not.
+5. **Per-customer tenancy for an agency:** several clients, separate forges, trackers, budgets and data boundaries in one installation. Only Paperclip documents multi-company isolation, and Paperclip does not do software delivery.
+6. **A self-hosted control plane from any commercial vendor.** Cursor self-hosts execution and keeps orchestration. Factory self-hosts the compute and keeps the platform. **Self-hosting the control plane remains an open-source-only property.** That is a licence moat, not a technical one.
+
+Five of those six are Glide's existing design. That is the clearest strategic signal in this survey, and it is worth more than anything BAND-specific in it.
+
+### The finding that cuts against us
+
+**ACP has won the editor seam, and AHP has no third-party adoption to attach to.** OpenHands is an ACP client *and* exposes IDE-over-ACP; BAND ships both ACP server and client adapters; Zed, Claude Code and Gemini CLI all ship ACP entrypoints; roughly 47 agents sit in the ACP registry. Across this entire workbench survey, **AHP appears zero times outside our own repository**. The blunt version from the sweep: *an AHP host that does not also speak ACP is attaching to an empty seam.*
+
+This does not invalidate [ADR-0012](../adrs/0012-agent-host-protocol-host.md). Its actual justification is that VS Code will attach to any host listed in `chat.remoteAgentHosts`, and that remains true and remains free. But the ADR's implicit hope — that other clients arrive — now has evidence against it, and the estate's ACP position is asymmetric: Ploeg speaks ACP south through `pkg/harness/adapters/acp`, while Vloer's north surface is AHP alone. If a second editor surface is ever worth building, the evidence says ACP, not more AHP. Recorded as a trigger in §10 rather than as a reversal.
+
+### Does any of this actually work
+
+The strongest published evidence, [arXiv 2609.13890](http://arxiv.org/abs/2609.13890) (12 September 2026), evaluates five communication topologies over 614 problems with a budget-matched protocol and a maths replication. Hierarchical multi-agent collaboration beats a single agent by **+2.4 points of pass@1 on the easiest third of problems and +21.1 on the hardest third, at roughly ten times the token cost throughout**. A difficulty-aware router reaches 77.7% pass@1 at 40% of always-hierarchical cost, beating always-hierarchical at 73.6%; all eleven pairwise comparisons survive Holm-Bonferroni correction.
+
+Read against our product: **running a crew on every task burns ten times the tokens to buy 2.4 points on easy work.** The value is real and concentrated in hard tasks, and capturing it needs difficulty-aware routing plus per-task cost accounting — which is an independent argument for the budget axis nobody occupies. It is also a caution against making crews the default for everything.
+
+Worth recording alongside it: [METR's February 2026 update](https://metr.org/blog/2026-02-24-uplift-update/) retracted the confidence behind its own widely-cited "AI made tasks 19% slower" result, reporting raw speedups in the successor study while saying the signal is unreliable because developers refuse to participate without AI and withheld 30–50% of tasks they expected AI to do well. METR has published no productivity result since. **As of today there is no rigorous trial measuring multiple coding agents against one.** Anyone claiming otherwise, in either direction, is ahead of the evidence.
+
 **Not established.** The session's web-search budget was exhausted early, so later work ran on direct fetches of primary pages. Specific items that remain **unverified rather than absent**, and should not be repeated without a better source: Gartner's Hype Cycle for Agentic AI 2026 innovation profiles (gartner.com blocks automated fetch); the Stripe/OpenRouter acquisition, which is reported and not confirmed closed; the Anthropic/Stainless and Cisco/Astrix price tags, which come from secondary reporting rather than filings; Thoughtworks ring-by-volume attribution; and Google's *"FinOps for the AI era: new flexible billing and cost controls for agents"*, whose title is index-verified but whose article 404'd on fetch. That last one is the highest-value open gap in this survey, because **if anyone has shipped per-agent budget enforcement at hyperscaler scale, that is where it would be.**
 
 ## 8. What the future looks like
@@ -223,6 +260,8 @@ Any one of these reopens this record. Each is checkable in minutes.
 - **Thoughtworks Radar Vol. 35 (around November 2026) moves A2A off Assess** in either direction, or a named metric-backed A2A production deployment appears outside the cloud-platform set. Note that no frontier lab ships A2A today: every named adopter is a cloud or SaaS platform, and the labs are where coding agents come from.
 - **A2A grows queue or pub-sub transport** ([a2aproject/A2A#1029](https://github.com/a2aproject/A2A/issues/1029)) — already a trigger on ADR-0007, restated because it is the one change that would make a peer protocol an executor-seam candidate.
 - **A real peer arrives**: a client's or vendor's agent that must join a crew without running on our infrastructure. That reopens §4, and the answer is still the A2A facade rather than BAND.
+- **Any third-party AHP client attaches to Vloer's host**, or conversely, **a second editor surface becomes worth building**. On today's evidence the second case argues for ACP rather than more AHP, because ACP has roughly 47 registered agents and AHP has no adoption outside this repository. Ploeg already speaks ACP south; Vloer speaking ACP north would be the new work, and it should be justified by a named client rather than by symmetry.
+- **OpenHands Enterprise ships per-task budgets, declared reviewer crews, or candidate provenance.** It already self-hosts on Kubernetes and already budgets through LiteLLM, so these are the only remaining gaps between it and this product. Any one of them closing is a direct competitive event.
 
 ## 11. Amendments to standing records
 
