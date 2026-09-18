@@ -63,6 +63,7 @@ The entries below summarize official documentation, not this project's test resu
 | **Devin** | Commercial; team and enterprise offerings | Tickets, automations, playbooks and review | Cloud execution; enterprise deployment options | Strong outcome-oriented competitor; do not compare against old ACU-only packaging |
 | **Cursor cloud agents** | Commercial cloud-agent service | Event/schedule automations and agent work | Remote computers plus editor integration | Establishes expectations for polished asynchronous developer UX |
 | **OpenCode** | MIT coding harness | Native sessions and subagents; not the whole proposed delivery contract | Server API and IDE integration | Preferred initial execution component; can also be sufficient alone for simpler needs |
+| **BAND / Jam** *(added 18 September 2026)* | SaaS only, no self-host tier at any price; MIT SDKs over a closed Elixir backend; Jam distributed as proprietary binaries | Chat rooms, `@mention` routing, bilateral Contacts, a per-room task board; no tracker integration of any kind | Jam coordinates local Claude Code and Codex agents over Docker Sandboxes; no forge, diff, PR or merge surface | Sells our governance vocabulary one layer above us, with a transcript where we have typed evidence. Rejected as a dependency, mined for design: [dossier](2026-09-18-band-and-the-interaction-layer.md) |
 
 Sources for the matrix: [Kandev](https://github.com/kdlbs/kandev), [OpenHands edition comparison](https://docs.openhands.dev/enterprise/enterprise-vs-oss), [Coder pricing](https://coder.com/pricing), [Paperclip](https://github.com/paperclipai/paperclip), [GitLab](https://docs.gitlab.com/user/duo_agent_platform/), [GitHub](https://docs.github.com/en/copilot/concepts/agents/cloud-agent/about-cloud-agent), [Factory deployment](https://docs.factory.ai/enterprise/network-and-deployment), [Devin integrations](https://docs.devin.ai/integrations/overview), [Cursor cloud agents](https://cursor.com/docs/cloud-agent), [OpenCode repository](https://github.com/anomalyco/opencode).
 
@@ -131,6 +132,14 @@ Continue's former Mission Control direction emphasized reusable agents and sourc
 Vibe Kanban's official site says it is sunsetting and continuing as community-maintained open source. Its remote-access concept and review-oriented task experience remain useful references. [Official site](https://www.vibekanban.com/), [remote access](https://www.vibekanban.com/blog/remote-access).
 
 **Our inference:** exitability should be a demonstrable product behavior. Users need their task definitions, Git changes, costs, evidence and run history exported in documented formats. A downloadable source repository does not automatically provide a usable exit path.
+
+### 4.9 BAND and Jam: the vocabulary competitor, added 18 September 2026
+
+BAND postdates this document's 9 September research date. It raised a $17M seed in April 2026 and sells an "interaction layer with built-in governance" — chat rooms where agents and humans participate together, `@mention` routing, bilateral Contacts and a per-message delegation-token exchange. Its governance page concedes the enforcement half in its own words: *"Keep policy enforcement in your application logic, and use BAND to make the handoff record visible."* Its published [OpenAPI document](https://docs.band.ai/openapi.json) contains zero occurrences of spend, billing, provenance, attestation, repository, commit, pull request or merge across 56 paths.
+
+Two things make it worth a row rather than a footnote. Its desktop product, Jam, is the same shape as De Vloer's workbench — coding agents on a board, autonomous handoff, human intervention points — and it is a free download today. And BAND built the delivery loop we are building, as [Codeband](https://github.com/band-ai/codeband): adversarial cross-model review, a worktree per coder, risk-tiered auto-merge. Codeband is now marked *"maintenance only"* and redirects users to Jam. The coordination vendor retreated from finishing the work to watching it.
+
+**Our inference:** the differentiator is not "governed agent teams", which BAND will out-market us on, but the four things no vendor and no protocol in this landscape carries — self-hosting, authorized-and-settled model spend, ticket-to-merge delivery, and signed candidates. The [full dossier](2026-09-18-band-and-the-interaction-layer.md) records the design ideas worth mining and the triggers that would reopen the question.
 
 ## 5. What De Vloer can claim today, and what must be earned
 
