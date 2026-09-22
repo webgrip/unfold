@@ -13,6 +13,17 @@ func Branch(item WorkItem) string {
 	return "agent/" + refSafe(item.Provider) + "-" + refSafe(item.ExternalID)
 }
 
+// Reference is the tracker reference an agent puts in commit trailers and the
+// pull request body. Vikunja items, and items with no recorded provider, keep
+// the deployed VIK-<id> form byte for byte; every other tracker gets
+// <provider>-<id>, sanitized the same way as Branch.
+func Reference(item WorkItem) string {
+	if item.Provider == "" || item.Provider == "vikunja" {
+		return "VIK-" + item.ExternalID
+	}
+	return refSafe(item.Provider) + "-" + refSafe(item.ExternalID)
+}
+
 func refSafe(s string) string {
 	return strings.Map(func(r rune) rune {
 		switch {

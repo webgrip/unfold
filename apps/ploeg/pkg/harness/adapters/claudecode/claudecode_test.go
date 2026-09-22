@@ -35,7 +35,8 @@ func TestPrepare_ArgvAndEnvMapping(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{DefaultBin, "-p", "# Ticket VIK-596\n", "--output-format", "json", "--permission-mode", DefaultPermissionMode}
+	want := []string{DefaultBin, "-p", "# Ticket VIK-596\n", "--output-format", "json", "--permission-mode", DefaultPermissionMode,
+		"--settings", `{"disableAllHooks":true}`, "--strict-mcp-config"}
 	if !slices.Equal(inv.Argv, want) {
 		t.Errorf("argv = %v, want %v", inv.Argv, want)
 	}
@@ -50,6 +51,25 @@ func TestPrepare_ArgvAndEnvMapping(t *testing.T) {
 	} {
 		if !slices.Contains(inv.ExtraEnv, kv) {
 			t.Errorf("missing env %q in %v", kv, inv.ExtraEnv)
+		}
+	}
+}
+
+func TestPrepare_TargetRepositoryHooksAndMCPServersNeverRun(t *testing.T) {
+	for _, a := range []*Adapter{New("", ""), New("claude-custom", "acceptEdits")} {
+		inv, err := a.Prepare(harness.TaskSpec{}, testEnv())
+		if err != nil {
+			t.Fatal(err)
+		}
+		i := slices.Index(inv.Argv, "--settings")
+		if i < 0 || i+1 >= len(inv.Argv) || inv.Argv[i+1] != `{"disableAllHooks":true}` {
+			t.Errorf("argv does not disable hooks with one --settings JSON element: %q", inv.Argv)
+		}
+		if !slices.Contains(inv.Argv, "--strict-mcp-config") {
+			t.Errorf("argv lets the target's .mcp.json servers start: %q", inv.Argv)
+		}
+		if slices.Contains(inv.Argv, "--mcp-config") {
+			t.Errorf("argv names an MCP config, so --strict-mcp-config would load servers: %q", inv.Argv)
 		}
 	}
 }

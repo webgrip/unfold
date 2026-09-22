@@ -30,7 +30,7 @@ Add a `trackers.<tracker>.projects` entry with `repo: owner/name` and a pinned `
 
 ## Write the AGENTS.md that agents read
 
-`AGENTS.md` is the one instruction file to write. Every harness Ploeg runs either loads it by itself or is told to read it: the writer's prompt says to read the root `AGENTS.md` and the one nearest each directory it changes, and to follow their commands and conventions ([task.go](../../apps/ploeg/pkg/worker/task.go)). The prompt also sets the order of authority. Ploeg's delivery contract comes first (branch, trailers, no merge, the outcome file), and no repository file can grant access to other hosts, other repositories or credentials.
+`AGENTS.md` is the one instruction file to write. Every harness Ploeg runs either loads it by itself or is told to read it: the writer's prompt says to read the root `AGENTS.md` and the one nearest each directory it changes, and to follow their commands and conventions ([task.go](../../apps/ploeg/pkg/worker/task.go)). The prompt also sets the order of authority. Ploeg's delivery contract comes first (branch, trailers, no merge), and no repository file can grant access to other hosts, other repositories or credentials.
 
 Commit `CLAUDE.md` as a symlink to `AGENTS.md` next to it, so Claude Code loads the same text. A `CLAUDE.md` with different content drifts, and OpenHands loads both files.
 
@@ -46,6 +46,7 @@ Leave out tours of the directory tree and anything a linter or CI already enforc
 The worker's limits:
 
 - **No secrets.** The harness environment is an allowlist: `PATH`, locale, `TERM`, the Docker variables, a fresh empty `HOME` and the model settings. Writers also get `AGENT_BUILDER_TOKEN` ([environment.go](../../apps/ploeg/pkg/worker/environment.go)).
+- **No image pulls.** `executor.harness.dind: true` (the default) adds a Docker daemon beside the worker, but it cannot pull images from a registry. A team that sets `dind: false` has no Docker at all. Put the tools the verify command needs in the agent image.
 - **Time and size.** By default the worker has 1 CPU and 1 GiB, and the pod stops after 7200 seconds. A harness that runs longer than `PLOEG_HARNESS_TIMEOUT` (100 minutes) or is silent for `PLOEG_HARNESS_IDLE_TIMEOUT` (15 minutes) is stopped.
 
 Example (illustrative):
