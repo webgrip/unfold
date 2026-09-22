@@ -410,8 +410,7 @@ export class Engine {
     if (user.role !== 'admin') throw new EngineError(403, 'forbidden', 'Only an administrator can increase authorization.');
     if (!Number.isFinite(amount) || amount <= 0 || session.budgetUsd + amount > this.config.maxBudgetUsd) throw new EngineError(400, 'invalid_budget', 'The increase must stay within the configured total budget limit.');
     if (['completed', 'cancelled', 'failed'].includes(session.status)) throw new EngineError(409, 'invalid_state', 'A finished session cannot receive additional authorization.');
-    const holds = this.reservations(id);
-    if (holds.length && this.active.has(id)) throw new EngineError(409, 'pause_required', 'Pause and reconcile active spending before increasing authorization.');
+    if (this.active.has(id) || this.reservations(id).length) throw new EngineError(409, 'pause_required', 'The running model key keeps the budget it was issued with. Pause and reconcile the session first; the increase applies to the key minted when it resumes.');
     session.budgetUsd = Math.round((session.budgetUsd + amount) * 1e6) / 1e6;
     this.save(session, 'budget.increased', user.id, { amountUsd: amount, totalBudgetUsd: session.budgetUsd });
     return session;

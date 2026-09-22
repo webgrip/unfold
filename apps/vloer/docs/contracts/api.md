@@ -35,7 +35,7 @@ An editor signs in through the same browser flow. `POST /api/auth/editor` (publi
 | `POST /api/sessions/:id/resume` | `{}`; explicitly continue paused/interrupted work subject to spend reconciliation |
 | `POST /api/sessions/:id/cancel` | `{}`; intentional cancellation, with no automatic replacement run |
 | `POST /api/sessions/:id/messages` | `{text}`; persist an operator instruction |
-| `POST /api/sessions/:id/budget` | Standalone only: `{amountUsd}`; administrator authorizes an additional positive amount within the total limit. Shared budget extension is not implemented |
+| `POST /api/sessions/:id/budget` | Standalone only: `{amountUsd}`; administrator authorizes an additional positive amount within the total limit. A gateway key keeps the budget it was minted with and is never extended in place, so the increase is refused with 409 `pause_required` while the session executes or holds unreconciled keys; it applies to the key minted on the next resume. Shared budget extension is not implemented |
 
 Selection values must come from the registered profiles. `placement` is one of the workspace backends listed in `placements` (`docker`, `kubernetes` or `local`); omitted, it takes the deployment default, and a demonstration deployment lists none. The created session records `placement`, and the `workspace.ready` event reports the resulting `backend` and `isolation` (`container`, `pod` or `working-directory`). Budgets are positive amounts in USD; they are not token allocations. One optional writer may precede reviewers, and roles execute sequentially. Completion requires explicit approval from required reviewers. A review requesting changes is a human decision point rather than an automatic rewriting loop.
 
