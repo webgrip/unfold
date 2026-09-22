@@ -167,7 +167,7 @@ jobs:
           echo "ref=harbor.webgrip.dev/webgrip/${{ matrix.name }}@${digest}" >> "$GITHUB_OUTPUT"
 
       - name: CVE budget gate (grype + OpenVEX)
-        uses: ./apps/vloer/.forgejo/actions/cve-gate
+        uses: ./.forgejo/actions/cve-gate
         with:
           image-ref: ${{ steps.digest.outputs.ref }}
           image-name: ${{ matrix.name }}
@@ -335,6 +335,10 @@ jobs:
       REGISTRY_USERNAME: ${{ secrets.HARBOR_ROBOT_USER }}
       REGISTRY_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
     steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ploeg-v${{ needs.ploeg-parse-release-tag.outputs.version }}
+
       - name: Stamp image creation timestamp
         id: stamp
         shell: bash
@@ -463,6 +467,27 @@ jobs:
             exit 1
           }
           echo "index annotation verified: source=$EXPECTED_SOURCE"
+
+      - name: Resolve the published digest
+        id: digest
+        shell: bash
+        env:
+          IMAGE: harbor.webgrip.dev/webgrip/ploegd:${{ needs.ploeg-parse-release-tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          echo "$REGISTRY_TOKEN" | docker login harbor.webgrip.dev -u "$REGISTRY_USERNAME" --password-stdin >/dev/null
+          digest="$(docker buildx imagetools inspect "$IMAGE" --format '{{ .Manifest.Digest }}')"
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "no digest resolved for $IMAGE" >&2; exit 1; }
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "ref=harbor.webgrip.dev/webgrip/ploegd@${digest}" >> "$GITHUB_OUTPUT"
+
+      - name: CVE budget gate (grype + OpenVEX)
+        uses: ./.forgejo/actions/cve-gate
+        with:
+          image-ref: ${{ steps.digest.outputs.ref }}
+          image-name: ploegd
+          budgets-file: apps/ploeg/ops/security/cve-budgets.yaml
+          vex-dir: apps/ploeg/ops/vex/statements
 
   ploeg-release-sign-harbor:
     if: needs.ploeg-parse-release-tag.outputs.version != ''

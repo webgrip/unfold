@@ -19,7 +19,7 @@ Inspect the matching run in [Forgejo Actions](https://forgejo.webgrip.dev/webgri
 
 ## Images and chart
 
-The publication workflow builds the [workbench image](../../Dockerfile) and [workspace image](../../ops/agent/Dockerfile) for AMD64 and ARM64. The [CVE gate](../../.forgejo/actions/cve-gate/action.yml) evaluates the published digest against [configured budgets](../../ops/security/cve-budgets.yaml) and [reviewed VEX statements](../../ops/vex/statements/). Signing and attestation follow that gate. Verify the digest, signer and attached evidence when qualifying a release; an old vulnerability scan is not a permanent assertion about an image.
+The publication workflow builds the [workbench image](../../Dockerfile) and [workspace image](../../ops/agent/Dockerfile) for AMD64 and ARM64. The [CVE gate](../../../../.forgejo/actions/cve-gate/action.yml) evaluates the published digest against [configured budgets](../../ops/security/cve-budgets.yaml) and [reviewed VEX statements](../../ops/vex/statements/). Signing and attestation follow that gate. Verify the digest, signer and attached evidence when qualifying a release; an old vulnerability scan is not a permanent assertion about an image.
 
 The [chart](../../ops/helm/de-vloer/) defaults image versions from its `appVersion`. Explicit image overrides can create version skew and need their own qualification. Registry destinations and mirror enablement belong to the publication workflow; consult it rather than a copied deployment inventory. Its prepared GitHub distribution jobs and workspace-image copy remain behind the Glide publication gate. Successful publication and public pull access must be checked from the actual run and destination.
 

@@ -21,6 +21,8 @@ runs:
       shell: bash
     - run: mise run verify
       shell: bash
+      env:
+        GLIDE_REQUIRE_IMPORT_NOTES: 'true'
     - name: Container build contexts
       shell: bash
       run: |

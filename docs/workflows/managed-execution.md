@@ -79,6 +79,8 @@ mise run integration
 
 The Go test starts real PostgreSQL and Ploeg HTTP handlers, creates an ephemeral scoped consumer and launches [the workbench qualification](../../apps/vloer/scripts/qualify-ploeg.ts). That script uses the real De Vloer HTTP API and deterministic runtime: it changes a real Git fixture, executes failing and passing checks, verifies the review, detaches a stream, changes supervision, pauses, resumes, cancels, reopens the application and checks retained evidence. Its output explicitly reports zero inference calls and zero spend. This is distinct from the illustrative records in an unconnected demo workbench.
 
+The same run also exercises the paid path's credential lifecycle against a [local fake LiteLLM gateway](../../scripts/fake-litellm.mjs). Ploeg's real broker and PostgreSQL inference accounts serve [a second workbench qualification](../../apps/vloer/scripts/qualify-ploeg-inference.ts). Admission reserves the budget, the first role mints a capped, model-scoped key, and completion or cancellation blocks it. A blocked capability cannot resume. The fake gateway refuses inference and reports zero spend, so the report still records zero model calls and zero spend. Its limits state that no real gateway, model or budget enforcement ran.
+
 See [validation](../../apps/vloer/docs/validation.md) for the recorded result. A production pilot still needs one live scoped OpenCode run against the estate's LiteLLM/Fireworks route, actual workspace isolation, attributable metering, intervention, key blocking and cleanup. Start with one team and measure time to reviewed result and human intervention minutes before increasing concurrency.
 
 ## Planning beyond this baseline

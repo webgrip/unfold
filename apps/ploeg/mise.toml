@@ -1,20 +1,3 @@
-# mise — reproducible toolchain for the parts of this repo that are not Go
-# (https://mise.jdx.dev). The Go toolchain is NOT managed here: CI runs
-# `golang:1.25` containers (.forgejo/workflows/), and contributors without a
-# local Go can run every gate the same way:
-#
-#   docker run --rm -v "$PWD":/src -w /src golang:1.25 go test ./...
-#
-# That command needs registry egress, which contributor machines have and the
-# Ploeg worker sandbox deliberately does not (a worker pod reaches its LLM
-# gateway and forge, nothing else) — an agent whose pull times out skips the
-# gate and names it as left to CI in the PR body (AGENTS.md).
-#
-# Note: pkg/store's embedded-postgres refuses to run as root, so that package
-# needs `-u <uid>:<gid>` with a matching /etc/passwd entry, or a local Go.
-#
-# After `mise install`, `openspec` is on PATH.
-
 [settings]
 lockfile = true
 
