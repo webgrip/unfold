@@ -59,3 +59,4 @@ Run `mise run verify`, `mise run integration` and `mise run docs-check`. The imp
 * Technical story: [migration plan](../migration.md).
 * 2026-09-12 — The owner selected Glide and explicitly instructed execution of the reviewed plan. This record captures that approval before assembling the source trees.
 * The [application decision ledgers](../index.md) remain scoped to their respective applications.
+* 2026-09-22 — [ADR-0002](adr-0002-ploeg-is-the-only-engine.md) supersedes the standalone Vloer authority and the retention of both engines. Two independently deployable applications remain.
