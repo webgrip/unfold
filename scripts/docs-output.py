@@ -1,16 +1,18 @@
 import argparse
+import importlib.util
 import json
 import re
 import shutil
 from pathlib import Path
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urljoin
 
 import yaml
 
 
-def historical(location):
-    path = urlsplit(location).path
-    return any(part in path.split('/') for part in ['research', 'adrs', 'adr', 'design']) or path.startswith(('migration-proposal', 'vloer/PRODUCT-DESIGN', 'vloer/contracts/implementation', 'ploeg/backlog'))
+spec = importlib.util.spec_from_file_location('docs_rules', Path(__file__).with_name('docs-rules.py'))
+rules = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(rules)
+historical = rules.historical
 
 
 def absolute_links(markdown, url):
@@ -69,16 +71,6 @@ def finalize(site, staging):
         assert not historical(source.relative_to(staging).as_posix()), f'Historical page in default bundle: {source}'
         bundle.append(f'\n---\n\nSource: {target}\n\n' + absolute_links(source.read_text(), target))
     (site / 'llms-full.txt').write_text(''.join(bundle))
-    index_path = site / 'search/search_index.json'
-    if index_path.exists():
-        search = json.loads(index_path.read_text())
-        search['docs'] = [entry for entry in search['docs'] if not historical(entry['location'])]
-        index_path.write_text(json.dumps(search, ensure_ascii=False))
-    zensical_index = site / 'search.json'
-    if zensical_index.exists():
-        search = json.loads(zensical_index.read_text())
-        search['items'] = [entry for entry in search['items'] if not historical(entry['location'])]
-        zensical_index.write_text(json.dumps(search, ensure_ascii=False))
     for page in site.rglob('*.html'):
         content = page.read_text()
         if historical(page.relative_to(site).as_posix()):
