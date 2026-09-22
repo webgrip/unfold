@@ -144,6 +144,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         return;
       }
       if (method === 'POST' && path === '/api/logout') {
+        const signIn = auth.signIn(req);
+        if (signIn) agentHost?.revokeSignIn(signIn);
         res.setHeader('Set-Cookie', auth.logout(req));
         return json(res, 200, { ok: true });
       }
@@ -187,7 +189,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           if (method === 'POST' && path === '/api/agent-host/tokens') {
             if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot connect an agent host.');
             const data = await body(req);
-            const token = agentHost!.issueToken(user, text(data.label, 'Label', 80, true) || 'agent host');
+            const token = agentHost!.issueToken(user, text(data.label, 'Label', 80, true) || 'agent host', auth.signIn(req));
             return json(res, 201, { token, address, vscodeSetting: { key: 'chat.remoteAgentHosts', entry: { address, name: 'De Vloer', connectionToken: token } } });
           }
           fault(405, 'method', 'Unsupported method.');

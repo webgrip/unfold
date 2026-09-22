@@ -38,6 +38,11 @@ export class Auth {
     const header = req.headers.cookie || '';
     return header.split(';').map(pair => pair.trim()).find(pair => pair.startsWith(`${this.cookieName}=`))?.slice(this.cookieName.length + 1);
   }
+  /** Identifies the sign-in that authenticated a request without exposing its cookie value. */
+  signIn(req: IncomingMessage): string | undefined {
+    const token = this.token(req);
+    return token && token.length <= 200 ? digest(token) : undefined;
+  }
   user(req: IncomingMessage): User | undefined {
     if (this.config.mode === 'demo') return { id: 'demo-operator', name: 'Demo operator', role: 'admin' };
     const token = this.token(req);

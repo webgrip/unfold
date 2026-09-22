@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
-import { application, request } from './api-support.ts';
+import { application, login, request } from './api-support.ts';
 import { diffEntries } from '../src/ahp/host.ts';
 
 type Json = Record<string, any>;
@@ -119,4 +119,70 @@ test('unified diff artifacts become changeset files when no native diff is avail
   const entries = diffEntries('diff --git a/src/a.js b/src/a.js\n--- a/src/a.js\n+++ b/src/a.js\n@@ -1 +1 @@\n-old\n+new\ndiff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ -0,0 +1 @@\n+hello\n');
   assert.deepEqual(entries.map(entry => [entry.file, entry.additions, entry.deletions]), [['src/a.js', 1, 1], ['README.md', 1, 0]]);
   assert.deepEqual(diffEntries('[{"file":"x","before":"a","after":"b"}]').map(entry => entry.file), ['x']);
+});
+
+const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
+const closed = (socket: WebSocket) => new Promise<number>(resolve => { if (socket.readyState === WebSocket.CLOSED) resolve(1006); else socket.addEventListener('close', event => resolve(event.code), { once: true }); });
+
+test('agent host tokens expire without use, renew when used and are rejected afterwards', async t => {
+  const server = await application('live');
+  t.after(() => server.close());
+  const auth = await login(server.url);
+  const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', cookie: auth.cookie, body: { label: 'lifetime' } });
+  assert.equal(issued.status, 201, issued.text);
+  const address = `${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`;
+  const key = `ahp-token:${sha256(issued.body.token)}`;
+  const store = server.app.store;
+  const lifetimeMs = server.config.auth.sessionHours * 3_600_000;
+  const first = store.getSecret<{ expiresAt: string }>(key)!;
+  assert.ok(Math.abs(Date.parse(first.expiresAt) - (Date.now() + lifetimeMs)) < 10_000, 'a new token carries a bounded lifetime');
+
+  store.setSecret(key, { ...first, expiresAt: new Date(Date.now() + 120_000).toISOString() });
+  const used = connect(address);
+  t.after(() => used.close());
+  await used.open;
+  assert.deepEqual(await used.rpc('ping', { channel: 'ahp-root://' }), {});
+  const renewed = store.getSecret<{ expiresAt: string }>(key)!;
+  assert.ok(Date.parse(renewed.expiresAt) > Date.now() + lifetimeMs - 10_000, 'use renews the lifetime');
+
+  store.setSecret(key, { ...renewed, expiresAt: new Date(Date.now() - 1000).toISOString() });
+  const ending = closed(used.socket);
+  used.notify('ping', { channel: 'ahp-root://' });
+  assert.equal(await ending, 1008, 'an expired token closes its open connection on next use');
+  assert.equal(store.getSecret(key), undefined, 'an expired token is revoked');
+  await assert.rejects(connect(address).open);
+});
+
+test('signing out or the end of the issuing sign-in revokes agent host tokens and closes their connections', async t => {
+  const server = await application('live');
+  t.after(() => server.close());
+  const store = server.app.store;
+  const address = (token: string) => `${server.url.replace(/^http/, 'ws')}/?tkn=${token}`;
+
+  const signedOut = await login(server.url);
+  const other = await login(server.url);
+  const revokedToken = (await request(server.url, '/api/agent-host/tokens', { method: 'POST', cookie: signedOut.cookie, body: {} })).body.token;
+  const keptToken = (await request(server.url, '/api/agent-host/tokens', { method: 'POST', cookie: other.cookie, body: {} })).body.token;
+  const attached = connect(address(revokedToken));
+  t.after(() => attached.close());
+  await attached.open;
+  const ending = closed(attached.socket);
+  assert.equal((await request(server.url, '/api/logout', { method: 'POST', cookie: signedOut.cookie })).status, 200);
+  assert.equal(await ending, 1008, 'signing out closes the connection immediately');
+  assert.equal(store.getSecret(`ahp-token:${sha256(revokedToken)}`), undefined);
+  await assert.rejects(connect(address(revokedToken)).open);
+  const kept = connect(address(keptToken));
+  t.after(() => kept.close());
+  await kept.open;
+  assert.deepEqual(await kept.rpc('ping', { channel: 'ahp-root://' }), {}, 'another sign-in keeps its own tokens');
+
+  const signIn = sha256(other.cookie.slice(other.cookie.indexOf('=') + 1));
+  const record = store.getLogin(signIn)!;
+  store.deleteLogin(signIn);
+  store.createLogin(signIn, record.userId, new Date(Date.now() - 1000).toISOString());
+  const expiring = closed(kept.socket);
+  kept.notify('ping', { channel: 'ahp-root://' });
+  assert.equal(await expiring, 1008, 'a token ends with the sign-in session that issued it');
+  assert.equal(store.getSecret(`ahp-token:${sha256(keptToken)}`), undefined);
+  await assert.rejects(connect(address(keptToken)).open);
 });

@@ -24,7 +24,7 @@ Failures are catalog entries, not raw exception text. Acknowledged means the run
 
 ## Review the Ploeg changes
 
-The [Ploeg integration directory](../../integrations/ploeg/README.md) contains the baseline, patch and qualification instructions. The source candidate is committed locally as `6c3e4f8`; no branch was pushed. Go was absent and the environment cancelled the attempted toolchain download, so the patch is deliberately offered for review and CI qualification.
+A Ploeg integration directory held the baseline, patch and qualification instructions. The patch was never applied upstream and has since been removed; Ploeg's source now lives in this monorepo. The source candidate is committed locally as `6c3e4f8`; no branch was pushed. Go was absent and the environment cancelled the attempted toolchain download, so the patch is deliberately offered for review and CI qualification.
 
 ## Continue dogfooding
 

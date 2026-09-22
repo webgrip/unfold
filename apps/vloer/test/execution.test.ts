@@ -47,7 +47,7 @@ async function governed(t: TestContext) {
   const inferenceKey = randomBytes(32).toString('hex');
   const forbiddenMaster = randomBytes(32).toString('hex');
   process.env[env] = consumerToken;
-  const state = { unavailable: false, admissionGate: undefined as ReturnType<typeof deferred> | undefined, commandGate: undefined as ReturnType<typeof deferred> | undefined, commandGates: new Map<string, ReturnType<typeof deferred>>(), credentialGate: undefined as ReturnType<typeof deferred> | undefined, credentialStates: [] as string[], failCommands: new Set<string>(), afterApplyFailure: new Set<string>(), admissions: 0, credentialRequests: 0, blocks: 0, gatewayRequests: 0, commandAttempts: [] as { id: string; action: string }[], remote: undefined as RemoteExecution | undefined, capability: 'reserved' };
+  const state = { unavailable: false, admissionGate: undefined as ReturnType<typeof deferred> | undefined, commandGate: undefined as ReturnType<typeof deferred> | undefined, commandGates: new Map<string, ReturnType<typeof deferred>>(), credentialGate: undefined as ReturnType<typeof deferred> | undefined, credentialStates: [] as string[], failCommands: new Set<string>(), afterApplyFailure: new Set<string>(), admissions: 0, credentialRequests: 0, blocks: 0, gatewayRequests: 0, commandAttempts: [] as { id: string; action: string }[], remote: undefined as RemoteExecution | undefined, capability: 'reserved', dropAdmissionResponse: false };
   const receipts = new Map<string, RemoteExecution>();
   const api = createServer(async (req, res) => {
     try {
@@ -62,6 +62,7 @@ async function governed(t: TestContext) {
         state.admissions++;
         if (state.admissionGate) await state.admissionGate.promise;
         state.remote ??= { id: randomBytes(16).toString('hex'), workItemId: '9007199254740993', sessionId: input.sessionId, actor: String(req.headers['x-ploeg-actor']), team: input.team, demo: input.demo, state: 'admitted', revision: 1, generation: 1, supervision: 'human', expiresAt: new Date(Date.now() + 60000).toISOString(), stopConfirmed: true };
+        if (state.dropAdmissionResponse) { state.dropAdmissionResponse = false; res.writeHead(503).end(); return; }
         send({ execution: state.remote }); return;
       }
       if (!state.remote || !req.url?.includes(state.remote.id)) { res.writeHead(404).end(); return; }
@@ -377,6 +378,99 @@ test('a newer generation learned between roles cannot authorize the old executor
   await until(() => ['failed', 'completed'].includes(f.server.app.store.getSession(session.id)!.status), 'crew did not resolve after authority generation changed');
   assert.equal(f.server.app.store.getSession(session.id)?.status, 'failed');
   assert.equal(f.runtime.calls, 1, 'the next role must be fenced against the generation that admitted this executor');
+  assert.equal(f.state.credentialRequests, 1);
+  assert.equal(f.state.gatewayRequests, 0);
+});
+
+function standaloneBroker() {
+  const minted: string[] = [];
+  const broker = {
+    mint: async (session: Session): Promise<Credential> => { minted.push(session.id); return { key: randomBytes(32).toString('hex'), alias: 'standalone-fixture', reference: `standalone-${session.id}`, budgetUsd: session.budgetUsd }; },
+    spend: async () => 0, revoke: async () => {}, extend: async () => {},
+  };
+  return { broker, minted };
+}
+
+async function withoutExecutionConfig(f: Awaited<ReturnType<typeof governed>>) {
+  delete f.server.config.execution;
+  await f.server.restart();
+  const standalone = standaloneBroker();
+  f.server.app.engine.broker = standalone.broker;
+  return standalone;
+}
+
+test('a lost admission response keeps the session managed after the execution configuration is removed', async t => {
+  const f = await governed(t); const session = f.create();
+  f.state.dropAdmissionResponse = true;
+  await assert.rejects(f.server.app.engine.start(session.id, owner), { code: 'execution_unconfirmed' });
+  assert.equal(f.state.admissions, 1, 'Ploeg applied the admission even though its response was lost');
+  assert(f.server.app.store.getSecret(`admission:${session.id}`), 'the admission intent must be durable before Ploeg is called');
+  assert.equal(f.server.app.store.getSession(session.id)?.execution, undefined);
+  const standalone = await withoutExecutionConfig(f);
+  const blocked = f.server.app.store.getSession(session.id)!;
+  assert.equal(blocked.status, 'queued');
+  assert.match(blocked.blocker ?? '', /never confirmed/);
+  assert(f.server.app.store.events(session.id).some(event => event.type === 'execution.reconciliation_pending' && event.data.admission === 'unconfirmed'));
+  await assert.rejects(f.server.app.engine.start(session.id, owner), { code: 'authority_required' });
+  await assert.rejects(f.server.app.engine.addBudget(session.id, 1, { id: 'admin', name: 'Admin', role: 'admin' }), { code: 'authority_budget' });
+  await f.server.restart();
+  f.server.app.engine.broker = standalone.broker;
+  await assert.rejects(f.server.app.engine.start(session.id, owner), { code: 'authority_required' }, 'a restart must not turn the intent into a standalone session');
+  assert.deepEqual(standalone.minted, []);
+  assert.equal(f.runtime.prepared.length, 0);
+  assert.equal(f.runtime.calls, 0);
+  const discarded = await f.server.app.engine.cancel(session.id, owner);
+  assert.equal(discarded.status, 'cancelled');
+  await assert.rejects(f.server.app.engine.start(session.id, owner), { code: 'invalid_state' });
+  await assert.rejects(f.server.app.engine.retry(session.id, owner), { code: 'new_authorization_required' });
+  assert.deepEqual(standalone.minted, []);
+  assert.equal(f.runtime.calls, 0);
+});
+
+test('a lost admission response is reconciled by replaying the same admission to Ploeg', async t => {
+  const f = await governed(t); const session = f.create();
+  f.state.dropAdmissionResponse = true;
+  await assert.rejects(f.server.app.engine.start(session.id, owner), { code: 'execution_unconfirmed' });
+  const executionId = f.state.remote!.id;
+  await f.server.app.engine.start(session.id, owner);
+  await until(() => f.runtime.calls === 1, 'reconciled execution did not start');
+  assert.equal(f.state.admissions, 2);
+  assert.equal(f.state.remote!.id, executionId, 'the replayed admission must bind the execution Ploeg already admitted');
+  assert.equal(f.server.app.store.getSession(session.id)?.execution?.id, executionId);
+  assert.equal(f.state.credentialRequests, 1);
+});
+
+test('a confirmed Ploeg execution requires its authority and never resumes standalone', async t => {
+  const f = await governed(t); const session = f.create();
+  await f.server.app.engine.start(session.id, owner);
+  await until(() => f.runtime.calls === 1, 'runtime did not start');
+  const paused = await f.server.app.engine.pause(session.id, owner);
+  assert.equal(paused.execution?.state, 'paused');
+  const standalone = await withoutExecutionConfig(f);
+  await assert.rejects(f.server.app.engine.resume(session.id, owner), { code: 'authority_required' });
+  assert.equal(f.server.app.store.getSession(session.id)?.status, 'paused');
+  assert.deepEqual(standalone.minted, []);
+  assert.equal(f.runtime.calls, 1);
+  assert.equal(f.state.admissions, 1);
+});
+
+test('losing Ploeg authority mid-run interrupts execution and blocks resume until reconciled', async t => {
+  const f = await governed(t); const session = f.create();
+  f.server.config.execution!.heartbeatMs = 50;
+  await f.server.app.engine.start(session.id, owner);
+  await until(() => f.runtime.calls === 1, 'runtime did not start');
+  f.state.unavailable = true;
+  await until(() => f.server.app.store.events(session.id).some(event => event.type === 'execution.reconciliation_pending'), 'authority loss was not reconciled locally');
+  const interrupted = f.server.app.store.getSession(session.id)!;
+  assert.equal(interrupted.status, 'interrupted');
+  assert.equal(f.runtime.aborted, 1);
+  const lost = f.server.app.store.events(session.id).find(event => event.type === 'execution.authority_lost');
+  assert.equal(lost?.data.autoResumed, false);
+  assert.equal(f.server.app.store.getSecret(`authority-unresolved:${session.id}`), true);
+  await assert.rejects(f.server.app.engine.resume(session.id, owner), { code: 'execution_unconfirmed' });
+  f.state.unavailable = false;
+  await delay(150);
+  assert.equal(f.runtime.calls, 1, 'authority loss must never become an automatic retry');
   assert.equal(f.state.credentialRequests, 1);
   assert.equal(f.state.gatewayRequests, 0);
 });

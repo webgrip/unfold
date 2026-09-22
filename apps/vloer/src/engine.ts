@@ -188,10 +188,7 @@ export class Engine {
   }
 
   private async admitAndLaunch(session: Session, user: User, action: 'start' | 'resume'): Promise<Session> {
-    if (!this.authority) {
-      if (session.execution) throw new EngineError(503, 'authority_required', 'Restore this session’s Ploeg authority connection before executing.');
-      return this.launch(session, user);
-    }
+    if (!this.authority) return this.launch(session, user);
     this.authority.authorize(user);
     if (this.admissions.has(session.id) || this.active.has(session.id)) throw new EngineError(409, 'already_running', 'This session is starting or executing.');
     if (this.active.size + this.admissions.size >= this.config.maxConcurrentSessions) throw new EngineError(409, 'capacity', 'The configured concurrent session limit has been reached.');
@@ -244,7 +241,12 @@ export class Engine {
     return this.admitAndLaunch(session, user, 'resume');
   }
 
+  private managed(session: Session): boolean {
+    return Boolean(session.execution || this.authority?.current(session.id) || this.store.getSecret(`admission:${session.id}`));
+  }
+
   private launch(session: Session, user: User): Session {
+    if (!this.authority && this.managed(session)) throw new EngineError(503, 'authority_required', 'Ploeg was asked to manage this session, so it never runs standalone. Restore the Ploeg execution connection to reconcile it, or cancel it to discard it.');
     this.interactiveRepository(session.repositoryId, session.sourceTask);
     if (this.shuttingDown) throw new EngineError(503, 'shutting_down', 'The server is shutting down.');
     if (this.active.has(session.id)) throw new EngineError(409, 'already_running', 'This session is already executing.');
@@ -342,7 +344,7 @@ export class Engine {
 
   async retry(id: string, user: User): Promise<Session> {
     let session = this.owned(id, user);
-    if (session.execution || this.authority) throw new EngineError(409, 'new_authorization_required', 'A failed Ploeg execution stays terminal. Reconcile its authorization and create an explicit new session.');
+    if (this.managed(session) || this.authority) throw new EngineError(409, 'new_authorization_required', 'A failed Ploeg execution stays terminal. Reconcile its authorization and create an explicit new session.');
     if (session.status !== 'failed') throw new EngineError(409, 'invalid_state', 'Only a failed session can be tried again.');
     if (this.active.has(id)) throw new EngineError(409, 'stopping', 'The previous execution is still stopping.');
     if (session.runtime !== 'demo') {
@@ -404,12 +406,11 @@ export class Engine {
 
   async addBudget(id: string, amount: number, user: User): Promise<Session> {
     const session = this.owned(id, user);
-    if (session.execution || this.authority) throw new EngineError(409, 'authority_budget', 'Ploeg owns this authorization. Its budget cannot be increased from the workbench.');
+    if (this.managed(session) || this.authority) throw new EngineError(409, 'authority_budget', 'Ploeg owns this authorization. Its budget cannot be increased from the workbench.');
     if (user.role !== 'admin') throw new EngineError(403, 'forbidden', 'Only an administrator can increase authorization.');
     if (!Number.isFinite(amount) || amount <= 0 || session.budgetUsd + amount > this.config.maxBudgetUsd) throw new EngineError(400, 'invalid_budget', 'The increase must stay within the configured total budget limit.');
     if (['completed', 'cancelled', 'failed'].includes(session.status)) throw new EngineError(409, 'invalid_state', 'A finished session cannot receive additional authorization.');
-    const holds = this.reservations(id);
-    if (holds.length && this.active.has(id)) throw new EngineError(409, 'pause_required', 'Pause and reconcile active spending before increasing authorization.');
+    if (this.active.has(id) || this.reservations(id).length) throw new EngineError(409, 'pause_required', 'The running model key keeps the budget it was issued with. Pause and reconcile the session first; the increase applies to the key minted when it resumes.');
     session.budgetUsd = Math.round((session.budgetUsd + amount) * 1e6) / 1e6;
     this.save(session, 'budget.increased', user.id, { amountUsd: amount, totalBudgetUsd: session.budgetUsd });
     return session;
@@ -446,6 +447,11 @@ export class Engine {
 
   recover(): void {
     for (const session of this.store.listSessions()) {
+      const unconfirmed = 'Ploeg admission was requested for this session but never confirmed. It will not run standalone; restore the Ploeg execution connection to reconcile it, or cancel it to discard it.';
+      if (!this.authority && !session.execution && this.managed(session) && ['queued', 'paused', 'interrupted'].includes(session.status) && session.blocker !== unconfirmed) {
+        session.blocker = unconfirmed;
+        this.save(session, 'execution.reconciliation_pending', 'system', { admission: 'unconfirmed', autoResumed: false });
+      }
       const interrupted = ['running', 'waiting_input', 'exporting'].includes(session.status);
       if (interrupted) {
         session.status = 'interrupted'; session.blocker = 'The server restarted. Execution has not been resumed; review the workspace and explicitly resume.';

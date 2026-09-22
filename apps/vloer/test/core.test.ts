@@ -180,6 +180,31 @@ test('unknown paid spend retains authorization across interruption and blocks an
   await engine.shutdown();
 });
 
+test('a budget increase is refused while a model key is live and applies to the key minted on resume', async t => {
+  const { store, config } = await fixture(t, 'live');
+  const runtime = new ControlledRuntime('opencode'); runtime.delayMs = 1000;
+  const minted: number[] = [];
+  const broker = {
+    async mint(session: Session) { minted.push(session.budgetUsd); return { key: `budget-key-${minted.length}`, reference: `budget-ref-${minted.length}`, alias: `budget-ref-${minted.length}`, budgetUsd: session.budgetUsd }; },
+    async spend() { return 0.5; }, async revoke() {}, async extend() { throw new Error('A live key must not be extended'); },
+  };
+  const engine = new Engine(store, config, { opencode: runtime }, broker);
+  const session = engine.create(input('opencode'), owner);
+  await engine.start(session.id, owner);
+  await assert.rejects(engine.addBudget(session.id, 1, admin), { code: 'pause_required' }, 'an increase before the first mint would diverge from the key');
+  await until(() => runtime.calls === 1);
+  await assert.rejects(engine.addBudget(session.id, 1, admin), { code: 'pause_required' });
+  assert.equal(store.getSession(session.id)!.budgetUsd, 2);
+  await engine.pause(session.id, owner);
+  assert.deepEqual(store.getSecret(`budget:${session.id}`), []);
+  assert.equal((await engine.addBudget(session.id, 1, admin)).budgetUsd, 3);
+  await engine.resume(session.id, owner);
+  await until(() => minted.length === 2);
+  assert.deepEqual(minted, [2, 2.5], 'the resumed key carries the increased remaining budget');
+  await engine.cancel(session.id, owner);
+  await engine.shutdown();
+});
+
 test('state transactions roll back together and internal credentials are encrypted on disk', async t => {
   const { directory, store, config } = await fixture(t);
   const engine = new Engine(store, config, { demo: new ControlledRuntime() });
