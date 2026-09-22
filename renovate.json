@@ -1,12 +1,12 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "local>webgrip/renovate-config"
+    "local>webgrip/renovate-config#v1.9.0"
   ],
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Update ARGs annotated with '# renovate: datasource=\u2026 depName=\u2026'. The Dockerfiles compose their FROM refs from a registry variable and a digest-pinned tag, which the dockerfile manager cannot replace; tag and digest are captured separately so digest-pinned ARGs stay managed.",
+      "description": "Update ARGs annotated with '# renovate: datasource=… depName=…'. The Dockerfiles compose their FROM refs from a registry variable and a digest-pinned tag, which the dockerfile manager cannot replace; tag and digest are captured separately so digest-pinned ARGs stay managed.",
       "managerFilePatterns": [
         "/(^|/)Dockerfile$/"
       ],
