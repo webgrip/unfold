@@ -144,7 +144,7 @@ Core semantics must never encode a provider-specific workaround; everything vend
 ### R18
 *Context: Dispatch*
 
-An Operator Execution requires authenticated admission. Creating a queued Vloer session alone does not admit it; Start in shared mode does, including hands-on work. Standalone Vloer does not create these Ploeg records.
+An Operator Execution requires authenticated admission. Creating a queued Vloer session alone does not admit it; Start does, including hands-on work. Vloer's deterministic demo, and its standalone mode until Glide ADR-0002 retires it, do not create these Ploeg records.
 
 **Why:** Admission follows the configured execution mode and explicit start, not whether a person is currently watching the work.
 

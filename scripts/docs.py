@@ -16,7 +16,27 @@ root = Path(__file__).resolve().parent.parent
 parser = argparse.ArgumentParser()
 parser.add_argument('--check', action='store_true')
 parser.add_argument('--stage-only', action='store_true')
+parser.add_argument('--domain', action='store_true')
 args = parser.parse_args()
+domain_models = ['docs/domain', 'apps/ploeg/docs/domain']
+glossary = 'docs/reference/glossary.md'
+
+
+def generate_domain(folder, out):
+    subprocess.run([sys.executable, str(root / 'scripts/generate-domain.py'), str(root / folder / 'model.yaml'), '--out', str(out)], cwd=root, check=True, stdout=subprocess.DEVNULL)
+
+
+def combined_glossary():
+    return subprocess.run([sys.executable, str(root / 'scripts/generate-domain.py'), '--glossary', glossary, '--stdout', *[f'{folder}/model.yaml' for folder in domain_models]], cwd=root, check=True, capture_output=True, text=True).stdout
+
+
+if args.domain:
+    for folder in domain_models:
+        generate_domain(folder, root / folder)
+    (root / glossary).parent.mkdir(parents=True, exist_ok=True)
+    (root / glossary).write_text(combined_glossary())
+    print(f'Glide domain: {len(domain_models)} models and {glossary}')
+    sys.exit()
 staging = root / '.build/docs'
 site = root / '.build/site'
 revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
@@ -25,13 +45,14 @@ source_url = f'https://forgejo.webgrip.dev/webgrip/glide/src/commit/{revision}/'
 if args.check:
     for test in ['docs-output.test.py', 'docs-live.test.py']:
         subprocess.run([sys.executable, str(root / 'scripts' / test)], check=True)
+    for folder in domain_models:
+        with tempfile.TemporaryDirectory(prefix='glide-domain-') as temporary:
+            generate_domain(folder, temporary)
+            for generated in Path(temporary).glob('*.md'):
+                assert generated.read_bytes() == (root / folder / generated.name).read_bytes(), f'Stale generated domain view: {folder}/{generated.name}; run mise run domain'
+    assert (root / glossary).exists() and (root / glossary).read_text() == combined_glossary(), f'Stale combined glossary: {glossary}; run mise run domain'
     for name, expected in json.loads((root / 'docs/landscape/generated-sources.json').read_text()).items():
         assert hashlib.sha256((root / name).read_bytes()).hexdigest() == expected, f'Stale landscape: {name}; rebuild with node apps/vloer/scripts/build-landscape.mjs'
-    for folder in [root / 'docs/domain', root / 'apps/ploeg/docs/domain']:
-        with tempfile.TemporaryDirectory(prefix='glide-domain-') as temporary:
-            subprocess.run([sys.executable, str(root / 'scripts/generate-domain.py'), str(folder / 'model.yaml'), '--out', temporary], check=True, stdout=subprocess.DEVNULL)
-            for generated in Path(temporary).glob('*.md'):
-                assert generated.read_bytes() == (folder / generated.name).read_bytes(), f'Stale generated domain view: {folder / generated.name}'
     subprocess.run([sys.executable, str(root / 'scripts/validate_adr_consistency.py'), str(root)], check=True)
 
 if staging.exists():

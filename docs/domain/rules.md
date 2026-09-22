@@ -10,7 +10,7 @@ An unknown or pending charge must not be described as zero spend against a Budge
 
 **Why:** Missing cost data cannot justify more expenditure.
 
-**Also applies to:** Execution
+**Also applies to:** Shift
 
 ## Evidence
 
@@ -21,16 +21,6 @@ Evidence of executed checks is distinct from an Agent's assertion that checks pa
 **Why:** A reviewer needs an inspectable basis for accepting a result.
 
 **Also applies to:** Agent, Review
-
-## Execution
-
-### R4
-
-A completed Execution does not by itself prove that its Result is accepted or released.
-
-**Why:** Finishing a process, accepting its output, and changing production are separate decisions.
-
-**Also applies to:** Result, Review
 
 ## Model
 
@@ -60,15 +50,35 @@ A person initially accepts Results; automatic acceptance requires a separately a
 
 **Also applies to:** Review
 
+## Run
+
+### R8
+
+Ploeg is the Authority for every Run (Glide ADR-0002). Vloer requests Admission through Ploeg's API and never falls back to its own execution when Ploeg is unavailable, whatever the cause. Without Ploeg, Vloer runs only its deterministic demo, which makes no model calls. Current state — Vloer's standalone mode and its own engine remain until the migration to ploeg-worker is complete; no new execution features are added to that engine.
+
+**Why:** One authority, one budget path and one revocable credential per Run; runner location does not decide who authorizes work.
+
+**Also applies to:** Workload, Session
+
+## Shift
+
+### R4
+
+A finished Run or closed Shift does not by itself prove that its Result is accepted or released.
+
+**Why:** Finishing a process, accepting its output, and changing production are separate decisions.
+
+**Also applies to:** Run, Result, Review
+
 ## Ticket
 
 ### R1
 
-A Ticket can supply a Workload's intended outcome; an Execution records an attempt to perform the Workload.
+A Ticket can supply a Workload's intended Result; each Shift records one attempt to perform the Workload.
 
 **Why:** Retrying work must not erase the request or hide the earlier attempt.
 
-**Also applies to:** Workload, Execution
+**Also applies to:** Workload, Shift
 
 ### R3
 
@@ -95,11 +105,3 @@ Intended behavior — a Workload may begin as an open conversation without a Tic
 **Why:** Asking questions and exploring ideas are supported work in their own right.
 
 **Also applies to:** Ticket, Session
-
-### R8
-
-An Execution has one explicit authority. Standalone local work uses the person's authorization without requiring Ploeg. Shared Vloer sessions require Ploeg admission and cannot fall back to standalone execution when that authority is unavailable.
-
-**Why:** Authority must stay explicit during intervention and recovery; runner location alone does not decide who authorizes work.
-
-**Also applies to:** Execution, Session

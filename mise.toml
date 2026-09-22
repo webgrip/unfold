@@ -21,6 +21,10 @@ description = "Qualify standalone and Ploeg-managed execution without paid model
 run = "uv run --frozen python scripts/docs.py --check"
 description = "Check generated models, links and strict TechDocs output"
 
+[tasks.domain]
+run = "uv run --frozen python scripts/docs.py --domain"
+description = "Regenerate the domain pages and the combined glossary from the model YAML files"
+
 [tasks.docs-build]
 run = "uv run --frozen python scripts/docs.py"
 description = "Build the shared and application TechDocs site"

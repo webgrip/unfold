@@ -2,55 +2,72 @@
 
 *Generated from `model.yaml` — do not edit by hand.*
 
+The [combined Glide glossary](../reference/glossary.md) lists every term of every model once, with its owner and the words it must not be confused with.
+
 ## Acceptance Conditions
 *Context: Work*
 
-The observable conditions a result must satisfy to answer the requested work. They depend on the work; software tests alone cannot validate a business case.
+The observable conditions a Result must satisfy to answer the requested work. They depend on the work; software tests alone cannot validate a business case.
 
 **See also:** [Ticket](#ticket), [Result](#result), [Review](#review)  
 
 ## Agent
 *Context: Execution*
 
-A software participant that uses a model and tools to perform assigned work through a harness. A named agent role does not imply a separate running process.
+A software participant that uses a model and tools to perform assigned work through a Harness. A named agent Role does not imply a separate running process.
 
-**See also:** [Harness](#harness), [Model](#model), [Execution](#execution)  
+**See also:** [Harness](../reference/glossary.md#harness), [Model](#model), [Role](../reference/glossary.md#role), [Run](../reference/glossary.md#run)  
+
+## AHP
+*Context: Tooling · Owner: Vloer*
+
+Agent Host Protocol: Microsoft's JSON-RPC protocol that lets VS Code's Agent Host and other clients share agent sessions. Vloer implements an AHP host for its VS Code extension. Ploeg ADR-0006 keeps AHP out of Ploeg's harness boundary.
+
+**Also known as:** Agent Host Protocol  
+**See also:** [Vloer](#vloer), [Harness](../reference/glossary.md#harness)  
 
 ## Budget
 *Context: Execution*
 
-An authorized spending limit for work. It is separate from a provisional usage estimate and from the eventual reconciled charge.
+An authorized spending limit for work. It is separate from a provisional usage estimate and from the eventual reconciled charge. Ploeg holds the budget pool of each Shift.
 
-**See also:** [Execution](#execution)  
+**See also:** [Shift](../reference/glossary.md#shift), [Authority](../reference/glossary.md#authority)  
+
+## Crew
+*Context: Participation · Owner: Vloer*
+
+Vloer's registered, reusable list of Roles that a session runs in order, each with its model. In Ploeg's language this is a Team. New text says Team; "Start crew" remains a Vloer interface label.
+
+**Not to be confused with** [Team](../reference/glossary.md#team): Ploeg's manifest of Roles, budget and concurrency that claims a Work Item. Ploeg avoids "crew".  
+**See also:** [Team](../reference/glossary.md#team), [Role](../reference/glossary.md#role), [Session](#session), [Step](#step)  
+
+## Cutover
+*Context: Delivery*
+
+The switch from the old per-application repositories to Glide for releases and published documentation, including a first live pilot. Documentation publishing has moved to Glide; release cutover waits for its own Qualification.
+
+**See also:** [Qualification](#qualification)  
 
 ## Evidence
 *Context: Work*
 
-Inspectable material supporting a claim about a result or execution, such as cited research, an actual change, or the output of an executed check.
+Inspectable material supporting a claim about a Result or a Run, such as cited research, an actual change, or the output of an executed check.
 
 **See also:** [Result](#result), [Review](#review)  
 
-## Execution
-*Context: Execution*
+## Glide
+*Context: System*
 
-An authorized attempt to perform a workload, with a recorded state and limits. A person may steer it live or allow agents to proceed within the agreed instructions.
+The product and the monorepo that holds Vloer and Ploeg. A person creates a work item and assigns it to agents; the agents do the code work until a pull request is ready for a person to review and merge. Vloer and Ploeg remain separately deployable applications.
 
-**Do not use:** Ticket  
-**See also:** [Workload](#workload), [Agent](#agent), [Budget](#budget), [Workspace](#workspace), [Session](#session)  
-
-## Harness
-*Context: Execution*
-
-The program that manages the agent's conversation with a model and executes permitted tools. OpenCode is the harness on the tested Vloer path.
-
-**See also:** [Agent](#agent), [Model](#model), [Workspace](#workspace)  
+**See also:** [Vloer](#vloer), [Ploeg](#ploeg)  
 
 ## Model
 *Context: Execution*
 
-The trained system that generates responses from supplied input. Its responses are used by a harness; the model is not the whole working agent.
+The trained system that generates responses from supplied input. Its responses are used by a Harness; the model is not the whole working agent.
 
-**See also:** [Harness](#harness), [Model Provider](#model-provider)  
+**See also:** [Harness](../reference/glossary.md#harness), [Model Provider](#model-provider)  
 
 ## Model Provider
 *Context: Execution*
@@ -58,7 +75,27 @@ The trained system that generates responses from supplied input. Its responses a
 The service that runs a model and answers inference requests. A provider can run outside the cluster that hosts an agent's files and tools.
 
 **Examples:** Fireworks.ai; DeepSeek  
-**See also:** [Model](#model), [Harness](#harness)  
+**See also:** [Model](#model), [Harness](../reference/glossary.md#harness)  
+
+## OpenSpec
+*Context: Tooling · Owner: Ploeg*
+
+A spec-driven change workflow and CLI. Ploeg keeps its change proposals and specs under apps/ploeg/openspec; mise.toml pins the CLI.
+
+
+## Ploeg
+*Context: System · Owner: Ploeg*
+
+Glide's execution engine and its only Authority. It takes work from trackers and from Vloer, admits it, sets its budget, controls who may write each branch and runs the agents. Dutch for a crew or shift team.
+
+**See also:** [Vloer](#vloer), [Admission](../reference/glossary.md#admission), [Authority](../reference/glossary.md#authority), [Run](../reference/glossary.md#run), [Shift](../reference/glossary.md#shift)  
+
+## Qualification
+*Context: Delivery*
+
+Recorded, repeatable proof that a component or path works as required before anyone relies on it. For example, `mise run integration` qualifies the execution paths with a deterministic fixture, no model calls and no spend. A qualification record states what it did not cover.
+
+**See also:** [Cutover](#cutover)  
 
 ## Repair Subticket
 *Context: Work*
@@ -70,45 +107,100 @@ An external ticket linked beneath the original ticket to track repair of a faile
 ## Result
 *Context: Work*
 
-The outcome produced by a workload, together with the evidence needed to judge it. It can be a code change, research conclusion, design, or another requested deliverable.
+What a Workload delivers, together with the evidence needed to judge it. It can be a code change, a research conclusion, a design or another requested deliverable.
 
+**Not to be confused with** [Outcome](../reference/glossary.md#outcome): Ploeg's terminal code for one Run, such as pr_opened or stuck.  
 **See also:** [Workload](#workload), [Ticket](#ticket), [Evidence](#evidence), [Review](#review)  
 
 ## Review
 *Context: Work*
 
-An assessment of a result against its acceptance conditions and supporting evidence. A favorable assessment is distinct from releasing software to production.
+An assessment of a Result against its Acceptance Conditions and supporting Evidence. A favorable assessment is distinct from releasing software to production.
 
-**See also:** [Result](#result), [Acceptance Conditions](#acceptance-conditions), [Evidence](#evidence)  
+**Not to be confused with** [Verdict](../reference/glossary.md#verdict): A reviewing Run's approve or request_changes answer. It is Evidence for a Review, not acceptance.  
+**See also:** [Result](#result), [Acceptance Conditions](#acceptance-conditions), [Evidence](#evidence), [Verdict](../reference/glossary.md#verdict)  
 
 ## Session
-*Context: Participation*
+*Context: Participation · Owner: Vloer*
 
-A continuing interaction around work, including instructions, questions, actions, and results. Closing one browser connection does not erase its record.
+Vloer's continuing record of a person's interaction around work: instructions, questions, actions and results. Closing a browser does not erase it. A started session is linked to one Ploeg Work Item, Shift and Run.
 
-**See also:** [Workload](#workload), [Ticket](#ticket), [Execution](#execution)  
+**Not to be confused with** [Shift](../reference/glossary.md#shift): Ploeg's whole attempt on a Work Item; Ploeg avoids "session" for it.  
+**See also:** [Workload](#workload), [Ticket](#ticket), [Shift](../reference/glossary.md#shift), [Crew](#crew)  
+
+## Step
+*Context: Participation · Owner: Vloer*
+
+A part of one Run that Vloer performs internally, such as one Crew role in a delegated Run. A Step is not a separate Ploeg Run and has no Lease or budget of its own.
+
+**Do not use:** role run  
+**Not to be confused with** [Run](../reference/glossary.md#run): One Role executing against a Work Item, authorized by Ploeg.  
+**See also:** [Run](../reference/glossary.md#run), [Crew](#crew), [Vloer](#vloer)  
+
+## TechDocs
+*Context: Tooling*
+
+Backstage's documentation format: a static site built from Markdown by MkDocs with the techdocs-core plugin. `mise run docs-check` builds Glide's TechDocs output in strict mode.
+
+**See also:** [Zensical](#zensical)  
 
 ## Ticket
 *Context: Work*
 
-A recorded request for an outcome, including enough context and acceptance conditions to judge the result. It remains the same request if an execution fails.
+A recorded request for a result, with enough context and acceptance conditions to judge that result. It remains the same request if an attempt fails. In an external tracker, Ploeg calls it a Tracker Item.
 
-**Also known as:** Tracker Item  
-**See also:** [Result](#result), [Acceptance Conditions](#acceptance-conditions), [Workload](#workload), [Repair Subticket](#repair-subticket)  
+**Not to be confused with** [Work Item](../reference/glossary.md#work-item): Ploeg's execution record for a Ticket or for manual work.  
+**See also:** [Tracker Item](../reference/glossary.md#tracker-item), [Result](#result), [Acceptance Conditions](#acceptance-conditions), [Workload](#workload), [Repair Subticket](#repair-subticket)  
+
+## Vloer
+*Context: System · Owner: Vloer*
+
+Glide's front end: the web workbench and VS Code extension where people start work, steer agents live and review evidence. It asks Ploeg to admit and run every Run. Without Ploeg it runs only a deterministic demo that makes no model calls. Dutch for "floor", as in shop floor.
+
+**Also known as:** De Vloer  
+**Examples:** Current state: Vloer's own engine still executes delegated Steps until the Glide ADR-0002 migration is complete.  
+**See also:** [Ploeg](#ploeg), [Session](#session), [Step](#step)  
 
 ## Workload
 *Context: Execution*
 
-AI work with instructions, recorded activity, an execution authority and results. An external ticket is optional. Repository-free conversation is intended product behavior; current Vloer sessions require a repository and crew.
+The AI work a person asks for: instructions, recorded activity and results. An external Ticket is optional. Ploeg records admitted work as a Work Item. Repository-free conversation is intended product behavior; current Vloer sessions require a repository and a Crew.
 
-**See also:** [Ticket](#ticket), [Session](#session), [Execution](#execution), [Result](#result), [Budget](#budget)  
+**Not to be confused with** [Work Item](../reference/glossary.md#work-item): Ploeg's execution record of admitted work, not the request itself.  
+**See also:** [Ticket](#ticket), [Session](#session), [Shift](../reference/glossary.md#shift), [Result](#result), [Budget](#budget)  
 
 ## Workspace
 *Context: Execution*
 
-The working environment containing the files and tools available to an execution. Its contents are separate from the ticket and from the decision to accept a result.
+The working environment containing the files and tools available to a Run. Its contents are separate from the ticket and from the decision to accept a Result.
 
-**See also:** [Execution](#execution), [Harness](#harness), [Evidence](#evidence)  
+**See also:** [Run](../reference/glossary.md#run), [Harness](../reference/glossary.md#harness), [Evidence](#evidence)  
+
+## Zensical
+*Context: Tooling*
+
+The static site generator that renders Glide's published human pages from the same mkdocs.yml and Markdown sources. The builder image pins its version.
+
+**See also:** [TechDocs](#techdocs)  
+
+---
+
+## Retired terms
+
+Do not use these names as terms.
+
+### Execution
+*Use instead: [Shift](../reference/glossary.md#shift), [Run](../reference/glossary.md#run)*
+
+The attempt it named is a Shift, and one Role's part of it is a Run. A second name for a Shift would make every execution statement ambiguous. The word remains a bounded-context name and part of Ploeg's Operator Execution record.
+
+## Terms owned by other models
+
+This model uses these terms with their owners' meaning: [Admission](../reference/glossary.md#admission), [Authority](../reference/glossary.md#authority), [Harness](../reference/glossary.md#harness), [Lease](../reference/glossary.md#lease), [Outcome](../reference/glossary.md#outcome), [Role](../reference/glossary.md#role), [Run](../reference/glossary.md#run), [Shift](../reference/glossary.md#shift), [Team](../reference/glossary.md#team), [Tracker Item](../reference/glossary.md#tracker-item), [Verdict](../reference/glossary.md#verdict), [Work Item](../reference/glossary.md#work-item).
+
+## Decisions cited
+
+- [Glide ADR-0002](../adr/adr-0002-ploeg-is-the-only-engine.md): Ploeg is the only execution engine and Vloer is its front end.
 
 ---
 
@@ -128,18 +220,19 @@ Short exchanges showing the terms used precisely at concept boundaries.
 
 > **Developer:** Does changing the Model move the files to a new computer?
 > **Platform engineer:** No. The Workspace holds the files. The Harness sends input to the Model Provider and runs permitted tools.
-> **Developer:** So Model, Harness, and Workspace are separate choices in an Execution.
+> **Developer:** So Model, Harness, and Workspace are separate choices for a Run.
+
+### Run, Step and Shift
+*Context: Participation*
+
+> **Developer:** My Vloer session ran a planner, an implementer and a reviewer. Is that three Runs?
+> **Platform engineer:** Today it is one delegated Run with three Steps inside Vloer. After the Glide ADR-0002 migration each Role executes as its own Ploeg Run.
+> **Developer:** And the whole attempt, with its branch and budget?
+> **Platform engineer:** That is the Shift. Only the writing Run holds the Lease on its branch.
 
 ---
 
 ## ⚠ Flagged ambiguities
-
-### shared execution implementation
-
-Local work must be usable without Ploeg, but that requirement does not determine which execution code the applications should share.
-
-**Options:** Keep separate implementations behind compatible contracts, Extract a runner callable by either application  
-**Recommendation:** The Glide fixture comparison passed for both modes. Retain separate engines until equivalent behavior needs a shared implementation; keep authorization and runner placement independent.  
 
 ### a CI failure with no original ticket
 
@@ -160,7 +253,7 @@ Repeated CI failures could create duplicate subtickets or consume an unbounded a
 Creating a proposed ticket and authorizing its execution grant different powers.
 
 **Options:** Agents propose and people authorize, Explicit project rules authorize bounded follow-up work  
-**Recommendation:** Separate permission to propose from permission to spend and execute.  
+**Recommendation:** Separate permission to propose from permission to spend and execute. Ploeg's Admission grants the second.  
 
 ### which decision records are required
 
@@ -168,3 +261,8 @@ Visibility into decisions needs a defined record beyond raw model messages and t
 
 **Options:** Written decision with options and evidence, Transcript and actions alone  
 **Recommendation:** Capture the decision, responsible person or rule, evidence, and expected consequence.  
+
+## Resolved ambiguities
+
+- **shared execution implementation** — Glide ADR-0002 (2026-09-22) makes Ploeg the only engine, so no shared runner is needed. Vloer is to delegate execution to ploeg-worker and keep only its deterministic demo; that migration is not yet implemented.
+- **local work without Ploeg** — Glide ADR-0002 chose Ploeg authority for every Run. Offline laptop use requires a running Ploeg; without it Vloer offers only the deterministic demo.

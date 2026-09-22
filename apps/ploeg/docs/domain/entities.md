@@ -18,7 +18,7 @@ A consumer-owned session binding and serialized execution lifecycle.
 **Relationships**
 - has_one **Work Item** — One manual item or atomically adopted pristine tracker item outside unattended queue claims.
 - has_one **Shift** — One retained authorization pool.
-- has_one **Run** — One operator Role containing the delegated crew execution.
+- has_one **Run** — One operator Role whose delegated Steps Vloer performs until Glide ADR-0002 is implemented.
 
 **Lifecycle**
 

@@ -10,7 +10,7 @@ const sources = [
   ['c4', 'C4 views', 'docs/landscape/c4.md'],
   ['alternatives', 'Alternatives', 'apps/vloer/docs/research/2026-09-11-ecosystem-alternatives.md'],
   ['bottlenecks', 'Bottlenecks', 'docs/landscape/bottlenecks.md'],
-  ['vocabulary', 'Vocabulary', 'docs/domain/glossary.md'],
+  ['vocabulary', 'Vocabulary', 'docs/reference/glossary.md'],
   ['rules', 'Product rules', 'docs/domain/rules.md'],
   ['questions', 'Open questions', 'docs/landscape/questions.md'],
   ['evidence', 'Implementation evidence', 'apps/vloer/docs/research/2026-09-11-ecosystem-implementation.md'],

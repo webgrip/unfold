@@ -1,15 +1,25 @@
 project: Ploeg
+owner: ploeg
 description: >
   Ploeg schedules and runs work handed to agents, tracks progress and cost,
-  and supports cooperation between agents. De Vloer is where people work on
-  tickets, give work to agents and review the results. Shared-mode Vloer Start
-  requests Ploeg admission; a manual-origin request need not have a tracker
-  ticket. Local Vloer work must remain usable without Ploeg. A common runner
-  remains a proposed implementation; it does not make Ploeg admission universal.
-  Trackers keep their work content and priorities. This vocabulary includes
-  intended domain rules; it is not a database or API field inventory. The
-  architecture and published contracts identify current implementation limits.
-version: 0.5.0
+  and supports cooperation between agents. It is Glide's only execution engine
+  and the Authority for every Run (Glide ADR-0002). De Vloer is its front end,
+  where people work on tickets, give work to agents and review the results.
+  Vloer Start requests Ploeg admission; a manual-origin request need not have a
+  tracker ticket. Until Vloer's own engine is retired, Vloer still performs
+  delegated operator Runs. Trackers keep their work content and priorities.
+  This vocabulary includes intended domain rules; it is not a database or API
+  field inventory. The architecture and published contracts identify current
+  implementation limits. Vloer uses these execution terms.
+version: 0.6.0
+combined_glossary: ../../../../docs/reference/glossary.md
+references:
+  - label: Glide ADR-0002
+    path: ../../../../docs/adr/adr-0002-ploeg-is-the-only-engine.md
+    note: Ploeg is the only execution engine and Vloer is its front end.
+imports:
+  - model: ../../../../docs/domain/model.yaml
+    terms: [Ticket, Model, Result, Review, Session, Crew, Step]
 
 contexts:
   - name: Dispatch
@@ -57,10 +67,13 @@ terms:
   - name: Operator Execution
     definition: >
       A Ploeg record admitted for an authenticated Operator Consumer and linked
-      to its session. In shared Vloer mode, Start requests admission even when
-      the person will steer the work live. It links one Work Item, Shift and
-      Run and retains its identity through changes in supervision.
+      to its session. Vloer Start requests admission even when the person will
+      steer the work live. It links one Work Item, Shift and Run and retains its
+      identity through changes in supervision.
     context: Dispatch
+    not_to_be_confused_with:
+      - term: Shift
+        note: The whole attempt on a Work Item. An Operator Execution is the admitted record that links one.
     see_also: [Work Item, Shift, Run, Operator Consumer, Inference Account]
 
   - name: Operator Consumer
@@ -108,8 +121,8 @@ terms:
       Issues, …). Ploeg reads it via a Tracker Provider and mirrors it into a
       Work Item; all content edits happen in the tracker, never in Ploeg.
     context: Integration
-    synonyms: [ticket, issue]
-    see_also: [Work Item, Tracker Provider]
+    synonyms: [issue]
+    see_also: [Ticket, Work Item, Tracker Provider]
 
   - name: Shift
     definition: >
@@ -120,7 +133,14 @@ terms:
       them needing to remember the others. Named for the crew sense — Ploeg is
       Dutch for a crew, and ploegendienst is shift work.
     context: Dispatch
-    avoid: [claim (as a noun), engagement, session]
+    avoid: [claim (as a noun), engagement, session, execution]
+    not_to_be_confused_with:
+      - term: Execution
+        note: >
+          A retired product term for the same attempt. The word still names a
+          bounded context and is part of Operator Execution.
+      - term: Session
+        note: Vloer's record of a person's interaction; a started session links to one Shift.
     see_also: [Lease, Run, Round, Team, Work Item]
 
   - name: Lease
@@ -169,6 +189,9 @@ terms:
       Target, not the Team's.
     context: Dispatch
     avoid: [crew]
+    not_to_be_confused_with:
+      - term: Crew
+        note: Vloer's registered list of Roles for a session; it maps to a Team.
     examples: ["implementer + reviewer-on-a-different-model-family + tester"]
     see_also: [Role, Shift, Work Target]
 
@@ -189,10 +212,16 @@ terms:
       as a Kubernetes Job or a delegated workbench execution. A Lease may accumulate several Runs (roles,
       retries, resumes). The runner reports its outcome; controller expiry and
       reconciliation recover missing reports while preserving operator stop intent. "Job" is reserved for the Kubernetes
-      object and is never a domain term.
+      object and is never a domain term. A delegated Run may contain several
+      Vloer Steps until Vloer's engine is retired (Glide ADR-0002).
     context: Execution
-    avoid: [job (as a domain term)]
-    see_also: [Role, Outcome, Outcome Report, Executor]
+    avoid: [job (as a domain term), role run]
+    not_to_be_confused_with:
+      - term: Shift
+        note: The whole attempt on a Work Item, which contains one or more Runs.
+      - term: Step
+        note: A Vloer-internal part of one Run; older Vloer text says "role run".
+    see_also: [Role, Outcome, Outcome Report, Executor, Lease]
 
   - name: Outcome
     definition: >
@@ -202,6 +231,11 @@ terms:
       needs_human on the tracker path. A failed Outcome follows the applicable
       tracker or operator recovery policy; it does not universally authorize retry.
     context: Dispatch
+    not_to_be_confused_with:
+      - term: Result
+        note: The deliverable and evidence that a person reviews against the Acceptance Conditions.
+      - term: Verdict
+        note: A reading Run's opinion of the work; an Outcome classifies how the Run itself ended.
     see_also: [Outcome Report, Run]
 
   - name: Checkpoint
@@ -319,18 +353,20 @@ terms:
     definition: >
       The component that performs admitted Runs and reports progress and outcomes.
       Current unattended execution uses Kubernetes workers; Vloer performs delegated
-      operator execution. The controller recovers missing reports through expiry
-      and reconciliation, without a Kubernetes Job watcher.
+      operator execution until Glide ADR-0002 moves it to ploeg-worker. The
+      controller recovers missing reports through expiry and reconciliation,
+      without a Kubernetes Job watcher.
     context: Execution
     see_also: [Run]
 
   - name: Harness
     definition: >
-      A concrete agent tool (Claude Code, opencode, …). Ploeg never talks to a
-      Harness directly — only through a Harness Adapter — because this
-      boundary churns fastest of any in the system.
+      A concrete agent tool (Claude Code, opencode, …): the program that manages
+      an agent's conversation with a model and runs the tools it is permitted to
+      use. Ploeg never talks to a Harness directly — only through a Harness
+      Adapter — because this boundary churns fastest of any in the system.
     context: Harness
-    see_also: [Harness Adapter, Agent Container]
+    see_also: [Harness Adapter, Agent Container, Model]
 
   - name: Harness Adapter
     definition: >
@@ -364,7 +400,36 @@ terms:
       optionally a new Checkpoint, written before exit. An absent report is not
       a successful outcome; expiry and reconciliation record the recovery state.
     context: Harness
-    see_also: [Task Spec, Outcome]
+    see_also: [Task Spec, Outcome, Verdict]
+
+  - name: Verdict
+    definition: >
+      A reading Run's answer to "is this done?", reported in its Outcome Report:
+      approve or request_changes, or empty for no opinion. A request_changes
+      Verdict can open a capped fix Round (Ploeg ADR-0017). Vloer's reviewer
+      prompt also accepts inconclusive.
+    context: Harness
+    not_to_be_confused_with:
+      - term: Review
+        note: A judgement of a Result against its Acceptance Conditions. A Verdict is Evidence for it, not acceptance.
+    see_also: [Outcome Report, Round, Role]
+
+  - name: Admission
+    definition: >
+      Ploeg's decision to accept work for execution and record it. Operator work
+      is admitted when an authenticated Operator Consumer asks, for example on
+      Vloer Start; tracker work enters through an Assignment and the Routing
+      Rules. No Run starts before its work is admitted.
+    context: Dispatch
+    see_also: [Authority, Operator Execution, Operator Consumer, Assignment, Work Item]
+
+  - name: Authority
+    definition: >
+      The one party entitled to approve a Run, set its budget and grant or revoke
+      its credentials. Ploeg is the Authority for every Run (Glide ADR-0002). A
+      Run never switches to another authority because a connection fails.
+    context: Dispatch
+    see_also: [Admission, Inference Account, Push Credential, Run]
 
 entities:
   - name: Operator Execution
@@ -406,7 +471,7 @@ entities:
     relationships:
       - {to: Work Item, kind: has_one, description: One manual item or atomically adopted pristine tracker item outside unattended queue claims.}
       - {to: Shift, kind: has_one, description: One retained authorization pool.}
-      - {to: Run, kind: has_one, description: One operator Role containing the delegated crew execution.}
+      - {to: Run, kind: has_one, description: One operator Role whose delegated Steps Vloer performs until Glide ADR-0002 is implemented.}
 
   - name: Work Item
     description: Ploeg's execution record for tracker, follow-up or operator work.
@@ -810,7 +875,7 @@ entities:
 
 rules:
   - id: R18
-    statement: An Operator Execution requires authenticated admission. Creating a queued Vloer session alone does not admit it; Start in shared mode does, including hands-on work. Standalone Vloer does not create these Ploeg records.
+    statement: An Operator Execution requires authenticated admission. Creating a queued Vloer session alone does not admit it; Start does, including hands-on work. Vloer's deterministic demo, and its standalone mode until Glide ADR-0002 retires it, do not create these Ploeg records.
     rationale: Admission follows the configured execution mode and explicit start, not whether a person is currently watching the work.
     applies_to: [Work Item, Operator Execution]
     context: Dispatch
@@ -1066,7 +1131,7 @@ dialogues:
       - speaker: Developer
         text: Where do I start working?
       - speaker: Product owner
-        text: In De Vloer. A ticket can supply the objective. Local work can run without Ploeg; shared work requests Ploeg admission on Start.
+        text: In De Vloer. A ticket can supply the objective. Start requests Ploeg admission; without Ploeg, De Vloer runs only its deterministic demo.
       - speaker: Developer
         text: Does that require OpenCode?
       - speaker: Product owner
