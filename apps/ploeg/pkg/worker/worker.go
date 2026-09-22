@@ -112,12 +112,9 @@ func (w *Worker) RunContext(parent context.Context) error {
 	podUID := os.Getenv("POD_UID")
 
 	item := claimed.WorkItem
-	// The Shift's branch when ploegd produced one; otherwise derive it, as
-	// the pre-Shift path always has. Both yield the same string today, so a
-	// mixed-version rollout cannot split a ticket across two branches.
 	branch := claimed.Branch
 	if branch == "" {
-		branch = "agent/vik-" + item.ExternalID
+		branch = work.Branch(item)
 	}
 	trace := litellm.Alias(claimed.RunToken)
 	w.Log.Info("claimed work item", "id", item.ID, "external_id", item.ExternalID, "title", item.Title,

@@ -67,11 +67,7 @@ func (e *Engine) EnsureShift(ctx context.Context, workItemID int64, item work.Wo
 		return err
 	}
 	if live == nil {
-		// The branch is derived here, once, and carried on the Shift: the
-		// server is the producer, the claim response the carrier. Same string
-		// the worker has always derived, so rollout changes nothing (#107
-		// keeps the vendor token for now).
-		branch := "agent/vik-" + item.ExternalID
+		branch := work.Branch(item)
 		if _, err := e.Store.OpenShift(ctx, workItemID, item.Team, branch, float64(tp.Pool)); err != nil {
 			// Unique-index violation = someone else opened it between our read
 			// and our insert. That is the race behaving correctly; re-read.

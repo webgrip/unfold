@@ -104,6 +104,27 @@ func ingest(t *testing.T, team, externalID string) (int64, work.WorkItem) {
 	return id, item
 }
 
+func TestEnsureShiftNamesTheBranchAfterTheTracker(t *testing.T) {
+	ctx := context.Background()
+	resetTables(t)
+	e := newEngine(bronzePlan(6))
+	item := work.WorkItem{Provider: "clickup", ExternalID: "86c0abc12", Team: "bronze", Title: "t"}
+	id, _, err := testStore.IngestAssigned(ctx, item)
+	if err != nil {
+		t.Fatalf("IngestAssigned: %v", err)
+	}
+	if err := e.EnsureShift(ctx, id, item); err != nil {
+		t.Fatalf("EnsureShift: %v", err)
+	}
+	si, err := testStore.LiveShiftForItem(ctx, id)
+	if err != nil || si == nil {
+		t.Fatalf("no live shift after EnsureShift: %v", err)
+	}
+	if si.Branch != "agent/clickup-86c0abc12" {
+		t.Errorf("branch = %q, want agent/clickup-86c0abc12", si.Branch)
+	}
+}
+
 func itemState(t *testing.T, id int64) string {
 	t.Helper()
 	var state string
