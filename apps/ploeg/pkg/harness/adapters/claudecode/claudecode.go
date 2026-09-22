@@ -21,6 +21,10 @@ const (
 	// scoped sandbox (design §6) — prompting is impossible in headless mode,
 	// so permissions are bypassed. Backlog #62 tracks a policy-driven mode.
 	DefaultPermissionMode = "bypassPermissions"
+	// TargetHooksDisabled is the --settings value that stops a target
+	// repository's hooks from running. Command-line settings outrank the
+	// repository's .claude/settings.json (Ploeg ADR-0030).
+	TargetHooksDisabled = `{"disableAllHooks":true}`
 )
 
 type Adapter struct {
@@ -69,6 +73,8 @@ func (a *Adapter) Prepare(spec harness.TaskSpec, env harness.RunEnv) (harness.In
 		Argv: []string{bin, "-p", env.Prompt,
 			"--output-format", "json",
 			"--permission-mode", mode,
+			"--settings", TargetHooksDisabled,
+			"--strict-mcp-config",
 		},
 		ExtraEnv:      append(extraEnv, harness.DropBoxEnv+"="+outcomePath),
 		OutcomeFile:   outcomePath,
