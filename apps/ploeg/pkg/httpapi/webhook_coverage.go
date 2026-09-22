@@ -48,15 +48,8 @@ func (c *WebhookCoverage) report() map[string]any {
 	return map[string]any{
 		"status":            status,
 		"checkedProjects":   c.checked,
-		"missingProjects":   nonNilStrings(c.missing),
-		"uncheckedProjects": nonNilStrings(c.failed),
+		"missingProjects":   len(c.missing),
+		"uncheckedProjects": len(c.failed),
 		"checkedAt":         c.checkedAt.UTC().Format(time.RFC3339),
 	}
-}
-
-func nonNilStrings(values []string) []string {
-	if values == nil {
-		return []string{}
-	}
-	return slices.Clone(values)
 }
