@@ -1,32 +1,85 @@
 project: Glide
+owner: glide
 description: >
-  A supported way to work with AI for developers and agents. Vloer is the human
-  workplace. This model includes intended product rules; it is not a feature
-  inventory. Current behavior is documented in ../index.md and the application architecture guides. Local work
-  must be usable without Ploeg. Glide retains separate engines; a future extraction needs evidence of equivalent responsibilities.
-version: "0.2"
+  Glide turns work items into pull requests that are ready for human review.
+  Ploeg authorizes, budgets and executes every agent Run; Vloer is its front end
+  (Glide ADR-0002). Without Ploeg, Vloer runs only its deterministic demo, which
+  makes no model calls. Until Vloer's own engine is retired, a managed execution
+  never falls back to it. This model includes intended product rules; it is not a
+  feature inventory. Current behavior is documented in ../index.md and the
+  application architecture guides. Execution terms such as Run, Shift, Lease,
+  Team, Role and Outcome belong to Ploeg's model; this model imports them.
+version: "0.3"
+combined_glossary: ../reference/glossary.md
+references:
+  - label: Glide ADR-0002
+    path: ../adr/adr-0002-ploeg-is-the-only-engine.md
+    note: Ploeg is the only execution engine and Vloer is its front end.
+imports:
+  - model: ../../apps/ploeg/docs/domain/model.yaml
+    terms: [Run, Shift, Lease, Team, Role, Outcome, Verdict, Harness, Work Item, Tracker Item, Admission, Authority]
 contexts:
+  - name: System
+    description: The applications that make up Glide and how they divide the work.
   - name: Work
-    description: Requested outcomes, their evidence, and their acceptance.
+    description: Requested results, their evidence, and their acceptance.
   - name: Participation
-    description: How people take part in AI work and inspect what happened.
+    description: How people take part in AI work through Vloer and inspect what happened.
   - name: Execution
-    description: Performing authorized AI work within its constraints.
+    description: The product view of AI work. Ploeg's model owns the execution vocabulary.
+  - name: Delivery
+    description: How Glide's own source, releases and documentation are proven and switched over.
+  - name: Tooling
+    description: External tools and protocols that Glide builds on or has evaluated.
 terms:
+  - name: Glide
+    context: System
+    definition: >
+      The product and the monorepo that holds Vloer and Ploeg. A person creates a
+      work item and assigns it to agents; the agents do the code work until a pull
+      request is ready for a person to review and merge. Vloer and Ploeg remain
+      separately deployable applications.
+    see_also: [Vloer, Ploeg]
+  - name: Vloer
+    context: System
+    owner: vloer
+    definition: >
+      Glide's front end: the web workbench and VS Code extension where people
+      start work, steer agents live and review evidence. It asks Ploeg to admit
+      and run every Run. Without Ploeg it runs only a deterministic demo that makes
+      no model calls. Dutch for "floor", as in shop floor.
+    synonyms: [De Vloer]
+    examples: ["Current state: Vloer's own engine still executes delegated Steps until the Glide ADR-0002 migration is complete."]
+    see_also: [Ploeg, Session, Step]
+  - name: Ploeg
+    context: System
+    owner: ploeg
+    definition: >
+      Glide's execution engine and its only Authority. It takes work from trackers
+      and from Vloer, admits it, sets its budget, controls who may write each
+      branch and runs the agents. Dutch for a crew or shift team.
+    see_also: [Vloer, Admission, Authority, Run, Shift]
   - name: Ticket
     context: Work
     definition: >
-      A recorded request for an outcome, including enough context and acceptance
-      conditions to judge the result. It remains the same request if an execution fails.
-    synonyms: [Tracker Item]
-    see_also: [Result, Acceptance Conditions, Workload, Repair Subticket]
+      A recorded request for a result, with enough context and acceptance
+      conditions to judge that result. It remains the same request if an attempt
+      fails. In an external tracker, Ploeg calls it a Tracker Item.
+    not_to_be_confused_with:
+      - term: Work Item
+        note: Ploeg's execution record for a Ticket or for manual work.
+    see_also: [Tracker Item, Result, Acceptance Conditions, Workload, Repair Subticket]
   - name: Workload
     context: Execution
     definition: >
-      AI work with instructions, recorded activity, an execution authority and
-      results. An external ticket is optional. Repository-free conversation is
-      intended product behavior; current Vloer sessions require a repository and crew.
-    see_also: [Ticket, Session, Execution, Result, Budget]
+      The AI work a person asks for: instructions, recorded activity and results.
+      An external Ticket is optional. Ploeg records admitted work as a Work Item.
+      Repository-free conversation is intended product behavior; current Vloer
+      sessions require a repository and a Crew.
+    not_to_be_confused_with:
+      - term: Work Item
+        note: Ploeg's execution record of admitted work, not the request itself.
+    see_also: [Ticket, Session, Shift, Result, Budget]
   - name: Repair Subticket
     context: Work
     definition: >
@@ -36,57 +89,79 @@ terms:
   - name: Acceptance Conditions
     context: Work
     definition: >
-      The observable conditions a result must satisfy to answer the requested work.
+      The observable conditions a Result must satisfy to answer the requested work.
       They depend on the work; software tests alone cannot validate a business case.
     see_also: [Ticket, Result, Review]
   - name: Result
     context: Work
     definition: >
-      The outcome produced by a workload, together with the evidence needed to judge it.
-      It can be a code change, research conclusion, design, or another requested deliverable.
+      What a Workload delivers, together with the evidence needed to judge it. It
+      can be a code change, a research conclusion, a design or another requested
+      deliverable.
+    not_to_be_confused_with:
+      - term: Outcome
+        note: Ploeg's terminal code for one Run, such as pr_opened or stuck.
     see_also: [Workload, Ticket, Evidence, Review]
   - name: Evidence
     context: Work
     definition: >
-      Inspectable material supporting a claim about a result or execution, such as
+      Inspectable material supporting a claim about a Result or a Run, such as
       cited research, an actual change, or the output of an executed check.
     see_also: [Result, Review]
   - name: Review
     context: Work
     definition: >
-      An assessment of a result against its acceptance conditions and supporting
-      evidence. A favorable assessment is distinct from releasing software to production.
-    see_also: [Result, Acceptance Conditions, Evidence]
+      An assessment of a Result against its Acceptance Conditions and supporting
+      Evidence. A favorable assessment is distinct from releasing software to production.
+    not_to_be_confused_with:
+      - term: Verdict
+        note: A reviewing Run's approve or request_changes answer. It is Evidence for a Review, not acceptance.
+    see_also: [Result, Acceptance Conditions, Evidence, Verdict]
   - name: Session
     context: Participation
+    owner: vloer
     definition: >
-      A continuing interaction around work, including instructions, questions,
-      actions, and results. Closing one browser connection does not erase its record.
-    see_also: [Workload, Ticket, Execution]
-  - name: Execution
-    context: Execution
+      Vloer's continuing record of a person's interaction around work:
+      instructions, questions, actions and results. Closing a browser does not
+      erase it. A started session is linked to one Ploeg Work Item, Shift and Run.
+    not_to_be_confused_with:
+      - term: Shift
+        note: Ploeg's whole attempt on a Work Item; Ploeg avoids "session" for it.
+    see_also: [Workload, Ticket, Shift, Crew]
+  - name: Crew
+    context: Participation
+    owner: vloer
     definition: >
-      An authorized attempt to perform a workload, with a recorded state and limits.
-      A person may steer it live or allow agents to proceed within the agreed instructions.
-    avoid: [Ticket]
-    see_also: [Workload, Agent, Budget, Workspace, Session]
+      Vloer's registered, reusable list of Roles that a session runs in order,
+      each with its model. In Ploeg's language this is a Team. New text says
+      Team; "Start crew" remains a Vloer interface label.
+    not_to_be_confused_with:
+      - term: Team
+        note: Ploeg's manifest of Roles, budget and concurrency that claims a Work Item. Ploeg avoids "crew".
+    see_also: [Team, Role, Session, Step]
+  - name: Step
+    context: Participation
+    owner: vloer
+    definition: >
+      A part of one Run that Vloer performs internally, such as one Crew role in
+      a delegated Run. A Step is not a separate Ploeg Run and has no Lease or
+      budget of its own.
+    avoid: [role run]
+    not_to_be_confused_with:
+      - term: Run
+        note: One Role executing against a Work Item, authorized by Ploeg.
+    see_also: [Run, Crew, Vloer]
   - name: Agent
     context: Execution
     definition: >
       A software participant that uses a model and tools to perform assigned work
-      through a harness. A named agent role does not imply a separate running process.
-    see_also: [Harness, Model, Execution]
-  - name: Harness
-    context: Execution
-    definition: >
-      The program that manages the agent's conversation with a model and executes
-      permitted tools. OpenCode is the harness on the tested Vloer path.
-    see_also: [Agent, Model, Workspace]
+      through a Harness. A named agent Role does not imply a separate running process.
+    see_also: [Harness, Model, Role, Run]
   - name: Model
     context: Execution
     definition: >
       The trained system that generates responses from supplied input. Its
-      responses are used by a harness; the model is not the whole working agent.
+      responses are used by a Harness; the model is not the whole working agent.
     see_also: [Harness, Model Provider]
   - name: Model Provider
     context: Execution
@@ -98,20 +173,75 @@ terms:
   - name: Workspace
     context: Execution
     definition: >
-      The working environment containing the files and tools available to an execution.
-      Its contents are separate from the ticket and from the decision to accept a result.
-    see_also: [Execution, Harness, Evidence]
+      The working environment containing the files and tools available to a Run.
+      Its contents are separate from the ticket and from the decision to accept a Result.
+    see_also: [Run, Harness, Evidence]
   - name: Budget
     context: Execution
     definition: >
       An authorized spending limit for work. It is separate from a provisional
-      usage estimate and from the eventual reconciled charge.
-    see_also: [Execution]
+      usage estimate and from the eventual reconciled charge. Ploeg holds the
+      budget pool of each Shift.
+    see_also: [Shift, Authority]
+  - name: Qualification
+    context: Delivery
+    definition: >
+      Recorded, repeatable proof that a component or path works as required
+      before anyone relies on it. For example, `mise run integration` qualifies
+      the execution paths with a deterministic fixture, no model calls and no
+      spend. A qualification record states what it did not cover.
+    see_also: [Cutover]
+  - name: Cutover
+    context: Delivery
+    definition: >
+      The switch from the old per-application repositories to Glide for releases
+      and published documentation, including a first live pilot. Documentation
+      publishing has moved to Glide; release cutover waits for its own
+      Qualification.
+    see_also: [Qualification]
+  - name: TechDocs
+    context: Tooling
+    definition: >
+      Backstage's documentation format: a static site built from Markdown by
+      MkDocs with the techdocs-core plugin. `mise run docs-check` builds Glide's
+      TechDocs output in strict mode.
+    see_also: [Zensical]
+  - name: Zensical
+    context: Tooling
+    definition: >
+      The static site generator that renders Glide's published human pages from
+      the same mkdocs.yml and Markdown sources. The builder image pins its version.
+    see_also: [TechDocs]
+  - name: OpenSpec
+    context: Tooling
+    owner: ploeg
+    definition: >
+      A spec-driven change workflow and CLI. Ploeg keeps its change proposals and
+      specs under apps/ploeg/openspec; mise.toml pins the CLI.
+  - name: AHP
+    context: Tooling
+    owner: vloer
+    definition: >
+      Agent Host Protocol: Microsoft's JSON-RPC protocol that lets VS Code's Agent
+      Host and other clients share agent sessions. Vloer implements an AHP host
+      for its VS Code extension. Ploeg ADR-0006 keeps AHP out of Ploeg's harness
+      boundary.
+    synonyms: [Agent Host Protocol]
+    see_also: [Vloer, Harness]
+retired_terms:
+  - name: Execution
+    context: Execution
+    use: [Shift, Run]
+    because: >
+      The attempt it named is a Shift, and one Role's part of it is a Run. A
+      second name for a Shift would make every execution statement ambiguous.
+      The word remains a bounded-context name and part of Ploeg's Operator
+      Execution record.
 rules:
   - id: R1
-    statement: A Ticket can supply a Workload's intended outcome; an Execution records an attempt to perform the Workload.
+    statement: A Ticket can supply a Workload's intended Result; each Shift records one attempt to perform the Workload.
     rationale: Retrying work must not erase the request or hide the earlier attempt.
-    applies_to: [Ticket, Workload, Execution]
+    applies_to: [Ticket, Workload, Shift]
   - id: R2
     statement: A Model and Harness are implementation choices behind the working experience.
     rationale: People should not have to change their way of organizing work merely to change an AI tool.
@@ -121,9 +251,9 @@ rules:
     rationale: A rejected business case should stop unnecessary implementation and design work.
     applies_to: [Ticket, Result, Evidence]
   - id: R4
-    statement: A completed Execution does not by itself prove that its Result is accepted or released.
+    statement: A finished Run or closed Shift does not by itself prove that its Result is accepted or released.
     rationale: Finishing a process, accepting its output, and changing production are separate decisions.
-    applies_to: [Execution, Result, Review]
+    applies_to: [Shift, Run, Result, Review]
   - id: R5
     statement: Evidence of executed checks is distinct from an Agent's assertion that checks passed.
     rationale: A reviewer needs an inspectable basis for accepting a result.
@@ -131,15 +261,19 @@ rules:
   - id: R6
     statement: An unknown or pending charge must not be described as zero spend against a Budget.
     rationale: Missing cost data cannot justify more expenditure.
-    applies_to: [Budget, Execution]
+    applies_to: [Budget, Shift]
   - id: R7
     statement: Intended behavior — a Workload may begin as an open conversation without a Ticket or repository; repository-free conversation is not implemented in the current session API.
     rationale: Asking questions and exploring ideas are supported work in their own right.
     applies_to: [Workload, Ticket, Session]
   - id: R8
-    statement: An Execution has one explicit authority. Standalone local work uses the person's authorization without requiring Ploeg. Shared Vloer sessions require Ploeg admission and cannot fall back to standalone execution when that authority is unavailable.
-    rationale: Authority must stay explicit during intervention and recovery; runner location alone does not decide who authorizes work.
-    applies_to: [Workload, Execution, Session]
+    statement: >
+      Ploeg is the Authority for every Run (Glide ADR-0002). Vloer requests Admission through Ploeg's API and never
+      falls back to its own execution when Ploeg is unavailable, whatever the cause. Without Ploeg, Vloer runs only
+      its deterministic demo, which makes no model calls. Current state — Vloer's standalone mode and its own engine
+      remain until the migration to ploeg-worker is complete; no new execution features are added to that engine.
+    rationale: One authority, one budget path and one revocable credential per Run; runner location does not decide who authorizes work.
+    applies_to: [Run, Workload, Session]
   - id: R9
     statement: Intended behavior — in projects with automatic repair enabled, failed CI creates a Repair Subticket and agents repair it before human Review, regardless of who wrote the change. This general workflow remains unimplemented.
     rationale: The repair must be visible without replacing the original requested outcome.
@@ -154,9 +288,19 @@ rules:
     applies_to: [Result, Review]
 ambiguities:
   - phrase: shared execution implementation
-    issue: Local work must be usable without Ploeg, but that requirement does not determine which execution code the applications should share.
-    options: [Keep separate implementations behind compatible contracts, Extract a runner callable by either application]
-    recommendation: The Glide fixture comparison passed for both modes. Retain separate engines until equivalent behavior needs a shared implementation; keep authorization and runner placement independent.
+    issue: Earlier text required local work without Ploeg and kept two engines, which left open which execution code the applications should share.
+    options: [Keep separate implementations behind compatible contracts, Extract a runner callable by either application, Make Ploeg the only engine]
+    status: resolved
+    resolution: >
+      Glide ADR-0002 (2026-09-22) makes Ploeg the only engine, so no shared runner is needed. Vloer is to delegate
+      execution to ploeg-worker and keep only its deterministic demo; that migration is not yet implemented.
+  - phrase: local work without Ploeg
+    issue: The product model required local work to be usable without Ploeg, with the person as authority for standalone work.
+    options: [Standalone Vloer authority, A local Ploeg worker for offline use, Ploeg authority for every Run]
+    status: resolved
+    resolution: >
+      Glide ADR-0002 chose Ploeg authority for every Run. Offline laptop use requires a running Ploeg; without it
+      Vloer offers only the deterministic demo.
   - phrase: a CI failure with no original ticket
     issue: Repair subtickets require a parent, but a human-written change may not already have an external ticket.
     options: [Create a parent work ticket linked to the change, Attach repair to a project incident ticket]
@@ -168,7 +312,7 @@ ambiguities:
   - phrase: agents create and execute follow-up work
     issue: Creating a proposed ticket and authorizing its execution grant different powers.
     options: [Agents propose and people authorize, Explicit project rules authorize bounded follow-up work]
-    recommendation: Separate permission to propose from permission to spend and execute.
+    recommendation: Separate permission to propose from permission to spend and execute. Ploeg's Admission grants the second.
   - phrase: which decision records are required
     issue: Visibility into decisions needs a defined record beyond raw model messages and tool logs.
     options: [Written decision with options and evidence, Transcript and actions alone]
@@ -191,4 +335,15 @@ dialogues:
       - speaker: Platform engineer
         text: No. The Workspace holds the files. The Harness sends input to the Model Provider and runs permitted tools.
       - speaker: Developer
-        text: So Model, Harness, and Workspace are separate choices in an Execution.
+        text: So Model, Harness, and Workspace are separate choices for a Run.
+  - title: Run, Step and Shift
+    context: Participation
+    lines:
+      - speaker: Developer
+        text: My Vloer session ran a planner, an implementer and a reviewer. Is that three Runs?
+      - speaker: Platform engineer
+        text: Today it is one delegated Run with three Steps inside Vloer. After the Glide ADR-0002 migration each Role executes as its own Ploeg Run.
+      - speaker: Developer
+        text: And the whole attempt, with its branch and budget?
+      - speaker: Platform engineer
+        text: That is the Shift. Only the writing Run holds the Lease on its branch.

@@ -25,7 +25,7 @@ De Vloer provides durable operator sessions, agent workspaces, intervention and 
 
 - [Current architecture](architecture.md) and [ADR index](adrs/README.md)
 - [Shared product explanation](landscape/index.md), [diagrams](landscape/c4.md) and [open choices](landscape/questions.md)
-- [Product domain YAML](domain/model.yaml) and generated [glossary](domain/glossary.md) and [rules](domain/rules.md)
+- [Product domain YAML](../../../docs/domain/model.yaml), generated [rules](../../../docs/domain/rules.md) and the [combined glossary](../../../docs/reference/glossary.md)
 - [Monorepo and runner proposal](monorepo-transition.md)
 - [Documentation maintenance](documentation.md)
 

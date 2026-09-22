@@ -2,6 +2,15 @@
 
 *Generated from `model.yaml` — do not edit by hand.*
 
+The [combined Glide glossary](../../../../docs/reference/glossary.md) lists every term of every model once, with its owner and the words it must not be confused with.
+
+## Admission
+*Context: Dispatch*
+
+Ploeg's decision to accept work for execution and record it. Operator work is admitted when an authenticated Operator Consumer asks, for example on Vloer Start; tracker work enters through an Assignment and the Routing Rules. No Run starts before its work is admitted.
+
+**See also:** [Authority](#authority), [Operator Execution](#operator-execution), [Operator Consumer](#operator-consumer), [Assignment](#assignment), [Work Item](#work-item)  
+
 ## Agent Container
 *Context: Harness*
 
@@ -15,6 +24,13 @@ The container a Run executes: a Harness plus its Adapter, invoked with a Task Sp
 The normalized tracker event that offers an ingested Work Item to agents, transitioning it to queued. Assigning in the tracker is the sole human gesture that puts work in front of agents; which Team and which Work Target it resolves to is decided by the Routing Rules, never carried in the event.
 
 **See also:** [Tracker Event](#tracker-event), [Routing Rule](#routing-rule), [Team Queue](#team-queue)  
+
+## Authority
+*Context: Dispatch*
+
+The one party entitled to approve a Run, set its budget and grant or revoke its credentials. Ploeg is the Authority for every Run (Glide ADR-0002). A Run never switches to another authority because a connection fails.
+
+**See also:** [Admission](#admission), [Inference Account](#inference-account), [Push Credential](#push-credential), [Run](#run)  
 
 ## Checkpoint
 *Context: Dispatch*
@@ -33,7 +49,7 @@ An immutable proposed repository tree with a canonical commit on an approved bas
 ## Executor
 *Context: Execution*
 
-The component that performs admitted Runs and reports progress and outcomes. Current unattended execution uses Kubernetes workers; Vloer performs delegated operator execution. The controller recovers missing reports through expiry and reconciliation, without a Kubernetes Job watcher.
+The component that performs admitted Runs and reports progress and outcomes. Current unattended execution uses Kubernetes workers; Vloer performs delegated operator execution until Glide ADR-0002 moves it to ploeg-worker. The controller recovers missing reports through expiry and reconciliation, without a Kubernetes Job watcher.
 
 **See also:** [Run](#run)  
 
@@ -69,9 +85,9 @@ The SPI adapter for one git forge: verify and parse webhooks into normalized For
 ## Harness
 *Context: Harness*
 
-A concrete agent tool (Claude Code, opencode, …). Ploeg never talks to a Harness directly — only through a Harness Adapter — because this boundary churns fastest of any in the system.
+A concrete agent tool (Claude Code, opencode, …): the program that manages an agent's conversation with a model and runs the tools it is permitted to use. Ploeg never talks to a Harness directly — only through a Harness Adapter — because this boundary churns fastest of any in the system.
 
-**See also:** [Harness Adapter](#harness-adapter), [Agent Container](#agent-container)  
+**See also:** [Harness Adapter](#harness-adapter), [Agent Container](#agent-container), [Model](../../../../docs/reference/glossary.md#model)  
 
 ## Harness Adapter
 *Context: Harness*
@@ -105,8 +121,9 @@ A named service identity with explicit Team scope and separate read and executio
 ## Operator Execution
 *Context: Dispatch*
 
-A Ploeg record admitted for an authenticated Operator Consumer and linked to its session. In shared Vloer mode, Start requests admission even when the person will steer the work live. It links one Work Item, Shift and Run and retains its identity through changes in supervision.
+A Ploeg record admitted for an authenticated Operator Consumer and linked to its session. Vloer Start requests admission even when the person will steer the work live. It links one Work Item, Shift and Run and retains its identity through changes in supervision.
 
+**Not to be confused with** [Shift](#shift): The whole attempt on a Work Item. An Operator Execution is the admitted record that links one.  
 **See also:** [Work Item](#work-item), [Shift](#shift), [Run](#run), [Operator Consumer](#operator-consumer), [Inference Account](#inference-account)  
 
 ## Outcome
@@ -114,6 +131,8 @@ A Ploeg record admitted for an authenticated Operator Consumer and linked to its
 
 The terminal result of a Run, one of: pr_opened, pr_updated, issue_updated, follow_up_created, stuck, failed, no_change_needed. A stuck Outcome carries a mandatory reason and moves the Work Item to needs_human on the tracker path. A failed Outcome follows the applicable tracker or operator recovery policy; it does not universally authorize retry.
 
+**Not to be confused with** [Result](../../../../docs/reference/glossary.md#result): The deliverable and evidence that a person reviews against the Acceptance Conditions.  
+**Not to be confused with** [Verdict](#verdict): A reading Run's opinion of the work; an Outcome classifies how the Run itself ended.  
 **See also:** [Outcome Report](#outcome-report), [Run](#run)  
 
 ## Outcome Report
@@ -121,7 +140,7 @@ The terminal result of a Run, one of: pr_opened, pr_updated, issue_updated, foll
 
 The output contract of an Agent Container: Outcome, summary, links, and optionally a new Checkpoint, written before exit. An absent report is not a successful outcome; expiry and reconciliation record the recovery state.
 
-**See also:** [Task Spec](#task-spec), [Outcome](#outcome)  
+**See also:** [Task Spec](#task-spec), [Outcome](#outcome), [Verdict](#verdict)  
 
 ## Publication Operation
 *Context: Integration*
@@ -165,10 +184,12 @@ The operator-declared mapping from (provider, Scope, actor, hint) to a Team and 
 ## Run
 *Context: Execution*
 
-One execution of one Role against a Work Item, realized by an Executor as a Kubernetes Job or a delegated workbench execution. A Lease may accumulate several Runs (roles, retries, resumes). The runner reports its outcome; controller expiry and reconciliation recover missing reports while preserving operator stop intent. "Job" is reserved for the Kubernetes object and is never a domain term.
+One execution of one Role against a Work Item, realized by an Executor as a Kubernetes Job or a delegated workbench execution. A Lease may accumulate several Runs (roles, retries, resumes). The runner reports its outcome; controller expiry and reconciliation recover missing reports while preserving operator stop intent. "Job" is reserved for the Kubernetes object and is never a domain term. A delegated Run may contain several Vloer Steps until Vloer's engine is retired (Glide ADR-0002).
 
-**Do not use:** job (as a domain term)  
-**See also:** [Role](#role), [Outcome](#outcome), [Outcome Report](#outcome-report), [Executor](#executor)  
+**Do not use:** job (as a domain term), role run  
+**Not to be confused with** [Shift](#shift): The whole attempt on a Work Item, which contains one or more Runs.  
+**Not to be confused with** [Step](../../../../docs/reference/glossary.md#step): A Vloer-internal part of one Run; older Vloer text says "role run".  
+**See also:** [Role](#role), [Outcome](#outcome), [Outcome Report](#outcome-report), [Executor](#executor), [Lease](#lease)  
 
 ## Scope
 *Context: Integration*
@@ -183,7 +204,9 @@ An opaque, provider-scoped container id for a body of work (a Vikunja project, a
 
 One Team's engagement with one Work Item: the container that owns the branch, the budget pool, the roster of Runs and the Round counter. Opens when the first Run starts, closes when the work reaches a terminal state. A Shift is what makes several Runs on one item coherent without any of them needing to remember the others. Named for the crew sense — Ploeg is Dutch for a crew, and ploegendienst is shift work.
 
-**Do not use:** claim (as a noun), engagement, session  
+**Do not use:** claim (as a noun), engagement, session, execution  
+**Not to be confused with** [Execution](../../../../docs/reference/glossary.md#execution): A retired product term for the same attempt. The word still names a bounded context and is part of Operator Execution.  
+**Not to be confused with** [Session](../../../../docs/reference/glossary.md#session): Vloer's record of a person's interaction; a started session links to one Shift.  
 **See also:** [Lease](#lease), [Run](#run), [Round](#round), [Team](#team), [Work Item](#work-item)  
 
 ## Task Spec
@@ -199,6 +222,7 @@ The input contract of an Agent Container: Work Item snapshot, Role, optional Che
 A declarative manifest — name, Roles, harness image and model per Role, run strategy (sequential or parallel), resource/token budget, concurrency cap — that is the unit of claiming. Two Teams never hold a Shift on the same Work Item; any number of Roles work within one Team's Shift. A Team never names a repository, forge, or credential: capacity and codebase are independent axes (R11) — those coordinates are the Work Item's Work Target, not the Team's.
 
 **Do not use:** crew  
+**Not to be confused with** [Crew](../../../../docs/reference/glossary.md#crew): Vloer's registered list of Roles for a session; it maps to a Team.  
 **Examples:** implementer + reviewer-on-a-different-model-family + tester  
 **See also:** [Role](#role), [Shift](#shift), [Work Target](#work-target)  
 
@@ -222,8 +246,8 @@ The normalized result of parsing a tracker webhook — assigned, updated, or una
 
 The authoritative item in the external tracker (Vikunja, Jira, GitHub Issues, …). Ploeg reads it via a Tracker Provider and mirrors it into a Work Item; all content edits happen in the tracker, never in Ploeg.
 
-**Also known as:** ticket, issue  
-**See also:** [Work Item](#work-item), [Tracker Provider](#tracker-provider)  
+**Also known as:** issue  
+**See also:** [Ticket](../../../../docs/reference/glossary.md#ticket), [Work Item](#work-item), [Tracker Provider](#tracker-provider)  
 
 ## Tracker Provider
 *Context: Integration*
@@ -231,6 +255,14 @@ The authoritative item in the external tracker (Vikunja, Jira, GitHub Issues, �
 The SPI adapter for one task-management system: verify and parse webhooks into normalized Tracker Events, fetch items for mirroring, and write back comments and status. Reference implementation: Vikunja.
 
 **See also:** [Forge Provider](#forge-provider), [Tracker Event](#tracker-event)  
+
+## Verdict
+*Context: Harness*
+
+A reading Run's answer to "is this done?", reported in its Outcome Report: approve or request_changes, or empty for no opinion. A request_changes Verdict can open a capped fix Round (Ploeg ADR-0017). Vloer's reviewer prompt also accepts inconclusive.
+
+**Not to be confused with** [Review](../../../../docs/reference/glossary.md#review): A judgement of a Result against its Acceptance Conditions. A Verdict is Evidence for it, not acceptance.  
+**See also:** [Outcome Report](#outcome-report), [Round](#round), [Role](#role)  
 
 ## Verification Receipt
 *Context: Execution*
@@ -256,6 +288,14 @@ The forge coordinates a Work Item's Runs act on: forge, owner, repository, base 
 **Do not use:** team repo, repo_url  
 **See also:** [Work Item](#work-item), [Forge](#forge), [Routing Rule](#routing-rule), [Team](#team)  
 
+## Terms owned by other models
+
+This model uses these terms with their owners' meaning: [Crew](../../../../docs/reference/glossary.md#crew), [Model](../../../../docs/reference/glossary.md#model), [Result](../../../../docs/reference/glossary.md#result), [Review](../../../../docs/reference/glossary.md#review), [Session](../../../../docs/reference/glossary.md#session), [Step](../../../../docs/reference/glossary.md#step), [Ticket](../../../../docs/reference/glossary.md#ticket).
+
+## Decisions cited
+
+- [Glide ADR-0002](../../../../docs/adr/adr-0002-ploeg-is-the-only-engine.md): Ploeg is the only execution engine and Vloer is its front end.
+
 ---
 
 ## Example dialogues
@@ -265,7 +305,7 @@ Short exchanges showing the terms used precisely at concept boundaries.
 ### Working on a ticket in De Vloer
 
 > **Developer:** Where do I start working?
-> **Product owner:** In De Vloer. A ticket can supply the objective. Local work can run without Ploeg; shared work requests Ploeg admission on Start.
+> **Product owner:** In De Vloer. A ticket can supply the objective. Start requests Ploeg admission; without Ploeg, De Vloer runs only its deterministic demo.
 > **Developer:** Does that require OpenCode?
 > **Product owner:** No. The tool running the agent is replaceable. De Vloer is the place you use.
 

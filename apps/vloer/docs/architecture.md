@@ -36,7 +36,7 @@ flowchart TD
 
 Standalone workbench sessions retain their existing broker behavior when shared execution is not enabled. Bound sessions cannot silently fall back to standalone authority. [Registered Vikunja and ClickUp imports](contracts/ploeg-tracker-binding.md) bind to the existing queued Ploeg Work Item and claim it atomically on Start. General WorkOrders and adoption of already executing harness work remain outside this boundary.
 
-Session creation currently requires a registered repository and crew. An external ticket is optional. Repository-free conversation and automatic CI repair are product intentions, not general implemented workflows. The product direction requires local work to remain usable without any Ploeg service. Existing standalone mode provides that execution path; it still needs the configured harness and model access for live AI work. A common runner is a proposal to test, not an implemented component. See the [transition plan](monorepo-transition.md) and [product rule R8](domain/rules.md#r8).
+Session creation currently requires a registered repository and crew. An external ticket is optional. Repository-free conversation and automatic CI repair are product intentions, not general implemented workflows. The product direction requires local work to remain usable without any Ploeg service. Existing standalone mode provides that execution path; it still needs the configured harness and model access for live AI work. A common runner is a proposal to test, not an implemented component. See the [transition plan](monorepo-transition.md) and [product rule R8](../../../docs/domain/rules.md#r8).
 
 ## Implementation map
 

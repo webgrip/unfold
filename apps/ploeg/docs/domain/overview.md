@@ -1,8 +1,8 @@
 # Ploeg — Domain Overview
 
-Ploeg schedules and runs work handed to agents, tracks progress and cost, and supports cooperation between agents. De Vloer is where people work on tickets, give work to agents and review the results. Shared-mode Vloer Start requests Ploeg admission; a manual-origin request need not have a tracker ticket. Local Vloer work must remain usable without Ploeg. A common runner remains a proposed implementation; it does not make Ploeg admission universal. Trackers keep their work content and priorities. This vocabulary includes intended domain rules; it is not a database or API field inventory. The architecture and published contracts identify current implementation limits.
+Ploeg schedules and runs work handed to agents, tracks progress and cost, and supports cooperation between agents. It is Glide's only execution engine and the Authority for every Run (Glide ADR-0002). De Vloer is its front end, where people work on tickets, give work to agents and review the results. Vloer Start requests Ploeg admission; a manual-origin request need not have a tracker ticket. Until Vloer's own engine is retired, Vloer still performs delegated operator Runs. Trackers keep their work content and priorities. This vocabulary includes intended domain rules; it is not a database or API field inventory. The architecture and published contracts identify current implementation limits. Vloer uses these execution terms.
 
-*Model version 0.5.0. Generated from `model.yaml` — do not edit by hand.*
+*Model version 0.6.0. Generated from `model.yaml` — do not edit by hand.*
 
 ## Bounded contexts
 

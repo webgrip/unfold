@@ -2,7 +2,8 @@
 """Generate domain documentation from a domain model YAML file.
 
 Usage:
-    python generate_docs.py docs/domain/model.yaml -o docs/domain/
+    python generate-domain.py docs/domain/model.yaml -o docs/domain/
+    python generate-domain.py --glossary docs/reference/glossary.md MODEL [MODEL ...]
 
 Produces in the output directory:
     overview.md   - project intro, bounded contexts, ER diagram (Mermaid)
@@ -11,11 +12,17 @@ Produces in the output directory:
     rules.md      - business rules grouped by what they apply to
     events.md     - domain events (only if the model defines any)
 
+With --glossary, merges the terms of every model into one page with a context
+and owner column and lists words with more than one meaning first. A term
+defined by two models, or a synonym that names another model's term, stops
+generation. --stdout prints the page instead of writing it.
+
 Validation warnings (dangling references, duplicate names) go to stderr and
-never block generation.
+never block per-model generation.
 """
 
 import argparse
+import os
 import re
 import sys
 import unicodedata
@@ -44,6 +51,31 @@ def mermaid_id(name):
     return re.sub(r"[^A-Za-z0-9_]", "_", str(name))
 
 
+def load(path):
+    with open(path) as f:
+        model = yaml.safe_load(f) or {}
+    model["_path"] = Path(path)
+    return model
+
+
+def imported_terms(model):
+    names = set()
+    for imp in model.get("imports", []) or []:
+        source = load(model["_path"].parent / imp["model"])
+        defined = {t.get("name") for t in source.get("terms", [])}
+        for name in imp.get("terms", []) or []:
+            if name not in defined:
+                warn(f"import {name!r} is not a term of {imp['model']}")
+            names.add(name)
+    return names
+
+
+def owner_of(term, model):
+    return term.get("owner") or model.get("owner") or str(model.get("project", "")).lower()
+
+
+def cell(text):
+    return " ".join(str(text).split()).replace("|", "\\|")
 
 
 def validate(model):
@@ -59,7 +91,10 @@ def validate(model):
                 warn(f"duplicate {label}: {n!r}")
             seen.add(n)
 
-    known = set(terms) | set(entities)
+    imported = imported_terms(model) if "_path" in model else set()
+    for name in imported & set(terms):
+        warn(f"term {name!r} is both defined and imported")
+    known = set(terms) | set(entities) | imported
 
     def check_ctx(obj, kind):
         ctx = obj.get("context")
@@ -69,8 +104,11 @@ def validate(model):
     for t in model.get("terms", []):
         check_ctx(t, "term")
         for ref in t.get("see_also", []) or []:
-            if ref not in terms:
+            if ref not in terms and ref not in imported:
                 warn(f"term {t.get('name')!r} see_also references unknown term {ref!r}")
+        for entry in t.get("not_to_be_confused_with", []) or []:
+            if not entry.get("term") or not entry.get("note"):
+                warn(f"term {t.get('name')!r} has a not_to_be_confused_with entry without term and note")
 
     for e in model.get("entities", []):
         check_ctx(e, "entity")
@@ -184,24 +222,61 @@ def gen_overview(model):
 def gen_glossary(model):
     lines = [f"# Glossary — {model.get('project', 'Domain')}", "",
              "*Generated from `model.yaml` — do not edit by hand.*", ""]
+    combined = model.get("combined_glossary")
+    if combined:
+        lines += [f"The [combined Glide glossary]({combined}) lists every term of every model once, "
+                  "with its owner and the words it must not be confused with.", ""]
     terms = sorted(model.get("terms", []), key=lambda t: str(t.get("name", "")).lower())
+    retired = model.get("retired_terms", []) or []
+    local = {t.get("name") for t in terms} | {r.get("name") for r in retired}
+
+    def link(name):
+        if name in local:
+            return f"[{name}](#{slug(name)})"
+        if combined:
+            return f"[{name}]({combined}#{slug(name)})"
+        return name
+
     if not terms:
         lines += ["_No terms defined yet._", ""]
     for t in terms:
         name = t.get("name")
         lines.append(f"## {name}")
         if t.get("context"):
-            lines.append(f"*Context: {t['context']}*")
+            owner = f" · Owner: {t['owner'].capitalize()}" if t.get("owner") else ""
+            lines.append(f"*Context: {t['context']}{owner}*")
         lines += ["", str(t.get("definition", "")).strip(), ""]
         if t.get("synonyms"):
             lines.append(f"**Also known as:** {', '.join(t['synonyms'])}  ")
         if t.get("avoid"):
             lines.append(f"**Do not use:** {', '.join(t['avoid'])}  ")
+        for entry in t.get("not_to_be_confused_with", []) or []:
+            lines.append(f"**Not to be confused with** {link(entry['term'])}: {cell(entry['note'])}  ")
         if t.get("examples"):
             lines.append("**Examples:** " + "; ".join(t["examples"]) + "  ")
         if t.get("see_also"):
-            links = ", ".join(f"[{s}](#{slug(s)})" for s in t["see_also"])
+            links = ", ".join(link(s) for s in t["see_also"])
             lines.append(f"**See also:** {links}  ")
+        lines.append("")
+
+    if retired:
+        lines += ["---", "", "## Retired terms", "",
+                  "Do not use these names as terms.", ""]
+        for r in retired:
+            lines += [f"### {r['name']}", f"*Use instead: {', '.join(link(u) for u in r['use'])}*", "",
+                      str(r.get("because", "")).strip(), ""]
+
+    imports = sorted({n for imp in model.get("imports", []) or [] for n in imp.get("terms", []) or []}, key=str.lower)
+    if imports:
+        lines += ["## Terms owned by other models", "",
+                  "This model uses these terms with their owners' meaning: "
+                  + ", ".join(link(n) for n in imports) + ".", ""]
+
+    refs = model.get("references", []) or []
+    if refs:
+        lines += ["## Decisions cited", ""]
+        for r in refs:
+            lines.append(f"- [{r['label']}]({r['path']}): {str(r.get('note', '')).strip()}")
         lines.append("")
 
     dialogues = model.get("dialogues", []) or []
@@ -322,14 +397,130 @@ def gen_events(model):
     return "\n".join(lines)
 
 
+def gen_combined(models, path):
+    out_dir = Path(path).parent
+
+    def rel(target):
+        return Path(os.path.relpath(target, out_dir)).as_posix()
+
+    entries, retired, errors = [], [], []
+    for m in models:
+        for t in m.get("terms", []):
+            entries.append((t, m))
+        for r in m.get("retired_terms", []) or []:
+            retired.append((r, m))
+
+    names = {}
+    for t, m in entries + retired:
+        key = str(t["name"]).lower()
+        if key in names:
+            errors.append(f"{t['name']!r} is defined by {names[key]} and {m['_path']}")
+        names[key] = m["_path"]
+    for t, m in entries:
+        for syn in t.get("synonyms", []) or []:
+            if str(syn).lower() in names:
+                errors.append(f"synonym {syn!r} of {t['name']!r} names another term")
+        refs = list(t.get("see_also", []) or []) + [e["term"] for e in t.get("not_to_be_confused_with", []) or []]
+        for ref in refs:
+            if str(ref).lower() not in names:
+                errors.append(f"{t['name']!r} refers to {ref!r}, which no model defines")
+    for r, m in retired:
+        for use in r.get("use", []):
+            if str(use).lower() not in names:
+                errors.append(f"retired {r['name']!r} points to {use!r}, which no model defines")
+    if errors:
+        sys.exit("Combined glossary conflicts:\n" + "\n".join(f"  - {e}" for e in errors))
+
+    canonical = {str(t["name"]).lower(): t["name"] for t, _ in entries + retired}
+    owner = {str(t["name"]).lower(): owner_of(t, m) for t, m in entries + retired}
+
+    def link(name):
+        return f"[{canonical[str(name).lower()]}](#{slug(name)})"
+
+    def who(name):
+        return owner[str(name).lower()].capitalize()
+
+    pairs, seen = [], set()
+    for t, m in sorted(entries, key=lambda e: str(e[0]["name"]).lower()):
+        found = [(e["term"], cell(e["note"])) for e in t.get("not_to_be_confused_with", []) or []]
+        for word in t.get("avoid", []) or []:
+            bare = re.sub(r"\s*\(.*\)$", "", str(word)).strip().lower()
+            if bare in canonical and bare != str(t["name"]).lower():
+                found.append((canonical[bare], f'Do not call a {t["name"]} "{word}".'))
+        for other, note in found:
+            key = frozenset((str(t["name"]).lower(), str(other).lower()))
+            if key not in seen:
+                seen.add(key)
+                pairs.append((t["name"], other, note))
+
+    sources = ", ".join(f"[{m.get('project')}]({rel(m['_path'])})" for m in models)
+    lines = ["# Glossary", "",
+             f"*Generated from the {sources} domain models by `mise run domain`. Do not edit by hand; "
+             "change a `model.yaml` and regenerate.*", "",
+             "Each term appears once and names the context and application that own it. "
+             "Ploeg owns the execution terms, and Vloer uses them with Ploeg's meaning.", ""]
+    refs = {}
+    for m in models:
+        for r in m.get("references", []) or []:
+            refs.setdefault((m["_path"].parent / r["path"]).resolve(), r)
+    for target, r in refs.items():
+        lines += [f"[{r['label']}]({rel(target)}): {str(r.get('note', '')).strip()}", ""]
+
+    lines += ["## Words with more than one meaning", "",
+              "| Word | Owner | Not to be confused with | Owner | Difference |",
+              "|---|---|---|---|---|"]
+    for word, other, note in pairs:
+        lines.append(f"| {link(word)} | {who(word)} | {link(other)} | {who(other)} | {note} |")
+    lines.append("")
+
+    lines += ["## Terms", "",
+              "| Term | Meaning | Context | Owner | Related |",
+              "|---|---|---|---|---|"]
+    for t, m in sorted(entries, key=lambda e: str(e[0]["name"]).lower()):
+        related = []
+        if t.get("synonyms"):
+            related.append("Also: " + ", ".join(t["synonyms"]))
+        if t.get("avoid"):
+            related.append("Do not use: " + ", ".join(t["avoid"]))
+        for e in t.get("not_to_be_confused_with", []) or []:
+            related.append(f"Not to be confused with {link(e['term'])}")
+        if t.get("see_also"):
+            related.append("See also: " + ", ".join(link(s) for s in t["see_also"]))
+        lines.append(f'| <a id="{slug(t["name"])}"></a>**{cell(t["name"])}** | {cell(t.get("definition", ""))} '
+                     f'| {cell(t.get("context", ""))} | {who(t["name"])} | {cell("<br>".join(related))} |')
+    lines.append("")
+
+    if retired:
+        lines += ["## Retired terms", "",
+                  "| Term | Use instead | Why |", "|---|---|---|"]
+        for r, m in retired:
+            uses = ", ".join(link(u) for u in r["use"])
+            lines.append(f'| <a id="{slug(r["name"])}"></a>**{cell(r["name"])}** | {uses} | {cell(r.get("because", ""))} |')
+        lines.append("")
+    return "\n".join(lines)
+
+
 def main():
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("model", help="Path to domain model YAML (e.g. docs/domain/model.yaml)")
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("model", nargs="+", help="Path to domain model YAML (e.g. docs/domain/model.yaml)")
     ap.add_argument("-o", "--out", default="docs/domain", help="Output directory (default: docs/domain)")
+    ap.add_argument("--glossary", help="Write one combined glossary of every model to this path")
+    ap.add_argument("--stdout", action="store_true", help="With --glossary, print instead of writing")
     args = ap.parse_args()
 
-    with open(args.model) as f:
-        model = yaml.safe_load(f) or {}
+    if args.glossary:
+        content = gen_combined([load(p) for p in args.model], args.glossary)
+        if args.stdout:
+            sys.stdout.write(content)
+        else:
+            Path(args.glossary).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.glossary).write_text(content)
+            print(f"wrote {args.glossary}")
+        return
+    if len(args.model) != 1:
+        ap.error("give one model, or use --glossary to combine several")
+
+    model = load(args.model[0])
     if "project" not in model:
         warn("model has no 'project' field")
 
