@@ -126,6 +126,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   if (process.env.OPENCODE_SERVER_USERNAME) runtime.username = process.env.OPENCODE_SERVER_USERNAME;
   if (!['demo','opencode','command'].includes(runtime.kind) || !['local','external','docker','kubernetes'].includes(runtime.backend)) throw new Error('Unsupported runtime or workspace backend');
   if (mode === 'live' && runtime.kind === 'demo') throw new Error('The demonstration runtime requires demo mode');
+  if (mode === 'live' && runtime.backend === 'external') throw new Error(`${process.env.OPENCODE_URL ? 'OPENCODE_URL selects' : 'runtime.backend external is'} an external OpenCode endpoint, which cannot run a live session: every live session receives a scoped model credential, and an external endpoint cannot receive one safely. Unset OPENCODE_URL and use the local, docker or kubernetes workspace backend.`);
   if (runtime.endpoint) configuredUrl(runtime.endpoint, 'runtime.endpoint');
   runtime.backends = workspaceBackends(runtime, raw.runtime?.backend);
   runtime.agentEnvironment = agentEnvironmentNames(raw.runtime?.agentEnvironment);

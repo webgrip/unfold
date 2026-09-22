@@ -19,6 +19,14 @@ async function load(t: test.TestContext, value: Record<string, unknown>) {
   return loadConfig(['--config', file]);
 }
 
+test('live configuration rejects an external OpenCode endpoint that could never receive a session credential', async t => {
+  await assert.rejects(load(t, { runtime: { kind: 'opencode', backend: 'external', endpoint: 'https://opencode.example', timeoutMs: 60000 } }), /external OpenCode endpoint, which cannot run a live session/);
+  const previous = process.env.OPENCODE_URL;
+  process.env.OPENCODE_URL = 'https://opencode.example';
+  t.after(() => { if (previous === undefined) delete process.env.OPENCODE_URL; else process.env.OPENCODE_URL = previous; });
+  await assert.rejects(load(t, { runtime: { kind: 'opencode', backend: 'local', timeoutMs: 60000 } }), /^Error: OPENCODE_URL selects an external OpenCode endpoint/);
+});
+
 test('a single backend keeps its previous shape and becomes the only placement', async t => {
   const config = await load(t, { runtime: { kind: 'opencode', backend: 'local', binary: 'opencode', timeoutMs: 60000 } });
   assert.deepEqual(config.runtime.backends, ['local']);
