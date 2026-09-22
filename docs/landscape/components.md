@@ -12,7 +12,7 @@ Today it is a browser application and a server, with an editor client also prese
 
 **The service that authorizes and coordinates admitted agent work.** It records eligibility, execution ownership, budget, activity and stop conditions. Vloer performs the interactive workspace execution in shared mode. Standalone local work must remain usable without this service. A common runner for both paths remains an [open implementation choice](questions.md).
 
-Its unattended workers can claim queued work and run it. Vloer can also ask Ploeg to authorize an execution and then perform that execution itself. These are two current execution paths. Ploeg does not choose business priorities; those remain in the tracker. It does not itself host the language model. See [Ploeg's architecture](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/docs/architecture.md) and [operator execution decision](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/docs/adrs/0024-operator-work-uses-one-execution-authority.md).
+Its unattended workers can claim queued work and run it. Vloer can also ask Ploeg to authorize an execution and then perform that execution itself. These are two current execution paths. Ploeg does not choose business priorities; those remain in the tracker. It does not itself host the language model. See [Ploeg's architecture](../../apps/ploeg/docs/architecture.md) and [operator execution decision](../../apps/ploeg/docs/adrs/0024-operator-work-uses-one-execution-authority.md).
 
 ## Ticket tracker — currently Vikunja for this test
 
@@ -40,13 +40,13 @@ Fireworks is the user's intended provider in this ecosystem. It is not configure
 
 ## LiteLLM
 
-**The shared entry point for model requests.** It routes a requested model to a configured provider and offers keys with access restrictions, budget controls, and spend records. Ploeg decides what an execution is authorized to spend; LiteLLM enforces its configured request controls and records usage. A gateway record is not automatically a settled provider invoice. See [virtual keys](https://docs.litellm.ai/docs/proxy/virtual_keys) and the [Ploeg credential decision](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/docs/adrs/0008-litellm-is-the-credential-and-metering-seam.md).
+**The shared entry point for model requests.** It routes a requested model to a configured provider and offers keys with access restrictions, budget controls, and spend records. Ploeg decides what an execution is authorized to spend; LiteLLM enforces its configured request controls and records usage. A gateway record is not automatically a settled provider invoice. See [virtual keys](https://docs.litellm.ai/docs/proxy/virtual_keys) and the [Ploeg credential decision](../../apps/ploeg/docs/adrs/0008-litellm-is-the-credential-and-metering-seam.md).
 
 On the shared path, Ploeg holds the credential used to manage model access. The workspace receives a limited execution key. Vloer does not receive the gateway master key. Model traffic travels from the harness to LiteLLM; it does not pass through the Ploeg work queue.
 
 ## KEDA
 
-**The component that starts more Kubernetes workers when its configured signal says work is waiting.** For Ploeg's unattended path, that signal is queue depth. A started worker still has to ask Ploeg for a valid claim; KEDA does not decide which ticket that worker owns. See [KEDA job scaling](https://keda.sh/docs/2.20/concepts/scaling-jobs/) and [Ploeg's chart](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/ops/helm/ploeg).
+**The component that starts more Kubernetes workers when its configured signal says work is waiting.** For Ploeg's unattended path, that signal is queue depth. A started worker still has to ask Ploeg for a valid claim; KEDA does not decide which ticket that worker owns. See [KEDA job scaling](https://keda.sh/docs/2.20/concepts/scaling-jobs/) and [Ploeg's chart](../../apps/ploeg/ops/helm/ploeg).
 
 KEDA is not currently in the Vloer Start-to-workspace path. Vloer creates that workspace through the Kubernetes API. Bronze's unattended workers are paused for the test so they do not claim tickets intended for Vloer. KEDA scaling adds worker instances within configured limits; it does not create unlimited machines, provider allowance, or review capacity.
 

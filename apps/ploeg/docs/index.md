@@ -19,16 +19,18 @@ The [local shared demonstration](../../../docs/workflows/local-demo.md) runs Plo
 - [Managed worker control](contracts/worker-control.md)
 - [Tracker execution binding](contracts/tracker-execution.md)
 - [Operator candidate delivery](contracts/operator-delivery.md)
+- [Executor launch](contracts/executor.md)
 
 ## Understand and change
 
 - [Architecture](architecture.md)
-- [Domain source](domain/model.yaml), generated [glossary](domain/glossary.md) and [rules](domain/rules.md)
-- [Decision ledger](adrs/README.md)
+- [Domain source](domain/model.yaml), generated [overview](domain/overview.md), [glossary](domain/glossary.md), [rules](domain/rules.md), [entities](domain/entities.md) and [events](domain/events.md)
+- [Decision ledger](adrs/README.md) and the [decision register](../../../docs/reference/decisions.md) across all three ledgers
 - [Product intent and design history](design.md)
 - [Shared product questions](../../../docs/landscape/questions.md)
 - [Documentation maintenance](../../../docs/documentation.md)
+- [Brand identity](brand/README.md) and [trademark policy](brand/TRADEMARK.md)
 
-The [backlog](backlog.md), [OpenSpec changes](../openspec/changes/) and [research dossiers](research/) retain plans and evidence. Their existence does not establish implemented behavior or current priority. The [documentation audit](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/research/2026-09-12-documentation-audit.md) records review coverage.
+The [backlog](backlog.md), [OpenSpec changes](../openspec/changes/) and [research dossiers](research/) retain plans and evidence. Their existence does not establish implemented behavior or current priority. The [documentation audit](../../vloer/docs/research/2026-09-12-documentation-audit.md) records review coverage.
 
 Human readers and agents use these same Markdown pages. JSON schemas define published wire shapes; YAML is the source for generated domain views. The [machine discovery index](../llms.txt) links here without copying the specification.

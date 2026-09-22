@@ -4,7 +4,7 @@ Developed in [Glide](../../README.md). Run repository-wide checks from the Glide
 
 A self-hosted workbench for people steering remote agent crews. Bring a task from **Vikunja, ClickUp, Forgejo, GitHub or GitLab**, choose a reusable crew and budget, and supervise the work from a browser or VS Code. Your configured server runs the agents; your workstation remains the place you steer and review them.
 
-De Vloer sits beside [Ploeg](https://forgejo.webgrip.dev/webgrip/ploeg). The tracker owns priorities, Ploeg owns unattended dispatch, and De Vloer owns interactive sessions and human intervention. The Ploeg workbench now exposes scoped work, evidence and spending snapshots. An opt-in shared execution path lets Ploeg admit interactive sessions while De Vloer provides their workspace and human controls. [Run the unified baseline](docs/operations/unified-baseline.md). A completed shared session can now pass through a [canonical candidate, independent Docker checks and candidate-bound approval](docs/contracts/candidate-delivery.md); Ploeg retains the authority and evidence. Live publication remains disabled.
+De Vloer sits beside [Ploeg](https://forgejo.webgrip.dev/webgrip/ploeg). The tracker owns priorities, Ploeg owns unattended dispatch, and De Vloer owns interactive sessions and human intervention. The Ploeg workbench now exposes scoped work, evidence and spending snapshots. An opt-in shared execution path lets Ploeg admit interactive sessions while De Vloer provides their workspace and human controls. [Run the unified baseline](../../docs/workflows/managed-execution.md). A completed shared session can now pass through a [canonical candidate, independent Docker checks and candidate-bound approval](docs/contracts/candidate-delivery.md); Ploeg retains the authority and evidence. Live publication remains disabled.
 
 ## Try it in ten minutes
 
@@ -18,7 +18,7 @@ Open **http://127.0.0.1:4080** → **Tasks**. Preview **[Demo fixture] Fix check
 
 This is an explicitly labeled deterministic demo. It copies an isolated Git fixture, modifies real source and executes real Node tests. It makes **zero AI calls** and records **zero model spend**. It demonstrates the operating workflow, not model quality.
 
-To test the shared execution with real Ploeg and PostgreSQL, use `mise exec -- npm run demo:unified`. Keep the matching Ploeg checkout beside this one and follow the [local shared execution guide](docs/operations/local-unified-demo.md) for prerequisites and cleanup. The launcher prints a browser URL and prepares a session you can start, pause and supervise.
+To test the shared execution with real Ploeg and PostgreSQL, use `mise exec -- npm run demo:unified`. Keep the matching Ploeg checkout beside this one and follow the [local shared execution guide](../../docs/workflows/local-demo.md) for prerequisites and cleanup. The launcher prints a browser URL and prepares a session you can start, pause and supervise.
 
 With the server running, a second terminal can verify the full demonstration:
 
@@ -75,11 +75,11 @@ The [validation matrix](docs/validation.md) records actual-server integration, b
 
 ## Improve Vloer with Vloer
 
-The [0.2.0 iteration](docs/operations/iteration-0.2.0.md) connects task selection to an interactive session and retained review evidence. The earlier [implementation increment](docs/operations/implementation-progress.md) added keyboard evidence navigation, stable reading/draft behavior and actionable failures. The release also includes [reviewable Ploeg prerequisite patches](integrations/ploeg/README.md), whose historical qualification notes are superseded for this increment by the [real cross-service baseline](docs/operations/unified-baseline.md#reproduce-qualification).
+The [0.2.0 iteration](docs/operations/iteration-0.2.0.md) connects task selection to an interactive session and retained review evidence. The earlier [implementation increment](docs/operations/implementation-progress.md) added keyboard evidence navigation, stable reading/draft behavior and actionable failures. The release also includes [reviewable Ploeg prerequisite patches](integrations/ploeg/README.md), whose historical qualification notes are superseded for this increment by the [real cross-service baseline](../../docs/workflows/managed-execution.md#reproduce-qualification).
 
 Run the stable service separately from the candidate checkout, register the Vloer repository, and connect the task source that holds its backlog. Preview one bounded task, import it, authorize a small LiteLLM budget and start the crew. Export and independently verify the candidate before a human publishes the proposal and reviews the merge. The [iteration guide](docs/operations/iteration-0.2.0.md) records the 0.2.0 loop; the [self-improvement design](docs/design/self-improvement.md) specifies its planned automation.
 
-Use the [documentation index](docs/index.md) for current guidance. The [design chapter guide](docs/PRODUCT-DESIGN.md) links the September planning baseline and market hypotheses. Those chapters contain proposals and dated gaps; the [architecture](docs/architecture.md) describes current behavior. Universal Ploeg authority and a common local or remote runner remain [open choices](docs/landscape/questions.md).
+Use the [documentation index](docs/index.md) for current guidance. The [design chapter guide](docs/PRODUCT-DESIGN.md) links the September planning baseline and market hypotheses. Those chapters contain proposals and dated gaps; the [architecture](docs/architecture.md) describes current behavior. Universal Ploeg authority and a common local or remote runner remain [open choices](../../docs/landscape/questions.md).
 
 The [planning backlog](backlog/README.md) maps every one of [30 audited gaps](docs/design/gap-register.md) to acceptance criteria and dependencies. [Import instructions](docs/operations/backlog.md) cover the included ClickUp CSV and Forgejo payloads. No external tickets have been created. To inspect the first candidate and its remaining acceptance work:
 

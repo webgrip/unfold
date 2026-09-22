@@ -126,13 +126,13 @@ The same task may be represented in several systems. This release identifies imp
 
 All authenticated Vloer users share the registered source visibility, including viewers. The server credential's permitted task content is therefore visible to those users. Viewers cannot import or start work. Vloer does not currently reproduce each person's provider permissions or isolate sources by team membership. Use one trusted team per deployment and scope the configured source account accordingly. Session ownership checks continue to apply after import.
 
-An `executionOwner` declaration alone is a local routing rule. Standalone imports require an interactive source and repository. With [shared execution](unified-baseline.md), Ploeg remains the authority and tracker imports must bind the existing Work Item using the registered target below.
+An `executionOwner` declaration alone is a local routing rule. Standalone imports require an interactive source and repository. With [shared execution](../../../../docs/workflows/managed-execution.md), Ploeg remains the authority and tracker imports must bind the existing Work Item using the registered target below.
 
 The server checks source and repository configuration again before first admission. Existing repository registrations without an ownership declaration retain the interactive default; new task source entries require an explicit declaration. Declare repository ownership too when introducing Ploeg alongside the service.
 
 ## Import the existing Ploeg work item
 
-Enable the [shared execution connection](unified-baseline.md), then register a supported source with an explicit target. This example maps the existing `application` repository whose URL is `https://forge.example/team/application.git` and base branch is `main`:
+Enable the [shared execution connection](../../../../docs/workflows/managed-execution.md), then register a supported source with an explicit target. This example maps the existing `application` repository whose URL is `https://forge.example/team/application.git` and base branch is `main`:
 
 ```json
 {

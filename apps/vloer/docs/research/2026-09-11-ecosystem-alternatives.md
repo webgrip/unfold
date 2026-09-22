@@ -1,8 +1,8 @@
 # Ecosystem alternatives: what exists, what we use, and what we actually evaluated
 
-The [12 September transition proposal](../monorepo-transition.md) requires local work without Ploeg and keeps a shared runner under evaluation. This report retains the earlier comparison.
+The [12 September transition proposal](../../../../docs/migration-proposal.md) requires local work without Ploeg and keeps a shared runner under evaluation. This report retains the earlier comparison.
 
-> Historical scope: this survey records the 11 September discussion. On 12 September the owner reopened universal Ploeg authority and local execution without Ploeg. See [current product questions](../landscape/questions.md). The survey below retains its original evidence and assumptions.
+> Historical scope: this survey records the 11 September discussion. On 12 September the owner reopened universal Ploeg authority and local execution without Ploeg. See [current product questions](../../../../docs/landscape/questions.md). The survey below retains its original evidence and assumptions.
 
 Research date: **11 September 2026**. Audience: product leadership and the CTO. Scope: twelve relevant products and components, checked against their official documentation and the Ploeg/De Vloer decision history. This is a documentation and source review, not a new installation, benchmark, procurement decision or claim of uniqueness.
 
@@ -141,7 +141,7 @@ The remaining decision is empirical: compare a small research task that can conc
 
 ## Appendix: adjacent components and communication protocols
 
-Owner clarification, 11 September: the intended boundary gives Ploeg **all AI execution**. Vloer also permits conversation without a ticket; ticket management stays external. Automatic repair of failed CI checks before human review is desired. These are product requirements, not claims of completed implementation. See the [ecosystem explanation](../landscape/index.md). Confidence below is **high** for documented capabilities and source status; replacement fit remains **medium**, without new integration trials.
+Owner clarification, 11 September: the intended boundary gives Ploeg **all AI execution**. Vloer also permits conversation without a ticket; ticket management stays external. Automatic repair of failed CI checks before human review is desired. These are product requirements, not claims of completed implementation. See the [ecosystem explanation](../../../../docs/landscape/index.md). Confidence below is **high** for documented capabilities and source status; replacement fit remains **medium**, without new integration trials.
 
 **Argo Workflows versus Temporal.** [Argo](https://argo-workflows.readthedocs.io/en/latest/) coordinates Kubernetes container steps, dependencies, retries and artifacts; [Temporal](https://docs.temporal.io/workflow-execution) preserves application workflow history across failures and waits. Either could support Ploeg's internal execution process. Neither supplies our acceptance policy automatically. Argo adoption was declined in the [July decision](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/docs/adrs/0005-build-a-dedicated-dispatch-plane.md#argo-workflows-as-the-substrate); Temporal remains a suggestion. Neither was trialled here.
 

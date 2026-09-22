@@ -13,11 +13,11 @@ This page describes the source reviewed on 12 September 2026. It does not establ
 | [PostgreSQL store](../pkg/store/) | Work Items, Shifts, Runs, Leases, outcomes, accounting and audit records |
 | [Shift engine](../pkg/shiftengine/engine.go) | Advance configured rounds and roles; close or stop a Shift |
 | [Unattended worker](../pkg/worker/worker.go) | Claim authorized work, prepare a repository, invoke a harness and report results |
-| [De Vloer](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/architecture.md) | Interactive sessions, delegated workspace execution, intervention and evidence |
+| [De Vloer](../../vloer/docs/architecture.md) | Interactive sessions, delegated workspace execution, intervention and evidence |
 | [LiteLLM integration](../pkg/httpapi/llm_control.go) | Scoped inference capability lifecycle and accounting observations |
 | [Tracker and forge providers](../pkg/provider/) | Translate configured external systems at the integration boundary |
 
-A manual-origin Operator Execution need not have an external ticket. It still needs authenticated admission and registered authority. In Vloer's shared mode, Start requests that admission. Creating a queued session alone does not start paid work. Vloer's standalone mode runs without Ploeg, and the product direction requires that independence for local work. Reusing a runner across both paths remains a [proposal to test](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/monorepo-transition.md).
+A manual-origin Operator Execution need not have an external ticket. It still needs authenticated admission and registered authority. In Vloer's shared mode, Start requests that admission. Creating a queued session alone does not start paid work. Vloer's standalone mode runs without Ploeg, and the product direction requires that independence for local work. Reusing a runner across both paths remains a [proposal to test](../../../docs/migration-proposal.md).
 
 ## 2. Execution paths
 
@@ -82,4 +82,4 @@ The [pre-audit architecture](https://forgejo.webgrip.dev/webgrip/ploeg/src/commi
 
 ## Decisions and evidence
 
-The [ADR index](adrs/README.md) is the decision ledger. Proposed records remain proposed even when related code exists. The [documentation audit](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/research/2026-09-12-documentation-audit.md) records this correction pass and its verification limits.
+The [ADR index](adrs/README.md) is the decision ledger. Proposed records remain proposed even when related code exists. The [documentation audit](../../vloer/docs/research/2026-09-12-documentation-audit.md) records this correction pass and its verification limits.

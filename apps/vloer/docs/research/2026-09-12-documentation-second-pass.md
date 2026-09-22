@@ -6,7 +6,7 @@ Reviewed on 12 September 2026 in the De Vloer and Ploeg working trees. This foll
 
 | Finding | Correction and evidence |
 | --- | --- |
-| Current guides left Ploeg-free local execution unresolved | Record the user's product direction in both domain models and architecture guides. [Product R8](../domain/rules.md#r8) distinguishes standalone authorization from Ploeg-managed authority. The shared runner remains a [proposal to test](../monorepo-transition.md) |
+| Current guides left Ploeg-free local execution unresolved | Record the user's product direction in both domain models and architecture guides. [Product R8](../../../../docs/domain/rules.md#r8) distinguishes standalone authorization from Ploeg-managed authority. The shared runner remains a [proposal to test](../../../../docs/migration-proposal.md) |
 | Extension instructions contradicted implemented SSO, tracker import and review UI | Rewrite the [extension guide](../../extensions/vscode/README.md) around installation, connection, work and evidence. Check against [extension flows](../../extensions/vscode/src/extension.ts) and [panel code](../../extensions/vscode/media/session.js) |
 | Release instructions mixed current workflow with obsolete provisioning notes | Rewrite [release operation](../operations/release.md) against the [publication workflow](../../.forgejo/workflows/on_release_published.yml). Distinguish a created release, uploaded assets and conditional registry publication; retain the old guide by immutable link |
 | Vloer's architecture overstated which crew roles gate completion | Document the final read role and writing-crew approval condition from the [engine](../../src/engine.ts) |

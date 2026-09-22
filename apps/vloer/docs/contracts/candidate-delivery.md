@@ -62,4 +62,4 @@ VLOER_DOCKER_SOCKET='<Docker Engine socket>' \
 mise exec -- node scripts/qualify-delivery.ts
 ```
 
-The [cross-service script](../../scripts/qualify-delivery-authority.ts) runs through Ploeg's opt-in Go qualification harness with real PostgreSQL and both HTTP services. [The operating guide](../operations/unified-baseline.md) records the complete command and current results. All fixtures are explicit; no model calls, paid spend or live forge writes are synthesized.
+The [cross-service script](../../scripts/qualify-delivery-authority.ts) runs through Ploeg's opt-in Go qualification harness with real PostgreSQL and both HTTP services. [The operating guide](../../../../docs/workflows/managed-execution.md) records the complete command and current results. All fixtures are explicit; no model calls, paid spend or live forge writes are synthesized.

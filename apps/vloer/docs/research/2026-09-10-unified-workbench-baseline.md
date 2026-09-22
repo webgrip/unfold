@@ -1,6 +1,6 @@
 # One workbench and one execution authority
 
-Implementation follow-through: [the unified operating guide](../operations/unified-baseline.md) and [connected qualification evidence](evidence/unified-2026-09-10/README.md) record what was built after this source survey. The findings below retain their inspected baseline.
+Implementation follow-through: [the unified operating guide](../../../../docs/workflows/managed-execution.md) and [connected qualification evidence](evidence/unified-2026-09-10/README.md) record what was built after this source survey. The findings below retain their inspected baseline.
 
 > Research date: 2026-09-10. Method: local source inspection and primary-source web research, with three parallel research agents covering implementation seams, competing products and protocol/workflow components. This is a recommendation, not an accepted architecture change or a delivered integration. The condensed verdict is in the [alternatives ledger](conventions-and-alternatives.md#alternatives-worth-comparing-against-a-real-workflow); conditional adoption triggers are in the [backlog guide](../operations/backlog.md#unification-baseline-and-adoption-triggers).
 

@@ -8,7 +8,7 @@
 
 - [Actual verified and approved workbench, desktop](candidate-approved-desktop.png)
 - [Actual verified and approved workbench, mobile](candidate-approved-mobile.png)
-- [Reproduction instructions](../../../operations/unified-baseline.md#enable-independent-candidate-checks)
+- [Reproduction instructions](../../../../../../docs/workflows/managed-execution.md#enable-independent-candidate-checks)
 
 ## Real tracker admission authority
 

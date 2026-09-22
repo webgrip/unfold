@@ -1,6 +1,6 @@
 # Shared Ploeg execution
 
-This is the opt-in execution contract implemented by [the authority client](../../src/execution-authority.ts) and [the session engine](../../src/engine.ts). The [operating guide](../operations/unified-baseline.md) covers configuration and qualification. Standalone sessions retain their existing contract when `execution` is absent; a session already bound to Ploeg cannot fall back to standalone execution.
+This is the opt-in execution contract implemented by [the authority client](../../src/execution-authority.ts) and [the session engine](../../src/engine.ts). The [operating guide](../../../../docs/workflows/managed-execution.md) covers configuration and qualification. Standalone sessions retain their existing contract when `execution` is absent; a session already bound to Ploeg cannot fall back to standalone execution.
 
 ## Ownership
 

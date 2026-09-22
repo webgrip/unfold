@@ -2,7 +2,7 @@
 
 Ploeg coordinates authorized agent work while external trackers retain priorities and requested outcomes. De Vloer supplies interactive sessions and can execute work admitted by Ploeg.
 
-For implemented behavior, start with the [architecture](architecture.md). For the current product discussion across both projects, use the [shared landscape guide](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/landscape/index.md). A common execution layer and local operation without Ploeg remain open questions.
+For implemented behavior, start with the [architecture](architecture.md). For the current product discussion across both projects, use the [shared landscape guide](../../../docs/landscape/index.md). A common execution layer and local operation without Ploeg remain open questions.
 
 ## 2. Non-goals
 

@@ -6,7 +6,7 @@ Read [validation](../validation.md) for the actual qualification level. The loca
 
 ## First standalone OpenCode session
 
-For Ploeg-authorized execution, start with [the unified guide](unified-baseline.md). The management-key setup below applies to standalone Vloer. Shared execution keeps that authority in Ploeg.
+For Ploeg-authorized execution, start with [the unified guide](../../../../docs/workflows/managed-execution.md). The management-key setup below applies to standalone Vloer. Shared execution keeps that authority in Ploeg.
 
 Prepare Node 24, Git and the OpenCode version pinned in [the agent image](../../ops/agent/Dockerfile). Register a repository the execution environment can clone. For the first qualification use a disposable public test repository; private forge credential provisioning is a separate deployment concern and must not inherit an operator's workstation login.
 
@@ -134,7 +134,7 @@ The gateway can refuse requests with `budget_exhausted`. Displayed spend is an o
 
 A completed session has done everything the machine does: every role finished, the final reviewer's verdict is on its run, the candidate is captured as a bundle, patch and manifest with two signed statements over them, the workspace is released, and nothing was pushed or merged. The label now says what is missing: a person's review. Accept records that you inspected the candidate and consider it fit to take further, with an optional note; reject requires a reason, which the next attempt receives. Both are recorded with your name in the session history and shown on the session instead of the label. Until the publish action exists, taking an accepted candidate further is still a manual push and merge request from the downloaded bundle.
 
-Pending or unknown spend stays visible after the crew finishes. Standalone settlement uses the configured grace period. Shared execution retains its authorization until trusted accounting reconciles it; see [shared recovery](unified-baseline.md#recovery).
+Pending or unknown spend stays visible after the crew finishes. Standalone settlement uses the configured grace period. Shared execution retains its authorization until trusted accounting reconciles it; see [shared recovery](../../../../docs/workflows/managed-execution.md#recovery).
 
 ## Trying a failed session again
 

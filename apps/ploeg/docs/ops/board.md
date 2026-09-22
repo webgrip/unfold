@@ -2,7 +2,7 @@
 
 The tracker owns current work and priorities. Ploeg receives configured provider events and resolves a Work Target from the registered Scope. De Vloer registers its own task sources and repository mapping; there is no universal project-ID default.
 
-For current integration behavior, read [tracker execution binding](../contracts/tracker-execution.md), the [Vikunja provider](../../pkg/provider/vikunja/vikunja.go), the [ClickUp provider](../../pkg/provider/clickup/clickup.go) and [Vloer's connection guide](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/operations/task-connections.md).
+For current integration behavior, read [tracker execution binding](../contracts/tracker-execution.md), the [Vikunja provider](../../pkg/provider/vikunja/vikunja.go), the [ClickUp provider](../../pkg/provider/clickup/clickup.go) and [Vloer's connection guide](../../../vloer/docs/operations/task-connections.md).
 
 Before expecting an assignment to dispatch work, verify the actual tracker project, the assignee's access, webhook registration, provider routing and target mapping. A planning board and an execution test board may be different projects.
 
