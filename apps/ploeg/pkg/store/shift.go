@@ -357,6 +357,9 @@ func (s *Store) ClaimRole(ctx context.Context, team, role string, ttl time.Durat
 	}
 
 	authorized := budget - spent - reserved
+	if budget <= 0 {
+		authorized = cap
+	}
 	if cap > 0 && cap < authorized {
 		authorized = cap
 	}

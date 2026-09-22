@@ -61,10 +61,10 @@ func (s *Store) ReserveLLMAccount(ctx context.Context, a LLMAccount) error {
 		WHERE run_token = $1 AND state = 'running' FOR UPDATE`, a.RunToken).Scan(&id, &authorized); err != nil {
 		return err
 	}
-	if !validSpend(authorized) || authorized <= 0 {
+	if !validSpend(authorized) || authorized < 0 {
 		return ErrLLMAccountState
 	}
-	if authorized < a.Authorized {
+	if authorized > 0 && authorized < a.Authorized {
 		a.Authorized = authorized
 	}
 	var matches bool

@@ -166,3 +166,47 @@ func TestManagedReservationIsIdempotentAndBoundedByRunAuthority(t *testing.T) {
 		t.Fatalf("account mutation audit=%v", actions)
 	}
 }
+
+func TestManagedRunOnUnpooledShiftUsesPolicyBudget(t *testing.T) {
+	ctx := context.Background()
+	_, shift := openShift(t, 0)
+	if _, err := testStore.OpenRound(ctx, shift, 0, []Role{{Writes: true}}); err != nil {
+		t.Fatal(err)
+	}
+	run, err := testStore.ClaimRole(ctx, "silver", "", time.Minute, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := testStore.ReserveLLMAccount(ctx, LLMAccount{RunToken: run.RunToken, Alias: "fixture", Authorized: 2.5, Models: []string{"model"}, TTLSeconds: 60}); err != nil {
+		t.Fatalf("reserve on an unpooled Shift: %v", err)
+	}
+	account, err := testStore.LLMAccount(ctx, run.RunToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if account.Authorized != 2.5 {
+		t.Fatalf("authorized = %v, want the policy budget 2.5", account.Authorized)
+	}
+}
+
+func TestManagedRunOnUnpooledShiftKeepsRoleCap(t *testing.T) {
+	ctx := context.Background()
+	_, shift := openShift(t, 0)
+	if _, err := testStore.OpenRound(ctx, shift, 0, []Role{{Name: "reviewer", Cap: 1}}); err != nil {
+		t.Fatal(err)
+	}
+	run, err := testStore.ClaimRole(ctx, "silver", "reviewer", time.Minute, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := testStore.ReserveLLMAccount(ctx, LLMAccount{RunToken: run.RunToken, Alias: "fixture", Authorized: 2.5, Models: []string{"model"}, TTLSeconds: 60}); err != nil {
+		t.Fatal(err)
+	}
+	account, err := testStore.LLMAccount(ctx, run.RunToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if account.Authorized != 1 {
+		t.Fatalf("authorized = %v, want the role cap 1", account.Authorized)
+	}
+}
