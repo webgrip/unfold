@@ -28,7 +28,7 @@ description = "Qualify standalone and Ploeg-managed execution without paid model
 
 [tasks.docs-check]
 run = "uv run --frozen python scripts/docs.py --check"
-description = "Check generated models, links and strict TechDocs output"
+description = "Check generated models, links, agent instruction files and strict TechDocs output"
 
 [tasks.domain]
 run = "uv run --frozen python scripts/docs.py --domain"
