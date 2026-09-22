@@ -9,7 +9,7 @@ The [combined Glide glossary](../reference/glossary.md) lists every term of ever
 
 The observable conditions a Result must satisfy to answer the requested work. They depend on the work; software tests alone cannot validate a business case.
 
-**See also:** [Ticket](#ticket), [Result](#result), [Review](#review)  
+**See also:** [Work Item](../reference/glossary.md#work-item), [Result](#result), [Review](#review)  
 
 ## Agent
 *Context: Execution*
@@ -97,20 +97,20 @@ Recorded, repeatable proof that a component or path works as required before any
 
 **See also:** [Cutover](#cutover)  
 
-## Repair Subticket
+## Ready
 *Context: Work*
 
-An external ticket linked beneath the original ticket to track repair of a failed CI check. Its purpose is to restore the required behavior and passing checks.
+A Work Item is ready when it states something we have decided to do, or describes a problem in enough detail that a solution can be formulated or at least conceived. Ready work can be given to agents. Work that is not ready can itself be given to agents whose job is to make it ready.
 
-**See also:** [Ticket](#ticket), [Acceptance Conditions](#acceptance-conditions), [Evidence](#evidence)  
+**See also:** [Work Item](../reference/glossary.md#work-item), [Acceptance Conditions](#acceptance-conditions), [Follow-Up](../reference/glossary.md#follow-up)  
 
 ## Result
 *Context: Work*
 
-What a Workload delivers, together with the evidence needed to judge it. It can be a code change, a research conclusion, a design or another requested deliverable.
+What a Work Item delivers, together with the evidence needed to judge it. It can be a code change, a research conclusion, a design or another requested deliverable.
 
 **Not to be confused with** [Outcome](../reference/glossary.md#outcome): Ploeg's terminal code for one Run, such as pr_opened or stuck.  
-**See also:** [Workload](#workload), [Ticket](#ticket), [Evidence](#evidence), [Review](#review)  
+**See also:** [Work Item](../reference/glossary.md#work-item), [Evidence](#evidence), [Review](#review)  
 
 ## Review
 *Context: Work*
@@ -126,7 +126,7 @@ An assessment of a Result against its Acceptance Conditions and supporting Evide
 Vloer's continuing record of a person's interaction around work: instructions, questions, actions and results. Closing a browser does not erase it. A started session is linked to one Ploeg Work Item, Shift and Run.
 
 **Not to be confused with** [Shift](../reference/glossary.md#shift): Ploeg's whole attempt on a Work Item; Ploeg avoids "session" for it.  
-**See also:** [Workload](#workload), [Ticket](#ticket), [Shift](../reference/glossary.md#shift), [Crew](#crew)  
+**See also:** [Work Item](../reference/glossary.md#work-item), [Shift](../reference/glossary.md#shift), [Crew](#crew)  
 
 ## Step
 *Context: Participation · Owner: Vloer*
@@ -144,14 +144,6 @@ Backstage's documentation format: a static site built from Markdown by MkDocs wi
 
 **See also:** [Zensical](#zensical)  
 
-## Ticket
-*Context: Work*
-
-A recorded request for a result, with enough context and acceptance conditions to judge that result. It remains the same request if an attempt fails. In an external tracker, Ploeg calls it a Tracker Item.
-
-**Not to be confused with** [Work Item](../reference/glossary.md#work-item): Ploeg's execution record for a Ticket or for manual work.  
-**See also:** [Tracker Item](../reference/glossary.md#tracker-item), [Result](#result), [Acceptance Conditions](#acceptance-conditions), [Workload](#workload), [Repair Subticket](#repair-subticket)  
-
 ## Vloer
 *Context: System · Owner: Vloer*
 
@@ -160,14 +152,6 @@ Glide's front end: the web workbench and VS Code extension where people start wo
 **Also known as:** De Vloer  
 **Examples:** Current state: Vloer's own engine still executes delegated Steps until the Glide ADR-0002 migration is complete.  
 **See also:** [Ploeg](#ploeg), [Session](#session), [Step](#step)  
-
-## Workload
-*Context: Execution*
-
-The AI work a person asks for: instructions, recorded activity and results. An external Ticket is optional. Ploeg records admitted work as a Work Item. Repository-free conversation is intended product behavior; current Vloer sessions require a repository and a Crew.
-
-**Not to be confused with** [Work Item](../reference/glossary.md#work-item): Ploeg's execution record of admitted work, not the request itself.  
-**See also:** [Ticket](#ticket), [Session](#session), [Shift](../reference/glossary.md#shift), [Result](#result), [Budget](#budget)  
 
 ## Workspace
 *Context: Execution*
@@ -189,6 +173,21 @@ The static site generator that renders Glide's published human pages from the sa
 
 Do not use these names as terms.
 
+### Ticket
+*Use instead: [Work Item](../reference/glossary.md#work-item), [Tracker Item](../reference/glossary.md#tracker-item)*
+
+The unit of work is the Work Item, whatever its source. A tracker is one place a Work Item's text can live (a Tracker Item); Vloer and other Runs are others.
+
+### Workload
+*Use instead: [Work Item](../reference/glossary.md#work-item)*
+
+A second name for the unit of work made every rule ambiguous about which record it meant.
+
+### Repair Subticket
+*Use instead: [Follow-Up](../reference/glossary.md#follow-up)*
+
+A repair is work created by work; Ploeg's Follow-Up already names it.
+
 ### Execution
 *Use instead: [Shift](../reference/glossary.md#shift), [Run](../reference/glossary.md#run)*
 
@@ -196,7 +195,7 @@ The attempt it named is a Shift, and one Role's part of it is a Run. A second na
 
 ## Terms owned by other models
 
-This model uses these terms with their owners' meaning: [Admission](../reference/glossary.md#admission), [Authority](../reference/glossary.md#authority), [Harness](../reference/glossary.md#harness), [Lease](../reference/glossary.md#lease), [Outcome](../reference/glossary.md#outcome), [Role](../reference/glossary.md#role), [Run](../reference/glossary.md#run), [Shift](../reference/glossary.md#shift), [Team](../reference/glossary.md#team), [Tracker Item](../reference/glossary.md#tracker-item), [Verdict](../reference/glossary.md#verdict), [Work Item](../reference/glossary.md#work-item).
+This model uses these terms with their owners' meaning: [Admission](../reference/glossary.md#admission), [Authority](../reference/glossary.md#authority), [Follow-Up](../reference/glossary.md#follow-up), [Harness](../reference/glossary.md#harness), [Lease](../reference/glossary.md#lease), [Outcome](../reference/glossary.md#outcome), [Role](../reference/glossary.md#role), [Run](../reference/glossary.md#run), [Shift](../reference/glossary.md#shift), [Team](../reference/glossary.md#team), [Tracker Item](../reference/glossary.md#tracker-item), [Verdict](../reference/glossary.md#verdict), [Work Item](../reference/glossary.md#work-item).
 
 ## Decisions cited
 
@@ -211,7 +210,7 @@ Short exchanges showing the terms used precisely at concept boundaries.
 ### Research can stop implementation
 *Context: Work*
 
-> **Developer:** Does this research Ticket require a prototype?
+> **Developer:** Does this research Work Item require a prototype?
 > **Product owner:** The Evidence establishes that we should not build. The Result is the supported conclusion to stop.
 > **Developer:** Then Review should judge that Evidence against the Acceptance Conditions.
 

@@ -8,7 +8,9 @@ verified_by: "ADR-0002; mise run docs-check"
 
 # Glide
 
-Glide turns tracker tickets into pull requests written by AI agents. You create a work item and assign it to an agent team. Glide runs the agents with a budget and a credential that expires, until a pull request is ready for your review. You merge.
+Glide turns units of work into pull requests that AI agents write and you review.
+
+A unit of work, a **Work Item**, is something you have decided to do, or a problem described well enough that a solution can be formulated or at least conceived. You assign it to an agent team. Glide runs the agents with a budget and a credential that expires, until a pull request is ready for your review, and you merge. Work can also create work: splitting a Work Item, or making it ready, is a job for agents too.
 
 **Status:** internal tool, pre-1.0, one owner, self-hosted on Kubernetes. Not a hosted service.
 
@@ -22,7 +24,7 @@ Both applications live in this repository and deploy separately ([ADR-0002](adr/
 | I want to… | Go to |
 | --- | --- |
 | See it work without spending money | [Run the local demo](workflows/local-demo.md) (deterministic, no model calls) |
-| Understand how a ticket becomes a pull request | [How work flows](concepts/how-work-flows.md) |
+| Understand how a Work Item becomes a pull request | [How work flows](concepts/how-work-flows.md) |
 | Understand the parts and why they exist | [Architecture](concepts/architecture.md) |
 | Give real work to agents | [Assign work to an agent](how-to/assign-work-to-an-agent.md) |
 | Check an agent's pull request before merging | [Review an agent pull request](how-to/review-an-agent-pr.md) |

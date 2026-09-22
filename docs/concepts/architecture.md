@@ -17,7 +17,7 @@ Both run on your own Kubernetes cluster and use your own tracker, forge and mode
 
 ## Goals
 
-The goal is one loop: create work items, assign them to agents, and let the agents do all of the code work until a pull request is ready for human review and merge. The loop is complete when the throughput limit is cluster size rather than your time, and a new model can be adopted by changing configuration.
+The goal is one loop: create Work Items (units of work), assign them to agents, and let the agents do all of the code work until a pull request is ready for human review and merge. The loop is complete when the throughput limit is cluster size rather than your time, and a new model can be adopted by changing configuration.
 
 Quality goals, in priority order:
 
@@ -42,7 +42,7 @@ flowchart LR
     glide["Glide<br/>Ploeg + Vloer"]
     llm["LiteLLM gateway<br/>model providers behind it"]
     k8s["Kubernetes cluster<br/>KEDA, runs worker pods"]
-    you -->|create and assign tickets| tracker
+    you -->|create and assign Work Items| tracker
     you -->|follow and steer work| glide
     you -->|review and merge PRs| forge
     tracker -->|assignment webhooks| glide
@@ -108,6 +108,6 @@ Every decision across the three ledgers is listed in the [decision register](../
 | Candidate delivery stores approvals, but nothing publishes | Delivery ends at the pull request |
 | Forge events are recorded but not acted on | Failing CI does not create a repair Round |
 | Releases have not moved to Glide yet | See [first cutover](../operations/first-cutover.md) |
-| Agent quality is unmeasured beyond single fixtures | A comparison on real tickets is an open option |
+| Agent quality is unmeasured beyond single fixtures | A comparison on real Work Items is an open option |
 
 Related: [Ploeg architecture](../../apps/ploeg/docs/architecture.md), [Vloer architecture](../../apps/vloer/docs/architecture.md), [historical C4 views](../landscape/c4.md).

@@ -56,7 +56,7 @@ The component that performs admitted Runs and reports progress and outcomes. Cur
 ## Follow-Up
 *Context: Dispatch*
 
-An intended Work Item created from a Forge Event (review submitted, check failed, merge-state dirty) rather than from an Assignment. It references its source PR and Work Item, carries that Work Item's Work Target, is routed to the Team owning the source branch, and enters the lifecycle directly at queued. Current forge webhook ingestion records the event without automatically creating this Work Item.
+A Work Item created by other work rather than by a person: from a Forge Event (review submitted, check failed, merge-state dirty), or from a Run that splits work or records work it discovered (Product R12). It references its source PR and Work Item, carries that Work Item's Work Target, is routed to the Team owning the source branch, and enters the lifecycle directly at queued. Current forge webhook ingestion records the event without automatically creating this Work Item.
 
 **See also:** [Work Item](#work-item), [Forge Event](#forge-event), [Team](#team), [Work Target](#work-target)  
 
@@ -247,7 +247,7 @@ The normalized result of parsing a tracker webhook — assigned, updated, or una
 The authoritative item in the external tracker (Vikunja, Jira, GitHub Issues, …). Ploeg reads it via a Tracker Provider and mirrors it into a Work Item; all content edits happen in the tracker, never in Ploeg.
 
 **Also known as:** issue  
-**See also:** [Ticket](../../../../docs/reference/glossary.md#ticket), [Work Item](#work-item), [Tracker Provider](#tracker-provider)  
+**See also:** [Work Item](#work-item), [Tracker Provider](#tracker-provider)  
 
 ## Tracker Provider
 *Context: Integration*
@@ -274,7 +274,7 @@ Evidence reported by an explicitly authorized verifier for one Delivery Candidat
 ## Work Item
 *Context: Dispatch*
 
-Ploeg's execution record for one Tracker Item, Follow-Up or explicitly admitted Operator Execution. Tracker-originated content remains owned by the Tracker Item. Manual-origin content is registered by an authenticated Operator Consumer and never silently creates a Tracker Item.
+A unit of work: something we have decided to do, or a problem described well enough that a solution can be formulated or at least conceived. It comes from a Tracker Item, from an Operator Execution admitted through Vloer, or from other work (a Follow-Up). Ploeg keeps one record per Work Item and runs Shifts against it; a failed Shift leaves it in place. Tracker-originated content remains owned by the Tracker Item. Manual-origin content is registered by an authenticated Operator Consumer and never silently creates a Tracker Item.
 
 **Do not use:** task, ticket  
 **See also:** [Tracker Item](#tracker-item), [Lease](#lease), [Follow-Up](#follow-up), [Work Target](#work-target)  
@@ -290,7 +290,7 @@ The forge coordinates a Work Item's Runs act on: forge, owner, repository, base 
 
 ## Terms owned by other models
 
-This model uses these terms with their owners' meaning: [Crew](../../../../docs/reference/glossary.md#crew), [Model](../../../../docs/reference/glossary.md#model), [Result](../../../../docs/reference/glossary.md#result), [Review](../../../../docs/reference/glossary.md#review), [Session](../../../../docs/reference/glossary.md#session), [Step](../../../../docs/reference/glossary.md#step), [Ticket](../../../../docs/reference/glossary.md#ticket).
+This model uses these terms with their owners' meaning: [Crew](../../../../docs/reference/glossary.md#crew), [Model](../../../../docs/reference/glossary.md#model), [Ready](../../../../docs/reference/glossary.md#ready), [Result](../../../../docs/reference/glossary.md#result), [Review](../../../../docs/reference/glossary.md#review), [Session](../../../../docs/reference/glossary.md#session), [Step](../../../../docs/reference/glossary.md#step).
 
 ## Decisions cited
 

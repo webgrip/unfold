@@ -1,13 +1,13 @@
 # Glide
 
-> Glide turns tracker tickets into pull requests written by AI agents. Ploeg authorizes, budgets and runs every agent Run; Vloer is its front end. Internal, self-hosted, pre-1.0.
+> Glide turns units of work (Work Items: decided intent, or a problem described well enough to conceive a solution) into pull requests written by AI agents. Ploeg authorizes, budgets and runs every agent Run; Vloer is its front end. Internal, self-hosted, pre-1.0.
 
 Use Ploeg's terms: a Run is one Role executing against a Work Item, a Shift is the whole attempt, and a Lease is the right to write the Shift's branch. Code and executable tests describe the implementation; research and ADR pages are records.
 
 ## Start
 
 - [Start page](docs/index.md): what Glide is and where to go next
-- [How work flows](docs/concepts/how-work-flows.md): one ticket from assignment to pull request
+- [How work flows](docs/concepts/how-work-flows.md): one Work Item from assignment to pull request, and work that creates work
 - [Architecture](docs/concepts/architecture.md): goals, context, containers and key decisions
 
 ## Reference

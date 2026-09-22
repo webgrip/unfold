@@ -19,7 +19,7 @@ references:
     note: Ploeg is the only execution engine and Vloer is its front end.
 imports:
   - model: ../../../../docs/domain/model.yaml
-    terms: [Ticket, Model, Result, Review, Session, Crew, Step]
+    terms: [Ready, Model, Result, Review, Session, Crew, Step]
 
 contexts:
   - name: Dispatch
@@ -95,10 +95,14 @@ terms:
 
   - name: Work Item
     definition: >
-      Ploeg's execution record for one Tracker Item, Follow-Up or explicitly
-      admitted Operator Execution. Tracker-originated content remains owned by
-      the Tracker Item. Manual-origin content is registered by an authenticated
-      Operator Consumer and never silently creates a Tracker Item.
+      A unit of work: something we have decided to do, or a problem described
+      well enough that a solution can be formulated or at least conceived. It
+      comes from a Tracker Item, from an Operator Execution admitted through
+      Vloer, or from other work (a Follow-Up). Ploeg keeps one record per Work
+      Item and runs Shifts against it; a failed Shift leaves it in place.
+      Tracker-originated content remains owned by the Tracker Item.
+      Manual-origin content is registered by an authenticated Operator Consumer
+      and never silently creates a Tracker Item.
     context: Dispatch
     avoid: [task, ticket]
     see_also: [Tracker Item, Lease, Follow-Up, Work Target]
@@ -122,7 +126,7 @@ terms:
       Work Item; all content edits happen in the tracker, never in Ploeg.
     context: Integration
     synonyms: [issue]
-    see_also: [Ticket, Work Item, Tracker Provider]
+    see_also: [Work Item, Tracker Provider]
 
   - name: Shift
     definition: >
@@ -250,8 +254,9 @@ terms:
 
   - name: Follow-Up
     definition: >
-      An intended Work Item created from a Forge Event (review submitted, check failed,
-      merge-state dirty) rather than from an Assignment. It references its
+      A Work Item created by other work rather than by a person: from a Forge
+      Event (review submitted, check failed, merge-state dirty), or from a Run
+      that splits work or records work it discovered (Product R12). It references its
       source PR and Work Item, carries that Work Item's Work Target, is routed
       to the Team owning the source branch, and enters the lifecycle directly
       at queued. Current forge webhook ingestion records the event without

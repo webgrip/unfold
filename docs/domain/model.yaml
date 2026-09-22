@@ -1,7 +1,7 @@
 project: Glide
 owner: glide
 description: >
-  Glide turns work items into pull requests that are ready for human review.
+  Glide turns units of work (Work Items) into pull requests that are ready for human review.
   Ploeg authorizes, budgets and executes every agent Run; Vloer is its front end
   (Glide ADR-0002). Without Ploeg, Vloer runs only its deterministic demo, which
   makes no model calls. Until Vloer's own engine is retired, a managed execution
@@ -17,7 +17,7 @@ references:
     note: Ploeg is the only execution engine and Vloer is its front end.
 imports:
   - model: ../../apps/ploeg/docs/domain/model.yaml
-    terms: [Run, Shift, Lease, Team, Role, Outcome, Verdict, Harness, Work Item, Tracker Item, Admission, Authority]
+    terms: [Run, Shift, Lease, Team, Role, Outcome, Verdict, Harness, Work Item, Tracker Item, Follow-Up, Admission, Authority]
 contexts:
   - name: System
     description: The applications that make up Glide and how they divide the work.
@@ -59,49 +59,30 @@ terms:
       and from Vloer, admits it, sets its budget, controls who may write each
       branch and runs the agents. Dutch for a crew or shift team.
     see_also: [Vloer, Admission, Authority, Run, Shift]
-  - name: Ticket
+  - name: Ready
     context: Work
     definition: >
-      A recorded request for a result, with enough context and acceptance
-      conditions to judge that result. It remains the same request if an attempt
-      fails. In an external tracker, Ploeg calls it a Tracker Item.
-    not_to_be_confused_with:
-      - term: Work Item
-        note: Ploeg's execution record for a Ticket or for manual work.
-    see_also: [Tracker Item, Result, Acceptance Conditions, Workload, Repair Subticket]
-  - name: Workload
-    context: Execution
-    definition: >
-      The AI work a person asks for: instructions, recorded activity and results.
-      An external Ticket is optional. Ploeg records admitted work as a Work Item.
-      Repository-free conversation is intended product behavior; current Vloer
-      sessions require a repository and a Crew.
-    not_to_be_confused_with:
-      - term: Work Item
-        note: Ploeg's execution record of admitted work, not the request itself.
-    see_also: [Ticket, Session, Shift, Result, Budget]
-  - name: Repair Subticket
-    context: Work
-    definition: >
-      An external ticket linked beneath the original ticket to track repair of a
-      failed CI check. Its purpose is to restore the required behavior and passing checks.
-    see_also: [Ticket, Acceptance Conditions, Evidence]
+      A Work Item is ready when it states something we have decided to do, or
+      describes a problem in enough detail that a solution can be formulated or
+      at least conceived. Ready work can be given to agents. Work that is not
+      ready can itself be given to agents whose job is to make it ready.
+    see_also: [Work Item, Acceptance Conditions, Follow-Up]
   - name: Acceptance Conditions
     context: Work
     definition: >
       The observable conditions a Result must satisfy to answer the requested work.
       They depend on the work; software tests alone cannot validate a business case.
-    see_also: [Ticket, Result, Review]
+    see_also: [Work Item, Result, Review]
   - name: Result
     context: Work
     definition: >
-      What a Workload delivers, together with the evidence needed to judge it. It
+      What a Work Item delivers, together with the evidence needed to judge it. It
       can be a code change, a research conclusion, a design or another requested
       deliverable.
     not_to_be_confused_with:
       - term: Outcome
         note: Ploeg's terminal code for one Run, such as pr_opened or stuck.
-    see_also: [Workload, Ticket, Evidence, Review]
+    see_also: [Work Item, Evidence, Review]
   - name: Evidence
     context: Work
     definition: >
@@ -127,7 +108,7 @@ terms:
     not_to_be_confused_with:
       - term: Shift
         note: Ploeg's whole attempt on a Work Item; Ploeg avoids "session" for it.
-    see_also: [Workload, Ticket, Shift, Crew]
+    see_also: [Work Item, Shift, Crew]
   - name: Crew
     context: Participation
     owner: vloer
@@ -229,6 +210,20 @@ terms:
     synonyms: [Agent Host Protocol]
     see_also: [Vloer, Harness]
 retired_terms:
+  - name: Ticket
+    context: Work
+    use: [Work Item, Tracker Item]
+    because: >
+      The unit of work is the Work Item, whatever its source. A tracker is one place a Work
+      Item's text can live (a Tracker Item); Vloer and other Runs are others.
+  - name: Workload
+    context: Execution
+    use: [Work Item]
+    because: A second name for the unit of work made every rule ambiguous about which record it meant.
+  - name: Repair Subticket
+    context: Work
+    use: [Follow-Up]
+    because: A repair is work created by work; Ploeg's Follow-Up already names it.
   - name: Execution
     context: Execution
     use: [Shift, Run]
@@ -239,17 +234,17 @@ retired_terms:
       Execution record.
 rules:
   - id: R1
-    statement: A Ticket can supply a Workload's intended Result; each Shift records one attempt to perform the Workload.
+    statement: A Work Item states the intended Result; each Shift records one attempt at it, and a failed Shift leaves the Work Item in place.
     rationale: Retrying work must not erase the request or hide the earlier attempt.
-    applies_to: [Ticket, Workload, Shift]
+    applies_to: [Work Item, Shift]
   - id: R2
     statement: A Model and Harness are implementation choices behind the working experience.
     rationale: People should not have to change their way of organizing work merely to change an AI tool.
     applies_to: [Model, Harness, Session]
   - id: R3
-    statement: A research Result may satisfy its Ticket with convincing Evidence and a conclusion not to build.
+    statement: A research Result may satisfy its Work Item with convincing Evidence and a conclusion not to build.
     rationale: A rejected business case should stop unnecessary implementation and design work.
-    applies_to: [Ticket, Result, Evidence]
+    applies_to: [Work Item, Result, Evidence]
   - id: R4
     statement: A finished Run or closed Shift does not by itself prove that its Result is accepted or released.
     rationale: Finishing a process, accepting its output, and changing production are separate decisions.
@@ -263,9 +258,9 @@ rules:
     rationale: Missing cost data cannot justify more expenditure.
     applies_to: [Budget, Shift]
   - id: R7
-    statement: Intended behavior — a Workload may begin as an open conversation without a Ticket or repository; repository-free conversation is not implemented in the current session API.
+    statement: Intended behavior — a Work Item may begin as an open conversation without a tracker or repository; repository-free conversation is not implemented in the current session API.
     rationale: Asking questions and exploring ideas are supported work in their own right.
-    applies_to: [Workload, Ticket, Session]
+    applies_to: [Work Item, Session]
   - id: R8
     statement: >
       Ploeg is the Authority for every Run (Glide ADR-0002). Vloer requests Admission through Ploeg's API and never
@@ -273,11 +268,11 @@ rules:
       its deterministic demo, which makes no model calls. Current state — Vloer's standalone mode and its own engine
       remain until the migration to ploeg-worker is complete; no new execution features are added to that engine.
     rationale: One authority, one budget path and one revocable credential per Run; runner location does not decide who authorizes work.
-    applies_to: [Run, Workload, Session]
+    applies_to: [Run, Work Item, Session]
   - id: R9
-    statement: Intended behavior — in projects with automatic repair enabled, failed CI creates a Repair Subticket and agents repair it before human Review, regardless of who wrote the change. This general workflow remains unimplemented.
+    statement: Intended behavior — in projects with automatic repair enabled, failed CI creates a Follow-Up Work Item and agents repair it before human Review, regardless of who wrote the change. This general workflow remains unimplemented.
     rationale: The repair must be visible without replacing the original requested outcome.
-    applies_to: [Ticket, Repair Subticket, Evidence]
+    applies_to: [Work Item, Follow-Up, Evidence]
   - id: R10
     statement: Software Results go through automated checks and Agent Review before a person is asked to accept them.
     rationale: Human reviewers should receive prepared results with unresolved failures made explicit.
@@ -286,6 +281,14 @@ rules:
     statement: A person initially accepts Results; automatic acceptance requires a separately agreed rule.
     rationale: Responsibility for accepting work must be explicit while the process is being established.
     applies_to: [Result, Review]
+  - id: R12
+    statement: >
+      Work can create work. A Run may produce new Work Items: it can split a Work Item into smaller ones, make
+      unready work Ready, or record work it discovered. Each new Work Item names its source and is Ready or
+      explicitly not. Intended behavior — Ploeg records the follow_up_created Outcome and the follow_up origin,
+      but no Run or Forge Event creates Work Items automatically yet.
+    rationale: Refining and dividing work is itself work; agents should do it under the same authority, budget and review as code.
+    applies_to: [Work Item, Follow-Up, Ready, Run]
 ambiguities:
   - phrase: shared execution implementation
     issue: Earlier text required local work without Ploeg and kept two engines, which left open which execution code the applications should share.
@@ -322,7 +325,7 @@ dialogues:
     context: Work
     lines:
       - speaker: Developer
-        text: Does this research Ticket require a prototype?
+        text: Does this research Work Item require a prototype?
       - speaker: Product owner
         text: The Evidence establishes that we should not build. The Result is the supported conclusion to stop.
       - speaker: Developer

@@ -1,6 +1,6 @@
 # Glide — Domain Overview
 
-Glide turns work items into pull requests that are ready for human review. Ploeg authorizes, budgets and executes every agent Run; Vloer is its front end (Glide ADR-0002). Without Ploeg, Vloer runs only its deterministic demo, which makes no model calls. Until Vloer's own engine is retired, a managed execution never falls back to it. This model includes intended product rules; it is not a feature inventory. Current behavior is documented in ../index.md and the application architecture guides. Execution terms such as Run, Shift, Lease, Team, Role and Outcome belong to Ploeg's model; this model imports them.
+Glide turns units of work (Work Items) into pull requests that are ready for human review. Ploeg authorizes, budgets and executes every agent Run; Vloer is its front end (Glide ADR-0002). Without Ploeg, Vloer runs only its deterministic demo, which makes no model calls. Until Vloer's own engine is retired, a managed execution never falls back to it. This model includes intended product rules; it is not a feature inventory. Current behavior is documented in ../index.md and the application architecture guides. Execution terms such as Run, Shift, Lease, Team, Role and Outcome belong to Ploeg's model; this model imports them.
 
 *Model version 0.3. Generated from `model.yaml` — do not edit by hand.*
 

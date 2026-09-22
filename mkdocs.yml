@@ -1,5 +1,5 @@
 site_name: Glide
-site_description: Tracker tickets become review-ready pull requests written by AI agents
+site_description: Units of work become review-ready pull requests written by AI agents
 site_url: https://docs.webgrip.dev/glide/
 repo_url: https://forgejo.webgrip.dev/webgrip/glide
 edit_uri: ''
