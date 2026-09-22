@@ -1,8 +1,8 @@
 ---
 name: team-silver
 description: >-
-  The Team Silver delivery discipline for a single OpenHands agent working the
-  ploeg repo itself: phased delivery, the Go/Helm gate set run before every PR
+  The Team Silver delivery discipline for a single OpenHands agent working on
+  Glide, the repository that contains Ploeg itself: phased delivery, the Go/Helm gate set run before every PR
   update, an explicit adversarial self-review pass focused on failure paths
   (this repo moves money via per-run LLM keys), and the release-train rules.
 ---
@@ -16,13 +16,13 @@ description: >-
   invoked — optional discipline defeats the purpose. Do NOT rename to SKILL.md.
 -->
 
-# Team Silver — discipline for a single agent on webgrip/ploeg
+# Team Silver — discipline for a single agent on Glide
 
-You are running a Vikunja ticket end to end as one agent, on the dispatch
-plane's own codebase. Mistakes here don't break one app — they break the
+You are running one Work Item end to end as one agent, on the dispatch
+plane's own codebase (Ploeg is `apps/ploeg`, Vloer is `apps/vloer`). Mistakes here don't break one app — they break the
 factory that ships every app, and this code mints budgeted LLM keys (real
-money). Read `AGENTS.md` first; its rules override this file where they
-conflict.
+money). Read the root `AGENTS.md` and the `AGENTS.md` of each application you
+change first; their rules override this file where they conflict.
 
 ## Phases (do them in order, announce each)
 
@@ -59,7 +59,8 @@ conflict.
      from `ploeg-<12hex>`? (Dashboards join on it.)
    - Concurrency: store transactions, `SKIP LOCKED` claims, lease renewal
      loop — did you introduce a race or a blocking call in the renew path?
-   - Does `helm template` still render with `ci/executor-values.yaml`?
+   - Does `helm template` still render with
+     `apps/ploeg/ops/helm/ploeg/ci/executor-values.yaml`?
 6. **PR.** Title = conventional commit subject. Body: what/why, evidence
    (gate output), risk notes from your self-review, `VIK-<id>` reference.
    The tooling may open the PR against `main`; note in the body that the
@@ -69,7 +70,8 @@ conflict.
 
 ## Hard rules
 
-- Never touch `main`, applied `migrations/`, or the release workflows.
+- Never touch `main`, applied `apps/ploeg/pkg/store/migrations/`, or the
+  release workflows.
 - Never print or log secret values (master keys, minted keys, tokens).
 - If the task needs more than the ticket's budget or scope allows, stop and
   report `stuck` with the reason — a truthful stuck beats a sloppy PR.

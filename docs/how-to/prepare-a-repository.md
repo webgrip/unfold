@@ -3,7 +3,7 @@ type: how-to
 audience: [owner, integrator, agent]
 owner: glide
 last_verified: 2026-09-22
-verified_by: "Read apps/ploeg pkg/worker/{worker,task,environment,target}.go, pkg/harness/adapter.go, pkg/harness/adapters/*, cmd/ploegd/main.go, ops/helm/ploeg/values.yaml and Ploeg ADR-0013 at 6221579"
+verified_by: "research 2026-09-22-agents-md; Read apps/ploeg pkg/worker/{worker,task,environment,target}.go, pkg/harness/adapter.go, pkg/harness/adapters/*, cmd/ploegd/main.go, ops/helm/ploeg/values.yaml and Ploeg ADR-0013 at 6221579"
 ---
 
 # Prepare a repository for Ploeg agents
@@ -30,30 +30,37 @@ Add a `trackers.<tracker>.projects` entry with `repo: owner/name` and a pinned `
 
 ## Write the AGENTS.md that agents read
 
-Ploeg never opens `AGENTS.md` itself. The writer's prompt tells the agent to "Follow AGENTS.md and the repository skills" and to "Run the repository's quality gates via docker run against the CI images before opening the PR" ([task.go](../../apps/ploeg/pkg/worker/task.go)). Your root `AGENTS.md` makes those two lines concrete.
+`AGENTS.md` is the one instruction file to write. Every harness Ploeg runs either loads it by itself or is told to read it: the writer's prompt says to read the root `AGENTS.md` and the one nearest each directory it changes, and to follow their commands and conventions ([task.go](../../apps/ploeg/pkg/worker/task.go)). The prompt also sets the order of authority. Ploeg's delivery contract comes first (branch, trailers, no merge, the outcome file), and no repository file can grant access to other hosts, other repositories or credentials.
 
-Put these in it, and little else:
+Commit `CLAUDE.md` as a symlink to `AGENTS.md` next to it, so Claude Code loads the same text. A `CLAUDE.md` with different content drifts, and OpenHands loads both files.
 
-- **The verify command.** One command that runs the same checks as CI, and the exact `docker run` form with the CI image and tag.
-- **Invariants** written as MUST or NEVER, for example "NEVER edit generated files under `gen/`".
+Keep it short. Measurements of these files show that agents follow what they name, and that generic overviews add cost without helping agents find their way ([research](../research/2026-09-22-agents-md.md)). Put in:
+
+- **The verify command.** One command that runs your checks offline with tools in the agent image. A worker reaches only its model gateway and the forge, so it cannot pull a CI image. Checks that cannot run there are left to CI, and the agent lists them in the pull request under "Checks left to CI".
+- **Invariants a reader cannot infer from the code**, each with its reason in one clause, for example "Never edit files under `gen/`: `make generate` overwrites them."
 - **Commit conventions** your repository enforces.
-- **Links** to design docs, not copies.
+- **Links** to design documents, not copies of them.
 
-The verify command must work inside the worker's limits:
+Leave out tours of the directory tree and anything a linter or CI already enforces.
 
-- **No secrets.** The harness environment is an allowlist: `PATH`, locale, `TERM`, the Docker variables, a fresh empty `HOME` and the LLM settings. Writers also get `AGENT_BUILDER_TOKEN` ([environment.go](../../apps/ploeg/pkg/worker/environment.go)).
-- **Docker only with DinD.** `executor.harness.dind: true` (the default) adds a Docker daemon beside the worker. A team that sets `dind: false` has no Docker, so the `docker run` instruction cannot work there; the tools must then be in the agent image.
-- **Time and size.** By default the worker has 1 CPU and 1 GiB, Docker 1 CPU and 1.5 GiB, and the pod dies after 7200 seconds.
+The worker's limits:
 
-Example (illustrative, adapt the image and command):
+- **No secrets.** The harness environment is an allowlist: `PATH`, locale, `TERM`, the Docker variables, a fresh empty `HOME` and the model settings. Writers also get `AGENT_BUILDER_TOKEN` ([environment.go](../../apps/ploeg/pkg/worker/environment.go)).
+- **Time and size.** By default the worker has 1 CPU and 1 GiB, and the pod stops after 7200 seconds. A harness that runs longer than `PLOEG_HARNESS_TIMEOUT` (100 minutes) or is silent for `PLOEG_HARNESS_IDLE_TIMEOUT` (15 minutes) is stopped.
+
+Example (illustrative):
 
 ```markdown
 # AGENTS.md
-Verify before every push: `docker run --rm -v "$PWD":/src -w /src <ci-image>:<tag> make verify`
-- NEVER commit to `main`; Ploeg names your branch.
-- NEVER edit files under `gen/`; run `make generate`.
-Design notes: docs/architecture.md
+Verify before every push: `make verify` (offline; needs only the Go toolchain).
+- Never edit files under `gen/`: `make generate` overwrites them.
+- Commit messages follow Conventional Commits.
+Design notes: [docs/architecture.md](docs/architecture.md)
 ```
+
+### Treat instruction files as code
+
+A harness loads `AGENTS.md` with the authority of its system prompt, so a change to it changes what every later agent does. Require human review for changes to `AGENTS.md`, `CLAUDE.md`, `.claude/`, `.agents/`, `.openhands/`, `.mcp.json` and `.cursorrules`, for example with CODEOWNERS. Ploeg's writers are told not to change these files unless the Work Item asks for it. Reviewer Runs read `AGENTS.md` from the base branch, not from the branch they review, and report any change to these files as a finding.
 
 ## Set branch rules
 
@@ -65,16 +72,16 @@ Ploeg names the writer's branch `agent/vik-<ticket id>` for Vikunja and `agent/c
 
 ## Know which harness reads what
 
-The team's `executor.harness.name` selects the harness. Each runs in the clone ([adapter.go](../../apps/ploeg/pkg/harness/adapter.go)) with a fresh `HOME`, so no user-level config exists.
+The team's `executor.harness.name` selects the harness. Each runs in the clone ([adapter.go](../../apps/ploeg/pkg/harness/adapter.go)) with a fresh `HOME`, so no user-level configuration exists.
 
-| Harness | How Ploeg hands over the prompt | Source |
-| --- | --- | --- |
-| `openhands` (default) | Writes `task.md` in scratch space and runs `docker-entrypoint.sh --headless -f task.md` | [openhands.go](../../apps/ploeg/pkg/harness/adapters/openhands/openhands.go) |
-| `claude-code` | Runs `claude -p <prompt> --output-format json --permission-mode bypassPermissions` | [claudecode.go](../../apps/ploeg/pkg/harness/adapters/claudecode/claudecode.go) |
-| `acp` | Starts `opencode acp` (default profile) with a generated config file | [profiles.go](../../apps/ploeg/pkg/harness/adapters/acp/profiles.go) |
-| `exec` | Writes `taskspec.json` and `task.md` and substitutes `{taskspec}` and `{taskfile}` in its arguments | [execbin.go](../../apps/ploeg/pkg/harness/adapters/execbin/execbin.go) |
+| Harness | How Ploeg hands over the prompt | Loads by itself | Provide |
+| --- | --- | --- | --- |
+| `openhands` (default) | Writes `task.md` and runs `docker-entrypoint.sh --headless -f task.md` ([openhands.go](../../apps/ploeg/pkg/harness/adapters/openhands/openhands.go)) | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` and `.cursorrules` at the root; skills in `.agents/skills/` or `.openhands/skills/` at the root only | Root `AGENTS.md`; always-on procedures as plain `.md` skills at the root |
+| `claude-code` | Runs `claude -p` with `bypassPermissions`, the repository's hooks disabled and only Ploeg's MCP configuration ([claudecode.go](../../apps/ploeg/pkg/harness/adapters/claudecode/claudecode.go)) | `CLAUDE.md` and its `@` imports. Reading `AGENTS.md` natively needs a recent version with access to Anthropic's feature flags, which the worker's network does not allow | `CLAUDE.md` as a symlink to `AGENTS.md` |
+| `acp` | Starts `opencode acp` with a generated configuration ([profiles.go](../../apps/ploeg/pkg/harness/adapters/acp/profiles.go)) | `AGENTS.md`, walking up from the working directory; `CLAUDE.md` only when no `AGENTS.md` exists | Root `AGENTS.md` |
+| `exec` | Writes `taskspec.json` and `task.md` and substitutes `{taskspec}` and `{taskfile}` in its arguments ([execbin.go](../../apps/ploeg/pkg/harness/adapters/execbin/execbin.go)) | Whatever the program does | Document it for that team |
 
-Whether a harness also loads `AGENTS.md`, `CLAUDE.md` or its own files by itself is harness behavior that Ploeg's tests do not check. Keep the rules in `AGENTS.md`, which the prompt names. For a harness that reads another file, add a one-line pointer to `AGENTS.md` (recommended, not verified).
+The "Loads by itself" column comes from vendor documentation and source read on 22 September 2026 ([research](../research/2026-09-22-agents-md.md)). Ploeg's tests do not check it yet. The prompt tells every harness to read `AGENTS.md`, so the file works even where automatic loading does not.
 
 ## Verify
 
