@@ -16,7 +16,7 @@ Source changes and pull requests use the same local [verification action](../../
 
 Releases use the pinned Webgrip semantic-release monorepo composite, with [Vloer's configuration](../../apps/vloer/.releaserc.cjs) and [Ploeg's configuration](../../apps/ploeg/.releaserc.cjs). There is no umbrella Glide version. Both source checks and release-policy checks must pass before versioning. The versioning jobs run sequentially because they push preparation commits to the same branch.
 
-`GLIDE_RELEASES_ENABLED` must equal `true` to version or publish. A manual source-validation run never releases, even with the gate enabled. Keep the `main` release baseline required by the shared preset; `development` remains trunk and the only automatic release branch. Use the [first cutover playbook](first-cutover.md) before enabling publication.
+`GLIDE_RELEASES_ENABLED` must equal `true` to version, publish or mirror release-channel notes to GitHub. A manual source-validation run never releases or mirrors notes, even with the gate enabled. CI runs the import verifier with `GLIDE_REQUIRE_IMPORT_NOTES=true`, so missing notes fail the source gate instead of being skipped as they are locally. Keep the `main` release baseline required by the shared preset; `development` remains trunk and the only automatic release branch. Use the [first cutover playbook](first-cutover.md) before enabling publication.
 
 ## Publication and recovery
 

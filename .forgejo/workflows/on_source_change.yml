@@ -70,7 +70,7 @@ jobs:
           token: ${{ secrets.WEBGRIP_CI_TOKEN }}
 
   mirror-source-metadata:
-    if: always() && github.ref == 'refs/heads/development' && needs.checks.result == 'success' && needs.release-policy.result == 'success'
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/development' && vars.GLIDE_RELEASES_ENABLED == 'true' && needs.checks.result == 'success' && needs.release-policy.result == 'success'
     needs: [checks, release-policy, release-ploeg]
     runs-on: docker
     steps:
