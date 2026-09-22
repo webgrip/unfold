@@ -413,4 +413,38 @@ func TestGatewayErrorsNeverEchoCredentialOrResponseBody(t *testing.T) {
 	if _, err := invalid.KeySpend(ctx, canary); err == nil || strings.Contains(err.Error(), canary) {
 		t.Fatalf("invalid endpoint disclosed credential: %v", err)
 	}
+	if _, _, err := cli.SpendLogTotal(ctx, canary); err == nil || strings.Contains(err.Error(), canary) {
+		t.Fatalf("unsafe spend logs error: %v", err)
+	}
+}
+
+func TestSpendLogTotalSumsOnlyTheRequestedKey(t *testing.T) {
+	var query string
+	body := `[{"api_key":"fixture-key-id","spend":0.1},{"api_key":"fixture-key-id","spend":0.25}]`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.RawQuery
+		if r.URL.Path != "/spend/logs" || r.Header.Get("Authorization") != "Bearer fixture-master" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+	cli := NewClient(srv.URL, "fixture-master")
+	total, entries, err := cli.SpendLogTotal(context.Background(), "fixture-key-id")
+	if err != nil || entries != 2 || total < 0.3499 || total > 0.3501 || query != "api_key=fixture-key-id" {
+		t.Fatalf("total=%v entries=%d err=%v query=%q", total, entries, err, query)
+	}
+	for _, invalid := range []string{
+		`{}`,
+		`[{"api_key":"other-key","spend":0.1}]`,
+		`[{"api_key":"fixture-key-id"}]`,
+		`[{"api_key":"fixture-key-id","spend":-1}]`,
+		`[{"api_key":"fixture-key-id","spend":0.1}`,
+	} {
+		body = invalid
+		if _, _, err := cli.SpendLogTotal(context.Background(), "fixture-key-id"); err == nil {
+			t.Fatalf("accepted spend logs %s", invalid)
+		}
+	}
 }

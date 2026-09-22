@@ -24,6 +24,7 @@ func NewLiteLLM(cli *litellm.Client) *LiteLLM { return &LiteLLM{cli: cli} }
 var _ Broker = (*LiteLLM)(nil)
 var _ Sweeper = (*LiteLLM)(nil)
 var _ Metered = (*LiteLLM)(nil)
+var _ Settler = (*LiteLLM)(nil)
 
 // Spend returns provisional gateway usage for a retained accounting identity.
 func (b *LiteLLM) Spend(ctx context.Context, cred Credential) (float64, error) {
@@ -137,6 +138,43 @@ func (b *LiteLLM) SweepOrphans(ctx context.Context, aliveRunTokens []string) (in
 		}
 	}
 	return len(stale), nil
+}
+
+// SettledSpendForRun sums the spend logs of every hashed key token known for
+// the run: the recorded key identities plus any live key carrying its alias.
+func (b *LiteLLM) SettledSpendForRun(ctx context.Context, runToken string, keyIDs []string) (SettledSpend, error) {
+	alias := litellm.Alias(runToken)
+	if alias == "" {
+		return SettledSpend{}, fmt.Errorf("invalid run identity")
+	}
+	keys, err := b.cli.ListKeys(ctx, alias)
+	if err != nil {
+		return SettledSpend{}, err
+	}
+	tokens := map[string]struct{}{}
+	for _, id := range keyIDs {
+		if id != "" {
+			tokens[id] = struct{}{}
+		}
+	}
+	for _, key := range keys {
+		if key.KeyAlias == alias && key.Token != "" {
+			tokens[key.Token] = struct{}{}
+		}
+	}
+	if len(tokens) == 0 {
+		return SettledSpend{}, fmt.Errorf("gateway accounting identity unavailable")
+	}
+	settled := SettledSpend{Keys: len(tokens)}
+	for token := range tokens {
+		spend, entries, err := b.cli.SpendLogTotal(ctx, token)
+		if err != nil {
+			return SettledSpend{}, err
+		}
+		settled.USD += spend
+		settled.Entries += entries
+	}
+	return settled, nil
 }
 
 func (b *LiteLLM) SpendForRun(ctx context.Context, runToken string) (float64, error) {

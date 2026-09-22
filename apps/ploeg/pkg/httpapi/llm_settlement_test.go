@@ -14,9 +14,11 @@ import (
 )
 
 type settlementBroker struct {
-	spend      float64
-	err        error
-	spendCalls int
+	observed    float64
+	settled     float64
+	err         error
+	settleCalls int
+	keyIDs      []string
 }
 
 func (b *settlementBroker) Mint(_ context.Context, r llmbroker.MintRequest) (llmbroker.Credential, error) {
@@ -25,11 +27,15 @@ func (b *settlementBroker) Mint(_ context.Context, r llmbroker.MintRequest) (llm
 func (*settlementBroker) Revoke(context.Context, llmbroker.Credential) error { return nil }
 func (*settlementBroker) RevokeForRun(context.Context, string) error         { return nil }
 func (b *settlementBroker) SpendForRun(context.Context, string) (float64, error) {
-	b.spendCalls++
-	return b.spend, b.err
+	return b.observed, nil
+}
+func (b *settlementBroker) SettledSpendForRun(_ context.Context, _ string, keyIDs []string) (llmbroker.SettledSpend, error) {
+	b.settleCalls++
+	b.keyIDs = keyIDs
+	return llmbroker.SettledSpend{USD: b.settled, Keys: 1, Entries: 3}, b.err
 }
 
-func settlementFixture(t *testing.T, b *settlementBroker, mint bool) (*LLMControl, string, int64) {
+func settlementFixture(t *testing.T, b ManagedLLMBroker, mint bool) (*LLMControl, string, int64) {
 	t.Helper()
 	ctx := context.Background()
 	reset(t)
@@ -71,9 +77,9 @@ func settleCandidate(t *testing.T, token string) store.UnsettledLLMAccount {
 	return store.UnsettledLLMAccount{}
 }
 
-func TestControllerSettlesBlockedAccountAtGatewaySpendOnce(t *testing.T) {
+func TestControllerSettlesBlockedAccountFromSpendLogsOnce(t *testing.T) {
 	ctx := context.Background()
-	b := &settlementBroker{spend: 0.45}
+	b := &settlementBroker{observed: 0, settled: 0.45}
 	c, token, shiftID := settlementFixture(t, b, true)
 	if err := c.Block(ctx, token); err != nil {
 		t.Fatal(err)
@@ -87,9 +93,12 @@ func TestControllerSettlesBlockedAccountAtGatewaySpendOnce(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if len(b.keyIDs) != 1 || b.keyIDs[0] == "" || b.keyIDs[0] != candidate.GatewayKeyID {
+		t.Fatalf("recorded key identity not used for spend logs: %v", b.keyIDs)
+	}
 	l, _ := testStore.Ledger(ctx, shiftID)
 	if l.Reserved != 0 || math.Abs(l.Spent-0.45) > 0.00001 {
-		t.Fatalf("settlement did not charge gateway spend exactly once: %+v", l)
+		t.Fatalf("settlement did not charge spend-log total exactly once: %+v", l)
 	}
 	a, err := testStore.LLMAccount(ctx, token)
 	if err != nil || a.State != "reconciled" {
@@ -99,24 +108,24 @@ func TestControllerSettlesBlockedAccountAtGatewaySpendOnce(t *testing.T) {
 	if err := testPool.QueryRow(ctx, `SELECT reconciliation_evidence FROM run_llm_accounts WHERE run_token=$1`, token).Scan(&evidence); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(evidence, "litellm:blocked-key-spend alias=ploeg-") || strings.Contains(evidence, token) {
+	if !strings.HasPrefix(evidence, "litellm:spend-logs alias=ploeg-") || !strings.Contains(evidence, "entries=3") || strings.Contains(evidence, token) {
 		t.Fatalf("settlement evidence=%q", evidence)
 	}
 }
 
 func TestControllerSettlementNeverUndercutsObservationOrGuessesMissingSpend(t *testing.T) {
 	ctx := context.Background()
-	b := &settlementBroker{spend: 0.45}
+	b := &settlementBroker{observed: 0.45}
 	c, token, shiftID := settlementFixture(t, b, true)
 	if err := c.Block(ctx, token); err != nil {
 		t.Fatal(err)
 	}
 	candidate := settleCandidate(t, token)
-	b.spend = 0.2
+	b.settled = 0.2
 	if err := c.Settle(ctx, candidate); !errors.Is(err, store.ErrLLMAccountState) {
 		t.Fatalf("settled below recorded observation: %v", err)
 	}
-	b.err = errors.New("gateway unavailable")
+	b.err = errors.New("spend logs unavailable")
 	if err := c.Settle(ctx, candidate); err == nil {
 		t.Fatal("settled without gateway evidence")
 	}
@@ -126,9 +135,23 @@ func TestControllerSettlementNeverUndercutsObservationOrGuessesMissingSpend(t *t
 	}
 }
 
+func TestControllerNeverSettlesMintedAccountWithoutDurableSpendSource(t *testing.T) {
+	ctx := context.Background()
+	c, token, shiftID := settlementFixture(t, &managedBrokerFixture{}, true)
+	if err := c.Block(ctx, token); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Settle(ctx, settleCandidate(t, token)); err == nil {
+		t.Fatal("minted account settled from the key's running total")
+	}
+	if l, _ := testStore.Ledger(ctx, shiftID); l.Spent != 0 || l.Reserved != 1 {
+		t.Fatalf("ledger changed without durable spend: %+v", l)
+	}
+}
+
 func TestControllerSettlesUntouchedReservationAtZeroWithoutGateway(t *testing.T) {
 	ctx := context.Background()
-	b := &settlementBroker{spend: 9}
+	b := &settlementBroker{settled: 9}
 	c, token, shiftID := settlementFixture(t, b, false)
 	candidate := settleCandidate(t, token)
 	if candidate.MintBegan {
@@ -137,8 +160,8 @@ func TestControllerSettlesUntouchedReservationAtZeroWithoutGateway(t *testing.T)
 	if err := c.Settle(ctx, candidate); err != nil {
 		t.Fatal(err)
 	}
-	if l, _ := testStore.Ledger(ctx, shiftID); l.Reserved != 0 || l.Spent != 0 || b.spendCalls != 0 {
-		t.Fatalf("untouched reservation settled incorrectly: %+v gateway=%d", l, b.spendCalls)
+	if l, _ := testStore.Ledger(ctx, shiftID); l.Reserved != 0 || l.Spent != 0 || b.settleCalls != 0 {
+		t.Fatalf("untouched reservation settled incorrectly: %+v gateway=%d", l, b.settleCalls)
 	}
 	if err := c.Settle(ctx, store.UnsettledLLMAccount{RunToken: token, State: "reserved", MintBegan: true}); !errors.Is(err, store.ErrLLMAccountState) {
 		t.Fatalf("minted reservation settled without a block: %v", err)

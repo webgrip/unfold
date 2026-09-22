@@ -35,6 +35,20 @@ type Metered interface {
 	Spend(ctx context.Context, cred Credential) (float64, error)
 }
 
+// Settler is an optional capability: the gateway's durable record of what a
+// run's credentials spent, read from a source that survives key revocation
+// and deletion. Only a Settler can settle an account whose mint began.
+type Settler interface {
+	SettledSpendForRun(ctx context.Context, runToken string, keyIDs []string) (SettledSpend, error)
+}
+
+// SettledSpend is a run's gateway spend and the size of the record behind it.
+type SettledSpend struct {
+	USD     float64
+	Keys    int
+	Entries int
+}
+
 // Sweeper is ploegd's reconciliation view: crash cleanup by run token and
 // the periodic orphan sweep.
 type Sweeper interface {
