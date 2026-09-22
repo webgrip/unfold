@@ -82,7 +82,7 @@ Research, evidence, superseded explanations, design baselines, planning exports 
 
 | Command | Effect |
 | --- | --- |
-| `mise exec -- uv run python scripts/generate-domain.py docs/domain/model.yaml --out docs/domain` | Regenerates the product domain pages |
+| `mise run domain` | Regenerates the domain pages of both models and the combined glossary |
 | `mise exec -- node apps/vloer/scripts/build-landscape.mjs` | Rebuilds the historical landscape explorer |
 | `mise run docs-check` | Checks generated pages, links, anchors, orphans, ADR ledgers and the strict TechDocs build |
 | `mise run docs-site-check` | Builds the Zensical site in the CI image and scans it |

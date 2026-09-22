@@ -12,7 +12,7 @@ This is the opt-in execution contract implemented by [the authority client](../.
 | Harness | Reasoning, tools and its opaque native conversation state |
 | LiteLLM | Scoped key enforcement, routing and available metering records |
 
-One manual session admits one manual-origin Work Item, one Shift and one `operator` Run. Successful completion retains the operator report and marks its Run finished; it does not infer a forge Outcome such as a published proposal or no change needed. De Vloer's sequential crew roles remain visible as local runs; they do not become separate Ploeg Runs in this increment. The consumer authorizes the registered repository and attests the session owner's identity. This is a trusted service boundary, not end-user OIDC verification inside Ploeg.
+One manual session admits one manual-origin Work Item, one Shift and one `operator` Run. Successful completion retains the operator report and marks its Run finished; it does not infer a forge Outcome such as a published proposal or no change needed. De Vloer's sequential crew roles remain visible as Steps of that one Run; they do not become separate Ploeg Runs in this increment. The consumer authorizes the registered repository and attests the session owner's identity. This is a trusted service boundary, not end-user OIDC verification inside Ploeg.
 
 The read model is separate: De Vloer exposes bounded snapshots of existing Ploeg work to the browser and editor. [Registered tracker imports](ploeg-tracker-binding.md) bind an existing pristine Vikunja or ClickUp Work Item through the optional admission `source` pin. They do not create another manual item. Unmapped and unsupported sources remain unavailable for shared import.
 
