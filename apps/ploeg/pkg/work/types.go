@@ -9,12 +9,13 @@ import "time"
 type State string
 
 const (
-	StateIngested   State = "ingested"
-	StateQueued     State = "queued"
-	StateLeased     State = "leased"
-	StateNeedsHuman State = "needs_human"
-	StateStale      State = "stale"
-	StateDone       State = "done"
+	StateIngested       State = "ingested"
+	StateQueued         State = "queued"
+	StateLeased         State = "leased"
+	StateNeedsHuman     State = "needs_human"
+	StateAwaitingReview State = "awaiting_review"
+	StateStale          State = "stale"
+	StateDone           State = "done"
 )
 
 // Origin records whether a WorkItem came from the tracker (assignment) or

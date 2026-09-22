@@ -128,7 +128,7 @@ release the item's live-Shift slot so a later re-mandate can open a fresh one.
 
 - **WHEN** the last Round of a Team's plan completes
 - **THEN** the Shift closes with a recorded reason
-- **AND** the Work Item reaches `needs_human` so a person is asked to merge
+- **AND** the Work Item reaches `awaiting_review` when a writer opened or updated a pull request, so a person reviews and merges it; otherwise it reaches `needs_human`
 
 #### Scenario: A stuck Outcome freezes the plan
 

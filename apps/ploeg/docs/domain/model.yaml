@@ -443,8 +443,8 @@ entities:
         type: string
         description: Id of the Routing Rule that decided team and target; recorded for audit.
       - name: state
-        type: "enum(ingested, queued, leased, needs_human, stale, done)"
-        description: Dispatch lifecycle position.
+        type: "enum(ingested, queued, leased, needs_human, awaiting_review, stale, done)"
+        description: Dispatch lifecycle position. awaiting_review means Ploeg's work succeeded and its pull request is ready for human review.
         required: true
       - name: origin
         type: "enum(assignment, follow_up, operator)"
@@ -477,7 +477,13 @@ entities:
         trigger: stuck Outcome reported (mandatory reason)
       - from: leased
         to: done
-        trigger: Terminal Outcome reported (pr_opened, pr_updated, issue_updated, follow_up_created, no_change_needed)
+        trigger: Terminal Outcome reported (issue_updated, follow_up_created, no_change_needed)
+      - from: leased
+        to: awaiting_review
+        trigger: A pull request was opened or updated and the Shift closed successfully
+      - from: awaiting_review
+        to: queued
+        trigger: Re-assignment in the tracker is a fresh mandate
       - from: needs_human
         to: queued
         trigger: Human re-queues after resolving the blocker

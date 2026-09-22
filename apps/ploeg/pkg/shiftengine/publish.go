@@ -180,11 +180,15 @@ func (e *Engine) notifyTracker(ctx context.Context, si store.ShiftInfo, settled 
 	// that still owes a merge, a release and a look at the dashboards, and
 	// the comment we just posted literally asks a person to merge it.
 	//
-	// So the tracker is always told needs_human. The provider drops anything
+	// So the tracker is told awaiting_review or needs_human. The provider drops anything
 	// that is not `done`, which makes this a deliberate no-op today rather
 	// than an accidental one — keep the call, because a provider whose
 	// tracker HAS an in-review column should be free to use it.
-	if err := tp.SetStatus(ctx, item.ExternalID, work.StateNeedsHuman); err != nil {
+	status := work.StateNeedsHuman
+	if settled == work.StateAwaitingReview {
+		status = work.StateAwaitingReview
+	}
+	if err := tp.SetStatus(ctx, item.ExternalID, status); err != nil {
 		e.Log.Error("tracker status write failed", "shift", si.ID, "external_id", item.ExternalID, "err", err)
 	}
 }
@@ -196,6 +200,8 @@ func trackerMessage(settled work.State, reason, link string, runs, rounds int) s
 	switch {
 	case settled == work.StateStale:
 		b.WriteString("Ploeg gave up on this item after repeated failures.\n\n")
+	case settled == work.StateAwaitingReview:
+		b.WriteString("Ploeg finished this item. Its pull request is ready for review.\n\n")
 	case link != "":
 		// A pull request exists, so the Shift produced work — say so, whatever
 		// state the item settled in.

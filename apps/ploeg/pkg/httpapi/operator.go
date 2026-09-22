@@ -321,7 +321,7 @@ func operatorFilter(w http.ResponseWriter, r *http.Request, events bool) (store.
 	f.State = q.Get("state")
 	if f.State != "" {
 		switch f.State {
-		case "ingested", "queued", "leased", "needs_human", "stale", "done":
+		case "ingested", "queued", "leased", "needs_human", "awaiting_review", "stale", "done":
 		default:
 			operatorError(w, 400, "invalid_request", "Unknown work-item state.")
 			return f, false

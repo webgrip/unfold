@@ -55,7 +55,7 @@ handoff is an event rather than something noticed later.
 #### Scenario: The plan completes and the human is notified
 
 - **WHEN** the final Round completes and the Shift closes
-- **THEN** the Work Item is `needs_human`
+- **THEN** the Work Item is `awaiting_review`
 - **AND** the tracker item carries a comment linking the PR
 
 #### Scenario: Write-back failure does not lose the outcome

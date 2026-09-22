@@ -141,8 +141,47 @@ func TestLoop_ApproveCloses(t *testing.T) {
 	if got := closeReason(t, id); got != reasonApproved {
 		t.Errorf("close reason = %q, want %q", got, reasonApproved)
 	}
-	if got := itemState(t, id); got != "needs_human" {
-		t.Errorf("item state = %q, want needs_human so a person merges", got)
+	if got := itemState(t, id); got != "awaiting_review" {
+		t.Errorf("item state = %q, want awaiting_review so a person reviews the pull request", got)
+	}
+}
+
+func TestLoop_ApprovedPullRequestAwaitsReviewAndFailuresNeedAHuman(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		builder work.Outcome
+		review  bool
+		want    string
+	}{
+		{"builder, reviewer, approve", work.OutcomePROpened, true, "awaiting_review"},
+		{"builder stuck", work.OutcomeStuck, false, "needs_human"},
+		{"plan ends without a pull request", work.OutcomeNoChangeNeeded, true, "needs_human"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := loopEngine(t, 10, 2)
+			id := startLoopShift(t, e, "979")
+			ctx := context.Background()
+			run, err := testStore.ClaimRole(ctx, "bronze", "builder", time.Minute, 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var links []string
+			if tc.builder == work.OutcomePROpened {
+				links = []string{"https://forgejo/o/r/pulls/1"}
+			}
+			if _, err := testStore.ReportOutcome(ctx, run.RunToken, store.Report(tc.builder, "builder done", "the build cannot proceed", links, nil, nil)); err != nil {
+				t.Fatal(err)
+			}
+			if err := e.EvaluateItem(ctx, id); err != nil {
+				t.Fatal(err)
+			}
+			if tc.review {
+				runRound(t, e, id, "reviewer", work.OutcomeNoChangeNeeded, harness.VerdictApprove)
+			}
+			if got := itemState(t, id); got != tc.want {
+				t.Errorf("item state = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 

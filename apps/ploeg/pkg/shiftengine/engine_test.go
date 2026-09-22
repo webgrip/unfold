@@ -328,7 +328,7 @@ func TestStuckFreezesThePlan(t *testing.T) {
 }
 
 // The plan runs out: the Shift closes with a recorded reason and the item
-// reaches needs_human so a person is asked to merge (spec scenario).
+// reaches awaiting_review so a person reviews the pull request (spec scenario).
 func TestPlanExhaustionClosesAndParks(t *testing.T) {
 	ctx := context.Background()
 	resetTables(t)
@@ -366,8 +366,8 @@ func TestPlanExhaustionClosesAndParks(t *testing.T) {
 	if !closed || reason != "plan_exhausted" {
 		t.Errorf("shift closed=%v reason=%q, want plan_exhausted", closed, reason)
 	}
-	if got := itemState(t, id); got != "needs_human" {
-		t.Errorf("item state = %q, want needs_human — a person is asked to merge", got)
+	if got := itemState(t, id); got != "awaiting_review" {
+		t.Errorf("item state = %q, want awaiting_review — the pull request is ready for review", got)
 	}
 }
 

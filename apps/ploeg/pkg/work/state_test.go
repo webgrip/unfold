@@ -6,8 +6,8 @@ func TestStateForOutcome(t *testing.T) {
 	cases := map[Outcome]State{
 		OutcomeStuck:           StateNeedsHuman,
 		OutcomeFailed:          StateQueued,
-		OutcomePROpened:        StateDone,
-		OutcomePRUpdated:       StateDone,
+		OutcomePROpened:        StateAwaitingReview,
+		OutcomePRUpdated:       StateAwaitingReview,
 		OutcomeIssueUpdated:    StateDone,
 		OutcomeFollowUpCreated: StateDone,
 		OutcomeNoChangeNeeded:  StateDone,
