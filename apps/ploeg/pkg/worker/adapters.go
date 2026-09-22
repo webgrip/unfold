@@ -2,6 +2,8 @@ package worker
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/webgrip/ploeg/pkg/harness"
@@ -37,6 +39,62 @@ type ACPConfig struct {
 	PermissionMode string        // PLOEG_ACP_PERMISSION_MODE: allow_always (default) | allow_read_only | deny_all
 	PromptTimeout  time.Duration // PLOEG_ACP_PROMPT_TIMEOUT: 0 = adapter default (45m)
 	IdleTimeout    time.Duration // PLOEG_ACP_IDLE_TIMEOUT: 0 = adapter default (10m)
+}
+
+// HarnessBinary names the program the configured harness executes, resolved
+// the same way the adapter resolves argv[0].
+func HarnessBinary(hc HarnessConfig) (string, error) {
+	switch hc.Name {
+	case "", "openhands":
+		return firstNonEmpty(hc.Entrypoint, openhands.DefaultEntrypoint), nil
+	case "claude-code":
+		return firstNonEmpty(hc.Entrypoint, claudecode.DefaultBin), nil
+	case "exec":
+		if len(hc.Args) == 0 {
+			return "", fmt.Errorf("exec harness requires a non-empty args template (PLOEG_HARNESS_ARGS)")
+		}
+		return hc.Args[0], nil
+	case "acp":
+		p, err := acp.Lookup(hc.ACP.Profile, acp.ProfileOverrides{Entrypoint: hc.Entrypoint, Argv: hc.ACP.Argv, ConfigJSON: hc.ACP.ConfigJSON})
+		if err != nil {
+			return "", err
+		}
+		if len(p.Argv) == 0 {
+			return "", fmt.Errorf("acp profile %q has no argv", p.Name)
+		}
+		return p.Argv[0], nil
+	default:
+		return "", fmt.Errorf("unknown harness %q (known: openhands, exec, claude-code, acp)", hc.Name)
+	}
+}
+
+// CheckHarnessBinary fails before a claim when the harness program cannot be
+// executed. A path relative to the clone, or one built from a task
+// placeholder, cannot be checked before the clone exists and is accepted.
+func CheckHarnessBinary(hc HarnessConfig, lookPath func(string) (string, error)) error {
+	bin, err := HarnessBinary(hc)
+	if err != nil {
+		return err
+	}
+	if bin == "" {
+		return fmt.Errorf("harness %q has no program to execute", hc.Name)
+	}
+	if strings.Contains(bin, execbin.PlaceholderTaskSpec) || strings.Contains(bin, execbin.PlaceholderTaskFile) || (strings.ContainsRune(bin, '/') && !filepath.IsAbs(bin)) {
+		return nil
+	}
+	if _, err := lookPath(bin); err != nil {
+		return fmt.Errorf("harness %q program %q is not executable in this image: %w", firstNonEmpty(hc.Name, "openhands"), bin, err)
+	}
+	return nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // NewAdapter is the explicit adapter registry — a switch, not init-magic,

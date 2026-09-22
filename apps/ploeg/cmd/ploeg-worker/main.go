@@ -12,6 +12,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strconv"
@@ -142,6 +143,9 @@ func run(log *slog.Logger) error {
 	}
 	adapter, err := worker.NewAdapter(hc)
 	if err != nil {
+		return err
+	}
+	if err := worker.CheckHarnessBinary(hc, exec.LookPath); err != nil {
 		return err
 	}
 
