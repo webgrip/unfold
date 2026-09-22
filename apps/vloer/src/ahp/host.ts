@@ -14,7 +14,8 @@ const pollMs = 300;
 const maxTurnsInSnapshot = 200;
 
 type Json = Record<string, any>;
-type Client = { id: string; clientId?: string; connection: WebSocketConnection; user: User; subscriptions: Set<string>; initialized: boolean };
+type Client = { id: string; clientId?: string; connection: WebSocketConnection; user: User; token: string; checkedAt: number; subscriptions: Set<string>; initialized: boolean };
+type TokenRecord = { userId: string; name: string; role: User['role']; label: string; createdAt: string; expiresAt?: string; signIn?: string };
 type Projection = { turns: Json[]; activeTurn?: Json; parts: Map<string, string>; toolCalls: Map<string, { turnId: string; toolCallId: string }>; openTools: Map<string, string>; cursor: number; turnCounter: number; permissionTurn?: string };
 type PendingSession = { uri: string; config: Json; user: User; chat?: string };
 
@@ -69,31 +70,66 @@ export class AgentHost {
     this.config = config; this.store = store; this.engine = engine;
   }
 
-  issueToken(user: User, label = 'agent host'): string {
+  /** Connection tokens expire after `auth.sessionHours` without use, and end with the sign-in that issued them. */
+  issueToken(user: User, label = 'agent host', signIn?: string): string {
     const token = connectionToken();
-    this.store.setSecret(`ahp-token:${digest(token)}`, { userId: user.id, name: user.name, role: user.role, label, createdAt: new Date().toISOString() });
+    const key = digest(token);
+    const bound = signIn && this.store.getLogin(signIn) ? signIn : undefined;
+    this.store.transaction(() => {
+      this.store.setSecret(`ahp-token:${key}`, { userId: user.id, name: user.name, role: user.role, label, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + this.lifetimeMs()).toISOString(), ...(bound ? { signIn: bound } : {}) } satisfies TokenRecord);
+      if (bound) this.store.setSecret(`ahp-sign-in:${bound}`, [...(this.store.getSecret<string[]>(`ahp-sign-in:${bound}`) ?? []), key]);
+    });
     return token;
   }
 
-  revokeToken(token: string): void { this.store.deleteSecret(`ahp-token:${digest(token)}`); }
+  revokeToken(token: string): void { this.revoke(digest(token)); }
 
-  private authenticate(token: string | null): User | undefined {
+  /** Revokes every connection token issued by one sign-in and closes its connections. */
+  revokeSignIn(signIn: string): void {
+    for (const key of this.store.getSecret<string[]>(`ahp-sign-in:${signIn}`) ?? []) this.revoke(key);
+    this.store.deleteSecret(`ahp-sign-in:${signIn}`);
+  }
+
+  private revoke(key: string): void {
+    const record = this.store.getSecret<TokenRecord>(`ahp-token:${key}`);
+    this.store.deleteSecret(`ahp-token:${key}`);
+    if (record?.signIn) {
+      const remaining = (this.store.getSecret<string[]>(`ahp-sign-in:${record.signIn}`) ?? []).filter(item => item !== key);
+      if (remaining.length) this.store.setSecret(`ahp-sign-in:${record.signIn}`, remaining); else this.store.deleteSecret(`ahp-sign-in:${record.signIn}`);
+    }
+    for (const client of this.clients) if (client.token === key) { this.clients.delete(client); client.connection.close(1008, 'Connection token revoked'); }
+  }
+
+  private lifetimeMs(): number { return this.config.auth.sessionHours * 3_600_000; }
+
+  private valid(key: string, renew: boolean): TokenRecord | undefined {
+    const record = this.store.getSecret<TokenRecord>(`ahp-token:${key}`);
+    if (!record) return undefined;
+    const now = Date.now();
+    if (!record.expiresAt || !(Date.parse(record.expiresAt) > now) || (record.signIn && !this.store.getLogin(record.signIn))) { this.revoke(key); return undefined; }
+    const expiresAt = now + this.lifetimeMs();
+    if (renew && expiresAt - Date.parse(record.expiresAt) >= 60_000) this.store.setSecret(`ahp-token:${key}`, { ...record, expiresAt: new Date(expiresAt).toISOString() });
+    return record;
+  }
+
+  private authenticate(token: string | null): { user: User; key: string } | undefined {
     if (!token || !/^[0-9A-Za-z_-]{16,128}$/.test(token)) return undefined;
-    const record = this.store.getSecret<{ userId: string; name: string; role: User['role'] }>(`ahp-token:${digest(token)}`);
+    const key = digest(token);
+    const record = this.valid(key, true);
     if (!record) return undefined;
     const stored = this.store.getUser(record.userId);
-    if (stored) return { id: stored.id, name: stored.name, role: stored.role };
-    return this.config.mode === 'demo' && record.userId === 'demo-operator' ? { id: record.userId, name: record.name, role: record.role } : undefined;
+    if (stored) return { user: { id: stored.id, name: stored.name, role: stored.role }, key };
+    return this.config.mode === 'demo' && record.userId === 'demo-operator' ? { user: { id: record.userId, name: record.name, role: record.role }, key } : undefined;
   }
 
   handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): boolean {
     const url = new URL(req.url ?? '/', 'http://localhost');
     if (!['/', '/ahp'].includes(url.pathname)) return false;
     if (!isWebSocketUpgrade(req)) { rejectUpgrade(socket, 400, 'Bad Request'); return true; }
-    const user = this.authenticate(url.searchParams.get('tkn'));
-    if (!user) { rejectUpgrade(socket, 403, 'Forbidden'); return true; }
+    const authenticated = this.authenticate(url.searchParams.get('tkn'));
+    if (!authenticated) { rejectUpgrade(socket, 403, 'Forbidden'); return true; }
     const connection = upgradeToWebSocket(req, socket, head);
-    const client: Client = { id: randomUUID(), connection, user, subscriptions: new Set(), initialized: false };
+    const client: Client = { id: randomUUID(), connection, user: authenticated.user, token: authenticated.key, checkedAt: Date.now(), subscriptions: new Set(), initialized: false };
     this.clients.add(client);
     connection.on('message', text => void this.receive(client, text));
     connection.on('close', () => { this.clients.delete(client); if (!this.clients.size) this.stopPolling(); });
@@ -405,6 +441,7 @@ export class AgentHost {
     if (this.polling) return;
     this.polling = true;
     try {
+      for (const client of [...this.clients]) if (Date.now() - client.checkedAt >= 60_000) this.current(client, false);
       const watched = new Map<string, Session>();
       for (const client of this.clients) for (const channel of client.subscriptions) { const id = sessionIdFrom(channel); if (id && !watched.has(id)) { const session = this.store.getSession(id); if (session) watched.set(id, session); } }
       for (const [id, session] of watched) {
@@ -431,7 +468,16 @@ export class AgentHost {
     } finally { this.polling = false; }
   }
 
+  private current(client: Client, renew: boolean): boolean {
+    if (!this.clients.has(client)) return false;
+    client.checkedAt = Date.now();
+    if (this.valid(client.token, renew)) return true;
+    if (this.clients.delete(client)) client.connection.close(1008, 'Connection token expired');
+    return false;
+  }
+
   private async receive(client: Client, text: string): Promise<void> {
+    if (!this.current(client, true)) return;
     let message: Json;
     try { message = JSON.parse(text); } catch { this.send(client, { jsonrpc: '2.0', id: null, error: { code: codes.parse, message: 'Parse error' } }); return; }
     if (!message || message.jsonrpc !== '2.0' || typeof message.method !== 'string') { this.send(client, { jsonrpc: '2.0', id: message?.id ?? null, error: { code: codes.invalidRequest, message: 'Invalid request' } }); return; }

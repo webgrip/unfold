@@ -145,7 +145,7 @@ A `tool` event carries the OpenCode part id, the tool's input as a bounded JSON 
 | Method and path | Behavior |
 | --- | --- |
 | `GET /api/agent-host` | Protocol version, WebSocket address, connected client count and the shape of the VS Code setting |
-| `POST /api/agent-host/tokens` | `{label?}` → `{token, address, vscodeSetting}`; the token is shown once and bound to the caller |
+| `POST /api/agent-host/tokens` | `{label?}` → `{token, address, vscodeSetting}`; the token is shown once and bound to the caller and the sign-in that issued it. It expires after `auth.sessionHours` without use, each use renews that window, and signing out or the end of the issuing sign-in revokes it and closes its connections |
 
 The WebSocket endpoint is the workbench address with `?tkn=<token>`; it speaks Agent Host Protocol 0.9.0 ([ADR 0012](../adrs/0012-agent-host-protocol-host.md)).
 

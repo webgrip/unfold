@@ -12,6 +12,7 @@ import { SessionPanels, type PanelHost, type PanelTab, type InstructionOutcome }
 import { presentation, situation, safeHttpsUrl, spendLabel, isolatedPlacement, placementLabel, presentationFor } from './status.js';
 import { setApproval as chooseApproval, type ApprovalChoice } from './approval.js';
 import { linkedAccounts, type AccountChoice } from './accounts.js';
+import { hasAgentHost, withAgentHost, withoutIssuedAgentHost, type AgentHostEntry } from './agent-host.js';
 import { SessionTree, TaskTree, type SessionEntry, type TaskEntry } from './tree.js';
 import * as wizard from './wizard.js';
 import type { Approval, Bootstrap, Session, TaskSnapshot, TaskSource, CandidateFormat, Decision, Permission } from './types.js';
@@ -227,6 +228,7 @@ class Workbench implements vscode.Disposable, PanelHost {
           browserLogin(client, { open: async url => { await vscode.env.openExternal(vscode.Uri.parse(url)); }, cancelled: () => token.isCancellationRequested, sleep: ms => new Promise(resolve => setTimeout(resolve, ms)) }, origin));
         if (!signedIn) return;
         this.cachedBootstrap = await this.current.bootstrap();
+        await this.renewAgentHost();
         await this.refresh(true);
         await vscode.commands.executeCommand('vloer.sessions.focus');
         return;
@@ -237,6 +239,7 @@ class Workbench implements vscode.Disposable, PanelHost {
       if (!password) return;
       await this.current.login(name.trim(), password);
       this.cachedBootstrap = await this.current.bootstrap();
+      await this.renewAgentHost();
     }
     await this.refresh(true);
     await vscode.commands.executeCommand('vloer.sessions.focus');
@@ -244,8 +247,33 @@ class Workbench implements vscode.Disposable, PanelHost {
 
   async signOut(): Promise<void> {
     this.generation++;
-    try { await this.current.logout(); }
-    finally { this.panels.closeAll(); this.watcher.reset(); this.offline(new ApiError(401, 'signed_out', 'Signed out.')); }
+    const target = this.current;
+    const address = await this.agentHostAddress(target);
+    try { await target.logout(); }
+    finally {
+      if (address) await this.forgetAgentHost(target, address).catch(() => undefined);
+      this.panels.closeAll(); this.watcher.reset(); this.offline(new ApiError(401, 'signed_out', 'Signed out.'));
+    }
+  }
+
+  private agentHostKey(target: VloerClient): string { return `vloer.agentHost:${target.origin}`; }
+
+  private async agentHostAddress(target: VloerClient): Promise<string | undefined> {
+    try { return (await target.request<{ address?: string }>('/api/agent-host')).address; } catch { return undefined; }
+  }
+
+  private async renewAgentHost(): Promise<void> {
+    const address = await this.agentHostAddress(this.current);
+    if (!address || !hasAgentHost(vscode.workspace.getConfiguration().get<AgentHostEntry[]>('chat.remoteAgentHosts'), address)) return;
+    await this.connectAgentHost(true).catch(() => undefined);
+  }
+
+  private async forgetAgentHost(target: VloerClient, address: string): Promise<void> {
+    const configuration = vscode.workspace.getConfiguration();
+    const entries = configuration.get<AgentHostEntry[]>('chat.remoteAgentHosts');
+    const remaining = withoutIssuedAgentHost(entries, address, await this.context.secrets.get(this.agentHostKey(target)));
+    if (remaining.length !== (entries ?? []).length) await configuration.update('chat.remoteAgentHosts', remaining, vscode.ConfigurationTarget.Global);
+    await this.context.secrets.delete(this.agentHostKey(target));
   }
 
   private sessionId(value: SessionRef): string | undefined {
@@ -332,15 +360,15 @@ class Workbench implements vscode.Disposable, PanelHost {
     return result;
   }
 
-  async connectAgentHost(): Promise<void> {
+  async connectAgentHost(silent = false): Promise<void> {
     const target = this.current;
     const bootstrap = await this.bootstrap();
     if (bootstrap.user.role === 'viewer') throw new Error('Your viewer account can inspect sessions. An operator account is required to attach an agent host.');
     const issued = await target.request<{ token: string; address: string; vscodeSetting: { key: string; entry: { address: string; name: string; connectionToken: string } } }>('/api/agent-host/tokens', 'POST', { label: `VS Code on ${vscode.env.machineId.slice(0, 8)}` });
     const configuration = vscode.workspace.getConfiguration();
-    const existing = (configuration.get<Array<{ address?: string; name?: string }>>(issued.vscodeSetting.key) ?? []).filter(entry => entry?.address !== issued.vscodeSetting.entry.address);
-    await configuration.update(issued.vscodeSetting.key, [...existing, issued.vscodeSetting.entry], vscode.ConfigurationTarget.Global);
-    void vscode.window.showInformationMessage(`De Vloer at ${new URL(target.origin).host} is registered as an agent host in ${issued.vscodeSetting.key}. Its sessions appear in the agent sessions view of VS Code 1.136 and later; the connection token was stored in your user settings.`);
+    await configuration.update(issued.vscodeSetting.key, withAgentHost(configuration.get<AgentHostEntry[]>(issued.vscodeSetting.key), issued.vscodeSetting.entry), vscode.ConfigurationTarget.Global);
+    await this.context.secrets.store(this.agentHostKey(target), issued.token);
+    if (!silent) void vscode.window.showInformationMessage(`De Vloer at ${new URL(target.origin).host} is registered as an agent host in ${issued.vscodeSetting.key}. Its sessions appear in the agent sessions view of VS Code 1.136 and later; the connection token was stored in your user settings.`);
   }
 
   async create(): Promise<void> {
