@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -307,11 +308,6 @@ func (s *Store) CommandOperatorExecution(ctx context.Context, id, consumer, acto
 		return e, err
 	}
 	if e.State == "completed" || e.State == "cancelled" || e.State == "failed" {
-		var outcome *string
-		if e.State != "completed" {
-			stuck := "stuck"
-			outcome = &stuck
-		}
 		summary := "Operator execution " + e.State
 		if supplied := strings.TrimSpace(c.Text); supplied != "" {
 			summary = supplied
@@ -319,13 +315,7 @@ func (s *Store) CommandOperatorExecution(ctx context.Context, id, consumer, acto
 				summary = string([]rune(summary)[:min(len([]rune(summary)), 4096)])
 			}
 		}
-		if _, err = tx.Exec(ctx, `UPDATE agent_runs SET state='finished',finished_at=now(),outcome=$2,summary=$3 WHERE id=$1`, e.RunID, outcome, summary); err != nil {
-			return e, err
-		}
-		if _, err = tx.Exec(ctx, `UPDATE shifts SET closed_at=now(),close_reason=$2 WHERE id=$1`, e.ShiftID, "operator_"+e.State); err != nil {
-			return e, err
-		}
-		if _, err = tx.Exec(ctx, `DELETE FROM leases WHERE work_item_id=$1`, e.WorkItemID); err != nil {
+		if err = closeOperatorExecution(ctx, tx, e, summary, "operator_"+e.State); err != nil {
 			return e, err
 		}
 	}
@@ -342,6 +332,22 @@ func (s *Store) CommandOperatorExecution(ctx context.Context, id, consumer, acto
 		return e, err
 	}
 	return e, tx.Commit(ctx)
+}
+
+func closeOperatorExecution(ctx context.Context, tx pgx.Tx, e OperatorExecution, summary, reason string) error {
+	var outcome *string
+	if e.State != "completed" {
+		stuck := "stuck"
+		outcome = &stuck
+	}
+	if _, err := tx.Exec(ctx, `UPDATE agent_runs SET state='finished',finished_at=now(),outcome=$2,summary=$3 WHERE id=$1`, e.RunID, outcome, summary); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE shifts SET closed_at=now(),close_reason=$2 WHERE id=$1`, e.ShiftID, reason); err != nil {
+		return err
+	}
+	_, err := tx.Exec(ctx, `DELETE FROM leases WHERE work_item_id=$1`, e.WorkItemID)
+	return err
 }
 
 func (s *Store) OperatorExecutionEvents(ctx context.Context, id string, after int64, limit int) ([]OperatorExecutionEvent, error) {
@@ -405,5 +411,46 @@ func (s *Store) ExpireOperatorExecutions(ctx context.Context) ([]OperatorExecuti
 			return nil, err
 		}
 	}
-	return executions, tx.Commit(ctx)
+	unstarted, err := cancelUnstartedExecutions(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	return append(executions, unstarted...), tx.Commit(ctx)
+}
+
+func cancelUnstartedExecutions(ctx context.Context, tx pgx.Tx) ([]OperatorExecution, error) {
+	rows, err := tx.Query(ctx, executionSelect+`WHERE e.state='admitted' AND e.expires_at<now() ORDER BY e.expires_at,e.id LIMIT 100 FOR UPDATE OF e SKIP LOCKED`)
+	if err != nil {
+		return nil, err
+	}
+	executions, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (OperatorExecution, error) { return scanOperatorExecution(row) })
+	if err != nil {
+		return nil, err
+	}
+	for i := range executions {
+		e := &executions[i]
+		e.State = "cancelled"
+		e.StopConfirmed = true
+		e.Revision++
+		if _, err = tx.Exec(ctx, `UPDATE operator_executions SET state='cancelled',stop_confirmed=true,revision=$2,updated_at=now() WHERE id=$1`, e.ID, e.Revision); err != nil {
+			return nil, err
+		}
+		if err = closeOperatorExecution(ctx, tx, *e, "Operator admission expired before start", "operator_admission_expired"); err != nil {
+			return nil, err
+		}
+		if _, err = tx.Exec(ctx, `UPDATE work_items SET state='done',updated_at=now() WHERE id=$1`, e.WorkItemID); err != nil {
+			return nil, err
+		}
+		if _, err = tx.Exec(ctx, `INSERT INTO operator_execution_events(execution_id,revision,actor,kind,detail) VALUES($1,$2,'ploegd','execution.expired','{"started":false,"state":"cancelled","stopConfirmed":true}')`, e.ID, e.Revision); err != nil {
+			return nil, err
+		}
+		id, err := strconv.ParseInt(e.WorkItemID, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		if err = audit(ctx, tx, "ploegd:sweeper", "operator.admission_expired", &id, map[string]any{"executionId": e.ID}); err != nil {
+			return nil, err
+		}
+	}
+	return executions, nil
 }

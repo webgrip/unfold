@@ -206,3 +206,11 @@ test('a response started before consumer credential rotation cannot restore old 
   assert.deepEqual((await ploeg.teams(admin)).map(team => team.id), ['research']);
   assert.equal(upstreamApi.seen.length, 2);
 });
+
+test('a work item whose pull request awaits review is a valid Ploeg state', async t => {
+  const upstreamApi = await upstream(t);
+  const item = upstreamApi.details['101'].item;
+  item.state = 'awaiting_review';
+  const page = await client(upstreamApi.config).items(admin, item.team, 'awaiting_review');
+  assert.deepEqual(page.items.map(entry => [entry.id, entry.state]), [['101', 'awaiting_review']]);
+});

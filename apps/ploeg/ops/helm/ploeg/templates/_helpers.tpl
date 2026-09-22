@@ -109,6 +109,8 @@ global executor.harness defaults field-by-field (explicit hasKey checks, so
 {{- $hEntrypoint := $rh.entrypoint | default ($th.entrypoint | default $gh.entrypoint) }}
 {{- $hArgs := $rh.args | default ($th.args | default $gh.args) }}
 {{- $hOutcomeFile := $rh.outcomeFile | default ($th.outcomeFile | default $gh.outcomeFile) }}
+{{- $hTimeout := $rh.timeout | default ($th.timeout | default $gh.timeout) }}
+{{- $hIdleTimeout := $rh.idleTimeout | default ($th.idleTimeout | default $gh.idleTimeout) }}
 {{- $hDind := true }}
 {{- if hasKey $rh "dind" }}{{- $hDind = $rh.dind }}{{- else if hasKey $th "dind" }}{{- $hDind = $th.dind }}{{- else if hasKey $gh "dind" }}{{- $hDind = $gh.dind }}{{- end }}
 {{- $dt := $root.Values.executor.defaultTarget | default dict }}
@@ -233,6 +235,14 @@ spec:
         {{- if $hOutcomeFile }}
         - name: PLOEG_OUTCOME_FILE
           value: {{ $hOutcomeFile | quote }}
+        {{- end }}
+        {{- if $hTimeout }}
+        - name: PLOEG_HARNESS_TIMEOUT
+          value: {{ $hTimeout | quote }}
+        {{- end }}
+        {{- if $hIdleTimeout }}
+        - name: PLOEG_HARNESS_IDLE_TIMEOUT
+          value: {{ $hIdleTimeout | quote }}
         {{- end }}
         {{- if eq $hName "acp" }}
         {{- if $acpProfile }}

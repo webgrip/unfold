@@ -71,9 +71,6 @@ func TestUniform_SynthesizedRunIsClaimableWithoutARole(t *testing.T) {
 	}
 }
 
-// The property the whole flip rests on: pr_opened still means done. Parking
-// every plain team's successful run at needs_human would silently rewrite
-// what the board means.
 func TestUniform_TerminalOutcomeKeepsItsLegacyMeaning(t *testing.T) {
 	ctx := context.Background()
 	for _, tc := range []struct {
@@ -81,8 +78,8 @@ func TestUniform_TerminalOutcomeKeepsItsLegacyMeaning(t *testing.T) {
 		outcome   work.Outcome
 		wantState string
 	}{
-		{"pr_opened", work.OutcomePROpened, "done"},
-		{"pr_updated", work.OutcomePRUpdated, "done"},
+		{"pr_opened", work.OutcomePROpened, "awaiting_review"},
+		{"pr_updated", work.OutcomePRUpdated, "awaiting_review"},
 		{"no_change_needed", work.OutcomeNoChangeNeeded, "done"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -102,7 +99,7 @@ func TestUniform_TerminalOutcomeKeepsItsLegacyMeaning(t *testing.T) {
 				t.Fatal(err)
 			}
 			if got := itemState(t, id); got != tc.wantState {
-				t.Errorf("%s under uniform dispatch = %q, want %q (unchanged from the pre-Shift path)",
+				t.Errorf("%s under uniform dispatch = %q, want %q (the same state the pre-Shift path writes)",
 					tc.outcome, got, tc.wantState)
 			}
 			if si, _ := testStore.LiveShiftForItem(ctx, id); si != nil {

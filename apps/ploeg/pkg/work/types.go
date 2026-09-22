@@ -9,12 +9,13 @@ import "time"
 type State string
 
 const (
-	StateIngested   State = "ingested"
-	StateQueued     State = "queued"
-	StateLeased     State = "leased"
-	StateNeedsHuman State = "needs_human"
-	StateStale      State = "stale"
-	StateDone       State = "done"
+	StateIngested       State = "ingested"
+	StateQueued         State = "queued"
+	StateLeased         State = "leased"
+	StateNeedsHuman     State = "needs_human"
+	StateAwaitingReview State = "awaiting_review"
+	StateStale          State = "stale"
+	StateDone           State = "done"
 )
 
 // Origin records whether a WorkItem came from the tracker (assignment) or
@@ -61,12 +62,13 @@ const (
 	FailureAgentError FailureReason = "agent_error"
 	FailureBudget     FailureReason = "budget"
 	FailureLeaseLost  FailureReason = "lease_lost"
+	FailureTimeout    FailureReason = "timeout"
 )
 
 // Valid reports whether f is a known failure reason enum value.
 func (f FailureReason) Valid() bool {
 	switch f {
-	case FailureInfraNode, FailureInfraLLM, FailureAgentError, FailureBudget, FailureLeaseLost:
+	case FailureInfraNode, FailureInfraLLM, FailureAgentError, FailureBudget, FailureLeaseLost, FailureTimeout:
 		return true
 	}
 	return false
@@ -92,7 +94,7 @@ func (f FailureReason) IsInfra() bool {
 // runs the same way. Derived from the enum so a new reason cannot be added to
 // one and forgotten in the other.
 func InfraFailureReasons() []string {
-	all := []FailureReason{FailureInfraNode, FailureInfraLLM, FailureAgentError, FailureBudget, FailureLeaseLost}
+	all := []FailureReason{FailureInfraNode, FailureInfraLLM, FailureAgentError, FailureBudget, FailureLeaseLost, FailureTimeout}
 	out := make([]string, 0, len(all))
 	for _, f := range all {
 		if f.IsInfra() {

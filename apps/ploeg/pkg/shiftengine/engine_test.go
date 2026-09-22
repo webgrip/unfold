@@ -104,6 +104,27 @@ func ingest(t *testing.T, team, externalID string) (int64, work.WorkItem) {
 	return id, item
 }
 
+func TestEnsureShiftNamesTheBranchAfterTheTracker(t *testing.T) {
+	ctx := context.Background()
+	resetTables(t)
+	e := newEngine(bronzePlan(6))
+	item := work.WorkItem{Provider: "clickup", ExternalID: "86c0abc12", Team: "bronze", Title: "t"}
+	id, _, err := testStore.IngestAssigned(ctx, item)
+	if err != nil {
+		t.Fatalf("IngestAssigned: %v", err)
+	}
+	if err := e.EnsureShift(ctx, id, item); err != nil {
+		t.Fatalf("EnsureShift: %v", err)
+	}
+	si, err := testStore.LiveShiftForItem(ctx, id)
+	if err != nil || si == nil {
+		t.Fatalf("no live shift after EnsureShift: %v", err)
+	}
+	if si.Branch != "agent/clickup-86c0abc12" {
+		t.Errorf("branch = %q, want agent/clickup-86c0abc12", si.Branch)
+	}
+}
+
 func itemState(t *testing.T, id int64) string {
 	t.Helper()
 	var state string
@@ -307,7 +328,7 @@ func TestStuckFreezesThePlan(t *testing.T) {
 }
 
 // The plan runs out: the Shift closes with a recorded reason and the item
-// reaches needs_human so a person is asked to merge (spec scenario).
+// reaches awaiting_review so a person reviews the pull request (spec scenario).
 func TestPlanExhaustionClosesAndParks(t *testing.T) {
 	ctx := context.Background()
 	resetTables(t)
@@ -345,8 +366,8 @@ func TestPlanExhaustionClosesAndParks(t *testing.T) {
 	if !closed || reason != "plan_exhausted" {
 		t.Errorf("shift closed=%v reason=%q, want plan_exhausted", closed, reason)
 	}
-	if got := itemState(t, id); got != "needs_human" {
-		t.Errorf("item state = %q, want needs_human — a person is asked to merge", got)
+	if got := itemState(t, id); got != "awaiting_review" {
+		t.Errorf("item state = %q, want awaiting_review — the pull request is ready for review", got)
 	}
 }
 

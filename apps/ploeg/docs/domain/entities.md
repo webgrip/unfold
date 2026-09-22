@@ -26,6 +26,7 @@ A consumer-owned session binding and serialized execution lifecycle.
 stateDiagram-v2
     [*] --> admitted : Scoped idempotent admission
     admitted --> running : Explicit start before expiry
+    admitted --> cancelled : Human cancels before start
     running --> waiting_input : Runtime requests human input
     waiting_input --> running : Authenticated answer accepted
     running --> pause_requested : Human requests pause
@@ -54,7 +55,7 @@ Ploeg's execution record for tracker, follow-up or operator work.
 | `team` | `string` |  | Team the item is queued for — the claiming crew, not the codebase; empty until assigned. |
 | `target` | `Work Target` |  | Forge coordinates the item's Runs act on; absent means unresolved (R11). |
 | `route_rule` | `string` |  | Id of the Routing Rule that decided team and target; recorded for audit. |
-| `state` | `enum(ingested, queued, leased, needs_human, stale, done)` | yes | Dispatch lifecycle position. |
+| `state` | `enum(ingested, queued, leased, needs_human, awaiting_review, stale, done)` | yes | Dispatch lifecycle position. awaiting_review means Ploeg's work succeeded and its pull request is ready for human review. |
 | `origin` | `enum(assignment, follow_up, operator)` | yes | Whether the item came from a tracker, Forge Event or Operator Consumer. |
 | `priority` | `integer` |  | Rank mirrored from the tracker; drives Team Queue order. |
 
@@ -75,7 +76,9 @@ stateDiagram-v2
     leased --> queued : Lease expired or Run failed, retries remaining
     leased --> stale : Lease expired repeatedly without an Outcome (threshold reached)
     leased --> needs_human : stuck Outcome reported (mandatory reason)
-    leased --> done : Terminal Outcome reported (pr_opened, pr_updated, issue_updated, follow_up_created, no_change_needed)
+    leased --> done : Terminal Outcome reported (issue_updated, follow_up_created, no_change_needed)
+    leased --> awaiting_review : A pull request was opened or updated and the Shift closed successfully
+    awaiting_review --> queued : Re-assignment in the tracker is a fresh mandate
     needs_human --> queued : Human re-queues after resolving the blocker
     needs_human --> done : Human closes the item
     stale --> queued : Human or explicit policy re-queues

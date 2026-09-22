@@ -149,6 +149,51 @@ func (c *Client) KeySpend(ctx context.Context, key string) (float64, error) {
 	return *ki.Info.Spend, nil
 }
 
+// SpendLogTotal sums the gateway's spend log entries for a hashed key token
+// through GET /spend/logs?api_key=. Spend logs outlive the key row, whose
+// running total is written asynchronously and disappears when a key is
+// deleted, so they are the settlement source. It also returns how many
+// entries were summed.
+func (c *Client) SpendLogTotal(ctx context.Context, token string) (float64, int, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/spend/logs?api_key="+url.QueryEscape(token), nil)
+	if err != nil {
+		return 0, 0, fmt.Errorf("litellm: invalid spend logs endpoint")
+	}
+	req.Header.Set("Authorization", "Bearer "+c.masterKey)
+	resp, err := c.httpCli.Do(req)
+	if err != nil {
+		return 0, 0, fmt.Errorf("litellm: spend logs request failed")
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return 0, 0, fmt.Errorf("litellm: spend logs got HTTP %d", resp.StatusCode)
+	}
+	decoder := json.NewDecoder(io.LimitReader(resp.Body, 256<<20))
+	if open, err := decoder.Token(); err != nil || open != json.Delim('[') {
+		return 0, 0, fmt.Errorf("litellm: invalid spend logs response")
+	}
+	var total float64
+	entries := 0
+	for decoder.More() {
+		var entry struct {
+			APIKey string   `json:"api_key"`
+			Spend  *float64 `json:"spend"`
+		}
+		if err := decoder.Decode(&entry); err != nil {
+			return 0, 0, fmt.Errorf("litellm: invalid spend logs response")
+		}
+		if entry.APIKey != token || entry.Spend == nil || *entry.Spend < 0 || math.IsNaN(*entry.Spend) || math.IsInf(*entry.Spend, 0) {
+			return 0, 0, fmt.Errorf("litellm: spend log entry is unavailable or invalid")
+		}
+		total += *entry.Spend
+		entries++
+	}
+	if closing, err := decoder.Token(); err != nil || closing != json.Delim(']') {
+		return 0, 0, fmt.Errorf("litellm: invalid spend logs response")
+	}
+	return total, entries, nil
+}
+
 // KeyInfo is a single entry from the /key/list response (with
 // return_full_object=true).
 type KeyInfo struct {

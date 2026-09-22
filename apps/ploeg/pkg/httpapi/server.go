@@ -56,6 +56,9 @@ type Server struct {
 	// implemented by plan.Plans. Nil = no caps, and the authorization is
 	// bounded by the Shift pool alone.
 	RoleCaps RoleCaps
+	// TrackerWebhooks is the latest Vikunja webhook coverage check, reported
+	// by /readyz. Nil = no check configured.
+	TrackerWebhooks *WebhookCoverage
 }
 
 // RoleCaps is the slice of the team-plan config the claim path needs.
@@ -95,7 +98,11 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "db unreachable", http.StatusServiceUnavailable)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
+	if s.TrackerWebhooks == nil {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "ready", "vikunjaWebhooks": s.TrackerWebhooks.report()})
 }
 
 // handleTrackerWebhook verifies + parses via the provider, then fast-acks:

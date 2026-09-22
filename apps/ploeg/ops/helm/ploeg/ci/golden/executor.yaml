@@ -133,7 +133,7 @@ spec:
             - name: PLOEG_DEFAULT_TEAM
               value: "default"
             - name: PLOEG_LEASE_TTL
-              value: "15m"
+              value: "5m"
             - name: PLOEG_SWEEP_INTERVAL
               value: "15s"
             - name: PLOEG_TEAM_MAP
@@ -316,6 +316,10 @@ spec:
                 value: "bronze"
               - name: PLOEG_HARNESS
                 value: "openhands"
+              - name: PLOEG_HARNESS_TIMEOUT
+                value: "100m"
+              - name: PLOEG_HARNESS_IDLE_TIMEOUT
+                value: "15m"
               - name: LLM_MODEL
                 value: "litellm_proxy/deepseek-chat"
               - name: LITELLM_KEY_BUDGET
@@ -514,6 +518,10 @@ spec:
                 value: "exec"
               - name: PLOEG_HARNESS_ARGS
                 value: "[\"/usr/local/bin/agent\",\"--spec\",\"{taskspec}\",\"--task\",\"{taskfile}\"]"
+              - name: PLOEG_HARNESS_TIMEOUT
+                value: "100m"
+              - name: PLOEG_HARNESS_IDLE_TIMEOUT
+                value: "15m"
               - name: LLM_MODEL
                 value: "litellm_proxy/claude-sonnet-5"
               - name: LITELLM_KEY_BUDGET
@@ -740,6 +748,10 @@ spec:
                 value: "tin"
               - name: PLOEG_HARNESS
                 value: "openhands"
+              - name: PLOEG_HARNESS_TIMEOUT
+                value: "100m"
+              - name: PLOEG_HARNESS_IDLE_TIMEOUT
+                value: "15m"
               - name: LLM_MODEL
                 value: "litellm_proxy/deepseek-chat"
               - name: LITELLM_KEY_BUDGET
@@ -971,6 +983,10 @@ spec:
                 value: "zinc"
               - name: PLOEG_HARNESS
                 value: "openhands"
+              - name: PLOEG_HARNESS_TIMEOUT
+                value: "100m"
+              - name: PLOEG_HARNESS_IDLE_TIMEOUT
+                value: "15m"
               - name: LLM_MODEL
                 value: "litellm_proxy/deepseek-chat"
               - name: LITELLM_KEY_BUDGET
@@ -1210,6 +1226,10 @@ spec:
                 value: "lead"
               - name: PLOEG_HARNESS
                 value: "acp"
+              - name: PLOEG_HARNESS_TIMEOUT
+                value: "100m"
+              - name: PLOEG_HARNESS_IDLE_TIMEOUT
+                value: "15m"
               - name: PLOEG_ACP_PROFILE
                 value: "custom"
               - name: PLOEG_ACP_ARGV
@@ -1409,6 +1429,10 @@ spec:
                 value: "analyst"
               - name: PLOEG_HARNESS
                 value: "openhands"
+              - name: PLOEG_HARNESS_TIMEOUT
+                value: "100m"
+              - name: PLOEG_HARNESS_IDLE_TIMEOUT
+                value: "15m"
               - name: LLM_MODEL
                 value: "litellm_proxy/deepseek-chat"
               - name: LITELLM_KEY_BUDGET
@@ -1595,6 +1619,10 @@ spec:
                 value: "tests"
               - name: PLOEG_HARNESS
                 value: "openhands"
+              - name: PLOEG_HARNESS_TIMEOUT
+                value: "100m"
+              - name: PLOEG_HARNESS_IDLE_TIMEOUT
+                value: "15m"
               - name: LLM_MODEL
                 value: "litellm_proxy/deepseek-chat"
               - name: LITELLM_KEY_BUDGET
@@ -1824,6 +1852,10 @@ spec:
                 value: "builder"
               - name: PLOEG_HARNESS
                 value: "openhands"
+              - name: PLOEG_HARNESS_TIMEOUT
+                value: "100m"
+              - name: PLOEG_HARNESS_IDLE_TIMEOUT
+                value: "15m"
               - name: LLM_MODEL
                 value: "litellm_proxy/claude-sonnet-5"
               - name: LITELLM_KEY_BUDGET
@@ -2023,6 +2055,10 @@ spec:
                 value: "reviewer"
               - name: PLOEG_HARNESS
                 value: "openhands"
+              - name: PLOEG_HARNESS_TIMEOUT
+                value: "100m"
+              - name: PLOEG_HARNESS_IDLE_TIMEOUT
+                value: "15m"
               - name: LLM_MODEL
                 value: "litellm_proxy/claude-sonnet-5"
               - name: LITELLM_KEY_BUDGET

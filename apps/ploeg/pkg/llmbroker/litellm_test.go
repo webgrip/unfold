@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -23,6 +24,7 @@ type fakeAdmin struct {
 	blocked  map[string]bool
 	mintFail bool
 	spend    float64 // what /key/info reports for any live key
+	logs     map[string][]float64
 }
 
 func newFakeAdmin() *fakeAdmin {
@@ -112,6 +114,13 @@ func (f *fakeAdmin) server(t *testing.T) *httptest.Server {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"keys": keys, "total_count": len(keys), "total_pages": 1, "current_page": 1,
 			})
+		case "/spend/logs":
+			token := r.URL.Query().Get("api_key")
+			entries := []map[string]any{}
+			for _, spend := range f.logs[token] {
+				entries = append(entries, map[string]any{"api_key": token, "spend": spend})
+			}
+			_ = json.NewEncoder(w).Encode(entries)
 		default:
 			http.NotFound(w, r)
 		}
@@ -220,6 +229,31 @@ func TestRevoke_BlocksKeyAndPreservesUsage(t *testing.T) {
 	f.spend = 0.7
 	if got, err := b.Spend(context.Background(), cred); err != nil || got != 0.7 {
 		t.Fatalf("late spend=%v, err=%v", got, err)
+	}
+}
+
+func TestSettledSpend_ReadsSpendLogsThatOutliveTheKey(t *testing.T) {
+	f := newFakeAdmin()
+	b := f.broker(t)
+	ctx := context.Background()
+	cred, err := b.Mint(ctx, MintRequest{RunToken: runToken, BudgetUSD: 1, TTL: time.Hour})
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyID := fixtureKeyID(cred.APIKey)
+	f.logs = map[string][]float64{keyID: {0.1, 0.25}}
+	f.spend = 0
+	got, err := b.SettledSpendForRun(ctx, runToken, []string{keyID})
+	if err != nil || math.Abs(got.USD-0.35) > 1e-9 || got.Keys != 1 || got.Entries != 2 {
+		t.Fatalf("settled=%+v err=%v; the key's lagging running total must not be the source", got, err)
+	}
+	delete(f.keys, keyID)
+	got, err = b.SettledSpendForRun(ctx, runToken, []string{keyID})
+	if err != nil || math.Abs(got.USD-0.35) > 1e-9 {
+		t.Fatalf("deleted key lost its spend: %+v %v", got, err)
+	}
+	if _, err := b.SettledSpendForRun(ctx, runToken, []string{""}); err == nil {
+		t.Fatal("no accounting identity settled as zero")
 	}
 }
 

@@ -184,10 +184,10 @@ func TestPublish_FindingsReachThePullRequestWhenTheRoundCompletes(t *testing.T) 
 	if !strings.Contains(tracker.comments[0], "review and merge") {
 		t.Errorf("tracker comment does not ask for a merge:\n%s", tracker.comments[0])
 	}
-	if len(tracker.statuses) != 1 || tracker.statuses[0] != work.StateNeedsHuman {
-		t.Errorf("statuses = %v, want [needs_human]", tracker.statuses)
+	if len(tracker.statuses) != 1 || tracker.statuses[0] != work.StateAwaitingReview {
+		t.Errorf("statuses = %v, want [awaiting_review]", tracker.statuses)
 	}
-	if got := itemState(t, id); got != "needs_human" {
+	if got := itemState(t, id); got != "awaiting_review" {
 		t.Errorf("item state = %q", got)
 	}
 }
@@ -294,8 +294,8 @@ func TestPublish_ForgeFailureDoesNotBlockTheLifecycle(t *testing.T) {
 	if si, _ := testStore.LiveShiftForItem(ctx, id); si != nil {
 		t.Error("shift stayed open because publication failed")
 	}
-	if got := itemState(t, id); got != "needs_human" {
-		t.Errorf("item state = %q, want needs_human despite the outages", got)
+	if got := itemState(t, id); got != "awaiting_review" {
+		t.Errorf("item state = %q, want awaiting_review despite the outages", got)
 	}
 }
 
@@ -510,8 +510,8 @@ func TestPublish_DoneOutcomeStillNotifiesTheTracker(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := itemState(t, id); got != "done" {
-		t.Fatalf("item state = %q, want done (the path that used to skip the write-back)", got)
+	if got := itemState(t, id); got != "awaiting_review" {
+		t.Fatalf("item state = %q, want awaiting_review (the path that used to skip the write-back)", got)
 	}
 	if len(tracker.comments) != 1 {
 		t.Fatalf("tracker comments = %d, want exactly 1 — a finished PR must reach the board", len(tracker.comments))
@@ -564,6 +564,7 @@ func TestTrackerMessage_PerTerminalState(t *testing.T) {
 		want    string
 		absent  string
 	}{
+		{"ready for review", work.StateAwaitingReview, link, "pull request is ready for review", "stopped working this item"},
 		{"done with a PR", work.StateDone, link, "opened a pull request", "No pull request"},
 		{"done with nothing to change", work.StateDone, "", "without needing to change anything", "Please review"},
 		{"gave up", work.StateStale, "", "gave up on this item", "Please review"},

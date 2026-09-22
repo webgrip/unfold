@@ -75,8 +75,8 @@ func orphanSweep(ctx context.Context, log *slog.Logger, st *store.Store, sweeper
 // could never see it die), then the engine advances or repairs every live
 // Shift — the async half of the fast-path/sweeper split (R2).
 func sweepLoop(ctx context.Context, log *slog.Logger, st *store.Store, sweeper llmbroker.Sweeper,
-	forgeSweeper forgebroker.Sweeper, engine *shiftengine.Engine, server *httpapi.Server, every time.Duration) {
-	var managedCursor int64
+	forgeSweeper forgebroker.Sweeper, engine *shiftengine.Engine, server *httpapi.Server, every, settleAfter time.Duration) {
+	var managedCursor, settlementCursor int64
 	t := time.NewTicker(every)
 	defer t.Stop()
 	// A second, much slower ticker: reconciling every credential against the
@@ -120,6 +120,7 @@ func sweepLoop(ctx context.Context, log *slog.Logger, st *store.Store, sweeper l
 				revokeForgeToken(ctx, log, forgeSweeper, e.ForgeTokenID)
 			}
 			managedCursor = managedBlockSweep(ctx, log, server, managedCursor)
+			settlementCursor = managedSettlementSweep(ctx, log, server, settlementCursor, settleAfter)
 
 			// Delivery ids outlive a forge's retry window by a wide margin;
 			// the table exists to survive a restart, not to be an archive.
@@ -164,6 +165,32 @@ func managedBlockSweep(ctx context.Context, log *slog.Logger, server *httpapi.Se
 		after = account.RunID
 		if err := server.LLMControl.Block(ctx, account.RunToken); err != nil {
 			log.Error("managed key block retry unresolved")
+		}
+		if ctx.Err() != nil {
+			break
+		}
+	}
+	return after
+}
+
+func managedSettlementSweep(ctx context.Context, log *slog.Logger, server *httpapi.Server, after int64, quietFor time.Duration) int64 {
+	if server.LLMControl == nil {
+		return 0
+	}
+	accounts, err := server.Store.UnsettledLLMAccounts(ctx, after, quietFor, 100)
+	if err != nil {
+		log.Error("managed settlement queue unavailable")
+		return after
+	}
+	if len(accounts) == 0 {
+		return 0
+	}
+	for _, account := range accounts {
+		after = account.RunID
+		if err := server.LLMControl.Settle(ctx, account); err != nil {
+			log.Warn("managed settlement unresolved", "alias", account.Alias, "state", account.State, "err", err)
+		} else {
+			log.Info("managed account settled", "alias", account.Alias)
 		}
 		if ctx.Err() != nil {
 			break

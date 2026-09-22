@@ -155,7 +155,7 @@ func TestIngestAssigned_NewItemIsQueued(t *testing.T) {
 // with a fresh attempt budget (VIK-588 — the bug was that `done` items were
 // never revived, so unassign/re-assign in the tracker did nothing).
 func TestIngestAssigned_RevivesFinishedStates(t *testing.T) {
-	for _, prior := range []string{"done", "stale", "needs_human"} {
+	for _, prior := range []string{"done", "stale", "needs_human", "awaiting_review"} {
 		t.Run(prior, func(t *testing.T) {
 			resetTables(t)
 			id, _ := ingestItem(t)

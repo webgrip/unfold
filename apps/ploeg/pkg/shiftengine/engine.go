@@ -67,11 +67,7 @@ func (e *Engine) EnsureShift(ctx context.Context, workItemID int64, item work.Wo
 		return err
 	}
 	if live == nil {
-		// The branch is derived here, once, and carried on the Shift: the
-		// server is the producer, the claim response the carrier. Same string
-		// the worker has always derived, so rollout changes nothing (#107
-		// keeps the vendor token for now).
-		branch := "agent/vik-" + item.ExternalID
+		branch := work.Branch(item)
 		if _, err := e.Store.OpenShift(ctx, workItemID, item.Team, branch, float64(tp.Pool)); err != nil {
 			// Unique-index violation = someone else opened it between our read
 			// and our insert. That is the race behaving correctly; re-read.
@@ -234,16 +230,12 @@ func storeRoles(r plan.Round) []store.Role {
 // thanks to CloseShift's idempotency.
 //
 // Where the item lands depends on whose plan it was. A CONFIGURED plan that
-// runs to completion parks at needs_human: several specialists worked the
-// item, and the last word is "a person is asked to merge"
-// (shift-orchestration spec).
+// completes or is approved with a pull request lands at awaiting_review; any
+// other close parks at needs_human (shift-orchestration spec).
 //
 // A SYNTHESIZED plan — uniform dispatch giving a plan-less team a Shift —
 // takes the outcome-derived state instead, which is exactly what
-// ReportOutcome would have written before Shifts existed. Uniform dispatch
-// has to be a bookkeeping change: flipping every plain team's pr_opened from
-// done to needs_human would silently rewrite what the board means, for teams
-// nobody reconfigured.
+// ReportOutcome writes for the same outcome.
 func (e *Engine) close(ctx context.Context, si store.ShiftInfo, closeReason, humanReason string,
 	synthesized bool, reports []store.RunReport) error {
 	closed, err := e.Store.CloseShift(ctx, si.ID, closeReason)
@@ -256,6 +248,8 @@ func (e *Engine) close(ctx context.Context, si store.ShiftInfo, closeReason, hum
 		if outcome, ok := terminalOutcome(reports); ok {
 			next = work.StateForOutcome(outcome)
 		}
+	} else if readyForReview(closeReason, reports) {
+		next = work.StateAwaitingReview
 	}
 	settled, err := e.Store.SettleItem(ctx, si.WorkItemID, next, humanReason)
 	if err != nil {
@@ -282,6 +276,21 @@ func (e *Engine) close(ctx context.Context, si store.ShiftInfo, closeReason, hum
 		e.notifyTracker(ctx, si, settled, humanReason)
 	}
 	return nil
+}
+
+// readyForReview reports whether a configured plan closed successfully: it
+// ran to completion or its reviewer approved, and a writer opened or updated
+// a pull request.
+func readyForReview(closeReason string, reports []store.RunReport) bool {
+	if closeReason != reasonApproved && closeReason != reasonPlanExhausted {
+		return false
+	}
+	for _, r := range reports {
+		if r.Writes && (r.Outcome == string(work.OutcomePROpened) || r.Outcome == string(work.OutcomePRUpdated)) {
+			return true
+		}
+	}
+	return false
 }
 
 // terminalOutcome is the last Outcome any Run of the Shift reported — what a

@@ -41,7 +41,8 @@
         "infra_llm",
         "agent_error",
         "budget",
-        "lease_lost"
+        "lease_lost",
+        "timeout"
       ]
     },
     "findings": {
