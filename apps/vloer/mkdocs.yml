@@ -24,7 +24,7 @@ nav:
       - Ploeg execution: contracts/ploeg-execution.md
       - Tracker binding: contracts/ploeg-tracker-binding.md
       - Candidate delivery: contracts/candidate-delivery.md
-      - Product language: domain/overview.md
+      - Product language: https://docs.webgrip.dev/glide/domain/overview/
   - Understand:
       - Architecture: architecture.md
       - System landscape: landscape/index.md
