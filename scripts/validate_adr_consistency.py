@@ -18,8 +18,9 @@ Enforced:
 - Every record carries status + date in exactly one format generation:
   MADR 4.0.0 (YAML frontmatter) or MADR 2.x (`* Status:` / `* Date:`
   bullets). Mixing both shapes in one file is an error. Legacy Nygard
-  records (`## Status` heading) are tolerated: status is still checked,
-  section checks are skipped, and the skip is reported.
+  records (`## Status` heading) and inline records (`Date: YYYY-MM-DD.
+  Status: …` directly below the H1) are tolerated: status and date are still
+  checked, section checks are skipped, and the skip is reported.
 - Status is legal: proposed | accepted | rejected | deprecated |
   superseded by ADR-NNNN (the referenced record must exist).
 - One bare-title H1; required MADR sections incl. the history section
@@ -61,6 +62,9 @@ RE_BULLET_STATUS = re.compile(r"^\* Status:\s*(.+?)\s*$", re.MULTILINE)
 RE_BULLET_DATE = re.compile(r"^\* Date:\s*(\d{4}-\d{2}-\d{2})\s*$", re.MULTILINE)
 RE_NYGARD_STATUS = re.compile(r"^## Status\s*\n+([^\n#].*)$", re.MULTILINE)
 RE_NYGARD_DATE = re.compile(r"^Date:\s*(\d{4}-\d{2}-\d{2})\s*$", re.MULTILINE)
+RE_INLINE = re.compile(
+    r"\A# [^\n]+\n+(?:Date:\s*(\d{4}-\d{2}-\d{2})\.\s*)?Status:\s*(.+?)\s*$", re.MULTILINE
+)
 RE_H1 = re.compile(r"^# (.+)$", re.MULTILINE)
 RE_MD_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 RE_CELL_LINK = re.compile(r"\[(?:ADR-)?(\d{4})\]\(([^)]+)\)")
@@ -80,7 +84,8 @@ def strip_links(text: str) -> str:
 
 
 def primary(status: str) -> str:
-    return strip_links(status).strip().lower().split()[0] if status.strip() else ""
+    word = re.match(r"[a-z]+", strip_links(status).strip().lower())
+    return word.group(0) if word else ""
 
 
 def discover_adr_dir(root: Path) -> Path | None:
@@ -163,6 +168,7 @@ def main() -> int:
         b_status = RE_BULLET_STATUS.search(text)
         b_date = RE_BULLET_DATE.search(text)
         n_status = RE_NYGARD_STATUS.search(text)
+        i_status = RE_INLINE.search(text)
 
         if fm_status and b_status:
             err(path.name, "mixes frontmatter status and `* Status:` bullet — pick one format")
@@ -178,6 +184,14 @@ def main() -> int:
             status = n_status.group(1)
             n_date = RE_NYGARD_DATE.search(text)
             date = n_date.group(1) if n_date else None
+            sections = ()
+            legacy += 1
+        elif i_status:
+            status = i_status.group(2)
+            date = i_status.group(1)
+            if date is None:
+                err(path.name, "inline status line has no `Date: YYYY-MM-DD.` prefix")
+                continue
             sections = ()
             legacy += 1
         else:
@@ -213,7 +227,7 @@ def main() -> int:
     if len(prefixes) > 1:
         err(adr_dir.name, "mixed filename styles (both adr-NNNN-*.md and NNNN-*.md) — pick one")
     if legacy:
-        notes.append(f"{legacy} legacy Nygard record(s) — section checks skipped")
+        notes.append(f"{legacy} legacy Nygard or inline record(s) — section checks skipped")
 
     rows = registry_rows(adr_dir, err)
     if rows is None:
