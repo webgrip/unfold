@@ -10,12 +10,12 @@ import (
 )
 
 // maxBriefingBytes caps what earlier Rounds can push into this one's prompt.
-// A verbose reader must not be able to crowd the ticket and the delivery
+// A verbose reader must not be able to crowd the Work Item and the delivery
 // contract out of the writer's context — the briefing is supporting evidence,
 // not the task.
 const maxBriefingBytes = 8000
 
-// ComposePrompt renders the task prompt: the ticket, any briefing from
+// ComposePrompt renders the task prompt: the Work Item, any briefing from
 // earlier Rounds, and the delivery contract (mirrors erfbeeld's agent-run.yml
 // build-mode prompt). The prompt is Ploeg's, not the harness's — every
 // adapter delivers this same contract in its own native format.
@@ -41,9 +41,9 @@ func ComposePrompt(spec harness.TaskSpec, writes bool, priorPR string, onReviewB
 	if spec.Role != "" {
 		fmt.Fprintf(&b, "# Your role: %s\n\n", spec.Role)
 	}
-	fmt.Fprintf(&b, "# Ticket %s: %s\n\n", ref, item.Title)
+	fmt.Fprintf(&b, "# Work Item %s: %s\n\n", ref, item.Title)
 	if item.Description != "" {
-		fmt.Fprintf(&b, "## Ticket description\n\n%s\n\n", item.Description)
+		fmt.Fprintf(&b, "## Work Item description\n\n%s\n\n", item.Description)
 	}
 	writeBriefing(&b, spec.Briefing)
 
@@ -59,8 +59,8 @@ func ComposePrompt(spec harness.TaskSpec, writes bool, priorPR string, onReviewB
 			fmt.Fprintf(&b, `## Delivery contract (review only)
 
 - The repository checkout is your working directory, on the base branch %[1]s.
-  No work has been written for this ticket yet — you are running BEFORE the
-  author, so review the ticket against the existing code, not a diff.
+  No work has been written for this Work Item yet — you are running BEFORE the
+  author, so review the Work Item against the existing code, not a diff.
 `, base)
 		}
 		fmt.Fprintf(&b, `- Do NOT modify, commit or push anything. Your clone's origin has no
@@ -118,7 +118,7 @@ func ComposePrompt(spec harness.TaskSpec, writes bool, priorPR string, onReviewB
 		b.WriteString(openChangeRequestInstruction(spec.Repo, base, ref))
 	}
 	fmt.Fprintf(&b, `- Do NOT merge the %[1]s. A human merges.
-- If the ticket cannot be completed, explain why on stderr and exit non-zero.
+- If the Work Item cannot be completed, explain why on stderr and exit non-zero.
 `, noun)
 	writeWriterRepositoryInstructions(&b, noun)
 	return b.String()

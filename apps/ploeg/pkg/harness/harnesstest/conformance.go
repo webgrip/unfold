@@ -77,7 +77,7 @@ func env(t *testing.T) harness.RunEnv {
 	return harness.RunEnv{
 		RepoDir:    t.TempDir(),
 		ScratchDir: t.TempDir(),
-		Prompt:     "# Ticket VIK-1: conformance\n\ndo the thing\n",
+		Prompt:     "# Work Item VIK-1: conformance\n\ndo the thing\n",
 		BaseEnv:    os.Environ(),
 		LLM:        harness.LLMEnv{APIKey: "sk-test", BaseURL: "http://litellm:4000/v1", Model: "test-model", TraceID: "ploeg-abc123def456"},
 		Log:        slog.New(slog.DiscardHandler),

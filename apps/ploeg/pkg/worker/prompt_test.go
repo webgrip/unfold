@@ -138,7 +138,7 @@ func TestComposePrompt_RolelessHasNoRoleHeader(t *testing.T) {
 	if strings.Contains(task, "# Your role:") {
 		t.Errorf("role-less prompt grew a role header:\n%s", task)
 	}
-	if !strings.HasPrefix(task, "# Ticket VIK-") {
+	if !strings.HasPrefix(task, "# Work Item VIK-") {
 		t.Errorf("role-less prompt no longer starts with the ticket:\n%s", task)
 	}
 }
@@ -173,7 +173,7 @@ func TestComposePrompt_ReaderBeforeTheWriterIsToldThereIsNoDiff(t *testing.T) {
 	if strings.Contains(task, "standing on branch") {
 		t.Errorf("recon reader told it is standing on a branch that does not exist:\n%s", task)
 	}
-	for _, want := range []string{"No work has been written for this ticket yet", "not a diff"} {
+	for _, want := range []string{"No work has been written for this Work Item yet", "not a diff"} {
 		if !strings.Contains(task, want) {
 			t.Errorf("missing %q:\n%s", want, task)
 		}
@@ -277,7 +277,7 @@ func TestComposePrompt_ReaderBeforeTheWriterHasNoDiffClause(t *testing.T) {
 
 func TestComposePrompt_TrackerReferenceFollowsTheProvider(t *testing.T) {
 	vikunja := ComposePrompt(roleSpec("builder", nil), true, "", true)
-	for _, want := range []string{"# Ticket VIK-585: ", "trailers:\n  VIK-585\n", `Put "VIK-585" in the PR body`} {
+	for _, want := range []string{"# Work Item VIK-585: ", "trailers:\n  VIK-585\n", `Put "VIK-585" in the PR body`} {
 		if !strings.Contains(vikunja, want) {
 			t.Errorf("vikunja prompt missing %q:\n%s", want, vikunja)
 		}
@@ -287,7 +287,7 @@ func TestComposePrompt_TrackerReferenceFollowsTheProvider(t *testing.T) {
 	spec.WorkItem.Provider = "clickup"
 	spec.WorkItem.ExternalID = "86c0abc12"
 	clickup := ComposePrompt(spec, true, "", true)
-	for _, want := range []string{"# Ticket clickup-86c0abc12: ", "trailers:\n  clickup-86c0abc12\n", `Put "clickup-86c0abc12" in the PR body`} {
+	for _, want := range []string{"# Work Item clickup-86c0abc12: ", "trailers:\n  clickup-86c0abc12\n", `Put "clickup-86c0abc12" in the PR body`} {
 		if !strings.Contains(clickup, want) {
 			t.Errorf("clickup prompt missing %q:\n%s", want, clickup)
 		}
