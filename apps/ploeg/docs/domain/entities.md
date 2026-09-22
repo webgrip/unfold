@@ -26,6 +26,7 @@ A consumer-owned session binding and serialized execution lifecycle.
 stateDiagram-v2
     [*] --> admitted : Scoped idempotent admission
     admitted --> running : Explicit start before expiry
+    admitted --> cancelled : Human cancels before start
     running --> waiting_input : Runtime requests human input
     waiting_input --> running : Authenticated answer accepted
     running --> pause_requested : Human requests pause

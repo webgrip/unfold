@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -295,5 +296,55 @@ func TestOperatorExecutionCompletionRetainsBoundedEvidenceSummary(t *testing.T) 
 	}
 	if summary != evidence[:4096] {
 		t.Fatalf("evidence summary was discarded or unbounded: length%d", len(summary))
+	}
+}
+
+func TestOperatorExpirySweepCancelsAdmissionsThatNeverStarted(t *testing.T) {
+	resetTables(t)
+	ctx := context.Background()
+	lost := admitOperatorFixture(t, "lost-admit-response")
+	fresh := admitOperatorFixture(t, "fresh-admission")
+	if err := testStore.ReserveLLMAccount(ctx, LLMAccount{RunToken: lost.RunToken, Alias: "ploeg-" + lost.RunToken[:12], Authorized: 2, Models: []string{"model"}, TTLSeconds: 60}); err != nil {
+		t.Fatal(err)
+	}
+	shiftID, _ := strconv.ParseInt(lost.ShiftID, 10, 64)
+	if l, err := testStore.Ledger(ctx, shiftID); err != nil || l.Reserved != 2 {
+		t.Fatalf("admission hold: %+v %v", l, err)
+	}
+	if _, err := testStore.pool.Exec(ctx, `UPDATE operator_executions SET expires_at=now()-interval '1 second' WHERE id=$1`, lost.ID); err != nil {
+		t.Fatal(err)
+	}
+	expired, err := testStore.ExpireOperatorExecutions(ctx)
+	if err != nil || len(expired) != 1 || expired[0].ID != lost.ID || expired[0].State != "cancelled" || !expired[0].StopConfirmed || expired[0].Revision != lost.Revision+1 {
+		t.Fatalf("unstarted admission survived expiry: %+v %v", expired, err)
+	}
+	var runState, itemState string
+	var leases int
+	var closed bool
+	if err := testStore.pool.QueryRow(ctx, `SELECT r.state,w.state,(SELECT count(*) FROM leases WHERE work_item_id=w.id),(SELECT closed_at IS NOT NULL FROM shifts WHERE id=r.shift_id)
+		FROM agent_runs r JOIN work_items w ON w.id=r.work_item_id WHERE r.run_token=$1`, lost.RunToken).Scan(&runState, &itemState, &leases, &closed); err != nil {
+		t.Fatal(err)
+	}
+	if runState != "finished" || itemState != "done" || leases != 0 || !closed {
+		t.Fatalf("expired admission kept authority: run=%s item=%s leases=%d closed=%t", runState, itemState, leases, closed)
+	}
+	if _, err := testStore.CommandOperatorExecution(ctx, lost.ID, "workbench", "alice", OperatorExecutionCommand{ID: "late-start", Action: "start", ExpectedRevision: expired[0].Revision, Generation: expired[0].Generation}, time.Minute); !errors.Is(err, ErrExecutionConflict) {
+		t.Fatalf("cancelled admission started: %v", err)
+	}
+	if _, err := testStore.BeginOperatorLLMMint(ctx, lost.RunToken, lost.ID, lost.Generation); !errors.Is(err, ErrLLMAccountState) {
+		t.Fatalf("cancelled admission began a mint: %v", err)
+	}
+	if err := testStore.ReconcileLLMAccount(ctx, lost.RunToken, 0, "mint never began"); err != nil {
+		t.Fatal(err)
+	}
+	if l, err := testStore.Ledger(ctx, shiftID); err != nil || l.Reserved != 0 || l.Spent != 0 {
+		t.Fatalf("expired admission retained its hold: %+v %v", l, err)
+	}
+	if again, err := testStore.ExpireOperatorExecutions(ctx); err != nil || len(again) != 0 {
+		t.Fatalf("repeat expiry revisited a cancelled admission: %+v %v", again, err)
+	}
+	current, err := testStore.OperatorExecution(ctx, fresh.ID, "workbench", "alice")
+	if err != nil || current.State != "admitted" || current.Revision != fresh.Revision {
+		t.Fatalf("live admission was swept: %+v %v", current, err)
 	}
 }

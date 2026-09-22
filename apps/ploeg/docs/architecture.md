@@ -37,7 +37,7 @@ A delegated operator Run executes through Vloer's workspace backend, which can b
 
 [Store transactions](../pkg/store/) and [worker authorization](../pkg/httpapi/worker_auth.go) govern claims and renewal. Lease expiry is detected by controller recovery, so safety cannot depend on a dying agent performing cleanup. Unattended retry behavior follows the configured execution policy.
 
-Operator commands carry identity, revision and generation. Accepted command replays return the recorded result. Operator expiry interrupts work; cancellation intent and unresolved spending survive it. A restart must not silently repeat paid work. Pause, cancel, resume and a new execution are distinct operations. See [operator contracts](contracts/README.md) and [recovery procedures](ops/managed-workers.md).
+Operator commands carry identity, revision and generation. Accepted command replays return the recorded result. Operator expiry interrupts work; cancellation intent and unresolved spending survive it. An admission that is never started, for example because its response was lost, is cancelled by the same sweep once it expires: its Run, Lease and Shift close, and its untouched Inference Account is blocked from minting. A restart must not silently repeat paid work. Pause, cancel, resume and a new execution are distinct operations. See [operator contracts](contracts/README.md) and [recovery procedures](ops/managed-workers.md).
 
 ## 5. Credentials and accounting
 

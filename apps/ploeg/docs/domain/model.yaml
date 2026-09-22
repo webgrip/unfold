@@ -392,6 +392,7 @@ entities:
     states:
       - {from: '[start]', to: admitted, trigger: Scoped idempotent admission}
       - {from: admitted, to: running, trigger: Explicit start before expiry}
+      - {from: admitted, to: cancelled, trigger: Human cancels before start, or the admission expires unstarted}
       - {from: running, to: waiting_input, trigger: Runtime requests human input}
       - {from: waiting_input, to: running, trigger: Authenticated answer accepted}
       - {from: running, to: pause_requested, trigger: Human requests pause}
