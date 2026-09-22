@@ -106,7 +106,7 @@ spec:
             - name: PLOEG_DEFAULT_TEAM
               value: "default"
             - name: PLOEG_LEASE_TTL
-              value: "15m"
+              value: "5m"
             - name: PLOEG_SWEEP_INTERVAL
               value: "15s"
             - name: PLOEG_TEAM_MAP

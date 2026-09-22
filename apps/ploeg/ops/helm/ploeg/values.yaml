@@ -14,7 +14,7 @@ operator:
 env:
   PLOEG_DEFAULT_TEAM: default
   PLOEG_TEAM_MAP: ""
-  PLOEG_LEASE_TTL: 15m
+  PLOEG_LEASE_TTL: 5m
   PLOEG_SWEEP_INTERVAL: 15s
 
 database:
