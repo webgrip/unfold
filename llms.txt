@@ -1,17 +1,33 @@
 # Glide
 
-> Vloer and Ploeg share a repository and documentation. Vloer supports standalone work; Ploeg owns authority for explicitly admitted work.
+> Glide turns tracker tickets into pull requests written by AI agents. Ploeg authorizes, budgets and runs every agent Run; Vloer is its front end. Internal, self-hosted, pre-1.0.
 
-## Current reading path
+Use Ploeg's terms: a Run is one Role executing against a Work Item, a Shift is the whole attempt, and a Lease is the right to write the Shift's branch. Code and executable tests describe the implementation; research and ADR pages are records.
 
-- [Start here](docs/index.md): application boundaries and reading paths.
-- [Product model](docs/domain/model.yaml): shared language, intentions and open choices.
-- [System explanation](docs/landscape/index.md): responsibilities and current limits.
-- [Vloer architecture](apps/vloer/docs/architecture.md): interactive session implementation.
-- [Ploeg architecture](apps/ploeg/docs/architecture.md): managed execution implementation.
-- [Vloer contracts](apps/vloer/docs/contracts/api.md): workbench HTTP interface.
-- [Ploeg contracts](apps/ploeg/docs/contracts/README.md): producing schemas and worker control.
-- [Managed workflow](docs/workflows/managed-execution.md): integration and recovery.
-- [First cutover](docs/operations/first-cutover.md): preparation gates, release preview, artifact verification, live pilot and rollback.
-- [CI and releases](docs/operations/ci.md): event entry points, shared checks, separate application versions and publication guards.
-- [Documentation policy](docs/documentation.md): sources, generation and review.
+## Start
+
+- [Start page](docs/index.md): what Glide is and where to go next
+- [Repository instructions](AGENTS.md): rules for changing Glide
+- [How work flows](docs/concepts/how-work-flows.md): one ticket from assignment to pull request
+- [Architecture](docs/concepts/architecture.md): goals, context, containers and key decisions
+
+## Reference
+
+- [Glossary](docs/reference/glossary.md): one definition per term across both applications
+- [Decisions](docs/reference/decisions.md): every ADR across the three ledgers, with status
+- [Ploeg contracts](apps/ploeg/docs/contracts/README.md): published schemas and worker control
+- [Vloer HTTP API](apps/vloer/docs/contracts/api.md): front-end interface
+
+## How-to
+
+- [Assign work to an agent](docs/how-to/assign-work-to-an-agent.md)
+- [Review an agent pull request](docs/how-to/review-an-agent-pr.md)
+- [Prepare a repository](docs/how-to/prepare-a-repository.md)
+- [Run the local demo](docs/workflows/local-demo.md): deterministic, no model calls
+
+## Optional
+
+- [Ploeg architecture](apps/ploeg/docs/architecture.md): implementation detail
+- [Vloer architecture](apps/vloer/docs/architecture.md): implementation detail
+- [CI and releases](docs/operations/ci.md)
+- [Documentation policy](docs/documentation.md)

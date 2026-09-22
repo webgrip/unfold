@@ -1,5 +1,5 @@
 site_name: Glide
-site_description: Vloer and Ploeg, independently usable and developed together
+site_description: Tracker tickets become review-ready pull requests written by AI agents
 site_url: https://docs.webgrip.dev/glide/
 repo_url: https://forgejo.webgrip.dev/webgrip/glide
 edit_uri: ''
@@ -11,27 +11,31 @@ plugins:
 nav:
   - Start here: index.md
   - Try it:
-      - Vloer without Ploeg: vloer/operations/demo.md
-      - Both applications: workflows/local-demo.md
+      - Both applications (demo): workflows/local-demo.md
+      - Vloer alone (demo): vloer/operations/demo.md
   - Understand:
-      - System: landscape/index.md
-      - Responsibilities: landscape/components.md
-      - Diagrams: landscape/c4.md
+      - How work flows: concepts/how-work-flows.md
+      - Architecture: concepts/architecture.md
+  - How-to:
+      - Assign work to an agent: how-to/assign-work-to-an-agent.md
+      - Review an agent pull request: how-to/review-an-agent-pr.md
+      - Prepare a repository: how-to/prepare-a-repository.md
+      - Operate Ploeg: ploeg/index.md
+      - Operate Vloer: vloer/index.md
+      - Set up shared execution: workflows/managed-execution.md
+      - Release and live test: operations/first-cutover.md
+  - Reference:
+      - Glossary: reference/glossary.md
+      - Decisions: reference/decisions.md
       - Product language: domain/overview.md
-      - Open choices: landscape/questions.md
-  - Operate:
-      - First release and live test: operations/first-cutover.md
-      - Vloer: vloer/index.md
-      - Ploeg: ploeg/index.md
-      - Managed execution: workflows/managed-execution.md
-  - Maintain:
+      - Open questions: landscape/questions.md
+  - Contribute:
+      - Documentation policy: documentation.md
+      - Documentation publishing: operations/docs-publishing.md
       - CI and releases: operations/ci.md
       - Source and artifacts: operations/artifacts.md
-      - Documentation publishing: operations/docs-publishing.md
-      - Documentation: documentation.md
       - Migration: migration.md
       - System decisions: adr/index.md
-      - Execution comparison: research/2026-09-12-execution-boundary.md
 
 validation:
   links:

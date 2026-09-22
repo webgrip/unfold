@@ -1,45 +1,90 @@
-# Maintain useful documentation
+---
+type: reference
+audience: [contributor, agent]
+owner: glide
+last_verified: 2026-09-22
+verified_by: "mise run docs-check"
+---
 
-A page earns its place by answering a reader's question or preserving evidence needed to understand a decision. Before adding one, identify the audience, the question, the source of its claims and the event that should trigger another review.
+# Documentation policy
+
+A page earns its place by answering one reader's question, or by preserving evidence that a decision depends on. These rules keep Glide's documentation small, true and easy to navigate.
+
+## Every page has one type
+
+| Type | Answers | Example |
+| --- | --- | --- |
+| `landing` | What is this, is it for me, where next? | [Start page](index.md) |
+| `tutorial` | Show me it working, safely | [Local demo](workflows/local-demo.md) |
+| `how-to` | How do I reach a goal I already have? | [Assign work to an agent](how-to/assign-work-to-an-agent.md) |
+| `explanation` | How does it work and why? | [How work flows](concepts/how-work-flows.md) |
+| `reference` | What exactly is X? | [Glossary](reference/glossary.md) |
+| `adr` | What did we decide and why? | [System decisions](adr/index.md) |
+| `record` | What did we observe or research on a date? | [22 September inventory](research/2026-09-22-glide-inventory.md) |
+
+A page that needs two types becomes two pages. Current pages (every type except `adr` and `record`) start with front matter:
+
+```yaml
+---
+type: how-to
+audience: [owner, operator]
+owner: glide        # glide, ploeg or vloer
+last_verified: 2026-09-22
+verified_by: "the command, test or source read that confirmed it"
+---
+```
+
+## One answer per question
+
+* **The start page and README** open with the problem and the outcome: work items become review-ready pull requests. `llms.txt` repeats that sentence.
+* **System explanation** lives only in `docs/concepts/`. An application's `architecture.md` explains its implementation and links up. When you find a second explanation, merge it and replace it with a link.
+* **Terms** have one definition. Vloer uses Ploeg's execution terms ([ADR-0002](adr/adr-0002-ploeg-is-the-only-engine.md)). The [combined glossary](reference/glossary.md) is generated from the [product model](domain/model.yaml) and [Ploeg's model](../apps/ploeg/docs/domain/model.yaml). A second meaning is recorded as "not to be confused with", never as a second definition.
+* **A current rule** appears in a current page, which links the ADR that explains it. An ADR is never the only place a rule lives.
 
 ## Choose the source
 
-| Information | Maintained source | Derived or explanatory view |
+| Information | Maintained source | Derived view |
 | --- | --- | --- |
-| Implemented behavior | Code, executable checks and published contracts | Architecture and operating guides with source links |
-| Wire format | The publishing service's schema and types | Consumer integration guide and examples |
-| Shared product language and open choices | [Product domain YAML](domain/model.yaml) | Generated glossary and rules |
-| Ploeg's execution vocabulary | [Ploeg domain YAML](../apps/ploeg/docs/domain/model.yaml) | Its generated glossary, rules and entities |
-| Architectural decision | Each project's ADR ledger | Links from architecture and research |
-| Research and qualification | Dated evidence with method, sources and limitations | A short finding linked from a current guide |
-| Priority | External tracker | Repository planning data, explicitly a snapshot |
+| Implemented behavior | Code, executable checks and published contracts | Concept and how-to pages that link the source |
+| Wire format | The publishing service's schema and types | Consumer guide and examples |
+| Product language and open choices | [Product model](domain/model.yaml) | Generated glossary and rules |
+| Ploeg's execution language | [Ploeg model](../apps/ploeg/docs/domain/model.yaml) | Its generated pages and the combined glossary |
+| Architectural decision | The ADR ledger of its scope: [system](adr/index.md), [Ploeg](../apps/ploeg/docs/adrs/README.md) or [Vloer](../apps/vloer/docs/adrs/README.md) | The generated [decision register](reference/decisions.md) |
+| Research and qualification | A dated record with method, sources and limitations | A short finding linked from a current page |
+| Priority | The tracker | None in the repository |
 
-The product model and Ploeg model have different scopes. Qualify cross-project rule references as “Product R8” or “Ploeg R18”; matching numbers do not mean matching rules. If a shared wire contract changes, edit the publishing source and verify its consumers. Do not maintain two independent schemas for the same interface.
+Qualify cross-project rule references as "Product R8" or "Ploeg R18". If a shared wire contract changes, edit the publishing source and verify its consumers.
 
-## Keep one readable body
+## Decisions
 
-Markdown is the human and agent-readable prose. Publish it through Zensical or the [interactive landscape](landscape/explorer.html) when that helps a person read it. Use schemas and structured models for data that software validates. Keep [llms.txt](../llms.txt) a small discovery index; it is not an alternative specification or a correctness guarantee.
+Use MADR 4.0 in each ledger. A `proposed` ADR is a question, not a decision. Accept, reject or supersede it within 30 days, or record why it is still open. When an ADR changes a rule, update the current page that states the rule in the same change.
 
-Edit [the domain YAML](domain/model.yaml) and regenerate its pages with `mise exec -- uv run python scripts/generate-domain.py docs/domain/model.yaml --out docs/domain`. Edit landscape Markdown and run `mise exec -- node apps/vloer/scripts/build-landscape.mjs`. The [design chapter guide](../apps/vloer/docs/PRODUCT-DESIGN.md) is generated by `mise exec -- npm --prefix apps/vloer run design:build`; it links the source chapters instead of repeating them.
+## Records and history
 
-## Review in passes
+Research, evidence, superseded explanations, design baselines, planning exports and OpenSpec changes are records.
 
-1. **Inventory:** enumerate tracked documentation, generated outputs and legal sources. Identify the audience and scope. Find exact copies, overlapping answers, orphan pages and broken pointers.
-2. **Check claims:** compare current guidance with code, contracts and tests. Treat dates and version numbers as clues, not proof of staleness. Preserve uncertainty when a live service or product decision was not checked.
-3. **Consolidate:** choose one source for each answer. Correct useful pages, merge duplicates, and retire obsolete instructions with a link to the replacement and prior revision. Preserve full research evidence and accepted ADR history.
-4. **Edit:** lead with the answer, use concrete verbs, label examples and shorten paragraphs that mix separate tasks. Preserve identifiers, conditions and qualifications. Style scanners suggest review; they do not decide technical wording.
-5. **Verify:** regenerate derived views, check local paths and anchors, run the relevant repository gates, and open changed rendered pages. Record what failed or was not exercised.
+* A record keeps its path and content. It is dated, and only a superseded-by link may be added.
+* The docs build marks records as "not current guidance" and removes them from search and navigation. Explicit links still reach them.
+* Before retiring a record, move any still-true fact into a current page and link the record as evidence.
+* Keep records out of agents' default context: `llms.txt` never links them, and `AGENTS.md` links only decisions that bind.
 
-For each current claim ask: what would make this sentence false, and what check would notice? A renamed setting should change its reference and setup guide in the same change. A new deployment observation belongs in a dated record. A past green test does not make an external integration permanently qualified.
+## Writing
 
-## Keep the reading path small
+* Lead with the answer. One paragraph, one topic.
+* Use active voice, second person and present tense.
+* Put the condition before the instruction: "To stop a Shift, …".
+* Use numbered steps for sequences and bullets for sets. Start task headings with a verb.
+* Explain jargon on first use and link the glossary.
+* Label unimplemented behavior "Not implemented yet". Never describe a plan as current.
+* A deterministic demo says so, and never invents model calls or spend.
 
-Start from [the documentation index](index.md). Link proposals and historical evidence where they help answer the current question. Do not copy the full archive into an agent's default context. The [TechDocs build hook](../scripts/docs.py) resolves repository source links for the website and omits research, design baselines, ADR pages and the retired implementation guide from MkDocs, Zensical and Pagefind search. The historical Ploeg backlog is excluded too. These pages remain accessible through explicit links. This filter does not control external crawlers or Backstage-wide search ingestion; those need separate configuration and verification. The [publishing guide](operations/docs-publishing.md) explains the generated Markdown, curated reading bundle and recovery procedure.
+## Generate and check
 
-The [12 September audit](../apps/vloer/docs/research/2026-09-12-documentation-audit.md) and [follow-up pass](../apps/vloer/docs/research/2026-09-12-documentation-second-pass.md) are records of coverage and dispositions. They are not additional sources of current product truth.
+| Command | Effect |
+| --- | --- |
+| `mise exec -- uv run python scripts/generate-domain.py docs/domain/model.yaml --out docs/domain` | Regenerates the product domain pages |
+| `mise exec -- node apps/vloer/scripts/build-landscape.mjs` | Rebuilds the historical landscape explorer |
+| `mise run docs-check` | Checks generated pages, links, anchors, orphans, ADR ledgers and the strict TechDocs build |
+| `mise run docs-site-check` | Builds the Zensical site in the CI image and scans it |
 
-## In Glide
-
-Keep system explanation, shared product language and cross-project workflows in the root documentation. Keep service configuration, operations and implementation details beside each application. Keep each published contract with its producer and link it from the consumer. Extract common runner code only after its behavior and authority are agreed.
-
-The [transition plan](migration-proposal.md) retains the reviewed proposal. The [migration record](migration.md) records the Glide import and remaining distribution steps.
+[Publishing and recovery](operations/docs-publishing.md) explains how `development` reaches the published site. For each current claim, ask what would make it false and which check would notice.

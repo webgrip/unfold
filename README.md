@@ -1,27 +1,27 @@
 # Glide
 
-Vloer and Ploeg, developed together and deployed independently.
+Glide turns tracker tickets into pull requests written by AI agents. You create a work item and assign it to an agent team. Glide runs the agents with a budget and a credential that expires, until a pull request is ready for your review.
 
-[Vloer](apps/vloer/README.md) is the human workbench for AI sessions, intervention and review. [Ploeg](apps/ploeg/README.md) authorizes and coordinates managed work. Vloer can run locally without Ploeg; managed executions retain Ploeg authority throughout their lifecycle.
+[Ploeg](apps/ploeg/README.md) authorizes, budgets and runs every agent Run. [Vloer](apps/vloer/README.md) is its front end. Both live here and deploy separately. Glide is an internal, pre-1.0 tool that is self-hosted on Kubernetes.
 
 ```sh
 mise trust
 mise install
 mise run setup
 mise run verify
-mise run demo
+mise run demo-unified   # Ploeg, Vloer and PostgreSQL; deterministic, no model calls
 ```
 
-`mise run demo` starts a deterministic Vloer fixture without Ploeg or model charges. `mise run demo-unified` runs both applications with PostgreSQL; see its [prerequisites](docs/workflows/local-demo.md). Use the [published documentation](https://docs.webgrip.dev/glide/) for live setup and contracts, or read the [Markdown index](docs/index.md) in the repository. Agents can start from [llms.txt](https://docs.webgrip.dev/glide/llms.txt).
+`mise run demo` starts Vloer's deterministic fixture alone. `mise run integration` exercises the managed path without paid providers.
+
+Read the [published documentation](https://docs.webgrip.dev/glide/) or start at [docs/index.md](docs/index.md). Agents start from [AGENTS.md](AGENTS.md) and [llms.txt](llms.txt).
 
 | Location | Contents |
 | --- | --- |
-| [apps/vloer](apps/vloer/) | TypeScript workbench, VS Code extension, service contracts and deployment |
-| [apps/ploeg](apps/ploeg/) | Go controller and worker, published schemas and deployment |
-| [docs](docs/index.md) | Shared product language, system explanation and cross-application workflows |
+| [apps/ploeg](apps/ploeg/) | Go controller and worker, schemas, Helm chart |
+| [apps/vloer](apps/vloer/) | TypeScript front end, VS Code extension, Helm chart |
+| [docs](docs/index.md) | System explanation, how-to guides, glossary, decisions |
 
-`mise run integration` qualifies both execution modes without paid providers. `mise run docs-check` checks generated domain pages and builds TechDocs strictly; `mise run docs-build` writes the TechDocs site to `.build/site`. `mise run docs-site-check` builds and scans the Zensical publication using the pinned CI image; see [publishing and recovery](docs/operations/docs-publishing.md). Both app gates also run in the [root CI workflow](.forgejo/workflows/on_source_change.yml).
+The import preserved both application histories and 70 namespaced tags. Package, Go module, image and chart names are unchanged. The [migration record](docs/migration.md) tracks the release cutover.
 
-The import preserves both histories and 70 namespaced tags. Existing packages, Go module, images and charts retain their names. [The migration record](docs/migration.md) distinguishes local qualification from remote publication and production cutover.
-
-Code is [Apache-2.0](LICENSE). Original notices and bundled third-party licenses remain with each application. The [Vloer](apps/vloer/docs/brand/TRADEMARK.md) and [Ploeg](apps/ploeg/docs/brand/TRADEMARK.md) mark policies remain applicable.
+Code is [Apache-2.0](LICENSE). Original notices and bundled third-party licenses remain with each application. The [Vloer](apps/vloer/docs/brand/TRADEMARK.md) and [Ploeg](apps/ploeg/docs/brand/TRADEMARK.md) mark policies apply.
