@@ -8,7 +8,7 @@ Read [validation](../validation.md) for the actual qualification level. The loca
 
 For Ploeg-authorized execution, start with [the unified guide](unified-baseline.md). The management-key setup below applies to standalone Vloer. Shared execution keeps that authority in Ploeg.
 
-Prepare Node 24, Git and the OpenCode version pinned in [the agent image](../../ops/agent/Dockerfile). Register a repository the execution environment can clone. For the first qualification use a disposable public test repository; private forge credential provisioning is a separate deployment concern and must not inherit an operator's workstation login.
+Prepare Node 24, Git and the OpenCode version pinned in [the agent image](../../ops/agent/Dockerfile). The mise `live` and `probe-opencode` tasks install that version on demand; other mise commands do not. Register a repository the execution environment can clone. For the first qualification use a disposable public test repository; private forge credential provisioning is a separate deployment concern and must not inherit an operator's workstation login.
 
 Prepare a LiteLLM proxy with virtual-key management enabled and a working model alias such as `coding`. The gateway must support the model's required tool calls. De Vloer uses the inference URL and a separately configurable management URL. Confirm model access and spend tracking in the gateway before supervising a paid session. The [LiteLLM virtual-key guide](https://docs.litellm.ai/docs/proxy/virtual_keys) documents the gateway prerequisites.
 
@@ -61,7 +61,7 @@ Supply credentials through the deployment's secret mechanism or a short-lived sh
 Then start and sign in:
 
 ```sh
-npm start -- --config config/live.local.json
+mise run live --config config/live.local.json
 ```
 
 Select the registered repository and delivery crew, authorize a small budget and start one session. Inspect actual tool activity, changes, verification output and the explicit review verdict. Exercise a human permission response when one occurs. Reload the browser to verify continuity. At completion verify the final spend state and gateway key revocation; `unknown` is a blocker to investigate, not zero cost. The default 60-second settlement delay is a configurable grace period for gateway reporting, not a guarantee that delayed upstream charges can never arrive. Qualify it against the gateway’s spend update interval; budget enforcement has the gateway’s concurrency and in-flight request limits.

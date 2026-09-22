@@ -12,9 +12,10 @@ Research date: 2026-09-09. OpenCode's tagged generated API types and server hand
 
 The normal tests exercise a fake OpenCode server contract and real child processes implementing the command protocol. An additional probe executed the actual `opencode-ai@1.18.30` binary on 2026-09-09 through the real local workspace manager. It validated authenticated health, rejection of unauthenticated requests, managed configuration parsing and environment substitution, registration of the custom LiteLLM model alias, adapter-created native sessions with reviewer permissions, SSE connection, all reconciliation endpoints, abort and deletion. The probe observed zero requests at its loopback inference sink. It intercepted `prompt_async` before transmission; paid prompt processing and model execution were not exercised.
 
-Reproduce this no-inference probe with a preinstalled pinned binary:
+Reproduce this no-inference probe with the pinned binary, or pass a preinstalled binary's path to the script:
 
 ```sh
+mise run probe-opencode
 node scripts/probe-opencode.mjs /absolute/path/to/opencode
 ```
 
