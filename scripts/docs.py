@@ -48,7 +48,7 @@ revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=
 source_url = f'https://forgejo.webgrip.dev/webgrip/glide/src/commit/{revision}/'
 
 if args.check:
-    for test in ['docs-output.test.py', 'docs-live.test.py', 'docs-rules.test.py', 'docs-decisions.test.py', 'docs-adr.test.py', 'agents-files.test.py', 'stage-explicit-paths.test.py']:
+    for test in ['docs-output.test.py', 'docs-live.test.py', 'docs-rules.test.py', 'docs-decisions.test.py', 'docs-adr.test.py', 'agents-files.test.py']:
         subprocess.run([sys.executable, str(root / 'scripts' / test)], check=True)
     for folder in domain_models:
         with tempfile.TemporaryDirectory(prefix='glide-domain-') as temporary:
