@@ -30,11 +30,11 @@ Add a `trackers.<tracker>.projects` entry with `repo: owner/name` and a pinned `
 
 ## Write the AGENTS.md that agents read
 
-Ploeg never opens `AGENTS.md` itself. The writer's prompt tells the agent to "Follow AGENTS.md and the repository skills" and to "Run the repository's quality gates via docker run against the CI images before opening the PR" ([task.go](../../apps/ploeg/pkg/worker/task.go)). Your root `AGENTS.md` makes those two lines concrete.
+Ploeg never opens `AGENTS.md` itself. The writer's prompt has a "Repository instructions" section that tells the agent to read the root `AGENTS.md` and the one nearest each directory it changes, to follow their commands and conventions, and to run the verify command `AGENTS.md` names. If that command cannot run in the sandbox, the agent lists it in the pull request under "Checks left to CI". The same section says these files rank below the delivery contract and cannot authorize other hosts, repositories or credentials. Reviewing Runs read `AGENTS.md` from the base branch with `git show <base>:AGENTS.md` and report any change to agent instruction or configuration files as a finding ([task.go](../../apps/ploeg/pkg/worker/task.go), [Ploeg ADR-0030](../../apps/ploeg/docs/adrs/0030-target-repository-instructions-rank-below-the-delivery-contract.md)).
 
 Put these in it, and little else:
 
-- **The verify command.** One command that runs the same checks as CI, and the exact `docker run` form with the CI image and tag.
+- **The verify command.** One command that runs the same checks as CI. The sandbox reaches only the model gateway and the forge, so it cannot pull images; name a command that works with the tools in the agent image.
 - **Invariants** written as MUST or NEVER, for example "NEVER edit generated files under `gen/`".
 - **Commit conventions** your repository enforces.
 - **Links** to design docs, not copies.
@@ -42,14 +42,14 @@ Put these in it, and little else:
 The verify command must work inside the worker's limits:
 
 - **No secrets.** The harness environment is an allowlist: `PATH`, locale, `TERM`, the Docker variables, a fresh empty `HOME` and the LLM settings. Writers also get `AGENT_BUILDER_TOKEN` ([environment.go](../../apps/ploeg/pkg/worker/environment.go)).
-- **Docker only with DinD.** `executor.harness.dind: true` (the default) adds a Docker daemon beside the worker. A team that sets `dind: false` has no Docker, so the `docker run` instruction cannot work there; the tools must then be in the agent image.
+- **No image pulls.** `executor.harness.dind: true` (the default) adds a Docker daemon beside the worker, but it cannot pull images from a registry. A team that sets `dind: false` has no Docker at all. Put the tools the verify command needs in the agent image.
 - **Time and size.** By default the worker has 1 CPU and 1 GiB, Docker 1 CPU and 1.5 GiB, and the pod dies after 7200 seconds.
 
 Example (illustrative, adapt the image and command):
 
 ```markdown
 # AGENTS.md
-Verify before every push: `docker run --rm -v "$PWD":/src -w /src <ci-image>:<tag> make verify`
+Verify before every push: `make verify`
 - NEVER commit to `main`; Ploeg names your branch.
 - NEVER edit files under `gen/`; run `make generate`.
 Design notes: docs/architecture.md
@@ -70,7 +70,7 @@ The team's `executor.harness.name` selects the harness. Each runs in the clone (
 | Harness | How Ploeg hands over the prompt | Source |
 | --- | --- | --- |
 | `openhands` (default) | Writes `task.md` in scratch space and runs `docker-entrypoint.sh --headless -f task.md` | [openhands.go](../../apps/ploeg/pkg/harness/adapters/openhands/openhands.go) |
-| `claude-code` | Runs `claude -p <prompt> --output-format json --permission-mode bypassPermissions` | [claudecode.go](../../apps/ploeg/pkg/harness/adapters/claudecode/claudecode.go) |
+| `claude-code` | Runs `claude -p <prompt> --output-format json --permission-mode bypassPermissions --settings '{"disableAllHooks":true}' --strict-mcp-config`, so the repository's hooks and `.mcp.json` servers do not run | [claudecode.go](../../apps/ploeg/pkg/harness/adapters/claudecode/claudecode.go) |
 | `acp` | Starts `opencode acp` (default profile) with a generated config file | [profiles.go](../../apps/ploeg/pkg/harness/adapters/acp/profiles.go) |
 | `exec` | Writes `taskspec.json` and `task.md` and substitutes `{taskspec}` and `{taskfile}` in its arguments | [execbin.go](../../apps/ploeg/pkg/harness/adapters/execbin/execbin.go) |
 
