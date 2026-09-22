@@ -16,7 +16,7 @@ Terms: a **Work Item** is Ploeg's copy of your ticket. A **Team** is a named ros
 
 ## Configure the board and team
 
-1. To route a tracker project to a repository, add it to the file that `PLOEG_CONFIG` points at (the chart's `config:` value). The keys come from [config.go](../../apps/ploeg/pkg/config/config.go#L38-L83). Example:
+1. To route a tracker project to a repository, add it to the file that `PLOEG_CONFIG` points at (the chart's `config:` value). The keys come from [config.go](../../apps/ploeg/pkg/config/config.go). Example:
 
    ```yaml
    trackers:
@@ -36,36 +36,36 @@ Terms: a **Work Item** is Ploeg's copy of your ticket. A **Team** is a named ros
            - roles: [{name: reviewer, writes: false, cap: "0.75"}]
    ```
 
-   ploegd refuses to start if a name matches no project ([resolve.go](../../apps/ploeg/pkg/config/resolve.go#L58-L61)). ClickUp entries need `id:` (the List id), because ClickUp name lookup is not implemented ([config.go](../../apps/ploeg/pkg/config/config.go#L128-L131)). A project's `team:` pin only applies to entries with an `id:` ([resolve.go](../../apps/ploeg/pkg/config/resolve.go#L96-L104)).
-2. To choose the Team, list the tracker username under `teams.<name>.assignees`. One username belongs to one Team. An unlisted assignee goes to `PLOEG_DEFAULT_TEAM`, which defaults to `default` ([main.go](../../apps/ploeg/cmd/ploegd/main.go#L94)).
+   ploegd refuses to start if a name matches no project ([resolve.go](../../apps/ploeg/pkg/config/resolve.go)). ClickUp entries need `id:` (the List id), because ClickUp name lookup is not implemented ([config.go](../../apps/ploeg/pkg/config/config.go)). A project's `team:` pin only applies to entries with an `id:` ([resolve.go](../../apps/ploeg/pkg/config/resolve.go)).
+2. To choose the Team, list the tracker username under `teams.<name>.assignees`. One username belongs to one Team. An unlisted assignee goes to `PLOEG_DEFAULT_TEAM`, which defaults to `default` ([main.go](../../apps/ploeg/cmd/ploegd/main.go)).
 3. To give the Team workers, add an `executor.teams` entry with the same name, a `model` and a `budget`. The chart renders one worker workload per Team and Role.
 
 ## Register the trigger
 
-Assignment is the trigger. **Labels trigger nothing:** ploegd keeps only assignment events and drops the rest ([server.go](../../apps/ploeg/pkg/httpapi/server.go#L117-L120)).
+Assignment is the trigger. **Labels trigger nothing:** ploegd keeps only assignment events and drops the rest ([server.go](../../apps/ploeg/pkg/httpapi/server.go)).
 
 | Tracker | Webhook URL | Event | Signature |
 | --- | --- | --- | --- |
-| Vikunja | `<ploegd>/webhooks/tracker/vikunja` | `task.assignee.created` | `X-Vikunja-Signature`, secret `PLOEG_VIKUNJA_SECRET` ([vikunja.go](../../apps/ploeg/pkg/provider/vikunja/vikunja.go#L77-L82)) |
-| ClickUp | `<ploegd>/webhooks/tracker/clickup` | `taskAssigneeUpdated` | `X-Signature`; ClickUp generates the secret, store it as `PLOEG_CLICKUP_SECRET` ([clickup.go](../../apps/ploeg/pkg/provider/clickup/clickup.go#L101)) |
+| Vikunja | `<ploegd>/webhooks/tracker/vikunja` | `task.assignee.created` | `X-Vikunja-Signature`, secret `PLOEG_VIKUNJA_SECRET` ([vikunja.go](../../apps/ploeg/pkg/provider/vikunja/vikunja.go)) |
+| ClickUp | `<ploegd>/webhooks/tracker/clickup` | `taskAssigneeUpdated` | `X-Signature`; ClickUp generates the secret, store it as `PLOEG_CLICKUP_SECRET` ([clickup.go](../../apps/ploeg/pkg/provider/clickup/clickup.go)) |
 
-ClickUp is only registered when `PLOEG_CLICKUP_SECRET` or `PLOEG_CLICKUP_TOKEN` is set ([main.go](../../apps/ploeg/cmd/ploegd/main.go#L116)). To let Ploeg comment on the ticket, set `PLOEG_VIKUNJA_URL` and `PLOEG_VIKUNJA_TOKEN` (chart `tracker.url`, `tracker.tokenSecret`).
+ClickUp is only registered when `PLOEG_CLICKUP_SECRET` or `PLOEG_CLICKUP_TOKEN` is set ([main.go](../../apps/ploeg/cmd/ploegd/main.go)). To let Ploeg comment on the ticket, set `PLOEG_VIKUNJA_URL` and `PLOEG_VIKUNJA_TOKEN` (chart `tracker.url`, `tracker.tokenSecret`).
 
 ## Assign the ticket
 
-1. Write the ticket title and description as the full brief. They are the only ticket text the agent receives ([task.go](../../apps/ploeg/pkg/worker/task.go#L42-L45)).
-2. Assign it to a username from step 2. Ploeg stores the Work Item, opens a Shift and creates one pending Run per Role in the first Round ([engine.go](../../apps/ploeg/pkg/shiftengine/engine.go#L60-L85)). KEDA sees the pending Run and starts a worker pod.
+1. Write the ticket title and description as the full brief. They are the only ticket text the agent receives ([task.go](../../apps/ploeg/pkg/worker/task.go)).
+2. Assign it to a username from step 2. Ploeg stores the Work Item, opens a Shift and creates one pending Run per Role in the first Round ([engine.go](../../apps/ploeg/pkg/shiftengine/engine.go)). KEDA sees the pending Run and starts a worker pod.
 
 ## Watch progress and spend
 
 - **ploegd log:** `work item queued`, `target resolved`, `shift opened`, `round opened`, `shift closed`.
-- **Vloer:** open **Ploeg** in the sidebar and pick the Team. The lanes are **Needs human**, **Running**, **Queue** and **All work**. A Work Item's detail shows **Shifts & spending**, **Execution & review** (each Run's Role, Round, outcome and verdict), **Checkpoints** and an **Audit snapshot**. It is read-only ([ploeg.js](../../apps/vloer/public/ploeg.js)). Vloer needs a `ploeg` block with `url`, `tokenEnv` and team access in `userTeams` ([ploeg.ts](../../apps/vloer/src/ploeg.ts#L79-L104)).
+- **Vloer:** open **Ploeg** in the sidebar and pick the Team. The lanes are **Needs human**, **Running**, **Queue** and **All work**. A Work Item's detail shows **Shifts & spending**, **Execution & review** (each Run's Role, Round, outcome and verdict), **Checkpoints** and an **Audit snapshot**. It is read-only ([ploeg.js](../../apps/vloer/public/ploeg.js)). Vloer needs a `ploeg` block with `url`, `tokenEnv` and team access in `userTeams` ([ploeg.ts](../../apps/vloer/src/ploeg.ts)).
 - **Spend:** each Run shows **Authorized spend** and **Observed model cost**. Under managed auth, a Run's key budget is the smallest of the team's key policy, the Role cap and what is left of the Shift pool. ploegd settles each finished Run from LiteLLM's spend logs after `PLOEG_LLM_SETTLE_AFTER` (default 15 minutes); until then the amount shows under **Reserved**.
-- **Tracker:** when the Shift closes, the ticket gets a comment with the outcome and pull request link ([publish.go](../../apps/ploeg/pkg/shiftengine/publish.go#L194-L227)). A successful Shift moves the Work Item to `awaiting_review`. Ploeg never marks the ticket done.
+- **Tracker:** when the Shift closes, the ticket gets a comment with the outcome and pull request link ([publish.go](../../apps/ploeg/pkg/shiftengine/publish.go)). A successful Shift moves the Work Item to `awaiting_review`. Ploeg never marks the ticket done.
 
 ## Stop it
 
-**Not implemented yet.** Tracker-dispatched work has no stop control. Unassigning the ticket is ignored ([server.go](../../apps/ploeg/pkg/httpapi/server.go#L118)). The `cancel` command exists only for executions that Vloer admits ([operator_execution.go](../../apps/ploeg/pkg/store/operator_execution.go#L228)). Killing a worker pod does not stop the Shift either: a killed writer's Round reopens and another pod claims it ([failedwriter.go](../../apps/ploeg/pkg/shiftengine/failedwriter.go)).
+**Not implemented yet.** Tracker-dispatched work has no stop control. Unassigning the ticket is ignored ([server.go](../../apps/ploeg/pkg/httpapi/server.go)). The `cancel` command exists only for executions that Vloer admits ([operator_execution.go](../../apps/ploeg/pkg/store/operator_execution.go)). Killing a worker pod does not stop the Shift either: a killed writer's Round reopens and another pod claims it ([failedwriter.go](../../apps/ploeg/pkg/shiftengine/failedwriter.go)).
 
 These limits bound the exposure today: the per-Run key budget, the harness timeouts (`PLOEG_HARNESS_TIMEOUT`, default 100 minutes, and `PLOEG_HARNESS_IDLE_TIMEOUT`, default 15 minutes, which end a hung agent with failure reason `timeout`), the key lifetime (`executor.litellm.keyDuration`, default `4h`), the pod deadline (`activeDeadlineSeconds`, default `7200`), the Shift `pool` and `maxFixRounds`. For an incident, follow [Reconcile uncertainty](../../apps/ploeg/docs/ops/managed-workers.md#reconcile-uncertainty).
 

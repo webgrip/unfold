@@ -78,6 +78,7 @@ aliases = {root / entry['from']: root / entry['to'] for entry in json.loads((roo
 failures = []
 anchor_failures = []
 detours = []
+line_anchors = []
 links = {}
 anchor_cache = {}
 checked = 0
@@ -112,6 +113,8 @@ def target_url(target, source):
     if destination in aliases and not rules.historical(mapping[source].as_posix()):
         detours.append(f'{source.relative_to(root)}: {target} -> {aliases[destination].relative_to(root)}')
     destination = aliases.get(destination, destination)
+    if re.fullmatch(r'L\d+(-L\d+)?', parts.fragment) and destination.suffix != '.md' and not rules.historical(mapping[source].as_posix()):
+        line_anchors.append(f'{source.relative_to(root)}: {target}')
     if not destination.is_relative_to(root):
         return target
     checked += 1
@@ -151,6 +154,8 @@ if failures:
     raise SystemExit('Missing documentation targets:\n' + '\n'.join(sorted(set(failures))))
 if anchor_failures:
     raise SystemExit('Missing heading anchors:\n' + '\n'.join(sorted(set(anchor_failures))))
+if line_anchors:
+    raise SystemExit('Current pages link source lines, which drift; link the file or symbol instead:\n' + '\n'.join(sorted(set(line_anchors))))
 if detours:
     raise SystemExit('Current pages link through moved paths; link the target directly:\n' + '\n'.join(sorted(set(detours))))
 nav = rules.nav_pages(yaml.safe_load((root / 'mkdocs.yml').read_text())['nav'])

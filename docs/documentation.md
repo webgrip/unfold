@@ -75,6 +75,7 @@ Research, evidence, superseded explanations, design baselines, planning exports 
 * Put the condition before the instruction: "To stop a Shift, …".
 * Use numbered steps for sequences and bullets for sets. Start task headings with a verb.
 * Explain jargon on first use and link the glossary.
+* Link source files or symbols, never line numbers: `#L` anchors drift with the next change, and `mise run docs-check` rejects them on current pages.
 * Label unimplemented behavior "Not implemented yet". Never describe a plan as current.
 * A deterministic demo says so, and never invents model calls or spend.
 
