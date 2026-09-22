@@ -1,0 +1,83 @@
+checked: 2026-09-22
+ploeg:
+  "0015":
+    implemented: partial
+    note: Scope resolver exists; tracker team mapping is still live
+    evidence: apps/ploeg/pkg/target/resolver.go
+  "0016":
+    implemented: partial
+    note: Per-run forge tokens exist; the worker still calls the forge API directly
+    evidence: apps/ploeg/pkg/forgebroker/broker.go
+  "0017":
+    implemented: "yes"
+    note: Verdict loop and fix-round cap are tested
+    evidence: apps/ploeg/pkg/shiftengine/reviewloop_test.go
+  "0018":
+    implemented: "yes"
+    note: Conformance suite checks the outcome drop box for every adapter
+    evidence: apps/ploeg/pkg/harness/harnesstest/conformance.go
+  "0019":
+    implemented: "yes"
+    note: Failed writer and reader round behaviour are tested
+    evidence: apps/ploeg/pkg/shiftengine/failedwriter_test.go
+  "0021":
+    implemented: "yes"
+    note: Infrastructure kills do not spend the agent retry budget
+    evidence: apps/ploeg/pkg/store/migrations/0003_infra_failures.sql
+  "0023":
+    implemented: "yes"
+    note: Work items carry the forge dialect; GitLab change requests are tested
+    evidence: apps/ploeg/pkg/worker/forge_test.go
+  "0024":
+    implemented: "yes"
+    note: Operator execution admission and storage
+    evidence: apps/ploeg/pkg/httpapi/operator_execution.go
+  "0025":
+    implemented: "yes"
+    note: Managed budget holds survive worker death
+    evidence: apps/ploeg/pkg/store/llm_accounts_test.go
+  "0026":
+    implemented: "yes"
+    note: Tracker selections bind canonical work items
+    evidence: apps/ploeg/pkg/httpapi/operator_source.go
+  "0027":
+    implemented: "yes"
+    note: One frozen attempt; production publication stays disabled
+    evidence: apps/ploeg/pkg/store/operator_delivery.go
+  "0028":
+    implemented: "yes"
+    note: Release policy guard runs in CI
+    evidence: apps/ploeg/scripts/release-policy.cjs
+  "0029":
+    implemented: partial
+    note: Import and tag format done; distribution cutover deliberately pending
+    evidence: apps/ploeg/scripts/release-policy.cjs
+vloer:
+  "0005":
+    implemented: partial
+    note: Guarded commands to Ploeg exist; work orders and fenced takeover do not
+    evidence: apps/vloer/src/execution-authority.ts
+  "0006":
+    implemented: partial
+    note: Independent verifier exists; the trusted publisher does not
+    evidence: apps/vloer/src/delivery-verifier.ts
+  "0008":
+    implemented: "yes"
+    note: Implemented in the 0.2.0 prototype; team adoption is what remains proposed
+    evidence: apps/vloer/src/candidates.ts
+  "0015":
+    implemented: partial
+    note: Read projection exists; lossless fleet events and AHP projection do not
+    evidence: apps/vloer/src/ploeg.ts
+  "0017":
+    implemented: "yes"
+    note: Opt-in shared execution; ratification outstanding
+    evidence: apps/vloer/src/execution-authority.ts
+  "0018":
+    implemented: "yes"
+    note: Opt-in tracker binding; ratification outstanding
+    evidence: apps/vloer/src/task-binding.ts
+  "0019":
+    implemented: "yes"
+    note: Bounded Docker verifier; live publication stays disabled
+    evidence: apps/vloer/src/trusted-candidate.ts

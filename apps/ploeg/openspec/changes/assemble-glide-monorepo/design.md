@@ -1,6 +1,6 @@
 ## Context
 
-The owner authorized Glide after reviewing the [transition proposal](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/monorepo-transition.md). Both application trunks are `development`; current deployed image and chart names are application-specific.
+The owner authorized Glide after reviewing the [transition proposal](../../../../../docs/migration-proposal.md). Both application trunks are `development`; current deployed image and chart names are application-specific.
 
 ## Goals / Non-Goals
 

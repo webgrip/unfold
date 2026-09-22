@@ -34,6 +34,10 @@ description = "Check generated models, links and strict TechDocs output"
 run = "uv run --frozen python scripts/docs.py --domain"
 description = "Regenerate the domain pages and the combined glossary from the model YAML files"
 
+[tasks.docs-decisions]
+run = "uv run --frozen python scripts/docs-decisions.py"
+description = "Regenerate the decision register from the three ADR ledgers"
+
 [tasks.docs-build]
 run = "uv run --frozen python scripts/docs.py"
 description = "Build the shared and application TechDocs site"

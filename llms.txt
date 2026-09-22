@@ -7,7 +7,6 @@ Use Ploeg's terms: a Run is one Role executing against a Work Item, a Shift is t
 ## Start
 
 - [Start page](docs/index.md): what Glide is and where to go next
-- [Repository instructions](AGENTS.md): rules for changing Glide
 - [How work flows](docs/concepts/how-work-flows.md): one ticket from assignment to pull request
 - [Architecture](docs/concepts/architecture.md): goals, context, containers and key decisions
 

@@ -16,7 +16,7 @@ The design shifts repeated workspace setup and supervision out of individual ter
 | Docker Engine | Container isolation of workspaces on the workbench host |
 | Kubernetes | Pod isolation of workspaces in a team deployment |
 
-The authenticated Ploeg read API supplies scoped work and evidence snapshots. With `execution.team` configured, an interactive session becomes one Ploeg Work Item, Shift and operator Run; De Vloer executes its crew under that authority. Human and background supervision preserve the same execution. [The execution contract](contracts/ploeg-execution.md) specifies this boundary, and [the operating guide](operations/unified-baseline.md) covers setup and recovery.
+The authenticated Ploeg read API supplies scoped work and evidence snapshots. With `execution.team` configured, an interactive session becomes one Ploeg Work Item, Shift and operator Run; De Vloer executes its crew under that authority. Human and background supervision preserve the same execution. [The execution contract](contracts/ploeg-execution.md) specifies this boundary, and [the operating guide](../../../docs/workflows/managed-execution.md) covers setup and recovery.
 
 ```mermaid
 flowchart TD

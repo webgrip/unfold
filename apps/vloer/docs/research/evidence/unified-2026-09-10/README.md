@@ -36,4 +36,4 @@ An isolated archive of the original Ploeg chart was rendered with Helm `4.2.3`. 
 
 The full browser flow, Ploeg desktop/mobile flow, 41 extension tests, extension compilation, strict TypeScript, source checks, Go build/vet, Helm lint and all four chart goldens passed. Native VS Code activation, live LiteLLM/Fireworks billing, live Kubernetes placement and high-concurrency throughput were not exercised in this increment.
 
-Reproduction and configuration: [the unified operating guide](../../../operations/unified-baseline.md).
+Reproduction and configuration: [the unified operating guide](../../../../../../docs/workflows/managed-execution.md).

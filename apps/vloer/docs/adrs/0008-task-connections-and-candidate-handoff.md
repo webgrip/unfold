@@ -1,6 +1,6 @@
 # 0008 — Shared task connections and portable candidate handoff
 
-Status: implemented in the 0.2.0 prototype; proposed for team adoption.
+Date: 2026-09-09. Status: proposed for team adoption; implemented in the 0.2.0 prototype.
 
 ## Context
 

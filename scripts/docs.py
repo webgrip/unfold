@@ -10,9 +10,14 @@ import tempfile
 from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
+import importlib.util
+
 import yaml
 
 root = Path(__file__).resolve().parent.parent
+spec = importlib.util.spec_from_file_location('docs_rules', root / 'scripts/docs-rules.py')
+rules = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(rules)
 parser = argparse.ArgumentParser()
 parser.add_argument('--check', action='store_true')
 parser.add_argument('--stage-only', action='store_true')
@@ -43,7 +48,7 @@ revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=
 source_url = f'https://forgejo.webgrip.dev/webgrip/glide/src/commit/{revision}/'
 
 if args.check:
-    for test in ['docs-output.test.py', 'docs-live.test.py']:
+    for test in ['docs-output.test.py', 'docs-live.test.py', 'docs-rules.test.py', 'docs-decisions.test.py', 'docs-adr.test.py']:
         subprocess.run([sys.executable, str(root / 'scripts' / test)], check=True)
     for folder in domain_models:
         with tempfile.TemporaryDirectory(prefix='glide-domain-') as temporary:
@@ -53,7 +58,9 @@ if args.check:
     assert (root / glossary).exists() and (root / glossary).read_text() == combined_glossary(), f'Stale combined glossary: {glossary}; run mise run domain'
     for name, expected in json.loads((root / 'docs/landscape/generated-sources.json').read_text()).items():
         assert hashlib.sha256((root / name).read_bytes()).hexdigest() == expected, f'Stale landscape: {name}; rebuild with node apps/vloer/scripts/build-landscape.mjs'
-    subprocess.run([sys.executable, str(root / 'scripts/validate_adr_consistency.py'), str(root)], check=True)
+    for ledger in ['docs/adr', 'apps/ploeg/docs/adrs', 'apps/vloer/docs/adrs']:
+        subprocess.run([sys.executable, str(root / 'scripts/validate_adr_consistency.py'), str(root), '--adr-dir', ledger], check=True)
+    subprocess.run([sys.executable, str(root / 'scripts/docs-decisions.py'), '--check'], check=True)
 
 if staging.exists():
     shutil.rmtree(staging)
@@ -69,7 +76,22 @@ mapping[root / 'llms.txt'] = Path('llms.txt')
 
 aliases = {root / entry['from']: root / entry['to'] for entry in json.loads((root / 'docs/research/2026-09-12-glide-document-paths.json').read_text())['moves']}
 failures = []
+anchor_failures = []
+detours = []
+links = {}
+anchor_cache = {}
 checked = 0
+
+
+def page_anchors(path):
+    if path not in anchor_cache:
+        anchor_cache[path] = rules.anchors(path.read_text())
+    return anchor_cache[path]
+
+
+def check_anchor(destination, fragment, source, target):
+    if fragment and destination.suffix == '.md' and re.sub('-+', '-', unquote(fragment)) not in page_anchors(destination):
+        anchor_failures.append(f'{source.relative_to(root)}: {target}')
 
 
 def target_url(target, source):
@@ -81,10 +103,14 @@ def target_url(target, source):
         if target.startswith(old):
             destination = root / 'apps' / app / unquote(urlsplit(target[len(old):]).path)
     if destination is None:
+        if not parts.scheme and not parts.netloc and not parts.path and parts.fragment and source.suffix == '.md':
+            check_anchor(source, parts.fragment, source, target)
         if parts.scheme or parts.netloc or not parts.path or parts.path.startswith('/'):
             return target
         destination = source.parent / unquote(parts.path)
     destination = destination.resolve()
+    if destination in aliases and not rules.historical(mapping[source].as_posix()):
+        detours.append(f'{source.relative_to(root)}: {target} -> {aliases[destination].relative_to(root)}')
     destination = aliases.get(destination, destination)
     if not destination.is_relative_to(root):
         return target
@@ -97,7 +123,9 @@ def target_url(target, source):
             if (destination / index).exists():
                 destination /= index
                 break
+    check_anchor(destination, parts.fragment, source, target)
     if destination in mapping:
+        links.setdefault(mapping[source].as_posix(), set()).add(mapping[destination].as_posix())
         result = os.path.relpath(mapping[destination], mapping[source].parent)
         return urlunsplit(('', '', quote(result), parts.query, re.sub('-+', '-', parts.fragment)))
     return source_url + quote(destination.relative_to(root).as_posix()) + (f'#{parts.fragment}' if parts.fragment else '')
@@ -115,11 +143,21 @@ for source, relative in mapping.items():
     output = staging / relative
     output.parent.mkdir(parents=True, exist_ok=True)
     if source.suffix == '.md':
-        output.write_text(rewrite(source.read_text(), source))
+        markdown = rewrite(source.read_text(), source)
+        output.write_text(rules.mark_history(markdown, relative.as_posix()) if rules.historical(relative.as_posix()) else markdown)
     else:
         shutil.copyfile(source, output)
 if failures:
     raise SystemExit('Missing documentation targets:\n' + '\n'.join(sorted(set(failures))))
+if anchor_failures:
+    raise SystemExit('Missing heading anchors:\n' + '\n'.join(sorted(set(anchor_failures))))
+if detours:
+    raise SystemExit('Current pages link through moved paths; link the target directly:\n' + '\n'.join(sorted(set(detours))))
+nav = rules.nav_pages(yaml.safe_load((root / 'mkdocs.yml').read_text())['nav'])
+redirect_pages = {mapping[source] for source in aliases if source in mapping}
+unlinked = rules.orphans([relative.as_posix() for relative in mapping.values() if relative.suffix == '.md' and relative not in redirect_pages], nav, links)
+if unlinked:
+    raise SystemExit('Current pages missing from the nav and from every nav page:\n' + '\n'.join(unlinked))
 (staging / 'llms.txt').write_text(rewrite((root / 'llms.txt').read_text(), root / 'llms.txt'))
 if failures:
     raise SystemExit('Missing index targets:\n' + '\n'.join(sorted(set(failures))))

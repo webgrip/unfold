@@ -42,7 +42,7 @@ const content = [
   '',
   '## Current behavior',
   '',
-  'Start with [the documentation index](index.md), [architecture](architecture.md) and [shared execution contract](contracts/ploeg-execution.md). Current setup is in [the unified guide](operations/unified-baseline.md).',
+  'Start with [the documentation index](index.md), [architecture](architecture.md) and [shared execution contract](contracts/ploeg-execution.md). Current setup is in [the unified guide](../../../docs/workflows/managed-execution.md).',
   '',
   '## Design and research baseline',
   '',

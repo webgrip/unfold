@@ -35,7 +35,7 @@ The browser and editor gain a coherent view of both work paths. Human and backgr
 
 ### Confirmation
 
-Run the [ordinary and cross-service qualification commands](../operations/unified-baseline.md#reproduce-qualification). Verify real PostgreSQL admission, idempotent command replay, actor scope, start/cancel races, credential ambiguity, confirmed pause, cancellation, restart and retained evidence. Keep live provider and cluster results separately recorded in [validation](../validation.md).
+Run the [ordinary and cross-service qualification commands](../../../../docs/workflows/managed-execution.md#reproduce-qualification). Verify real PostgreSQL admission, idempotent command replay, actor scope, start/cancel races, credential ambiguity, confirmed pause, cancellation, restart and retained evidence. Keep live provider and cluster results separately recorded in [validation](../validation.md).
 
 ## More Information
 

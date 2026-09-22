@@ -29,8 +29,8 @@ class PublishedDocumentation(unittest.TestCase):
             page.parent.mkdir(parents=True, exist_ok=True)
             page.write_text('<body><article>page</article></body>')
         (self.site / 'search').mkdir()
-        (self.site / 'search/search_index.json').write_text(json.dumps({'docs': [{'location': 'index.html'}, {'location': 'research/old/#stale'}]}))
-        (self.site / 'search.json').write_text(json.dumps({'items': [{'location': 'index.html'}, {'location': 'research/old/#stale'}]}))
+        (self.site / 'search/search_index.json').write_text(json.dumps({'docs': [{'location': 'index.html'}]}))
+        (self.site / 'search.json').write_text(json.dumps({'items': [{'location': 'index.html'}]}))
         output.finalize(self.site, self.staging)
 
     def test_publishable_site_and_curated_bundle(self):

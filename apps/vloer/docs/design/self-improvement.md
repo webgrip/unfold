@@ -1,6 +1,6 @@
 # Using Vloer and Ploeg to improve Vloer and Ploeg
 
-> Design baseline: September 2026. This chapter preserves proposals and the original audit; some gaps have since closed. Check [current architecture](../architecture.md), [contracts](../contracts/ploeg-execution.md) and [open product choices](../landscape/questions.md) before treating a statement as current behavior.
+> Design baseline: September 2026. This chapter preserves proposals and the original audit; some gaps have since closed. Check [current architecture](../architecture.md), [contracts](../contracts/ploeg-execution.md) and [open product choices](../../../../docs/landscape/questions.md) before treating a statement as current behavior.
 
 Status: proposed operating and delivery design. Baseline: De Vloer v0.1, audited 2026-09-09. This is a practical route from today's working operator session to a governed ticket-to-proposal loop. It does not claim that tracker intake, automatic publishing or deployment promotion already exist in Vloer.
 

@@ -10,7 +10,7 @@ verified_by: "Read apps/ploeg pkg/worker/{worker,task,environment,target}.go, pk
 
 Use this before you route tickets to a new repository. Result: a writer Run can clone it, branch, run your checks and open a pull request, and a reader Run can review it.
 
-Terms: a **Run** is one **Role** working once on a **Work Item**. A *writer* Role pushes; a *reader* Role only reviews. A **harness** is the agent program the worker starts, such as OpenHands or Claude Code. See the [Ploeg glossary](../../apps/ploeg/docs/domain/glossary.md) and the [product glossary](../domain/glossary.md#harness).
+Terms: a **Run** is one **Role** working once on a **Work Item**. A *writer* Role pushes; a *reader* Role only reviews. A **harness** is the agent program the worker starts, such as OpenHands or Claude Code. See the [glossary](../reference/glossary.md#harness).
 
 **Before you start:** you can change the repository's settings on the forge (Forgejo or GitLab), and you can edit Ploeg's desired state in Git.
 

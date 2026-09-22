@@ -19,13 +19,13 @@ Baselines: [De Vloer 7c8657e](https://forgejo.webgrip.dev/webgrip/de-vloer/src/c
 | Ploeg's current architecture listed implemented Shift orchestration, roles, providers and write-backs as missing | Rewrote the current explanation against [Shift engine](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/pkg/shiftengine/engine.go), [providers](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/pkg/provider/) and [HTTP service](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/pkg/httpapi/server.go) |
 | Old prose gave workers management-key authority and treated Run tokens as authentication | Aligned architecture and authoring context with [managed worker control](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/docs/contracts/worker-control.md) and its tests |
 | The domain models disagreed about hands-on admission, and one Run definition required Kubernetes | Reconciled shared-mode Start with [Vloer's execution authority](../../src/execution-authority.ts); allowed delegated Runs in Ploeg's model; regenerated both models' readable views |
-| Mandatory Ploeg authority was described as settled product direction | Recorded the owner's reopened question in [the product model](../domain/model.yaml), [landscape](../landscape/index.md) and [discussion guide](../landscape/questions.md) |
+| Mandatory Ploeg authority was described as settled product direction | Recorded the owner's reopened question in [the product model](../../../../docs/domain/model.yaml), [landscape](../../../../docs/landscape/index.md) and [discussion guide](../../../../docs/landscape/questions.md) |
 | The live guide said SSO was missing and described fixed-price brief checks and one-minute settlement | Corrected against [configuration](../../src/config.ts), [session engine](../../src/engine.ts) and shared accounting contracts |
 | Retry instructions applied standalone reset behavior to shared executions | Documented the explicit new-session requirement for failed Ploeg execution in [live operation](../operations/live.md#trying-a-failed-session-again) |
 | An initial coordination contract still assigned files to named implementation agents | Retired its contents in place and linked the [current API and types](../contracts/implementation.md) |
 | A generated design compilation repeated about 43,000 words of source chapters | Replaced it with a generated [chapter guide](../PRODUCT-DESIGN.md); source chapters and the prior compiled edition remain available |
 | Current setup guidance carried old board IDs, cluster IPs and contradictory credential advice | Replaced Ploeg's board and infrastructure notes with current source pointers and linked historical snapshots |
-| Ploeg's old Compose onboarding omitted managed authentication configuration | Removed it from the recommended onboarding path and identified its migration need; linked the current [shared demonstration](../operations/local-unified-demo.md) |
+| Ploeg's old Compose onboarding omitted managed authentication configuration | Removed it from the recommended onboarding path and identified its migration need; linked the current [shared demonstration](../../../../docs/workflows/local-demo.md) |
 
 Selected claims in 36 current files were compared with source or contracts. Ten derived views were regenerated; 190 paths received structural classification and one is an existing instruction alias. These counts describe review depth, not 237 independently certified documents.
 
@@ -39,7 +39,7 @@ The writing pass removes duplicated introductions, implementation-team chatter, 
 
 ## Human and machine sources
 
-Both audiences read the same Markdown. Domain YAML generates the readable vocabulary; existing JSON schemas describe wire contracts. Each repository has a short `llms.txt` discovery file linking current sources. No second prose specification or full-archive agent dump was added. See [maintenance guidance](../documentation.md) and the [human entry point](../index.md).
+Both audiences read the same Markdown. Domain YAML generates the readable vocabulary; existing JSON schemas describe wire contracts. Each repository has a short `llms.txt` discovery file linking current sources. No second prose specification or full-archive agent dump was added. See [maintenance guidance](../../../../docs/documentation.md) and the [human entry point](../index.md).
 
 The audit ledger is a dated review artifact. It should not be updated as an ongoing product registry or loaded into every agent session.
 

@@ -10,7 +10,7 @@ verified_by: "Read apps/ploeg pkg/config, pkg/httpapi/server.go, pkg/provider/{v
 
 Use this to hand a tracker ticket to agents. Result: Ploeg dispatches a [Run](../../apps/ploeg/docs/domain/glossary.md#run), the agent opens a pull request on branch `agent/vik-<ticket id>`, and the ticket gets a comment with the link.
 
-Terms: a **Work Item** is Ploeg's copy of your ticket. A **Team** is a named roster of agent **Roles**. A **Shift** is one Team's whole attempt at a Work Item, split into **Rounds**. A **Run** is one Role working once, and a **Lease** is the writer's exclusive right to push to the branch. See the [Ploeg glossary](../../apps/ploeg/docs/domain/glossary.md) and the [product glossary](../domain/glossary.md).
+Terms: a **Work Item** is Ploeg's copy of your ticket. A **Team** is a named roster of agent **Roles**. A **Shift** is one Team's whole attempt at a Work Item, split into **Rounds**. A **Run** is one Role working once, and a **Lease** is the writer's exclusive right to push to the branch. See the [glossary](../reference/glossary.md).
 
 **Before you start:** Ploeg runs with managed worker authentication ([managed workers](../../apps/ploeg/docs/ops/managed-workers.md)), the chart's `executor.enabled` is `true` (it defaults to `false` in [values.yaml](../../apps/ploeg/ops/helm/ploeg/values.yaml)), and the repository is [prepared](prepare-a-repository.md).
 

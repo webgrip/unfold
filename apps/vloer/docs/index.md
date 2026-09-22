@@ -5,12 +5,12 @@ De Vloer provides durable operator sessions, agent workspaces, intervention and 
 ## Try it
 
 - [Local fixture demonstration](operations/demo.md)
-- [Shared Ploeg demonstration](operations/local-unified-demo.md): both applications and PostgreSQL without model calls
+- [Shared Ploeg demonstration](../../../docs/workflows/local-demo.md): both applications and PostgreSQL without model calls
 
 ## Operate
 
 - [Live operation](operations/live.md): standalone setup, identity, workspaces and intervention
-- [Shared execution setup and recovery](operations/unified-baseline.md)
+- [Shared execution setup and recovery](../../../docs/workflows/managed-execution.md)
 - [Task connections](operations/task-connections.md)
 - [Release procedure](operations/release.md)
 
@@ -23,11 +23,13 @@ De Vloer provides durable operator sessions, agent workspaces, intervention and 
 
 ## Understand and change
 
-- [Current architecture](architecture.md) and [ADR index](adrs/README.md)
-- [Shared product explanation](landscape/index.md), [diagrams](landscape/c4.md) and [open choices](landscape/questions.md)
+- [Current architecture](architecture.md), [ADR index](adrs/README.md) and the [decision register](../../../docs/reference/decisions.md) across all three ledgers
+- [Shared product explanation](../../../docs/landscape/index.md), [diagrams](../../../docs/landscape/c4.md) and [open choices](../../../docs/landscape/questions.md)
 - [Product domain YAML](../../../docs/domain/model.yaml), generated [rules](../../../docs/domain/rules.md) and the [combined glossary](../../../docs/reference/glossary.md)
-- [Monorepo and runner proposal](monorepo-transition.md)
-- [Documentation maintenance](documentation.md)
+- [Monorepo and runner proposal](../../../docs/migration-proposal.md)
+- [Documentation maintenance](../../../docs/documentation.md)
+- [Model gateway capabilities](product/model-gateway-capabilities.md)
+- [Brand identity](brand/README.md), [trademark policy](brand/TRADEMARK.md) and [profile copy](brand/social-profile-copy.md)
 
 ## Evidence and planning
 
