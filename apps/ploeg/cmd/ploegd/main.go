@@ -49,6 +49,7 @@ func run(log *slog.Logger) error {
 	listen := envOr("PLOEG_LISTEN", ":8080")
 	leaseTTL := durationOr("PLOEG_LEASE_TTL", 60*time.Second)
 	sweepEvery := durationOr("PLOEG_SWEEP_INTERVAL", 15*time.Second)
+	settleAfter := durationOr("PLOEG_LLM_SETTLE_AFTER", 15*time.Minute)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -327,7 +328,7 @@ func run(log *slog.Logger) error {
 	}
 	managedBlockSweep(ctx, log, srv, 0)
 
-	go sweepLoop(ctx, log, st, sweeper, forgeSweeper, engine, srv, sweepEvery)
+	go sweepLoop(ctx, log, st, sweeper, forgeSweeper, engine, srv, sweepEvery, settleAfter)
 
 	log.Info("ploegd listening", "version", version, "addr", listen, "lease_ttl", leaseTTL)
 	if err := httpSrv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {

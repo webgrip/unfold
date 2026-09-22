@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -164,6 +165,26 @@ func (c *LLMControl) Spend(ctx context.Context, runToken string) (float64, error
 		return 0, err
 	}
 	return spend, nil
+}
+
+// Settle reconciles a finished Run's account as the trusted controller-side
+// caller. An account with no durable sign of a mint settles at zero on that
+// evidence; any other account settles at the gateway's spend for its alias,
+// read after the key has been blocked and the account has stayed unchanged.
+func (c *LLMControl) Settle(ctx context.Context, a store.UnsettledLLMAccount) error {
+	if !a.MintBegan {
+		return c.Store.ReconcileLLMAccount(ctx, a.RunToken, 0, "ploegd:mint-never-began account="+a.State+" alias="+a.Alias)
+	}
+	if a.State != "blocked" {
+		return store.ErrLLMAccountState
+	}
+	spend, err := c.Broker.SpendForRun(ctx, a.RunToken)
+	if err != nil {
+		return fmt.Errorf("gateway accounting identity unavailable; reconciliation required")
+	}
+	evidence := fmt.Sprintf("litellm:blocked-key-spend alias=%s usd=%s unchanged-since=%s read-at=%s",
+		a.Alias, strconv.FormatFloat(spend, 'f', -1, 64), a.QuietSince.UTC().Format(time.RFC3339), time.Now().UTC().Format(time.RFC3339))
+	return c.Store.ReconcileLLMAccount(ctx, a.RunToken, spend, evidence)
 }
 
 func (s *Server) RegisterLLMControl(mux *http.ServeMux) {

@@ -43,7 +43,7 @@ Operator commands carry identity, revision and generation. Accepted command repl
 
 Managed mode is the current default in [controller startup](../cmd/ploegd/main.go) and [worker startup](../cmd/ploeg-worker/main.go). The controller holds management authority. Workers receive scoped control and inference capabilities; the harness receives its allowed environment and inference credential. A worker process and the harness it starts are not automatically separate security boundaries. The [environment policy](../pkg/worker/environment.go) and deployment isolation both matter.
 
-An Inference Account records authorization independently from observed spend. Failed issuance, interruption, expiry or blocked access can leave that authorization unresolved. A provisional gateway observation is not final settlement. Trusted reconciliation releases the remaining hold; there is no general public settlement endpoint.
+An Inference Account records authorization independently from observed spend. Failed issuance, interruption, expiry or blocked access can leave that authorization unresolved. A provisional gateway observation is not final settlement. Trusted reconciliation releases the remaining hold; there is no general public settlement endpoint. The controller's settlement sweep in [the sweep loop](../cmd/ploegd/sweep.go) performs it for finished Runs whose accounts were never minted, or were blocked and stayed unchanged for a quiet period.
 
 Legacy worker authorization and static credential compatibility are explicit migration modes. Do not use the old worker-mints-master-key description as the managed deployment model. The [worker control contract](contracts/worker-control.md) is the canonical reference.
 
