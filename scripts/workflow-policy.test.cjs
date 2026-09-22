@@ -53,19 +53,51 @@ test('only an enabled development push can version applications after both gates
   }
 });
 
-test('release channel notes mirror only after both source gates pass, whether or not a release ran', () => {
+test('release channel notes mirror only on an enabled development push after both source gates pass, whether or not a release ran', () => {
   const job = source.jobs['mirror-source-metadata'];
   assert.deepEqual(job.needs, ['checks', 'release-policy', 'release-ploeg']);
   assert.ok(job.steps.some(step => step.run === 'python3 scripts/sync_release_notes.py'));
-  for (const ref of ['refs/heads/development', 'refs/heads/main']) {
-    for (const checks of ['success', 'failure', 'skipped']) {
-      for (const policy of ['success', 'failure']) {
-        for (const release of ['success', 'skipped', 'failure']) {
-          const context = { always: () => true, github: { ref }, needs: { checks: { result: checks }, 'release-policy': { result: policy }, 'release-ploeg': { result: release } } };
-          assert.equal(evaluate(job.if, context), ref === 'refs/heads/development' && checks === 'success' && policy === 'success', `${ref} ${checks} ${policy} ${release}`);
+  for (const event_name of ['push', 'workflow_dispatch']) {
+    for (const ref of ['refs/heads/development', 'refs/heads/main']) {
+      for (const gate of ['', 'false', 'true']) {
+        for (const checks of ['success', 'failure', 'skipped']) {
+          for (const policy of ['success', 'failure']) {
+            for (const release of ['success', 'skipped', 'failure']) {
+              const context = { always: () => true, github: { event_name, ref }, vars: { GLIDE_RELEASES_ENABLED: gate }, needs: { checks: { result: checks }, 'release-policy': { result: policy }, 'release-ploeg': { result: release } } };
+              assert.equal(evaluate(job.if, context), event_name === 'push' && ref === 'refs/heads/development' && gate === 'true' && checks === 'success' && policy === 'success', `${event_name} ${ref} ${gate} ${checks} ${policy} ${release}`);
+            }
+          }
         }
       }
     }
+  }
+});
+
+test('the CI verify gate requires the imported release notes the mirror prunes against', () => {
+  const verification = read('.forgejo/actions/verify/action.yml');
+  const step = verification.runs.steps.find(step => step.run === 'mise run verify');
+  assert.equal(step.env.GLIDE_REQUIRE_IMPORT_NOTES, 'true');
+});
+
+test('every published image passes its application CVE budget before signing', () => {
+  const gate = './.forgejo/actions/cve-gate';
+  const vloer = publisher.jobs['vloer-release-distribute-harbor'].steps;
+  const vloerGate = vloer.findIndex(step => step.uses === gate);
+  assert.ok(vloerGate > vloer.findIndex(step => step.id === 'digest'));
+  assert.ok(vloerGate < vloer.findIndex(step => step.uses?.includes('/cosign-sign-attest@')));
+  assert.equal(vloer[vloerGate].with['budgets-file'], 'apps/vloer/ops/security/cve-budgets.yaml');
+  const ploeg = publisher.jobs['ploeg-release-distribute-harbor'].steps;
+  const ploegGate = ploeg.find(step => step.uses === gate);
+  assert.ok(ploegGate, 'Ploeg image build must run the CVE gate');
+  assert.ok(ploeg.findIndex(step => step.uses === gate) > ploeg.findIndex(step => step.id === 'digest'));
+  assert.equal(ploegGate.with['image-ref'], '${{ steps.digest.outputs.ref }}');
+  assert.equal(ploegGate.with['image-name'], 'ploegd');
+  assert.ok(publisher.jobs['ploeg-release-sign-harbor'].needs.includes('ploeg-release-distribute-harbor'));
+  for (const app of ['vloer', 'ploeg']) {
+    const image = app === 'vloer' ? 'de-vloer' : 'ploegd';
+    const budgets = parse(fs.readFileSync(path.join(root, `apps/${app}/ops/security/cve-budgets.yaml`), 'utf8'));
+    assert.equal(budgets.images[image].mode, 'enforce');
+    assert.ok(fs.statSync(path.join(root, `apps/${app}/ops/vex/statements`)).isDirectory());
   }
 });
 
