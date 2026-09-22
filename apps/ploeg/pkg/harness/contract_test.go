@@ -132,7 +132,7 @@ func TestOutcomeReport_MatchesSchema(t *testing.T) {
 	// value of the taxonomy must be on the wire contract.
 	for _, fr := range []work.FailureReason{
 		work.FailureInfraNode, work.FailureInfraLLM,
-		work.FailureAgentError, work.FailureBudget, work.FailureLeaseLost,
+		work.FailureAgentError, work.FailureBudget, work.FailureLeaseLost, work.FailureTimeout,
 	} {
 		r := OutcomeReport{Outcome: work.OutcomeFailed, Summary: "failed", FailureReason: string(fr)}
 		if err := validate(t, sch, r); err != nil {

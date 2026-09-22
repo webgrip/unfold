@@ -57,6 +57,9 @@ type Config struct {
 	LLMModels  []string // stripped model scope for credential minting
 	KeyBudget  float64  // max budget (USD) for the per-run credential
 	KeyTTL     time.Duration
+
+	HarnessTimeout     time.Duration // PLOEG_HARNESS_TIMEOUT: overall bound on one harness run; 0 = none
+	HarnessIdleTimeout time.Duration // PLOEG_HARNESS_IDLE_TIMEOUT: no-output bound for spawned harnesses; 0 = none
 }
 
 type Worker struct {
@@ -87,6 +90,8 @@ func New(cfg Config, adapter harness.Adapter, broker llmbroker.Broker, log *slog
 var (
 	errLeaseLost  = errors.New("lease renewal failed")
 	errTerminated = errors.New("pod terminated")
+
+	errHarnessTimeout = errors.New("harness exceeded its run timeout")
 )
 
 // Run claims one work item and drives it to a reported outcome. A nil
@@ -279,7 +284,8 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 				w.Log.Warn("checkpoint failed", "err", err)
 			}
 		},
-		Log: w.Log,
+		Log:         w.Log,
+		IdleTimeout: w.Cfg.HarnessIdleTimeout,
 	}
 
 	if writes {
@@ -302,7 +308,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 		BudgetUSD: budget,
 		Models:    w.Cfg.LLMModels,
 		TTL:       w.Cfg.KeyTTL,
-	})
+	}, w.Cfg.HarnessTimeout)
 	if mintErr != nil {
 		return stuckReport("failed to mint per-run LiteLLM key", mintErr.Error())
 	}
@@ -320,7 +326,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 // revokes the credential on every return path (deferred). Returns the
 // adapter's report, a mint error (nothing ran), and the run error.
 func runAgent(ctx context.Context, log *slog.Logger, broker llmbroker.Broker, adapter harness.Adapter,
-	spec harness.TaskSpec, env harness.RunEnv, req llmbroker.MintRequest) (report harness.OutcomeReport, mintErr, runErr error) {
+	spec harness.TaskSpec, env harness.RunEnv, req llmbroker.MintRequest, limit time.Duration) (report harness.OutcomeReport, mintErr, runErr error) {
 
 	mintCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	cred, err := broker.Mint(mintCtx, req)
@@ -350,7 +356,7 @@ func runAgent(ctx context.Context, log *slog.Logger, broker llmbroker.Broker, ad
 		env.BaseEnv = append(env.BaseEnv, "LLM_API_KEY="+cred.APIKey)
 	}
 
-	report, runErr = adapter.Run(ctx, spec, env)
+	report, runErr = runBounded(ctx, adapter, spec, env, limit)
 
 	if m, ok := broker.(llmbroker.Metered); ok && cred.APIKey != "" {
 		observeCtx, observeCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
@@ -366,6 +372,19 @@ func runAgent(ctx context.Context, log *slog.Logger, broker llmbroker.Broker, ad
 		}
 	}
 	return report, nil, runErr
+}
+
+func runBounded(ctx context.Context, adapter harness.Adapter, spec harness.TaskSpec, env harness.RunEnv, limit time.Duration) (harness.OutcomeReport, error) {
+	if limit <= 0 {
+		return adapter.Run(ctx, spec, env)
+	}
+	runCtx, cancel := context.WithTimeoutCause(ctx, limit, errHarnessTimeout)
+	defer cancel()
+	report, err := adapter.Run(runCtx, spec, env)
+	if errors.Is(context.Cause(runCtx), errHarnessTimeout) {
+		return report, fmt.Errorf("%w after %s: %v", errHarnessTimeout, limit, err)
+	}
+	return report, err
 }
 
 func observeSpend(ctx context.Context, m llmbroker.Metered, cred llmbroker.Credential, log *slog.Logger) (float64, error) {
@@ -443,6 +462,17 @@ func resolveOutcome(adapterName string, report harness.OutcomeReport, runErr, ct
 			Summary:    adapterName + " run opened a PR for " + itemTitle,
 			Links:      []string{prURL},
 			Checkpoint: &work.Checkpoint{Phase: "pr_opened", Branch: branch, PRURL: prURL},
+		})
+	case errors.Is(runErr, errHarnessTimeout) || errors.Is(runErr, harness.ErrIdle):
+		var links []string
+		if prURL != "" {
+			links = []string{prURL}
+		}
+		return resolved(harness.OutcomeReport{
+			Outcome:       work.OutcomeFailed,
+			Summary:       adapterName + " run was stopped: " + runErr.Error(),
+			Links:         links,
+			FailureReason: string(work.FailureTimeout),
 		})
 	case report.Outcome.Valid():
 		if report.Outcome == work.OutcomeStuck && report.StuckReason == "" {

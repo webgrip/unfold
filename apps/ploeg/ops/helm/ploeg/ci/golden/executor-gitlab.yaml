@@ -291,6 +291,10 @@ spec:
                 value: "analyst"
               - name: PLOEG_HARNESS
                 value: "claude-code"
+              - name: PLOEG_HARNESS_TIMEOUT
+                value: "100m"
+              - name: PLOEG_HARNESS_IDLE_TIMEOUT
+                value: "15m"
               - name: LLM_MODEL
                 value: "litellm_proxy/claude-sonnet-5"
               - name: LITELLM_KEY_BUDGET
@@ -477,6 +481,10 @@ spec:
                 value: "builder"
               - name: PLOEG_HARNESS
                 value: "claude-code"
+              - name: PLOEG_HARNESS_TIMEOUT
+                value: "100m"
+              - name: PLOEG_HARNESS_IDLE_TIMEOUT
+                value: "15m"
               - name: LLM_MODEL
                 value: "litellm_proxy/claude-sonnet-5"
               - name: LITELLM_KEY_BUDGET
@@ -663,6 +671,10 @@ spec:
                 value: "reviewer"
               - name: PLOEG_HARNESS
                 value: "claude-code"
+              - name: PLOEG_HARNESS_TIMEOUT
+                value: "100m"
+              - name: PLOEG_HARNESS_IDLE_TIMEOUT
+                value: "15m"
               - name: LLM_MODEL
                 value: "litellm_proxy/claude-sonnet-5"
               - name: LITELLM_KEY_BUDGET

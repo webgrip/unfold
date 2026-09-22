@@ -3,11 +3,15 @@ package harness
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"os/exec"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/webgrip/ploeg/pkg/work"
 )
@@ -45,7 +49,13 @@ type RunEnv struct {
 	Stderr     io.Writer
 	Checkpoint func(work.Checkpoint) // best-effort progress reporting; may be nil
 	Log        *slog.Logger
+	// IdleTimeout ends a spawned harness that writes nothing to stdout or
+	// stderr for this long, returning ErrIdle. Zero disables the watchdog.
+	IdleTimeout time.Duration
 }
+
+// ErrIdle is returned by RunCommand when its idle watchdog ended a harness.
+var ErrIdle = harnessError("harness produced no output within its idle timeout")
 
 // LLMEnv is the harness-neutral LLM wiring for one run. Adapters translate
 // it into harness-native env names (LLM_* for OpenHands, ANTHROPIC_* for
@@ -122,21 +132,33 @@ func (r commandRunner) Run(ctx context.Context, spec TaskSpec, env RunEnv) (Outc
 		return OutcomeReport{}, errEmptyArgv
 	}
 
-	cmd := exec.CommandContext(ctx, inv.Argv[0], inv.Argv[1:]...)
+	runCtx, stop := context.WithCancelCause(ctx)
+	defer stop(nil)
+	cmd := exec.CommandContext(runCtx, inv.Argv[0], inv.Argv[1:]...)
 	cmd.Dir = env.RepoDir
 	cmd.Env = append(append([]string{}, env.BaseEnv...), inv.ExtraEnv...)
+	killProcessGroupOnCancel(cmd)
+	cmd.WaitDelay = processWaitDelay
 
 	var tail TailBuffer
-	stdout := io.MultiWriter(nonNil(env.Stdout), &tail)
+	activity := &activityClock{}
+	activity.touch()
+	stdout := io.MultiWriter(nonNil(env.Stdout), &tail, activity)
 	var captured *limitBuffer
 	if inv.CaptureStdout {
 		captured = &limitBuffer{max: maxCapturedStdout}
-		stdout = io.MultiWriter(nonNil(env.Stdout), &tail, captured)
+		stdout = io.MultiWriter(nonNil(env.Stdout), &tail, captured, activity)
 	}
 	cmd.Stdout = stdout
-	cmd.Stderr = io.MultiWriter(nonNil(env.Stderr), &tail)
+	cmd.Stderr = io.MultiWriter(nonNil(env.Stderr), &tail, activity)
 
+	if env.IdleTimeout > 0 {
+		go watchIdle(runCtx, stop, activity, env.IdleTimeout)
+	}
 	runErr := cmd.Run()
+	if errors.Is(context.Cause(runCtx), ErrIdle) {
+		runErr = fmt.Errorf("%w after %s: %v", ErrIdle, env.IdleTimeout, runErr)
+	}
 
 	res := ExecResult{ExitCode: -1, Err: runErr, LogTail: tail.Bytes()}
 	if cmd.ProcessState != nil {
@@ -160,6 +182,39 @@ func (r commandRunner) Run(ctx context.Context, spec TaskSpec, env RunEnv) (Outc
 		return OutcomeReport{}, runErr
 	}
 	return report, runErr
+}
+
+const processWaitDelay = 10 * time.Second
+
+type activityClock struct{ last atomic.Int64 }
+
+func (a *activityClock) Write(p []byte) (int, error) {
+	a.touch()
+	return len(p), nil
+}
+
+func (a *activityClock) touch() { a.last.Store(time.Now().UnixNano()) }
+
+func (a *activityClock) idleFor() time.Duration {
+	return time.Since(time.Unix(0, a.last.Load()))
+}
+
+func watchIdle(ctx context.Context, stop context.CancelCauseFunc, activity *activityClock, limit time.Duration) {
+	every := min(limit/4, 5*time.Second)
+	every = max(every, 10*time.Millisecond)
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if activity.idleFor() >= limit {
+				stop(ErrIdle)
+				return
+			}
+		}
+	}
 }
 
 type harnessError string

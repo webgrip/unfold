@@ -301,6 +301,10 @@ spec:
                   value: "bronze"
                 - name: PLOEG_HARNESS
                   value: "openhands"
+                - name: PLOEG_HARNESS_TIMEOUT
+                  value: "100m"
+                - name: PLOEG_HARNESS_IDLE_TIMEOUT
+                  value: "15m"
                 - name: LLM_MODEL
                   value: "litellm_proxy/deepseek-chat"
                 - name: LITELLM_KEY_BUDGET

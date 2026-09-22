@@ -317,7 +317,7 @@ func testTaskSpec() harness.TaskSpec {
 func TestRegression_AgentFailure_RevokesKey(t *testing.T) {
 	broker := &recordingBroker{key: "sk-test-fake-key"}
 	_, mintErr, runErr := runAgent(context.Background(), discardLog(), broker,
-		fakeAgentAdapter(t, 4), testTaskSpec(), runEnv(t), llmbroker.MintRequest{RunToken: "abc123def456ff"})
+		fakeAgentAdapter(t, 4), testTaskSpec(), runEnv(t), llmbroker.MintRequest{RunToken: "abc123def456ff"}, 0)
 	if mintErr != nil {
 		t.Fatal(mintErr)
 	}
@@ -335,7 +335,7 @@ func TestRegression_AgentFailure_RevokesKey(t *testing.T) {
 func TestRegression_AgentSuccess_RevokesKey(t *testing.T) {
 	broker := &recordingBroker{key: "sk-test-fake-key"}
 	_, mintErr, runErr := runAgent(context.Background(), discardLog(), broker,
-		fakeAgentAdapter(t, 0), testTaskSpec(), runEnv(t), llmbroker.MintRequest{RunToken: "abc123def456ff"})
+		fakeAgentAdapter(t, 0), testTaskSpec(), runEnv(t), llmbroker.MintRequest{RunToken: "abc123def456ff"}, 0)
 	if mintErr != nil || runErr != nil {
 		t.Fatalf("mintErr=%v runErr=%v", mintErr, runErr)
 	}
@@ -347,7 +347,7 @@ func TestRegression_AgentSuccess_RevokesKey(t *testing.T) {
 func TestRegression_MintFailure_NoRevoke_NoRun(t *testing.T) {
 	broker := &recordingBroker{mintErr: errors.New("HTTP 500")}
 	_, mintErr, _ := runAgent(context.Background(), discardLog(), broker,
-		fakeAgentAdapter(t, 0), testTaskSpec(), runEnv(t), llmbroker.MintRequest{RunToken: "abc123def456ff"})
+		fakeAgentAdapter(t, 0), testTaskSpec(), runEnv(t), llmbroker.MintRequest{RunToken: "abc123def456ff"}, 0)
 	if mintErr == nil {
 		t.Fatal("expected mint error")
 	}
@@ -366,7 +366,7 @@ func TestRunAgent_InjectsKeyAndTraceIntoEnv(t *testing.T) {
 	}
 	broker := &recordingBroker{key: "sk-minted"}
 	_, mintErr, runErr := runAgent(context.Background(), discardLog(), broker,
-		harness.RunCommand(openhands.New(bin)), testTaskSpec(), env, llmbroker.MintRequest{RunToken: "abc123def456ff"})
+		harness.RunCommand(openhands.New(bin)), testTaskSpec(), env, llmbroker.MintRequest{RunToken: "abc123def456ff"}, 0)
 	if mintErr != nil || runErr != nil {
 		t.Fatalf("mintErr=%v runErr=%v", mintErr, runErr)
 	}
@@ -382,7 +382,7 @@ func TestRunAgent_InjectsKeyAndTraceIntoEnv(t *testing.T) {
 func TestRunAgent_StaticBrokerNoKeyStillRuns(t *testing.T) {
 	broker := &recordingBroker{key: ""}
 	_, mintErr, runErr := runAgent(context.Background(), discardLog(), broker,
-		fakeAgentAdapter(t, 0), testTaskSpec(), runEnv(t), llmbroker.MintRequest{RunToken: "abc123def456ff"})
+		fakeAgentAdapter(t, 0), testTaskSpec(), runEnv(t), llmbroker.MintRequest{RunToken: "abc123def456ff"}, 0)
 	if mintErr != nil || runErr != nil {
 		t.Fatalf("mintErr=%v runErr=%v", mintErr, runErr)
 	}

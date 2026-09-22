@@ -141,6 +141,12 @@ func run(log *slog.Logger) error {
 	if hc.ACP.IdleTimeout, err = durationEnv("PLOEG_ACP_IDLE_TIMEOUT"); err != nil {
 		return err
 	}
+	if cfg.HarnessTimeout, err = boundEnv("PLOEG_HARNESS_TIMEOUT", defaultHarnessTimeout); err != nil {
+		return err
+	}
+	if cfg.HarnessIdleTimeout, err = boundEnv("PLOEG_HARNESS_IDLE_TIMEOUT", defaultHarnessIdleTimeout); err != nil {
+		return err
+	}
 	adapter, err := worker.NewAdapter(hc)
 	if err != nil {
 		return err
@@ -207,6 +213,22 @@ func envOr(key, def string) string {
 		return v
 	}
 	return def
+}
+
+const (
+	defaultHarnessTimeout     = 100 * time.Minute
+	defaultHarnessIdleTimeout = 15 * time.Minute
+)
+
+func boundEnv(key string, def time.Duration) (time.Duration, error) {
+	if os.Getenv(key) == "" {
+		return def, nil
+	}
+	d, err := durationEnv(key)
+	if err == nil && d < 0 {
+		err = fmt.Errorf("%s must not be negative", key)
+	}
+	return d, err
 }
 
 func durationOr(key string, def time.Duration) time.Duration {

@@ -9,6 +9,7 @@ func TestFailureReason_Values(t *testing.T) {
 		FailureAgentError,
 		FailureBudget,
 		FailureLeaseLost,
+		FailureTimeout,
 	}
 	for _, fr := range known {
 		if fr == "" {
@@ -37,7 +38,7 @@ func TestFailureReason_IsString(t *testing.T) {
 
 func TestFailureReason_IsInfra(t *testing.T) {
 	infra := []FailureReason{FailureInfraNode, FailureInfraLLM, FailureLeaseLost}
-	agent := []FailureReason{FailureAgentError, FailureBudget}
+	agent := []FailureReason{FailureAgentError, FailureBudget, FailureTimeout}
 
 	for _, f := range infra {
 		if !f.IsInfra() {

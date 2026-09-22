@@ -89,6 +89,8 @@ executor:
     args: []        # exec harness only: argv template with {taskspec}/{taskfile}
     outcomeFile: "" # exec harness only: OutcomeReport JSON path override
     dind: true      # privileged DinD sidecar + DOCKER_* wiring (OpenHands + gates need it)
+    timeout: 100m
+    idleTimeout: 15m
     # acp harness only. One adapter speaks Zed's Agent CLIENT Protocol (stdio
     # JSON-RPC, wire version 1) to any ACP-capable agent. Unrelated to IBM's
     # former Agent COMMUNICATION Protocol, which merged into A2A — see ADR-0007.
