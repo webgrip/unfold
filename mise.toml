@@ -6,7 +6,16 @@ uv = "0.12.12"
 "npm:@fission-ai/openspec" = "1.6.0"
 
 [tasks.setup]
-run = ["mise trust apps/vloer/mise.toml", "mise trust apps/ploeg/mise.toml", "mise -C apps/vloer install", "mise -C apps/ploeg install", "npm --prefix apps/vloer ci --no-audit --no-fund", "npm --prefix apps/vloer/extensions/vscode ci --no-audit --no-fund", "uv sync --frozen"]
+run = [
+  "mise trust apps/vloer/mise.toml",
+  "mise trust apps/ploeg/mise.toml",
+  "if git remote get-url origin >/dev/null 2>&1; then git fetch --no-tags origin '+refs/notes/*:refs/notes/*'; else echo 'setup: no origin remote; imported release notes not fetched'; fi",
+  "mise -C apps/vloer install",
+  "mise -C apps/ploeg install",
+  "npm --prefix apps/vloer ci --no-audit --no-fund",
+  "npm --prefix apps/vloer/extensions/vscode ci --no-audit --no-fund",
+  "uv sync --frozen",
+]
 description = "Install the locked application and documentation dependencies"
 
 [tasks.verify]
