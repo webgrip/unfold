@@ -312,6 +312,14 @@ func run(log *slog.Logger) error {
 	if engine != nil {
 		srv.Engine = engine
 	}
+	webhookCheck, err := newVikunjaWebhookCheck(vik, cfg.Trackers.Vikunja.Projects, log)
+	if err != nil {
+		return err
+	}
+	if webhookCheck != nil {
+		srv.TrackerWebhooks = webhookCheck.coverage
+		go webhookCheck.loop(ctx)
+	}
 
 	httpSrv := &http.Server{Addr: listen, Handler: srv.Handler(), ReadHeaderTimeout: 5 * time.Second}
 	go func() {
