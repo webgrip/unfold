@@ -57,7 +57,7 @@ Design notes: docs/architecture.md
 
 ## Set branch rules
 
-Ploeg names the writer's branch `agent/vik-<ticket id>` and tells the agent never to commit to the base branch and never to merge ([task.go](../../apps/ploeg/pkg/worker/task.go#L104-L120)). Ploeg does not configure branch protection; ADR-0013 rejected changing forge settings per Shift. On the forge, set these rules yourself (recommended, not enforced by Ploeg):
+Ploeg names the writer's branch `agent/vik-<ticket id>` for Vikunja and `agent/clickup-<ticket id>` for ClickUp ([branch.go](../../apps/ploeg/pkg/work/branch.go)) and tells the agent never to commit to the base branch and never to merge ([task.go](../../apps/ploeg/pkg/worker/task.go#L104-L120)). Ploeg does not configure branch protection; ADR-0013 rejected changing forge settings per Shift. On the forge, set these rules yourself (recommended, not enforced by Ploeg):
 
 1. Protect the base branch: no direct pushes, merge only through a pull request with passing CI and a human approval.
 2. Allow the bot to push to `agent/*` branches.
@@ -78,7 +78,7 @@ Whether a harness also loads `AGENTS.md`, `CLAUDE.md` or its own files by itself
 
 ## Verify
 
-Assign a small test ticket. Expect `target resolved` with your repository in the ploegd log, and a Run that ends `pr_opened` with a pull request from `agent/vik-<id>`.
+Assign a small test ticket. Expect `target resolved` with your repository in the ploegd log, and a Run that ends `pr_opened` with a pull request from `agent/vik-<id>` (or `agent/clickup-<id>`).
 
 ## If it fails
 
@@ -86,7 +86,7 @@ Assign a small test ticket. Expect `target resolved` with your repository in the
 | --- | --- | --- |
 | Run `stuck`: `git clone failed` | Bot has no read access, or the token is wrong | Grant access; check the Secret reference |
 | Push rejected | Bot lacks write access, or protection covers `agent/*` | Allow the bot on `agent/*` |
-| Outcome is not `pr_opened` although a pull request exists | The pull request's head is not `agent/vik-<id>` | Keep Ploeg's branch name |
+| Outcome is not `pr_opened` although a pull request exists | The pull request's head is not Ploeg's branch name | Keep Ploeg's branch name |
 | Agent skipped the checks | No Docker (`dind: false`) or no verify command in `AGENTS.md` | Enable DinD or add the tools to the image; document the command |
 | Pull request targets the wrong base branch | `branch:` not pinned, so the repository default or `main` is used | Pin it in the project route |
 

@@ -8,7 +8,7 @@ verified_by: "Read apps/ploeg pkg/config, pkg/httpapi/server.go, pkg/provider/{v
 
 # Assign work to an agent
 
-Use this to hand a tracker ticket to agents. Result: Ploeg dispatches a [Run](../../apps/ploeg/docs/domain/glossary.md#run), the agent opens a pull request on branch `agent/vik-<ticket id>`, and the ticket gets a comment with the link.
+Use this to hand a tracker ticket to agents. Result: Ploeg dispatches a [Run](../../apps/ploeg/docs/domain/glossary.md#run), the agent opens a pull request on branch `agent/vik-<ticket id>` for Vikunja and `agent/clickup-<ticket id>` for ClickUp, and the ticket gets a comment with the link.
 
 Terms: a **Work Item** is Ploeg's copy of your ticket. A **Team** is a named roster of agent **Roles**. A **Shift** is one Team's whole attempt at a Work Item, split into **Rounds**. A **Run** is one Role working once, and a **Lease** is the writer's exclusive right to push to the branch. See the [glossary](../reference/glossary.md).
 
@@ -60,14 +60,14 @@ ClickUp is only registered when `PLOEG_CLICKUP_SECRET` or `PLOEG_CLICKUP_TOKEN` 
 
 - **ploegd log:** `work item queued`, `target resolved`, `shift opened`, `round opened`, `shift closed`.
 - **Vloer:** open **Ploeg** in the sidebar and pick the Team. The lanes are **Needs human**, **Running**, **Queue** and **All work**. A Work Item's detail shows **Shifts & spending**, **Execution & review** (each Run's Role, Round, outcome and verdict), **Checkpoints** and an **Audit snapshot**. It is read-only ([ploeg.js](../../apps/vloer/public/ploeg.js)). Vloer needs a `ploeg` block with `url`, `tokenEnv` and team access in `userTeams` ([ploeg.ts](../../apps/vloer/src/ploeg.ts#L79-L104)).
-- **Spend:** each Run shows **Authorized spend** and **Observed model cost**. Under managed auth, the LLM key's budget comes from the Team and Role policy, not from the Shift. The Shift's **Recorded spend** stays at zero and **Reserved** holds the amount instead, because managed Runs skip settlement ([store.go](../../apps/ploeg/pkg/store/store.go#L445-L451)). Treat the per-Run observed cost as the real figure; it stays provisional until reconciled.
-- **Tracker:** when the Shift closes, the ticket gets a comment with the outcome and pull request link ([publish.go](../../apps/ploeg/pkg/shiftengine/publish.go#L194-L227)). Ploeg never marks the ticket done.
+- **Spend:** each Run shows **Authorized spend** and **Observed model cost**. Under managed auth, a Run's key budget is the smallest of the team's key policy, the Role cap and what is left of the Shift pool. ploegd settles each finished Run from LiteLLM's spend logs after `PLOEG_LLM_SETTLE_AFTER` (default 15 minutes); until then the amount shows under **Reserved**.
+- **Tracker:** when the Shift closes, the ticket gets a comment with the outcome and pull request link ([publish.go](../../apps/ploeg/pkg/shiftengine/publish.go#L194-L227)). A successful Shift moves the Work Item to `awaiting_review`. Ploeg never marks the ticket done.
 
 ## Stop it
 
 **Not implemented yet.** Tracker-dispatched work has no stop control. Unassigning the ticket is ignored ([server.go](../../apps/ploeg/pkg/httpapi/server.go#L118)). The `cancel` command exists only for executions that Vloer admits ([operator_execution.go](../../apps/ploeg/pkg/store/operator_execution.go#L228)). Killing a worker pod does not stop the Shift either: a killed writer's Round reopens and another pod claims it ([failedwriter.go](../../apps/ploeg/pkg/shiftengine/failedwriter.go)).
 
-These limits bound the exposure today: the per-Run key budget, the key lifetime (`executor.litellm.keyDuration`, default `4h`), the pod deadline (`activeDeadlineSeconds`, default `7200`), the Shift `pool` and `maxFixRounds`. For an incident, follow [Reconcile uncertainty](../../apps/ploeg/docs/ops/managed-workers.md#reconcile-uncertainty).
+These limits bound the exposure today: the per-Run key budget, the harness timeouts (`PLOEG_HARNESS_TIMEOUT`, default 100 minutes, and `PLOEG_HARNESS_IDLE_TIMEOUT`, default 15 minutes, which end a hung agent with failure reason `timeout`), the key lifetime (`executor.litellm.keyDuration`, default `4h`), the pod deadline (`activeDeadlineSeconds`, default `7200`), the Shift `pool` and `maxFixRounds`. For an incident, follow [Reconcile uncertainty](../../apps/ploeg/docs/ops/managed-workers.md#reconcile-uncertainty).
 
 ## If it fails
 

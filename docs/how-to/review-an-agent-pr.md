@@ -14,7 +14,7 @@ Terms: a **Shift** is one Team's whole attempt at a Work Item. It runs in **Roun
 
 ## What "ready for review" means today
 
-The code has no ready-for-review flag and never marks a pull request as a draft. A pull request is ready for you when its Shift has closed and the ticket has received Ploeg's comment ending in "Please review and merge" ([publish.go](../../apps/ploeg/pkg/shiftengine/publish.go#L194-L227)).
+A pull request is ready for you when its Work Item is in the `awaiting_review` state: the Shift closed successfully and a writer opened or updated the pull request. The ticket also receives Ploeg's comment ending in "Please review and merge". Ploeg never marks a pull request as a draft ([publish.go](../../apps/ploeg/pkg/shiftengine/publish.go#L194-L227)).
 
 The Shift's close reason tells you why it stopped ([reviewloop.go](../../apps/ploeg/pkg/shiftengine/reviewloop.go#L20-L39)):
 
@@ -26,14 +26,14 @@ The Shift's close reason tells you why it stopped ([reviewloop.go](../../apps/pl
 | `budget_exhausted_before_fix_round` | The Shift pool could not pay for another fix round. |
 | `writing_run_failed_repeatedly`, `writing_run_killed_repeatedly` | The writer never finished ([failedwriter.go](../../apps/ploeg/pkg/shiftengine/failedwriter.go#L26-L35)). |
 
-A team with a configured plan always settles the Work Item as `needs_human`. A team without a plan settles as `done` when the Run opened a pull request ([engine.go](../../apps/ploeg/pkg/shiftengine/engine.go#L247-L262)). Either way, no agent merges, and Ploeg leaves the ticket open.
+A Shift that closes with `review_approved` or `plan_exhausted` after a writer opened or updated the pull request settles the Work Item as `awaiting_review`. Every other close reason, and a `stuck` Run, settles it as `needs_human` ([engine.go](../../apps/ploeg/pkg/shiftengine/engine.go)). No agent merges, and Ploeg leaves the ticket open.
 
 ## Check the evidence
 
-1. **Branch.** To confirm the pull request came from Ploeg, check that its head branch is `agent/vik-<ticket id>`. Ploeg uses that name for every tracker, ClickUp included ([engine.go](../../apps/ploeg/pkg/shiftengine/engine.go#L74)). The base must be the branch routed for the project. The prompt also asks the writer to end each commit with `VIK-<id>` and `Agent-Trace-Id: <alias>` trailers and to put `VIK-<id>` in the pull request body ([task.go](../../apps/ploeg/pkg/worker/task.go#L102-L121)). Those are instructions, not enforced checks, so a missing trailer is a signal to look closer.
+1. **Branch.** To confirm the pull request came from Ploeg, check that its head branch is `agent/vik-<ticket id>` for Vikunja and `agent/clickup-<ticket id>` for ClickUp ([branch.go](../../apps/ploeg/pkg/work/branch.go)). The base must be the branch routed for the project. The prompt also asks the writer to end each commit with `VIK-<id>` and `Agent-Trace-Id: <alias>` trailers and to put `VIK-<id>` in the pull request body ([task.go](../../apps/ploeg/pkg/worker/task.go#L102-L121)). Those are instructions, not enforced checks, so a missing trailer is a signal to look closer.
 2. **Run outcomes.** In Vloer, open **Ploeg**, the Work Item, then **Execution & review**. Each Run shows its Role, Round, state, outcome and verdict. Ploeg sets `pr_opened` only when it finds a *new* open pull request on the branch after the Run, not because the agent said so ([worker.go](../../apps/ploeg/pkg/worker/worker.go#L313-L319), [resolveOutcome](../../apps/ploeg/pkg/worker/worker.go#L433-L449)). A `stuck` Run carries a reason under **Needs attention**.
 3. **Reviewer verdicts and findings.** Ploeg posts each reader's findings on the pull request as a comment headed `### <role> — round <n>` ([publish.go](../../apps/ploeg/pkg/shiftengine/publish.go#L127-L138)). The verdict is `approve` or `request_changes`; a reader that is unsure leaves it empty ([task.go](../../apps/ploeg/pkg/worker/task.go#L80-L87)). Only a reader's `request_changes` reopens the writer ([reviewloop.go](../../apps/ploeg/pkg/shiftengine/reviewloop.go#L120-L131)). Readers in a Round before the pull request exists leave no comment; their findings reach the writer in its prompt and stay in the Run record.
-4. **Spend.** Compare each Run's **Observed model cost** with its **Authorized spend**. Under managed auth the Shift's **Recorded spend** stays at zero and **Reserved** holds the amount ([store.go](../../apps/ploeg/pkg/store/store.go#L445-L451)), so add up the Runs. Observed cost is provisional until reconciled ([managed workers](../../apps/ploeg/docs/ops/managed-workers.md#reconcile-uncertainty)).
+4. **Spend.** Compare each Run's **Observed model cost** with its **Authorized spend**. Under managed auth, ploegd settles each finished Run from LiteLLM's spend logs once its key has been blocked for `PLOEG_LLM_SETTLE_AFTER` (default 15 minutes), and adds it to the Shift's **Recorded spend**. Until then the amount sits in **Reserved** and the observed cost is provisional ([managed workers](../../apps/ploeg/docs/ops/managed-workers.md#reconcile-uncertainty)).
 5. **CI.** Check the pipeline status on the forge yourself. The prompt tells the writer to run the repository's gates in Docker before opening the pull request, but nothing verifies it did. **Not implemented yet:** Ploeg does not read CI results. The forge webhook parses `check_failed` events and only records them in the audit log ([server.go](../../apps/ploeg/pkg/httpapi/server.go#L148-L160), [forgejo.go](../../apps/ploeg/pkg/provider/forgejo/forgejo.go#L183)).
 6. **Diff.** Read the change against the ticket's acceptance conditions. The pull request description is the agent's claim, not evidence.
 
@@ -44,7 +44,7 @@ A team with a configured plan always settles the Work Item as `needs_human`. A t
 To ask for another attempt today:
 
 1. Put the requested changes in the ticket description. The writer sees only the title, description and findings from earlier Rounds of the current Shift ([task.go](../../apps/ploeg/pkg/worker/task.go#L42-L46)).
-2. Remove the assignee and assign it again. A new assignment of a `done`, `needs_human` or `stale` Work Item re-queues it with its attempts reset ([store.go](../../apps/ploeg/pkg/store/store.go#L185-L186)). The new Shift reuses the branch, and the writer is told to push to the open pull request instead of opening a second one ([task.go](../../apps/ploeg/pkg/worker/task.go#L112-L115)).
+2. Remove the assignee and assign it again. A new assignment of a `done`, `awaiting_review`, `needs_human` or `stale` Work Item re-queues it with its attempts reset ([store.go](../../apps/ploeg/pkg/store/store.go#L185-L186)). The new Shift reuses the branch, and the writer is told to push to the open pull request instead of opening a second one ([task.go](../../apps/ploeg/pkg/worker/task.go#L112-L115)).
 
 ## If it fails
 

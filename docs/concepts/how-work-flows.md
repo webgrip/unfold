@@ -3,7 +3,7 @@ type: explanation
 audience: [owner, integrator, contributor, agent]
 owner: glide
 last_verified: 2026-09-22
-verified_by: "source read of apps/ploeg at 69d1af2; go test ./... in apps/ploeg"
+verified_by: "source read of apps/ploeg on docs/restructure; go test ./... in apps/ploeg"
 ---
 
 # How work flows
@@ -15,7 +15,7 @@ A ticket becomes a pull request in four steps:
 3. Short-lived worker pods run the Shift's agents, each within a budget and with a credential that expires.
 4. The Shift ends with a pull request for you to review and merge.
 
-This page explains that loop and who holds authority at each step. The [glossary](../domain/glossary.md) defines each **bold** term.
+This page explains that loop and who holds authority at each step. The [glossary](../reference/glossary.md) defines each **bold** term.
 
 ## The loop
 
@@ -52,12 +52,12 @@ sequenceDiagram
 4. **Claim.** The worker claims a Run and receives a signed control token for that Run only. A writer also gets a **Lease**, the exclusive right to push to the Shift's branch until it expires. The worker renews the Lease while it works. If the worker dies, the Lease lapses and the sweep recovers the Run.
 5. **Budget.** The worker asks Ploeg for a model key. Ploeg alone holds the LiteLLM master key, and mints a key for this Run with a spending limit ([`llm_control.go`](../../apps/ploeg/pkg/httpapi/llm_control.go)). The worker refuses to start if it can see the master key, the forge admin token or the database URL.
 6. **Work.** The worker clones the repository and runs a **harness**, the agent program that loops between the model and tools. OpenHands is the default; Claude Code, any executable, or an ACP agent are alternatives. The writer pushes the branch and opens or updates the pull request.
-7. **Outcome.** The worker blocks the key, reads its spend, checks the forge for the pull request and reports an **Outcome**, such as `pr_opened`, `stuck` or `failed`.
+7. **Outcome.** The worker blocks the key, checks the forge for the pull request and reports an **Outcome**, such as `pr_opened`, `stuck` or `failed`. A harness that runs too long or goes silent is stopped and reported as failed with reason `timeout`. Later, ploegd settles the Run's real cost from LiteLLM's spend logs into the Shift's budget.
 8. **Review Rounds.** Reviewer Runs read the branch and return a verdict and findings. Ploeg posts the findings as pull request comments. When a reviewer asks for changes, Ploeg opens a fix Round, up to the plan's limit. A failed writer retries its Round.
-9. **Close.** When the plan is done, Ploeg closes the Shift, comments on the ticket and updates its status. A `stuck` outcome closes it as needing a human.
+9. **Close.** When the plan is done, Ploeg closes the Shift and comments on the ticket. If a writer opened or updated the pull request, the Work Item moves to `awaiting_review`: ready for you. A `stuck` outcome or an exhausted fix loop moves it to `needs_human`.
 10. **Merge.** You review the pull request on the forge and merge it. Ploeg never merges.
 
-A sweep runs every 15 seconds. It expires dead Leases and Runs, blocks their keys and repairs Shifts ([`cmd/ploegd/sweep.go`](../../apps/ploeg/cmd/ploegd/sweep.go)).
+A sweep runs every 15 seconds. It expires dead Leases and Runs, blocks their keys, settles spend and repairs Shifts ([`cmd/ploegd/sweep.go`](../../apps/ploeg/cmd/ploegd/sweep.go)).
 
 ## Who holds authority
 
