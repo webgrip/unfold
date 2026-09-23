@@ -227,6 +227,9 @@ func TestLoop_CapStopsANeverApprovingReviewer(t *testing.T) {
 	if got := closeReason(t, id); got != reasonFixCap {
 		t.Errorf("close reason = %q, want %q", got, reasonFixCap)
 	}
+	if got := itemState(t, id); got != "needs_human" {
+		t.Errorf("item state = %q, want needs_human: the reviewer never approved", got)
+	}
 	// Exactly maxFixRounds writer re-runs, no more.
 	var builderRuns int
 	if err := testPool.QueryRow(ctx,
@@ -323,6 +326,9 @@ func TestLoop_DisabledWhenMaxFixRoundsIsZero(t *testing.T) {
 	}
 	if got := closeReason(t, id); got != reasonPlanExhausted {
 		t.Errorf("close reason = %q, want %q", got, reasonPlanExhausted)
+	}
+	if got := itemState(t, id); got != "needs_human" {
+		t.Errorf("item state = %q, want needs_human: the last reviewer asked for changes", got)
 	}
 }
 

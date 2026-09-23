@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/webgrip/ploeg/pkg/harness"
 	"github.com/webgrip/ploeg/pkg/plan"
 	"github.com/webgrip/ploeg/pkg/provider"
 	"github.com/webgrip/ploeg/pkg/store"
@@ -313,16 +314,34 @@ func (e *Engine) remandForReview(ctx context.Context, workItemID int64) bool {
 	return true
 }
 
-// readyForReview reports whether a configured plan closed successfully: it
-// ran to completion or its reviewer approved, and a writer opened or updated
-// a pull request.
+// readyForReview reports whether a configured plan closed successfully: its
+// reviewer approved, or it ran to completion without the last review of the
+// pull request asking for changes, and a writer opened or updated it.
 func readyForReview(closeReason string, reports []store.RunReport) bool {
 	if closeReason != reasonApproved && closeReason != reasonPlanExhausted {
+		return false
+	}
+	if closeReason == reasonPlanExhausted && lastReviewRequestsChanges(reports) {
 		return false
 	}
 	for _, r := range reports {
 		if r.Writes && (r.Outcome == string(work.OutcomePROpened) || r.Outcome == string(work.OutcomePRUpdated)) {
 			return true
+		}
+	}
+	return false
+}
+
+// lastReviewRequestsChanges reports whether the last reading Run after the
+// last writing Run asked for changes. A reader that ran before the last
+// writer never saw its pull request.
+func lastReviewRequestsChanges(reports []store.RunReport) bool {
+	for i := len(reports) - 1; i >= 0; i-- {
+		if reports[i].Writes {
+			return false
+		}
+		if reports[i].Outcome != "" {
+			return reports[i].Verdict == harness.VerdictRequestChanges
 		}
 	}
 	return false
