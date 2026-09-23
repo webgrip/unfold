@@ -59,6 +59,12 @@ type Server struct {
 	// TrackerWebhooks is the latest Vikunja webhook coverage check, reported
 	// by /readyz. Nil = no check configured.
 	TrackerWebhooks *WebhookCoverage
+	// MetricsCacheTTL is how long a /metrics result is reused before the
+	// database is read again. Zero means DefaultMetricsCacheTTL; negative
+	// disables the cache.
+	MetricsCacheTTL time.Duration
+
+	metrics metricsCache
 }
 
 // RoleCaps is the slice of the team-plan config the claim path needs.
@@ -79,6 +85,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	mux.HandleFunc("GET /readyz", s.handleReady)
+	mux.HandleFunc("GET /metrics", s.handleMetrics)
 	mux.HandleFunc("POST /webhooks/tracker/{provider}", s.handleTrackerWebhook)
 	mux.HandleFunc("POST /webhooks/forge/{provider}", s.handleForgeWebhook)
 	mux.HandleFunc("POST /api/v1/claim", s.handleClaim)

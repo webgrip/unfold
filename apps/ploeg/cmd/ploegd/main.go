@@ -308,6 +308,8 @@ func run(log *slog.Logger) error {
 		RoleCaps:       plans,
 		Forges:         forges,
 		ForgeCreds:     forgeCreds,
+
+		MetricsCacheTTL: durationOr("PLOEG_METRICS_CACHE_TTL", httpapi.DefaultMetricsCacheTTL),
 	}
 	if engine != nil {
 		srv.Engine = engine
