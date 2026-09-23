@@ -282,8 +282,8 @@
               "description": "Token with api scope on the target projects, sent as PRIVATE-TOKEN. ADR-0013 tier 2 does not apply on GitLab: per-run push credentials are minted through a Forgejo admin endpoint with no GitLab equivalent, so this shared token is what writing Runs use."
             },
             "readTokenSecret": {
-              "$ref": "#/definitions/secretRef",
-              "description": "ADR-0013 tier 1, as for forgejo: a read-only credential for reading Roles, so the reader/writer split is enforced at the forge and not only by scheduling. On GitLab a second project access token at read_repository scope. Empty = readers fall back to the read-write token."
+              "$ref": "#/definitions/readTokenSecretRef",
+              "description": "ADR-0013 tier 1, as for forgejo: a read-only credential for reading Roles, so the reader/writer split is enforced at the forge and not only by scheduling. On GitLab a second project access token at read_repository scope. Required (name and key) when any team has a reading Role: the render fails without it rather than hand readers the read-write token."
             },
             "webhookSecret": {
               "$ref": "#/definitions/secretRef",
@@ -304,8 +304,8 @@
               "$ref": "#/definitions/secretRef"
             },
             "readTokenSecret": {
-              "$ref": "#/definitions/secretRef",
-              "description": "ADR-0013 tier 1: read-only credential for reading Roles. Empty = readers fall back to the read-write builder token and scheduling is the only boundary (a known gap, closed by creating the secret)."
+              "$ref": "#/definitions/readTokenSecretRef",
+              "description": "ADR-0013 tier 1: read-only credential for reading Roles. Required (name and key) when any team has a reading Role: the render fails without it rather than hand readers the read-write builder token."
             },
             "adminTokenSecret": {
               "$ref": "#/definitions/secretRef",
@@ -624,6 +624,18 @@
         }
       },
       "additionalProperties": false
+    },
+    "readTokenSecretRef": {
+      "description": "Either empty (no reading Role anywhere) or a complete secretRef. A half-set reference would fail at pod start instead of at render.",
+      "allOf": [
+        { "$ref": "#/definitions/secretRef" },
+        {
+          "anyOf": [
+            { "type": "object", "maxProperties": 0 },
+            { "type": "object", "required": ["name", "key"] }
+          ]
+        }
+      ]
     },
     "secretRef": {
       "type": "object",

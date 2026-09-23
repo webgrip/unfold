@@ -1452,6 +1452,8 @@ spec:
                 value: "forgejo"
               - name: FORGE_URL
                 value: "http://forgejo-http.forgejo.svc.cluster.local:3000"
+              - name: PLOEG_FORGE_TOKEN_ACCESS
+                value: "read-only"
               - name: AGENT_BUILDER_TOKEN
                 valueFrom:
                   secretKeyRef:
@@ -1642,6 +1644,8 @@ spec:
                 value: "forgejo"
               - name: FORGE_URL
                 value: "http://forgejo-http.forgejo.svc.cluster.local:3000"
+              - name: PLOEG_FORGE_TOKEN_ACCESS
+                value: "read-only"
               - name: AGENT_BUILDER_TOKEN
                 valueFrom:
                   secretKeyRef:
@@ -1875,6 +1879,8 @@ spec:
                 value: "forgejo"
               - name: FORGE_URL
                 value: "http://forgejo-http.forgejo.svc.cluster.local:3000"
+              - name: PLOEG_FORGE_TOKEN_ACCESS
+                value: "read-write"
               - name: AGENT_BUILDER_TOKEN
                 valueFrom:
                   secretKeyRef:
@@ -2078,6 +2084,8 @@ spec:
                 value: "forgejo"
               - name: FORGE_URL
                 value: "http://forgejo-http.forgejo.svc.cluster.local:3000"
+              - name: PLOEG_FORGE_TOKEN_ACCESS
+                value: "read-only"
               - name: AGENT_BUILDER_TOKEN
                 valueFrom:
                   secretKeyRef:

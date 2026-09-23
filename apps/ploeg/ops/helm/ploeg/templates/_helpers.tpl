@@ -311,20 +311,27 @@ spec:
           value: {{ $forge.kind | quote }}
         - name: FORGE_URL
           value: {{ $forge.url | quote }}
-        {{- /* ADR-0013 tier 1: a READING Run gets a read-only forge credential
-             where one is configured, so the writer/reader split is enforced by
-             the forge and not only by Ploeg's scheduling. The repos are
-             private, so "no credential at all" cannot clone — a read-only
-             token is the honest tier 1. Until readTokenSecret is set the
-             reader falls back to the read-write builder token and scheduling
-             is the only boundary; turning the credential boundary on is one
-             secret and no code. */}}
-        {{- $isReader := and $role.name (not $role.writes) }}
+        {{- /* ADR-0013 tier 1: a READING Run gets a read-only forge credential,
+             so the writer/reader split is enforced by the forge and not only
+             by Ploeg's scheduling. The repos are private, so "no credential at
+             all" cannot clone — a read-only token is the honest tier 1. A
+             reader never falls back to the read-write builder token: a team
+             with a reading Role and no readTokenSecret fails the render, and
+             PLOEG_FORGE_TOKEN_ACCESS lets the worker refuse a reading claim
+             when the pod was built some other way. */}}
+        {{- $isReader := and (ne ($role.name | default "") "") (not $role.writes) }}
         {{- $readSecret := $forge.readTokenSecret }}
+        {{- if and $isReader (not (and $readSecret.name $readSecret.key)) }}
+        {{- fail (printf "team %s: role %q reads but executor.%s.readTokenSecret is not set; a reading Role must not receive the read-write forge token (ADR-0013 tier 1). Set readTokenSecret.name and readTokenSecret.key to a read-only token" $team.name $role.name $forge.kind) }}
+        {{- end }}
+        {{- if $role.name }}
+        - name: PLOEG_FORGE_TOKEN_ACCESS
+          value: {{ ternary "read-only" "read-write" $isReader | quote }}
+        {{- end }}
         - name: AGENT_BUILDER_TOKEN
           valueFrom:
             secretKeyRef:
-              {{- if and $isReader $readSecret }}
+              {{- if $isReader }}
               name: {{ $readSecret.name }}
               key: {{ $readSecret.key }}
               {{- else }}

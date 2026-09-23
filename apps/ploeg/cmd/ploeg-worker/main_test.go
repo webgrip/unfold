@@ -28,3 +28,16 @@ func TestAdministrativeWorkerEnvironmentFailsClosedWithoutSecretDisclosure(t *te
 		t.Fatal("worker must reject management authority without disclosing it")
 	}
 }
+
+func TestForgeTokenAccessRejectsTypos(t *testing.T) {
+	for _, ok := range []string{"", "read-only", "read-write"} {
+		t.Setenv("PLOEG_FORGE_TOKEN_ACCESS", ok)
+		if got, err := forgeTokenAccess(); err != nil || got != ok {
+			t.Fatalf("%q: got %q err=%v", ok, got, err)
+		}
+	}
+	t.Setenv("PLOEG_FORGE_TOKEN_ACCESS", "readonly")
+	if _, err := forgeTokenAccess(); err == nil {
+		t.Fatal("a misspelt access level must fail the boot, not read as read-write")
+	}
+}

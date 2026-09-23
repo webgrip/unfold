@@ -113,6 +113,10 @@ func run(log *slog.Logger) error {
 		KeyTTL:     durationOr("LITELLM_KEY_DURATION", 4*time.Hour),
 	}
 
+	if cfg.ForgeTokenAccess, err = forgeTokenAccess(); err != nil {
+		return err
+	}
+
 	// The harness seam: fail fast on a misconfigured adapter BEFORE claiming.
 	hc := worker.HarnessConfig{
 		Name:           envOr("PLOEG_HARNESS", "openhands"),
@@ -190,6 +194,16 @@ func rejectAdministrativeEnvironment() error {
 		}
 	}
 	return nil
+}
+
+func forgeTokenAccess() (string, error) {
+	v := os.Getenv("PLOEG_FORGE_TOKEN_ACCESS")
+	switch v {
+	case "", worker.ForgeTokenReadOnly, worker.ForgeTokenReadWrite:
+		return v, nil
+	}
+	return "", fmt.Errorf("PLOEG_FORGE_TOKEN_ACCESS must be %q or %q, got %q",
+		worker.ForgeTokenReadOnly, worker.ForgeTokenReadWrite, v)
 }
 
 func trimSlash(s string) string {

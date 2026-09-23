@@ -12,7 +12,20 @@
     },
     "branch": { "type": "string" },
     "prUrl": { "type": "string" },
-    "at": { "type": "string", "format": "date-time" }
+    "at": { "type": "string", "format": "date-time" },
+    "instructionFiles": {
+      "type": "array",
+      "description": "Agent instruction and configuration files the worker found in the clone before the harness ran (AGENTS.md and CLAUDE.md at any depth, .cursorrules, .mcp.json, and everything under .claude/, .agents/ and .openhands/), with the SHA-256 of the content it read.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string", "description": "Slash-separated path relative to the repository root" },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        },
+        "required": ["path", "sha256"],
+        "additionalProperties": false
+      }
+    }
   },
   "required": ["phase"],
   "additionalProperties": false
