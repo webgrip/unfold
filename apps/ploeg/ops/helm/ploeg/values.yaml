@@ -6,6 +6,50 @@ imagePullSecrets: [] # homelab sets [{name: harbor-pull}]
 service:
   port: 8080
 
+# Prometheus Operator objects for ploegd's GET /metrics. Both are off by
+# default: they need the monitoring.coreos.com CRDs. The alerts and what to do
+# about each are in docs/ops/alerts.md.
+monitoring:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {} # e.g. {release: kube-prometheus-stack}, whatever your Prometheus selects on
+  prometheusRule:
+    enabled: false
+    labels: {}
+    # PromQL label matchers every alert applies to ploegd's series. Empty =
+    # job="<release>",namespace="<release namespace>", which is what the
+    # ServiceMonitor above produces.
+    selector: ""
+    # Base URL of the rendered alerts page; each alert links to its anchor.
+    runbookBaseUrl: ""
+    alerts:
+      stuckShift:
+        enabled: true
+        idleHours: 6
+        for: 15m
+        severity: warning
+      expiredLease:
+        enabled: true
+        overdueSeconds: 300
+        for: 5m
+        severity: warning
+      leakedModelKey:
+        enabled: true
+        graceSeconds: 900
+        for: 5m
+        severity: critical
+      spendSpike:
+        enabled: true
+        usdPerHour: 20
+        for: 0m
+        severity: warning
+      trackerWebhookMissing:
+        enabled: true
+        for: 15m
+        severity: warning
+
 operator:
   consumers: []
   deliveryPolicies: []

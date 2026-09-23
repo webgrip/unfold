@@ -57,7 +57,7 @@ The unattended publication path and delegated candidate-delivery path have diffe
 
 ## 7. HTTP trust boundary
 
-Worker calls use the scoped authorization described in [worker control](contracts/worker-control.md). A Run token alone is not managed authentication. Operator calls use a scoped consumer identity and authenticated actor context; read access does not imply permission to execute. See [operator route authorization](../pkg/httpapi/operator.go) and [worker authorization tests](../pkg/httpapi/worker_auth_test.go).
+Worker calls use the scoped authorization described in [worker control](contracts/worker-control.md). A Run token alone is not managed authentication. Operator calls use a scoped consumer identity and authenticated actor context; read access does not imply permission to execute. See [operator route authorization](../pkg/httpapi/operator.go) and [worker authorization tests](../pkg/httpapi/worker_auth_test.go). `/healthz`, `/readyz` and `/metrics` are unauthenticated and return only aggregate state; [metrics and alerts](ops/alerts.md) lists what `/metrics` exposes.
 
 ## 8. Configuration and development
 

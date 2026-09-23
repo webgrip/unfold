@@ -15,7 +15,7 @@ for (const task of ['vet', 'build', 'test']) run('apps/ploeg', 'go', [task, './.
 for (const script of ['brand-marks.sh', 'license-check.sh']) run('apps/ploeg', 'bash', [`scripts/${script}`]);
 for (const [scope, name, variants] of [
   ['vloer', 'de-vloer', ['', 'values.live.example.yaml']],
-  ['ploeg', 'ploeg', ['', 'ci/executor-values.yaml', 'ci/executor-cronjob-values.yaml', 'ci/executor-gitlab-values.yaml']],
+  ['ploeg', 'ploeg', ['', 'ci/executor-values.yaml', 'ci/executor-cronjob-values.yaml', 'ci/executor-gitlab-values.yaml', 'ci/monitoring-values.yaml']],
 ]) {
   const chart = `ops/helm/${name}`;
   for (const variant of variants) {

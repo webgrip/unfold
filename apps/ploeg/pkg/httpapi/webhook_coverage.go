@@ -35,6 +35,17 @@ func (c *WebhookCoverage) Missing() []string {
 	return slices.Clone(c.missing)
 }
 
+type coverageCounts struct {
+	missing, failed int
+	at              time.Time
+}
+
+func (c *WebhookCoverage) snapshot() (coverageCounts, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return coverageCounts{missing: len(c.missing), failed: len(c.failed), at: c.checkedAt}, !c.checkedAt.IsZero()
+}
+
 func (c *WebhookCoverage) report() map[string]any {
 	c.mu.Lock()
 	defer c.mu.Unlock()
