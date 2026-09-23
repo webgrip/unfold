@@ -124,11 +124,72 @@ type hook struct {
 		Content string `json:"content"`
 	} `json:"review"`
 	// Check/status events name their state and the branches they ran on.
-	State    string   `json:"state"`
-	Branches []string `json:"branches"`
-	Commit   struct {
+	State       string     `json:"state"`
+	Branches    branchList `json:"branches"`
+	Context     string     `json:"context"`
+	Description string     `json:"description"`
+	TargetURL   string     `json:"target_url"`
+	Commit      struct {
 		Message string `json:"message"`
 	} `json:"commit"`
+	Sender struct {
+		Login string `json:"login"`
+	} `json:"sender"`
+}
+
+type branchList []string
+
+func (b *branchList) UnmarshalJSON(data []byte) error {
+	var raw []json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	out := make([]string, 0, len(raw))
+	for _, r := range raw {
+		var name string
+		if err := json.Unmarshal(r, &name); err == nil {
+			out = append(out, name)
+			continue
+		}
+		var obj struct {
+			Name string `json:"name"`
+		}
+		if err := json.Unmarshal(r, &obj); err != nil {
+			return err
+		}
+		out = append(out, obj.Name)
+	}
+	*b = out
+	return nil
+}
+
+func reviewState(kind string) provider.ForgeReviewState {
+	switch {
+	case strings.HasSuffix(kind, "_rejected"):
+		return provider.ForgeReviewChangesRequested
+	case strings.HasSuffix(kind, "_approved"):
+		return provider.ForgeReviewApproved
+	case strings.HasSuffix(kind, "_comment"):
+		return provider.ForgeReviewCommented
+	}
+	return ""
+}
+
+func checkDetail(h hook) string {
+	var parts []string
+	if h.Context != "" {
+		parts = append(parts, h.Context)
+	}
+	if h.Description != "" {
+		parts = append(parts, h.Description)
+	}
+	if h.TargetURL != "" {
+		parts = append(parts, h.TargetURL)
+	}
+	if len(parts) == 0 {
+		return h.Commit.Message
+	}
+	return strings.Join(parts, " — ")
 }
 
 // ParseWebhook verifies the signature against the RAW body before JSON
@@ -160,15 +221,19 @@ func (p *Provider) ParseWebhook(r *http.Request) ([]provider.ForgeEvent, error) 
 
 	switch {
 	// A submitted review. Forgejo sends type "pull_request_review_approved",
-	// "..._rejected" or "..._comment"; all three are feedback on the branch,
-	// and classifying WHICH is the follow-up's job, not the parser's.
-	case strings.HasPrefix(h.Review.Type, "pull_request_review") || r.Header.Get("X-Forgejo-Event") == "pull_request_review":
+	// "..._rejected" or "..._comment"; all three are feedback on the branch.
+	case strings.HasPrefix(h.Review.Type, "pull_request_review") || strings.HasPrefix(r.Header.Get("X-Forgejo-Event"), "pull_request_review"):
 		if repo == "" || pr == 0 {
 			return nil, nil
+		}
+		state := reviewState(h.Review.Type)
+		if state == "" {
+			state = reviewState(r.Header.Get("X-Forgejo-Event"))
 		}
 		return []provider.ForgeEvent{{
 			Kind: provider.ForgeReviewSubmitted, Repo: repo, PR: pr,
 			Branch: branch, Body: h.Review.Content,
+			Actor: h.Sender.Login, Review: state,
 		}}, nil
 
 	// A failed check run / commit status.
@@ -181,7 +246,7 @@ func (p *Provider) ParseWebhook(r *http.Request) ([]provider.ForgeEvent, error) 
 		}
 		return []provider.ForgeEvent{{
 			Kind: provider.ForgeCheckFailed, Repo: repo, PR: pr,
-			Branch: branch, Body: h.Commit.Message,
+			Branch: branch, Body: checkDetail(h), Actor: h.Sender.Login,
 		}}, nil
 
 	// The branch stopped being mergeable — conflicts, usually.

@@ -124,6 +124,11 @@ func (s *Store) OpenRound(ctx context.Context, shiftID int64, fromRound int, rol
 			return 0, err
 		}
 	}
+	if writers == 1 {
+		if err := bindPendingReviews(ctx, tx, workItemID, shiftID, round); err != nil {
+			return 0, err
+		}
+	}
 	if err := audit(ctx, tx, "team:"+team, "round.opened", &workItemID,
 		map[string]any{"shift": shiftID, "round": round, "roles": roleNames(roles)}); err != nil {
 		return 0, err
@@ -396,10 +401,12 @@ func (s *Store) ClaimRole(ctx context.Context, team, role string, ttl time.Durat
 		UPDATE work_items SET state = 'leased', attempts = attempts + 1, updated_at = now()
 		WHERE id = $1 AND NOT operator_owned
 		RETURNING provider, external_id, revision, team, origin, priority, title, description, url,
-			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule`,
+			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule,
+			COALESCE(source_work_item_id::text, ''), source_branch, source_pr`,
 		workItemID).Scan(&it.Provider, &it.ExternalID, &it.Revision, &it.Team, &it.Origin,
 		&it.Priority, &it.Title, &it.Description, &it.URL,
-		&it.ExternalScope, &tg.Forge, &tg.Owner, &tg.Repo, &tg.BaseBranch, &it.RouteRule); err != nil {
+		&it.ExternalScope, &tg.Forge, &tg.Owner, &tg.Repo, &tg.BaseBranch, &it.RouteRule,
+		&it.SourceWorkItemID, &it.SourceBranch, &it.SourcePR); err != nil {
 		return nil, err
 	}
 	it.ID = fmt.Sprint(workItemID)

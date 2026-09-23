@@ -308,7 +308,10 @@ func run(log *slog.Logger) error {
 		RoleCaps:       plans,
 		Forges:         forges,
 		ForgeCreds:     forgeCreds,
+		FollowUps:      cfg.ForgeFollowUps(),
+		ForgeBots:      forgeBots(),
 	}
+	log.Info("forge follow-ups loaded", "teams", len(srv.FollowUps))
 	if engine != nil {
 		srv.Engine = engine
 	}
@@ -371,6 +374,14 @@ func parseTeamMap(s string) map[string]string {
 		}
 	}
 	return m
+}
+
+func forgeBots() []string {
+	bots := []string{envOr("PLOEG_FORGEJO_BOT", "agent-builder")}
+	if gl := os.Getenv("PLOEG_GITLAB_BOT"); gl != "" {
+		bots = append(bots, gl)
+	}
+	return bots
 }
 
 func envOr(key, def string) string {

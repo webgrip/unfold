@@ -150,6 +150,9 @@ type hook struct {
 		SourceBranch string `json:"source_branch"`
 		MergeStatus  string `json:"merge_status"`
 	} `json:"merge_request"`
+	User struct {
+		Username string `json:"username"`
+	} `json:"user"`
 }
 
 // ParseWebhook authenticates the sender, then normalizes.
@@ -192,6 +195,7 @@ func (p *Provider) ParseWebhook(r *http.Request) ([]provider.ForgeEvent, error) 
 		return []provider.ForgeEvent{{
 			Kind: provider.ForgeReviewSubmitted, Repo: repo, PR: h.MergeRequest.IID,
 			Branch: h.MergeRequest.SourceBranch, Body: h.ObjectAttributes.Note,
+			Actor: h.User.Username, Review: provider.ForgeReviewCommented,
 		}}, nil
 
 	case "merge_request":
@@ -207,7 +211,7 @@ func (p *Provider) ParseWebhook(r *http.Request) ([]provider.ForgeEvent, error) 
 		case h.ObjectAttributes.Action == "approved" || h.ObjectAttributes.Action == "unapproved":
 			return []provider.ForgeEvent{{
 				Kind: provider.ForgeReviewSubmitted, Repo: repo, PR: iid, Branch: branch,
-				Body: h.ObjectAttributes.Action,
+				Body: h.ObjectAttributes.Action, Actor: h.User.Username, Review: approvalState(h.ObjectAttributes.Action),
 			}}, nil
 		// The branch stopped being mergeable — conflicts, usually.
 		case h.ObjectAttributes.MergeStatus == "cannot_be_merged":
@@ -230,8 +234,15 @@ func (p *Provider) ParseWebhook(r *http.Request) ([]provider.ForgeEvent, error) 
 		}
 		return []provider.ForgeEvent{{
 			Kind: provider.ForgeCheckFailed, Repo: repo, PR: h.MergeRequest.IID,
-			Branch: branch, Body: h.ObjectAttributes.Status,
+			Branch: branch, Body: h.ObjectAttributes.Status, Actor: h.User.Username,
 		}}, nil
 	}
 	return nil, nil
+}
+
+func approvalState(action string) provider.ForgeReviewState {
+	if action == "approved" {
+		return provider.ForgeReviewApproved
+	}
+	return ""
 }

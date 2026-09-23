@@ -90,6 +90,19 @@
           "type": "string",
           "description": "id of the routing rule that decided team and target, for audit"
         },
+        "sourceWorkItemId": {
+          "type": "string",
+          "description": "for a Follow-Up, the Work Item it was created from"
+        },
+        "sourceBranch": {
+          "type": "string",
+          "description": "for a Follow-Up, the pull request branch it works on instead of deriving its own"
+        },
+        "sourcePr": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "for a Follow-Up, the pull request number it refers to; absent when the forge event named none"
+        },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },

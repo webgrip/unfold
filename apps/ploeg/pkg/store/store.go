@@ -246,9 +246,11 @@ func (s *Store) Claim(ctx context.Context, team string, ttl time.Duration) (*Cla
 			LIMIT 1
 		)
 		RETURNING id, provider, external_id, revision, team, origin, priority, title, description, url,
-			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule`,
+			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule,
+			COALESCE(source_work_item_id::text, ''), source_branch, source_pr`,
 		team).Scan(&id, &it.Provider, &it.ExternalID, &it.Revision, &it.Team, &it.Origin, &it.Priority, &it.Title, &it.Description, &it.URL,
-		&it.ExternalScope, &t.Forge, &t.Owner, &t.Repo, &t.BaseBranch, &it.RouteRule)
+		&it.ExternalScope, &t.Forge, &t.Owner, &t.Repo, &t.BaseBranch, &it.RouteRule,
+		&it.SourceWorkItemID, &it.SourceBranch, &it.SourcePR)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNoWork
 	}
@@ -535,11 +537,13 @@ func (s *Store) WorkItem(ctx context.Context, id int64) (work.WorkItem, error) {
 	var t work.Target
 	err := s.pool.QueryRow(ctx, `
 		SELECT provider, external_id, revision, team, state, origin, priority, title, description, url,
-			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule
+			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule,
+			COALESCE(source_work_item_id::text, ''), source_branch, source_pr
 		FROM work_items WHERE id = $1`, id).
 		Scan(&it.Provider, &it.ExternalID, &it.Revision, &it.Team, &it.State, &it.Origin,
 			&it.Priority, &it.Title, &it.Description, &it.URL,
-			&it.ExternalScope, &t.Forge, &t.Owner, &t.Repo, &t.BaseBranch, &it.RouteRule)
+			&it.ExternalScope, &t.Forge, &t.Owner, &t.Repo, &t.BaseBranch, &it.RouteRule,
+			&it.SourceWorkItemID, &it.SourceBranch, &it.SourcePR)
 	if err != nil {
 		return work.WorkItem{}, err
 	}

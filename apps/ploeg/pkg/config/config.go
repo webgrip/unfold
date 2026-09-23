@@ -33,6 +33,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/webgrip/ploeg/pkg/plan"
+	"github.com/webgrip/ploeg/pkg/work"
 )
 
 // File is the whole of ploegd's file-backed configuration.
@@ -80,6 +81,9 @@ type Team struct {
 	Assignees []string `yaml:"assignees"`
 	// Plan is the ordered Rounds of a Shift; empty = a single writer.
 	Plan *plan.TeamPlan `yaml:"plan"`
+	// ForgeFollowUps opts this team in to acting on forge events on its pull
+	// requests. Omitted = forge events are recorded and nothing else happens.
+	ForgeFollowUps work.ForgeFollowUps `yaml:"forgeFollowUps"`
 }
 
 // Load reads and validates the file. A missing path is not an error — it
@@ -179,6 +183,9 @@ func (f *File) Validate() error {
 		}
 	}
 	for name, t := range f.Teams {
+		if t.ForgeFollowUps.MaxRepairs < 0 {
+			return fmt.Errorf("teams.%s.forgeFollowUps.maxRepairs: must not be negative", name)
+		}
 		if t.Plan == nil {
 			continue
 		}
@@ -209,6 +216,18 @@ func (f *File) Plans() plan.Plans {
 	for name, t := range f.Teams {
 		if t.Plan != nil {
 			out[name] = *t.Plan
+		}
+	}
+	return out
+}
+
+// ForgeFollowUps returns the forge-event policy of every team that enabled
+// one. A team that is missing acts on no forge event.
+func (f *File) ForgeFollowUps() map[string]work.ForgeFollowUps {
+	out := map[string]work.ForgeFollowUps{}
+	for name, t := range f.Teams {
+		if t.ForgeFollowUps.Enabled() {
+			out[name] = t.ForgeFollowUps
 		}
 	}
 	return out

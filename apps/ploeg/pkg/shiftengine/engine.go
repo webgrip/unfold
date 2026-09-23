@@ -272,10 +272,34 @@ func (e *Engine) close(ctx context.Context, si store.ShiftInfo, closeReason, hum
 	// HERE, not inside CloseShift or SettleItem, so that cancellation
 	// (backlog #8) can close a Shift WITHOUT notifying — a human who
 	// unassigned a ticket does not need to be told Ploeg finished it.
+	if settled == work.StateAwaitingReview && e.remandForReview(ctx, si.WorkItemID) {
+		return nil
+	}
 	if closed && work.Terminal(settled) {
 		e.notifyTracker(ctx, si, settled, humanReason)
 	}
 	return nil
+}
+
+func (e *Engine) remandForReview(ctx context.Context, workItemID int64) bool {
+	requeued, err := e.Store.RequeueForPendingReview(ctx, workItemID)
+	if err != nil {
+		e.Log.Error("review remand failed", "work_item", workItemID, "err", err)
+		return false
+	}
+	if !requeued {
+		return false
+	}
+	item, err := e.Store.WorkItem(ctx, workItemID)
+	if err != nil {
+		e.Log.Error("review remand: work item read failed; sweeper will open the shift", "work_item", workItemID, "err", err)
+		return true
+	}
+	e.Log.Info("work item queued again for a pending review", "work_item", workItemID, "team", item.Team)
+	if err := e.EnsureShift(ctx, workItemID, item); err != nil {
+		e.Log.Error("review remand: shift open failed; sweeper will repair", "work_item", workItemID, "err", err)
+	}
+	return true
 }
 
 // readyForReview reports whether a configured plan closed successfully: it
