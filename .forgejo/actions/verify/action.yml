@@ -17,12 +17,38 @@ runs:
       shell: bash
     - run: mise -C apps/ploeg install
       shell: bash
+    - name: Locate dependency caches
+      id: caches
+      shell: bash
+      run: |
+        set -euo pipefail
+        {
+          echo "gomod=$(mise -C apps/ploeg exec -- go env GOMODCACHE)"
+          echo "gobuild=$(mise -C apps/ploeg exec -- go env GOCACHE)"
+          echo "go=$(mise -C apps/ploeg exec -- go env GOVERSION)"
+          echo "npm=$(mise -C apps/vloer exec -- npm config get cache)"
+        } >> "$GITHUB_OUTPUT"
+    - name: Restore Go module and build caches
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: |
+          ${{ steps.caches.outputs.gomod }}
+          ${{ steps.caches.outputs.gobuild }}
+        key: glide-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-${{ hashFiles('apps/ploeg/go.sum') }}
+        restore-keys: glide-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-
+    - name: Restore npm download cache
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ${{ steps.caches.outputs.npm }}
+        key: glide-npm-${{ runner.os }}-${{ hashFiles('apps/vloer/package-lock.json', 'apps/vloer/extensions/vscode/package-lock.json') }}
+        restore-keys: glide-npm-${{ runner.os }}-
     - run: mise run setup
       shell: bash
     - run: mise run verify
       shell: bash
       env:
         GLIDE_REQUIRE_IMPORT_NOTES: 'true'
+        GOFLAGS: -count=1
     - name: Container build contexts
       shell: bash
       run: |
