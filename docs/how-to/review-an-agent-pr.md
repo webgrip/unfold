@@ -2,8 +2,8 @@
 type: how-to
 audience: [owner]
 owner: glide
-last_verified: 2026-09-22
-verified_by: "Read apps/ploeg pkg/worker/{task,worker}.go, pkg/shiftengine/{engine,reviewloop,publish}.go, pkg/store/store.go, pkg/httpapi/server.go and apps/vloer/public/ploeg.js at 6221579"
+last_verified: 2026-09-23
+verified_by: "Read apps/ploeg pkg/worker/{task,worker}.go, pkg/shiftengine/{engine,reviewloop,publish,review}.go, pkg/store/{store,review}.go, pkg/httpapi/server.go, cmd/ploegd/{main,sweep}.go and apps/vloer/public/ploeg.js on feat/ploeg-merge-detection"
 ---
 
 # Review an agent's pull request
@@ -26,7 +26,7 @@ The Shift's close reason tells you why it stopped ([reviewloop.go](../../apps/pl
 | `budget_exhausted_before_fix_round` | The Shift pool could not pay for another fix round. |
 | `writing_run_failed_repeatedly`, `writing_run_killed_repeatedly` | The writer never finished ([failedwriter.go](../../apps/ploeg/pkg/shiftengine/failedwriter.go)). |
 
-A Shift that closes with `review_approved` or `plan_exhausted` after a writer opened or updated the pull request settles the Work Item as `awaiting_review`. Every other close reason, and a `stuck` Run, settles it as `needs_human` ([engine.go](../../apps/ploeg/pkg/shiftengine/engine.go)). No agent merges, and Ploeg leaves the ticket open.
+A Shift that closes with `review_approved` or `plan_exhausted` after a writer opened or updated the pull request settles the Work Item as `awaiting_review`. Every other close reason, and a `stuck` Run, settles it as `needs_human` ([engine.go](../../apps/ploeg/pkg/shiftengine/engine.go)). No agent merges. The ticket stays open until you merge or close the pull request; see [After you merge or close](#after-you-merge-or-close).
 
 ## Check the evidence
 
@@ -37,9 +37,25 @@ A Shift that closes with `review_approved` or `plan_exhausted` after a writer op
 5. **CI.** Check the pipeline status on the forge yourself. The prompt tells the writer to run the repository's gates in Docker before opening the pull request, but nothing verifies it did. **Not implemented yet:** Ploeg does not read CI results. The forge webhook parses `check_failed` events and only records them in the audit log ([server.go](../../apps/ploeg/pkg/httpapi/server.go), [forgejo.go](../../apps/ploeg/pkg/provider/forgejo/forgejo.go)).
 6. **Diff.** Read the change against the ticket's acceptance conditions. The pull request description is the agent's claim, not evidence.
 
+## After you merge or close
+
+Ploeg notices what you did on the forge and moves the Work Item out of `awaiting_review` ([review.go](../../apps/ploeg/pkg/shiftengine/review.go)):
+
+| You | Work Item | Ticket |
+| --- | --- | --- |
+| Merge the pull request | `done` | A comment saying the pull request was merged. The ticket is marked done when the tracker supports it: Vikunja when write-backs are configured, ClickUp when `PLOEG_CLICKUP_DONE_STATUS` is set. `PLOEG_TRACKER_DONE_ON_MERGE=false` leaves marking it done to you. |
+| Close it without merging | `needs_human` | A comment saying the pull request was closed. The ticket stays open. |
+
+Ploeg learns this in two ways:
+
+1. **Webhook.** A Forgejo `pull_request` event with action `closed`, or a GitLab merge request event with action `merge` or `close`, settles the Work Item at once ([forgejo.go](../../apps/ploeg/pkg/provider/forgejo/forgejo.go), [gitlab.go](../../apps/ploeg/pkg/provider/gitlab/gitlab.go)). Subscribe the forge webhook to pull request events for this.
+2. **Reconcile.** Every `PLOEG_REVIEW_RECONCILE_INTERVAL` (default 10 minutes, `0` turns it off), ploegd asks the forge for the state of each `awaiting_review` pull request ([sweep.go](../../apps/ploeg/cmd/ploegd/sweep.go)). A missed webhook therefore delays the move by at most one interval.
+
+Both paths need a forge provider (`PLOEG_FORGEJO_URL` or `PLOEG_GITLAB_URL`) and a Work Item whose target repository resolved. An item that ran on the worker's fallback repository stays `awaiting_review` until its ticket is assigned again, and you update the ticket yourself.
+
 ## Send it back
 
-**Not implemented yet:** a human review comment on the pull request does not start another Round. The forge webhook "acts on nothing yet" ([server.go](../../apps/ploeg/pkg/httpapi/server.go)).
+**Not implemented yet:** a human review comment on the pull request does not start another Round. The forge webhook acts only on merged and closed pull requests; it records other events in the audit log ([server.go](../../apps/ploeg/pkg/httpapi/server.go)).
 
 To ask for another attempt today:
 
@@ -53,6 +69,7 @@ To ask for another attempt today:
 | No findings comment on the pull request | Readers ran before a pull request existed, the Work Item has no resolved target, or no forge provider is configured | Check the Run's **Review findings** in Vloer; check ploegd's `findings not published` log line |
 | Closed `review_approved` but the diff is wrong | An agent reviewer approved | Review the diff yourself; the verdict is not a human approval |
 | Re-assigning does nothing | The Work Item is still `queued` or `leased` | Wait for the Shift to close, then re-assign |
+| Work Item still `awaiting_review` after a merge | The webhook did not arrive and the reconcile has not run yet, the target never resolved, or the forge read failed | Wait one `PLOEG_REVIEW_RECONCILE_INTERVAL`; check ploegd's `review reconcile` log lines |
 | Pull request on another branch name | Not opened by a Ploeg writer, or the agent ignored the contract | Treat the pull request as unverified |
 
 Background: [assign work to an agent](assign-work-to-an-agent.md), [ADR-0002](../adr/adr-0002-ploeg-is-the-only-engine.md) and [Ploeg ADR-0017](../../apps/ploeg/docs/adrs/0017-the-review-loop-is-verdict-driven-and-capped.md).
