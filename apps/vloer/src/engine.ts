@@ -15,7 +15,6 @@ type Broker = {
   mint(session: Session): Promise<Credential>;
   spend(reference: string): Promise<number | undefined>;
   revoke(reference: string): Promise<void>;
-  extend(reference: string, totalBudget: number): Promise<void>;
   aliasesForSession?(sessionId: string): Promise<string[]>;
   usage?(reference: string): Promise<ModelUsage[] | undefined>;
   ledger?(reference: string): Promise<{ usage: ModelUsage[]; requests: GatewayRequest[] } | undefined>;

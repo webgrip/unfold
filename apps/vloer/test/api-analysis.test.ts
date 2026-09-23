@@ -24,7 +24,7 @@ test('an analysis role reports without a verdict and only the final reviewer dec
   }, new Map<RuntimeKind, AgentRuntime>([['opencode', runtime]]));
   t.after(() => server.close());
   const { cookie } = await login(server.url);
-  server.app.engine.broker = { mint: async (session: Session) => ({ key: 'scoped-key-fixture', alias: 'alias', reference: `de-vloer-${session.id}-fixture`, budgetUsd: session.budgetUsd }), revoke: async () => {}, spend: async () => 0, extend: async () => {} };
+  server.app.engine.broker = { mint: async (session: Session) => ({ key: 'scoped-key-fixture', alias: 'alias', reference: `de-vloer-${session.id}-fixture`, budgetUsd: session.budgetUsd }), revoke: async () => {}, spend: async () => 0 };
   const created = await request(server.url, '/api/sessions', { method: 'POST', body: createInput({ runtime: 'opencode', crewId: 'investigation' }), cookie, csrf: true });
   assert.equal(created.status, 201);
   await request(server.url, `/api/sessions/${created.body.id}/start`, { method: 'POST', body: {}, cookie, csrf: true });

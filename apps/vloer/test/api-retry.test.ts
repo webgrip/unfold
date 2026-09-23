@@ -23,7 +23,7 @@ test('a failed session can be tried again from the beginning once its spend has 
   }, new Map<RuntimeKind, AgentRuntime>([['opencode', runtime]]));
   t.after(() => server.close());
   const { cookie } = await login(server.url);
-  server.app.engine.broker = { mint: async (session: Session) => ({ key: 'sk-session-fixture-key', alias: 'a', reference: `de-vloer-${session.id}-${attempts}`, budgetUsd: session.budgetUsd }), revoke: async () => {}, spend: async () => 0, extend: async () => {} };
+  server.app.engine.broker = { mint: async (session: Session) => ({ key: 'sk-session-fixture-key', alias: 'a', reference: `de-vloer-${session.id}-${attempts}`, budgetUsd: session.budgetUsd }), revoke: async () => {}, spend: async () => 0 };
   const created = await request(server.url, '/api/sessions', { method: 'POST', body: createInput({ runtime: 'opencode' }), cookie, csrf: true });
   await request(server.url, `/api/sessions/${created.body.id}/start`, { method: 'POST', body: {}, cookie, csrf: true });
   const failed = await sessionUntil(server.url, created.body.id, session => session.status === 'failed', cookie);

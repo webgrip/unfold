@@ -30,7 +30,7 @@ test('live failures persist actionable safe evidence, survive authenticated repl
   let mints = 0;
   server.app.engine.broker = {
     mint: async session => { mints++; return { key: 'scoped-key-fixture', alias: 'alias', reference: `reference-${session.id}`, budgetUsd: session.budgetUsd }; },
-    revoke: async () => {}, spend: async () => 0, extend: async () => {},
+    revoke: async () => {}, spend: async () => 0,
   };
   const retained: Array<{ id: string; history: Event[]; submissions: number }> = [];
   let allSubmissions = 0;

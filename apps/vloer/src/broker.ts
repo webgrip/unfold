@@ -8,7 +8,6 @@ export interface BudgetBroker {
   mint(session: Session): Promise<Credential>;
   spend(reference: string): Promise<number | undefined>;
   revoke(reference: string): Promise<void>;
-  extend(reference: string, totalBudget: number): Promise<void>;
   usage?(reference: string): Promise<ModelUsage[] | undefined>;
   ledger?(reference: string): Promise<{ usage: ModelUsage[]; requests: GatewayRequest[] } | undefined>;
   providersFor?(model: string): Promise<string[] | undefined>;
@@ -181,19 +180,8 @@ export class LiteLLMBroker implements BudgetBroker {
     return { ...(entry.provider ? { provider: entry.provider } : {}), ...(entry.tierMap ? { tiers: entry.tierMap } : {}) };
   }
 
-  async extend(reference: string, totalBudget: number): Promise<void> {
-    if (!Number.isFinite(totalBudget) || totalBudget <= 0) throw new Error('Invalid credential budget');
-    const key = await this.find(reference);
-    if (!key) throw new Error('Credential no longer exists');
-    await this.request('/key/update', 'POST', { key: key.token, max_budget: totalBudget });
-  }
-
   async aliasesForSession(sessionId: string): Promise<string[]> {
     if (!/^[a-zA-Z0-9_-]{1,80}$/.test(sessionId)) throw new Error('Invalid session identity');
     return (await this.keys()).filter(key => key.key_alias.startsWith(`de-vloer-${sessionId}-`)).map(key => key.key_alias);
-  }
-
-  async revokeSession(sessionId: string): Promise<void> {
-    for (const alias of await this.aliasesForSession(sessionId)) await this.revoke(alias);
   }
 }

@@ -82,8 +82,6 @@ export class AgentHost {
     return token;
   }
 
-  revokeToken(token: string): void { this.revoke(digest(token)); }
-
   /** Revokes every connection token issued by one sign-in and closes its connections. */
   revokeSignIn(signIn: string): void {
     for (const key of this.store.getSecret<string[]>(`ahp-sign-in:${signIn}`) ?? []) this.revoke(key);

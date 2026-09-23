@@ -159,7 +159,7 @@ test('unknown paid spend retains authorization across interruption and blocks an
   let minted = 0;
   const broker = {
     async mint(session: Session) { minted++; return { key: 'paid-key-secret', reference: `key-${minted}`, alias: `key-${minted}`, budgetUsd: session.budgetUsd }; },
-    async spend() { return actualSpend; }, async revoke() {}, async extend() {},
+    async spend() { return actualSpend; }, async revoke() {},
   };
   const engine = new Engine(store, config, { opencode: runtime }, broker);
   const session = engine.create(input('opencode'), owner);
@@ -186,7 +186,7 @@ test('a budget increase is refused while a model key is live and applies to the 
   const minted: number[] = [];
   const broker = {
     async mint(session: Session) { minted.push(session.budgetUsd); return { key: `budget-key-${minted.length}`, reference: `budget-ref-${minted.length}`, alias: `budget-ref-${minted.length}`, budgetUsd: session.budgetUsd }; },
-    async spend() { return 0.5; }, async revoke() {}, async extend() { throw new Error('A live key must not be extended'); },
+    async spend() { return 0.5; }, async revoke() {},
   };
   const engine = new Engine(store, config, { opencode: runtime }, broker);
   const session = engine.create(input('opencode'), owner);
@@ -255,7 +255,7 @@ test('live startup recovery interrupts the previous workspace and revokes its he
   runtime.interrupt = async () => { interruptions++; await setTimeout(20); };
   const broker = {
     async mint(session: Session) { mints++; return { key: 'must-not-mint', reference: 'new-ref', alias: 'new-ref', budgetUsd: session.budgetUsd }; },
-    async spend() { return undefined; }, async revoke() { revocations++; }, async extend() {},
+    async spend() { return undefined; }, async revoke() { revocations++; },
   };
   const engine = new Engine(store, config, { opencode: runtime }, broker);
   const session = engine.create(input('opencode'), owner);
@@ -282,7 +282,7 @@ test('stopped-session reconciliation settles late gateway spend exactly once wit
   let mints = 0;
   const broker = {
     async mint(session: Session) { mints++; return { key: 'scoped-key', reference: 'late-key', alias: 'late-key', budgetUsd: session.budgetUsd }; },
-    async spend() { return spend; }, async revoke() {}, async extend() {},
+    async spend() { return spend; }, async revoke() {},
   };
   const engine = new Engine(store, config, { opencode: runtime }, broker);
   const session = engine.create(input('opencode'), owner);
@@ -305,7 +305,7 @@ test('startup discovers a credential minted before its local persistence and nev
   let revocations = 0;
   const broker = {
     async mint() { throw new Error('Startup must never mint'); },
-    async spend() { return 0.3; }, async revoke() { revocations++; }, async extend() {},
+    async spend() { return 0.3; }, async revoke() { revocations++; },
     async aliasesForSession() { return ['orphaned-at-crash']; },
   };
   const engine = new Engine(store, config, { opencode: runtime }, broker);
