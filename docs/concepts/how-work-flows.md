@@ -2,7 +2,7 @@
 type: explanation
 audience: [owner, integrator, contributor, agent]
 owner: glide
-last_verified: 2026-09-22
+last_verified: 2026-09-23
 verified_by: "source read of apps/ploeg on docs/restructure; go test ./... in apps/ploeg"
 ---
 
@@ -91,7 +91,7 @@ Vloer is the front end. It is where you watch Shifts, steer work, read evidence 
 
 * Your own tracker, forge, LiteLLM gateway and Kubernetes cluster are required. There is no hosted service.
 * Ploeg records the pull request but does not merge or publish anything. Candidate delivery stores approvals without a publisher.
-* Unassigning a tracker item does not cancel its Shift.
+* An operator-owned Work Item ignores unassignment in the tracker. Cancel its execution instead.
 * Runs cannot create Work Items yet; see below.
 * Forge webhooks are recorded but not acted on. Failing CI does not yet create a repair Round.
 
