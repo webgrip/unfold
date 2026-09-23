@@ -23,11 +23,26 @@ class HistoryClassification(unittest.TestCase):
             'vloer/operations/iteration-0.2.0.md',
             'migration-proposal.md',
             'ploeg/openspec/changes/x/design.md',
+            'vloer/design/00-product-system-design.md',
+            'vloer/design/00-product-system-design/',
+            'vloer/PRODUCT-DESIGN.md',
+            'vloer/PRODUCT-DESIGN/index.html',
+            'vloer/product/go-to-market.md',
+            'vloer/product/go-to-market/',
+            'vloer/operations/backlog.md',
+            'ploeg/backlog/',
         ]:
             self.assertTrue(rules.historical(path), path)
 
     def test_current_pages_and_ledger_indexes_are_not_history(self):
         for path in ['index.md', 'index.html', '', 'workflows/local-demo.md', 'vloer/operations/live/', 'adr/index.md', 'adr/', 'vloer/adrs/README.md', 'vloer/adrs/', 'reference/decisions.md']:
+            self.assertFalse(rules.historical(path), path)
+
+
+    def test_brand_folders_are_parked_except_the_trademark_policy(self):
+        for path in ['vloer/brand/README.md', 'vloer/brand/', 'vloer/brand/social-profile-copy.md', 'vloer/brand/brandbook.html', 'ploeg/brand/README.md', 'ploeg/brand/merkgids.html']:
+            self.assertTrue(rules.historical(path), path)
+        for path in ['vloer/brand/TRADEMARK.md', 'vloer/brand/TRADEMARK/', 'ploeg/brand/TRADEMARK.md', 'ploeg/brand/TRADEMARK.html']:
             self.assertFalse(rules.historical(path), path)
 
 
