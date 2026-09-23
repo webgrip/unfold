@@ -55,7 +55,7 @@ Ploeg's execution record for tracker, follow-up or operator work.
 | `team` | `string` |  | Team the item is queued for — the claiming crew, not the codebase; empty until assigned. |
 | `target` | `Work Target` |  | Forge coordinates the item's Runs act on; absent means unresolved (R11). |
 | `route_rule` | `string` |  | Id of the Routing Rule that decided team and target; recorded for audit. |
-| `state` | `enum(ingested, queued, leased, needs_human, awaiting_review, stale, done, withdrawn)` | yes | Dispatch lifecycle position. awaiting_review means Ploeg's work succeeded and its pull request is ready for human review. withdrawn means a person took the mandate back by unassigning the Tracker Item or cancelling it through the operator API. |
+| `state` | `enum(ingested, proposed, queued, leased, needs_human, awaiting_review, stale, done, withdrawn)` | yes | Dispatch lifecycle position. proposed means a Run created the item and it waits for a person to approve or reject it; no Team can claim it. awaiting_review means Ploeg's work succeeded and its pull request is ready for human review. withdrawn means a person took the mandate back by unassigning the Tracker Item or cancelling it through the operator API. |
 | `origin` | `enum(assignment, follow_up, operator)` | yes | Whether the item came from a tracker, Forge Event or Operator Consumer. |
 | `priority` | `integer` |  | Rank mirrored from the tracker; drives Team Queue order. |
 
@@ -71,6 +71,10 @@ Ploeg's execution record for tracker, follow-up or operator work.
 stateDiagram-v2
     [*] --> ingested : Tracker webhook received; Tracker Item mirrored
     [*] --> queued : Follow-Up created from a Forge Event, routed to the owning Team
+    [*] --> proposed : A Run created the item within its Team's created-work limits (ADR-0031)
+    [*] --> queued : A Run created the item and its Team sets autoDispatch; not-Ready work only with a refinement target
+    proposed --> queued : A person approves it through the operator API
+    proposed --> done : A person rejects it with a reason; its allotted budget is released
     ingested --> queued : Assignment matches a Routing Rule, resolving a Team and a Work Target
     queued --> leased : Team claims the item, acquiring a Lease
     leased --> queued : Lease expired or Run failed, retries remaining
