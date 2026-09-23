@@ -484,12 +484,19 @@ func resolveOutcome(adapterName string, report harness.OutcomeReport, runErr, ct
 	}
 	switch {
 	case prURL != "" && !prExisted:
-		return resolved(harness.OutcomeReport{
+		opened := harness.OutcomeReport{
 			Outcome:    work.OutcomePROpened,
 			Summary:    adapterName + " run opened a PR for " + itemTitle,
 			Links:      []string{prURL},
 			Checkpoint: &work.Checkpoint{Phase: "pr_opened", Branch: branch, PRURL: prURL},
-		})
+		}
+		if runErr != nil {
+			reason, note := lateFailure(runErr, ctxErr)
+			opened.Summary += note
+			opened.StuckReason = tail(logTail, 2000)
+			opened.FailureReason = string(reason)
+		}
+		return resolved(opened)
 	case errors.Is(runErr, errHarnessTimeout) || errors.Is(runErr, harness.ErrIdle):
 		var links []string
 		if prURL != "" {
@@ -620,6 +627,21 @@ func refuseReaderWithoutReadOnlyToken(cfg Config, claimed *ClaimResponse) (harne
 		fmt.Sprintf("role %q reads, but this worker's forge token is not read-only (PLOEG_FORGE_TOKEN_ACCESS=%s). "+
 			"A reader must never hold the read-write token (ADR-0013 tier 1); set executor.<forge>.readTokenSecret "+
 			"and redeploy the chart", claimed.Role, access)), true
+}
+
+// lateFailure classifies what ended a Run after it had already opened its
+// pull request. The outcome stays pr_opened; only the failure is recorded.
+func lateFailure(runErr, ctxErr error) (reason work.FailureReason, note string) {
+	switch {
+	case errors.Is(runErr, errHarnessTimeout) || errors.Is(runErr, harness.ErrIdle):
+		return work.FailureTimeout, ", then was stopped: " + runErr.Error()
+	case errors.Is(ctxErr, errTerminated):
+		return work.FailureInfraNode, ", then was terminated mid-run (pod shutdown)"
+	case ctxErr != nil:
+		return work.FailureLeaseLost, ", then lost its lease"
+	default:
+		return work.FailureAgentError, ", then exited with an error before finishing"
+	}
 }
 
 func stuckReport(summary, reason string) harness.OutcomeReport {
