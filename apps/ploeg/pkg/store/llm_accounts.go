@@ -206,9 +206,42 @@ func (s *Store) RecordLLMObserved(ctx context.Context, token string, spend float
 	return err
 }
 
+// ReconcileLLMAccount settles a finished Run's account at spend, charging the
+// difference from any earlier settlement to its Shift.
 func (s *Store) ReconcileLLMAccount(ctx context.Context, token string, spend float64, evidence string) error {
+	return s.ReconcileLLMAccountWithUsage(ctx, token, spend, evidence, nil)
+}
+
+// SettledUsage is the gateway's record of what a Run consumed.
+type SettledUsage struct {
+	InputTokens  int64
+	OutputTokens int64
+	Models       []string
+}
+
+// ReconcileLLMAccountWithUsage settles like ReconcileLLMAccount and, when
+// usage is not nil, merges inputTokens, outputTokens, models and costUsd into
+// agent_runs.usage in the same transaction. Other keys a harness reported,
+// such as sessionId, are kept.
+func (s *Store) ReconcileLLMAccountWithUsage(ctx context.Context, token string, spend float64, evidence string, usage *SettledUsage) error {
 	if !validSpend(spend) || evidence == "" {
 		return ErrLLMAccountState
+	}
+	var usageJSON []byte
+	if usage != nil {
+		if usage.InputTokens < 0 || usage.OutputTokens < 0 {
+			return ErrLLMAccountState
+		}
+		models := usage.Models
+		if models == nil {
+			models = []string{}
+		}
+		var err error
+		if usageJSON, err = json.Marshal(map[string]any{
+			"inputTokens": usage.InputTokens, "outputTokens": usage.OutputTokens, "models": models, "costUsd": spend,
+		}); err != nil {
+			return err
+		}
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -245,6 +278,12 @@ func (s *Store) ReconcileLLMAccount(ctx context.Context, token string, spend flo
 	if _, err := tx.Exec(ctx, `UPDATE run_llm_accounts SET state='reconciled',reconciled_spend=$2,
 		reconciliation_evidence=$3,updated_at=now() WHERE run_token=$1`, token, spend, evidence); err != nil {
 		return err
+	}
+	if usageJSON != nil {
+		if _, err := tx.Exec(ctx, `UPDATE agent_runs SET usage=CASE WHEN jsonb_typeof(usage)='object' THEN usage ELSE '{}'::jsonb END || $2::jsonb
+			WHERE run_token=$1`, token, usageJSON); err != nil {
+			return err
+		}
 	}
 	if err := audit(ctx, tx, "ploegd:reconciliation", "llm.reconciled", &id, map[string]any{"spend": spend, "delta": delta, "evidence": evidence}); err != nil {
 		return err

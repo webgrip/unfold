@@ -12,6 +12,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 )
@@ -155,43 +156,84 @@ func (c *Client) KeySpend(ctx context.Context, key string) (float64, error) {
 // deleted, so they are the settlement source. It also returns how many
 // entries were summed.
 func (c *Client) SpendLogTotal(ctx context.Context, token string) (float64, int, error) {
+	summary, err := c.SpendLogs(ctx, token)
+	if err != nil {
+		return 0, 0, err
+	}
+	return summary.USD, summary.Entries, nil
+}
+
+// SpendLogSummary is what one key's spend log entries add up to. Token
+// counts absent from an entry count as zero; Models is sorted and unique.
+type SpendLogSummary struct {
+	USD              float64
+	Entries          int
+	PromptTokens     int64
+	CompletionTokens int64
+	Models           []string
+}
+
+// SpendLogs reads the same entries as SpendLogTotal and also aggregates their
+// prompt and completion tokens and the models they name. A missing or invalid
+// spend fails the read; a missing or invalid token count does not.
+func (c *Client) SpendLogs(ctx context.Context, token string) (SpendLogSummary, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/spend/logs?api_key="+url.QueryEscape(token), nil)
 	if err != nil {
-		return 0, 0, fmt.Errorf("litellm: invalid spend logs endpoint")
+		return SpendLogSummary{}, fmt.Errorf("litellm: invalid spend logs endpoint")
 	}
 	req.Header.Set("Authorization", "Bearer "+c.masterKey)
 	resp, err := c.httpCli.Do(req)
 	if err != nil {
-		return 0, 0, fmt.Errorf("litellm: spend logs request failed")
+		return SpendLogSummary{}, fmt.Errorf("litellm: spend logs request failed")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return 0, 0, fmt.Errorf("litellm: spend logs got HTTP %d", resp.StatusCode)
+		return SpendLogSummary{}, fmt.Errorf("litellm: spend logs got HTTP %d", resp.StatusCode)
 	}
 	decoder := json.NewDecoder(io.LimitReader(resp.Body, 256<<20))
 	if open, err := decoder.Token(); err != nil || open != json.Delim('[') {
-		return 0, 0, fmt.Errorf("litellm: invalid spend logs response")
+		return SpendLogSummary{}, fmt.Errorf("litellm: invalid spend logs response")
 	}
-	var total float64
-	entries := 0
+	var summary SpendLogSummary
+	models := map[string]struct{}{}
 	for decoder.More() {
 		var entry struct {
-			APIKey string   `json:"api_key"`
-			Spend  *float64 `json:"spend"`
+			APIKey           string   `json:"api_key"`
+			Spend            *float64 `json:"spend"`
+			Model            string   `json:"model"`
+			PromptTokens     *float64 `json:"prompt_tokens"`
+			CompletionTokens *float64 `json:"completion_tokens"`
 		}
 		if err := decoder.Decode(&entry); err != nil {
-			return 0, 0, fmt.Errorf("litellm: invalid spend logs response")
+			return SpendLogSummary{}, fmt.Errorf("litellm: invalid spend logs response")
 		}
 		if entry.APIKey != token || entry.Spend == nil || *entry.Spend < 0 || math.IsNaN(*entry.Spend) || math.IsInf(*entry.Spend, 0) {
-			return 0, 0, fmt.Errorf("litellm: spend log entry is unavailable or invalid")
+			return SpendLogSummary{}, fmt.Errorf("litellm: spend log entry is unavailable or invalid")
 		}
-		total += *entry.Spend
-		entries++
+		summary.USD += *entry.Spend
+		summary.Entries++
+		summary.PromptTokens += tokenCount(entry.PromptTokens)
+		summary.CompletionTokens += tokenCount(entry.CompletionTokens)
+		if model := strings.TrimSpace(entry.Model); model != "" {
+			models[model] = struct{}{}
+		}
 	}
 	if closing, err := decoder.Token(); err != nil || closing != json.Delim(']') {
-		return 0, 0, fmt.Errorf("litellm: invalid spend logs response")
+		return SpendLogSummary{}, fmt.Errorf("litellm: invalid spend logs response")
 	}
-	return total, entries, nil
+	summary.Models = make([]string, 0, len(models))
+	for model := range models {
+		summary.Models = append(summary.Models, model)
+	}
+	sort.Strings(summary.Models)
+	return summary, nil
+}
+
+func tokenCount(v *float64) int64 {
+	if v == nil || *v < 0 || math.IsNaN(*v) || math.IsInf(*v, 0) || *v > math.MaxInt32 {
+		return 0
+	}
+	return int64(math.Round(*v))
 }
 
 // KeyInfo is a single entry from the /key/list response (with

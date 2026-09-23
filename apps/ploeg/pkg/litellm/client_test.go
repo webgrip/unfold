@@ -448,3 +448,24 @@ func TestSpendLogTotalSumsOnlyTheRequestedKey(t *testing.T) {
 		}
 	}
 }
+
+func TestSpendLogsAggregatesTokensAndModels(t *testing.T) {
+	body := `[{"api_key":"fixture-key-id","spend":0.1,"model":"deepseek-chat","prompt_tokens":1200,"completion_tokens":300},` +
+		`{"api_key":"fixture-key-id","spend":0.25,"model":"claude-sonnet","prompt_tokens":800,"completion_tokens":150},` +
+		`{"api_key":"fixture-key-id","spend":0,"model":"deepseek-chat"},` +
+		`{"api_key":"fixture-key-id","spend":0.05,"model":" ","prompt_tokens":-4,"completion_tokens":null}]`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+	got, err := NewClient(srv.URL, "fixture-master").SpendLogs(context.Background(), "fixture-key-id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Entries != 4 || got.USD < 0.3999 || got.USD > 0.4001 || got.PromptTokens != 2000 || got.CompletionTokens != 450 {
+		t.Fatalf("summary=%+v", got)
+	}
+	if strings.Join(got.Models, ",") != "claude-sonnet,deepseek-chat" {
+		t.Fatalf("models=%v, want sorted and unique", got.Models)
+	}
+}

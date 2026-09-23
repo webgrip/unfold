@@ -42,11 +42,15 @@ type Settler interface {
 	SettledSpendForRun(ctx context.Context, runToken string, keyIDs []string) (SettledSpend, error)
 }
 
-// SettledSpend is a run's gateway spend and the size of the record behind it.
+// SettledSpend is a run's gateway spend, the size of the record behind it,
+// and the token usage and models that record names.
 type SettledSpend struct {
-	USD     float64
-	Keys    int
-	Entries int
+	USD          float64
+	Keys         int
+	Entries      int
+	InputTokens  int64
+	OutputTokens int64
+	Models       []string
 }
 
 // Sweeper is ploegd's reconciliation view: crash cleanup by run token and
