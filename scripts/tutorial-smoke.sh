@@ -96,9 +96,17 @@ data_dir="$(grep -o '"dataDir":"[^"]*"' "$log" | head -n 1 | cut -d'"' -f4)"
 echo 'tutorial-smoke: the documented demo started, served the workbench and cleaned up'
 
 echo "tutorial-smoke: running '$smoke_command'"
-if ! timeout "$ready_timeout" bash -c "$smoke_command" >"$log" 2>&1; then
-  fail "'$smoke_command' did not exit cleanly"
-fi
+bash -c "$smoke_command" >"$log" 2>&1 &
+smoke=$!
+deadline=$((SECONDS + ready_timeout))
+while kill -0 "$smoke" 2>/dev/null; do
+  if [ "$SECONDS" -ge "$deadline" ]; then
+    kill -TERM "$smoke" 2>/dev/null
+    fail "'$smoke_command' did not finish within ${ready_timeout}s"
+  fi
+  sleep 1
+done
+wait "$smoke" || fail "'$smoke_command' did not exit cleanly"
 grep -q '"event":"unified-demo.smoke-passed"' "$log" || fail 'no unified-demo.smoke-passed'
 grep -q '"event":"unified-demo.stopped"' "$log" || fail 'no unified-demo.stopped after the automated smoke check'
 rm -f "$log"
