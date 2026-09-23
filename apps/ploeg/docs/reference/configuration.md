@@ -76,6 +76,7 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_TARGET_SOURCE` | ploeg-worker |  | `env` ignores the claim's target and uses the fallback repository. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_TEAM` | ploeg-worker | required | Team this worker claims work for. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_TEAM_MAP` | ploegd |  | Legacy assignee roster, replaced by `teams.<name>.assignees` in the `PLOEG_CONFIG` file. | [main.go](../../cmd/ploegd/main.go), [operator.go](../../cmd/ploegd/operator.go) |
+| `PLOEG_TEAM_MAX_RUNNING` | ploegd |  |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_TEAM_PLANS` | ploegd |  | Legacy Shift plans, replaced by `teams.<name>.plan` in the `PLOEG_CONFIG` file. A malformed plan stops ploegd at boot. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_TRACKER_DONE_ON_MERGE` | ploegd | `false` |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_VIKUNJA_SECRET` | ploegd |  | Secret that verifies `X-Vikunja-Signature` on `POST /webhooks/tracker/vikunja`. The chart reads it from `webhook.existingSecret`. | [main.go](../../cmd/ploegd/main.go) |
@@ -177,6 +178,7 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `executor.teams[].harness` | [harness](#harness) |  | Overrides the `executor.harness` defaults for this Team. | values.schema.json |
 | `executor.teams[].maxFixRounds` | integer |  | ADR-0017: how many times a reviewer request_changes may re-open the writing Round of this plan. 0 = loop off, the plan runs to exhaustion. | values.schema.json |
 | `executor.teams[].maxReplicaCount` | integer |  |  | values.schema.json |
+| `executor.teams[].maxRunning` | integer |  | Concurrency cap: the most Runs this team may have running at once, enforced by ploegd at claim time. A claim over the cap gets no work and the worker exits 0. Every workload's maxReplicaCount is clamped to it. 0 or unset = unlimited. | values.schema.json |
 | `executor.teams[].model` | string |  | Model the Team's workers use unless a Role overrides it. | values.schema.json |
 | `executor.teams[].name` | string |  | Team name. Give the routing config's Team the same name. | values.schema.json |
 | `executor.teams[].perRunBudget` | string |  | Per-run key ceiling for a team with no plan. Optional; falls back to budget, which for a PLANNED team is the Shift pool and not a per-run figure. | values.schema.json |
