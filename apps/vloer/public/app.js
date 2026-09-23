@@ -1,4 +1,5 @@
 import { ploegMarkup, ploegLanes, activePloegLane } from './ploeg.js';
+import { activityMarkup, mergeFeed, overviewMarkup, ploegTabsMarkup, proposedMarkup, runFilter, runsMarkup } from './ploeg-activity.js';
 import { deliveryMarkup } from './delivery.js';
 
 const $ = selector => document.querySelector(selector);
@@ -38,7 +39,7 @@ const icon = (name, cls = '') => `<svg class="icon ${cls}" viewBox="0 0 24 24" f
 const labels = { queued: 'Ready to start', running: 'Working', exporting: 'Preparing review', waiting_input: 'Needs your input', paused: 'Paused', completed: 'Awaiting your review', failed: 'Needs attention', cancelled: 'Cancelled', interrupted: 'Interrupted' };
 const evidenceTabs = [['stream','activity','Activity'],['gateway','layers','Gateway'],['diff','code','Changes'],['test','terminal','Checks'],['handoff','branch','Handoff']];
 const providers = { forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp', vikunja: 'Vikunja', demo: 'Demo fixture' };
-const state = { deliveryRequest: 0, delivery: null, deliveryError: '', deliveryBusy: false, evidenceScroll: {}, bootstrap: null, sessions: [], session: null, events: [], permissions: [], view: 'sessions', tab: 'stream', filter: 'all', search: '', draft: '', stream: null, online: true, busy: false, refreshTimer: null, toastTimer: null, ploeg: null, ploegLane: null, ploegDetail: null, ploegDetailError: '', ploegDetailLoading: false, ploegLoading: false, ploegRequest: 0, health: null, taskSourceId: '', tasks: [], task: null, taskPage: 1, taskNextPage: null, taskSearch: '', taskLoading: false, taskPreviewLoading: false, taskError: '', taskPreviewError: '', taskChanged: false, taskDraft: null, taskRequest: 0, previewRequest: 0, taskImporting: false };
+const state = { deliveryRequest: 0, delivery: null, deliveryError: '', deliveryBusy: false, evidenceScroll: {}, bootstrap: null, sessions: [], session: null, events: [], permissions: [], view: 'sessions', tab: 'stream', filter: 'all', search: '', draft: '', stream: null, online: true, busy: false, refreshTimer: null, toastTimer: null, ploeg: null, ploegLane: null, ploegDetail: null, ploegDetailError: '', ploegDetailLoading: false, ploegLoading: false, ploegRequest: 0, ploegTab: 'overview', ploegTeams: null, ploegTimer: null, ploegSummary: { window: '24h', data: null, error: null, loading: false }, ploegFeed: { events: null, nextCursor: null, team: '', kind: '', error: null, loading: false, refreshedAt: null, demo: false }, ploegRuns: { runs: null, nextBefore: null, filter: {}, error: null, loading: false, demo: false }, ploegProposed: { items: null, error: null, loading: false, busy: false, demo: false, truncated: false }, health: null, taskSourceId: '', tasks: [], task: null, taskPage: 1, taskNextPage: null, taskSearch: '', taskLoading: false, taskPreviewLoading: false, taskError: '', taskPreviewError: '', taskChanged: false, taskDraft: null, taskRequest: 0, previewRequest: 0, taskImporting: false };
 
 async function api(path, options = {}) {
   const response = await fetch(path, { ...options, headers: { 'Content-Type': 'application/json', 'X-Vloer-Request': '1', ...options.headers }, credentials: 'same-origin' });
@@ -71,7 +72,7 @@ function placementField(idPrefix, selected) {
   return `<label>Workspace placement<select id="${idPrefix}-placement" name="placement">${placements.map(placement => `<option value="${escape(placement.id)}" ${current === placement.id ? 'selected' : ''}>${escape(placement.name)}</option>`).join('')}</select></label>`;
 }
 function isActive(session) { return ['running','waiting_input','exporting'].includes(session.status); }
-function disconnect() { state.stream?.close(); state.stream = null; clearTimeout(state.refreshTimer); }
+function disconnect() { state.stream?.close(); state.stream = null; clearTimeout(state.refreshTimer); clearInterval(state.ploegTimer); state.ploegTimer = null; }
 function safeUrl(value) { try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password ? url.href : null; } catch { return null; } }
 function taskSources() { return state.bootstrap.taskSources || []; }
 function selectedTaskSource() { return taskSources().find(source => source.id === state.taskSourceId); }
@@ -325,7 +326,113 @@ function renderAccount() {
 }
 
 function renderPloeg() {
-  renderHtml(shell(ploegMarkup(state, { escape, icon, money, safeUrl, ago }), 'Ploeg', 'The work in motion. The decisions that need you.'));
+  const helpers = { escape, icon, money, safeUrl, ago };
+  const tab = state.ploegTab;
+  const teams = state.ploegTeams || [];
+  const content = tab === 'overview' ? overviewMarkup(state.ploegSummary, helpers) : tab === 'activity' ? activityMarkup(state.ploegFeed, teams, helpers) : tab === 'runs' ? runsMarkup(state.ploegRuns, teams, helpers) : tab === 'proposed' ? proposedMarkup(state.ploegProposed, state.bootstrap.user, helpers) : ploegMarkup(state, helpers);
+  renderHtml(shell(`${ploegTabsMarkup(tab, activePloegLane(state), helpers)}${content}`, 'Ploeg', 'The work in motion. The decisions that need you.'));
+}
+
+const ploegVisible = tab => Boolean(state.bootstrap) && state.view === 'ploeg' && state.ploegTab === tab;
+const ploegFailure = error => ({ message: error.message, code: error.code || '' });
+
+async function openPloeg(path) {
+  const lane = /^lane\/([a-z_]+)$/.exec(path);
+  if (/^[1-9][0-9]{0,19}$/.test(path)) { state.ploegTab = 'lanes'; return await loadPloeg(state.ploeg?.selectedTeam, path); }
+  if (path === 'work' || (lane && ploegLanes.some(([id]) => id === lane[1]))) { state.ploegTab = 'lanes'; if (lane) state.ploegLane = lane[1]; return await loadPloeg(state.ploeg?.selectedTeam); }
+  state.ploegTab = ['activity', 'runs', 'proposed'].includes(path) ? path : 'overview';
+  if (state.ploegTeams === null) void loadPloegTeams();
+  if (state.ploegTab === 'activity') state.ploegTimer = setInterval(() => { if (document.visibilityState === 'visible' && ploegVisible('activity') && !state.ploegFeed.loading && !document.querySelector('dialog[open]')) void loadFeed('newer'); }, 15000);
+  return await loadPloegTab();
+}
+
+async function loadPloegTab(fresh = false) {
+  if (state.ploegTab === 'overview') return await loadSummary(fresh);
+  if (state.ploegTab === 'activity') return await loadFeed('reset', fresh);
+  if (state.ploegTab === 'runs') return await loadRuns('reset', fresh);
+  if (state.ploegTab === 'proposed') return await loadProposed(fresh);
+}
+
+async function loadPloegTeams() {
+  try { state.ploegTeams = (await api('/api/ploeg/teams')).teams; } catch { state.ploegTeams = []; }
+  if (['activity', 'runs'].some(ploegVisible) && !state.ploegFeed.loading && !state.ploegRuns.loading) renderPloeg();
+}
+
+async function loadSummary(fresh = false) {
+  const view = state.ploegSummary;
+  const request = ++state.ploegRequest;
+  view.loading = true; renderPloeg();
+  try { const data = await api(`/api/ploeg/summary?window=${encodeURIComponent(view.window)}${fresh ? '&refresh=1' : ''}`); if (request !== state.ploegRequest) return; view.data = data; view.error = null; }
+  catch (error) { if (request !== state.ploegRequest) return; view.data = null; view.error = ploegFailure(error); }
+  finally { if (request === state.ploegRequest) { view.loading = false; if (ploegVisible('overview')) renderPloeg(); } }
+}
+
+function keepReadingPosition(render) {
+  const anchor = window.scrollY > 0 ? [...document.querySelectorAll('[data-event-id]')].find(row => row.getBoundingClientRect().top >= 0) : null;
+  const before = anchor?.getBoundingClientRect().top;
+  render();
+  const after = anchor && document.getElementById(anchor.id)?.getBoundingClientRect().top;
+  if (anchor && after !== undefined) window.scrollBy(0, after - before);
+}
+
+async function loadFeed(mode = 'reset', fresh = false) {
+  const feed = state.ploegFeed;
+  if (feed.loading && mode !== 'reset') return;
+  const request = mode === 'reset' ? ++state.ploegRequest : state.ploegRequest;
+  feed.loading = true;
+  if (mode === 'reset') { feed.events = null; feed.nextCursor = null; feed.error = null; }
+  if (mode !== 'newer') renderPloeg();
+  const query = new URLSearchParams();
+  if (feed.team) query.set('team', feed.team);
+  if (mode === 'older') query.set('before', feed.nextCursor);
+  if (fresh || mode === 'newer') query.set('refresh', '1');
+  try {
+    const page = await api(`/api/ploeg/events?${query}`);
+    if (request !== state.ploegRequest) return;
+    const merged = mergeFeed(mode === 'reset' ? null : feed, page, mode === 'older' ? 'older' : 'newer');
+    Object.assign(feed, { events: merged.events, nextCursor: merged.nextCursor, demo: page.demo, error: null, refreshedAt: page.fetchedAt });
+  } catch (error) { if (request !== state.ploegRequest) return; feed.error = ploegFailure(error); }
+  finally { if (request === state.ploegRequest) { feed.loading = false; if (ploegVisible('activity')) { if (mode === 'newer') keepReadingPosition(renderPloeg); else renderPloeg(); } } }
+}
+
+async function loadRuns(mode = 'reset', fresh = false) {
+  const view = state.ploegRuns;
+  if (view.loading && mode === 'older') return;
+  const request = mode === 'reset' ? ++state.ploegRequest : state.ploegRequest;
+  view.loading = true;
+  if (mode === 'reset') { view.runs = null; view.nextBefore = null; view.error = null; }
+  renderPloeg();
+  const query = new URLSearchParams(Object.entries(runFilter(view.filter)).filter(([, value]) => value));
+  if (mode === 'older') query.set('before', view.nextBefore);
+  if (fresh) query.set('refresh', '1');
+  try {
+    const page = await api(`/api/ploeg/runs?${query}`);
+    if (request !== state.ploegRequest) return;
+    const seen = new Set((view.runs || []).map(run => run.id));
+    view.runs = mode === 'older' ? [...view.runs, ...page.runs.filter(run => !seen.has(run.id))] : page.runs;
+    Object.assign(view, { nextBefore: page.nextBefore, demo: page.demo, error: null });
+  } catch (error) { if (request !== state.ploegRequest) return; view.error = ploegFailure(error); }
+  finally { if (request === state.ploegRequest) { view.loading = false; if (ploegVisible('runs')) renderPloeg(); } }
+}
+
+async function loadProposed(fresh = false) {
+  const view = state.ploegProposed;
+  const request = ++state.ploegRequest;
+  view.loading = true; renderPloeg();
+  try { const page = await api(`/api/ploeg/proposed${fresh ? '?refresh=1' : ''}`); if (request !== state.ploegRequest) return; Object.assign(view, { items: page.items, truncated: page.truncated, demo: page.demo, error: null }); }
+  catch (error) { if (request !== state.ploegRequest) return; view.error = ploegFailure(error); }
+  finally { if (request === state.ploegRequest) { view.loading = false; if (ploegVisible('proposed')) renderPloeg(); } }
+}
+
+async function decidePloeg(id, decision, reason = '') {
+  const view = state.ploegProposed;
+  if (view.busy) return;
+  view.busy = true; if (ploegVisible('proposed')) renderPloeg();
+  try {
+    const result = await api(`/api/ploeg/work-items/${encodeURIComponent(id)}/${decision}`, { method: 'POST', body: JSON.stringify(reason ? { reason } : {}) });
+    notify(result.demo ? 'Recorded in this demo only. Nothing was dispatched.' : decision === 'approve' ? 'Approved. Ploeg queued the Work Item for its Team.' : 'Rejected. Ploeg recorded your reason.');
+  } catch (error) { notify(error.message, true); }
+  finally { view.busy = false; if (ploegVisible('proposed')) await loadProposed(true); }
 }
 
 async function loadPloeg(team, id, fresh = false) {
@@ -571,7 +678,7 @@ async function route() {
   const hash = location.hash.slice(1) || 'sessions';
   state.ploegRequest++;
   try {
-    if (hash === 'ploeg' || hash.startsWith('ploeg/')) { disconnect(); state.session = null; state.view = 'ploeg'; return await loadPloeg(state.ploeg?.selectedTeam, hash.startsWith('ploeg/') ? hash.slice(6) : undefined); }
+    if (hash === 'ploeg' || hash.startsWith('ploeg/')) { disconnect(); state.session = null; state.view = 'ploeg'; return await openPloeg(hash.slice(6)); }
     if (hash.startsWith('session/')) return await openSession(hash.slice(8));
     if (hash.startsWith('compare/')) { const [left, right] = hash.slice(8).split('/'); disconnect(); state.session = null; state.view = 'compare'; state.compare = null; renderCompare(); state.compare = await Promise.all([api(`/api/sessions/${encodeURIComponent(left)}`), api(`/api/sessions/${encodeURIComponent(right)}`)]); return renderCompare(); }
     disconnect(); state.session = null; state.view = ['sessions','tasks','ploeg','account','system'].includes(hash) ? hash : 'sessions';
@@ -629,9 +736,19 @@ document.addEventListener('click', async event => {
   try {
     if (action === 'delivery-refresh') await loadDelivery(state.session.id);
     else if (action === 'delivery-verify' || action === 'delivery-approve') await actDelivery(action);
-    else if (action === 'ploeg-refresh') await loadPloeg(state.ploeg?.selectedTeam, location.hash.startsWith('#ploeg/') ? location.hash.slice(7) : undefined, true);
+    else if (action === 'ploeg-refresh') await loadPloeg(state.ploeg?.selectedTeam, /^#ploeg\/([1-9][0-9]{0,19})$/.exec(location.hash)?.[1], true);
     else if (action === 'ploeg-item') location.hash = `ploeg/${button.dataset.id}`;
-    else if (action === 'ploeg-close') location.hash = 'ploeg';
+    else if (action === 'ploeg-close') location.hash = `ploeg/lane/${activePloegLane(state)}`;
+    else if (action === 'ploeg-reload') await loadPloegTab(true);
+    else if (action === 'ploeg-window' && ['24h', '7d', '30d'].includes(button.dataset.id)) { state.ploegSummary.window = button.dataset.id; await loadSummary(); }
+    else if (action === 'ploeg-feed-older') await loadFeed('older');
+    else if (action === 'ploeg-runs-older') await loadRuns('older');
+    else if (action === 'ploeg-approve') { const id = button.dataset.id; confirmAction('Approve this Work Item?', 'Ploeg queues it for its Team. Its Runs can then spend from the Team’s budget.', 'Approve', () => decidePloeg(id, 'approve')); }
+    else if (action === 'ploeg-reject') {
+      const dialog = $('#confirm-dialog');
+      dialog.innerHTML = `<form data-form="ploeg-reject" data-id="${escape(button.dataset.id)}"><div class="dialog-body"><h2 id="confirm-title">Reject this Work Item?</h2><p>Ploeg withdraws it and records your reason. Nothing runs.</p><label>Reason<textarea name="reason" rows="3" maxlength="4096" required></textarea></label></div><footer class="dialog-footer"><button class="button secondary" type="button" data-action="close-budget">Cancel</button><button class="button primary" type="submit">Reject</button></footer></form>`;
+      dialog.showModal();
+    }
     else if (action === 'ploeg-lane' && ploegLanes.some(([id]) => id === button.dataset.id)) { state.ploegLane = button.dataset.id; renderPloeg(); }
     else if (action === 'ploeg-more') await loadMorePloeg();
     else if (action === 'new') openNew();
@@ -688,7 +805,11 @@ document.addEventListener('input', event => {
   if (event.target.closest('[data-form="task-import"]') && state.taskDraft) state.taskDraft[event.target.name] = event.target.value;
 });
 document.addEventListener('change', event => {
-  if (event.target.id === 'ploeg-team') { history.replaceState(null, '', '#ploeg'); state.ploegLane = null; loadPloeg(event.target.value); }
+  if (event.target.id === 'ploeg-team') { history.replaceState(null, '', '#ploeg/work'); state.ploegLane = null; loadPloeg(event.target.value); }
+  if (event.target.id === 'ploeg-feed-team') { state.ploegFeed.team = event.target.value; void loadFeed('reset'); }
+  if (event.target.id === 'ploeg-feed-kind') { state.ploegFeed.kind = event.target.value; renderPloeg(); }
+  const runField = { 'ploeg-runs-team': 'team', 'ploeg-runs-state': 'state', 'ploeg-runs-outcome': 'outcome' }[event.target.id];
+  if (runField) { state.ploegRuns.filter = runFilter({ ...state.ploegRuns.filter, [runField]: event.target.value }); void loadRuns('reset'); }
   const select = event.target.closest('[data-model-select]');
   if (select) { const hint = document.querySelector('[data-model-hint]'); if (hint && state.models) hint.innerHTML = modelHint(state.models, select.value); }
   if (event.target.closest('[data-form="task-import"]') && state.taskDraft) state.taskDraft[event.target.name] = event.target.value;
@@ -704,6 +825,7 @@ document.addEventListener('submit', async event => {
     if (form.dataset.form === 'login') { await api('/api/login', { method: 'POST', body: JSON.stringify(data) }); await boot(); }
     else if (form.dataset.form === 'paste-token') { await api(`/api/links/${form.dataset.provider}`, { method: 'PUT', body: JSON.stringify({ token: data.token }) }); notify(`${providerLabels[form.dataset.provider] || form.dataset.provider} is linked to your account.`); state.links = (await api('/api/links')).links; renderAccount(); }
     else if (form.dataset.form === 'review') { $('#confirm-dialog').close(); state.session = await api(`/api/sessions/${state.session.id}/review`, { method: 'POST', body: JSON.stringify({ decision: form.dataset.decision, note: data.note || undefined }) }); notify(form.dataset.decision === 'accepted' ? 'Accepted. Your decision is recorded in the session.' : 'Rejected. Your reason is recorded in the session.'); renderSession(); }
+    else if (form.dataset.form === 'ploeg-reject') { $('#confirm-dialog').close(); await decidePloeg(form.dataset.id, 'reject', data.reason); }
     else if (form.dataset.form === 'compare') { $('#confirm-dialog').close(); location.hash = `compare/${state.session.id}/${data.other}`; }
     else if (form.dataset.form === 'new') {
       data.budgetUsd = Number(data.budgetUsd);

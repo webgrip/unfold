@@ -221,3 +221,157 @@ test('a work item whose pull request awaits review is a valid Ploeg state', asyn
   const page = await client(upstreamApi.config).items(admin, item.team, 'awaiting_review');
   assert.deepEqual(page.items.map(entry => [entry.id, entry.state]), [['101', 'awaiting_review'], ['105', 'awaiting_review']]);
 });
+
+const summaryTeam = (team: string, awaitingReview: number) => ({ team, workItems: { queued: 1, leased: 0, awaitingReview, needsHuman: 0, proposed: 1, withdrawn: 0, done: 4, stale: 0 }, runs: { pending: 0, running: 1, finished: 5, failed: 1, stuck: 1 }, spend: { settledUsd: 1.25, reservedUsd: 0.5 }, lastActivityAt: '2026-09-10T08:00:00Z' });
+const listRun = (id: string, workItemId: string, team: string) => ({ id, workItemId, workItemTitle: `Work ${workItemId}`, externalRef: '', team, role: 'builder', round: 1, writes: true, state: 'finished', outcome: 'failed', verdict: '', failureReason: 'timeout', startedAt: '2026-09-10T08:00:00Z', finishedAt: '2026-09-10T08:10:00Z', durationSeconds: 600, authorizedUsd: 2, settledUsd: null, usage: { inputTokens: 0, outputTokens: 0, models: [] } });
+const reply = (res: ServerResponse, status: number, data: object) => { res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify({ schemaVersion: '1.0', ...data })); return true; };
+
+test('an older Ploeg without the activity routes reports unsupported instead of failing', async t => {
+  const upstreamApi = await upstream(t);
+  const server = await application('live', config => { config.ploeg = upstreamApi.config; });
+  t.after(() => server.close());
+  const administrator = await login(server.url);
+  for (const path of ['/api/ploeg/summary?window=7d', '/api/ploeg/runs', '/api/ploeg/events']) {
+    const result = await request(server.url, path, administrator);
+    assert.equal(result.status, 501, path);
+    assert.equal(result.body.error.code, 'ploeg_unsupported');
+    assert.match(result.body.error.message, /does not provide activity data yet/);
+  }
+  upstreamApi.intercept((req, res) => req.url!.includes('/events?') ? reply(res, 400, { error: { code: 'invalid_request', message: 'Unknown, empty or repeated query parameter.' } }) : false);
+  assert.equal((await request(server.url, '/api/ploeg/events?refresh=1', administrator)).body.error.code, 'ploeg_unsupported', 'an events route that rejects order=desc is an older Ploeg');
+  assert.equal((await request(server.url, '/api/ploeg', administrator)).status, 200, 'the lanes still work');
+  const unconfigured = await application('live');
+  t.after(() => unconfigured.close());
+  assert.equal((await request(unconfigured.url, '/api/ploeg/summary', await login(unconfigured.url))).body.error.code, 'ploeg_unconfigured');
+});
+
+test('summary, Runs and events are scoped to the caller’s teams, and events gain Work Item titles', async t => {
+  const upstreamApi = await upstream(t);
+  upstreamApi.intercept((req, res) => {
+    const url = new URL(req.url!, 'http://fixture.invalid');
+    if (url.pathname.endsWith('/summary')) return reply(res, 200, { generatedAt: '2026-09-10T09:00:00Z', window: url.searchParams.get('window'), teams: [summaryTeam('delivery', 2), summaryTeam('research', 3)], totals: {} });
+    if (url.pathname.endsWith('/runs')) return reply(res, 200, { runs: [listRun('31', '105', 'delivery'), listRun('30', '104', 'research')], nextBefore: '30' });
+    if (url.pathname.endsWith('/events')) return reply(res, 200, { events: [{ id: '501', at: '2026-09-10T08:00:00Z', actor: 'ploegd', action: 'shift.closed', workItemId: '105', team: 'delivery', detail: { reason: 'plan_exhausted' } }, { id: '499', at: '2026-09-10T07:30:00Z', actor: 'ploegd', action: 'run.claimed', workItemId: '101', team: 'delivery', detail: {} }, { id: '500', at: '2026-09-10T07:00:00Z', actor: 'ploegd', action: 'run.claimed', workItemId: '104', team: 'research', detail: {} }], nextCursor: '500', lastCursor: '501', hasMore: true, consistency: 'snapshot' });
+    return false;
+  });
+  const server = await application('live', config => { config.ploeg = { ...upstreamApi.config, userTeams: { reader: ['delivery'] } }; });
+  t.after(() => server.close());
+  const password = randomBytes(24).toString('hex');
+  server.app.store.addUser({ id: 'reader', name: 'reader', role: 'viewer', passwordHash: await hashPassword(password) });
+  const reader = await login(server.url, 'reader', password);
+  const administrator = await login(server.url);
+
+  const scoped = await request(server.url, '/api/ploeg/summary?window=30d', reader);
+  assert.equal(scoped.status, 200, scoped.text);
+  assert.deepEqual(scoped.body.teams.map((team: { team: string }) => team.team), ['delivery']);
+  assert.equal(scoped.body.totals.workItems.awaitingReview, 2, 'totals cover only the teams the caller can see');
+  assert.equal((await request(server.url, '/api/ploeg/summary?window=30d', administrator)).body.totals.workItems.awaitingReview, 5);
+  assert.equal((await request(server.url, '/api/ploeg/summary?window=1y', reader)).status, 400);
+
+  const runs = await request(server.url, '/api/ploeg/runs?state=finished&outcome=failed&before=40', reader);
+  assert.deepEqual(runs.body.runs.map((run: { id: string }) => run.id), ['31']);
+  assert.equal(runs.body.nextBefore, '30');
+  assert.equal(runs.body.runs[0].usage.inputTokens, 0);
+  assert(upstreamApi.seen.some(call => call.path === '/api/v1/operator/runs?limit=25&state=finished&outcome=failed&before=40'));
+  const before = upstreamApi.seen.length;
+  assert.equal((await request(server.url, '/api/ploeg/runs?state=running&outcome=failed', reader)).status, 400, 'only finished Runs have an outcome');
+  assert.equal((await request(server.url, '/api/ploeg/runs?team=research', reader)).status, 404);
+  assert.equal(upstreamApi.seen.length, before);
+
+  const events = await request(server.url, '/api/ploeg/events?before=600', reader);
+  assert.equal(events.status, 200, events.text);
+  assert.deepEqual(events.body.events.map((entry: { id: string }) => entry.id), ['501', '499']);
+  assert.deepEqual(events.body.events.map((entry: { workItemTitle: string }) => entry.workItemTitle), ['Work 105', 'Review the rounding acceptance criteria'], 'titles come from Runs already read, or else from the Work Item');
+  assert.equal(events.body.nextCursor, '500');
+  assert(upstreamApi.seen.some(call => call.path === '/api/v1/operator/events?order=desc&limit=25&before=600'));
+  assert.equal((await request(server.url, '/api/ploeg/events?before=abc', reader)).status, 400);
+  assert(upstreamApi.seen.every(call => call.method === 'GET'));
+});
+
+test('proposed work lists every team’s proposals with the Work Item whose Run proposed them', async t => {
+  const upstreamApi = await upstream(t);
+  for (const id of ['106', '107']) { const entry = upstreamApi.details[id].item as Partial<PloegDetail['item']>; delete entry.sourceWorkItemId; delete entry.createdKind; delete entry.ready; }
+  upstreamApi.intercept((req, res) => req.url!.endsWith('/runs/25') ? reply(res, 200, { run: { id: '25', workItemId: '105' } }) : false);
+  const page = await client(upstreamApi.config).proposed(admin);
+  assert.deepEqual(page.items.map(entry => entry.id), ['107', '106']);
+  const [research, delivery] = page.items;
+  assert.equal(delivery.sourceWorkItemId, '105');
+  assert.equal(delivery.sourceTitle, 'Round half-cent totals consistently');
+  assert.equal(research.sourceWorkItemId, undefined, 'a Run lookup that fails leaves the source unreported');
+  assert.equal(research.createdKind, undefined);
+});
+
+test('Work Item decisions go through an authenticated, CSRF-guarded, role- and team-scoped proxy', async t => {
+  const upstreamApi = await upstream(t);
+  const posts: { path: string; actor?: string; acting?: string; body: string }[] = [];
+  let status = 200;
+  upstreamApi.intercept((req, res) => {
+    if (req.method !== 'POST') return false;
+    const chunks: Buffer[] = [];
+    req.on('data', chunk => chunks.push(chunk));
+    req.on('end', () => {
+      posts.push({ path: req.url!, actor: req.headers['x-ploeg-actor'] as string, acting: req.headers['x-ploeg-acting-user'] as string, body: Buffer.concat(chunks).toString('utf8') });
+      if (status !== 200) { reply(res, status, { error: { code: 'not_proposed', message: 'Only a proposed Work Item can be approved or rejected.' } }); return; }
+      const id = req.url!.split('/').at(-2);
+      reply(res, 200, req.url!.endsWith('/cancel') ? { cancellation: { workItemId: id, state: 'withdrawn' } } : { decision: { workItemId: Number(id), team: 'delivery', state: req.url!.endsWith('/approve') ? 'queued' : 'withdrawn', approved: req.url!.endsWith('/approve') } });
+    });
+    return true;
+  });
+  const server = await application('live', config => { config.ploeg = { ...upstreamApi.config, userTeams: { watcher: ['delivery'], op: ['delivery'] } }; });
+  t.after(() => server.close());
+  const password = randomBytes(24).toString('hex');
+  server.app.store.addUser({ id: 'watcher', name: 'watcher', role: 'viewer', passwordHash: await hashPassword(password) });
+  server.app.store.addUser({ id: 'op', name: 'op', role: 'operator', passwordHash: await hashPassword(password) });
+  const watcher = await login(server.url, 'watcher', password);
+  const op = await login(server.url, 'op', password);
+  const decide = (id: string, decision: string, session?: { cookie: string }, body: unknown = {}, csrf = true) => request(server.url, `/api/ploeg/work-items/${id}/${decision}`, { method: 'POST', body, csrf, ...session });
+
+  assert.equal((await decide('106', 'approve')).status, 401);
+  assert.equal((await decide('106', 'approve', op, {}, false)).body.error.code, 'csrf');
+  assert.equal((await decide('106', 'approve', watcher)).status, 403);
+  assert.equal((await decide('106', 'reject', op)).status, 400, 'a rejection needs a reason');
+  assert.equal((await decide('107', 'approve', op)).status, 404, 'another team’s Work Item is not found');
+  assert.equal((await decide('105', 'approve', op)).status, 409, 'only proposed work can be approved');
+  assert.equal((await request(server.url, '/api/ploeg/work-items/106', { method: 'POST', body: {}, ...op })).status, 405);
+  assert.equal((await request(server.url, '/api/ploeg/work-items/106/delete', { method: 'POST', body: {}, ...op })).status, 405);
+  assert.equal(posts.length, 0, 'refused decisions never reach Ploeg');
+
+  const approved = await decide('106', 'approve', op);
+  assert.equal(approved.status, 200, approved.text);
+  assert.deepEqual(approved.body, { workItemId: '106', team: 'delivery', state: 'queued', demo: false });
+  const rejected = await decide('106', 'reject', op, { reason: '  Duplicate of DEMO-3  ' });
+  assert.equal(rejected.body.state, 'withdrawn');
+  assert.equal((await decide('105', 'cancel', op)).body.state, 'withdrawn');
+  assert.deepEqual(posts, [
+    { path: '/api/v1/operator/work-items/106/approve', actor: 'op', acting: 'op', body: '{}' },
+    { path: '/api/v1/operator/work-items/106/reject', actor: 'op', acting: 'op', body: '{"reason":"Duplicate of DEMO-3"}' },
+    { path: '/api/v1/operator/work-items/105/cancel', actor: 'op', acting: 'op', body: '' },
+  ]);
+  status = 409;
+  const conflict = await decide('106', 'approve', op);
+  assert.equal(conflict.status, 409);
+  assert.equal(conflict.body.error.code, 'ploeg_decision_conflict');
+  assert.equal(server.app.store.listSessions().length, 0);
+});
+
+test('the demo serves illustrative activity with zero spend, pages events and keeps decisions local', async t => {
+  const demo = await application(); t.after(() => demo.close());
+  const summary = await request(demo.url, '/api/ploeg/summary?window=7d');
+  assert.equal(summary.body.demo, true);
+  assert.deepEqual(summary.body.totals.spend, { settledUsd: 0, reservedUsd: 0 });
+  const runs = await request(demo.url, '/api/ploeg/runs');
+  assert(runs.body.runs.every((run: { settledUsd: number | null; usage: unknown }) => (run.settledUsd === 0 || run.settledUsd === null) && run.usage === null));
+  assert.deepEqual([...new Set(runs.body.runs.map((run: { outcome: string }) => run.outcome))].sort(), ['', 'failed', 'no_change_needed', 'pr_opened', 'stuck']);
+  const first = await request(demo.url, '/api/ploeg/events');
+  assert.equal(first.body.events.length, 10);
+  const second = await request(demo.url, `/api/ploeg/events?before=${first.body.nextCursor}`);
+  assert.equal(second.body.nextCursor, null);
+  assert.equal(new Set([...first.body.events, ...second.body.events].map((entry: { id: string }) => entry.id)).size, 15);
+  assert.equal((await request(demo.url, '/api/ploeg/events?team=research')).body.events.every((entry: { team: string }) => entry.team === 'research'), true);
+  assert.deepEqual((await request(demo.url, '/api/ploeg/proposed')).body.items.map((entry: { id: string }) => entry.id), ['107', '106']);
+  const approved = await request(demo.url, '/api/ploeg/work-items/106/approve', { method: 'POST' });
+  assert.deepEqual(approved.body, { workItemId: '106', team: 'delivery', state: 'queued', demo: true });
+  assert.deepEqual((await request(demo.url, '/api/ploeg/proposed')).body.items.map((entry: { id: string }) => entry.id), ['107']);
+  assert.equal((await request(demo.url, '/api/ploeg/work-items/105/cancel', { method: 'POST' })).body.error.code, 'ploeg_demo');
+  assert.equal(demo.app.store.listSessions().length, 0);
+});
