@@ -113,9 +113,12 @@ terms:
     context: Participation
     owner: vloer
     definition: >
-      Vloer's registered, reusable list of Roles that a session runs in order,
-      each with its model. In Ploeg's language this is a Team. New text says
-      Team; "Start crew" remains a Vloer interface label.
+      Vloer's registered, reusable list of one to eight Roles that a Session
+      runs in order. Each Role either writes or only reads, and may name its
+      model; the final Role gives the review Verdict. An administrator registers
+      crews in configuration and a person picks one when starting a Session. In
+      Ploeg's language this is a Team. New text says Team; "Start crew" remains
+      a Vloer interface label.
     not_to_be_confused_with:
       - term: Team
         note: Ploeg's manifest of Roles, budget and concurrency that claims a Work Item. Ploeg avoids "crew".
@@ -132,6 +135,39 @@ terms:
       - term: Run
         note: One Role executing against a Work Item, authorized by Ploeg.
     see_also: [Run, Crew, Vloer]
+  - name: Candidate
+    context: Participation
+    owner: vloer
+    definition: >
+      The reviewable change Vloer captures from a Session's Workspace when its
+      Crew stops: a Git bundle, a binary patch and a manifest, signed when the
+      workbench key is available. It is ready, or unavailable with a reason.
+      Capturing it never publishes or merges anything.
+    not_to_be_confused_with:
+      - term: Delivery Candidate
+        note: Ploeg's immutable record of one canonical commit rebuilt from a Candidate on an approved base, used for verification and approval.
+      - term: Result
+        note: What a Work Item delivers with its Evidence; a Candidate is one piece of that Evidence.
+    see_also: [Session, Workspace, Evidence, Review]
+  - name: Placement
+    context: Participation
+    owner: vloer
+    definition: >
+      Where a Session's Workspace runs, chosen per Session from the backends a
+      deployment enables: a container on the workbench host (docker), a pod in
+      the cluster (kubernetes) or a working directory shared with the server
+      (local). Omitted, it takes the deployment default. A demonstration lists
+      no placements.
+    see_also: [Session, Workspace]
+  - name: Supervision
+    context: Participation
+    owner: vloer
+    definition: >
+      Whether a person is watching a Ploeg-authorized Session live (human) or
+      has handed it back to run on its own (background). Switching it changes
+      only who is paying attention; the same execution keeps running and no new
+      Run starts. Standalone Sessions have no supervision setting.
+    see_also: [Session, Run, Authority]
   - name: Agent
     context: Execution
     definition: >

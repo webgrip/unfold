@@ -33,10 +33,19 @@ An authorized spending limit for work. It is separate from a provisional usage e
 
 **See also:** [Shift](../reference/glossary.md#shift), [Authority](../reference/glossary.md#authority)  
 
+## Candidate
+*Context: Participation · Owner: Vloer*
+
+The reviewable change Vloer captures from a Session's Workspace when its Crew stops: a Git bundle, a binary patch and a manifest, signed when the workbench key is available. It is ready, or unavailable with a reason. Capturing it never publishes or merges anything.
+
+**Not to be confused with** [Delivery Candidate](../reference/glossary.md#delivery-candidate): Ploeg's immutable record of one canonical commit rebuilt from a Candidate on an approved base, used for verification and approval.  
+**Not to be confused with** [Result](#result): What a Work Item delivers with its Evidence; a Candidate is one piece of that Evidence.  
+**See also:** [Session](#session), [Workspace](#workspace), [Evidence](#evidence), [Review](#review)  
+
 ## Crew
 *Context: Participation · Owner: Vloer*
 
-Vloer's registered, reusable list of Roles that a session runs in order, each with its model. In Ploeg's language this is a Team. New text says Team; "Start crew" remains a Vloer interface label.
+Vloer's registered, reusable list of one to eight Roles that a Session runs in order. Each Role either writes or only reads, and may name its model; the final Role gives the review Verdict. An administrator registers crews in configuration and a person picks one when starting a Session. In Ploeg's language this is a Team. New text says Team; "Start crew" remains a Vloer interface label.
 
 **Not to be confused with** [Team](../reference/glossary.md#team): Ploeg's manifest of Roles, budget and concurrency that claims a Work Item. Ploeg avoids "crew".  
 **See also:** [Team](../reference/glossary.md#team), [Role](../reference/glossary.md#role), [Session](#session), [Step](#step)  
@@ -82,6 +91,13 @@ The service that runs a model and answers inference requests. A provider can run
 
 A spec-driven change workflow and CLI. Ploeg keeps its change proposals and specs under apps/ploeg/openspec; mise.toml pins the CLI.
 
+
+## Placement
+*Context: Participation · Owner: Vloer*
+
+Where a Session's Workspace runs, chosen per Session from the backends a deployment enables: a container on the workbench host (docker), a pod in the cluster (kubernetes) or a working directory shared with the server (local). Omitted, it takes the deployment default. A demonstration lists no placements.
+
+**See also:** [Session](#session), [Workspace](#workspace)  
 
 ## Ploeg
 *Context: System · Owner: Ploeg*
@@ -136,6 +152,13 @@ A part of one Run that Vloer performs internally, such as one Crew role in a del
 **Do not use:** role run  
 **Not to be confused with** [Run](../reference/glossary.md#run): One Role executing against a Work Item, authorized by Ploeg.  
 **See also:** [Run](../reference/glossary.md#run), [Crew](#crew), [Vloer](#vloer)  
+
+## Supervision
+*Context: Participation · Owner: Vloer*
+
+Whether a person is watching a Ploeg-authorized Session live (human) or has handed it back to run on its own (background). Switching it changes only who is paying attention; the same execution keeps running and no new Run starts. Standalone Sessions have no supervision setting.
+
+**See also:** [Session](#session), [Run](../reference/glossary.md#run), [Authority](../reference/glossary.md#authority)  
 
 ## TechDocs
 *Context: Tooling*
