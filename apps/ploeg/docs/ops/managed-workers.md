@@ -47,6 +47,8 @@ Use the Helm version pinned by [the CI workflow](../../../../.forgejo/workflows/
 
 The automated tests use synthetic credentials and fake external services. The [accounting tests](../../pkg/store/llm_accounts_test.go) use PostgreSQL and exercise crash boundaries, concurrent mint intent, trusted reconciliation and late charge deltas. The [worker tests](../../pkg/worker/environment_test.go) execute a child process to inspect its effective environment; [Git tests](../../pkg/worker/git_test.go) inspect a real clone's configuration. They do not qualify a live gateway's block/cache propagation or final billing latency.
 
+Before you change a harness version in the agent image, run `mise run harness-conformance` from the repository root inside that image. The suite is opt-in and makes model calls. It reports which instruction files each harness loads by itself and checks that `claude-code` does not run a target repository's hooks or `.mcp.json` servers ([live_test.go](../../pkg/harness/harnesstest/live_test.go)). The offline [argv test](../../pkg/harness/adapters/claudecode/claudecode_test.go) runs a fake `claude` in every `go test` run. [Prepare a repository](../../../../docs/how-to/prepare-a-repository.md#measure-the-table-for-your-agent-image) lists the variables and explains how to read the results.
+
 ## Reconcile uncertainty
 
 1. Establish the Work Item, Shift and Run through the authorized operator view. Inspect the account state and retained budget hold. Do not extract or share raw worker credentials.

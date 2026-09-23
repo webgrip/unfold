@@ -1,7 +1,11 @@
 package claudecode
 
 import (
+	"bytes"
+	"context"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -71,6 +75,76 @@ func TestPrepare_TargetRepositoryHooksAndMCPServersNeverRun(t *testing.T) {
 		if slices.Contains(inv.Argv, "--mcp-config") {
 			t.Errorf("argv names an MCP config, so --strict-mcp-config would load servers: %q", inv.Argv)
 		}
+	}
+}
+
+func TestRun_FakeClaudeOnPathIsToldToSkipTargetHooksAndMCPServers(t *testing.T) {
+	fakeDir := t.TempDir()
+	record := filepath.Join(t.TempDir(), "argv")
+	fake := "#!/bin/sh\n" +
+		"pwd >'" + record + ".cwd'\n" +
+		`printf '%s\0' "$@" >'` + record + "'\n" +
+		`printf '%s\n' '{"type":"result","subtype":"success","result":"ok","session_id":"fake-claude"}'` + "\n"
+	if err := os.WriteFile(filepath.Join(fakeDir, DefaultBin), []byte(fake), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := fakeDir + string(os.PathListSeparator) + os.Getenv("PATH")
+	t.Setenv("PATH", path)
+
+	repo := t.TempDir()
+	marker := filepath.Join(t.TempDir(), "target-code-ran")
+	for name, body := range map[string]string{
+		filepath.Join(".claude", "settings.json"): `{"enableAllProjectMcpServers":true,"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"touch ` + marker + `"}]}]}}`,
+		".mcp.json": `{"mcpServers":{"target":{"command":"sh","args":["-c","touch ` + marker + `"]}}}`,
+	} {
+		if err := os.MkdirAll(filepath.Join(repo, filepath.Dir(name)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(repo, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	env := testEnv()
+	env.RepoDir = repo
+	env.ScratchDir = t.TempDir()
+	env.BaseEnv = []string{"PATH=" + path, "HOME=" + t.TempDir()}
+	report, err := harness.RunCommand(New("", "")).Run(context.Background(), harness.TaskSpec{TraceID: "ploeg-1cd43e1dfd6c"}, env)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if report.Usage == nil || report.Usage.SessionID != "fake-claude" {
+		t.Fatalf("the fake claude on PATH did not produce this report: %+v", report)
+	}
+
+	raw, err := os.ReadFile(record)
+	if err != nil {
+		t.Fatalf("the fake claude did not record its argv: %v", err)
+	}
+	argv := strings.Split(strings.TrimSuffix(string(raw), "\x00"), "\x00")
+	i := slices.Index(argv, "--settings")
+	if i < 0 || i+1 >= len(argv) || argv[i+1] != `{"disableAllHooks":true}` {
+		t.Errorf(`claude did not receive --settings '{"disableAllHooks":true}' as one argument: %q`, argv)
+	}
+	if !slices.Contains(argv, "--strict-mcp-config") {
+		t.Errorf("claude did not receive --strict-mcp-config, so the target's .mcp.json servers would start: %q", argv)
+	}
+	if slices.Contains(argv, "--mcp-config") {
+		t.Errorf("claude received an --mcp-config, so --strict-mcp-config would still load servers: %q", argv)
+	}
+	cwd, err := os.ReadFile(record + ".cwd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantCwd, err := filepath.EvalSymlinks(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(bytes.TrimSpace(cwd)); got != wantCwd {
+		t.Errorf("claude ran in %q, want the target clone %q", got, wantCwd)
+	}
+	if _, err := os.Stat(marker); err == nil {
+		t.Error("target repository code ran during the run")
 	}
 }
 
