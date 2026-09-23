@@ -50,6 +50,7 @@ func run(log *slog.Logger) error {
 	leaseTTL := durationOr("PLOEG_LEASE_TTL", 60*time.Second)
 	sweepEvery := durationOr("PLOEG_SWEEP_INTERVAL", 15*time.Second)
 	settleAfter := durationOr("PLOEG_LLM_SETTLE_AFTER", 15*time.Minute)
+	reviewEvery := durationOr("PLOEG_REVIEW_RECONCILE_INTERVAL", 10*time.Minute)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -312,6 +313,20 @@ func run(log *slog.Logger) error {
 	if engine != nil {
 		srv.Engine = engine
 	}
+	var reviews *shiftengine.ReviewWatch
+	if len(forges) > 0 {
+		reviews = &shiftengine.ReviewWatch{
+			Store:           st,
+			Forges:          forges,
+			DefaultForge:    forgeID,
+			Trackers:        trackers,
+			MarkTrackerDone: envOr("PLOEG_TRACKER_DONE_ON_MERGE", "true") != "false",
+			Log:             log,
+		}
+		srv.Reviews = reviews
+		log.Info("pull request merge detection enabled", "reconcile_every", reviewEvery,
+			"tracker_done_on_merge", reviews.MarkTrackerDone)
+	}
 	webhookCheck, err := newVikunjaWebhookCheck(vik, cfg.Trackers.Vikunja.Projects, log)
 	if err != nil {
 		return err
@@ -337,6 +352,9 @@ func run(log *slog.Logger) error {
 	managedBlockSweep(ctx, log, srv, 0)
 
 	go sweepLoop(ctx, log, st, sweeper, forgeSweeper, engine, srv, sweepEvery, settleAfter)
+	if reviews != nil {
+		go reviewLoop(ctx, reviews, reviewEvery)
+	}
 
 	log.Info("ploegd listening", "version", version, "addr", listen, "lease_ttl", leaseTTL)
 	if err := httpSrv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {

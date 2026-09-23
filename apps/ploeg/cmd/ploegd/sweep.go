@@ -137,6 +137,26 @@ func sweepLoop(ctx context.Context, log *slog.Logger, st *store.Store, sweeper l
 	}
 }
 
+// reviewLoop is the slow half of merge detection. It asks the forge about
+// every awaiting_review pull request, so a missed webhook delays the move to
+// done or needs_human by at most one interval. It runs apart from sweepLoop
+// because forge reads must not hold up lease expiry.
+func reviewLoop(ctx context.Context, reviews *shiftengine.ReviewWatch, every time.Duration) {
+	if every <= 0 {
+		return
+	}
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			reviews.Reconcile(ctx)
+		}
+	}
+}
+
 func blockExpiredRun(ctx context.Context, log *slog.Logger, sweeper llmbroker.Sweeper, server *httpapi.Server, runToken string) {
 	if server.LLMControl != nil {
 		if _, err := server.Store.LLMAccount(ctx, runToken); err == nil {

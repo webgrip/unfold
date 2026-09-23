@@ -149,3 +149,43 @@ func TestForgeWebhook_IrrelevantEventCreatesNothing(t *testing.T) {
 		t.Errorf("a push webhook created %d work items", items)
 	}
 }
+
+type recordingSettler struct {
+	forges []string
+	events []provider.ForgeEvent
+}
+
+func (r *recordingSettler) HandleForgeEvent(_ context.Context, forge string, ev provider.ForgeEvent) error {
+	r.forges = append(r.forges, forge)
+	r.events = append(r.events, ev)
+	return nil
+}
+
+func TestForgeWebhook_ClosedPullRequestReachesTheReviewSettler(t *testing.T) {
+	reset(t)
+	settler := &recordingSettler{}
+	h := (&Server{
+		Store:   testStore,
+		Log:     slog.New(slog.DiscardHandler),
+		Reviews: settler,
+		Forges: map[string]provider.ForgeProvider{
+			"forgejo": &forgejo.Provider{Secret: "shh", Log: slog.New(slog.DiscardHandler)},
+		},
+	}).Handler()
+
+	merged := map[string]any{
+		"action":       "closed",
+		"repository":   map[string]any{"full_name": "webgrip/ploeg"},
+		"pull_request": map[string]any{"number": 7, "merged": true, "head": map[string]any{"ref": "agent/vik-585"}},
+	}
+	if code := forgePost(t, h, "shh", "d-merged", merged); code != http.StatusAccepted {
+		t.Fatalf("merged webhook returned %d, want 202", code)
+	}
+	if code := forgePost(t, h, "shh", "d-review", reviewBody()); code != http.StatusAccepted {
+		t.Fatalf("review webhook returned %d, want 202", code)
+	}
+	if len(settler.events) != 1 || settler.events[0].Kind != provider.ForgePRMerged ||
+		settler.events[0].PR != 7 || settler.forges[0] != "forgejo" {
+		t.Fatalf("settler saw %+v on %v, want one merged event on forgejo", settler.events, settler.forges)
+	}
+}

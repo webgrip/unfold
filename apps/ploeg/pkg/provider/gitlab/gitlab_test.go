@@ -268,3 +268,50 @@ func TestName(t *testing.T) {
 		t.Fatal("Name must stay stable: it is the webhook route and the map key")
 	}
 }
+
+func TestParseWebhookMergeRequestClosed(t *testing.T) {
+	for action, want := range map[string]provider.ForgeEventKind{
+		"merge": provider.ForgePRMerged,
+		"close": provider.ForgePRClosed,
+	} {
+		evs, err := post(t, &Provider{}, "", map[string]any{
+			"object_kind": "merge_request",
+			"project":     map[string]any{"path_with_namespace": "g/p"},
+			"object_attributes": map[string]any{
+				"iid": 9, "action": action, "merge_status": "cannot_be_merged", "source_branch": "feat/z",
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(evs) != 1 || evs[0].Kind != want || evs[0].PR != 9 || evs[0].Branch != "feat/z" {
+			t.Errorf("action %q: unexpected %+v", action, evs)
+		}
+	}
+}
+
+func TestPullRequestState(t *testing.T) {
+	for state, want := range map[string]provider.PullRequestState{
+		"opened": provider.PullRequestOpen,
+		"locked": provider.PullRequestOpen,
+		"merged": provider.PullRequestMerged,
+		"closed": provider.PullRequestClosed,
+	} {
+		var gotPath, gotToken string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotPath, gotToken = r.URL.EscapedPath(), r.Header.Get("PRIVATE-TOKEN")
+			_, _ = w.Write([]byte(`{"state":"` + state + `"}`))
+		}))
+		got, err := (&Provider{BaseURL: srv.URL, Token: "tok", HC: srv.Client()}).PullRequestState(context.Background(), "group/sub/proj", 7)
+		srv.Close()
+		if err != nil {
+			t.Fatalf("state %q: %v", state, err)
+		}
+		if got != want {
+			t.Errorf("state %q = %q, want %q", state, got, want)
+		}
+		if gotPath != "/api/v4/projects/group%2Fsub%2Fproj/merge_requests/7" || gotToken != "tok" {
+			t.Errorf("request = %q with token %q", gotPath, gotToken)
+		}
+	}
+}
