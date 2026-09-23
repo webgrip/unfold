@@ -4,6 +4,8 @@ import unicodedata
 from urllib.parse import unquote, urlsplit
 
 HISTORY_PARTS = {'research', 'evidence', 'adr', 'adrs', 'design', 'openspec'}
+PARKED_PARTS = {'brand'}
+CURRENT_POLICY_PAGES = {'TRADEMARK'}
 HISTORY_PREFIXES = (
     'landscape/bottlenecks',
     'landscape/c4',
@@ -39,6 +41,8 @@ def historical(location):
             return False
     elif parts and parts[-1] in {'adr', 'adrs'} and not path.endswith('.md'):
         return False
+    if any(part in PARKED_PARTS for part in parts) and parts[-1] not in CURRENT_POLICY_PAGES:
+        return True
     return any(part in HISTORY_PARTS for part in parts)
 
 

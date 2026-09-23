@@ -54,6 +54,6 @@ The [source-change workflow](../../../../.forgejo/workflows/on_source_change.yml
 
 ## More Information
 
-* Technical story: [guard-zero-major-prereleases](../../openspec/changes/guard-zero-major-prereleases/proposal.md).
+* Technical story: [guard-zero-major-prereleases](../../openspec/changes/archive/2026-09-23-guard-zero-major-prereleases/proposal.md).
 * Evidence: [2026-09-11 release-policy verification](../research/2026-09-11-release-policy-verification.md).
 * 2026-09-11 — Recorded before implementation; proposed for human ratification.
