@@ -156,7 +156,8 @@
             "needs_human",
             "awaiting_review",
             "stale",
-            "done"
+            "done",
+            "withdrawn"
           ]
         },
         "title": {

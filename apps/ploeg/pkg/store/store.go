@@ -146,7 +146,7 @@ func audit(ctx context.Context, tx pgx.Tx, actor, action string, workItemID *int
 // IngestAssigned mirrors a tracker item and queues it for a team: upsert on
 // (provider, external id). Re-assignment of a live item (queued/leased) only
 // refreshes the mirror; re-assignment of a finished item (done, stale,
-// needs_human, awaiting_review) is a fresh human mandate — it re-queues the item and resets
+// needs_human, awaiting_review, withdrawn) is a fresh human mandate — it re-queues the item and resets
 // the attempt budget (VIK-588). The returned state is the item's actual
 // post-upsert state so callers can log the truth.
 func (s *Store) IngestAssigned(ctx context.Context, item work.WorkItem) (int64, work.State, error) {
@@ -182,10 +182,10 @@ func (s *Store) IngestAssigned(ctx context.Context, item work.WorkItem) (int64, 
 			target_repo        = CASE WHEN work_items.operator_owned OR work_items.state = 'leased' THEN work_items.target_repo        ELSE EXCLUDED.target_repo        END,
 			target_base_branch = CASE WHEN work_items.operator_owned OR work_items.state = 'leased' THEN work_items.target_base_branch ELSE EXCLUDED.target_base_branch END,
 			route_rule         = CASE WHEN work_items.operator_owned OR work_items.state = 'leased' THEN work_items.route_rule         ELSE EXCLUDED.route_rule         END,
-			state    = CASE WHEN NOT work_items.operator_owned AND work_items.state IN ('ingested', 'stale', 'done', 'needs_human', 'awaiting_review') THEN 'queued' ELSE work_items.state END,
-			attempts = CASE WHEN NOT work_items.operator_owned AND work_items.state IN ('stale', 'done', 'needs_human', 'awaiting_review') THEN 0 ELSE work_items.attempts END,
+			state    = CASE WHEN NOT work_items.operator_owned AND work_items.state IN ('ingested', 'stale', 'done', 'needs_human', 'awaiting_review', 'withdrawn') THEN 'queued' ELSE work_items.state END,
+			attempts = CASE WHEN NOT work_items.operator_owned AND work_items.state IN ('stale', 'done', 'needs_human', 'awaiting_review', 'withdrawn') THEN 0 ELSE work_items.attempts END,
 			next_eligible_at  = CASE WHEN work_items.operator_owned THEN work_items.next_eligible_at ELSE NULL END,
-			infra_failures = CASE WHEN NOT work_items.operator_owned AND work_items.state IN ('stale', 'done', 'needs_human', 'awaiting_review') THEN 0 ELSE work_items.infra_failures END,
+			infra_failures = CASE WHEN NOT work_items.operator_owned AND work_items.state IN ('stale', 'done', 'needs_human', 'awaiting_review', 'withdrawn') THEN 0 ELSE work_items.infra_failures END,
 			updated_at = now()
 		RETURNING id, state`,
 		item.Provider, item.ExternalID, item.Revision, item.Team,
@@ -563,6 +563,9 @@ func (s *Store) WorkItem(ctx context.Context, id int64) (work.WorkItem, error) {
 // A failed outcome still respects the retry threshold, so a Shift that ends
 // in failure re-queues and stales exactly like a legacy run (R5).
 //
+// A withdrawn item is left withdrawn: the withdrawal closed its Shift, and a
+// late evaluator must not settle it back into the queue.
+//
 // Returns the state actually written, which is not always the one asked for:
 // queued coerces to stale at the attempt cap. The caller needs the difference
 // — "failed, retrying" is not terminal and must not notify the tracker, while
@@ -576,11 +579,15 @@ func (s *Store) SettleItem(ctx context.Context, workItemID int64, next work.Stat
 	defer tx.Rollback(ctx) //nolint:errcheck
 
 	var operatorOwned bool
-	if err := tx.QueryRow(ctx, `SELECT operator_owned FROM work_items WHERE id=$1 FOR UPDATE`, workItemID).Scan(&operatorOwned); err != nil {
+	var current string
+	if err := tx.QueryRow(ctx, `SELECT operator_owned, state FROM work_items WHERE id=$1 FOR UPDATE`, workItemID).Scan(&operatorOwned, &current); err != nil {
 		return "", err
 	}
 	if operatorOwned {
 		return "", ErrExecutionConflict
+	}
+	if work.State(current) == work.StateWithdrawn {
+		return work.StateWithdrawn, tx.Commit(ctx)
 	}
 
 	var written string

@@ -10,6 +10,7 @@ The [local shared demonstration](../../../docs/workflows/local-demo.md) runs Plo
 
 - [Managed workers and recovery](ops/managed-workers.md)
 - [Tracker configuration](ops/board.md)
+- [Configuration reference](reference/configuration.md): every environment variable and Helm value, generated from the source
 - [CI and infrastructure](ops/ci-and-infra.md)
 - [Experimental releases](ops/release-versioning.md)
 

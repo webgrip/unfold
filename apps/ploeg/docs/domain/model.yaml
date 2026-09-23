@@ -513,8 +513,8 @@ entities:
         type: string
         description: Id of the Routing Rule that decided team and target; recorded for audit.
       - name: state
-        type: "enum(ingested, queued, leased, needs_human, awaiting_review, stale, done)"
-        description: Dispatch lifecycle position. awaiting_review means Ploeg's work succeeded and its pull request is ready for human review.
+        type: "enum(ingested, queued, leased, needs_human, awaiting_review, stale, done, withdrawn)"
+        description: Dispatch lifecycle position. awaiting_review means Ploeg's work succeeded and its pull request is ready for human review. withdrawn means a person took the mandate back by unassigning the Tracker Item or cancelling it through the operator API.
         required: true
       - name: origin
         type: "enum(assignment, follow_up, operator)"
@@ -563,6 +563,15 @@ entities:
       - from: stale
         to: queued
         trigger: Human or explicit policy re-queues
+      - from: queued
+        to: withdrawn
+        trigger: Tracker Item unassigned or cancelled by an operator; the live Shift closes
+      - from: leased
+        to: withdrawn
+        trigger: Tracker Item unassigned or cancelled by an operator; running Runs are stopped
+      - from: withdrawn
+        to: queued
+        trigger: Re-assignment in the tracker is a fresh mandate
     relationships:
       - to: Shift
         kind: has_one

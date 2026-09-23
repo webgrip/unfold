@@ -25,6 +25,7 @@ type fakeAdmin struct {
 	mintFail bool
 	spend    float64 // what /key/info reports for any live key
 	logs     map[string][]float64
+	entries  map[string][]map[string]any
 }
 
 func newFakeAdmin() *fakeAdmin {
@@ -119,6 +120,13 @@ func (f *fakeAdmin) server(t *testing.T) *httptest.Server {
 			entries := []map[string]any{}
 			for _, spend := range f.logs[token] {
 				entries = append(entries, map[string]any{"api_key": token, "spend": spend})
+			}
+			for _, entry := range f.entries[token] {
+				row := map[string]any{"api_key": token}
+				for k, v := range entry {
+					row[k] = v
+				}
+				entries = append(entries, row)
 			}
 			_ = json.NewEncoder(w).Encode(entries)
 		default:
@@ -254,6 +262,34 @@ func TestSettledSpend_ReadsSpendLogsThatOutliveTheKey(t *testing.T) {
 	}
 	if _, err := b.SettledSpendForRun(ctx, runToken, []string{""}); err == nil {
 		t.Fatal("no accounting identity settled as zero")
+	}
+}
+
+func TestSettledSpend_AggregatesUsageAcrossKeys(t *testing.T) {
+	f := newFakeAdmin()
+	b := f.broker(t)
+	ctx := context.Background()
+	cred, err := b.Mint(ctx, MintRequest{RunToken: runToken, BudgetUSD: 1, TTL: time.Hour})
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyID := fixtureKeyID(cred.APIKey)
+	f.entries = map[string][]map[string]any{
+		keyID: {
+			{"spend": 0.1, "model": "deepseek-chat", "prompt_tokens": 1000, "completion_tokens": 200},
+			{"spend": 0.2, "model": "claude-sonnet", "prompt_tokens": 500, "completion_tokens": 50},
+		},
+		"older-key-id": {{"spend": 0.05, "model": "deepseek-chat", "prompt_tokens": 100, "completion_tokens": 10}},
+	}
+	got, err := b.SettledSpendForRun(ctx, runToken, []string{"older-key-id"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Keys != 2 || got.Entries != 3 || math.Abs(got.USD-0.35) > 1e-9 || got.InputTokens != 1600 || got.OutputTokens != 260 {
+		t.Fatalf("settled=%+v", got)
+	}
+	if strings.Join(got.Models, ",") != "claude-sonnet,deepseek-chat" {
+		t.Fatalf("models=%v", got.Models)
 	}
 }
 

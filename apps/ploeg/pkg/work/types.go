@@ -16,6 +16,10 @@ const (
 	StateAwaitingReview State = "awaiting_review"
 	StateStale          State = "stale"
 	StateDone           State = "done"
+	// StateWithdrawn means a person took the mandate back: the tracker item
+	// was unassigned or an operator cancelled it. Only a new assignment
+	// re-queues it.
+	StateWithdrawn State = "withdrawn"
 )
 
 // Origin records whether a WorkItem came from the tracker (assignment) or

@@ -40,7 +40,7 @@ The artifact-publishing workflow independently rejects stable and major tags for
 
 ### Confirmation
 
-The [source-change workflow](../../.forgejo/workflows/on_source_change.yml) runs `node --test scripts/release-policy.test.cjs` against its installed toolchain before the release composite. Tests execute the real analyzer and semantic-release version calculator with the historical managed-authentication breaking commit and `v0.3.0-rc.4`, and check both release guards. `mise exec -- go test ./internal/ledger/` validates this record and its index entry.
+The [source-change workflow](../../../../.forgejo/workflows/on_source_change.yml) runs `node --test scripts/release-policy.test.cjs` against its installed toolchain before the release composite. Tests execute the real analyzer and semantic-release version calculator with the historical managed-authentication breaking commit and `v0.3.0-rc.4`, and check both release guards. `mise exec -- go test ./internal/ledger/` validates this record and its index entry.
 
 ## Pros and Cons of the Options
 

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"time"
 
@@ -166,14 +167,25 @@ func (b *LiteLLM) SettledSpendForRun(ctx context.Context, runToken string, keyID
 		return SettledSpend{}, fmt.Errorf("gateway accounting identity unavailable")
 	}
 	settled := SettledSpend{Keys: len(tokens)}
+	models := map[string]struct{}{}
 	for token := range tokens {
-		spend, entries, err := b.cli.SpendLogTotal(ctx, token)
+		logs, err := b.cli.SpendLogs(ctx, token)
 		if err != nil {
 			return SettledSpend{}, err
 		}
-		settled.USD += spend
-		settled.Entries += entries
+		settled.USD += logs.USD
+		settled.Entries += logs.Entries
+		settled.InputTokens += logs.PromptTokens
+		settled.OutputTokens += logs.CompletionTokens
+		for _, model := range logs.Models {
+			models[model] = struct{}{}
+		}
 	}
+	settled.Models = make([]string, 0, len(models))
+	for model := range models {
+		settled.Models = append(settled.Models, model)
+	}
+	sort.Strings(settled.Models)
 	return settled, nil
 }
 

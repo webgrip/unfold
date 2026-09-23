@@ -84,6 +84,7 @@ Research, evidence, superseded explanations, design baselines, planning exports 
 | Command | Effect |
 | --- | --- |
 | `mise run domain` | Regenerates the domain pages of both models and the combined glossary |
+| `mise run docs-configuration` | Regenerates Ploeg's [configuration reference](../apps/ploeg/docs/reference/configuration.md) from its Go source and Helm chart |
 | `mise exec -- node apps/vloer/scripts/build-landscape.mjs` | Rebuilds the historical landscape explorer |
 | `mise run docs-check` | Checks generated pages, links, anchors, orphans, ADR ledgers and the strict TechDocs build |
 | `mise run docs-site-check` | Builds the Zensical site in the CI image and scans it |

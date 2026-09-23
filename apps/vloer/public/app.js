@@ -1,4 +1,4 @@
-import { ploegMarkup, ploegLanes } from './ploeg.js';
+import { ploegMarkup, ploegLanes, activePloegLane } from './ploeg.js';
 import { deliveryMarkup } from './delivery.js';
 
 const $ = selector => document.querySelector(selector);
@@ -38,7 +38,7 @@ const icon = (name, cls = '') => `<svg class="icon ${cls}" viewBox="0 0 24 24" f
 const labels = { queued: 'Ready to start', running: 'Working', exporting: 'Preparing review', waiting_input: 'Needs your input', paused: 'Paused', completed: 'Awaiting your review', failed: 'Needs attention', cancelled: 'Cancelled', interrupted: 'Interrupted' };
 const evidenceTabs = [['stream','activity','Activity'],['gateway','layers','Gateway'],['diff','code','Changes'],['test','terminal','Checks'],['handoff','branch','Handoff']];
 const providers = { forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp', vikunja: 'Vikunja', demo: 'Demo fixture' };
-const state = { deliveryRequest: 0, delivery: null, deliveryError: '', deliveryBusy: false, evidenceScroll: {}, bootstrap: null, sessions: [], session: null, events: [], permissions: [], view: 'sessions', tab: 'stream', filter: 'all', search: '', draft: '', stream: null, online: true, busy: false, refreshTimer: null, toastTimer: null, ploeg: null, ploegLane: 'needs_human', ploegDetail: null, ploegDetailError: '', ploegDetailLoading: false, ploegLoading: false, ploegRequest: 0, health: null, taskSourceId: '', tasks: [], task: null, taskPage: 1, taskNextPage: null, taskSearch: '', taskLoading: false, taskPreviewLoading: false, taskError: '', taskPreviewError: '', taskChanged: false, taskDraft: null, taskRequest: 0, previewRequest: 0, taskImporting: false };
+const state = { deliveryRequest: 0, delivery: null, deliveryError: '', deliveryBusy: false, evidenceScroll: {}, bootstrap: null, sessions: [], session: null, events: [], permissions: [], view: 'sessions', tab: 'stream', filter: 'all', search: '', draft: '', stream: null, online: true, busy: false, refreshTimer: null, toastTimer: null, ploeg: null, ploegLane: null, ploegDetail: null, ploegDetailError: '', ploegDetailLoading: false, ploegLoading: false, ploegRequest: 0, health: null, taskSourceId: '', tasks: [], task: null, taskPage: 1, taskNextPage: null, taskSearch: '', taskLoading: false, taskPreviewLoading: false, taskError: '', taskPreviewError: '', taskChanged: false, taskDraft: null, taskRequest: 0, previewRequest: 0, taskImporting: false };
 
 async function api(path, options = {}) {
   const response = await fetch(path, { ...options, headers: { 'Content-Type': 'application/json', 'X-Vloer-Request': '1', ...options.headers }, credentials: 'same-origin' });
@@ -363,7 +363,7 @@ async function loadPloeg(team, id, fresh = false) {
 }
 
 async function loadMorePloeg() {
-  const lane = state.ploegLane;
+  const lane = activePloegLane(state);
   const data = state.ploeg;
   const page = data?.lanes?.[lane];
   if (state.ploegLoading || !page?.nextCursor) return;
@@ -688,7 +688,7 @@ document.addEventListener('input', event => {
   if (event.target.closest('[data-form="task-import"]') && state.taskDraft) state.taskDraft[event.target.name] = event.target.value;
 });
 document.addEventListener('change', event => {
-  if (event.target.id === 'ploeg-team') { history.replaceState(null, '', '#ploeg'); loadPloeg(event.target.value); }
+  if (event.target.id === 'ploeg-team') { history.replaceState(null, '', '#ploeg'); state.ploegLane = null; loadPloeg(event.target.value); }
   const select = event.target.closest('[data-model-select]');
   if (select) { const hint = document.querySelector('[data-model-hint]'); if (hint && state.models) hint.innerHTML = modelHint(state.models, select.value); }
   if (event.target.closest('[data-form="task-import"]') && state.taskDraft) state.taskDraft[event.target.name] = event.target.value;

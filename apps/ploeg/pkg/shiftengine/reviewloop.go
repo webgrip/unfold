@@ -23,6 +23,7 @@ const (
 	reasonApproved      = "review_approved"
 	reasonFixCap        = "fix_round_cap_reached"
 	reasonLoopBudget    = "budget_exhausted_before_fix_round"
+	reasonPoolExhausted = "budget exhausted"
 )
 
 func closeMessage(reason string) string {
@@ -33,6 +34,8 @@ func closeMessage(reason string) string {
 		return "the reviewer kept asking for changes and the fix-round cap was reached; a person is asked to take over"
 	case reasonLoopBudget:
 		return "the budget could not fund another fix round; a person is asked to take over"
+	case reasonPoolExhausted:
+		return "the budget could not fund the next round; a person is asked to take over"
 	default:
 		return "plan complete; a person is asked to review and merge"
 	}

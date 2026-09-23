@@ -4,7 +4,7 @@ This guide describes routes implemented by [HTTP handlers](../../src/http.ts) an
 
 ## Identity and mutation requests
 
-Live API access requires a login cookie. Every mutation, including login, requires `X-Vloer-Request: 1`; JSON requests require `Content-Type: application/json`. Browser requests also pass same-origin checks. Cross-origin access is not enabled. Login cookies are HttpOnly and SameSite Strict; an HTTPS base URL enables secure cookies. Configure the public base URL accurately behind a reverse proxy.
+Live API access requires a login cookie. Every `POST`, `PUT`, `PATCH` or `DELETE`, including login, requires `X-Vloer-Request: 1` and passes same-origin checks: a present `Origin` must match the configured base URL, and `Sec-Fetch-Site: cross-site` is refused with 403 `csrf` or `origin`. The one exception is the editor sign-in under `/api/auth/editor`, which an editor extension calls without a browser; it is exempt from the header and origin checks and is protected by its one-time code and secret instead (see [Single sign-on](#single-sign-on)). JSON request bodies require `Content-Type: application/json`, so an action that takes no input still sends `{}`. Cross-origin access is not enabled. Login cookies are HttpOnly and SameSite Strict; an HTTPS base URL enables secure cookies. Configure the public base URL accurately behind a reverse proxy.
 
 Operators can read and change sessions they own. Administrators can access all sessions and authorize budget additions. Viewers cannot mutate work. Inaccessible session IDs return 404. The current API does not expose shared team membership or invitation management.
 
@@ -20,14 +20,14 @@ Operators can read and change sessions they own. Administrators can access all s
 
 When `auth.oidc` is configured, `GET /api/auth/methods` (public) reports the provider's display name and issuer, `GET /api/auth/oidc` redirects to the provider with an authorization-code request carrying PKCE, `state` and `nonce`, and `GET /api/auth/oidc/callback` completes it: the workbench exchanges the code server-side, fetches the provider's signing keys, verifies the identity token's signature, issuer, audience, expiry and nonce, and derives the role. The role is the `roleClaim` value when the provider sends one, otherwise the first of admin, operator and viewer whose configured groups intersect the `groupsClaim` list; a person in none of them is refused with `oidc_not_entitled` and no session. The user record is keyed by issuer and subject, named by email, and its role is refreshed on every sign-in. The local password login remains for the bootstrap administrator.
 
-An editor signs in through the same browser flow. `POST /api/auth/editor` (public) returns a one-time `code`, a `secret` only the editor holds, and the `url` to open, which is the sign-in with `?editor=<code>`; the workbench refuses an unknown or expired code before redirecting. When the person completes the sign-in, the callback binds a fresh session to the code and sends the browser to `/?editor=done`. The editor polls `POST /api/auth/editor/<code>` with `{secret}`: 202 while pending, 200 once with `{cookie, user}`, then 404. Codes and their sessions expire after ten minutes.
+An editor signs in through the same browser flow. `POST /api/auth/editor` (public, exempt from the mutation header and origin checks, and only routed when OIDC is configured) returns a one-time `code`, a `secret` only the editor holds, and the `url` to open, which is the sign-in with `?editor=<code>`; the workbench refuses an unknown or expired code before redirecting. When the person completes the sign-in, the callback binds a fresh session to the code and sends the browser to `/?editor=done`. The editor polls `POST /api/auth/editor/<code>` with `{secret}`: 202 while pending, 200 once with `{cookie, user}`, then 404. Codes and their sessions expire after ten minutes.
 
 ## Sessions
 
 | Method and path | Behavior |
 | --- | --- |
 | `GET /api/sessions` | Sessions visible to the current user |
-| `POST /api/sessions` | `{title,objective,repositoryId,crewId,runtime,placement?,approval?,budgetUsd,trackerUrl?}` → created session, status 201. `model` pins one configured model id for every role of the session, overriding the crew's role models, which is how the same objective is run pinned and auto-routed for comparison; `approval` is `manual` (default) or `auto`; `auto` needs a `docker` or `kubernetes` placement and answers every tool permission inside the sandbox itself, while questions still reach the operator |
+| `POST /api/sessions` | `{title,objective,repositoryId,crewId,runtime,placement?,approval?,model?,budgetUsd,trackerUrl?}` → created session, status 201. `model` pins one configured model id for every role of the session, overriding the crew's role models, which is how the same objective is run pinned and auto-routed for comparison; `approval` is `manual` (default) or `auto`; `auto` needs a `docker` or `kubernetes` placement and answers every tool permission inside the sandbox itself, while questions still reach the operator |
 | `GET /api/sessions/:id` | Public session view, runs, retained artifacts and accounting status |
 | `POST /api/sessions/:id/retry` | Standalone only: after unresolved spend is reconciled, releases the workspace, resets crew roles and current artifacts, records `session.retried`, and launches. Durable history and spent budget remain. Returns 409 `spend_unresolved` for open accounting or `new_authorization_required` for shared Ploeg execution; shared work requires an explicit new session |
 | `POST /api/sessions/:id/start` | `{}`; start queued work in the background |
@@ -35,7 +35,7 @@ An editor signs in through the same browser flow. `POST /api/auth/editor` (publi
 | `POST /api/sessions/:id/resume` | `{}`; explicitly continue paused/interrupted work subject to spend reconciliation |
 | `POST /api/sessions/:id/cancel` | `{}`; intentional cancellation, with no automatic replacement run |
 | `POST /api/sessions/:id/messages` | `{text}`; persist an operator instruction |
-| `POST /api/sessions/:id/budget` | Standalone only: `{amountUsd}`; administrator authorizes an additional positive amount within the total limit. A gateway key keeps the budget it was minted with and is never extended in place, so the increase is refused with 409 `pause_required` while the session executes or holds unreconciled keys; it applies to the key minted on the next resume. Shared budget extension is not implemented |
+| `POST /api/sessions/:id/budget` | Standalone only: `{amountUsd}`; administrator authorizes an additional positive amount within the total limit. A gateway key keeps the budget it was minted with and is never extended in place, so the increase is refused with 409 `pause_required` while the session executes or holds unreconciled keys; it applies to the key minted on the next resume. A finished session answers 409 `invalid_state`, and an increase beyond `maxBudgetUsd` answers 400. Shared budget extension is not implemented: a Ploeg-authorized session answers 409 `authority_budget` |
 
 Selection values must come from the registered profiles. `placement` is one of the workspace backends listed in `placements` (`docker`, `kubernetes` or `local`); omitted, it takes the deployment default, and a demonstration deployment lists none. The created session records `placement`, and the `workspace.ready` event reports the resulting `backend` and `isolation` (`container`, `pod` or `working-directory`). Budgets are positive amounts in USD; they are not token allocations. One optional writer may precede reviewers, and roles execute sequentially. Completion requires explicit approval from required reviewers. A review requesting changes is a human decision point rather than an automatic rewriting loop.
 
@@ -140,14 +140,27 @@ A `tool` event carries the OpenCode part id, the tool's input as a bounded JSON 
 
 `candidate.attestation` records the key identifier and predicate types when signing succeeded; a `candidate.attestation_failed` event marks a captured but unsigned candidate.
 
+## Candidate delivery
+
+Delivery applies only to a shared Ploeg execution on a repository with a configured delivery policy; [governed candidate delivery](candidate-delivery.md) owns the full contract. Each route uses the session's owner or administrator check, and the two `POST` routes also require an operator or administrator, the mutation header and a JSON body. Refusals are 409 with a delivery code, for example `shared_execution_required` for a standalone session or `completed_candidate_required` before the execution has completed and confirmed its stop.
+
+| Method and path | Behavior |
+| --- | --- |
+| `GET /api/sessions/:id/delivery` | `{configured, policySha256?, localPhase?, checks?, candidate, receipt, approval, operation, publicationEnabled:false}`: Ploeg's delivery record for the execution, validated against the session, plus the local verification phase and check results |
+| `GET /api/sessions/:id/delivery/download` | The canonical Git bundle `canonical-candidate.git.bundle`; 409 `canonical_candidate_unavailable` before verification has canonicalized it |
+| `POST /api/sessions/:id/delivery/verify` | `{}`; canonicalizes the captured candidate on the approved base, registers it with Ploeg, runs the pinned policy checks and records the receipt. A retry replays the retained result instead of running checks again |
+| `POST /api/sessions/:id/delivery/approve` | `{candidateId, receiptId, policySha256}` exactly; records the candidate-bound approval in Ploeg. Publication stays disabled |
+
 ## Agent host
 
 | Method and path | Behavior |
 | --- | --- |
 | `GET /api/agent-host` | Protocol version, WebSocket address, connected client count and the shape of the VS Code setting |
-| `POST /api/agent-host/tokens` | `{label?}` → `{token, address, vscodeSetting}`; the token is shown once and bound to the caller and the sign-in that issued it. It expires after `auth.sessionHours` without use, each use renews that window, and signing out or the end of the issuing sign-in revokes it and closes its connections |
+| `POST /api/agent-host/tokens` | `{label?}` → `{token, address, vscodeSetting}`, status 201; viewers are refused. The token is shown once and bound to the caller and the sign-in that issued it |
 
-The WebSocket endpoint is the workbench address with `?tkn=<token>`; it speaks Agent Host Protocol 0.9.0 ([ADR 0012](../adrs/0012-agent-host-protocol-host.md)).
+A connection token lives as long as a login. It expires after `auth.sessionHours` (twelve by default) without use, and every connection or message renews that window. The workbench stores only its SHA-256 digest. Signing out through `POST /api/logout` revokes every token the sign-in issued and closes their connections with WebSocket code 1008; a sign-in that expires has the same effect at the token's next use. There is no route that revokes one token on its own: sign out to revoke them.
+
+The WebSocket endpoint is the workbench address, on path `/` or `/ahp`, with `?tkn=<token>`; it speaks Agent Host Protocol 0.9.0 ([ADR 0012](../adrs/0012-agent-host-protocol-host.md)). Without an agent host, both routes answer 404 `agent_host_disabled`.
 
 ## Workspace relay
 
@@ -157,6 +170,6 @@ Candidate access uses the same owner/administrator checks as the session. A succ
 
 ## Ploeg workbench
 
-The scoped overview is `GET /api/ploeg`; paged work is `GET /api/ploeg/work-items`, and detail is `GET /api/ploeg/work-items/:id`. `refresh=1` bypasses the short cache. Responses are snapshots with explicit bounds and uncertainty.
+The scoped overview is `GET /api/ploeg`; paged work is `GET /api/ploeg/work-items`, and detail is `GET /api/ploeg/work-items/:id`. `refresh=1` bypasses the short cache. Any other method under `/api/ploeg` answers 405. Responses are snapshots with explicit bounds and uncertainty.
 
 A shared session exposes a credential-free `execution` binding. `POST /api/sessions/:id/supervision` accepts `{"supervision":"human"}` or `{"supervision":"background"}` for an active owned session. Existing start, pause, resume, cancel, message and permission routes delegate through Ploeg when configured. See [the shared execution contract](ploeg-execution.md).

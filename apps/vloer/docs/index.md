@@ -23,6 +23,7 @@ De Vloer provides durable operator sessions, agent workspaces, intervention and 
 
 ## Understand and change
 
+- [Vloer as Ploeg's front end](ploeg-front-end.md): proposed design and increment plan for retiring Vloer's engine
 - [Current architecture](architecture.md), [ADR index](adrs/README.md) and the [decision register](../../../docs/reference/decisions.md) across all three ledgers
 - [Shared product explanation](../../../docs/landscape/index.md), [diagrams](../../../docs/landscape/c4.md) and [open choices](../../../docs/landscape/questions.md)
 - [Product domain YAML](../../../docs/domain/model.yaml), generated [rules](../../../docs/domain/rules.md) and the [combined glossary](../../../docs/reference/glossary.md)

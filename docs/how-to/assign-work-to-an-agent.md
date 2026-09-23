@@ -2,8 +2,8 @@
 type: how-to
 audience: [owner, operator]
 owner: glide
-last_verified: 2026-09-22
-verified_by: "Read apps/ploeg pkg/config, pkg/httpapi/server.go, pkg/provider/{vikunja,clickup}, pkg/shiftengine, cmd/ploegd/main.go, ops/helm/ploeg/values.yaml and apps/vloer/src/ploeg.ts at 6221579"
+last_verified: 2026-09-23
+verified_by: "Read apps/ploeg pkg/config, pkg/httpapi/{server,withdraw}.go, pkg/store/withdraw.go, pkg/provider/{vikunja,clickup}, pkg/shiftengine, pkg/worker/worker.go, cmd/ploegd/main.go, ops/helm/ploeg/values.yaml and apps/vloer/src/ploeg.ts on feat/ploeg-cancel-on-unassign; go test ./pkg/httpapi -run Withdraw"
 ---
 
 # Assign work to an agent
@@ -42,12 +42,12 @@ Terms: a **Work Item** is Ploeg's copy of your ticket. A **Team** is a named ros
 
 ## Register the trigger
 
-Assignment is the trigger. **Labels trigger nothing:** ploegd keeps only assignment events and drops the rest ([server.go](../../apps/ploeg/pkg/httpapi/server.go)).
+Assignment is the trigger and unassignment is the stop. **Labels trigger nothing:** ploegd keeps only assignment and unassignment events and drops the rest ([server.go](../../apps/ploeg/pkg/httpapi/server.go)).
 
 | Tracker | Webhook URL | Event | Signature |
 | --- | --- | --- | --- |
-| Vikunja | `<ploegd>/webhooks/tracker/vikunja` | `task.assignee.created` | `X-Vikunja-Signature`, secret `PLOEG_VIKUNJA_SECRET` ([vikunja.go](../../apps/ploeg/pkg/provider/vikunja/vikunja.go)) |
-| ClickUp | `<ploegd>/webhooks/tracker/clickup` | `taskAssigneeUpdated` | `X-Signature`; ClickUp generates the secret, store it as `PLOEG_CLICKUP_SECRET` ([clickup.go](../../apps/ploeg/pkg/provider/clickup/clickup.go)) |
+| Vikunja | `<ploegd>/webhooks/tracker/vikunja` | `task.assignee.created`, and `task.assignee.deleted` to stop | `X-Vikunja-Signature`, secret `PLOEG_VIKUNJA_SECRET` ([vikunja.go](../../apps/ploeg/pkg/provider/vikunja/vikunja.go)) |
+| ClickUp | `<ploegd>/webhooks/tracker/clickup` | `taskAssigneeUpdated` (covers both directions) | `X-Signature`; ClickUp generates the secret, store it as `PLOEG_CLICKUP_SECRET` ([clickup.go](../../apps/ploeg/pkg/provider/clickup/clickup.go)) |
 
 ClickUp is only registered when `PLOEG_CLICKUP_SECRET` or `PLOEG_CLICKUP_TOKEN` is set ([main.go](../../apps/ploeg/cmd/ploegd/main.go)). To let Ploeg comment on the ticket, set `PLOEG_VIKUNJA_URL` and `PLOEG_VIKUNJA_TOKEN` (chart `tracker.url`, `tracker.tokenSecret`).
 
@@ -58,16 +58,37 @@ ClickUp is only registered when `PLOEG_CLICKUP_SECRET` or `PLOEG_CLICKUP_TOKEN` 
 
 ## Watch progress and spend
 
-- **ploegd log:** `work item queued`, `target resolved`, `shift opened`, `round opened`, `shift closed`.
-- **Vloer:** open **Ploeg** in the sidebar and pick the Team. The lanes are **Needs human**, **Running**, **Queue** and **All work**. A Work Item's detail shows **Shifts & spending**, **Execution & review** (each Run's Role, Round, outcome and verdict), **Checkpoints** and an **Audit snapshot**. It is read-only ([ploeg.js](../../apps/vloer/public/ploeg.js)). Vloer needs a `ploeg` block with `url`, `tokenEnv` and team access in `userTeams` ([ploeg.ts](../../apps/vloer/src/ploeg.ts)).
-- **Spend:** each Run shows **Authorized spend** and **Observed model cost**. Under managed auth, a Run's key budget is the smallest of the team's key policy, the Role cap and what is left of the Shift pool. ploegd settles each finished Run from LiteLLM's spend logs after `PLOEG_LLM_SETTLE_AFTER` (default 15 minutes); until then the amount shows under **Reserved**.
-- **Tracker:** when the Shift closes, the ticket gets a comment with the outcome and pull request link ([publish.go](../../apps/ploeg/pkg/shiftengine/publish.go)). A successful Shift moves the Work Item to `awaiting_review`. Ploeg never marks the ticket done.
+- **ploegd log:** `work item queued`, `target resolved`, `shift opened`, `round opened`, `shift closed`, `work item withdrawn`.
+- **Vloer:** open **Ploeg** in the sidebar and pick the Team. The lanes are **Awaiting review**, **Needs human**, **Running**, **Queue** and **All work**; Vloer opens on **Awaiting review** while it holds work ([review an agent's pull request](review-an-agent-pr.md)). A Work Item's detail shows **Shifts & spending**, **Execution & review** (each Run's Role, Round, outcome and verdict), **Checkpoints** and an **Audit snapshot**. It is read-only ([ploeg.js](../../apps/vloer/public/ploeg.js)). Vloer needs a `ploeg` block with `url`, `tokenEnv` and team access in `userTeams` ([ploeg.ts](../../apps/vloer/src/ploeg.ts)).
+- **Spend:** each Run shows **Authorized spend** and **Observed model cost**. Under managed auth, a Run's key budget is the smallest of the team's key policy, the Role cap and what is left of the Shift pool. ploegd settles each finished Run from LiteLLM's spend logs after `PLOEG_LLM_SETTLE_AFTER` (default 15 minutes); until then the amount shows under **Reserved**. Settlement also fills the Run's **Input / output tokens** from the same spend-log entries, and records the models they name in the Run's stored usage ([llm_control.go](../../apps/ploeg/pkg/httpapi/llm_control.go)).
+- **Tracker:** when the Shift closes, the ticket gets a comment with the outcome and pull request link ([publish.go](../../apps/ploeg/pkg/shiftengine/publish.go)). A successful Shift moves the Work Item to `awaiting_review`, and merging the pull request moves it to `done`. Ploeg marks the tracker ticket done on merge only when `PLOEG_TRACKER_DONE_ON_MERGE=true` ([review an agent's pull request](review-an-agent-pr.md#after-you-merge-or-close)).
+- **Budget exhausted:** when the Shift pool cannot fund another Round, the Shift closes, the Work Item moves to `needs_human`, and the ticket comment says **Budget exhausted** with the spent, reserved and pool amounts in dollars to two decimals. If the Shift has a pull request, the same notice is posted there.
 
 ## Stop it
 
-**Not implemented yet.** Tracker-dispatched work has no stop control. Unassigning the ticket is ignored ([server.go](../../apps/ploeg/pkg/httpapi/server.go)). The `cancel` command exists only for executions that Vloer admits ([operator_execution.go](../../apps/ploeg/pkg/store/operator_execution.go)). Killing a worker pod does not stop the Shift either: a killed writer's Round reopens and another pod claims it ([failedwriter.go](../../apps/ploeg/pkg/shiftengine/failedwriter.go)).
+To stop tracker work, do one of these:
 
-These limits bound the exposure today: the per-Run key budget, the harness timeouts (`PLOEG_HARNESS_TIMEOUT`, default 100 minutes, and `PLOEG_HARNESS_IDLE_TIMEOUT`, default 15 minutes, which end a hung agent with failure reason `timeout`), the key lifetime (`executor.litellm.keyDuration`, default `4h`), the pod deadline (`activeDeadlineSeconds`, default `7200`), the Shift `pool` and `maxFixRounds`. For an incident, follow [Reconcile uncertainty](../../apps/ploeg/docs/ops/managed-workers.md#reconcile-uncertainty).
+- **Unassign the ticket.** Remove the assignee that routed it to the Team. The webhook needs `task.assignee.deleted` for Vikunja; ClickUp's `taskAssigneeUpdated` already covers it. Removing an assignee that maps to another Team changes nothing.
+- **Cancel it through the operator API.** Send `POST /api/v1/operator/work-items/{id}/cancel` with an operator bearer that has `execute` permission and an `X-Ploeg-Actor` header. The request has no body. The ticket gets a comment naming who cancelled it. The [operator contract](../../apps/ploeg/docs/contracts/README.md#operator-read-consumers) describes the request and response.
+
+   ```sh
+   curl -X POST -H "Authorization: Bearer $PLOEG_OPERATOR_TOKEN" -H "X-Ploeg-Actor: ryan" \
+     https://<ploegd>/api/v1/operator/work-items/<id>/cancel
+   ```
+
+Either way, Ploeg withdraws the Work Item in one transaction ([withdraw.go](../../apps/ploeg/pkg/store/withdraw.go)):
+
+1. The live Shift closes with reason `withdrawn_unassigned` or `withdrawn_by_operator`.
+2. Pending Runs are cancelled, so KEDA starts no new pods for them.
+3. Running Runs are marked finished and their Lease is released. Ploeg blocks each Run's model key at once. If the block is not confirmed, the controller's block sweep retries it. A per-Run push credential is revoked.
+4. The worker stops at its next renew, which Ploeg refuses. Under managed worker authentication the refusal counts as a failed renew, and the worker cancels after three of them, so it stops within about one `PLOEG_LEASE_TTL`.
+5. The Work Item moves to `withdrawn`. No sweep retries it.
+
+Check the result in Vloer or with `GET /api/v1/operator/work-items/{id}`: the state is `withdrawn` and the latest Shift shows the close reason. To start again, assign the ticket again. The Work Item re-queues with its attempts reset and a new Shift opens.
+
+A Work Item bound to a Vloer execution ignores unassignment, and the cancel route answers 409. Use that execution's own `cancel` command ([operator_execution.go](../../apps/ploeg/pkg/store/operator_execution.go)). Killing a worker pod does not stop the Shift: a killed writer's Round reopens and another pod claims it ([failedwriter.go](../../apps/ploeg/pkg/shiftengine/failedwriter.go)).
+
+These limits also bound the exposure: the per-Run key budget, the harness timeouts (`PLOEG_HARNESS_TIMEOUT`, default 100 minutes, and `PLOEG_HARNESS_IDLE_TIMEOUT`, default 15 minutes, which end a hung agent with failure reason `timeout`), the key lifetime (`executor.litellm.keyDuration`, default `4h`), the pod deadline (`activeDeadlineSeconds`, default `7200`), the Shift `pool` and `maxFixRounds`. For an incident, follow [Reconcile uncertainty](../../apps/ploeg/docs/ops/managed-workers.md#reconcile-uncertainty).
 
 ## If it fails
 

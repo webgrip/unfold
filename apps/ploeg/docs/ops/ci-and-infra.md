@@ -1,6 +1,6 @@
 # CI and infrastructure
 
-The [pull-request workflow](../../.forgejo/workflows/on_pull_request.yml) defines this repository's gates. The [source workflow](../../.forgejo/workflows/on_source_change.yml) handles release decisions, and the [artifact workflow](../../.forgejo/workflows/on_release_published.yml) publishes artifacts. Read those files for the configured actions, permissions and inputs.
+The [pull-request workflow](../../../../.forgejo/workflows/on_pull_request.yml) defines this repository's gates. The [source workflow](../../../../.forgejo/workflows/on_source_change.yml) handles release decisions, and the [artifact workflow](../../../../.forgejo/workflows/on_release_published.yml) publishes artifacts. Read those files for the configured actions, permissions and inputs.
 
 ## Operate the deployment
 
@@ -10,7 +10,7 @@ Do not copy cluster IPs, workstation kubeconfig paths, runner image contents or 
 
 ## Credentials and signing
 
-Follow the [estate secrets model](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/docs/techdocs/docs/adr/adr-0055-one-secrets-model-six-levels.md): OpenBao holds the original; jobs use configured scoped bridge credentials or short-lived OIDC access. The [artifact workflow](../../.forgejo/workflows/on_release_published.yml) is the source for Ploeg's actual signing and publishing inputs.
+Follow the [estate secrets model](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/docs/techdocs/docs/adr/adr-0055-one-secrets-model-six-levels.md): OpenBao holds the original; jobs use configured scoped bridge credentials or short-lived OIDC access. The [artifact workflow](../../../../.forgejo/workflows/on_release_published.yml) is the source for Ploeg's actual signing and publishing inputs.
 
 Before changing signing or publication, check both the caller workflow and the shared action it references. A local gate cannot establish live vault permissions, registry access or enforcement in a target cluster.
 

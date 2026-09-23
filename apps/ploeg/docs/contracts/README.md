@@ -69,6 +69,14 @@ consumer policy references those variables. No value is embedded in Helm
 configuration or inherited by a worker. See the [render fixture](../../ops/helm/ploeg/ci/operator-values.yaml)
 and the [controller-isolation assertion](../../pkg/config/operator_chart_test.go).
 
+`POST /api/v1/operator/work-items/{id}/cancel` withdraws tracker-originated
+work, with the same effect as unassigning its Tracker Item. It needs `execute`
+permission, `X-Ploeg-Actor` and team scope, and it takes no body. The live
+Shift closes with reason `withdrawn_by_operator`, pending Runs are cancelled,
+running Runs are finished and their model keys blocked, and the Work Item
+becomes `withdrawn`. A repeated call returns `withdrawn: false`. An item bound
+to an Operator Execution returns 409; cancel the execution instead.
+
 Execution requests additionally require `X-Ploeg-Actor`, the stable session
 owner identity asserted by the authenticated consumer. Commands may carry
 `X-Ploeg-Acting-User` when an authorized administrator acts for that owner.

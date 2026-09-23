@@ -38,9 +38,19 @@ description = "Regenerate the domain pages and the combined glossary from the mo
 run = "uv run --frozen python scripts/docs-decisions.py"
 description = "Regenerate the decision register from the three ADR ledgers"
 
+[tasks.docs-configuration]
+run = "uv run --frozen python scripts/docs-configuration.py"
+description = "Regenerate Ploeg's configuration reference from its Go source and Helm chart"
+
 [tasks.docs-build]
 run = "uv run --frozen python scripts/docs.py"
 description = "Build the shared and application TechDocs site"
+
+[tasks.harness-conformance]
+dir = "apps/ploeg"
+env = { PLOEG_HARNESS_CONFORMANCE = "1" }
+run = "go test -p 1 -count=1 -v -run '^TestLive' ./pkg/harness/harnesstest/"
+description = "Measure which instruction files each harness on PATH loads, with live model calls"
 
 [tasks.demo]
 dir = "apps/vloer"

@@ -48,6 +48,9 @@ type Server struct {
 	// Forges hosts the forge webhook route. Nil or missing = the endpoint
 	// answers 404 for that provider; nothing else in ploegd depends on it.
 	Forges map[string]provider.ForgeProvider
+	// Reviews settles awaiting_review Work Items from merged and closed pull
+	// request events. Nil = those events are recorded only.
+	Reviews ReviewSettler
 	// ForgeCreds mints the per-run push credential a writing Run gets
 	// (ADR-0013 tier 2). Nil = the worker keeps its env credential, which is
 	// the pre-tier-2 behaviour.
@@ -65,6 +68,11 @@ type Server struct {
 	// ForgeBots are the forge logins Ploeg itself acts as. A review from one
 	// of them never sends work back to a Team.
 	ForgeBots []string
+}
+
+// ReviewSettler is implemented by shiftengine.ReviewWatch.
+type ReviewSettler interface {
+	HandleForgeEvent(ctx context.Context, forge string, ev provider.ForgeEvent) error
 }
 
 // RoleCaps is the slice of the team-plan config the claim path needs.
@@ -112,8 +120,8 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleTrackerWebhook verifies + parses via the provider, then fast-acks:
-// assigned events queue work, everything else is (for now) dropped after
-// normalization.
+// assigned events queue work, unassigned events withdraw it, everything else
+// is dropped after normalization.
 func (s *Server) handleTrackerWebhook(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("provider")
 	tp, ok := s.Trackers[name]
@@ -128,6 +136,14 @@ func (s *Server) handleTrackerWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, ev := range events {
+		if ev.Kind == provider.TrackerUnassigned {
+			if err := s.trackerUnassigned(r.Context(), name, ev); err != nil {
+				s.Log.Error("withdrawal failed", "provider", name, "external_id", ev.ExternalID, "err", err)
+				http.Error(w, "withdrawal failed", http.StatusInternalServerError)
+				return
+			}
+			continue
+		}
 		if ev.Kind != provider.TrackerAssigned {
 			continue
 		}
@@ -202,6 +218,12 @@ func (s *Server) handleForgeWebhook(w http.ResponseWriter, r *http.Request) {
 		}
 		s.Log.Info("forge event recorded", "provider", name, "kind", ev.Kind,
 			"repo", ev.Repo, "pr", ev.PR, "branch", ev.Branch)
+		if s.Reviews != nil && (ev.Kind == provider.ForgePRMerged || ev.Kind == provider.ForgePRClosed) {
+			if err := s.Reviews.HandleForgeEvent(r.Context(), name, ev); err != nil {
+				s.Log.Error("pull request settle failed; reconcile will retry", "provider", name,
+					"repo", ev.Repo, "pr", ev.PR, "err", err)
+			}
+		}
 		s.actOnForgeEvent(r.Context(), name, ev)
 	}
 	w.WriteHeader(http.StatusAccepted)

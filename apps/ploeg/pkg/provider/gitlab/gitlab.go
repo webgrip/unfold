@@ -111,6 +111,51 @@ func (p *Provider) Comment(ctx context.Context, repo string, mr int, body string
 	return nil
 }
 
+// PullRequestState reads a merge request's lifecycle. GitLab's "locked" is a
+// transient state of an open merge request.
+func (p *Provider) PullRequestState(ctx context.Context, repo string, mr int) (provider.PullRequestState, error) {
+	if err := validRepo(repo); err != nil {
+		return "", err
+	}
+	if mr <= 0 {
+		return "", fmt.Errorf("gitlab: merge request iid must be positive, got %d", mr)
+	}
+	endpoint := fmt.Sprintf("%s/api/v4/projects/%s/merge_requests/%d",
+		strings.TrimRight(p.BaseURL, "/"), url.PathEscape(repo), mr)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Accept", "application/json")
+	if p.Token != "" {
+		req.Header.Set("PRIVATE-TOKEN", p.Token)
+	}
+	resp, err := p.client().Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return "", fmt.Errorf("gitlab: read %s!%d: HTTP %d: %s", repo, mr, resp.StatusCode, bytes.TrimSpace(snippet))
+	}
+	var body struct {
+		State string `json:"state"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&body); err != nil {
+		return "", fmt.Errorf("gitlab: read %s!%d: %w", repo, mr, err)
+	}
+	switch body.State {
+	case "merged":
+		return provider.PullRequestMerged, nil
+	case "closed":
+		return provider.PullRequestClosed, nil
+	case "opened", "locked":
+		return provider.PullRequestOpen, nil
+	}
+	return "", fmt.Errorf("gitlab: read %s!%d: unknown state %q", repo, mr, body.State)
+}
+
 // validRepo rejects paths GitLab cannot address, before a request is spent.
 func validRepo(repo string) error {
 	if repo == "" || !strings.Contains(repo, "/") {
@@ -205,6 +250,10 @@ func (p *Provider) ParseWebhook(r *http.Request) ([]provider.ForgeEvent, error) 
 		}
 		branch := h.ObjectAttributes.SourceBranch
 		switch {
+		case h.ObjectAttributes.Action == "merge":
+			return []provider.ForgeEvent{{Kind: provider.ForgePRMerged, Repo: repo, PR: iid, Branch: branch}}, nil
+		case h.ObjectAttributes.Action == "close":
+			return []provider.ForgeEvent{{Kind: provider.ForgePRClosed, Repo: repo, PR: iid, Branch: branch}}, nil
 		// GitLab expresses review outcomes as MR actions rather than a review
 		// object. Classifying approve-vs-reject is the follow-up's job, not
 		// the parser's — the same split the Forgejo provider makes.

@@ -2,8 +2,8 @@
 type: how-to
 audience: [owner, integrator, agent]
 owner: glide
-last_verified: 2026-09-22
-verified_by: "research 2026-09-22-agents-md; Read apps/ploeg pkg/worker/{worker,task,environment,target}.go, pkg/harness/adapter.go, pkg/harness/adapters/*, cmd/ploegd/main.go, ops/helm/ploeg/values.yaml and Ploeg ADR-0013 at 6221579"
+last_verified: 2026-09-23
+verified_by: "research 2026-09-22-agents-md; Read apps/ploeg pkg/worker/{worker,task,environment,target}.go, pkg/harness/adapter.go, pkg/harness/adapters/*, pkg/harness/harnesstest/{canary.go,live_test.go}, cmd/ploegd/main.go, ops/helm/ploeg/values.yaml and Ploeg ADR-0013 at 6221579"
 ---
 
 # Prepare a repository for Ploeg agents
@@ -82,7 +82,17 @@ The team's `executor.harness.name` selects the harness. Each runs in the clone (
 | `acp` | Starts `opencode acp` with a generated configuration ([profiles.go](../../apps/ploeg/pkg/harness/adapters/acp/profiles.go)) | `AGENTS.md`, walking up from the working directory; `CLAUDE.md` only when no `AGENTS.md` exists | Root `AGENTS.md` |
 | `exec` | Writes `taskspec.json` and `task.md` and substitutes `{taskspec}` and `{taskfile}` in its arguments ([execbin.go](../../apps/ploeg/pkg/harness/adapters/execbin/execbin.go)) | Whatever the program does | Document it for that team |
 
-The "Loads by itself" column comes from vendor documentation and source read on 22 September 2026 ([research](../research/2026-09-22-agents-md.md)). Ploeg's tests do not check it yet. The prompt tells every harness to read `AGENTS.md`, so the file works even where automatic loading does not.
+The "Loads by itself" column comes from vendor documentation and source read on 22 September 2026 ([research](../research/2026-09-22-agents-md.md)). No measured run is recorded yet. The prompt tells every harness to read `AGENTS.md`, so the file works even where automatic loading does not.
+
+### Measure the table for your agent image
+
+Run `mise run harness-conformance` in an environment with the harness binaries on `PATH`, such as the agent image. It turns the "Loads by itself" column into measured results for the versions you ship ([live_test.go](../../apps/ploeg/pkg/harness/harnesstest/live_test.go)).
+
+- It builds a fixture repository whose root `AGENTS.md` and nested `service/AGENTS.md` each ask for a different canary token in the final message ([canary.go](../../apps/ploeg/pkg/harness/harnesstest/canary.go)). The files spell the tokens out in parts, so only a harness that follows them can produce the tokens.
+- It runs each harness through its Ploeg adapter with a prompt that names no instruction file and forbids reading files. A `MEASURED` log line records which canaries appeared. The test fails when a result contradicts a row of the table.
+- For `claude-code` it also puts a hook in `.claude/settings.json` and a server in `.mcp.json` in the fixture. It checks that neither runs under the adapter, and that the hook does run in a control Run without the adapter's guards.
+
+The suite makes model calls, so the default `go test` run skips it. Set `PLOEG_CONFORMANCE_LLM_API_KEY`, and set `PLOEG_CONFORMANCE_LLM_BASE_URL` and `PLOEG_CONFORMANCE_LLM_MODEL` when you go through a gateway. To limit the harnesses, use `PLOEG_CONFORMANCE_HARNESSES=claude-code,acp`. A harness whose binary is missing is skipped. When a result contradicts the table, update the table and its sources, not the test.
 
 ## Verify
 

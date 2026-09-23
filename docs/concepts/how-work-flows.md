@@ -2,8 +2,8 @@
 type: explanation
 audience: [owner, integrator, contributor, agent]
 owner: glide
-last_verified: 2026-09-22
-verified_by: "source read of apps/ploeg on docs/restructure; go test ./... in apps/ploeg"
+last_verified: 2026-09-23
+verified_by: "source read of apps/ploeg on development, 2026-09-23; go test ./... in apps/ploeg"
 ---
 
 # How work flows
@@ -42,6 +42,9 @@ sequenceDiagram
     Ploeg->>Forge: post reviewer findings on the PR
     Ploeg->>Tracker: comment and set status
     You->>Forge: review and merge
+    Forge->>Ploeg: webhook (pull request merged or closed)
+    Ploeg->>Ploeg: Work Item done or needs_human
+    Ploeg->>Tracker: comment and set status
 ```
 
 ## Step by step
@@ -56,8 +59,9 @@ sequenceDiagram
 8. **Review Rounds.** Reviewer Runs read the branch and return a verdict and findings. Ploeg posts the findings as pull request comments. When a reviewer asks for changes, Ploeg opens a fix Round, up to the plan's limit. A failed writer retries its Round.
 9. **Close.** When the plan is done, Ploeg closes the Shift and comments on the tracker item. If a writer opened or updated the pull request, the Work Item moves to `awaiting_review`: ready for you. A `stuck` outcome or an exhausted fix loop moves it to `needs_human`.
 10. **Merge.** You review the pull request on the forge and merge it. Ploeg never merges.
+11. **Settle.** When the forge reports the pull request merged, the Work Item moves from `awaiting_review` to `done`, and the tracker item gets a comment and, where the tracker supports it, the done status. A pull request closed without merging moves the Work Item to `needs_human` instead ([`shiftengine/review.go`](../../apps/ploeg/pkg/shiftengine/review.go)). Ploeg acts on the forge's webhook, and also asks the forge directly on a slower schedule in case a webhook was missed.
 
-A sweep runs every 15 seconds. It expires dead Leases and Runs, blocks their keys, settles spend and repairs Shifts ([`cmd/ploegd/sweep.go`](../../apps/ploeg/cmd/ploegd/sweep.go)).
+A sweep runs every 15 seconds. It expires dead Leases and Runs, blocks their keys, settles spend and repairs Shifts ([`cmd/ploegd/sweep.go`](../../apps/ploeg/cmd/ploegd/sweep.go)). A separate reconcile runs every 10 minutes by default (`PLOEG_REVIEW_RECONCILE_INTERVAL`) and reads the state of every `awaiting_review` pull request from the forge.
 
 ## Work that creates work
 
@@ -80,6 +84,7 @@ A Work Item created by work is a **Follow-Up**. It names its source, and it stat
 | Who may push to the Shift's branch | The Lease holder |
 | Which model a Run may use, and how much it may spend | Ploeg, through the key it minted |
 | Whether the change is merged | You, on the forge |
+| Whether a Work Item awaiting review is `done` | The forge's merge, which Ploeg observes |
 
 Every agent run goes through Ploeg ([ADR-0002](../adr/adr-0002-ploeg-is-the-only-engine.md)).
 
@@ -91,8 +96,9 @@ Vloer is the front end. It is where you watch Shifts, steer work, read evidence 
 
 * Your own tracker, forge, LiteLLM gateway and Kubernetes cluster are required. There is no hosted service.
 * Ploeg records the pull request but does not merge or publish anything. Candidate delivery stores approvals without a publisher.
-* Unassigning a tracker item does not cancel its Shift.
+* An operator-owned Work Item ignores unassignment in the tracker. Cancel its execution instead.
 * Runs cannot create Work Items yet; see below.
-* Forge webhooks are recorded but not acted on. Failing CI does not yet create a repair Round.
+* Forge webhooks act only on merged and closed pull requests. Other forge events are recorded but not acted on: failing CI does not yet create a repair Round, and a human review comment does not start another Round.
+* Merge detection needs a Work Item whose target repository resolved. An item that ran on the worker's fallback repository stays `awaiting_review` after its merge.
 
 Related: [Architecture](architecture.md), [Ploeg architecture](../../apps/ploeg/docs/architecture.md), [worker control contract](../../apps/ploeg/docs/contracts/worker-control.md).

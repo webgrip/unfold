@@ -81,3 +81,7 @@ vloer:
     implemented: "yes"
     note: Bounded Docker verifier; live publication stays disabled
     evidence: apps/vloer/src/trusted-candidate.ts
+  "0023":
+    implemented: "no"
+    note: Design proposal only; Vloer still runs the managed engine
+    evidence: apps/vloer/docs/ploeg-front-end.md
