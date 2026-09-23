@@ -507,12 +507,12 @@ func (s *Server) respondClaimedRun(w http.ResponseWriter, r *http.Request, req c
 					"run", run.RunToken[:12], "err", err)
 			}
 		}
-		resp.ForgeToken = cred.Token
 		// cred.ID is the truth predicate for "minted, and therefore
 		// revocable" — the Static broker returns the SHARED token with no id.
-		// Without telling the worker, it announces a security property it
-		// does not have (ADR-0013 tier 2 vs the pre-tier-2 shared token).
-		resp.ForgeTokenPerRun = cred.ID != ""
+		if cred.ID != "" {
+			resp.ForgeToken = cred.Token
+			resp.ForgeTokenPerRun = true
+		}
 	}
 
 	s.Log.Info("run claimed", "team", req.Team, "role", run.Role, "shift", run.ShiftID,
