@@ -61,6 +61,6 @@ Run `mise exec -- go test ./pkg/httpapi ./pkg/store ./pkg/shiftengine ./pkg/prov
 
 ## More Information
 
-* Technical story: [binding design](../../openspec/changes/bind-tracker-execution/design.md).
+* Technical story: [binding design](../../openspec/changes/archive/2026-09-23-bind-tracker-execution/design.md).
 * Related decisions: [0010](0010-shift-owns-the-item-lease-owns-the-branch.md), [0014](0014-work-target-is-a-work-item-attribute.md), [0024](0024-operator-work-uses-one-execution-authority.md).
 * 2026-09-11 — Recorded before implementation under the owner's instruction to continue the unified baseline. Human ratification remains pending.

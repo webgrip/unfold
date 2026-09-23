@@ -57,6 +57,6 @@ The initial lifecycle deliberately freezes one attempt. It does not implement su
 
 ## More Information
 
-* Technical story: [govern-candidate-delivery](../../openspec/changes/govern-candidate-delivery/proposal.md).
+* Technical story: [govern-candidate-delivery](../../openspec/changes/archive/2026-09-23-govern-candidate-delivery/proposal.md).
 * 2026-09-11 — Recorded before implementation; remains proposed for human ratification.
 * Related decisions: [ADR 0024](0024-operator-work-uses-one-execution-authority.md), [ADR 0025](0025-management-authority-stays-in-the-control-plane.md).

@@ -51,6 +51,6 @@ Run worker environment regression tests, broker HTTP authorization tests and Pos
 
 ## More Information
 
-* Technical story: [OpenSpec worker authority spec](../../openspec/changes/unified-operator-execution/specs/worker-authority/spec.md).
+* Technical story: [OpenSpec worker authority spec](../../openspec/changes/archive/2026-09-23-unified-operator-execution/specs/worker-authority/spec.md).
 * 2026-09-10 — Recorded before implementing worker isolation and accounting corrections; remains proposed for human ratification.
 * Related decisions: [0008](0008-litellm-is-the-credential-and-metering-seam.md), [0012](0012-two-level-budgets-authorized-and-settled.md).
