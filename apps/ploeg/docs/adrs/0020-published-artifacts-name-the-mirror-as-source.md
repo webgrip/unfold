@@ -105,7 +105,7 @@ claim itself lives in 0004 and here, not in a label.
 ### Confirmation
 
 The release workflow's `Verify image metadata labels` step
-([.forgejo/workflows/on_release_published.yml](../../.forgejo/workflows/on_release_published.yml))
+([.forgejo/workflows/on_release_published.yml](../../../../.forgejo/workflows/on_release_published.yml))
 asserts `org.opencontainers.image.source` against `EXPECTED_SOURCE` for every
 platform of every published image, alongside created/version/revision, and fails
 the Harbor job if it drifts. A regression to the Forgejo value fails the release

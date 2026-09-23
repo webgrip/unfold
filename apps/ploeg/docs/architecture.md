@@ -63,7 +63,7 @@ Worker calls use the scoped authorization described in [worker control](contract
 
 Team plans, target mapping, provider configuration and executor settings are defined by [controller startup](../cmd/ploegd/main.go), [chart values](../ops/helm/ploeg/values.yaml) and the [operations guides](index.md#operate). Desired deployed state belongs to the deployment repository. A copied team roster, IP address or image tag in this explanation would become stale independently.
 
-Run the gates in the [pull-request workflow](../.forgejo/workflows/on_pull_request.yml). Mock services and cross-service fixtures provide implementation evidence. Some tests need a PostgreSQL runtime; tool or database provisioning may need network access.
+Run the gates in the [pull-request workflow](../../../.forgejo/workflows/on_pull_request.yml). Mock services and cross-service fixtures provide implementation evidence. Some tests need a PostgreSQL runtime; tool or database provisioning may need network access.
 
 ## 9. Where the code diverges from design.md
 

@@ -190,10 +190,7 @@ test('workflow dependencies resolve, reusable calls are pinned and local actions
       visit(name);
     }
   }
-  for (const app of ['vloer', 'ploeg']) {
-    const directory = path.join(root, `apps/${app}/.forgejo/workflows`);
-    for (const file of fs.readdirSync(directory)) assert.equal(fs.realpathSync(path.join(directory, file)), path.join(root, '.forgejo/workflows', file));
-  }
+  for (const app of ['vloer', 'ploeg']) assert.ok(!fs.existsSync(path.join(root, `apps/${app}/.forgejo`)), `apps/${app}/.forgejo is never read by Forgejo`);
 });
 
 
