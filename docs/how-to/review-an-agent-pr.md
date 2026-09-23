@@ -31,7 +31,7 @@ A Shift that closes with `review_approved` or `plan_exhausted` after a writer op
 
 ## Find what waits for you
 
-In Vloer, open **Ploeg** and pick the Team. The **Awaiting review** lane lists every Work Item in `awaiting_review`; it is the lane Vloer opens on whenever it holds work, so it works as your inbox. Select a Work Item to open its review screen, **Ready for your review**, above the full history ([ploeg.js](../../apps/vloer/public/ploeg.js)). For the Shift that settled the Work Item it shows:
+In Vloer, open **Ploeg**. The **Overview** tile **Awaiting review** counts your inbox across your Teams; select it, or the **Awaiting review** tab, and pick the Team. The lane lists every Work Item in `awaiting_review`. Select a Work Item to open its review screen, **Ready for your review**, above the full history ([ploeg.js](../../apps/vloer/public/ploeg.js)). For the Shift that settled the Work Item it shows:
 
 - **Open pull request**, a link to the pull request on the forge. Vloer takes it from the newest checkpoint, or else from the Runs' links. If Ploeg recorded neither, the screen says so and you find the pull request by its branch.
 - The branch and the close reason, with what that close reason means.
