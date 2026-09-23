@@ -20,7 +20,14 @@ nav:
       - Assign work to an agent: how-to/assign-work-to-an-agent.md
       - Review an agent pull request: how-to/review-an-agent-pr.md
       - Prepare a repository: how-to/prepare-a-repository.md
-      - Operate Ploeg: ploeg/index.md
+      - Operate Ploeg:
+          - Overview: ploeg/index.md
+          - Runbooks: ploeg/how-to/index.md
+          - Recover a stuck Lease or Run: ploeg/how-to/recover-a-stuck-lease-or-run.md
+          - Rotate credentials: ploeg/how-to/rotate-credentials.md
+          - Drain workers: ploeg/how-to/drain-workers.md
+          - Investigate a Run's spend: ploeg/how-to/investigate-a-runs-spend.md
+          - Restore after a database outage: ploeg/how-to/restore-after-a-database-outage.md
       - Operate Vloer: vloer/index.md
       - Set up shared execution: workflows/managed-execution.md
       - Release and live test: operations/first-cutover.md
