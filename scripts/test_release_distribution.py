@@ -4,6 +4,7 @@ import os
 import tempfile
 import unittest
 import urllib.request
+from pathlib import Path
 from unittest.mock import patch
 
 import publish_release
@@ -100,6 +101,14 @@ class DistributionTests(unittest.TestCase):
             self.assertEqual(verify.call_count, 2)
             self.assertEqual(command.call_count, 1)
             self.assertEqual(command.call_args.args[:3], ('cosign', 'copy', '--only=sig,att,sbom'))
+
+    def test_every_chart_names_glide_as_its_source_and_home(self):
+        root = Path(__file__).resolve().parent.parent
+        for path in ['apps/ploeg/ops/helm/ploeg', 'apps/vloer/ops/helm/de-vloer']:
+            with self.subTest(chart=path):
+                metadata = release_registry.command('helm', 'show', 'chart', str(root / path)).splitlines()
+                self.assertIn('home: https://forgejo.webgrip.dev/webgrip/glide', metadata)
+                self.assertEqual(metadata[metadata.index('sources:') + 1], '- https://github.com/webgrip/glide')
 
     def test_redirects_never_forward_credentials_to_another_host(self):
         request = urllib.request.Request('https://forgejo.webgrip.dev/asset', headers={'Authorization': 'fixture'})
