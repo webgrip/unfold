@@ -1,5 +1,7 @@
 # Turn the design into work
 
+> Planning record, frozen on 2026-09-23. The external tracker owns status and priority, so check it before acting on anything here. See [records and history](../../../../docs/documentation.md#records-and-history).
+
 The repository contains 78 ticket-ready records with acceptance criteria, verification, risk, repository ownership and an acyclic dependency graph. Every one of the 30 audited gaps maps to remediation tickets. These files are a reviewed planning seed. They do not grant execution permission, create external tickets or prove that a gap has been fixed.
 
 `backlog/backlog.json` is the source for the generated planning artifacts. After import, the chosen tracker owns current status, assignments and priority. Keep a mapping from stable `PV-NNN` plan IDs to native tracker IDs. Update the seed deliberately when the design changes; do not overwrite tracker progress by reimporting an old spreadsheet.

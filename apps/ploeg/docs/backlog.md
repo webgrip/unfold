@@ -1,5 +1,7 @@
 # Ploeg — improvement backlog (108 items)
 
+> Planning record, frozen on 2026-09-23. The external tracker owns status and priority, so check it before acting on anything here. See [records and history](../../../docs/documentation.md#records-and-history).
+
 Compiled 2026-07-22 from the design doc, the domain model, the code skeleton, and a
 research sweep of adjacent solutions (misospace/dispatch, kandev, vibe-kanban,
 untra/operator, Argo Workflows, Tekton, KEDA, kubernetes-sigs/agent-sandbox, kagent,

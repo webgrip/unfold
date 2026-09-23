@@ -1,5 +1,7 @@
 # Implementation backlog
 
+> Planning record, frozen on 2026-09-23. The external tracker owns status and priority, so check it before acting on anything here. See [records and history](../../../docs/documentation.md#records-and-history).
+
 85 ticket-ready records; generated from backlog/backlog.json. This file is a planning/export artifact. The selected tracker remains the source of truth after import. Planning status is not permission to run work.
 
 Estimates are relative engineering points, not hours, deadlines or predicted agent effort. Cross-repository dependency IDs need a mapping to native tracker IDs after import. No tickets have been created by this generator.
