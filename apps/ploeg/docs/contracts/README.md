@@ -10,7 +10,7 @@ change either side and the test tells you.
 | [outcomereport.v1.schema.json](outcomereport.v1.schema.json) | Harness output and the body of `POST /api/v1/runs/{token}/outcome`. Stuck requires a reason (R4). The optional `createdWorkItems` carries the Work Items a Run proposes ([ADR-0031](../adrs/0031-runs-create-work-items-held-for-approval-within-limits.md)). |
 | [checkpoint.v1.schema.json](checkpoint.v1.schema.json) | The durable progress record (shared by TaskSpec, OutcomeReport, and the checkpoint endpoint). |
 | [run-api.v1.schema.json](run-api.v1.schema.json) | All run-API message bodies (claim/renew/checkpoint/outcome). |
-| [operator-api.v1.schema.json](operator-api.v1.schema.json) | Authenticated, team-scoped read projections of teams, work items, shifts, runs, checkpoints and snapshot audit pages. |
+| [operator-api.v1.schema.json](operator-api.v1.schema.json) | Authenticated, team-scoped read projections of teams, activity summaries, work items, shifts, runs, the Run list, checkpoints and snapshot audit pages. |
 | [tracker-execution.md](tracker-execution.md), [v1 schema](tracker-execution.v1.schema.json) | Scoped source lookup and exclusive operator binding of an existing pristine tracker Work Item. |
 | [executor.md](executor.md) | The executor SPI: what any launcher (KEDA, CronJob, agent-sandbox, a human with curl) must and must not do. |
 
@@ -47,13 +47,34 @@ means every operator request is refused. Consumer names and policies may live
 in configuration; bearer values belong in the deployment's existing secret
 provisioning path, supplied through environment references.
 
-Read routes are `GET /api/v1/operator/teams`, `/work-items`,
-`/work-items/{id}`, `/runs/{id}` and `/events`. Item/event pages accept `after`
+Read routes are `GET /api/v1/operator/teams`, `/summary`, `/work-items`,
+`/work-items/{id}`, `/runs`, `/runs/{id}` and `/events`. Item/event pages accept `after`
 and `limit` (default 50, maximum 200); IDs and cursors are decimal strings.
 Item filters are `team`, `state` and `needsHuman=true`; event filters are
 `team` and `workItemId`. Detail embeds the latest 200 records per collection
 and marks truncated histories. Unknown costs remain unknown, and `paused`
 is null because the current team model has no pause state.
+
+Events default to ascending order. `order=desc` returns the newest events
+first and pages older with `before=<id>`; its `nextCursor` is the next `before`
+value and `lastCursor` is the newest id in the page, so a client can follow new
+events with `after`. Combining `after` with `order=desc`, or `before` without
+it, returns 400.
+
+`/summary?window=24h|7d|30d` (default `7d`) reports, per team in scope and in
+total, current Work Item counts by state, current pending and running Runs and
+reserved budget, and the Runs finished and spend settled inside the window.
+Settled spend is the sum of gateway reconciliation deltas plus the reported
+cost of Runs without a gateway account. `lastActivityAt` is the team's latest
+bound audit event. Teams appear when they have a Work Item or are registered.
+
+`/runs` lists Runs newest first by id. It filters on `team`, `state` and
+`outcome`, takes `limit` (1 to 200, default 50) and pages with
+`before=<runId>`, returning `nextBefore`. `externalRef` is the tracker
+reference agents put in commit trailers, empty for manual Operator Executions.
+`settledUsd` is the reconciled gateway spend, or the reported cost of a
+finished Run without a gateway account, and null otherwise. Summary and Run
+list timestamps are UTC.
 
 Audit pages explicitly say `consistency: snapshot`: sequence allocation is
 not transaction commit order, so clients must not treat this as a lossless

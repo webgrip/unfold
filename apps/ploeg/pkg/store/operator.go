@@ -24,6 +24,8 @@ type OperatorFilter struct {
 	State      string
 	NeedsHuman bool
 	After      int64
+	Before     int64
+	Desc       bool
 	Limit      int
 	WorkItemID int64
 }
@@ -375,9 +377,15 @@ func (s *Store) OperatorEvents(ctx context.Context, f OperatorFilter) ([]Operato
 	if err := validateOperatorFilter(f); err != nil {
 		return nil, false, err
 	}
+	cursor, order := `a.id > $4`, `a.id`
+	position := f.After
+	if f.Desc {
+		cursor, order = `($4::bigint = 0 OR a.id < $4)`, `a.id DESC`
+		position = f.Before
+	}
 	rows, err := s.pool.Query(ctx, `SELECT `+operatorEventJSON+` FROM audit_log a JOIN work_items i ON i.id = a.work_item_id
 		WHERE ($1::text[] IS NULL OR i.team = ANY($1)) AND ($2 = '' OR i.team = $2)
-		AND ($3::bigint = 0 OR i.id = $3) AND a.id > $4 ORDER BY a.id LIMIT $5`, f.Teams, f.Team, f.WorkItemID, f.After, f.Limit+1)
+		AND ($3::bigint = 0 OR i.id = $3) AND `+cursor+` ORDER BY `+order+` LIMIT $5`, f.Teams, f.Team, f.WorkItemID, position, f.Limit+1)
 	if err != nil {
 		return nil, false, err
 	}
@@ -389,7 +397,7 @@ func (s *Store) OperatorEvents(ctx context.Context, f OperatorFilter) ([]Operato
 }
 
 func validateOperatorFilter(f OperatorFilter) error {
-	if f.Limit < 1 || f.Limit > 200 || f.After < 0 || f.WorkItemID < 0 {
+	if f.Limit < 1 || f.Limit > 200 || f.After < 0 || f.Before < 0 || f.WorkItemID < 0 || (f.Desc && f.After != 0) || (!f.Desc && f.Before != 0) {
 		return errors.New("invalid operator pagination")
 	}
 	return nil
