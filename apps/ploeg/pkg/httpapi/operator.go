@@ -170,6 +170,8 @@ func (s *Server) operatorHandler() http.Handler {
 	mux.HandleFunc("GET /api/v1/operator/work-items/lookup", s.handleOperatorSourceLookup)
 	mux.HandleFunc("GET /api/v1/operator/work-items/{id}", s.handleOperatorItem)
 	mux.HandleFunc("POST /api/v1/operator/work-items/{id}/cancel", s.handleOperatorCancel)
+	mux.HandleFunc("GET /api/v1/operator/summary", s.handleOperatorSummary)
+	mux.HandleFunc("GET /api/v1/operator/runs", s.handleOperatorRuns)
 	mux.HandleFunc("GET /api/v1/operator/runs/{id}", s.handleOperatorRun)
 	mux.HandleFunc("GET /api/v1/operator/events", s.handleOperatorEvents)
 	s.registerOperatorExecution(mux)
@@ -272,7 +274,14 @@ func (s *Server) handleOperatorEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	var cursor *string
 	if more {
-		cursor = &last
+		next := last
+		cursor = &next
+	}
+	if filter.Desc {
+		last = "0"
+		if len(events) > 0 {
+			last = events[0].ID
+		}
 	}
 	operatorJSON(w, 200, map[string]any{"schemaVersion": "1.0", "events": events, "nextCursor": cursor, "lastCursor": last, "hasMore": more, "consistency": "snapshot"})
 }
@@ -287,7 +296,7 @@ func operatorFilter(w http.ResponseWriter, r *http.Request, events bool) (store.
 	}
 	allowed := map[string]bool{"team": true, "after": true, "limit": true}
 	if events {
-		allowed["workItemId"] = true
+		allowed["workItemId"], allowed["order"], allowed["before"] = true, true, true
 	} else {
 		allowed["state"], allowed["needsHuman"] = true, true
 	}
@@ -312,6 +321,25 @@ func operatorFilter(w http.ResponseWriter, r *http.Request, events bool) (store.
 			operatorError(w, 400, "invalid_request", "Invalid cursor.")
 			return f, false
 		}
+	}
+	switch q.Get("order") {
+	case "", "asc":
+	case "desc":
+		f.Desc = true
+	default:
+		operatorError(w, 400, "invalid_request", "order must be asc or desc.")
+		return f, false
+	}
+	if before := q.Get("before"); before != "" {
+		f.Before, err = store.OperatorCursor(before)
+		if err != nil || f.Before == 0 {
+			operatorError(w, 400, "invalid_request", "Invalid cursor.")
+			return f, false
+		}
+	}
+	if (f.Desc && q.Has("after")) || (!f.Desc && q.Has("before")) {
+		operatorError(w, 400, "invalid_request", "after pages ascending events and before pages descending events.")
+		return f, false
 	}
 	if limit := q.Get("limit"); limit != "" {
 		f.Limit, err = strconv.Atoi(limit)
