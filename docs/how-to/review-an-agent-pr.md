@@ -2,8 +2,8 @@
 type: how-to
 audience: [owner]
 owner: glide
-last_verified: 2026-09-22
-verified_by: "Read apps/ploeg pkg/worker/{task,worker}.go, pkg/shiftengine/{engine,reviewloop,publish}.go, pkg/store/store.go, pkg/httpapi/server.go and apps/vloer/public/ploeg.js at 6221579"
+last_verified: 2026-09-23
+verified_by: "Read apps/ploeg pkg/worker/{task,worker}.go, pkg/shiftengine/{engine,reviewloop,publish}.go, pkg/store/store.go, pkg/httpapi/server.go and apps/vloer/public/ploeg.js at 6221579; the review lane section against apps/vloer/public/ploeg.js on 2026-09-23"
 ---
 
 # Review an agent's pull request
@@ -27,6 +27,18 @@ The Shift's close reason tells you why it stopped ([reviewloop.go](../../apps/pl
 | `writing_run_failed_repeatedly`, `writing_run_killed_repeatedly` | The writer never finished ([failedwriter.go](../../apps/ploeg/pkg/shiftengine/failedwriter.go)). |
 
 A Shift that closes with `review_approved` or `plan_exhausted` after a writer opened or updated the pull request settles the Work Item as `awaiting_review`. Every other close reason, and a `stuck` Run, settles it as `needs_human` ([engine.go](../../apps/ploeg/pkg/shiftengine/engine.go)). No agent merges, and Ploeg leaves the ticket open.
+
+## Find what waits for you
+
+In Vloer, open **Ploeg** and pick the Team. The **Awaiting review** lane lists every Work Item in `awaiting_review`; it is the lane Vloer opens on whenever it holds work, so it works as your inbox. Select a Work Item to open its review screen, **Ready for your review**, above the full history ([ploeg.js](../../apps/vloer/public/ploeg.js)). For the Shift that settled the Work Item it shows:
+
+- **Open pull request**, a link to the pull request on the forge. Vloer takes it from the newest checkpoint, or else from the Runs' links. If Ploeg recorded neither, the screen says so and you find the pull request by its branch.
+- The branch and the close reason, with what that close reason means.
+- Each Run's Role, Round, outcome and verdict, and every reviewer's findings.
+- Spend: authorized, reserved and settled, in dollars to two decimals.
+- **Instruction files named in findings**, when a reviewer's findings mention `AGENTS.md`, `CLAUDE.md`, `.claude/`, `.agents/`, `.openhands/`, `.mcp.json` or `.cursorrules`. Ploeg has no structured flag for this. Vloer matches the findings text, so check those files in the diff yourself.
+
+The screen is read-only. You merge or send the work back on the forge and in the tracker, not in Vloer.
 
 ## Check the evidence
 
