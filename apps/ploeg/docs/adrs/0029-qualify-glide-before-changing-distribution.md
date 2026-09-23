@@ -47,6 +47,6 @@ Run the imported Go, chart, ledger and release-policy gates, plus the Vloer qual
 
 ## More Information
 
-* Technical story: [assemble-glide-monorepo](../../openspec/changes/assemble-glide-monorepo/proposal.md).
+* Technical story: [assemble-glide-monorepo](../../openspec/changes/archive/2026-09-23-assemble-glide-monorepo/proposal.md).
 * 2026-09-12 — Recorded before import. The owner approved Glide and the local migration; this distribution sequencing remains proposed and does not ratify earlier proposed decisions.
 * Related: [0004](0004-forgejo-leading-home-github-mirror-module-path.md), [0020](0020-published-artifacts-name-the-mirror-as-source.md), [0028](0028-automatic-releases-stay-zero-major-candidates.md).

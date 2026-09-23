@@ -60,12 +60,27 @@ type Server struct {
 	// implemented by plan.Plans. Nil = no caps, and the authorization is
 	// bounded by the Shift pool alone.
 	RoleCaps RoleCaps
+	// TeamCaps bounds how many Runs a team may have running at once. A claim
+	// over the cap answers 204 exactly like an empty queue. Nil = unlimited.
+	TeamCaps TeamCaps
 	// TrackerWebhooks is the latest Vikunja webhook coverage check, reported
 	// by /readyz. Nil = no check configured.
 	TrackerWebhooks *WebhookCoverage
 	// CreatedWork holds each Team's limits on the Work Items its Runs create
 	// (ADR-0031). A Team absent here gets followup.Default.
 	CreatedWork map[string]followup.Policy
+	// MetricsCacheTTL is how long a /metrics result is reused before the
+	// database is read again. Zero means DefaultMetricsCacheTTL; negative
+	// disables the cache.
+	MetricsCacheTTL time.Duration
+
+	metrics metricsCache
+	// FollowUps holds each Team's opt-in to acting on forge events. A Team
+	// that is missing acts on nothing; its forge events are only recorded.
+	FollowUps map[string]work.ForgeFollowUps
+	// ForgeBots are the forge logins Ploeg itself acts as. A review from one
+	// of them never sends work back to a Team.
+	ForgeBots []string
 }
 
 // ReviewSettler is implemented by shiftengine.ReviewWatch.
@@ -99,6 +114,19 @@ func (s *Server) knownTeam(team string) bool {
 	return ok
 }
 
+// TeamCaps is the slice of the team roster the claim path needs to enforce a
+// team's concurrency cap. MaxRunning returns 0 for an unlimited team.
+type TeamCaps interface {
+	MaxRunning(team string) int
+}
+
+func (s *Server) maxRunning(team string) int {
+	if s.TeamCaps == nil {
+		return 0
+	}
+	return s.TeamCaps.MaxRunning(team)
+}
+
 // ShiftEngine is implemented by pkg/shiftengine. An interface here rather
 // than the concrete type, so httpapi tests that never touch Shifts do not
 // need an engine, and the engine package stays free to import httpapi types
@@ -112,14 +140,13 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	mux.HandleFunc("GET /readyz", s.handleReady)
+	mux.HandleFunc("GET /metrics", s.handleMetrics)
 	mux.HandleFunc("POST /webhooks/tracker/{provider}", s.handleTrackerWebhook)
 	mux.HandleFunc("POST /webhooks/forge/{provider}", s.handleForgeWebhook)
 	mux.HandleFunc("POST /api/v1/claim", s.handleClaim)
 	mux.HandleFunc("POST /api/v1/runs/{token}/renew", s.handleRenew)
 	mux.HandleFunc("POST /api/v1/runs/{token}/checkpoint", s.handleCheckpoint)
 	mux.HandleFunc("POST /api/v1/runs/{token}/outcome", s.handleOutcome)
-	// Literal path wins over the {team} wildcard in the Go 1.22 mux.
-	mux.HandleFunc("GET /api/v1/queue/depth", s.handleQueueDepth)
 	mux.HandleFunc("GET /api/v1/queue/{team}", s.handleQueue)
 	mux.Handle("/api/v1/operator/", s.operatorHandler())
 	s.RegisterLLMControl(mux)
@@ -193,17 +220,6 @@ func (s *Server) handleTrackerWebhook(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
-// handleForgeWebhook is the forge's way in: verify, dedup, audit, acknowledge.
-//
-// A merged or closed pull request settles its awaiting_review Work Item.
-// Every other event is recorded only. Routing a submitted review into a
-// re-mandate needs the branch-to-Work-Item lookup backlog #107 owes it, and
-// the two "keep going" paths — an agent's verdict and a human's review —
-// should be reconciled deliberately rather than by whichever landed first
-// (ADR-0017 names that as a re-evaluation trigger).
-//
-// Everything expensive stays out of the handler: Forgejo's DELIVER_TIMEOUT is
-// 5 seconds and a slow endpoint becomes a disabled webhook (backlog #3).
 func (s *Server) handleForgeWebhook(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("provider")
 	fp, ok := s.Forges[name]
@@ -242,9 +258,6 @@ func (s *Server) handleForgeWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, ev := range events {
-		// Recorded, not acted on. The body is text written outside the
-		// factory, so it is audited as evidence and never fed anywhere that
-		// would treat it as an instruction (backlog #9).
 		if err := s.Store.AuditForgeEvent(r.Context(), name, string(ev.Kind), ev.Repo, ev.Branch, ev.PR); err != nil {
 			s.Log.Error("forge event audit failed", "provider", name, "kind", ev.Kind, "err", err)
 			continue
@@ -257,6 +270,7 @@ func (s *Server) handleForgeWebhook(w http.ResponseWriter, r *http.Request) {
 					"repo", ev.Repo, "pr", ev.PR, "err", err)
 			}
 		}
+		s.actOnForgeEvent(r.Context(), name, ev)
 	}
 	w.WriteHeader(http.StatusAccepted)
 }
@@ -383,7 +397,7 @@ func (s *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 	// synthesized one — its Run carries the empty role. Try that first and
 	// fall through to the pre-Shift claim when there is none, so the same
 	// pod serves both worlds and the kill switch needs no chart change.
-	if run, err := s.Store.ClaimRole(r.Context(), req.Team, "", s.LeaseTTL, 0); err == nil {
+	if run, err := s.Store.ClaimRoleWithin(r.Context(), req.Team, "", s.LeaseTTL, 0, s.maxRunning(req.Team)); err == nil {
 		s.respondClaimedRun(w, r, req, run)
 		return
 	} else if !errors.Is(err, store.ErrNoWork) && !errors.Is(err, store.ErrBudgetExhausted) {
@@ -391,7 +405,7 @@ func (s *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "claim failed", http.StatusInternalServerError)
 		return
 	}
-	claimed, err := s.Store.Claim(r.Context(), req.Team, s.LeaseTTL)
+	claimed, err := s.Store.ClaimWithin(r.Context(), req.Team, s.LeaseTTL, s.maxRunning(req.Team))
 	if errors.Is(err, store.ErrNoWork) {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -414,7 +428,7 @@ func (s *Server) claimRole(w http.ResponseWriter, r *http.Request, req claimRequ
 	if s.RoleCaps != nil {
 		cap = s.RoleCaps.RoleCap(req.Team, req.Role)
 	}
-	run, err := s.Store.ClaimRole(r.Context(), req.Team, req.Role, s.LeaseTTL, cap)
+	run, err := s.Store.ClaimRoleWithin(r.Context(), req.Team, req.Role, s.LeaseTTL, cap, s.maxRunning(req.Team))
 	switch {
 	case errors.Is(err, store.ErrNoWork):
 		w.WriteHeader(http.StatusNoContent)
@@ -457,6 +471,11 @@ func (s *Server) respondClaimedRun(w http.ResponseWriter, r *http.Request, req c
 				Role: rep.Role, Round: rep.Round, Findings: rep.Findings,
 			})
 		}
+	}
+	if notes, err := s.Store.ShiftReviews(r.Context(), run.ShiftID, run.Round); err != nil {
+		s.Log.Error("review briefing read failed; run proceeds without it", "shift", run.ShiftID, "err", err)
+	} else {
+		resp.Briefing = append(resp.Briefing, reviewBriefing(notes)...)
 	}
 	// Push rights are minted per writing Run, so holding the Lease and being
 	// able to push are one fact rather than two that can disagree. A reader
@@ -637,39 +656,6 @@ func (s *Server) ensureShift(ctx context.Context, id int64) {
 	if err != nil {
 		s.Log.Error("shift open failed; sweeper will repair", "id", id, "err", err)
 	}
-}
-
-// handleQueueDepth serves the executor scale signal over HTTP: the same
-// claimable-count the KEDA scaler reads via SQL, for executors without
-// Postgres credentials (docs/contracts/executor.md).
-//
-// With a role it answers from PendingRuns, which selects over the identical
-// predicate as ClaimRole — the two are tested against each other, because
-// overshoot merely wastes a pod while undershoot stalls Work Items silently
-// and forever.
-func (s *Server) handleQueueDepth(w http.ResponseWriter, r *http.Request) {
-	team := r.URL.Query().Get("team")
-	if team == "" {
-		http.Error(w, "team query parameter is required", http.StatusBadRequest)
-		return
-	}
-	role := r.URL.Query().Get("role")
-	var n int
-	var err error
-	if role != "" {
-		n, err = s.Store.PendingRuns(r.Context(), team, role)
-	} else {
-		n, err = s.Store.QueueDepth(r.Context(), team)
-	}
-	if err != nil {
-		http.Error(w, "queue depth read failed", http.StatusInternalServerError)
-		return
-	}
-	body := map[string]any{"team": team, "depth": n}
-	if role != "" {
-		body["role"] = role
-	}
-	writeJSON(w, http.StatusOK, body)
 }
 
 func (s *Server) handleQueue(w http.ResponseWriter, r *http.Request) {

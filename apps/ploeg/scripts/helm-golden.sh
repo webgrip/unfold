@@ -52,7 +52,8 @@ status=0
 for case in ":default" \
 	"ops/helm/ploeg/ci/executor-values.yaml:executor" \
 	"ops/helm/ploeg/ci/executor-cronjob-values.yaml:executor-cronjob" \
-	"ops/helm/ploeg/ci/executor-gitlab-values.yaml:executor-gitlab"; do
+	"ops/helm/ploeg/ci/executor-gitlab-values.yaml:executor-gitlab" \
+	"ops/helm/ploeg/ci/monitoring-values.yaml:monitoring"; do
 	values=${case%%:*}
 	name=${case##*:}
 	if [ "$mode" = "update" ]; then
@@ -63,6 +64,19 @@ for case in ":default" \
 	if ! render "$values" | diff -u "$GOLDEN/$name.yaml" - >/tmp/golden-$name.diff; then
 		echo "chart render '$name' differs from its golden:"
 		cat /tmp/golden-$name.diff
+		status=1
+	fi
+done
+
+for case in "ops/helm/ploeg/ci/reject-reader-without-read-token-values.yaml:readTokenSecret is not set"; do
+	values=${case%%:*}
+	expected=${case#*:}
+	if out=$(helm template ploeg ops/helm/ploeg -f "$values" 2>&1); then
+		echo "chart rendered '$values', which it must refuse"
+		status=1
+	elif ! printf '%s' "$out" | grep -qF "$expected"; then
+		echo "chart refused '$values' for the wrong reason (want '$expected'):"
+		echo "$out"
 		status=1
 	fi
 done

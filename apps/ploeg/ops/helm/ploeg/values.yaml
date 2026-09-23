@@ -6,6 +6,50 @@ imagePullSecrets: [] # homelab sets [{name: harbor-pull}]
 service:
   port: 8080
 
+# Prometheus Operator objects for ploegd's GET /metrics. Both are off by
+# default: they need the monitoring.coreos.com CRDs. The alerts and what to do
+# about each are in docs/ops/alerts.md.
+monitoring:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {} # e.g. {release: kube-prometheus-stack}, whatever your Prometheus selects on
+  prometheusRule:
+    enabled: false
+    labels: {}
+    # PromQL label matchers every alert applies to ploegd's series. Empty =
+    # job="<release>",namespace="<release namespace>", which is what the
+    # ServiceMonitor above produces.
+    selector: ""
+    # Base URL of the rendered alerts page; each alert links to its anchor.
+    runbookBaseUrl: ""
+    alerts:
+      stuckShift:
+        enabled: true
+        idleHours: 6
+        for: 15m
+        severity: warning
+      expiredLease:
+        enabled: true
+        overdueSeconds: 300
+        for: 5m
+        severity: warning
+      leakedModelKey:
+        enabled: true
+        graceSeconds: 900
+        for: 5m
+        severity: critical
+      spendSpike:
+        enabled: true
+        usdPerHour: 20
+        for: 0m
+        severity: warning
+      trackerWebhookMissing:
+        enabled: true
+        for: 15m
+        severity: warning
+
 operator:
   consumers: []
   deliveryPolicies: []
@@ -163,11 +207,11 @@ executor:
     # split at the forge as well as in Ploeg's scheduling is the whole point —
     # either alone is a single point of failure.
     #
-    # UNSET IS A KNOWN GAP, not a safe default: readers then run with the
-    # read-write builder token below and only scheduling separates them. The
-    # repos are private, so "no credential" cannot clone; a read-only token is
-    # the honest tier 1. Closing the gap is one OpenBao entry plus one
-    # ExternalSecret in homelab-cluster — no chart or code change.
+    # REQUIRED as soon as any team has a reading Role: the render fails
+    # without it, because the only alternative is handing the reader the
+    # read-write builder token below. The repos are private, so "no
+    # credential" cannot clone; a read-only token is the honest tier 1. It is
+    # one OpenBao entry plus one ExternalSecret in homelab-cluster.
     readTokenSecret: {}
     #  name: agent-reader-token
     #  key: FORGEJO_TOKEN
@@ -190,6 +234,8 @@ executor:
     tokenSecret:
       name: agent-builder-token
       key: GITLAB_TOKEN
+    # As for forgejo: required once a team has a reading Role. On GitLab a
+    # project access token at read_repository scope.
     readTokenSecret: {}
     webhookSecret: {}
   scaler:
@@ -253,6 +299,10 @@ executor:
   #   # per-team lever for rolling the decoupling forward or back.
   #   targetSource: claim
   #   maxReplicaCount: 1
+  #   # Optional: at most this many of the team's Runs run at once (0/unset =
+  #   # unlimited). ploegd refuses claims over it; every workload's
+  #   # maxReplicaCount is clamped to it.
+  #   maxRunning: 2
   #   # Optional: override the executor.harness defaults for this team — the
   #   # single axis of variation (harness AND agent image swap per team).
   #   harness:
@@ -296,6 +346,7 @@ config: {}
 #   teams:
 #     bronze:
 #       assignees: [jake, bronze]     # replaces PLOEG_TEAM_MAP
+#       maxRunning: 2                 # concurrency cap; wins over executor.teams[].maxRunning
 #       plan:                         # replaces PLOEG_TEAM_PLANS; omit for one writer
 #         pool: "6"
 #         maxFixRounds: 2
@@ -306,3 +357,7 @@ config: {}
 #               - {name: builder, writes: true, cap: "3.00"}
 #           - roles:
 #               - {name: reviewer, writes: false, cap: "0.75", harness: {dind: false}}
+#       forgeFollowUps:               # omit = forge events are recorded only
+#         repairFailedChecks: true    # a failed check queues a repair Follow-Up
+#         maxRepairs: 2               # repair Follow-Ups per pull request; 0 = 2
+#         reworkOnChangesRequested: true  # a person's "request changes" sends it back

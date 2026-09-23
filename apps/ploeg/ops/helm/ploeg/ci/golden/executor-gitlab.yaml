@@ -314,6 +314,8 @@ spec:
                 value: "gitlab"
               - name: FORGE_URL
                 value: "https://gitlab.com"
+              - name: PLOEG_FORGE_TOKEN_ACCESS
+                value: "read-only"
               - name: AGENT_BUILDER_TOKEN
                 valueFrom:
                   secretKeyRef:
@@ -504,6 +506,8 @@ spec:
                 value: "gitlab"
               - name: FORGE_URL
                 value: "https://gitlab.com"
+              - name: PLOEG_FORGE_TOKEN_ACCESS
+                value: "read-write"
               - name: AGENT_BUILDER_TOKEN
                 valueFrom:
                   secretKeyRef:
@@ -694,6 +698,8 @@ spec:
                 value: "gitlab"
               - name: FORGE_URL
                 value: "https://gitlab.com"
+              - name: PLOEG_FORGE_TOKEN_ACCESS
+                value: "read-only"
               - name: AGENT_BUILDER_TOKEN
                 valueFrom:
                   secretKeyRef:

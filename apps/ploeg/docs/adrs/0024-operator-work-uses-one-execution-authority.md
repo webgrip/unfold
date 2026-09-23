@@ -54,7 +54,7 @@ Run the repository Go build, vet and test gates plus the De Vloer cross-service 
 
 ## More Information
 
-* Technical story: [OpenSpec design](../../openspec/changes/unified-operator-execution/design.md).
+* Technical story: [OpenSpec design](../../openspec/changes/archive/2026-09-23-unified-operator-execution/design.md).
 * Evidence: [De Vloer unification research](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/research/2026-09-10-unified-workbench-baseline.md).
 * 2026-09-10 — Recorded before implementation under the owner's instruction to implement the unified baseline. Status remains proposed pending explicit decision ratification.
 * Related decisions: [0005](0005-build-a-dedicated-dispatch-plane.md), [0010](0010-shift-owns-the-item-lease-owns-the-branch.md).

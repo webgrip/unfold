@@ -1,3 +1,10 @@
+---
+type: reference
+audience: [owner, integrator, contributor, agent]
+owner: ploeg
+generated_by: "mise run domain"
+---
+
 # Glossary — Ploeg
 
 *Generated from `model.yaml` — do not edit by hand.*
@@ -56,7 +63,7 @@ The component that performs admitted Runs and reports progress and outcomes. Cur
 ## Follow-Up
 *Context: Dispatch*
 
-A Work Item created by other work rather than by a person: from a Forge Event (review submitted, check failed, merge-state dirty), or from a Run that splits work or records work it discovered (Product R12). It references its source Work Item (and, from a Run, the source Run), carries that Work Item's Work Target, and says whether it is Ready. A Run's Follow-Up exists only in Ploeg, sits one level deeper than its source, is bounded by its Team's created-work limits, and enters the lifecycle at proposed unless the Team sets autoDispatch (ADR-0031). Current forge webhook ingestion records the event without automatically creating this Work Item.
+A Work Item created by other work rather than by a person: from a Forge Event (review submitted, check failed, merge-state dirty), or from a Run that splits work or records work it discovered (Product R12). It references its source Work Item and carries that Work Item's Work Target. From a Forge Event it also references the source PR, is routed to the Team owning the source branch, and enters the lifecycle directly at queued; today only a failed check creates one, and only for a Team that enabled forgeFollowUps.repairFailedChecks: one open repair per pull request, capped per pull request. From a Run it also references the source Run, says whether it is Ready, exists only in Ploeg, sits one level deeper than its source, is bounded by its Team's created-work limits, and enters the lifecycle at proposed unless the Team sets autoDispatch (ADR-0031).
 
 **See also:** [Work Item](#work-item), [Forge Event](#forge-event), [Team](#team), [Work Target](#work-target)  
 

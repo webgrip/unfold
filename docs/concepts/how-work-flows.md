@@ -71,9 +71,11 @@ Not every unit of work is code. Deciding what to build, splitting a large Work I
 | --- | --- |
 | You, through the tracker or Vloer | Implemented |
 | A Run that splits a Work Item, makes it Ready or records work it discovered | Implemented, proposed in [Ploeg ADR-0031](../../apps/ploeg/docs/adrs/0031-runs-create-work-items-held-for-approval-within-limits.md). Created Work Items stay in Ploeg and wait for your approval |
-| A forge event, such as a failed check or a review requesting changes | Intended. Forge events are recorded but create nothing |
+| A failed check on a Ploeg pull request | Implemented, off by default. With `repairFailedChecks`, Ploeg queues a repair Follow-Up for the Team that owns the branch |
+| A person's review requesting changes on a Ploeg pull request | Implemented, off by default. With `reworkOnChangesRequested`, the review goes back to the same Work Item: it creates no new Work Item |
+| Other forge events, such as a merge conflict or a review comment | Recorded only |
 
-A Work Item created by work is a **Follow-Up**. It names its source Work Item and Run, and it states whether it is Ready. A Run returns the Work Items it wants in `createdWorkItems` on its outcome. A Role marked `planner` in a team's plan is told to do only that: split or clarify the Work Item instead of writing code.
+A Work Item created by work is a **Follow-Up**. It names its source. One that a Run creates names the source Work Item and Run, and states whether it is Ready. A Run returns the Work Items it wants in `createdWorkItems` on its outcome. A Role marked `planner` in a team's plan is told to do only that: split or clarify the Work Item instead of writing code.
 
 Ploeg stores each created Work Item with the state **proposed**, where no agent can claim it. You approve it, which queues it, or reject it with a reason, through `POST /api/v1/operator/work-items/{id}/approve` or `/reject`. It is never written to the tracker. A team can set `createdWork.autoDispatch: true` to skip the approval step.
 
@@ -90,6 +92,24 @@ Every team has limits on created work. Ploeg rejects each entry over a limit and
 | Budget all created Work Items under one original Work Item may share (`poolUsd`) | $10.00 |
 
 Two questions are still open for the owner: whether created Work Items should also be written to the tracker, and whether a person must approve them before dispatch. Until they are answered, the defaults above are the cautious answer to both.
+
+### Forge events that act
+
+Both switches are per Team, under `teams.<name>.forgeFollowUps` in the `PLOEG_CONFIG` file ([configuration reference](../../apps/ploeg/docs/reference/configuration.md)). A Team without them acts on no forge event, so deploying this changes nothing until you turn it on.
+
+```yaml
+teams:
+  bronze:
+    forgeFollowUps:
+      repairFailedChecks: true
+      maxRepairs: 2                  # per pull request; 0 or unset means 2
+      reworkOnChangesRequested: true
+```
+
+Ploeg only acts on a pull request branch that one of its Shifts worked, in the repository the Work Item targets ([`forge_followup.go`](../../apps/ploeg/pkg/httpapi/forge_followup.go), [`store/followup.go`](../../apps/ploeg/pkg/store/followup.go)).
+
+* **Failed check.** When the source Work Item is `awaiting_review`, Ploeg creates a queued Follow-Up with origin `follow_up`. The Follow-Up names the source Work Item, the pull request and the branch. It carries the source's Work Target and Team, and its Shift pushes to the same branch, so the open pull request is updated. The failure text from the forge is quoted in the task as evidence. At most one repair Follow-Up per pull request is open at a time. After `maxRepairs` repairs, later failures are recorded with reason `capped` and nothing runs. A failure while the source is queued or has a live Shift is skipped, because that Shift is already working the branch.
+* **Changes requested.** A review that requests changes, from anyone except Ploeg's own forge user (`PLOEG_FORGEJO_BOT`), is stored against the Work Item. The review body reaches the next writer in its briefing, marked as evidence. If a Shift is still live, its plan continues and then runs a fix Round for the review, within the plan's `maxFixRounds` and budget. If the Work Item is `awaiting_review`, Ploeg queues it again and opens a new Shift on the same branch.
 
 ## Who holds authority
 
@@ -114,7 +134,9 @@ Vloer is the front end. It is where you watch Shifts, steer work, read evidence 
 * Ploeg records the pull request but does not merge or publish anything. Candidate delivery stores approvals without a publisher.
 * An operator-owned Work Item ignores unassignment in the tracker. Cancel its execution instead.
 * Runs cannot create Work Items yet; see below.
-* Forge webhooks act only on merged and closed pull requests. Other forge events are recorded but not acted on: failing CI does not yet create a repair Round, and a human review comment does not start another Round.
+* Forge webhooks act on merged and closed pull requests. Failed checks and requested changes act only for Teams that turned on `forgeFollowUps`. Other forge events, including merge conflicts and plain review comments, are recorded but not acted on.
+* Failed-check repairs parse Forgejo commit-status events and GitLab pipeline events. Only Forgejo reviews are classified, so a GitLab review never sends work back.
+* A requested change that arrives after a live Shift's fix-round cap or budget has run out stays stored. The Work Item goes to `needs_human`, and a later assignment gives the review to the next Shift.
 * Merge detection needs a Work Item whose target repository resolved. An item that ran on the worker's fallback repository stays `awaiting_review` after its merge.
 
 Related: [Architecture](architecture.md), [Ploeg architecture](../../apps/ploeg/docs/architecture.md), [worker control contract](../../apps/ploeg/docs/contracts/worker-control.md).

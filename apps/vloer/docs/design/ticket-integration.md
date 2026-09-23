@@ -316,7 +316,7 @@ A HumanDecision is append-only. Revocation or invalidation creates a new record 
 | Ploeg | `POST /webhooks/forge/{provider}` | Feedback normalization and audit |
 | Ploeg | `POST /api/v1/claim` | Worker claims team/role work |
 | Ploeg | `POST /api/v1/runs/{token}/renew`, `/checkpoint`, `/outcome` | Worker lifecycle |
-| Ploeg | `GET /api/v1/queue/depth`, `/api/v1/queue/{team}` | Dispatch observations |
+| Ploeg | `/api/v1/queue/{team}` (`queue/depth` was removed on 2026-09-23) | Dispatch observations |
 | Vloer | `/api/sessions`, session start/pause/resume/cancel/messages/permissions/budget | Vloer-owned interactive sessions |
 | Vloer | `GET /api/ploeg` | Read-only queue projection |
 

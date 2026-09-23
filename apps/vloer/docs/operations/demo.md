@@ -1,10 +1,18 @@
+---
+type: tutorial
+audience: [owner, operator, contributor]
+owner: vloer
+last_verified: 2026-09-23
+verified_by: "Read apps/vloer/package.json (demo, smoke), src/config.ts (demo repository, crew, port 4080, VLOER_DATA_DIR), src/runtime/demo.ts, scripts/smoke.mjs and examples/order-service"
+---
+
 # A ten-minute coworker walkthrough
 
 Purpose: show a consistent way to supervise work and judge its evidence. The demo uses a deterministic agent substitute. It executes real Git and Node commands locally, with no LLM requests, provider credentials or invented token counts. Ten minutes is a walkthrough budget, not a measured onboarding benchmark.
 
 ## Before the meeting
 
-Use Node 24 and Git. Start from the repository root:
+Use Node 24 and Git. From the Glide root, run `mise run demo`; from `apps/vloer`, run:
 
 ```sh
 npm run demo
@@ -32,7 +40,7 @@ Starting this path requires no `npm install`. Running the development type check
 | 8–9 min | Inspect the review outcome and `$0.00` demo accounting | Completion does not merge or deploy; a person reviews the change |
 | 9–10 min | Explain the live deployment boundary and one-replica limit | Agents move to the server or Kubernetes in live mode; this demo has not qualified a provider or cluster |
 
-The fixture is `examples/order-service`. Its defect is rounding `1.005` to cents with `Math.round(value * 100)`. The deterministic writer adds `Number.EPSILON`, verifies the correction and retains the Git diff. The reviewer runs a separate check invocation. If a session fails, inspect its actual artifact and blocker; do not present it as a successful demo.
+The fixture is `examples/order-service`. Its defect is rounding `1.005` to cents with `Math.round(amount * 100)`. The deterministic writer adds `Number.EPSILON`, verifies the correction and retains the Git diff. The reviewer runs a separate check invocation. If a session fails, inspect its actual artifact and blocker; do not present it as a successful demo.
 
 For a repeatable automated demonstration, leave the server running and execute:
 

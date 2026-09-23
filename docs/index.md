@@ -29,6 +29,7 @@ Both applications live in this repository and deploy separately ([ADR-0002](adr/
 | Give real work to agents | [Assign work to an agent](how-to/assign-work-to-an-agent.md) |
 | Check an agent's pull request before merging | [Review an agent pull request](how-to/review-an-agent-pr.md) |
 | Let agents work in a repository | [Prepare a repository](how-to/prepare-a-repository.md) |
+| Try a Team on ten real Work Items, or compare prompts, models and harnesses | [Run a pilot batch](how-to/run-a-pilot-batch.md) |
 | Operate Ploeg or Vloer | [Ploeg](../apps/ploeg/docs/index.md) · [Vloer](../apps/vloer/docs/index.md) |
 | Look up a term or a decision | [Glossary](reference/glossary.md) · [Decisions](reference/decisions.md) |
 | Change Glide | [Repository instructions](../AGENTS.md) · [Documentation policy](documentation.md) · [CI and releases](operations/ci.md) |

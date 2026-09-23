@@ -1,0 +1,30 @@
+{
+  "variants": [
+    {
+      "id": "claude-code-baseline",
+      "description": "Example A: Claude Code with the baseline prompt. Replace the model with an alias your LiteLLM gateway serves.",
+      "harness": {
+        "kind": "command",
+        "command": ["claude", "-p", "--model", "{model}", "--permission-mode", "bypassPermissions", "{prompt}"],
+        "env": { "ANTHROPIC_BASE_URL": "{gatewayUrl}", "ANTHROPIC_API_KEY": "{gatewayKey}" }
+      },
+      "prompt": "../prompts/baseline.md",
+      "model": "coding-default",
+      "maxBudgetUsd": 1,
+      "timeoutSeconds": 900
+    },
+    {
+      "id": "claude-code-terse",
+      "description": "Example B: the same harness and model with the terse prompt, so the pair isolates the prompt.",
+      "harness": {
+        "kind": "command",
+        "command": ["claude", "-p", "--model", "{model}", "--permission-mode", "bypassPermissions", "{prompt}"],
+        "env": { "ANTHROPIC_BASE_URL": "{gatewayUrl}", "ANTHROPIC_API_KEY": "{gatewayKey}" }
+      },
+      "prompt": "../prompts/terse.md",
+      "model": "coding-default",
+      "maxBudgetUsd": 1,
+      "timeoutSeconds": 900
+    }
+  ]
+}

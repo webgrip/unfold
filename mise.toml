@@ -26,6 +26,10 @@ description = "Run both application gates and cross-application qualification"
 run = "node scripts/integration.mjs"
 description = "Qualify standalone and Ploeg-managed execution without paid models"
 
+[tasks.evaluate]
+run = "node scripts/eval/eval.mjs"
+description = "Compare prompt, model and harness variants on fixture Work Items; deterministic unless GLIDE_EVAL_LIVE=1"
+
 [tasks.docs-check]
 run = "uv run --frozen python scripts/docs.py --check"
 description = "Check generated models, links, agent instruction files and strict TechDocs output"
@@ -69,6 +73,24 @@ description = "Test release isolation and guards in the pinned release toolchain
 [tasks.docs-site-check]
 run = "sh scripts/docs-site.sh"
 description = "Build and scan the Zensical publishing output in the pinned CI image"
+
+[tasks.docs-stale]
+run = "uv run --frozen python scripts/docs-stale.py"
+description = "List current pages whose last_verified is older than 180 days; reports only"
+
+[tasks.docs-tutorial-smoke]
+run = "bash scripts/tutorial-smoke.sh"
+description = "Start the documented deterministic demo, then stop it; skips when PostgreSQL is missing"
+
+[tasks.docs-links-external]
+tools = { lychee = "0.24.2" }
+run = "lychee --config lychee.toml README.md llms.txt docs apps/vloer/docs apps/ploeg/docs"
+description = "Check external links in current docs with lychee; the weekly workflow reports without blocking"
+
+[tasks.docs-vale]
+tools = { vale = "3.22.0" }
+run = ["uv run --frozen python scripts/docs-vale.py", "vale --no-exit --glob='!**/{research,evidence,openspec,design,adr,adrs,backlog}/**' README.md docs apps/vloer/docs apps/ploeg/docs"]
+description = "Lint current docs against the generated Glide vocabulary; warnings only"
 
 [tasks.docs-live-check]
 run = ["uv run --frozen python scripts/docs.py --stage-only", "uv run --frozen python scripts/docs-live.py"]

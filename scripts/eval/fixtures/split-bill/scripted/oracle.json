@@ -1,0 +1,6 @@
+{
+  "steps": [
+    { "edit": "src/split.js", "find": "  return Array.from({ length: people }, () => share);", "replace": "  const remainder = totalCents % people;\n  return Array.from({ length: people }, (_, index) => share + (index < remainder ? 1 : 0));" },
+    { "run": ["node", "--test", "test/split.test.js"] }
+  ]
+}

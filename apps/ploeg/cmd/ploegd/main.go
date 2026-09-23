@@ -255,6 +255,13 @@ func run(log *slog.Logger) error {
 	}
 	log.Info("team plans loaded", "teams", len(plans))
 
+	envCaps, err := config.ParseRunCaps(os.Getenv("PLOEG_TEAM_MAX_RUNNING"))
+	if err != nil {
+		return fmt.Errorf("PLOEG_TEAM_MAX_RUNNING: %w", err)
+	}
+	runCaps := cfg.RunCaps(envCaps)
+	log.Info("team concurrency caps loaded", "caps", runCaps)
+
 	// Uniform dispatch: a team with no plan still gets a Shift — one Round,
 	// one writer — so every item has exactly one answer to "what is happening
 	// with this". Default on; PLOEG_SHIFTS_UNIFORM=false is the kill switch
@@ -311,10 +318,16 @@ func run(log *slog.Logger) error {
 		LeaseTTL:       leaseTTL,
 		Log:            log,
 		RoleCaps:       plans,
+		TeamCaps:       runCaps,
 		Forges:         forges,
 		ForgeCreds:     forgeCreds,
 		CreatedWork:    createdWork,
+
+		MetricsCacheTTL: durationOr("PLOEG_METRICS_CACHE_TTL", httpapi.DefaultMetricsCacheTTL),
+		FollowUps:       cfg.ForgeFollowUps(),
+		ForgeBots:       forgeBots(),
 	}
+	log.Info("forge follow-ups loaded", "teams", len(srv.FollowUps))
 	if engine != nil {
 		srv.Engine = engine
 	}
@@ -394,6 +407,14 @@ func parseTeamMap(s string) map[string]string {
 		}
 	}
 	return m
+}
+
+func forgeBots() []string {
+	bots := []string{envOr("PLOEG_FORGEJO_BOT", "agent-builder")}
+	if gl := os.Getenv("PLOEG_GITLAB_BOT"); gl != "" {
+		bots = append(bots, gl)
+	}
+	return bots
 }
 
 func envOr(key, def string) string {

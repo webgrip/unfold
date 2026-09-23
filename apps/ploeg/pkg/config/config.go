@@ -25,6 +25,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -35,6 +36,7 @@ import (
 
 	"github.com/webgrip/ploeg/pkg/followup"
 	"github.com/webgrip/ploeg/pkg/plan"
+	"github.com/webgrip/ploeg/pkg/work"
 )
 
 // File is the whole of ploegd's file-backed configuration.
@@ -82,6 +84,12 @@ type Team struct {
 	Assignees []string `yaml:"assignees"`
 	// Plan is the ordered Rounds of a Shift; empty = a single writer.
 	Plan *plan.TeamPlan `yaml:"plan"`
+	// MaxRunning caps how many of the team's Runs may be running at once.
+	// A claim over the cap returns no work. 0 = unlimited.
+	MaxRunning int `yaml:"maxRunning"`
+	// ForgeFollowUps opts this team in to acting on forge events on its pull
+	// requests. Omitted = forge events are recorded and nothing else happens.
+	ForgeFollowUps work.ForgeFollowUps `yaml:"forgeFollowUps"`
 	// CreatedWork limits the Work Items this Team's Runs may create
 	// (ADR-0031). Absent fields take followup.Default.
 	CreatedWork *CreatedWork `yaml:"createdWork"`
@@ -213,7 +221,15 @@ func (f *File) Validate() error {
 			byAssignee[key] = team
 		}
 	}
+	for _, name := range sortedTeamNames(f.Teams) {
+		if f.Teams[name].MaxRunning < 0 {
+			return fmt.Errorf("teams.%s.maxRunning: must be 0 (unlimited) or more, got %d", name, f.Teams[name].MaxRunning)
+		}
+	}
 	for name, t := range f.Teams {
+		if t.ForgeFollowUps.MaxRepairs < 0 {
+			return fmt.Errorf("teams.%s.forgeFollowUps.maxRepairs: must not be negative", name)
+		}
 		if t.Plan == nil {
 			continue
 		}
@@ -325,6 +341,58 @@ func (f *File) Plans() plan.Plans {
 	for name, t := range f.Teams {
 		if t.Plan != nil {
 			out[name] = *t.Plan
+		}
+	}
+	return out
+}
+
+// RunCaps maps a team to its concurrency cap: the most Runs it may have
+// running at once. A team that is absent or mapped to 0 is unlimited.
+type RunCaps map[string]int
+
+// MaxRunning returns the team's cap, 0 when unlimited.
+func (c RunCaps) MaxRunning(team string) int { return c[team] }
+
+// ParseRunCaps reads a JSON object of team name to cap, the shape the chart
+// renders into PLOEG_TEAM_MAX_RUNNING. An empty string is no caps.
+func ParseRunCaps(raw string) (RunCaps, error) {
+	caps := RunCaps{}
+	if strings.TrimSpace(raw) == "" {
+		return caps, nil
+	}
+	if err := json.Unmarshal([]byte(raw), &caps); err != nil {
+		return nil, err
+	}
+	for team, n := range caps {
+		if n < 0 {
+			return nil, fmt.Errorf("team %s: maxRunning must be 0 (unlimited) or more, got %d", team, n)
+		}
+	}
+	return caps, nil
+}
+
+// RunCaps overlays the roster's per-team maxRunning onto base, so a team
+// capped in the file wins over the same team capped by environment.
+func (f *File) RunCaps(base RunCaps) RunCaps {
+	out := RunCaps{}
+	for team, n := range base {
+		out[team] = n
+	}
+	for team, t := range f.Teams {
+		if t.MaxRunning > 0 {
+			out[team] = t.MaxRunning
+		}
+	}
+	return out
+}
+
+// ForgeFollowUps returns the forge-event policy of every team that enabled
+// one. A team that is missing acts on no forge event.
+func (f *File) ForgeFollowUps() map[string]work.ForgeFollowUps {
+	out := map[string]work.ForgeFollowUps{}
+	for name, t := range f.Teams {
+		if t.ForgeFollowUps.Enabled() {
+			out[name] = t.ForgeFollowUps
 		}
 	}
 	return out

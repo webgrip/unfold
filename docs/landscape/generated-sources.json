@@ -4,13 +4,13 @@
   "docs/landscape/c4.md": "6a25523d5b3f8c3cda07fcc3e8b7cce5fc6ed7249c723cf4b18ec1bb417a3335",
   "apps/vloer/docs/research/2026-09-11-ecosystem-alternatives.md": "6b6b796f008f01d46d4a6512cdd5f8753f3da43d7d9f8ffc3709df025c4d0e7e",
   "docs/landscape/bottlenecks.md": "c63108e238010f5f66e563abe26ca9b9bec7faa8d4e113af6aabeb3cfc7e99e4",
-  "docs/reference/glossary.md": "a1907bd8b78f84210a95a78501fba151ce3d92c6bf314401e5e836ff1aec8572",
-  "docs/domain/rules.md": "2b589024d99e07cc7e15bda72492bfb366ccce766cc69340f95761965c08b723",
-  "docs/landscape/questions.md": "90559d721ad08d67777e18d8317d9b9c7d51fa2ad8cd432134cf0386e8d5e554",
+  "docs/reference/glossary.md": "b0d847c10f36146a94174eee3714a0ebcd0679ab6b5a1e07a3044fd0dd496629",
+  "docs/domain/rules.md": "cc467600155fd71c04ac2678f19c46d37f4957be1c016e9c593ca5755ed501bd",
+  "docs/landscape/questions.md": "69ae32550036badc2173d3590ea78f6de7ff210b7cc9e0c9a04ef88a5e4aa697",
   "apps/vloer/docs/research/2026-09-11-ecosystem-implementation.md": "8da59941849e084fb7dd916c8b2a767d523f4692303c77058312d4197b5a4ce6",
   "docs/landscape/explorer.template.html": "c158ccfb71588702d23ca35014b4f1b6ab2217e81438db977f00851219ab871c",
-  "docs/domain/model.yaml": "d9c832c729fb837cad2742f60eba4b3bbfd6f47a723ddd78fc2e5e90e5532396",
-  "docs/domain/overview.md": "100677a2cc8cb9c98130d1995186112e12fd13d19bb84e809cfcb4ac67018ed7",
-  "docs/domain/entities.md": "42aeb7865e5d09a74412a7779e841ab2a57a9d466d469e5ef96cc198c9af89cf",
-  "apps/vloer/scripts/build-landscape.mjs": "92aa69c40d820972d8cc39588f8a175a991db4d8f7fb383e7e75910ab790a05b"
+  "docs/domain/model.yaml": "4fd41aee5037572e2b0cfacced0a67879f7c8f602ce8d80dfabd6204b878115e",
+  "docs/domain/overview.md": "fca7010decdda3adea9be55cf9a8be785a9d97ba01c2de7a3d71f653c3d8e7ec",
+  "docs/domain/entities.md": "e034b6a08251540a13048d1af5fd6408dcc0c984fbd5571b2b6ffce2c375528b",
+  "apps/vloer/scripts/build-landscape.mjs": "31abd8669bb967a4d22dee9f5fbc6621492ba9ba14dd338221d82097c62a5f10"
 }

@@ -50,7 +50,11 @@ type Config struct {
 	ForgeURL     string // in-cluster forge base (global today; Target carries an id, not a URL)
 	DefaultForge string
 	BuilderToken string // agent-builder bot token
-	WorkDir      string
+	// ForgeTokenAccess is what BuilderToken may do on the forge
+	// (PLOEG_FORGE_TOKEN_ACCESS): ForgeTokenReadOnly or ForgeTokenReadWrite.
+	// A reading claim is refused unless it is ForgeTokenReadOnly.
+	ForgeTokenAccess string
+	WorkDir          string
 
 	LLMBaseURL string   // OpenAI-compatible base URL handed to the harness
 	LLMModel   string   // raw model name (proxy prefixes intact), for passthrough
@@ -84,6 +88,12 @@ func New(cfg Config, adapter harness.Adapter, broker llmbroker.Broker, log *slog
 	}
 }
 
+// The values of Config.ForgeTokenAccess.
+const (
+	ForgeTokenReadOnly  = "read-only"
+	ForgeTokenReadWrite = "read-write"
+)
+
 // Why a run ended early. The distinction is the whole point: a lost lease
 // means another worker may own the item, while a terminated pod means this
 // one was taken away mid-run and nothing about the work is in doubt.
@@ -94,14 +104,12 @@ var (
 	errHarnessTimeout = errors.New("harness exceeded its run timeout")
 )
 
-// Run claims one work item and drives it to a reported outcome. A nil
+// RunContext claims one work item and drives it to a reported outcome. A nil
 // claim (empty queue) is the empty-handed convention: exit 0 (backlog #49).
-func (w *Worker) Run() error { return w.RunContext(context.Background()) }
-
-// RunContext is Run with a cancellable parent. Cancelling the parent — what
-// cmd/ploeg-worker does on SIGTERM — aborts the harness and still reports an
-// outcome, which is the only thing that stops a killed pod from stranding its
-// Lease for the full TTL and charging the Round an attempt it never spent.
+// Cancelling the parent — what cmd/ploeg-worker does on SIGTERM — aborts the
+// harness and still reports an outcome, which is the only thing that stops a
+// killed pod from stranding its Lease for the full TTL and charging the Round
+// an attempt it never spent.
 func (w *Worker) RunContext(parent context.Context) error {
 	claimed, err := w.API.Claim(w.Cfg.Team, w.Cfg.Role)
 	if err != nil {
@@ -165,6 +173,10 @@ func (w *Worker) RunContext(parent context.Context) error {
 // in the first checkpoint and first log line for run forensics.
 func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, trace, nodeName, podUID string) harness.OutcomeReport {
 	item := claimed.WorkItem
+
+	if report, refused := refuseReaderWithoutReadOnlyToken(w.Cfg, claimed); refused {
+		return report
+	}
 
 	// A credential minted for THIS run (ADR-0013 tier 2) beats the shared
 	// env one: it dies when the run settles, so a partitioned pod whose Lease
@@ -233,8 +245,17 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 			"branch", branch, "base", ref.BaseBranch)
 	}
 
-	if err := w.API.Checkpoint(claimed.RunToken, work.Checkpoint{Phase: "branch_created", Branch: branch, NodeName: nodeName, PodUID: podUID}); err != nil {
+	instructions, scanErr := scanInstructionFiles(cloneDir)
+	w.Log.Info("scanned agent instruction files", "files", len(instructions.Files), "hidden_characters", instructions.HiddenTotal)
+	if err := w.API.Checkpoint(claimed.RunToken, work.Checkpoint{Phase: "branch_created", Branch: branch, NodeName: nodeName, PodUID: podUID,
+		InstructionFiles: instructions.Files}); err != nil {
 		w.Log.Warn("checkpoint failed", "err", err)
+	}
+	if scanErr != nil {
+		return stuckReport("could not verify the agent instruction files", scanErr.Error())
+	}
+	if instructions.HiddenTotal > 0 {
+		return hiddenInstructionReport(instructions)
 	}
 
 	spec := harness.TaskSpec{
@@ -585,6 +606,20 @@ func discardMalformedCreated(report *harness.OutcomeReport) error {
 	report.CreatedWorkItems = nil
 	report.Summary = strings.TrimSpace(report.Summary + fmt.Sprintf(" [%d created Work Items discarded: %v]", n, err))
 	return err
+}
+
+func refuseReaderWithoutReadOnlyToken(cfg Config, claimed *ClaimResponse) (harness.OutcomeReport, bool) {
+	if claimed.Role == "" || claimed.Writes || cfg.ForgeTokenAccess == ForgeTokenReadOnly {
+		return harness.OutcomeReport{}, false
+	}
+	access := cfg.ForgeTokenAccess
+	if access == "" {
+		access = "unset"
+	}
+	return stuckReport("reading Run refused: no read-only forge token",
+		fmt.Sprintf("role %q reads, but this worker's forge token is not read-only (PLOEG_FORGE_TOKEN_ACCESS=%s). "+
+			"A reader must never hold the read-write token (ADR-0013 tier 1); set executor.<forge>.readTokenSecret "+
+			"and redeploy the chart", claimed.Role, access)), true
 }
 
 func stuckReport(summary, reason string) harness.OutcomeReport {

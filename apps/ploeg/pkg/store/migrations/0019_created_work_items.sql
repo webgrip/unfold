@@ -1,12 +1,12 @@
 -- ADR-0031: a Run may create Work Items. A created Work Item names its source
--- Work Item and Run, sits one level deeper than its source, belongs to the
--- tree of its root Work Item, and carries the Shift budget it was allotted.
--- proposed holds it until a person approves or rejects it.
+-- Work Item (source_work_item_id, added by 0018) and Run, sits one level deeper
+-- than its source, belongs to the tree of its root Work Item, and carries the
+-- Shift budget it was allotted. proposed holds it until a person approves or
+-- rejects it.
 ALTER TABLE work_items DROP CONSTRAINT IF EXISTS work_items_state_known;
 ALTER TABLE work_items ADD CONSTRAINT work_items_state_known
     CHECK (state IN ('ingested', 'proposed', 'queued', 'leased', 'needs_human', 'awaiting_review', 'stale', 'done', 'withdrawn')) NOT VALID;
 
-ALTER TABLE work_items ADD COLUMN source_work_item_id BIGINT REFERENCES work_items (id) ON DELETE SET NULL;
 ALTER TABLE work_items ADD COLUMN source_run_id BIGINT REFERENCES agent_runs (id) ON DELETE SET NULL;
 ALTER TABLE work_items ADD COLUMN root_work_item_id BIGINT REFERENCES work_items (id) ON DELETE SET NULL;
 ALTER TABLE work_items ADD COLUMN depth INT NOT NULL DEFAULT 0;

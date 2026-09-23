@@ -28,7 +28,7 @@ metadata:
 spec:
   pollingInterval: {{ $root.Values.executor.pollingInterval }}
   minReplicaCount: 0
-  maxReplicaCount: {{ $role.maxReplicaCount | default $team.maxReplicaCount | default 1 }}
+  maxReplicaCount: {{ include "ploeg.maxReplicaCount" (dict "root" $root "team" $team "role" $role) }}
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   rollout:
@@ -66,7 +66,7 @@ spec:
         query: "SELECT COUNT(*) FROM agent_runs WHERE team = '{{ $team.name }}' AND role = '{{ $role.name }}' AND state = 'pending'"
         {{- else }}
         # The one poll-query shape: served index-only by work_items_claimable
-        # (backlog #24/#47). Must stay in sync with store.Claim/QueueDepth.
+        # (backlog #24/#47). Must stay in sync with store.Claim.
         query: "SELECT COUNT(*) FROM work_items WHERE team = '{{ $team.name }}' AND state = 'queued' AND NOT operator_owned AND (next_eligible_at IS NULL OR next_eligible_at <= now())"
         {{- end }}
         targetQueryValue: "1"

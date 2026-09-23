@@ -1,3 +1,11 @@
+---
+type: landing
+audience: [owner, operator, integrator, contributor, agent]
+owner: ploeg
+last_verified: 2026-09-23
+verified_by: "mise run docs-check (every link resolves); apps/ploeg/llms.txt links this page"
+---
+
 # Ploeg documentation
 
 Use these sources for the current implementation. The [architecture](architecture.md) distinguishes implemented behavior from remaining limits; the [ADR index](adrs/README.md) distinguishes accepted decisions from proposals.
@@ -8,7 +16,9 @@ The [local shared demonstration](../../../docs/workflows/local-demo.md) runs Plo
 
 ## Operate
 
+- [Operator runbooks](how-to/index.md): stuck Leases and Runs, credential rotation, draining, spend, database recovery
 - [Managed workers and recovery](ops/managed-workers.md)
+- [Metrics and alerts](ops/alerts.md)
 - [Tracker configuration](ops/board.md)
 - [Configuration reference](reference/configuration.md): every environment variable and Helm value, generated from the source
 - [CI and infrastructure](ops/ci-and-infra.md)

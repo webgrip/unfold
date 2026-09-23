@@ -1,3 +1,11 @@
+---
+type: tutorial
+audience: [owner, operator, integrator, contributor]
+owner: glide
+last_verified: 2026-09-23
+verified_by: "Read apps/vloer/scripts/unified-demo.ts (prerequisite commands, ready/stopped/smoke-passed events, environment settings, cleanup), apps/vloer/package.json, root mise.toml and apps/ploeg/go.mod"
+---
+
 # Local shared execution demonstration
 
 [The launcher](../../apps/vloer/scripts/unified-demo.ts) keeps a real Ploeg HTTP service, isolated PostgreSQL and the De Vloer browser workbench available for hands-on testing. It reuses the existing deterministic runtime: actual fixture code changes, an initially failing check, passing verification and an independent review. There are no model calls, paid credentials, external repository writes or cluster changes.
@@ -48,4 +56,4 @@ An uncatchable process kill or host crash can leave temporary files or PostgreSQ
 mise exec -- node apps/vloer/scripts/unified-demo.ts --smoke
 ```
 
-Smoke mode launches the same stack, starts its prepared session, hands it to background supervision, waits for real fixture verification and independent review, and checks that the same Ploeg execution completed with exactly one operator Run. It prints `unified-demo.smoke-passed`, then performs the same cleanup and exits. The result records zero model calls and spend. The longer [operator qualification](../../apps/vloer/scripts/qualify-ploeg.ts) additionally covers pause, cancellation, durable event replay and service-instance recovery.
+Smoke mode launches the same stack, starts its prepared session, hands it to background supervision, waits for real fixture verification and independent review, and checks that the same Ploeg execution completed with exactly one operator Run. It prints `unified-demo.smoke-passed`, then performs the same cleanup and exits. The result records zero model calls and spend. CI runs this page's two commands through `mise run docs-tutorial-smoke`, which skips when PostgreSQL is missing or the user is root. The longer [operator qualification](../../apps/vloer/scripts/qualify-ploeg.ts) additionally covers pause, cancellation, durable event replay and service-instance recovery.

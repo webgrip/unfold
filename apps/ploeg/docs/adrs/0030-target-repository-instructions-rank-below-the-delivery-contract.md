@@ -144,6 +144,13 @@ useful while closing the two paths above at the cheapest point for each.
   AGENTS.md research of 2026-09-22 (Claude Code headless behaviour, and the
   Check Point CVE-2025-59536 and CVE-2026-21852 reports on project hooks and
   MCP).
+* 2026-09-23 — Follow-up in infrastructure: before the harness starts, the
+  worker records the path and SHA-256 of every instruction file in the clone
+  in the Run's first checkpoint, and ends the Run `stuck` when one contains
+  invisible, bidi or zero-width Unicode
+  ([instructions.go](../../pkg/worker/instructions.go)). A reading Role also
+  requires a read-only forge token; the chart no longer falls back to the
+  read-write one.
 * Related: [0010](0010-shift-owns-the-item-lease-owns-the-branch.md),
   [0011](0011-the-pull-request-is-the-blackboard.md),
   [0013](0013-push-rights-are-minted-per-run.md),

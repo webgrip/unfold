@@ -1,0 +1,6 @@
+{
+  "steps": [
+    { "write": "test/split.test.js", "content": "import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport { splitCents } from '../src/split.js';\n\ntest('splits a bill', () => {\n  assert.deepEqual(splitCents(1000, 3), [333, 333, 333]);\n});\n" },
+    { "run": ["node", "--test", "test/split.test.js"] }
+  ]
+}

@@ -9,7 +9,7 @@ change either side and the test tells you.
 | [taskspec.v1.schema.json](taskspec.v1.schema.json) | Harness input: what a run knows (work item, repo, branch, trace id). Credentials never travel here (R8). |
 | [outcomereport.v1.schema.json](outcomereport.v1.schema.json) | Harness output and the body of `POST /api/v1/runs/{token}/outcome`. Stuck requires a reason (R4). The optional `createdWorkItems` carries the Work Items a Run proposes ([ADR-0031](../adrs/0031-runs-create-work-items-held-for-approval-within-limits.md)). |
 | [checkpoint.v1.schema.json](checkpoint.v1.schema.json) | The durable progress record (shared by TaskSpec, OutcomeReport, and the checkpoint endpoint). |
-| [run-api.v1.schema.json](run-api.v1.schema.json) | All run-API message bodies (claim/renew/checkpoint/outcome/queue-depth). |
+| [run-api.v1.schema.json](run-api.v1.schema.json) | All run-API message bodies (claim/renew/checkpoint/outcome). |
 | [operator-api.v1.schema.json](operator-api.v1.schema.json) | Authenticated, team-scoped read projections of teams, work items, shifts, runs, checkpoints and snapshot audit pages. |
 | [tracker-execution.md](tracker-execution.md), [v1 schema](tracker-execution.v1.schema.json) | Scoped source lookup and exclusive operator binding of an existing pristine tracker Work Item. |
 | [executor.md](executor.md) | The executor SPI: what any launcher (KEDA, CronJob, agent-sandbox, a human with curl) must and must not do. |

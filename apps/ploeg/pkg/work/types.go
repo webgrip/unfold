@@ -155,7 +155,16 @@ type WorkItem struct {
 	Target *Target `json:"target,omitempty"`
 	// RouteRule is the id of the routing rule that decided Team and Target,
 	// recorded so an audit can answer why this item went where it went.
-	RouteRule string    `json:"routeRule,omitempty"`
+	RouteRule string `json:"routeRule,omitempty"`
+	// SourceWorkItemID names the Work Item a Follow-Up was created from.
+	// Empty for work that did not come from other work.
+	SourceWorkItemID string `json:"sourceWorkItemId,omitempty"`
+	// SourceBranch is the branch of the pull request a Follow-Up repairs. A
+	// Follow-Up works on this branch instead of deriving its own.
+	SourceBranch string `json:"sourceBranch,omitempty"`
+	// SourcePR is the pull request number a Follow-Up refers to; zero when the
+	// forge event did not name one.
+	SourcePR  int       `json:"sourcePr,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
@@ -205,4 +214,16 @@ type Checkpoint struct {
 	NodeName   string    `json:"nodeName,omitempty"`
 	PodUID     string    `json:"podUid,omitempty"`
 	At         time.Time `json:"at,omitempty"`
+
+	// InstructionFiles is every agent instruction file the worker found in
+	// the clone before the harness ran, with the digest of what it read.
+	InstructionFiles []InstructionFile `json:"instructionFiles,omitempty"`
+}
+
+// InstructionFile is one agent instruction or configuration file in a Run's
+// clone: its slash-separated path relative to the repository root and the
+// hex SHA-256 of its content.
+type InstructionFile struct {
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256"`
 }

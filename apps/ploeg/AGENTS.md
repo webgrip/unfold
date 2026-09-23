@@ -36,3 +36,4 @@ In the Ploeg worker sandbox, registry pulls time out by design: a worker pod rea
 | Harness and worker seams | [docs/contracts/](docs/contracts/README.md) |
 | CI, signing, Forgejo, OpenBao | [docs/ops/ci-and-infra.md](docs/ops/ci-and-infra.md) |
 | Tracker and dispatch | [docs/ops/board.md](docs/ops/board.md) |
+| Metrics and alerts | [docs/ops/alerts.md](docs/ops/alerts.md) and `pkg/store/metrics.go` |

@@ -80,6 +80,16 @@ const (
 	PullRequestClosed PullRequestState = "closed"
 )
 
+// ForgeReviewState is a submitted review's verdict, normalized from the
+// forge's own vocabulary.
+type ForgeReviewState string
+
+const (
+	ForgeReviewApproved         ForgeReviewState = "approved"
+	ForgeReviewChangesRequested ForgeReviewState = "changes_requested"
+	ForgeReviewCommented        ForgeReviewState = "commented"
+)
+
 // ForgeEvent is the normalized result of parsing a forge webhook.
 type ForgeEvent struct {
 	Kind   ForgeEventKind
@@ -87,6 +97,12 @@ type ForgeEvent struct {
 	PR     int
 	Branch string
 	Body   string // feedback payload for classification
+	// Actor is the forge login that caused the event. Empty when the forge
+	// did not say.
+	Actor string
+	// Review is the verdict of a ForgeReviewSubmitted event. Empty when the
+	// provider cannot classify it.
+	Review ForgeReviewState
 }
 
 // ForgeProvider adapts one git forge (reference: Forgejo).

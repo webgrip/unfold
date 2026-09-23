@@ -60,7 +60,10 @@ transaction as the outcome. The new Work Item has origin `follow_up`, provider
 Item and Run, its root Work Item, a depth of the source's depth plus one, the
 source's Work Target and priority, and an allotted budget. Each accepted entry
 is audited on both Work Items, and each rejected entry is audited on the
-source with its reason.
+source with its reason. A created Work Item shares `source_work_item_id` with
+repair Follow-Ups but is told apart by its source Run: forge events on its
+branch belong to it, not to its source, and it does not count toward a
+source's repair cap.
 
 **Limits.** Every Team has these limits. `teams.<name>.createdWork` in the
 config file overrides them.
@@ -152,8 +155,9 @@ when the Work Item is already Ready.
 * The owner decides whether a person approves created work before dispatch.
   If not, `autoDispatch` becomes the default and the gate becomes an
   exception.
-* Forge events start creating Follow-Ups (R9). They should share these limits
-  rather than get a second set.
+* Repair Follow-Ups from failed checks (`forgeFollowUps`) keep their own
+  per-pull-request cap and are not counted here. If they start creating work
+  in volume, one set of limits for both should replace the two.
 * A tree overdraws its pool, or a Team's open created Work Items reach
   `maxOpen` in normal use.
 

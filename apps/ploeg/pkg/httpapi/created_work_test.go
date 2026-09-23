@@ -261,6 +261,27 @@ func TestOutcome_CreatedWorkBudgetPoolAndShiftCap(t *testing.T) {
 	}
 }
 
+func TestCreatedWorkItem_OwnsItsBranch(t *testing.T) {
+	reset(t)
+	policy := followup.Default()
+	policy.AutoDispatch = true
+	h := createdServer(map[string]followup.Policy{"bronze": policy}).Handler()
+	source := ingestSource(t, "5351", "bronze")
+	c := claimLegacy(t, h, "bronze")
+	postOutcome(t, h, c.RunToken, harness.OutcomeReport{Outcome: work.OutcomeFollowUpCreated, Summary: "s", CreatedWorkItems: created(1, true)})
+	rows := createdRows(t, source)
+	if len(rows) != 1 {
+		t.Fatalf("created %d", len(rows))
+	}
+	if _, err := testStore.OpenShift(context.Background(), rows[0].id, "bronze", "agent/ploeg-created", 0); err != nil {
+		t.Fatal(err)
+	}
+	owner, ok, err := testStore.FindBranchOwner(context.Background(), "webgrip/ploeg", "agent/ploeg-created")
+	if err != nil || !ok || owner.WorkItemID != rows[0].id {
+		t.Fatalf("a created Work Item's branch resolved to %+v (ok=%v, err=%v), want %d", owner, ok, err, rows[0].id)
+	}
+}
+
 func TestOutcome_NotReadyRouting(t *testing.T) {
 	reset(t)
 	withRefinement := followup.Default()

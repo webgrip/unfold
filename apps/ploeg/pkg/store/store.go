@@ -225,6 +225,13 @@ type Claimed struct {
 // ErrNoWork when the queue is empty — the empty-handed worker convention
 // (backlog #49).
 func (s *Store) Claim(ctx context.Context, team string, ttl time.Duration) (*Claimed, error) {
+	return s.ClaimWithin(ctx, team, ttl, 0)
+}
+
+// ClaimWithin is Claim bounded by the team's concurrency cap. With
+// maxRunning > 0 it returns ErrNoWork while the team already has maxRunning
+// running Runs, exactly as if the queue were empty; 0 means unlimited.
+func (s *Store) ClaimWithin(ctx context.Context, team string, ttl time.Duration, maxRunning int) (*Claimed, error) {
 	token, err := newToken()
 	if err != nil {
 		return nil, err
@@ -234,6 +241,12 @@ func (s *Store) Claim(ctx context.Context, team string, ttl time.Duration) (*Cla
 		return nil, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+
+	if full, err := teamAtCapacity(ctx, tx, team, maxRunning); err != nil {
+		return nil, err
+	} else if full {
+		return nil, ErrNoWork
+	}
 
 	var it work.WorkItem
 	var id int64
@@ -248,9 +261,11 @@ func (s *Store) Claim(ctx context.Context, team string, ttl time.Duration) (*Cla
 			LIMIT 1
 		)
 		RETURNING id, provider, external_id, revision, team, origin, priority, title, description, url,
-			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule`,
+			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule,
+			COALESCE(source_work_item_id::text, ''), source_branch, source_pr`,
 		team).Scan(&id, &it.Provider, &it.ExternalID, &it.Revision, &it.Team, &it.Origin, &it.Priority, &it.Title, &it.Description, &it.URL,
-		&it.ExternalScope, &t.Forge, &t.Owner, &t.Repo, &t.BaseBranch, &it.RouteRule)
+		&it.ExternalScope, &t.Forge, &t.Owner, &t.Repo, &t.BaseBranch, &it.RouteRule,
+		&it.SourceWorkItemID, &it.SourceBranch, &it.SourcePR)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNoWork
 	}
@@ -355,8 +370,11 @@ func (s *Store) Checkpoint(ctx context.Context, runToken string, cp work.Checkpo
 		id, cp.Phase, cp.Branch, cp.PRURL, cp.NodeName, cp.PodUID); err != nil {
 		return err
 	}
-	if err := audit(ctx, tx, "team:"+team, "checkpoint.written", &id,
-		map[string]any{"phase": cp.Phase, "branch": cp.Branch, "pr_url": cp.PRURL, "node_name": cp.NodeName, "pod_uid": cp.PodUID}); err != nil {
+	detail := map[string]any{"phase": cp.Phase, "branch": cp.Branch, "pr_url": cp.PRURL, "node_name": cp.NodeName, "pod_uid": cp.PodUID}
+	if len(cp.InstructionFiles) > 0 {
+		detail["instruction_files"] = cp.InstructionFiles
+	}
+	if err := audit(ctx, tx, "team:"+team, "checkpoint.written", &id, detail); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -557,11 +575,13 @@ func (s *Store) WorkItem(ctx context.Context, id int64) (work.WorkItem, error) {
 	var t work.Target
 	err := s.pool.QueryRow(ctx, `
 		SELECT provider, external_id, revision, team, state, origin, priority, title, description, url,
-			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule
+			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule,
+			COALESCE(source_work_item_id::text, ''), source_branch, source_pr
 		FROM work_items WHERE id = $1`, id).
 		Scan(&it.Provider, &it.ExternalID, &it.Revision, &it.Team, &it.State, &it.Origin,
 			&it.Priority, &it.Title, &it.Description, &it.URL,
-			&it.ExternalScope, &t.Forge, &t.Owner, &t.Repo, &t.BaseBranch, &it.RouteRule)
+			&it.ExternalScope, &t.Forge, &t.Owner, &t.Repo, &t.BaseBranch, &it.RouteRule,
+			&it.SourceWorkItemID, &it.SourceBranch, &it.SourcePR)
 	if err != nil {
 		return work.WorkItem{}, err
 	}
@@ -715,19 +735,6 @@ func (s *Store) ExpireLeases(ctx context.Context) ([]ExpiredLease, error) {
 		}
 	}
 	return exp, tx.Commit(ctx)
-}
-
-// QueueDepth counts a team's claimable items — the same predicate the KEDA
-// postgresql scaler polls (served index-only by work_items_claimable). It
-// exists so alternative executors can read the scale signal over HTTP
-// without Postgres credentials (docs/contracts/executor.md).
-func (s *Store) QueueDepth(ctx context.Context, team string) (int, error) {
-	var n int
-	err := s.pool.QueryRow(ctx, `
-		SELECT COUNT(*) FROM work_items
-		WHERE team = $1 AND state = 'queued' AND NOT operator_owned AND (next_eligible_at IS NULL OR next_eligible_at <= now())`,
-		team).Scan(&n)
-	return n, err
 }
 
 // QueueSnapshot lists a team's queue (and everything else non-done) for

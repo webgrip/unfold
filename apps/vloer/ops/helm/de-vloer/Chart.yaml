@@ -2,5 +2,8 @@ apiVersion: v2
 name: de-vloer
 description: Single-server operator workbench with isolated agent workspaces
 type: application
+home: https://forgejo.webgrip.dev/webgrip/glide
+sources:
+  - https://github.com/webgrip/glide
 version: 0.3.0-rc.16
 appVersion: 0.3.0-rc.16
