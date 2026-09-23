@@ -27,6 +27,7 @@ nav:
   - Reference:
       - Glossary: reference/glossary.md
       - Decisions: reference/decisions.md
+      - Ploeg configuration: ploeg/reference/configuration.md
       - Product language: domain/overview.md
       - Open questions: landscape/questions.md
   - Contribute:
