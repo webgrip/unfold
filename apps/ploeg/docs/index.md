@@ -9,6 +9,7 @@ The [local shared demonstration](../../../docs/workflows/local-demo.md) runs Plo
 ## Operate
 
 - [Managed workers and recovery](ops/managed-workers.md)
+- [Metrics and alerts](ops/alerts.md)
 - [Tracker configuration](ops/board.md)
 - [CI and infrastructure](ops/ci-and-infra.md)
 - [Experimental releases](ops/release-versioning.md)
