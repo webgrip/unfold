@@ -26,3 +26,4 @@ Trunk is `development`. Each accepted decision records its consequences and a tr
 | [0020](0020-the-name-and-mark-are-trademarks.md) | The name and mark are trademarks | Accepted for 0.3.0 with its CI check | accepted | 2026-09-11 |
 | [0021](0021-the-extension-ships-through-open-vsx-first.md) | The extension ships through Open VSX first | Accepted for 0.3.0; Open VSX claimed, Marketplace deferred | accepted | 2026-09-11 |
 | [0022](0022-apache-2-0-is-the-estate-licence.md) | Apache-2.0 is a decision here, not an inheritance | Accepted; licence, copyright line and CI check ship together | accepted | 2026-09-11 |
+| [0023](0023-vloer-submits-work-to-ploeg-and-never-executes-it.md) | Vloer submits Work Items to Ploeg and never executes them | Proposed design; [increment plan](../ploeg-front-end.md), not implemented | proposed | 2026-09-23 |
