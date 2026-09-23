@@ -306,3 +306,7 @@ config: {}
 #               - {name: builder, writes: true, cap: "3.00"}
 #           - roles:
 #               - {name: reviewer, writes: false, cap: "0.75", harness: {dind: false}}
+#       forgeFollowUps:               # omit = forge events are recorded only
+#         repairFailedChecks: true    # a failed check queues a repair Follow-Up
+#         maxRepairs: 2               # repair Follow-Ups per pull request; 0 = 2
+#         reworkOnChangesRequested: true  # a person's "request changes" sends it back

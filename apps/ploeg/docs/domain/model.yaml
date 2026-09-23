@@ -259,8 +259,9 @@ terms:
       that splits work or records work it discovered (Product R12). It references its
       source PR and Work Item, carries that Work Item's Work Target, is routed
       to the Team owning the source branch, and enters the lifecycle directly
-      at queued. Current forge webhook ingestion records the event without
-      automatically creating this Work Item.
+      at queued. Today only a failed check creates one, and only for a Team
+      that enabled forgeFollowUps.repairFailedChecks: one open repair per pull
+      request, capped per pull request. No Run creates one yet.
     context: Dispatch
     see_also: [Work Item, Forge Event, Team, Work Target]
 
