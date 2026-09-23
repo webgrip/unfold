@@ -299,6 +299,10 @@ executor:
   #   # per-team lever for rolling the decoupling forward or back.
   #   targetSource: claim
   #   maxReplicaCount: 1
+  #   # Optional: at most this many of the team's Runs run at once (0/unset =
+  #   # unlimited). ploegd refuses claims over it; every workload's
+  #   # maxReplicaCount is clamped to it.
+  #   maxRunning: 2
   #   # Optional: override the executor.harness defaults for this team — the
   #   # single axis of variation (harness AND agent image swap per team).
   #   harness:
@@ -342,6 +346,7 @@ config: {}
 #   teams:
 #     bronze:
 #       assignees: [jake, bronze]     # replaces PLOEG_TEAM_MAP
+#       maxRunning: 2                 # concurrency cap; wins over executor.teams[].maxRunning
 #       plan:                         # replaces PLOEG_TEAM_PLANS; omit for one writer
 #         pool: "6"
 #         maxFixRounds: 2

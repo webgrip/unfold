@@ -30,10 +30,11 @@ is unchanged. The response SHALL carry `shift`, `role`, `round`, `branch`,
 
 ### Requirement: The scale signal and the claim use one predicate
 
-`GET /api/v1/queue/depth` SHALL accept a role and answer from
-`Store.PendingRuns`, which SHALL select over the identical predicate as
-`ClaimRole`. Overshoot is acceptable; undershoot stalls Work Items silently and
-forever, so the two SHALL be tested against each other.
+The KEDA scaler query for a Role and `Store.PendingRuns` SHALL select over
+the identical predicate as `ClaimRole`. Overshoot is acceptable; undershoot
+stalls Work Items silently and forever, so the two SHALL be tested against
+each other. The HTTP route `GET /api/v1/queue/depth` was removed on
+2026-09-23 because nothing consumed it.
 
 #### Scenario: Depth agrees with what can actually be claimed
 
@@ -45,6 +46,26 @@ forever, so the two SHALL be tested against each other.
 
 - **GIVEN** a Role with no pending Runs
 - **THEN** depth is zero and no pod exists for it
+
+### Requirement: A team's concurrency cap bounds its claims
+
+A team MAY carry a concurrency cap, `maxRunning`. While the team has that many
+running Runs, excluding operator executions, a claim for any of its Roles
+SHALL return no work exactly like an empty queue. Unset or `0` SHALL mean
+unlimited. Concurrent claims SHALL NOT exceed the cap together.
+
+#### Scenario: Concurrent claims stop at the cap
+
+- **GIVEN** a team with `maxRunning: 3` and eight pending Runs
+- **WHEN** eight workers claim at the same moment
+- **THEN** three receive a Run, five exit 0 empty-handed
+- **AND** five Runs remain pending
+
+#### Scenario: A finished Run releases its slot
+
+- **GIVEN** a team at its cap
+- **WHEN** one of its Runs finishes or expires
+- **THEN** the next claim succeeds
 
 ### Requirement: Only writing Runs take a Lease
 

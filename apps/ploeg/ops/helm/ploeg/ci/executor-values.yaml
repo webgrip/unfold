@@ -44,6 +44,10 @@ executor:
       repoOwner: webgrip
       repoName: example
       targetSource: env
+      # The concurrency cap clamps KEDA's ceiling (renders 2) and reaches
+      # ploegd as PLOEG_TEAM_MAX_RUNNING.
+      maxReplicaCount: 4
+      maxRunning: 2
     # acp harness: exercises the PLOEG_ACP_* env branch and the custom-profile
     # argv guard in the pod template. Names no repository either — a harness is
     # a capability, and capability and codebase are independent axes (R11).

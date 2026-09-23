@@ -316,11 +316,24 @@ type ClaimedRun struct {
 // row serialises concurrent claims, so five readers starting at once cannot
 // each see the full pool.
 func (s *Store) ClaimRole(ctx context.Context, team, role string, ttl time.Duration, cap float64) (*ClaimedRun, error) {
+	return s.ClaimRoleWithin(ctx, team, role, ttl, cap, 0)
+}
+
+// ClaimRoleWithin is ClaimRole bounded by the team's concurrency cap. With
+// maxRunning > 0 it returns ErrNoWork while the team already has maxRunning
+// running Runs, exactly as if the queue were empty; 0 means unlimited.
+func (s *Store) ClaimRoleWithin(ctx context.Context, team, role string, ttl time.Duration, cap float64, maxRunning int) (*ClaimedRun, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+
+	if full, err := teamAtCapacity(ctx, tx, team, maxRunning); err != nil {
+		return nil, err
+	} else if full {
+		return nil, ErrNoWork
+	}
 
 	var runID, shiftID, workItemID int64
 	var token string

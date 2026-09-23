@@ -223,6 +223,13 @@ type Claimed struct {
 // ErrNoWork when the queue is empty — the empty-handed worker convention
 // (backlog #49).
 func (s *Store) Claim(ctx context.Context, team string, ttl time.Duration) (*Claimed, error) {
+	return s.ClaimWithin(ctx, team, ttl, 0)
+}
+
+// ClaimWithin is Claim bounded by the team's concurrency cap. With
+// maxRunning > 0 it returns ErrNoWork while the team already has maxRunning
+// running Runs, exactly as if the queue were empty; 0 means unlimited.
+func (s *Store) ClaimWithin(ctx context.Context, team string, ttl time.Duration, maxRunning int) (*Claimed, error) {
 	token, err := newToken()
 	if err != nil {
 		return nil, err
@@ -232,6 +239,12 @@ func (s *Store) Claim(ctx context.Context, team string, ttl time.Duration) (*Cla
 		return nil, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+
+	if full, err := teamAtCapacity(ctx, tx, team, maxRunning); err != nil {
+		return nil, err
+	} else if full {
+		return nil, ErrNoWork
+	}
 
 	var it work.WorkItem
 	var id int64
@@ -696,19 +709,6 @@ func (s *Store) ExpireLeases(ctx context.Context) ([]ExpiredLease, error) {
 		}
 	}
 	return exp, tx.Commit(ctx)
-}
-
-// QueueDepth counts a team's claimable items — the same predicate the KEDA
-// postgresql scaler polls (served index-only by work_items_claimable). It
-// exists so alternative executors can read the scale signal over HTTP
-// without Postgres credentials (docs/contracts/executor.md).
-func (s *Store) QueueDepth(ctx context.Context, team string) (int, error) {
-	var n int
-	err := s.pool.QueryRow(ctx, `
-		SELECT COUNT(*) FROM work_items
-		WHERE team = $1 AND state = 'queued' AND NOT operator_owned AND (next_eligible_at IS NULL OR next_eligible_at <= now())`,
-		team).Scan(&n)
-	return n, err
 }
 
 // QueueSnapshot lists a team's queue (and everything else non-done) for

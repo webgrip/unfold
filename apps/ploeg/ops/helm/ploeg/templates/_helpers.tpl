@@ -74,6 +74,28 @@ pod byte-identical to the pre-Shift shape.
 {{- end -}}
 
 {{/*
+ploeg.teamMaxRunning is a team's concurrency cap, 0 when unlimited. It
+resolves the way ploegd does: config.teams.<name>.maxRunning wins over
+executor.teams[].maxRunning.
+Context: (dict "root" $ "team" <team>).
+*/}}
+{{- define "ploeg.teamMaxRunning" -}}
+{{- $fromConfig := dig "teams" .team.name "maxRunning" 0 (.root.Values.config | default dict) | int }}
+{{- $fromConfig | default (.team.maxRunning | default 0) | int }}
+{{- end -}}
+
+{{/*
+ploeg.maxReplicaCount is a workload's KEDA ceiling: the role's or team's
+maxReplicaCount (default 1), never above the team's concurrency cap.
+Context: (dict "root" $ "team" <team> "role" <role>).
+*/}}
+{{- define "ploeg.maxReplicaCount" -}}
+{{- $replicas := .role.maxReplicaCount | default .team.maxReplicaCount | default 1 | int }}
+{{- $cap := include "ploeg.teamMaxRunning" . | int }}
+{{- if and (gt $cap 0) (gt $replicas $cap) }}{{ $cap }}{{ else }}{{ $replicas }}{{ end }}
+{{- end -}}
+
+{{/*
 ploeg.workloadName is the workload's name: <fullname>-worker-<team> for a
 plan-less team (unchanged), <fullname>-worker-<team>-<role> for a Role.
 Context: (dict "root" $ "team" <team> "role" <role>).
