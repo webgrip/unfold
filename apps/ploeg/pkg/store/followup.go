@@ -61,6 +61,9 @@ const (
 	// FollowUpSourceBusy means the source Work Item is queued or has a live
 	// Shift, which is already working the branch.
 	FollowUpSourceBusy FollowUpResult = "source_busy"
+	// FollowUpSourceNotInReview means the source Work Item is not awaiting
+	// review: it was merged, withdrawn or handed to a person.
+	FollowUpSourceNotInReview FollowUpResult = "source_not_in_review"
 )
 
 // RepairRequest asks for a repair Follow-Up after a failed check.
@@ -76,7 +79,8 @@ type RepairRequest struct {
 
 // CreateRepairFollowUp creates a queued Follow-Up Work Item that repairs the
 // source Work Item's pull request branch, routed to the source's Team and
-// carrying its Work Target. At most one repair Follow-Up per pull request is
+// carrying its Work Target. Only a source awaiting review is repaired. At most
+// one repair Follow-Up per pull request is
 // open at a time, and at most req.Cap are ever created for it. The returned
 // item is set only when the result is FollowUpCreated.
 func (s *Store) CreateRepairFollowUp(ctx context.Context, req RepairRequest) (int64, work.WorkItem, FollowUpResult, error) {
@@ -119,6 +123,8 @@ func (s *Store) CreateRepairFollowUp(ctx context.Context, req RepairRequest) (in
 	switch {
 	case operatorOwned || liveShift || src.State == work.StateQueued || src.State == work.StateLeased || src.State == work.StateIngested:
 		result = FollowUpSourceBusy
+	case src.State != work.StateAwaitingReview:
+		result = FollowUpSourceNotInReview
 	case open:
 		result = FollowUpDuplicate
 	case forPR >= req.Cap:

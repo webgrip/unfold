@@ -308,6 +308,19 @@ func TestForgeFollowUpsOffByDefaultChangeNothing(t *testing.T) {
 	}
 }
 
+func TestFailedCheckAfterTheSourceLeftReviewDoesNothing(t *testing.T) {
+	h := followUpServer(t, enabled(2))
+	source := awaitingReviewItem(t, "707")
+	if _, err := testStore.SettleItem(context.Background(), source, work.StateDone, "merged"); err != nil {
+		t.Fatal(err)
+	}
+
+	forgeEvent(t, h, "c-1", checkFailed("agent/vik-707"))
+	if n := len(followUps(t, source)); n != 0 {
+		t.Errorf("a failure after merge created %d follow-ups", n)
+	}
+}
+
 func TestFailedCheckOnAnUnknownBranchDoesNothing(t *testing.T) {
 	h := followUpServer(t, enabled(2))
 	source := awaitingReviewItem(t, "706")
