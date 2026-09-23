@@ -28,6 +28,6 @@ run('apps/ploeg', 'sh', ['scripts/helm-golden.sh', 'check']);
 run('apps/ploeg', 'openspec', ['validate', '--all', '--strict']);
 run('.', 'python3', ['scripts/verify-import.py']);
 run('.', 'uv', ['run', '--frozen', 'python', '-m', 'unittest', 'discover', '-s', 'scripts', '-p', 'test_release*.py']);
-run('.', process.execPath, ['--test', 'scripts/fake-litellm.test.mjs']);
+run('.', process.execPath, ['--test', 'scripts/fake-litellm.test.mjs', 'scripts/eval/eval.test.mjs']);
 run('.', process.execPath, ['scripts/integration.mjs']);
 run('.', 'uv', ['run', '--frozen', 'python', 'scripts/docs.py', '--check']);

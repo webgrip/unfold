@@ -1,0 +1,7 @@
+{
+  "variants": [
+    { "id": "scripted-oracle", "description": "Applies each fixture's known-good fix. Every fixture must pass, or the fixture or grader is broken.", "harness": { "kind": "scripted", "script": "oracle" }, "prompt": "../prompts/baseline.md" },
+    { "id": "scripted-tamper-tests", "description": "Edits the tests to match the bug. Must fail and be flagged as tampered, because the grader restores the tests.", "harness": { "kind": "scripted", "script": "tamper-tests" }, "prompt": "../prompts/baseline.md" },
+    { "id": "scripted-no-op", "description": "Changes nothing. Must fail, or the fixture's tests do not detect the bug.", "harness": { "kind": "scripted", "script": "no-op" }, "prompt": "../prompts/terse.md" }
+  ]
+}

@@ -1,0 +1,3 @@
+{{task}}
+
+Verify with `{{check}}`.

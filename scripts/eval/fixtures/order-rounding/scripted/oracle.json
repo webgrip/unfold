@@ -1,0 +1,6 @@
+{
+  "steps": [
+    { "edit": "src/order.js", "find": "Math.round(amount * 100)", "replace": "Math.round((amount + Number.EPSILON) * 100)" },
+    { "run": ["node", "--test", "test/order.test.js"] }
+  ]
+}
