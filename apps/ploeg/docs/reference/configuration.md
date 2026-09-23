@@ -64,6 +64,7 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_OPERATOR_CONSUMERS` | ploegd |  | JSON array of operator read consumers. Each entry names a `tokenEnv`, a further variable that holds that consumer's bearer token (chart `operator.consumers`). No consumers refuses every operator request. | [operator.go](../../cmd/ploegd/operator.go) |
 | `PLOEG_OPERATOR_DELIVERY_POLICIES` | ploegd |  | JSON array of trusted delivery policies with `repositoryId`, `policySha256`, `verifierId`, `minTests` and optional `publicationEnabled` (chart `operator.deliveryPolicies`). | [operator.go](../../cmd/ploegd/operator.go) |
 | `PLOEG_OUTCOME_FILE` | ploeg-worker |  | `exec` harness only: OutcomeReport JSON path override (chart `executor.harness.outcomeFile`). | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_REVIEW_RECONCILE_INTERVAL` | ploegd | `10m` |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_ROLE` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_SHIFTS_UNIFORM` | ploegd | `true` |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_SWEEP_INTERVAL` | ploegd | `15s` |  | [main.go](../../cmd/ploegd/main.go) |
@@ -74,6 +75,7 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_TEAM` | ploeg-worker | required | Team this worker claims work for. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_TEAM_MAP` | ploegd |  | Legacy assignee roster, replaced by `teams.<name>.assignees` in the `PLOEG_CONFIG` file. | [main.go](../../cmd/ploegd/main.go), [operator.go](../../cmd/ploegd/operator.go) |
 | `PLOEG_TEAM_PLANS` | ploegd |  | Legacy Shift plans, replaced by `teams.<name>.plan` in the `PLOEG_CONFIG` file. A malformed plan stops ploegd at boot. | [main.go](../../cmd/ploegd/main.go) |
+| `PLOEG_TRACKER_DONE_ON_MERGE` | ploegd | `false` |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_VIKUNJA_SECRET` | ploegd |  | Secret that verifies `X-Vikunja-Signature` on `POST /webhooks/tracker/vikunja`. The chart reads it from `webhook.existingSecret`. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_VIKUNJA_TOKEN` | ploegd |  | Vikunja API token (chart `tracker.tokenSecret`). Unset keeps tracker write-backs a logged no-op. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_VIKUNJA_URL` | ploegd |  | Vikunja API root (chart `tracker.url`). With `PLOEG_VIKUNJA_TOKEN` it enables comments on the ticket and the webhook registration check. | [main.go](../../cmd/ploegd/main.go) |
