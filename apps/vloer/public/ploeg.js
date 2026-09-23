@@ -1,4 +1,4 @@
-const stateNames = { needs_human: 'Needs your attention', awaiting_review: 'Ready for review', leased: 'In execution', queued: 'Queued', done: 'Done', stale: 'Stale', ingested: 'Received' };
+const stateNames = { needs_human: 'Needs your attention', awaiting_review: 'Ready for review', leased: 'In execution', queued: 'Queued', done: 'Done', stale: 'Stale', withdrawn: 'Withdrawn', ingested: 'Received' };
 export const ploegLanes = [['needs_human', 'Needs human', 'info'], ['leased', 'Running', 'activity'], ['queued', 'Queue', 'layers'], ['all', 'All work', 'grid']];
 
 export function ploegMarkup(state, { escape, icon, money, safeUrl, ago }) {
