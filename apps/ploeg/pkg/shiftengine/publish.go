@@ -3,10 +3,12 @@ package shiftengine
 import (
 	"context"
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/webgrip/ploeg/pkg/provider"
 	"github.com/webgrip/ploeg/pkg/store"
 	"github.com/webgrip/ploeg/pkg/work"
 )
@@ -71,45 +73,13 @@ func (e *Engine) publishRound(ctx context.Context, si store.ShiftInfo, reports [
 		return
 	}
 
-	_, pr := pullRequest(reports)
-	if pr == 0 {
-		// Round 1 readers routinely run before any pull request exists. Their
-		// findings are not lost: they reach the writer through the briefing on
-		// its claim, and they stay queryable in agent_runs.
-		e.Log.Info("findings not published: no pull request on this shift yet",
-			"shift", si.ID, "round", round, "findings", len(pending))
+	fp, repo, pr, skip := e.pullRequestThread(ctx, si, reports)
+	if skip != "" {
+		e.Log.Info("findings not published: "+skip,
+			"shift", si.ID, "work_item", si.WorkItemID, "round", round, "findings", len(pending))
 		return
 	}
 
-	item, err := e.Store.WorkItem(ctx, si.WorkItemID)
-	if err != nil {
-		e.Log.Error("findings not published: work item read failed", "shift", si.ID, "err", err)
-		return
-	}
-	if item.Target == nil {
-		// ploegd genuinely does not know the repository here — the worker used
-		// its env fallback. Publishing to a guess would be worse than not.
-		e.Log.Warn("findings not published: work item has no resolved target",
-			"shift", si.ID, "work_item", si.WorkItemID)
-		return
-	}
-	// "empty = the default forge" is what pkg/work.Target and pkg/config both
-	// promise; until rc.15 only the promise existed and the empty string was
-	// used as a literal key, which matched nothing. Rows written before that
-	// fix still carry forge="", so resolving it here — rather than only at
-	// ingest — is what makes the existing backlog publishable.
-	forgeID := item.Target.Forge
-	if forgeID == "" {
-		forgeID = e.DefaultForge
-	}
-	fp, ok := e.Forges[forgeID]
-	if !ok {
-		e.Log.Warn("findings not published: no provider for forge",
-			"forge", item.Target.Forge, "resolved", forgeID, "shift", si.ID)
-		return
-	}
-
-	repo := item.Target.Owner + "/" + item.Target.Repo
 	for _, r := range pending {
 		if err := fp.Comment(ctx, repo, pr, findingsComment(r)); err != nil {
 			e.Log.Error("findings comment failed", "shift", si.ID, "role", r.Role,
@@ -119,6 +89,76 @@ func (e *Engine) publishRound(ctx context.Context, si store.ShiftInfo, reports [
 		e.Log.Info("findings published", "shift", si.ID, "role", r.Role,
 			"round", r.Round, "repo", repo, "pr", pr)
 	}
+}
+
+// pullRequestThread resolves the forge, repository and number of the Shift's
+// pull request. A non-empty skip says why there is nowhere to comment.
+func (e *Engine) pullRequestThread(ctx context.Context, si store.ShiftInfo, reports []store.RunReport) (fp provider.ForgeProvider, repo string, pr int, skip string) {
+	if _, pr = pullRequest(reports); pr == 0 {
+		return nil, "", 0, "no pull request on this shift yet"
+	}
+	item, err := e.Store.WorkItem(ctx, si.WorkItemID)
+	if err != nil {
+		return nil, "", 0, "work item read failed"
+	}
+	if item.Target == nil {
+		return nil, "", 0, "work item has no resolved target"
+	}
+	forgeID := item.Target.Forge
+	if forgeID == "" {
+		forgeID = e.DefaultForge
+	}
+	fp, ok := e.Forges[forgeID]
+	if !ok {
+		return nil, "", 0, "no provider for forge " + strconv.Quote(forgeID)
+	}
+	return fp, item.Target.Owner + "/" + item.Target.Repo, pr, ""
+}
+
+// budgetExhausted reports whether a close reason says the Shift's pool could
+// not fund another Round.
+func budgetExhausted(closeReason string) bool {
+	return closeReason == reasonLoopBudget || strings.HasPrefix(closeReason, reasonPoolExhausted)
+}
+
+// usd formats a dollar amount with two decimals.
+func usd(v float64) string {
+	return "$" + strconv.FormatFloat(math.Round(v*100)/100+0, 'f', 2, 64)
+}
+
+// budgetSummary states the pool's spent, reserved and total amounts.
+func budgetSummary(l store.ShiftLedger) string {
+	return fmt.Sprintf("the budget pool could not fund another Round. Spent %s, reserved %s, pool %s.",
+		usd(l.Spent), usd(l.Reserved), usd(l.Budget))
+}
+
+// budgetComment is the pull request comment for a Shift that ran out of budget.
+func budgetComment(l store.ShiftLedger) string {
+	return "### Budget exhausted\n\nPloeg stopped working on this pull request: " + budgetSummary(l) +
+		"\n\nA person is asked to take over.\n\n<sub>Posted by Ploeg.</sub>"
+}
+
+// publishBudgetExhausted posts budgetComment on the Shift's pull request, if
+// one exists. Failures are logged, never returned.
+func (e *Engine) publishBudgetExhausted(ctx context.Context, si store.ShiftInfo, l store.ShiftLedger) {
+	if len(e.Forges) == 0 {
+		return
+	}
+	reports, err := e.Store.RoundReports(ctx, si.ID)
+	if err != nil {
+		e.Log.Error("budget notice not published: reports read failed", "shift", si.ID, "err", err)
+		return
+	}
+	fp, repo, pr, skip := e.pullRequestThread(ctx, si, reports)
+	if skip != "" {
+		e.Log.Info("budget notice not published: "+skip, "shift", si.ID, "work_item", si.WorkItemID)
+		return
+	}
+	if err := fp.Comment(ctx, repo, pr, budgetComment(l)); err != nil {
+		e.Log.Error("budget notice comment failed", "shift", si.ID, "repo", repo, "pr", pr, "err", err)
+		return
+	}
+	e.Log.Info("budget notice published", "shift", si.ID, "repo", repo, "pr", pr)
 }
 
 // findingsComment renders one Role's findings for the pull request thread.
@@ -142,7 +182,7 @@ func findingsComment(r store.RunReport) string {
 //
 // Called for every TERMINAL settle — see Engine.close. It was called only for
 // needs_human, which meant the successful path said nothing.
-func (e *Engine) notifyTracker(ctx context.Context, si store.ShiftInfo, settled work.State, reason string) {
+func (e *Engine) notifyTracker(ctx context.Context, si store.ShiftInfo, settled work.State, reason string, budget *store.ShiftLedger) {
 	if len(e.Trackers) == 0 {
 		return
 	}
@@ -163,7 +203,7 @@ func (e *Engine) notifyTracker(ctx context.Context, si store.ShiftInfo, settled 
 	}
 	link, _ := pullRequest(reports)
 
-	body := trackerMessage(settled, reason, link, len(reports), si.Round)
+	body := trackerMessage(settled, reason, link, len(reports), si.Round, budget)
 
 	// Write-back failure is logged, never propagated: the Work Item state and
 	// the audit rows are already correct, and losing them to a tracker outage
@@ -195,7 +235,8 @@ func (e *Engine) notifyTracker(ctx context.Context, si store.ShiftInfo, settled 
 
 // trackerMessage is what the board is told, per terminal state. Pure so the
 // wording is table-testable without an embedded Postgres.
-func trackerMessage(settled work.State, reason, link string, runs, rounds int) string {
+// A non-nil budget adds the budget-exhaustion notice with the pool's amounts.
+func trackerMessage(settled work.State, reason, link string, runs, rounds int, budget *store.ShiftLedger) string {
 	var b strings.Builder
 	switch {
 	case settled == work.StateStale:
@@ -219,6 +260,9 @@ func trackerMessage(settled work.State, reason, link string, runs, rounds int) s
 		b.WriteString("Ploeg stopped working this item without opening a pull request.\n\n")
 	}
 	fmt.Fprintf(&b, "**Outcome:** %s\n", reason)
+	if budget != nil {
+		fmt.Fprintf(&b, "**Budget exhausted:** %s\n", budgetSummary(*budget))
+	}
 	if link != "" {
 		fmt.Fprintf(&b, "**Pull request:** %s\n", link)
 		b.WriteString("\nPlease review and merge — the agents never merge their own work.\n")

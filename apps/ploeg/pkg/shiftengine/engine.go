@@ -273,7 +273,18 @@ func (e *Engine) close(ctx context.Context, si store.ShiftInfo, closeReason, hum
 	// (backlog #8) can close a Shift WITHOUT notifying — a human who
 	// unassigned a ticket does not need to be told Ploeg finished it.
 	if closed && work.Terminal(settled) {
-		e.notifyTracker(ctx, si, settled, humanReason)
+		var budget *store.ShiftLedger
+		if budgetExhausted(closeReason) {
+			if l, err := e.Store.Ledger(ctx, si.ID); err != nil {
+				e.Log.Error("budget notice: ledger read failed", "shift", si.ID, "err", err)
+			} else {
+				budget = &l
+			}
+		}
+		e.notifyTracker(ctx, si, settled, humanReason, budget)
+		if budget != nil {
+			e.publishBudgetExhausted(ctx, si, *budget)
+		}
 	}
 	return nil
 }
@@ -349,12 +360,12 @@ func (e *Engine) EvaluateAll(ctx context.Context) {
 		return
 	}
 	for _, b := range broke {
-		reason := fmt.Sprintf("budget exhausted: pool %.2f, spent %.2f, reserved %.2f",
-			b.Ledger.Budget, b.Ledger.Spent, b.Ledger.Reserved)
+		reason := fmt.Sprintf("%s: pool %.2f, spent %.2f, reserved %.2f",
+			reasonPoolExhausted, b.Ledger.Budget, b.Ledger.Spent, b.Ledger.Reserved)
 		si := store.ShiftInfo{ID: b.ShiftID, WorkItemID: b.WorkItemID, Team: b.Team}
 		// Always needs_human: running out of money is never retryable, under
 		// either dispatch shape (shift-orchestration spec).
-		if err := e.close(ctx, si, reason, reason, false, nil); err != nil {
+		if err := e.close(ctx, si, reason, closeMessage(reasonPoolExhausted), false, nil); err != nil {
 			e.Log.Error("shift sweep: park failed", "shift", b.ShiftID, "err", err)
 		}
 	}
