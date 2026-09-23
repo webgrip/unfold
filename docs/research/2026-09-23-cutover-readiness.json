@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "kind": "dated-readiness-observation",
+  "observed_at": "2026-09-23T00:00:00Z",
+  "playbook": "../operations/first-cutover.md",
+  "summary": "2026-09-23-cutover-readiness.md",
+  "previous_observation": "2026-09-12-cutover-readiness.json",
+  "verdict": "not_ready_for_release_cutover",
+  "scope": "Local qualification and release checks; anonymous read-only HTTP reads of the Forgejo and GitHub APIs; git ls-remote of both Glide remotes; anonymous reads of homelab-cluster main. No credentials were used against a registry, OpenBao or Kubernetes. No preflight with secrets, no workflow dispatch, no push, tag, publication, variable change or paid model call.",
+  "source": {
+    "glide_sha": "352fa52df121070d69072b64daa99bb8d1350ba0",
+    "remote_development_sha": "40e574f31fb76daac473083bd3c385be7c0e4ffb",
+    "remote_matches_local": false,
+    "remote_note": "The local development head is one test-only commit (352fa52) ahead of Forgejo. The preview must run on whatever Forgejo holds when it is dispatched.",
+    "remote_main_baseline": "479e193136dc2c580551b65839a853d4c8f89624",
+    "latest_checks": {"status": "success", "run": 33, "sha": "40e574f31fb76daac473083bd3c385be7c0e4ffb", "url": "https://forgejo.webgrip.dev/webgrip/glide/actions/runs/33", "release_jobs": "skipped", "mirror_source_metadata": "skipped"},
+    "earlier_checks_failures": [
+      {"run": 30, "sha": "d070083a1", "job": "checks", "status": "failure"},
+      {"run": 31, "sha": "69d1af231", "job": "checks", "status": "failure"}
+    ],
+    "latest_preview_runs": [
+      {"run": 23, "sha": "d0de4329e", "preflight": "failure", "preview_vloer": "success", "preview_ploeg": "success"},
+      {"run": 24, "sha": "d0de4329e", "preflight": "failure", "preview_vloer": "success", "preview_ploeg": "success"}
+    ],
+    "preview_note": "No preview has run since the 14 September preflight fix (dcff13b). The run 23/24 preflight failures predate it; their logs were not read.",
+    "release_variable": "not_observed; no release job has run, which is consistent with it being unset or false",
+    "glide_release_count": 0,
+    "forgejo_refs": {"heads": 2, "tags": 70, "notes": 67},
+    "github_mirror_refs": {"heads": 2, "tags": 70, "notes": 0},
+    "github_mirror_matches": {"development": true, "main": true, "tags": true, "notes": false},
+    "github_repository": {"default_branch": "development", "private": false},
+    "old_vloer": {
+      "has_actions": false,
+      "development_tip": "e0a6d7a8b166605d018465f1c89785d0ccad3616",
+      "commits_after_recorded_tip": ["52afa4a583 docs(ci): retire the Vloer publisher after moving to Glide", "e0a6d7a8b1 chore(renovate): extend het org-preset op een gepinde versie"],
+      "highest_release": "v0.3.0-rc.16",
+      "renovate_topic": true,
+      "renovate_dashboard_created": "2026-09-18T11:40:24Z"
+    },
+    "old_ploeg": {
+      "has_actions": false,
+      "development_tip": "84df41b0fe62929130062f3656d85710d20eed8c",
+      "commits_after_recorded_tip": ["84df41b0fe chore(renovate): extend het org-preset op een gepinde versie"],
+      "highest_release": "v0.3.0-rc.7",
+      "open_pull_requests": [40, 43, 44, 45],
+      "renovate_topic": true
+    },
+    "github_ploeg_export_repository": {"default_branch": "main", "private": false, "last_push": "2026-09-11T14:46:06Z"},
+    "gitops_remote_sha": "d9169897a2af446bb332cce54d867fe3fc59b270",
+    "gitops_desired_pins_unchanged_since_2026_09_12": true
+  },
+  "local_qualification": {
+    "mise_run_verify": "passed",
+    "vloer_tests": {"passed": 220, "failed": 0},
+    "extension_tests": {"passed": 43, "failed": 0},
+    "verify_note": "Run with PLOEG_TEST_PG_PORT_OFFSET set, because parallel worktrees held the default embedded Postgres port; the first attempt failed only on that port collision.",
+    "mise_run_release_check": "passed",
+    "release_isolation_and_workflow_policy_tests": {"passed": 14, "failed": 0},
+    "ploeg_release_policy_tests": {"passed": 13, "failed": 0, "skipped": 1, "skip_reason": "Historical one-time version-correction assertion is intentionally opt-in."},
+    "import_verifier_with_required_notes": {"status": "passed", "vloer": {"files": 396, "tags": 18, "notes": 16}, "ploeg": {"files": 392, "tags": 52, "notes": 51}},
+    "release_distribution_unit_tests": {"passed": 6, "failed": 0},
+    "model_calls": 0,
+    "spend_usd": 0,
+    "release_worthy_commits_since_last_tag": {
+      "vloer": {"since": "vloer-v0.3.0-rc.16", "feat": 1, "fix": 6, "expected_channel": "rc"},
+      "ploeg": {"since": "ploeg-v0.3.0-rc.7", "feat": 5, "fix": 12, "expected_channel": "rc"}
+    },
+    "limits": ["Release-worthy commit counts are a git log filter by application path, not a semantic-release calculation; only the preview predicts versions.", "No release dry run, ARM64 runtime, live provider, package export or destination publication was qualified."]
+  },
+  "preflight": {
+    "script": "../../scripts/release_preflight.py",
+    "dry_run_mode": "none; every step after the GitHub repository read needs a CI secret or the Forgejo OIDC token",
+    "steps": [
+      {"step": "GitHub trunk and visibility", "result": "passed_anonymously", "evidence": "default_branch development, private false"},
+      {"step": "GitHub push permission", "result": "not_run", "needs": "GHCR_TOKEN"},
+      {"step": "Old publishers disabled", "result": "passed_anonymously", "evidence": "has_actions false on webgrip/de-vloer and webgrip/ploeg"},
+      {"step": "Forgejo trunk equals checkout", "result": "passes_when_dispatched", "evidence": "The workflow checks out the development head it compares against."},
+      {"step": "GitHub mirror matches Forgejo", "result": "would_fail", "evidence": "All 67 refs/notes/* are missing on GitHub; heads and 70 tags match."},
+      {"step": "Registry authentication (Harbor, GHCR, Forgejo)", "result": "not_run", "needs": "HARBOR_ROBOT_USER, HARBOR_ROBOT_TOKEN, GHCR_USERNAME, GHCR_TOKEN, WEBGRIP_CI_TOKEN"},
+      {"step": "Open VSX credential present", "result": "not_run", "needs": "OVSX_PAT repository secret on webgrip/glide"},
+      {"step": "Glide OIDC login to cosign-signer", "result": "not_run", "needs": "Forgejo Actions OIDC token and in-cluster OpenBao"}
+    ]
+  },
+  "remaining_gates": [
+    {"id": "release-authority", "status": "partially_done", "required": "Freeze old source/release automation and reconcile intervening tags before enabling Glide.", "evidence": "Actions are disabled on both old repositories and neither has a release after rc.16/rc.7. Both still carry the renovate topic and received a chore(renovate) preset commit on 2026-09-22, so they still accept writes; old Ploeg has four open pull requests.", "owner_action": "Remove the renovate topic from webgrip/de-vloer and webgrip/ploeg (or archive them), close or port the four open Ploeg pull requests, and record both tips."},
+    {"id": "source-mirror", "status": "blocked", "required": "GitHub holds the same trunk, tags and release-channel notes as Forgejo.", "evidence": "GitHub has 0 of 67 note refs. Since ae10513 only an enabled release push copies notes, so the preflight cannot pass before the gate opens.", "owner_action": "Copy the notes once from a clone that passes the strict import verifier: git fetch origin '+refs/notes/*:refs/notes/*' then git push https://github.com/webgrip/glide.git 'refs/notes/*:refs/notes/*' (no --prune)."},
+    {"id": "source-export", "status": "implemented_unqualified", "required": "Qualify per-application GitHub distribution and Ploeg module export.", "evidence": "scripts/publish_release.py exports apps/ploeg onto the retained rc.7 commit, pushes only the v-tag to github.com/webgrip/ploeg and compares a fresh go mod download with the Glide tree. It first runs in the first Ploeg publication."},
+    {"id": "source-metadata", "status": "implemented_unqualified", "required": "Published source annotations and source revision must identify a repository containing the built Glide commit.", "evidence": "All three Dockerfiles and the Ploeg chart name https://github.com/webgrip/glide; the Harbor build adds the index annotation; release_registry.py rejects a wrong source, version or revision on both platforms."},
+    {"id": "oidc-signing", "status": "manifest_fixed_unverified", "required": "Git-managed OpenBao authorization and a Glide-origin authorization check.", "evidence": "homelab-cluster main (d916989) lists webgrip/glide in the cosign-signer bound_claims since 9f521ad6 (2026-09-13). Whether the bootstrap job re-wrote the role in OpenBao, and whether a Glide token receives the policy, needs the preview preflight."},
+    {"id": "credentials", "status": "manifest_fixed_unverified", "required": "Verify every required publishing identity and extend the Open VSX bridge to Glide.", "evidence": "The secret reconciler on main sets VSCODE_EXTENSION_REPO=glide. Existence of OVSX_PAT and registry access from Glide were not observed."},
+    {"id": "renovate", "status": "done_for_glide", "required": "Include Glide in source dependency maintenance and preserve reviewed deployment updates.", "evidence": "Discovery moved to the renovate topic on 2026-09-18 (5d4edc5a); webgrip/glide carries it and has had a Renovate Dependency Dashboard since 2026-09-13. Retiring the old repositories remains under release-authority."},
+    {"id": "signature-propagation", "status": "implemented_unqualified", "required": "Ploeg mirrors must wait for signing; Vloer agent GHCR signatures and attestations need copying and verification.", "evidence": "ploeg-release-distribute requires ploeg-release-sign-harbor.outputs.signed; copy_image verifies, copies (cosign copy --only=sig,att,sbom) and re-verifies every image at every destination and fails on error. release-check covers the dependency."},
+    {"id": "cve-gate", "status": "done", "required": "Every published image passes its application's CVE budget before signing.", "evidence": "97bd509 adds the Grype and OpenVEX gate to ploegd before signing; Vloer's two images already had it. The workflow-policy test asserts both."},
+    {"id": "notes-mirror-gating", "status": "done", "required": "The notes mirror cannot prune GitHub to an empty set.", "evidence": "0968cf0 requires both source gates; ae10513 adds the push-event and GLIDE_RELEASES_ENABLED conditions; CI sets GLIDE_REQUIRE_IMPORT_NOTES=true."},
+    {"id": "preview", "status": "not_run", "required": "Run both actual application release dry runs for the final candidate revision.", "evidence": "Both applications now have eligible feat/fix commits, so the next preview should predict an rc for each."},
+    {"id": "recovery", "status": "not_verified", "required": "For an upgrade of existing data, prove consistent backups and a working restore path; isolated pilots must use separate state.", "evidence": "No cluster read in this observation."},
+    {"id": "artifact-delivery", "status": "not_run", "required": "First publication, required destination verification, module installation and retry qualification."},
+    {"id": "live-test", "status": "not_run", "required": "Bounded standalone and managed sessions, authority/recovery drills, accounting and cleanup on published artifacts."}
+  ],
+  "discrepancies": [
+    {
+      "topic": "OIDC signing role and Renovate",
+      "migration_md": "Says the secret reconciler scopes the Open VSX token to glide and the OpenBao bootstrap lists webgrip/glide; asks for Renovate selection.",
+      "record_2026_09_12": "oidc-signing and renovate blocked; glide absent at GitOps 80f553ae.",
+      "resolution": "Both statements were true at their revision. homelab-cluster 9f521ad6 (2026-09-13) added glide to the signing role and the bridge; 5d4edc5a (2026-09-18) moved Renovate to topic discovery, and Glide has the topic and a dashboard.",
+      "unverifiable_here": ["Whether the OpenBao bootstrap CronJob has re-applied the role since 9f521ad6.", "Whether a Glide OIDC token obtains the cosign-signer policy.", "Whether the OVSX_PAT repository secret exists on webgrip/glide and is accepted by Open VSX."]
+    }
+  ],
+  "source_links": {
+    "glide_workflows": "https://forgejo.webgrip.dev/webgrip/glide/src/commit/40e574f31fb76daac473083bd3c385be7c0e4ffb/.forgejo/workflows",
+    "gitops": "https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/commit/d9169897a2af446bb332cce54d867fe3fc59b270",
+    "signing_role": "https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/commit/d9169897a2af446bb332cce54d867fe3fc59b270/kubernetes/apps/security/openbao/bootstrap/config.sh",
+    "credential_bridge": "https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/commit/d9169897a2af446bb332cce54d867fe3fc59b270/kubernetes/apps/forgejo/forgejo-actions-secrets/app/forgejo-actions-secrets.cronjob.yaml",
+    "renovate_job": "https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/commit/d9169897a2af446bb332cce54d867fe3fc59b270/kubernetes/apps/renovate/renovate-operator/jobs/webgrip-forgejo.yaml",
+    "glide_renovate_dashboard": "https://forgejo.webgrip.dev/webgrip/glide/issues/1"
+  }
+}
