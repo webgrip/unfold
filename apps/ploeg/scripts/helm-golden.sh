@@ -67,6 +67,19 @@ for case in ":default" \
 	fi
 done
 
+for case in "ops/helm/ploeg/ci/reject-reader-without-read-token-values.yaml:readTokenSecret is not set"; do
+	values=${case%%:*}
+	expected=${case#*:}
+	if out=$(helm template ploeg ops/helm/ploeg -f "$values" 2>&1); then
+		echo "chart rendered '$values', which it must refuse"
+		status=1
+	elif ! printf '%s' "$out" | grep -qF "$expected"; then
+		echo "chart refused '$values' for the wrong reason (want '$expected'):"
+		echo "$out"
+		status=1
+	fi
+done
+
 if [ "$mode" = "check" ] && [ "$status" -ne 0 ]; then
 	echo
 	echo "FIRST: is the diff only blank lines around '---' separators, on a"

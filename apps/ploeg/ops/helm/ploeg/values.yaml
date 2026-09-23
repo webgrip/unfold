@@ -163,11 +163,11 @@ executor:
     # split at the forge as well as in Ploeg's scheduling is the whole point —
     # either alone is a single point of failure.
     #
-    # UNSET IS A KNOWN GAP, not a safe default: readers then run with the
-    # read-write builder token below and only scheduling separates them. The
-    # repos are private, so "no credential" cannot clone; a read-only token is
-    # the honest tier 1. Closing the gap is one OpenBao entry plus one
-    # ExternalSecret in homelab-cluster — no chart or code change.
+    # REQUIRED as soon as any team has a reading Role: the render fails
+    # without it, because the only alternative is handing the reader the
+    # read-write builder token below. The repos are private, so "no
+    # credential" cannot clone; a read-only token is the honest tier 1. It is
+    # one OpenBao entry plus one ExternalSecret in homelab-cluster.
     readTokenSecret: {}
     #  name: agent-reader-token
     #  key: FORGEJO_TOKEN
@@ -190,6 +190,8 @@ executor:
     tokenSecret:
       name: agent-builder-token
       key: GITLAB_TOKEN
+    # As for forgejo: required once a team has a reading Role. On GitLab a
+    # project access token at read_repository scope.
     readTokenSecret: {}
     webhookSecret: {}
   scaler:

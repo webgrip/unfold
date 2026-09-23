@@ -20,7 +20,7 @@ Ploeg's agents act as one forge bot user, `agent-builder` by default (`PLOEG_FOR
 
 1. Give the bot user write access to the repository. The worker clones with a forge token and the writer pushes with it ([worker.go](../../apps/ploeg/pkg/worker/worker.go)).
 2. Decide which token a writer gets. When ploegd has a Forgejo admin token (`executor.forgejo.adminTokenSecret`), it mints a push token per writing Run and revokes it when the Run ends. Without one, every Run uses the shared bot token (`executor.forgejo.tokenSecret`) ([Ploeg ADR-0013](../../apps/ploeg/docs/adrs/0013-push-rights-are-minted-per-run.md)).
-3. Give readers a read-only token through `executor.forgejo.readTokenSecret`. If you leave it unset, readers receive the read-write token and only Ploeg's scheduling keeps them from pushing ([values.yaml](../../apps/ploeg/ops/helm/ploeg/values.yaml)).
+3. Give readers a read-only token through `executor.forgejo.readTokenSecret` (`executor.gitlab.readTokenSecret` on GitLab). A team with a reader Role requires it: without it the chart refuses to render, and a worker whose token is not marked `PLOEG_FORGE_TOKEN_ACCESS=read-only` ends a reader's Run `stuck` before cloning. A reader never falls back to the read-write token ([_helpers.tpl](../../apps/ploeg/ops/helm/ploeg/templates/_helpers.tpl), [worker.go](../../apps/ploeg/pkg/worker/worker.go)).
 
 Keep every token in the vault and reach the cluster through an ExternalSecret; commit only the Secret's name and key ([managed workers](../../apps/ploeg/docs/ops/managed-workers.md#configure-the-controller)).
 
