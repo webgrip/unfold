@@ -94,14 +94,12 @@ var (
 	errHarnessTimeout = errors.New("harness exceeded its run timeout")
 )
 
-// Run claims one work item and drives it to a reported outcome. A nil
+// RunContext claims one work item and drives it to a reported outcome. A nil
 // claim (empty queue) is the empty-handed convention: exit 0 (backlog #49).
-func (w *Worker) Run() error { return w.RunContext(context.Background()) }
-
-// RunContext is Run with a cancellable parent. Cancelling the parent — what
-// cmd/ploeg-worker does on SIGTERM — aborts the harness and still reports an
-// outcome, which is the only thing that stops a killed pod from stranding its
-// Lease for the full TTL and charging the Round an attempt it never spent.
+// Cancelling the parent — what cmd/ploeg-worker does on SIGTERM — aborts the
+// harness and still reports an outcome, which is the only thing that stops a
+// killed pod from stranding its Lease for the full TTL and charging the Round
+// an attempt it never spent.
 func (w *Worker) RunContext(parent context.Context) error {
 	claimed, err := w.API.Claim(w.Cfg.Team, w.Cfg.Role)
 	if err != nil {
