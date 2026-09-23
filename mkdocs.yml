@@ -35,6 +35,7 @@ nav:
       - Glossary: reference/glossary.md
       - Decisions: reference/decisions.md
       - Ploeg configuration: ploeg/reference/configuration.md
+      - KPIs (proposal): reference/kpis.md
       - Product language: domain/overview.md
       - Open questions: landscape/questions.md
   - Contribute:
