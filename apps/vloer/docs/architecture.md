@@ -40,17 +40,53 @@ Session creation currently requires a registered repository and crew. An externa
 
 ## Implementation map
 
-| Path | Responsibility |
+Every module in `src/`:
+
+| Module | Role |
 | --- | --- |
-| `src/main.ts`, `src/config.ts` | Explicit demo/live startup and administrator configuration |
-| `src/http.ts`, `src/auth.ts`, `public/` | HTTP, identity, object authorization, browser workbench |
-| `src/store.ts`, `src/engine.ts` | Durable state, events and session lifecycle |
-| `src/runtime/` | Runtime adapters and the local, Docker and Kubernetes workspace backends |
-| [`src/broker.ts`](../src/broker.ts) | Standalone LiteLLM credential lifecycle and spend reconciliation |
-| [`src/ploeg.ts`](../src/ploeg.ts), [`src/execution-authority.ts`](../src/execution-authority.ts) | Scoped Ploeg snapshots and delegated execution authority |
-| `src/types.ts` | Shared domain and adapter contracts |
-| `ops/` | Images and Kubernetes deployment |
-| `skills/`, `.agents/contracts/` | Portable operator procedure and repository-specific facts |
+| [`src/main.ts`](../src/main.ts) | Startup and shutdown: wires the store, runtimes, broker, engine, agent host and HTTP server |
+| [`src/config.ts`](../src/config.ts) | Parses and validates the configuration file and environment; defines the default crews and workspace placements |
+| [`src/types.ts`](../src/types.ts) | Shared domain and adapter types: session, run, crew, configuration and the runtime interface |
+| [`src/http.ts`](../src/http.ts) | The single router: REST API, server-sent events, static files, mutation guard and secret redaction |
+| [`src/auth.ts`](../src/auth.ts) | Local password login, cookie sign-ins and the editor device-code sign-in |
+| [`src/oidc.ts`](../src/oidc.ts) | OpenID Connect sign-in with PKCE; maps groups or a claim to a role |
+| [`src/links.ts`](../src/links.ts) | Per-person linked GitLab and ClickUp accounts, stored encrypted, used for tracker reads and clone access |
+| [`src/store.ts`](../src/store.ts) | SQLite store for sessions, events, permissions, users, sign-ins and encrypted internal state |
+| [`src/engine.ts`](../src/engine.ts) | Session lifecycle: create, start, pause, resume, cancel, retry, review, messages, permissions and budget; runs crew roles in sequence, captures the candidate and recovers after a restart |
+| [`src/failures.ts`](../src/failures.ts) | Fixed catalogue of safe failure categories and stages, and classification of runtime errors into it |
+| [`src/broker.ts`](../src/broker.ts) | Standalone LiteLLM admin client: mints, reads, revokes and reconciles per-session virtual keys |
+| [`src/execution-authority.ts`](../src/execution-authority.ts) | Shared-mode client for Ploeg's operator execution API: admission, commands, credential, spend and block |
+| [`src/ploeg.ts`](../src/ploeg.ts) | Read-only, validated Ploeg operator client for teams and Work Items |
+| [`src/ploeg-demo.ts`](../src/ploeg-demo.ts) | Illustrative Ploeg records served in demo mode |
+| [`src/tasks.ts`](../src/tasks.ts) | Read-only tracker connectors for Forgejo, GitHub, GitLab, ClickUp, Vikunja and a demo source |
+| [`src/task-binding.ts`](../src/task-binding.ts) | Looks up and compares the Ploeg Work Item bound to an imported Vikunja or ClickUp task |
+| [`src/candidates.ts`](../src/candidates.ts) | Captures a workspace change as a Git bundle, binary patch and manifest |
+| [`src/attestations.ts`](../src/attestations.ts) | Signs candidate provenance and Agent Trace records as Ed25519 DSSE envelopes |
+| [`src/delivery.ts`](../src/delivery.ts) | Shared-mode candidate delivery: canonicalize, verify, record the receipt and approval in Ploeg |
+| [`src/delivery-config.ts`](../src/delivery-config.ts) | Validates delivery policies and computes the policy hash |
+| [`src/delivery-verifier.ts`](../src/delivery-verifier.ts) | Runs a policy's pinned checks in throwaway Docker containers |
+| [`src/trusted-candidate.ts`](../src/trusted-candidate.ts) | Rebuilds a captured candidate as one canonical commit on the approved base, with hardened Git |
+| [`src/ahp/host.ts`](../src/ahp/host.ts) | Agent Host Protocol server: connection tokens, JSON-RPC methods and session events projected as turns |
+| [`src/ahp/websocket.ts`](../src/ahp/websocket.ts) | Minimal WebSocket upgrade, framing and connection-token generation |
+| [`src/runtime/opencode.ts`](../src/runtime/opencode.ts) | OpenCode HTTP and event-stream adapter: native session, prompts, permission replies, transcript and verdict |
+| [`src/runtime/command.ts`](../src/runtime/command.ts) | JSON-lines subprocess harness bridge, local backend only |
+| [`src/runtime/demo.ts`](../src/runtime/demo.ts) | Deterministic fixture runtime for the demo; makes no model calls |
+| [`src/runtime/workspace.ts`](../src/runtime/workspace.ts) | Chooses each session's workspace backend; clones locally and supervises `opencode serve` |
+| [`src/runtime/docker.ts`](../src/runtime/docker.ts) | Docker Engine client and the hardened agent-container lifecycle |
+| [`src/runtime/kubernetes.ts`](../src/runtime/kubernetes.ts) | Kubernetes API client: pod, volume, network policy and Secret manifests, and in-pod candidate export |
+| [`src/runtime/sandbox.ts`](../src/runtime/sandbox.ts) | Alternative Kubernetes provisioner on agent-sandbox resources and warm-pool claims |
+| [`src/runtime/relay.ts`](../src/runtime/relay.ts) | Dial-out relay under `/api/relay/` so sandbox workers poll the workbench instead of being called |
+| [`src/runtime/git-access.ts`](../src/runtime/git-access.ts) | Git credential-helper environment for clones |
+
+Outside `src/`:
+
+| Path | Role |
+| --- | --- |
+| [`public/`](../public/) | Browser workbench: native modules, no build step |
+| [`extensions/vscode/`](../extensions/vscode/) | VS Code extension: sessions, task import, Ploeg view, linked accounts and agent-host setup |
+| [`scripts/`](../scripts/) | Checks, smoke and browser checks, and the `qualify-*` scripts Ploeg's opt-in qualification runs |
+| [`ops/`](../ops/) | Agent image, Helm chart, local Compose and cluster manifests |
+| [`skills/`](../skills/), [`.agents/contracts/`](../.agents/contracts/) | Portable operator procedure and repository-specific facts |
 
 Node 24 runs erasable TypeScript directly. The production application has zero third-party npm runtime dependencies; browser JavaScript uses native modules. There is no frontend build step or package installation in the demo path. This is a deliberate small-service choice, recorded in [ADR 0002](adrs/0002-native-node-and-single-writer-storage.md), rather than an inferred organization-wide frontend standard.
 
@@ -66,7 +102,7 @@ Session events are persisted before they are exposed through the event stream. A
 
 Configuration supplies the allowed repository, crew, model and runtime IDs. User requests select from those registrations. Arbitrary process arguments and workspace endpoints are administrator configuration, not prompt-controlled inputs.
 
-The standalone control plane holds its login secrets, LiteLLM minting credential, Docker socket and Kubernetes authority. In shared execution mode, the LiteLLM minting credential stays in Ploeg; De Vloer receives only the per-execution inference capability. A worker receives only its session's inference key, explicitly provisioned repository access and the environment names or Kubernetes Secrets an administrator listed for it. Placement is chosen per session from the backends a deployment enables ([ADR 0009](adrs/0009-workspace-placement-is-a-session-choice.md)). The `docker` backend runs the clone and the harness in a hardened container from the pinned agent image on the workbench host; it is the default for a workstation. The `local` backend shares the control server’s OS user and permits access to server files through approved shell commands; use it only for trusted single-user development. Kubernetes is the intended isolated team backend for a workbench deployed in the cluster, with network policy enforcement dependent on the target cluster. Remote HTTP adapters are integrations with trusted, authenticated endpoints. A read-only role instruction is not a filesystem or credential boundary; review actual adapter and workspace enforcement before giving it production push access.
+The standalone control plane holds its login secrets, LiteLLM minting credential, Docker socket and Kubernetes authority. In shared execution mode, the LiteLLM minting credential stays in Ploeg; De Vloer receives only the per-execution inference capability. A worker receives only its session's inference key, explicitly provisioned repository access and the environment names or Kubernetes Secrets an administrator listed for it. Placement is chosen per session from the backends a deployment enables ([ADR 0009](adrs/0009-workspace-placement-is-a-session-choice.md)). Without a `runtime.backend` setting the default is `local`; when `runtime.backends` lists several, the first listed is the default ([`src/config.ts`](../src/config.ts)). The `docker` backend runs the clone and the harness in a hardened container from the pinned agent image on the workbench host; choose it explicitly to keep workspaces away from the server's files. The `local` backend shares the control server’s OS user and permits access to server files through approved shell commands; use it only for trusted single-user development. Kubernetes is the intended isolated team backend for a workbench deployed in the cluster, with network policy enforcement dependent on the target cluster. Remote HTTP adapters are integrations with trusted, authenticated endpoints. A read-only role instruction is not a filesystem or credential boundary; review actual adapter and workspace enforcement before giving it production push access.
 
 `budgetUsd` is authorized spend. `spentUsd` is the standalone accounting total, accompanied by `costStatus`. Shared executions expose provisional Ploeg readings through `observedUsd` and retain pending or unknown status until independent accounting is resolved. Demo work has no model calls. Pending or unavailable live metering must remain visible, and an administrator must explicitly authorize an increase. Gateway budgets, TTL and revocation reduce exposure; they are not proof of an exact monetary ceiling for in-flight requests.
 
