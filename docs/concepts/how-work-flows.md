@@ -70,12 +70,28 @@ Not every unit of work is code. Deciding what to build, splitting a large Work I
 | Source of new work | State |
 | --- | --- |
 | You, through the tracker or Vloer | Implemented |
-| A Run that splits a Work Item, makes it Ready or records work it discovered | Intended. Ploeg has the `follow_up_created` Outcome and the `follow_up` origin, but no Run creates Work Items yet |
+| A Run that splits a Work Item, makes it Ready or records work it discovered | Implemented, proposed in [Ploeg ADR-0031](../../apps/ploeg/docs/adrs/0031-runs-create-work-items-held-for-approval-within-limits.md). Created Work Items stay in Ploeg and wait for your approval |
 | A failed check on a Ploeg pull request | Implemented, off by default. With `repairFailedChecks`, Ploeg queues a repair Follow-Up for the Team that owns the branch |
 | A person's review requesting changes on a Ploeg pull request | Implemented, off by default. With `reworkOnChangesRequested`, the review goes back to the same Work Item: it creates no new Work Item |
 | Other forge events, such as a merge conflict or a review comment | Recorded only |
 
-A Work Item created by work is a **Follow-Up**. It names its source, and it states whether it is Ready. Work that is not Ready can be given to agents whose job is to make it Ready.
+A Work Item created by work is a **Follow-Up**. It names its source. One that a Run creates names the source Work Item and Run, and states whether it is Ready. A Run returns the Work Items it wants in `createdWorkItems` on its outcome. A Role marked `planner` in a team's plan is told to do only that: split or clarify the Work Item instead of writing code.
+
+Ploeg stores each created Work Item with the state **proposed**, where no agent can claim it. You approve it, which queues it, or reject it with a reason, through `POST /api/v1/operator/work-items/{id}/approve` or `/reject`. It is never written to the tracker. A team can set `createdWork.autoDispatch: true` to skip the approval step.
+
+Work that is not Ready goes to the team's refinement team or planner Role, if one is configured. Otherwise it waits as proposed, even with `autoDispatch`.
+
+Every team has limits on created work. Ploeg rejects each entry over a limit and records the reason in the audit log. Nothing is dropped without a record.
+
+| Limit | Default |
+| --- | --- |
+| Work Items one Run may create (`maxCreatedPerRun`) | 5 |
+| Depth below a Work Item from the tracker or Vloer (`maxDepth`) | 2 |
+| Open created Work Items from one team's Runs (`maxOpen`) | 20 |
+| Shift budget each created Work Item gets (`itemBudgetUsd`) | $2.00 |
+| Budget all created Work Items under one original Work Item may share (`poolUsd`) | $10.00 |
+
+Two questions are still open for the owner: whether created Work Items should also be written to the tracker, and whether a person must approve them before dispatch. Until they are answered, the defaults above are the cautious answer to both.
 
 ### Forge events that act
 

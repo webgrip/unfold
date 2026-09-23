@@ -297,6 +297,7 @@ name becomes the workload suffix (ploeg-worker-<team>-<role>); writes marks the 
 | --- | --- | --- |
 | `name` | string |  |
 | `writes` | boolean |  |
+| `planner` | boolean | ADR-0031: the Role splits or clarifies its Work Item and returns createdWorkItems instead of code. A planner never writes. |
 | `cap` | string |  |
 | `model` | string |  |
 | `maxReplicaCount` | integer |  |

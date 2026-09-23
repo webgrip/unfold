@@ -6,7 +6,13 @@
 // See docs/design.md §5.
 package harness
 
-import "github.com/webgrip/ploeg/pkg/work"
+import (
+	"fmt"
+	"strings"
+	"unicode/utf8"
+
+	"github.com/webgrip/ploeg/pkg/work"
+)
 
 // TaskSpec is the harness contract input: everything a run needs to know
 // about the work, the repo, and its identity.
@@ -75,6 +81,52 @@ type OutcomeReport struct {
 	// influences what runs next, and it can do exactly one thing: re-open the
 	// plan's own writing Round. Ignored from a writing Role.
 	Verdict string `json:"verdict,omitempty"`
+	// CreatedWorkItems are Work Items this Run proposes (Product R12): a
+	// split, a clarification that makes work Ready, or work it discovered.
+	// Ploeg stores each within the Team's created-work limits and records a
+	// reason for every entry it rejects. The agent never dispatches them.
+	CreatedWorkItems []CreatedWorkItem `json:"createdWorkItems,omitempty"`
+}
+
+// CreatedWorkItem is one Work Item a Run proposes. Team is a request, not a
+// routing decision: Ploeg accepts only a Team it knows.
+type CreatedWorkItem struct {
+	Title       string           `json:"title"`
+	Description string           `json:"description"`
+	Ready       bool             `json:"ready"`
+	Team        string           `json:"team,omitempty"`
+	Kind        work.CreatedKind `json:"kind"`
+}
+
+// Bounds on a CreatedWorkItem, mirrored by outcomereport.v1.schema.json.
+const (
+	MaxCreatedWorkItems      = 50
+	MaxCreatedTitleLen       = 200
+	MaxCreatedDescriptionLen = 16384
+	MaxCreatedTeamLen        = 128
+)
+
+// ValidateCreatedWorkItems checks the entries' shape against the contract.
+// It does not apply a Team's limits: ploegd does that when it stores them.
+func ValidateCreatedWorkItems(items []CreatedWorkItem) error {
+	if len(items) > MaxCreatedWorkItems {
+		return fmt.Errorf("createdWorkItems has %d entries; at most %d are accepted", len(items), MaxCreatedWorkItems)
+	}
+	for i, it := range items {
+		if strings.TrimSpace(it.Title) == "" || utf8.RuneCountInString(it.Title) > MaxCreatedTitleLen {
+			return fmt.Errorf("createdWorkItems[%d]: title must be 1 to %d characters", i, MaxCreatedTitleLen)
+		}
+		if utf8.RuneCountInString(it.Description) > MaxCreatedDescriptionLen {
+			return fmt.Errorf("createdWorkItems[%d]: description exceeds %d characters", i, MaxCreatedDescriptionLen)
+		}
+		if !it.Kind.Valid() {
+			return fmt.Errorf("createdWorkItems[%d]: kind must be split, clarify or discovered", i)
+		}
+		if utf8.RuneCountInString(it.Team) > MaxCreatedTeamLen {
+			return fmt.Errorf("createdWorkItems[%d]: team exceeds %d characters", i, MaxCreatedTeamLen)
+		}
+	}
+	return nil
 }
 
 // The closed set of verdicts. A reading Run may return one; anything else is

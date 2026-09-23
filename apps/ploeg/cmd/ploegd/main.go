@@ -303,6 +303,10 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("operator configuration: %w", err)
 	}
+	createdWork, err := cfg.CreatedWorkPolicies()
+	if err != nil {
+		return fmt.Errorf("created work: %w", err)
+	}
 	srv := &httpapi.Server{
 		OperatorConfig: operator,
 		WorkerSecurity: workerSecurity,
@@ -317,6 +321,7 @@ func run(log *slog.Logger) error {
 		TeamCaps:       runCaps,
 		Forges:         forges,
 		ForgeCreds:     forgeCreds,
+		CreatedWork:    createdWork,
 
 		MetricsCacheTTL: durationOr("PLOEG_METRICS_CACHE_TTL", httpapi.DefaultMetricsCacheTTL),
 		FollowUps:       cfg.ForgeFollowUps(),

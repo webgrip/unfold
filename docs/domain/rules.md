@@ -113,7 +113,7 @@ Intended behavior — in projects with automatic repair enabled, failed CI creat
 
 ### R12
 
-Work can create work. A Run may produce new Work Items: it can split a Work Item into smaller ones, make unready work Ready, or record work it discovered. Each new Work Item names its source and is Ready or explicitly not. Partly implemented — a failed check on a Ploeg pull request creates a repair Follow-Up for a Team that opted in; no Run creates Work Items yet, although Ploeg records the follow_up_created Outcome.
+Work can create work. A Run may produce new Work Items: it can split a Work Item into smaller ones, make unready work Ready, or record work it discovered. Each new Work Item names its source and is Ready or explicitly not. Implemented for Runs (Ploeg ADR-0031, proposed): created Work Items stay in Ploeg, wait as proposed until a person approves them unless the Team sets autoDispatch, and are bounded per Team by count, depth, open items and a budget pool. A failed check on a Ploeg pull request also creates a repair Follow-Up for a Team that opted in.
 
 **Why:** Refining and dividing work is itself work; agents should do it under the same authority, budget and review as code.
 

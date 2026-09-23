@@ -191,6 +191,10 @@ func (e *Engine) notifyTracker(ctx context.Context, si store.ShiftInfo, settled 
 		e.Log.Error("tracker write-back skipped: work item read failed", "shift", si.ID, "err", err)
 		return
 	}
+	if item.Provider == work.ProviderPloeg {
+		e.Log.Info("tracker write-back skipped: the work item exists only in Ploeg", "shift", si.ID)
+		return
+	}
 	tp, ok := e.Trackers[item.Provider]
 	if !ok {
 		e.Log.Warn("tracker write-back skipped: no provider", "provider", item.Provider, "shift", si.ID)

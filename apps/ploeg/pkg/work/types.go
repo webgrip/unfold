@@ -9,7 +9,10 @@ import "time"
 type State string
 
 const (
-	StateIngested       State = "ingested"
+	StateIngested State = "ingested"
+	// StateProposed holds a Work Item a Run created until a person approves
+	// or rejects it. It is never claimable.
+	StateProposed       State = "proposed"
 	StateQueued         State = "queued"
 	StateLeased         State = "leased"
 	StateNeedsHuman     State = "needs_human"
@@ -23,13 +26,32 @@ const (
 )
 
 // Origin records whether a WorkItem came from the tracker (assignment) or
-// from a forge event routed back as a follow-up (R9).
+// from other work as a follow-up: a forge event (R9) or a Run that created it
+// (Product R12).
 type Origin string
 
 const (
 	OriginAssignment Origin = "assignment"
 	OriginFollowUp   Origin = "follow_up"
 )
+
+// ProviderPloeg is the provider of a Work Item that exists only in Ploeg,
+// such as one a Run created. No tracker holds it, so nothing is written back.
+const ProviderPloeg = "ploeg"
+
+// CreatedKind says why a Run created a Work Item (Product R12).
+type CreatedKind string
+
+const (
+	CreatedSplit      CreatedKind = "split"
+	CreatedClarify    CreatedKind = "clarify"
+	CreatedDiscovered CreatedKind = "discovered"
+)
+
+// Valid reports whether k is a known created-work kind.
+func (k CreatedKind) Valid() bool {
+	return k == CreatedSplit || k == CreatedClarify || k == CreatedDiscovered
+}
 
 // Outcome is the terminal report of a run. Stuck carries a mandatory
 // reason and routes to a human queue.

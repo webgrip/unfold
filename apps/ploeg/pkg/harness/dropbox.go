@@ -58,7 +58,8 @@ func ReadDropBox(path string) (OutcomeReport, error) {
 //
 // The split is deliberate and is the whole of the precedence rule:
 //
-//   - Findings and Verdict are the agent's to report and ALWAYS survive. A
+//   - Findings, Verdict and CreatedWorkItems are the agent's to report and
+//     ALWAYS survive. ploegd applies the Team's limits to created work. A
 //     run that produced a review and then failed its shutdown handshake still
 //     did the review, and dropping it loses work that was actually done.
 //   - Outcome and Summary fill in only where the adapter concluded nothing.
@@ -75,6 +76,9 @@ func MergeDropBox(base, box OutcomeReport) OutcomeReport {
 	}
 	if box.Verdict != "" {
 		base.Verdict = box.Verdict
+	}
+	if len(box.CreatedWorkItems) > 0 {
+		base.CreatedWorkItems = box.CreatedWorkItems
 	}
 	if base.Outcome == "" && box.Outcome != "" {
 		base.Outcome = box.Outcome

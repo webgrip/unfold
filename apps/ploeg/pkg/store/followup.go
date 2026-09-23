@@ -30,7 +30,7 @@ func (s *Store) FindBranchOwner(ctx context.Context, repo, branch string) (Branc
 	err := s.pool.QueryRow(ctx, `
 		SELECT w.id, w.team, w.state FROM work_items w
 		WHERE w.id = (
-			SELECT COALESCE(i.source_work_item_id, i.id)
+			SELECT CASE WHEN i.source_run_id IS NULL THEN COALESCE(i.source_work_item_id, i.id) ELSE i.id END
 			FROM shifts sh JOIN work_items i ON i.id = sh.work_item_id
 			WHERE sh.branch = $1 AND i.target_owner <> ''
 			  AND i.target_owner || '/' || i.target_repo = $2
@@ -114,7 +114,7 @@ func (s *Store) CreateRepairFollowUp(ctx context.Context, req RepairRequest) (in
 			EXISTS (SELECT 1 FROM work_items WHERE source_work_item_id = $1 AND source_branch = $2
 				AND state IN ('ingested', 'queued', 'leased')),
 			(SELECT count(*) FROM work_items WHERE source_work_item_id = $1 AND source_branch = $2),
-			(SELECT count(*) FROM work_items WHERE source_work_item_id = $1)`,
+			(SELECT count(*) FROM work_items WHERE source_work_item_id = $1 AND source_run_id IS NULL)`,
 		req.SourceWorkItemID, req.Branch).Scan(&liveShift, &open, &forPR, &forSource); err != nil {
 		return 0, work.WorkItem{}, "", err
 	}

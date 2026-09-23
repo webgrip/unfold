@@ -19,6 +19,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/webgrip/ploeg/pkg/followup"
+	"github.com/webgrip/ploeg/pkg/harness"
 	"github.com/webgrip/ploeg/pkg/work"
 )
 
@@ -388,6 +390,9 @@ type OutcomeResult struct {
 	// minted (ADR-0013 tier 2). Empty for readers and for deployments
 	// without a forge admin credential.
 	ForgeTokenID string
+	// Created lists the Work Items this report created, in proposal order.
+	// Rejected proposals are absent here and recorded in the audit log.
+	Created []CreatedWorkItem
 }
 
 // ReportOutcome ends the run: records the outcome and findings, releases the
@@ -425,7 +430,7 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 	// exactly one transaction wins. The Run's state transition can: only one
 	// caller moves a row out of 'running', and a swept or replayed token finds
 	// nothing to move.
-	var id int64
+	var id, runID int64
 	var team string
 	var shiftID *int64
 	if err := tx.QueryRow(ctx, `
@@ -434,9 +439,9 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 		    stuck_reason = $3, links = $4, usage = $5, failure_reason = $6, findings = $7,
 		    verdict = CASE WHEN writes THEN '' ELSE $8 END, outcome_digest = $10
 		WHERE run_token = $9 AND state = 'running'
-		RETURNING work_item_id, team, shift_id`,
+		RETURNING id, work_item_id, team, shift_id`,
 		string(rep.Outcome), rep.Summary, rep.StuckReason, rep.Links, rep.Usage,
-		rep.FailureReason, rep.Findings, rep.Verdict, runToken, digest).Scan(&id, &team, &shiftID); err != nil {
+		rep.FailureReason, rep.Findings, rep.Verdict, runToken, digest).Scan(&runID, &id, &team, &shiftID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			if err := tx.QueryRow(ctx, `SELECT work_item_id,shift_id FROM agent_runs
 				WHERE run_token=$1 AND state='finished' AND outcome_digest=$2
@@ -487,7 +492,11 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 		map[string]any{"summary": rep.Summary, "stuck_reason": rep.StuckReason, "links": rep.Links}); err != nil {
 		return OutcomeResult{}, err
 	}
-	return OutcomeResult{WorkItemID: id, ShiftID: shiftID, ForgeTokenID: forgeTokenID}, tx.Commit(ctx)
+	created, err := createWorkItems(ctx, tx, runID, id, team, rep)
+	if err != nil {
+		return OutcomeResult{}, err
+	}
+	return OutcomeResult{WorkItemID: id, ShiftID: shiftID, ForgeTokenID: forgeTokenID, Created: created}, tx.Commit(ctx)
 }
 
 // harnessReport mirrors harness.OutcomeReport without importing the package
@@ -501,9 +510,22 @@ type harnessReport struct {
 	StuckReason   string
 	Links         []string
 	Usage         json.RawMessage
-	FailureReason *string // nil = unclassified; set for failed outcomes (infra_llm, lease_lost, etc.)
-	Findings      string  // a reading Run's blackboard contribution (ADR-0011); empty for most writers
-	Verdict       string  // a reading Run's approve/request_changes (ADR-0017); empty = no opinion
+	FailureReason *string                   // nil = unclassified; set for failed outcomes (infra_llm, lease_lost, etc.)
+	Findings      string                    // a reading Run's blackboard contribution (ADR-0011); empty for most writers
+	Verdict       string                    // a reading Run's approve/request_changes (ADR-0017); empty = no opinion
+	Created       []harness.CreatedWorkItem `json:",omitempty"`
+	policyFor     func(team string) followup.Policy
+	knownTeam     func(string) bool
+}
+
+// WithCreatedWork attaches the Work Items a Run proposes (ADR-0031).
+// policyFor returns the source Team's limits; nil means followup.Default.
+// knownTeam reports whether a requested Team exists.
+func (r harnessReport) WithCreatedWork(items []harness.CreatedWorkItem, policyFor func(team string) followup.Policy, knownTeam func(string) bool) harnessReport {
+	r.Created = items
+	r.policyFor = policyFor
+	r.knownTeam = knownTeam
+	return r
 }
 
 // Report is the store-level outcome input. usage and failureReason may be nil.

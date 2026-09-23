@@ -151,6 +151,7 @@
         "state": {
           "enum": [
             "ingested",
+            "proposed",
             "queued",
             "leased",
             "needs_human",

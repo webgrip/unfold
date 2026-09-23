@@ -257,11 +257,15 @@ terms:
       A Work Item created by other work rather than by a person: from a Forge
       Event (review submitted, check failed, merge-state dirty), or from a Run
       that splits work or records work it discovered (Product R12). It references its
-      source PR and Work Item, carries that Work Item's Work Target, is routed
-      to the Team owning the source branch, and enters the lifecycle directly
-      at queued. Today only a failed check creates one, and only for a Team
-      that enabled forgeFollowUps.repairFailedChecks: one open repair per pull
-      request, capped per pull request. No Run creates one yet.
+      source Work Item and carries that Work Item's Work Target. From a Forge
+      Event it also references the source PR, is routed to the Team owning the
+      source branch, and enters the lifecycle directly at queued; today only a
+      failed check creates one, and only for a Team that enabled
+      forgeFollowUps.repairFailedChecks: one open repair per pull request,
+      capped per pull request. From a Run it also references the source Run,
+      says whether it is Ready, exists only in Ploeg, sits one level deeper
+      than its source, is bounded by its Team's created-work limits, and enters
+      the lifecycle at proposed unless the Team sets autoDispatch (ADR-0031).
     context: Dispatch
     see_also: [Work Item, Forge Event, Team, Work Target]
 
@@ -514,8 +518,8 @@ entities:
         type: string
         description: Id of the Routing Rule that decided team and target; recorded for audit.
       - name: state
-        type: "enum(ingested, queued, leased, needs_human, awaiting_review, stale, done, withdrawn)"
-        description: Dispatch lifecycle position. awaiting_review means Ploeg's work succeeded and its pull request is ready for human review. withdrawn means a person took the mandate back by unassigning the Tracker Item or cancelling it through the operator API.
+        type: "enum(ingested, proposed, queued, leased, needs_human, awaiting_review, stale, done, withdrawn)"
+        description: Dispatch lifecycle position. proposed means a Run created the item and it waits for a person to approve or reject it; no Team can claim it. awaiting_review means Ploeg's work succeeded and its pull request is ready for human review. withdrawn means a person took the mandate back by unassigning the Tracker Item or cancelling it through the operator API.
         required: true
       - name: origin
         type: "enum(assignment, follow_up, operator)"
@@ -531,6 +535,18 @@ entities:
       - from: "[start]"
         to: queued
         trigger: Follow-Up created from a Forge Event, routed to the owning Team
+      - from: "[start]"
+        to: proposed
+        trigger: A Run created the item within its Team's created-work limits (ADR-0031)
+      - from: "[start]"
+        to: queued
+        trigger: A Run created the item and its Team sets autoDispatch; not-Ready work only with a refinement target
+      - from: proposed
+        to: queued
+        trigger: A person approves it through the operator API
+      - from: proposed
+        to: done
+        trigger: A person rejects it with a reason; its allotted budget is released
       - from: ingested
         to: queued
         trigger: Assignment matches a Routing Rule, resolving a Team and a Work Target
