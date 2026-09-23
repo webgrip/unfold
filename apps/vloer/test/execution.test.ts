@@ -386,7 +386,7 @@ function standaloneBroker() {
   const minted: string[] = [];
   const broker = {
     mint: async (session: Session): Promise<Credential> => { minted.push(session.id); return { key: randomBytes(32).toString('hex'), alias: 'standalone-fixture', reference: `standalone-${session.id}`, budgetUsd: session.budgetUsd }; },
-    spend: async () => 0, revoke: async () => {}, extend: async () => {},
+    spend: async () => 0, revoke: async () => {},
   };
   return { broker, minted };
 }

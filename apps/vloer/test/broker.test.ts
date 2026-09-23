@@ -64,8 +64,6 @@ test('revocation blocks credentials while retaining their accounting across brok
   assert.equal(await restarted.spend(credential.reference), 0.5);
   assert.deepEqual(await restarted.aliasesForSession(session.id), [credential.reference]);
   assert.equal(requests.some(item => item.path === '/key/delete'), false);
-  await restarted.extend(credential.reference, 8);
-  assert.equal(key.max_budget, 8);
 });
 
 test('post-revocation accounting grace and missing spend remain unknown instead of zero', async t => {

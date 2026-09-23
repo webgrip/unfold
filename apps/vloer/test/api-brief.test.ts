@@ -21,7 +21,7 @@ function runtime(verdicts: Array<'approve' | 'inconclusive' | undefined> = [], t
   } as unknown as AgentRuntime;
 }
 
-const broker = { mint: async (session: Session) => ({ key: 'sk-session-fixture-key', alias: 'a', reference: `de-vloer-${session.id}-x`, budgetUsd: session.budgetUsd }), revoke: async () => {}, spend: async () => 0, extend: async () => {} };
+const broker = { mint: async (session: Session) => ({ key: 'sk-session-fixture-key', alias: 'a', reference: `de-vloer-${session.id}-x`, budgetUsd: session.budgetUsd }), revoke: async () => {}, spend: async () => 0 };
 
 test('a brief of a few words is refused before any budget is authorized', async t => {
   const server = await application('live', config => { config.runtime = { kind: 'opencode', backend: 'local', timeoutMs: 30_000 }; }, new Map<RuntimeKind, AgentRuntime>([['opencode', runtime()]]));
