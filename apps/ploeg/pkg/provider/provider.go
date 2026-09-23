@@ -65,6 +65,19 @@ const (
 	ForgeReviewSubmitted ForgeEventKind = "review_submitted"
 	ForgeCheckFailed     ForgeEventKind = "check_failed"
 	ForgeMergeStateDirty ForgeEventKind = "merge_state_dirty"
+	// ForgePRMerged reports that a pull request was merged.
+	ForgePRMerged ForgeEventKind = "pr_merged"
+	// ForgePRClosed reports that a pull request was closed without merging.
+	ForgePRClosed ForgeEventKind = "pr_closed"
+)
+
+// PullRequestState is a forge's answer to "what happened to this pull request".
+type PullRequestState string
+
+const (
+	PullRequestOpen   PullRequestState = "open"
+	PullRequestMerged PullRequestState = "merged"
+	PullRequestClosed PullRequestState = "closed"
 )
 
 // ForgeEvent is the normalized result of parsing a forge webhook.
@@ -81,4 +94,8 @@ type ForgeProvider interface {
 	Name() string
 	ParseWebhook(r *http.Request) ([]ForgeEvent, error)
 	Comment(ctx context.Context, repo string, pr int, body string) error
+	// PullRequestState reads whether a pull request is open, merged, or closed
+	// without merging. repo is the forge's project path; pr is the number a
+	// human sees in the forge's UI.
+	PullRequestState(ctx context.Context, repo string, pr int) (PullRequestState, error)
 }

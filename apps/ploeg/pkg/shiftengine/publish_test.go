@@ -23,7 +23,22 @@ type fakeForge struct {
 		PR   int
 		Body string
 	}
-	err error
+	err      error
+	prStates map[int]provider.PullRequestState
+	reads    []int
+}
+
+func (f *fakeForge) PullRequestState(_ context.Context, _ string, pr int) (provider.PullRequestState, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.reads = append(f.reads, pr)
+	if f.err != nil {
+		return "", f.err
+	}
+	if s, ok := f.prStates[pr]; ok {
+		return s, nil
+	}
+	return provider.PullRequestOpen, nil
 }
 
 func (f *fakeForge) Name() string                                              { return "webgrip" }

@@ -225,3 +225,88 @@ func TestParseWebhook_EmitsOnlySPITypes(t *testing.T) {
 		t.Errorf("repo not normalized: %+v", events[0])
 	}
 }
+
+func TestParseWebhook_ClosedPullRequest(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		merged    bool
+		mergeable bool
+		want      provider.ForgeEventKind
+	}{
+		{"merged", true, false, provider.ForgePRMerged},
+		{"closed without merging", false, true, provider.ForgePRClosed},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			events, err := post(t, &Provider{Secret: "shh"}, "pull_request", map[string]any{
+				"action":     "closed",
+				"number":     12,
+				"repository": map[string]any{"full_name": "webgrip/ploeg"},
+				"pull_request": map[string]any{
+					"number": 12, "merged": tc.merged, "mergeable": tc.mergeable,
+					"head": map[string]any{"ref": "agent/vik-585"},
+				},
+			})
+			if err != nil {
+				t.Fatalf("ParseWebhook: %v", err)
+			}
+			if len(events) != 1 || events[0].Kind != tc.want || events[0].PR != 12 ||
+				events[0].Repo != "webgrip/ploeg" || events[0].Branch != "agent/vik-585" {
+				t.Fatalf("events = %+v, want one %s", events, tc.want)
+			}
+		})
+	}
+}
+
+func TestParseWebhook_ClosedIssueIsDropped(t *testing.T) {
+	events, err := post(t, &Provider{}, "issues", map[string]any{
+		"action":     "closed",
+		"repository": map[string]any{"full_name": "webgrip/ploeg"},
+		"issue":      map[string]any{"number": 4},
+	})
+	if err != nil || len(events) != 0 {
+		t.Fatalf("closed issue produced %+v, %v", events, err)
+	}
+}
+
+func TestPullRequestState(t *testing.T) {
+	for _, tc := range []struct {
+		body string
+		want provider.PullRequestState
+	}{
+		{`{"state":"open","merged":false}`, provider.PullRequestOpen},
+		{`{"state":"closed","merged":true}`, provider.PullRequestMerged},
+		{`{"state":"closed","merged":false}`, provider.PullRequestClosed},
+	} {
+		var gotPath, gotAuth string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotPath, gotAuth = r.URL.Path, r.Header.Get("Authorization")
+			_, _ = w.Write([]byte(tc.body))
+		}))
+		got, err := (&Provider{BaseURL: srv.URL, Token: "s3cret"}).PullRequestState(context.Background(), "webgrip/ploeg", 7)
+		srv.Close()
+		if err != nil {
+			t.Fatalf("PullRequestState(%s): %v", tc.body, err)
+		}
+		if got != tc.want {
+			t.Errorf("PullRequestState(%s) = %q, want %q", tc.body, got, tc.want)
+		}
+		if gotPath != "/api/v1/repos/webgrip/ploeg/pulls/7" || gotAuth != "token s3cret" {
+			t.Errorf("request = %q with auth %q", gotPath, gotAuth)
+		}
+	}
+}
+
+func TestPullRequestState_SurfacesTheFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+	p := &Provider{BaseURL: srv.URL, Token: "s3cret"}
+	_, err := p.PullRequestState(context.Background(), "webgrip/ploeg", 7)
+	if err == nil || !strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "s3cret") {
+		t.Fatalf("err = %v", err)
+	}
+	if _, err := p.PullRequestState(context.Background(), "ploeg", 7); err == nil {
+		t.Error("a repo without an owner was accepted")
+	}
+}

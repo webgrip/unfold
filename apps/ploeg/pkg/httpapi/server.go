@@ -48,6 +48,9 @@ type Server struct {
 	// Forges hosts the forge webhook route. Nil or missing = the endpoint
 	// answers 404 for that provider; nothing else in ploegd depends on it.
 	Forges map[string]provider.ForgeProvider
+	// Reviews settles awaiting_review Work Items from merged and closed pull
+	// request events. Nil = those events are recorded only.
+	Reviews ReviewSettler
 	// ForgeCreds mints the per-run push credential a writing Run gets
 	// (ADR-0013 tier 2). Nil = the worker keeps its env credential, which is
 	// the pre-tier-2 behaviour.
@@ -59,6 +62,11 @@ type Server struct {
 	// TrackerWebhooks is the latest Vikunja webhook coverage check, reported
 	// by /readyz. Nil = no check configured.
 	TrackerWebhooks *WebhookCoverage
+}
+
+// ReviewSettler is implemented by shiftengine.ReviewWatch.
+type ReviewSettler interface {
+	HandleForgeEvent(ctx context.Context, forge string, ev provider.ForgeEvent) error
 }
 
 // RoleCaps is the slice of the team-plan config the claim path needs.
@@ -154,14 +162,12 @@ func (s *Server) handleTrackerWebhook(w http.ResponseWriter, r *http.Request) {
 
 // handleForgeWebhook is the forge's way in: verify, dedup, audit, acknowledge.
 //
-// It acts on nothing yet, and that is the whole scope of this change. Routing
-// a submitted review into a re-mandate needs the branch-to-Work-Item lookup
-// backlog #107 owes it, and the two "keep going" paths — an agent's verdict
-// and a human's review — should be reconciled deliberately rather than by
-// whichever landed first (ADR-0017 names that as a re-evaluation trigger).
-// What lands here is the endpoint, verified and deduplicated, so the events
-// are recorded from the day the network path opens rather than from the day
-// somebody notices it was never wired.
+// A merged or closed pull request settles its awaiting_review Work Item.
+// Every other event is recorded only. Routing a submitted review into a
+// re-mandate needs the branch-to-Work-Item lookup backlog #107 owes it, and
+// the two "keep going" paths — an agent's verdict and a human's review —
+// should be reconciled deliberately rather than by whichever landed first
+// (ADR-0017 names that as a re-evaluation trigger).
 //
 // Everything expensive stays out of the handler: Forgejo's DELIVER_TIMEOUT is
 // 5 seconds and a slow endpoint becomes a disabled webhook (backlog #3).
@@ -212,6 +218,12 @@ func (s *Server) handleForgeWebhook(w http.ResponseWriter, r *http.Request) {
 		}
 		s.Log.Info("forge event recorded", "provider", name, "kind", ev.Kind,
 			"repo", ev.Repo, "pr", ev.PR, "branch", ev.Branch)
+		if s.Reviews != nil && (ev.Kind == provider.ForgePRMerged || ev.Kind == provider.ForgePRClosed) {
+			if err := s.Reviews.HandleForgeEvent(r.Context(), name, ev); err != nil {
+				s.Log.Error("pull request settle failed; reconcile will retry", "provider", name,
+					"repo", ev.Repo, "pr", ev.PR, "err", err)
+			}
+		}
 	}
 	w.WriteHeader(http.StatusAccepted)
 }

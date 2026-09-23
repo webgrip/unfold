@@ -102,6 +102,53 @@ func (p *Provider) Comment(ctx context.Context, repo string, pr int, body string
 	return nil
 }
 
+// PullRequestState reads a pull request's lifecycle from the pulls endpoint.
+// Forgejo reports a merged pull request as state "closed" with merged true.
+func (p *Provider) PullRequestState(ctx context.Context, repo string, pr int) (provider.PullRequestState, error) {
+	owner, name, ok := strings.Cut(repo, "/")
+	if !ok || owner == "" || name == "" {
+		return "", fmt.Errorf("forgejo: repo %q must be owner/name", repo)
+	}
+	if pr <= 0 {
+		return "", fmt.Errorf("forgejo: pull request number must be positive, got %d", pr)
+	}
+	url := fmt.Sprintf("%s/api/v1/repos/%s/%s/pulls/%d",
+		strings.TrimRight(p.BaseURL, "/"), owner, name, pr)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Accept", "application/json")
+	if p.Token != "" {
+		req.Header.Set("Authorization", "token "+p.Token)
+	}
+	resp, err := p.client().Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return "", fmt.Errorf("forgejo: read %s#%d: HTTP %d: %s", repo, pr, resp.StatusCode, bytes.TrimSpace(snippet))
+	}
+	var body struct {
+		State  string `json:"state"`
+		Merged bool   `json:"merged"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&body); err != nil {
+		return "", fmt.Errorf("forgejo: read %s#%d: %w", repo, pr, err)
+	}
+	switch {
+	case body.Merged:
+		return provider.PullRequestMerged, nil
+	case body.State == "closed":
+		return provider.PullRequestClosed, nil
+	case body.State == "open":
+		return provider.PullRequestOpen, nil
+	}
+	return "", fmt.Errorf("forgejo: read %s#%d: unknown state %q", repo, pr, body.State)
+}
+
 // hook is the tolerantly-parsed subset of a Forgejo webhook body. Fields
 // absent from a given event stay zero; the switch below decides what that
 // means rather than the decoder.
@@ -118,6 +165,7 @@ type hook struct {
 		} `json:"head"`
 		MergeableState string `json:"mergeable_state"`
 		Mergeable      *bool  `json:"mergeable"`
+		Merged         bool   `json:"merged"`
 	} `json:"pull_request"`
 	Review struct {
 		Type    string `json:"type"`
@@ -159,6 +207,18 @@ func (p *Provider) ParseWebhook(r *http.Request) ([]provider.ForgeEvent, error) 
 	branch := h.PullRequest.Head.Ref
 
 	switch {
+	// A pull request left the open state. It is checked first because a
+	// merged pull request also reports itself as no longer mergeable.
+	case h.Action == "closed" && h.PullRequest.Number > 0:
+		if repo == "" {
+			return nil, nil
+		}
+		kind := provider.ForgePRClosed
+		if h.PullRequest.Merged {
+			kind = provider.ForgePRMerged
+		}
+		return []provider.ForgeEvent{{Kind: kind, Repo: repo, PR: pr, Branch: branch}}, nil
+
 	// A submitted review. Forgejo sends type "pull_request_review_approved",
 	// "..._rejected" or "..._comment"; all three are feedback on the branch,
 	// and classifying WHICH is the follow-up's job, not the parser's.
