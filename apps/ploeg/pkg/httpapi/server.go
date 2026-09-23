@@ -106,8 +106,8 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleTrackerWebhook verifies + parses via the provider, then fast-acks:
-// assigned events queue work, everything else is (for now) dropped after
-// normalization.
+// assigned events queue work, unassigned events withdraw it, everything else
+// is dropped after normalization.
 func (s *Server) handleTrackerWebhook(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("provider")
 	tp, ok := s.Trackers[name]
@@ -122,6 +122,14 @@ func (s *Server) handleTrackerWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, ev := range events {
+		if ev.Kind == provider.TrackerUnassigned {
+			if err := s.trackerUnassigned(r.Context(), name, ev); err != nil {
+				s.Log.Error("withdrawal failed", "provider", name, "external_id", ev.ExternalID, "err", err)
+				http.Error(w, "withdrawal failed", http.StatusInternalServerError)
+				return
+			}
+			continue
+		}
 		if ev.Kind != provider.TrackerAssigned {
 			continue
 		}

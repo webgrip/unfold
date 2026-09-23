@@ -55,7 +55,7 @@ Ploeg's execution record for tracker, follow-up or operator work.
 | `team` | `string` |  | Team the item is queued for — the claiming crew, not the codebase; empty until assigned. |
 | `target` | `Work Target` |  | Forge coordinates the item's Runs act on; absent means unresolved (R11). |
 | `route_rule` | `string` |  | Id of the Routing Rule that decided team and target; recorded for audit. |
-| `state` | `enum(ingested, queued, leased, needs_human, awaiting_review, stale, done)` | yes | Dispatch lifecycle position. awaiting_review means Ploeg's work succeeded and its pull request is ready for human review. |
+| `state` | `enum(ingested, queued, leased, needs_human, awaiting_review, stale, done, withdrawn)` | yes | Dispatch lifecycle position. awaiting_review means Ploeg's work succeeded and its pull request is ready for human review. withdrawn means a person took the mandate back by unassigning the Tracker Item or cancelling it through the operator API. |
 | `origin` | `enum(assignment, follow_up, operator)` | yes | Whether the item came from a tracker, Forge Event or Operator Consumer. |
 | `priority` | `integer` |  | Rank mirrored from the tracker; drives Team Queue order. |
 
@@ -82,6 +82,9 @@ stateDiagram-v2
     needs_human --> queued : Human re-queues after resolving the blocker
     needs_human --> done : Human closes the item
     stale --> queued : Human or explicit policy re-queues
+    queued --> withdrawn : Tracker Item unassigned or cancelled by an operator; the live Shift closes
+    leased --> withdrawn : Tracker Item unassigned or cancelled by an operator; running Runs are stopped
+    withdrawn --> queued : Re-assignment in the tracker is a fresh mandate
 ```
 
 ## Work Target
