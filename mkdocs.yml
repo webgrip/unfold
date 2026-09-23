@@ -20,6 +20,7 @@ nav:
       - Assign work to an agent: how-to/assign-work-to-an-agent.md
       - Review an agent pull request: how-to/review-an-agent-pr.md
       - Prepare a repository: how-to/prepare-a-repository.md
+      - Run a pilot batch: how-to/run-a-pilot-batch.md
       - Operate Ploeg:
           - Overview: ploeg/index.md
           - Runbooks: ploeg/how-to/index.md

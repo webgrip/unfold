@@ -1,0 +1,8 @@
+{
+  "title": "Split a bill without losing cents",
+  "repo": "repo",
+  "task": "task.md",
+  "check": ["node", "--test", "test/split.test.js"],
+  "protected": ["test/split.test.js", "package.json"],
+  "timeoutSeconds": 60
+}

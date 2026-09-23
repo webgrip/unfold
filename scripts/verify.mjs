@@ -37,7 +37,7 @@ const groups = [
     gates: [
       gate('.', 'python3', ['scripts/verify-import.py']),
       gate('.', 'uv', ['run', '--frozen', 'python', '-m', 'unittest', 'discover', '-s', 'scripts', '-p', 'test_release*.py']),
-      gate('.', process.execPath, ['--test', 'scripts/fake-litellm.test.mjs']),
+      gate('.', process.execPath, ['--test', 'scripts/fake-litellm.test.mjs', 'scripts/eval/eval.test.mjs']),
     ],
   },
   { name: 'integration', gates: [gate('.', process.execPath, ['scripts/integration.mjs'], { env: { PLOEG_TEST_PG_PORT_OFFSET: String(portOffset + 1) } })] },

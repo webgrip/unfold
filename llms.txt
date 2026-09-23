@@ -22,6 +22,7 @@ Use Ploeg's terms: a Run is one Role executing against a Work Item, a Shift is t
 - [Assign work to an agent](docs/how-to/assign-work-to-an-agent.md)
 - [Review an agent pull request](docs/how-to/review-an-agent-pr.md)
 - [Prepare a repository](docs/how-to/prepare-a-repository.md)
+- [Run a pilot batch](docs/how-to/run-a-pilot-batch.md): record ten real Work Items; compare variants with the evaluation harness
 - [Run the local demo](docs/workflows/local-demo.md): deterministic, no model calls
 
 ## Optional

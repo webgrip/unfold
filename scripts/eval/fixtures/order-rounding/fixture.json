@@ -1,0 +1,8 @@
+{
+  "title": "Fix checkout rounding",
+  "repo": "../../../../apps/vloer/examples/order-service",
+  "task": "task.md",
+  "check": ["node", "--test", "test/order.test.js"],
+  "protected": ["test/order.test.js", "package.json"],
+  "timeoutSeconds": 60
+}
