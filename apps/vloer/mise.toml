@@ -3,18 +3,6 @@ uv = "0.12.12"
 node = "24.19.0"
 helm = "4.2.4"
 
-[tasks.demo]
-run = "npm run demo"
-description = "Run the local fixture demo without provider credentials"
-
-[tasks.verify]
-run = ["npm run typecheck", "npm test", "npm run check"]
-description = "Run the local hard gates after npm ci"
-
-[tasks.chart]
-run = ["helm lint ops/helm/de-vloer", "helm template de-vloer ops/helm/de-vloer"]
-description = "Lint and render deployment manifests without a cluster"
-
 [tasks.probe-opencode]
 tools = { "npm:opencode-ai" = { version = "1.18.30", npm_args = "--ignore-scripts=false" } }
 run = "node scripts/probe-opencode.mjs"
