@@ -1,4 +1,4 @@
-const stateNames = { needs_human: 'Needs your attention', awaiting_review: 'Awaiting review', leased: 'In execution', queued: 'Queued', done: 'Done', stale: 'Stale', ingested: 'Received' };
+const stateNames = { needs_human: 'Needs your attention', awaiting_review: 'Awaiting review', leased: 'In execution', queued: 'Queued', done: 'Done', stale: 'Stale', withdrawn: 'Withdrawn', ingested: 'Received' };
 export const ploegLanes = [['awaiting_review', 'Awaiting review', 'check'], ['needs_human', 'Needs human', 'info'], ['leased', 'Running', 'activity'], ['queued', 'Queue', 'layers'], ['all', 'All work', 'grid']];
 const laneNotes = { awaiting_review: 'Pull requests waiting on you', needs_human: 'Decisions and blocked work', leased: 'Ploeg holds an execution lease', queued: 'Waiting for dispatch' };
 const laneEmpty = { awaiting_review: 'No pull requests await your review', needs_human: 'No human decisions in this snapshot' };

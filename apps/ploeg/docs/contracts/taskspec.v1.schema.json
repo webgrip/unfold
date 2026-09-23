@@ -63,7 +63,7 @@
         "team": { "type": "string" },
         "state": {
           "type": "string",
-          "enum": ["ingested", "queued", "leased", "needs_human", "awaiting_review", "stale", "done"]
+          "enum": ["ingested", "queued", "leased", "needs_human", "awaiting_review", "stale", "done", "withdrawn"]
         },
         "origin": { "type": "string", "enum": ["assignment", "follow_up"] },
         "priority": { "type": "integer" },

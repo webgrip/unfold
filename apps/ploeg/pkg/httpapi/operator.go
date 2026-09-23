@@ -169,6 +169,7 @@ func (s *Server) operatorHandler() http.Handler {
 	mux.HandleFunc("GET /api/v1/operator/work-items", s.handleOperatorItems)
 	mux.HandleFunc("GET /api/v1/operator/work-items/lookup", s.handleOperatorSourceLookup)
 	mux.HandleFunc("GET /api/v1/operator/work-items/{id}", s.handleOperatorItem)
+	mux.HandleFunc("POST /api/v1/operator/work-items/{id}/cancel", s.handleOperatorCancel)
 	mux.HandleFunc("GET /api/v1/operator/runs/{id}", s.handleOperatorRun)
 	mux.HandleFunc("GET /api/v1/operator/events", s.handleOperatorEvents)
 	s.registerOperatorExecution(mux)
@@ -321,7 +322,7 @@ func operatorFilter(w http.ResponseWriter, r *http.Request, events bool) (store.
 	f.State = q.Get("state")
 	if f.State != "" {
 		switch f.State {
-		case "ingested", "queued", "leased", "needs_human", "awaiting_review", "stale", "done":
+		case "ingested", "queued", "leased", "needs_human", "awaiting_review", "stale", "done", "withdrawn":
 		default:
 			operatorError(w, 400, "invalid_request", "Unknown work-item state.")
 			return f, false

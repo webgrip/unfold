@@ -64,6 +64,21 @@ func TestParseWebhookAssigned(t *testing.T) {
 // it on task events (verified against the live instance: tasks.project_id, and
 // the smoke-test task 611 sits on project 11); encoding/json silently dropped
 // it before this field existed.
+func TestParseWebhookUnassigned(t *testing.T) {
+	p := &Provider{Secret: "s3cret", DefaultTeam: "default", TeamMap: map[string]string{"crew-alpha": "alpha"}}
+	body := []byte(strings.NewReplacer("task.assignee.created", "task.assignee.deleted", "copper", "Crew-Alpha").Replace(assignedWithProjectBody))
+	r := httptest.NewRequest("POST", "/webhooks/tracker/vikunja", bytes.NewReader(body))
+	r.Header.Set("X-Vikunja-Signature", sign("s3cret", body))
+	events, err := p.ParseWebhook(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 || events[0].Kind != provider.TrackerUnassigned || events[0].ExternalID != "611" ||
+		events[0].Team != "alpha" || events[0].Scope.ID != "11" {
+		t.Fatalf("unexpected unassignment: %+v", events)
+	}
+}
+
 const assignedWithProjectBody = `{
   "event_name": "task.assignee.created",
   "time": "2026-07-29T10:00:00Z",

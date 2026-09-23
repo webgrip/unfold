@@ -6,7 +6,7 @@ package work
 // threshold comes back round and telling the board "Ploeg finished" mid-retry
 // would be a lie.
 func Terminal(s State) bool {
-	return s == StateDone || s == StateNeedsHuman || s == StateAwaitingReview || s == StateStale
+	return s == StateDone || s == StateNeedsHuman || s == StateAwaitingReview || s == StateStale || s == StateWithdrawn
 }
 
 // StateForOutcome maps a terminal Outcome to the Work Item state it produces:

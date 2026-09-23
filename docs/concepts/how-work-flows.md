@@ -3,7 +3,7 @@ type: explanation
 audience: [owner, integrator, contributor, agent]
 owner: glide
 last_verified: 2026-09-23
-verified_by: "source read of apps/ploeg on feat/ploeg-merge-detection; go test ./... in apps/ploeg"
+verified_by: "source read of apps/ploeg on development, 2026-09-23; go test ./... in apps/ploeg"
 ---
 
 # How work flows
@@ -96,7 +96,7 @@ Vloer is the front end. It is where you watch Shifts, steer work, read evidence 
 
 * Your own tracker, forge, LiteLLM gateway and Kubernetes cluster are required. There is no hosted service.
 * Ploeg records the pull request but does not merge or publish anything. Candidate delivery stores approvals without a publisher.
-* Unassigning a tracker item does not cancel its Shift.
+* An operator-owned Work Item ignores unassignment in the tracker. Cancel its execution instead.
 * Runs cannot create Work Items yet; see below.
 * Forge webhooks act only on merged and closed pull requests. Other forge events are recorded but not acted on: failing CI does not yet create a repair Round, and a human review comment does not start another Round.
 * Merge detection needs a Work Item whose target repository resolved. An item that ran on the worker's fallback repository stays `awaiting_review` after its merge.
