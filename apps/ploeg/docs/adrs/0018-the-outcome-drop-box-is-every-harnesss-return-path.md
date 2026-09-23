@@ -102,7 +102,7 @@ truth for whether a pull request exists.
 Every adapter package (`openhands`, `claudecode`, `execbin`, `acp`) already
 calls `harnesstest.Run`, so the property runs for all four inside the
 `go test ./...` step of
-[.forgejo/workflows/on_pull_request.yml](../../.forgejo/workflows/on_pull_request.yml).
+[.forgejo/workflows/on_pull_request.yml](../../../../.forgejo/workflows/on_pull_request.yml).
 It writes findings and a verdict to `$PLOEG_OUTCOME_FILE` from a script that
 learns the path only from the environment — a fixture that never exports the
 variable fails rather than passing against a path the test happened to know.

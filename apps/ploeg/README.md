@@ -29,7 +29,7 @@ Delegated [candidate delivery](docs/contracts/operator-delivery.md) records veri
 
 ## Develop
 
-Run tooling through mise and follow the [repository instructions](AGENTS.md). The [CI workflow](.forgejo/workflows/on_pull_request.yml) defines Go build, vet and tests, Helm validation and golden renders, and brand/license checks. The [backlog](docs/backlog.md) records planning history; the tracker owns priority.
+Run tooling through mise and follow the [repository instructions](AGENTS.md). The [CI workflow](../../.forgejo/workflows/on_pull_request.yml) defines Go build, vet and tests, Helm validation and golden renders, and brand/license checks. The [backlog](docs/backlog.md) records planning history; the tracker owns priority.
 
 ## License
 

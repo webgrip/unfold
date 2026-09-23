@@ -43,7 +43,7 @@ mise exec -- helm lint ops/helm/ploeg
 mise exec -- ./scripts/helm-golden.sh check
 ```
 
-Use the Helm version pinned by [the CI workflow](../../.forgejo/workflows/on_pull_request.yml). [The render script](../../scripts/helm-golden.sh) checks default, executor, CronJob and GitLab cases. Inspect rendered worker containers for controller signing material, the full bootstrap registry, LiteLLM management credentials and operator credentials; none belongs there. Confirm workers still disable service-account token mounting. The rendered controller must receive the configured management Secret references.
+Use the Helm version pinned by [the CI workflow](../../../../.forgejo/workflows/on_pull_request.yml). [The render script](../../scripts/helm-golden.sh) checks default, executor, CronJob and GitLab cases. Inspect rendered worker containers for controller signing material, the full bootstrap registry, LiteLLM management credentials and operator credentials; none belongs there. Confirm workers still disable service-account token mounting. The rendered controller must receive the configured management Secret references.
 
 The automated tests use synthetic credentials and fake external services. The [accounting tests](../../pkg/store/llm_accounts_test.go) use PostgreSQL and exercise crash boundaries, concurrent mint intent, trusted reconciliation and late charge deltas. The [worker tests](../../pkg/worker/environment_test.go) execute a child process to inspect its effective environment; [Git tests](../../pkg/worker/git_test.go) inspect a real clone's configuration. They do not qualify a live gateway's block/cache propagation or final billing latency.
 
