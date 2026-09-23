@@ -65,8 +65,9 @@ test('demo executes failing baseline, real patch and passing independent checks 
   const created = engine.create(input(), owner);
   const started = await engine.start(created.id, owner);
   assert.equal(started.status, 'running');
-  await until(() => store.getSession(created.id)?.status === 'completed');
+  await until(() => ['completed', 'failed', 'cancelled', 'interrupted'].includes(store.getSession(created.id)?.status ?? ''), 30000);
   const final = store.getSession(created.id)!;
+  assert.equal(final.status, 'completed', final.failure?.message ?? final.blocker);
   assert.equal(final.spentUsd, 0);
   assert.equal(final.costStatus, 'demo');
   assert.deepEqual(final.runs.map(run => run.status), ['completed', 'completed']);
