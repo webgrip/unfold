@@ -48,7 +48,7 @@ revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=
 source_url = f'https://forgejo.webgrip.dev/webgrip/glide/src/commit/{revision}/'
 
 if args.check:
-    for test in ['docs-output.test.py', 'docs-live.test.py', 'docs-rules.test.py', 'docs-decisions.test.py', 'docs-adr.test.py', 'agents-files.test.py', 'stage-explicit-paths.test.py']:
+    for test in ['docs-output.test.py', 'docs-live.test.py', 'docs-rules.test.py', 'docs-decisions.test.py', 'docs-configuration.test.py', 'docs-adr.test.py', 'agents-files.test.py', 'stage-explicit-paths.test.py']:
         subprocess.run([sys.executable, str(root / 'scripts' / test)], check=True)
     for folder in domain_models:
         with tempfile.TemporaryDirectory(prefix='glide-domain-') as temporary:
@@ -61,6 +61,7 @@ if args.check:
     for ledger in ['docs/adr', 'apps/ploeg/docs/adrs', 'apps/vloer/docs/adrs']:
         subprocess.run([sys.executable, str(root / 'scripts/validate_adr_consistency.py'), str(root), '--adr-dir', ledger], check=True)
     subprocess.run([sys.executable, str(root / 'scripts/docs-decisions.py'), '--check'], check=True)
+    subprocess.run([sys.executable, str(root / 'scripts/docs-configuration.py'), '--check'], check=True)
     subprocess.run([sys.executable, str(root / 'scripts/agents-files.py')], check=True)
 
 if staging.exists():
