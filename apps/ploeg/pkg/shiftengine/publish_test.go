@@ -577,7 +577,10 @@ func TestTrackerMessage_PerTerminalState(t *testing.T) {
 		{"parked with nothing to show", work.StateNeedsHuman, "", "without opening a pull request", "opened a pull request.\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := trackerMessage(tc.settled, "plan_exhausted", tc.link, 1, 1)
+			got := trackerMessage(tc.settled, "plan_exhausted", tc.link, 1, 1, nil)
+			if strings.Contains(got, "Budget exhausted") {
+				t.Errorf("message claims budget exhaustion without a ledger:\n%s", got)
+			}
 			if !strings.Contains(got, tc.want) {
 				t.Errorf("message missing %q:\n%s", tc.want, got)
 			}

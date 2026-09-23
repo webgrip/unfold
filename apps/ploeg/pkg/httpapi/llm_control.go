@@ -170,8 +170,9 @@ func (c *LLMControl) Spend(ctx context.Context, runToken string) (float64, error
 // Settle reconciles a finished Run's account as the trusted controller-side
 // caller. An account with no durable sign of a mint settles at zero on that
 // evidence; a blocked account settles at the gateway's spend-log total for
-// its keys, read after the account has stayed unchanged. A broker that cannot
-// read durable spend never settles a minted account.
+// its keys, read after the account has stayed unchanged, and records the
+// tokens and models from the same entries as the Run's usage. A broker that
+// cannot read durable spend never settles a minted account.
 func (c *LLMControl) Settle(ctx context.Context, a store.UnsettledLLMAccount) error {
 	if !a.MintBegan {
 		return c.Store.ReconcileLLMAccount(ctx, a.RunToken, 0, "ploegd:mint-never-began account="+a.State+" alias="+a.Alias)
@@ -189,7 +190,8 @@ func (c *LLMControl) Settle(ctx context.Context, a store.UnsettledLLMAccount) er
 	}
 	evidence := fmt.Sprintf("litellm:spend-logs alias=%s keys=%d entries=%d usd=%s unchanged-since=%s read-at=%s",
 		a.Alias, spend.Keys, spend.Entries, strconv.FormatFloat(spend.USD, 'f', -1, 64), a.QuietSince.UTC().Format(time.RFC3339), time.Now().UTC().Format(time.RFC3339))
-	return c.Store.ReconcileLLMAccount(ctx, a.RunToken, spend.USD, evidence)
+	usage := store.SettledUsage{InputTokens: spend.InputTokens, OutputTokens: spend.OutputTokens, Models: spend.Models}
+	return c.Store.ReconcileLLMAccountWithUsage(ctx, a.RunToken, spend.USD, evidence, &usage)
 }
 
 func (s *Server) RegisterLLMControl(mux *http.ServeMux) {
