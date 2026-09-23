@@ -16,7 +16,8 @@ env:
   PLOEG_CLICKUP_TOKEN: Personal ClickUp token for reads and write-backs (chart `tracker.clickup.tokenSecret`).
   PLOEG_CLICKUP_URL: ClickUp API root (chart `tracker.clickup.url`). Empty means `https://api.clickup.com/api/v2`.
   PLOEG_CLICKUP_DONE_STATUS: List status applied when a Shift finishes (chart `tracker.clickup.doneStatus`). Empty leaves the board untouched.
-  PLOEG_FORGEJO_BOT: Forge user whose push tokens ploegd mints, and the identity agents act as (chart `executor.forgejo.botUser`).
+  PLOEG_FORGEJO_BOT: Forge user whose push tokens ploegd mints, and the identity agents act as (chart `executor.forgejo.botUser`). A review by this user never sends work back under `teams.<name>.forgeFollowUps`.
+  PLOEG_GITLAB_BOT: GitLab username Ploeg acts as. Like `PLOEG_FORGEJO_BOT`, a review event from it never sends work back under `teams.<name>.forgeFollowUps`. Unset adds no GitLab identity.
   PLOEG_FORGEJO_ADMIN_TOKEN:
     ploegd: Credential that mints a push token per writing Run and revokes it when the Run settles (ADR-0013 tier 2, chart `executor.forgejo.adminTokenSecret`). Unset means every Run uses the shared token.
     ploeg-worker: Controller-only. The worker refuses to start when it is set.

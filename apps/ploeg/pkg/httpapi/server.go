@@ -71,6 +71,12 @@ type Server struct {
 	MetricsCacheTTL time.Duration
 
 	metrics metricsCache
+	// FollowUps holds each Team's opt-in to acting on forge events. A Team
+	// that is missing acts on nothing; its forge events are only recorded.
+	FollowUps map[string]work.ForgeFollowUps
+	// ForgeBots are the forge logins Ploeg itself acts as. A review from one
+	// of them never sends work back to a Team.
+	ForgeBots []string
 }
 
 // ReviewSettler is implemented by shiftengine.ReviewWatch.
@@ -189,17 +195,6 @@ func (s *Server) handleTrackerWebhook(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
-// handleForgeWebhook is the forge's way in: verify, dedup, audit, acknowledge.
-//
-// A merged or closed pull request settles its awaiting_review Work Item.
-// Every other event is recorded only. Routing a submitted review into a
-// re-mandate needs the branch-to-Work-Item lookup backlog #107 owes it, and
-// the two "keep going" paths — an agent's verdict and a human's review —
-// should be reconciled deliberately rather than by whichever landed first
-// (ADR-0017 names that as a re-evaluation trigger).
-//
-// Everything expensive stays out of the handler: Forgejo's DELIVER_TIMEOUT is
-// 5 seconds and a slow endpoint becomes a disabled webhook (backlog #3).
 func (s *Server) handleForgeWebhook(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("provider")
 	fp, ok := s.Forges[name]
@@ -238,9 +233,6 @@ func (s *Server) handleForgeWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, ev := range events {
-		// Recorded, not acted on. The body is text written outside the
-		// factory, so it is audited as evidence and never fed anywhere that
-		// would treat it as an instruction (backlog #9).
 		if err := s.Store.AuditForgeEvent(r.Context(), name, string(ev.Kind), ev.Repo, ev.Branch, ev.PR); err != nil {
 			s.Log.Error("forge event audit failed", "provider", name, "kind", ev.Kind, "err", err)
 			continue
@@ -253,6 +245,7 @@ func (s *Server) handleForgeWebhook(w http.ResponseWriter, r *http.Request) {
 					"repo", ev.Repo, "pr", ev.PR, "err", err)
 			}
 		}
+		s.actOnForgeEvent(r.Context(), name, ev)
 	}
 	w.WriteHeader(http.StatusAccepted)
 }
@@ -447,6 +440,11 @@ func (s *Server) respondClaimedRun(w http.ResponseWriter, r *http.Request, req c
 				Role: rep.Role, Round: rep.Round, Findings: rep.Findings,
 			})
 		}
+	}
+	if notes, err := s.Store.ShiftReviews(r.Context(), run.ShiftID, run.Round); err != nil {
+		s.Log.Error("review briefing read failed; run proceeds without it", "shift", run.ShiftID, "err", err)
+	} else {
+		resp.Briefing = append(resp.Briefing, reviewBriefing(notes)...)
 	}
 	// Push rights are minted per writing Run, so holding the Lease and being
 	// able to push are one fact rather than two that can disagree. A reader

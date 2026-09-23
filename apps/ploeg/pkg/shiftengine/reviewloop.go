@@ -102,7 +102,7 @@ func (e *Engine) nextFixRound(ctx context.Context, si store.ShiftInfo, tp plan.T
 	// Bound 3 — the verdict, from the Round that just finished, and only from
 	// a READING Role. A writer approving its own work would be the loop
 	// grading itself.
-	if !requestsChanges(reports, si.Round) {
+	if !requestsChanges(reports, si.Round) && !e.reviewPending(ctx, si.WorkItemID) {
 		return plan.Round{}, reasonApproved, false
 	}
 
@@ -130,4 +130,13 @@ func requestsChanges(reports []store.RunReport, round int) bool {
 		}
 	}
 	return false
+}
+
+func (e *Engine) reviewPending(ctx context.Context, workItemID int64) bool {
+	n, err := e.Store.PendingReviews(ctx, workItemID)
+	if err != nil {
+		e.Log.Error("fix round: pending review read failed", "work_item", workItemID, "err", err)
+		return false
+	}
+	return n > 0
 }

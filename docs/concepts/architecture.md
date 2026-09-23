@@ -106,7 +106,7 @@ Every decision across the three ledgers is listed in the [decision register](../
 | --- | --- |
 | Two execution engines until Vloer delegates to `ploeg-worker` | Accepted in ADR-0002; migration not started |
 | Candidate delivery stores approvals, but nothing publishes | Delivery ends at the pull request |
-| Forge events other than a merged or closed pull request are recorded but not acted on | Failing CI does not create a repair Round |
+| Failed checks and requested changes act only for Teams that set `forgeFollowUps` | Off by default; other forge events are recorded only |
 | Releases have not moved to Glide yet | See [first cutover](../operations/first-cutover.md) |
 | Agent quality is unmeasured beyond single fixtures | A comparison on real Work Items is an open option. [Proposed KPIs](../reference/kpis.md) define what to measure |
 

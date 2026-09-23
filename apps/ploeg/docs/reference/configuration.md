@@ -45,11 +45,12 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_DEFAULT_TEAM` | ploegd | `default` | Team that receives work from an assignee no Team lists. | [main.go](../../cmd/ploegd/main.go), [operator.go](../../cmd/ploegd/operator.go) |
 | `PLOEG_FORGEJO_ADMIN_TOKEN` | ploeg-worker |  | Controller-only. The worker refuses to start when it is set. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_FORGEJO_ADMIN_TOKEN` | ploegd |  | Credential that mints a push token per writing Run and revokes it when the Run settles (ADR-0013 tier 2, chart `executor.forgejo.adminTokenSecret`). Unset means every Run uses the shared token. | [main.go](../../cmd/ploegd/main.go) |
-| `PLOEG_FORGEJO_BOT` | ploegd | `agent-builder` | Forge user whose push tokens ploegd mints, and the identity agents act as (chart `executor.forgejo.botUser`). | [main.go](../../cmd/ploegd/main.go) |
+| `PLOEG_FORGEJO_BOT` | ploegd | `agent-builder` | Forge user whose push tokens ploegd mints, and the identity agents act as (chart `executor.forgejo.botUser`). A review by this user never sends work back under `teams.<name>.forgeFollowUps`. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_FORGEJO_SECRET` | ploegd |  |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_FORGEJO_TOKEN` | ploegd |  |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_FORGEJO_URL` | ploegd |  |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_FORGE_TOKEN_ACCESS` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_GITLAB_BOT` | ploegd |  | GitLab username Ploeg acts as. Like `PLOEG_FORGEJO_BOT`, a review event from it never sends work back under `teams.<name>.forgeFollowUps`. Unset adds no GitLab identity. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_GITLAB_SECRET` | ploegd |  | Shared secret GitLab sends as `X-Gitlab-Token` to `POST /webhooks/forge/gitlab` (chart `executor.gitlab.webhookSecret`). Unset rejects forge webhooks. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_GITLAB_TOKEN` | ploegd |  | Token with `api` scope on the target projects, sent as `PRIVATE-TOKEN` (chart `executor.gitlab.tokenSecret`). | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_GITLAB_URL` | ploegd |  | GitLab base URL without `/api/v4` (chart `executor.gitlab.url`). Empty configures no GitLab provider, so findings never reach a merge request. | [main.go](../../cmd/ploegd/main.go) |

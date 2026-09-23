@@ -133,7 +133,16 @@ type WorkItem struct {
 	Target *Target `json:"target,omitempty"`
 	// RouteRule is the id of the routing rule that decided Team and Target,
 	// recorded so an audit can answer why this item went where it went.
-	RouteRule string    `json:"routeRule,omitempty"`
+	RouteRule string `json:"routeRule,omitempty"`
+	// SourceWorkItemID names the Work Item a Follow-Up was created from.
+	// Empty for work that did not come from other work.
+	SourceWorkItemID string `json:"sourceWorkItemId,omitempty"`
+	// SourceBranch is the branch of the pull request a Follow-Up repairs. A
+	// Follow-Up works on this branch instead of deriving its own.
+	SourceBranch string `json:"sourceBranch,omitempty"`
+	// SourcePR is the pull request number a Follow-Up refers to; zero when the
+	// forge event did not name one.
+	SourcePR  int       `json:"sourcePr,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }

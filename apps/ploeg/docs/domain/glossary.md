@@ -56,7 +56,7 @@ The component that performs admitted Runs and reports progress and outcomes. Cur
 ## Follow-Up
 *Context: Dispatch*
 
-A Work Item created by other work rather than by a person: from a Forge Event (review submitted, check failed, merge-state dirty), or from a Run that splits work or records work it discovered (Product R12). It references its source PR and Work Item, carries that Work Item's Work Target, is routed to the Team owning the source branch, and enters the lifecycle directly at queued. Current forge webhook ingestion records the event without automatically creating this Work Item.
+A Work Item created by other work rather than by a person: from a Forge Event (review submitted, check failed, merge-state dirty), or from a Run that splits work or records work it discovered (Product R12). It references its source PR and Work Item, carries that Work Item's Work Target, is routed to the Team owning the source branch, and enters the lifecycle directly at queued. Today only a failed check creates one, and only for a Team that enabled forgeFollowUps.repairFailedChecks: one open repair per pull request, capped per pull request. No Run creates one yet.
 
 **See also:** [Work Item](#work-item), [Forge Event](#forge-event), [Team](#team), [Work Target](#work-target)  
 

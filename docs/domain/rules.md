@@ -106,7 +106,7 @@ Intended behavior — in projects with automatic repair enabled, failed CI creat
 
 ### R12
 
-Work can create work. A Run may produce new Work Items: it can split a Work Item into smaller ones, make unready work Ready, or record work it discovered. Each new Work Item names its source and is Ready or explicitly not. Intended behavior — Ploeg records the follow_up_created Outcome and the follow_up origin, but no Run or Forge Event creates Work Items automatically yet.
+Work can create work. A Run may produce new Work Items: it can split a Work Item into smaller ones, make unready work Ready, or record work it discovered. Each new Work Item names its source and is Ready or explicitly not. Partly implemented — a failed check on a Ploeg pull request creates a repair Follow-Up for a Team that opted in; no Run creates Work Items yet, although Ploeg records the follow_up_created Outcome.
 
 **Why:** Refining and dividing work is itself work; agents should do it under the same authority, budget and review as code.
 
