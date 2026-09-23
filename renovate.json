@@ -1,7 +1,19 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "local>webgrip/renovate-config#v1.9.0"
+    "local>webgrip/renovate-config#v1.9.0",
+    "local>webgrip/renovate-config:golang#v1.9.0"
+  ],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/examples/**",
+    "**/__tests__/**",
+    "**/test/**",
+    "**/tests/**",
+    "**/__fixtures__/**",
+    "apps/*/.forgejo/**"
   ],
   "customManagers": [
     {
@@ -15,6 +27,33 @@
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?\\s*\\nARG \\S+=\"?(?<currentValue>[^@\\s\"]+)\"?\\s"
       ],
       "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}"
+    },
+    {
+      "customType": "regex",
+      "description": "webgrip/* job-level reusable workflows live on Forgejo. The github-actions manager looks them up on github.com, where the lookup fails or a tagless twin freezes the pin silently. Glide pins them by tag, which the org Forgejo overlay's digest-and-comment pattern does not match.",
+      "managerFilePatterns": [
+        "/^\\.forgejo/workflows/[^/]+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "uses:\\s+(?<depName>webgrip/[\\w.-]+)/[^@\\s]+@(?<currentValue>v\\d+\\.\\d+\\.\\d+)\\s"
+      ],
+      "datasourceTemplate": "gitea-tags",
+      "registryUrlTemplate": "https://forgejo.webgrip.dev",
+      "versioningTemplate": "semver",
+      "depTypeTemplate": "action"
+    },
+    {
+      "customType": "regex",
+      "description": "Local checks run the CI toolchain images by tag outside any workflow file. Managing them here keeps release-check and docs-site-check on the image CI uses; the update shares the workflow's branch because the dependency name is the same.",
+      "managerFilePatterns": [
+        "/^mise\\.toml$/",
+        "/^scripts/docs-site\\.sh$/"
+      ],
+      "matchStrings": [
+        "(?<depName>harbor\\.webgrip\\.dev/webgrip/(?:semantic-release-monorepo|techdocs-builder)):(?<currentValue>\\d+\\.\\d+\\.\\d+)\\s"
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "semver"
     }
   ],
   "packageRules": [
@@ -30,11 +69,39 @@
       "enabled": false
     },
     {
+      "description": "The Forgejo regex manager owns webgrip/* reusable workflows. Before the import, Vloer disabled webgrip/workflows because the github.com lookup aborted the run. Composite actions named by their full Forgejo URL already resolve through forgejo-tags and stay enabled.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchDatasources": [
+        "github-tags"
+      ],
+      "matchPackageNames": [
+        "webgrip/**"
+      ],
+      "enabled": false
+    },
+    {
       "description": "Bare versions are reused outside the FROM line; digests are captured explicitly.",
       "matchManagers": [
         "custom.regex"
       ],
       "pinDigests": false
+    },
+    {
+      "description": "Forgejo-resolved workflow pins keep the CI-only commit shape the github-actions manager gives them.",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDatasources": [
+        "gitea-tags"
+      ],
+      "semanticCommitType": "ci",
+      "semanticCommitScope": "actions",
+      "commitMessagePrefix": "{{semanticCommitType}}({{semanticCommitScope}}):",
+      "addLabels": [
+        "github-actions"
+      ]
     },
     {
       "description": "The agent image and the mise pin must move together: one OpenCode version is what the workbench, the probe and the image share.",
