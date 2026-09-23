@@ -49,6 +49,7 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_FORGEJO_SECRET` | ploegd |  |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_FORGEJO_TOKEN` | ploegd |  |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_FORGEJO_URL` | ploegd |  |  | [main.go](../../cmd/ploegd/main.go) |
+| `PLOEG_FORGE_TOKEN_ACCESS` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_GITLAB_SECRET` | ploegd |  | Shared secret GitLab sends as `X-Gitlab-Token` to `POST /webhooks/forge/gitlab` (chart `executor.gitlab.webhookSecret`). Unset rejects forge webhooks. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_GITLAB_TOKEN` | ploegd |  | Token with `api` scope on the target projects, sent as `PRIVATE-TOKEN` (chart `executor.gitlab.tokenSecret`). | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_GITLAB_URL` | ploegd |  | GitLab base URL without `/api/v4` (chart `executor.gitlab.url`). Empty configures no GitLab provider, so findings never reach a merge request. | [main.go](../../cmd/ploegd/main.go) |
@@ -61,6 +62,7 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_LISTEN` | ploegd | `:8080` |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_LLM_CREDENTIAL_MODE` | ploeg-worker | `managed` | `managed`, or `static-compatibility` for legacy mode, which uses `LLM_API_KEY`. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_LLM_SETTLE_AFTER` | ploegd | `15m` | Quiet period after which the settlement sweep settles a blocked Run's account from LiteLLM spend logs. | [main.go](../../cmd/ploegd/main.go) |
+| `PLOEG_METRICS_CACHE_TTL` | ploegd | `15s` |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_OPERATOR_CONSUMERS` | ploegd |  | JSON array of operator read consumers. Each entry names a `tokenEnv`, a further variable that holds that consumer's bearer token (chart `operator.consumers`). No consumers refuses every operator request. | [operator.go](../../cmd/ploegd/operator.go) |
 | `PLOEG_OPERATOR_DELIVERY_POLICIES` | ploegd |  | JSON array of trusted delivery policies with `repositoryId`, `policySha256`, `verifierId`, `minTests` and optional `publicationEnabled` (chart `operator.deliveryPolicies`). | [operator.go](../../cmd/ploegd/operator.go) |
 | `PLOEG_OUTCOME_FILE` | ploeg-worker |  | `exec` harness only: OutcomeReport JSON path override (chart `executor.harness.outcomeFile`). | [main.go](../../cmd/ploeg-worker/main.go) |
@@ -126,10 +128,10 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `executor.forge` | one of `"forgejo"`, `"gitlab"` | `forgejo` | Which forge the workers act against; selects the sibling block of the same name. Also the default dialect for a Work Item whose target names no forge (ADR-0023). One active forge per release: a worker pod holds one forge URL and one credential. | values.yaml, values.schema.json |
 | `executor.forgejo.adminTokenSecret` | [secretRef](#secretref) | `{}` | ADR-0013 tier 2: credential ploegd uses to MINT per-run push tokens. Held only by ploegd, never by a worker. Unset = nothing is minted. | values.yaml, values.schema.json |
 | `executor.forgejo.botUser` | string | `agent-builder` | the forge user whose tokens are minted (default agent-builder) | values.yaml, values.schema.json |
-| `executor.forgejo.readTokenSecret` | [secretRef](#secretref) | `{}` | ADR-0013 tier 1: read-only credential for reading Roles. Empty = readers fall back to the read-write builder token and scheduling is the only boundary (a known gap, closed by creating the secret). | values.yaml, values.schema.json |
+| `executor.forgejo.readTokenSecret` | [readTokenSecretRef](#readtokensecretref) | `{}` | ADR-0013 tier 1: read-only credential for reading Roles. Required (name and key) when any team has a reading Role: the render fails without it rather than hand readers the read-write builder token. | values.yaml, values.schema.json |
 | `executor.forgejo.tokenSecret` | [secretRef](#secretref) | `{"name": "agent-builder-token", "key": "FORGEJO_TOKEN"}` | Shared bot token every Run uses when no admin token mints per-run push tokens. | values.yaml, values.schema.json |
 | `executor.forgejo.url` | string | `http://forgejo-http.forgejo.svc.cluster.local:3000` |  | values.yaml, values.schema.json |
-| `executor.gitlab.readTokenSecret` | [secretRef](#secretref) | `{}` | ADR-0013 tier 1, as for forgejo: a read-only credential for reading Roles, so the reader/writer split is enforced at the forge and not only by scheduling. On GitLab a second project access token at read_repository scope. Empty = readers fall back to the read-write token. | values.yaml, values.schema.json |
+| `executor.gitlab.readTokenSecret` | [readTokenSecretRef](#readtokensecretref) | `{}` | ADR-0013 tier 1, as for forgejo: a read-only credential for reading Roles, so the reader/writer split is enforced at the forge and not only by scheduling. On GitLab a second project access token at read_repository scope. Required (name and key) when any team has a reading Role: the render fails without it rather than hand readers the read-write token. | values.yaml, values.schema.json |
 | `executor.gitlab.tokenSecret` | [secretRef](#secretref) | `{"name": "agent-builder-token", "key": "GITLAB_TOKEN"}` | Token with api scope on the target projects, sent as PRIVATE-TOKEN. ADR-0013 tier 2 does not apply on GitLab: per-run push credentials are minted through a Forgejo admin endpoint with no GitLab equivalent, so this shared token is what writing Runs use. | values.yaml, values.schema.json |
 | `executor.gitlab.url` | string | `""` | Base URL, no /api/v4. Empty = ploegd configures no GitLab provider, so findings never reach a merge request. | values.yaml, values.schema.json |
 | `executor.gitlab.webhookSecret` | [secretRef](#secretref) | `{}` | Shared secret GitLab sends as X-Gitlab-Token to POST /webhooks/forge/gitlab. Unset = forge webhooks are rejected, so a human review opens no fix Round and the review loop stays open. | values.yaml, values.schema.json |
@@ -212,6 +214,34 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `image.repository` |  | `harbor.webgrip.dev/webgrip/ploegd` |  | values.yaml |
 | `image.tag` |  | `""` | empty = .Chart.AppVersion (kept in lockstep with the chart by the release train) | values.yaml |
 | `imagePullSecrets` |  | `[]` | homelab sets [{name: harbor-pull}] | values.yaml |
+| `monitoring` | object |  | Prometheus Operator objects for ploegd's GET /metrics. Both are off by default: they need the monitoring.coreos.com CRDs. The alerts and what to do about each are in docs/ops/alerts.md. | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.alerts.expiredLease.enabled` | boolean | `true` |  | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.alerts.expiredLease.for` | string | `5m` |  | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.alerts.expiredLease.overdueSeconds` | number | `300` |  | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.alerts.expiredLease.severity` | string | `warning` |  | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.alerts.leakedModelKey.enabled` | boolean | `true` |  | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.alerts.leakedModelKey.for` | string | `5m` |  | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.alerts.leakedModelKey.graceSeconds` | number | `900` |  | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.alerts.leakedModelKey.severity` | string | `critical` |  | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.alerts.spendSpike.enabled` | boolean | `true` |  | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.alerts.spendSpike.for` | string | `0m` |  | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.alerts.spendSpike.severity` | string | `warning` |  | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.alerts.spendSpike.usdPerHour` | number | `20` |  | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.alerts.stuckShift.enabled` | boolean | `true` |  | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.alerts.stuckShift.for` | string | `15m` |  | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.alerts.stuckShift.idleHours` | number | `6` |  | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.alerts.stuckShift.severity` | string | `warning` |  | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.alerts.trackerWebhookMissing.enabled` | boolean | `true` |  | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.alerts.trackerWebhookMissing.for` | string | `15m` |  | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.alerts.trackerWebhookMissing.severity` | string | `warning` |  | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.enabled` | boolean | `false` |  | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.labels` | object | `{}` |  | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.runbookBaseUrl` | string | `""` | URL of the rendered alerts page; each alert appends its anchor | values.yaml, values.schema.json |
+| `monitoring.prometheusRule.selector` | string | `""` | PromQL label matchers applied to every alert; empty = job and namespace of this release | values.yaml, values.schema.json |
+| `monitoring.serviceMonitor.enabled` | boolean | `false` |  | values.yaml, values.schema.json |
+| `monitoring.serviceMonitor.interval` | string | `30s` |  | values.yaml, values.schema.json |
+| `monitoring.serviceMonitor.labels` | object | `{}` | e.g. {release: kube-prometheus-stack}, whatever your Prometheus selects on | values.yaml, values.schema.json |
+| `monitoring.serviceMonitor.scrapeTimeout` | string | `10s` |  | values.yaml, values.schema.json |
 | `nodeSelector.node.webgrip.io/pool` |  | `worker` |  | values.yaml |
 | `operator.consumers` | array | `[]` | Operator read consumers, forwarded as `PLOEG_OPERATOR_CONSUMERS`. | values.yaml, values.schema.json |
 | `operator.consumers[].execute` | boolean |  | Grants execution commands. Defaults to false. | values.schema.json |
@@ -288,6 +318,13 @@ name becomes the workload suffix (ploeg-worker-<team>-<role>); writes marks the 
 | `promptTimeout` | string | Go duration. Empty means the adapter default (45m). |
 | `idleTimeout` | string | Go duration without protocol traffic. Empty means the adapter default (10m). |
 | `configJson` | string | Replaces the profile's generated agent configuration wholesale. |
+
+### readTokenSecretRef
+
+Either empty (no reading Role anywhere) or a complete secretRef. A half-set reference would fail at pod start instead of at render.
+
+| Key | Type | Description |
+| --- | --- | --- |
 
 ### secretRef
 
