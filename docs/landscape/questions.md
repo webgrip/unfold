@@ -1,3 +1,10 @@
+---
+type: explanation
+audience: [owner, contributor]
+owner: glide
+unverified: "Predates Glide ADR-0002 and ADR-0003: it still says local work must run without Ploeg and that separate engines are retained, and it uses the retired terms ticket and repair subticket. Reconcile it with the accepted ADRs and the product model, then verify it."
+---
+
 # Questions that change the architecture
 
 This is a discussion guide, not an implementation backlog. Open language choices also appear in the [domain model](../domain/model.yaml). Agreed answers should update the definitions and diagrams; do not preserve answered questions as competing meanings.

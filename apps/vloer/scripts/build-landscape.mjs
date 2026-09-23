@@ -15,7 +15,7 @@ const sources = [
   ['questions', 'Open questions', 'docs/landscape/questions.md'],
   ['evidence', 'Implementation evidence', 'apps/vloer/docs/research/2026-09-11-ecosystem-implementation.md'],
 ];
-const inputs = await Promise.all(sources.map(async ([id, title, file]) => ({ id, title, file, markdown: await readFile(resolve(root, file), 'utf8') })));
+const inputs = await Promise.all(sources.map(async ([id, title, file]) => ({ id, title, file, markdown: (await readFile(resolve(root, file), 'utf8')).replace(/^---\n[\s\S]*?\n---\n/, '') })));
 const browser = await chromium.launch({ headless: true });
 let rendered;
 try {

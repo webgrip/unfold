@@ -60,6 +60,24 @@ description = "Test release isolation and guards in the pinned release toolchain
 run = "sh scripts/docs-site.sh"
 description = "Build and scan the Zensical publishing output in the pinned CI image"
 
+[tasks.docs-stale]
+run = "uv run --frozen python scripts/docs-stale.py"
+description = "List current pages whose last_verified is older than 180 days; reports only"
+
+[tasks.docs-tutorial-smoke]
+run = "bash scripts/tutorial-smoke.sh"
+description = "Start the documented deterministic demo, then stop it; skips when PostgreSQL is missing"
+
+[tasks.docs-links-external]
+tools = { lychee = "0.24.2" }
+run = "lychee --config lychee.toml README.md llms.txt docs apps/vloer/docs apps/ploeg/docs"
+description = "Check external links in current docs with lychee; the weekly workflow reports without blocking"
+
+[tasks.docs-vale]
+tools = { vale = "3.22.0" }
+run = ["uv run --frozen python scripts/docs-vale.py", "vale --no-exit --glob='!**/{research,evidence,openspec,design,adr,adrs,backlog}/**' README.md docs apps/vloer/docs apps/ploeg/docs"]
+description = "Lint current docs against the generated Glide vocabulary; warnings only"
+
 [tasks.docs-live-check]
 run = ["uv run --frozen python scripts/docs.py --stage-only", "uv run --frozen python scripts/docs-live.py"]
 description = "Verify that the published human and machine docs match this checkout"

@@ -1,3 +1,10 @@
+---
+type: reference
+audience: [owner, integrator, contributor, agent]
+owner: ploeg
+generated_by: "mise run domain"
+---
+
 # Ploeg — Domain Overview
 
 Ploeg schedules and runs work handed to agents, tracks progress and cost, and supports cooperation between agents. It is Glide's only execution engine and the Authority for every Run (Glide ADR-0002). De Vloer is its front end, where people work on tickets, give work to agents and review the results. Vloer Start requests Ploeg admission; a manual-origin request need not have a tracker ticket. Until Vloer's own engine is retired, Vloer still performs delegated operator Runs. Trackers keep their work content and priorities. This vocabulary includes intended domain rules; it is not a database or API field inventory. The architecture and published contracts identify current implementation limits. Vloer uses these execution terms.

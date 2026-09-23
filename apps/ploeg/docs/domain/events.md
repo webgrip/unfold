@@ -1,3 +1,10 @@
+---
+type: reference
+audience: [owner, integrator, contributor, agent]
+owner: ploeg
+generated_by: "mise run domain"
+---
+
 # Domain Events — Ploeg
 
 *Generated from `model.yaml` — do not edit by hand.*

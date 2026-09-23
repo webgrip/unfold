@@ -1,3 +1,11 @@
+---
+type: landing
+audience: [owner, operator, integrator, contributor, agent]
+owner: vloer
+last_verified: 2026-09-23
+verified_by: "mise run docs-check (every link resolves); apps/vloer/llms.txt links this page"
+---
+
 # De Vloer documentation
 
 De Vloer provides durable operator sessions, agent workspaces, intervention and reviewable evidence. Start with the guide for your task.

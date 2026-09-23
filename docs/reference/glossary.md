@@ -1,3 +1,10 @@
+---
+type: reference
+audience: [owner, integrator, contributor, agent]
+owner: glide
+generated_by: "mise run domain"
+---
+
 # Glossary
 
 *Generated from the [Glide](../domain/model.yaml), [Ploeg](../../apps/ploeg/docs/domain/model.yaml) domain models by `mise run domain`. Do not edit by hand; change a `model.yaml` and regenerate.*
