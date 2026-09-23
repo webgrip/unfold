@@ -82,6 +82,8 @@ test('demo cancellation terminates a child that ignores its initial stop signal'
   const pid = Number(await readFile(join(root, 'ready'), 'utf8'));
   controller.abort(new DOMException('Operator paused', 'AbortError'));
   assert.equal((await outcome as Error).name, 'AbortError');
+  const gone = Date.now() + 5000;
+  while ((() => { try { process.kill(pid, 0); return true; } catch { return false; } })() && Date.now() < gone) await delay(10);
   assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
 });
 
