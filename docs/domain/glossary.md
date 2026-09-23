@@ -1,3 +1,10 @@
+---
+type: reference
+audience: [owner, integrator, contributor, agent]
+owner: glide
+generated_by: "mise run domain"
+---
+
 # Glossary — Glide
 
 *Generated from `model.yaml` — do not edit by hand.*

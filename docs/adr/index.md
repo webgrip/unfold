@@ -1,3 +1,11 @@
+---
+type: reference
+audience: [owner, contributor, agent]
+owner: glide
+last_verified: 2026-09-23
+verified_by: "validate_adr_consistency.py registry parity for docs/adr, run by mise run docs-check"
+---
+
 # System decisions
 
 Use MADR 4.0 for new system decisions. Application decisions remain in their existing ledgers. Copy the [template](adr-0000-template.md), add a Confirmation check and run `python3 scripts/validate_adr_consistency.py .`.

@@ -1,3 +1,4 @@
+import datetime
 import importlib.util
 import unittest
 from pathlib import Path
@@ -85,6 +86,69 @@ class Orphans(unittest.TestCase):
         links = {'vloer/index.md': {'vloer/live.md'}, 'vloer/live.md': {'vloer/deep.md'}}
         pages = ['index.md', 'vloer/index.md', 'vloer/live.md', 'vloer/deep.md', 'vloer/research/old.md']
         self.assertEqual(rules.orphans(pages, nav, links), ['vloer/deep.md'])
+
+
+TODAY = datetime.date(2026, 9, 23)
+VALID = '---\ntype: how-to\naudience: [owner, operator]\nowner: glide\nlast_verified: 2026-09-22\nverified_by: "mise run docs-check"\n---\n\n# Page\n'
+GENERATED = '---\ntype: reference\naudience: [owner, agent]\nowner: ploeg\ngenerated_by: "mise run domain"\n---\n\n# Glossary\n'
+
+
+class FrontMatter(unittest.TestCase):
+    def test_checked_pages_are_current_nav_pages_and_the_required_folders(self):
+        pages = ['index.md', 'extra.md', 'concepts/new.md', 'how-to/x.md', 'reference/glossary.md', 'reference/data.yaml', 'research/2026-09-12-x.md', 'vloer/index.md', 'adr/adr-0001-x.md']
+        nav = {'index.md', 'vloer/index.md', 'research/2026-09-12-x.md', 'adr/adr-0001-x.md'}
+        self.assertEqual(rules.checked_pages(pages, nav), ['concepts/new.md', 'how-to/x.md', 'index.md', 'reference/glossary.md', 'vloer/index.md'])
+
+    def test_valid_verified_and_generated_pages_pass(self):
+        self.assertEqual(rules.front_matter_problems(VALID, TODAY), [])
+        self.assertEqual(rules.front_matter_problems(GENERATED, TODAY), [])
+
+    def test_missing_front_matter_and_invalid_yaml(self):
+        self.assertEqual(rules.front_matter_problems('# Page\n', TODAY), ['no front matter'])
+        self.assertEqual(rules.front_matter_problems('---\ntype: [\n---\n# Page\n', TODAY), ['front matter is not valid YAML'])
+
+    def test_each_field_is_validated(self):
+        cases = {
+            'type: how-to': ('type: record', 'type must be'),
+            'audience: [owner, operator]': ('audience: owner', 'audience must be'),
+            'owner: glide': ('owner: webgrip', 'owner must be'),
+            'last_verified: 2026-09-22': ('last_verified: 2026-12-01', 'in the future'),
+            'verified_by: "mise run docs-check"\n': ('', 'verified_by must'),
+        }
+        for original, (replacement, message) in cases.items():
+            problems = rules.front_matter_problems(VALID.replace(original, replacement), TODAY)
+            self.assertEqual(len(problems), 1, (replacement, problems))
+            self.assertIn(message, problems[0])
+        self.assertIn('audience must be', rules.front_matter_problems(VALID.replace('[owner, operator]', '[owner, reader]'), TODAY)[0])
+        self.assertIn('YYYY-MM-DD', rules.front_matter_problems(VALID.replace('2026-09-22', 'last week'), TODAY)[0])
+
+    def test_only_generated_reference_pages_may_omit_last_verified(self):
+        unverified = VALID.replace('last_verified: 2026-09-22\nverified_by: "mise run docs-check"\n', '')
+        self.assertIn('last_verified is required', rules.front_matter_problems(unverified, TODAY)[0])
+        self.assertIn('last_verified is required', rules.front_matter_problems(GENERATED.replace('generated_by: "mise run domain"\n', ''), TODAY)[0])
+        self.assertEqual(rules.front_matter_problems(GENERATED.replace('type: reference', 'type: explanation'), TODAY), ['generated_by is only for generated reference pages'])
+
+    def test_an_unverified_page_states_why_instead_of_a_date(self):
+        marked = VALID.replace('last_verified: 2026-09-22\nverified_by: "mise run docs-check"\n', 'unverified: "contradicts ADR-0002"\n')
+        self.assertEqual(rules.front_matter_problems(marked, TODAY), [])
+        self.assertEqual(rules.front_matter_problems(marked.replace('"contradicts ADR-0002"', '""'), TODAY)[0][:24], 'last_verified is require')
+        self.assertEqual(rules.front_matter_problems(VALID.replace('owner: glide\n', 'owner: glide\nunverified: "x"\n'), TODAY), ['unverified excludes last_verified and generated_by'])
+        self.assertEqual(rules.unverified({'a.md': marked, 'b.md': VALID}), [('a.md', 'contradicts ADR-0002')])
+
+
+class Staleness(unittest.TestCase):
+    def test_reports_pages_older_than_the_threshold_oldest_first(self):
+        pages = {
+            'fresh.md': VALID,
+            'edge.md': VALID.replace('2026-09-22', '2026-03-27'),
+            'old.md': VALID.replace('2026-09-22', '2026-03-26'),
+            'older.md': VALID.replace('2026-09-22', '2025-01-01'),
+            'generated.md': GENERATED,
+            'bare.md': '# No front matter\n',
+            'broken.md': '---\ntype: [\n---\n',
+        }
+        self.assertEqual(rules.stale(pages, TODAY), [('older.md', datetime.date(2025, 1, 1), 630), ('old.md', datetime.date(2026, 3, 26), 181)])
+        self.assertEqual(rules.stale(pages, TODAY, days=1000), [])
 
 
 if __name__ == '__main__':

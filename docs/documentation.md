@@ -2,7 +2,7 @@
 type: reference
 audience: [contributor, agent]
 owner: glide
-last_verified: 2026-09-22
+last_verified: 2026-09-23
 verified_by: "mise run docs-check"
 ---
 
@@ -22,17 +22,19 @@ A page earns its place by answering one reader's question, or by preserving evid
 | `adr` | What did we decide and why? | [System decisions](adr/index.md) |
 | `record` | What did we observe or research on a date? | [22 September inventory](research/2026-09-22-glide-inventory.md) |
 
-A page that needs two types becomes two pages. Current pages (every type except `adr` and `record`) start with front matter:
+A page that needs two types becomes two pages. Current pages (every type except `adr` and `record`) start with front matter. `mise run docs-check` enforces it for every current page in the nav and every page under `concepts/`, `how-to/` and `reference/`:
 
 ```yaml
 ---
 type: how-to
 audience: [owner, operator]
 owner: glide        # glide, ploeg or vloer
-last_verified: 2026-09-22
+last_verified: 2026-09-23
 verified_by: "the command, test or source read that confirmed it"
 ---
 ```
+
+`audience` draws from `owner`, `operator`, `integrator`, `contributor` and `agent`. Set `last_verified` only when you checked the page, and name what you checked in `verified_by`, including what you did not check. Never invent a date. A generated `reference` page names its command in `generated_by` instead, because its drift check re-verifies it on every run. A page you know is out of date states why in `unverified` instead of a date until someone reconciles it. `mise run docs-stale` lists those pages and every page verified more than 180 days ago. It only reports.
 
 ## One answer per question
 
@@ -86,7 +88,11 @@ Research, evidence, superseded explanations, design baselines, planning exports 
 | `mise run domain` | Regenerates the domain pages of both models and the combined glossary |
 | `mise run docs-configuration` | Regenerates Ploeg's [configuration reference](../apps/ploeg/docs/reference/configuration.md) from its Go source and Helm chart |
 | `mise exec -- node apps/vloer/scripts/build-landscape.mjs` | Rebuilds the historical landscape explorer |
-| `mise run docs-check` | Checks generated pages, links, anchors, orphans, ADR ledgers and the strict TechDocs build |
+| `mise run docs-check` | Checks generated pages, links, anchors, orphans, front matter, ADR ledgers and the strict TechDocs build |
 | `mise run docs-site-check` | Builds the Zensical site in the CI image and scans it |
+| `mise run docs-stale` | Lists pages verified more than 180 days ago and pages marked `unverified`; never fails |
+| `mise run docs-tutorial-smoke` | Starts and stops the [local demo](workflows/local-demo.md), then runs its smoke check; skips without PostgreSQL |
+| `mise run docs-links-external` | Checks external links with a pinned lychee; the weekly `on_schedule.yml` run only reports |
+| `mise run docs-vale` | Lints prose against a vocabulary generated from both domain models; warnings only |
 
 [Publishing and recovery](operations/docs-publishing.md) explains how `development` reaches the published site. For each current claim, ask what would make it false and which check would notice.

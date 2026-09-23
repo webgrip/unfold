@@ -1,3 +1,11 @@
+---
+type: landing
+audience: [owner, operator, integrator, contributor, agent]
+owner: ploeg
+last_verified: 2026-09-23
+verified_by: "mise run docs-check (every link resolves); apps/ploeg/llms.txt links this page"
+---
+
 # Ploeg documentation
 
 Use these sources for the current implementation. The [architecture](architecture.md) distinguishes implemented behavior from remaining limits; the [ADR index](adrs/README.md) distinguishes accepted decisions from proposals.

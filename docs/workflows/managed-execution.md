@@ -1,3 +1,11 @@
+---
+type: how-to
+audience: [operator, integrator]
+owner: glide
+last_verified: 2026-09-23
+verified_by: "Checked each named command, setting, environment variable, UI label and qualification test against apps/ploeg (ops/helm/ploeg values and templates, cmd/ploegd/operator.go, pkg/httpapi qualification tests) and apps/vloer (package.json, config/unified.example.json, src/delivery-config.ts, public/app.js, public/delivery.js, scripts/qualify-*.ts); the external Renovate rule was not re-read"
+---
+
 # Run the unified workbench
 
 For a local browser test with real Ploeg authority and PostgreSQL, run `mise run demo-unified` from Glide. The [local demonstration guide](local-demo.md) covers prerequisites, supervision, pause/resume and cleanup. It uses the actual code from both applications, a deterministic fixture and zero model calls; no cluster deployment is required.

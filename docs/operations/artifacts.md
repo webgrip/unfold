@@ -1,3 +1,11 @@
+---
+type: reference
+audience: [operator, contributor]
+owner: glide
+last_verified: 2026-09-23
+verified_by: "Image, chart and registry identities checked against on_release_published.yml, scripts/publish_release.py and scripts/release_preflight.py; remote registry contents were not inspected"
+---
+
 # Source mirrors and release artifacts
 
 [Forgejo](https://forgejo.webgrip.dev/webgrip/glide) owns source changes and versioning. [GitHub](https://github.com/webgrip/glide) receives the same branches and tags through a native SSH push mirror. The source workflow also copies semantic-release's Git notes, which Forgejo's native mirror omits; it does so only on an enabled push to `development` (`GLIDE_RELEASES_ENABLED` is `true`) after both source gates pass, because the copy prunes GitHub to Forgejo's note set and the [import verifier](../../scripts/verify-import.py), which CI runs with `GLIDE_REQUIRE_IMPORT_NOTES=true`, is what proves that set is complete. GitHub Actions is disabled for the mirror.

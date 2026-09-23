@@ -1,3 +1,11 @@
+---
+type: how-to
+audience: [operator, contributor]
+owner: glide
+last_verified: 2026-09-23
+verified_by: "Checked against on_docs_change.yml, scripts/docs.py, scripts/docs-rules.py, scripts/docs-site.sh and mise.toml; the Zensical version inside the pinned builder image was not re-inspected"
+---
+
 # Publish and recover Glide documentation
 
 Maintain documentation in Glide and publish it at [the Glide site](https://docs.webgrip.dev/glide/). Shared guides live in [root docs](../index.md); implementation guidance stays with [Vloer](../../apps/vloer/docs/index.md) and [Ploeg](../../apps/ploeg/docs/index.md). There is no separate documentation source repository or submodule to synchronize.

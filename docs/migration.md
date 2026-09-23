@@ -1,3 +1,11 @@
+---
+type: explanation
+audience: [owner, contributor]
+owner: glide
+last_verified: 2026-09-23
+verified_by: "Repository claims checked: Helm pins in apps/*/mise.toml, tag formats in apps/*/.releaserc.cjs, package paths in on_source_change.yml, scripts/verify-import.py and the linked records; Forgejo runs, remote refs and homelab-cluster manifests were not re-checked"
+---
+
 # Glide migration
 
 Glide brings Vloer and Ploeg into one repository on `development`. The original repositories remain available. This migration changes the source layout and developer workflow; deployment coordinates and runtime behavior retain their application scope.

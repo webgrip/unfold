@@ -1,3 +1,11 @@
+---
+type: how-to
+audience: [owner, operator]
+owner: glide
+last_verified: 2026-09-23
+verified_by: "Repository claims checked: outcome values in cutover-record.example.json, scripts/release_preflight.py, the dry-run in on_release_preview.yml, the Vloer /healthz route and the order-service test path; external registries, GitOps and cluster state were not re-checked"
+---
+
 # First Glide release and live test
 
 Use this playbook to transfer release authority to Glide, publish the first qualified application versions, and test them in a controlled environment. The source migration is complete. Release cutover is not yet qualified: keep `GLIDE_RELEASES_ENABLED` unset or `false` until the preparation gates below pass.

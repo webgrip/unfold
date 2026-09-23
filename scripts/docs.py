@@ -1,4 +1,5 @@
 import argparse
+import datetime
 import hashlib
 import json
 import os
@@ -48,7 +49,7 @@ revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=
 source_url = f'https://forgejo.webgrip.dev/webgrip/glide/src/commit/{revision}/'
 
 if args.check:
-    for test in ['docs-output.test.py', 'docs-live.test.py', 'docs-rules.test.py', 'docs-decisions.test.py', 'docs-configuration.test.py', 'docs-adr.test.py', 'agents-files.test.py', 'stage-explicit-paths.test.py']:
+    for test in ['docs-output.test.py', 'docs-live.test.py', 'docs-rules.test.py', 'docs-decisions.test.py', 'docs-configuration.test.py', 'docs-adr.test.py', 'agents-files.test.py', 'stage-explicit-paths.test.py', 'docs-vale.test.py', 'tutorial-smoke.test.py']:
         subprocess.run([sys.executable, str(root / 'scripts' / test)], check=True)
     for folder in domain_models:
         with tempfile.TemporaryDirectory(prefix='glide-domain-') as temporary:
@@ -67,7 +68,7 @@ if args.check:
 if staging.exists():
     shutil.rmtree(staging)
 staging.mkdir(parents=True)
-roots = [(root / 'docs', ''), (root / 'apps/vloer/docs', 'vloer'), (root / 'apps/ploeg/docs', 'ploeg')]
+roots = [(root / folder, prefix) for folder, prefix in rules.SOURCE_ROOTS]
 mapping = {}
 for directory, prefix in roots:
     for path in directory.rglob('*'):
@@ -165,6 +166,10 @@ redirect_pages = {mapping[source] for source in aliases if source in mapping}
 unlinked = rules.orphans([relative.as_posix() for relative in mapping.values() if relative.suffix == '.md' and relative not in redirect_pages], nav, links)
 if unlinked:
     raise SystemExit('Current pages missing from the nav and from every nav page:\n' + '\n'.join(unlinked))
+sources = {relative.as_posix(): source for source, relative in mapping.items()}
+front_matter_failures = [f'{sources[page].relative_to(root)}: {problem}' for page in rules.checked_pages(sources, nav) for problem in rules.front_matter_problems(sources[page].read_text(), datetime.date.today())]
+if front_matter_failures:
+    raise SystemExit('Current pages with missing or invalid front matter (see docs/documentation.md):\n' + '\n'.join(front_matter_failures))
 (staging / 'llms.txt').write_text(rewrite((root / 'llms.txt').read_text(), root / 'llms.txt'))
 if failures:
     raise SystemExit('Missing index targets:\n' + '\n'.join(sorted(set(failures))))

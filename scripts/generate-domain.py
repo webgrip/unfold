@@ -78,6 +78,12 @@ def cell(text):
     return " ".join(str(text).split()).replace("|", "\\|")
 
 
+def front_matter(owner):
+    """Front matter for a generated reference page; `generated_by` stands in for last_verified."""
+    return ("---\ntype: reference\naudience: [owner, integrator, contributor, agent]\n"
+            f"owner: {owner}\ngenerated_by: \"mise run domain\"\n---\n\n")
+
+
 def validate(model):
     contexts = {c.get("name") for c in model.get("contexts", [])}
     terms = [t.get("name") for t in model.get("terms", [])]
@@ -509,7 +515,7 @@ def main():
     args = ap.parse_args()
 
     if args.glossary:
-        content = gen_combined([load(p) for p in args.model], args.glossary)
+        content = front_matter("glide") + gen_combined([load(p) for p in args.model], args.glossary)
         if args.stdout:
             sys.stdout.write(content)
         else:
@@ -536,8 +542,9 @@ def main():
     }
     if model.get("events"):
         files["events.md"] = gen_events(model)
+    owner = str(model.get("owner") or model.get("project", "glide")).lower()
     for name, content in files.items():
-        (out / name).write_text(content)
+        (out / name).write_text(front_matter(owner) + content)
         print(f"wrote {out / name}")
 
 

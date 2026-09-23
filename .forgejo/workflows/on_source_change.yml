@@ -29,6 +29,13 @@ jobs:
           fetch-depth: 0
       - uses: ./.forgejo/actions/release-policy
 
+  tutorial-smoke:
+    runs-on: docker
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: ./.forgejo/actions/tutorial-smoke
+
   release-vloer:
     if: github.event_name == 'push' && github.ref == 'refs/heads/development' && vars.GLIDE_RELEASES_ENABLED == 'true'
     needs: [checks, release-policy]
