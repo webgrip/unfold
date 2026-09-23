@@ -1,11 +1,20 @@
+---
+type: reference
+audience: [operator, contributor, agent]
+owner: glide
+last_verified: 2026-09-23
+verified_by: "Entry points, triggers, jobs and gates checked against the workflow files, the local actions and scripts/workflow-policy.test.cjs"
+---
+
 # CI and release workflows
 
 Glide uses Webgrip's event-named entry points. The executable definitions live in the root [workflow directory](../../.forgejo/workflows/). Application-local workflow links point there, so existing application guides still lead to the active configuration.
 
 | Entry point | Trigger | Responsibility |
 | --- | --- | --- |
-| [on_source_change.yml](../../.forgejo/workflows/on_source_change.yml) | Push to `development`; manual validation | Validate both applications, container build contexts and release policy. An enabled push can then release Vloer followed by Ploeg. |
-| [on_pull_request.yml](../../.forgejo/workflows/on_pull_request.yml) | Pull request; manual validation | Run the same application and release-policy gates without release credentials or versioning jobs. |
+| [on_source_change.yml](../../.forgejo/workflows/on_source_change.yml) | Push to `development`; manual validation | Validate both applications, container build contexts and release policy, and smoke-test the [local demo](../workflows/local-demo.md). An enabled push can then release Vloer followed by Ploeg. |
+| [on_pull_request.yml](../../.forgejo/workflows/on_pull_request.yml) | Pull request; manual validation | Run the same application, release-policy and demo smoke jobs without release credentials or versioning jobs. |
+| [on_schedule.yml](../../.forgejo/workflows/on_schedule.yml) | Weekly on Monday; manual rerun | Report broken external links in current docs with lychee. It publishes nothing and blocks nothing. |
 | [on_docs_change.yml](../../.forgejo/workflows/on_docs_change.yml) | Documentation or docs-tooling changes on `development`; manual validation | Validate the combined documentation, then publish Zensical and Markdown when the docs gate is enabled. |
 | [on_release_preview.yml](../../.forgejo/workflows/on_release_preview.yml) | Manual, on `development` | Check the mirror, credential access and Glide signing identity; preview each application's version with `dry-run: 'true'`. |
 | [on_release_published.yml](../../.forgejo/workflows/on_release_published.yml) | Published release; manual retry for an exact tag | Route `vloer-v…` and `ploeg-v…` to their own artifact jobs. |
@@ -13,6 +22,8 @@ Glide uses Webgrip's event-named entry points. The executable definitions live i
 ## Shared checks and separate versions
 
 Source changes and pull requests use the same local [verification action](../../.forgejo/actions/verify/action.yml) and [release-policy action](../../.forgejo/actions/release-policy/action.yml). Each caller checks out the repository before invoking a local action. The existing application gates remain in [mise verification](../../scripts/verify.mjs), including generated docs, Helm goldens and deterministic integration. The dedicated docs workflow gives documentation changes their own result; the source gate still validates the complete tree.
+
+The [demo smoke action](../../.forgejo/actions/tutorial-smoke/action.yml) runs [the tutorial smoke script](../../scripts/tutorial-smoke.sh): it starts `mise run demo-unified`, waits for `unified-demo.ready`, stops it with `SIGTERM`, then runs the documented `--smoke` check. It is deterministic, with no model calls or credentials. When the runner has no PostgreSQL `initdb` and `postgres`, or runs as root, the job logs what is missing and passes without starting the demo. No release job depends on it.
 
 Releases use the pinned Webgrip semantic-release monorepo composite, with [Vloer's configuration](../../apps/vloer/.releaserc.cjs) and [Ploeg's configuration](../../apps/ploeg/.releaserc.cjs). There is no umbrella Glide version. Both source checks and release-policy checks must pass before versioning. The versioning jobs run sequentially because they push preparation commits to the same branch.
 

@@ -15,6 +15,7 @@ on:
       - 'mise.toml'
       - 'scripts/docs*.py'
       - 'scripts/docs-site.sh'
+      - 'scripts/tutorial-smoke.*'
       - 'scripts/generate-domain.py'
       - 'scripts/validate_adr_consistency.py'
       - '.forgejo/workflows/on_docs_change.yml'
