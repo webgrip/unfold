@@ -28,10 +28,12 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/webgrip/ploeg/pkg/followup"
 	"github.com/webgrip/ploeg/pkg/plan"
 )
 
@@ -80,6 +82,39 @@ type Team struct {
 	Assignees []string `yaml:"assignees"`
 	// Plan is the ordered Rounds of a Shift; empty = a single writer.
 	Plan *plan.TeamPlan `yaml:"plan"`
+	// CreatedWork limits the Work Items this Team's Runs may create
+	// (ADR-0031). Absent fields take followup.Default.
+	CreatedWork *CreatedWork `yaml:"createdWork"`
+}
+
+// CreatedWork overrides followup.Default for one Team. Every field is
+// optional.
+type CreatedWork struct {
+	AutoDispatch     *bool `yaml:"autoDispatch"`
+	MaxCreatedPerRun *int  `yaml:"maxCreatedPerRun"`
+	MaxDepth         *int  `yaml:"maxDepth"`
+	MaxOpen          *int  `yaml:"maxOpen"`
+	ItemBudgetUSD    *USD  `yaml:"itemBudgetUsd"`
+	PoolUSD          *USD  `yaml:"poolUsd"`
+	// RefinementTeam receives created Work Items that are not Ready.
+	RefinementTeam string `yaml:"refinementTeam"`
+	// RefinementRole names a planner Role instead; the Team whose plan runs
+	// it receives the Work Items. It must match exactly one Team.
+	RefinementRole string `yaml:"refinementRole"`
+}
+
+// USD is an amount of money that YAML may write as a number or a string.
+type USD float64
+
+// UnmarshalYAML accepts "2.00" and 2.00 alike.
+func (u *USD) UnmarshalYAML(value *yaml.Node) error {
+	s := strings.Trim(strings.TrimSpace(value.Value), `"`)
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return fmt.Errorf("money value %q: %w", s, err)
+	}
+	*u = USD(f)
+	return nil
 }
 
 // Load reads and validates the file. A missing path is not an error — it
@@ -186,7 +221,88 @@ func (f *File) Validate() error {
 			return fmt.Errorf("teams.%s.plan: %w", name, err)
 		}
 	}
+	for _, name := range sortedTeamNames(f.Teams) {
+		if _, err := f.createdWorkPolicy(name); err != nil {
+			return fmt.Errorf("teams.%s.createdWork: %w", name, err)
+		}
+	}
 	return nil
+}
+
+// CreatedWorkPolicies returns every configured Team's created-work limits.
+// A Team absent from the result uses followup.Default.
+func (f *File) CreatedWorkPolicies() (map[string]followup.Policy, error) {
+	out := map[string]followup.Policy{}
+	for _, name := range sortedTeamNames(f.Teams) {
+		p, err := f.createdWorkPolicy(name)
+		if err != nil {
+			return nil, fmt.Errorf("teams.%s.createdWork: %w", name, err)
+		}
+		out[name] = p
+	}
+	return out, nil
+}
+
+func (f *File) createdWorkPolicy(team string) (followup.Policy, error) {
+	p := followup.Default()
+	c := f.Teams[team].CreatedWork
+	if c == nil {
+		return p, nil
+	}
+	if c.AutoDispatch != nil {
+		p.AutoDispatch = *c.AutoDispatch
+	}
+	for _, v := range []struct {
+		name string
+		src  *int
+		dst  *int
+	}{
+		{"maxCreatedPerRun", c.MaxCreatedPerRun, &p.MaxCreatedPerRun},
+		{"maxDepth", c.MaxDepth, &p.MaxDepth},
+		{"maxOpen", c.MaxOpen, &p.MaxOpen},
+	} {
+		if v.src == nil {
+			continue
+		}
+		if *v.src < 0 {
+			return p, fmt.Errorf("%s must not be negative, got %d", v.name, *v.src)
+		}
+		*v.dst = *v.src
+	}
+	if c.ItemBudgetUSD != nil {
+		p.ItemBudgetUSD = float64(*c.ItemBudgetUSD)
+	}
+	if c.PoolUSD != nil {
+		p.PoolUSD = float64(*c.PoolUSD)
+	}
+	if p.ItemBudgetUSD <= 0 {
+		return p, fmt.Errorf("itemBudgetUsd must be positive: a created Work Item's Shift is always metered")
+	}
+	if p.PoolUSD < p.ItemBudgetUSD {
+		return p, fmt.Errorf("poolUsd %.2f is smaller than itemBudgetUsd %.2f, so no Work Item could ever be created", p.PoolUSD, p.ItemBudgetUSD)
+	}
+	if c.RefinementTeam != "" && c.RefinementRole != "" {
+		return p, fmt.Errorf("set refinementTeam or refinementRole, not both")
+	}
+	if c.RefinementTeam != "" {
+		if _, ok := f.Teams[c.RefinementTeam]; !ok {
+			return p, fmt.Errorf("refinementTeam %q is not in teams", c.RefinementTeam)
+		}
+		p.RefinementTeam = c.RefinementTeam
+	}
+	if c.RefinementRole != "" {
+		var owners []string
+		for _, name := range sortedTeamNames(f.Teams) {
+			if tp := f.Teams[name].Plan; tp != nil && tp.HasRole(c.RefinementRole) {
+				owners = append(owners, name)
+			}
+		}
+		if len(owners) != 1 {
+			return p, fmt.Errorf("refinementRole %q must be in exactly one team's plan, found %d %v", c.RefinementRole, len(owners), owners)
+		}
+		p.RefinementTeam = owners[0]
+	}
+	return p, nil
 }
 
 // routeKey is what may only appear once: a project, per team. NUL separates

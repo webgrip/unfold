@@ -47,6 +47,9 @@ type ClaimResponse struct {
 	// token, which arrives in the same field. Only ploegd knows the
 	// difference, so it has to say.
 	ForgeTokenPerRun bool `json:"forgeTokenPerRun,omitempty"`
+	// Planner selects the planner prompt (ADR-0031): the Run splits or
+	// clarifies its Work Item and returns created Work Items, not code.
+	Planner bool `json:"planner,omitempty"`
 }
 
 // Claim returns nil when the queue is empty (HTTP 204) — the empty-handed

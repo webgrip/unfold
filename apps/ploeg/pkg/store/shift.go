@@ -40,6 +40,9 @@ type Role struct {
 // OpenShift begins a Shift on a queued Work Item. The unique partial index
 // shifts_one_live_per_item makes a second live Shift on the same item a
 // database error rather than a race two Teams can both win.
+//
+// A Work Item a Run created carries the budget it was allotted (ADR-0031);
+// its Shift pool is the smaller of that and budget, and never unmetered.
 func (s *Store) OpenShift(ctx context.Context, workItemID int64, team, branch string, budget float64) (int64, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -47,11 +50,15 @@ func (s *Store) OpenShift(ctx context.Context, workItemID int64, team, branch st
 	}
 	defer tx.Rollback(ctx)
 	var allowed bool
-	if err := tx.QueryRow(ctx, `SELECT state='queued' AND NOT operator_owned AND team=$2 FROM work_items WHERE id=$1 FOR UPDATE`, workItemID, team).Scan(&allowed); err != nil {
+	var allotted float64
+	if err := tx.QueryRow(ctx, `SELECT state='queued' AND NOT operator_owned AND team=$2, budget_usd::float8 FROM work_items WHERE id=$1 FOR UPDATE`, workItemID, team).Scan(&allowed, &allotted); err != nil {
 		return 0, err
 	}
 	if !allowed {
 		return 0, ErrExecutionConflict
+	}
+	if allotted > 0 && (budget <= 0 || allotted < budget) {
+		budget = allotted
 	}
 	var id int64
 	err = tx.QueryRow(ctx, `

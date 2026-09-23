@@ -90,6 +90,9 @@ func TestParse_RejectsBadPlans(t *testing.T) {
 			`{"t": {"pool": "6", "rounds": [{"roles": [
 				{"name": "a", "cap": "0.5"}, {"name": "b"}]}]}}`,
 			"starves its siblings"},
+		{"planner that writes",
+			`{"t": {"pool": "1", "rounds": [{"roles": [{"name": "a", "writes": true, "planner": true}]}]}}`,
+			"never writes"},
 		{"garbage", `not json`, "invalid JSON"},
 		{"bad money", `{"t": {"pool": "six", "rounds": [{"roles": [{"name": "a"}]}]}}`, "money value"},
 	}
@@ -179,5 +182,23 @@ func TestWriterRound_FindsTheLastWriter(t *testing.T) {
 	}
 	if p["t"].MaxFixRounds != 1 {
 		t.Errorf("maxFixRounds = %d, want 1", p["t"].MaxFixRounds)
+	}
+}
+
+func TestPlans_IsPlanner(t *testing.T) {
+	p, err := Parse(`{"t": {"rounds": [{"roles": [{"name": "planner", "planner": true}, {"name": "analyst"}]}, {"roles": [{"name": "builder", "writes": true}]}]}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for role, want := range map[string]bool{"planner": true, "analyst": false, "builder": false, "": false} {
+		if got := p.IsPlanner("t", role); got != want {
+			t.Errorf("IsPlanner(t, %q) = %v, want %v", role, got, want)
+		}
+	}
+	if p.IsPlanner("other", "planner") {
+		t.Error("a planner leaked into another team")
+	}
+	if !p["t"].HasRole("builder") || p["t"].HasRole("reviewer") {
+		t.Error("HasRole disagrees with the plan")
 	}
 }

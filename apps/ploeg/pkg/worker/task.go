@@ -124,6 +124,81 @@ func ComposePrompt(spec harness.TaskSpec, writes bool, priorPR string, onReviewB
 	return b.String()
 }
 
+func taskPrompt(spec harness.TaskSpec, planner, writes bool, priorPR string, onReviewBranch bool) string {
+	if planner {
+		return ComposePlannerPrompt(spec)
+	}
+	return ComposePrompt(spec, writes, priorPR, onReviewBranch)
+}
+
+// ComposePlannerPrompt renders the prompt for a Role configured as a planner
+// (ADR-0031). A planner reads the Work Item and the code, writes nothing, and
+// returns the Work Items that should exist instead: a split, a clarification
+// that makes the work Ready, or work it discovered. Ploeg stores them within
+// the Team's created-work limits; the agent dispatches nothing itself.
+func ComposePlannerPrompt(spec harness.TaskSpec) string {
+	item := spec.WorkItem
+	base := spec.Repo.BaseBranch
+	if base == "" {
+		base = "main"
+	}
+	var b strings.Builder
+	if spec.Role != "" {
+		fmt.Fprintf(&b, "# Your role: %s\n\n", spec.Role)
+	}
+	fmt.Fprintf(&b, "# Work Item %s: %s\n\n", work.Reference(item), item.Title)
+	if item.Description != "" {
+		fmt.Fprintf(&b, "## Work Item description\n\n%s\n\n", item.Description)
+	}
+	writeBriefing(&b, spec.Briefing)
+	fmt.Fprintf(&b, `## Delivery contract (planning only)
+
+- You are planning this Work Item, not implementing it. The repository
+  checkout is your working directory, on the base branch %[1]s. Read the code
+  to understand what the Work Item asks for.
+- Do NOT modify, commit or push anything, and do not open, update or comment
+  on a %[2]s. Your clone's origin has no credentials in it.
+- Decide what work should exist instead of this Work Item:
+    split       it is too large for one change: split it into smaller Work
+                Items that are each Ready on their own
+    clarify     it is unclear: rewrite it as a Work Item that states what is
+                decided, what is open and what a finished change looks like
+    discovered  while reading you found separate work it depends on or
+                causes
+- A Work Item is Ready when it states something decided, or describes a
+  problem well enough that a solution can be conceived. Set "ready" to false
+  when a person still has to decide something, and say what in the
+  description.
+- Propose the fewest Work Items that cover the work. Ploeg applies a limit per
+  Run and on how deep created work may nest, and rejects the excess with a
+  recorded reason. A person approves each Work Item before it is dispatched,
+  unless the Team is configured otherwise.
+- Omit "team". Ploeg routes created Work Items.
+- Deliver your plan by writing this JSON to the file named by the
+  PLOEG_OUTCOME_FILE environment variable, as the LAST thing you do:
+
+      {"outcome": "follow_up_created",
+       "summary": "<one line>",
+       "findings": "<why you split or clarified it this way, markdown>",
+       "createdWorkItems": [
+         {"title": "<imperative, at most 200 characters>",
+          "description": "<what to do, why, and how to tell it is done>",
+          "ready": true,
+          "kind": "split"}
+       ]}
+
+  Each description must stand on its own: the agent that works on it will
+  not see this Work Item or your session.
+- If the Work Item is already Ready as written, create nothing: write
+  {"outcome": "no_change_needed", "summary": "<one line>",
+   "findings": "<why it is Ready>"}.
+- If the Work Item cannot be planned at all, explain why on stderr and exit
+  non-zero.
+`, base, changeRequestNoun(spec.Repo))
+	writeReaderRepositoryInstructions(&b, base, false)
+	return b.String()
+}
+
 func changeRequestNoun(repo harness.RepoRef) string {
 	if repo.Dialect() == harness.ForgeGitLab {
 		return "merge request"

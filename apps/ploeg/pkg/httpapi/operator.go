@@ -174,6 +174,7 @@ func (s *Server) operatorHandler() http.Handler {
 	mux.HandleFunc("GET /api/v1/operator/events", s.handleOperatorEvents)
 	s.registerOperatorExecution(mux)
 	s.registerOperatorDelivery(mux)
+	s.registerOperatorProposed(mux)
 	return s.operatorAuth(mux)
 }
 
@@ -322,7 +323,7 @@ func operatorFilter(w http.ResponseWriter, r *http.Request, events bool) (store.
 	f.State = q.Get("state")
 	if f.State != "" {
 		switch f.State {
-		case "ingested", "queued", "leased", "needs_human", "awaiting_review", "stale", "done", "withdrawn":
+		case "ingested", "proposed", "queued", "leased", "needs_human", "awaiting_review", "stale", "done", "withdrawn":
 		default:
 			operatorError(w, 400, "invalid_request", "Unknown work-item state.")
 			return f, false

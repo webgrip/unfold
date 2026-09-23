@@ -31,6 +31,10 @@ type Role struct {
 	// Cap bounds one Run's spend; the claim authorizes min(cap, pool
 	// remaining) (ADR-0012). Zero = no per-Run cap beyond the pool.
 	Cap money `json:"cap" yaml:"cap"`
+	// Planner makes the Role split or clarify its Work Item and return the
+	// result as created Work Items instead of code (ADR-0031). A planner
+	// reads; it never writes.
+	Planner bool `json:"planner,omitempty" yaml:"planner"`
 }
 
 // Round is a set of Runs that start together: a fan-out of readers or a
@@ -171,6 +175,9 @@ func Validate(tp TeamPlan) error {
 			if r.Cap < 0 {
 				return fmt.Errorf("round %d: role %q cap must not be negative", i+1, r.Name)
 			}
+			if r.Planner && r.Writes {
+				return fmt.Errorf("round %d: role %q is a planner and a writer; a planner returns created Work Items and never writes (ADR-0031)", i+1, r.Name)
+			}
 			if prev, ok := writesByRole[r.Name]; ok && prev != r.Writes {
 				return fmt.Errorf("role %q is a writer in one round and a reader in another — one role, one workload, one writes flag", r.Name)
 			}
@@ -209,6 +216,34 @@ func Validate(tp TeamPlan) error {
 // Cap returns a role's cap as a plain float for callers converting to other
 // shapes.
 func (r Role) CapUSD() float64 { return float64(r.Cap) }
+
+// HasRole reports whether any Round of the plan names the role.
+func (p TeamPlan) HasRole(role string) bool {
+	for _, round := range p.Rounds {
+		for _, r := range round.Roles {
+			if r.Name == role {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// IsPlanner reports whether a team's role is configured as a planner.
+func (p Plans) IsPlanner(team, role string) bool {
+	tp, ok := p[team]
+	if !ok || role == "" {
+		return false
+	}
+	for _, round := range tp.Rounds {
+		for _, r := range round.Roles {
+			if r.Name == role {
+				return r.Planner
+			}
+		}
+	}
+	return false
+}
 
 // RoleCap returns a role's cap for the claim path: the per-Run ceiling the
 // authorization is bounded by. Zero (and an unknown role) mean "pool only".

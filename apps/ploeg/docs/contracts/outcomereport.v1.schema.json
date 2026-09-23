@@ -78,6 +78,54 @@
         "request_changes"
       ],
       "description": "a reading Run's answer to whether the work is done (ADR-0017). request_changes re-opens the plan's own writing Round, bounded by the Shift pool, maxFixRounds and the verdict itself. Ignored from a writing Role; it can name no Role, author no Round and raise no budget."
+    },
+    "createdWorkItems": {
+      "type": "array",
+      "maxItems": 50,
+      "description": "Work Items this Run proposes (Product R12, ADR-0031). Ploeg stores each as a follow_up Work Item that names this Run and its Work Item as its source, within the Team's created-work limits; every entry it rejects is recorded with a reason. Entries wait as proposed until a person approves them unless the Team sets autoDispatch. Optional: a report without it is unchanged.",
+      "items": {
+        "$ref": "#/$defs/createdWorkItem"
+      }
+    }
+  },
+  "$defs": {
+    "createdWorkItem": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 16384
+        },
+        "ready": {
+          "type": "boolean",
+          "description": "Whether the Work Item is Ready: a decided change, or a problem described well enough that a solution can be conceived. A Work Item that is not Ready goes to the Team's refinement target, if one is configured."
+        },
+        "team": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Requested Team. Ploeg accepts only a Team it knows; absent means the source Run's Team."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "split",
+            "clarify",
+            "discovered"
+          ]
+        }
+      },
+      "required": [
+        "title",
+        "description",
+        "ready",
+        "kind"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://webgrip.dev/ploeg/contracts/operator-api.v1.schema.json",
   "title": "Ploeg authenticated operator API v1",
-  "description": "GET /api/v1/operator/{teams,work-items,work-items/{id},runs/{id},events}, and POST /api/v1/operator/work-items/{id}/cancel, which requires execute permission and X-Ploeg-Actor, takes no body and withdraws tracker-originated work; repeating it on a withdrawn or settled item changes nothing and reports withdrawn false. Bearer consumers have team scope. Collection after is a decimal bigint cursor; limit defaults 50, maximum 200. Detail returns the most recent 200 records per collection, with explicit truncation flags. Audit pagination has snapshot consistency and is not a lossless changefeed: IDs are allocated before commit. Unbound events are omitted. Missing costs and unsupported team pause state remain unknown/null. Text is bounded (16384 characters for descriptions/findings, 4096 for summaries/reasons/URLs), recognizable credentials are redacted, URL queries/fragments are removed. Other credential-bearing structural fields are never selected. A recorded cost is an observation, not proof of final gateway settlement.",
+  "description": "GET /api/v1/operator/{teams,work-items,work-items/{id},runs/{id},events}, and POST /api/v1/operator/work-items/{id}/cancel, which requires execute permission and X-Ploeg-Actor, takes no body and withdraws tracker-originated work; repeating it on a withdrawn or settled item changes nothing and reports withdrawn false. POST /api/v1/operator/work-items/{id}/approve and /reject decide a proposed Work Item a Run created (ADR-0031); both require execute permission and X-Ploeg-Actor and take a JSON body {\"reason\": string}, required for reject. Approve queues the item; reject closes it as done and releases its allotted budget. Any other state answers 409 not_proposed. Bearer consumers have team scope. Collection after is a decimal bigint cursor; limit defaults 50, maximum 200. Detail returns the most recent 200 records per collection, with explicit truncation flags. Audit pagination has snapshot consistency and is not a lossless changefeed: IDs are allocated before commit. Unbound events are omitted. Missing costs and unsupported team pause state remain unknown/null. Text is bounded (16384 characters for descriptions/findings, 4096 for summaries/reasons/URLs), recognizable credentials are redacted, URL queries/fragments are removed. Other credential-bearing structural fields are never selected. A recorded cost is an observation, not proof of final gateway settlement.",
   "oneOf": [
     {
       "$ref": "#/$defs/teamsResponse"
@@ -21,6 +21,9 @@
     },
     {
       "$ref": "#/$defs/cancelResponse"
+    },
+    {
+      "$ref": "#/$defs/decisionResponse"
     },
     {
       "$ref": "#/$defs/errorResponse"
@@ -221,6 +224,7 @@
         "state": {
           "enum": [
             "ingested",
+            "proposed",
             "queued",
             "leased",
             "needs_human",
@@ -853,6 +857,44 @@
             "keysBlocked": {
               "type": "boolean",
               "description": "False when a model key block is unconfirmed; the controller's block sweep retries it."
+            }
+          }
+        }
+      }
+    },
+    "decisionResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "decision"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "decision": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "workItemId",
+            "team",
+            "state",
+            "approved"
+          ],
+          "properties": {
+            "workItemId": {
+              "type": "string"
+            },
+            "team": {
+              "type": "string"
+            },
+            "state": {
+              "$ref": "#/$defs/item/properties/state"
+            },
+            "approved": {
+              "type": "boolean",
+              "description": "True when approval queued the Work Item; false when rejection closed it as done (ADR-0031)."
             }
           }
         }

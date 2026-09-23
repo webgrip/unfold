@@ -145,6 +145,9 @@ func (w *Worker) RunContext(parent context.Context) error {
 	// From here on, every terminal path must report an outcome; failing to
 	// report leaves the lease to the sweeper (recorded failed/lease expired).
 	report := w.execute(ctx, claimed, branch, trace, nodeName, podUID)
+	if dropped := discardMalformedCreated(&report); dropped != nil {
+		w.Log.Warn("created work items discarded before reporting", "err", dropped)
+	}
 	// Log before reporting: if the POST fails, the pod log is the only place
 	// the run's actual result (and a stuck reason) survives.
 	w.Log.Info("run finished", "outcome", report.Outcome, "summary", report.Summary, "stuck_reason", report.StuckReason, "links", report.Links)
@@ -274,7 +277,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	env := harness.RunEnv{
 		RepoDir:    cloneDir,
 		ScratchDir: scratchDir,
-		Prompt:     ComposePrompt(spec, writes, priorPR, onReviewBranch),
+		Prompt:     taskPrompt(spec, claimed.Planner && !writes, writes, priorPR, onReviewBranch),
 		BaseEnv:    harnessEnvironment(os.Environ(), home, scratchDir, writes, forgeToken, w.Cfg.LLMBaseURL, model),
 		LLM:        harness.LLMEnv{BaseURL: w.Cfg.LLMBaseURL, Model: model, TraceID: trace},
 		Stdout:     io.MultiWriter(os.Stdout, &logTail),
@@ -453,6 +456,9 @@ func resolveOutcome(adapterName string, report harness.OutcomeReport, runErr, ct
 		if r.Usage == nil {
 			r.Usage = report.Usage
 		}
+		if r.CreatedWorkItems == nil {
+			r.CreatedWorkItems = report.CreatedWorkItems
+		}
 		return r
 	}
 	switch {
@@ -568,6 +574,17 @@ func resolveOutcome(adapterName string, report harness.OutcomeReport, runErr, ct
 		r.FailureReason = string(work.FailureAgentError)
 		return r
 	}
+}
+
+func discardMalformedCreated(report *harness.OutcomeReport) error {
+	err := harness.ValidateCreatedWorkItems(report.CreatedWorkItems)
+	if err == nil {
+		return nil
+	}
+	n := len(report.CreatedWorkItems)
+	report.CreatedWorkItems = nil
+	report.Summary = strings.TrimSpace(report.Summary + fmt.Sprintf(" [%d created Work Items discarded: %v]", n, err))
+	return err
 }
 
 func stuckReport(summary, reason string) harness.OutcomeReport {

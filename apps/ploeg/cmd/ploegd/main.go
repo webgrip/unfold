@@ -296,6 +296,10 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("operator configuration: %w", err)
 	}
+	createdWork, err := cfg.CreatedWorkPolicies()
+	if err != nil {
+		return fmt.Errorf("created work: %w", err)
+	}
 	srv := &httpapi.Server{
 		OperatorConfig: operator,
 		WorkerSecurity: workerSecurity,
@@ -309,6 +313,7 @@ func run(log *slog.Logger) error {
 		RoleCaps:       plans,
 		Forges:         forges,
 		ForgeCreds:     forgeCreds,
+		CreatedWork:    createdWork,
 	}
 	if engine != nil {
 		srv.Engine = engine

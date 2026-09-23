@@ -515,6 +515,10 @@
         "writes": {
           "type": "boolean"
         },
+        "planner": {
+          "type": "boolean",
+          "description": "ADR-0031: the Role splits or clarifies its Work Item and returns createdWorkItems instead of code. A planner never writes."
+        },
         "cap": {
           "type": "string",
           "pattern": "^[0-9]+(\\.[0-9]+)?$"

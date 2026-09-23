@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/webgrip/ploeg/pkg/followup"
 	"github.com/webgrip/ploeg/pkg/forgebroker"
 	"github.com/webgrip/ploeg/pkg/harness"
 	"github.com/webgrip/ploeg/pkg/provider"
@@ -62,6 +63,9 @@ type Server struct {
 	// TrackerWebhooks is the latest Vikunja webhook coverage check, reported
 	// by /readyz. Nil = no check configured.
 	TrackerWebhooks *WebhookCoverage
+	// CreatedWork holds each Team's limits on the Work Items its Runs create
+	// (ADR-0031). A Team absent here gets followup.Default.
+	CreatedWork map[string]followup.Policy
 }
 
 // ReviewSettler is implemented by shiftengine.ReviewWatch.
@@ -72,6 +76,27 @@ type ReviewSettler interface {
 // RoleCaps is the slice of the team-plan config the claim path needs.
 type RoleCaps interface {
 	RoleCap(team, role string) float64
+}
+
+// PlannerRoles is implemented by plan.Plans. A RoleCaps that also
+// implements it marks planner Roles in the claim response (ADR-0031).
+type PlannerRoles interface {
+	IsPlanner(team, role string) bool
+}
+
+func (s *Server) createdWorkPolicy(team string) followup.Policy {
+	if p, ok := s.CreatedWork[team]; ok {
+		return p
+	}
+	return followup.Default()
+}
+
+func (s *Server) knownTeam(team string) bool {
+	if _, ok := s.OperatorConfig.Teams[team]; ok {
+		return true
+	}
+	_, ok := s.CreatedWork[team]
+	return ok
 }
 
 // ShiftEngine is implemented by pkg/shiftengine. An interface here rather
@@ -333,6 +358,9 @@ type claimResponse struct {
 	// Both arrive in the same field, and the worker cannot tell them apart —
 	// which made it log a per-run credential on deployments that have none.
 	ForgeTokenPerRun bool `json:"forgeTokenPerRun,omitempty"`
+	// Planner marks a Role the team's plan configures as a planner
+	// (ADR-0031).
+	Planner bool `json:"planner,omitempty"`
 }
 
 // handleClaim leases the next unit of work for a team. 204 = empty-handed
@@ -413,6 +441,9 @@ func (s *Server) respondClaimedRun(w http.ResponseWriter, r *http.Request, req c
 		RunToken: run.RunToken, Deadline: run.Deadline, WorkItem: run.Item,
 		Shift: run.ShiftID, Role: run.Role, Round: run.Round,
 		Writes: run.Writes, Branch: run.Branch, Authorized: run.Authorized,
+	}
+	if planners, ok := s.RoleCaps.(PlannerRoles); ok && !run.Writes {
+		resp.Planner = planners.IsPlanner(req.Team, run.Role)
 	}
 	// Prior Rounds only: this Round's siblings are still running, and Runs in
 	// one Round never observe each other (ADR-0010).
@@ -520,7 +551,7 @@ func validateOutcomeReport(req harness.OutcomeReport) error {
 	if !harness.ValidVerdict(req.Verdict) {
 		return errors.New("verdict must be approve or request_changes")
 	}
-	return nil
+	return harness.ValidateCreatedWorkItems(req.CreatedWorkItems)
 }
 
 // handleOutcome accepts the full harness.OutcomeReport shape
@@ -554,7 +585,8 @@ func (s *Server) handleOutcome(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := s.Store.ReportOutcome(r.Context(), r.PathValue("token"),
 		store.Report(req.Outcome, req.Summary, req.StuckReason, req.Links, usage, failureReason).
-			WithFindings(req.Findings).WithVerdict(req.Verdict))
+			WithFindings(req.Findings).WithVerdict(req.Verdict).
+			WithCreatedWork(req.CreatedWorkItems, s.createdWorkPolicy, s.knownTeam))
 	if err != nil {
 		if errors.Is(err, store.ErrUnknownRun) {
 			runError(w, err)
@@ -571,7 +603,9 @@ func (s *Server) handleOutcome(w http.ResponseWriter, r *http.Request) {
 			s.Log.Error("forge credential revoke failed; the sweeper will retry", "err", err)
 		}
 	}
-	s.Log.Info("outcome reported", "outcome", req.Outcome, "summary", req.Summary)
+	s.Log.Info("outcome reported", "outcome", req.Outcome, "summary", req.Summary,
+		"created_proposed", len(req.CreatedWorkItems), "created_accepted", len(res.Created))
+	s.openCreatedShifts(r.Context(), res.Created)
 	// The Shift fast path: this report may have completed a Round. Errors are
 	// logged, never surfaced — the worker's report succeeded, and the sweeper
 	// repairs a lost evaluation (R2).
@@ -581,6 +615,28 @@ func (s *Server) handleOutcome(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) openCreatedShifts(ctx context.Context, created []store.CreatedWorkItem) {
+	for _, c := range created {
+		if c.State != work.StateQueued {
+			continue
+		}
+		s.ensureShift(ctx, c.ID)
+	}
+}
+
+func (s *Server) ensureShift(ctx context.Context, id int64) {
+	if s.Engine == nil {
+		return
+	}
+	item, err := s.Store.WorkItem(ctx, id)
+	if err == nil {
+		err = s.Engine.EnsureShift(ctx, id, item)
+	}
+	if err != nil {
+		s.Log.Error("shift open failed; sweeper will repair", "id", id, "err", err)
+	}
 }
 
 // handleQueueDepth serves the executor scale signal over HTTP: the same

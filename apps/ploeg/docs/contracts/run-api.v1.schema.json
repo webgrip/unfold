@@ -51,6 +51,10 @@
         "forgeTokenPerRun": {
           "type": "boolean",
           "description": "True when forgeToken was minted for this run alone and is revoked when it settles (ADR-0013 tier 2); false or absent when it is the deployment's shared token, which the Static broker returns in the same field."
+        },
+        "planner": {
+          "type": "boolean",
+          "description": "True when the team's plan marks this Role as a planner (ADR-0031): the worker composes the planner prompt, which asks for createdWorkItems instead of code. Absent = not a planner."
         }
       },
       "required": ["runToken", "deadline", "workItem"],
