@@ -27,6 +27,7 @@ nav:
   - Reference:
       - Glossary: reference/glossary.md
       - Decisions: reference/decisions.md
+      - KPIs (proposal): reference/kpis.md
       - Product language: domain/overview.md
       - Open questions: landscape/questions.md
   - Contribute:
