@@ -353,8 +353,11 @@ func (s *Store) Checkpoint(ctx context.Context, runToken string, cp work.Checkpo
 		id, cp.Phase, cp.Branch, cp.PRURL, cp.NodeName, cp.PodUID); err != nil {
 		return err
 	}
-	if err := audit(ctx, tx, "team:"+team, "checkpoint.written", &id,
-		map[string]any{"phase": cp.Phase, "branch": cp.Branch, "pr_url": cp.PRURL, "node_name": cp.NodeName, "pod_uid": cp.PodUID}); err != nil {
+	detail := map[string]any{"phase": cp.Phase, "branch": cp.Branch, "pr_url": cp.PRURL, "node_name": cp.NodeName, "pod_uid": cp.PodUID}
+	if len(cp.InstructionFiles) > 0 {
+		detail["instruction_files"] = cp.InstructionFiles
+	}
+	if err := audit(ctx, tx, "team:"+team, "checkpoint.written", &id, detail); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

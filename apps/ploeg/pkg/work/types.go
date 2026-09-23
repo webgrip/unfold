@@ -179,4 +179,16 @@ type Checkpoint struct {
 	NodeName   string    `json:"nodeName,omitempty"`
 	PodUID     string    `json:"podUid,omitempty"`
 	At         time.Time `json:"at,omitempty"`
+
+	// InstructionFiles is every agent instruction file the worker found in
+	// the clone before the harness ran, with the digest of what it read.
+	InstructionFiles []InstructionFile `json:"instructionFiles,omitempty"`
+}
+
+// InstructionFile is one agent instruction or configuration file in a Run's
+// clone: its slash-separated path relative to the repository root and the
+// hex SHA-256 of its content.
+type InstructionFile struct {
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256"`
 }

@@ -91,6 +91,17 @@ func TestTaskSpec_MatchesSchema(t *testing.T) {
 	}
 }
 
+func TestCheckpointWithInstructionFileEvidence_MatchesSchema(t *testing.T) {
+	sch := compileSchema(t, "checkpoint.v1.schema.json")
+	cp := work.Checkpoint{Phase: "branch_created", Branch: "agent/vik-596", InstructionFiles: []work.InstructionFile{
+		{Path: "AGENTS.md", SHA256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+		{Path: "pkg/CLAUDE.md", SHA256: "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"},
+	}}
+	if err := validate(t, sch, cp); err != nil {
+		t.Errorf("checkpoint with instruction-file evidence does not validate: %v", err)
+	}
+}
+
 func TestOutcomeReport_MatchesSchema(t *testing.T) {
 	sch := compileSchema(t, "outcomereport.v1.schema.json")
 

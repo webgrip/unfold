@@ -2,8 +2,8 @@
 type: how-to
 audience: [owner, integrator, agent]
 owner: glide
-last_verified: 2026-09-22
-verified_by: "research 2026-09-22-agents-md; Read apps/ploeg pkg/worker/{worker,task,environment,target}.go, pkg/harness/adapter.go, pkg/harness/adapters/*, cmd/ploegd/main.go, ops/helm/ploeg/values.yaml and Ploeg ADR-0013 at 6221579"
+last_verified: 2026-09-23
+verified_by: "research 2026-09-22-agents-md; Read apps/ploeg pkg/worker/{worker,task,environment,target}.go, pkg/harness/adapter.go, pkg/harness/adapters/*, cmd/ploegd/main.go, ops/helm/ploeg/values.yaml and Ploeg ADR-0013 at 6221579; pkg/worker/instructions.go, ops/helm/ploeg/templates/_helpers.tpl on 2026-09-23"
 ---
 
 # Prepare a repository for Ploeg agents
@@ -63,6 +63,15 @@ Design notes: [docs/architecture.md](docs/architecture.md)
 
 A harness loads `AGENTS.md` with the authority of its system prompt, so a change to it changes what every later agent does. Require human review for changes to `AGENTS.md`, `CLAUDE.md`, `.claude/`, `.agents/`, `.openhands/`, `.mcp.json` and `.cursorrules`, for example with CODEOWNERS. Ploeg's writers are told not to change these files unless the Work Item asks for it. Reviewer Runs read `AGENTS.md` from the base branch, not from the branch they review, and report any change to these files as a finding.
 
+Before the harness starts, the worker scans the clone (on a reviewer, the branch under review) ([instructions.go](../../apps/ploeg/pkg/worker/instructions.go)):
+
+- **What it scans:** `AGENTS.md` and `CLAUDE.md` at any depth, `.cursorrules`, `.mcp.json`, and every file under a `.claude/`, `.agents/` or `.openhands/` directory.
+- **Evidence:** the path and SHA-256 of each file go into the Run's first checkpoint (`instructionFiles`, [checkpoint schema](../../apps/ploeg/docs/contracts/checkpoint.v1.schema.json)) and into the audit log as `checkpoint.written`, so you can later check which instruction files a Run started from.
+- **Hidden characters stop the Run.** Invisible, bidi and zero-width characters (U+200B–U+200F, U+202A–U+202E, U+2060–U+2064, U+2066–U+2069 and U+FEFF) can hide instructions that a reviewer cannot see. If a scanned file contains one, the Run ends `stuck` before the harness starts, and the reason names each file, line and column. A byte-order mark (U+FEFF) at the start of a file counts too: save instruction files as UTF-8 without a BOM.
+- **Symlinks:** a symlinked instruction file or directory is followed while it stays inside the repository. One that points outside the clone, or loops, ends the Run `stuck` as well.
+
+To clear a stuck Run, look at the named positions with a tool that shows hidden characters, for example `grep -nP '[\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2060}-\x{2064}\x{2066}-\x{2069}\x{FEFF}]' AGENTS.md`. Remove the characters through a reviewed change, then reassign the ticket.
+
 ## Set branch rules
 
 Ploeg names the writer's branch `agent/vik-<ticket id>` for Vikunja and `agent/clickup-<ticket id>` for ClickUp ([branch.go](../../apps/ploeg/pkg/work/branch.go)) and tells the agent never to commit to the base branch and never to merge ([task.go](../../apps/ploeg/pkg/worker/task.go)). Ploeg does not configure branch protection; ADR-0013 rejected changing forge settings per Shift. On the forge, set these rules yourself (recommended, not enforced by Ploeg):
@@ -97,5 +106,9 @@ Assign a small test ticket. Expect `target resolved` with your repository in the
 | Outcome is not `pr_opened` although a pull request exists | The pull request's head is not Ploeg's branch name | Keep Ploeg's branch name |
 | Agent skipped the checks | No Docker (`dind: false`) or no verify command in `AGENTS.md` | Enable DinD or add the tools to the image; document the command |
 | Pull request targets the wrong base branch | `branch:` not pinned, so the repository default or `main` is used | Pin it in the project route |
+| Run `stuck`: `hidden Unicode in agent instruction files` | An instruction file contains an invisible, bidi or zero-width character, or starts with a byte-order mark | Inspect the named positions; remove the characters through a reviewed change |
+| Run `stuck`: `could not verify the agent instruction files` | An instruction file is a symlink that leaves the repository or loops, or is not a regular file | Replace the symlink with the file or a link inside the repository |
+| Reader Run `stuck`: `no read-only forge token` | The worker's token is not marked read-only | Set `readTokenSecret` and redeploy the chart |
+| Chart render fails: `readTokenSecret is not set` | A team has a reader Role and no read-only token | Set `readTokenSecret.name` and `.key` |
 
 Next: [review an agent's pull request](review-an-agent-pr.md).

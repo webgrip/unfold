@@ -2,6 +2,9 @@ package store
 
 import (
 	"context"
+	"encoding/json"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -106,6 +109,35 @@ func TestCheckpoint_ReaderWithoutLease(t *testing.T) {
 	}
 	if err := testStore.Checkpoint(ctx, run.RunToken, work.Checkpoint{Phase: "branch_created", Branch: "agent/vik-585"}); err != nil {
 		t.Errorf("a reader could not checkpoint: %v", err)
+	}
+}
+
+func TestCheckpoint_RecordsInstructionFileEvidence(t *testing.T) {
+	ctx := context.Background()
+	itemID, shiftID := openShift(t, 10)
+	if _, err := testStore.OpenRound(ctx, shiftID, 0, []Role{{Name: "security", Cap: 1}}); err != nil {
+		t.Fatalf("OpenRound: %v", err)
+	}
+	run, err := testStore.ClaimRole(ctx, "silver", "security", time.Minute, 1)
+	if err != nil {
+		t.Fatalf("ClaimRole: %v", err)
+	}
+	files := []work.InstructionFile{{Path: "AGENTS.md", SHA256: strings.Repeat("a", 64)}, {Path: ".claude/settings.json", SHA256: strings.Repeat("b", 64)}}
+	if err := testStore.Checkpoint(ctx, run.RunToken, work.Checkpoint{Phase: "branch_created", InstructionFiles: files}); err != nil {
+		t.Fatalf("Checkpoint: %v", err)
+	}
+	var raw []byte
+	if err := testStore.pool.QueryRow(ctx,
+		`SELECT detail->'instruction_files' FROM audit_log WHERE work_item_id = $1 AND action = 'checkpoint.written' ORDER BY id DESC LIMIT 1`,
+		itemID).Scan(&raw); err != nil {
+		t.Fatalf("audit read: %v", err)
+	}
+	var got []work.InstructionFile
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("decode %s: %v", raw, err)
+	}
+	if !reflect.DeepEqual(got, files) {
+		t.Fatalf("instruction file evidence = %+v, want %+v", got, files)
 	}
 }
 

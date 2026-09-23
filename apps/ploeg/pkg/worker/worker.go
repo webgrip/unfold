@@ -244,8 +244,17 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 			"branch", branch, "base", ref.BaseBranch)
 	}
 
-	if err := w.API.Checkpoint(claimed.RunToken, work.Checkpoint{Phase: "branch_created", Branch: branch, NodeName: nodeName, PodUID: podUID}); err != nil {
+	instructions, scanErr := scanInstructionFiles(cloneDir)
+	w.Log.Info("scanned agent instruction files", "files", len(instructions.Files), "hidden_characters", instructions.HiddenTotal)
+	if err := w.API.Checkpoint(claimed.RunToken, work.Checkpoint{Phase: "branch_created", Branch: branch, NodeName: nodeName, PodUID: podUID,
+		InstructionFiles: instructions.Files}); err != nil {
 		w.Log.Warn("checkpoint failed", "err", err)
+	}
+	if scanErr != nil {
+		return stuckReport("could not verify the agent instruction files", scanErr.Error())
+	}
+	if instructions.HiddenTotal > 0 {
+		return hiddenInstructionReport(instructions)
 	}
 
 	spec := harness.TaskSpec{
