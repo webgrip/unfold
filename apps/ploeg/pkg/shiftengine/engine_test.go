@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -21,7 +22,15 @@ import (
 // terminal-not-closed, pool-below-floor, expired reader blocking a round.
 // Real Postgres, like pkg/store — the semantics are SQL.
 
-const testPort = 55441
+var testPort = testPortWithOffset(55441)
+
+func testPortWithOffset(port uint32) uint32 {
+	offset, err := strconv.Atoi(os.Getenv("PLOEG_TEST_PG_PORT_OFFSET"))
+	if err != nil {
+		return port
+	}
+	return port + uint32(offset)
+}
 
 var (
 	testStore *store.Store

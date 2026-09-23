@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -25,7 +26,15 @@ import (
 // forever, so these exercise the real HTTP surface against a real Postgres
 // rather than a fake store.
 
-const testPort = 55443
+var testPort = testPortWithOffset(55443)
+
+func testPortWithOffset(port uint32) uint32 {
+	offset, err := strconv.Atoi(os.Getenv("PLOEG_TEST_PG_PORT_OFFSET"))
+	if err != nil {
+		return port
+	}
+	return port + uint32(offset)
+}
 
 var (
 	testStore *store.Store

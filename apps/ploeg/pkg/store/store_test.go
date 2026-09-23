@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -18,7 +19,15 @@ import (
 // CI gate executes these instead of skipping them. A failure to start it is
 // a hard test failure, never a skip: a silently-skipped gate proves nothing.
 
-const testPort = 55439
+var testPort = testPortWithOffset(55439)
+
+func testPortWithOffset(port uint32) uint32 {
+	offset, err := strconv.Atoi(os.Getenv("PLOEG_TEST_PG_PORT_OFFSET"))
+	if err != nil {
+		return port
+	}
+	return port + uint32(offset)
+}
 
 var testStore *Store
 
