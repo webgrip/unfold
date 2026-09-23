@@ -52,7 +52,8 @@ status=0
 for case in ":default" \
 	"ops/helm/ploeg/ci/executor-values.yaml:executor" \
 	"ops/helm/ploeg/ci/executor-cronjob-values.yaml:executor-cronjob" \
-	"ops/helm/ploeg/ci/executor-gitlab-values.yaml:executor-gitlab"; do
+	"ops/helm/ploeg/ci/executor-gitlab-values.yaml:executor-gitlab" \
+	"ops/helm/ploeg/ci/monitoring-values.yaml:monitoring"; do
 	values=${case%%:*}
 	name=${case##*:}
 	if [ "$mode" = "update" ]; then
