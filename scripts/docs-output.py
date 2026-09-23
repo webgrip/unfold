@@ -73,7 +73,8 @@ def finalize(site, staging):
     (site / 'llms-full.txt').write_text(''.join(bundle))
     for page in site.rglob('*.html'):
         content = page.read_text()
-        if historical(page.relative_to(site).as_posix()):
+        location = page.relative_to(site).as_posix()
+        if location == '404.html' or historical(location):
             content = content.replace(' data-pagefind-body', '')
             content = re.sub(r'<(body|article)(?![^>]*data-pagefind-ignore)', r'<\1 data-pagefind-ignore', content)
         else:
