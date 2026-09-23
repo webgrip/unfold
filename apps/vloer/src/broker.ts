@@ -192,8 +192,4 @@ export class LiteLLMBroker implements BudgetBroker {
     if (!/^[a-zA-Z0-9_-]{1,80}$/.test(sessionId)) throw new Error('Invalid session identity');
     return (await this.keys()).filter(key => key.key_alias.startsWith(`de-vloer-${sessionId}-`)).map(key => key.key_alias);
   }
-
-  async revokeSession(sessionId: string): Promise<void> {
-    for (const alias of await this.aliasesForSession(sessionId)) await this.revoke(alias);
-  }
 }
