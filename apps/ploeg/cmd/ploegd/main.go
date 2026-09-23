@@ -254,6 +254,13 @@ func run(log *slog.Logger) error {
 	}
 	log.Info("team plans loaded", "teams", len(plans))
 
+	envCaps, err := config.ParseRunCaps(os.Getenv("PLOEG_TEAM_MAX_RUNNING"))
+	if err != nil {
+		return fmt.Errorf("PLOEG_TEAM_MAX_RUNNING: %w", err)
+	}
+	runCaps := cfg.RunCaps(envCaps)
+	log.Info("team concurrency caps loaded", "caps", runCaps)
+
 	// Uniform dispatch: a team with no plan still gets a Shift — one Round,
 	// one writer — so every item has exactly one answer to "what is happening
 	// with this". Default on; PLOEG_SHIFTS_UNIFORM=false is the kill switch
@@ -306,6 +313,7 @@ func run(log *slog.Logger) error {
 		LeaseTTL:       leaseTTL,
 		Log:            log,
 		RoleCaps:       plans,
+		TeamCaps:       runCaps,
 		Forges:         forges,
 		ForgeCreds:     forgeCreds,
 	}

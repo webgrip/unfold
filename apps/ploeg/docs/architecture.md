@@ -29,7 +29,9 @@ On the delegated path, an Operator Consumer admits one session linked to a Work 
 
 ## 3. Executors and workspace placement
 
-The [Helm chart](../ops/helm/ploeg/) supports KEDA ScaledJobs and a KEDA-free CronJob executor. Configured team plans can render separate workloads for roles with their own harness settings. KEDA polls queue depth; neither that polling nor idle controller activity requires model inference.
+The [Helm chart](../ops/helm/ploeg/) supports KEDA ScaledJobs and a KEDA-free CronJob executor. Configured team plans can render separate workloads for roles with their own harness settings. KEDA polls the pending count in PostgreSQL directly; neither that polling nor idle controller activity requires model inference. ploegd has no HTTP queue-depth route.
+
+A team can carry a concurrency cap, `maxRunning`: the most Runs it may have running at once. Set it as `executor.teams[].maxRunning` in the chart, which reaches ploegd as `PLOEG_TEAM_MAX_RUNNING`, or as `teams.<name>.maxRunning` in the `PLOEG_CONFIG` file, which wins for that team. Unset or `0` means unlimited. ploegd enforces the cap inside the claim transaction. A per-team advisory lock serialises capped claims, so concurrent workers cannot each see room under the cap. A claim over the cap answers `204` like an empty queue: the worker exits 0 and the pending Run stays queued. A Run releases its slot when it finishes, whether by outcome, Run expiry or Lease expiry. Operator executions do not count, because they are admitted through the operator API rather than claimed by a worker pod. The chart clamps every workload's KEDA `maxReplicaCount` to the cap. A planned team has one workload per role, so the sum of its ceilings can exceed the cap; the surplus pods find nothing and exit 0.
 
 A delegated operator Run executes through Vloer's workspace backend, which can be local, Docker or Kubernetes. It need not correspond to a Ploeg Kubernetes Job. See the [executor contract](contracts/executor.md) for the unattended interface.
 
@@ -61,7 +63,7 @@ Worker calls use the scoped authorization described in [worker control](contract
 
 ## 8. Configuration and development
 
-Team plans, target mapping, provider configuration and executor settings are defined by [controller startup](../cmd/ploegd/main.go), [chart values](../ops/helm/ploeg/values.yaml) and the [operations guides](index.md#operate). Desired deployed state belongs to the deployment repository. A copied team roster, IP address or image tag in this explanation would become stale independently.
+Team plans, concurrency caps, target mapping, provider configuration and executor settings are defined by [controller startup](../cmd/ploegd/main.go), [chart values](../ops/helm/ploeg/values.yaml) and the [operations guides](index.md#operate). Desired deployed state belongs to the deployment repository. A copied team roster, IP address or image tag in this explanation would become stale independently.
 
 Run the gates in the [pull-request workflow](../.forgejo/workflows/on_pull_request.yml). Mock services and cross-service fixtures provide implementation evidence. Some tests need a PostgreSQL runtime; tool or database provisioning may need network access.
 

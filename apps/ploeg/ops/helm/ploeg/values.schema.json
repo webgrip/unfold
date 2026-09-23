@@ -220,6 +220,11 @@
                 "type": "integer",
                 "minimum": 1
               },
+              "maxRunning": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Concurrency cap: the most Runs this team may have running at once, enforced by ploegd at claim time. A claim over the cap gets no work and the worker exits 0. Every workload's maxReplicaCount is clamped to it. 0 or unset = unlimited."
+              },
               "harness": {
                 "$ref": "#/definitions/harness"
               },

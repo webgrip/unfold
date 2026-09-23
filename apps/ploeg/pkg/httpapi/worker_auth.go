@@ -166,15 +166,6 @@ func (s *Server) WorkerHandler(next http.Handler) http.Handler {
 			capture.copyTo(w)
 			return
 		}
-		if path == "/api/v1/queue/depth" {
-			b, ok := a.bootstrap(token)
-			if !ok || b.Team != r.URL.Query().Get("team") || b.Role != r.URL.Query().Get("role") {
-				s.rejectWorker(w, r)
-				return
-			}
-			next.ServeHTTP(w, r)
-			return
-		}
 		if strings.HasPrefix(path, "/api/v1/queue/") {
 			s.rejectWorker(w, r)
 			return

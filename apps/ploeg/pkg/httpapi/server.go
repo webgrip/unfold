@@ -56,6 +56,9 @@ type Server struct {
 	// implemented by plan.Plans. Nil = no caps, and the authorization is
 	// bounded by the Shift pool alone.
 	RoleCaps RoleCaps
+	// TeamCaps bounds how many Runs a team may have running at once. A claim
+	// over the cap answers 204 exactly like an empty queue. Nil = unlimited.
+	TeamCaps TeamCaps
 	// TrackerWebhooks is the latest Vikunja webhook coverage check, reported
 	// by /readyz. Nil = no check configured.
 	TrackerWebhooks *WebhookCoverage
@@ -64,6 +67,19 @@ type Server struct {
 // RoleCaps is the slice of the team-plan config the claim path needs.
 type RoleCaps interface {
 	RoleCap(team, role string) float64
+}
+
+// TeamCaps is the slice of the team roster the claim path needs to enforce a
+// team's concurrency cap. MaxRunning returns 0 for an unlimited team.
+type TeamCaps interface {
+	MaxRunning(team string) int
+}
+
+func (s *Server) maxRunning(team string) int {
+	if s.TeamCaps == nil {
+		return 0
+	}
+	return s.TeamCaps.MaxRunning(team)
 }
 
 // ShiftEngine is implemented by pkg/shiftengine. An interface here rather
@@ -85,8 +101,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/runs/{token}/renew", s.handleRenew)
 	mux.HandleFunc("POST /api/v1/runs/{token}/checkpoint", s.handleCheckpoint)
 	mux.HandleFunc("POST /api/v1/runs/{token}/outcome", s.handleOutcome)
-	// Literal path wins over the {team} wildcard in the Go 1.22 mux.
-	mux.HandleFunc("GET /api/v1/queue/depth", s.handleQueueDepth)
 	mux.HandleFunc("GET /api/v1/queue/{team}", s.handleQueue)
 	mux.Handle("/api/v1/operator/", s.operatorHandler())
 	s.RegisterLLMControl(mux)
@@ -335,7 +349,7 @@ func (s *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 	// synthesized one — its Run carries the empty role. Try that first and
 	// fall through to the pre-Shift claim when there is none, so the same
 	// pod serves both worlds and the kill switch needs no chart change.
-	if run, err := s.Store.ClaimRole(r.Context(), req.Team, "", s.LeaseTTL, 0); err == nil {
+	if run, err := s.Store.ClaimRoleWithin(r.Context(), req.Team, "", s.LeaseTTL, 0, s.maxRunning(req.Team)); err == nil {
 		s.respondClaimedRun(w, r, req, run)
 		return
 	} else if !errors.Is(err, store.ErrNoWork) && !errors.Is(err, store.ErrBudgetExhausted) {
@@ -343,7 +357,7 @@ func (s *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "claim failed", http.StatusInternalServerError)
 		return
 	}
-	claimed, err := s.Store.Claim(r.Context(), req.Team, s.LeaseTTL)
+	claimed, err := s.Store.ClaimWithin(r.Context(), req.Team, s.LeaseTTL, s.maxRunning(req.Team))
 	if errors.Is(err, store.ErrNoWork) {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -366,7 +380,7 @@ func (s *Server) claimRole(w http.ResponseWriter, r *http.Request, req claimRequ
 	if s.RoleCaps != nil {
 		cap = s.RoleCaps.RoleCap(req.Team, req.Role)
 	}
-	run, err := s.Store.ClaimRole(r.Context(), req.Team, req.Role, s.LeaseTTL, cap)
+	run, err := s.Store.ClaimRoleWithin(r.Context(), req.Team, req.Role, s.LeaseTTL, cap, s.maxRunning(req.Team))
 	switch {
 	case errors.Is(err, store.ErrNoWork):
 		w.WriteHeader(http.StatusNoContent)
@@ -561,39 +575,6 @@ func (s *Server) handleOutcome(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// handleQueueDepth serves the executor scale signal over HTTP: the same
-// claimable-count the KEDA scaler reads via SQL, for executors without
-// Postgres credentials (docs/contracts/executor.md).
-//
-// With a role it answers from PendingRuns, which selects over the identical
-// predicate as ClaimRole — the two are tested against each other, because
-// overshoot merely wastes a pod while undershoot stalls Work Items silently
-// and forever.
-func (s *Server) handleQueueDepth(w http.ResponseWriter, r *http.Request) {
-	team := r.URL.Query().Get("team")
-	if team == "" {
-		http.Error(w, "team query parameter is required", http.StatusBadRequest)
-		return
-	}
-	role := r.URL.Query().Get("role")
-	var n int
-	var err error
-	if role != "" {
-		n, err = s.Store.PendingRuns(r.Context(), team, role)
-	} else {
-		n, err = s.Store.QueueDepth(r.Context(), team)
-	}
-	if err != nil {
-		http.Error(w, "queue depth read failed", http.StatusInternalServerError)
-		return
-	}
-	body := map[string]any{"team": team, "depth": n}
-	if role != "" {
-		body["role"] = role
-	}
-	writeJSON(w, http.StatusOK, body)
 }
 
 func (s *Server) handleQueue(w http.ResponseWriter, r *http.Request) {

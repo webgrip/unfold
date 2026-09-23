@@ -79,6 +79,16 @@ spec:
             - name: PLOEG_TEAM_PLANS
               value: {{ toJson $plans | quote }}
             {{- end }}
+            {{- $maxRunning := dict }}
+            {{- range .Values.executor.teams }}
+            {{- if .maxRunning }}
+            {{- $_ := set $maxRunning .name (.maxRunning | int) }}
+            {{- end }}
+            {{- end }}
+            {{- if $maxRunning }}
+            - name: PLOEG_TEAM_MAX_RUNNING
+              value: {{ toJson $maxRunning | quote }}
+            {{- end }}
             {{- /* The forge seam: ploegd publishes findings to the pull
                  request as the same bot that opens them (ADR-0011). Commenting
                  is not pushing, so no second credential — but without a URL

@@ -11,13 +11,12 @@ A Run token identifies work; it does not authenticate a managed request. The sig
 | Operation | Required authority | Result |
 | --- | --- | --- |
 | `POST /api/v1/claim` | Bootstrap capability matching the requested team and role; worker identity | Existing claim payload plus `controlToken`; managed inference authorization is reserved first |
-| `GET /api/v1/queue/depth` | Bootstrap capability matching both query scopes | Scoped queue depth |
 | Run renew, checkpoint and outcome routes | Matching signed Run capability and worker identity | Existing work-control behavior |
 | `POST /api/v1/runs/{token}/llm/credential` | Live signed Run capability | One inference key and alias; controller policy selects the budget, models and TTL |
 | `POST /api/v1/runs/{token}/llm/block` | Live signed Run capability | Blocks matching gateway keys while retaining accounting identities |
 | `GET /api/v1/runs/{token}/llm/spend` | Live signed Run capability | Provisional observed cost; absent gateway accounting is an error |
 
-Managed worker queue snapshots are unavailable. Human applications use the separately authorized [operator contract](README.md#operator-read-consumers).
+Managed worker queue snapshots are unavailable. `GET /api/v1/queue/depth` was removed on 2026-09-23 because nothing consumed it. Human applications use the separately authorized [operator contract](README.md#operator-read-consumers).
 
 Operator execution credential issuance uses the same account but also checks its exact execution generation, live deadline and running state under the execution lock. The checks occur before the external mint and again before recording the returned credential. A pause or generation change during mint prevents credential delivery; cleanup attempts to block the returned key and retains the unresolved hold.
 

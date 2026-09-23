@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://webgrip.dev/ploeg/contracts/run-api.v1.schema.json",
   "title": "Run API",
-  "description": "Message bodies of ploegd's run API — the executor contract surface (docs/contracts/executor.md). Endpoints: POST /api/v1/claim, POST /api/v1/runs/{token}/renew, POST /api/v1/runs/{token}/checkpoint, POST /api/v1/runs/{token}/outcome, GET /api/v1/queue/depth?team=.",
+  "description": "Message bodies of ploegd's run API — the executor contract surface (docs/contracts/executor.md). Endpoints: POST /api/v1/claim, POST /api/v1/runs/{token}/renew, POST /api/v1/runs/{token}/checkpoint, POST /api/v1/runs/{token}/outcome. GET /api/v1/queue/depth and its queueDepthResponse were removed on 2026-09-23 because nothing consumed them; executors read the scale signal by SQL (docs/contracts/executor.md).",
   "$defs": {
     "claimRequest": {
       "type": "object",
@@ -64,17 +64,6 @@
       "additionalProperties": false
     },
     "checkpointRequest": { "$ref": "checkpoint.v1.schema.json" },
-    "outcomeRequest": { "$ref": "outcomereport.v1.schema.json" },
-    "queueDepthResponse": {
-      "description": "GET /api/v1/queue/depth?team=&role= — the executor scale signal. With a role it counts pending Runs for that (team, role), the identical predicate ClaimRole drains; without one it counts claimable Work Items. Overshoot is acceptable, undershoot stalls Work Items silently and forever.",
-      "type": "object",
-      "properties": {
-        "team": { "type": "string" },
-        "role": { "type": "string" },
-        "depth": { "type": "integer", "minimum": 0 }
-      },
-      "required": ["team", "depth"],
-      "additionalProperties": false
-    }
+    "outcomeRequest": { "$ref": "outcomereport.v1.schema.json" }
   }
 }

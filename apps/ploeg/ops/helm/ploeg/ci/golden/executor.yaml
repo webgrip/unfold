@@ -119,6 +119,8 @@ spec:
                   key: PLOEG_VIKUNJA_SECRET
             - name: PLOEG_TEAM_PLANS
               value: "{\"gold\":{\"maxFixRounds\":0,\"pool\":\"6\",\"rounds\":[{\"roles\":[{\"cap\":\"0.50\",\"harness\":{\"dind\":false},\"name\":\"analyst\",\"writes\":false},{\"cap\":\"0.50\",\"harness\":{\"dind\":false},\"name\":\"tests\",\"writes\":false}]},{\"roles\":[{\"cap\":\"3.00\",\"model\":\"litellm_proxy/claude-sonnet-5\",\"name\":\"builder\",\"writes\":true}]},{\"roles\":[{\"cap\":\"0.75\",\"harness\":{\"dind\":false},\"model\":\"litellm_proxy/claude-sonnet-5\",\"name\":\"reviewer\",\"writes\":false}]},{\"roles\":[{\"cap\":\"3.00\",\"model\":\"litellm_proxy/claude-sonnet-5\",\"name\":\"builder\",\"writes\":true}]}]}}"
+            - name: PLOEG_TEAM_MAX_RUNNING
+              value: "{\"zinc\":2}"
             - name: PLOEG_FORGEJO_URL
               value: "http://forgejo-http.forgejo.svc.cluster.local:3000"
             - name: PLOEG_FORGEJO_TOKEN
@@ -415,7 +417,7 @@ spec:
         dbName: "app"
         sslmode: "require"
         # The one poll-query shape: served index-only by work_items_claimable
-        # (backlog #24/#47). Must stay in sync with store.Claim/QueueDepth.
+        # (backlog #24/#47). Must stay in sync with store.Claim.
         query: "SELECT COUNT(*) FROM work_items WHERE team = 'bronze' AND state = 'queued' AND NOT operator_owned AND (next_eligible_at IS NULL OR next_eligible_at <= now())"
         targetQueryValue: "1"
         activationTargetQueryValue: "0"
@@ -604,7 +606,7 @@ spec:
         dbName: "app"
         sslmode: "require"
         # The one poll-query shape: served index-only by work_items_claimable
-        # (backlog #24/#47). Must stay in sync with store.Claim/QueueDepth.
+        # (backlog #24/#47). Must stay in sync with store.Claim.
         query: "SELECT COUNT(*) FROM work_items WHERE team = 'copper' AND state = 'queued' AND NOT operator_owned AND (next_eligible_at IS NULL OR next_eligible_at <= now())"
         targetQueryValue: "1"
         activationTargetQueryValue: "0"
@@ -839,7 +841,7 @@ spec:
         dbName: "app"
         sslmode: "require"
         # The one poll-query shape: served index-only by work_items_claimable
-        # (backlog #24/#47). Must stay in sync with store.Claim/QueueDepth.
+        # (backlog #24/#47). Must stay in sync with store.Claim.
         query: "SELECT COUNT(*) FROM work_items WHERE team = 'tin' AND state = 'queued' AND NOT operator_owned AND (next_eligible_at IS NULL OR next_eligible_at <= now())"
         targetQueryValue: "1"
         activationTargetQueryValue: "0"
@@ -875,7 +877,7 @@ metadata:
 spec:
   pollingInterval: 30
   minReplicaCount: 0
-  maxReplicaCount: 1
+  maxReplicaCount: 2
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   rollout:
@@ -1082,7 +1084,7 @@ spec:
         dbName: "app"
         sslmode: "require"
         # The one poll-query shape: served index-only by work_items_claimable
-        # (backlog #24/#47). Must stay in sync with store.Claim/QueueDepth.
+        # (backlog #24/#47). Must stay in sync with store.Claim.
         query: "SELECT COUNT(*) FROM work_items WHERE team = 'zinc' AND state = 'queued' AND NOT operator_owned AND (next_eligible_at IS NULL OR next_eligible_at <= now())"
         targetQueryValue: "1"
         activationTargetQueryValue: "0"
@@ -1325,7 +1327,7 @@ spec:
         dbName: "app"
         sslmode: "require"
         # The one poll-query shape: served index-only by work_items_claimable
-        # (backlog #24/#47). Must stay in sync with store.Claim/QueueDepth.
+        # (backlog #24/#47). Must stay in sync with store.Claim.
         query: "SELECT COUNT(*) FROM work_items WHERE team = 'lead' AND state = 'queued' AND NOT operator_owned AND (next_eligible_at IS NULL OR next_eligible_at <= now())"
         targetQueryValue: "1"
         activationTargetQueryValue: "0"
