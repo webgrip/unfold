@@ -59,6 +59,7 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_FORGEJO_TOKEN` | ploegd |  |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_FORGEJO_URL` | ploegd |  |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_FORGE_TOKEN_ACCESS` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_FORGE_TOKEN_ISOLATION` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_GITLAB_BOT` | ploegd |  | GitLab username Ploeg acts as. Like `PLOEG_FORGEJO_BOT`, a review event from it never sends work back under `teams.<name>.forgeFollowUps`. Unset adds no GitLab identity. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_GITLAB_SECRET` | ploegd |  | Shared secret GitLab sends as `X-Gitlab-Token` to `POST /webhooks/forge/gitlab` (chart `executor.gitlab.webhookSecret`). Unset rejects forge webhooks. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_GITLAB_TOKEN` | ploegd |  | Token with `api` scope on the target projects, sent as `PRIVATE-TOKEN` (chart `executor.gitlab.tokenSecret`). | [main.go](../../cmd/ploegd/main.go) |
@@ -146,6 +147,7 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `executor.dindResources.requests.memory` |  | `1536Mi` |  | values.yaml |
 | `executor.enabled` | boolean | `false` | The executor (design §6, docs/contracts/executor.md). Disabled until the ingest path is verified in-cluster; flipping it on requires the LiteLLM + agent-builder secrets and (for dind harnesses) the privileged-DinD PolicyException in the namespace. | values.yaml, values.schema.json |
 | `executor.forge` | one of `"forgejo"`, `"gitlab"` | `forgejo` | Which forge the workers act against; selects the sibling block of the same name. Also the default dialect for a Work Item whose target names no forge (ADR-0023). One active forge per release: a worker pod holds one forge URL and one credential. | values.yaml, values.schema.json |
+| `executor.forgeTokenIsolation` | one of `""`, `"proxy"` | `""` | "proxy" keeps a writer's forge token inside ploeg-worker: git and the forge API reach only the Run's own repository through a loopback proxy that adds the token, and the harness sees a placeholder. "" hands the token over. Qualify per harness: one that pushes from inside DinD cannot reach it. | values.yaml, values.schema.json |
 | `executor.forgejo.adminTokenSecret` | [secretRef](#secretref) | `{}` | ADR-0013 tier 2: credential ploegd uses to MINT per-run push tokens. Held only by ploegd, never by a worker. Unset = nothing is minted. | values.yaml, values.schema.json |
 | `executor.forgejo.botUser` | string | `agent-builder` | the forge user whose tokens are minted (default agent-builder) | values.yaml, values.schema.json |
 | `executor.forgejo.readTokenSecret` | [readTokenSecretRef](#readtokensecretref) | `{}` | ADR-0013 tier 1: read-only credential for reading Roles. Required (name and key) when any team has a reading Role: the render fails without it rather than hand readers the read-write builder token. | values.yaml, values.schema.json |

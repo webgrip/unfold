@@ -60,10 +60,13 @@ type Config struct {
 	// LLMKeyIsolation is KeyIsolationProxy to keep the per-Run model key out of
 	// the harness behind a loopback proxy, or "" to hand the key over.
 	LLMKeyIsolation string
-	LLMModel        string   // raw model name (proxy prefixes intact), for passthrough
-	LLMModels       []string // stripped model scope for credential minting
-	KeyBudget       float64  // max budget (USD) for the per-run credential
-	KeyTTL          time.Duration
+	// ForgeTokenIsolation is ForgeTokenIsolationProxy to keep a writer's forge
+	// token out of the harness behind a loopback proxy scoped to its repository.
+	ForgeTokenIsolation string
+	LLMModel            string   // raw model name (proxy prefixes intact), for passthrough
+	LLMModels           []string // stripped model scope for credential minting
+	KeyBudget           float64  // max budget (USD) for the per-run credential
+	KeyTTL              time.Duration
 
 	HarnessTimeout     time.Duration // PLOEG_HARNESS_TIMEOUT: overall bound on one harness run; 0 = none
 	HarnessIdleTimeout time.Duration // PLOEG_HARNESS_IDLE_TIMEOUT: no-output bound for spawned harnesses; 0 = none
@@ -298,11 +301,27 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	if len(w.Cfg.LLMModels) > 0 {
 		model = w.Cfg.LLMModels[0]
 	}
+	harnessSpec, harnessForgeToken := spec, forgeToken
+	var gitEnv []string
+	if writes {
+		gitEnv = gitAuthenticationEnvironment(cloneURL, forgeToken)
+	}
+	if writes && forgeToken != "" && w.Cfg.ForgeTokenIsolation == ForgeTokenIsolationProxy {
+		forgeProxy, err := startForgeTokenProxy(ref, forgeToken)
+		if err != nil {
+			return stuckReport("could not isolate the forge token", err.Error())
+		}
+		defer forgeProxy.close()
+		harnessSpec.Repo.ForgeURL = forgeProxy.baseURL
+		harnessForgeToken = forgeProxy.placeholder
+		gitEnv = forgeProxy.gitEnvironment()
+		w.Log.Info("forge token isolated behind the worker's loopback proxy", "repository", ref.ProjectPath())
+	}
 	env := harness.RunEnv{
 		RepoDir:    cloneDir,
 		ScratchDir: scratchDir,
-		Prompt:     taskPrompt(spec, claimed.Planner && !writes, writes, priorPR, onReviewBranch),
-		BaseEnv:    harnessEnvironment(os.Environ(), home, scratchDir, writes, forgeToken, w.Cfg.LLMBaseURL, model),
+		Prompt:     taskPrompt(harnessSpec, claimed.Planner && !writes, writes, priorPR, onReviewBranch),
+		BaseEnv:    harnessEnvironment(os.Environ(), home, scratchDir, writes, harnessForgeToken, w.Cfg.LLMBaseURL, model),
 		LLM:        harness.LLMEnv{BaseURL: w.Cfg.LLMBaseURL, Model: model, TraceID: trace},
 		Stdout:     io.MultiWriter(os.Stdout, &logTail),
 		Stderr:     io.MultiWriter(os.Stderr, &logTail),
@@ -315,9 +334,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 		IdleTimeout: w.Cfg.HarnessIdleTimeout,
 	}
 
-	if writes {
-		env.BaseEnv = append(env.BaseEnv, gitAuthenticationEnvironment(cloneURL, forgeToken)...)
-	}
+	env.BaseEnv = append(env.BaseEnv, gitEnv...)
 
 	// The Shift's authorization is the ceiling the credential must be minted
 	// at: min(roleCap, poolRemaining), computed under the Shift row lock
@@ -330,7 +347,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 
 	w.Log.Info("starting headless harness run", "harness", w.Adapter.Name(), "cwd", cloneDir,
 		"role", claimed.Role, "budget_usd", budget, "briefing", len(claimed.Briefing))
-	report, mintErr, runErr := runAgent(ctx, w.Log, w.Broker, w.Adapter, spec, env, llmbroker.MintRequest{
+	report, mintErr, runErr := runAgent(ctx, w.Log, w.Broker, w.Adapter, harnessSpec, env, llmbroker.MintRequest{
 		RunToken:  claimed.RunToken,
 		BudgetUSD: budget,
 		Models:    w.Cfg.LLMModels,

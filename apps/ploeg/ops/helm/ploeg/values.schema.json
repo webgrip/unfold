@@ -624,6 +624,12 @@
           ],
           "additionalProperties": false
         },
+        "forgeTokenIsolation": {
+          "enum": [
+            "",
+            "proxy"
+          ]
+        },
         "sandbox": {
           "type": "object",
           "additionalProperties": false,

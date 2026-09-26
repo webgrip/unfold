@@ -117,16 +117,20 @@ func run(log *slog.Logger) error {
 		BuilderToken: requireEnv("AGENT_BUILDER_TOKEN"),
 		WorkDir:      envOr("WORK_DIR", "/mnt/ci-shared"),
 
-		LLMBaseURL:      os.Getenv("LLM_BASE_URL"),
-		LLMKeyIsolation: os.Getenv("PLOEG_LLM_KEY_ISOLATION"),
-		LLMModel:        model,
-		LLMModels:       worker.ModelList(model),
-		KeyBudget:       budget,
-		KeyTTL:          durationOr("LITELLM_KEY_DURATION", 4*time.Hour),
+		LLMBaseURL:          os.Getenv("LLM_BASE_URL"),
+		LLMKeyIsolation:     os.Getenv("PLOEG_LLM_KEY_ISOLATION"),
+		ForgeTokenIsolation: os.Getenv("PLOEG_FORGE_TOKEN_ISOLATION"),
+		LLMModel:            model,
+		LLMModels:           worker.ModelList(model),
+		KeyBudget:           budget,
+		KeyTTL:              durationOr("LITELLM_KEY_DURATION", 4*time.Hour),
 	}
 
 	if cfg.LLMKeyIsolation != "" && cfg.LLMKeyIsolation != worker.KeyIsolationProxy {
 		return fmt.Errorf("PLOEG_LLM_KEY_ISOLATION must be empty or %q, got %q", worker.KeyIsolationProxy, cfg.LLMKeyIsolation)
+	}
+	if cfg.ForgeTokenIsolation != "" && cfg.ForgeTokenIsolation != worker.ForgeTokenIsolationProxy {
+		return fmt.Errorf("PLOEG_FORGE_TOKEN_ISOLATION must be empty or %q, got %q", worker.ForgeTokenIsolationProxy, cfg.ForgeTokenIsolation)
 	}
 	if cfg.ForgeTokenAccess, err = forgeTokenAccess(); err != nil {
 		return err

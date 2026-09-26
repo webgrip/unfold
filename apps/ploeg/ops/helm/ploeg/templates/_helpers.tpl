@@ -317,6 +317,10 @@ spec:
         - name: PLOEG_LLM_KEY_ISOLATION
           value: {{ . | quote }}
         {{- end }}
+        {{- with $root.Values.executor.forgeTokenIsolation }}
+        - name: PLOEG_FORGE_TOKEN_ISOLATION
+          value: {{ . | quote }}
+        {{- end }}
         - name: PLOEG_LLM_CREDENTIAL_MODE
           value: {{ ternary "static-compatibility" "managed" (eq $root.Values.executor.workerAuth.mode "legacy") | quote }}
         {{- if eq $root.Values.executor.workerAuth.mode "managed" }}

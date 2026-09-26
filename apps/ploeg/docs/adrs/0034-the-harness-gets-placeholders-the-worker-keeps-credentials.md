@@ -60,9 +60,11 @@ proxies the harness's authenticated traffic over loopback.**
   (`PLOEG_LLM_KEY_ISOLATION=proxy`) until each harness is qualified, because a
   harness that calls the model from inside a DinD container cannot reach the
   worker's loopback.
-* The forge token follows the same pattern next: git and forge API traffic for
-  the Run's own repository through a loopback proxy, so no forge credential
-  enters the harness environment.
+* A writer's forge token follows the same pattern: git (redirected with
+  `url.<proxy>/.insteadOf`) and the forge API reach only the Run's own
+  repository through a loopback proxy that adds the token
+  ([forgeproxy.go](../../pkg/worker/forgeproxy.go)); everything else gets 403.
+  Opt-in as `PLOEG_FORGE_TOKEN_ISOLATION=proxy` for the same reason.
 
 ### Consequences
 
@@ -72,14 +74,15 @@ proxies the harness's authenticated traffic over loopback.**
   owns the credentials' lifecycle.
 * Bad, because it only holds while the harness lacks `CAP_SYS_PTRACE` and runs
   in the worker's container; a pod spec that grants the capability undoes it.
-* Bad, because until the forge proxy exists a writer still receives its forge
-  token.
+* Bad, because both proxies are opt-in until each harness is qualified, so a
+  default deployment still hands credentials over.
 
 ### Confirmation
 
 * `go test ./pkg/worker/` runs `TestHarnessCannotReadConcealedWorkerEnvironment`
-  (Linux) and `TestIsolatedRunNeverHandsTheKeyToTheHarness`; CI runs both in
-  `go test ./...`.
+  (Linux), `TestIsolatedRunNeverHandsTheKeyToTheHarness`,
+  `TestForgeProxyRefusesEverythingOutsideTheRunsRepository` and
+  `TestGitPushesThroughTheForgeProxy`; CI runs them in `go test ./...`.
 * The chart golden renders show no worker container with added capabilities; a
   reviewer rejects any `CAP_SYS_PTRACE` or `shareProcessNamespace` on the
   worker pod against this record.
