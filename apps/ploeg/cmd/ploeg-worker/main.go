@@ -39,6 +39,14 @@ func main() {
 		return
 	}
 
+	if len(os.Args) >= 2 && os.Args[1] == "sandbox-launch" {
+		if err := runSandboxLaunch(log); err != nil {
+			log.Error("sandbox launcher exiting", "err", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if err := run(log); err != nil {
 		log.Error("ploeg-worker exiting", "err", err)
 		os.Exit(1)

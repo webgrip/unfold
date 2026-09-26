@@ -118,8 +118,11 @@ executor:
   # PolicyException in the namespace.
   enabled: false
   # keda (flagship: ScaledJob + Postgres scaler) | cronjob (KEDA-free polling
-  # executor). Any other launcher can implement docs/contracts/executor.md
-  # out-of-chart against the run API.
+  # executor) | sandbox (EXPERIMENTAL: the ScaledJob's pod becomes a launcher
+  # that runs each Run in a kubernetes-sigs/agent-sandbox v1beta1 Sandbox; needs
+  # agent-sandbox v1.0.x with extensions installed, ADR-0032). Any other
+  # launcher can implement docs/contracts/executor.md out-of-chart against the
+  # run API.
   type: keda
   forge: forgejo
   nodeSelector:
@@ -170,6 +173,18 @@ executor:
     # type=cronjob only: how often each team polls for work. Idle ticks are
     # free (empty-handed claim = exit 0).
     schedule: "*/2 * * * *"
+  sandbox:
+    # type=sandbox only. "" = the node's default runtime; set kata or gvisor
+    # only after qualifying it with the privileged DinD sidecar on your nodes.
+    runtimeClassName: ""
+    # A finished claim is deleted by its launcher; this TTL is the fallback.
+    ttlSecondsAfterFinished: 60
+    # The claim's shutdownTime is activeDeadlineSeconds plus this margin, and
+    # the launcher Job's own deadline matches it.
+    shutdownMarginSeconds: 600
+    launcherResources:
+      requests: {cpu: 10m, memory: 32Mi}
+      limits: {cpu: 50m, memory: 32Mi}
   # Fallback repository for teams that pin none. The repository belongs to the
   # WORK ITEM — resolved at ingest from its tracker scope via ploegd's
   # PLOEG_TARGET_MAP (rendered from the org.yaml roster manifest) and delivered

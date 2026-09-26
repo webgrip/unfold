@@ -1,5 +1,7 @@
-{{- if and .Values.executor.enabled (eq (.Values.executor.type | default "keda") "keda") }}
+{{- $executorType := .Values.executor.type | default "keda" }}
+{{- if and .Values.executor.enabled (has $executorType (list "keda" "sandbox")) }}
 {{- $root := . }}
+{{- $sandbox := eq $executorType "sandbox" }}
 {{- range $team := .Values.executor.teams }}
 {{- range $role := (include "ploeg.teamRoles" $team | fromJsonArray) }}
 ---
@@ -17,7 +19,7 @@ kind: ScaledJob
 metadata:
   name: {{ include "ploeg.workloadName" (dict "root" $root "team" $team "role" $role) }}
   labels: {{- include "ploeg.labels" $root | nindent 4 }}
-    {{- if include "ploeg.roleUsesDind" (dict "root" $root "team" $team "role" $role) }}
+    {{- if and (not $sandbox) (include "ploeg.roleUsesDind" (dict "root" $root "team" $team "role" $role)) }}
     # KEDA copies these labels onto every Job it creates, which is the only way
     # the hazard reaches the Job. Kyverno autogens a Job rule for
     # pod-security-baseline-enforce and a Job selector matches the JOB's own
@@ -39,9 +41,15 @@ spec:
     parallelism: 1
     completions: 1
     backoffLimit: 0 # ploeg owns retries; every pod is one auditable run (backlog #51)
+    {{- if $sandbox }}
+    activeDeadlineSeconds: {{ add $root.Values.executor.activeDeadlineSeconds $root.Values.executor.sandbox.shutdownMarginSeconds }}
+    template:
+      {{- include "ploeg.sandboxLauncherPodTemplate" (dict "root" $root "team" $team "role" $role) | nindent 6 }}
+    {{- else }}
     activeDeadlineSeconds: {{ $root.Values.executor.activeDeadlineSeconds }}
     template:
       {{- include "ploeg.workerPodTemplate" (dict "root" $root "team" $team "role" $role) | nindent 6 }}
+    {{- end }}
   triggers:
     - type: postgresql
       metadata:

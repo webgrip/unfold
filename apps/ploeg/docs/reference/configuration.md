@@ -20,6 +20,8 @@ The generator follows each binary's imports inside the module and records every 
 | `AGENT_BUILDER_TOKEN` | ploeg-worker | required | Forge token for clone and push. A reading Role gets `executor.forgejo.readTokenSecret` when set. Writers also pass it to the harness. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `FORGE_URL` | ploeg-worker | required |  | [main.go](../../cmd/ploeg-worker/main.go) |
 | `KUBECONFIG` | ploeg-worker |  | Administrative configuration. The worker refuses to start when it is set. | [main.go](../../cmd/ploeg-worker/main.go) |
+| `KUBERNETES_SERVICE_HOST` | ploeg-worker |  |  | [launcher.go](../../pkg/sandboxlaunch/launcher.go) |
+| `KUBERNETES_SERVICE_PORT` | ploeg-worker |  |  | [launcher.go](../../pkg/sandboxlaunch/launcher.go) |
 | `LANG` | ploeg-worker |  |  | [git.go](../../pkg/worker/git.go) |
 | `LC_ALL` | ploeg-worker |  |  | [git.go](../../pkg/worker/git.go) |
 | `LITELLM_ADMIN_URL` | ploeg-worker |  | Controller-only. The worker refuses to start when it is set. | [main.go](../../cmd/ploeg-worker/main.go) |
@@ -76,6 +78,12 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_OUTCOME_FILE` | ploeg-worker |  | `exec` harness only: OutcomeReport JSON path override (chart `executor.harness.outcomeFile`). | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_REVIEW_RECONCILE_INTERVAL` | ploegd | `10m` |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_ROLE` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_SANDBOX_JOB_NAME` | ploeg-worker |  |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
+| `PLOEG_SANDBOX_JOB_UID` | ploeg-worker |  |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
+| `PLOEG_SANDBOX_RUN_DEADLINE` | ploeg-worker | `0` |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
+| `PLOEG_SANDBOX_SHUTDOWN_MARGIN` | ploeg-worker | `10m` |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
+| `PLOEG_SANDBOX_TTL_SECONDS_AFTER_FINISHED` | ploeg-worker | `60` |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
+| `PLOEG_SANDBOX_WARM_POOL` | ploeg-worker |  |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_SHIFTS_UNIFORM` | ploegd | `true` |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_SWEEP_INTERVAL` | ploegd | `15s` |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_TARGET_FORGE` | ploeg-worker | `forgejo` | Forge dialect the worker acts against (chart `executor.forge`). | [main.go](../../cmd/ploeg-worker/main.go) |
@@ -100,6 +108,8 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_WORKER_LLM_POLICIES` | ploegd |  | Trusted team and role inference policies. The chart builds them from each team and role model and budget plus `executor.workerAuth.additionalLLMPolicies`. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_WORKER_SIGNING_KEY` | ploeg-worker |  | Controller-only. The worker refuses to start when it is set. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_WORKER_SIGNING_KEY` | ploegd |  | Controller-only signing material for worker control capabilities, at least 32 bytes (chart `executor.workerAuth.signingKeySecret`). | [main.go](../../cmd/ploegd/main.go) |
+| `POD_NAME` | ploeg-worker |  |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
+| `POD_NAMESPACE` | ploeg-worker |  |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `POD_UID` | ploeg-worker |  | Downward-API pod UID; the worker identity when `PLOEG_WORKER_ID` is unset. | [main.go](../../cmd/ploeg-worker/main.go), [worker.go](../../pkg/worker/worker.go) |
 | `REPO_NAME` | ploeg-worker |  | Fallback repository name for a team that pins one. The repository normally comes from the claimed Work Item. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `REPO_OWNER` | ploeg-worker |  | Fallback repository owner for a team that pins one. The repository normally comes from the claimed Work Item. | [main.go](../../cmd/ploeg-worker/main.go) |
@@ -170,6 +180,14 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `executor.nodeSelector.node.webgrip.io/pool` |  | `worker` |  | values.yaml |
 | `executor.pollingInterval` |  | `30` |  | values.yaml |
 | `executor.runnerImage` | string | `harbor.webgrip.dev/webgrip/agent-runner:1.0.2@sha256:086b4bc0d3fda0e3c179f9501bb46a612f5f33e60d96405a5d94471a26279596` | DEPRECATED in favor of harness.image (kept as the fallback so existing value overrides keep working). agent-runner >=1.0.1 only: 1.0.0 mints LiteLLM keys without key_alias (400). | values.yaml, values.schema.json |
+| `executor.sandbox` | object |  | type=sandbox only: runs each Run in a kubernetes-sigs/agent-sandbox v1beta1 Sandbox created by a launcher pod. | values.yaml, values.schema.json |
+| `executor.sandbox.launcherResources.limits.cpu` |  | `50m` |  | values.yaml |
+| `executor.sandbox.launcherResources.limits.memory` |  | `32Mi` |  | values.yaml |
+| `executor.sandbox.launcherResources.requests.cpu` |  | `10m` |  | values.yaml |
+| `executor.sandbox.launcherResources.requests.memory` |  | `32Mi` |  | values.yaml |
+| `executor.sandbox.runtimeClassName` | string | `""` | type=sandbox only. "" = the node's default runtime; set kata or gvisor only after qualifying it with the privileged DinD sidecar on your nodes. | values.yaml, values.schema.json |
+| `executor.sandbox.shutdownMarginSeconds` | integer | `600` | The claim's shutdownTime is activeDeadlineSeconds plus this margin, and the launcher Job's own deadline matches it. | values.yaml, values.schema.json |
+| `executor.sandbox.ttlSecondsAfterFinished` | integer | `60` | A finished claim is deleted by its launcher; this TTL is the fallback. | values.yaml, values.schema.json |
 | `executor.scaler.dbName` |  | `app` |  | values.yaml |
 | `executor.scaler.host` |  | `""` | Empty = ploeg-db-rw.<release namespace>.svc.cluster.local. Must be a name the KEDA operator can resolve from its own namespace (FQDN). | values.yaml |
 | `executor.scaler.passwordSecret.key` |  | `password` |  | values.yaml |
@@ -196,7 +214,7 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `executor.teams[].repoOwner` | string |  | Deprecated per-team fallback repository owner. The repository belongs to the Work Item. | values.schema.json |
 | `executor.teams[].targetSource` | one of `"claim"`, `"env"` |  | `env` ignores the claim's target and uses the fallback repository. | values.schema.json |
 | `executor.terminationGracePeriodSeconds` |  | `90` | Long enough for ploeg-worker to abort the harness, revoke the per-run key, settle its spend and POST the outcome — not long enough to be a hiding place. A worker that needs more than this is not shutting down, and the kubelet's SIGKILL is the right answer. | values.yaml |
-| `executor.type` | one of `"keda"`, `"cronjob"` | `keda` | keda (flagship: ScaledJob + Postgres scaler) \| cronjob (KEDA-free polling executor). Any other launcher can implement docs/contracts/executor.md out-of-chart against the run API. | values.yaml, values.schema.json |
+| `executor.type` | one of `"keda"`, `"cronjob"`, `"sandbox"` | `keda` | keda (flagship: ScaledJob + Postgres scaler) \| cronjob (KEDA-free polling executor) \| sandbox (EXPERIMENTAL: the ScaledJob's pod becomes a launcher that runs each Run in a kubernetes-sigs/agent-sandbox v1beta1 Sandbox; needs agent-sandbox v1.0.x with extensions installed, ADR-0032). Any other launcher can implement docs/contracts/executor.md out-of-chart against the run API. | values.yaml, values.schema.json |
 | `executor.workerAuth.additionalLLMPolicies` | array | `[]` | Additional trusted team and role policies with `team`, `role`, `budgetUsd`, `models` and `ttl`, including the `operator` role for a workbench consumer. | values.yaml, values.schema.json |
 | `executor.workerAuth.additionalLLMPolicies[].budgetUsd` | number |  |  | values.schema.json |
 | `executor.workerAuth.additionalLLMPolicies[].models` | array |  |  | values.schema.json |

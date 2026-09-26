@@ -292,7 +292,8 @@
         "type": {
           "enum": [
             "keda",
-            "cronjob"
+            "cronjob",
+            "sandbox"
           ]
         },
         "harness": {
@@ -622,6 +623,27 @@
             "bootstrapSecret"
           ],
           "additionalProperties": false
+        },
+        "sandbox": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "type=sandbox only: runs each Run in a kubernetes-sigs/agent-sandbox v1beta1 Sandbox created by a launcher pod.",
+          "properties": {
+            "runtimeClassName": {
+              "type": "string"
+            },
+            "ttlSecondsAfterFinished": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "shutdownMarginSeconds": {
+              "type": "integer",
+              "minimum": 60
+            },
+            "launcherResources": {
+              "type": "object"
+            }
+          }
         }
       }
     },

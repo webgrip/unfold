@@ -1,4 +1,4 @@
-{{- if and .Values.executor.enabled (eq (.Values.executor.type | default "keda") "keda") }}
+{{- if and .Values.executor.enabled (has (.Values.executor.type | default "keda") (list "keda" "sandbox")) }}
 apiVersion: keda.sh/v1alpha1
 kind: TriggerAuthentication
 metadata:

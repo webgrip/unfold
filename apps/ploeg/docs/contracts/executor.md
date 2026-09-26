@@ -71,3 +71,40 @@ Explicit legacy mode retains the old authentication behavior.
   that dies hard simply stops renewing.
 - **Payload delivery** — workers claim at boot (KEDA cannot inject per-row
   payloads, kedacore/keda#5100; every executor inherits the convention).
+
+## The agent-sandbox executor (experimental)
+
+`executor.type: sandbox` runs each Run in a
+[kubernetes-sigs/agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox)
+v1.0.x `Sandbox`. It is the second executor named by proposed
+[ADR-0032](../adrs/0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md);
+the plan is the OpenSpec change `add-agent-sandbox-executor`.
+
+The ScaledJob and its scale signal are unchanged. Its pod becomes a launcher,
+`ploeg-worker sandbox-launch`, which creates one cold `SandboxClaim` for its
+Job and waits until the claim reports `Finished`, disappears, or the launcher's
+deadline passes. On `Finished` it deletes the claim, so the agent-sandbox
+controller cannot recreate a finished worker pod. It never creates a second
+claim and never deletes a running one. The worker pod comes from a chart-owned
+`SandboxTemplate` whose pod is the same worker pod template the ScaledJob uses,
+so the run protocol above is unchanged.
+
+The obligations hold through three backstops: the worker pod's
+`activeDeadlineSeconds`; the claim's `shutdownTime` (the deadline plus
+`executor.sandbox.shutdownMarginSeconds`) with `shutdownPolicy: Delete` and a
+`ttlSecondsAfterFinished`; and the claim's owner reference to the launcher's
+Job, which lets Job garbage collection remove the claim, its Sandbox and its
+pod. The Lease still expires first.
+
+Only the launcher holds a Kubernetes API token. Its Role allows `create`,
+`get` and `delete` on `sandboxclaims` in its namespace. The template sets
+`envVarsInjectionPolicy: Disallowed`, so a claim cannot add environment to the
+worker, and `networkPolicyManagement: Unmanaged`, so the cluster's own
+policies, selected by the worker's labels, keep applying. agent-sandbox's
+secure-default policy would block ploegd, LiteLLM and in-cluster forges.
+
+Prerequisites, installed outside this chart: agent-sandbox v1.0.x with its
+extensions, and the RuntimeClass named in `executor.sandbox.runtimeClassName`
+when one is set. Qualify a RuntimeClass with the privileged DinD sidecar on
+your nodes before using it. Warm pools are not supported yet: a warm pod would
+start its worker and claim a Run before any `SandboxClaim` exists.
