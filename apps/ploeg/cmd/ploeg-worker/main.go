@@ -66,6 +66,9 @@ func installSelf(dst string) error {
 }
 
 func run(log *slog.Logger) error {
+	if err := worker.ConcealFromHarness(); err != nil {
+		return err
+	}
 	if err := rejectAdministrativeEnvironment(); err != nil {
 		return err
 	}
