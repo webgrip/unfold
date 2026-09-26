@@ -42,7 +42,7 @@ func TestHungHarnessIsStoppedReportedFailedAndItsKeyBlocked(t *testing.T) {
 			env.IdleTimeout = tc.idle
 			start := time.Now()
 			_, mintErr, runErr := runAgent(context.Background(), discardLog(), broker,
-				hangingAdapter(t, tc.body), testTaskSpec(), env, llmbroker.MintRequest{RunToken: "abc123def456ff"}, tc.limit)
+				hangingAdapter(t, tc.body), testTaskSpec(), env, llmbroker.MintRequest{RunToken: "abc123def456ff"}, tc.limit, "")
 			if mintErr != nil {
 				t.Fatal(mintErr)
 			}

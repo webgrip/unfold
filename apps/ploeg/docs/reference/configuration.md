@@ -71,6 +71,7 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_LEASE_TTL` | ploegd | `60s` |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_LISTEN` | ploegd | `:8080` |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_LLM_CREDENTIAL_MODE` | ploeg-worker | `managed` | `managed`, or `static-compatibility` for legacy mode, which uses `LLM_API_KEY`. | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_LLM_KEY_ISOLATION` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_LLM_SETTLE_AFTER` | ploegd | `15m` | Quiet period after which the settlement sweep settles a blocked Run's account from LiteLLM spend logs. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_METRICS_CACHE_TTL` | ploegd | `15s` |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_OPERATOR_CONSUMERS` | ploegd |  | JSON array of operator read consumers. Each entry names a `tokenEnv`, a further variable that holds that consumer's bearer token (chart `operator.consumers`). No consumers refuses every operator request. | [operator.go](../../cmd/ploegd/operator.go) |
@@ -173,6 +174,7 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `executor.litellm.adminUrl` |  | `http://litellm.ai.svc.cluster.local:4000` |  | values.yaml |
 | `executor.litellm.baseUrl` |  | `http://litellm.ai.svc.cluster.local:4000/v1` |  | values.yaml |
 | `executor.litellm.keyDuration` |  | `4h` | Per-run key lifetime; a positive Go duration between one second and 24 hours. | values.yaml |
+| `executor.litellm.keyIsolation` |  | `""` | "proxy" keeps the per-Run key inside ploeg-worker: the harness gets a placeholder and a loopback URL, and the worker swaps in the real key on the way to LiteLLM. "" hands the key to the harness. Qualify it per harness first: one that calls the model from inside a DinD container cannot reach the worker's loopback. | values.yaml |
 | `executor.litellm.masterKeySecret` |  |  | Controller-only LiteLLM management Secret reference. | values.yaml |
 | `executor.litellm.masterKeySecret.key` |  | `LITELLM_MASTER_KEY` |  | values.yaml |
 | `executor.litellm.masterKeySecret.name` |  | `agent-litellm-master` |  | values.yaml |

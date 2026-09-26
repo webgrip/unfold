@@ -313,6 +313,10 @@ spec:
           value: {{ $root.Values.executor.litellm.keyDuration | quote }}
         - name: LLM_BASE_URL
           value: {{ $root.Values.executor.litellm.baseUrl | quote }}
+        {{- with $root.Values.executor.litellm.keyIsolation }}
+        - name: PLOEG_LLM_KEY_ISOLATION
+          value: {{ . | quote }}
+        {{- end }}
         - name: PLOEG_LLM_CREDENTIAL_MODE
           value: {{ ternary "static-compatibility" "managed" (eq $root.Values.executor.workerAuth.mode "legacy") | quote }}
         {{- if eq $root.Values.executor.workerAuth.mode "managed" }}

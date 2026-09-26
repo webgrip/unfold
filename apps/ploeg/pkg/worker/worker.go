@@ -56,11 +56,14 @@ type Config struct {
 	ForgeTokenAccess string
 	WorkDir          string
 
-	LLMBaseURL string   // OpenAI-compatible base URL handed to the harness
-	LLMModel   string   // raw model name (proxy prefixes intact), for passthrough
-	LLMModels  []string // stripped model scope for credential minting
-	KeyBudget  float64  // max budget (USD) for the per-run credential
-	KeyTTL     time.Duration
+	LLMBaseURL string // OpenAI-compatible base URL handed to the harness
+	// LLMKeyIsolation is KeyIsolationProxy to keep the per-Run model key out of
+	// the harness behind a loopback proxy, or "" to hand the key over.
+	LLMKeyIsolation string
+	LLMModel        string   // raw model name (proxy prefixes intact), for passthrough
+	LLMModels       []string // stripped model scope for credential minting
+	KeyBudget       float64  // max budget (USD) for the per-run credential
+	KeyTTL          time.Duration
 
 	HarnessTimeout     time.Duration // PLOEG_HARNESS_TIMEOUT: overall bound on one harness run; 0 = none
 	HarnessIdleTimeout time.Duration // PLOEG_HARNESS_IDLE_TIMEOUT: no-output bound for spawned harnesses; 0 = none
@@ -332,7 +335,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 		BudgetUSD: budget,
 		Models:    w.Cfg.LLMModels,
 		TTL:       w.Cfg.KeyTTL,
-	}, w.Cfg.HarnessTimeout)
+	}, w.Cfg.HarnessTimeout, w.Cfg.LLMKeyIsolation)
 	if mintErr != nil {
 		return stuckReport("failed to mint per-run LiteLLM key", mintErr.Error())
 	}
@@ -350,7 +353,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 // revokes the credential on every return path (deferred). Returns the
 // adapter's report, a mint error (nothing ran), and the run error.
 func runAgent(ctx context.Context, log *slog.Logger, broker llmbroker.Broker, adapter harness.Adapter,
-	spec harness.TaskSpec, env harness.RunEnv, req llmbroker.MintRequest, limit time.Duration) (report harness.OutcomeReport, mintErr, runErr error) {
+	spec harness.TaskSpec, env harness.RunEnv, req llmbroker.MintRequest, limit time.Duration, isolation string) (report harness.OutcomeReport, mintErr, runErr error) {
 
 	mintCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	cred, err := broker.Mint(mintCtx, req)
@@ -374,10 +377,22 @@ func runAgent(ctx context.Context, log *slog.Logger, broker llmbroker.Broker, ad
 		}
 	}()
 
-	env.LLM.APIKey = cred.APIKey
+	harnessKey := cred.APIKey
+	if isolation == KeyIsolationProxy && cred.APIKey != "" {
+		proxy, err := startLLMKeyProxy(env.LLM.BaseURL, cred.APIKey)
+		if err != nil {
+			return harness.OutcomeReport{}, fmt.Errorf("isolate the per-run key: %w", err), nil
+		}
+		defer proxy.close()
+		harnessKey = proxy.placeholder
+		env.LLM.BaseURL = proxy.baseURL
+		env.BaseEnv = withEnv(env.BaseEnv, "LLM_BASE_URL", proxy.baseURL)
+		log.Info("per-run key isolated behind the worker's loopback proxy", "trace", cred.Alias)
+	}
+	env.LLM.APIKey = harnessKey
 	env.BaseEnv = append(env.BaseEnv, "LLM_TRACE_ID="+spec.TraceID)
-	if cred.APIKey != "" {
-		env.BaseEnv = append(env.BaseEnv, "LLM_API_KEY="+cred.APIKey)
+	if harnessKey != "" {
+		env.BaseEnv = append(env.BaseEnv, "LLM_API_KEY="+harnessKey)
 	}
 
 	report, runErr = runBounded(ctx, adapter, spec, env, limit)
