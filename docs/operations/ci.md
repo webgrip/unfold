@@ -14,7 +14,7 @@ Glide uses Webgrip's event-named entry points. The executable definitions live i
 | --- | --- | --- |
 | [on_source_change.yml](../../.forgejo/workflows/on_source_change.yml) | Push to `development`; manual validation | Validate both applications, container build contexts and release policy, and smoke-test the [local demo](../workflows/local-demo.md). An enabled push can then release Vloer followed by Ploeg. |
 | [on_pull_request.yml](../../.forgejo/workflows/on_pull_request.yml) | Pull request; manual validation | Run the same application, release-policy and demo smoke jobs without release credentials or versioning jobs. |
-| [on_schedule.yml](../../.forgejo/workflows/on_schedule.yml) | Weekly on Monday; manual rerun | Report broken external links in current docs with lychee. It publishes nothing and blocks nothing. |
+| [on_schedule.yml](../../.forgejo/workflows/on_schedule.yml) | Weekly on Monday; manual rerun | Report broken external links in current docs with lychee, which blocks nothing. Fail when Forgejo no longer holds every imported release note (`scripts/verify-import.py` with `GLIDE_REQUIRE_IMPORT_NOTES=true`), so a deletion like those of September 2026 is seen within a week even without pushes. It publishes nothing. |
 | [on_docs_change.yml](../../.forgejo/workflows/on_docs_change.yml) | Documentation or docs-tooling changes on `development`; manual validation | Validate the combined documentation, then publish Zensical and Markdown when the docs gate is enabled. |
 | [on_release_preview.yml](../../.forgejo/workflows/on_release_preview.yml) | Manual, on `development` | Check the mirror, credential access and Glide signing identity; preview each application's version with `dry-run: 'true'`. |
 | [on_release_published.yml](../../.forgejo/workflows/on_release_published.yml) | Published release; manual retry for an exact tag | Route `vloer-v…` and `ploeg-v…` to their own artifact jobs. |
@@ -33,7 +33,7 @@ Releases use the pinned Webgrip semantic-release monorepo composite, with [Vloer
 
 ## Publication and recovery
 
-The release entry point keeps each application's job dependencies separate. Ploeg accepts only zero-major release candidates. A manual publication retry requires the selected workflow ref to be the same tag as its `tag` input. Publication runs for the same tag are serialized; a newer invocation does not cancel a partially completed publication.
+The release entry point keeps each application's job dependencies separate. Ploeg and Vloer each accept only zero-major release candidates: a breaking change raises the minor version, and a `verifyRelease` guard in [apps/ploeg/scripts/release-policy.cjs](../../apps/ploeg/scripts/release-policy.cjs) and [apps/vloer/scripts/release-policy.cjs](../../apps/vloer/scripts/release-policy.cjs) refuses anything but `0.x.y-rc.N` from `development`. A manual publication retry requires the selected workflow ref to be the same tag as its `tag` input. Publication runs for the same tag are serialized; a newer invocation does not cancel a partially completed publication.
 
 Application publication uses normal, explicitly gated jobs and the existing pinned build/sign composites. This avoids the [Forgejo reusable-workflow flattening trap](https://forgejo.webgrip.dev/webgrip/workflows/src/branch/main/AGENTS.md). Ploeg distribution also requires the signing job's completion output. The [artifact guide](artifacts.md) defines source mirroring, package paths, cryptographic verification and retry behavior.
 

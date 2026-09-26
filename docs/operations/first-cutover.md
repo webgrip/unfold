@@ -12,7 +12,7 @@ Use this playbook to transfer release authority to Glide, publish the first qual
 
 The [12 September readiness record](../research/2026-09-12-cutover-readiness.json) separates observed results from missing evidence. The [23 September readiness record](../research/2026-09-23-cutover-readiness.json) and its [summary](../research/2026-09-23-cutover-readiness.md) show which blockers are fixed and which owner actions remain. The [CI guide](ci.md) maps the current event entry points and publication guards. Copy the [execution record](cutover-record.example.json) for your test and replace its empty fields as each stage completes. Keep credentials, cookies, model prompts containing private data and database contents out of that record. A stage passes only when its evidence is attached; a skipped job is not a pass.
 
-This procedure does not enable general availability. Vloer and Ploeg keep independent versions. Ploeg remains on `0.x.y-rc.N`. A release is complete when its required artifacts are verified; a rollout is complete when the selected environment passes the live checks. These are separate checkpoints.
+This procedure does not enable general availability. Vloer and Ploeg keep independent versions. Both applications remain on `0.x.y-rc.N`; each release configuration refuses a major or stable version. A release is complete when its required artifacts are verified; a rollout is complete when the selected environment passes the live checks. These are separate checkpoints.
 
 ## 1. Choose the test and capture the starting state
 

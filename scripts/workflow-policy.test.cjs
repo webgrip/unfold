@@ -241,10 +241,21 @@ test('the weekly external link check is scheduled, pinned and reports without bl
   const schedule = workflows['on_schedule.yml'];
   assert.deepEqual(Object.keys(schedule.on).sort(), ['schedule', 'workflow_dispatch']);
   assert.match(schedule.on.schedule[0].cron, /^\d+ \d+ \* \* [0-6]$/);
-  assert.deepEqual(Object.keys(schedule.jobs), ['external-links']);
+  assert.deepEqual(Object.keys(schedule.jobs), ['external-links', 'release-notes']);
   const step = schedule.jobs['external-links'].steps.find(step => step.run === 'mise run docs-links-external');
   assert.equal(step['continue-on-error'], true);
   assert.doesNotMatch(JSON.stringify(schedule), /secrets\.|permissions|GLIDE_(RELEASES|DOCS_PUBLISH)_ENABLED/);
   const mise = fs.readFileSync(path.join(root, 'mise.toml'), 'utf8');
   assert.match(mise, /\[tasks\.docs-links-external\]\ntools = \{ lychee = "\d+\.\d+\.\d+" \}/);
+});
+
+test('the weekly schedule fails loudly when Forgejo loses imported release notes', () => {
+  const job = workflows['on_schedule.yml'].jobs['release-notes'];
+  const checkout = job.steps.find(step => String(step.uses).startsWith('actions/checkout@'));
+  assert.equal(checkout.with['fetch-depth'], 0);
+  assert.ok(job.steps.some(step => step.run === "git fetch origin '+refs/notes/*:refs/notes/*'"));
+  const verify = job.steps.find(step => String(step.run).includes('scripts/verify-import.py'));
+  assert.equal(verify.env.GLIDE_REQUIRE_IMPORT_NOTES, 'true');
+  assert.equal(verify['continue-on-error'], undefined);
+  assert.doesNotMatch(JSON.stringify(job), /git push|secrets\./);
 });

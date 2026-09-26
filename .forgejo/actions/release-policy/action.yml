@@ -10,6 +10,10 @@ runs:
       shell: bash
       working-directory: apps/ploeg
       run: NODE_PATH="${SEMREL_PREBAKED:?release toolchain is required}" node --test scripts/release-policy.test.cjs
+    - name: Verify Vloer's zero-major release policy
+      shell: bash
+      working-directory: apps/vloer
+      run: NODE_PATH="${SEMREL_PREBAKED:?release toolchain is required}" node --test scripts/release-policy.test.cjs
     - name: Verify package commit selection
       shell: bash
       run: NODE_PATH="${SEMREL_PREBAKED:?release toolchain is required}" node --test scripts/release-isolation.test.cjs

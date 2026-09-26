@@ -60,7 +60,7 @@ test('the installed release pipeline selects only commits within the application
     for (const app of ['vloer', 'ploeg']) {
       const target = path.join(directory, 'apps', app);
       fs.mkdirSync(path.join(target, 'scripts'), { recursive: true });
-      for (const file of ['package.json', '.releaserc.cjs', ...(app === 'ploeg' ? ['scripts/release-policy.cjs'] : [])]) {
+      for (const file of ['package.json', '.releaserc.cjs', 'scripts/release-policy.cjs']) {
         fs.copyFileSync(path.join(root, 'apps', app, file), path.join(target, file));
         files.push(`apps/${app}/${file}`);
       }

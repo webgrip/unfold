@@ -28,7 +28,7 @@ An accurate breaking-change footer caused the shared release analyzer to publish
 
 Chosen option: "Override the breaking rule locally and guard both release entry and computed version", because it separates compatibility information from permission to publish a stable or major release.
 
-The repository maps breaking changes to minor increases and automatically publishes only `0.x.y-rc.N` versions from `development`, with `v${version}` tags. A local `verifyConditions` guard blocks promotion from other branches before semantic-release can add an existing release to a channel. A `verifyRelease` guard rejects invalid versions and tags before preparation, tagging and publishing. There is no environment bypass. A future human-approved policy change must explicitly update the code, tests and decision record.
+The repository maps breaking changes to minor increases and automatically publishes only `0.x.y-rc.N` versions from `development`, with `ploeg-v${version}` tags (renamed from `v${version}` by [0029](0029-qualify-glide-before-changing-distribution.md) when Ploeg moved into Glide). A local `verifyConditions` guard blocks promotion from other branches before semantic-release can add an existing release to a channel. A `verifyRelease` guard rejects invalid versions and tags before preparation, tagging and publishing. There is no environment bypass. A future human-approved policy change must explicitly update the code, tests and decision record.
 
 The artifact-publishing workflow independently rejects stable and major tags for release events and manual dispatch, before downstream jobs receive a version. Candidate publication never moves a `latest` image alias.
 
