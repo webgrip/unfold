@@ -187,6 +187,12 @@ executor:
     # The claim's shutdownTime is activeDeadlineSeconds plus this margin, and
     # the launcher Job's own deadline matches it.
     shutdownMarginSeconds: 600
+    # {} = Unmanaged: the cluster's own policies, selected by the worker's
+    # labels, apply. A NetworkPolicy spec here (ingress/egress rules) makes
+    # agent-sandbox manage one policy per template with exactly these rules.
+    # Allow at least DNS, ploegd, the model gateway and the forge; the
+    # controller's secure default is never used, because it blocks all three.
+    networkPolicy: {}
     launcherResources:
       requests: {cpu: 10m, memory: 32Mi}
       limits: {cpu: 50m, memory: 32Mi}

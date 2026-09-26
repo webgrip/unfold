@@ -99,9 +99,12 @@ pod. The Lease still expires first.
 Only the launcher holds a Kubernetes API token. Its Role allows `create`,
 `get` and `delete` on `sandboxclaims` in its namespace. The template sets
 `envVarsInjectionPolicy: Disallowed`, so a claim cannot add environment to the
-worker, and `networkPolicyManagement: Unmanaged`, so the cluster's own
-policies, selected by the worker's labels, keep applying. agent-sandbox's
-secure-default policy would block ploegd, LiteLLM and in-cluster forges.
+worker, and `networkPolicyManagement: Unmanaged` by default, so the cluster's
+own policies, selected by the worker's labels, keep applying. Setting
+`executor.sandbox.networkPolicy` to ingress and egress rules switches the
+template to `Managed` with exactly those rules, an egress allowlist for
+clusters that have none; include DNS, ploegd, the model gateway and the forge.
+agent-sandbox's own secure default is never used, because it blocks all three.
 
 Prerequisites, installed outside this chart: agent-sandbox v1.0.x with its
 extensions, and the RuntimeClass named in `executor.sandbox.runtimeClassName`

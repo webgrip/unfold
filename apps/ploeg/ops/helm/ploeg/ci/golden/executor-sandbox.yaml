@@ -402,7 +402,43 @@ spec:
           sizeLimit: 8Gi
         name: ci-shared
   service: false
-  networkPolicyManagement: Unmanaged
+  networkPolicyManagement: Managed
+  networkPolicy:
+    egress:
+    - ports:
+      - port: 53
+        protocol: UDP
+      - port: 53
+        protocol: TCP
+      to:
+      - namespaceSelector: {}
+        podSelector:
+          matchLabels:
+            k8s-app: kube-dns
+    - ports:
+      - port: 8080
+        protocol: TCP
+      to:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/name: ploeg
+    - ports:
+      - port: 4000
+        protocol: TCP
+      to:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ai
+    - ports:
+      - port: 443
+        protocol: TCP
+      - port: 3000
+        protocol: TCP
+      to:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: forgejo
+    ingress: []
   envVarsInjectionPolicy: Disallowed
 ---
 # Source: ploeg/templates/sandbox.yaml
@@ -577,7 +613,43 @@ spec:
           sizeLimit: 8Gi
         name: ci-shared
   service: false
-  networkPolicyManagement: Unmanaged
+  networkPolicyManagement: Managed
+  networkPolicy:
+    egress:
+    - ports:
+      - port: 53
+        protocol: UDP
+      - port: 53
+        protocol: TCP
+      to:
+      - namespaceSelector: {}
+        podSelector:
+          matchLabels:
+            k8s-app: kube-dns
+    - ports:
+      - port: 8080
+        protocol: TCP
+      to:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/name: ploeg
+    - ports:
+      - port: 4000
+        protocol: TCP
+      to:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ai
+    - ports:
+      - port: 443
+        protocol: TCP
+      - port: 3000
+        protocol: TCP
+      to:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: forgejo
+    ingress: []
   envVarsInjectionPolicy: Disallowed
 ---
 # Source: ploeg/templates/sandbox.yaml
@@ -710,7 +782,43 @@ spec:
           sizeLimit: 8Gi
         name: ci-shared
   service: false
-  networkPolicyManagement: Unmanaged
+  networkPolicyManagement: Managed
+  networkPolicy:
+    egress:
+    - ports:
+      - port: 53
+        protocol: UDP
+      - port: 53
+        protocol: TCP
+      to:
+      - namespaceSelector: {}
+        podSelector:
+          matchLabels:
+            k8s-app: kube-dns
+    - ports:
+      - port: 8080
+        protocol: TCP
+      to:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/name: ploeg
+    - ports:
+      - port: 4000
+        protocol: TCP
+      to:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ai
+    - ports:
+      - port: 443
+        protocol: TCP
+      - port: 3000
+        protocol: TCP
+      to:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: forgejo
+    ingress: []
   envVarsInjectionPolicy: Disallowed
 ---
 # Source: ploeg/templates/sandbox.yaml

@@ -189,6 +189,9 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `executor.sandbox.launcherResources.limits.memory` |  | `32Mi` |  | values.yaml |
 | `executor.sandbox.launcherResources.requests.cpu` |  | `10m` |  | values.yaml |
 | `executor.sandbox.launcherResources.requests.memory` |  | `32Mi` |  | values.yaml |
+| `executor.sandbox.networkPolicy` | object | `{}` | {} = Unmanaged: the cluster's own policies, selected by the worker's labels, apply. A NetworkPolicy spec here (ingress/egress rules) makes agent-sandbox manage one policy per template with exactly these rules. Allow at least DNS, ploegd, the model gateway and the forge; the controller's secure default is never used, because it blocks all three. | values.yaml, values.schema.json |
+| `executor.sandbox.networkPolicy.egress` | array |  |  | values.schema.json |
+| `executor.sandbox.networkPolicy.ingress` | array |  |  | values.schema.json |
 | `executor.sandbox.runtimeClassName` | string | `""` | type=sandbox only. "" = the node's default runtime; set kata or gvisor only after qualifying it with the privileged DinD sidecar on your nodes. | values.yaml, values.schema.json |
 | `executor.sandbox.shutdownMarginSeconds` | integer | `600` | The claim's shutdownTime is activeDeadlineSeconds plus this margin, and the launcher Job's own deadline matches it. | values.yaml, values.schema.json |
 | `executor.sandbox.ttlSecondsAfterFinished` | integer | `60` | A finished claim is deleted by its launcher; this TTL is the fallback. | values.yaml, values.schema.json |
