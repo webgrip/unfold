@@ -14,7 +14,7 @@ const read = relative => parse(fs.readFileSync(path.join(root, relative), 'utf8'
 const workflows = Object.fromEntries(fs.readdirSync(path.join(root, '.forgejo/workflows')).map(file => [file, read(`.forgejo/workflows/${file}`)]));
 const source = workflows['on_source_change.yml'];
 const publisher = workflows['on_release_published.yml'];
-const evaluate = (expression, context) => vm.runInNewContext(expression.replace(/^\$\{\{\s*|\s*\}\}$/g, '').replace(/needs\.([a-z-]+)/g, "needs['$1']"), { startsWith: (value, prefix) => value.startsWith(prefix), ...context });
+const evaluate = (expression, context) => vm.runInNewContext(expression.replace(/^\$\{\{\s*|\s*\}\}$/g, '').replace(/needs\.([a-z-]+)/g, "needs['$1']"), { startsWith: (value, prefix) => value.startsWith(prefix), always: () => true, ...context });
 
 test('event entry points preserve validation and keep application publication out of pull requests and docs', () => {
   assert.deepEqual(Object.keys(workflows).sort(), ['on_docs_change.yml', 'on_pull_request.yml', 'on_release_preview.yml', 'on_release_published.yml', 'on_schedule.yml', 'on_source_change.yml']);
@@ -71,6 +71,7 @@ test('every published image passes its application CVE budget before signing', (
   assert.equal(ploegGate.with['image-name'], 'ploegd');
   assert.ok(publisher.jobs['ploeg-release-sign-harbor'].needs.includes('ploeg-release-distribute-harbor'));
   assert.ok(publisher.jobs['ploeg-release-distribute'].needs.includes('vloer-release-distribute'), 'one Glide release mirrors to GitHub one application at a time');
+  assert.match(publisher.jobs['ploeg-release-distribute'].if, /^always\(\) && /, 'a failed Vloer publication must not block Ploeg');
   for (const app of ['vloer', 'ploeg']) {
     const image = app === 'vloer' ? 'de-vloer' : 'ploegd';
     const budgets = parse(fs.readFileSync(path.join(root, `apps/${app}/ops/security/cve-budgets.yaml`), 'utf8'));

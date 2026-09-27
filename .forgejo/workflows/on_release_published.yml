@@ -481,7 +481,7 @@ jobs:
   ploeg-release-distribute:
     name: Ploeg - Verify and publish all destinations
     needs: [parse-release-tag, ploeg-release-distribute-harbor, ploeg-release-publish-chart, ploeg-release-sign-harbor, vloer-release-distribute]
-    if: needs.parse-release-tag.outputs.version != '' && needs.ploeg-release-sign-harbor.outputs.signed == 'true'
+    if: always() && needs.parse-release-tag.outputs.version != '' && needs.ploeg-release-sign-harbor.outputs.signed == 'true'
     runs-on: docker
     timeout-minutes: 30
     steps:
