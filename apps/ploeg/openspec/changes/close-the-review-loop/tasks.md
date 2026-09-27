@@ -50,7 +50,7 @@
 ## 5. Gates and closure
 
 - [x] 5.1 Per PR: `gofmt -l .`, `go vet ./...`, `go build ./...`, `go test ./...`, `helm lint`, three `helm template` renderings, and `./scripts/helm-golden.sh check` — output in the PR body
-  Evidence: the gate output for the original pull requests cannot be reconstructed after the monorepo import, and the 2026-09-27 commits went to `development` without a pull request. Instead, `mise run verify`, which runs every one of these gates, passed on 2026-09-27 at `686c97a` with the Ploeg (gofmt, vet, build, test), Helm (lint, template, golden check), integration and docs groups green. `mise run release-check` passed on the same tree.
+  Evidence: the gate output for the original pull requests cannot be reconstructed after the monorepo import, and the 2026-09-27 commits went to `development` without a pull request. Instead, `mise run verify`, which runs every one of these gates, passed on 2026-09-27 on the tree of `6c4a4a5` (pushed as `2191afb`) with the Ploeg (gofmt, vet, build, test), Helm (lint, template, golden check), integration and docs groups green. `mise run release-check` passed on the same tree.
 - [x] 5.2 `go test ./internal/ledger/` wherever docs/adrs changes
   Evidence: `go test ./internal/ledger/` passed on 2026-09-23.
 - [x] 5.3 `openspec validate --all`
