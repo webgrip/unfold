@@ -18,7 +18,8 @@ func TestNewAdapter_RejectsMisconfiguration(t *testing.T) {
 		wantErr string
 	}{
 		{"unknown harness", HarnessConfig{Name: "gemini"}, "unknown harness"},
-		{"unknown acp profile", HarnessConfig{Name: "acp", ACP: ACPConfig{Profile: "goose"}}, "unknown acp profile"},
+		{"unknown acp profile", HarnessConfig{Name: "acp", ACP: ACPConfig{Profile: "gemini"}}, "unknown acp profile"},
+		{"goose with a config document", HarnessConfig{Name: "acp", ACP: ACPConfig{Profile: "goose", ConfigJSON: "{}"}}, "takes no config JSON"},
 		{"custom profile without argv", HarnessConfig{Name: "acp", ACP: ACPConfig{Profile: "custom"}}, "requires an explicit argv"},
 		{"unknown permission mode", HarnessConfig{Name: "acp", ACP: ACPConfig{PermissionMode: "yolo"}}, "unknown acp permission mode"},
 		{"exec without argv", HarnessConfig{Name: "exec"}, ""},
@@ -45,6 +46,8 @@ func TestNewAdapter_AcceptsValidConfigurations(t *testing.T) {
 		{"openhands explicit", HarnessConfig{Name: "openhands"}, "openhands"},
 		{"claude-code", HarnessConfig{Name: "claude-code"}, "claude-code"},
 		{"acp defaults to opencode", HarnessConfig{Name: "acp"}, "acp"},
+		{"acp qwen-code", HarnessConfig{Name: "acp", ACP: ACPConfig{Profile: "qwen-code"}}, "acp"},
+		{"acp goose read-only", HarnessConfig{Name: "acp", ACP: ACPConfig{Profile: "goose", PermissionMode: "allow_read_only"}}, "acp"},
 		{
 			"acp custom with argv and timeouts",
 			HarnessConfig{Name: "acp", ACP: ACPConfig{

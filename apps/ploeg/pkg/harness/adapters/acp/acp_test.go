@@ -184,7 +184,7 @@ func TestProfile_OpencodeWritesATraceScopedConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	env := testEnv(t)
-	argv, extra, err := p.Prepare(testSpec(), env)
+	argv, extra, err := p.Prepare(testSpec(), env, PermissionAllowAll)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +226,7 @@ func TestProfile_ConfigOverrideAvoidsAnImageRebuild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, extra, err := p.Prepare(testSpec(), testEnv(t))
+	_, extra, err := p.Prepare(testSpec(), testEnv(t), PermissionAllowAll)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,4 +338,41 @@ while IFS= read -r line; do
   esac
 done
 `, updates, stopReason)
+}
+
+func TestRun_ProfileEnvironmentReachesTheAgent(t *testing.T) {
+	for _, tc := range []struct {
+		profile string
+		want    []string
+	}{
+		{"qwen-code", []string{"OPENAI_BASE_URL=http://litellm:4000/v1", "QWEN_CODE_SYSTEM_SETTINGS_PATH=", "PLOEG_OUTCOME_FILE="}},
+		{"goose", []string{"GOOSE_PROVIDER=litellm", "LITELLM_HOST=http://litellm:4000", "GOOSE_MODE=auto", "PLOEG_OUTCOME_FILE="}},
+	} {
+		t.Run(tc.profile, func(t *testing.T) {
+			dump := t.TempDir() + "/env"
+			bin := writeScript(t, `env > '`+dump+`'`+fakeAgentScript(`"end_turn"`, ""))
+			a, err := New(tc.profile, ProfileOverrides{Entrypoint: bin}, Options{
+				PromptTimeout: 10 * time.Second, IdleTimeout: 10 * time.Second,
+				CancelGrace: time.Second, TermGrace: time.Second,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			rep, err := a.Run(ctx, testSpec(), testEnv(t))
+			if err != nil {
+				t.Fatalf("run error: %v (%s)", err, rep.StuckReason)
+			}
+			b, err := os.ReadFile(dump)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, w := range tc.want {
+				if !strings.Contains(string(b), "\n"+w) && !strings.HasPrefix(string(b), w) {
+					t.Errorf("agent environment lacks %q", w)
+				}
+			}
+		})
+	}
 }

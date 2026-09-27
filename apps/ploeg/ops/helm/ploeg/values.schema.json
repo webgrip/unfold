@@ -811,6 +811,8 @@
         "profile": {
           "enum": [
             "opencode",
+            "qwen-code",
+            "goose",
             "custom"
           ]
         },

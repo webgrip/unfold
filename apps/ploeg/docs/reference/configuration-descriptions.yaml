@@ -65,12 +65,12 @@ env:
   PLOEG_OUTCOME_FILE: "`exec` harness only: OutcomeReport JSON path override (chart `executor.harness.outcomeFile`)."
   PLOEG_HARNESS_TIMEOUT: Stops a harness that runs longer than this, with failure reason `timeout`.
   PLOEG_HARNESS_IDLE_TIMEOUT: Stops a harness that is silent for this long, with failure reason `timeout`.
-  PLOEG_ACP_PROFILE: "`acp` harness only: `opencode` or `custom` (chart `executor.harness.acp.profile`)."
+  PLOEG_ACP_PROFILE: "`acp` harness only: `opencode`, `qwen-code`, `goose` or `custom` (chart `executor.harness.acp.profile`). See [ACP profiles](../contracts/acp-profiles.md)."
   PLOEG_ACP_ARGV: "`acp` harness only: the whole launch command as a JSON array; required when the profile is `custom`."
   PLOEG_ACP_PERMISSION_MODE: "`acp` harness only: `allow_always` (default), `allow_read_only` or `deny_all`."
   PLOEG_ACP_PROMPT_TIMEOUT: "`acp` harness only: prompt timeout as a Go duration. Empty means the adapter default (45m)."
   PLOEG_ACP_IDLE_TIMEOUT: "`acp` harness only: timeout without protocol traffic. Empty means the adapter default (10m)."
-  PLOEG_ACP_CONFIG_JSON: "`acp` harness only: replaces the profile's generated agent configuration wholesale."
+  PLOEG_ACP_CONFIG_JSON: "`acp` harness only: replaces the generated agent configuration of the `opencode` or `qwen-code` profile wholesale. The `goose` profile refuses it at startup."
   KUBECONFIG: Administrative configuration. The worker refuses to start when it is set.
   PATH: Passed to `git` and `openspec` subprocesses; also on the harness allowlist.
 helm:
@@ -113,11 +113,11 @@ helm:
   harness.timeout: Stops a harness that runs longer than this.
   harness.idleTimeout: Stops a harness that is silent for this long.
   harness.acp: "`acp` harness settings."
-  acp.profile: "`opencode` or `custom`."
+  acp.profile: "`opencode`, `qwen-code`, `goose` or `custom`."
   acp.argv: Whole launch command; required when the profile is `custom`.
   acp.permissionMode: "`allow_always` (default), `allow_read_only` or `deny_all`."
   acp.promptTimeout: Go duration. Empty means the adapter default (45m).
   acp.idleTimeout: Go duration without protocol traffic. Empty means the adapter default (10m).
-  acp.configJson: Replaces the profile's generated agent configuration wholesale.
+  acp.configJson: Replaces the generated agent configuration of the `opencode` or `qwen-code` profile wholesale; `goose` refuses it.
   secretRef.name: Kubernetes Secret name.
   secretRef.key: Key within that Secret.

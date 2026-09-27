@@ -31,6 +31,7 @@ The [local shared demonstration](../../../docs/workflows/local-demo.md) runs Plo
 - [Tracker execution binding](contracts/tracker-execution.md)
 - [Operator candidate delivery](contracts/operator-delivery.md)
 - [Executor launch](contracts/executor.md)
+- [ACP harness profiles](contracts/acp-profiles.md)
 
 ## Understand and change
 

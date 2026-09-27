@@ -150,7 +150,7 @@ func (a *Adapter) Run(ctx context.Context, spec harness.TaskSpec, env harness.Ru
 		return harness.MergeDropBox(rep, box), res.err
 	}
 
-	argv, extraEnv, err := a.profile.Prepare(spec, env)
+	argv, extraEnv, err := a.profile.Prepare(spec, env, a.opts.PermissionMode)
 	if err != nil {
 		res.err = fmt.Errorf("acp profile %q: %w", a.profile.Name, err)
 		return finish()

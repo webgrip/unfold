@@ -10,7 +10,7 @@ import (
 
 func TestOpenCodeConfigReferencesInferenceEnvironment(t *testing.T) {
 	env := harness.RunEnv{ScratchDir: t.TempDir(), LLM: harness.LLMEnv{APIKey: "canary-inference", Model: "model", BaseURL: "http://gateway/v1"}}
-	_, extra, err := opencodeProfile("").Prepare(harness.TaskSpec{TraceID: "fixture"}, env)
+	_, extra, err := opencodeProfile("").Prepare(harness.TaskSpec{TraceID: "fixture"}, env, PermissionAllowAll)
 	if err != nil {
 		t.Fatal(err)
 	}

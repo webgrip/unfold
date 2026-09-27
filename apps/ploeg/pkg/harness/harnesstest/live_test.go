@@ -94,6 +94,26 @@ var liveHarnessTable = []liveHarness{
 			{harnesstest.LayoutAgentsOnly, loads, doesNotLoad},
 		},
 	},
+	{
+		name: "acp-qwen-code",
+		bin:  "qwen",
+		adapter: func(bin string) (harness.Adapter, error) {
+			return acp.New("qwen-code", acp.ProfileOverrides{Entrypoint: bin}, acp.Options{})
+		},
+		claims: []canaryExpectation{
+			{harnesstest.LayoutAgentsOnly, loads, doesNotLoad},
+		},
+	},
+	{
+		name: "acp-goose",
+		bin:  "goose",
+		adapter: func(bin string) (harness.Adapter, error) {
+			return acp.New("goose", acp.ProfileOverrides{Entrypoint: bin}, acp.Options{})
+		},
+		claims: []canaryExpectation{
+			{harnesstest.LayoutAgentsOnly, loads, unmeasured},
+		},
+	},
 }
 
 func requireLiveOptIn(t *testing.T) {

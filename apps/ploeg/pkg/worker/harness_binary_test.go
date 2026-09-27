@@ -20,6 +20,8 @@ func TestCheckHarnessBinaryFindsTheProgramBeforeAClaim(t *testing.T) {
 		{"exec", HarnessConfig{Name: "exec", Args: []string{"agent", "{taskfile}"}}, "agent"},
 		{"acp opencode", HarnessConfig{Name: "acp"}, "opencode"},
 		{"acp entrypoint", HarnessConfig{Name: "acp", Entrypoint: "/opt/opencode"}, "/opt/opencode"},
+		{"acp qwen-code", HarnessConfig{Name: "acp", ACP: ACPConfig{Profile: "qwen-code"}}, "qwen"},
+		{"acp goose", HarnessConfig{Name: "acp", ACP: ACPConfig{Profile: "goose"}}, "goose"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if bin, err := HarnessBinary(tc.hc); err != nil || bin != tc.bin {

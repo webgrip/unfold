@@ -147,13 +147,14 @@ executor:
     # JSON-RPC, wire version 1) to any ACP-capable agent. Unrelated to IBM's
     # former Agent COMMUNICATION Protocol, which merged into A2A — see ADR-0007.
     acp:
-      profile: opencode  # opencode | custom (PLOEG_ACP_PROFILE)
+      profile: opencode  # opencode | qwen-code | goose | custom (PLOEG_ACP_PROFILE)
       argv: []           # whole launch command; REQUIRED when profile is custom
       permissionMode: "" # allow_always (default) | allow_read_only | deny_all
       promptTimeout: ""  # Go duration; "" = adapter default (45m)
       idleTimeout: ""    # Go duration; "" = adapter default (10m) with no protocol traffic
-      # Replaces the profile's generated agent config wholesale, so a wrong
-      # provider block is a values edit rather than an agent image rebuild.
+      # Replaces the profile's generated agent config (opencode, qwen-code)
+      # wholesale, so a wrong provider block is a values edit rather than an
+      # agent image rebuild. goose is configured by environment and refuses it.
       configJson: ""
   # DEPRECATED in favor of harness.image (kept as the fallback so existing
   # value overrides keep working).
