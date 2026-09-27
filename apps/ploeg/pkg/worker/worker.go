@@ -379,7 +379,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 		RepoDir:    cloneDir,
 		ScratchDir: scratchDir,
 		Prompt:     taskPrompt(harnessSpec, planner, writes, priorPR, onReviewBranch) + support,
-		BaseEnv:    append(withToolchains(harnessEnvironment(os.Environ(), home, scratchDir, writes, harnessForgeToken, w.Cfg.LLMBaseURL, model), w.Cfg.Toolchains), runEnv...),
+		BaseEnv:    append(withToolchains(harnessEnvironment(os.Environ(), home, scratchDir, writes, harnessForgeToken, w.Cfg.LLMBaseURL, harnessModelName(w.Cfg)), w.Cfg.Toolchains), runEnv...),
 		LLM:        harness.LLMEnv{BaseURL: w.Cfg.LLMBaseURL, Model: model, TraceID: trace},
 		Stdout:     io.MultiWriter(os.Stdout, &logTail),
 		Stderr:     io.MultiWriter(os.Stderr, &logTail),
@@ -428,7 +428,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 		final = applyOpenSpecGate(final, openSpec.ID, gate, writes)
 	}
 	if writes && len(verifyCommands) > 0 && verifiesOutcome(final.Outcome) && ctx.Err() == nil {
-		verifyEnv := withToolchains(harnessEnvironment(os.Environ(), home, scratchDir, false, "", w.Cfg.LLMBaseURL, model), w.Cfg.Toolchains)
+		verifyEnv := withToolchains(harnessEnvironment(os.Environ(), home, scratchDir, false, "", w.Cfg.LLMBaseURL, harnessModelName(w.Cfg)), w.Cfg.Toolchains)
 		v := runVerification(ctx, cloneDir, verifyEnv, verifyCommands, w.Cfg.VerifyTimeout)
 		failedCheck, failed := v.failed()
 		w.Log.Info("verified the writing Run's checkout", "commit", v.Commit, "dirty", v.Dirty,

@@ -28,3 +28,23 @@ func TestHarnessEnvironmentExposesOnlyAssignedCapabilities(t *testing.T) {
 		}
 	}
 }
+
+func TestHarnessKeepsTheRoutingPrefixTheKeyScopeDrops(t *testing.T) {
+	cfg := Config{LLMModel: "litellm_proxy/deepseek-chat", LLMModels: ModelList("litellm_proxy/deepseek-chat")}
+	if got := harnessModelName(cfg); got != "litellm_proxy/deepseek-chat" {
+		t.Fatalf("harness model = %q, want the configured litellm_proxy/deepseek-chat", got)
+	}
+	if cfg.LLMModels[0] != "deepseek-chat" {
+		t.Fatalf("key scope = %q, want the stripped deepseek-chat", cfg.LLMModels[0])
+	}
+	if got := harnessModelName(Config{LLMModels: []string{"deepseek-chat"}}); got != "deepseek-chat" {
+		t.Fatalf("scope-only config gave %q", got)
+	}
+	env := harnessEnvironment([]string{"PATH=/bin", "LITELLM_LOCAL_MODEL_COST_MAP=True", "OPENHANDS_SUPPRESS_BANNER=1"}, t.TempDir(), t.TempDir(), false, "", "http://gateway/v1", harnessModelName(cfg))
+	joined := strings.Join(env, "\n")
+	for _, want := range []string{"LLM_MODEL=litellm_proxy/deepseek-chat", "LITELLM_LOCAL_MODEL_COST_MAP=True", "OPENHANDS_SUPPRESS_BANNER=1"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("harness environment lacks %s:\n%s", want, joined)
+		}
+	}
+}
