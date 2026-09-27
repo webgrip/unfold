@@ -17,6 +17,7 @@ These runbooks cover the recurring operator tasks for a cluster deployment of Pl
 | [Drain workers before maintenance](drain-workers.md) | You need a quiet Ploeg before an upgrade, a gateway change or database work |
 | [Investigate a Run's spend](investigate-a-runs-spend.md) | A Shift's budget looks wrong, a hold is not released, or you need to prove what a Run cost |
 | [Restore after a database outage](restore-after-a-database-outage.md) | PostgreSQL was unavailable or was restored from a backup |
+| [Give Runs a toolchain and checks](give-runs-a-toolchain-and-checks.md) | Agents open pull requests that fail checks they could not run in the sandbox |
 
 For accounts whose final cost is uncertain, [Reconcile uncertainty](../ops/managed-workers.md#reconcile-uncertainty) sets the rules these runbooks follow.
 
