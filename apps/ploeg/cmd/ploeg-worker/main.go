@@ -177,6 +177,19 @@ func run(log *slog.Logger) error {
 	if err := worker.CheckHarnessBinary(hc, exec.LookPath); err != nil {
 		return err
 	}
+	cfg.SkillDirs = worker.SkillDirectories(hc)
+	if cfg.Toolchains, err = worker.ParseToolchains(os.Getenv("PLOEG_TOOLCHAINS")); err != nil {
+		return err
+	}
+	if err := worker.CheckToolchains(cfg.Toolchains); err != nil {
+		return err
+	}
+	if cfg.VerifyCommands, err = worker.ParseVerifyCommands(os.Getenv("PLOEG_VERIFY_COMMANDS")); err != nil {
+		return err
+	}
+	if cfg.VerifyTimeout, err = boundEnv("PLOEG_VERIFY_TIMEOUT", worker.DefaultVerifyTimeout); err != nil {
+		return err
+	}
 
 	var broker llmbroker.Broker
 	switch envOr("PLOEG_LLM_CREDENTIAL_MODE", "managed") {

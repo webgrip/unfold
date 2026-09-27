@@ -759,6 +759,12 @@ spec:
                 value: "100m"
               - name: PLOEG_HARNESS_IDLE_TIMEOUT
                 value: "15m"
+              - name: PLOEG_TOOLCHAINS
+                value: "[{\"env\":{\"GOTOOLCHAIN\":\"local\"},\"name\":\"go\",\"path\":[\"/opt/ploeg/toolchains/go/usr/local/go/bin\"]}]"
+              - name: PLOEG_VERIFY_COMMANDS
+                value: "[\"test -z \\\"$$(gofmt -l .)\\\"\",\"go vet ./...\",\"go test ./...\"]"
+              - name: PLOEG_VERIFY_TIMEOUT
+                value: "20m"
               - name: LLM_MODEL
                 value: "litellm_proxy/deepseek-chat"
               - name: LITELLM_KEY_BUDGET
@@ -815,6 +821,9 @@ spec:
                 readOnly: true
               - name: ci-shared
                 mountPath: /mnt/ci-shared
+              - name: toolchain-go
+                mountPath: /opt/ploeg/toolchains/go
+                readOnly: true
             resources:
               limits:
                 cpu: "1"
@@ -835,6 +844,10 @@ spec:
           - name: ci-shared
             emptyDir:
               sizeLimit: 8Gi
+          - name: toolchain-go
+            image:
+              reference: harbor.webgrip.dev/dockerhub/library/golang:1.26-alpine
+              pullPolicy: IfNotPresent
   triggers:
     - type: postgresql
       metadata:

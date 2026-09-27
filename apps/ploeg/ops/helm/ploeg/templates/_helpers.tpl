@@ -133,6 +133,22 @@ global executor.harness defaults field-by-field (explicit hasKey checks, so
 {{- $hOutcomeFile := $rh.outcomeFile | default ($th.outcomeFile | default $gh.outcomeFile) }}
 {{- $hTimeout := $rh.timeout | default ($th.timeout | default $gh.timeout) }}
 {{- $hIdleTimeout := $rh.idleTimeout | default ($th.idleTimeout | default $gh.idleTimeout) }}
+{{- $hToolchains := $rh.toolchains | default ($th.toolchains | default $gh.toolchains) }}
+{{- $hVerify := $rh.verify | default ($th.verify | default $gh.verify) }}
+{{- $hVerifyTimeout := $rh.verifyTimeout | default ($th.verifyTimeout | default $gh.verifyTimeout) }}
+{{- /* Each toolchain is an image volume the kubelet pulls, mounted read-only
+     at /opt/ploeg/toolchains/<name>. The worker learns the mounted PATH
+     directories from PLOEG_TOOLCHAINS, so the Run's sandbox needs no
+     registry egress (Ploeg ADR-0035). */}}
+{{- $toolchainEnv := list }}
+{{- range $tc := $hToolchains }}
+{{- $mount := printf "/opt/ploeg/toolchains/%s" $tc.name }}
+{{- $paths := list }}
+{{- range $p := ($tc.path | default (list "/bin")) }}
+{{- $paths = append $paths (printf "%s/%s" $mount (trimPrefix "/" $p)) }}
+{{- end }}
+{{- $toolchainEnv = append $toolchainEnv (dict "name" $tc.name "path" $paths "env" ($tc.env | default dict)) }}
+{{- end }}
 {{- $hDind := true }}
 {{- if hasKey $rh "dind" }}{{- $hDind = $rh.dind }}{{- else if hasKey $th "dind" }}{{- $hDind = $th.dind }}{{- else if hasKey $gh "dind" }}{{- $hDind = $gh.dind }}{{- end }}
 {{- $dt := $root.Values.executor.defaultTarget | default dict }}
@@ -265,6 +281,19 @@ spec:
         {{- if $hIdleTimeout }}
         - name: PLOEG_HARNESS_IDLE_TIMEOUT
           value: {{ $hIdleTimeout | quote }}
+        {{- end }}
+        {{- if $toolchainEnv }}
+        - name: PLOEG_TOOLCHAINS
+          value: {{ toJson $toolchainEnv | replace "$(" "$$(" | quote }}
+        {{- end }}
+        {{- if $hVerify }}
+        {{- /* $$ keeps Kubernetes from expanding $(VAR) inside a command line. */}}
+        - name: PLOEG_VERIFY_COMMANDS
+          value: {{ toJson $hVerify | replace "$(" "$$(" | quote }}
+        {{- end }}
+        {{- if $hVerifyTimeout }}
+        - name: PLOEG_VERIFY_TIMEOUT
+          value: {{ $hVerifyTimeout | quote }}
         {{- end }}
         {{- if eq $hName "acp" }}
         {{- if $acpProfile }}
@@ -427,6 +456,11 @@ spec:
         {{- end }}
         - name: ci-shared
           mountPath: /mnt/ci-shared
+        {{- range $tc := $hToolchains }}
+        - name: toolchain-{{ $tc.name }}
+          mountPath: /opt/ploeg/toolchains/{{ $tc.name }}
+          readOnly: true
+        {{- end }}
       {{- /* Per-Role sizing, falling back to the executor-wide default. A
            Round that fans out three readers asks the scheduler for three
            whole writer-sized pods at once, which on a one-node worker pool
@@ -449,6 +483,12 @@ spec:
     - name: ci-shared
       emptyDir:
         sizeLimit: 8Gi
+    {{- range $tc := $hToolchains }}
+    - name: toolchain-{{ $tc.name }}
+      image:
+        reference: {{ $tc.image }}
+        pullPolicy: IfNotPresent
+    {{- end }}
 {{- end -}}
 
 {{/*

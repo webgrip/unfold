@@ -171,7 +171,11 @@ func findingsComment(r store.RunReport) string {
 		fmt.Fprintf(&b, "_%s_\n\n", r.Summary)
 	}
 	b.WriteString(r.Findings)
-	b.WriteString("\n\n<sub>Posted by Ploeg on behalf of the reviewing agent. It could not push to this branch.</sub>")
+	if r.Writes {
+		b.WriteString("\n\n<sub>Posted by Ploeg for the writing Run that pushed this branch.</sub>")
+	} else {
+		b.WriteString("\n\n<sub>Posted by Ploeg on behalf of the reviewing agent. It could not push to this branch.</sub>")
+	}
 	return b.String()
 }
 

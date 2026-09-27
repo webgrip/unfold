@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/webgrip/ploeg/pkg/harness"
+	"github.com/webgrip/ploeg/pkg/harness/skills"
 	"github.com/webgrip/ploeg/pkg/litellm"
 	"github.com/webgrip/ploeg/pkg/llmbroker"
 	"github.com/webgrip/ploeg/pkg/work"
@@ -70,6 +71,17 @@ type Config struct {
 
 	HarnessTimeout     time.Duration // PLOEG_HARNESS_TIMEOUT: overall bound on one harness run; 0 = none
 	HarnessIdleTimeout time.Duration // PLOEG_HARNESS_IDLE_TIMEOUT: no-output bound for spawned harnesses; 0 = none
+
+	// Toolchains are mounted language toolchains put on the harness's PATH
+	// (PLOEG_TOOLCHAINS).
+	Toolchains []Toolchain
+	// VerifyCommands are the checks a Run is told to run and a writing Run
+	// is verified with afterwards (PLOEG_VERIFY_COMMANDS).
+	VerifyCommands []string
+	VerifyTimeout  time.Duration // PLOEG_VERIFY_TIMEOUT; 0 = DefaultVerifyTimeout
+	// SkillDirs are the directories under the Run's HOME where the harness
+	// discovers skills, besides skills.CanonicalDir.
+	SkillDirs []string
 }
 
 type Worker struct {
@@ -320,6 +332,33 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 		spec.OpenSpec = &brief
 		w.Log.Info("briefed from the OpenSpec change", "change", brief.Change, "source", brief.Source, "bytes", len(brief.Brief))
 	}
+	planner := claimed.Planner && !writes
+	skillSet, err := skills.ForRun(writes, planner)
+	if err != nil {
+		return stuckReport("could not load Ploeg's skills", err.Error())
+	}
+	skillPaths, err := skills.Install(home, w.Cfg.SkillDirs, skillSet)
+	if err != nil {
+		return stuckReport("could not install Ploeg's skills", err.Error())
+	}
+	var verifyCommands []string
+	var runEnv []string
+	if !planner {
+		verifyCommands = w.Cfg.VerifyCommands
+	}
+	if len(verifyCommands) > 0 {
+		script, err := writeVerifyScript(scratchDir, verifyCommands)
+		if err != nil {
+			return stuckReport("could not write the verification script", err.Error())
+		}
+		runEnv = append(runEnv, verifyScriptEnv+"="+script)
+	}
+	runEnv = append(runEnv, skillsDirectoryEnv+"="+filepath.Join(home, skills.CanonicalDir))
+	var support string
+	if !planner {
+		support = runSupportSection(skillPaths, w.Cfg.Toolchains, verifyCommands, writes)
+	}
+	w.Log.Info("prepared the Run's sandbox", "skills", len(skillSet), "toolchains", len(w.Cfg.Toolchains), "verify_commands", len(verifyCommands))
 	harnessSpec, harnessForgeToken := spec, forgeToken
 	var gitEnv []string
 	if writes {
@@ -339,8 +378,8 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	env := harness.RunEnv{
 		RepoDir:    cloneDir,
 		ScratchDir: scratchDir,
-		Prompt:     taskPrompt(harnessSpec, claimed.Planner && !writes, writes, priorPR, onReviewBranch),
-		BaseEnv:    harnessEnvironment(os.Environ(), home, scratchDir, writes, harnessForgeToken, w.Cfg.LLMBaseURL, model),
+		Prompt:     taskPrompt(harnessSpec, planner, writes, priorPR, onReviewBranch) + support,
+		BaseEnv:    append(withToolchains(harnessEnvironment(os.Environ(), home, scratchDir, writes, harnessForgeToken, w.Cfg.LLMBaseURL, model), w.Cfg.Toolchains), runEnv...),
 		LLM:        harness.LLMEnv{BaseURL: w.Cfg.LLMBaseURL, Model: model, TraceID: trace},
 		Stdout:     io.MultiWriter(os.Stdout, &logTail),
 		Stderr:     io.MultiWriter(os.Stderr, &logTail),
@@ -381,14 +420,22 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	if prErr != nil {
 		w.Log.Warn("PR lookup failed", "err", prErr)
 	}
-	resolved := resolveOutcome(w.Adapter.Name(), report, runErr, context.Cause(ctx), prURL, priorPR != "",
+	final := resolveOutcome(w.Adapter.Name(), report, runErr, context.Cause(ctx), prURL, priorPR != "",
 		item.Title, branch, logTail.Bytes(), w.Adapter.ExpectsLLM(), writes)
-	if openSpec != nil && openSpecGateApplies(resolved, writes, onReviewBranch) {
+	if openSpec != nil && openSpecGateApplies(final, writes, onReviewBranch) {
 		gate := runOpenSpecGate(ctx, *openSpec, cloneURL, forgeToken, branch, home)
 		w.Log.Info("OpenSpec gate", "change", openSpec.ID, "ran", gate.Ran, "passed", gate.Passed)
-		resolved = applyOpenSpecGate(resolved, openSpec.ID, gate, writes)
+		final = applyOpenSpecGate(final, openSpec.ID, gate, writes)
 	}
-	return resolved
+	if writes && len(verifyCommands) > 0 && verifiesOutcome(final.Outcome) && ctx.Err() == nil {
+		verifyEnv := withToolchains(harnessEnvironment(os.Environ(), home, scratchDir, false, "", w.Cfg.LLMBaseURL, model), w.Cfg.Toolchains)
+		v := runVerification(ctx, cloneDir, verifyEnv, verifyCommands, w.Cfg.VerifyTimeout)
+		failedCheck, failed := v.failed()
+		w.Log.Info("verified the writing Run's checkout", "commit", v.Commit, "dirty", v.Dirty,
+			"failed", failed, "failed_check", failedCheck.Command, "stopped", v.Stopped)
+		final = withVerification(final, v)
+	}
+	return final
 }
 
 // runAgent mints the per-run credential, runs the harness adapter, and

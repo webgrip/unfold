@@ -130,6 +130,17 @@ func TestFindingsCommentIsAttributed(t *testing.T) {
 	}
 }
 
+func TestFindingsCommentFromAWriterDoesNotClaimItCouldNotPush(t *testing.T) {
+	c := findingsComment(store.RunReport{Role: "builder", Round: 2, Writes: true, Findings: "### Ploeg verification"})
+	if strings.Contains(c, "could not push") || !strings.Contains(c, "writing Run that pushed") {
+		t.Errorf("writer comment footer is wrong:\n%s", c)
+	}
+	r := findingsComment(store.RunReport{Role: "reviewer", Round: 3, Findings: "ok"})
+	if !strings.Contains(r, "could not push") {
+		t.Errorf("reader comment lost its footer:\n%s", r)
+	}
+}
+
 // --- integration: publication through the lifecycle -------------------------
 
 func TestPublish_FindingsReachThePullRequestWhenTheRoundCompletes(t *testing.T) {

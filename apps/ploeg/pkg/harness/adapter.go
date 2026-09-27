@@ -276,3 +276,11 @@ func (l *limitBuffer) Write(p []byte) (int, error) {
 	}
 	return len(p), nil
 }
+
+// KillProcessGroupOnCancel makes cancelling cmd's context kill the whole
+// process group it starts, not only its first process.
+func KillProcessGroupOnCancel(cmd *exec.Cmd) { killProcessGroupOnCancel(cmd) }
+
+// ProcessWaitDelay bounds how long a cancelled command's output pipes stay
+// open after its process group was killed.
+const ProcessWaitDelay = processWaitDelay

@@ -96,7 +96,10 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_TEAM_MAP` | ploegd |  | Legacy assignee roster, replaced by `teams.<name>.assignees` in the `PLOEG_CONFIG` file. | [main.go](../../cmd/ploegd/main.go), [operator.go](../../cmd/ploegd/operator.go) |
 | `PLOEG_TEAM_MAX_RUNNING` | ploegd |  |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_TEAM_PLANS` | ploegd |  | Legacy Shift plans, replaced by `teams.<name>.plan` in the `PLOEG_CONFIG` file. A malformed plan stops ploegd at boot. | [main.go](../../cmd/ploegd/main.go) |
+| `PLOEG_TOOLCHAINS` | ploeg-worker |  | JSON array of mounted toolchains, each `{name, path, env}`: `path` directories go in front of the harness's `PATH` and `env` is added. The worker refuses to claim when a directory is missing (chart `executor.harness.toolchains`). | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_TRACKER_DONE_ON_MERGE` | ploegd | `false` |  | [main.go](../../cmd/ploegd/main.go) |
+| `PLOEG_VERIFY_COMMANDS` | ploeg-worker |  | JSON array of shell command lines. The harness gets them as the script `$PLOEG_VERIFY_SCRIPT`; after a writing Run opens or updates a pull request the worker runs them itself and posts the result (chart `executor.harness.verify`). | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_VERIFY_TIMEOUT` | ploeg-worker | `15m` | Bounds the worker's own run of `PLOEG_VERIFY_COMMANDS`. Empty means 15m (chart `executor.harness.verifyTimeout`). | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_VIKUNJA_SECRET` | ploegd |  | Secret that verifies `X-Vikunja-Signature` on `POST /webhooks/tracker/vikunja`. The chart reads it from `webhook.existingSecret`. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_VIKUNJA_TOKEN` | ploegd |  | Vikunja API token (chart `tracker.tokenSecret`). Unset keeps tracker write-backs a logged no-op. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_VIKUNJA_URL` | ploegd |  | Vikunja API root (chart `tracker.url`). With `PLOEG_VIKUNJA_TOKEN` it enables comments on the ticket and the webhook registration check. | [main.go](../../cmd/ploegd/main.go) |
@@ -174,6 +177,9 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `executor.harness.name` |  | `openhands` | openhands \| exec \| claude-code \| acp (PLOEG_HARNESS) | values.yaml |
 | `executor.harness.outcomeFile` |  | `""` | exec harness only: OutcomeReport JSON path override | values.yaml |
 | `executor.harness.timeout` |  | `100m` | Stops a harness that runs longer than this (`PLOEG_HARNESS_TIMEOUT`). | values.yaml |
+| `executor.harness.toolchains` |  | `[]` | Language toolchains mounted read-only at /opt/ploeg/toolchains/<name> as image volumes (Kubernetes >= 1.35), pulled by the kubelet, so a Run can run the target repository's checks without registry egress. `path` lists directories inside the image to put on PATH (default /bin); `env` is set in the harness environment (PLOEG_TOOLCHAINS). | values.yaml |
+| `executor.harness.verify` |  | `[]` | Shell command lines a Run is told to run before it hands off, and that ploeg-worker runs itself after a writing Run that opened or updated a pull request; the result is posted on the pull request (PLOEG_VERIFY_COMMANDS). Write a formatter check so it fails on output, e.g. test -z "$(gofmt -l .)". | values.yaml |
+| `executor.harness.verifyTimeout` |  | `""` | Go duration for the worker's own run; "" = 15m (PLOEG_VERIFY_TIMEOUT) | values.yaml |
 | `executor.litellm.adminUrl` |  | `http://litellm.ai.svc.cluster.local:4000` |  | values.yaml |
 | `executor.litellm.baseUrl` |  | `http://litellm.ai.svc.cluster.local:4000/v1` |  | values.yaml |
 | `executor.litellm.keyDuration` |  | `4h` | Per-run key lifetime; a positive Go duration between one second and 24 hours. | values.yaml |
@@ -345,6 +351,18 @@ name becomes the workload suffix (ploeg-worker-<team>-<role>); writes marks the 
 | `timeout` | string | Stops a harness that runs longer than this. |
 | `idleTimeout` | string | Stops a harness that is silent for this long. |
 | `acp` | [acp](#acp) | `acp` harness settings. |
+| `toolchains` | array |  |
+| `verify` | array |  |
+| `verifyTimeout` | string |  |
+
+### toolchain
+
+| Key | Type | Description |
+| --- | --- | --- |
+| `name` | string |  |
+| `image` | string |  |
+| `path` | array |  |
+| `env` | object |  |
 
 ### acp
 

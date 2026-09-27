@@ -134,3 +134,19 @@ func NewAdapter(hc HarnessConfig) (harness.Adapter, error) {
 		return nil, fmt.Errorf("unknown harness %q (known: openhands, exec, claude-code, acp)", hc.Name)
 	}
 }
+
+// SkillDirectories names where the configured harness discovers user-level
+// skills, relative to the Run's HOME. Every Run also gets
+// skills.CanonicalDir, which the Agent Skills clients that follow the
+// cross-client convention read, and the prompt names each installed skill by
+// path for a harness that discovers none.
+func SkillDirectories(hc HarnessConfig) []string {
+	switch hc.Name {
+	case "", "openhands":
+		return []string{".openhands/skills/installed"}
+	case "claude-code":
+		return []string{".claude/skills"}
+	default:
+		return nil
+	}
+}

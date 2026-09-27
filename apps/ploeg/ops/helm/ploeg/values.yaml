@@ -143,6 +143,23 @@ executor:
     dind: true      # privileged DinD sidecar + DOCKER_* wiring (OpenHands + gates need it)
     timeout: 100m
     idleTimeout: 15m
+    # Language toolchains mounted read-only at /opt/ploeg/toolchains/<name>
+    # as image volumes (Kubernetes >= 1.35), pulled by the kubelet, so a Run
+    # can run the target repository's checks without registry egress. `path`
+    # lists directories inside the image to put on PATH (default /bin); `env`
+    # is set in the harness environment (PLOEG_TOOLCHAINS).
+    # - name: go
+    #   image: harbor.webgrip.dev/dockerhub/library/golang:1.26-alpine@sha256:...
+    #   path: [/usr/local/go/bin]
+    #   env: {GOTOOLCHAIN: local}
+    toolchains: []
+    # Shell command lines a Run is told to run before it hands off, and that
+    # ploeg-worker runs itself after a writing Run that opened or updated a
+    # pull request; the result is posted on the pull request
+    # (PLOEG_VERIFY_COMMANDS). Write a formatter check so it fails on output,
+    # e.g. test -z "$(gofmt -l .)".
+    verify: []
+    verifyTimeout: "" # Go duration for the worker's own run; "" = 15m (PLOEG_VERIFY_TIMEOUT)
     # acp harness only. One adapter speaks Zed's Agent CLIENT Protocol (stdio
     # JSON-RPC, wire version 1) to any ACP-capable agent. Unrelated to IBM's
     # former Agent COMMUNICATION Protocol, which merged into A2A — see ADR-0007.

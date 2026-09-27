@@ -40,6 +40,19 @@ executor:
       model: litellm_proxy/deepseek-chat
       budget: "1"
       maxReplicaCount: 1
+      # A mounted toolchain and the verification commands: renders the image
+      # volume, its read-only mount and PLOEG_TOOLCHAINS / PLOEG_VERIFY_*.
+      harness:
+        toolchains:
+          - name: go
+            image: harbor.webgrip.dev/dockerhub/library/golang:1.26-alpine
+            path: [/usr/local/go/bin]
+            env: {GOTOOLCHAIN: local}
+        verify:
+          - test -z "$(gofmt -l .)"
+          - go vet ./...
+          - go test ./...
+        verifyTimeout: 20m
     # A team pinned to its fallback during migration.
     - name: zinc
       model: litellm_proxy/deepseek-chat

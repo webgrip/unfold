@@ -71,3 +71,19 @@ func TestNewAdapter_AcceptsValidConfigurations(t *testing.T) {
 		})
 	}
 }
+
+func TestSkillDirectoriesFollowEachHarness(t *testing.T) {
+	cases := map[string]string{
+		"":            ".openhands/skills/installed",
+		"openhands":   ".openhands/skills/installed",
+		"claude-code": ".claude/skills",
+		"acp":         "",
+		"exec":        "",
+	}
+	for name, want := range cases {
+		got := strings.Join(SkillDirectories(HarnessConfig{Name: name}), ",")
+		if got != want {
+			t.Errorf("harness %q: skill directories = %q, want %q", name, got, want)
+		}
+	}
+}
