@@ -83,12 +83,26 @@ func (o Outcome) Valid() bool {
 type FailureReason string
 
 const (
-	FailureInfraNode  FailureReason = "infra_node"
-	FailureInfraLLM   FailureReason = "infra_llm"
+	// FailureInfraNode is written where the machine, not the agent, is known
+	// to have ended the Run: the worker received SIGTERM (pod shutdown or
+	// eviction), ploegd could not mint the Run's push credential, or an ACP
+	// harness failed to start or speak the protocol. The sweeper never writes
+	// it, because it sees only an expired lease, not why the pod died.
+	FailureInfraNode FailureReason = "infra_node"
+	// FailureInfraLLM is written when a Run that needed the model gateway
+	// failed without any gateway traffic, or an ACP harness reported an
+	// authentication, quota or upstream error.
+	FailureInfraLLM FailureReason = "infra_llm"
+	// FailureAgentError is written when the harness exited with an error.
 	FailureAgentError FailureReason = "agent_error"
-	FailureBudget     FailureReason = "budget"
-	FailureLeaseLost  FailureReason = "lease_lost"
-	FailureTimeout    FailureReason = "timeout"
+	// FailureBudget is written when an ACP harness hit its token ceiling.
+	FailureBudget FailureReason = "budget"
+	// FailureLeaseLost is written by the worker when lease renewal failed and
+	// by the sweeper for every Run whose lease or deadline expired.
+	FailureLeaseLost FailureReason = "lease_lost"
+	// FailureTimeout is written when PLOEG_HARNESS_TIMEOUT or
+	// PLOEG_HARNESS_IDLE_TIMEOUT stopped the harness.
+	FailureTimeout FailureReason = "timeout"
 )
 
 // Valid reports whether f is a known failure reason enum value.

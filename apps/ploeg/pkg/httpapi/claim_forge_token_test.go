@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"testing"
@@ -72,5 +73,30 @@ func TestClaim_ReturnsAMintedForgeToken(t *testing.T) {
 	}
 	if resp.ForgeToken != "minted-for-this-run" || !resp.ForgeTokenPerRun {
 		t.Errorf("claim carried forge token %q (per-run %v), want the minted per-run token", resp.ForgeToken, resp.ForgeTokenPerRun)
+	}
+}
+
+type failingMintBroker struct{ forgebroker.Static }
+
+func (failingMintBroker) Mint(context.Context, forgebroker.MintRequest) (forgebroker.Credential, error) {
+	return forgebroker.Credential{}, errors.New("forgejo token API: HTTP 401")
+}
+
+func TestClaim_AFailedMintEndsTheRunAsAnInfraNodeFailure(t *testing.T) {
+	reset(t)
+	targetedWriterShift(t, "992")
+	h := forgeClaimServer(failingMintBroker{})
+
+	code, _ := postClaim(t, h, `{"team":"bronze","role":"builder"}`)
+	if code != http.StatusNoContent {
+		t.Fatalf("claim returned %d, want 204: nothing may run without its push credential", code)
+	}
+	var outcome, reason string
+	if err := testPool.QueryRow(context.Background(),
+		`SELECT outcome, failure_reason FROM agent_runs WHERE state = 'finished'`).Scan(&outcome, &reason); err != nil {
+		t.Fatalf("read the released Run: %v", err)
+	}
+	if outcome != string(work.OutcomeFailed) || reason != string(work.FailureInfraNode) {
+		t.Errorf("released Run = %s/%s, want failed/infra_node", outcome, reason)
 	}
 }
