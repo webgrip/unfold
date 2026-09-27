@@ -8,7 +8,7 @@ import (
 )
 
 func TestParseWebhook_ReviewCarriesVerdictAndReviewer(t *testing.T) {
-	p := &Provider{}
+	p := &Provider{Secret: "shh"}
 	for _, tc := range []struct {
 		kind string
 		want provider.ForgeReviewState
@@ -33,7 +33,7 @@ func TestParseWebhook_ReviewCarriesVerdictAndReviewer(t *testing.T) {
 }
 
 func TestParseWebhook_CheckFailedAcceptsBranchObjects(t *testing.T) {
-	p := &Provider{}
+	p := &Provider{Secret: "shh"}
 	events, err := post(t, p, "status", map[string]any{
 		"repository":  map[string]any{"full_name": "webgrip/ploeg"},
 		"state":       "failure",

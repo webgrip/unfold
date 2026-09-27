@@ -42,8 +42,8 @@ type Provider struct {
 	// access token or bot PAT with `api` scope; commenting is not pushing, so
 	// this needs no push right.
 	Token string
-	// Secret is compared against X-Gitlab-Token. Empty disables verification —
-	// local development only.
+	// Secret is compared against X-Gitlab-Token. Empty rejects every
+	// delivery.
 	Secret string
 	// HC is optional; nil gets a 30s client.
 	HC  *http.Client
@@ -210,13 +210,14 @@ func (p *Provider) ParseWebhook(r *http.Request) ([]provider.ForgeEvent, error) 
 	if err != nil {
 		return nil, err
 	}
-	if p.Secret != "" {
-		// Constant time: this is a bare secret comparison, not a MAC, so a
-		// naive == would leak it a byte at a time to a patient caller.
-		got := r.Header.Get("X-Gitlab-Token")
-		if subtle.ConstantTimeCompare([]byte(got), []byte(p.Secret)) != 1 {
-			return nil, errors.New("invalid webhook token")
-		}
+	if p.Secret == "" {
+		return nil, errors.New("no webhook secret configured; set PLOEG_GITLAB_SECRET")
+	}
+	// Constant time: this is a bare secret comparison, not a MAC, so a
+	// naive == would leak it a byte at a time to a patient caller.
+	got := r.Header.Get("X-Gitlab-Token")
+	if subtle.ConstantTimeCompare([]byte(got), []byte(p.Secret)) != 1 {
+		return nil, errors.New("invalid webhook token")
 	}
 
 	var h hook

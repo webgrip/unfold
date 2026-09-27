@@ -152,6 +152,9 @@ func run(log *slog.Logger) error {
 		}
 		forges[fj.Name()] = fj
 		log.Info("forge provider configured", "dialect", fj.Name(), "url", forgeURL)
+		if fj.Secret == "" {
+			log.Warn("PLOEG_FORGEJO_SECRET is unset; every Forgejo webhook is rejected")
+		}
 	}
 	if glURL := trimSlash(os.Getenv("PLOEG_GITLAB_URL")); glURL != "" {
 		gl := &gitlab.Provider{
@@ -162,6 +165,9 @@ func run(log *slog.Logger) error {
 		}
 		forges[gl.Name()] = gl
 		log.Info("forge provider configured", "dialect", gl.Name(), "url", glURL)
+		if gl.Secret == "" {
+			log.Warn("PLOEG_GITLAB_SECRET is unset; every GitLab webhook is rejected")
+		}
 	}
 	// Bind the INSTANCE id (ADR-0016) to a dialect. PLOEG_TARGET_FORGE names
 	// the instance a Work Target carries; when it happens to equal a dialect

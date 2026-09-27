@@ -61,7 +61,7 @@ Ploeg notices what you did on the forge and moves the Work Item out of `awaiting
 
 Ploeg learns this in two ways:
 
-1. **Webhook.** A Forgejo `pull_request` event with action `closed`, or a GitLab merge request event with action `merge` or `close`, settles the Work Item at once ([forgejo.go](../../apps/ploeg/pkg/provider/forgejo/forgejo.go), [gitlab.go](../../apps/ploeg/pkg/provider/gitlab/gitlab.go)). Subscribe the forge webhook to pull request events for this.
+1. **Webhook.** A Forgejo `pull_request` event with action `closed`, or a GitLab merge request event with action `merge` or `close`, settles the Work Item at once ([forgejo.go](../../apps/ploeg/pkg/provider/forgejo/forgejo.go), [gitlab.go](../../apps/ploeg/pkg/provider/gitlab/gitlab.go)). Subscribe the forge webhook to pull request events for this. The webhook needs Ploeg's webhook secret for that forge, or ploegd rejects it ([forge webhooks](../../apps/ploeg/docs/ops/ci-and-infra.md#forge-webhooks)).
 2. **Reconcile.** Every `PLOEG_REVIEW_RECONCILE_INTERVAL` (default 10 minutes, `0` turns it off), ploegd asks the forge for the state of each `awaiting_review` pull request ([sweep.go](../../apps/ploeg/cmd/ploegd/sweep.go)). A missed webhook therefore delays the move by at most one interval.
 
 Both paths need a forge provider (`PLOEG_FORGEJO_URL` or `PLOEG_GITLAB_URL`) and a Work Item whose target repository resolved. An item that ran on the worker's fallback repository stays `awaiting_review` until its ticket is assigned again, and you update the ticket yourself.

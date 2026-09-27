@@ -261,6 +261,11 @@ executor:
     #  name: agent-builder-admin-token
     #  key: FORGEJO_ADMIN_TOKEN
     botUser: agent-builder
+    # Verifies X-Forgejo-Signature on POST /webhooks/forge/forgejo. Unset =
+    # every forge webhook is rejected.
+    webhookSecret: {}
+    #  name: ploeg-forge-webhook
+    #  key: PLOEG_FORGEJO_SECRET
   gitlab:
     url: ""
     tokenSecret:

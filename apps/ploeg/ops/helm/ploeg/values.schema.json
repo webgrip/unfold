@@ -457,7 +457,7 @@
             },
             "webhookSecret": {
               "$ref": "#/definitions/secretRef",
-              "description": "Shared secret GitLab sends as X-Gitlab-Token to POST /webhooks/forge/gitlab. Unset = forge webhooks are rejected, so a human review opens no fix Round and the review loop stays open."
+              "description": "Shared secret GitLab sends as X-Gitlab-Token to POST /webhooks/forge/gitlab. Unset = every forge webhook is rejected."
             }
           }
         },
@@ -484,6 +484,10 @@
             "botUser": {
               "type": "string",
               "description": "the forge user whose tokens are minted (default agent-builder)"
+            },
+            "webhookSecret": {
+              "$ref": "#/definitions/secretRef",
+              "description": "HMAC secret that verifies X-Forgejo-Signature on POST /webhooks/forge/forgejo. Unset = every forge webhook is rejected: merges are still found by the periodic pull request reconcile, but human reviews and failed checks never reach Ploeg."
             }
           },
           "additionalProperties": true

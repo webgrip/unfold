@@ -8,6 +8,17 @@ Runner and cluster configuration belongs to [homelab-cluster](https://forgejo.we
 
 Do not copy cluster IPs, workstation kubeconfig paths, runner image contents or access-policy assumptions into Ploeg's setup instructions. Resolve those from the deployment's current configuration.
 
+## Forge webhooks
+
+`POST /webhooks/forge/forgejo` and `POST /webhooks/forge/gitlab` act only when two things are in place:
+
+1. **A webhook secret.** Set `executor.forgejo.webhookSecret` (`PLOEG_FORGEJO_SECRET`) or `executor.gitlab.webhookSecret` (`PLOEG_GITLAB_SECRET`) and give the forge's webhook the same value. Without it ploegd rejects every delivery and logs a warning at start ([configuration](../reference/configuration.md)).
+2. **A network path from the forge to ploegd on port 8080.** Both the forge's egress policy and ploegd's ingress policy must allow it.
+
+Until both hold, merges still reach Ploeg through the periodic pull request reconcile, but a person's review and a failed check do not.
+
+On 2026-09-27, homelab-cluster's `kubernetes/apps/forgejo/networkpolicy.yaml` allowed Forgejo egress to the `ploeg` namespace on 8080, but `kubernetes/apps/ploeg/ploeg/app/networkpolicy.yaml` admitted no traffic from the `forgejo` namespace, and the Ploeg HelmRelease set no webhook secret. Forgejo webhooks therefore did not reach Ploeg in that deployment. Wiring them is a change to homelab-cluster: an ingress rule, a secret and the webhook registration.
+
 ## Credentials and signing
 
 Follow the [estate secrets model](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/docs/techdocs/docs/adr/adr-0055-one-secrets-model-six-levels.md): OpenBao holds the original; jobs use configured scoped bridge credentials or short-lived OIDC access. The [artifact workflow](../../../../.forgejo/workflows/on_release_published.yml) is the source for Ploeg's actual signing and publishing inputs.

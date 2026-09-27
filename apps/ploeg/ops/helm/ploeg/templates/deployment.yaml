@@ -116,6 +116,13 @@ spec:
             - name: PLOEG_FORGEJO_BOT
               value: {{ . | quote }}
             {{- end }}
+            {{- with .webhookSecret }}
+            - name: PLOEG_FORGEJO_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .key }}
+            {{- end }}
             {{- end }}
             {{- with .Values.executor.gitlab }}
             {{- if .url }}

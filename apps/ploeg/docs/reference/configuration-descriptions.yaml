@@ -18,12 +18,13 @@ env:
   PLOEG_CLICKUP_DONE_STATUS: List status applied when a Shift finishes (chart `tracker.clickup.doneStatus`). Empty leaves the board untouched.
   PLOEG_FORGEJO_BOT: Forge user whose push tokens ploegd mints, and the identity agents act as (chart `executor.forgejo.botUser`). A review by this user never sends work back under `teams.<name>.forgeFollowUps`.
   PLOEG_GITLAB_BOT: GitLab username Ploeg acts as. Like `PLOEG_FORGEJO_BOT`, a review event from it never sends work back under `teams.<name>.forgeFollowUps`. Unset adds no GitLab identity.
+  PLOEG_FORGEJO_SECRET: HMAC secret that verifies `X-Forgejo-Signature` on `POST /webhooks/forge/forgejo` (chart `executor.forgejo.webhookSecret`). Unset rejects every Forgejo webhook.
   PLOEG_FORGEJO_ADMIN_TOKEN:
     ploegd: Credential that mints a push token per writing Run and revokes it when the Run settles (ADR-0013 tier 2, chart `executor.forgejo.adminTokenSecret`). Unset means every Run uses the shared token.
     ploeg-worker: Controller-only. The worker refuses to start when it is set.
   PLOEG_GITLAB_URL: GitLab base URL without `/api/v4` (chart `executor.gitlab.url`). Empty configures no GitLab provider, so findings never reach a merge request.
   PLOEG_GITLAB_TOKEN: Token with `api` scope on the target projects, sent as `PRIVATE-TOKEN` (chart `executor.gitlab.tokenSecret`).
-  PLOEG_GITLAB_SECRET: Shared secret GitLab sends as `X-Gitlab-Token` to `POST /webhooks/forge/gitlab` (chart `executor.gitlab.webhookSecret`). Unset rejects forge webhooks.
+  PLOEG_GITLAB_SECRET: Shared secret GitLab sends as `X-Gitlab-Token` to `POST /webhooks/forge/gitlab` (chart `executor.gitlab.webhookSecret`). Unset rejects every GitLab webhook.
   PLOEG_TARGET_FORGE:
     ploegd: Forge instance id a Work Target carries by default (chart `executor.forge`). Binds to the configured forge of that dialect, or to the only configured forge.
     ploeg-worker: Forge dialect the worker acts against (chart `executor.forge`).

@@ -10,6 +10,9 @@ executor:
     readTokenSecret:
       name: agent-reader-token
       key: FORGEJO_TOKEN
+    webhookSecret:
+      name: ploeg-forge-webhook
+      key: PLOEG_FORGEJO_SECRET
   teams:
     - name: bronze
       model: litellm_proxy/deepseek-chat

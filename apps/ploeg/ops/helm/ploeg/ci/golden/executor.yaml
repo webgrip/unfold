@@ -130,6 +130,11 @@ spec:
                   key: FORGEJO_TOKEN
             - name: PLOEG_FORGEJO_BOT
               value: "agent-builder"
+            - name: PLOEG_FORGEJO_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ploeg-forge-webhook
+                  key: PLOEG_FORGEJO_SECRET
             - name: PLOEG_TARGET_FORGE
               value: "forgejo"
             - name: PLOEG_DEFAULT_TEAM

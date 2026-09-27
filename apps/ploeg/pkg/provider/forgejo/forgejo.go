@@ -35,7 +35,8 @@ type Provider struct {
 	// opens the pull requests; a comment is not a push, so this needs no
 	// separate credential (R8 keeps it out of the Task Spec either way).
 	Token string
-	// Secret verifies X-Forgejo-Signature (raw-body HMAC-SHA256, hex).
+	// Secret verifies X-Forgejo-Signature (raw-body HMAC-SHA256, hex). Empty
+	// rejects every delivery.
 	// Empty disables verification — local development only.
 	Secret string
 	// HC is optional; nil gets a 30s client.
@@ -249,10 +250,11 @@ func (p *Provider) ParseWebhook(r *http.Request) ([]provider.ForgeEvent, error) 
 	if err != nil {
 		return nil, err
 	}
-	if p.Secret != "" {
-		if !verify(p.Secret, body, r.Header.Get("X-Forgejo-Signature")) {
-			return nil, errors.New("invalid webhook signature")
-		}
+	if p.Secret == "" {
+		return nil, errors.New("no webhook secret configured; set PLOEG_FORGEJO_SECRET")
+	}
+	if !verify(p.Secret, body, r.Header.Get("X-Forgejo-Signature")) {
+		return nil, errors.New("invalid webhook signature")
 	}
 
 	var h hook

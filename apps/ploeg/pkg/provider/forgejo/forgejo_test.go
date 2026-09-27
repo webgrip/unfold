@@ -152,7 +152,7 @@ func TestParseWebhook_ReviewSubmitted(t *testing.T) {
 }
 
 func TestParseWebhook_CheckFailed(t *testing.T) {
-	p := &Provider{}
+	p := &Provider{Secret: "shh"}
 	events, err := post(t, p, "status", map[string]any{
 		"repository": map[string]any{"full_name": "webgrip/ploeg"},
 		"state":      "failure",
@@ -169,7 +169,7 @@ func TestParseWebhook_CheckFailed(t *testing.T) {
 }
 
 func TestParseWebhook_MergeStateDirty(t *testing.T) {
-	p := &Provider{}
+	p := &Provider{Secret: "shh"}
 	events, err := post(t, p, "pull_request", map[string]any{
 		"repository": map[string]any{"full_name": "webgrip/ploeg"},
 		"pull_request": map[string]any{
@@ -190,7 +190,7 @@ func TestParseWebhook_MergeStateDirty(t *testing.T) {
 // dropped quietly — erroring would turn every unrelated push into a failed
 // delivery and eventually a disabled webhook (spec scenario).
 func TestParseWebhook_DropsIrrelevantEventsQuietly(t *testing.T) {
-	p := &Provider{}
+	p := &Provider{Secret: "shh"}
 	for _, body := range []map[string]any{
 		{"action": "push", "repository": map[string]any{"full_name": "webgrip/ploeg"}},
 		{"repository": map[string]any{"full_name": "webgrip/ploeg"}, "state": "success"},
@@ -211,7 +211,7 @@ func TestParseWebhook_DropsIrrelevantEventsQuietly(t *testing.T) {
 // spec asks for, enforced where it can actually be checked: the normalized
 // event carries only SPI types.
 func TestParseWebhook_EmitsOnlySPITypes(t *testing.T) {
-	p := &Provider{}
+	p := &Provider{Secret: "shh"}
 	events, _ := post(t, p, "pull_request_review", map[string]any{
 		"repository":   map[string]any{"full_name": "webgrip/ploeg"},
 		"pull_request": map[string]any{"number": 3, "head": map[string]any{"ref": "b"}},
@@ -258,7 +258,7 @@ func TestParseWebhook_ClosedPullRequest(t *testing.T) {
 }
 
 func TestParseWebhook_ClosedIssueIsDropped(t *testing.T) {
-	events, err := post(t, &Provider{}, "issues", map[string]any{
+	events, err := post(t, &Provider{Secret: "shh"}, "issues", map[string]any{
 		"action":     "closed",
 		"repository": map[string]any{"full_name": "webgrip/ploeg"},
 		"issue":      map[string]any{"number": 4},
@@ -308,5 +308,29 @@ func TestPullRequestState_SurfacesTheFailure(t *testing.T) {
 	}
 	if _, err := p.PullRequestState(context.Background(), "ploeg", 7); err == nil {
 		t.Error("a repo without an owner was accepted")
+	}
+}
+
+// With no secret configured, nothing can be verified, so nothing is accepted:
+// an unsigned delivery must not reach code that settles items or opens paid
+// follow-ups.
+func TestParseWebhook_WithoutASecretRejectsEveryDelivery(t *testing.T) {
+	body := `{"repository":{"full_name":"webgrip/ploeg"},"state":"failure","branches":["agent/vik-1"]}`
+	for name, signature := range map[string]string{
+		"unsigned":  "",
+		"signed":    sign("", []byte(body)),
+		"arbitrary": "deadbeef",
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodPost, "/webhooks/forge/forgejo", strings.NewReader(body))
+			r.Header.Set("X-Forgejo-Event", "status")
+			if signature != "" {
+				r.Header.Set("X-Forgejo-Signature", signature)
+			}
+			events, err := (&Provider{}).ParseWebhook(r)
+			if err == nil {
+				t.Fatalf("an unverifiable delivery was accepted: %+v", events)
+			}
+		})
 	}
 }

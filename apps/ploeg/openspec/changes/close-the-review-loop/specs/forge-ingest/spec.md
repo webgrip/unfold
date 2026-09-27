@@ -15,6 +15,12 @@ synchronous work, because Forgejo's delivery timeout is 5 seconds
 - **GIVEN** a forge webhook with a missing or wrong signature
 - **THEN** it is rejected before any Work Item is touched
 
+#### Scenario: A forge with no configured secret accepts nothing
+
+- **GIVEN** a forge provider configured without a webhook secret
+- **WHEN** any webhook arrives for it, signed or not
+- **THEN** it is rejected before any Work Item is touched
+
 #### Scenario: An unknown provider is not a server error
 
 - **WHEN** a webhook arrives for a provider that is not registered

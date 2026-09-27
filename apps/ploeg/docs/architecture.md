@@ -76,7 +76,7 @@ The current boundaries that matter to this audit are:
 - Delegated candidate verification and approval do not provide live publication.
 - Native harness state is opaque; cross-harness continuation is not guaranteed.
 - Automated checks and a small paid fixture do not qualify arbitrary providers, production deployments or high concurrency.
-- Forge webhooks currently record and deduplicate events; they do not automatically create Follow-Ups. The worker accepts a checkpoint field in its contract but does not automatically populate it from stored progress.
+- Forge webhooks record and deduplicate every event and settle a Work Item whose pull request was merged or closed. Only a Team's `forgeFollowUps` switches turn a failed check into a repair Follow-Up or a request for changes into rework. A forge without a webhook secret has every delivery rejected. The worker accepts a checkpoint field in its contract but does not automatically populate it from stored progress.
 - The intended Work Target model forbids team-to-repository coupling; legacy executor target defaults remain compatibility behavior. Static forge credentials do not provide per-Run push revocation.
 - Historical gap lists and backlog status require a fresh source check before implementing a ticket.
 

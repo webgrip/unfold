@@ -23,6 +23,9 @@ func post(t *testing.T, p *Provider, token string, body any) ([]provider.ForgeEv
 		t.Fatal(err)
 	}
 	r := httptest.NewRequest(http.MethodPost, "/webhooks/forge/gitlab", strings.NewReader(string(b)))
+	if token == "" {
+		token = p.Secret
+	}
 	if token != "" {
 		r.Header.Set("X-Gitlab-Token", token)
 	}
@@ -115,7 +118,7 @@ func TestParseWebhookAcceptsRightToken(t *testing.T) {
 // A note on a merge request is review feedback; a note on an issue is not,
 // and both arrive on the same hook.
 func TestParseWebhookNoteOnMergeRequest(t *testing.T) {
-	p := &Provider{}
+	p := &Provider{Secret: "s3cret"}
 	evs, err := post(t, p, "", map[string]any{
 		"object_kind":       "note",
 		"project":           map[string]any{"path_with_namespace": "g/p"},
@@ -136,7 +139,7 @@ func TestParseWebhookNoteOnMergeRequest(t *testing.T) {
 }
 
 func TestParseWebhookNoteOnIssueIsDropped(t *testing.T) {
-	p := &Provider{}
+	p := &Provider{Secret: "s3cret"}
 	evs, err := post(t, p, "", map[string]any{
 		"object_kind":       "note",
 		"project":           map[string]any{"path_with_namespace": "g/p"},
@@ -152,7 +155,7 @@ func TestParseWebhookNoteOnIssueIsDropped(t *testing.T) {
 
 // GitLab has no review object: approval arrives as a merge_request action.
 func TestParseWebhookApprovalIsReviewSubmitted(t *testing.T) {
-	p := &Provider{}
+	p := &Provider{Secret: "s3cret"}
 	evs, err := post(t, p, "", map[string]any{
 		"object_kind": "merge_request",
 		"project":     map[string]any{"path_with_namespace": "g/p"},
@@ -169,7 +172,7 @@ func TestParseWebhookApprovalIsReviewSubmitted(t *testing.T) {
 }
 
 func TestParseWebhookMergeConflict(t *testing.T) {
-	p := &Provider{}
+	p := &Provider{Secret: "s3cret"}
 	evs, err := post(t, p, "", map[string]any{
 		"object_kind": "merge_request",
 		"project":     map[string]any{"path_with_namespace": "g/p"},
@@ -188,7 +191,7 @@ func TestParseWebhookMergeConflict(t *testing.T) {
 // A mergeable MR update is noise: subscribing wider than the core consumes
 // must not produce events.
 func TestParseWebhookMergeableUpdateIsDropped(t *testing.T) {
-	p := &Provider{}
+	p := &Provider{Secret: "s3cret"}
 	evs, err := post(t, p, "", map[string]any{
 		"object_kind": "merge_request",
 		"project":     map[string]any{"path_with_namespace": "g/p"},
@@ -205,7 +208,7 @@ func TestParseWebhookMergeableUpdateIsDropped(t *testing.T) {
 }
 
 func TestParseWebhookFailedPipeline(t *testing.T) {
-	p := &Provider{}
+	p := &Provider{Secret: "s3cret"}
 	evs, err := post(t, p, "", map[string]any{
 		"object_kind":       "pipeline",
 		"project":           map[string]any{"path_with_namespace": "g/p"},
@@ -223,7 +226,7 @@ func TestParseWebhookFailedPipeline(t *testing.T) {
 // A branch pipeline has no merge request. PR 0 is the honest answer — the core
 // reads it as "nothing to route this to", not as merge request zero.
 func TestParseWebhookBranchPipelineHasNoMergeRequest(t *testing.T) {
-	p := &Provider{}
+	p := &Provider{Secret: "s3cret"}
 	evs, err := post(t, p, "", map[string]any{
 		"object_kind":       "pipeline",
 		"project":           map[string]any{"path_with_namespace": "g/p"},
@@ -238,7 +241,7 @@ func TestParseWebhookBranchPipelineHasNoMergeRequest(t *testing.T) {
 }
 
 func TestParseWebhookSuccessfulPipelineIsDropped(t *testing.T) {
-	p := &Provider{}
+	p := &Provider{Secret: "s3cret"}
 	evs, err := post(t, p, "", map[string]any{
 		"object_kind":       "pipeline",
 		"project":           map[string]any{"path_with_namespace": "g/p"},
@@ -253,7 +256,7 @@ func TestParseWebhookSuccessfulPipelineIsDropped(t *testing.T) {
 }
 
 func TestParseWebhookWithoutProjectIsDropped(t *testing.T) {
-	p := &Provider{}
+	p := &Provider{Secret: "s3cret"}
 	evs, err := post(t, p, "", map[string]any{"object_kind": "note"})
 	if err != nil {
 		t.Fatalf("want it dropped, got %v", err)
@@ -274,7 +277,7 @@ func TestParseWebhookMergeRequestClosed(t *testing.T) {
 		"merge": provider.ForgePRMerged,
 		"close": provider.ForgePRClosed,
 	} {
-		evs, err := post(t, &Provider{}, "", map[string]any{
+		evs, err := post(t, &Provider{Secret: "s3cret"}, "", map[string]any{
 			"object_kind": "merge_request",
 			"project":     map[string]any{"path_with_namespace": "g/p"},
 			"object_attributes": map[string]any{
@@ -312,6 +315,20 @@ func TestPullRequestState(t *testing.T) {
 		}
 		if gotPath != "/api/v4/projects/group%2Fsub%2Fproj/merge_requests/7" || gotToken != "tok" {
 			t.Errorf("request = %q with token %q", gotPath, gotToken)
+		}
+	}
+}
+
+// With no secret configured, nothing can be verified, so nothing is accepted.
+func TestParseWebhookWithoutASecretRejectsEveryDelivery(t *testing.T) {
+	for _, token := range []string{"", "anything"} {
+		if evs, err := post(t, &Provider{}, token, map[string]any{
+			"object_kind":       "note",
+			"project":           map[string]any{"path_with_namespace": "g/p"},
+			"object_attributes": map[string]any{"note": "please fix"},
+			"merge_request":     map[string]any{"iid": 12, "source_branch": "feat/x"},
+		}); err == nil {
+			t.Errorf("token %q: an unverifiable delivery was accepted: %+v", token, evs)
 		}
 	}
 }
