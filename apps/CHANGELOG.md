@@ -1,3 +1,28 @@
+## [glide-v0.4.0-rc.4](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.3...glide-v0.4.0-rc.4) (2026-09-27)
+
+### Added
+
+* **ploeg:** add qwen-code and goose ACP profiles ([fca571a](https://forgejo.webgrip.dev/webgrip/glide/commit/fca571ad03eabd1fcd7c56a8851f3e90032411d9))
+* **ploeg:** execute a Work Item from the OpenSpec change it names ([5032aed](https://forgejo.webgrip.dev/webgrip/glide/commit/5032aedd5f5fd7eb76bc604cbb992e73cb97a502))
+* **ploeg:** give Runs mounted toolchains, Ploeg skills and a worker-run verification ([e92913e](https://forgejo.webgrip.dev/webgrip/glide/commit/e92913eeda3351a774039291b2feec089b4ef0b0))
+
+### Fixed
+
+* **ploeg:** close an approved review loop as approved ([34ba8ad](https://forgejo.webgrip.dev/webgrip/glide/commit/34ba8ad90b357d1caffc26314a83a5953e0193d2)), references [#115](https://forgejo.webgrip.dev/webgrip/glide/issues/115)
+* **ploeg:** mint per-run Forgejo tokens that reach only the Run's repository ([bc7603a](https://forgejo.webgrip.dev/webgrip/glide/commit/bc7603aed26da5925b4aedbcf85c09bf4b8e6be7))
+* **ploeg:** reject forge webhooks when no secret is configured ([6c4a4a5](https://forgejo.webgrip.dev/webgrip/glide/commit/6c4a4a5ab60c81618bb565ebc750683f61fdd30b))
+
+### Docs
+
+* **ploeg:** cite the pushed commit in close-the-review-loop task 5.1 ([eb5cd11](https://forgejo.webgrip.dev/webgrip/glide/commit/eb5cd113358ecd42d37ab1614253f2449581cdeb))
+* **ploeg:** propose executing a Work Item from the OpenSpec change it names ([407eaab](https://forgejo.webgrip.dev/webgrip/glide/commit/407eaab725e3dcae351bc498eabe9dc3c07897b4))
+* **ploeg:** record ADR-0035 and the toolchain-and-checks runbook ([c44419a](https://forgejo.webgrip.dev/webgrip/glide/commit/c44419ad3c80725a4daccd493fd2779433b71bf3))
+* **ploeg:** record close-the-review-loop progress ([2191afb](https://forgejo.webgrip.dev/webgrip/glide/commit/2191afb7e1e52de6c6525c3525a76aab1c3ef133))
+
+### Tests
+
+* **ploeg:** pin infra_node on a failed push-credential mint and document each failure reason's writers ([62d9729](https://forgejo.webgrip.dev/webgrip/glide/commit/62d9729f8a6da6186a198e94768d9381c6d75f4e))
+
 ## [glide-v0.4.0-rc.3](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.2...glide-v0.4.0-rc.3) (2026-09-27)
 
 ### Added
