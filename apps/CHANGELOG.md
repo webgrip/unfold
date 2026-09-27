@@ -1,3 +1,13 @@
+## [glide-v0.4.0-rc.3](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.2...glide-v0.4.0-rc.3) (2026-09-27)
+
+### Added
+
+* **ploeg:** let one team run under the sandbox executor ([b40cfd5](https://forgejo.webgrip.dev/webgrip/glide/commit/b40cfd58673ff3a46e75aa491fc93a6b9456f454))
+
+### Docs
+
+* **ploeg:** archive the add-agent-sandbox-executor change ([2edcbde](https://forgejo.webgrip.dev/webgrip/glide/commit/2edcbdee86d1cb36a60da4c721a8e4107b9a090a))
+
 ## [glide-v0.4.0-rc.2](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.1...glide-v0.4.0-rc.2) (2026-09-27)
 
 ### Fixed
