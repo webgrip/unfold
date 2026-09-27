@@ -101,12 +101,17 @@ spec:
                 secretKeyRef:
                   name: {{ .tokenSecret.name }}
                   key: {{ .tokenSecret.key }}
-            {{- /* ADR-0013 tier 2: the credential that MINTS per-run push
-                 tokens. Held only by ploegd, never by a worker (R6) — the
-                 same escalation ADR-0008 accepts for the LiteLLM master key.
-                 Unset = nothing is minted and workers keep the shared token. */}}
-            {{- with .adminTokenSecret }}
-            - name: PLOEG_FORGEJO_ADMIN_TOKEN
+            {{- /* ADR-0013 tier 2: the bot's password MINTS per-run push
+                 tokens, each limited to the Run's repository. Held only by
+                 ploegd, never by a worker (R6). Forgejo creates tokens only
+                 for a password sign-in, so the admin token this chart once
+                 took never minted anything. Unset = nothing is minted and
+                 workers keep the shared token. */}}
+            {{- if .adminTokenSecret }}
+            {{- fail "executor.forgejo.adminTokenSecret is not supported: Forgejo refuses to create access tokens with a token. Set executor.forgejo.botPasswordSecret to a secret holding the bot user's password" }}
+            {{- end }}
+            {{- with .botPasswordSecret }}
+            - name: PLOEG_FORGEJO_BOT_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ .name }}

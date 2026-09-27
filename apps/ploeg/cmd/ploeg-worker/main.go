@@ -220,7 +220,7 @@ func run(log *slog.Logger) error {
 }
 
 func rejectAdministrativeEnvironment() error {
-	for _, key := range []string{"LITELLM_MASTER_KEY", "LITELLM_ADMIN_URL", "PLOEG_WORKER_SIGNING_KEY", "PLOEG_WORKER_BOOTSTRAPS", "PLOEG_FORGEJO_ADMIN_TOKEN", "PLOEG_DATABASE_URL", "KUBECONFIG"} {
+	for _, key := range []string{"LITELLM_MASTER_KEY", "LITELLM_ADMIN_URL", "PLOEG_WORKER_SIGNING_KEY", "PLOEG_WORKER_BOOTSTRAPS", "PLOEG_FORGEJO_ADMIN_TOKEN", "PLOEG_FORGEJO_BOT_PASSWORD", "PLOEG_DATABASE_URL", "KUBECONFIG"} {
 		if os.Getenv(key) != "" {
 			return fmt.Errorf("administrative configuration %s must not enter worker containers", key)
 		}

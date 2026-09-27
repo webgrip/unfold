@@ -71,7 +71,8 @@ for case in ":default" \
 done
 
 for case in "ops/helm/ploeg/ci/reject-reader-without-read-token-values.yaml:readTokenSecret is not set" \
-	"ops/helm/ploeg/ci/reject-team-executor-type-under-cronjob-values.yaml:executorType is only honoured"; do
+	"ops/helm/ploeg/ci/reject-team-executor-type-under-cronjob-values.yaml:executorType is only honoured" \
+	"ops/helm/ploeg/ci/reject-forge-admin-token-values.yaml:adminTokenSecret is not supported"; do
 	values=${case%%:*}
 	expected=${case#*:}
 	if out=$(helm template ploeg ops/helm/ploeg -f "$values" 2>&1); then

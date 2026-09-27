@@ -23,7 +23,7 @@ Every original lives in OpenBao, the estate vault. An ExternalSecret copies it i
 | LiteLLM master key | `executor.litellm.masterKeySecret` (`agent-litellm-master` / `LITELLM_MASTER_KEY`) | `ploegd`, and the LiteLLM gateway's own copy | No: one key on both sides |
 | Forge bot token | `executor.forgejo.tokenSecret` (`agent-builder-token` / `FORGEJO_TOKEN`) | `ploegd` (pull request comments) and every worker (`AGENT_BUILDER_TOKEN`) | Yes: a Forgejo user can hold several tokens |
 | Forge read-only token | `executor.forgejo.readTokenSecret` (unset by default) | Reading workers | Yes |
-| Forge admin token | `executor.forgejo.adminTokenSecret` (unset by default) | `ploegd` only; mints and revokes a push token per writing Run | Yes |
+| Forge bot password | `executor.forgejo.botPasswordSecret` (unset by default) | `ploegd` only; mints and revokes a push token per writing Run, limited to that Run's repository | No: one password. Until the Secret matches the new password, writing Runs fail to mint, end `failed` with `infra_node` and are retried |
 | Worker bootstrap registry | `executor.workerAuth.bootstrapSecret` (`ploeg-worker-bootstrap` / `registry.json`) | `ploegd` | Yes: several entries may share a team and Role |
 | Worker bootstrap token | Same Secret, key `<team>--<role>` or `<team>--default` | The worker pods of that team and Role | Yes, through the registry |
 | Worker signing key | `executor.workerAuth.signingKeySecret` (`ploeg-worker-signing` / `key`) | `ploegd` only | No: one key, no overlapping generations |

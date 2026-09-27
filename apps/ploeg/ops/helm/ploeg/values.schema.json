@@ -477,9 +477,9 @@
               "$ref": "#/definitions/readTokenSecretRef",
               "description": "ADR-0013 tier 1: read-only credential for reading Roles. Required (name and key) when any team has a reading Role: the render fails without it rather than hand readers the read-write builder token."
             },
-            "adminTokenSecret": {
+            "botPasswordSecret": {
               "$ref": "#/definitions/secretRef",
-              "description": "ADR-0013 tier 2: credential ploegd uses to MINT per-run push tokens. Held only by ploegd, never by a worker. Unset = nothing is minted."
+              "description": "ADR-0013 tier 2: the password of botUser, which ploegd uses to MINT per-run push tokens limited to the Run's repository. Held only by ploegd, never by a worker. Unset = nothing is minted."
             },
             "botUser": {
               "type": "string",

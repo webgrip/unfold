@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/webgrip/ploeg/pkg/config"
-	"github.com/webgrip/ploeg/pkg/forgebroker"
 	"github.com/webgrip/ploeg/pkg/httpapi"
 	"github.com/webgrip/ploeg/pkg/litellm"
 	"github.com/webgrip/ploeg/pkg/llmbroker"
@@ -191,23 +190,7 @@ func run(log *slog.Logger) error {
 		log.Info("no forge provider configured (PLOEG_FORGEJO_URL/PLOEG_GITLAB_URL unset); findings will not reach a pull request")
 	}
 
-	// Push rights per writing Run (ADR-0013 tier 2). The admin credential
-	// lives only here, never in a worker pod (R6) — the same escalation
-	// ADR-0008 accepts for LITELLM_MASTER_KEY. Unset = the shared
-	// agent-builder token stands and nothing is minted or revoked.
-	var forgeCreds forgebroker.Broker = forgebroker.Static{Token: os.Getenv("PLOEG_FORGEJO_TOKEN")}
-	var forgeSweeper forgebroker.Sweeper
-	if admin := os.Getenv("PLOEG_FORGEJO_ADMIN_TOKEN"); admin != "" {
-		fb := &forgebroker.Forgejo{
-			BaseURL:    trimSlash(os.Getenv("PLOEG_FORGEJO_URL")),
-			AdminUser:  envOr("PLOEG_FORGEJO_BOT", "agent-builder"),
-			AdminToken: admin,
-		}
-		forgeCreds, forgeSweeper = fb, fb
-		log.Info("per-run forge credentials enabled", "bot", fb.AdminUser)
-	} else {
-		log.Info("per-run forge credentials disabled (PLOEG_FORGEJO_ADMIN_TOKEN unset); workers use the shared token")
-	}
+	forgeCreds, forgeSweeper := forgeCredentials(log)
 
 	// Gateway credential sweeper (llmbroker.Sweeper) for per-run key
 	// lifecycle: nil = no gateway configured, revocation disabled.

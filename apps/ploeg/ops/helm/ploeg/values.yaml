@@ -265,19 +265,19 @@ executor:
     readTokenSecret: {}
     #  name: agent-reader-token
     #  key: FORGEJO_TOKEN
-    # ADR-0013 tier 2: ploegd mints a push credential per WRITING Run and
-    # revokes it when the Run settles or its Lease lapses, so holding the
-    # Lease and being able to push are one fact. Closes the zombie-writer
-    # case: a partitioned pod whose Lease expired loses the ABILITY to push,
-    # not merely the right to.
+    # ADR-0013 tier 2: ploegd mints a push credential per WRITING Run,
+    # limited to write:repository on that Run's repository alone, and revokes
+    # it when the Run settles or its Lease lapses. Holding the Lease and being
+    # able to push become one fact, and a Run cannot reach another repository
+    # the bot can see.
     #
-    # This credential can create tokens for botUser, so it is an escalation —
-    # accepted deliberately on ADR-0008's reasoning, and it lives only in
-    # ploegd, never in a worker pod (R6). Unset = nothing is minted and every
-    # run uses the shared token below, which is the pre-tier-2 behaviour.
-    adminTokenSecret: {}
-    #  name: agent-builder-admin-token
-    #  key: FORGEJO_ADMIN_TOKEN
+    # Forgejo creates access tokens only for a user signed in with a password,
+    # so this is the password of botUser. It lives only in ploegd, never in a
+    # worker pod (R6). Unset = nothing is minted and every run uses the shared
+    # token above, which is the pre-tier-2 behaviour.
+    botPasswordSecret: {}
+    #  name: agent-builder-password
+    #  key: FORGEJO_BOT_PASSWORD
     botUser: agent-builder
     # Verifies X-Forgejo-Signature on POST /webhooks/forge/forgejo. Unset =
     # every forge webhook is rejected.

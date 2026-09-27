@@ -41,3 +41,11 @@ func TestForgeTokenAccessRejectsTypos(t *testing.T) {
 		t.Fatal("a misspelt access level must fail the boot, not read as read-write")
 	}
 }
+
+func TestTheForgeBotPasswordNeverEntersAWorker(t *testing.T) {
+	t.Setenv("PLOEG_FORGEJO_BOT_PASSWORD", "canary-bot-password")
+	err := rejectAdministrativeEnvironment()
+	if err == nil || strings.Contains(err.Error(), "canary-bot-password") {
+		t.Fatalf("worker accepted the minting password or disclosed it: %v", err)
+	}
+}

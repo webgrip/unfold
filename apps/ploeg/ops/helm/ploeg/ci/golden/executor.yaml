@@ -128,6 +128,11 @@ spec:
                 secretKeyRef:
                   name: agent-builder-token
                   key: FORGEJO_TOKEN
+            - name: PLOEG_FORGEJO_BOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: agent-builder-password
+                  key: FORGEJO_BOT_PASSWORD
             - name: PLOEG_FORGEJO_BOT
               value: "agent-builder"
             - name: PLOEG_FORGEJO_SECRET

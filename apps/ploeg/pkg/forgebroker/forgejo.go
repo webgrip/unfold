@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -15,27 +16,24 @@ import (
 // ours from a human's without a registry. Same trick as the LiteLLM alias.
 const namePrefix = "ploeg-run-"
 
-// Forgejo mints Forgejo access tokens through the admin API.
+// Forgejo mints Forgejo access tokens for the bot through
+// /api/v1/users/{bot}/tokens.
 //
-// Scoping: Forgejo grants scopes per token (`write:repository`), and the
-// tokens are owned by the user they are minted for — the agent-builder bot.
-// That bot is already limited to the repositories the factory may touch, so
-// a minted token is bounded by BOTH the scope list and the bot's own access.
-// Per-repository token scoping is not expressible in Forgejo's token API, so
-// the repository field of MintRequest is recorded in the token NAME for
-// audit rather than enforced by the forge — an honest limitation, and the
-// reason the bot's own repo access still matters.
+// Forgejo serves no admin endpoint for another user's tokens and refuses token
+// authentication on the tokens API, so the broker signs in to it with the
+// bot's own username and password. Each token is limited to the
+// `write:repository` scope and, through the token's repository list, to the
+// Run's own repository: git and the repository API answer 403 for every other
+// repository, even ones the bot can reach.
 type Forgejo struct {
 	// BaseURL is the instance root.
 	BaseURL string
-	// AdminUser is the bot whose tokens are minted (agent-builder).
-	AdminUser string
-	// AdminToken must carry `write:admin`-equivalent rights to create tokens
-	// for AdminUser. It lives ONLY in ploegd, never in a worker pod (R6) —
-	// the same escalation ADR-0013 accepts explicitly, mirroring how
-	// LITELLM_MASTER_KEY is held.
-	AdminToken string
-	HC         *http.Client
+	// Bot is the forge user whose tokens are minted (agent-builder).
+	Bot string
+	// Password is Bot's password. It lives ONLY in ploegd, never in a worker
+	// pod (R6), the same way LITELLM_MASTER_KEY is held.
+	Password string
+	HC       *http.Client
 }
 
 func (f *Forgejo) client() *http.Client {
@@ -58,7 +56,7 @@ func (f *Forgejo) do(ctx context.Context, method, path string, body, out any) er
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "token "+f.AdminToken)
+	req.SetBasicAuth(f.Bot, f.Password)
 	req.Header.Set("Accept", "application/json")
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -90,6 +88,10 @@ func tokenName(runToken, owner, repo string) string {
 	return fmt.Sprintf("%s%s-%s-%s", namePrefix, id, owner, repo)
 }
 
+func (f *Forgejo) tokensPath() string {
+	return "/api/v1/users/" + url.PathEscape(f.Bot) + "/tokens"
+}
+
 func (f *Forgejo) Mint(ctx context.Context, req MintRequest) (Credential, error) {
 	if req.Owner == "" || req.Repo == "" {
 		return Credential{}, fmt.Errorf("forgebroker: a per-run token needs a repository")
@@ -101,14 +103,13 @@ func (f *Forgejo) Mint(ctx context.Context, req MintRequest) (Credential, error)
 		Sha1   string   `json:"sha1"`
 		Scopes []string `json:"scopes"`
 	}
-	// write:repository covers clone, push and the pull-request API — what a
-	// writing Run does and nothing else. No admin, no user, no org scope.
 	body := map[string]any{
-		"name":   name,
-		"scopes": []string{"write:repository"},
+		"name":         name,
+		"scopes":       []string{"write:repository"},
+		"repositories": []map[string]string{{"owner": req.Owner, "name": req.Repo}},
 	}
 	if err := f.do(ctx, http.MethodPost,
-		"/api/v1/admin/users/"+f.AdminUser+"/tokens", body, &out); err != nil {
+		f.tokensPath(), body, &out); err != nil {
 		return Credential{}, err
 	}
 	if out.Sha1 == "" {
@@ -126,7 +127,7 @@ func (f *Forgejo) Revoke(ctx context.Context, cred Credential) error {
 		return nil // nothing was minted (Static, or a mint that failed)
 	}
 	err := f.do(ctx, http.MethodDelete,
-		"/api/v1/admin/users/"+f.AdminUser+"/tokens/"+target, nil, nil)
+		f.tokensPath()+"/"+url.PathEscape(target), nil, nil)
 	// An already-deleted token is the desired end state, not a failure: the
 	// sweeper and the worker's defer both revoke, and they race by design.
 	if err != nil && strings.Contains(err.Error(), "HTTP 404") {
@@ -150,7 +151,7 @@ func (f *Forgejo) SweepOrphans(ctx context.Context, aliveIDs []string) (int, err
 		Name string `json:"name"`
 	}
 	if err := f.do(ctx, http.MethodGet,
-		"/api/v1/admin/users/"+f.AdminUser+"/tokens", nil, &tokens); err != nil {
+		f.tokensPath(), nil, &tokens); err != nil {
 		return 0, err
 	}
 	alive := make(map[string]bool, len(aliveIDs))

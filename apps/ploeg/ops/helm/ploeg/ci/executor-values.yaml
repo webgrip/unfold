@@ -13,6 +13,9 @@ executor:
     webhookSecret:
       name: ploeg-forge-webhook
       key: PLOEG_FORGEJO_SECRET
+    botPasswordSecret:
+      name: agent-builder-password
+      key: FORGEJO_BOT_PASSWORD
   teams:
     - name: bronze
       model: litellm_proxy/deepseek-chat
