@@ -80,6 +80,12 @@ v1.0.x `Sandbox`. It is the second executor named by proposed
 [ADR-0032](../adrs/0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md);
 its requirements are the OpenSpec spec `sandbox-executor`.
 
+A deployment can move one team at a time: with `executor.type` at `keda`, a
+team's `executorType: sandbox` runs only that team's workloads this way, and
+the other teams keep their worker ScaledJobs unchanged. The reverse, a team
+set to `keda` under `executor.type: sandbox`, works too. `executorType` is
+refused under the CronJob executor.
+
 The ScaledJob and its scale signal are unchanged. Its pod becomes a launcher,
 `ploeg-worker sandbox-launch`, which creates one cold `SandboxClaim` for its
 Job and waits until the claim reports `Finished`, disappears, or the launcher's

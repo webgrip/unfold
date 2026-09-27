@@ -335,6 +335,10 @@ executor:
   #   # unlimited). ploegd refuses claims over it; every workload's
   #   # maxReplicaCount is clamped to it.
   #   maxRunning: 2
+  #   # Optional: keda or sandbox for this team only, while executor.type is
+  #   # one of those two; unset = executor.type. Trial the experimental sandbox
+  #   # executor on one low-risk team before moving the deployment.
+  #   executorType: sandbox
   #   # Optional: override the executor.harness defaults for this team — the
   #   # single axis of variation (harness AND agent image swap per team).
   #   harness:

@@ -1,7 +1,8 @@
-{{- if and .Values.executor.enabled (eq (.Values.executor.type | default "keda") "sandbox") }}
+{{- if and .Values.executor.enabled (include "ploeg.anyTeamOnSandbox" .) }}
 {{- $root := . }}
 {{- $sb := .Values.executor.sandbox }}
 {{- range $team := .Values.executor.teams }}
+{{- if eq (include "ploeg.teamExecutorType" (dict "root" $root "team" $team)) "sandbox" }}
 {{- range $role := (include "ploeg.teamRoles" $team | fromJsonArray) }}
 {{- $name := include "ploeg.workloadName" (dict "root" $root "team" $team "role" $role) }}
 {{- $pod := include "ploeg.workerPodTemplate" (dict "root" $root "team" $team "role" $role) | fromYaml }}
@@ -36,6 +37,7 @@ spec:
   replicas: 0
   sandboxTemplateRef:
     name: {{ $name }}
+{{- end }}
 {{- end }}
 {{- end }}
 ---

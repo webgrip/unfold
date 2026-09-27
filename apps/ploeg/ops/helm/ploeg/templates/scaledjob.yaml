@@ -1,8 +1,8 @@
 {{- $executorType := .Values.executor.type | default "keda" }}
 {{- if and .Values.executor.enabled (has $executorType (list "keda" "sandbox")) }}
 {{- $root := . }}
-{{- $sandbox := eq $executorType "sandbox" }}
 {{- range $team := .Values.executor.teams }}
+{{- $sandbox := eq (include "ploeg.teamExecutorType" (dict "root" $root "team" $team)) "sandbox" }}
 {{- range $role := (include "ploeg.teamRoles" $team | fromJsonArray) }}
 ---
 # One ScaledJob per (team, Role) — the flagship executor. A team without a

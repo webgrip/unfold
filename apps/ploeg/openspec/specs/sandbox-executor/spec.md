@@ -74,3 +74,19 @@ in its own namespace.
 - **WHEN** a `SandboxClaim` sets `env`
 - **THEN** the controller rejects it, because the template sets
   `envVarsInjectionPolicy: Disallowed`
+
+### Requirement: A team can run under the sandbox executor alone
+A team's optional `executorType` SHALL choose `keda` or `sandbox` for that
+team's workloads while `executor.type` is `keda` or `sandbox`, and the chart
+MUST refuse it under the CronJob executor. Teams without it SHALL render
+exactly as under `executor.type`.
+
+#### Scenario: One team trials the sandbox executor
+- **WHEN** `executor.type` is `keda` and one team sets `executorType: sandbox`
+- **THEN** only that team's workloads render as launcher ScaledJobs with a
+  `SandboxTemplate` and `SandboxWarmPool`, the launcher RBAC renders once, and
+  every other team's ScaledJob is unchanged
+
+#### Scenario: executorType under the CronJob executor
+- **WHEN** `executor.type` is `cronjob` and a team sets `executorType`
+- **THEN** the chart fails to render with a message naming the team

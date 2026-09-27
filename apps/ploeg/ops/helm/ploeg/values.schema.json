@@ -413,6 +413,11 @@
                 "type": "integer",
                 "minimum": 0,
                 "description": "ADR-0017: how many times a reviewer request_changes may re-open the writing Round of this plan. 0 = loop off, the plan runs to exhaustion."
+              },
+              "executorType": {
+                "type": "string",
+                "enum": ["keda", "sandbox"],
+                "description": "Optional: this team's executor while executor.type is keda or sandbox; unset = executor.type. Lets one team run under the experimental sandbox executor while the others stay on keda."
               }
             },
             "//": "repoOwner/repoName are NOT required: the repository belongs to the work item, resolved at ingest (R11). They remain as a per-team fallback while teams migrate.",

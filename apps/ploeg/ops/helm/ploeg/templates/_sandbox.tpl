@@ -1,3 +1,30 @@
+{{/*
+ploeg.teamExecutorType is the executor one team's workloads run under: the
+team's executorType, else executor.type. A team may choose keda or sandbox only
+while the deployment's executor.type is one of those two.
+Context: (dict "root" $ "team" <team>).
+*/}}
+{{- define "ploeg.teamExecutorType" -}}
+{{- $global := .root.Values.executor.type | default "keda" }}
+{{- if and .team.executorType (not (has $global (list "keda" "sandbox"))) }}
+{{- fail (printf "team %s: executorType is only honoured when executor.type is keda or sandbox, not %s" .team.name $global) }}
+{{- end }}
+{{- .team.executorType | default $global }}
+{{- end -}}
+
+{{/*
+ploeg.anyTeamOnSandbox is "true" when at least one team runs under the
+sandbox executor. Context: the root context.
+*/}}
+{{- define "ploeg.anyTeamOnSandbox" -}}
+{{- $root := . }}
+{{- $any := false }}
+{{- range $team := .Values.executor.teams }}
+{{- if eq (include "ploeg.teamExecutorType" (dict "root" $root "team" $team)) "sandbox" }}{{- $any = true }}{{- end }}
+{{- end }}
+{{- if $any }}true{{- end }}
+{{- end -}}
+
 {{- define "ploeg.sandboxLauncherName" -}}
 {{- printf "%s-sandbox-launcher" (include "ploeg.fullname" .) -}}
 {{- end -}}

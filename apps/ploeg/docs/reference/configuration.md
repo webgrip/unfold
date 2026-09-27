@@ -208,6 +208,7 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `executor.teams` | array | `[]` |  | values.yaml, values.schema.json |
 | `executor.teams[].baseBranch` | string |  | Branch the worker clones, branches from and targets. Unset means the repository default branch. | values.schema.json |
 | `executor.teams[].budget` | string |  | Per-run key budget in USD. For a Team with a plan it is the Shift pool the Roles share. | values.schema.json |
+| `executor.teams[].executorType` | one of `"keda"`, `"sandbox"` |  | Optional: this team's executor while executor.type is keda or sandbox; unset = executor.type. Lets one team run under the experimental sandbox executor while the others stay on keda. | values.schema.json |
 | `executor.teams[].harness` | [harness](#harness) |  | Overrides the `executor.harness` defaults for this Team. | values.schema.json |
 | `executor.teams[].maxFixRounds` | integer |  | ADR-0017: how many times a reviewer request_changes may re-open the writing Round of this plan. 0 = loop off, the plan runs to exhaustion. | values.schema.json |
 | `executor.teams[].maxReplicaCount` | integer |  |  | values.schema.json |

@@ -54,6 +54,7 @@ for case in ":default" \
 	"ops/helm/ploeg/ci/executor-cronjob-values.yaml:executor-cronjob" \
 	"ops/helm/ploeg/ci/executor-gitlab-values.yaml:executor-gitlab" \
 	"ops/helm/ploeg/ci/executor-sandbox-values.yaml:executor-sandbox" \
+	"ops/helm/ploeg/ci/executor-sandbox-team-values.yaml:executor-sandbox-team" \
 	"ops/helm/ploeg/ci/monitoring-values.yaml:monitoring"; do
 	values=${case%%:*}
 	name=${case##*:}
@@ -69,7 +70,8 @@ for case in ":default" \
 	fi
 done
 
-for case in "ops/helm/ploeg/ci/reject-reader-without-read-token-values.yaml:readTokenSecret is not set"; do
+for case in "ops/helm/ploeg/ci/reject-reader-without-read-token-values.yaml:readTokenSecret is not set" \
+	"ops/helm/ploeg/ci/reject-team-executor-type-under-cronjob-values.yaml:executorType is only honoured"; do
 	values=${case%%:*}
 	expected=${case#*:}
 	if out=$(helm template ploeg ops/helm/ploeg -f "$values" 2>&1); then
