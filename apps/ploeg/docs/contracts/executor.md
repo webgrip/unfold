@@ -78,7 +78,7 @@ Explicit legacy mode retains the old authentication behavior.
 [kubernetes-sigs/agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox)
 v1.0.x `Sandbox`. It is the second executor named by proposed
 [ADR-0032](../adrs/0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md);
-the plan is the OpenSpec change `add-agent-sandbox-executor`.
+its requirements are the OpenSpec spec `sandbox-executor`.
 
 The ScaledJob and its scale signal are unchanged. Its pod becomes a launcher,
 `ploeg-worker sandbox-launch`, which creates one cold `SandboxClaim` for its
