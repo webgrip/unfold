@@ -75,6 +75,16 @@ class DistributionTests(unittest.TestCase):
                 publish_release.link_package('charts/de-vloer', 'token')
                 self.assertEqual(calls, expected)
 
+    def test_a_link_the_bot_cannot_move_does_not_stop_publication(self):
+        def api(url, token, method='GET', data=None, missing=False):
+            if method == 'GET':
+                return [{'name': 'ploegd', 'repository': {'full_name': 'webgrip/ploeg'}}]
+            raise RuntimeError('POST forgejo.webgrip.dev returned HTTP 500')
+
+        with patch.object(publish_release, 'api', api), patch('sys.stderr') as stderr:
+            publish_release.link_package('ploegd', 'token')
+        self.assertIn('stays linked to webgrip/ploeg', ''.join(call.args[0] for call in stderr.write.call_args_list))
+
     def test_every_image_platform_must_identify_the_glide_release(self):
         source = fixture()
         verify_image(source, 'webgrip/ploegd', '0.3.0-rc.8', 'selected-sha')

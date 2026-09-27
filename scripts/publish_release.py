@@ -75,9 +75,12 @@ def link_package(name, token):
     if linked == {'webgrip/glide'}:
         return
     path = f'https://forgejo.webgrip.dev/api/v1/packages/webgrip/container/{urllib.parse.quote(name, safe="")}/-'
-    if linked - {None}:
-        api(f'{path}/unlink', token, 'POST')
-    api(f'{path}/link/glide', token, 'POST')
+    try:
+        if linked - {None}:
+            api(f'{path}/unlink', token, 'POST')
+        api(f'{path}/link/glide', token, 'POST')
+    except RuntimeError as error:
+        print(f'::warning::package {name} stays linked to {", ".join(sorted(r for r in linked if r)) or "no repository"}: {error}', file=sys.stderr)
 
 
 def fetch_asset(asset, token):
