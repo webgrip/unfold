@@ -87,15 +87,15 @@ Verify a recent PostgreSQL backup and restore it into an isolated database. Veri
 
 The 12 September audit saw completed Ploeg backups but an unhealthy `cnpg-disaster-recovery` cluster. That observation does not establish a tested restore, and does not mean the healthy primary database has failed. An upgrade of existing data remains blocked until a fresh restore exercise succeeds or an independently verified recovery path is recorded. An isolated pilot must use separate state and must not claim to have closed this upgrade gate.
 
-## 5. Publish the first application releases
+## 5. Publish the first Glide release
 
 With preparation evidence complete and the old release authorities frozen, set the repository variable `GLIDE_RELEASES_ENABLED=true` in [Glide repository settings](https://forgejo.webgrip.dev/webgrip/glide/settings). Record who changed it and when. Coordinate a quiet `development` window so the source cannot advance unnoticed.
 
 The [release jobs](../../.forgejo/workflows/on_source_change.yml) run only for a **push to `development`**. Enabling the variable does not start them; manually dispatching the source-change workflow also does not start them. Push the reviewed release-worthy change, or, if the exact qualified tip already contains eligible changes, use one documented `chore: start qualified Glide release cutover` empty commit to trigger a fresh push. An empty commit triggers evaluation but does not itself earn a version bump. Fetch the resulting tip, wait for its checks and retain its run link.
 
-The Vloer version job runs before Ploeg's to avoid competing manifest commits. Each release triggers a separate run of **[Workflow] On Release Published**, routed by its application tag, while the other application can still be evaluated. Follow both publication runs through completion; source checks, tag creation and the release page are not the completion criterion.
+One release job versions both applications under a `glide-v…` tag. The release triggers one run of **[Workflow] On Release Published**, which publishes Vloer's and Ploeg's artifacts; Ploeg's final distribution waits for Vloer's. Follow that run through completion; source checks, tag creation and the release page are not the completion criterion.
 
-Inspect [Glide releases](https://forgejo.webgrip.dev/webgrip/glide/releases). Record each full tag and its resolved commit after manifest preparation. Those release commits can differ from the initially tested source tip. Ploeg must remain a zero-major release candidate and prereleases must not move `latest`.
+Inspect [Glide releases](https://forgejo.webgrip.dev/webgrip/glide/releases). Record the full tag and its resolved commit after manifest preparation. That release commit differs from the tested source tip. The version must be a zero-major release candidate, and prereleases must not move `latest`.
 
 Do not open the gate if the preparation table remains incomplete. Publishing into real registries is the first irreversible distribution step; the procedure below recovers partial publication without deleting or recycling a version.
 
