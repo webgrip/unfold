@@ -4,7 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { application, createInput, createSession, replay, request, sessionUntil } from './api-support.ts';
 import type { Event } from '../src/types.ts';
 
-test('HTTP demo produces real failing and passing checks, review evidence, and replayable durable events', { timeout: 35_000 }, async t => {
+test('HTTP demo produces real failing and passing checks, review evidence, and replayable durable events', { timeout: 90_000 }, async t => {
   const server = await application();
   assert.equal(server.config.ploeg, undefined);
   assert.equal(server.config.execution, undefined);

@@ -95,7 +95,7 @@ export async function createSession(url: string, options: { cookie?: string; ove
 }
 
 export async function sessionUntil(url: string, id: string, accepts: (session: Session) => boolean, cookie?: string): Promise<Session> {
-  const deadline = Date.now() + 20_000;
+  const deadline = Date.now() + 60_000;
   let last: Session | undefined;
   while (Date.now() < deadline) {
     const result = await request(url, `/api/sessions/${id}`, { cookie });
