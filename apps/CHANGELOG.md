@@ -1,3 +1,13 @@
+## [glide-v0.4.0-rc.5](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.4...glide-v0.4.0-rc.5) (2026-09-27)
+
+### Fixed
+
+* **ploeg:** give the harness the configured model name, prefix intact ([7dd8506](https://forgejo.webgrip.dev/webgrip/glide/commit/7dd850632e1be8ba4e94f63884a0ddb56a9f05ab))
+
+### Tests
+
+* **vloer:** give the HTTP demo session room on a contended runner ([1673e2b](https://forgejo.webgrip.dev/webgrip/glide/commit/1673e2b2e12470c4f0d1351829e5c3b74e7865af))
+
 ## [glide-v0.4.0-rc.4](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.3...glide-v0.4.0-rc.4) (2026-09-27)
 
 ### Added
