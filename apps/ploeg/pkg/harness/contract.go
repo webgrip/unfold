@@ -27,6 +27,9 @@ type TaskSpec struct {
 	// Ploeg reads them from the Shift and injects them; the agent never calls
 	// a forge or a Ploeg API to fetch them (R6).
 	Briefing []Finding `json:"briefing,omitempty"`
+	// OpenSpec is the OpenSpec change the Work Item names, located in the
+	// clone and rendered as a brief by the worker. Nil when it names none.
+	OpenSpec *OpenSpecBrief `json:"openSpec,omitempty"`
 	// Credentials are delivered out-of-band (env, mounted secrets), never here (R8).
 }
 
@@ -38,6 +41,23 @@ type Finding struct {
 	Round    int    `json:"round"`
 	Findings string `json:"findings"`
 }
+
+// OpenSpecBrief is the specification a Work Item's OpenSpec change gives a
+// Run. Root is the repository-relative directory holding the change's
+// openspec/ directory, "." for the repository root. Source says whether Brief
+// came from the openspec CLI or from the change's files.
+type OpenSpecBrief struct {
+	Change string `json:"change"`
+	Root   string `json:"root"`
+	Source string `json:"source"`
+	Brief  string `json:"brief"`
+}
+
+// The values of OpenSpecBrief.Source.
+const (
+	OpenSpecSourceCLI   = "cli"
+	OpenSpecSourceFiles = "files"
+)
 
 type RepoRef struct {
 	Forge      string `json:"forge,omitempty"`

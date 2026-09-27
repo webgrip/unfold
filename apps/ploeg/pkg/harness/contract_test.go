@@ -81,6 +81,8 @@ func fullTaskSpec() TaskSpec {
 			{Role: "analyst", Round: 1, Findings: "## analyst\n- the retry loop is unbounded"},
 			{Role: "security", Round: 1, Findings: "## security\n- the token is logged at debug"},
 		},
+		OpenSpec: &OpenSpecBrief{Change: "add-widget", Root: "apps/ploeg", Source: OpenSpecSourceCLI,
+			Brief: "Pending tasks:\n- 1.1 add the widget"},
 	}
 }
 

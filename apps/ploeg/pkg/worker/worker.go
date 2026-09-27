@@ -264,6 +264,20 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 		return hiddenInstructionReport(instructions)
 	}
 
+	openSpecID, err := work.OpenSpecChange(item.Description)
+	if err != nil {
+		return stuckReport("invalid OpenSpec directive", err.Error())
+	}
+	var openSpec *openSpecChange
+	if openSpecID != "" {
+		located, err := locateOpenSpecChange(cloneDir, openSpecID)
+		if err != nil {
+			return stuckReport("OpenSpec change not found", err.Error())
+		}
+		openSpec = &located
+		w.Log.Info("work item names an OpenSpec change", "change", openSpecID, "root", located.RelRoot)
+	}
+
 	spec := harness.TaskSpec{
 		WorkItem: item,
 		Role:     claimed.Role,
@@ -300,6 +314,11 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	model := w.Cfg.LLMModel
 	if len(w.Cfg.LLMModels) > 0 {
 		model = w.Cfg.LLMModels[0]
+	}
+	if openSpec != nil {
+		brief := openSpecBriefFor(ctx, *openSpec, home)
+		spec.OpenSpec = &brief
+		w.Log.Info("briefed from the OpenSpec change", "change", brief.Change, "source", brief.Source, "bytes", len(brief.Brief))
 	}
 	harnessSpec, harnessForgeToken := spec, forgeToken
 	var gitEnv []string
@@ -362,8 +381,14 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	if prErr != nil {
 		w.Log.Warn("PR lookup failed", "err", prErr)
 	}
-	return resolveOutcome(w.Adapter.Name(), report, runErr, context.Cause(ctx), prURL, priorPR != "",
+	resolved := resolveOutcome(w.Adapter.Name(), report, runErr, context.Cause(ctx), prURL, priorPR != "",
 		item.Title, branch, logTail.Bytes(), w.Adapter.ExpectsLLM(), writes)
+	if openSpec != nil && openSpecGateApplies(resolved, writes, onReviewBranch) {
+		gate := runOpenSpecGate(ctx, *openSpec, cloneURL, forgeToken, branch, home)
+		w.Log.Info("OpenSpec gate", "change", openSpec.ID, "ran", gate.Ran, "passed", gate.Passed)
+		resolved = applyOpenSpecGate(resolved, openSpec.ID, gate, writes)
+	}
+	return resolved
 }
 
 // runAgent mints the per-run credential, runs the harness adapter, and

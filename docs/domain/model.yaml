@@ -234,7 +234,10 @@ terms:
     owner: ploeg
     definition: >
       A spec-driven change workflow and CLI. Ploeg keeps its change proposals and
-      specs under apps/ploeg/openspec; mise.toml pins the CLI.
+      specs under apps/ploeg/openspec; mise.toml pins the CLI. A Work Item can
+      name a change with a description line "openspec: <change-id>"; its Run is
+      then briefed from the change and handed off for review only when strict
+      validation of the change passes.
   - name: AHP
     context: Tooling
     owner: vloer

@@ -33,11 +33,24 @@
       "pattern": "^ploeg-[0-9a-f]{12}$",
       "description": "run trace id; doubles as the LiteLLM key alias Grafana joins on"
     },
-    "briefing": { "$ref": "#/$defs/briefing" }
+    "briefing": { "$ref": "#/$defs/briefing" },
+    "openSpec": { "$ref": "#/$defs/openSpec" }
   },
   "required": ["workItem", "repo", "branch", "traceId"],
   "additionalProperties": false,
   "$defs": {
+    "openSpec": {
+      "type": "object",
+      "description": "The OpenSpec change the Work Item names on an `openspec: <change-id>` description line, located in the clone and rendered by the worker. Absent when the Work Item names none. The brief is the specification for the Work Item and ranks below the delivery contract.",
+      "properties": {
+        "change": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "maxLength": 100 },
+        "root": { "type": "string", "description": "repository-relative directory that holds the change's openspec/ directory; \".\" for the repository root" },
+        "source": { "type": "string", "enum": ["cli", "files"], "description": "cli = rendered from `openspec instructions apply --json`; files = read from the change's proposal, design and tasks" },
+        "brief": { "type": "string" }
+      },
+      "required": ["change", "root", "source", "brief"],
+      "additionalProperties": false
+    },
     "briefing": {
       "type": "array",
       "description": "Earlier Rounds' findings, attributed per Role (ADR-0011). Ploeg injects them; the agent never fetches them itself (R6).",

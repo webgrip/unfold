@@ -6,7 +6,7 @@ change either side and the test tells you.
 
 | File | Contract |
 |---|---|
-| [taskspec.v1.schema.json](taskspec.v1.schema.json) | Harness input: what a run knows (work item, repo, branch, trace id). Credentials never travel here (R8). |
+| [taskspec.v1.schema.json](taskspec.v1.schema.json) | Harness input: what a run knows (work item, repo, branch, trace id, and the brief of the OpenSpec change the Work Item names). Credentials never travel here (R8). |
 | [outcomereport.v1.schema.json](outcomereport.v1.schema.json) | Harness output and the body of `POST /api/v1/runs/{token}/outcome`. Stuck requires a reason (R4). The optional `createdWorkItems` carries the Work Items a Run proposes ([ADR-0031](../adrs/0031-runs-create-work-items-held-for-approval-within-limits.md)). |
 | [checkpoint.v1.schema.json](checkpoint.v1.schema.json) | The durable progress record (shared by TaskSpec, OutcomeReport, and the checkpoint endpoint). |
 | [run-api.v1.schema.json](run-api.v1.schema.json) | All run-API message bodies (claim/renew/checkpoint/outcome). |
@@ -23,6 +23,39 @@ change either side and the test tells you.
 - Consumers must ignore unknown fields (Go's default decoding already does).
 - The outcome enum is owned by `pkg/work/types.go`; the schema mirrors it.
   `usage` (tokens/cost/sessionId) is reserved space for backlog #66/#70.
+
+## OpenSpec Work Items
+
+A Work Item names an OpenSpec change with a line `openspec: <change-id>` in its
+description. The key is case-insensitive, the id may be in backticks, and
+tracker HTML is ignored, so the line works from Vikunja, ClickUp, GitLab and
+operator admission alike. The id must be kebab-case. A malformed line, two
+different ids, or a change the worker cannot find in the clone stops the Run
+as `stuck` before the harness starts.
+
+The worker looks for `openspec/changes/<change-id>` at the repository root and
+in nested directories (Glide keeps Ploeg's at `apps/ploeg/openspec`), without
+following symbolic links. It fills the Task Spec's `openSpec` field with a
+brief: from `openspec instructions apply --change <id> --json` when an
+`openspec` executable is on the worker's PATH, otherwise from the change's
+`proposal.md`, `design.md` and `tasks.md`. The prompt ranks the brief below the
+delivery contract.
+
+After a writing Run opens or updates a pull request, and after a reading Run
+on the branch under review, the worker checks out the pushed branch and runs
+`openspec validate <id> --type change --strict --json --no-interactive`
+itself:
+
+| Run | Gate passes | Gate fails | Gate cannot run |
+|---|---|---|---|
+| Writing | Outcome kept; the summary says it passed | `stuck` with the validation output and the pull request link | `stuck` with the reason |
+| Reading | Verdict kept | Verdict `request_changes`; the output is put ahead of the findings | `stuck` with the reason |
+
+The CLI runs with `OPENSPEC_TELEMETRY=0`, `DO_NOT_TRACK=1`, a scratch `HOME`
+and no forge token or model key. The worker never downloads it. A harness
+image without the CLI can still brief a Run from the files, but every gated
+Run then ends at `needs_human`. Baking `@fission-ai/openspec` into the runner
+images is proposed, not done.
 
 ## Operator read consumers
 

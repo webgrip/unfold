@@ -96,7 +96,7 @@ The service that runs a model and answers inference requests. A provider can run
 ## OpenSpec
 *Context: Tooling · Owner: Ploeg*
 
-A spec-driven change workflow and CLI. Ploeg keeps its change proposals and specs under apps/ploeg/openspec; mise.toml pins the CLI.
+A spec-driven change workflow and CLI. Ploeg keeps its change proposals and specs under apps/ploeg/openspec; mise.toml pins the CLI. A Work Item can name a change with a description line "openspec: <change-id>"; its Run is then briefed from the change and handed off for review only when strict validation of the change passes.
 
 
 ## Placement

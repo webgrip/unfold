@@ -22,8 +22,8 @@ The generator follows each binary's imports inside the module and records every 
 | `KUBECONFIG` | ploeg-worker |  | Administrative configuration. The worker refuses to start when it is set. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `KUBERNETES_SERVICE_HOST` | ploeg-worker |  |  | [launcher.go](../../pkg/sandboxlaunch/launcher.go) |
 | `KUBERNETES_SERVICE_PORT` | ploeg-worker |  |  | [launcher.go](../../pkg/sandboxlaunch/launcher.go) |
-| `LANG` | ploeg-worker |  |  | [git.go](../../pkg/worker/git.go) |
-| `LC_ALL` | ploeg-worker |  |  | [git.go](../../pkg/worker/git.go) |
+| `LANG` | ploeg-worker |  |  | [git.go](../../pkg/worker/git.go), [openspec.go](../../pkg/worker/openspec.go) |
+| `LC_ALL` | ploeg-worker |  |  | [git.go](../../pkg/worker/git.go), [openspec.go](../../pkg/worker/openspec.go) |
 | `LITELLM_ADMIN_URL` | ploeg-worker |  | Controller-only. The worker refuses to start when it is set. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `LITELLM_ADMIN_URL` | ploegd |  | LiteLLM management URL (chart `executor.litellm.adminUrl`). Unset disables key revocation, and managed worker mode then refuses to start. | [main.go](../../cmd/ploegd/main.go) |
 | `LITELLM_KEY_BUDGET` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go) |
@@ -34,7 +34,7 @@ The generator follows each binary's imports inside the module and records every 
 | `LLM_BASE_URL` | ploeg-worker |  | Model gateway URL (chart `executor.litellm.baseUrl`). | [main.go](../../cmd/ploeg-worker/main.go) |
 | `LLM_MODEL` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go) |
 | `NODE_NAME` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go), [worker.go](../../pkg/worker/worker.go) |
-| `PATH` | ploeg-worker |  | Passed to `git` subprocesses; also on the harness allowlist. | [git.go](../../pkg/worker/git.go) |
+| `PATH` | ploeg-worker |  | Passed to `git` and `openspec` subprocesses; also on the harness allowlist. | [git.go](../../pkg/worker/git.go), [openspec.go](../../pkg/worker/openspec.go) |
 | `PLOEG_ACP_ARGV` | ploeg-worker |  | `acp` harness only: the whole launch command as a JSON array; required when the profile is `custom`. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_ACP_CONFIG_JSON` | ploeg-worker |  | `acp` harness only: replaces the profile's generated agent configuration wholesale. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_ACP_IDLE_TIMEOUT` | ploeg-worker |  | `acp` harness only: timeout without protocol traffic. Empty means the adapter default (10m). | [main.go](../../cmd/ploeg-worker/main.go) |
@@ -115,7 +115,7 @@ The generator follows each binary's imports inside the module and records every 
 | `POD_UID` | ploeg-worker |  | Downward-API pod UID; the worker identity when `PLOEG_WORKER_ID` is unset. | [main.go](../../cmd/ploeg-worker/main.go), [worker.go](../../pkg/worker/worker.go) |
 | `REPO_NAME` | ploeg-worker |  | Fallback repository name for a team that pins one. The repository normally comes from the claimed Work Item. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `REPO_OWNER` | ploeg-worker |  | Fallback repository owner for a team that pins one. The repository normally comes from the claimed Work Item. | [main.go](../../cmd/ploeg-worker/main.go) |
-| `TZ` | ploeg-worker |  |  | [git.go](../../pkg/worker/git.go) |
+| `TZ` | ploeg-worker |  |  | [git.go](../../pkg/worker/git.go), [openspec.go](../../pkg/worker/openspec.go) |
 | `WORK_DIR` | ploeg-worker | `/mnt/ci-shared` |  | [main.go](../../cmd/ploeg-worker/main.go) |
 
 ## Helm values

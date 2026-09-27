@@ -39,7 +39,7 @@ none
 
 ```sh
 $ go test ./internal/ledger/
-# run with the implementation
+ok  	github.com/webgrip/ploeg/internal/ledger
 ```
 
 ## Notes

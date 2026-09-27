@@ -72,7 +72,7 @@ env:
   PLOEG_ACP_IDLE_TIMEOUT: "`acp` harness only: timeout without protocol traffic. Empty means the adapter default (10m)."
   PLOEG_ACP_CONFIG_JSON: "`acp` harness only: replaces the profile's generated agent configuration wholesale."
   KUBECONFIG: Administrative configuration. The worker refuses to start when it is set.
-  PATH: Passed to `git` subprocesses; also on the harness allowlist.
+  PATH: Passed to `git` and `openspec` subprocesses; also on the harness allowlist.
 helm:
   executor.enabled: Turns on the executor. Requires the LiteLLM and agent-builder secrets and, for DinD harnesses, the privileged-DinD PolicyException.
   executor.workerAuth.mode: "`managed` by default; `legacy` is explicit compatibility and sets the controller's `PLOEG_WORKER_AUTH_MODE=legacy` and the worker's `PLOEG_LLM_CREDENTIAL_MODE=static-compatibility`."
