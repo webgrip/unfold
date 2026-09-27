@@ -1,3 +1,9 @@
+## [glide-v0.4.0-rc.2](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.1...glide-v0.4.0-rc.2) (2026-09-27)
+
+### Fixed
+
+* **vloer:** record the zlib CVE-2026-85091 exposure of the workspace image and enforce it ([657c522](https://forgejo.webgrip.dev/webgrip/glide/commit/657c5228244501e79ce6c4af91520fa039a1be95))
+
 ## [glide-v0.4.0-rc.1](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.3.0...glide-v0.4.0-rc.1) (2026-09-27)
 
 ### Added
