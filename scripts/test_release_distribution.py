@@ -57,6 +57,24 @@ class DistributionTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 publish_release.release_tag(application, version)
 
+    def test_package_links_move_to_glide_and_retries_are_no_ops(self):
+        for current, expected in [
+            ('webgrip/glide', []),
+            ('webgrip/de-vloer', ['unlink', 'link/glide']),
+            (None, ['link/glide']),
+        ]:
+            calls = []
+
+            def api(url, token, method='GET', data=None, missing=False):
+                if method == 'GET':
+                    return [{'name': 'charts/de-vloer', 'repository': {'full_name': current} if current else None}, {'name': 'de-vloer', 'repository': None}]
+                calls.append(url.rsplit('/-/', 1)[1])
+                self.assertIn('/container/charts%2Fde-vloer/-/', url)
+
+            with self.subTest(current=current), patch.object(publish_release, 'api', api):
+                publish_release.link_package('charts/de-vloer', 'token')
+                self.assertEqual(calls, expected)
+
     def test_every_image_platform_must_identify_the_glide_release(self):
         source = fixture()
         verify_image(source, 'webgrip/ploegd', '0.3.0-rc.8', 'selected-sha')

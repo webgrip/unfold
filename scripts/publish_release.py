@@ -69,6 +69,17 @@ def export_module(tag, version, token):
     return {'module': 'github.com/webgrip/ploeg', 'version': f'v{version}', 'commit': commit, 'tree': tree, 'sum': module['Sum']}
 
 
+def link_package(name, token):
+    packages = api(f'https://forgejo.webgrip.dev/api/v1/packages/webgrip?type=container&q={urllib.parse.quote(name)}&limit=50', token) or []
+    linked = {(package.get('repository') or {}).get('full_name') for package in packages if package['name'] == name}
+    if linked == {'webgrip/glide'}:
+        return
+    path = f'https://forgejo.webgrip.dev/api/v1/packages/webgrip/container/{urllib.parse.quote(name, safe="")}/-'
+    if linked - {None}:
+        api(f'{path}/unlink', token, 'POST')
+    api(f'{path}/link/glide', token, 'POST')
+
+
 def fetch_asset(asset, token):
     url = asset['browser_download_url']
     parsed = urllib.parse.urlsplit(url)
@@ -132,11 +143,11 @@ def publish(application, version):
             reference = copy_image(source, target, f'webgrip/{name}', version, revision)
             evidence['images'].append({'name': name, 'source': f'{source.host}/webgrip/{name}@{reference}', 'target': f'{target.host}/webgrip/{name}@{reference}'})
             if target.host == 'forgejo.webgrip.dev':
-                api(f'https://forgejo.webgrip.dev/api/v1/packages/webgrip/container/{name}/-/link/glide', forge_token, 'POST')
+                link_package(name, forge_token)
         reference = copy_chart(source, target, f'webgrip/charts/{chart}', version)
         evidence['charts'].append({'name': chart, 'source': f'{source.host}/webgrip/charts/{chart}@{reference}', 'target': f'{target.host}/webgrip/charts/{chart}@{reference}'})
         if target.host == 'forgejo.webgrip.dev':
-            api(f'https://forgejo.webgrip.dev/api/v1/packages/webgrip/container/{urllib.parse.quote("charts/" + chart, safe="")}/-/link/glide', forge_token, 'POST')
+            link_package('charts/' + chart, forge_token)
     anonymous = Registry('ghcr.io')
     for artifact in evidence['images'] + evidence['charts']:
         if not artifact['target'].startswith('ghcr.io/'):
