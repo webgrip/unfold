@@ -32,48 +32,25 @@ test('event entry points preserve validation and keep application publication ou
   assert.equal(workflows['on_docs_change.yml'].jobs['generate-documentation'].with['prepare-command'], 'python3 scripts/docs.py --check --stage-only');
 });
 
-test('only an enabled development push can version applications after both gates', () => {
+test('only an enabled development push can version Glide after both gates', () => {
   assert.equal(source.concurrency['cancel-in-progress'], false);
-  for (const app of ['vloer', 'ploeg']) {
-    const job = source.jobs[`release-${app}`];
-    assert.ok(job.needs.includes('checks'));
-    assert.ok(job.needs.includes('release-policy'));
-    if (app === 'ploeg') assert.ok(job.needs.includes('release-vloer'));
-    const release = job.steps.find(step => step.id === 'release');
-    assert.equal(release.with['package-path'], `apps/${app}`);
-    assert.equal(release.with['package-name'], app);
-    for (const event_name of ['push', 'pull_request', 'workflow_dispatch', 'release']) {
-      for (const ref of ['refs/heads/development', 'refs/heads/main', 'refs/heads/topic', 'refs/tags/vloer-v0.3.0']) {
-        for (const gate of ['', 'false', 'true']) {
-          const enabled = evaluate(job.if, { github: { event_name, ref }, vars: { GLIDE_RELEASES_ENABLED: gate } });
-          assert.equal(enabled, event_name === 'push' && ref === 'refs/heads/development' && gate === 'true');
-        }
-      }
-    }
-  }
-});
-
-test('release channel notes mirror only on an enabled development push after both source gates pass, whether or not a release ran', () => {
-  const job = source.jobs['mirror-source-metadata'];
-  assert.deepEqual(job.needs, ['checks', 'release-policy', 'release-ploeg']);
-  assert.ok(job.steps.some(step => step.run === 'python3 scripts/sync_release_notes.py'));
-  for (const event_name of ['push', 'workflow_dispatch']) {
-    for (const ref of ['refs/heads/development', 'refs/heads/main']) {
+  assert.deepEqual(Object.keys(source.jobs).sort(), ['checks', 'release', 'release-policy', 'tutorial-smoke']);
+  const job = source.jobs.release;
+  assert.deepEqual(job.needs, ['checks', 'release-policy']);
+  const release = job.steps.find(step => step.id === 'release');
+  assert.equal(release.with['package-path'], 'apps');
+  assert.equal(release.with['package-name'], 'glide');
+  for (const event_name of ['push', 'pull_request', 'workflow_dispatch', 'release']) {
+    for (const ref of ['refs/heads/development', 'refs/heads/main', 'refs/heads/topic', 'refs/tags/glide-v0.4.0-rc.1']) {
       for (const gate of ['', 'false', 'true']) {
-        for (const checks of ['success', 'failure', 'skipped']) {
-          for (const policy of ['success', 'failure']) {
-            for (const release of ['success', 'skipped', 'failure']) {
-              const context = { always: () => true, github: { event_name, ref }, vars: { GLIDE_RELEASES_ENABLED: gate }, needs: { checks: { result: checks }, 'release-policy': { result: policy }, 'release-ploeg': { result: release } } };
-              assert.equal(evaluate(job.if, context), event_name === 'push' && ref === 'refs/heads/development' && gate === 'true' && checks === 'success' && policy === 'success', `${event_name} ${ref} ${gate} ${checks} ${policy} ${release}`);
-            }
-          }
-        }
+        const enabled = evaluate(job.if, { github: { event_name, ref }, vars: { GLIDE_RELEASES_ENABLED: gate } });
+        assert.equal(enabled, event_name === 'push' && ref === 'refs/heads/development' && gate === 'true');
       }
     }
   }
 });
 
-test('the CI verify gate requires the imported release notes the mirror prunes against', () => {
+test('the CI verify gate requires the imported release notes', () => {
   const verification = read('.forgejo/actions/verify/action.yml');
   const step = verification.runs.steps.find(step => step.run === 'mise run verify');
   assert.equal(step.env.GLIDE_REQUIRE_IMPORT_NOTES, 'true');
@@ -93,6 +70,7 @@ test('every published image passes its application CVE budget before signing', (
   assert.equal(ploegGate.with['image-ref'], '${{ steps.digest.outputs.ref }}');
   assert.equal(ploegGate.with['image-name'], 'ploegd');
   assert.ok(publisher.jobs['ploeg-release-sign-harbor'].needs.includes('ploeg-release-distribute-harbor'));
+  assert.ok(publisher.jobs['ploeg-release-distribute'].needs.includes('vloer-release-distribute'), 'one Glide release mirrors to GitHub one application at a time');
   for (const app of ['vloer', 'ploeg']) {
     const image = app === 'vloer' ? 'de-vloer' : 'ploegd';
     const budgets = parse(fs.readFileSync(path.join(root, `apps/${app}/ops/security/cve-budgets.yaml`), 'utf8'));
@@ -106,32 +84,35 @@ test('preview uses the release toolchain and remains a manual dry run', () => {
   assert.deepEqual(Object.keys(preview.on), ['workflow_dispatch']);
   assert.deepEqual(Object.keys(preview.jobs), ['preflight', 'preview']);
   const job = preview.jobs.preview;
-  assert.deepEqual(job.container, source.jobs['release-vloer'].container);
-  assert.deepEqual(job.strategy.matrix.application, ['vloer', 'ploeg']);
+  assert.deepEqual(job.container, source.jobs.release.container);
+  assert.equal(job.strategy, undefined);
   const step = job.steps.find(step => step.with?.['dry-run']);
   assert.equal(step.with['dry-run'], 'true');
-  assert.equal(step.uses, source.jobs['release-vloer'].steps.find(step => step.id === 'release').uses);
+  assert.equal(step.with['package-path'], 'apps');
+  assert.equal(step.with['package-name'], 'glide');
+  assert.equal(step.uses, source.jobs.release.steps.find(step => step.id === 'release').uses);
   assert.equal(evaluate(job.if, { github: { ref: 'refs/heads/development' } }), true);
   assert.equal(evaluate(job.if, { github: { ref: 'refs/heads/main' } }), false);
 });
 
-test('release routing disables every publisher for a closed gate or the other application', () => {
+test('release routing publishes both applications for a Glide tag and nothing for a closed gate or another tag', () => {
   assert.deepEqual(Object.keys(publisher.on).sort(), ['release', 'workflow_dispatch']);
   assert.deepEqual(publisher.on.release.types, ['published']);
   assert.equal(publisher.concurrency['cancel-in-progress'], false);
-  for (const selected of ['vloer', 'ploeg', 'unrelated']) {
+  const jobs = Object.entries(publisher.jobs).filter(([name]) => name !== 'parse-release-tag');
+  for (const app of ['vloer', 'ploeg']) assert.ok(jobs.some(([name]) => name.startsWith(`${app}-`)), app);
+  for (const selected of ['glide', 'vloer', 'ploeg', 'unrelated']) {
     for (const event_name of ['release', 'workflow_dispatch']) {
       for (const gate of ['', 'false', 'true']) {
-        const tag = `${selected}-v0.3.0-rc.5`;
+        const tag = `${selected}-v0.4.0-rc.5`;
         const context = { github: { event_name, event: { release: { tag_name: event_name === 'release' ? tag : '' } } }, inputs: { tag: event_name === 'workflow_dispatch' ? tag : '' }, vars: { GLIDE_RELEASES_ENABLED: gate }, needs: {} };
-        for (const app of ['vloer', 'ploeg']) {
-          const parsed = evaluate(publisher.jobs[`${app}-parse-release-tag`].if, context);
-          assert.equal(parsed, selected === app && gate === 'true');
-          context.needs[`${app}-parse-release-tag`] = { outputs: { version: parsed ? '0.3.0-rc.5' : '' } };
-        }
+        const parsed = evaluate(publisher.jobs['parse-release-tag'].if, context);
+        assert.equal(parsed, selected === 'glide' && gate === 'true');
+        context.needs['parse-release-tag'] = { outputs: { version: parsed ? '0.4.0-rc.5' : '' } };
         context.needs['ploeg-release-sign-harbor'] = { outputs: { signed: 'true' } };
-        for (const [name, job] of Object.entries(publisher.jobs).filter(([name]) => !name.endsWith('-parse-release-tag'))) {
-          assert.equal(evaluate(job.uses ? job.with.enabled : job.if, context), name.startsWith(`${selected}-`) && gate === 'true', name);
+        for (const [name, job] of jobs) {
+          assert.ok(job.needs.includes('parse-release-tag'), name);
+          assert.equal(evaluate(job.if, context), parsed, name);
         }
       }
     }
@@ -147,7 +128,7 @@ test('Ploeg mirrors require completed signing even when Forgejo omits job result
     assert.ok(job.needs.includes('ploeg-release-sign-harbor'));
     for (const signed of ['', 'false', 'true']) {
       assert.equal(evaluate(job.if, { needs: {
-        'ploeg-parse-release-tag': { outputs: { version: '0.3.0-rc.5' } },
+        'parse-release-tag': { outputs: { version: '0.4.0-rc.5' } },
         'ploeg-release-sign-harbor': { outputs: { signed } },
       } }), signed === 'true', `${name}: ${signed}`);
     }

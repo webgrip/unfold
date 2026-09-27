@@ -36,7 +36,7 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
       - uses: ./.forgejo/actions/tutorial-smoke
 
-  release-vloer:
+  release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/development' && vars.GLIDE_RELEASES_ENABLED == 'true'
     needs: [checks, release-policy]
     runs-on: docker
@@ -52,40 +52,6 @@ jobs:
         id: release
         uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v2.6.1
         with:
-          package-path: apps/vloer
-          package-name: vloer
+          package-path: apps
+          package-name: glide
           token: ${{ secrets.WEBGRIP_CI_TOKEN }}
-
-  release-ploeg:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/development' && vars.GLIDE_RELEASES_ENABLED == 'true'
-    needs: [checks, release-policy, release-vloer]
-    runs-on: docker
-    container:
-      image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.3
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-        with:
-          fetch-depth: 0
-      - name: Semantic Release
-        id: release
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v2.6.1
-        with:
-          package-path: apps/ploeg
-          package-name: ploeg
-          token: ${{ secrets.WEBGRIP_CI_TOKEN }}
-
-  mirror-source-metadata:
-    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/development' && vars.GLIDE_RELEASES_ENABLED == 'true' && needs.checks.result == 'success' && needs.release-policy.result == 'success'
-    needs: [checks, release-policy, release-ploeg]
-    runs-on: docker
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-        with:
-          fetch-depth: 0
-      - name: Mirror release channel notes
-        shell: bash
-        env:
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-        run: python3 scripts/sync_release_notes.py

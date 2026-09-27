@@ -2,7 +2,7 @@
 
 The corrected policy calculates **v0.3.0-rc.5** from the actual repository history after withdrawal of the mistaken semantic-version tag. This is a local calculation, not evidence that the replacement was published.
 
-The [test suite](../../scripts/release-policy.test.cjs) ran in the exact CI image `harbor.webgrip.dev/webgrip/semantic-release:0.3.3`, digest `sha256:6a0b7c4369320b8ca5d676bb1d6f6fc675d2d56cf738824b5ca9a855334b930f`, with the repository mounted read-only, networking disabled and a temporary filesystem for shell-test outputs. Installed versions were semantic-release 25.0.9, commit-analyzer 14.0.0-beta.3, and shared configuration 1.2.3.
+The [test suite](https://forgejo.webgrip.dev/webgrip/glide/src/commit/57e3ff747fa79c6978ed140630723ee729d1315a/apps/ploeg/scripts/release-policy.test.cjs) ran in the exact CI image `harbor.webgrip.dev/webgrip/semantic-release:0.3.3`, digest `sha256:6a0b7c4369320b8ca5d676bb1d6f6fc675d2d56cf738824b5ca9a855334b930f`, with the repository mounted read-only, networking disabled and a temporary filesystem for shell-test outputs. Installed versions were semantic-release 25.0.9, commit-analyzer 14.0.0-beta.3, and shared configuration 1.2.3.
 
 All 14 tests passed. They reproduced the old major result using the real historical [breaking commit](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7714cd5eb3268fd8291075a13fcb3736ddc88c76), proved the corrected minor result, generated release notes retaining the managed-authentication warning, loaded the local guards through the installed plugin pipeline, and executed the actual artifact-publisher shell against accepted, rejected and injection-shaped tags. Reusable artifact jobs also passed explicit failed-prerequisite checks.
 

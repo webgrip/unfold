@@ -31,8 +31,7 @@ test('the shared prerelease configuration needs an existing main baseline', asyn
     git(cwd, 'push', 'origin', 'development');
     const moduleRoot = path.dirname(require.resolve('semantic-release'));
     const { default: getBranches } = await import(pathToFileURL(path.join(moduleRoot, 'lib/branches/index.js')).href);
-    const options = require(path.join(root, 'apps/vloer/.releaserc.cjs'));
-    assert.deepEqual(options.branches, require(path.join(root, 'apps/ploeg/.releaserc.cjs')).branches);
+    const options = require(path.join(root, 'apps/.releaserc.cjs'));
     const context = { cwd, env: process.env, options, logger };
     await assert.rejects(getBranches(remote, 'development', context), error => {
       assert.ok(error.errors, error.stack);
@@ -49,23 +48,20 @@ test('the shared prerelease configuration needs an existing main baseline', asyn
   }
 });
 
-test('the installed release pipeline selects only commits within the application package', async () => {
+test('one Glide release selects commits in either application and ignores changes outside them', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'glide-release-'));
   const previous = process.cwd();
   try {
     git(directory, 'init', '-b', 'development');
     git(directory, 'config', 'user.name', 'Glide qualification');
     git(directory, 'config', 'user.email', 'qualification@example.invalid');
-    const files = [];
-    for (const app of ['vloer', 'ploeg']) {
-      const target = path.join(directory, 'apps', app);
-      fs.mkdirSync(path.join(target, 'scripts'), { recursive: true });
-      for (const file of ['package.json', '.releaserc.cjs', 'scripts/release-policy.cjs']) {
-        fs.copyFileSync(path.join(root, 'apps', app, file), path.join(target, file));
-        files.push(`apps/${app}/${file}`);
-      }
-    }
+    for (const app of ['vloer', 'ploeg']) fs.mkdirSync(path.join(directory, 'apps', app), { recursive: true });
+    fs.mkdirSync(path.join(directory, 'scripts'));
     fs.mkdirSync(path.join(directory, 'docs'));
+    const files = ['apps/.releaserc.cjs', 'scripts/release-policy.cjs'];
+    for (const file of files) fs.copyFileSync(path.join(root, file), path.join(directory, file));
+    fs.writeFileSync(path.join(directory, 'apps/package.json'), JSON.stringify({ name: 'glide', version: '0.0.0', private: true }));
+    files.push('apps/package.json');
     git(directory, 'add', '--', ...files);
     git(directory, 'commit', '-m', 'chore: establish fixture');
     const commits = [];
@@ -82,17 +78,15 @@ test('the installed release pipeline selects only commits within the application
     }
     const moduleRoot = path.dirname(require.resolve('semantic-release'));
     const { default: getConfig } = await import(pathToFileURL(path.join(moduleRoot, 'lib/get-config.js')).href);
-    for (const app of ['vloer', 'ploeg']) {
-      const cwd = path.join(directory, 'apps', app);
-      process.chdir(cwd);
-      const input = { cwd, env: process.env, logger, stdout: process.stdout, stderr: process.stderr };
-      const { options, plugins } = await getConfig(input, { repositoryUrl: 'https://example.invalid/glide.git' });
-      assert.equal(options.tagFormat, `${app}-v${'${version}'}`);
-      for (const commit of commits) {
-        const expected = commit.name === 'both' || (app === 'vloer' && commit.name === 'vloer') ? 'patch' : app === 'ploeg' && commit.name === 'ploeg' ? 'minor' : null;
-        const actual = await plugins.analyzeCommits({ ...input, options, commits: [commit] });
-        assert.equal(actual ?? null, expected, `${app} from ${commit.name}`);
-      }
+    const cwd = path.join(directory, 'apps');
+    process.chdir(cwd);
+    const input = { cwd, env: process.env, logger, stdout: process.stdout, stderr: process.stderr };
+    const { options, plugins } = await getConfig(input, { repositoryUrl: 'https://example.invalid/glide.git' });
+    assert.equal(options.tagFormat, 'glide-v${version}');
+    const expected = { vloer: 'patch', ploeg: 'minor', both: 'patch', docs: null };
+    for (const commit of commits) {
+      const actual = await plugins.analyzeCommits({ ...input, options, commits: [commit] });
+      assert.equal(actual ?? null, expected[commit.name], commit.name);
     }
   } finally {
     process.chdir(previous);
@@ -100,26 +94,25 @@ test('the installed release pipeline selects only commits within the application
   }
 });
 
-test('publisher shells reject the other application and mismatched manual refs before producing a version', () => {
+test('the publisher shell rejects application tags and mismatched manual refs before producing a version', () => {
   const { spawnSync } = require('node:child_process');
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'glide-publisher-'));
   const output = path.join(directory, 'output');
   try {
-    for (const app of ['vloer', 'ploeg']) {
-      const workflow = parse(fs.readFileSync(path.join(root, '.forgejo/workflows/on_release_published.yml'), 'utf8'));
-      const shell = workflow.jobs[`${app}-parse-release-tag`].steps.find(step => step.id === 'parse').run;
-      const valid = `${app}-v0.3.0-rc.5`;
-      for (const [tag, ref, accepted] of [
-        [valid, `refs/tags/${valid}`, true],
-        [valid, 'refs/heads/development', false],
-        [`${app === 'vloer' ? 'ploeg' : 'vloer'}-v0.3.0-rc.5`, 'refs/tags/unrelated', false],
-        ["vloer-v0.3.0'; exit 0; #", 'refs/heads/development', false],
-      ]) {
-        fs.writeFileSync(output, '');
-        const result = spawnSync('bash', ['-c', shell], { env: { ...process.env, GITHUB_OUTPUT: output, WORKFLOW_EVENT: 'workflow_dispatch', RELEASE_TAG: tag, SELECTED_REF: ref }, encoding: 'utf8' });
-        assert.equal(result.status, accepted ? 0 : 1, `${app}: ${tag}: ${result.stderr}`);
-        assert.equal(fs.readFileSync(output, 'utf8').includes('version='), accepted);
-      }
+    const workflow = parse(fs.readFileSync(path.join(root, '.forgejo/workflows/on_release_published.yml'), 'utf8'));
+    const shell = workflow.jobs['parse-release-tag'].steps.find(step => step.id === 'parse').run;
+    const valid = 'glide-v0.4.0-rc.5';
+    for (const [tag, ref, accepted] of [
+      [valid, `refs/tags/${valid}`, true],
+      [valid, 'refs/heads/development', false],
+      ['vloer-v0.4.0-rc.5', 'refs/tags/vloer-v0.4.0-rc.5', false],
+      ['ploeg-v0.4.0-rc.5', 'refs/tags/ploeg-v0.4.0-rc.5', false],
+      ["glide-v0.4.0'; exit 0; #", 'refs/heads/development', false],
+    ]) {
+      fs.writeFileSync(output, '');
+      const result = spawnSync('bash', ['-c', shell], { env: { ...process.env, GITHUB_OUTPUT: output, WORKFLOW_EVENT: 'workflow_dispatch', RELEASE_TAG: tag, SELECTED_REF: ref }, encoding: 'utf8' });
+      assert.equal(result.status, accepted ? 0 : 1, `${tag}: ${result.stderr}`);
+      assert.equal(fs.readFileSync(output, 'utf8').includes('version='), accepted);
     }
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });

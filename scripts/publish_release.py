@@ -28,8 +28,8 @@ def git(*args, env=None, input=None):
 
 def release_tag(application, version):
     if application not in {'vloer', 'ploeg'} or not re.fullmatch(r'0\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-rc\.([1-9][0-9]*)', version):
-        raise ValueError('The cutover publishes only named application 0.x.y-rc.N releases')
-    return f'{application}-v{version}'
+        raise ValueError('The cutover publishes only 0.x.y-rc.N Glide releases for a named application')
+    return f'glide-v{version}'
 
 
 def export_commit(tag, parent):
@@ -152,7 +152,7 @@ def publish(application, version):
         data, _ = request(extension['files']['download'])
         require_same(digest(data), digest(fetch_asset(vsix, forge_token)), 'Open VSX VSIX')
         evidence['extension'] = {'version': version, 'sha256': hashlib.sha256(data).hexdigest(), 'url': extension['files']['download']}
-    attach_forgejo(source_release, 'release-artifacts.json', (json.dumps(evidence, indent=2) + '\n').encode(), forge_token)
+    attach_forgejo(source_release, f'release-artifacts-{application}.json', (json.dumps(evidence, indent=2) + '\n').encode(), forge_token)
     source_release = api(f'{FORGEJO}/releases/tags/{tag}', forge_token)
     print(mirror_release(tag, source_release, forge_token, github_token))
     print(json.dumps(evidence, indent=2))

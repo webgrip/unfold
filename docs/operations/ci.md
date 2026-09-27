@@ -2,7 +2,7 @@
 type: reference
 audience: [operator, contributor, agent]
 owner: glide
-last_verified: 2026-09-23
+last_verified: 2026-09-27
 verified_by: "Entry points, triggers, jobs and gates checked against the workflow files, the local actions and scripts/workflow-policy.test.cjs"
 ---
 
@@ -12,14 +12,14 @@ Glide uses Webgrip's event-named entry points. The executable definitions live i
 
 | Entry point | Trigger | Responsibility |
 | --- | --- | --- |
-| [on_source_change.yml](../../.forgejo/workflows/on_source_change.yml) | Push to `development`; manual validation | Validate both applications, container build contexts and release policy, and smoke-test the [local demo](../workflows/local-demo.md). An enabled push can then release Vloer followed by Ploeg. |
+| [on_source_change.yml](../../.forgejo/workflows/on_source_change.yml) | Push to `development`; manual validation | Validate both applications, container build contexts and release policy, and smoke-test the [local demo](../workflows/local-demo.md). An enabled push can then release Glide. |
 | [on_pull_request.yml](../../.forgejo/workflows/on_pull_request.yml) | Pull request; manual validation | Run the same application, release-policy and demo smoke jobs without release credentials or versioning jobs. |
 | [on_schedule.yml](../../.forgejo/workflows/on_schedule.yml) | Weekly on Monday; manual rerun | Report broken external links in current docs with lychee, which blocks nothing. Fail when Forgejo no longer holds every imported release note (`scripts/verify-import.py` with `GLIDE_REQUIRE_IMPORT_NOTES=true`), so a deletion like those of September 2026 is seen within a week even without pushes. It publishes nothing. |
 | [on_docs_change.yml](../../.forgejo/workflows/on_docs_change.yml) | Documentation or docs-tooling changes on `development`; manual validation | Validate the combined documentation, then publish Zensical and Markdown when the docs gate is enabled. |
-| [on_release_preview.yml](../../.forgejo/workflows/on_release_preview.yml) | Manual, on `development` | Check the mirror, credential access and Glide signing identity; preview each application's version with `dry-run: 'true'`. |
-| [on_release_published.yml](../../.forgejo/workflows/on_release_published.yml) | Published release; manual retry for an exact tag | Route `vloer-v…` and `ploeg-v…` to their own artifact jobs. |
+| [on_release_preview.yml](../../.forgejo/workflows/on_release_preview.yml) | Manual, on `development` | Check the mirror, credential access and Glide signing identity; preview the next Glide version with `dry-run: 'true'`. |
+| [on_release_published.yml](../../.forgejo/workflows/on_release_published.yml) | Published release; manual retry for an exact tag | Publish both applications' artifacts for a `glide-v…` tag. |
 
-## Shared checks and separate versions
+## Shared checks and one version
 
 Source changes and pull requests use the same local [verification action](../../.forgejo/actions/verify/action.yml) and [release-policy action](../../.forgejo/actions/release-policy/action.yml). Each caller checks out the repository before invoking a local action. The existing application gates remain in [mise verification](../../scripts/verify.mjs), including generated docs, Helm goldens and deterministic integration. The dedicated docs workflow gives documentation changes their own result; the source gate still validates the complete tree.
 
@@ -27,13 +27,13 @@ Verification runs independent gate groups in parallel: Vloer, the Vloer extensio
 
 The [demo smoke action](../../.forgejo/actions/tutorial-smoke/action.yml) runs [the tutorial smoke script](../../scripts/tutorial-smoke.sh): it starts `mise run demo-unified`, waits for `unified-demo.ready`, stops it with `SIGTERM`, then runs the documented `--smoke` check. It is deterministic, with no model calls or credentials. When the runner has no PostgreSQL `initdb` and `postgres`, or runs as root, the job logs what is missing and passes without starting the demo. No release job depends on it.
 
-Releases use the pinned Webgrip semantic-release monorepo composite, with [Vloer's configuration](../../apps/vloer/.releaserc.cjs) and [Ploeg's configuration](../../apps/ploeg/.releaserc.cjs). There is no umbrella Glide version. Both source checks and release-policy checks must pass before versioning. The versioning jobs run sequentially because they push preparation commits to the same branch.
+Vloer and Ploeg release together under one Glide version ([ADR-0004](../adr/adr-0004-glide-releases-one-version.md)). The pinned Webgrip semantic-release monorepo composite runs [the Glide configuration](../../apps/.releaserc.cjs) with `package-path: apps`, so only commits that touch an application count. Tags are `glide-v<version>`, the notes go to `apps/CHANGELOG.md`, and [the prepare script](../../scripts/release-prepare.mjs) sets both charts, Vloer's manifests and the extension to the same version. The annotated tag `glide-v0.3.0` is the baseline where the last imported candidates met, so the first Glide candidate is `0.4.0-rc.1`. Both source checks and release-policy checks must pass before versioning.
 
-`GLIDE_RELEASES_ENABLED` must equal `true` to version, publish or mirror release-channel notes to GitHub. A manual source-validation run never releases or mirrors notes, even with the gate enabled. CI runs the import verifier with `GLIDE_REQUIRE_IMPORT_NOTES=true`, so missing notes fail the source gate instead of being skipped as they are locally. The mirror script also refuses to push unless `origin` holds every imported note, and a [release test](../../scripts/test_release_notes_mirror.py) fails if any workflow, action, script or mise task prunes, mirrors or deletes refs, or pushes notes, other than that guarded GitHub push. The [notes-loss record](../research/2026-09-23-forgejo-notes-loss.md) explains why. Keep the `main` release baseline required by the shared preset; `development` remains trunk and the only automatic release branch. Use the [first cutover playbook](first-cutover.md) before enabling publication.
+`GLIDE_RELEASES_ENABLED` must equal `true` to version or publish. A manual source-validation run never releases, even with the gate enabled. Release-channel notes live on Forgejo only; nothing copies them to GitHub. CI runs the import verifier with `GLIDE_REQUIRE_IMPORT_NOTES=true`, so missing notes fail the source gate instead of being skipped as they are locally. A [release test](../../scripts/test_release_refs.py) fails if any workflow, action, script or mise task prunes, mirrors or deletes refs, or pushes notes. The [notes-loss record](../research/2026-09-23-forgejo-notes-loss.md) explains why. Keep the `main` release baseline required by the shared preset; `development` remains trunk and the only automatic release branch. Use the [first cutover playbook](first-cutover.md) before enabling publication.
 
 ## Publication and recovery
 
-The release entry point keeps each application's job dependencies separate. Ploeg and Vloer each accept only zero-major release candidates: a breaking change raises the minor version, and a `verifyRelease` guard in [apps/ploeg/scripts/release-policy.cjs](../../apps/ploeg/scripts/release-policy.cjs) and [apps/vloer/scripts/release-policy.cjs](../../apps/vloer/scripts/release-policy.cjs) refuses anything but `0.x.y-rc.N` from `development`. A manual publication retry requires the selected workflow ref to be the same tag as its `tag` input. Publication runs for the same tag are serialized; a newer invocation does not cancel a partially completed publication.
+A `glide-v…` release runs both applications' artifact jobs. Glide accepts only zero-major release candidates: a breaking change raises the minor version, and a `verifyRelease` guard in [scripts/release-policy.cjs](../../scripts/release-policy.cjs) refuses anything but `0.x.y-rc.N` from `development`. Ploeg's final distribution job waits for Vloer's, so the two never create the same GitHub release at once. A manual publication retry requires the selected workflow ref to be the same tag as its `tag` input. Publication runs for the same tag are serialized; a newer invocation does not cancel a partially completed publication.
 
 Application publication uses normal, explicitly gated jobs and the existing pinned build/sign composites. This avoids the [Forgejo reusable-workflow flattening trap](https://forgejo.webgrip.dev/webgrip/workflows/src/branch/main/AGENTS.md). Ploeg distribution also requires the signing job's completion output. The [artifact guide](artifacts.md) defines source mirroring, package paths, cryptographic verification and retry behavior.
 
@@ -41,6 +41,6 @@ The naming and separation follow the original [Vloer entry points](https://forge
 
 ## Validation and remaining qualification
 
-Run `mise run verify` and `mise run release-check`. The latter executes [release-isolation tests](../../scripts/release-isolation.test.cjs), [workflow routing tests](../../scripts/workflow-policy.test.cjs) and [Ploeg's release-policy tests](../../apps/ploeg/scripts/release-policy.test.cjs) in the pinned release container. They cover cross-application tag rejection, manual ref matching, disabled publication, signing prerequisites and dependency integrity.
+Run `mise run verify` and `mise run release-check`. The latter executes the [release-policy tests](../../scripts/release-policy.test.cjs), [release-isolation tests](../../scripts/release-isolation.test.cjs) and [workflow routing tests](../../scripts/workflow-policy.test.cjs) in the pinned release container. They cover application-tag rejection, manual ref matching, disabled publication, signing prerequisites and dependency integrity. Set `GLIDE_RELEASE_HISTORY=true` to also compute the next version from the actual history.
 
 The [documentation publisher](docs-publishing.md) has its own `GLIDE_DOCS_PUBLISH_ENABLED` gate and dedicated Garage bucket. It uses the shared TechDocs generation and Zensical deployment workflows at `v2.7.1`. Its scoped credentials cannot publish application packages. Source exports, application destination permissions and complete artifact delivery still require the evidence listed in the [cutover preparation gates](first-cutover.md#2-close-the-release-blockers). Passing workflow tests or a release preview does not close those gates.

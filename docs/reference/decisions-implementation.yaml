@@ -47,11 +47,11 @@ ploeg:
   "0028":
     implemented: "yes"
     note: Release policy guard runs in CI
-    evidence: apps/ploeg/scripts/release-policy.cjs
+    evidence: scripts/release-policy.cjs
   "0029":
     implemented: partial
     note: Import and tag format done; distribution cutover deliberately pending
-    evidence: apps/ploeg/scripts/release-policy.cjs
+    evidence: scripts/release-policy.cjs
 vloer:
   "0005":
     implemented: partial

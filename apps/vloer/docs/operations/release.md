@@ -2,14 +2,14 @@
 
 Forgejo coordinates one version for the workbench image, workspace image, Helm chart and editor extension. Source checks run before a release tag is created; publication jobs consume that tag. A tag or green source job alone does not prove that every artifact was published.
 
-In Glide, tags use `vloer-v<version>`. Publication remains disabled until the [distribution cutover](../../../../docs/migration.md#distribution-cutover-remains-separate) is qualified. The existing repository remains the remote release authority during that transition.
+Vloer releases together with Ploeg under one Glide version and a `glide-v<version>` tag ([Glide ADR-0004](../../../../docs/adr/adr-0004-glide-releases-one-version.md)). Publication remains disabled until the [distribution cutover](../../../../docs/migration.md#distribution-cutover-remains-separate) is qualified.
 
 ## Follow the release
 
 | Stage | Source | Expected result |
 | --- | --- | --- |
 | Validate | [Source workflow](../../../../.forgejo/workflows/on_source_change.yml), [pull-request workflow](../../../../.forgejo/workflows/on_pull_request.yml) | Application, extension, generated-document and chart checks; cache-only image builds |
-| Version | [Release configuration](../../.releaserc.cjs), [prepare script](../../scripts/release-prepare.mjs) | Updated manifests and changelogs, version tag and Forgejo release |
+| Version | [Release configuration](../../../.releaserc.cjs), [Glide prepare script](../../../../scripts/release-prepare.mjs), [Vloer prepare script](../../scripts/release-prepare.mjs) | Updated manifests and changelog, version tag and Forgejo release |
 | Publish | [Publication workflow](../../../../.forgejo/workflows/on_release_published.yml) | Chart, both images, signatures and attestations, VSIX and checksum; configured registry copies |
 | Build documentation | [Documentation workflow](../../../../.forgejo/workflows/on_docs_change.yml) and [source checks](../../../../.forgejo/workflows/on_source_change.yml) | Combined site built from [Glide MkDocs](../../../../mkdocs.yml); remote documentation deployment is a cutover step |
 

@@ -21,7 +21,7 @@ grep -qF "$holder" NOTICE 2>/dev/null || note "NOTICE does not carry the estate 
 
 [ -f CONTRIBUTING.md ] || note "CONTRIBUTING.md is missing; inbound licence terms should be stated, not assumed"
 
-grep -q '"license": "Apache-2.0"' package.json 2>/dev/null || note "package.json does not declare Apache-2.0"
+[ ! -f package.json ] || grep -q '"license": "Apache-2.0"' package.json || note "package.json does not declare Apache-2.0"
 
 for image in $(grep -rl 'org.opencontainers.image.licenses' ops --include='Dockerfile*' 2>/dev/null || true); do
   grep -q 'org.opencontainers.image.licenses="Apache-2.0"' "$image" \

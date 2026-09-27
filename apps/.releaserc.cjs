@@ -1,0 +1,36 @@
+'use strict';
+
+const { makeConfig } = require('@webgrip/semantic-release-config');
+
+const config = makeConfig({
+  monorepo: true,
+  prepareCmd: 'node ../scripts/release-prepare.mjs ${nextRelease.version}',
+  extraAssets: [
+    'vloer/ops/helm/de-vloer/Chart.yaml',
+    'ploeg/ops/helm/ploeg/Chart.yaml',
+    'vloer/package.json',
+    'vloer/package-lock.json',
+    'vloer/extensions/vscode/package.json',
+    'vloer/extensions/vscode/package-lock.json',
+    'vloer/extensions/vscode/CHANGELOG.md',
+  ],
+});
+
+const analyzers = config.plugins.filter((plugin) => Array.isArray(plugin) && plugin[0] === '@semantic-release/commit-analyzer');
+if (analyzers.length !== 1 || !Array.isArray(analyzers[0][1]?.releaseRules)) {
+  throw new Error('Glide release policy requires one configured commit analyzer.');
+}
+const rules = analyzers[0][1].releaseRules;
+if (!rules.some((rule) => rule.breaking === true && rule.release === 'major')) {
+  throw new Error('Glide release policy requires review of the changed breaking rule.');
+}
+analyzers[0][1].releaseRules = rules.map((rule) => rule.breaking === true && rule.release === 'major'
+  ? { ...rule, release: 'minor' }
+  : rule);
+if (analyzers[0][1].releaseRules.some((rule) => rule.release === 'major')) {
+  throw new Error('Glide release policy rejects additional major release rules.');
+}
+config.tagFormat = 'glide-v${version}';
+config.plugins.unshift(require.resolve('../scripts/release-policy.cjs'));
+
+module.exports = config;

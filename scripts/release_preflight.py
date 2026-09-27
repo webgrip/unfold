@@ -19,7 +19,7 @@ for old in ['de-vloer', 'ploeg']:
 
 
 def mirrored_refs(remote):
-    listing = git('ls-remote', remote, 'refs/heads/development', 'refs/tags/*', 'refs/notes/*')
+    listing = git('ls-remote', remote, 'refs/heads/development', 'refs/tags/*')
     return {ref: sha for sha, ref in (line.split('\t') for line in listing.splitlines()) if not ref.endswith('^{}')}
 
 

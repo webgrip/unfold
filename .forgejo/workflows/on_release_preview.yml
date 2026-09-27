@@ -31,10 +31,6 @@ jobs:
     timeout-minutes: 15
     container:
       image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.3
-    strategy:
-      fail-fast: false
-      matrix:
-        application: [vloer, ploeg]
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
@@ -46,7 +42,7 @@ jobs:
       - name: Preview version and release notes
         uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v2.6.1
         with:
-          package-path: apps/${{ matrix.application }}
-          package-name: ${{ matrix.application }}
+          package-path: apps
+          package-name: glide
           token: ${{ secrets.WEBGRIP_CI_TOKEN }}
           dry-run: 'true'

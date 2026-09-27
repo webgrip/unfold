@@ -2,15 +2,15 @@
 type: reference
 audience: [operator, contributor]
 owner: glide
-last_verified: 2026-09-23
+last_verified: 2026-09-27
 verified_by: "Image, chart and registry identities checked against on_release_published.yml, scripts/publish_release.py and scripts/release_preflight.py; remote registry contents were not inspected"
 ---
 
 # Source mirrors and release artifacts
 
-[Forgejo](https://forgejo.webgrip.dev/webgrip/glide) owns source changes and versioning. [GitHub](https://github.com/webgrip/glide) receives the same branches and tags through a native SSH push mirror. The source workflow also copies semantic-release's Git notes, which Forgejo's native mirror omits; it does so only on an enabled push to `development` (`GLIDE_RELEASES_ENABLED` is `true`) after both source gates pass, because the copy prunes GitHub to Forgejo's note set and the [import verifier](../../scripts/verify-import.py), which CI runs with `GLIDE_REQUIRE_IMPORT_NOTES=true`, is what proves that set is complete. GitHub Actions is disabled for the mirror.
+[Forgejo](https://forgejo.webgrip.dev/webgrip/glide) owns source changes and versioning. [GitHub](https://github.com/webgrip/glide) receives the same branches and tags through a native SSH push mirror. semantic-release's Git notes stay on Forgejo, the only release authority; the native mirror omits them and nothing copies them. GitHub Actions is disabled for the mirror.
 
-Vloer and Ploeg retain independent `vloer-v0.x.y-rc.N` and `ploeg-v0.x.y-rc.N` tags. The [release workflow](../../.forgejo/workflows/on_release_published.yml) builds each image once in Harbor, holds it to its application's CVE budget with the shared [CVE gate](../../.forgejo/actions/cve-gate/action.yml), signs it through OpenBao, and copies the resulting OCI index and signing artifacts to the other registries. A chart is packaged once; subsequent destinations receive the original OCI manifest and blobs.
+Vloer and Ploeg release together under one `glide-v0.x.y-rc.N` tag ([ADR-0004](../adr/adr-0004-glide-releases-one-version.md)); every artifact below carries that version. The imported `vloer-v…` and `ploeg-v…` tags remain as history. The [release workflow](../../.forgejo/workflows/on_release_published.yml) builds each image once in Harbor, holds it to its application's CVE budget with the shared [CVE gate](../../.forgejo/actions/cve-gate/action.yml), signs it through OpenBao, and copies the resulting OCI index and signing artifacts to the other registries. A chart is packaged once; subsequent destinations receive the original OCI manifest and blobs.
 
 ## Published identities
 
@@ -44,6 +44,6 @@ The [distribution verifier](../../scripts/release_registry.py) checks both AMD64
 
 An existing destination version must have the expected digest. A mismatch fails without replacing it. A failed accessory copy, missing attestation or failed anonymous GHCR download fails publication. GitHub package visibility is independent of repository visibility; a package must be public for anonymous pulls to pass. See [GitHub package permissions](https://docs.github.com/en/packages/learn-github-packages/about-permissions-for-github-packages).
 
-The extension publisher restores the already-attached VSIX before retrying Open VSX, so a newly generated ZIP timestamp cannot change the bytes for an existing version. Release assets are compared before a retry skips an upload. A successful publication attaches `release-artifacts.json` to both Forgejo and GitHub with the verified digests, source mapping and extension checksum.
+The extension publisher restores the already-attached VSIX before retrying Open VSX, so a newly generated ZIP timestamp cannot change the bytes for an existing version. Release assets are compared before a retry skips an upload. A successful publication attaches `release-artifacts-vloer.json` and `release-artifacts-ploeg.json` to both Forgejo and GitHub with the verified digests, source mapping, extension checksum and Go module export.
 
-Run the [release preview](../../.forgejo/workflows/on_release_preview.yml) before enabling a new cutover. Its preflight checks the old publishers are disabled, GitHub holds the same trunk, tags and release-channel notes as Forgejo, credentials authenticate, and a Glide OIDC identity can obtain the signing policy. The mirror comparison reads both remotes with `git ls-remote`, so the CI bot needs no repository administration. Actual uploads and destination verification remain the responsibility of the first publication. Follow the [cutover playbook](first-cutover.md) to distinguish publication from a live application rollout.
+Run the [release preview](../../.forgejo/workflows/on_release_preview.yml) before enabling a new cutover. Its preflight checks the old publishers are disabled, GitHub holds the same trunk and tags as Forgejo, credentials authenticate, and a Glide OIDC identity can obtain the signing policy. The mirror comparison reads both remotes with `git ls-remote`, so the CI bot needs no repository administration. Actual uploads and destination verification remain the responsibility of the first publication. Follow the [cutover playbook](first-cutover.md) to distinguish publication from a live application rollout.

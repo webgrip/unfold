@@ -51,7 +51,8 @@ def fixture():
 
 class DistributionTests(unittest.TestCase):
     def test_accepts_only_supported_application_prereleases(self):
-        self.assertEqual(publish_release.release_tag('ploeg', '0.3.0-rc.8'), 'ploeg-v0.3.0-rc.8')
+        self.assertEqual(publish_release.release_tag('ploeg', '0.3.0-rc.8'), 'glide-v0.3.0-rc.8')
+        self.assertEqual(publish_release.release_tag('vloer', '0.3.0-rc.8'), 'glide-v0.3.0-rc.8')
         for application, version in [('other', '0.3.0-rc.8'), ('ploeg', '1.0.0-rc.1'), ('vloer', '0.3.0'), ('ploeg', '0.3.0-beta.1'), ('vloer', '0.3.0-rc.0'), ('vloer', '0.03.0-rc.8'), ('vloer', '0.3.0-rc.8;echo bad')]:
             with self.assertRaises(ValueError):
                 publish_release.release_tag(application, version)

@@ -2,7 +2,7 @@
 type: reference
 audience: [owner, contributor, agent]
 owner: glide
-last_verified: 2026-09-23
+last_verified: 2026-09-27
 verified_by: "validate_adr_consistency.py registry parity for docs/adr, run by mise run docs-check"
 ---
 
@@ -17,3 +17,4 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0001](adr-0001-glide-contains-independent-applications.md) | Glide contains independently deployable Vloer and Ploeg | accepted | 2026-09-12 |
 | [ADR-0002](adr-0002-ploeg-is-the-only-engine.md) | Ploeg is the only execution engine and Vloer is its front end | accepted | 2026-09-22 |
 | [ADR-0003](adr-0003-the-unit-of-work-is-the-work-item.md) | The unit of work is the Work Item, and work can create work | accepted | 2026-09-22 |
+| [ADR-0004](adr-0004-glide-releases-one-version.md) | Glide releases Vloer and Ploeg under one version | accepted | 2026-09-27 |
