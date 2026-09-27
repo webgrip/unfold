@@ -20,8 +20,8 @@ The Shift's close reason tells you why it stopped ([reviewloop.go](../../apps/pl
 
 | Close reason | Meaning |
 | --- | --- |
-| `review_approved` | An agent reviewer approved. This is not a human review. |
-| `plan_exhausted` | Every planned Round ran; no fix loop was configured or needed. |
+| `review_approved` | An agent reviewer returned an explicit approval. This is not a human review. |
+| `plan_exhausted` | Every planned Round ran and no fix loop was configured, or the last reviewer gave no verdict. |
 | `fix_round_cap_reached` | The reviewer still requested changes when `maxFixRounds` ran out. |
 | `budget_exhausted_before_fix_round` | The Shift pool could not pay for another fix round. |
 | `budget exhausted: pool …, spent …, reserved …` | The Shift pool could not pay for the next planned Round. |

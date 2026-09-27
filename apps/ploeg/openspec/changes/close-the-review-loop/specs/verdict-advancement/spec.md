@@ -28,8 +28,10 @@ verdict returned by a writing Role (ADR-0017).
 When a plan's final Round completes and any reading Run in it reported
 `request_changes`, ploegd SHALL re-open the plan's last writing Round with the
 findings injected, followed by the review Round. Each such pair is one fix
-round. The loop SHALL be bounded, checked in this order: the Shift pool first,
-then `maxFixRounds`, then the verdict.
+round. The verdict SHALL decide whether a fix round is wanted; a wanted fix
+round SHALL then be bounded by the Shift pool first and `maxFixRounds` second.
+A Shift whose last review did not request changes SHALL close as approved or
+as an exhausted plan, never with a reason naming the pool or the cap.
 
 #### Scenario: A fix round opens and the writer sees why
 
@@ -41,8 +43,17 @@ then `maxFixRounds`, then the verdict.
 #### Scenario: An approval ends the Shift
 
 - **GIVEN** a reviewer that reported `approve`
-- **THEN** no further Round opens and the Shift closes, with the item reaching
-  needs_human so a person is asked to merge
+- **THEN** no further Round opens and the Shift closes as `review_approved`
+- **AND** the item reaches awaiting_review when a writer opened or updated the
+  pull request, so a person is asked to merge
+
+#### Scenario: An approval on the last allowed fix round is an approval
+
+- **GIVEN** a Shift that has run `maxFixRounds` fix rounds, or whose pool
+  cannot fund another
+- **WHEN** the reviewer of its last Round reports `approve`
+- **THEN** the Shift closes as `review_approved`, not with a reason naming the
+  cap or the pool
 
 #### Scenario: The cap stops a reviewer that never approves
 

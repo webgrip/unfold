@@ -58,9 +58,11 @@ func fixRoundsRun(currentRound int, tp plan.TeamPlan) int {
 
 // nextFixRound decides what, if anything, runs after the plan is exhausted.
 //
-// The bounds are checked in ADR-0017's order — pool, then cap, then verdict —
-// because money is the limit that cannot be argued with and the verdict is the
-// only one an agent influences.
+// The verdict decides whether a fix round is wanted at all. Without a request
+// for changes the Shift closes as approved when a reader approved, and as an
+// exhausted plan when none gave a verdict, whatever the pool and the cap would
+// have said. A wanted fix round is then bounded by the pool, then the cap
+// (ADR-0017).
 func (e *Engine) nextFixRound(ctx context.Context, si store.ShiftInfo, tp plan.TeamPlan,
 	reports []store.RunReport) (next plan.Round, reason string, ok bool) {
 
@@ -77,6 +79,13 @@ func (e *Engine) nextFixRound(ctx context.Context, si store.ShiftInfo, tp plan.T
 	// no verdict is involved: the pair is one fix round.
 	if si.Round > len(tp.Rounds) && (si.Round-len(tp.Rounds))%2 == 1 {
 		return tp.Rounds[len(tp.Rounds)-1], "", true
+	}
+
+	if !requestsChanges(reports, si.Round) && !e.reviewPending(ctx, si.WorkItemID) {
+		if approves(reports, si.Round) {
+			return plan.Round{}, reasonApproved, false
+		}
+		return plan.Round{}, reasonPlanExhausted, false
 	}
 
 	// Bound 1 — money. Checked before the cap so a Shift never spawns a Run it
@@ -97,13 +106,6 @@ func (e *Engine) nextFixRound(ctx context.Context, si store.ShiftInfo, tp plan.T
 		e.Log.Info("fix round refused: cap", "shift", si.ID,
 			"fix_rounds", run, "max", tp.MaxFixRounds)
 		return plan.Round{}, reasonFixCap, false
-	}
-
-	// Bound 3 — the verdict, from the Round that just finished, and only from
-	// a READING Role. A writer approving its own work would be the loop
-	// grading itself.
-	if !requestsChanges(reports, si.Round) && !e.reviewPending(ctx, si.WorkItemID) {
-		return plan.Round{}, reasonApproved, false
 	}
 
 	e.Log.Info("fix round opening", "shift", si.ID, "from_round", si.Round,
@@ -139,4 +141,15 @@ func (e *Engine) reviewPending(ctx context.Context, workItemID int64) bool {
 		return false
 	}
 	return n > 0
+}
+
+// approves reports whether any READING Run of the given round returned an
+// explicit approval. A missing verdict is not one.
+func approves(reports []store.RunReport, round int) bool {
+	for _, r := range reports {
+		if r.Round == round && !r.Writes && r.Verdict == harness.VerdictApprove {
+			return true
+		}
+	}
+	return false
 }

@@ -12,7 +12,7 @@ this document records only how it is built.
 ## Goals / Non-Goals
 
 **Goals:** a reviewer's `request_changes` re-opens the plan's writer, bounded
-by pool then cap then verdict; the forge webhook endpoint exists, verified and
+by the verdict, then the pool, then the cap; the forge webhook endpoint exists, verified and
 deduped, giving `ForgeProvider.ParseWebhook` its first caller.
 
 **Non-Goals:** as in the proposal — no Follow-Up Work Items yet, no feedback
@@ -37,11 +37,14 @@ The positional rule is the cost — a plan whose writer is not where the loop
 expects behaves confusingly — so `pkg/plan` refuses `maxFixRounds > 0` with no
 writing Round at boot rather than at the moment it matters.
 
-### D3 — Bounds are checked pool, cap, verdict — in that order
+### D3 — The verdict decides whether to loop; pool then cap decide whether it may
 
-Money first, because it is the bound that cannot be argued with and the one
-whose breach costs real spend. The cap second. The verdict last, because it is
-the only one an agent influences.
+Money first among the bounds on a wanted fix round, because it is the bound
+that cannot be argued with and the one whose breach costs real spend. The cap
+second. The verdict is read before both, because a Shift the reviewer approved
+closes as approved: checking the cap first closed an approved final fix round
+as `fix_round_cap_reached` and parked its pull request at `needs_human`
+(backlog #115). Reading the verdict first spawns nothing, so it costs no money.
 
 ### D4 — The fix-round count is derived from the round counter
 

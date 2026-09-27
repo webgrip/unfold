@@ -196,6 +196,12 @@ func TestLoop_NoVerdictEndsThePlan(t *testing.T) {
 	if si, _ := testStore.LiveShiftForItem(context.Background(), id); si != nil {
 		t.Fatal("a shift with no verdict stayed open")
 	}
+	if got := closeReason(t, id); got != reasonPlanExhausted {
+		t.Errorf("close reason = %q, want %q: a missing verdict is not an approval", got, reasonPlanExhausted)
+	}
+	if got := itemState(t, id); got != "awaiting_review" {
+		t.Errorf("item state = %q, want awaiting_review so a person reviews the pull request", got)
+	}
 }
 
 // A reviewer that never approves is stopped by the cap, not by patience.
@@ -358,4 +364,63 @@ func mustShift(t *testing.T, workItemID int64) int64 {
 		t.Fatalf("no live shift for item %d: %v", workItemID, err)
 	}
 	return si.ID
+}
+
+// A fix round the reviewer approves closes as approved even when it was the
+// last one the cap allowed (backlog #115). The cap stops a loop that wants to
+// continue; it does not describe one that has finished.
+func TestLoop_ApprovalOnTheLastAllowedFixRoundIsAnApproval(t *testing.T) {
+	e := loopEngine(t, 10, 1)
+	id := startLoopShift(t, e, "977")
+
+	runRound(t, e, id, "builder", work.OutcomePROpened, "")
+	runRound(t, e, id, "reviewer", work.OutcomeNoChangeNeeded, harness.VerdictRequestChanges)
+	runRound(t, e, id, "builder", work.OutcomePRUpdated, "")
+	runRound(t, e, id, "reviewer", work.OutcomeNoChangeNeeded, harness.VerdictApprove)
+
+	if si, _ := testStore.LiveShiftForItem(context.Background(), id); si != nil {
+		t.Fatal("an approved shift stayed open")
+	}
+	if got := closeReason(t, id); got != reasonApproved {
+		t.Errorf("close reason = %q, want %q", got, reasonApproved)
+	}
+	if got := itemState(t, id); got != "awaiting_review" {
+		t.Errorf("item state = %q, want awaiting_review: the reviewer approved the pull request", got)
+	}
+}
+
+// An approval is an approval even when the pool could not fund another fix
+// round: nothing needed funding.
+func TestLoop_ApprovalWithAnEmptyPoolIsAnApproval(t *testing.T) {
+	ctx := context.Background()
+	e := loopEngine(t, 1.0, 2)
+	id := startLoopShift(t, e, "978")
+
+	for _, step := range []struct{ role, cost, verdict string }{
+		{"builder", "0.60", ""},
+		{"reviewer", "0.39", harness.VerdictApprove},
+	} {
+		run, err := testStore.ClaimRole(ctx, "bronze", step.role, time.Minute, 1)
+		if err != nil {
+			t.Fatalf("claim %s: %v", step.role, err)
+		}
+		rep := store.Report(work.OutcomePROpened, step.role, "", []string{"https://forgejo/o/r/pulls/1"},
+			[]byte(`{"costUsd":`+step.cost+`}`), nil)
+		if step.verdict != "" {
+			rep = rep.WithVerdict(step.verdict)
+		}
+		if _, err := testStore.ReportOutcome(ctx, run.RunToken, rep); err != nil {
+			t.Fatalf("report %s: %v", step.role, err)
+		}
+		if err := e.EvaluateItem(ctx, id); err != nil {
+			t.Fatalf("evaluate after %s: %v", step.role, err)
+		}
+	}
+
+	if got := closeReason(t, id); got != reasonApproved {
+		t.Errorf("close reason = %q, want %q", got, reasonApproved)
+	}
+	if got := itemState(t, id); got != "awaiting_review" {
+		t.Errorf("item state = %q, want awaiting_review", got)
+	}
 }

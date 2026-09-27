@@ -55,14 +55,17 @@ asked for changes, the engine re-opens the plan's last writing Round with the
 findings attached, then the review Round after it. Each such pair is one *fix
 round*.
 
-Three bounds stop it, and they are checked in this order:
+Three bounds stop it. The verdict decides whether a fix round is wanted, and
+the pool and the cap decide, in that order, whether a wanted one may open:
 
-1. **The pool.** If the remaining budget cannot fund another Round, the Shift
-   parks at `needs_human` naming the spend (ADR-0012). Money is the first
-   gate, not the last.
-2. **The cap.** `maxFixRounds` (default 2) bounds how many times the loop may
+1. **The verdict.** `approve` closes the Shift as approved; no verdict at all
+   closes it as an exhausted plan. Either way no fix round is wanted, so the
+   pool and the cap are not consulted and cannot name the close.
+2. **The pool.** If the remaining budget cannot fund another Round, the Shift
+   parks at `needs_human` naming the spend (ADR-0012). Money is checked before
+   the cap, and before any Run is spawned.
+3. **The cap.** `maxFixRounds` (default 2) bounds how many times the loop may
    run for one Shift.
-3. **The verdict.** `approve`, or no verdict at all, closes the Shift.
 
 The count is **derived** from `shifts.round` against the plan's length, not
 kept in a column — the same discipline `reserved` follows in ADR-0012, and for
