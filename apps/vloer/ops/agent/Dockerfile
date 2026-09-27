@@ -29,6 +29,7 @@ RUN install -d -m 0755 /usr/local/lib/de-vloer
 COPY relay-worker.mjs /usr/local/lib/de-vloer/relay-worker.mjs
 RUN chmod 0644 /usr/local/lib/de-vloer/relay-worker.mjs && su node -s /bin/sh -c 'node --check /usr/local/lib/de-vloer/relay-worker.mjs'
 RUN opencode --version | grep -F "${OPENCODE_VERSION}"
+RUN --mount=type=bind,source=check-gz-imports.mjs,target=/tmp/check-gz-imports.mjs node /tmp/check-gz-imports.mjs
 USER node
 WORKDIR /workspace
 EXPOSE 4096
