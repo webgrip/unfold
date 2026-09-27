@@ -114,6 +114,9 @@ agent-sandbox's own secure default is never used, because it blocks all three.
 
 Prerequisites, installed outside this chart: agent-sandbox v1.0.x with its
 extensions, and the RuntimeClass named in `executor.sandbox.runtimeClassName`
-when one is set. Qualify a RuntimeClass with the privileged DinD sidecar on
-your nodes before using it. Warm pools are not supported yet: a warm pod would
-start its worker and claim a Run before any `SandboxClaim` exists.
+when one is set. Qualify that RuntimeClass with the daemonless worker pod
+shape — `ploeg.workerPodTemplate`, the same template the ScaledJob uses, run
+under the RuntimeClass until one Run reaches a terminal outcome. The privileged
+DinD sidecar is not part of that qualification; it belongs only to harnesses
+that build inside a container. Warm pools are not supported yet: a warm pod
+would start its worker and claim a Run before any `SandboxClaim` exists.
