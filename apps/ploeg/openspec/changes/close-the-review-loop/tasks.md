@@ -23,14 +23,16 @@
   Evidence: `TeamPlan.MaxFixRounds` and the boot-time refusal in `pkg/plan/plan.go`. The shipped chart default is 0, which keeps the loop inert until a plan opts in (design.md, Migration Plan); `ops/helm/ploeg/values.yaml` shows 2 as the example.
 - [x] 3.2 `pkg/shiftengine`: derive the fix-round count; re-open the plan's last writing Round then its review Round on `request_changes`
   Evidence: `fixRoundsRun` and `Engine.nextFixRound` in `pkg/shiftengine/reviewloop.go`.
-- [x] 3.3 Bounds in order — pool, cap, verdict — each closing with a reason that names which one stopped it
-  Evidence: the close reasons `budget_exhausted_before_fix_round`, `fix_round_cap_reached` and `review_approved` in `pkg/shiftengine/reviewloop.go`, checked in that order.
+- [x] 3.3 Bounds in order — verdict, then pool, then cap — each closing with a reason that names which one stopped it
+  Evidence: `Engine.nextFixRound` in `pkg/shiftengine/reviewloop.go` reads the verdict first (`review_approved`, or `plan_exhausted` when no reader gave one), then closes a wanted fix round with `budget_exhausted_before_fix_round` or `fix_round_cap_reached`. The original order, pool then cap then verdict, closed an approved final fix round as `fix_round_cap_reached` (backlog #115).
 - [x] 3.4 A verdict from a WRITING Role is ignored
   Evidence: `Store.ReportOutcome` stores an empty verdict for a writing Run; `TestLoop_WriterVerdictIsIgnored`.
 - [x] 3.5 Tests: fix round opens with findings in the briefing, approve closes, cap stops a never-approving reviewer, pool parks before the cap, writer verdict ignored, count survives a restart mid-loop
   Evidence: `TestLoop_RequestChangesReopensTheWriter`, `TestLoop_ApproveCloses`, `TestLoop_CapStopsANeverApprovingReviewer`, `TestLoop_BudgetStopsItBeforeTheCap`, `TestLoop_WriterVerdictIsIgnored` and `TestLoop_FixRoundCountIsDerived` in `pkg/shiftengine/reviewloop_test.go`; `go test ./pkg/shiftengine/` passed on 2026-09-23.
 - [x] 3.6 The reviewer prompt asks for a verdict and says what each value means
   Evidence: the reviewer prompt in `pkg/worker/task.go` asks for `approve` or `request_changes` and explains each.
+- [x] 3.7 Regression tests for backlog #115: an approval on the last allowed fix round, or with a pool too thin for another, closes as `review_approved` and reaches awaiting_review; a missing verdict closes as `plan_exhausted`, not as an approval
+  Evidence: `TestLoop_ApprovalOnTheLastAllowedFixRoundIsAnApproval`, `TestLoop_ApprovalWithAnEmptyPoolIsAnApproval` and `TestLoop_NoVerdictEndsThePlan` in `pkg/shiftengine/reviewloop_test.go`. Before the fix the first two failed on the pool-cap-verdict order and the third on a missing verdict counting as approval; all three pass after it.
 
 ## 4. The forge route
 
@@ -47,13 +49,15 @@
 
 ## 5. Gates and closure
 
-- [ ] 5.1 Per PR: `gofmt -l .`, `go vet ./...`, `go build ./...`, `go test ./...`, `helm lint`, three `helm template` renderings, and `./scripts/helm-golden.sh check` — output in the PR body
-  Open: the per-PR gate output cannot be reconstructed after the monorepo import; no PR body records it.
+- [x] 5.1 Per PR: `gofmt -l .`, `go vet ./...`, `go build ./...`, `go test ./...`, `helm lint`, three `helm template` renderings, and `./scripts/helm-golden.sh check` — output in the PR body
+  Evidence: the gate output for the original pull requests cannot be reconstructed after the monorepo import, and the 2026-09-27 commits went to `development` without a pull request. Instead, `mise run verify`, which runs every one of these gates, passed on 2026-09-27 at `686c97a` with the Ploeg (gofmt, vet, build, test), Helm (lint, template, golden check), integration and docs groups green. `mise run release-check` passed on the same tree.
 - [x] 5.2 `go test ./internal/ledger/` wherever docs/adrs changes
   Evidence: `go test ./internal/ledger/` passed on 2026-09-23.
 - [x] 5.3 `openspec validate --all`
   Evidence: `openspec validate --all --strict` passed on 2026-09-23.
 - [x] 5.4 architecture.md §9.1 updated: the forge webhook route exists, and what it does and does not yet do
-  Evidence: `docs/architecture.md` states that forge webhooks record and deduplicate events and do not create Follow-Ups. The numbered §9.1 no longer exists.
-- [ ] 5.5 Runbook note: the Forgejo→ploegd network path is blocked in both directions today, so the route is inert until ops wires it
-  Open: no runbook states that the Forgejo-to-ploegd network path is blocked; only design.md mentions it.
+  Evidence: `docs/architecture.md` states that forge webhooks record and deduplicate every event, settle merged or closed pull requests, act further only under a Team's `forgeFollowUps` switches, and are rejected without a webhook secret. The numbered §9.1 no longer exists.
+- [x] 5.5 Runbook note: the Forgejo→ploegd network path is blocked today, so the route is inert until ops wires it
+  Evidence: "Forge webhooks" in `docs/ops/ci-and-infra.md` names the two prerequisites and records what homelab-cluster showed on 2026-09-27: Forgejo's egress policy allows `ploeg:8080`, but Ploeg's ingress policy admits nothing from the `forgejo` namespace and the HelmRelease sets no webhook secret. The design's "both directions" was stale by then: only Ploeg's ingress side blocks it.
+- [x] 5.6 The route fails closed: a forge provider with no webhook secret rejects every delivery instead of accepting it unverified, and the chart can set `executor.forgejo.webhookSecret`
+  Evidence: `forgejo.Provider.ParseWebhook` and `gitlab.Provider.ParseWebhook` reject when `Secret` is empty; `TestParseWebhook_WithoutASecretRejectsEveryDelivery` and `TestParseWebhookWithoutASecretRejectsEveryDelivery` failed before the fix. `executor.forgejo.webhookSecret` renders `PLOEG_FORGEJO_SECRET` in `ops/helm/ploeg/templates/deployment.yaml`.
