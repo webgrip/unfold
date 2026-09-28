@@ -2,7 +2,6 @@ import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
-const portOffset = Number.parseInt(process.env.PLOEG_TEST_PG_PORT_OFFSET ?? '', 10) || 0;
 
 const gate = (scope, command, args, options = {}) => ({ scope, command, args, ...options });
 const vloer = task => gate('apps/vloer', 'npm', ['run', ...task.split(' ')]);
@@ -40,7 +39,7 @@ const groups = [
       gate('.', process.execPath, ['--test', 'scripts/fake-litellm.test.mjs', 'scripts/eval/eval.test.mjs']),
     ],
   },
-  { name: 'integration', gates: [gate('.', process.execPath, ['scripts/integration.mjs'], { env: { PLOEG_TEST_PG_PORT_OFFSET: String(portOffset + 1) } })] },
+  { name: 'integration', gates: [gate('.', process.execPath, ['scripts/integration.mjs'])] },
   { name: 'docs', gates: [gate('.', 'uv', ['run', '--frozen', 'python', 'scripts/docs.py', '--check'])] },
 ];
 

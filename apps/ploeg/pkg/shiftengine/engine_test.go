@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -22,14 +22,15 @@ import (
 // terminal-not-closed, pool-below-floor, expired reader blocking a round.
 // Real Postgres, like pkg/store — the semantics are SQL.
 
-var testPort = testPortWithOffset(55441)
+var testPort = freeTestPort()
 
-func testPortWithOffset(port uint32) uint32 {
-	offset, err := strconv.Atoi(os.Getenv("PLOEG_TEST_PG_PORT_OFFSET"))
+func freeTestPort() uint32 {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return port
+		panic(err)
 	}
-	return port + uint32(offset)
+	defer l.Close()
+	return uint32(l.Addr().(*net.TCPAddr).Port)
 }
 
 var (
