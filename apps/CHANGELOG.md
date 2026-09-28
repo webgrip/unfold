@@ -1,3 +1,9 @@
+## [glide-v0.4.0-rc.9](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.8...glide-v0.4.0-rc.9) (2026-09-28)
+
+### Added
+
+* **ploeg:** give ploegd its own forge URL with executor.forgejo.publicUrl ([8b81996](https://forgejo.webgrip.dev/webgrip/glide/commit/8b81996dad2549053140115d957fbddd1b5dc2f6))
+
 ## [glide-v0.4.0-rc.8](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.7...glide-v0.4.0-rc.8) (2026-09-28)
 
 ### Fixed
