@@ -2,7 +2,7 @@
 type: how-to
 audience: [operator]
 owner: ploeg
-last_verified: 2026-09-23
+last_verified: 2026-09-28
 verified_by: "Read apps/ploeg migrations 0008 and 0012 (shifts, agent_runs.authorized, run_llm_accounts, run_budget_holds), pkg/store/{llm_accounts,llm_settlement,llm_block_queue,store,shift,operator}.go, pkg/httpapi/llm_control.go (Block, Settle), pkg/llmbroker/litellm.go, pkg/litellm/client.go and cmd/ploegd/sweep.go"
 ---
 
@@ -45,7 +45,7 @@ The pool is empty when `budget − spent − reserved` is below the minimum a Ru
 | `blocked` | Key revoked; `observed_spend` recorded | The settlement sweep, after `PLOEG_LLM_SETTLE_AFTER` (15 minutes) with no change |
 | `reconciled` | Settled from the gateway's spend logs; evidence stored | Nothing, except a later correction |
 
-Every sweep interval, the controller tries to block every finished Run's account that is still `minting`, `issued` or `unknown`. It then settles every finished Run's account that is `reserved`, or `blocked` and quiet ([sweep.go](../../cmd/ploegd/sweep.go), [llm_control.go](../../pkg/httpapi/llm_control.go)). Settlement reads LiteLLM's spend logs for the recorded hashed key and any key that still carries the alias. It never settles below `observed_spend` and never treats a missing key as zero spend.
+Every sweep interval, the controller tries to block every finished Run's account that is still `minting`, `issued` or `unknown`. It then settles every finished Run's account that is `reserved`, or `blocked` and quiet ([sweep.go](../../cmd/ploegd/sweep.go), [llm_control.go](../../pkg/httpapi/llm_control.go)). Settlement reads LiteLLM's spend logs for the recorded hashed key and any key that still carries the alias. It never settles below `observed_spend` and never treats a missing key as zero spend. A blocked account settles at `run_llm_accounts`' own 4-decimal precision: the spend-log total is rounded half-up to match `observed_spend` and `reconciled_spend` before either is compared or stored.
 
 ## 1. Find the Run and its Shift
 

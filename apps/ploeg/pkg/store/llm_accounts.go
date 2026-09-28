@@ -222,32 +222,38 @@ type SettledUsage struct {
 // ReconcileLLMAccountWithUsage settles like ReconcileLLMAccount and, when
 // usage is not nil, merges inputTokens, outputTokens, models and costUsd into
 // agent_runs.usage in the same transaction. Other keys a harness reported,
-// such as sessionId, are kept.
+// such as sessionId, are kept. spend is rounded half-up to run_llm_accounts'
+// own NUMERIC(12,4) precision before it is compared with observed_spend,
+// charged to the Shift, or stored, so a spend-log total is never refused as
+// an undercut of a value the column already rounded up on write.
 func (s *Store) ReconcileLLMAccountWithUsage(ctx context.Context, token string, spend float64, evidence string, usage *SettledUsage) error {
 	if !validSpend(spend) || evidence == "" {
 		return ErrLLMAccountState
 	}
-	var usageJSON []byte
-	if usage != nil {
-		if usage.InputTokens < 0 || usage.OutputTokens < 0 {
-			return ErrLLMAccountState
-		}
-		models := usage.Models
-		if models == nil {
-			models = []string{}
-		}
-		var err error
-		if usageJSON, err = json.Marshal(map[string]any{
-			"inputTokens": usage.InputTokens, "outputTokens": usage.OutputTokens, "models": models, "costUsd": spend,
-		}); err != nil {
-			return err
-		}
+	if usage != nil && (usage.InputTokens < 0 || usage.OutputTokens < 0) {
+		return ErrLLMAccountState
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
+	var roundedSpend float64
+	if err := tx.QueryRow(ctx, `SELECT round($1::numeric,4)::float8`, spend).Scan(&roundedSpend); err != nil {
+		return err
+	}
+	var usageJSON []byte
+	if usage != nil {
+		models := usage.Models
+		if models == nil {
+			models = []string{}
+		}
+		if usageJSON, err = json.Marshal(map[string]any{
+			"inputTokens": usage.InputTokens, "outputTokens": usage.OutputTokens, "models": models, "costUsd": roundedSpend,
+		}); err != nil {
+			return err
+		}
+	}
 	var state string
 	var previous, observed *float64
 	var id int64
@@ -260,10 +266,10 @@ func (s *Store) ReconcileLLMAccountWithUsage(ctx context.Context, token string, 
 	if state != "blocked" && state != "reconciled" && !(state == "reserved" && spend == 0) {
 		return ErrLLMAccountState
 	}
-	if observed != nil && spend < *observed {
+	if observed != nil && roundedSpend < *observed {
 		return ErrLLMAccountState
 	}
-	delta := spend
+	delta := roundedSpend
 	if previous != nil {
 		delta -= *previous
 	}
@@ -276,7 +282,7 @@ func (s *Store) ReconcileLLMAccountWithUsage(ctx context.Context, token string, 
 		}
 	}
 	if _, err := tx.Exec(ctx, `UPDATE run_llm_accounts SET state='reconciled',reconciled_spend=$2,
-		reconciliation_evidence=$3,updated_at=now() WHERE run_token=$1`, token, spend, evidence); err != nil {
+		reconciliation_evidence=$3,updated_at=now() WHERE run_token=$1`, token, roundedSpend, evidence); err != nil {
 		return err
 	}
 	if usageJSON != nil {
@@ -285,7 +291,7 @@ func (s *Store) ReconcileLLMAccountWithUsage(ctx context.Context, token string, 
 			return err
 		}
 	}
-	if err := audit(ctx, tx, "ploegd:reconciliation", "llm.reconciled", &id, map[string]any{"spend": spend, "delta": delta, "evidence": evidence}); err != nil {
+	if err := audit(ctx, tx, "ploegd:reconciliation", "llm.reconciled", &id, map[string]any{"spend": roundedSpend, "delta": delta, "evidence": evidence}); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
