@@ -172,3 +172,20 @@ func TestLaunchRejectsIncompleteConfiguration(t *testing.T) {
 		t.Fatalf("Launch error = %v, want a missing job UID", err)
 	}
 }
+
+func TestClaimNameForNeverReusesTheLauncherPodName(t *testing.T) {
+	long := "ploeg-worker-bronze-builder-abcdefghijklmnopqrstuvwxyz0-x7k2p"
+	for _, tc := range []struct{ pod, want string }{
+		{"ploeg-worker-copper-nx7bg-5hxpx", "sbx-ploeg-worker-copper-nx7bg-5hxpx"},
+		{long, "sbx-" + long[len(long)-59:]},
+		{"", ""},
+	} {
+		got := ClaimNameFor(tc.pod)
+		if got != tc.want {
+			t.Errorf("ClaimNameFor(%q) = %q, want %q", tc.pod, got, tc.want)
+		}
+		if tc.pod != "" && (got == tc.pod || len(got) > 63 || !strings.HasSuffix(tc.pod, strings.TrimPrefix(got, "sbx-"))) {
+			t.Errorf("ClaimNameFor(%q) = %q collides, overflows or drops the pod's unique tail", tc.pod, got)
+		}
+	}
+}

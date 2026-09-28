@@ -35,7 +35,7 @@ func runSandboxLaunch(log *slog.Logger) error {
 		Token:                   token,
 		HTTPClient:              client,
 		Namespace:               os.Getenv("POD_NAMESPACE"),
-		ClaimName:               os.Getenv("POD_NAME"),
+		ClaimName:               sandboxlaunch.ClaimNameFor(os.Getenv("POD_NAME")),
 		JobName:                 os.Getenv("PLOEG_SANDBOX_JOB_NAME"),
 		JobUID:                  os.Getenv("PLOEG_SANDBOX_JOB_UID"),
 		WarmPool:                os.Getenv("PLOEG_SANDBOX_WARM_POOL"),

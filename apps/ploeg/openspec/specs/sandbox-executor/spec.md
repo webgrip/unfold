@@ -9,7 +9,10 @@ obligation of `docs/contracts/executor.md`. Archived from the change
 ### Requirement: One launcher creates exactly one claim
 The sandbox executor SHALL start one launcher per spawn decision of the
 existing scaler, and each launcher MUST create exactly one `SandboxClaim`,
-named after the launcher's pod and owned by the launcher's Job. The launcher
+named `sbx-` plus the launcher's pod name (its tail kept within 63
+characters) and owned by the launcher's Job. The claim MUST NOT share the
+launcher pod's name, because the controller names the worker pod after the
+claim and refuses a pod it does not own. The launcher
 MUST NOT create a second claim for any reason, including a failed or finished
 first one.
 

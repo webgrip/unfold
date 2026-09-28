@@ -74,6 +74,21 @@ func InCluster(dir string) (string, string, *http.Client, error) {
 	return "https://" + net.JoinHostPort(host, port), strings.TrimSpace(string(token)), client, nil
 }
 
+// ClaimNameFor returns the claim name for the launcher pod named podName. The
+// agent-sandbox controller names the worker pod after the claim, so the claim
+// must never share a name with the launcher pod. The name keeps podName's
+// unique tail and fits a 63-character pod hostname.
+func ClaimNameFor(podName string) string {
+	const prefix, limit = "sbx-", 63
+	if podName == "" {
+		return ""
+	}
+	if len(prefix)+len(podName) > limit {
+		podName = strings.TrimLeft(podName[len(podName)-(limit-len(prefix)):], "-.")
+	}
+	return prefix + podName
+}
+
 // Launch creates the claim and waits until it finishes, disappears or the
 // context ends. It returns an error only when the claim could not be created;
 // it never creates a second claim.
