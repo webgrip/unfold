@@ -1,3 +1,21 @@
+## [glide-v0.4.0-rc.6](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.5...glide-v0.4.0-rc.6) (2026-09-28)
+
+### Added
+
+* **ploeg:** per-team and per-role sandbox RuntimeClass ([23f7e44](https://forgejo.webgrip.dev/webgrip/glide/commit/23f7e44f655bc6e194879be777cf4c835a5055e4))
+
+### Fixed
+
+* **ploeg:** settle blocked LLM accounts at run_llm_accounts' column precision ([13ef6d2](https://forgejo.webgrip.dev/webgrip/glide/commit/13ef6d2aa586e85f2fe8cdd3572aea62d59541d4))
+
+### Docs
+
+* **vloer:** note current GAP-17 status in the gap register ([7acee0c](https://forgejo.webgrip.dev/webgrip/glide/commit/7acee0c976b0479846edbe7f4417e92910ba5692))
+
+### Tests
+
+* **ploeg:** refuse a non-string sandbox RuntimeClass ([327f548](https://forgejo.webgrip.dev/webgrip/glide/commit/327f5482b3b7f1e5cb0829c1ba8eb5a15b53d4ea))
+
 ## [glide-v0.4.0-rc.5](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.4...glide-v0.4.0-rc.5) (2026-09-27)
 
 ### Fixed
