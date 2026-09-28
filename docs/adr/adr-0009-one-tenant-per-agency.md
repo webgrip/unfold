@@ -30,7 +30,8 @@ Chosen option: "A tenant is an agency: one namespace set, default-deny network, 
 * Each tenant gets its own namespaces for Runs and previews. Ploeg records the tenant on every Team, Work Item, Shift and credential.
 * Run and preview pods deny all egress by default. A Run may reach only the model gateway and its own repository, through the worker's proxies.
 * Runs and previews use a sandboxed RuntimeClass (gVisor or Kata) where the node supports it.
-* Credential isolation from Ploeg ADR-0034 is on by default for tenants other than the owner. The [credential isolation cluster plan](../../apps/ploeg/docs/research/2026-09-28-credential-isolation-cluster-plan.md) lists what the cluster needs.
+* Real credentials never enter a tenant's Run pod. The in-worker proxy from Ploeg ADR-0034 is enough for a single tenant without DinD. For tenants, a per-tenant egress gateway outside the pod swaps a per-Run placeholder for the credential, because a sidecar shares the pod's network, NetworkPolicy and, under Kata, its VM. The [credential isolation cluster plan](../../apps/ploeg/docs/research/2026-09-28-credential-isolation-cluster-plan.md) lists what the cluster needs.
+* DinD is not offered to tenants: a privileged DinD sidecar reaches the node.
 * Each tenant has its own LiteLLM team and budget, so one agency's spend cannot exhaust another's.
 * Clients of an agency are users inside that tenant, not tenants.
 
