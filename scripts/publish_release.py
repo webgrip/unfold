@@ -15,6 +15,9 @@ from release_registry import Registry, command, copy_chart, copy_image, digest, 
 ROOT = Path(__file__).resolve().parent.parent
 FORGEJO = 'https://forgejo.webgrip.dev/api/v1/repos/webgrip/glide'
 GITHUB = 'https://api.github.com/repos/webgrip/glide'
+# on_release_published.yml runs Ploeg's publisher after Vloer's; only the last
+# one may leave the draft, because an immutable release takes no more assets.
+PUBLISHES_LAST = 'ploeg'
 
 
 def api(url, token, method='GET', data=None, missing=False):
@@ -119,7 +122,7 @@ def fetch_github_asset(asset, token, draft):
     return data
 
 
-def mirror_release(tag, source, forge_token, github_token):
+def mirror_release(tag, source, forge_token, github_token, publish=True):
     remote = git('ls-remote', 'https://github.com/webgrip/glide.git', f'refs/tags/{tag}', f'refs/tags/{tag}^{{}}')
     refs = dict((line.split()[1], line.split()[0]) for line in remote.splitlines())
     actual = refs.get(f'refs/tags/{tag}^{{}}', refs.get(f'refs/tags/{tag}'))
@@ -143,7 +146,7 @@ def mirror_release(tag, source, forge_token, github_token):
         if urllib.parse.urlsplit(upload).netloc != 'uploads.github.com':
             raise RuntimeError('Unexpected GitHub upload host')
         request(upload + '?' + urllib.parse.urlencode({'name': asset['name']}), method='POST', data=content, headers={'Authorization': 'Bearer ' + github_token, 'Content-Type': 'application/octet-stream'})
-    if target['draft']:
+    if target['draft'] and publish:
         target = api(f'{GITHUB}/releases/{target["id"]}', github_token, 'PATCH', {'draft': False, 'make_latest': 'false'})
     return target['html_url']
 
@@ -189,7 +192,7 @@ def publish(application, version):
         evidence['extension'] = {'version': version, 'sha256': hashlib.sha256(data).hexdigest(), 'url': extension['files']['download']}
     attach_forgejo(source_release, f'release-artifacts-{application}.json', (json.dumps(evidence, indent=2) + '\n').encode(), forge_token)
     source_release = api(f'{FORGEJO}/releases/tags/{tag}', forge_token)
-    print(mirror_release(tag, source_release, forge_token, github_token))
+    print(mirror_release(tag, source_release, forge_token, github_token, publish=application == PUBLISHES_LAST))
     print(json.dumps(evidence, indent=2))
 
 

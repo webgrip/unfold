@@ -1,6 +1,7 @@
 import copy
 import json
 import os
+import re
 import tempfile
 import unittest
 import urllib.request
@@ -146,6 +147,28 @@ class DistributionTests(unittest.TestCase):
         self.assertEqual(len(uploads), 1)
         self.assertEqual(calls[-1][:2], ('PATCH', '/releases/7'))
         self.assertFalse(calls[-1][2]['draft'])
+
+    def test_only_the_last_publisher_takes_the_github_release_out_of_draft(self):
+        source = {'name': 'glide-v0.4.0-rc.9', 'body': 'notes', 'assets': []}
+        draft = {'tag_name': 'glide-v0.4.0-rc.9', 'name': 'glide-v0.4.0-rc.9', 'body': 'notes', 'prerelease': True, 'draft': True, 'id': 9, 'assets': [], 'html_url': 'draft-url'}
+        for publish, expected in [(False, []), (True, ['PATCH'])]:
+            calls = []
+
+            def api(url, token, method='GET', data=None, missing=False):
+                calls.append(method)
+                if '/releases/tags/' in url:
+                    return None
+                if method == 'GET':
+                    return [draft]
+                return {**draft, **data, 'html_url': 'published-url'}
+
+            with self.subTest(publish=publish), patch.object(publish_release, 'api', api), patch.object(publish_release, 'git', lambda *a, **k: 'sha' if a[0] == 'rev-parse' else 'sha\trefs/tags/glide-v0.4.0-rc.9'):
+                publish_release.mirror_release('glide-v0.4.0-rc.9', source, 'forge', 'github', publish=publish)
+                self.assertEqual([m for m in calls if m != 'GET'], expected)
+        self.assertEqual(publish_release.PUBLISHES_LAST, 'ploeg')
+        workflow = (Path(__file__).resolve().parent.parent / '.forgejo/workflows/on_release_published.yml').read_text()
+        needs = re.search(r'\n  ploeg-release-distribute:\n(?:    .*\n)*?    needs: \[([^\]]*)\]', workflow).group(1)
+        self.assertIn('vloer-release-distribute', needs)
 
     def test_a_published_github_release_missing_an_asset_fails_plainly(self):
         source = {'name': 'glide-v0.4.0-rc.8', 'body': 'notes', 'assets': [{'name': 'a.json', 'browser_download_url': 'https://forgejo.webgrip.dev/a.json'}]}
