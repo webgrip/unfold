@@ -107,6 +107,67 @@ func TestManagedSettlementRequiresTrustedEvidenceAndNeverWorkerCost(t *testing.T
 	}
 }
 
+func blockedAccountWithObserved(t *testing.T, observed float64) (int64, *ClaimedRun) {
+	t.Helper()
+	shift, run := managedRunFixture(t)
+	ctx := context.Background()
+	if _, err := testStore.BeginLLMMint(ctx, run.RunToken); err != nil {
+		t.Fatal(err)
+	}
+	if err := testStore.RecordLLMIssued(ctx, run.RunToken, "fixture-key-digest"); err != nil {
+		t.Fatal(err)
+	}
+	report := Report(work.OutcomeNoChangeNeeded, "done", "", nil, []byte(`{"costUsd":0}`), nil)
+	if _, err := testStore.ReportOutcome(ctx, run.RunToken, report); err != nil {
+		t.Fatal(err)
+	}
+	if err := testStore.RecordLLMBlocked(ctx, run.RunToken, &observed); err != nil {
+		t.Fatal(err)
+	}
+	return shift, run
+}
+
+func assertUndercutRefused(t *testing.T, observedRaw, storedObserved, spendRaw float64) {
+	t.Helper()
+	shift, run := blockedAccountWithObserved(t, observedRaw)
+	ctx := context.Background()
+	var stored float64
+	if err := testStore.pool.QueryRow(ctx, `SELECT observed_spend FROM run_llm_accounts WHERE run_token=$1`, run.RunToken).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(stored-storedObserved) > 0.000005 {
+		t.Fatalf("observed_spend stored=%v, want the column's rounded %v", stored, storedObserved)
+	}
+	var spentBefore, reservedBefore float64
+	if err := testStore.pool.QueryRow(ctx, `SELECT spent FROM shifts WHERE id=$1`, shift).Scan(&spentBefore); err != nil {
+		t.Fatal(err)
+	}
+	if err := testStore.pool.QueryRow(ctx, `SELECT reserved FROM run_budget_holds WHERE run_token=$1`, run.RunToken).Scan(&reservedBefore); err != nil {
+		t.Fatal(err)
+	}
+	if err := testStore.ReconcileLLMAccount(ctx, run.RunToken, spendRaw, "litellm:spend-logs"); !errors.Is(err, ErrLLMAccountState) {
+		t.Fatalf("undercut accepted: %v", err)
+	}
+	var state string
+	var reconciled *float64
+	if err := testStore.pool.QueryRow(ctx, `SELECT state,reconciled_spend FROM run_llm_accounts WHERE run_token=$1`, run.RunToken).Scan(&state, &reconciled); err != nil {
+		t.Fatal(err)
+	}
+	if state != "blocked" || reconciled != nil {
+		t.Fatalf("refused settlement mutated the account: state=%q reconciled_spend=%v", state, reconciled)
+	}
+	var spentAfter, reservedAfter float64
+	if err := testStore.pool.QueryRow(ctx, `SELECT spent FROM shifts WHERE id=$1`, shift).Scan(&spentAfter); err != nil {
+		t.Fatal(err)
+	}
+	if err := testStore.pool.QueryRow(ctx, `SELECT reserved FROM run_budget_holds WHERE run_token=$1`, run.RunToken).Scan(&reservedAfter); err != nil {
+		t.Fatal(err)
+	}
+	if spentAfter != spentBefore || reservedAfter != reservedBefore {
+		t.Fatalf("refused settlement changed the Shift: spent %v->%v reserved %v->%v", spentBefore, spentAfter, reservedBefore, reservedAfter)
+	}
+}
+
 func TestReconcileLLMAccountSettlesObservationRoundedUpAtColumnPrecision(t *testing.T) {
 	shift, run := managedRunFixture(t)
 	ctx := context.Background()
@@ -145,6 +206,12 @@ func TestReconcileLLMAccountSettlesObservationRoundedUpAtColumnPrecision(t *test
 	if math.Abs(reconciled-0.0033) > 0.000005 {
 		t.Fatalf("reconciled_spend=%v, want 0.0033", reconciled)
 	}
+	t.Run("observed 0.2424, spend rounds to 0.2423", func(t *testing.T) {
+		assertUndercutRefused(t, 0.24235, 0.2424, 0.24234)
+	})
+	t.Run("observed 0.2423, spend rounds to 0.2422", func(t *testing.T) {
+		assertUndercutRefused(t, 0.24226, 0.2423, 0.24224)
+	})
 }
 
 func TestConcurrentCredentialIssuanceHasOneDurableWinner(t *testing.T) {
