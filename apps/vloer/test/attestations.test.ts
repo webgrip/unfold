@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { SigningKey, candidateStatement, changedLineRanges, pae, verifyEnvelope, candidatePredicateType, tracePredicateType } from '../src/attestations.ts';
 import { application, createSession, request, sessionUntil } from './api-support.ts';
 import { fixture } from './task-binding-support.ts';
+import { testTimeout } from './timeframes.ts';
 
 test('DSSE envelopes use the in-toto payload type, the PAE encoding and verify only with the matching Ed25519 key', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'vloer-attest-'));
@@ -26,7 +27,7 @@ test('DSSE envelopes use the in-toto payload type, the PAE encoding and verify o
   assert.deepEqual([...changedLineRanges('diff --git a/x.js b/x.js\n@@ -1,2 +1,5 @@\n+a\ndiff --git a/y.md b/y.md\n@@ -0,0 +1 @@\n+b\n@@ -10,3 +12,4 @@\n')].map(([path, range]) => [path, range.endLine]), [['x.js', 5], ['y.md', 15]]);
 });
 
-test('a captured candidate ships a signed provenance statement and an Agent Trace record that verify against the published key', { timeout: 40_000 }, async t => {
+test('a captured candidate ships a signed provenance statement and an Agent Trace record that verify against the published key', { timeout: testTimeout(40_000) }, async t => {
   const server = await application();
   t.after(() => server.close());
   const created = await createSession(server.url);

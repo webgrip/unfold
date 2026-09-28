@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
-import { setTimeout as delay } from 'node:timers/promises';
 import { application, login, request } from './api-support.ts';
 import { diffEntries } from '../src/ahp/host.ts';
+import { scaledTimeout, settle, testTimeout } from './timeframes.ts';
 
 type Json = Record<string, any>;
 
@@ -28,7 +28,7 @@ function connect(url: string) {
     socket, inbox, open,
     rpc(method: string, params: Json): Promise<Json> { const id = nextId++; socket.send(JSON.stringify({ jsonrpc: '2.0', id, method, params })); return new Promise((resolve, reject) => pending.set(id, { resolve, reject })); },
     notify(method: string, params: Json) { socket.send(JSON.stringify({ jsonrpc: '2.0', method, params })); },
-    until(predicate: (message: Json) => boolean, timeoutMs = 25_000): Promise<Json> {
+    until(predicate: (message: Json) => boolean, timeoutMs = scaledTimeout(25_000)): Promise<Json> {
       const existing = inbox.find(predicate);
       if (existing) return Promise.resolve(existing);
       return new Promise((resolve, reject) => { const timer = setTimeout(() => reject(new Error(`timed out waiting for a message; seen: ${inbox.map(message => `${message.method}:${message.params?.action?.type ?? message.params?.channel ?? ''}`).join(', ')}`)), timeoutMs); waiters.push({ predicate, resolve: message => { clearTimeout(timer); resolve(message); } }); });
@@ -39,7 +39,7 @@ function connect(url: string) {
 
 const action = (message: Json, channel: string, type: string) => message.method === 'action' && message.params.channel === channel && message.params.action.type === type;
 
-test('the agent host speaks AHP 0.9: initialize, create a session from a chat, stream the crew, share state with a second client and expose the candidate as a changeset', { timeout: 60_000 }, async t => {
+test('the agent host speaks AHP 0.9: initialize, create a session from a chat, stream the crew, share state with a second client and expose the candidate as a changeset', { timeout: testTimeout(60_000) }, async t => {
   const server = await application();
   t.after(() => server.close());
   const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'test' } });
@@ -112,7 +112,7 @@ test('the agent host speaks AHP 0.9: initialize, create a session from a chat, s
   const aliceSaw = await alice.until(message => action(message, realChat, 'chat/turnStarted') && message.params.origin?.clientId === 'bob');
   assert.equal(aliceSaw.params.serverSeq, rejected.params.serverSeq, 'both clients receive the same envelope');
   await assert.rejects(alice.rpc('noSuchMethod', { channel: 'ahp-root://' }), (error: any) => error.code === -32601);
-  await delay(50);
+  await settle(50);
 });
 
 test('unified diff artifacts become changeset files when no native diff is available', () => {

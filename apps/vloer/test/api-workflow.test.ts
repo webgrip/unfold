@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { setTimeout as delay } from 'node:timers/promises';
 import { application, createInput, createSession, replay, request, sessionUntil } from './api-support.ts';
 import type { Event } from '../src/types.ts';
+import { settle, testTimeout } from './timeframes.ts';
 
-test('HTTP demo produces real failing and passing checks, review evidence, and replayable durable events', { timeout: 90_000 }, async t => {
+test('HTTP demo produces real failing and passing checks, review evidence, and replayable durable events', { timeout: testTimeout(90_000) }, async t => {
   const server = await application();
   assert.equal(server.config.ploeg, undefined);
   assert.equal(server.config.execution, undefined);
@@ -57,7 +57,7 @@ test('HTTP demo produces real failing and passing checks, review evidence, and r
   assert.deepEqual(await replay(server.url, created.id, cursor, expected.length), expected);
 });
 
-test('pause, instructions, resume, and intentional cancel remain deliberate across reconnects', { timeout: 30_000 }, async t => {
+test('pause, instructions, resume, and intentional cancel remain deliberate across reconnects', { timeout: testTimeout(30_000) }, async t => {
   const server = await application();
   t.after(() => server.close());
   const created = await createSession(server.url);
@@ -73,7 +73,7 @@ test('pause, instructions, resume, and intentional cancel remain deliberate acro
   const history = await request(server.url, `/api/sessions/${created.id}/history`);
   assert(history.text.includes(instruction), 'operator input must be durably recorded');
   await server.restart();
-  await delay(150);
+  await settle(150);
   const afterRestart = await request(server.url, `/api/sessions/${created.id}`);
   assert.equal(afterRestart.body.status, 'paused', 'a restart must not turn a pause into execution');
   const resumed = await request(server.url, `/api/sessions/${created.id}/resume`, { method: 'POST' });
@@ -82,7 +82,7 @@ test('pause, instructions, resume, and intentional cancel remain deliberate acro
   assert.equal(cancelled.status, 200, cancelled.text);
   const terminal = await sessionUntil(server.url, created.id, session => session.status === 'cancelled');
   await server.restart();
-  await delay(200);
+  await settle(200);
   const durable = await request(server.url, `/api/sessions/${created.id}`);
   assert.equal(durable.body.status, 'cancelled');
   assert.equal(durable.body.runs.length, terminal.runs.length, 'intentional cancellation must not create a retry');
@@ -91,7 +91,7 @@ test('pause, instructions, resume, and intentional cancel remain deliberate acro
   assert.equal(restartCancelled.status, 409, restartCancelled.text);
 });
 
-test('HTTP lifecycle rejects duplicate execution and invalid targets without producing work', { timeout: 15_000 }, async t => {
+test('HTTP lifecycle rejects duplicate execution and invalid targets without producing work', { timeout: testTimeout(15_000) }, async t => {
   const server = await application();
   t.after(() => server.close());
   for (const invalid of [

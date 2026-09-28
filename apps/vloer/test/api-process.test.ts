@@ -6,9 +6,10 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
+import { deadlineAfter, scaledTimeout, testTimeout, waitFor } from './timeframes.ts';
 import { createSession, repositoryRoot, request, sessionUntil } from './api-support.ts';
 
-test('a real server crash recovers an interrupted session without silently executing it again', { timeout: 35_000 }, async t => {
+test('a real server crash recovers an interrupted session without silently executing it again', { timeout: testTimeout(60_000) }, async t => {
   const dataDir = await mkdtemp(join(tmpdir(), 'vloer-process-'));
   let child: ChildProcess | undefined;
   let output = '';
@@ -29,11 +30,11 @@ test('a real server crash recovers an interrupted session without silently execu
     child.stdout?.on('data', chunk => { output = (output + chunk.toString()).slice(-8000); });
     child.stderr?.on('data', chunk => { output = (output + chunk.toString()).slice(-8000); });
     child.on('error', error => { output += error.message; });
-    const deadline = Date.now() + 12_000;
+    const deadline = deadlineAfter(30_000);
     while (Date.now() < deadline) {
       if (child.exitCode !== null || child.signalCode !== null) assert.fail(`server process exited during startup: ${output}`);
       try {
-        const health = await fetch(`${url}/healthz`, { signal: AbortSignal.timeout(300) });
+        const health = await fetch(`${url}/healthz`, { signal: AbortSignal.timeout(scaledTimeout(2_000)) });
         if (health.ok) return url;
       } catch {}
       await delay(50);
@@ -51,8 +52,11 @@ test('a real server crash recovers an interrupted session without silently execu
   assert(child);
   await kill(child);
   url = await launch();
-  await delay(300);
-  const recovered = await request(url, `/api/sessions/${session.id}`);
+  const recovered = await waitFor(
+    () => request(url, `/api/sessions/${session.id}`),
+    result => result.status === 200 && result.body.status === 'interrupted' && result.body.runs.every((run: { status: string }) => run.status !== 'running'),
+    { reason: 'restarted server did not reconcile the interrupted session', withinMs: 20_000 },
+  );
   assert.equal(recovered.status, 200, recovered.text);
   assert.equal(recovered.body.status, 'interrupted');
   assert(recovered.body.runs.every((run: { status: string }) => run.status !== 'running'));
