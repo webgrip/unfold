@@ -113,6 +113,7 @@ The chart sets, for a `registries` worker:
 | `GOPROXY` | `https://proxy.golang.org` (no `direct`) |
 | `GOSUMDB` | `sum.golang.org` |
 | `npm_config_ignore_scripts` | `true` |
+| `PIP_ONLY_BINARY` | `:all:` (wheels only; no source build runs `setup.py`) |
 | `SSL_CERT_FILE`, `NODE_EXTRA_CA_CERTS`, `REQUESTS_CA_BUNDLE`, `PIP_CERT` | the mounted `caBundle` (public roots plus the proxy CA) |
 
 `NO_PROXY` is load-bearing: `ploeg-worker` uses Go's `ProxyFromEnvironment`,
@@ -142,7 +143,8 @@ post-Run verification, so a `registries` team's verification can run
 
 ### Initial allowlist
 
-All hosts: port 443, `GET` and `HEAD` only.
+All hosts: port 443, `GET` and `HEAD` only, except `POST` to
+`git-upload-pack` for the git clone allowlist below.
 
 | Ecosystem | Host | Paths |
 | --- | --- | --- |
@@ -156,22 +158,38 @@ All hosts: port 443, `GET` and `HEAD` only.
 | Terraform | `releases.hashicorp.com` | `/terraform-provider-` |
 | GitHub releases | `github.com` | `/<owner>/<repo>/releases/download/` only |
 | GitHub releases | `release-assets.githubusercontent.com`, `objects.githubusercontent.com` | any (signed, read-only redirect targets) |
+| git clone | `github.com` | for each `<org>/<repo>` on the clone allowlist: `GET /<org>/<repo>[.git]/info/refs?service=git-upload-pack` and `POST /<org>/<repo>[.git]/git-upload-pack` |
 
-The **module-host allowlist** for Go is the set of first path elements the
-target repositories' `go.sum` files already use (for Glide's
+With `GOPROXY=https://proxy.golang.org` and no `direct`, every module and
+checksum fetch goes to `proxy.golang.org` and `sum.golang.org`, which fetch
+from the module's origin themselves. Those two are therefore the only Go
+**egress hosts**, whatever vanity domains the modules use. A vanity host would
+become an egress host only for a `GOPRIVATE` or `direct` fetch, which this
+profile does not allow.
+
+The **module-host allowlist** is a separate thing: a **path** filter on
+requests to those two hosts. It admits a module whose path starts with a host
+the target repositories' `go.sum` files already use (for Glide's
 `apps/ploeg/go.sum` today: `github.com`, `golang.org`, `gopkg.in` and
-`go.uber.org`), kept in the cluster's proxy
-configuration. The reason is under *Secrets exposure* below.
+`go.uber.org`), and it lives in the cluster's proxy configuration. A public
+vanity path such as `go.uber.org/...` still needs an entry here, because it is
+the origin host `proxy.golang.org` would contact on the Run's behalf. The
+reason is under *Secrets exposure* below.
+
+The **git clone allowlist** is an explicit list of `<org>/<repo>` (or
+`<org>/*`) entries in the cluster's proxy configuration, empty at first. An
+entry is added when a target repository needs a `git::` module source or a
+Go module that must be cloned.
 
 ### What stays blocked
 
 * `api.github.com`, `codeload.github.com`, `raw.githubusercontent.com`,
   `gist.github.com`, `uploads.github.com`, and every `github.com` path outside
-  release downloads, git smart HTTP included (no clone, no push).
+  release downloads and allowlisted `git-upload-pack` clones.
+* `git-receive-pack` on every host and repository, always: no push.
 * `upload.pypi.org`; every npm write: `PUT`, `POST` and `DELETE` on any path,
   and `/-/v1/login`, `/-/npm/v1/tokens`, `/-/whoami`.
-* Module sources fetched by git (Terraform and OpenTofu `git::` sources, Go
-  `direct`).
+* Git clones of any repository not on the clone allowlist, and Go `direct`.
 * Any other host, the LAN, cluster services not already allowed, and the
   public and internal gateways, both through the proxy and directly.
 * Any direct connection from a worker pod to the internet, in either profile.
@@ -185,11 +203,11 @@ in `ploeg-worker`. The repository itself is the asset worth stealing.
 | Channel | Profile | Mitigation | Residual |
 | --- | --- | --- | --- |
 | Publish to a registry with an attacker's token (`npm publish`, `twine upload`) | registries | `GET`/`HEAD` only; `Authorization` stripped; `upload.pypi.org` not listed | none known |
-| Push to an attacker's GitHub repository | registries | no `github.com` git paths; no `api.github.com` | none known |
+| Push to an attacker's GitHub repository | registries | `git-receive-pack` always refused; clones only from allowlisted repositories; no `api.github.com` | none known |
 | Go proxy origin fetch: `proxy.golang.org` fetches an unknown module from its origin host, so `attacker.example/<data>` hands the data to the attacker's web server | registries | module-host allowlist; a module path on an unlisted host is refused | a module on a listed host whose owner can read request logs (none of the listed hosts expose them) |
 | Public download counters (npm, PyPI, GitHub release assets) | registries | full-URL audit log, denial alert | a few bits per day; accepted |
 | Domain fronting: allowed SNI, different `Host` | registries | the proxy terminates TLS and routes by its own allowlist, so it never forwards a foreign `Host` | none known |
-| Install scripts (`postinstall`, `setup.py`) run attacker code in the pod | registries | `npm_config_ignore_scripts=true`; the code is still bound by the proxy | `pip` source distributions still build; see the owner questions |
+| Install scripts (`postinstall`, `setup.py`) run attacker code in the pod | registries | `npm_config_ignore_scripts=true`; the code is still bound by the proxy | `PIP_ONLY_BINARY=:all:` stops `setup.py` builds; a package with no wheel fails to install and shows as a failed check |
 | DNS tunnelling through CoreDNS to an attacker's name server | **both, today** | a DNS rule on worker pods that resolves cluster names only; a `registries` pod needs no external name because the proxy resolves | none once the rule lands |
 
 The last row is a hole in `airgapped` as deployed, not a new one: the
@@ -236,6 +254,24 @@ implementation.
   `upload.pypi.org`, a Go module on an unlisted host, `example.com`, the
   gateways and the LAN, and on a registry reached directly. The pass cases
   prove the probe can tell a working gate from a broken one.
+
+### Owner decisions
+
+2026-09-28, on review of this record:
+
+1. TLS is terminated for **every** allowlisted host, not only the writable
+   ones, for one read-only rule set and a full-URL log in every ecosystem.
+2. The first team is silver: its builder Role gets `registries`, and its
+   reviewer Role stays `airgapped`.
+3. `pip` installs wheels only (`PIP_ONLY_BINARY=:all:`).
+4. Git is allowed as read-only clones (`git-upload-pack`) from an explicit
+   allowlist of organisations or repositories; `git-receive-pack` is always
+   refused.
+5. The Go module-host allowlist stays. The Go egress hosts are only
+   `proxy.golang.org` and `sum.golang.org` (see *Initial allowlist*); vanity
+   domains would be egress hosts only under `GOPRIVATE` or `direct`. They stay
+   in the module-host path filter, because a public vanity path is still an
+   origin that `proxy.golang.org` contacts for the Run.
 
 ## Pros and Cons of the Options
 
