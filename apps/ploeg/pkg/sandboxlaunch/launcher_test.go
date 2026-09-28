@@ -3,6 +3,7 @@ package sandboxlaunch
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -56,6 +57,8 @@ func (f *fakeAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
 		case "finished":
 			_, _ = io.WriteString(w, `{"status":{"conditions":[{"type":"Ready","status":"False"},{"type":"Finished","status":"True","reason":"PodSucceeded"}]}}`)
+		case "unready":
+			_, _ = io.WriteString(w, `{"status":{"conditions":[{"type":"Ready","status":"False","reason":"ReconcilerError","message":"pod is owned by Job/x"}]}}`)
 		default:
 			_, _ = io.WriteString(w, `{"status":{"conditions":[{"type":"Ready","status":"True"}]}}`)
 		}
@@ -187,5 +190,34 @@ func TestClaimNameForNeverReusesTheLauncherPodName(t *testing.T) {
 		if tc.pod != "" && (got == tc.pod || len(got) > 63 || !strings.HasSuffix(tc.pod, strings.TrimPrefix(got, "sbx-"))) {
 			t.Errorf("ClaimNameFor(%q) = %q collides, overflows or drops the pod's unique tail", tc.pod, got)
 		}
+	}
+}
+
+func TestLaunchDeletesAClaimThatNeverBecomesReady(t *testing.T) {
+	api := &fakeAPI{states: []string{"unready"}}
+	cfg := config(t, api)
+	cfg.StartTimeout = 10 * time.Minute
+	clock := time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)
+	cfg.Now = func() time.Time { clock = clock.Add(time.Minute); return clock }
+	err := Launch(context.Background(), cfg, quiet())
+	if !errors.Is(err, ErrNeverReady) || !strings.Contains(err.Error(), "ReconcilerError") {
+		t.Fatalf("Launch() = %v, want ErrNeverReady naming the controller's reason", err)
+	}
+	if api.deletes != 1 || len(api.creates) != 1 {
+		t.Fatalf("creates=%d deletes=%d, want one claim created and deleted", len(api.creates), api.deletes)
+	}
+}
+
+func TestLaunchKeepsAReadyClaimPastTheStartTimeout(t *testing.T) {
+	api := &fakeAPI{states: []string{"running", "running", "running", "finished"}}
+	cfg := config(t, api)
+	cfg.StartTimeout = time.Minute
+	clock := time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)
+	cfg.Now = func() time.Time { clock = clock.Add(time.Hour); return clock }
+	if err := Launch(context.Background(), cfg, quiet()); err != nil {
+		t.Fatalf("Launch() = %v, want a ready claim to run to completion", err)
+	}
+	if api.deletes != 1 {
+		t.Fatalf("deletes=%d, want the finished claim deleted once", api.deletes)
 	}
 }

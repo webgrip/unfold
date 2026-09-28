@@ -98,6 +98,8 @@ spec:
           value: {{ printf "%vs" $root.Values.executor.activeDeadlineSeconds | quote }}
         - name: PLOEG_SANDBOX_SHUTDOWN_MARGIN
           value: {{ printf "%vs" $sb.shutdownMarginSeconds | quote }}
+        - name: PLOEG_SANDBOX_START_TIMEOUT
+          value: {{ printf "%vs" $sb.startTimeoutSeconds | quote }}
         - name: PLOEG_SANDBOX_TTL_SECONDS_AFTER_FINISHED
           value: {{ $sb.ttlSecondsAfterFinished | quote }}
       securityContext:

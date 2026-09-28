@@ -42,6 +42,7 @@ type Config struct {
 	JobUID                  string
 	WarmPool                string
 	RunDeadline             time.Duration
+	StartTimeout            time.Duration
 	ShutdownMargin          time.Duration
 	TTLSecondsAfterFinished int32
 	PollInterval            time.Duration
@@ -89,9 +90,13 @@ func ClaimNameFor(podName string) string {
 	return prefix + podName
 }
 
+// ErrNeverReady reports a claim that did not become Ready within the start
+// timeout. The launcher deletes such a claim.
+var ErrNeverReady = errors.New("sandbox claim never became ready")
+
 // Launch creates the claim and waits until it finishes, disappears or the
-// context ends. It returns an error only when the claim could not be created;
-// it never creates a second claim.
+// context ends. It returns an error when the claim could not be created or
+// did not become Ready within StartTimeout; it never creates a second claim.
 func Launch(ctx context.Context, cfg Config, log *slog.Logger) error {
 	if err := cfg.validate(); err != nil {
 		return err
@@ -100,8 +105,7 @@ func Launch(ctx context.Context, cfg Config, log *slog.Logger) error {
 		return fmt.Errorf("create sandbox claim %s: %w", cfg.ClaimName, err)
 	}
 	log.Info("sandbox claim created", "claim", cfg.ClaimName, "warm_pool", cfg.WarmPool)
-	cfg.wait(ctx, log)
-	return nil
+	return cfg.wait(ctx, log)
 }
 
 func (cfg Config) validate() error {
@@ -174,81 +178,108 @@ func (cfg Config) create(ctx context.Context) error {
 	return nil
 }
 
-func (cfg Config) wait(ctx context.Context, log *slog.Logger) {
+func (cfg Config) wait(ctx context.Context, log *slog.Logger) error {
 	interval := cfg.PollInterval
 	if interval <= 0 {
 		interval = 5 * time.Second
 	}
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
+	startBy := cfg.now().Add(cfg.StartTimeout)
+	started := false
 	for {
 		select {
 		case <-ctx.Done():
 			log.Info("sandbox launcher stopping before its claim finished; the claim's backstops remove it", "claim", cfg.ClaimName, "reason", context.Cause(ctx))
-			return
+			return nil
 		case <-ticker.C:
 		}
 		state, err := cfg.state(ctx)
-		switch {
-		case err != nil:
+		if err != nil {
 			log.Warn("sandbox claim status unavailable", "claim", cfg.ClaimName, "err", err)
-		case state == claimGone:
+			continue
+		}
+		switch state.phase {
+		case claimGone:
 			log.Info("sandbox claim is gone", "claim", cfg.ClaimName)
-			return
-		case state == claimFinished:
-			cfg.release(ctx, log)
-			return
+			return nil
+		case claimFinished:
+			cfg.release(ctx, log, "finished")
+			return nil
+		}
+		if state.ready && !started {
+			started = true
+			log.Info("sandbox claim ready", "claim", cfg.ClaimName)
+		}
+		if !started && cfg.StartTimeout > 0 && !cfg.now().Before(startBy) {
+			log.Error("sandbox claim never became ready; deleting it", "claim", cfg.ClaimName, "start_timeout", cfg.StartTimeout, "reason", state.reason, "message", state.message)
+			cfg.release(ctx, log, "unready")
+			return fmt.Errorf("%w within %s: %s: %s", ErrNeverReady, cfg.StartTimeout, state.reason, state.message)
 		}
 	}
 }
 
-type claimState int
+type claimPhase int
 
 const (
-	claimRunning claimState = iota
+	claimRunning claimPhase = iota
 	claimFinished
 	claimGone
 )
 
+type claimState struct {
+	phase   claimPhase
+	ready   bool
+	reason  string
+	message string
+}
+
 func (cfg Config) state(ctx context.Context) (claimState, error) {
 	status, body, err := cfg.do(ctx, http.MethodGet, cfg.item(), nil)
 	if err != nil {
-		return claimRunning, err
+		return claimState{}, err
 	}
 	if status == http.StatusNotFound {
-		return claimGone, nil
+		return claimState{phase: claimGone}, nil
 	}
 	if status != http.StatusOK {
-		return claimRunning, fmt.Errorf("kubernetes answered %d", status)
+		return claimState{}, fmt.Errorf("kubernetes answered %d", status)
 	}
 	var claim struct {
 		Status struct {
 			Conditions []struct {
-				Type   string `json:"type"`
-				Status string `json:"status"`
+				Type    string `json:"type"`
+				Status  string `json:"status"`
+				Reason  string `json:"reason"`
+				Message string `json:"message"`
 			} `json:"conditions"`
 		} `json:"status"`
 	}
 	if err := json.Unmarshal(body, &claim); err != nil {
-		return claimRunning, fmt.Errorf("decode sandbox claim: %w", err)
+		return claimState{}, fmt.Errorf("decode sandbox claim: %w", err)
 	}
+	state := claimState{}
 	for _, c := range claim.Status.Conditions {
-		if c.Type == finished && c.Status == "True" {
-			return claimFinished, nil
+		switch {
+		case c.Type == finished && c.Status == "True":
+			state.phase = claimFinished
+		case c.Type == "Ready":
+			state.ready = c.Status == "True"
+			state.reason, state.message = c.Reason, c.Message
 		}
 	}
-	return claimRunning, nil
+	return state, nil
 }
 
-func (cfg Config) release(ctx context.Context, log *slog.Logger) {
+func (cfg Config) release(ctx context.Context, log *slog.Logger, why string) {
 	status, body, err := cfg.do(ctx, http.MethodDelete, cfg.item(), []byte(`{"propagationPolicy":"Background"}`))
 	switch {
 	case err != nil:
-		log.Warn("finished sandbox claim not deleted; its TTL removes it", "claim", cfg.ClaimName, "err", err)
+		log.Warn(why+" sandbox claim not deleted; its backstops remove it", "claim", cfg.ClaimName, "err", err)
 	case status != http.StatusOK && status != http.StatusAccepted && status != http.StatusNotFound:
-		log.Warn("finished sandbox claim not deleted; its TTL removes it", "claim", cfg.ClaimName, "status", status, "body", strings.TrimSpace(string(body)))
+		log.Warn(why+" sandbox claim not deleted; its backstops remove it", "claim", cfg.ClaimName, "status", status, "body", strings.TrimSpace(string(body)))
 	default:
-		log.Info("sandbox claim finished and deleted", "claim", cfg.ClaimName)
+		log.Info(why+" sandbox claim deleted", "claim", cfg.ClaimName)
 	}
 }
 

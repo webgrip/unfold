@@ -22,6 +22,10 @@ func runSandboxLaunch(log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	startTimeout, err := boundEnv("PLOEG_SANDBOX_START_TIMEOUT", 10*time.Minute)
+	if err != nil {
+		return err
+	}
 	ttl, err := strconv.ParseInt(envOr("PLOEG_SANDBOX_TTL_SECONDS_AFTER_FINISHED", "60"), 10, 32)
 	if err != nil || ttl < 0 {
 		return fmt.Errorf("PLOEG_SANDBOX_TTL_SECONDS_AFTER_FINISHED must be a non-negative integer")
@@ -40,6 +44,7 @@ func runSandboxLaunch(log *slog.Logger) error {
 		JobUID:                  os.Getenv("PLOEG_SANDBOX_JOB_UID"),
 		WarmPool:                os.Getenv("PLOEG_SANDBOX_WARM_POOL"),
 		RunDeadline:             deadline,
+		StartTimeout:            startTimeout,
 		ShutdownMargin:          margin,
 		TTLSecondsAfterFinished: int32(ttl),
 	}

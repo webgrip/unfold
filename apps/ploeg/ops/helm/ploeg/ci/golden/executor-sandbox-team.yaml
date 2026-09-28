@@ -625,6 +625,8 @@ spec:
                 value: "7200s"
               - name: PLOEG_SANDBOX_SHUTDOWN_MARGIN
                 value: "600s"
+              - name: PLOEG_SANDBOX_START_TIMEOUT
+                value: "600s"
               - name: PLOEG_SANDBOX_TTL_SECONDS_AFTER_FINISHED
                 value: "60"
             securityContext:

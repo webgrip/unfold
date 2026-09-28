@@ -100,7 +100,10 @@ The obligations hold through three backstops: the worker pod's
 `executor.sandbox.shutdownMarginSeconds`) with `shutdownPolicy: Delete` and a
 `ttlSecondsAfterFinished`; and the claim's owner reference to the launcher's
 Job, which lets Job garbage collection remove the claim, its Sandbox and its
-pod. The Lease still expires first.
+pod. The Lease still expires first. A claim that is not `Ready` within
+`executor.sandbox.startTimeoutSeconds` is deleted by its launcher, which then
+fails with the controller's reason, so a claim the controller cannot serve
+does not hold the Team's slot until the shutdown deadline.
 
 Only the launcher holds a Kubernetes API token. Its Role allows `create`,
 `get` and `delete` on `sandboxclaims` in its namespace. The template sets

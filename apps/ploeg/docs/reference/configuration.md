@@ -86,6 +86,7 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_SANDBOX_JOB_UID` | ploeg-worker |  |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_SANDBOX_RUN_DEADLINE` | ploeg-worker | `0` |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_SANDBOX_SHUTDOWN_MARGIN` | ploeg-worker | `10m` |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
+| `PLOEG_SANDBOX_START_TIMEOUT` | ploeg-worker | `10m` |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_SANDBOX_TTL_SECONDS_AFTER_FINISHED` | ploeg-worker | `60` |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_SANDBOX_WARM_POOL` | ploeg-worker |  |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_SHIFTS_UNIFORM` | ploegd | `true` |  | [main.go](../../cmd/ploegd/main.go) |
@@ -203,6 +204,7 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `executor.sandbox.networkPolicy.ingress` | array |  |  | values.schema.json |
 | `executor.sandbox.runtimeClassName` | string | `""` | type=sandbox only. Global fallback RuntimeClass for every team and role; a team's (or a Role's) own `sandbox.runtimeClassName` overrides it field by field. "" = the node's default runtime; set kata or gvisor only after qualifying it with the privileged DinD sidecar on your nodes. Place Kata on bare metal (its own kernel, no nested-virt requirement). Place gVisor systrap on VMs without nested virt, accepting its file-I/O penalty on clone-heavy runs. | values.yaml, values.schema.json |
 | `executor.sandbox.shutdownMarginSeconds` | integer | `600` | The claim's shutdownTime is activeDeadlineSeconds plus this margin, and the launcher Job's own deadline matches it. | values.yaml, values.schema.json |
+| `executor.sandbox.startTimeoutSeconds` | integer | `600` | A claim that is not Ready this long after creation is deleted and its launcher fails with the controller's reason, instead of holding the Team's slot until the shutdown deadline. Covers a cold image pull. | values.yaml, values.schema.json |
 | `executor.sandbox.ttlSecondsAfterFinished` | integer | `60` | A finished claim is deleted by its launcher; this TTL is the fallback. | values.yaml, values.schema.json |
 | `executor.scaler.dbName` |  | `app` |  | values.yaml |
 | `executor.scaler.host` |  | `""` | Empty = ploeg-db-rw.<release namespace>.svc.cluster.local. Must be a name the KEDA operator can resolve from its own namespace (FQDN). | values.yaml |
