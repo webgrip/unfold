@@ -1,8 +1,7 @@
 import * as vscode from 'vscode';
-import type { PloegItem, PloegLane, PloegOverview, PloegTeam } from './ploeg-types.js';
+import { ploegLanes as lanes, type PloegItem, type PloegLane, type PloegOverview, type PloegTeam } from './ploeg-types.js';
 
 export type PloegEntry = { kind: 'team'; team: PloegTeam } | { kind: 'lane'; team: PloegTeam; lane: PloegLane; overview: PloegOverview } | { kind: 'item'; item: PloegItem; demo: boolean } | { kind: 'message'; label: string; open?: boolean };
-const lanes: { id: PloegLane; label: string; icon: string }[] = [{ id: 'needs_human', label: 'Needs human', icon: 'bell-dot' }, { id: 'leased', label: 'In execution', icon: 'pulse' }, { id: 'queued', label: 'Queue', icon: 'layers' }, { id: 'all', label: 'All work', icon: 'list-flat' }];
 
 export class PloegTree implements vscode.TreeDataProvider<PloegEntry>, vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<PloegEntry | undefined>();
@@ -43,7 +42,7 @@ export class PloegTree implements vscode.TreeDataProvider<PloegEntry>, vscode.Di
     item.id = `ploeg:item:${entry.item.id}`;
     item.description = `${entry.demo ? 'illustration · ' : ''}${entry.item.provider} #${entry.item.externalId || entry.item.id}`;
     item.tooltip = `${entry.item.title}\n${entry.item.team} · ${entry.item.state.replaceAll('_', ' ')} · ${entry.item.attempts} attempts\n${entry.item.description.slice(0, 600)}\nOpen shifts, runs, review findings, costs and checkpoints in the web workbench.`;
-    item.iconPath = new vscode.ThemeIcon(entry.item.state === 'needs_human' ? 'bell-dot' : entry.item.state === 'leased' ? 'pulse' : 'issues');
+    item.iconPath = new vscode.ThemeIcon(entry.item.state === 'needs_human' ? 'bell-dot' : entry.item.state === 'leased' ? 'pulse' : entry.item.state === 'awaiting_review' ? 'git-pull-request' : 'issues');
     item.contextValue = 'ploeg:item';
     item.command = { command: 'vloer.openPloeg', title: 'Open Ploeg execution evidence', arguments: [entry.item.id] };
     item.accessibilityInformation = { label: `${entry.item.title}, ${entry.item.state.replaceAll('_', ' ')}, ${entry.item.team}` };
