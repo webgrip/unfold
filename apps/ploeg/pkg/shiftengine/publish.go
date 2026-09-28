@@ -273,7 +273,10 @@ func trackerMessage(settled work.State, reason, link string, runs, rounds int, b
 	}
 	if link != "" {
 		fmt.Fprintf(&b, "**Pull request:** %s\n", link)
-		b.WriteString("\nPlease review and merge — the agents never merge their own work.\n")
+		// Only suggest review if this is not a stuck outcome.
+		if !strings.HasPrefix(reason, "run stuck:") {
+			b.WriteString("\nPlease review and merge — the agents never merge their own work.\n")
+		}
 	} else {
 		b.WriteString("\nNo pull request was opened.\n")
 	}
