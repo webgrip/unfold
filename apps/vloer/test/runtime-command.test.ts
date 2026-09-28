@@ -10,6 +10,7 @@ import { RuntimeFailure } from '../src/failures.ts';
 import type { RuntimeWorkspaces } from '../src/runtime/opencode.ts';
 import type { AppConfig, RuntimeEvent } from '../src/types.ts';
 import { executionFixture } from './runtime-fixture.ts';
+import { deadlineAfter } from './timeframes.ts';
 
 async function fixture(code: string, argv?: string[]) {
   const directory = await mkdtemp(join(tmpdir(), 'vloer-command-'));
@@ -77,7 +78,7 @@ runtime.execute({session:{id:'s'},run:{id:'r'},workspace,repository:{verify:[]},
   const host = spawn(process.execPath, [hostScript], { stdio: 'ignore' });
   let runnerPid: number | undefined;
   try {
-    const deadline = Date.now() + 5000;
+    const deadline = deadlineAfter(5_000);
     while (Date.now() < deadline && !runnerPid) {
       try { runnerPid = Number(await readFile(join(directory, 'runner.pid'), 'utf8')); } catch { await delay(25); }
     }
@@ -86,7 +87,8 @@ runtime.execute({session:{id:'s'},run:{id:'r'},workspace,repository:{verify:[]},
     host.kill('SIGKILL');
     await closed;
     let stopped = false;
-    while (Date.now() < deadline && !stopped) {
+    const reapDeadline = deadlineAfter(5_000);
+    while (Date.now() < reapDeadline && !stopped) {
       try { process.kill(runnerPid, 0); await delay(25); } catch { stopped = true; }
     }
     assert.equal(stopped, true, 'runner process was reaped after supervisor observed input EOF');

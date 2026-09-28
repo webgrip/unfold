@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { application, createInput, login, request } from './api-support.ts';
 import type { AgentRuntime, RuntimeKind } from '../src/types.ts';
+import { testTimeout } from './timeframes.ts';
 
 const inert: AgentRuntime = {
   kind: 'opencode',
@@ -10,7 +11,7 @@ const inert: AgentRuntime = {
   async interrupt() {}, async dispose() {},
 };
 
-test('bootstrap advertises enabled placements and session creation validates the choice', { timeout: 20_000 }, async t => {
+test('bootstrap advertises enabled placements and session creation validates the choice', { timeout: testTimeout(20_000) }, async t => {
   const server = await application('live', config => { config.runtime = { kind: 'opencode', backend: 'docker', backends: ['docker', 'local'], timeoutMs: 30_000 }; }, new Map<RuntimeKind, AgentRuntime>([['opencode', inert]]));
   t.after(() => server.close());
   const alice = await login(server.url);

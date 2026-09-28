@@ -25,7 +25,8 @@ def request(url, method='GET', data=None, headers=None, missing=False):
     except urllib.error.HTTPError as error:
         if missing and error.code == 404:
             return None, error.headers
-        raise RuntimeError(f'{method} {urllib.parse.urlsplit(url).netloc} returned HTTP {error.code}') from None
+        detail = error.read(300).decode('utf-8', 'replace').strip()
+        raise RuntimeError(f'{method} {urllib.parse.urlsplit(url).netloc} returned HTTP {error.code}' + (f': {detail}' if detail else '')) from None
 
 
 def command(*args, env=None, input=None):

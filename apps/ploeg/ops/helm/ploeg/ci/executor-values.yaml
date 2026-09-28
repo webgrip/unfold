@@ -7,6 +7,8 @@ executor:
   # Read-only reader credential configured, so the ADR-0013 tier-1 branch of
   # the pod template renders on every PR rather than only in production.
   forgejo:
+    # Workers stay in-cluster (the chart default url); ploegd gets the public URL.
+    publicUrl: https://forgejo.example.com
     readTokenSecret:
       name: agent-reader-token
       key: FORGEJO_TOKEN

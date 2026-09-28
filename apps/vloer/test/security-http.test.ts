@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { hashPassword } from '../src/auth.ts';
 import { application, createInput, createSession, login, replay, request, sessionUntil } from './api-support.ts';
 import type { AgentRuntime, Event, RuntimeKind } from '../src/types.ts';
+import { scaledTimeout, testTimeout } from './timeframes.ts';
 
-test('live HTTP login requires credentials, same-origin mutation protection, and a revocable cookie', { timeout: 15_000 }, async t => {
+test('live HTTP login requires credentials, same-origin mutation protection, and a revocable cookie', { timeout: testTimeout(15_000) }, async t => {
   const server = await application('live');
   t.after(() => server.close());
   for (const path of ['/api/bootstrap', '/api/sessions', '/api/ploeg']) {
@@ -33,7 +34,7 @@ test('live HTTP login requires credentials, same-origin mutation protection, and
   assert.equal((await request(server.url, '/api/bootstrap', { cookie: credentials.cookie })).status, 401, 'logout must revoke the server-side session, not merely clear a browser cookie');
 });
 
-test('ownership covers details, history, SSE, controls, and permission routes while viewers cannot mutate', { timeout: 20_000 }, async t => {
+test('ownership covers details, history, SSE, controls, and permission routes while viewers cannot mutate', { timeout: testTimeout(20_000) }, async t => {
   const server = await application('live');
   t.after(() => server.close());
   for (const user of [
@@ -54,7 +55,7 @@ test('ownership covers details, history, SSE, controls, and permission routes wh
     assert([403, 404].includes(denied.status), `${path}: ${denied.status} ${denied.text}`);
     assert(!denied.text.includes(created.objective));
   }
-  const sse = await fetch(`${server.url}/api/sessions/${created.id}/events`, { headers: { cookie: bob.cookie }, signal: AbortSignal.timeout(3_000) });
+  const sse = await fetch(`${server.url}/api/sessions/${created.id}/events`, { headers: { cookie: bob.cookie }, signal: AbortSignal.timeout(scaledTimeout(3_000)) });
   assert([403, 404].includes(sse.status), 'SSE must authorize before opening the stream');
   await sse.body?.cancel();
   for (const [path, body] of [
@@ -76,7 +77,7 @@ test('ownership covers details, history, SSE, controls, and permission routes wh
   assert(stillQueued.body.runs.every((run: { status: string }) => run.status === 'queued'));
 });
 
-test('public API exposes configured choices while hiding authority and rejecting executable or repository injection', { timeout: 15_000 }, async t => {
+test('public API exposes configured choices while hiding authority and rejecting executable or repository injection', { timeout: testTimeout(15_000) }, async t => {
   const controlPassword = 'workspace-control-password-987654';
   const masterKey = 'sk-master-do-not-expose-123456';
   const server = await application('live', config => {
@@ -106,7 +107,7 @@ function repositoryRootForLeakCheck() {
   return new URL('../src/', import.meta.url).pathname;
 }
 
-test('runtime credentials are removed from durable artifacts, nested activity, and reconnect replay', { timeout: 15_000 }, async t => {
+test('runtime credentials are removed from durable artifacts, nested activity, and reconnect replay', { timeout: testTimeout(15_000) }, async t => {
   const secret = 'control-password-"quoted"-\\value-123456';
   const runtime: AgentRuntime = {
     kind: 'demo',

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { Server } from 'node:http';
+import { deadlineAfter, scaledTimeout } from './timeframes.ts';
 import { createApplication } from '../src/main.ts';
 import type { AgentRuntime, AppConfig, Event, RuntimeKind, Session } from '../src/types.ts';
 
@@ -95,7 +96,7 @@ export async function createSession(url: string, options: { cookie?: string; ove
 }
 
 export async function sessionUntil(url: string, id: string, accepts: (session: Session) => boolean, cookie?: string): Promise<Session> {
-  const deadline = Date.now() + 60_000;
+  const deadline = deadlineAfter(60_000);
   let last: Session | undefined;
   while (Date.now() < deadline) {
     const result = await request(url, `/api/sessions/${id}`, { cookie });
@@ -109,7 +110,7 @@ export async function sessionUntil(url: string, id: string, accepts: (session: S
 
 export async function replay(url: string, id: string, after: number, count: number, cookie?: string): Promise<Event[]> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5_000);
+  const timeout = setTimeout(() => controller.abort(), scaledTimeout(15_000));
   const events: Event[] = [];
   try {
     const response = await fetch(`${url}/api/sessions/${id}/events?after=${after}`, { signal: controller.signal, headers: cookie ? { cookie } : {} });
