@@ -49,6 +49,7 @@ runs:
       env:
         GLIDE_REQUIRE_IMPORT_NOTES: 'true'
         GOFLAGS: -count=1
+        VLOER_TEST_TIMEOUT_SCALE: '2'
     - name: Container build contexts
       shell: bash
       run: |

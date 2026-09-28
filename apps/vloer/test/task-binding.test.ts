@@ -6,6 +6,7 @@ import { login, request } from './api-support.ts';
 import { hashPassword } from '../src/auth.ts';
 import { validateTaskSources } from '../src/tasks.ts';
 import { fixture, target, itemId, deferred } from './task-binding-support.ts';
+import { deadlineAfter } from './timeframes.ts';
 
 test('Ploeg tracker mappings require supported singleton provider, exact repository target and consistent aliases', () => {
   const repository = { id: 'orders', name: 'Orders', description: '', url: 'https://forge.example/team/orders.git', baseBranch: 'main', verify: [] };
@@ -132,7 +133,8 @@ test('cancel while first-start lookup is pending prevents any admission or runti
   const f = await fixture(t); const session = await f.imported(); const previous = f.state.lookups;
   f.state.lookupGate = deferred();
   const starting = f.start(session);
-  while (f.state.lookups === previous) await delay(5);
+  const deadline = deadlineAfter(15_000);
+  while (f.state.lookups === previous) { assert(Date.now() < deadline, 'first-start lookup never became pending'); await delay(5); }
   const cancelled = await request(f.server.url, `/api/sessions/${session.id}/cancel`, { method: 'POST', cookie: f.admin.cookie }); assert.equal(cancelled.status, 200, cancelled.text);
   f.state.lookupGate.resolve();
   const result = await starting; assert.equal(result.status, 409); assert.equal(f.state.admissions.length, 0); assert.equal(f.state.prepared, 0); assert.equal(f.server.app.store.getSession(session.id)!.status, 'cancelled');

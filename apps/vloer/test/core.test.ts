@@ -8,6 +8,7 @@ import { Store, publicSession } from '../src/store.ts';
 import { Engine } from '../src/engine.ts';
 import { DemoRuntime } from '../src/runtime/demo.ts';
 import type { AgentRuntime, AppConfig, ExecutionContext, ExecutionResult, Session, User, RuntimeKind } from '../src/types.ts';
+import { scaledTimeout, settle } from './timeframes.ts';
 
 const owner: User = { id: 'owner', name: 'Owner', role: 'operator' };
 const other: User = { id: 'other', name: 'Other', role: 'operator' };
@@ -32,7 +33,7 @@ async function fixture(t: test.TestContext, mode: 'demo' | 'live' = 'demo') {
   return { directory, store, config: configuration(directory, mode) };
 }
 
-async function until(predicate: () => boolean, timeoutMs = 5000): Promise<void> {
+async function until(predicate: () => boolean, timeoutMs = scaledTimeout(5000)): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (!predicate()) {
     if (Date.now() > deadline) throw new Error('Timed out waiting for durable state');
@@ -65,7 +66,7 @@ test('demo executes failing baseline, real patch and passing independent checks 
   const created = engine.create(input(), owner);
   const started = await engine.start(created.id, owner);
   assert.equal(started.status, 'running');
-  await until(() => ['completed', 'failed', 'cancelled', 'interrupted'].includes(store.getSession(created.id)?.status ?? ''), 30000);
+  await until(() => ['completed', 'failed', 'cancelled', 'interrupted'].includes(store.getSession(created.id)?.status ?? ''), scaledTimeout(30_000));
   const final = store.getSession(created.id)!;
   assert.equal(final.status, 'completed', final.failure?.message ?? final.blocker);
   assert.equal(final.spentUsd, 0);
@@ -92,7 +93,7 @@ test('pause interrupts and holds state until explicit resume; cancel cannot beco
   assert.equal(paused.status, 'paused');
   assert.equal(runtime.aborted, 1);
   const calls = runtime.calls;
-  await setTimeout(30);
+  await settle(30);
   assert.equal(runtime.calls, calls);
   engine.message(session.id, 'Keep the fixture narrowly scoped.', owner);
   await engine.resume(session.id, owner);
@@ -145,7 +146,7 @@ test('recovery preserves durable events and marks running work interrupted witho
   engine.recover();
   assert.equal(store.getSession(session.id)!.status, 'interrupted');
   assert.equal(store.getSession(session.id)!.runs[0].status, 'paused');
-  await setTimeout(30);
+  await settle(30);
   assert.equal(runtime.calls, 0);
   assert.equal(store.events(session.id, before)[0].type, 'session.interrupted');
   engine.recover();
@@ -289,7 +290,7 @@ test('stopped-session reconciliation settles late gateway spend exactly once wit
   const session = engine.create(input('opencode'), owner);
   await engine.start(session.id, owner);
   await until(() => store.getSession(session.id)!.status === 'completed' && store.getSession(session.id)!.costStatus === 'unknown');
-  await setTimeout(10);
+  await settle(10);
   spend = 0.42;
   await engine.reconcilePending();
   await engine.reconcilePending();

@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
-import { setTimeout as delay } from 'node:timers/promises';
 import { SandboxWorkspaces, sandboxClaimManifest, sandboxManifests } from '../src/runtime/sandbox.ts';
 import { WorkspaceManager, managedConfig } from '../src/runtime/workspace.ts';
 import { WorkerRelay } from '../src/runtime/relay.ts';
 import { workspaceName } from '../src/runtime/kubernetes.ts';
 import type { AppConfig, Repository, Session } from '../src/types.ts';
+import { settle, testTimeout } from './timeframes.ts';
 
 const repository = { id: 'repo', name: 'Repo', description: '', url: 'https://forge.example/project.git', baseBranch: 'main', verify: ['npm', 'test'] } as Repository;
 const session = { id: 'sandbox-session', branch: 'vloer/sandbox-session', ownerId: 'alice', placement: 'kubernetes', runs: [] } as unknown as Session;
@@ -48,7 +48,7 @@ function fakeWorker(relayBase: string, options: { pool?: { token: string; pod: s
     }
     while (!stopped) {
       const response = await fetch(`${relayBase}/${sessionId}/requests?wait=500`, { headers: { authorization: `Bearer ${token}` } }).catch(() => undefined);
-      if (!response || !response.ok) { await delay(50); continue; }
+      if (!response || !response.ok) { await settle(50); continue; }
       const batch = await response.json();
       for (const request of batch.requests ?? []) void handle(request);
     }
@@ -76,7 +76,7 @@ test('cold sandbox manifests put the agent pod behind Kata with a volume claim t
   assert.deepEqual(claim.spec.warmPoolRef, { name: 'vloer-warm' });
 });
 
-test('a cold sandbox becomes a workspace once the CRD is Ready and its worker has dialled in, and disposal removes the sandbox', { timeout: 20_000 }, async t => {
+test('a cold sandbox becomes a workspace once the CRD is Ready and its worker has dialled in, and disposal removes the sandbox', { timeout: testTimeout(20_000) }, async t => {
   const relay = new WorkerRelay();
   const relayServer = createServer(async (req, res) => { if (!(await relay.handle(req, res, new URL(req.url ?? '/', 'http://localhost')))) { res.writeHead(404); res.end(); } });
   const port = await listen(relayServer);
@@ -113,7 +113,7 @@ test('a cold sandbox becomes a workspace once the CRD is Ready and its worker ha
   assert.equal(relay.connected(session.id), false);
 });
 
-test('a warm-pool claim hands the bound pod its session over the relay, clones through exec and starts the harness', { timeout: 20_000 }, async t => {
+test('a warm-pool claim hands the bound pod its session over the relay, clones through exec and starts the harness', { timeout: testTimeout(20_000) }, async t => {
   process.env.TEST_POOL_TOKEN = 'pool-token-for-test';
   t.after(() => { delete process.env.TEST_POOL_TOKEN; });
   const relay = new WorkerRelay();

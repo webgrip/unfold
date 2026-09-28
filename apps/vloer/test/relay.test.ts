@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { setTimeout as delay } from 'node:timers/promises';
 import { WorkerRelay } from '../src/runtime/relay.ts';
+import { scaledTimeout, settle, testTimeout, waitFor } from './timeframes.ts';
 
 const workerScript = fileURLToPath(new URL('../ops/agent/relay-worker.mjs', import.meta.url));
 
@@ -37,7 +37,7 @@ function startWorker(relayUrl: string, token: string, target: string): ChildProc
   return spawn(process.execPath, [workerScript], { env: { PATH: process.env.PATH ?? '', VLOER_RELAY_URL: relayUrl, VLOER_RELAY_TOKEN: token, VLOER_RELAY_TARGET: target }, stdio: ['ignore', 'ignore', 'pipe'] });
 }
 
-test('the relay delivers requests to a dial-out worker, streams responses back and cancels aborted streams', { timeout: 30_000 }, async t => {
+test('the relay delivers requests to a dial-out worker, streams responses back and cancels aborted streams', { timeout: testTimeout(30_000) }, async t => {
   const relay = new WorkerRelay();
   const relayServer = createServer(async (req, res) => { if (!(await relay.handle(req, res, new URL(req.url ?? '/', 'http://localhost')))) { res.writeHead(404); res.end(); } });
   const relayPort = await listen(relayServer);
@@ -46,7 +46,7 @@ test('the relay delivers requests to a dial-out worker, streams responses back a
   const token = relay.register('ws-1');
   const worker = startWorker(`http://127.0.0.1:${relayPort}/api/relay/ws-1`, token, `http://127.0.0.1:${targetPort}`);
   t.after(() => { worker.kill('SIGKILL'); relayServer.close(); target.server.close(); });
-  await relay.waitForWorker('ws-1', new AbortController().signal, 10_000);
+  await relay.waitForWorker('ws-1', new AbortController().signal, scaledTimeout(10_000));
   assert.equal(relay.connected('ws-1'), true);
   const fetcher = relay.fetcher('ws-1');
   const authorization = 'Basic ' + Buffer.from('opencode:secret').toString('base64');
@@ -69,12 +69,11 @@ test('the relay delivers requests to a dial-out worker, streams responses back a
   let text = '';
   while (!text.includes('{"n":3}')) text += new TextDecoder().decode((await reader.read()).value);
   controller.abort();
-  const deadline = Date.now() + 5000;
-  while (target.state.closedStreams < 1 && Date.now() < deadline) await delay(50);
+  await waitFor(() => target.state.closedStreams >= 1, undefined, { reason: 'aborting the relayed stream must close the upstream stream', withinMs: 20_000 });
   assert.equal(target.state.closedStreams, 1, 'aborting the relayed stream must close the upstream stream');
 });
 
-test('the relay rejects foreign tokens and fails pending requests when a workspace is unregistered', { timeout: 20_000 }, async t => {
+test('the relay rejects foreign tokens and fails pending requests when a workspace is unregistered', { timeout: testTimeout(20_000) }, async t => {
   const relay = new WorkerRelay();
   const relayServer = createServer(async (req, res) => { if (!(await relay.handle(req, res, new URL(req.url ?? '/', 'http://localhost')))) { res.writeHead(404); res.end(); } });
   const relayPort = await listen(relayServer);
@@ -90,7 +89,7 @@ test('the relay rejects foreign tokens and fails pending requests when a workspa
   assert.equal(relay.connected('ws-2'), false);
 });
 
-test('a warm worker waits for a pool assignment, receives its session environment over the relay and runs commands on request', { timeout: 30_000 }, async t => {
+test('a warm worker waits for a pool assignment, receives its session environment over the relay and runs commands on request', { timeout: testTimeout(30_000) }, async t => {
   const relay = new WorkerRelay();
   relay.configurePool('pool-secret-token');
   const relayServer = createServer(async (req, res) => { if (!(await relay.handle(req, res, new URL(req.url ?? '/', 'http://localhost')))) { res.writeHead(404); res.end(); } });
@@ -103,11 +102,11 @@ test('a warm worker waits for a pool assignment, receives its session environmen
   t.after(() => worker.kill('SIGKILL'));
   let logs = '';
   worker.stderr!.on('data', chunk => { logs += chunk; });
-  await delay(300);
+  await settle(300);
   assert.equal(relay.connected('ws-warm'), false, 'an unassigned warm worker relays nothing');
   const token = relay.register('ws-warm');
   relay.assign('warm-1', { sessionId: 'ws-warm', token, env: { REPOSITORY_URL: 'https://forge.example/repo.git', SESSION_MARKER: 'from-assignment' } });
-  await relay.waitForWorker('ws-warm', new AbortController().signal, 10_000);
+  await relay.waitForWorker('ws-warm', new AbortController().signal, scaledTimeout(10_000));
   const fetcher = relay.fetcher('ws-warm');
   const status = await fetcher('http://workspace/__vloer/status');
   assert.deepEqual(await status.json(), { child: false, session: 'ws-warm', inFlight: 1 });

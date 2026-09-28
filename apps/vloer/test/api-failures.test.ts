@@ -5,6 +5,7 @@ import { OpenCodeRuntime, type RuntimeWorkspaces } from '../src/runtime/opencode
 import { runProcess } from '../src/runtime/workspace.ts';
 import { RuntimeFailure } from '../src/failures.ts';
 import type { AgentRuntime, AppConfig, Event, ExecutionContext, RuntimeKind } from '../src/types.ts';
+import { testTimeout } from './timeframes.ts';
 
 const privateText = 'Authorization: Bearer opaque-native-secret; Cookie: private-cookie; https://user:password@private.invalid/path?token=never-persist';
 const privateParts = ['opaque-native-secret', 'private-cookie', 'private.invalid', 'user:password', 'never-persist'];
@@ -21,7 +22,7 @@ const cases = [
   ['unknown', 'runtime_failure', 'execution', 'unknown'],
 ] as const;
 
-test('live failures persist actionable safe evidence, survive authenticated replay, and never replay a paid submission', { timeout: 30_000 }, async t => {
+test('live failures persist actionable safe evidence, survive authenticated replay, and never replay a paid submission', { timeout: testTimeout(30_000) }, async t => {
   const unconfigured: AgentRuntime = { kind: 'opencode', prepare: async () => { throw new Error('Fixture not configured'); }, execute: async () => { throw new Error('Fixture not configured'); }, interrupt: async () => {}, dispose: async () => {} };
   const runtimes = new Map<RuntimeKind, AgentRuntime>([['opencode', unconfigured]]);
   const server = await application('live', undefined, runtimes);
