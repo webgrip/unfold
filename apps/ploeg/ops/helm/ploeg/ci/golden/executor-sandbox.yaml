@@ -947,6 +947,19 @@ spec:
                 value: "600s"
               - name: PLOEG_SANDBOX_TTL_SECONDS_AFTER_FINISHED
                 value: "60"
+              - name: PLOEG_API_URL
+                value: "http://ploeg:8080"
+              - name: PLOEG_TEAM
+                value: "bronze"
+              - name: PLOEG_WORKER_ID
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.uid
+              - name: PLOEG_WORKER_BOOTSTRAP_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: ploeg-worker-bootstrap
+                    key: "bronze--default"
             securityContext:
               runAsNonRoot: true
               runAsUser: 65532
@@ -1060,6 +1073,21 @@ spec:
                 value: "600s"
               - name: PLOEG_SANDBOX_TTL_SECONDS_AFTER_FINISHED
                 value: "60"
+              - name: PLOEG_API_URL
+                value: "http://ploeg:8080"
+              - name: PLOEG_TEAM
+                value: "gold"
+              - name: PLOEG_ROLE
+                value: "builder"
+              - name: PLOEG_WORKER_ID
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.uid
+              - name: PLOEG_WORKER_BOOTSTRAP_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: ploeg-worker-bootstrap
+                    key: "gold--builder"
             securityContext:
               runAsNonRoot: true
               runAsUser: 65532
@@ -1181,6 +1209,21 @@ spec:
                 value: "600s"
               - name: PLOEG_SANDBOX_TTL_SECONDS_AFTER_FINISHED
                 value: "60"
+              - name: PLOEG_API_URL
+                value: "http://ploeg:8080"
+              - name: PLOEG_TEAM
+                value: "gold"
+              - name: PLOEG_ROLE
+                value: "reviewer"
+              - name: PLOEG_WORKER_ID
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.uid
+              - name: PLOEG_WORKER_BOOTSTRAP_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: ploeg-worker-bootstrap
+                    key: "gold--reviewer"
             securityContext:
               runAsNonRoot: true
               runAsUser: 65532

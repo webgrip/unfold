@@ -629,6 +629,19 @@ spec:
                 value: "600s"
               - name: PLOEG_SANDBOX_TTL_SECONDS_AFTER_FINISHED
                 value: "60"
+              - name: PLOEG_API_URL
+                value: "http://ploeg:8080"
+              - name: PLOEG_TEAM
+                value: "copper"
+              - name: PLOEG_WORKER_ID
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.uid
+              - name: PLOEG_WORKER_BOOTSTRAP_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: ploeg-worker-bootstrap
+                    key: "copper--default"
             securityContext:
               runAsNonRoot: true
               runAsUser: 65532

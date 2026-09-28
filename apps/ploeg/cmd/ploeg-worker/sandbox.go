@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/webgrip/ploeg/pkg/sandboxlaunch"
+	"github.com/webgrip/ploeg/pkg/worker"
 )
 
 func runSandboxLaunch(log *slog.Logger) error {
@@ -52,5 +54,22 @@ func runSandboxLaunch(log *slog.Logger) error {
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, deadline+margin)
 	defer cancel()
-	return sandboxlaunch.Launch(ctx, cfg, log)
+	err = sandboxlaunch.Launch(ctx, cfg, log)
+	if errors.Is(err, sandboxlaunch.ErrNeverReady) {
+		failUnstartedRun(log, err)
+	}
+	return err
+}
+
+func failUnstartedRun(log *slog.Logger, cause error) {
+	claimed, err := worker.FailUnstartedRun(os.Getenv("PLOEG_API_URL"), os.Getenv("PLOEG_WORKER_BOOTSTRAP_TOKEN"),
+		envOr("PLOEG_WORKER_ID", os.Getenv("POD_UID")), os.Getenv("PLOEG_TEAM"), os.Getenv("PLOEG_ROLE"), cause.Error())
+	switch {
+	case err != nil:
+		log.Error("unstarted run not reported; the sweeper or the next launcher finds it", "err", err)
+	case claimed:
+		log.Info("unstarted run reported as an infra failure", "failure_reason", "infra_node")
+	default:
+		log.Info("no run was waiting for the unstarted sandbox")
+	}
 }
