@@ -36,8 +36,9 @@ no Work Item state.
   reconciled is marked provisional; a Run whose gateway spend could not be read
   is marked unavailable rather than guessed at.
 - **Evidence, not a copy of it.** The report names the writing Run's
-  verification result and commit and links to the pull request's checks; the
-  full verification output stays in the writing Run's findings comment.
+  verification result and commit — or says plainly that none was recorded — and
+  links to the pull request's checks; the full verification output stays in the
+  writing Run's findings comment.
 - **Best-effort, never in the lifecycle.** A failed accounting read or forge
   call is logged and skipped: no Outcome changes, no Shift closes differently,
   no state transition blocks (R2, R3). The report makes no gateway call, mints

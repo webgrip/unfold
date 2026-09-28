@@ -28,18 +28,26 @@ report itself.
 
 ## Decisions
 
-### D1 — The renderer is pure; the store read is one call
+### D1 — The renderer is pure; the inputs are already read
 
 The whole artifact is one function whose input is already read:
 
 ```go
 // usageReportInput is everything the report renders.
 type usageReportInput struct {
-    Shift   store.ShiftUsage // id, work item, team, branch, rounds, close reason
-    Runs    []store.RunUsage // oldest first
-    Ledger  store.ShiftLedger
-    TraceID string           // writing Run's alias ploeg-<12hex>; "" if none
-    Settled bool             // false when any managed account is unreconciled
+    Shift    store.ShiftUsage // id, work item, team, branch, rounds, close reason
+    Runs     []store.RunUsage // oldest first
+    Ledger   store.ShiftLedger
+    TraceID  string           // writing Run's alias ploeg-<12hex>; "" if none
+    Evidence Evidence         // what Ploeg observed of the writing Run's verification
+    Settled  bool             // false when any managed account is unreconciled
+}
+
+// Evidence is the writing Run's verification as stored; the zero value means
+// the report renders "not recorded".
+type Evidence struct {
+    Result string // "passed" | "failed (<cmd>)" | "incomplete (<reason>)" | ""
+    Commit string // short sha from the verification line; "" when absent
 }
 
 // usageReport renders the one body. Pure: no clock, no network, no store.
@@ -54,6 +62,28 @@ and cost come from `agent_runs.usage` (`inputTokens`, `outputTokens`, `models`,
 comes from `run_llm_accounts.state` (`reserved|minting|issued|unknown|blocked|
 reconciled`, migration 0012). Because both already exist, **no migration is
 needed** — the rejected alternative below is the one that would have added one.
+
+`Evidence` is the one input that is not a column, and the plan owes it a named
+source. ADR-0035 has the worker append the verification to the writing Run's
+`findings` markdown (the `### Ploeg verification` heading, whose first sentence
+carries ``commit `<short-sha>` ``) and to its `summary` (`[Ploeg verification
+passed]`, `[Ploeg verification failed: <cmd>]`, `[Ploeg verification incomplete:
+<reason>]`), and migration 0009 keeps findings deliberately unstructured prose.
+`publishUsageReport` derives `Evidence` from the `RoundReports` it reads for the
+thread: `parseEvidence(reports)` takes the **last** Run with `Writes` —
+the Run whose commit is at the branch tip — reads the result from its summary
+marker and the commit from its findings section. The parser matches the literals
+`pkg/worker/verify.go` writes (`verificationHeading`, the `commit \`…\``
+sentence); a `pkg/worker` test already pins that rendering (`verify_test.go`) and
+task 3.4 adds a byte-identical fixture, so a wording change fails both rather
+than silently dropping the evidence.
+
+When that Run has no verification section — the worker did not verify it (a
+reading Role, or an outcome other than `pr_opened`/`pr_updated`), the operator
+configured no `verifyCommands`, or the Shift predates ADR-0035 (still
+`proposed`) — `parseEvidence` returns the zero `Evidence`. The report then
+renders "verification: not recorded": it never leaves a blank that reads as a
+pass and never invents a commit.
 
 ### D2 — The report is identified by a marker on the forge, not by stored state
 
@@ -81,20 +111,32 @@ for `Comment`: Forgejo on `GET`/`PATCH /api/v1/repos/{owner}/{name}/issues/
 {pr}/comments` and `.../issues/comments/{id}`, GitLab on the merge-request notes
 it posts to (`GET /api/v4/projects/{id}/merge_requests/{iid}/notes`, `PUT
 .../notes/{note_id}`). Everything forge-shaped stays behind the SPI (R7); the
-core only sees `[]provider.Comment`. `Comment` was the SPI's only method with a
-caller; these two are the smallest pair that makes "one comment, edited in
-place" expressible, and every implementation must gain them to satisfy
-`ForgeProvider`.
+core only sees `[]provider.Comment`. `ForgeProvider` is Ploeg's internal SPI
+(`docs/design.md` §4), not a published wire contract, and the core already calls
+both `Comment` (the findings path) and `PullRequestState`
+(`pkg/shiftengine/review.go:78`); the two new methods are additive and both
+in-tree implementations gain them in this change.
+
+`Comments` returns the **whole** thread: the Forgejo and GitLab implementations
+follow pagination to exhaustion (task 1.2/1.3), so a marker on any page is
+returned and the core's find-by-marker scan cannot miss it. That completeness is
+what makes "exactly one comment" true rather than best-effort — a marker the
+reader cannot see is exactly how a second comment gets posted.
 
 ### D4 — Publishing is one engine method at three call sites
 
 ```go
-func (e *Engine) publishUsageReport(ctx context.Context, si store.ShiftInfo, reports []store.RunReport)
+func (e *Engine) publishUsageReport(ctx context.Context, si store.ShiftInfo)
 ```
 
-It returns immediately when `!e.UsageReport`, resolves the thread through the
-existing `pullRequestThread` (so a Shift with no PR, no target or no provider
-skips exactly as findings do), reads `ShiftUsage`, renders, and finds-or-edits.
+It returns immediately when `!e.UsageReport`; loads `RoundReports` (the thread's
+findings and the writing Run's evidence) and `ShiftUsage` (the numbers); resolves
+the thread through the existing `pullRequestThread` (so a Shift with no PR, no
+target or no provider skips exactly as findings do); renders; finds-or-edits. It
+loads the reports itself rather than taking them as an argument so every call
+site — fast path, close, settlement — derives the same evidence; one extra
+`RoundReports` read per refresh is the price of that.
+
 The three call sites, all after state is durable:
 
 1. `pkg/shiftengine/engine.go` in `evaluate`, after `e.publishRound(...)`
@@ -107,12 +149,14 @@ The three call sites, all after state is durable:
    This needs the Shift, so `UnsettledLLMAccount` gains `ShiftID` (from the
    existing `agent_runs.shift_id` join) and `ShiftEngine` gains
    `RefreshUsageReport(ctx context.Context, shiftID int64) error`, which loads the
-   Shift and reports and calls `publishUsageReport`; an account with a NULL
+   Shift and calls `publishUsageReport`; an account with a NULL
    `shift_id` (historical rows, migration 0008) is skipped. `Engine` already
    satisfies `ShiftEngine` in `pkg/httpapi`.
 
-The report does not depend on findings being present, so it cannot live *inside*
-`publishRound` (which returns early when a Round produced no findings).
+The report is published whether or not a Round produced findings, so it cannot
+live *inside* `publishRound` (which returns early when `Findings` is empty); its
+evidence section reads the writing Run's findings when they exist and says "not
+recorded" when they do not.
 
 ### D5 — Nothing provisional is presented as settled
 
@@ -180,10 +224,10 @@ unchanged.
 ## Risks / Trade-offs
 
 - [Listing comments on every refresh is an API cost] → the refresh points are
-  bounded by Round transitions and settlements, the search stops at the first
-  marker, and the report is created at the first PR write, so it sits near the
-  front of an oldest-first list. If a forge ever paginates past it, the worst
-  case is a second comment, not a wrong figure.
+  bounded by Round transitions and settlements; the list is complete (D3), so the
+  marker is found wherever it sits, and the report is created at the first PR
+  write so it is near the front of an oldest-first list. The cost is one paginated
+  list per refresh, never per Run.
 - [Two publishers race and both create a comment] → ploegd is a single
   controller (one process owns the fast path and the sweep), so there is one
   publisher. If ploegd is ever scaled out, the marker scheme needs a lock or a
@@ -191,14 +235,14 @@ unchanged.
 - [Provisional totals read as final] → the header and per-Run marks say
   provisional, and the settlement sweep edits the same comment when the number
   firms up.
-- [A huge thread makes the read expensive] → the API cost is one list per
-  refresh; it never runs per Run.
 
 ## Migration Plan
 
-None. No schema change, no new credential, no new network path. The chart value
-defaults to on; setting it false disables the publish call with no other effect.
-Rollback is the values edit.
+None. No schema change, no new credential, no new network path. The report's
+evidence is parsed from the writing Run's existing findings and summary prose
+(D1), so it adds no storage either. The chart value defaults to on; setting it
+false disables the publish call with no other effect. Rollback is the values
+edit.
 
 ## Open Questions
 

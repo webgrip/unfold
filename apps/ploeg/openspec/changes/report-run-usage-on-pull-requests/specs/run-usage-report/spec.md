@@ -14,7 +14,10 @@ total the Shift's authorized, reserved, settled and remaining pool. It SHALL nam
 the writing Run's trace alias `ploeg-<12hex>` so a dashboard can join on it. It
 SHALL state the evidence Ploeg observed for the writing Run — its verification
 result and the commit — and SHALL link to the pull request's checks rather than
-copy them.
+copy them. When Ploeg did not verify that Run — the operator configured no
+checks, the Run did not write, or the Shift predates worker verification — the
+report SHALL state that the verification was not recorded, and SHALL NOT render a
+blank or a result that could read as a pass.
 
 A Run whose gateway account is not reconciled SHALL have its cost and tokens
 marked provisional; a Run whose spend could not be read SHALL have them marked
@@ -81,6 +84,13 @@ next refresh reconciles the comment.
 - **THEN** the report states the writing Run's verification result and commit
 - **AND** it links to the pull request's checks and to the detailed verification
 - **AND** it prints no key or token value
+
+#### Scenario: Verification was not recorded
+
+- **GIVEN** a writing Run whose stored report has no verification section
+- **WHEN** the report is published
+- **THEN** the evidence section says the verification was not recorded
+- **AND** it states no commit and no pass
 
 #### Scenario: Pod dies mid-publish
 

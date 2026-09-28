@@ -7,12 +7,12 @@ most a day and names the test that checks it.
 
 - [ ] 1.1 `provider.Comment` type and `Comments`/`EditComment` on the `ForgeProvider` SPI (`pkg/provider/provider.go`)
   Test: `pkg/provider` interface conformance — `TestForgeProvider_CommentMethodsInSPI` (a compile-time assertion plus a fake provider implementing all four methods).
-- [ ] 1.2 Forgejo implementation on the issues endpoints: list `GET .../issues/{pr}/comments`, edit `PATCH .../issues/comments/{id}` (`pkg/provider/forgejo/forgejo.go`)
-  Test: `pkg/provider/forgejo/forgejo_test.go`'s `TestComments_ListsAndPages` and `TestEditComment_SendsBody` against `net/http/httptest`, including a non-2xx that fails without leaking the token.
-- [ ] 1.3 GitLab implementation on the merge-request notes endpoints: list `GET .../merge_requests/{iid}/notes`, edit `PUT .../notes/{note_id}` (`pkg/provider/gitlab/gitlab.go`)
-  Test: `pkg/provider/gitlab/gitlab_test.go`'s `TestComments_ListsNotes` and `TestEditComment_SendsBody` against `net/http/httptest`, including a non-2xx that fails without leaking the token.
-- [ ] 1.4 Reading the marker is bounded: stop at the first match, tolerate a large thread
-  Test: `TestComments_StopsAtFirstMatch` with a synthetic multi-page list.
+- [ ] 1.2 Forgejo implementation on the issues endpoints: list `GET .../issues/{pr}/comments` following `page`/`limit` to exhaustion, edit `PATCH .../issues/comments/{id}` (`pkg/provider/forgejo/forgejo.go`)
+  Test: `pkg/provider/forgejo/forgejo_test.go`'s `TestComments_PagesToExhaustion` (a multi-page `httptest` server) and `TestEditComment_SendsBody`, including a non-2xx that fails without leaking the token.
+- [ ] 1.3 GitLab implementation on the merge-request notes endpoints: list `GET .../merge_requests/{iid}/notes` following pagination to exhaustion, edit `PUT .../notes/{note_id}` (`pkg/provider/gitlab/gitlab.go`)
+  Test: `pkg/provider/gitlab/gitlab_test.go`'s `TestComments_PagesToExhaustion` and `TestEditComment_SendsBody` against `net/http/httptest`, including a non-2xx that fails without leaking the token.
+- [ ] 1.4 `Comments` is complete: every implementation returns the whole thread, so the core's find-by-marker scan sees a marker on any page and stops at the first match
+  Test: `TestComments_PagesToExhaustion` plus `TestPublishUsage_FindsMarkerOnALaterPage` (the marker on page 2 is edited, not duplicated).
 
 ## 2. The store answers the report in one read
 
@@ -29,18 +29,18 @@ most a day and names the test that checks it.
   Test: `TestUsageReport_MarksUnreconciledProvisional` and `TestUsageReport_UnreadableSpendIsUnavailable`.
 - [ ] 3.3 The alias is printed and no key value or `gateway_key_id` is; a Run without an account renders no account state
   Test: `TestUsageReport_PrintsAliasOnly` (asserts a key-shaped string cannot appear) and `TestUsageReport_ReadingRunHasNoAccountState`.
-- [ ] 3.4 The evidence section names the writing Run's verification result and commit, and links the pull request's checks
-  Test: `TestUsageReport_EvidenceNamesVerificationAndCommit`.
+- [ ] 3.4 `parseEvidence(reports)` takes the last Run with `Writes`, reads the result from its `summary` marker (`passed`/`failed: <cmd>`/`incomplete: <reason>`) and the commit from its `findings` section; the evidence section states them and links the pull request's checks; a Run with no verification section renders "verification: not recorded" with no commit
+  Test: `TestUsageReport_EvidenceParsesVerificationAndCommit` (fixture byte-identical to `pkg/worker/verify_test.go`'s `markdown()` output) and `TestUsageReport_EvidenceNotRecordedIsExplicit` (no heading, a non-writing last Run, and a pre-ADR-0035 empty `findings`).
 
 ## 4. The publish path
 
-- [ ] 4.1 `Engine.publishUsageReport(ctx, si, reports)` (`pkg/shiftengine/publish.go`): reuse `pullRequestThread`, read `ShiftUsage`, render, find the marker, edit or create
+- [ ] 4.1 `Engine.publishUsageReport(ctx, si)` (`pkg/shiftengine/publish.go`): read `RoundReports` (the thread and the writing Run's evidence) and `ShiftUsage`, reuse `pullRequestThread`, render, find the marker, edit or create
   Test: `TestPublishUsage_CreatesOnceThenEditsInPlace` — a fake forge records one create and subsequent edits, and the thread holds exactly one marker comment.
 - [ ] 4.2 No pull request, no target, no provider, or the flag off → skip silently, exactly as findings do
   Test: `TestPublishUsage_SkipsWithoutAPullRequest` and `TestPublishUsage_SkipsWhenDisabled`.
 - [ ] 4.3 A failed read, list or write is logged and skipped; a failed list never posts blind (no duplicate)
   Test: `TestPublishUsage_ReadFailureChangesNothing` and `TestPublishUsage_ListFailureDoesNotPost`.
-- [ ] 4.4 Call sites: `evaluate` after `publishRound`; `close` in the terminal branch; nothing depends on findings being present
+- [ ] 4.4 Call sites: `evaluate` after `publishRound`; `close` in the terminal branch (its `reports` may be nil, so the method loads them itself); the evidence section degrades to "not recorded" when findings are absent
   Test: `TestEngine_PublishesReportAfterARoundWithoutFindings` and `TestEngine_PublishesReportOnClose`.
 - [ ] 4.5 The report changes no Outcome, close reason or Work Item state
   Test: `TestPublishUsage_DoesNotChangeOutcome` — the Shift and item rows are read before and after.
@@ -63,7 +63,7 @@ most a day and names the test that checks it.
 
 ## 7. Gates and closure
 
-- [ ] 7.1 `gofmt -l .`, `go vet ./...`, `go build ./...`, `go test ./...`, the Helm checks, and `openspec validate --all --strict` — output in the PR body
+- [ ] 7.1 `gofmt -l .`, `go vet ./...`, `go build ./...`, `go test ./...`, the Helm checks, `openspec validate report-run-usage-on-pull-requests --type change --strict`, and `openspec validate --all --strict` — output in the PR body
   Check: `mise run verify` (or the per-gate commands where the sandbox lacks a toolchain, listed under "Checks left to CI").
 - [ ] 7.2 No code path mints, settles or blocks an account, and no print path carries a secret — self-review against ADR-0008 and R8
   Check: `go vet` plus the D8 tests in group 3; a reviewer re-reads the diff for a key-shaped string.
