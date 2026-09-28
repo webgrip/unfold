@@ -1,3 +1,13 @@
+## [glide-v0.4.0-rc.7](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.6...glide-v0.4.0-rc.7) (2026-09-28)
+
+### Fixed
+
+* **ploeg:** name the sandbox claim apart from the launcher pod ([c360b7f](https://forgejo.webgrip.dev/webgrip/glide/commit/c360b7f0913fded682244ea2f1278a473d64e097))
+
+### Docs
+
+* **adr-0035:** state exactly what a Run's worker pod can reach on the network ([7705d2b](https://forgejo.webgrip.dev/webgrip/glide/commit/7705d2be7e5c6c394968f51e71faba65534c97cb))
+
 ## [glide-v0.4.0-rc.6](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.5...glide-v0.4.0-rc.6) (2026-09-28)
 
 ### Added
