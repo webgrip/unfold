@@ -102,28 +102,49 @@ def attach_forgejo(release, name, content, token):
     request(f'{FORGEJO}/releases/{release["id"]}/assets?name={urllib.parse.quote(name)}', method='POST', data=body, headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'multipart/form-data; boundary=' + boundary})
 
 
+def github_release(tag, token):
+    target = api(f'{GITHUB}/releases/tags/{tag}', token, missing=True)
+    if target is not None:
+        return target
+    drafts = [r for r in api(f'{GITHUB}/releases?per_page=100', token) if r['draft'] and r['tag_name'] == tag]
+    return drafts[0] if drafts else None
+
+
+def fetch_github_asset(asset, token, draft):
+    if not draft:
+        return fetch_asset(asset, token)
+    if not asset['url'].startswith(GITHUB + '/releases/assets/'):
+        raise RuntimeError('Unexpected GitHub asset URL')
+    data, _ = request(asset['url'], headers={'Authorization': 'Bearer ' + token, 'Accept': 'application/octet-stream'})
+    return data
+
+
 def mirror_release(tag, source, forge_token, github_token):
     remote = git('ls-remote', 'https://github.com/webgrip/glide.git', f'refs/tags/{tag}', f'refs/tags/{tag}^{{}}')
     refs = dict((line.split()[1], line.split()[0]) for line in remote.splitlines())
     actual = refs.get(f'refs/tags/{tag}^{{}}', refs.get(f'refs/tags/{tag}'))
     require_same(actual, git('rev-parse', f'{tag}^{{commit}}'), 'GitHub Glide release source')
-    target = api(f'{GITHUB}/releases/tags/{tag}', github_token, missing=True)
-    expected = {'tag_name': tag, 'name': source['name'], 'body': source['body'], 'prerelease': True, 'draft': False, 'make_latest': 'false'}
+    target = github_release(tag, github_token)
+    expected = {'tag_name': tag, 'name': source['name'], 'body': source['body'], 'prerelease': True}
     if target is None:
-        target = api(f'{GITHUB}/releases', github_token, 'POST', expected)
+        target = api(f'{GITHUB}/releases', github_token, 'POST', {**expected, 'draft': True})
     else:
-        for key in ['tag_name', 'name', 'body', 'prerelease', 'draft']:
+        for key in expected:
             require_same(target[key], expected[key], f'GitHub release {key}')
     for asset in source.get('assets', []):
         content = fetch_asset(asset, forge_token)
         existing = next((a for a in target['assets'] if a['name'] == asset['name']), None)
         if existing:
-            require_same(digest(fetch_asset(existing, github_token)), digest(content), 'GitHub asset ' + asset['name'])
+            require_same(digest(fetch_github_asset(existing, github_token, target['draft'])), digest(content), 'GitHub asset ' + asset['name'])
             continue
+        if not target['draft']:
+            raise RuntimeError(f'GitHub release {tag} is already published without {asset["name"]}; immutable releases take assets only while they are drafts')
         upload = target['upload_url'].split('{')[0]
         if urllib.parse.urlsplit(upload).netloc != 'uploads.github.com':
             raise RuntimeError('Unexpected GitHub upload host')
         request(upload + '?' + urllib.parse.urlencode({'name': asset['name']}), method='POST', data=content, headers={'Authorization': 'Bearer ' + github_token, 'Content-Type': 'application/octet-stream'})
+    if target['draft']:
+        target = api(f'{GITHUB}/releases/{target["id"]}', github_token, 'PATCH', {'draft': False, 'make_latest': 'false'})
     return target['html_url']
 
 
