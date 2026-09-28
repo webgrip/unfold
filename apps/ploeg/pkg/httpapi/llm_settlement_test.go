@@ -113,6 +113,34 @@ func TestControllerSettlesBlockedAccountFromSpendLogsOnce(t *testing.T) {
 	}
 }
 
+func TestControllerSettlesBlockedAccountWhoseObservationRoundedUp(t *testing.T) {
+	ctx := context.Background()
+	b := &settlementBroker{observed: 0.242263, settled: 0.242263}
+	c, token, shiftID := settlementFixture(t, b, true)
+	if err := c.Block(ctx, token); err != nil {
+		t.Fatal(err)
+	}
+	candidate := settleCandidate(t, token)
+	if err := c.Settle(ctx, candidate); err != nil {
+		t.Fatal(err)
+	}
+	a, err := testStore.LLMAccount(ctx, token)
+	if err != nil || a.State != "reconciled" {
+		t.Fatalf("account=%+v %v", a, err)
+	}
+	l, _ := testStore.Ledger(ctx, shiftID)
+	if l.Reserved != 0 || math.Abs(l.Spent-0.2423) > 0.00001 {
+		t.Fatalf("settlement did not round the spend-log total to column precision: %+v", l)
+	}
+	var reconciled float64
+	if err := testPool.QueryRow(ctx, `SELECT reconciled_spend FROM run_llm_accounts WHERE run_token=$1`, token).Scan(&reconciled); err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(reconciled-0.2423) > 0.00001 {
+		t.Fatalf("reconciled_spend=%v want 0.2423", reconciled)
+	}
+}
+
 func TestControllerSettlementNeverUndercutsObservationOrGuessesMissingSpend(t *testing.T) {
 	ctx := context.Background()
 	b := &settlementBroker{observed: 0.45}

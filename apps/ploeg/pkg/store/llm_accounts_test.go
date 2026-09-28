@@ -107,6 +107,46 @@ func TestManagedSettlementRequiresTrustedEvidenceAndNeverWorkerCost(t *testing.T
 	}
 }
 
+func TestReconcileLLMAccountSettlesObservationRoundedUpAtColumnPrecision(t *testing.T) {
+	shift, run := managedRunFixture(t)
+	ctx := context.Background()
+	if _, err := testStore.BeginLLMMint(ctx, run.RunToken); err != nil {
+		t.Fatal(err)
+	}
+	if err := testStore.RecordLLMIssued(ctx, run.RunToken, "fixture-key-digest"); err != nil {
+		t.Fatal(err)
+	}
+	report := Report(work.OutcomeNoChangeNeeded, "done", "", nil, []byte(`{"costUsd":0}`), nil)
+	if _, err := testStore.ReportOutcome(ctx, run.RunToken, report); err != nil {
+		t.Fatal(err)
+	}
+	observed := 0.0032997
+	if err := testStore.RecordLLMBlocked(ctx, run.RunToken, &observed); err != nil {
+		t.Fatal(err)
+	}
+	var storedObserved float64
+	if err := testStore.pool.QueryRow(ctx, `SELECT observed_spend FROM run_llm_accounts WHERE run_token=$1`, run.RunToken).Scan(&storedObserved); err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(storedObserved-0.0033) > 0.000005 {
+		t.Fatalf("observed_spend stored=%v, want the column's rounded 0.0033", storedObserved)
+	}
+	if err := testStore.ReconcileLLMAccount(ctx, run.RunToken, 0.0032997, "litellm:spend-logs"); err != nil {
+		t.Fatal(err)
+	}
+	l, _ := testStore.Ledger(ctx, shift)
+	if math.Abs(l.Spent-0.0033) > 0.000005 {
+		t.Fatalf("settlement did not charge the column-rounded spend: %+v", l)
+	}
+	var reconciled float64
+	if err := testStore.pool.QueryRow(ctx, `SELECT reconciled_spend FROM run_llm_accounts WHERE run_token=$1`, run.RunToken).Scan(&reconciled); err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(reconciled-0.0033) > 0.000005 {
+		t.Fatalf("reconciled_spend=%v, want 0.0033", reconciled)
+	}
+}
+
 func TestConcurrentCredentialIssuanceHasOneDurableWinner(t *testing.T) {
 	_, run := managedRunFixture(t)
 	var won atomic.Int32
