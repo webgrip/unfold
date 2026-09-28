@@ -247,3 +247,23 @@ func TestFetchItem_ReadsAuthoritativeState(t *testing.T) {
 		t.Error("revision not carried; the monotonic gate needs it (backlog #7)")
 	}
 }
+
+func TestParseWebhookClosedTaskIsAClose(t *testing.T) {
+	p := &Provider{DefaultTeam: "default"}
+	for _, tc := range []struct {
+		task string
+		want provider.TrackerEventKind
+	}{
+		{`{"id": 611, "project_id": 11, "done": true}`, provider.TrackerClosed},
+		{`{"id": 611, "project_id": 11, "done": false}`, provider.TrackerUpdated},
+	} {
+		body := []byte(`{"event_name": "task.updated", "data": {"task": ` + tc.task + `}}`)
+		events, err := p.ParseWebhook(httptest.NewRequest("POST", "/webhooks/tracker/vikunja", bytes.NewReader(body)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(events) != 1 || events[0].Kind != tc.want || events[0].ExternalID != "611" {
+			t.Fatalf("task %s: got %+v, want one %s event", tc.task, events, tc.want)
+		}
+	}
+}

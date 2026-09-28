@@ -9,6 +9,7 @@ import (
 	"github.com/webgrip/ploeg/pkg/forgebroker"
 	"github.com/webgrip/ploeg/pkg/provider"
 	"github.com/webgrip/ploeg/pkg/store"
+	"github.com/webgrip/ploeg/pkg/work"
 )
 
 func (s *Server) withdraw(ctx context.Context, workItemID int64, teams []string, actor, reason string) (store.Withdrawal, bool, error) {
@@ -67,6 +68,35 @@ func (s *Server) trackerUnassigned(ctx context.Context, name string, ev provider
 	if errors.Is(err, store.ErrOperatorOwned) {
 		s.Log.Info("unassignment ignored: the item is bound to an operator execution",
 			"provider", name, "external_id", ev.ExternalID)
+		return nil
+	}
+	return err
+}
+
+// trackerClosed withdraws a Work Item whose tracker task was closed before any
+// Run started. Started work is left to finish: stopping paid work takes an
+// unassignment or an operator cancel.
+func (s *Server) trackerClosed(ctx context.Context, name string, ev provider.TrackerEvent) error {
+	id, item, err := s.Store.TrackerWorkItemID(ctx, name, ev.ExternalID)
+	if errors.Is(err, store.ErrWorkItemNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if item.State != work.StateQueued {
+		return nil
+	}
+	started, err := s.Store.WorkItemStarted(ctx, id)
+	if err != nil {
+		return err
+	}
+	if started {
+		s.Log.Info("close ignored: the item has a running Run", "provider", name, "external_id", ev.ExternalID)
+		return nil
+	}
+	_, _, err = s.withdraw(ctx, id, nil, "webhook:"+name, store.CloseReasonWithdrawnClosed)
+	if errors.Is(err, store.ErrOperatorOwned) {
 		return nil
 	}
 	return err

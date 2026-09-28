@@ -42,7 +42,7 @@ Terms: a **Work Item** is Ploeg's copy of your ticket. A **Team** is a named ros
 
 ## Register the trigger
 
-Assignment is the trigger and unassignment is the stop. **Labels trigger nothing:** ploegd keeps only assignment and unassignment events and drops the rest ([server.go](../../apps/ploeg/pkg/httpapi/server.go)).
+Assignment is the trigger and unassignment is the stop. **Labels trigger nothing:** ploegd keeps only assignment, unassignment and close events and drops the rest ([server.go](../../apps/ploeg/pkg/httpapi/server.go)).
 
 | Tracker | Webhook URL | Event | Signature |
 | --- | --- | --- | --- |
@@ -80,6 +80,7 @@ A Ploeg without these routes shows "This Ploeg version does not provide activity
 To stop tracker work, do one of these:
 
 - **Unassign the ticket.** Remove the assignee that routed it to the Team. The webhook needs `task.assignee.deleted` for Vikunja; ClickUp's `taskAssigneeUpdated` already covers it. Removing an assignee that maps to another Team changes nothing.
+- **Close the ticket before work starts.** Marking a Vikunja task done withdraws its Work Item while no Run has started (the webhook needs `task.updated`). Once a Run has started, closing the ticket stops nothing: unassign or cancel instead.
 - **Cancel it through the operator API.** Send `POST /api/v1/operator/work-items/{id}/cancel` with an operator bearer that has `execute` permission and an `X-Ploeg-Actor` header. The request has no body. The ticket gets a comment naming who cancelled it. The [operator contract](../../apps/ploeg/docs/contracts/README.md#operator-read-consumers) describes the request and response.
 
    ```sh
@@ -87,9 +88,9 @@ To stop tracker work, do one of these:
      https://<ploegd>/api/v1/operator/work-items/<id>/cancel
    ```
 
-Either way, Ploeg withdraws the Work Item in one transaction ([withdraw.go](../../apps/ploeg/pkg/store/withdraw.go)):
+Each way, Ploeg withdraws the Work Item in one transaction ([withdraw.go](../../apps/ploeg/pkg/store/withdraw.go)):
 
-1. The live Shift closes with reason `withdrawn_unassigned` or `withdrawn_by_operator`.
+1. The live Shift closes with reason `withdrawn_unassigned`, `withdrawn_closed` or `withdrawn_by_operator`.
 2. Pending Runs are cancelled, so KEDA starts no new pods for them.
 3. Running Runs are marked finished and their Lease is released. Ploeg blocks each Run's model key at once. If the block is not confirmed, the controller's block sweep retries it. A per-Run push credential is revoked.
 4. The worker stops at its next renew, which Ploeg refuses. Under managed worker authentication the refusal counts as a failed renew, and the worker cancels after three of them, so it stops within about one `PLOEG_LEASE_TTL`.

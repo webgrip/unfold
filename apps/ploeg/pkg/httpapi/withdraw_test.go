@@ -282,3 +282,42 @@ func TestReassignmentAfterWithdrawalRequeuesCleanly(t *testing.T) {
 		t.Fatalf("re-queued item not claimable: %d %+v", status, again)
 	}
 }
+
+func closeWebhook(t *testing.T, h http.Handler, taskID string) int {
+	t.Helper()
+	body := fmt.Sprintf(`{"event_name":"task.updated","data":{"task":{"id":%s,"title":"withdrawal fixture","project_id":7,"done":true}}}`, taskID)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/webhooks/tracker/vikunja", bytes.NewBufferString(body)))
+	return w.Code
+}
+
+func TestClosingATaskWithdrawsOnlyWorkThatHasNotStarted(t *testing.T) {
+	reset(t)
+	ctx := context.Background()
+	shiftFixture(t, "4201", 5, []store.Role{{Name: "builder"}})
+	shiftFixture(t, "4202", 5, []store.Role{{Name: "builder"}})
+	unstarted, _, err := testStore.TrackerWorkItemID(ctx, "vikunja", "4201")
+	if err != nil {
+		t.Fatal(err)
+	}
+	started, _, err := testStore.TrackerWorkItemID(ctx, "vikunja", "4202")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := testPool.Exec(ctx, `UPDATE agent_runs SET started_at = now() WHERE work_item_id = $1`, started); err != nil {
+		t.Fatal(err)
+	}
+	h := withdrawalServer(&shiftengine.Engine{Store: testStore, Log: slog.New(slog.DiscardHandler), Uniform: true}).Handler()
+
+	for _, task := range []string{"4201", "4202", "9999"} {
+		if code := closeWebhook(t, h, task); code != http.StatusAccepted {
+			t.Fatalf("close of task %s: %d", task, code)
+		}
+	}
+	if got := snapshotItem(t, unstarted); got.state != string(work.StateWithdrawn) || got.liveShifts != 0 || got.closeReason != store.CloseReasonWithdrawnClosed {
+		t.Fatalf("closing an unstarted item did not withdraw it: %+v", got)
+	}
+	if got := snapshotItem(t, started); got.state != "queued" || got.liveShifts != 1 {
+		t.Fatalf("closing a started item withdrew it: %+v", got)
+	}
+}

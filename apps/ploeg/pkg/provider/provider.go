@@ -18,6 +18,8 @@ const (
 	TrackerAssigned   TrackerEventKind = "assigned"
 	TrackerUpdated    TrackerEventKind = "updated"
 	TrackerUnassigned TrackerEventKind = "unassigned"
+	// TrackerClosed is an item marked done or closed in the tracker.
+	TrackerClosed TrackerEventKind = "closed"
 )
 
 // TrackerEvent is the normalized result of parsing a tracker webhook.

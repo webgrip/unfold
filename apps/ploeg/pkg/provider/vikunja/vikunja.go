@@ -61,6 +61,7 @@ type payload struct {
 			// task events; a payload without it yields an empty Scope, which
 			// resolves to no Target and falls back to the worker's env repo.
 			ProjectID int64 `json:"project_id"`
+			Done      bool  `json:"done"`
 		} `json:"task"`
 		Assignee struct {
 			Username string `json:"username"`
@@ -119,7 +120,11 @@ func (p *Provider) ParseWebhook(r *http.Request) ([]provider.TrackerEvent, error
 	case "task.assignee.deleted":
 		return []provider.TrackerEvent{{Kind: provider.TrackerUnassigned, ExternalID: externalID, Team: team, Scope: scope, Item: item}}, nil
 	case "task.updated":
-		return []provider.TrackerEvent{{Kind: provider.TrackerUpdated, ExternalID: externalID, Team: team, Scope: scope, Item: item}}, nil
+		kind := provider.TrackerUpdated
+		if pl.Data.Task.Done {
+			kind = provider.TrackerClosed
+		}
+		return []provider.TrackerEvent{{Kind: kind, ExternalID: externalID, Team: team, Scope: scope, Item: item}}, nil
 	default:
 		// Unhandled events are dropped, not errors: providers subscribe wider
 		// than the core consumes.
