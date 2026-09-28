@@ -1,3 +1,20 @@
+## [glide-v0.4.0-rc.10](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.9...glide-v0.4.0-rc.10) (2026-09-28)
+
+### Fixed
+
+* **ploeg:** fail a Run as infra_node when its sandbox never starts ([d380f52](https://forgejo.webgrip.dev/webgrip/glide/commit/d380f528aac8788f0667cb312e9a7d5e37de858d))
+
+### Docs
+
+* **adr-0038:** accept with the owner's 2026-09-28 routing decisions ([ca7d440](https://forgejo.webgrip.dev/webgrip/glide/commit/ca7d440da4111250eba98e69bb2b615c52a1d07a))
+* **adr-0038:** propose repo-label hints over a derived target registry ([138311e](https://forgejo.webgrip.dev/webgrip/glide/commit/138311e3fe5b7f223c66f7261df2de19df57fd9c)), references [#11](https://forgejo.webgrip.dev/webgrip/glide/issues/11)
+* **ploeg:** address review of the run-usage report plan ([d85151a](https://forgejo.webgrip.dev/webgrip/glide/commit/d85151a9062005c4e60e7415640592d65a9083ae))
+* **ploeg:** plan the PR run-usage report as an OpenSpec change ([ad90a5c](https://forgejo.webgrip.dev/webgrip/glide/commit/ad90a5c6d16e76abc390970d465b9a8f8c01658e)), references [#1305](https://forgejo.webgrip.dev/webgrip/glide/issues/1305)
+
+### Tests
+
+* **vloer:** make time-bound API tests readiness-based and load-tolerant ([7a11286](https://forgejo.webgrip.dev/webgrip/glide/commit/7a112862e8798533fac53c00eeee836ec8e8ee0e))
+
 ## [glide-v0.4.0-rc.9](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.8...glide-v0.4.0-rc.9) (2026-09-28)
 
 ### Added
