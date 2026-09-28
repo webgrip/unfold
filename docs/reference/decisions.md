@@ -37,6 +37,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Ploeg | [0014](../../apps/ploeg/docs/adrs/0014-work-target-is-a-work-item-attribute.md) | Bind the Work Target to the Work Item, not to the Team | 2026-07-29 | — |
 | Ploeg | [0020](../../apps/ploeg/docs/adrs/0020-published-artifacts-name-the-mirror-as-source.md) | Published artifacts name the GitHub mirror as their source, and Forgejo as their URL | 2026-08-26 | — |
 | Ploeg | [0022](../../apps/ploeg/docs/adrs/0022-the-name-and-mark-are-trademarks-not-cc-licensed-artwork.md) | The name and mark are trademarks under a usage policy, not CC-licensed artwork | 2026-08-27 | — |
+| Ploeg | [0038](../../apps/ploeg/docs/adrs/0038-a-repo-label-selects-among-registered-targets-and-the-board-default-is-the-fallback.md) | A repo label selects among registered targets, and the board default is the fallback | 2026-09-28 | — |
 | Vloer | [0001](../../apps/vloer/docs/adrs/0001-the-human-workbench-beside-ploeg.md) | The human workbench beside Ploeg | 2026-09-09 | — |
 | Vloer | [0002](../../apps/vloer/docs/adrs/0002-native-node-and-single-writer-storage.md) | Native Node and one durable writer | 2026-09-09 | — |
 | Vloer | [0003](../../apps/vloer/docs/adrs/0003-runtime-workspace-and-credential-seams.md) | Keep harness, workspace and credential seams distinct | 2026-09-09 | — |
