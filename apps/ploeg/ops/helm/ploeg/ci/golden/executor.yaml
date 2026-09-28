@@ -122,7 +122,7 @@ spec:
             - name: PLOEG_TEAM_MAX_RUNNING
               value: "{\"zinc\":2}"
             - name: PLOEG_FORGEJO_URL
-              value: "http://forgejo-http.forgejo.svc.cluster.local:3000"
+              value: "https://forgejo.example.com"
             - name: PLOEG_FORGEJO_TOKEN
               valueFrom:
                 secretKeyRef:

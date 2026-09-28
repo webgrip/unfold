@@ -450,6 +450,10 @@
               "type": "string",
               "description": "Base URL, no /api/v4. Empty = ploegd configures no GitLab provider, so findings never reach a merge request."
             },
+            "publicUrl": {
+              "type": "string",
+              "description": "ploegd's GitLab URL when it differs from the workers' url. Empty = url."
+            },
             "tokenSecret": {
               "$ref": "#/definitions/secretRef",
               "description": "Token with api scope on the target projects, sent as PRIVATE-TOKEN. ADR-0013 tier 2 does not apply on GitLab: per-run push credentials are minted through a Forgejo admin endpoint with no GitLab equivalent, so this shared token is what writing Runs use."
@@ -471,7 +475,12 @@
           ],
           "properties": {
             "url": {
-              "type": "string"
+              "type": "string",
+              "description": "The workers' forge URL (FORGE_URL): clone, push, pull-request API and the forge proxy upstream. An in-cluster URL keeps Run traffic off the public gateway."
+            },
+            "publicUrl": {
+              "type": "string",
+              "description": "ploegd's forge URL (PLOEG_FORGEJO_URL). Empty = url. Set it to the public https URL when url is in-cluster: ploegd matches Vloer's https repository URLs against it and accepts only https or ssh ones."
             },
             "tokenSecret": {
               "$ref": "#/definitions/secretRef"

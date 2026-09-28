@@ -257,7 +257,14 @@ executor:
     staticInferenceSecret: {}
     additionalLLMPolicies: []
   forgejo:
+    # The workers' forge URL (FORGE_URL): clone, push, pull-request API and
+    # the forge proxy upstream. An in-cluster URL keeps Run traffic off the
+    # public gateway.
     url: http://forgejo-http.forgejo.svc.cluster.local:3000
+    # ploegd's forge URL (PLOEG_FORGEJO_URL). Empty = url. Set it to the
+    # public https URL when url is in-cluster: ploegd matches Vloer's https
+    # repository URLs against it and accepts only https or ssh ones.
+    publicUrl: ""
     tokenSecret:
       name: agent-builder-token
       key: FORGEJO_TOKEN
@@ -295,6 +302,8 @@ executor:
     #  key: PLOEG_FORGEJO_SECRET
   gitlab:
     url: ""
+    # As for forgejo: ploegd's URL when it differs from the workers' url.
+    publicUrl: ""
     tokenSecret:
       name: agent-builder-token
       key: GITLAB_TOKEN
