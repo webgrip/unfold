@@ -388,6 +388,9 @@
               "harness": {
                 "$ref": "#/definitions/harness"
               },
+              "sandbox": {
+                "$ref": "#/definitions/sandboxOverride"
+              },
               "plan": {
                 "type": "array",
                 "minItems": 1,
@@ -716,6 +719,17 @@
     }
   },
   "definitions": {
+    "sandboxOverride": {
+      "type": "object",
+      "description": "type=sandbox only: overrides executor.sandbox for one team's or Role's SandboxTemplate, field by field. An unset field falls back to the team, then the global block.",
+      "additionalProperties": false,
+      "properties": {
+        "runtimeClassName": {
+          "type": "string",
+          "description": "RuntimeClass for the agent-sandbox pod; empty = fall back to the team, then executor.sandbox.runtimeClassName."
+        }
+      }
+    },
     "planRole": {
       "type": "object",
       "properties": {
@@ -746,6 +760,9 @@
         },
         "harness": {
           "$ref": "#/definitions/harness"
+        },
+        "sandbox": {
+          "$ref": "#/definitions/sandboxOverride"
         },
         "workerResources": {
           "type": "object",

@@ -197,8 +197,13 @@ executor:
     # free (empty-handed claim = exit 0).
     schedule: "*/2 * * * *"
   sandbox:
-    # type=sandbox only. "" = the node's default runtime; set kata or gvisor
-    # only after qualifying it with the privileged DinD sidecar on your nodes.
+    # type=sandbox only. Global fallback RuntimeClass for every team and role;
+    # a team's (or a Role's) own `sandbox.runtimeClassName` overrides it field
+    # by field. "" = the node's default runtime; set kata or gvisor only after
+    # qualifying it with the privileged DinD sidecar on your nodes.
+    # Place Kata on bare metal (its own kernel, no nested-virt requirement).
+    # Place gVisor systrap on VMs without nested virt, accepting its file-I/O
+    # penalty on clone-heavy runs.
     runtimeClassName: ""
     # A finished claim is deleted by its launcher; this TTL is the fallback.
     ttlSecondsAfterFinished: 60
@@ -368,6 +373,10 @@ executor:
   #     name: claude-code
   #     image: harbor.webgrip.dev/webgrip/claude-runner:0.1.0
   #     dind: false # claude-code needs no Docker daemon (PolicyException scope review!)
+  #   # Optional: this team's RuntimeClass under the sandbox executor; a Role's
+  #   # `sandbox.runtimeClassName` overrides it. Unset = executor.sandbox above.
+  #   sandbox:
+  #     runtimeClassName: gvisor
   #   # Optional: a Shift plan (run-multi-agent-shifts). With one, this team
   #   # runs each work item through ordered Rounds — a fan-out of readers or a
   #   # single writer per round (ADR-0010) — and `budget` becomes the Shift

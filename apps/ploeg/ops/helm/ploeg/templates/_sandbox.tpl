@@ -25,6 +25,22 @@ sandbox executor. Context: the root context.
 {{- if $any }}true{{- end }}
 {{- end -}}
 
+{{/*
+ploeg.runtimeClassName resolves the RuntimeClass for one (team, role)
+SandboxTemplate through the role -> team -> global chain, the same
+field-by-field override shape as harness: a Role's sandbox.runtimeClassName
+wins over its team's, which wins over executor.sandbox.runtimeClassName. Empty
+at every tier yields "", and sandbox.yaml then renders no runtimeClassName at
+all (the node's default runtime).
+Context: (dict "root" $ "team" <team> "role" <role>).
+*/}}
+{{- define "ploeg.runtimeClassName" -}}
+{{- $rh := (.role | default dict).sandbox | default dict }}
+{{- $th := .team.sandbox | default dict }}
+{{- $gh := .root.Values.executor.sandbox | default dict }}
+{{- $rh.runtimeClassName | default $th.runtimeClassName | default $gh.runtimeClassName | default "" }}
+{{- end -}}
+
 {{- define "ploeg.sandboxLauncherName" -}}
 {{- printf "%s-sandbox-launcher" (include "ploeg.fullname" .) -}}
 {{- end -}}
