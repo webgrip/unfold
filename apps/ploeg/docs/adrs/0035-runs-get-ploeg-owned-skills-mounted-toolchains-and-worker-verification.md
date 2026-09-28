@@ -14,8 +14,11 @@ A writing Run could not run the target repository's checks. The
 `agent-runner` image, maintained in `webgrip/infrastructure` and not in Glide,
 bakes the agent tooling but deliberately no language toolchain and no
 container runtime (homelab-cluster ADR-0053: language gates run in CI). The
-`ploeg` namespace has default-deny egress, so a Run reaches only DNS, the model
-gateway and the forge, and cannot pull an image or install a toolchain. On
+`ploeg` namespace has default-deny egress: a Run's worker pod reaches DNS, the
+other pods in `ploeg` (ploegd and its Postgres), LiteLLM (`ai` namespace, port
+4000), in-cluster Forgejo (`forgejo` namespace, port 3000) and the Vikunja API
+(`vikunja` namespace, port 3456), and has no route to the public gateway, the
+LAN or the internet, so it cannot pull an image or install a toolchain. On
 2026-07-27 an agent shipped a pull request with a red `gofmt` gate twice, and
 the formatting failure hid a failing test it had never run (VIK-594, Ploeg pull
 request #13, CI runs 67 to 69). Three review rounds went to defects the agent
@@ -175,6 +178,9 @@ small, and produces evidence the author of the change cannot edit.
   default-deny egress in `webgrip/homelab-cluster`; the
   [orchestration landscape survey](../research/2026-09-26-agent-orchestration-landscape.md)
   §8 and §10.
+* 2026-09-28 — Network reach corrected. Worker pods lost the public gateway and
+  the LAN in homelab-cluster `ab75cc35`, `92b15206` and `747890d0`;
+  `kubernetes/apps/ploeg/ploeg/app/worker-egress-probe.job.yaml` checks it.
 * Related: [0011](0011-the-pull-request-is-the-blackboard.md),
   [0017](0017-the-review-loop-is-verdict-driven-and-capped.md),
   [0030](0030-target-repository-instructions-rank-below-the-delivery-contract.md),
