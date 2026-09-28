@@ -103,7 +103,11 @@ class Registry:
         request(location, method='PUT', data=data, headers={**headers, 'Content-Type': 'application/octet-stream'})
 
     def upload_manifest(self, repository, version, data):
-        request(f'https://{self.host}/v2/{repository}/manifests/{version}', method='PUT', data=data, headers={**self.headers(repository, 'pull,push'), 'Content-Type': json.loads(data)['mediaType']})
+        request(f'https://{self.host}/v2/{repository}/manifests/{version}', method='PUT', data=data, headers={**self.headers(repository, 'pull,push'), 'Content-Type': manifest_media_type(data)})
+
+
+def manifest_media_type(data):
+    return json.loads(data).get('mediaType', 'application/vnd.oci.image.manifest.v1+json')
 
 
 def copy_chart(source, target, repository, version):

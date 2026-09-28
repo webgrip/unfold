@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import publish_release
 import release_registry
-from release_registry import SafeRedirect, copy_chart, copy_image, digest, verify_image
+from release_registry import SafeRedirect, copy_chart, copy_image, digest, manifest_media_type, verify_image
 
 
 class MemoryRegistry:
@@ -115,6 +115,12 @@ class DistributionTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             copy_chart(source, target, 'webgrip/charts/ploeg', '0.3.0-rc.8')
         self.assertEqual(len(target.writes), 3)
+
+    def test_a_helm_manifest_without_a_media_type_uploads_as_an_oci_manifest(self):
+        helm = json.dumps({'schemaVersion': 2, 'config': {'mediaType': 'application/vnd.cncf.helm.config.v1+json'}, 'layers': []}).encode()
+        self.assertEqual(manifest_media_type(helm), 'application/vnd.oci.image.manifest.v1+json')
+        index = json.dumps({'mediaType': 'application/vnd.oci.image.index.v1+json', 'manifests': []}).encode()
+        self.assertEqual(manifest_media_type(index), 'application/vnd.oci.image.index.v1+json')
 
     def test_unsigned_source_and_failed_accessory_copy_fail_publication(self):
         source, target = fixture(), fixture()
