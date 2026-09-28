@@ -1,4 +1,8 @@
 // Package worker is the run orchestrator that executes one claimed work
+// Outcome represents the final result of a Run, including success, failure, or infra-retry signals.
+// FailureReason captures why a Run failed; MaxInfraFailures limits the number of transient infra failures before giving up.
+// The worker tracks infra failures via the shiftengine's retry budget, ensuring transient mint errors are retried without exhausting the human‑intervention budget.
+
 // item: claim → clone → compose prompt → mint credential → harness adapter
 // run → forge-poll outcome resolution → outcome report. The harness itself
 // is behind harness.Adapter (design §5); the LLM gateway is behind
@@ -18,6 +22,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"strconv"
+
 
 	"github.com/webgrip/ploeg/pkg/harness"
 	"github.com/webgrip/ploeg/pkg/harness/skills"
@@ -438,6 +444,40 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	return final
 }
 
+
+// isTransientMintError returns true for errors that are considered transient and worth retrying.
+// Transient errors include HTTP 5xx, 429 Too Many Requests, and network timeouts.
+func isTransientMintError(err error) bool {
+    // The litellm client returns errors formatted with HTTP status code.
+    if err == nil {
+        return false
+    }
+    // Check for HTTP status codes in the error message.
+    var httpErr struct{ status int }
+    // Simple string parsing since the error is formatted as: "litellm: mint request got HTTP %d"
+    msg := err.Error()
+    // Look for "HTTP " followed by a number.
+    if strings.Contains(msg, "HTTP ") {
+        // Extract the number after "HTTP ".
+        parts := strings.Split(msg, "HTTP ")
+        if len(parts) > 1 {
+            codeStr := strings.Fields(parts[1])[0]
+            if code, convErr := strconv.Atoi(codeStr); convErr == nil {
+                // 5xx or 429 are transient.
+                if code == 429 || (code >= 500 && code < 600) {
+                    return true
+                }
+            }
+        }
+    }
+    // Network timeout or temporary errors are also transient.
+    if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, io.EOF) {
+        return true
+    }
+    // Fallback: not transient.
+    return false
+}
+
 // runAgent mints the per-run credential, runs the harness adapter, and
 // revokes the credential on every return path (deferred). Returns the
 // adapter's report, a mint error (nothing ran), and the run error.
@@ -445,11 +485,40 @@ func runAgent(ctx context.Context, log *slog.Logger, broker llmbroker.Broker, ad
 	spec harness.TaskSpec, env harness.RunEnv, req llmbroker.MintRequest, limit time.Duration, isolation string) (report harness.OutcomeReport, mintErr, runErr error) {
 
 	mintCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	cred, err := broker.Mint(mintCtx, req)
-	cancel()
-	if err != nil {
-		return harness.OutcomeReport{}, err, nil
+	defer cancel()
+
+	// Retry transient credential mint errors (5xx, 429, timeouts).
+	const maxMintAttempts = 3
+	var cred llmbroker.Credential
+	var err error
+	for attempt := 1; attempt <= maxMintAttempts; attempt++ {
+		cred, err = broker.Mint(mintCtx, req)
+		if err == nil {
+			break
+		}
+		// Determine if the error is transient.
+		if !isTransientMintError(err) {
+			// Non‑transient, bail out and let the caller treat it as a stuck error.
+			return harness.OutcomeReport{}, err, nil
+		}
+		if attempt == maxMintAttempts {
+			// Persistent transient error: treat as an infra failure so the Shift
+			// will retry the Run.
+			return harness.OutcomeReport{Outcome: work.OutcomeFailed, Summary: "failed to mint per-run LiteLLM key", FailureReason: string(work.FailureInfraNode)}, nil, nil
+		}
+		// Simple backoff before next attempt.
+		backoff := time.Duration(attempt*200) * time.Millisecond
+		select {
+		case <-time.After(backoff):
+		case <-ctx.Done():
+			return harness.OutcomeReport{}, ctx.Err(), nil
+		}
 	}
+
+	if cred.APIKey != "" {
+		log.Info("minted per-run key", "trace", cred.Alias)
+	}
+
 	if cred.APIKey != "" {
 		log.Info("minted per-run key", "trace", cred.Alias)
 	}
