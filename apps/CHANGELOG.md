@@ -1,3 +1,22 @@
+## [glide-v0.4.0-rc.8](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.7...glide-v0.4.0-rc.8) (2026-09-28)
+
+### Fixed
+
+* **ploeg:** delete a sandbox claim that never becomes ready ([cde904a](https://forgejo.webgrip.dev/webgrip/glide/commit/cde904a606896df4c5b7ffec8695f7749a31b6ed))
+
+### Docs
+
+* **ploeg:** correct sandbox executor qualification and split its remaining work ([e7c596f](https://forgejo.webgrip.dev/webgrip/glide/commit/e7c596f3a81c1819febea84375d6f91f2a516faf)), references [#58](https://forgejo.webgrip.dev/webgrip/glide/issues/58) [#126](https://forgejo.webgrip.dev/webgrip/glide/issues/126) [#127](https://forgejo.webgrip.dev/webgrip/glide/issues/127) [#89](https://forgejo.webgrip.dev/webgrip/glide/issues/89)
+* **ploeg:** drop an anchor link that strict mkdocs rejects ([d85c0d0](https://forgejo.webgrip.dev/webgrip/glide/commit/d85c0d084e1f42550ec9b5dbb4f82f0aec598836)), references [#127](https://forgejo.webgrip.dev/webgrip/glide/issues/127) [#58](https://forgejo.webgrip.dev/webgrip/glide/issues/58) [#58](https://forgejo.webgrip.dev/webgrip/glide/issues/58)
+* **ploeg:** propose ADR-0036, the escalation ladder for stuck Work Items ([e6857c9](https://forgejo.webgrip.dev/webgrip/glide/commit/e6857c9384c533fd068ff96d87deb301d702741b)), references [#3](https://forgejo.webgrip.dev/webgrip/glide/issues/3)
+* **ploeg:** record the kind runner blocker for the sandbox e2e ([8fa3440](https://forgejo.webgrip.dev/webgrip/glide/commit/8fa34402dbb82565351359a65cbd5b41f41928a2)), references [#127](https://forgejo.webgrip.dev/webgrip/glide/issues/127)
+* **ploeg:** record the owner's 2026-09-28 decisions in ADR-0036 ([d039b3c](https://forgejo.webgrip.dev/webgrip/glide/commit/d039b3cf5cb3e37d17d842de72b8d140bde8fce8))
+
+### Tests
+
+* **ploeg:** pin the LLM undercut guard at the column rounding boundary ([9ab3ae1](https://forgejo.webgrip.dev/webgrip/glide/commit/9ab3ae1cc7fbab72bfa88cfcd7c7a6db88806635))
+* **ploeg:** start embedded Postgres on an OS-assigned port ([4623bd1](https://forgejo.webgrip.dev/webgrip/glide/commit/4623bd14fb247881ba25e75d45ff491c28262ea2))
+
 ## [glide-v0.4.0-rc.7](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.6...glide-v0.4.0-rc.7) (2026-09-28)
 
 ### Fixed
