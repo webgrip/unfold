@@ -1,3 +1,9 @@
+## [glide-v0.4.0-rc.11](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.10...glide-v0.4.0-rc.11) (2026-09-28)
+
+### Added
+
+* **ploeg:** withdraw a Work Item whose ticket closes before work starts ([9b79d3c](https://forgejo.webgrip.dev/webgrip/glide/commit/9b79d3c4282408e38d947cea39cce120f13325c1))
+
 ## [glide-v0.4.0-rc.10](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.9...glide-v0.4.0-rc.10) (2026-09-28)
 
 ### Fixed
