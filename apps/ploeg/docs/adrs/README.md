@@ -110,6 +110,7 @@ fails otherwise.
 | [0033](0033-board-control-planes-are-mined-for-design-never-depended-on.md) | Board control planes (Paperclip, Multica) are mined for design and never depended on | proposed | 2026-09-26 |
 | [0034](0034-the-harness-gets-placeholders-the-worker-keeps-credentials.md) | The harness gets placeholders; the worker keeps the credentials | proposed | 2026-09-26 |
 | [0035](0035-runs-get-ploeg-owned-skills-mounted-toolchains-and-worker-verification.md) | Runs get Ploeg-owned skills, mounted toolchains and a verification the worker runs | proposed | 2026-09-27 |
+| [0036](0036-stuck-work-reaches-the-owner-as-a-cited-proposal-not-an-agent-decision.md) | Stuck work reaches the owner as a cited proposal; no agent applies a decision | proposed | 2026-09-28 |
 
 ## Review calendar
 
@@ -125,4 +126,5 @@ triggers.
 | 2027-01-31 | [0010](0010-shift-owns-the-item-lease-owns-the-branch.md), [0011](0011-the-pull-request-is-the-blackboard.md), [0012](0012-two-level-budgets-authorized-and-settled.md), [0013](0013-push-rights-are-minted-per-run.md), [0017](0017-the-review-loop-is-verdict-driven-and-capped.md), [0018](0018-the-outcome-drop-box-is-every-harnesss-return-path.md), [0019](0019-a-failed-writing-run-reopens-its-round.md), [0021](0021-infra-failures-and-agent-failures-get-separate-retry-budgets.md), [0023](0023-the-forge-dialect-travels-on-the-work-item.md) — after the first real Shifts have run; all nine rest on assumptions only production can test |
 | 2027-01-31 | [0034](0034-the-harness-gets-placeholders-the-worker-keeps-credentials.md) — or sooner, when a qualified harness needs credentials from inside DinD |
 | 2027-01-31 | [0033](0033-board-control-planes-are-mined-for-design-never-depended-on.md) — or sooner, when Paperclip ships bring-your-own ticket system or Multica publishes a stable daemon protocol |
+| 2027-01-31 | [0036](0036-stuck-work-reaches-the-owner-as-a-cited-proposal-not-an-agent-decision.md) — or sooner, after 20 escalation briefs, or when Ploeg writes to the tracker as its own user |
 | 2027-04-01 | [0005](0005-build-a-dedicated-dispatch-plane.md), [0032](0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md) — the project review gate (`design.md` §10) |
