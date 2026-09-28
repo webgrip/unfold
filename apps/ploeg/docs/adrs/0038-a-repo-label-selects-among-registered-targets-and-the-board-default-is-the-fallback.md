@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-09-28
 decision-makers: Ryan Grippeling
 supersedes: none
@@ -92,13 +92,16 @@ The proposed shape:
    does not model a multi-target Work Item.
 8. **The registry is derived, later (G1).** Once the homelab repo-config model exists
    (VIK-1310) and the agent bot's write grant is per repository (VIK-1327),
-   homelab-cluster fills `targets:` from the repositories with the `agent-driven`
-   profile. It starts as a Lint check that the two sets are equal and becomes a renderer
-   when the hand-kept list is the friction. Glide reads a generic registry and never a
-   homelab file format.
+   homelab-cluster fills `targets:` from the repo-config entries that carry the
+   `agent-target` flag. The flag is separate from the `agent-driven` protection profile,
+   so becoming a target and getting agent-review branch protection are two decisions.
+   The entry also carries the agent base branch, which Glide reads. It starts as a Lint
+   check that the two sets are equal and becomes a renderer when the hand-kept list is
+   the friction. Glide reads a generic registry and never a homelab file format.
 9. **A readiness gate.** A registry entry whose repository is archived, is a mirror, or
    has no `AGENTS.md` on its base branch is loaded as not ready, and an item that
-   resolves to it is refused with that reason. The gate runs at load and again at claim.
+   resolves to it is refused with that reason. The gate runs at config load and again
+   at claim, and each refusal is recorded with its reason.
 10. **Planner-proposed splits (G3).** After ADR-0031 is accepted, a planner may propose
     the children of a cross-repository request. Each child is held for approval and
     passes the same registry and allowlist.
@@ -117,9 +120,19 @@ The owner answered four of the five questions this record first asked:
 * **Boards.** Forgejo Migration becomes hint-required (no default). The Omnigraph
   Explorer project folds into the board that owns it. Boards follow work streams, not
   repositories (G4).
-* **Direction.** Not yet chosen. The owner asked for a more strategic option than B,
-  which is how G was evaluated. This record proposes B-then-G1/G3 and stays `proposed`
-  until the owner confirms it.
+
+### Decisions recorded 2026-09-28, second round
+
+The owner answered the questions left after G was evaluated, and this record moved to
+`accepted`:
+
+* **Direction.** B now, with strict routing (VIK-1354) first, then G1 and G3. No G2.
+* **G1 selector.** A separate `agent-target` flag on the repo-config entry selects
+  routing targets. It is decoupled from the `agent-driven` protection profile.
+* **Base branch.** The agent base branch lives on the repo-config entry, and Glide reads
+  it from there.
+* **Readiness.** A target that fails the readiness check is refused both at config load
+  and again at claim, each time with a recorded reason.
 
 The other options, in brief (evidence in the research note). G2, component labels
 resolved through Backstage, fails on today's facts: the catalog discovers from GitHub,
@@ -170,7 +183,9 @@ splinters the per-board pick-up queue.
   `pkg/target` compares them only for equality.
 * Table tests for the readiness gate: an archived repository, a mirror and a missing
   `AGENTS.md` each load as not ready and refuse with a reason; a ready entry resolves.
-* Once G1 lands, homelab-cluster e2e Lint fails when the `agent-driven` repositories and
+* A claim-time test: an item pinned to a target that became unready after ingest is
+  refused at claim with a recorded reason, and no Run starts.
+* Once G1 lands, homelab-cluster e2e Lint fails when the `agent-target` repositories and
   the registered targets differ, proven by a mutation test in each direction.
 * `go test ./...` in `.forgejo/workflows/on_pull_request.yml` runs all three.
 
@@ -211,7 +226,7 @@ splinters the per-board pick-up queue.
 
 ### G. The repository declares itself
 
-* Good, because G1 ties the write grant and the route to one profile in reviewed git,
+* Good, because G1 ties the route to one flagged repo-config entry in reviewed git,
   and adds a readiness gate C lacked.
 * Good, because G3 is D restricted to a proposal a person confirms, on ADR-0031's
   held-for-approval state.
@@ -239,12 +254,4 @@ splinters the per-board pick-up queue.
 * Refines [ADR-0015](0015-routing-is-core-policy-over-provider-opaque-scopes.md) (the
   hint) and relies on [ADR-0014](0014-work-target-is-a-work-item-attribute.md) (pinning).
 * Backlog #9, #34, #96, #105, #108, #120 and #122; ticket VIK-1340.
-* Open for the owner before this can be accepted:
-  1. The direction: B now, then G1 and G3, with G2 rejected for routing.
-  2. Whether the `agent-driven` profile is the right selector for G1, given the RFC
-     defines it as a branch-protection profile (one agent approval) that starts on
-     `webgrip/glide` only. The alternative is a separate `agent-target` flag on the
-     repository entry.
-  3. Where the agent base branch lives for G1: a new field on the repo-config entry, or
-     kept in Glide's registry.
-  4. Whether an unready target refuses at claim (proposed) or only at load.
+* No questions are open. The owner's answers are recorded under Decision Outcome.

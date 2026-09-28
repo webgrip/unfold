@@ -369,3 +369,9 @@ owning board is the first instance.
 
 C's narrow variant (register what the bot can write) is what G1 becomes once grants are
 per repository, so it is no longer a separate re-evaluation item.
+
+Owner decisions, 2026-09-28: the direction above is confirmed. G1 selects targets with a
+separate `agent-target` flag on the repo-config entry, not the `agent-driven` protection
+profile. The agent base branch lives on that entry. A target that fails the readiness
+check is refused at config load and again at claim, with a recorded reason. See
+[ADR-0038](../adrs/0038-a-repo-label-selects-among-registered-targets-and-the-board-default-is-the-fallback.md).
