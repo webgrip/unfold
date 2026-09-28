@@ -18,3 +18,8 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0002](adr-0002-ploeg-is-the-only-engine.md) | Ploeg is the only execution engine and Vloer is its front end | accepted | 2026-09-22 |
 | [ADR-0003](adr-0003-the-unit-of-work-is-the-work-item.md) | The unit of work is the Work Item, and work can create work | accepted | 2026-09-22 |
 | [ADR-0004](adr-0004-glide-releases-one-version.md) | Glide releases Vloer and Ploeg under one version | accepted | 2026-09-27 |
+| [ADR-0005](adr-0005-glide-is-offered-to-agencies.md) | Glide is offered to agencies, and delivery ends at a reviewed pull request with a preview | proposed | 2026-09-28 |
+| [ADR-0006](adr-0006-the-ticket-is-the-billing-unit.md) | The ticket is the billing unit: a quoted, capped Shift budget charged on delivery | proposed | 2026-09-28 |
+| [ADR-0007](adr-0007-clients-approve-ready-work.md) | Clients approve Ready work, and each client sets its own definitions of Ready and Done | proposed | 2026-09-28 |
+| [ADR-0008](adr-0008-every-pull-request-gets-a-preview-environment.md) | Every pull request gets a preview environment; production stays with the agency | proposed | 2026-09-28 |
+| [ADR-0009](adr-0009-one-tenant-per-agency.md) | One tenant per agency, isolated by namespace, network, runtime and credentials | proposed | 2026-09-28 |

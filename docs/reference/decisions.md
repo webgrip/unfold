@@ -59,6 +59,11 @@ An accepted record states why a rule exists. A proposed record is an open questi
 
 | Scope | ADR | Title | Date | Implemented? | Evidence |
 | --- | --- | --- | --- | --- | --- |
+| System | [0005](../adr/adr-0005-glide-is-offered-to-agencies.md) | Glide is offered to agencies, and delivery ends at a reviewed pull request with a preview | 2026-09-28 | unknown | — |
+| System | [0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md) | The ticket is the billing unit: a quoted, capped Shift budget charged on delivery | 2026-09-28 | unknown | — |
+| System | [0007](../adr/adr-0007-clients-approve-ready-work.md) | Clients approve Ready work, and each client sets its own definitions of Ready and Done | 2026-09-28 | unknown | — |
+| System | [0008](../adr/adr-0008-every-pull-request-gets-a-preview-environment.md) | Every pull request gets a preview environment; production stays with the agency | 2026-09-28 | unknown | — |
+| System | [0009](../adr/adr-0009-one-tenant-per-agency.md) | One tenant per agency, isolated by namespace, network, runtime and credentials | 2026-09-28 | unknown | — |
 | Ploeg | [0015](../../apps/ploeg/docs/adrs/0015-routing-is-core-policy-over-provider-opaque-scopes.md) | Route work in the core over provider-opaque Scopes | 2026-07-29 | partial | Scope resolver exists; tracker team mapping is still live ([source](../../apps/ploeg/pkg/target/resolver.go)) |
 | Ploeg | [0016](../../apps/ploeg/docs/adrs/0016-forge-registry-and-per-run-repo-scoped-credentials.md) | Resolve forges through a registry and mint forge credentials per Run | 2026-07-29 | partial | Per-run forge tokens exist; the worker still calls the forge API directly ([source](../../apps/ploeg/pkg/forgebroker/broker.go)) |
 | Ploeg | [0017](../../apps/ploeg/docs/adrs/0017-the-review-loop-is-verdict-driven-and-capped.md) | The review loop is verdict-driven and capped | 2026-07-29 | yes | Verdict loop and fix-round cap are tested ([source](../../apps/ploeg/pkg/shiftengine/reviewloop_test.go)) |
