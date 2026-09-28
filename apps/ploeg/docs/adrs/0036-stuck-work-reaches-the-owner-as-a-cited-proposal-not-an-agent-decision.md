@@ -92,6 +92,30 @@ the owner assembled alone, and grants no agent new authority. Everything about
 the lead is reversible: if its briefs do not save owner minutes, it is switched
 off per Team and nothing else changes.
 
+### Owner decisions (2026-09-28)
+
+The owner answered the questions this record left open. The record stays
+`proposed` until it is merged and ratified; these answers are the terms it
+will be ratified on.
+
+1. **The lead stays proposal-only** until E1 reaches at least 90 % over at
+   least 20 briefs with E3 at zero (no wrong decision). Only then may a new
+   record reopen autonomy, as the first re-evaluation trigger says.
+2. **Decision sources.** The first slice lists Glide's own accepted ADRs in
+   `escalation.decisionSources`. homelab-cluster's accepted ADRs are added in
+   the second slice, once ploegd fetches listed sources into the briefing.
+3. **T0 defaults.** The premise check is on by default for Team `bronze`, and
+   opt-in for every other Team.
+4. **Budgets.** Pre-flight US$0.10 per Run, the lead US$1.00 per brief, and
+   `maxBriefs` 1 per stuck Work Item.
+5. **Authenticated owner decisions.** Glide (ploegd) gets its own Vikunja user,
+   and the owner mints its token. Once Ploeg's tracker comments are written as
+   that user, a comment headed `**Owner decision YYYY-MM-DD:**` whose author
+   is the owner's account is authentic, and may become a ground. The same user
+   gives the outcome observation loop (homelab-cluster
+   `rfc-outcome-observation-loop.md`, decision 6) an attributable Glide writer.
+   The work is tracked under epic VIK-1276.
+
 ### The ladder
 
 | Tier | Built as | Who acts | Authority | Budget | Stops because |
@@ -107,9 +131,11 @@ T1 means T1 in the proposal: the reviewer is not given a third verdict meaning
 verdict carrying more than the enum" as the boundary it guards. The defect was
 on the writer's side, and it is fixed there.
 
-T0 is opt-in per Team because every Work Item pays for it, while the waste it
+T0 is per Team because every Work Item pays for it, while the waste it
 prevents shows up in only a few. It pays off for a Team whose Work Items come
 from people who write "extend the existing X" without checking that X exists.
+Team `bronze`, where VIK-573 ran, is that Team, so T0 is on by default there
+and opt-in for the others (owner decision 3).
 
 ### The escalation brief
 
