@@ -2,13 +2,13 @@
 type: reference
 audience: [owner, operator, contributor]
 owner: glide
-last_verified: 2026-09-23
-verified_by: "source read of apps/ploeg/pkg/store/migrations 0001-0016, pkg/store, pkg/shiftengine and pkg/provider/forgejo on development; commits 8148c1d and cfd6ec4 read where marked"
+last_verified: 2026-09-27
+verified_by: "source read of docs/reference/kpis.md and apps/ploeg/docs/backlog.md on development; KPI tickets VIK-1214/VIK-1215 and the landed cfd6ec4 merge per VIK-1289"
 ---
 
 # Glide KPIs
 
-**Status: proposal.** Nothing on this page is measured yet. The KPIs, thresholds and dashboard below are a proposal for backlog items #91 and #92. Targets stay provisional until a baseline exists.
+**Status: proposal.** Nothing on this page is measured yet. The KPIs, thresholds and dashboard below are a proposal for [VIK-1214](https://vikunja.webgrip.dev/tasks/1214) (the KPI set) and [VIK-1215](https://vikunja.webgrip.dev/tasks/1215) (the dashboard). Targets stay provisional until a baseline exists.
 
 Glide's goal is one loop: Work Items go to agents, the agents do all the code work until a pull request is ready for your review, and the throughput limit becomes cluster size rather than your time ([Architecture](../concepts/architecture.md#goals)). These six KPIs tell you whether that loop is working and what to change when it is not. Each one names the decision it changes. A KPI that stops changing a decision comes off the list at the next review.
 
@@ -20,7 +20,7 @@ Glide's goal is one loop: Work Items go to agents, the agents do all the code wo
 | K2 | Cost per ready pull request | cost | K1, K5 | Ploeg `agent_runs`, `run_llm_accounts`; LiteLLM spend logs as a cross-check |
 | K3 | Lead time to ready | speed | K4 | Ploeg `shifts`, `agent_runs`, `audit_log` |
 | K4 | Rework: fix-Round share and re-assignment rate | quality | K3 | Ploeg `agent_runs.verdict`, `audit_log` |
-| K5 | Clean-merge rate | quality | K1, K2 | Needs the merge settlement in `cfd6ec4`; review type is a data gap |
+| K5 | Clean-merge rate | quality | K1, K2 | Uses the merge settlement in `cfd6ec4`, which has landed; review type is a data gap |
 | K6 | Owner review minutes per pull request | your time | K5 | No source yet; a proxy and a proposed source below |
 
 **Goodhart pairs.** Each speed or volume number has a quality number next to it. Ask of each: how could this number improve while the work gets worse?
@@ -82,7 +82,7 @@ Two numbers, both about work that had to be done twice.
 ### K5 Clean-merge rate
 
 * **Formula:** Work Items whose `awaiting_review` pull request merged with no submitted review on its branch in between ÷ all `awaiting_review` pull requests that merged or closed in the window.
-* **Source:** the merge settlement rows from commit `cfd6ec4`, which is not on development yet: `audit_log` rows from `ploegd:review` with action `work_item.done` and `detail->>'reason' = 'pull request merged'`, or `work_item.needs_human` with reason `pull request closed without merging`. Reviews come from `forge.review_submitted` rows, matched on `detail->>'branch' = shifts.branch`.
+* **Source:** the merge settlement rows from commit `cfd6ec4`, now merged to development: `audit_log` rows from `ploegd:review` with action `work_item.done` and `detail->>'reason' = 'pull request merged'`, or `work_item.needs_human` with reason `pull request closed without merging`. Reviews come from `forge.review_submitted` rows, matched on `detail->>'branch' = shifts.branch`.
 * **Data gap:** Ploeg records that a review was submitted, not whether it approved or asked for changes. Commits you push to the branch yourself are not recorded either. Until data ticket D1 below lands, an approval submitted as a review counts as a change. To keep the proxy honest, merge without a formal approval.
 * **Direction:** higher is better. **Frequency:** monthly, because the counts are small.
 * **Baseline:** the first 20 merged or closed pull requests.
@@ -93,7 +93,7 @@ Two numbers, both about work that had to be done twice.
 
 * **Formula:** p50 and p85 of the minutes you actively spend on one agent pull request, from opening it to merging or closing it.
 * **Source:** none today. Proposed, not implemented: Vloer's Awaiting review screen records how long a Work Item's review screen is open and focused, and reports the total to Ploeg's operator API as an `audit_log` row (`review.viewed`, detail `{"active_seconds": n}`). That is data ticket D2. Review done only on the forge stays invisible to it.
-* **Proxy today:** **review wait**, the time from the `awaiting_review` settle to the `ploegd:review` settle (needs `cfd6ec4`). It measures how long a pull request waits for you, not how long you spend on it. Report it as review wait, never as review effort.
+* **Proxy today:** **review wait**, the time from the `awaiting_review` settle to the `ploegd:review` settle. It measures how long a pull request waits for you, not how long you spend on it. Report it as review wait, never as review effort.
 * **Perceptual check:** once a month, rate from 1 to 5: "Reviewing agent pull requests was a good use of my time." Record it next to the dashboard. This is the one survey measure in the set.
 * **Direction:** lower is better, provided K5 holds. **Frequency:** monthly.
 * **Baseline:** the first 20 pull requests after D2 lands.
@@ -102,12 +102,12 @@ Two numbers, both about work that had to be done twice.
 
 ## Data tickets
 
-| Id | Gap | Proposed change | Unblocks |
-| --- | --- | --- | --- |
-| D1 | Review type and your own commits are not recorded | Store the Forgejo review type (`approved`, `rejected`, `comment`) and reviewer in the `forge.review_submitted` audit detail. Record the pull request head SHA at `awaiting_review` and at merge | K5 without the proxy |
-| D2 | Review effort is not recorded | Vloer's review screen reports active seconds per Work Item to Ploeg | K6 |
-| D3 | `audit_log` has no index for these queries | An index on `(work_item_id, at)`, added when the dashboard becomes slow | Dashboard speed |
-| D4 | The merge settlement is on another branch | Merge `cfd6ec4` to development | K5, the K6 proxy |
+| Id | Gap | Proposed change | Unblocks | Status |
+| --- | --- | --- | --- | --- |
+| D1 | Review type and your own commits are not recorded | Store the Forgejo review type (`approved`, `rejected`, `comment`) and reviewer in the `forge.review_submitted` audit detail. Record the pull request head SHA at `awaiting_review` and at merge | K5 without the proxy | open |
+| D2 | Review effort is not recorded | Vloer's review screen reports active seconds per Work Item to Ploeg | K6 | open |
+| D3 | `audit_log` has no index for these queries | An index on `(work_item_id, at)`, added when the dashboard becomes slow | Dashboard speed | open |
+| D4 | The merge settlement was on another branch | Merge `cfd6ec4` to development | K5, the K6 proxy | **done** |
 
 ## SQL
 
@@ -267,7 +267,7 @@ FROM ready;
 
 ### K5
 
-Needs `cfd6ec4`. Before it lands, the query returns no rows.
+The query uses the merge settlement from `cfd6ec4`.
 
 ```sql
 -- shift_settle CTE here
@@ -301,7 +301,7 @@ WHERE $__timeFilter(reviewed_at);
 
 ### K6 proxy: review wait
 
-Needs `cfd6ec4`. It uses the `reviewed` CTE from K5.
+It uses the merge settlement from `cfd6ec4` and the `reviewed` CTE from K5.
 
 ```sql
 -- shift_settle and reviewed CTEs here
