@@ -23,8 +23,8 @@ mise exec -- npm run demo
 ```
 
 1. Open the **De Vloer** activity bar and run **Vloer: Connect to Workbench**. Enter `http://127.0.0.1:4080`; demo mode supplies its identified demonstration user.
-2. Expand **Linked Tasks → Demo tasks**, open the fixture task and inspect its preview.
-3. Choose **Set up session**, select a crew, runtime and budget, then confirm **Import task**. The wizard supports going back before confirmation.
+2. Expand **Linked Tasks → Demo tasks** and open the fixture task. It opens in its own tab with the description and a **Glide** card; the demo fixture is not linked to Ploeg.
+3. Choose **Start a supervised session**, select a crew, runtime and budget, then confirm **Create session**. The wizard supports going back before confirmation.
 4. Choose **Start remote crew** in the queued session. This command name also controls work on a local workbench.
 5. Inspect **Checks**, **Changes** and the final review, then download the Git bundle, patch or manifest from **Brief**.
 
@@ -48,7 +48,8 @@ The server enforces identity and session ownership. Viewers inspect visible sess
 | Checks | Read recorded check output and distinguish passing, failing and expected fixture failures |
 | Activity | Inspect durable events, tool input/output and the brief supplied to each role |
 | Gateway | Inspect attributed model requests, routing, cost and errors; open configured Grafana links |
-| Ploeg tree | Browse allowed teams and bounded work snapshots, then open workbench details for shifts, runs and accounting |
+| Task view | Read a linked task with its labels and assignees, see whether Ploeg has it, hand it to a Ploeg team or take it back, or start a supervised session |
+| Ploeg tree | Browse allowed teams and bounded work snapshots. A Work Item opens its task view when its tracker source is registered; the inline icon opens workbench details for shifts, runs and accounting |
 
 The crew strip distinguishes implementation, analysis and the final independent review. Earlier read roles supply analysis. Writing crews require an explicit final approval. A completed session awaits the person's review; accept or reject it from the toolbar or **Record Review** command. Rejection requires a reason, and the decision records the person who made it.
 
@@ -56,17 +57,19 @@ Permission and question cards wait for an explicit answer. **Allow once** grants
 
 Start, pause, resume and cancel follow the server's permitted transitions. Cancellation does not create replacement work. An instruction is saved for the next execution; **Pause the active run first** pauses before saving it. The composer distinguishes a local draft, sending, saved and delivery unknown.
 
-No API mutation is retried automatically. If a response is lost, refresh before repeating the action: the server may have accepted it. Shared execution also has stricter recovery and budget rules than standalone mode. In particular, the current shared API does not support the standalone additional-budget operation. See the [HTTP contract](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/contracts/api.md).
+No API mutation is retried automatically. A read that meets an unreachable workbench or a gateway error is retried once. If a response is lost, refresh before repeating the action: the server may have accepted it. Shared execution also has stricter recovery and budget rules than standalone mode. In particular, the current shared API does not support the standalone additional-budget operation. See the [HTTP contract](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/contracts/api.md).
 
 The spending card distinguishes authorization, observations, reservations and settlement. Unknown spend is not zero. Gateway data can arrive late and cannot prove an exact ceiling for requests already in flight.
 
-## Import a linked task
+## Work from a linked task
 
 An administrator configures sources on the workbench. Registered Forgejo, GitHub, GitLab, ClickUp and Vikunja sources appear in both clients. Tracker credentials stay on the server. Personal GitLab account linking is available through **Vloer: Linked Accounts**; it does not automatically register a task source. Configuration and scope limits are in the [task connection guide](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/operations/task-connections.md).
 
-Open a task's inert text preview, inspect its mapped repository, choose the crew and authorization, then confirm the workbench and task revision. A stale revision requires a fresh preview. Repeating the same import reopens its existing session; it does not create another paid attempt. Import prepares queued work; Start begins execution.
+Select a task to open its task view. The description is rendered from the tracker as inert text; links open in your browser only when they use HTTPS. The **Glide** card says whether Ploeg already has the task, what state it is in and what happens next, with links to its pull request and Ploeg workbench details.
 
-Standalone import requires an interactive source and repository. In shared mode, registered Vikunja and ClickUp targets can bind to the existing Ploeg Work Item, which is claimed on Start. Missing or unsupported bindings remain unavailable for import. Import itself does not mutate the tracker. Source text cannot select another repository or change execution authority.
+**Hand to Ploeg** is offered on boards that Ploeg owns. Choose a team and confirm: the workbench assigns that team's tracker user and comments that you handed it over, which is how Ploeg receives work. Ploeg queues it, works on a branch and opens a pull request for review. **Take back** removes the assignment while the item is still queued; work that has started is cancelled from the Ploeg view. Viewers can read the task view but cannot hand work over. Older workbench servers show the task without Ploeg status.
+
+**Start a supervised session** prepares operator-led work instead: choose the crew and authorization, then confirm the workbench and task revision. A stale revision requires a fresh preview. Repeating the same import reopens its existing session; it does not create another paid attempt. Import prepares queued work; Start begins execution. Standalone import requires an interactive source and repository. In shared mode, registered Vikunja and ClickUp targets can bind to the existing Ploeg Work Item, which is claimed on Start. Import itself does not mutate the tracker. Source text cannot select another repository or change execution authority.
 
 ## Bring back evidence
 
@@ -86,7 +89,7 @@ Each attachment is limited to 12,000 characters and becomes a durable instructio
 
 ## Connection and privacy
 
-Open panels consume the server event stream, with polling as a fallback. The footer distinguishes live, polling and disconnected states. Disconnection disables panel mutations; closing the editor does not stop remote work. **Open complete history** fetches retained events beyond the bounded panel buffer. The Ploeg tree uses refreshed snapshots rather than a lossless subscription.
+A failed refresh keeps the last loaded sessions and tasks on screen and says the extension is reconnecting; the views switch to offline after three consecutive failures or an expired sign-in. Open panels consume the server event stream, with polling as a fallback. The footer distinguishes live, polling and disconnected states. Disconnection disables panel mutations; closing the editor does not stop remote work. **Open complete history** fetches retained events beyond the bounded panel buffer. The Ploeg tree uses refreshed snapshots rather than a lossless subscription.
 
 Notifications cover decisions, failures and results ready for review. Configure `vloer.notifications`, `vloer.liveUpdates` and the polling interval in settings. No global keyboard shortcuts are registered; the composer supports Ctrl+Enter or Cmd+Enter.
 

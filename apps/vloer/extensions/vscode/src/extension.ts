@@ -9,11 +9,13 @@ import { browserLogin } from './browser-login.js';
 import { EvidenceDocuments, patchFileLine } from './evidence.js';
 import { AttentionWatcher, show, type NotificationPolicy } from './notifications.js';
 import { SessionPanels, type PanelHost, type PanelTab, type InstructionOutcome } from './panel.js';
-import { presentation, situation, safeHttpsUrl, spendLabel, isolatedPlacement, placementLabel, presentationFor } from './status.js';
+import { presentation, situation, safeHttpsUrl, spendLabel, isolatedPlacement, placementLabel, presentationFor, plainText, providerNames } from './status.js';
 import { setApproval as chooseApproval, type ApprovalChoice } from './approval.js';
 import { linkedAccounts, type AccountChoice } from './accounts.js';
 import { hasAgentHost, withAgentHost, withoutIssuedAgentHost, type AgentHostEntry } from './agent-host.js';
 import { SessionTree, TaskTree, type SessionEntry, type TaskEntry } from './tree.js';
+import { TaskPanels, type TaskPanelHost } from './task-panel.js';
+import { sessionEligibility } from './task-view.js';
 import * as wizard from './wizard.js';
 import type { Approval, Bootstrap, Session, TaskSnapshot, TaskSource, CandidateFormat, Decision, Permission } from './types.js';
 
@@ -22,7 +24,7 @@ type Draft = { repositoryId?: string; crewId?: string; runtime?: string; placeme
 
 function settings() { return vscode.workspace.getConfiguration('vloer'); }
 
-class Workbench implements vscode.Disposable, PanelHost {
+class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
   readonly extensionUri: vscode.Uri;
   private readonly context: vscode.ExtensionContext;
   private current: VloerClient;
@@ -36,6 +38,8 @@ class Workbench implements vscode.Disposable, PanelHost {
   private readonly status = vscode.window.createStatusBarItem('vloer.status', vscode.StatusBarAlignment.Left, 10);
   private readonly documents: EvidenceDocuments;
   private readonly panels: SessionPanels;
+  private readonly taskPanels: TaskPanels;
+  private ticks = 0;
   private readonly watcher = new AttentionWatcher(() => settings().get<NotificationPolicy>('notifications', 'all'));
   private timer: ReturnType<typeof setInterval>;
   private refreshBusy = false;
@@ -43,6 +47,8 @@ class Workbench implements vscode.Disposable, PanelHost {
   private generation = 0;
   private configurationError?: Error;
   private drafts = new Map<string, Draft>();
+  private failures = 0;
+  private lastSuccess?: Date;
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
@@ -53,15 +59,16 @@ class Workbench implements vscode.Disposable, PanelHost {
     this.view = vscode.window.createTreeView('vloer.sessions', { treeDataProvider: this.tree, showCollapseAll: true });
     this.tasks = new TaskTree(async (sourceId, page) => { const target = this.current; const generation = this.generation; const result = await target.tasks(sourceId, page); this.assertTarget(target, generation); return result; });
     this.taskView = vscode.window.createTreeView('vloer.tasks', { treeDataProvider: this.tasks, showCollapseAll: true });
-    this.ploeg = new PloegTree(async (team, fresh) => { const target = this.current; const generation = this.generation; const result = await target.ploeg(team, fresh); this.assertTarget(target, generation); return result; });
+    this.ploeg = new PloegTree(async (team, fresh) => { const target = this.current; const generation = this.generation; const result = await target.ploeg(team, fresh); this.assertTarget(target, generation); return result; }, at => { this.ploegView.message = `Snapshot ${at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · Ploeg owns dispatch`; });
     this.ploegView = vscode.window.createTreeView('vloer.ploeg', { treeDataProvider: this.ploeg, showCollapseAll: true });
     this.documents = new EvidenceDocuments(async (sessionId, artifactId) => (await this.current.session(sessionId)).artifacts.find(artifact => artifact.id === artifactId));
     this.panels = new SessionPanels(this);
+    this.taskPanels = new TaskPanels(this);
     this.status.name = 'De Vloer';
     this.status.text = '$(layers) Vloer';
     this.status.command = 'vloer.sessions.focus';
     this.status.show();
-    context.subscriptions.push(this.tree, this.view, this.tasks, this.taskView, this.ploeg, this.ploegView, this.status, this.documents, this.panels, vscode.workspace.registerTextDocumentContentProvider('vloer-evidence', this.documents));
+    context.subscriptions.push(this.tree, this.view, this.tasks, this.taskView, this.ploeg, this.ploegView, this.status, this.documents, this.panels, this.taskPanels, vscode.workspace.registerTextDocumentContentProvider('vloer-evidence', this.documents));
     context.subscriptions.push(vscode.window.registerWebviewPanelSerializer('vloer.session', { deserializeWebviewPanel: async (panel, state: { sessionId?: string } | undefined) => { const id = typeof state?.sessionId === 'string' && /^[a-zA-Z0-9_-]+$/.test(state.sessionId) ? state.sessionId : undefined; if (!id) { panel.dispose(); return; } this.panels.adopt(id, panel); } }));
     context.subscriptions.push(this.view.onDidChangeVisibility(event => { if (event.visible) void this.refresh(); }));
     context.subscriptions.push(context.secrets.onDidChange(event => { if (event.key === this.current.secretKey) this.connectionChanged(); }));
@@ -86,6 +93,8 @@ class Workbench implements vscode.Disposable, PanelHost {
     register('browseTasks', value => this.browseTasks(value));
     register('refreshTasks', async () => { await this.refresh(true); this.tasks.refresh(); });
     register('importTask', value => this.importTask(value));
+    register('openTask', value => this.openTask(value));
+    register('openPloegItem', value => this.openPloegItem(value));
     register('sourceTask', value => this.sourceTaskCommand(value));
     register('openTaskLink', value => this.openTaskLink(value));
     register('downloadCandidate', (value, format) => this.downloadCandidateCommand(value, format));
@@ -123,12 +132,16 @@ class Workbench implements vscode.Disposable, PanelHost {
 
   private connectionChanged() {
     this.generation++;
+    this.failures = 0;
+    this.lastSuccess = undefined;
     this.cachedBootstrap = undefined;
     this.watcher.reset();
     this.drafts.clear();
     this.panels.closeAll();
+    this.taskPanels.closeAll();
     this.tasks.update([], 'Connection changed — refresh linked tasks');
     this.ploeg.reset('Connection changed — reconnect to inspect Ploeg');
+    this.ploegView.message = undefined;
   }
 
   private assertTarget(client: VloerClient, generation: number) {
@@ -137,7 +150,10 @@ class Workbench implements vscode.Disposable, PanelHost {
 
   private poll() {
     const seconds = Math.max(2, Math.min(60, settings().get('refreshIntervalSeconds', 5)));
-    return setInterval(() => { if (this.view.visible || this.taskView.visible || this.ploegView.visible || this.panels.visible) void this.refresh(); }, seconds * 1000);
+    return setInterval(() => {
+      if (this.view.visible || this.taskView.visible || this.ploegView.visible || this.panels.visible) void this.refresh();
+      if (this.ploegView.visible && ++this.ticks * seconds >= 30) { this.ticks = 0; this.ploeg.soften(); }
+    }, seconds * 1000);
   }
 
   private async perform(action: () => Promise<unknown>): Promise<void> {
@@ -152,10 +168,12 @@ class Workbench implements vscode.Disposable, PanelHost {
 
   private offline(error: unknown) {
     this.cachedBootstrap = undefined;
+    this.lastSuccess = undefined;
     const needsLogin = error instanceof ApiError && error.status === 401;
     this.tree.update([], needsLogin ? 'Sign in to your workbench' : 'Workbench unavailable — reconnect', 'vloer.connect');
     this.tasks.update([], needsLogin ? 'Sign in to browse linked tasks' : 'Reconnect to browse linked tasks');
     this.ploeg.reset(needsLogin ? 'Sign in to inspect Ploeg work' : 'Reconnect to inspect Ploeg work');
+    this.ploegView.message = undefined;
     this.view.message = needsLogin ? 'Your session has expired.' : 'Work continues on the workbench. Reconnect to inspect it.';
     this.view.badge = undefined;
     this.status.text = needsLogin ? '$(account) Vloer: sign in' : '$(debug-disconnect) Vloer: offline';
@@ -164,6 +182,16 @@ class Workbench implements vscode.Disposable, PanelHost {
     this.status.tooltip = needsLogin ? 'Sign in to your workbench' : 'Reconnect to your workbench';
     void vscode.commands.executeCommand('setContext', 'vloer.connected', false);
     this.panels.offline(needsLogin ? 'Session expired. Use Vloer: Connect to sign in.' : 'Connection lost. The workbench keeps its state.');
+    this.taskPanels.offline();
+  }
+
+  private reconnecting(error: unknown) {
+    const since = this.lastSuccess!.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    this.view.message = `Reconnecting to ${new URL(this.current.origin).host}… showing the state from ${since}`;
+    this.status.text = '$(sync~spin) Vloer: reconnecting';
+    this.status.backgroundColor = undefined;
+    this.status.command = 'vloer.refresh';
+    this.status.tooltip = `${error instanceof Error ? error.message : 'The last refresh failed.'}\nThe views keep the state from ${since} and retry automatically.`;
   }
 
   async refresh(raise = false): Promise<void> {
@@ -176,11 +204,13 @@ class Workbench implements vscode.Disposable, PanelHost {
       const bootstrap = await client.bootstrap();
       const sessions = await client.sessions();
       if (client !== this.current || generation !== this.generation || this.disposed) return;
+      this.failures = 0;
+      this.lastSuccess = new Date();
       this.cachedBootstrap = bootstrap;
       this.ploeg.connected();
-      this.ploegView.message = 'Read-only snapshot · refresh to update';
+      this.tree.repositories = new Map(bootstrap.repositories.map(repository => [repository.id, repository.name]));
       this.tree.update(sessions);
-      this.tasks.update(bootstrap.taskSources ?? [], bootstrap.taskSources?.length ? '' : 'Connect a task source on the workbench server');
+      this.tasks.update(bootstrap.taskSources ?? [], bootstrap.taskSources?.length ? '' : 'Connect a task source on the workbench server', bootstrap.repositories);
       this.taskView.message = bootstrap.mode === 'demo' ? 'Demo fixture · No tracker account required' : undefined;
       this.view.message = `${bootstrap.mode === 'demo' ? 'DEMO · No AI calls · ' : ''}${bootstrap.user.name} · ${new URL(client.origin).host}`;
       const waiting = sessions.filter(session => session.status === 'waiting_input');
@@ -201,7 +231,14 @@ class Workbench implements vscode.Disposable, PanelHost {
       await vscode.commands.executeCommand('setContext', 'vloer.connected', true);
       for (const alert of this.watcher.observe(sessions)) void show(alert);
       await this.panels.refreshVisible();
-    } catch (error) { if (client === this.current) this.offline(error); if (raise) throw error; }
+    } catch (error) {
+      if (client === this.current && generation === this.generation) {
+        this.failures++;
+        if ((error instanceof ApiError && error.status === 401) || !this.lastSuccess || this.failures >= 3) this.offline(error);
+        else this.reconnecting(error);
+      }
+      if (raise) throw error;
+    }
     finally { this.refreshBusy = false; }
   }
 
@@ -414,39 +451,70 @@ class Workbench implements vscode.Disposable, PanelHost {
         this.assertTarget(target, generation);
         task = await target.task(sourceChoice.id, id);
       }
-      if (task) { this.assertTarget(target, generation); await this.importTask({ kind: 'task', source: sourceChoice, task }); }
+      if (task) { this.assertTarget(target, generation); await this.openTask({ kind: 'task', source: sourceChoice, task }); }
       return;
     }
   }
 
   private async previewTask(task: TaskSnapshot, origin: string): Promise<void> {
-    const preview = `${task.title}\n\nSource: ${task.provider} / ${task.sourceId} / ${task.id}\nStatus: ${task.status}\nRepository: ${task.repositoryId}\nWorkbench: ${origin}\nTracker URL: ${task.url}\nRevision: ${task.revision}\nUpdated: ${task.updatedAt ?? 'Not supplied'}${task.ploeg ? `\nPloeg work item: ${task.ploeg.workItemId}\nTarget: ${task.ploeg.expectedTarget.owner}/${task.ploeg.expectedTarget.repo}@${task.ploeg.expectedTarget.baseBranch}` : ''}\n\nTASK CONTENT — CONTEXT FROM THE LINKED SOURCE\n\n${task.description}`;
-    await this.documents.openText('task-preview', `${task.sourceId}-${task.id}.txt`, preview, 'plaintext');
+    const facts = [`**${providerNames[task.provider] ?? task.provider} ${task.identifier ?? `#${task.id}`}** · ${task.status} · repository \`${task.repositoryId}\``, `Imported revision \`${task.revision.slice(0, 12)}\`${task.updatedAt ? ` · updated ${task.updatedAt}` : ''} · workbench ${origin}`, ...(task.ploeg ? [`Ploeg work item ${task.ploeg.workItemId} → ${task.ploeg.expectedTarget.owner}/${task.ploeg.expectedTarget.repo}@${task.ploeg.expectedTarget.baseBranch}`] : []), ...(safeHttpsUrl(task.url) ? [`[Open in tracker](${safeHttpsUrl(task.url)})`] : [])];
+    const body = task.descriptionMarkdown ?? (/<[a-z][\s\S]*>/i.test(task.description) ? plainText(task.description) : task.description);
+    await this.documents.openText('task-preview', `${task.sourceId}-${task.id}.md`, `# ${task.title.replace(/\n/g, ' ')}\n\n${facts.join('  \n')}\n\n---\n\n${body || '_No description._'}\n`, 'markdown');
   }
+
+  async openTask(value?: TaskEntry | { sourceId: string; taskId: string; title?: string }): Promise<void> {
+    if (!value || ('kind' in value && value.kind !== 'task')) { await this.browseTasks(value && 'kind' in value ? value : undefined); return; }
+    const bootstrap = await this.bootstrap();
+    const source = 'kind' in value ? value.source : (bootstrap.taskSources ?? []).find(item => item.id === value.sourceId);
+    if (!source) throw new Error('This task source is no longer configured on the workbench. Refresh Linked Tasks.');
+    const taskId = 'kind' in value ? value.task.id : value.taskId;
+    this.taskPanels.open(source, taskId, 'kind' in value ? value.task.title : value.title ?? `Task ${taskId}`);
+  }
+
+  async openPloegItem(value?: PloegEntry): Promise<void> {
+    if (value?.kind !== 'item') return;
+    const item = value.item;
+    if (!value.demo && item.provider && item.externalId) {
+      const sourceId = await this.current.lookupTask(item.provider, item.externalId).catch(() => undefined);
+      const source = sourceId ? (await this.bootstrap()).taskSources?.find(entry => entry.id === sourceId) : undefined;
+      if (source) { this.taskPanels.open(source, item.externalId, item.title); return; }
+    }
+    await this.openPloeg(item.id);
+  }
+
+  async openPloeg(id: string): Promise<void> {
+    if (this.configurationError) throw this.configurationError;
+    await vscode.env.openExternal(vscode.Uri.parse(this.current.ploegDashboard(id)));
+  }
+
+  lastTeam(): string | undefined { return this.context.globalState.get<string>(`vloer.handoffTeam:${this.current.origin}`); }
+  async rememberTeam(team: string): Promise<void> { await this.context.globalState.update(`vloer.handoffTeam:${this.current.origin}`, team); }
 
   async importTask(value?: TaskEntry): Promise<void> {
     if (value?.kind !== 'task') { await this.browseTasks(value); return; }
     const target = this.current; const generation = this.generation;
-    const bootstrap = await this.bootstrap();
+    await this.openTask(value);
     const task = await target.task(value.source.id, value.task.id);
     this.assertTarget(target, generation);
-    await this.previewTask(task, target.origin);
-    if (bootstrap.sharedExecution ? !task.ploeg || Boolean(task.ploegUnavailable) : value.source.executionOwner === 'ploeg') { void vscode.window.showInformationMessage(task.ploegUnavailable?.message || 'This source needs its registered Ploeg tracker target before importing here.'); return; }
-    if (bootstrap.user.role === 'viewer') { void vscode.window.showInformationMessage('The task snapshot is open for inspection. An operator account is required to import it.'); return; }
-    if (task.status !== 'open') { void vscode.window.showInformationMessage('Only open tasks can be imported. The current snapshot is available for inspection.'); return; }
-    const proceed = await vscode.window.showInformationMessage(`Task snapshot opened. Set up an operator-led session on ${new URL(target.origin).host} → ${task.repositoryId} when you are ready.`, 'Set up session');
-    if (proceed !== 'Set up session') return;
-    const draft = await this.engagement(bootstrap, `import:${task.key}`, { repositoryId: task.repositoryId, title: task.title, objective: task.description || task.title }, 'Import linked task');
+    await this.startSession(value.source, task);
+  }
+
+  async startSession(source: TaskSource, task: TaskSnapshot): Promise<void> {
+    const target = this.current; const generation = this.generation;
+    const bootstrap = await this.bootstrap();
+    const eligibility = sessionEligibility(bootstrap, source, task);
+    if (!eligibility.allowed) { void vscode.window.showInformationMessage(eligibility.reason ?? 'This task cannot start a session.'); return; }
+    const draft = await this.engagement(bootstrap, `import:${task.key}`, { repositoryId: task.repositoryId, title: task.title, objective: task.description || task.title }, 'Start a supervised session');
     if (!draft) return;
-    const confirm = await vscode.window.showInformationMessage('Create a session from this task revision?', { modal: true, detail: `${task.title}\n${task.provider} #${task.id} → ${task.repositoryId}\n${target.origin}\n${bootstrap.crews.find(crew => crew.id === draft.crewId)?.name} · ${draft.runtime} · $${draft.budgetUsd!.toFixed(2)} authorized\nThe crew starts only when you choose Start remote crew.` }, 'Import task');
-    if (confirm !== 'Import task') return;
+    const confirm = await vscode.window.showInformationMessage('Create a session from this task revision?', { modal: true, detail: `${task.title}\n${providerNames[task.provider] ?? task.provider} ${task.identifier ?? `#${task.id}`} → ${task.repositoryId}\n${target.origin}\n${bootstrap.crews.find(crew => crew.id === draft.crewId)?.name} · ${draft.runtime} · $${draft.budgetUsd!.toFixed(2)} authorized\nThe crew starts only when you choose Start remote crew.` }, 'Create session');
+    if (confirm !== 'Create session') return;
     this.assertTarget(target, generation);
     let session: Session;
     try { session = await target.importTask({ sourceId: task.sourceId, taskId: task.id, revision: task.revision, ...(task.bindingRevision ? { bindingRevision: task.bindingRevision } : {}), crewId: draft.crewId!, runtime: draft.runtime!, ...(draft.placement ? { placement: draft.placement } : {}), budgetUsd: draft.budgetUsd! }); }
     catch (error) {
       if (!(error instanceof ApiError) || error.status !== 409 || !['task_changed', 'task_binding_changed'].includes(error.code)) throw error;
       const reload = await vscode.window.showWarningMessage(error.message, 'Reload task');
-      if (reload === 'Reload task') { this.assertTarget(target, generation); await this.importTask(value); }
+      if (reload === 'Reload task') { this.assertTarget(target, generation); await this.startSession(source, await target.task(source.id, task.id)); }
       return;
     }
     this.drafts.delete(`import:${task.key}`);

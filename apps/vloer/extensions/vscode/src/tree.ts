@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { groups, presentation, situation, relativeTime, spendLabel, activeRole, safeHttpsUrl, runLabel, approvalLabel, observedSpend, isolatedPlacement, presentationFor } from './status.js';
+import { plainText, providerNames, taskDescription, groups, presentation, situation, relativeTime, spendLabel, activeRole, safeHttpsUrl, runLabel, approvalLabel, observedSpend, isolatedPlacement, presentationFor } from './status.js';
 import type { Session, Run, Artifact, Permission, TaskSource, TaskSnapshot, TaskPage } from './types.js';
 
 export type SessionEntry =
@@ -31,6 +31,7 @@ export class SessionTree implements vscode.TreeDataProvider<SessionEntry>, vscod
   readonly onDidChangeTreeData = this.changed.event;
   private readonly loadPermissions: (sessionId: string) => Promise<Permission[]>;
   sessions: Session[] = [];
+  repositories = new Map<string, string>();
   message = '';
   messageCommand?: string;
   constructor(loadPermissions: (sessionId: string) => Promise<Permission[]>) { this.loadPermissions = loadPermissions; }
@@ -120,7 +121,7 @@ export class SessionTree implements vscode.TreeDataProvider<SessionEntry>, vscod
     item.id = session.id;
     const role = activeRole(session);
     const observed = observedSpend(session);
-    const parts = [session.repositoryId, session.status === 'waiting_input' || session.status === 'running' ? (role ?? state.name) : state.name, session.costStatus === 'demo' ? 'demo' : `$${(observed ?? session.spentUsd).toFixed(2)}${observed === undefined ? '' : ' observed'}`, relativeTime(session.updatedAt)];
+    const parts = [this.repositories.get(session.repositoryId) ?? session.repositoryId, session.status === 'waiting_input' || session.status === 'running' ? (role ?? state.name) : state.name, session.costStatus === 'demo' ? 'demo' : `$${(observed ?? session.spentUsd).toFixed(2)}${observed === undefined ? '' : ' observed'}`, relativeTime(session.updatedAt)];
     item.description = parts.filter(Boolean).join(' · ');
     item.tooltip = sessionTooltip(session);
     item.iconPath = new vscode.ThemeIcon(state.icon, state.color ? new vscode.ThemeColor(state.color) : undefined);
@@ -168,14 +169,16 @@ export class TaskTree implements vscode.TreeDataProvider<TaskEntry>, vscode.Disp
   private readonly changed = new vscode.EventEmitter<TaskEntry | undefined>();
   readonly onDidChangeTreeData = this.changed.event;
   private sources: TaskSource[] = [];
+  private repositories = new Map<string, string>();
   private cache = new Map<string, TaskPage>();
   private message = 'Connect to browse linked tasks';
   private readonly load: (sourceId: string, page: number) => Promise<TaskPage>;
   constructor(load: (sourceId: string, page: number) => Promise<TaskPage>) { this.load = load; }
 
-  update(sources: TaskSource[], message = '') {
-    if (JSON.stringify(sources) === JSON.stringify(this.sources) && message === this.message) return;
-    this.sources = sources; this.message = message; this.cache.clear(); this.changed.fire(undefined);
+  update(sources: TaskSource[], message = '', repositories: { id: string; name: string }[] = []) {
+    const names = new Map(repositories.map(repository => [repository.id, repository.name]));
+    if (JSON.stringify(sources) === JSON.stringify(this.sources) && message === this.message && JSON.stringify([...names]) === JSON.stringify([...this.repositories])) return;
+    this.sources = sources; this.message = message; this.repositories = names; this.cache.clear(); this.changed.fire(undefined);
   }
 
   refresh() { this.cache.clear(); this.changed.fire(undefined); }
@@ -190,8 +193,9 @@ export class TaskTree implements vscode.TreeDataProvider<TaskEntry>, vscode.Disp
       const item = new vscode.TreeItem(entry.source.name, vscode.TreeItemCollapsibleState.Collapsed);
       item.id = `source:${entry.source.id}`;
       const page = this.cache.get(entry.source.id);
-      item.description = `${entry.source.provider} · ${entry.source.repositoryId}${page ? ` · ${page.tasks.length}${page.nextPage ? '+' : ''} open` : ''}`;
-      item.tooltip = `${entry.source.name}\n${entry.source.provider} → ${entry.source.repositoryId}\n${entry.source.executionOwner === 'ploeg' ? 'Ploeg owns execution; inspect tasks here.' : 'Operator-led sessions; import is a separate action.'}`;
+      const repository = this.repositories.get(entry.source.repositoryId) ?? entry.source.repositoryId;
+      item.description = `${page ? `${page.tasks.length}${page.nextPage ? '+' : ''} open · ` : ''}${providerNames[entry.source.provider] ?? entry.source.provider} → ${repository}`;
+      item.tooltip = `${entry.source.name}\n${providerNames[entry.source.provider] ?? entry.source.provider} board → ${repository}\n${entry.source.executionOwner === 'ploeg' ? entry.source.handoff ? 'Ploeg owns execution. Open a task to hand it to a Ploeg team.' : 'Ploeg owns execution. Assign a Ploeg team in the tracker to hand work over.' : 'Operator-led sessions; import is a separate action.'}`;
       item.iconPath = new vscode.ThemeIcon(entry.source.executionOwner === 'ploeg' ? 'server-process' : 'checklist');
       item.contextValue = `source:${entry.source.executionOwner}`;
       return item;
@@ -204,14 +208,16 @@ export class TaskTree implements vscode.TreeDataProvider<TaskEntry>, vscode.Disp
     }
     const item = new vscode.TreeItem(entry.task.title);
     item.id = `task:${entry.source.id}:${entry.task.id}`;
-    item.description = `#${entry.task.id}${entry.task.updatedAt ? ` · ${relativeTime(entry.task.updatedAt)}` : ''}`;
+    item.description = taskDescription(entry.task);
     const tooltip = new vscode.MarkdownString();
-    tooltip.appendMarkdown(`**${entry.task.title}**\n\n${entry.task.provider} #${entry.task.id} · ${entry.task.status} → ${entry.task.repositoryId}\n\n`);
-    tooltip.appendText(entry.task.description.slice(0, 500));
+    tooltip.appendText(entry.task.title);
+    tooltip.appendMarkdown(`\n\n${entry.task.identifier ?? `#${entry.task.id}`} · ${entry.task.status}${entry.task.updatedAt ? ` · updated ${relativeTime(entry.task.updatedAt)}` : ''}\n\n`);
+    const facts = [entry.task.assignees?.length ? `Assigned: ${entry.task.assignees.map(person => person.username).join(', ')}` : 'Unassigned', entry.task.labels?.length ? `Labels: ${entry.task.labels.map(label => label.name).join(', ')}` : ''].filter(Boolean);
+    tooltip.appendText(`${facts.join(' · ')}\n\n${plainText(entry.task.descriptionMarkdown ?? entry.task.description).slice(0, 400)}`);
     item.tooltip = tooltip;
-    item.iconPath = new vscode.ThemeIcon('issues');
+    item.iconPath = new vscode.ThemeIcon(entry.task.assignees?.length ? 'person' : 'circle-large-outline');
     item.contextValue = `task:${entry.source.executionOwner}${safeHttpsUrl(entry.task.url) ? ':linked' : ''}`;
-    item.command = { command: 'vloer.importTask', title: 'Preview linked task', arguments: [entry] };
+    item.command = { command: 'vloer.openTask', title: 'Open task', arguments: [entry] };
     item.accessibilityInformation = { label: `${entry.task.title}, ${entry.task.status}, ${entry.source.name}` };
     return item;
   }
