@@ -52,7 +52,7 @@ The [pricing units record](../research/2026-09-28-pricing-units.md) compares the
 | List price per credit | €15 |
 | Floor price per credit | €12, recalculated quarterly from measured cost |
 | Volume steps | €14 / €13 / €12 at 100 / 250 / 500+ credits a month |
-| Refinement Runs | Free within a monthly allowance per client |
+| Refinement Runs | Tokens charged like any attempt, then credited against the delivery fee when the ticket is accepted within 30 days |
 | What a credit is | One accepted S ticket, worth €15. Credits only measure delivery fees and are always shown with their euro value; tokens and hosting are charged in euros |
 | Credit validity | Paid credits never expire while the account is active and are refunded at purchase price when the account closes; promotional credits can expire and are used first |
 | Purchase forms | Prepaid bundles, and 12-month monthly commitments that unlock the volume steps |
@@ -119,3 +119,4 @@ Confirmed when every delivered ticket shows its size, quote, authorized cap and 
 * 2026-09-29 — The owner set how copied code is billed, started new agencies on prepaid credits, and stopped charging for Glide's own failures.
 * 2026-09-29 — The owner dropped the 2x premium credit multiplier, unlinked the credit price from model costs, set the markup as the charge for bring-your-own-key agencies, and set preview prices.
 * 2026-09-29 — The owner started the silence timer when the pull request opens, required a reason to close one, and refunded unused paid credits on account closure.
+* 2026-09-29 — The owner charged refinement tokens and credited them against the delivery fee on acceptance within 30 days.

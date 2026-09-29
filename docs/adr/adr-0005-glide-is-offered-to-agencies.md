@@ -44,6 +44,7 @@ Chosen option: "Agencies, with a client portal; delivery ends at a reviewed pull
 * **Refinement as a product:** request-to-quote (refinement and pricing without agent code) is also sold on its own, for agencies not ready to let agents change code.
 * **Never built:** an account or ticket without a hard spending cap, and features made for one agency that others will not use.
 * **Agents and Teams:** agencies, and their clients where the agency allows it, define their own agents and Teams (Roles, models, instructions). Glide ships default Teams. Every Team runs inside the ticket's spending cap.
+* **Invoicing and maintenance:** exporting accepted tickets to Moneybird, Exact and e-Boekhouden is part of the pilot. Maintenance subscriptions, where dependency updates and failing checks become tickets automatically, come in version 2 after the delivery rate is measured.
 * **Portal:** the client portal is part of Vloer. Clients see the agency's price. Glide's charge is hidden by default; an agency can choose to show it.
 
 Not implemented yet. The [agency offering proposal](../research/2026-09-28-agency-offering-proposal.md) lists the work; the [agency pricing strategy](../research/2026-09-29-agency-pricing-strategy.md) holds the research.
@@ -94,3 +95,4 @@ This record is confirmed when one agency, other than webgrip, runs a client requ
 * 2026-09-29 — The owner set revenue sources: hosted service, support and SLA, and pilot and setup services, with no closed features.
 * 2026-09-29 — The owner set the positioning, kept Enterprise as support for self-hosters with all features open, and confirmed brand, model neutrality and the three-year goal.
 * 2026-09-29 — The owner let freelancers self-host from day one and confirmed Flanders in quarter two, bilingual product and Dutch sales.
+* 2026-09-29 — The owner put invoice export in the pilot and maintenance subscriptions in version 2.
