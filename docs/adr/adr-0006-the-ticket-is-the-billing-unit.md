@@ -46,8 +46,7 @@ The [pricing units record](../research/2026-09-28-pricing-units.md) compares the
 | Setting | Value |
 | --- | --- |
 | Credits per size S / M / L | 1 / 3 / 8; no XL. Refinement must split work it estimates above the L cap |
-| Premium model tier | 2x credits per size |
-| Custom agents and Teams | Agencies may bring their own model keys (BYOK) and build their own agents and Teams; models are grouped in credit tiers; the ticket's cap applies whatever Team or key is used |
+| Custom agents and Teams | Agencies may bring their own model keys (BYOK) and build their own agents and Teams; the ticket's cap applies whatever Team or key is used. Bring-your-own-key agencies pay the configured markup on their measured token use |
 | Delivery rate for financial planning | 55%; 70% is the target after refinement |
 | Shift budget cap per size | €4 / €10 / €20 |
 | List price per credit | €15 |
@@ -60,14 +59,14 @@ The [pricing units record](../research/2026-09-28-pricing-units.md) compares the
 | Tokens and compute inside a ticket | Charged per attempt at cost plus a published markup, up to the ticket's cap |
 | Metered usage above allowances | €0.10 per GB-month of storage, extra tokens at list price × 1.25. CI is not charged |
 | Agency markup on metered usage | Each agency sets its own multiplier toward its clients; Glide bills the agency at the rates above |
-| Previews | Deploy step free; on Glide hosting a flat fee per preview deploy that covers 7 days, then a daily fee (amounts to be set), ingress free, 100 GB egress a month included, then provider cost plus markup ([ADR-0008](adr-0008-every-pull-request-gets-a-preview-environment.md)) |
+| Previews | Deploy step free; on Glide hosting each delivery credit includes one preview deploy for 7 days; extra deploys cost €0.50 each and €0.50 per day beyond 7 days, taken from the account balance; ingress free, 100 GB egress a month included, then provider cost plus markup ([ADR-0008](adr-0008-every-pull-request-gets-a-preview-environment.md)) |
 | Incentives | A private per-agency quality score from acceptance rate, over a minimum sample, unlocks a lower markup or higher caps; a ready-check gives feedback on a ticket before any spend; quarterly tiers with published thresholds; referral rewards in euro credit that does not expire. No streaks, leaderboards or random bonuses |
 | Self-hosted | No charge from Glide; the operator pays its own model provider and infrastructure |
 | Default cap on metered usage | €100 a month, alerts at 50, 75, 90 and 100%; work pauses at the cap |
 | Billing stack | Mollie for payment, Lago self-hosted for metering; Ploeg enforces every cap before spend |
 | Design partners | 3 to 5, 50% off the platform fee for 6 months; credits never below the floor |
 | Public price list | Published after the pilot's first gate |
-| Model price changes | Passed through to the price of new credits immediately; credits already bought and quotes already approved keep their price |
+| Model price changes | Flow into token charges only; the credit price changes only by announced decision, and credits already bought keep their price |
 | Public launch gate | 60% of S tickets delivered at €4 or less per delivered S |
 
 ### Consequences
@@ -118,3 +117,4 @@ Confirmed when every delivered ticket shows its size, quote, authorized cap and 
 * 2026-09-29 — The owner set preview pricing and confirmed that self-hosters pay Glide nothing.
 * 2026-09-29 — The owner defined a credit as one accepted S ticket worth €15, stopped paid credits from expiring, charged previews per deploy instead of per hour, dropped CI charges, and chose the incentive mechanisms.
 * 2026-09-29 — The owner set how copied code is billed, started new agencies on prepaid credits, and stopped charging for Glide's own failures.
+* 2026-09-29 — The owner dropped the 2x premium credit multiplier, unlinked the credit price from model costs, set the markup as the charge for bring-your-own-key agencies, and set preview prices.

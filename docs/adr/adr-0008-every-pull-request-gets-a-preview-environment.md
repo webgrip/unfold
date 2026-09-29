@@ -32,7 +32,7 @@ Chosen option: "A preview environment per pull request, deleted when the pull re
 * The repository declares how to build and run a preview. Repositories without a declaration get no preview and are marked so.
 * Previews use generated test data only. They never receive production secrets.
 * A preview is deleted when its pull request is merged or closed, or after an idle time limit.
-* On Glide's preview hosting, each preview deploy is billed a flat fee that covers 7 days, then a daily fee, separately from tickets ([ADR-0006](adr-0006-the-ticket-is-the-billing-unit.md)). Ingress is free; 100 GB of egress a month is included, then egress is billed at provider cost plus markup.
+* On Glide's preview hosting, each delivery credit includes one preview deploy for 7 days; extra deploys cost €0.50 each and €0.50 per day beyond 7 days, taken from the account balance ([ADR-0006](adr-0006-the-ticket-is-the-billing-unit.md)). Ingress is free; 100 GB of egress a month is included, then egress is billed at provider cost plus markup.
 * Merging and production deployment stay with the agency.
 
 Not implemented yet. The first supported declaration is a Dockerfile in the repository; buildpacks and Helm charts may follow.
@@ -65,3 +65,4 @@ Confirmed when a delivered pull request in a declared repository gets a reachabl
 * 2026-09-29 — Accepted. The owner chose a Dockerfile as the first preview declaration.
 * 2026-09-29 — The owner made previews an optional CI-step add-on that deploys to the agency's own infrastructure or to metered Glide hosting, with free ingress and an egress allowance.
 * 2026-09-29 — The owner replaced hourly preview billing with a flat fee per deploy plus a daily fee after 7 days.
+* 2026-09-29 — The owner included one preview deploy per delivery credit and set €0.50 per extra deploy and per extra day.
