@@ -121,6 +121,15 @@
             "$ref": "#/$defs/role"
           }
         },
+        "pinnedScopes": {
+          "description": "Tracker container ids (Vikunja project, ClickUp list) pinned to this team: their items run as this team whoever is assigned, and unassigning withdraws this team's item. Sorted; empty when none. Absent from Ploeg releases that predate the field.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
         "assignees": {
           "description": "Tracker usernames, lowercased and sorted, whose assignment routes a Tracker Item to this team (config teams.<team>.assignees and PLOEG_TEAM_MAP). Empty when no username routes to the team. Absent from Ploeg releases that predate the field.",
           "type": "array",

@@ -32,10 +32,15 @@ func operatorConfig(cfg *config.File, plans plan.Plans) (httpapi.OperatorConfig,
 	for name := range assignees {
 		sort.Strings(assignees[name])
 	}
-	for _, name := range cfg.ScopeTeams() {
+	scopes := map[string][]string{}
+	for scope, name := range cfg.ScopeTeams() {
 		if _, exists := teams[name]; !exists {
 			teams[name] = []string{}
 		}
+		scopes[name] = append(scopes[name], scope)
+	}
+	for name := range scopes {
+		sort.Strings(scopes[name])
 	}
 	for name, p := range plans {
 		roles := map[string]bool{}
@@ -55,5 +60,5 @@ func operatorConfig(cfg *config.File, plans plan.Plans) (httpapi.OperatorConfig,
 			teams[name] = []string{}
 		}
 	}
-	return httpapi.OperatorConfig{Consumers: consumers, Teams: teams, TeamAssignees: assignees, DeliveryPolicies: deliveryPolicies}, nil
+	return httpapi.OperatorConfig{Consumers: consumers, Teams: teams, TeamAssignees: assignees, TeamScopes: scopes, DeliveryPolicies: deliveryPolicies}, nil
 }

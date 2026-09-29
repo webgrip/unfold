@@ -38,6 +38,8 @@ type OperatorTeam struct {
 	QueueDepth int64          `json:"queueDepth"`
 	Roles      []OperatorRole `json:"roles"`
 	Assignees  []string       `json:"assignees"`
+	// PinnedScopes are the tracker containers whose items always run as this team, whoever is assigned.
+	PinnedScopes []string `json:"pinnedScopes"`
 }
 
 type OperatorRole struct {
@@ -236,7 +238,7 @@ func (s *Store) OperatorTeams(ctx context.Context, teams []string, registered ma
 	}
 	ensure := func(id string) *OperatorTeam {
 		if byID[id] == nil {
-			byID[id] = &OperatorTeam{ID: id, Roles: []OperatorRole{}, Assignees: []string{}}
+			byID[id] = &OperatorTeam{ID: id, Roles: []OperatorRole{}, Assignees: []string{}, PinnedScopes: []string{}}
 		}
 		return byID[id]
 	}

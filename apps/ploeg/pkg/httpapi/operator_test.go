@@ -251,22 +251,29 @@ func TestOperatorTeamsListTheTrackerAssigneesThatRouteToEachTeam(t *testing.T) {
 		Consumers:     consumers,
 		Teams:         map[string][]string{"silver": {"builder"}, "vloer": {}, "gold": {"writer"}},
 		TeamAssignees: map[string][]string{"silver": {"silver", "agent-silver"}, "gold": {"gold"}},
+		TeamScopes:    map[string][]string{"vloer": {"11"}, "gold": {"12"}},
 	}}
 	var body struct {
 		Teams []struct {
-			ID        string    `json:"id"`
-			Assignees *[]string `json:"assignees"`
+			ID           string    `json:"id"`
+			Assignees    *[]string `json:"assignees"`
+			PinnedScopes *[]string `json:"pinnedScopes"`
 		} `json:"teams"`
 	}
 	if err := json.Unmarshal(operatorSchemaGET(t, s, token, "teams"), &body); err != nil {
 		t.Fatal(err)
 	}
 	got := map[string][]string{}
+	pinned := map[string][]string{}
 	for _, team := range body.Teams {
-		if team.Assignees == nil {
-			t.Fatalf("team %s has no assignees array", team.ID)
+		if team.Assignees == nil || team.PinnedScopes == nil {
+			t.Fatalf("team %s lacks its assignees or pinnedScopes array", team.ID)
 		}
 		got[team.ID] = *team.Assignees
+		pinned[team.ID] = *team.PinnedScopes
+	}
+	if strings.Join(pinned["vloer"], ",") != "11" || len(pinned["silver"]) != 0 {
+		t.Fatalf("pinned scopes by team: %v", pinned)
 	}
 	if len(got) != 2 || strings.Join(got["silver"], ",") != "agent-silver,silver" || got["vloer"] == nil || len(got["vloer"]) != 0 {
 		t.Fatalf("assignees by team: %v", got)

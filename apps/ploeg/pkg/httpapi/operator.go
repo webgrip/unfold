@@ -48,6 +48,7 @@ type OperatorConfig struct {
 	Consumers        []OperatorConsumer
 	Teams            map[string][]string
 	TeamAssignees    map[string][]string
+	TeamScopes       map[string][]string
 	DeliveryPolicies map[string]DeliveryPolicy
 }
 
@@ -200,6 +201,10 @@ func (s *Server) handleOperatorTeams(w http.ResponseWriter, r *http.Request) {
 		if assignees := s.OperatorConfig.TeamAssignees[teams[i].ID]; len(assignees) > 0 {
 			teams[i].Assignees = append([]string{}, assignees...)
 			sort.Strings(teams[i].Assignees)
+		}
+		if scopes := s.OperatorConfig.TeamScopes[teams[i].ID]; len(scopes) > 0 {
+			teams[i].PinnedScopes = append([]string{}, scopes...)
+			sort.Strings(teams[i].PinnedScopes)
 		}
 	}
 	operatorJSON(w, 200, map[string]any{"schemaVersion": "1.0", "teams": teams})
