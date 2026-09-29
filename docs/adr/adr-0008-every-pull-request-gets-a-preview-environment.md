@@ -34,7 +34,7 @@ Chosen option: "A preview environment per pull request, deleted when the pull re
 * Preview environment-hours are metered and billed separately from tickets ([ADR-0006](adr-0006-the-ticket-is-the-billing-unit.md)).
 * Merging and production deployment stay with the agency.
 
-Not implemented yet. The preview declaration format and the build path (buildpacks, a Dockerfile, or a Helm chart in the repository) are open.
+Not implemented yet. The first supported declaration is a Dockerfile in the repository; buildpacks and Helm charts may follow.
 
 ### Consequences
 
@@ -61,4 +61,4 @@ Confirmed when a delivered pull request in a declared repository gets a reachabl
 ## More Information
 
 * 2026-09-28 — The owner chose previews ("feature previews", "review apps") over production hosting.
-* 2026-09-29 — Accepted. The preview declaration format is still open.
+* 2026-09-29 — Accepted. The owner chose a Dockerfile as the first preview declaration.
