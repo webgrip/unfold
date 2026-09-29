@@ -34,7 +34,7 @@ Chosen option: "A refinement Run drafts a Ready Work Item and a quote; the clien
 * **Client profile:** each client has a Definition of Ready, a Definition of Done and extra instructions for agents. They rank below the delivery contract, like repository instructions ([Ploeg ADR-0030](../../apps/ploeg/docs/adrs/0030-target-repository-instructions-rank-below-the-delivery-contract.md)). The Definition of Done becomes Acceptance Conditions that the reviewer's Verdict checks.
 * The agency can approve on the client's behalf, and can require its own approval in addition to the client's.
 * When the client and the agency disagree on the Definition of Done, the agency's definition wins; the client adds requirements on top.
-* Linear is the next tracker provider after Vikunja and ClickUp.
+* Linear is the next tracker provider after Vikunja and ClickUp. At launch Glide works with GitHub, GitLab and Forgejo; intake is the portal and tracker imports, with email later.
 * When a client disputes a preview, the agency decides against the approved Acceptance Conditions. A pull request that meets them is accepted; a new wish becomes a new ticket.
 
 Not implemented yet.
@@ -67,3 +67,4 @@ Confirmed when a Work Item created from a client request cannot enter a Shift wi
 * 2026-09-29 — Accepted. The owner decided the approval rule, who owns the Definition of Done, and Linear as the next tracker.
 * 2026-09-29 — The owner decided that the agency settles preview disputes against the approved Acceptance Conditions.
 * 2026-09-29 — The owner decided that Glide never contacts an agency's clients directly.
+* 2026-09-29 — The owner set GitHub, GitLab and Forgejo as launch forges and kept email intake for later.
