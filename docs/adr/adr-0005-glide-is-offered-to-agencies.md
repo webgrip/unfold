@@ -33,7 +33,7 @@ Chosen option: "Agencies, with a client portal; delivery ends at a reviewed pull
 * **Boundary:** Glide delivers the pull request and its preview ([ADR-0008](adr-0008-every-pull-request-gets-a-preview-environment.md)). The agency owns merging, production and the client relationship.
 * In-house teams can use the same product as an agency with one client (themselves). We do not build for non-developers.
 * **First segment:** Dutch, development-heavy agencies of 5 to 80 FTE with maintenance work. First stacks: WordPress, Laravel, Next.js/React, Shopify and DevOps work.
-* **Open source and self-hosting:** Glide is free and open source first, and self-hosting is encouraged. The hosted service is an alternative, not the only way to use Glide. How this changes the paid editions is still open.
+* **Open source and self-hosting:** Glide is free and open source first, and self-hosting is encouraged. The hosted service is an alternative, not the only way to use Glide. Revenue comes from the hosted service, support and SLA contracts, and pilot and setup services; no feature is held back from the open-source code.
 * **Editions:** the Agency edition launches first. White label follows once two partners ask for it; it is a paid tier, and white-label agencies resell their own service, never Glide credits. Freelancer and Enterprise self-hosted follow after the pilot's third gate. Platform fees per month: Freelancer €29, Agency €249, White label €690, including 1, 10 and 30 credits; Enterprise from €18k a year.
 * **Disclosure:** every pull request and the portal say that an agent wrote the change and name the developer who reviewed it.
 * **Liability:** Glide opens pull requests on semantically named branches and never deploys. Production deploys run in the agency's own CI, and whether a pull request may merge without review is the agency's forge and repository setting. Glide's liability is capped at fees paid, as stated in the terms.
@@ -89,3 +89,4 @@ This record is confirmed when one agency, other than webgrip, runs a client requ
 * 2026-09-29 — The owner made refinement a standalone product and set what Glide never builds.
 * 2026-09-29 — The owner placed deploys and merge rules with the agency's CI and forge, and let agencies define their own agents and Teams.
 * 2026-09-29 — The owner made Glide free and open source first, with self-hosting encouraged and the hosted service as an alternative.
+* 2026-09-29 — The owner set revenue sources: hosted service, support and SLA, and pilot and setup services, with no closed features.

@@ -45,7 +45,7 @@ The [pricing units record](../research/2026-09-28-pricing-units.md) compares the
 | --- | --- |
 | Credits per size S / M / L | 1 / 3 / 8; no XL. Refinement must split work it estimates above the L cap |
 | Premium model tier | 2x credits per size |
-| Custom agents and Teams | Agencies may bring their own model keys (BYOK) and build their own agents and Teams; models are grouped in credit tiers |
+| Custom agents and Teams | Agencies may bring their own model keys (BYOK) and build their own agents and Teams; models are grouped in credit tiers; the ticket's cap applies whatever Team or key is used |
 | Delivery rate for financial planning | 55%; 70% is the target after refinement |
 | Shift budget cap per size | €4 / €10 / €20 |
 | List price per credit | €15 |
