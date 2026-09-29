@@ -23,3 +23,4 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0007](adr-0007-clients-approve-ready-work.md) | Clients approve Ready work, and each client sets its own definitions of Ready and Done | accepted | 2026-09-29 |
 | [ADR-0008](adr-0008-every-pull-request-gets-a-preview-environment.md) | Every pull request gets a preview environment; production stays with the agency | accepted | 2026-09-29 |
 | [ADR-0009](adr-0009-one-tenant-per-agency.md) | One tenant per agency, isolated by namespace, network, runtime and credentials | accepted | 2026-09-29 |
+| [ADR-0010](adr-0010-pull-requests-are-small-whole-and-explained.md) | Glide pull requests are small, whole and explained, and CI asks the reviewer questions | accepted | 2026-09-29 |

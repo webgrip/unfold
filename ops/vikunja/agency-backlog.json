@@ -1,5 +1,29 @@
 [
   {
+    "title": "[Review] Diff budget per ticket size",
+    "description": "Count changed lines without tests, lockfiles and generated files: S ≤150 lines/5 files, M ≤400/12, L ≤800/25. Over budget: stop the Shift and propose a split. ADR-0010."
+  },
+  {
+    "title": "[Review] Pull requests explain themselves",
+    "description": "What, why and how it works in plain language; one line per file; how to verify with real test output; glossary links. ADR-0010."
+  },
+  {
+    "title": "[Review] Reviewer Role rejects unrelated changes",
+    "description": "One whole change per PR with a clean seam. ADR-0010."
+  },
+  {
+    "title": "[Review] Attention paths",
+    "description": "Read .glide/attention and CODEOWNERS; label PRs touching them and list those files first. Agents may still change them. ADR-0010."
+  },
+  {
+    "title": "[Review] CI check: Glide review questions",
+    "description": "Required check posts 3-5 questions to the reviewer; passes when all are answered or explicitly skipped; mismatches become fix-round feedback. ADR-0010."
+  },
+  {
+    "title": "[Pilot] Written confirmation of Glide ownership",
+    "description": "Ask the employer's CTO to confirm in writing that Glide is the owner's own work under webgrip, used by the employer under Apache 2.0. Have a lawyer check the paragraph."
+  },
+  {
     "title": "[Board] Work board in Vloer: backlog to accepted change",
     "description": "One screen: backlog, 'give to Ploeg', live progress, PR with feedback, preview, accept or reject. The first thing an agency owner sees. Owner's top pain: 'I can't see what's happening.'"
   },
