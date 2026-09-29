@@ -1,8 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "local>webgrip/renovate-config#v1.10.0",
-    "local>webgrip/renovate-config:golang#v1.10.0"
+    "local>webgrip/renovate-config#v1.11.0",
+    "local>webgrip/renovate-config:golang#v1.11.0"
   ],
   "ignorePaths": [
     "**/node_modules/**",
@@ -39,19 +39,6 @@
         "(?<depName>harbor\\.webgrip\\.dev/webgrip/(?:semantic-release-monorepo|techdocs-builder)):(?<currentValue>\\d+\\.\\d+\\.\\d+)\\s"
       ],
       "datasourceTemplate": "docker",
-      "versioningTemplate": "semver"
-    },
-    {
-      "customType": "regex",
-      "description": "The org preset reference in this file. The renovate-config manager cannot resolve local> presets and skips them, so without this the pin never moves. forgejo-tags, not gitea-tags, keeps it clear of the org overlay's CI-only commit rule for workflow pins.",
-      "managerFilePatterns": [
-        "/^renovate\\.json$/"
-      ],
-      "matchStrings": [
-        "\"local>(?<depName>webgrip/renovate-config)(?::[\\w-]+)?#(?<currentValue>v\\d+\\.\\d+\\.\\d+)\""
-      ],
-      "datasourceTemplate": "forgejo-tags",
-      "registryUrlTemplate": "https://forgejo.webgrip.dev",
       "versioningTemplate": "semver"
     }
   ],
@@ -133,14 +120,6 @@
         ],
         "executionMode": "branch"
       }
-    },
-    {
-      "description": "A preset bump changes how Renovate treats this repository, not what Glide ships, so it never cuts a release.",
-      "matchPackageNames": [
-        "webgrip/renovate-config"
-      ],
-      "semanticCommitType": "chore",
-      "semanticCommitScope": "renovate"
     }
   ]
 }
