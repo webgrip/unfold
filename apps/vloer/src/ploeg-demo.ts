@@ -1,7 +1,7 @@
 import type { PloegActivityEvent, PloegDetail, PloegItem, PloegRun, PloegRunRow, PloegShift, PloegTeam, PloegTeamSummary, PloegWindow } from './ploeg.ts';
 
 const at = '2026-09-10T09:00:00Z';
-const teams: PloegTeam[] = [{ id: 'delivery', paused: null, queueDepth: 1, roles: [{ id: 'implementer', queueDepth: 1 }, { id: 'reviewer', queueDepth: 0 }], assignees: [] }, { id: 'research', paused: null, queueDepth: 1, roles: [{ id: 'analyst', queueDepth: 1 }], assignees: [] }];
+const teams: PloegTeam[] = [{ id: 'delivery', paused: null, queueDepth: 1, roles: [{ id: 'implementer', queueDepth: 1 }, { id: 'reviewer', queueDepth: 0 }], assignees: [], pinnedScopes: [] }, { id: 'research', paused: null, queueDepth: 1, roles: [{ id: 'analyst', queueDepth: 1 }], assignees: [], pinnedScopes: [] }];
 const shift: PloegShift = { id: '11', workItemId: '101', team: 'delivery', branch: 'demo/rounding-review', round: 1, budgetUsd: 0, spentUsd: 0, reservedUsd: 0, openedAt: at, closedAt: at, closeReason: 'Illustrative escalation to a human reviewer.' };
 const base = { provider: 'demo', description: 'Illustrative work item for exploring the operator workbench. No dispatch or model calls occurred.', externalId: '', revision: 'illustrative-v1', team: 'delivery', priority: 1, attempts: 0, infraFailures: 0, nextEligibleAt: null, createdAt: at, updatedAt: at, target: { forge: 'demo', owner: 'example', repo: 'order-service', baseBranch: 'main' }, lease: null, latestShift: null, url: '' };
 const items: PloegItem[] = [

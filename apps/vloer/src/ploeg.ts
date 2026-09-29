@@ -2,7 +2,7 @@ import type { AppConfig, User } from './types.ts';
 import { ploegDemo } from './ploeg-demo.ts';
 
 export type PloegState = 'ingested' | 'queued' | 'leased' | 'done' | 'needs_human' | 'awaiting_review' | 'stale' | 'withdrawn' | 'proposed';
-export type PloegTeam = { id: string; paused: boolean | null; queueDepth: number; roles: { id: string; queueDepth: number }[]; assignees: string[] };
+export type PloegTeam = { id: string; paused: boolean | null; queueDepth: number; roles: { id: string; queueDepth: number }[]; assignees: string[]; pinnedScopes: string[] };
 export type PloegTrackerItems = { items: PloegItem[]; supported: boolean; message?: string };
 export type PloegShift = { id: string; workItemId: string; team: string; branch: string; round: number; budgetUsd: number; spentUsd: number; reservedUsd: number; openedAt: string; closedAt: string | null; closeReason: string };
 export type PloegItem = { id: string; provider: string; externalId: string; revision: string; team: string; state: PloegState; title: string; description: string; url: string; priority: number; attempts: number; infraFailures: number; nextEligibleAt: string | null; createdAt: string; updatedAt: string; target: { forge: string; owner: string; repo: string; baseBranch: string } | null; latestShift: PloegShift | null; lease: { expiresAt: string; renewedAt: string } | null; sourceWorkItemId?: string; createdKind?: string; ready?: boolean };
@@ -56,7 +56,7 @@ function link(value: unknown): string {
 function envelope(value: unknown): Record<string, unknown> { const data = record(value); if (data.schemaVersion !== '1.0') throw invalid(); return data; }
 function team(value: unknown): PloegTeam {
   const data = record(value);
-  return { id: field(data.id, 100), paused: nullable(data.paused, boolean), queueDepth: numeric(data.queueDepth, true), roles: array(data.roles, value => { const role = record(value); return { id: field(role.id, 100), queueDepth: numeric(role.queueDepth, true) }; }, 100), assignees: data.assignees === undefined || data.assignees === null ? [] : array(data.assignees, value => field(value, 256), 100).filter(Boolean) };
+  return { id: field(data.id, 100), paused: nullable(data.paused, boolean), queueDepth: numeric(data.queueDepth, true), roles: array(data.roles, value => { const role = record(value); return { id: field(role.id, 100), queueDepth: numeric(role.queueDepth, true) }; }, 100), assignees: data.assignees === undefined || data.assignees === null ? [] : array(data.assignees, value => field(value, 256), 100).filter(Boolean), pinnedScopes: data.pinnedScopes === undefined || data.pinnedScopes === null ? [] : array(data.pinnedScopes, value => field(value, 256), 500).filter(Boolean) };
 }
 function shift(value: unknown): PloegShift {
   const data = record(value);
@@ -192,15 +192,17 @@ export class PloegClient {
   }
   async teams(user: User, fresh = false): Promise<PloegTeam[]> { return (await this.routing(user, fresh)).teams; }
   /** Lists the caller's teams and whether this Ploeg reports the tracker users that route work to each team. */
-  async routing(user: User, fresh = false): Promise<{ teams: PloegTeam[]; reported: boolean }> {
+  /** Reads Ploeg's team routing: `teams` the caller may use, and `all` teams the consumer sees, for safety checks that must not depend on the caller's scope. */
+  async routing(user: User, fresh = false): Promise<{ teams: PloegTeam[]; all: PloegTeam[]; reported: boolean }> {
     this.authorize(user);
-    if (this.demo) return { teams: ploegDemo.teams.filter(team => this.allowed(user, team.id)), reported: false };
+    if (this.demo) return { teams: ploegDemo.teams.filter(team => this.allowed(user, team.id)), all: ploegDemo.teams, reported: false };
     const data = envelope(await this.request('teams', fresh));
-    const teams = array(data.teams, team, 500);
-    return { teams: teams.filter(team => this.allowed(user, team.id)), reported: (data.teams as unknown[]).some(entry => Array.isArray(record(entry).assignees)) };
+    const all = array(data.teams, team, 500).filter(entry => !this.config?.teams || this.config.teams.includes(entry.id));
+    return { teams: all.filter(team => this.allowed(user, team.id)), all, reported: (data.teams as unknown[]).some(entry => Array.isArray(record(entry).assignees)) };
   }
+  allows(user: User, team: string): boolean { return this.allowed(user, team); }
   /** Lists Work Items for one tracker task across the caller's teams; a Ploeg without that filter yields none and says why. */
-  async trackerItems(user: User, provider: string, externalId: string, fresh = false): Promise<PloegTrackerItems> {
+  async trackerItems(user: User, provider: string, externalId: string, fresh = false, scoped = true): Promise<PloegTrackerItems> {
     this.authorize(user);
     if (this.demo) return { items: [], supported: false, message: 'Illustrative Ploeg records are not linked to tracker tasks.' };
     if (!/^[a-z][a-z0-9_-]{0,31}$/.test(provider) || !/^[A-Za-z0-9_-]{1,128}$/.test(externalId)) throw new PloegError(400, 'ploeg_filter', 'Use a valid tracker provider and task identifier.');
@@ -208,6 +210,7 @@ export class PloegClient {
     try { result = page(await this.request(`work-items?${new URLSearchParams({ provider, externalId, limit: '25' })}`, fresh, { added: true })); }
     catch (error) { if (error instanceof PloegError && error.code === 'ploeg_unsupported') return { items: [], supported: false, message: olderTracker }; throw error; }
     if (result.items.some(entry => entry.provider !== provider || entry.externalId !== externalId)) return { items: [], supported: false, message: olderTracker };
+    if (!scoped) return { items: result.items, supported: true };
     const items = result.items.filter(entry => this.allowed(user, entry.team));
     for (const entry of items) this.remember(entry.id, entry.title);
     return { items, supported: true };

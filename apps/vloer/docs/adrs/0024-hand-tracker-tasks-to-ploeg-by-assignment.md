@@ -30,13 +30,14 @@ Chosen option: "Vloer assigns the team's tracker user on the task, as the workbe
 
 * **Routing.** Ploeg's `GET /operator/teams` reports each team's `assignees`, the tracker usernames that route work to it. Vloer offers only teams the signed-in person may use in Ploeg and that have an assignee.
 * **Hand-off.** An operator or administrator hands an open task off after Vloer rechecks its revision. Vloer adds the assignee and a comment naming the team and the person. Repeating it changes nothing.
-* **One team at a time.** Ploeg keys Work Items by tracker identity, so a second team's assignment could re-route live work. Vloer refuses a hand-off while another team's user is on the task or Ploeg holds live work for it under another team.
-* **Take back.** Vloer removes the assignee only while every Ploeg Work Item for that task and team is queued, withdrawn, done or stale. Started work is cancelled from the Ploeg view instead.
+* **One team at a time.** Ploeg keys Work Items by tracker identity, so a second team's assignment could re-route live work. Vloer refuses a hand-off while another team's user is on the task or any Work Item for it is live, checking every team the Ploeg consumer sees, and refuses when Ploeg cannot answer.
+* **Pinned boards.** Ploeg can pin a board to one team, which then receives every assignment on it. Ploeg reports these pins as `pinnedScopes`, and Vloer offers only the pinned team on such a board.
+* **Take back.** Vloer removes the assignee only while every Ploeg Work Item for that task, in any team, is queued, withdrawn, done or stale. Started work is cancelled from the Ploeg view instead.
 * **Status.** Vloer lists Ploeg's Work Items for the tracker identity through `work-items?provider&externalId`, with the latest Shift's branch and spend and a pull request link from checkpoints.
 
 ### Consequences
 
-* Good, because Ploeg needs only two additive read changes and no new write route.
+* Good, because Ploeg needs only additive read changes (`assignees`, `pinnedScopes`, the tracker-identity filter) and no new write route.
 * Good, because the tracker shows the hand-off and its author, so nobody has to open Glide to know who holds a task.
 * Bad, because the workbench's Vikunja token needs permission to add and remove assignees and to add comments, not just to read.
 * Bad, because the comment is posted by the workbench's account and only names the person in its text. Vikunja cannot attribute it to them.

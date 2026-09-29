@@ -302,7 +302,7 @@ test('Vikunja snapshots carry labels, assignees, priority, due date, identifier 
   } finally { await remote.close(); }
 });
 
-test('a list page truncates one oversized description instead of failing, while detail still refuses it', async () => {
+test('a list page and an opted-in detail read truncate one oversized description, while the default detail read still refuses it', async () => {
   const long = `<p>${'x'.repeat(20000)}</p>`;
   const remote = await fixture((request, response) => json(response, request.url?.startsWith('/api/v1/tasks/17') ? issue('vikunja', { description: long }) : [issue('vikunja', { description: long }), issue('vikunja', { id: 18, description: 'short' })]));
   try {
@@ -314,5 +314,8 @@ test('a list page truncates one oversized description instead of failing, while 
     assert(page.tasks[0].descriptionMarkdown!.length <= 16000);
     assert.equal(page.tasks[1].descriptionTruncated, undefined);
     await assert.rejects(getTask(configured, '17'), expectedError('task_response_invalid'));
+    const shown = await getTask(configured, '17', true);
+    assert.equal(shown.descriptionTruncated, true, 'the task view can still open it, marked as shortened');
+    assert.equal(shown.revision, page.tasks[0].revision, 'the revision covers the full description, so a shortened view never passes for the original');
   } finally { await remote.close(); }
 });

@@ -152,9 +152,11 @@ Hand-off and take-back pass the mutation guard and require an operator or admini
 | 409 `task_closed`, 409 `task_changed` | The re-read task is done, or its revision differs from `revision`; reload it |
 | 502 `task_write_forbidden` | The workbench's Vikunja token cannot add or remove assignees or add comments |
 | 502 `handoff_assignee_unknown` | Vikunja has no user with the team's tracker username that the token can see |
-| 409 `handoff_active` | Hand-off while another team's tracker user is on the task, or while Ploeg holds live work for it under another team; nothing is written |
-| 409 `handoff_started` | Take-back while Ploeg holds that team's Work Item in a state other than queued, withdrawn, done or stale |
-| 503 `handoff_unverified` | Take-back while Ploeg cannot list Work Items by tracker task |
+| 409 `handoff_active` | Hand-off while another team's tracker user is on the task, or while any Work Item for it is in a state other than withdrawn, done or stale; a team outside the caller's scope is not named; nothing is written |
+| 409 `handoff_started` | Take-back while any Work Item for the task, in any team, is in a state other than queued, withdrawn, done or stale |
+
+These safety checks read Ploeg's Work Items for the task across every team the workbench's Ploeg consumer can see, not only the caller's teams, because Ploeg files one Work Item per tracker task and a board pin can place it in another team. A board that Ploeg pins to a team (`pinnedScopes` on that team) offers only that team; if it has no tracker user or is outside the caller's access, the status explains why hand-off is unavailable.
+| 503 `handoff_unverified` | Hand-off or take-back while Ploeg cannot list Work Items by tracker task; nothing is written |
 
 Hand-off resolves the user through `GET /projects/:project/projectusers?s=`, then `GET /users?s=`, and sends `PUT /tasks/:id/assignees` and `PUT /tasks/:id/comments` with `<p>Handed to Ploeg team <code>TEAM</code> by NAME from Vloer.</p>`, NAME HTML-escaped. Take-back sends `DELETE /tasks/:id/assignees/:userId` and a `Taken back from Ploeg team` comment. Both are idempotent: when there is nothing to change, nothing is written. A failed comment leaves the assignment in place and adds a warning. Each action writes a `task.handoff` or `task.take_back` log line with the actor, source, task, team and outcome.
 

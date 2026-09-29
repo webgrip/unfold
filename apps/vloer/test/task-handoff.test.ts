@@ -39,7 +39,8 @@ async function fixture(t: TestContext) {
     reads: [] as string[],
     writeStatus: 0, commentStatus: 0, projectUsersStatus: 0,
     items: [] as ReturnType<typeof workItem>[],
-    ploegDown: false, olderPloeg: false,
+    ploegDown: false, olderPloeg: false, itemsDown: false,
+    pins: {} as Record<string, string[]>,
   };
   const vikunja = await listen((req, res, body) => {
     const url = new URL(req.url!, 'http://fixture.invalid');
@@ -69,9 +70,10 @@ async function fixture(t: TestContext) {
     const send = (value: unknown, status = 200) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify({ schemaVersion: '1.0', ...value as object }));
     if (req.headers.authorization !== `Bearer ${bearer}` || req.method !== 'GET') return send({}, 401);
     if (state.ploegDown) return send({}, 503);
-    const team = (id: string, assignees: string[]) => ({ id, paused: false, queueDepth: 2, roles: [{ id: 'implementer', queueDepth: 1 }], ...(state.olderPloeg ? {} : { assignees }) });
+    const team = (id: string, assignees: string[]) => ({ id, paused: false, queueDepth: 2, roles: [{ id: 'implementer', queueDepth: 1 }], ...(state.olderPloeg ? {} : { assignees, pinnedScopes: state.pins[id] ?? [] }) });
     if (url.pathname === '/api/v1/operator/teams') return send({ teams: [team('silver', ['silver']), team('bronze', ['bronze']), team('vloer', []), team('gold', ['gold'])] });
     if (url.pathname === '/api/v1/operator/work-items') {
+      if (state.itemsDown) return send({}, 503);
       if (state.olderPloeg || !url.searchParams.has('provider')) return send({ error: { code: 'invalid_request' } }, 400);
       return send({ items: state.items.filter(item => item.provider === url.searchParams.get('provider') && item.externalId === url.searchParams.get('externalId')), nextCursor: null });
     }
@@ -236,6 +238,63 @@ test('hand-off refuses a second team while another team holds the task, so live 
   assert.equal(afterDone.status, 200, afterDone.text);
   assert.deepEqual(afterDone.body.assignedTeams, ['bronze']);
   assert.deepEqual(f.state.writes.filter(write => write.path.endsWith('/assignees')).map(write => write.body.user_id), [11, 12], 'only the refused hand-offs wrote nothing');
+});
+
+test('take-back refuses once any team has started the task, even a team outside the caller’s access', { timeout: testTimeout(15_000) }, async t => {
+  const f = await fixture(t);
+  assert.equal((await f.handOff({ team: 'silver', revision: await f.revision() })).status, 200);
+  f.state.items.push(workItem('leased', 'gold'));
+  const hidden = await f.takeBack('silver');
+  assert.equal(hidden.status, 409, hidden.text);
+  assert.equal(hidden.body.error.code, 'handoff_started');
+  f.state.items[0] = workItem('ingested', 'silver');
+  assert.equal((await f.takeBack('silver')).status, 409, 'an ingested item may still be queued by Ploeg, so it counts as started');
+  f.state.items = [];
+  f.state.itemsDown = true;
+  const unverified = await f.takeBack('silver');
+  assert.equal(unverified.status, 503, unverified.text);
+  assert.equal(unverified.body.error.code, 'handoff_unverified');
+  assert.equal(f.state.writes.filter(write => write.method === 'DELETE').length, 0);
+});
+
+test('hand-off fails closed when Ploeg cannot say who holds the task, and never names a hidden team', { timeout: testTimeout(15_000) }, async t => {
+  const f = await fixture(t);
+  f.state.itemsDown = true;
+  const unverified = await f.handOff({ team: 'silver', revision: await f.revision() });
+  assert.equal(unverified.status, 503, unverified.text);
+  assert.equal(unverified.body.error.code, 'handoff_unverified');
+  f.state.itemsDown = false;
+  f.state.items.push(workItem('needs_human', 'gold'));
+  const hidden = await f.handOff({ team: 'silver', revision: await f.revision() });
+  assert.equal(hidden.status, 409, hidden.text);
+  assert.equal(hidden.body.error.code, 'handoff_active');
+  assert.doesNotMatch(hidden.body.error.message, /gold/);
+  f.state.items = [];
+  f.state.task.assignees.push({ id: 13, username: 'gold', name: 'Gold team' });
+  const assigned = await f.handOff({ team: 'silver', revision: await f.revision() });
+  assert.equal(assigned.status, 409, assigned.text);
+  assert.match(assigned.body.error.message, /outside your access/);
+  assert.equal(f.state.writes.length, 0);
+});
+
+test('a board pinned to one Ploeg team offers only that team, because every assignment on it runs there', { timeout: testTimeout(15_000) }, async t => {
+  const f = await fixture(t);
+  f.state.pins = { bronze: ['42'] };
+  const status = await f.status();
+  assert.deepEqual(status.teams.map((team: { id: string }) => team.id), ['bronze']);
+  assert.equal(status.handoff.allowed, true);
+  const other = await f.handOff({ team: 'silver', revision: await f.revision() });
+  assert.equal(other.status, 404, other.text);
+  assert.equal(other.body.error.code, 'handoff_team');
+  f.state.pins = { vloer: ['42'] };
+  const unassignable = await f.status();
+  assert.deepEqual(unassignable.teams, []);
+  assert.match(unassignable.handoff.reason, /pinned to Ploeg team vloer, which has no tracker user/);
+  f.state.pins = { gold: ['42'] };
+  const outside = await f.status();
+  assert.deepEqual(outside.teams, []);
+  assert.match(outside.handoff.reason, /outside your access/);
+  assert.equal(f.state.writes.length, 0);
 });
 
 test('a tracker token without write permission is reported as such, and a failed comment is only a warning', { timeout: testTimeout(15_000) }, async t => {

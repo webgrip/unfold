@@ -361,7 +361,8 @@ export async function listTasks(source: TaskSourceConfig, page = 1): Promise<Tas
   return { tasks, ...(hasNext && page < maxPage ? { nextPage: page + 1 } : {}) };
 }
 
-export async function getTask(source: TaskSourceConfig, nativeId: string): Promise<TaskSnapshot> { return (await readTask(source, nativeId, false)).task; }
+/** Reads one task; `truncate` shortens an oversized description for display and marks it, while import keeps refusing it. */
+export async function getTask(source: TaskSourceConfig, nativeId: string, truncate = false): Promise<TaskSnapshot> { return (await readTask(source, nativeId, truncate)).task; }
 
 async function readTask(source: TaskSourceConfig, nativeId: string, truncate: boolean): Promise<{ task: TaskSnapshot; value: Record<string, unknown> }> {
   const id = taskId(source, nativeId);

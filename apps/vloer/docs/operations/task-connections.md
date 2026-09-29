@@ -172,6 +172,8 @@ A connection can hand off when all of these hold:
 * the server has a live `ploeg` operator connection, not the demo;
 * Ploeg reports tracker assignees for its teams. Ploeg's teams config `teams.<team>.assignees` and `PLOEG_TEAM_MAP` set them.
 
+Only one team holds a task at a time. Hand-off is refused while another team's tracker user is on the task or Ploeg has live work for it, and take-back is refused once any team has started. When Ploeg pins a board to a team (a project with an `id` and a `team:` in Ploeg's tracker configuration), every assignment on that board runs as the pinned team, so the task view offers only that team.
+
 The Vikunja token then needs more than reads. Give it permission to add and remove task assignees and to add task comments on the project. Vikunja lists these as separate API token permissions. A read-only token still browses and previews; hand-off answers `task_write_forbidden`.
 
 A person can hand a task only to a Ploeg team they may use (`ploeg.userTeams`, or any team in scope for an administrator) that has a tracker user. Viewers see the status but cannot hand off. The server rereads the task first. A done task or one that changed since it was opened is refused, and the client reloads it. Handing off again, or taking back a task that is not assigned, changes nothing.

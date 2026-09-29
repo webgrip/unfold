@@ -238,7 +238,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const source = config.taskSources?.find(item => item.id === taskRoute[1]);
           if (!source) fault(404, 'source_not_found', 'Task connection not found.');
           const resolved = await withUserToken(source!);
-          if (taskRoute[2]) return json(res, 200, sanitize(await engine.previewTask(await getTask(resolved, taskRoute[2]), user)));
+          if (taskRoute[2]) return json(res, 200, sanitize(await engine.previewTask(await getTask(resolved, taskRoute[2], url.searchParams.get('truncate') === '1'), user)));
           const page = Number(url.searchParams.get('page') ?? 1);
           if (!Number.isSafeInteger(page) || page < 1 || page > 1000) fault(400, 'page', 'Choose a page between 1 and 1000.');
           return json(res, 200, sanitize(await listTasks(resolved, page)));

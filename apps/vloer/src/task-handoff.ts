@@ -6,9 +6,12 @@ export type TaskPloegTeam = { id: string; assignee: string; queueDepth: number; 
 export type TaskPloegWorkItem = { id: string; team: string; state: string; attempts: number; updatedAt: string; prUrl?: string; branch?: string; spentUsd?: number; budgetUsd?: number };
 export type TaskPloegStatus = { available: boolean; message?: string; demo: boolean; handoff: { allowed: boolean; reason?: string }; teams: TaskPloegTeam[]; assignedTeams: string[]; workItems: TaskPloegWorkItem[]; fetchedAt: string; warnings?: string[] };
 
-const settled = ['queued', 'withdrawn', 'done', 'stale'];
+const notStarted = ['queued', 'withdrawn', 'done', 'stale'];
+const finished = ['withdrawn', 'done', 'stale'];
+type Routing = { teams: PloegTeam[]; all: PloegTeam[]; reported: boolean };
 const olderTeams = 'This Ploeg version does not report which tracker users route work to its teams. Update Ploeg to hand tasks off from here.';
 const escapeHtml = (text: string) => text.replace(/[&<>"']/g, character => `&#${character.charCodeAt(0)};`);
+const pinnedTo = (routing: Routing, source: TaskSourceConfig) => routing.all.find(team => team.pinnedScopes.includes(source.project));
 const onTask = (team: PloegTeam, task: TaskSnapshot) => team.assignees.some(name => task.assignees?.some(person => person.username.toLowerCase() === name.toLowerCase()));
 
 /** Hands Vikunja tasks to Ploeg by assigning a team's tracker user, and reports what Ploeg holds for a task. */
@@ -23,15 +26,35 @@ export class TaskHandoff {
     return { available: false, message, demo: this.demo || source.provider === 'demo', handoff: { allowed: false, reason: message }, teams: [], assignedTeams: [], workItems: [], fetchedAt: new Date().toISOString() };
   }
 
-  private async team(user: User, source: TaskSourceConfig, id: string): Promise<{ team: PloegTeam; teams: PloegTeam[] }> {
+  private async team(user: User, source: TaskSourceConfig, id: string): Promise<{ team: PloegTeam; routing: Routing }> {
     if (user.role === 'viewer') throw new TaskError(403, 'forbidden', 'Viewers cannot hand tasks to Ploeg.');
     const unsupported = handoffUnsupported(source, this.config.ploeg);
     if (unsupported) throw new TaskError(422, 'handoff_unsupported', unsupported);
-    const { teams, reported } = await this.ploeg.routing(user, true);
-    if (!reported) throw new TaskError(404, 'handoff_team', olderTeams);
-    const team = teams.find(entry => entry.id === id && entry.assignees.length);
-    if (!team) throw new TaskError(404, 'handoff_team', 'That Ploeg team is not available to you or has no tracker user to assign.');
-    return { team, teams };
+    const routing = await this.ploeg.routing(user, true);
+    if (!routing.reported) throw new TaskError(404, 'handoff_team', olderTeams);
+    const team = this.offered(user, source, routing).teams.find(entry => entry.id === id);
+    if (!team) throw new TaskError(404, 'handoff_team', this.offered(user, source, routing).reason ?? 'That Ploeg team is not available to you or has no tracker user to assign.');
+    return { team, routing };
+  }
+
+  private offered(user: User, source: TaskSourceConfig, routing: Routing): { teams: PloegTeam[]; reason?: string } {
+    const pinned = pinnedTo(routing, source);
+    if (!pinned) return { teams: routing.teams.filter(team => team.assignees.length) };
+    if (!this.ploeg.allows(user, pinned.id)) return { teams: [], reason: 'This board is pinned to a Ploeg team outside your access, so every hand-off from it runs there.' };
+    if (!pinned.assignees.length) return { teams: [], reason: `This board is pinned to Ploeg team ${pinned.id}, which has no tracker user to assign. Assign the task in the tracker instead.` };
+    return { teams: [pinned] };
+  }
+
+  private async everyItem(user: User, task: TaskSnapshot, message: string): Promise<PloegItem[]> {
+    let found: Awaited<ReturnType<PloegClient['trackerItems']>>;
+    try { found = await this.ploeg.trackerItems(user, task.provider, task.id, true, false); }
+    catch (error) { if (error instanceof PloegError) throw new TaskError(503, 'handoff_unverified', message); throw error; }
+    if (!found.supported) throw new TaskError(503, 'handoff_unverified', `${message} ${found.message ?? ''}`.trim());
+    return found.items;
+  }
+
+  private holding(user: User, item: PloegItem): string {
+    return this.ploeg.allows(user, item.team) ? `Ploeg team ${item.team} already holds this task (${item.state.replace(/_/g, ' ')})` : 'A Ploeg team outside your access already holds this task';
   }
 
   private async items(user: User, task: TaskSnapshot, fresh: boolean): Promise<{ items: TaskPloegWorkItem[]; supported: boolean; message?: string }> {
@@ -50,13 +73,14 @@ export class TaskHandoff {
   private async report(user: User, source: TaskSourceConfig, task: TaskSnapshot, fresh: boolean): Promise<TaskPloegStatus> {
     const unsupported = handoffUnsupported(source, this.config.ploeg);
     if (unsupported) return this.idle(source, unsupported);
-    let routing: { teams: PloegTeam[]; reported: boolean };
+    let routing: Routing;
     let found: Awaited<ReturnType<TaskHandoff['items']>>;
     try { [routing, found] = await Promise.all([this.ploeg.routing(user, fresh), this.items(user, task, fresh)]); }
     catch (error) { if (error instanceof PloegError) return this.idle(source, error.message); throw error; }
-    const teams = routing.reported ? routing.teams.filter(team => team.assignees.length) : [];
-    const assignedTeams = teams.filter(team => onTask(team, task)).map(team => team.id);
-    const reason = user.role === 'viewer' ? 'Viewers cannot hand tasks to Ploeg.' : task.status !== 'open' ? 'Only an open task can be handed to Ploeg.' : !routing.reported ? olderTeams : !teams.length ? 'None of your Ploeg teams has a tracker user to assign.' : undefined;
+    const offer = routing.reported ? this.offered(user, source, routing) : { teams: [] };
+    const teams = offer.teams;
+    const assignedTeams = routing.teams.filter(team => team.assignees.length && onTask(team, task)).map(team => team.id);
+    const reason = user.role === 'viewer' ? 'Viewers cannot hand tasks to Ploeg.' : task.status !== 'open' ? 'Only an open task can be handed to Ploeg.' : !routing.reported ? olderTeams : offer.reason ?? (!teams.length ? 'None of your Ploeg teams has a tracker user to assign.' : undefined);
     const active = found.items.find(entry => !['withdrawn', 'done', 'stale'].includes(entry.state));
     const message = found.message ?? (active ? `Ploeg team ${active.team} holds this task (${active.state.replace(/_/g, ' ')}).` : assignedTeams.length ? `Handed to Ploeg team ${assignedTeams.join(', ')}; Ploeg has not listed it yet.` : undefined);
     return { available: true, ...(message ? { message } : {}), demo: false, handoff: reason ? { allowed: false, reason } : { allowed: true }, teams: teams.map(team => ({ id: team.id, assignee: team.assignees[0], queueDepth: team.queueDepth, paused: team.paused, roles: team.roles.map(role => role.id) })), assignedTeams, workItems: found.items, fetchedAt: new Date().toISOString() };
@@ -72,18 +96,17 @@ export class TaskHandoff {
 
   /** Assigns the team's tracker user to an open, unchanged task and leaves a comment; repeating it changes nothing. */
   async handOff(user: User, source: TaskSourceConfig, taskId: string, teamId: string, revision: string): Promise<TaskPloegStatus> {
-    const { team, teams } = await this.team(user, source, teamId);
+    const { team, routing } = await this.team(user, source, teamId);
     const { task } = await getHandoffTask(source, taskId);
     if (task.status !== 'open') throw new TaskError(409, 'task_closed', 'Only an open task can be handed to Ploeg. Refresh the task.');
     if (task.revision !== revision) throw new TaskError(409, 'task_changed', 'The task changed after you opened it. Reload it and review the current version.');
     const warnings: string[] = [];
     let outcome = 'already_assigned';
     if (!onTask(team, task)) {
-      const holder = teams.find(other => other.id !== team.id && onTask(other, task));
-      if (holder) throw new TaskError(409, 'handoff_active', `This task is already handed to Ploeg team ${holder.id}. Take it back from ${holder.id} first.`);
-      const found = await this.items(user, task, true).catch(() => undefined);
-      const active = found?.items.find(entry => entry.team !== team.id && !['withdrawn', 'done', 'stale'].includes(entry.state));
-      if (active) throw new TaskError(409, 'handoff_active', `Ploeg team ${active.team} already holds this task (${active.state.replace(/_/g, ' ')}). Finish or cancel that work in the Ploeg view first.`);
+      const holder = routing.all.find(other => other.id !== team.id && onTask(other, task));
+      if (holder) throw new TaskError(409, 'handoff_active', this.ploeg.allows(user, holder.id) ? `This task is already handed to Ploeg team ${holder.id}. Take it back from ${holder.id} first.` : 'This task is already assigned to a Ploeg team outside your access.');
+      const active = (await this.everyItem(user, task, 'The workbench could not confirm with Ploeg that nobody holds this task yet. Try again shortly.')).find(entry => !finished.includes(entry.state));
+      if (active) throw new TaskError(409, 'handoff_active', `${this.holding(user, active)}. Finish or cancel that work in the Ploeg view first.`);
       const assignee = team.assignees[0];
       const userId = await findTrackerUser(source, assignee);
       if (!userId) throw new TaskError(502, 'handoff_assignee_unknown', `Vikunja has no user named ${assignee} that the workbench token can see. Check the team's tracker user in Ploeg's configuration.`);
@@ -100,10 +123,8 @@ export class TaskHandoff {
   async takeBack(user: User, source: TaskSourceConfig, taskId: string, teamId: string): Promise<TaskPloegStatus> {
     const { team } = await this.team(user, source, teamId);
     const { task, assigneeIds } = await getHandoffTask(source, taskId);
-    let found: Awaited<ReturnType<TaskHandoff['items']>>;
-    try { found = await this.items(user, task, true); } catch (error) { if (error instanceof PloegError) throw new TaskError(503, 'handoff_unverified', 'The workbench could not confirm with Ploeg that this work has not started. Try again, or cancel it from the Ploeg view.'); throw error; }
-    if (!found.supported) throw new TaskError(503, 'handoff_unverified', `The workbench cannot confirm that Ploeg has not started this work. ${found.message ?? ''}`.trim());
-    if (found.items.some(entry => entry.team === team.id && !settled.includes(entry.state))) throw new TaskError(409, 'handoff_started', 'Ploeg has already started; cancel it from the Ploeg view instead.');
+    const items = await this.everyItem(user, task, 'The workbench could not confirm with Ploeg that this work has not started. Try again, or cancel it from the Ploeg view.');
+    if (items.some(entry => !notStarted.includes(entry.state))) throw new TaskError(409, 'handoff_started', 'Ploeg has already started; cancel it from the Ploeg view instead.');
     const warnings: string[] = [];
     const present = team.assignees.map(name => assigneeIds.get(name.toLowerCase())).filter((id): id is number => id !== undefined);
     for (const id of present) await setTrackerAssignee(source, task.id, id, false);
