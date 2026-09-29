@@ -34,7 +34,7 @@ Chosen option: "A tenant is an agency: one namespace set, default-deny network, 
 * DinD is not offered to tenants: a privileged DinD sidecar reaches the node.
 * Each tenant has its own LiteLLM team and budget, so one agency's spend cannot exhaust another's.
 * Clients of an agency are users inside that tenant, not tenants.
-* Every item above is in place before a second, external agency runs on Glide.
+* Every item above is in place before a second, external agency shares a cluster with another tenant. The first external pilot agency runs on its own dedicated pilot cluster until then.
 * Paying agencies run on a rented EU cloud cluster. The homelab cluster serves webgrip and development.
 * Each agency chooses EU-only model routing or EU plus US under the Data Privacy Framework. DeepSeek is used only as open weights hosted in the EU, never through its own API, for client data.
 * The homelab cluster reconciles from the Forgejo repository; the GitHub mirror of `homelab-cluster` is stale and is not evidence of what runs.
@@ -67,3 +67,4 @@ Confirmed when a cross-tenant test Run fails to reach another tenant's namespace
 
 * 2026-09-28 — The owner asked for secure defaults and multi-tenancy as the base of the agency offering.
 * 2026-09-29 — Accepted. The owner set the full isolation set as the gate for the second agency, a rented EU cloud for customers, per-agency model routing, and Forgejo as the cluster's source of truth.
+* 2026-09-29 — The owner allowed the first external pilot agency on a separate dedicated cluster before shared tenancy exists.

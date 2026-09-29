@@ -34,6 +34,8 @@ Chosen option: "Agencies, with a client portal; delivery ends at a reviewed pull
 * In-house teams can use the same product as an agency with one client (themselves). We do not build for non-developers.
 * **First segment:** Dutch, development-heavy agencies of 5 to 80 FTE with maintenance work. First stacks: WordPress, Laravel, Next.js/React, Shopify and DevOps work.
 * **Editions:** the Agency edition launches first. White label follows once two partners ask for it; it is a paid tier, and white-label agencies resell their own service, never Glide credits. Freelancer and Enterprise self-hosted follow after the pilot's third gate. Platform fees per month: Freelancer €29, Agency €249, White label €690, including 1, 10 and 30 credits; Enterprise from €18k a year.
+* **Disclosure:** every pull request and the portal say that an agent wrote the change and name the developer who reviewed it.
+* **Liability:** nothing reaches a client's production without the agency's merge; Glide's liability is capped at fees paid, as stated in the terms.
 * **Portal:** the client portal is part of Vloer. Clients see both the agency's price and Glide's charge by default; each agency can hide Glide's charge, and white label hides it by default.
 
 Not implemented yet. The [agency offering proposal](../research/2026-09-28-agency-offering-proposal.md) lists the work; the [agency pricing strategy](../research/2026-09-29-agency-pricing-strategy.md) holds the research.
@@ -75,3 +77,4 @@ This record is confirmed when one agency, other than webgrip, runs a client requ
 * 2026-09-28 — The owner chose agencies as the customer and previews as the delivery boundary.
 * 2026-09-29 — Accepted. The owner decided the first segment, stacks, edition order, platform fees, white-label resale model and portal placement.
 * 2026-09-29 — The owner set the credits included in each fee and let agencies hide Glide's charge from clients.
+* 2026-09-29 — The owner decided that agent authorship is always disclosed and that the agency's merge is the liability gate.
