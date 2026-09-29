@@ -177,7 +177,7 @@ executor:
   # value overrides keep working).
   # agent-runner >=1.0.1 only: 1.0.0 mints LiteLLM keys without key_alias (400).
   runnerImage: harbor.webgrip.dev/webgrip/agent-runner:1.0.2@sha256:086b4bc0d3fda0e3c179f9501bb46a612f5f33e60d96405a5d94471a26279596
-  dindImage: harbor.webgrip.dev/dockerhub/library/docker:29.6.2-dind
+  dindImage: harbor.webgrip.dev/dockerhub/library/docker:29.6.2-dind@sha256:bfec1f5159c63a81ca6fdedbd81404d2c0e16378ed0feec3bb3fbf3998847659
   workerImage: "" # empty = image.repository:tag (carries /usr/local/bin/ploeg-worker)
   # ServiceAccount for the WORKER pods (not ploegd). Workers mount no token
   # either way; this is an identity/audit fix, and what

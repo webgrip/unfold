@@ -287,7 +287,7 @@ spec:
           # Docker daemon. Requires the ploeg-worker PolicyException. Teams whose
           # harness needs no Docker set harness.dind: false.
           - name: dind
-            image: harbor.webgrip.dev/dockerhub/library/docker:29.6.2-dind
+            image: harbor.webgrip.dev/dockerhub/library/docker:29.6.2-dind@sha256:bfec1f5159c63a81ca6fdedbd81404d2c0e16378ed0feec3bb3fbf3998847659
             restartPolicy: Always
             securityContext:
               privileged: true
@@ -719,7 +719,7 @@ spec:
           # Docker daemon. Requires the ploeg-worker PolicyException. Teams whose
           # harness needs no Docker set harness.dind: false.
           - name: dind
-            image: harbor.webgrip.dev/dockerhub/library/docker:29.6.2-dind
+            image: harbor.webgrip.dev/dockerhub/library/docker:29.6.2-dind@sha256:bfec1f5159c63a81ca6fdedbd81404d2c0e16378ed0feec3bb3fbf3998847659
             restartPolicy: Always
             securityContext:
               privileged: true
@@ -967,7 +967,7 @@ spec:
           # Docker daemon. Requires the ploeg-worker PolicyException. Teams whose
           # harness needs no Docker set harness.dind: false.
           - name: dind
-            image: harbor.webgrip.dev/dockerhub/library/docker:29.6.2-dind
+            image: harbor.webgrip.dev/dockerhub/library/docker:29.6.2-dind@sha256:bfec1f5159c63a81ca6fdedbd81404d2c0e16378ed0feec3bb3fbf3998847659
             restartPolicy: Always
             securityContext:
               privileged: true
@@ -1210,7 +1210,7 @@ spec:
           # Docker daemon. Requires the ploeg-worker PolicyException. Teams whose
           # harness needs no Docker set harness.dind: false.
           - name: dind
-            image: harbor.webgrip.dev/dockerhub/library/docker:29.6.2-dind
+            image: harbor.webgrip.dev/dockerhub/library/docker:29.6.2-dind@sha256:bfec1f5159c63a81ca6fdedbd81404d2c0e16378ed0feec3bb3fbf3998847659
             restartPolicy: Always
             securityContext:
               privileged: true
@@ -1838,7 +1838,7 @@ spec:
           # Docker daemon. Requires the ploeg-worker PolicyException. Teams whose
           # harness needs no Docker set harness.dind: false.
           - name: dind
-            image: harbor.webgrip.dev/dockerhub/library/docker:29.6.2-dind
+            image: harbor.webgrip.dev/dockerhub/library/docker:29.6.2-dind@sha256:bfec1f5159c63a81ca6fdedbd81404d2c0e16378ed0feec3bb3fbf3998847659
             restartPolicy: Always
             securityContext:
               privileged: true
