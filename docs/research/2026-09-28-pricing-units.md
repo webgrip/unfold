@@ -1,5 +1,7 @@
 # Pricing units for the agency offering
 
+Superseded by [agency pricing strategy](2026-09-29-agency-pricing-strategy.md).
+
 Status: proposal, 2026-09-28. Written from the owner's brief and the cost figures in the [capacity plan](2026-09-23-capacity-plan.md). Every price below is an illustrative assumption, not a measurement or a quote. Replace them with settled spend from real Shifts before publishing a price list. Decision: [ADR-0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md).
 
 ## Summary

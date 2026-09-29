@@ -1,6 +1,6 @@
 ---
 status: proposed
-date: 2026-09-28
+date: 2026-09-29
 decision-makers: Ryan Grippeling
 ---
 
@@ -32,12 +32,25 @@ Chosen option: "A ticket", because it is the only option where the price is know
 * An agency buys **credits** in bundles. A **ticket** consumes credits by **size** (for example S = 1, M = 3, L = 8).
 * The refinement Run proposes a size when it makes a Work Item Ready. The client sees the size and price and approves them ([ADR-0007](adr-0007-clients-approve-ready-work.md)).
 * Each size maps to a Team tier and a Shift budget cap. Ploeg refuses a Shift it cannot fund and never raises the cap on its own ([Ploeg ADR-0032](../../apps/ploeg/docs/adrs/0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md)).
-* Credits are charged when the pull request is delivered review-ready. A Shift that ends without delivery returns the credits. Reaching the cap stops the Shift and offers the client a split into new tickets, never a silent top-up.
+* Credits are charged when the ticket is delivered. Proposed definition, after research: the agency's reviewer approves or merges the pull request, checks are green, the preview is healthy and the Acceptance Conditions are met; no reviewer action within 10 business days counts as accepted; the charge is reversed within 14 days when the change is reverted for an in-scope defect. The alternative is "review-ready", which charges the agency for pull requests its reviewer rejects. A Shift that ends without delivery returns the credits. Reaching the cap stops the Shift and offers the client a split into new tickets, never a silent top-up.
 * A Follow-Up is a new ticket, approved and sized like any other ([Ploeg ADR-0031](../../apps/ploeg/docs/adrs/0031-runs-create-work-items-held-for-approval-within-limits.md)). A fix Round inside the Shift is not.
 * The agency sets its own price per size for its clients. Glide reports both numbers per ticket.
 * Preview environments are metered separately in environment-hours ([ADR-0008](adr-0008-every-pull-request-gets-a-preview-environment.md)).
 
-The [pricing units record](../research/2026-09-28-pricing-units.md) compares the units and shows the margin arithmetic. Not implemented yet.
+The [pricing units record](../research/2026-09-28-pricing-units.md) compares the units. The [agency pricing strategy](../research/2026-09-29-agency-pricing-strategy.md) tests the numbers against research. Not implemented yet.
+
+### Open numbers for the owner
+
+The research proposes these; none is decided.
+
+| Question | Proposal | Current assumption |
+| --- | --- | --- |
+| Planning delivery rate | 55%, with 70% as the target after refinement | 70% |
+| Credits per size S / M / L | 1 / 3 / 10 | 1 / 3 / 8 |
+| Shift budget cap per size | €4 / €10 / €25; premium model tier at 2x credits | €4 for S only |
+| List price per credit | €15 | €15 |
+| Floor price per credit | €12, recalculated quarterly from measured cost | none |
+| Volume steps | €14 / €13 / €12 at 100 / 250 / 500+ credits a month | not set |
 
 ### Consequences
 
@@ -74,3 +87,4 @@ Confirmed when every delivered ticket shows its size, quote, authorized cap and 
 ## More Information
 
 * 2026-09-28 — The owner proposed tickets with a spending limit each, bought in bundles, with agent tiers.
+* 2026-09-29 — Research proposed a stricter definition of delivered and revised numbers; both wait for the owner's decision.
