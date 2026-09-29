@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -46,6 +47,7 @@ type OperatorConsumer struct {
 type OperatorConfig struct {
 	Consumers        []OperatorConsumer
 	Teams            map[string][]string
+	TeamAssignees    map[string][]string
 	DeliveryPolicies map[string]DeliveryPolicy
 }
 
@@ -194,6 +196,12 @@ func (s *Server) handleOperatorTeams(w http.ResponseWriter, r *http.Request) {
 		operatorReadError(w, err)
 		return
 	}
+	for i := range teams {
+		if assignees := s.OperatorConfig.TeamAssignees[teams[i].ID]; len(assignees) > 0 {
+			teams[i].Assignees = append([]string{}, assignees...)
+			sort.Strings(teams[i].Assignees)
+		}
+	}
 	operatorJSON(w, 200, map[string]any{"schemaVersion": "1.0", "teams": teams})
 }
 
@@ -299,6 +307,7 @@ func operatorFilter(w http.ResponseWriter, r *http.Request, events bool) (store.
 		allowed["workItemId"], allowed["order"], allowed["before"] = true, true, true
 	} else {
 		allowed["state"], allowed["needsHuman"] = true, true
+		allowed["provider"], allowed["externalId"] = true, true
 	}
 	for key, values := range q {
 		if !allowed[key] || len(values) != 1 || values[0] == "" {
@@ -367,6 +376,13 @@ func operatorFilter(w http.ResponseWriter, r *http.Request, events bool) (store.
 	if f.NeedsHuman && f.State != "" && f.State != "needs_human" {
 		operatorError(w, 400, "invalid_request", "Conflicting state and needsHuman filters.")
 		return f, false
+	}
+	if q.Has("provider") || q.Has("externalId") {
+		f.Provider, f.ExternalID = q.Get("provider"), q.Get("externalId")
+		if !operatorName.MatchString(f.Provider) || !operatorName.MatchString(f.ExternalID) {
+			operatorError(w, 400, "invalid_request", "provider and externalId must be given together as valid tracker identifiers.")
+			return f, false
+		}
 	}
 	if item := q.Get("workItemId"); item != "" {
 		f.WorkItemID, err = store.OperatorCursor(item)
