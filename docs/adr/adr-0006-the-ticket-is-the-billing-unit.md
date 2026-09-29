@@ -54,12 +54,14 @@ The [pricing units record](../research/2026-09-28-pricing-units.md) compares the
 | Floor price per credit | €12, recalculated quarterly from measured cost |
 | Volume steps | €14 / €13 / €12 at 100 / 250 / 500+ credits a month |
 | Refinement Runs | Free within a monthly allowance per client |
-| Credit validity | 12 months; one month of volume rolls over |
+| What a credit is | One accepted S ticket, worth €15. Credits only measure delivery fees and are always shown with their euro value; tokens and hosting are charged in euros |
+| Credit validity | Paid credits never expire while the account is active; promotional credits can expire and are used first |
 | Purchase forms | Prepaid bundles, and 12-month monthly commitments that unlock the volume steps |
 | Tokens and compute inside a ticket | Charged per attempt at cost plus a published markup, up to the ticket's cap |
-| Metered usage above allowances | €0.008 per CI minute, €0.06 per preview hour, €0.10 per GB-month, extra tokens at list price × 1.25 |
+| Metered usage above allowances | €0.10 per GB-month of storage, extra tokens at list price × 1.25. CI is not charged |
 | Agency markup on metered usage | Each agency sets its own multiplier toward its clients; Glide bills the agency at the rates above |
-| Previews | Deploy step free; on Glide hosting €0.06 per preview hour, ingress free, 100 GB egress a month included, then provider cost plus markup ([ADR-0008](adr-0008-every-pull-request-gets-a-preview-environment.md)) |
+| Previews | Deploy step free; on Glide hosting a flat fee per preview deploy that covers 7 days, then a daily fee (amounts to be set), ingress free, 100 GB egress a month included, then provider cost plus markup ([ADR-0008](adr-0008-every-pull-request-gets-a-preview-environment.md)) |
+| Incentives | A private per-agency quality score from acceptance rate, over a minimum sample, unlocks a lower markup or higher caps; a ready-check gives feedback on a ticket before any spend; quarterly tiers with published thresholds; referral rewards in euro credit that does not expire. No streaks, leaderboards or random bonuses |
 | Self-hosted | No charge from Glide; the operator pays its own model provider and infrastructure |
 | Default cap on metered usage | €100 a month, alerts at 50, 75, 90 and 100%; work pauses at the cap |
 | Billing stack | Mollie for payment, Lago self-hosted for metering; Ploeg enforces every cap before spend |
@@ -114,3 +116,4 @@ Confirmed when every delivered ticket shows its size, quote, authorized cap and 
 * 2026-09-29 — The owner set credit validity, purchase forms, metered rates, the default usage cap, the billing stack, design-partner terms and when prices go public.
 * 2026-09-29 — The owner replaced the all-in ticket price with a two-part price: tokens per attempt at cost plus markup, capped, and credits as a delivery fee on acceptance. L stays 8 credits. How credits are defined and valued, and any gamification, wait for research on fair pricing.
 * 2026-09-29 — The owner set preview pricing and confirmed that self-hosters pay Glide nothing.
+* 2026-09-29 — The owner defined a credit as one accepted S ticket worth €15, stopped paid credits from expiring, charged previews per deploy instead of per hour, dropped CI charges, and chose the incentive mechanisms.
