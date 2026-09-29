@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-09-28
+status: accepted
+date: 2026-09-29
 decision-makers: Ryan Grippeling
 ---
 
@@ -61,3 +61,4 @@ Confirmed when a delivered pull request in a declared repository gets a reachabl
 ## More Information
 
 * 2026-09-28 — The owner chose previews ("feature previews", "review apps") over production hosting.
+* 2026-09-29 — Accepted. The preview declaration format is still open.

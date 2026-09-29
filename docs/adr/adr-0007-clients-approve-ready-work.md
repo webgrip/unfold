@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-09-28
+status: accepted
+date: 2026-09-29
 decision-makers: Ryan Grippeling
 ---
 
@@ -32,7 +32,9 @@ Chosen option: "A refinement Run drafts a Ready Work Item and a quote; the clien
 * **Waiting on the client:** when the request is incomplete, Glide notifies the client with what it knows, what it needs and a link to answer.
 * **Approval:** the client approves the Work Item and its price. The Work Item stays `proposed` until then, reusing [Ploeg ADR-0031](../../apps/ploeg/docs/adrs/0031-runs-create-work-items-held-for-approval-within-limits.md).
 * **Client profile:** each client has a Definition of Ready, a Definition of Done and extra instructions for agents. They rank below the delivery contract, like repository instructions ([Ploeg ADR-0030](../../apps/ploeg/docs/adrs/0030-target-repository-instructions-rank-below-the-delivery-contract.md)). The Definition of Done becomes Acceptance Conditions that the reviewer's Verdict checks.
-* The agency can approve on the client's behalf.
+* The agency can approve on the client's behalf, and can require its own approval in addition to the client's.
+* When the client and the agency disagree on the Definition of Done, the agency's definition wins; the client adds requirements on top.
+* Linear is the next tracker provider after Vikunja and ClickUp.
 
 Not implemented yet.
 
@@ -61,3 +63,4 @@ Confirmed when a Work Item created from a client request cannot enter a Shift wi
 ## More Information
 
 * 2026-09-28 — The owner described client intake by portal, email and phone, notifications that say what is missing, and per-client definitions of Ready and Done.
+* 2026-09-29 — Accepted. The owner decided the approval rule, who owns the Definition of Done, and Linear as the next tracker.
