@@ -421,11 +421,11 @@ func (s *Store) ClaimRoleWithin(ctx context.Context, team, role string, ttl time
 		UPDATE work_items SET state = 'leased', attempts = attempts + 1, updated_at = now()
 		WHERE id = $1 AND NOT operator_owned
 		RETURNING provider, external_id, revision, team, origin, priority, title, description, url,
-			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule,
+			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule, route_hint,
 			COALESCE(source_work_item_id::text, ''), source_branch, source_pr`,
 		workItemID).Scan(&it.Provider, &it.ExternalID, &it.Revision, &it.Team, &it.Origin,
 		&it.Priority, &it.Title, &it.Description, &it.URL,
-		&it.ExternalScope, &tg.Forge, &tg.Owner, &tg.Repo, &tg.BaseBranch, &it.RouteRule,
+		&it.ExternalScope, &tg.Forge, &tg.Owner, &tg.Repo, &tg.BaseBranch, &it.RouteRule, &it.RouteHint,
 		&it.SourceWorkItemID, &it.SourceBranch, &it.SourcePR); err != nil {
 		return nil, err
 	}

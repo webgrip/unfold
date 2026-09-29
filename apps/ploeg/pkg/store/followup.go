@@ -98,10 +98,10 @@ func (s *Store) CreateRepairFollowUp(ctx context.Context, req RepairRequest) (in
 	var operatorOwned bool
 	if err := tx.QueryRow(ctx, `
 		SELECT provider, external_id, team, state, priority, title, description, url,
-			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule, operator_owned
+			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule, route_hint, operator_owned
 		FROM work_items WHERE id = $1 FOR UPDATE`, req.SourceWorkItemID).
 		Scan(&src.Provider, &src.ExternalID, &src.Team, &src.State, &src.Priority, &src.Title, &src.Description, &src.URL,
-			&src.ExternalScope, &t.Forge, &t.Owner, &t.Repo, &t.BaseBranch, &src.RouteRule, &operatorOwned); err != nil {
+			&src.ExternalScope, &t.Forge, &t.Owner, &t.Repo, &t.BaseBranch, &src.RouteRule, &src.RouteHint, &operatorOwned); err != nil {
 		return 0, work.WorkItem{}, "", err
 	}
 	src.ID = fmt.Sprint(req.SourceWorkItemID)
@@ -153,6 +153,7 @@ func (s *Store) CreateRepairFollowUp(ctx context.Context, req RepairRequest) (in
 		URL:              src.URL,
 		ExternalScope:    src.ExternalScope,
 		RouteRule:        src.RouteRule,
+		RouteHint:        src.RouteHint,
 		SourceWorkItemID: src.ID,
 		SourceBranch:     req.Branch,
 		SourcePR:         req.PR,
@@ -163,13 +164,13 @@ func (s *Store) CreateRepairFollowUp(ctx context.Context, req RepairRequest) (in
 	var id int64
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO work_items (provider, external_id, team, state, origin, priority, title, description, url,
-			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule,
+			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule, route_hint,
 			source_work_item_id, source_branch, source_pr)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 		RETURNING id`,
 		item.Provider, item.ExternalID, item.Team, string(item.State), string(item.Origin), item.Priority,
 		item.Title, item.Description, item.URL, item.ExternalScope, t.Forge, t.Owner, t.Repo, t.BaseBranch,
-		item.RouteRule, req.SourceWorkItemID, req.Branch, req.PR).Scan(&id); err != nil {
+		item.RouteRule, item.RouteHint, req.SourceWorkItemID, req.Branch, req.PR).Scan(&id); err != nil {
 		return 0, work.WorkItem{}, "", err
 	}
 	item.ID = fmt.Sprint(id)

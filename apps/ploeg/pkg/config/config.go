@@ -42,6 +42,10 @@ import (
 // File is the whole of ploegd's file-backed configuration.
 type File struct {
 	Trackers Trackers `yaml:"trackers"`
+	// Targets is the registry of repositories a `repo/<key>` label may
+	// select (ADR-0038), keyed by the label's key. Omitted = labels never
+	// affect routing.
+	Targets map[string]Target `yaml:"targets"`
 	// Teams is the roster: what each team is made of and what it may spend.
 	Teams map[string]Team `yaml:"teams"`
 }
@@ -55,7 +59,20 @@ type TrackerConfig struct {
 	Projects []Project `yaml:"projects"`
 }
 
-// Project routes one tracker container to one repository.
+// Target is one registered repository, selected by the label
+// `repo/<key>` on a board that allows it.
+type Target struct {
+	// Repo is "owner/name".
+	Repo string `yaml:"repo"`
+	// Branch is the base branch; empty means the repository's default.
+	Branch string `yaml:"branch"`
+	// Forge names which forge instance holds the repo. Empty = the
+	// deployment's single forge.
+	Forge string `yaml:"forge"`
+}
+
+// Project routes one tracker container to one repository, or to the
+// registered targets it names.
 type Project struct {
 	// Name is the project's name on the board, exactly as a human sees it.
 	// Resolved to the provider's id at boot.
@@ -75,6 +92,12 @@ type Project struct {
 	// Team routes this project's work to one team. Empty means the assignee
 	// decides, via the team's `assignees` list below.
 	Team string `yaml:"team"`
+	// Default is the registered target for work without a `repo/*` label,
+	// instead of Repo. A project with neither requires the label.
+	Default string `yaml:"default"`
+	// Allow lists the other registered targets a `repo/<key>` label may
+	// select on this project.
+	Allow []string `yaml:"allow"`
 }
 
 // Team is a roster entry: who works, at what cost, in what order.
@@ -154,6 +177,9 @@ func Load(path string) (*File, error) {
 
 // Validate catches what can be caught without talking to a tracker.
 func (f *File) Validate() error {
+	if err := f.validateTargets(); err != nil {
+		return err
+	}
 	// One scope namespace across trackers, deliberately: the target map keys
 	// on the provider's container id alone, so a vikunja project and a clickup
 	// List sharing an id would silently route each other's work. Validating
@@ -176,15 +202,11 @@ func (f *File) Validate() error {
 			if p.Name == "" && p.ID == "" {
 				return fmt.Errorf("%s: needs a name (preferred) or an id", where)
 			}
-			if p.Repo == "" {
-				return fmt.Errorf("%s (%s): needs a repo", where, p.label())
-			}
-			owner, name, ok := strings.Cut(p.Repo, "/")
-			if !ok || owner == "" || name == "" {
-				return fmt.Errorf("%s (%s): repo %q must be owner/name", where, p.label(), p.Repo)
+			if err := f.validateRoute(p); err != nil {
+				return fmt.Errorf("%s (%s): %w", where, p.label(), err)
 			}
 			// Keyed on project AND team, because per-team routing on one project
-			// is the feature: TargetSpec renders "<id>/<team>=repo" entries, and
+			// is the feature: RoutingTable renders one rule per "<id>/<team>", and
 			// pkg/target resolves the team-specific rule ahead of the bare one. A
 			// project-only key would forbid the very config it then generates.
 			if prev, dup := seen[p.routeKey()]; dup {
@@ -194,7 +216,7 @@ func (f *File) Validate() error {
 				}
 				return fmt.Errorf("%s: project %q is routed twice%s (already to %s)", where, p.label(), forTeam, prev)
 			}
-			seen[p.routeKey()] = p.Repo
+			seen[p.routeKey()] = p.destination()
 			if p.Team != "" {
 				if _, ok := f.Teams[p.Team]; !ok {
 					return fmt.Errorf("%s (%s): routes to team %q, which is not in teams", where, p.label(), p.Team)
@@ -243,6 +265,64 @@ func (f *File) Validate() error {
 		}
 	}
 	return nil
+}
+
+func (f *File) validateTargets() error {
+	for _, key := range sortedTargetKeys(f.Targets) {
+		if key == "" || strings.TrimSpace(key) != key {
+			return fmt.Errorf("targets: key %q must be non-empty with no surrounding space", key)
+		}
+		if !ownerName(f.Targets[key].Repo) {
+			return fmt.Errorf("targets.%s: repo %q must be owner/name", key, f.Targets[key].Repo)
+		}
+	}
+	return nil
+}
+
+func (f *File) validateRoute(p Project) error {
+	if p.Default != "" && (p.Repo != "" || p.Branch != "" || p.Forge != "") {
+		return fmt.Errorf("set default or repo/branch/forge, not both")
+	}
+	if p.Repo == "" && p.Default == "" && len(p.Allow) == 0 {
+		return fmt.Errorf("needs a repo, a default target or allowed targets")
+	}
+	if p.Repo != "" && !ownerName(p.Repo) {
+		return fmt.Errorf("repo %q must be owner/name", p.Repo)
+	}
+	for _, key := range append([]string{p.Default}, p.Allow...) {
+		if key == "" {
+			continue
+		}
+		if _, ok := f.Targets[key]; !ok {
+			return fmt.Errorf("target %q is not in targets", key)
+		}
+	}
+	return nil
+}
+
+func ownerName(repo string) bool {
+	owner, name, ok := strings.Cut(repo, "/")
+	return ok && owner != "" && name != ""
+}
+
+func (p Project) destination() string {
+	switch {
+	case p.Repo != "":
+		return p.Repo
+	case p.Default != "":
+		return "target " + p.Default
+	default:
+		return "a repo label"
+	}
+}
+
+func sortedTargetKeys(targets map[string]Target) []string {
+	out := make([]string, 0, len(targets))
+	for key := range targets {
+		out = append(out, key)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // CreatedWorkPolicies returns every configured Team's created-work limits.

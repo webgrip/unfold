@@ -67,6 +67,7 @@ func fullTaskSpec() TaskSpec {
 			ExternalScope: "11",
 			Target:        &work.Target{Forge: "webgrip", Owner: "webgrip", Repo: "ploeg", BaseBranch: "development"},
 			RouteRule:     "11/silver",
+			RouteHint:     "repo/ploeg",
 		},
 		Role:       "builder",
 		Checkpoint: &work.Checkpoint{Phase: "branch_created", Branch: "agent/vik-596"},

@@ -417,6 +417,15 @@ executor:
 # A bare project id in cluster config cannot be reviewed and silently routes
 # work to the wrong repository the day the project is rebuilt.
 config: {}
+#   targets:                          # ADR-0038: repositories a `repo/<key>` label may select
+#     glide:
+#       repo: webgrip/glide
+#       branch: development
+#       forge: forgejo
+#     homelab-cluster:
+#       repo: webgrip/homelab-cluster
+#       branch: main
+#       forge: forgejo
 #   trackers:
 #     vikunja:
 #       projects:
@@ -424,6 +433,11 @@ config: {}
 #           repo: webgrip/ploeg
 #           branch: development       # unset = the repo default, may be a stub
 #           team: bronze              # unset = the assignee decides
+#         - name: "Glide"             # a board serving several repositories
+#           default: glide            # a targets key, instead of repo/branch/forge
+#           allow: [homelab-cluster]  # what a repo/<key> label may select here
+#         - name: "Forgejo Migration" # no default: every ticket needs a repo/<key> label
+#           allow: [glide, homelab-cluster]
 #   teams:
 #     bronze:
 #       assignees: [jake, bronze]     # replaces PLOEG_TEAM_MAP

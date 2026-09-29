@@ -8,6 +8,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"html"
 	"log/slog"
 	"net/http"
 	"time"
@@ -31,6 +33,10 @@ type Server struct {
 	// Nil = no mapping configured; every item stays unresolved and workers use
 	// their env-configured repo (the pre-decoupling behavior).
 	Targets target.Resolver
+	// Readiness gates the registered targets (ADR-0038): an item routed to an
+	// unready one is refused at ingest, and a Run claiming one is stopped
+	// before it starts. Nil = no target registry, no gate.
+	Readiness *target.Gate
 	// ScopeTeams pins a tracker container to one team (config: a project's
 	// `team:`). The pin BEATS the assignee mapping — the config has always
 	// said "Team routes this project's work to one team. Empty means the
@@ -201,9 +207,16 @@ func (s *Server) handleTrackerWebhook(w http.ResponseWriter, r *http.Request) {
 		if ev.Kind != provider.TrackerAssigned {
 			continue
 		}
-		item := s.mirror(r.Context(), tp, ev)
+		item, labelsRead := s.mirror(r.Context(), tp, ev)
 		s.pinTeam(&item)
-		s.resolveTarget(&item, ev)
+		if refusal := s.resolveTarget(r.Context(), &item, labelsRead, ev); refusal != nil {
+			if err := s.refuseRoute(r.Context(), tp, item, refusal); err != nil {
+				s.Log.Error("route refusal audit failed", "provider", name, "external_id", ev.ExternalID, "err", err)
+				http.Error(w, "ingest failed", http.StatusInternalServerError)
+				return
+			}
+			continue
+		}
 		id, state, err := s.Store.IngestAssigned(r.Context(), item)
 		if err != nil {
 			s.Log.Error("ingest failed", "provider", name, "external_id", ev.ExternalID, "err", err)
@@ -284,30 +297,23 @@ func (s *Server) handleForgeWebhook(w http.ResponseWriter, r *http.Request) {
 }
 
 // mirror applies the thin-payload rule: prefer the provider's authoritative
-// read, fall back to the webhook snapshot.
-func (s *Server) mirror(ctx context.Context, tp provider.TrackerProvider, ev provider.TrackerEvent) work.WorkItem {
+// read, fall back to the webhook snapshot. The flag reports whether the
+// authoritative read succeeded, which is the only source of labels.
+func (s *Server) mirror(ctx context.Context, tp provider.TrackerProvider, ev provider.TrackerEvent) (work.WorkItem, bool) {
 	if item, err := tp.FetchItem(ctx, ev.ExternalID); err == nil {
 		item.Team = ev.Team
 		if item.ExternalScope == "" {
 			item.ExternalScope = ev.Scope.ID
 		}
-		return item
+		return item, true
 	}
 	if ev.Item != nil {
-		return *ev.Item
+		return *ev.Item, false
 	}
 	return work.WorkItem{Provider: tp.Name(), ExternalID: ev.ExternalID, Team: ev.Team,
-		ExternalScope: ev.Scope.ID, Origin: work.OriginAssignment}
+		ExternalScope: ev.Scope.ID, Origin: work.OriginAssignment}, false
 }
 
-// resolveTarget decides where this item's changes land. It runs AFTER mirror
-// so it applies to both the authoritative read and the webhook-snapshot
-// fallback — putting it inside mirror's happy path would silently drop targets
-// the day FetchItem stops being a stub (backlog #31).
-//
-// An unresolved target is not an error: the item still queues, and the worker
-// falls back to its env-configured repo. The WARN is the onboarding worklist,
-// generated from live traffic rather than guessed.
 // pinTeam applies a container's pinned team once the scope is known — which
 // for a thin webhook (clickup) is only after mirror has fetched the item, so
 // this cannot live in the provider. It runs before resolveTarget so the
@@ -325,30 +331,60 @@ func (s *Server) pinTeam(item *work.WorkItem) {
 	item.Team = pinned
 }
 
-func (s *Server) resolveTarget(item *work.WorkItem, ev provider.TrackerEvent) {
+func (s *Server) resolveTarget(ctx context.Context, item *work.WorkItem, labelsRead bool, ev provider.TrackerEvent) *target.Refusal {
 	if s.Targets == nil {
-		return
+		return nil
 	}
 	if item.ExternalScope == "" {
 		s.Log.Warn("tracker event carries no scope; target unresolved",
 			"provider", item.Provider, "external_id", ev.ExternalID, "team", item.Team)
-		return
 	}
-	t, rule, ok := s.Targets.Resolve(item.ExternalScope, item.Team)
+	route, ok, err := s.Targets.Route(target.Request{Scope: item.ExternalScope, Team: item.Team, Labels: item.Labels, LabelsRead: labelsRead})
+	var refusal *target.Refusal
+	if errors.As(err, &refusal) {
+		return refusal
+	}
 	if !ok {
-		s.Log.Warn("no target mapping for tracker scope; worker will use its env repo",
-			"scope", item.ExternalScope, "team", item.Team, "external_id", ev.ExternalID)
-		return
+		if item.ExternalScope != "" {
+			s.Log.Warn("no target mapping for tracker scope; worker will use its env repo",
+				"scope", item.ExternalScope, "team", item.Team, "external_id", ev.ExternalID)
+		}
+		return nil
 	}
-	item.Target = &t
-	item.RouteRule = rule
-	// The routing decision, at the moment it is made. Only the failures were
-	// logged, so a CORRECT decision was invisible in ploegd's own log and
-	// only surfaced a hop later in the worker — after a pod had been
-	// scheduled and an agent had started. Nothing here is a credential.
+	if route.Key != "" && s.Readiness != nil {
+		switch v := s.Readiness.Admit(ctx, route.Key); {
+		case v.Unknown:
+			s.Log.Warn("target readiness unknown at ingest; the claim checks it again",
+				"external_id", ev.ExternalID, "target", route.Key, "reason", v.Reason)
+		case !v.Ready:
+			return &target.Refusal{Reason: fmt.Sprintf("target %q is not ready: %s", route.Key, v.Reason)}
+		}
+	}
+	item.Target = &route.Target
+	item.RouteRule = route.Rule
+	item.RouteHint = route.Hint
 	s.Log.Info("target resolved", "external_id", ev.ExternalID, "scope", item.ExternalScope,
-		"team", item.Team, "repo", t.Owner+"/"+t.Repo, "branch", t.BaseBranch,
-		"forge", t.Forge, "rule", rule)
+		"team", item.Team, "repo", route.Target.Owner+"/"+route.Target.Repo, "branch", route.Target.BaseBranch,
+		"forge", route.Target.Forge, "rule", route.Rule, "hint", route.Hint, "registered_target", route.Key)
+	return nil
+}
+
+func (s *Server) refuseRoute(ctx context.Context, tp provider.TrackerProvider, item work.WorkItem, refusal *target.Refusal) error {
+	s.Log.Warn("tracker item refused by routing; nothing queued", "provider", item.Provider,
+		"external_id", item.ExternalID, "scope", item.ExternalScope, "team", item.Team, "reason", refusal.Reason)
+	if err := s.Store.RefuseRoute(ctx, item, refusal.Reason); err != nil {
+		return err
+	}
+	if err := tp.Comment(ctx, item.ExternalID, routeRefusalComment(refusal)); err != nil {
+		s.Log.Error("route refusal comment failed", "provider", item.Provider, "external_id", item.ExternalID, "err", err)
+	}
+	return nil
+}
+
+func routeRefusalComment(refusal *target.Refusal) string {
+	return "<p>Ploeg did not queue this task: " + html.EscapeString(refusal.Reason) + ".</p>" +
+		"<p>Nothing was sent to any repository. Give the task exactly one <code>" + target.HintPrefix +
+		"&lt;target&gt;</code> label this board allows, or ask an operator to register the target, then assign it again.</p>"
 }
 
 type claimRequest struct {
@@ -423,6 +459,10 @@ func (s *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "claim failed", http.StatusInternalServerError)
 		return
 	}
+	if s.stopUnreadyTarget(r.Context(), req.Team, claimed.RunToken, claimed.Item) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	s.Log.Info("lease acquired", "team", req.Team, "work_item", claimed.Item.ID, "deadline", claimed.Deadline)
 	writeJSON(w, http.StatusOK, claimResponse{RunToken: claimed.RunToken, Deadline: claimed.Deadline, WorkItem: claimed.Item})
 }
@@ -459,6 +499,10 @@ func (s *Server) claimRole(w http.ResponseWriter, r *http.Request, req claimRequ
 
 // respondClaimedRun builds the Shift-shaped claim response, briefing and all.
 func (s *Server) respondClaimedRun(w http.ResponseWriter, r *http.Request, req claimRequest, run *store.ClaimedRun) {
+	if s.stopUnreadyTarget(r.Context(), req.Team, run.RunToken, run.Item) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	resp := claimResponse{
 		RunToken: run.RunToken, Deadline: run.Deadline, WorkItem: run.Item,
 		Shift: run.ShiftID, Role: run.Role, Round: run.Round,
@@ -527,6 +571,38 @@ func (s *Server) respondClaimedRun(w http.ResponseWriter, r *http.Request, req c
 		"round", run.Round, "writes", run.Writes, "authorized", run.Authorized,
 		"briefing", len(resp.Briefing), "deadline", run.Deadline)
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) stopUnreadyTarget(ctx context.Context, team, runToken string, item work.WorkItem) bool {
+	if s.Readiness == nil || item.Target == nil {
+		return false
+	}
+	key, registered := s.Readiness.KeyOf(*item.Target)
+	if !registered {
+		return false
+	}
+	v := s.Readiness.Check(ctx, key)
+	if v.Ready {
+		return false
+	}
+	report := store.Report(work.OutcomeStuck, "target not ready", fmt.Sprintf("target %q is not ready: %s", key, v.Reason), nil, nil, nil)
+	if v.Unknown {
+		infra := string(work.FailureInfraNode)
+		report = store.Report(work.OutcomeFailed, "could not check target readiness: "+v.Reason, "", nil, nil, &infra)
+	}
+	s.Log.Warn("claim stopped by the target readiness gate; no run started", "team", team,
+		"work_item", item.ID, "target", key, "unknown", v.Unknown, "reason", v.Reason)
+	res, err := s.Store.ReportOutcome(ctx, runToken, report)
+	if err != nil {
+		s.Log.Error("releasing the run failed", "work_item", item.ID, "err", err)
+		return true
+	}
+	if s.Engine != nil && res.ShiftID != nil {
+		if err := s.Engine.EvaluateItem(ctx, res.WorkItemID); err != nil {
+			s.Log.Error("shift evaluate failed; sweeper will repair", "shift", *res.ShiftID, "err", err)
+		}
+	}
+	return true
 }
 
 func (s *Server) handleRenew(w http.ResponseWriter, r *http.Request) {

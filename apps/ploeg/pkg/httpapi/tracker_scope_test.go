@@ -17,11 +17,11 @@ func TestMirrorRetainsAuthoritativeScopeWhenThinEventHasNone(t *testing.T) {
 	}))
 	defer api.Close()
 	p := &clickup.Provider{BaseURL: api.URL, Token: "fixture"}
-	item := (&Server{}).mirror(context.Background(), p, provider.TrackerEvent{ExternalID: "task", Team: "silver"})
+	item, _ := (&Server{}).mirror(context.Background(), p, provider.TrackerEvent{ExternalID: "task", Team: "silver"})
 	if item.ExternalScope != "42" {
 		t.Fatalf("thin event discarded authoritative scope: got %q", item.ExternalScope)
 	}
-	item = (&Server{}).mirror(context.Background(), p, provider.TrackerEvent{ExternalID: "task", Team: "silver", Scope: provider.Scope{ID: "old-container"}})
+	item, _ = (&Server{}).mirror(context.Background(), p, provider.TrackerEvent{ExternalID: "task", Team: "silver", Scope: provider.Scope{ID: "old-container"}})
 	if item.ExternalScope != "42" {
 		t.Fatalf("stale webhook overrode freshly fetched scope: got %q", item.ExternalScope)
 	}
