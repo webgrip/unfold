@@ -36,6 +36,8 @@ Chosen option: "Agencies, with a client portal; delivery ends at a reviewed pull
 * **Editions:** the Agency edition launches first. White label follows once two partners ask for it; it is a paid tier, and white-label agencies resell their own service, never Glide credits. Freelancer and Enterprise self-hosted follow after the pilot's third gate. Platform fees per month: Freelancer €29, Agency €249, White label €690, including 1, 10 and 30 credits; Enterprise from €18k a year.
 * **Disclosure:** every pull request and the portal say that an agent wrote the change and name the developer who reviewed it.
 * **Liability:** nothing reaches a client's production without the agency's merge; Glide's liability is capped at fees paid, as stated in the terms.
+* **Trust:** agency owners see live spend against the cap for every ticket, the full agent log per pull request, a public security page with a pentest summary, and a kill switch that stops all of the agency's Runs at once.
+* **Pilot:** the first external agency signs a 4 to 6 week pilot agreement with an NDA and a data processing agreement; Glide never trains on its code and deletes it on exit. The pilot delivers 5 to 10 of the agency's real small tickets in its own repository.
 * **Portal:** the client portal is part of Vloer. Clients see the agency's price. Glide's charge is hidden by default; an agency can choose to show it.
 
 Not implemented yet. The [agency offering proposal](../research/2026-09-28-agency-offering-proposal.md) lists the work; the [agency pricing strategy](../research/2026-09-29-agency-pricing-strategy.md) holds the research.
@@ -79,3 +81,4 @@ This record is confirmed when one agency, other than webgrip, runs a client requ
 * 2026-09-29 — The owner set the credits included in each fee and let agencies hide Glide's charge from clients.
 * 2026-09-29 — The owner decided that agent authorship is always disclosed and that the agency's merge is the liability gate.
 * 2026-09-29 — The owner hid Glide's charge from clients by default.
+* 2026-09-29 — The owner set the trust features and the pilot terms, after naming lack of trust as the most likely cause of failure.
