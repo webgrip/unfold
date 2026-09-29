@@ -35,11 +35,12 @@ Chosen option: "Agencies, with a client portal; delivery ends at a reviewed pull
 * **First segment:** Dutch, development-heavy agencies of 5 to 80 FTE with maintenance work. First stacks: WordPress, Laravel, Next.js/React, Shopify and DevOps work.
 * **Editions:** the Agency edition launches first. White label follows once two partners ask for it; it is a paid tier, and white-label agencies resell their own service, never Glide credits. Freelancer and Enterprise self-hosted follow after the pilot's third gate. Platform fees per month: Freelancer €29, Agency €249, White label €690, including 1, 10 and 30 credits; Enterprise from €18k a year.
 * **Disclosure:** every pull request and the portal say that an agent wrote the change and name the developer who reviewed it.
-* **Liability:** nothing reaches a client's production without the agency's merge; Glide's liability is capped at fees paid, as stated in the terms.
+* **Liability:** Glide opens pull requests on semantically named branches and never deploys. Production deploys run in the agency's own CI, and whether a pull request may merge without review is the agency's forge and repository setting. Glide's liability is capped at fees paid, as stated in the terms.
 * **Trust:** agency owners see live spend against the cap for every ticket, the full agent log per pull request, a public security page with a pentest summary, and a kill switch that stops all of the agency's Runs at once.
 * **Pilot:** the first external agency signs a 4 to 6 week pilot agreement with an NDA and a data processing agreement; Glide never trains on its code and deletes it on exit. The pilot delivers 5 to 10 of the agency's real small tickets in its own repository.
 * **Refinement as a product:** request-to-quote (refinement and pricing without agent code) is also sold on its own, for agencies not ready to let agents change code.
 * **Never built:** an account or ticket without a hard spending cap, and features made for one agency that others will not use.
+* **Agents and Teams:** agencies, and their clients where the agency allows it, define their own agents and Teams (Roles, models, instructions). Glide ships default Teams. Every Team runs inside the ticket's spending cap.
 * **Portal:** the client portal is part of Vloer. Clients see the agency's price. Glide's charge is hidden by default; an agency can choose to show it.
 
 Not implemented yet. The [agency offering proposal](../research/2026-09-28-agency-offering-proposal.md) lists the work; the [agency pricing strategy](../research/2026-09-29-agency-pricing-strategy.md) holds the research.
@@ -85,3 +86,4 @@ This record is confirmed when one agency, other than webgrip, runs a client requ
 * 2026-09-29 — The owner hid Glide's charge from clients by default.
 * 2026-09-29 — The owner set the trust features and the pilot terms, after naming lack of trust as the most likely cause of failure.
 * 2026-09-29 — The owner made refinement a standalone product and set what Glide never builds.
+* 2026-09-29 — The owner placed deploys and merge rules with the agency's CI and forge, and let agencies define their own agents and Teams.
