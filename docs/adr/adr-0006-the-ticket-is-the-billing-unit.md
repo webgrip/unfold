@@ -60,7 +60,7 @@ The [pricing units record](../research/2026-09-28-pricing-units.md) compares the
 | Billing stack | Mollie for payment, Lago self-hosted for metering; Ploeg enforces every cap before spend |
 | Design partners | 3 to 5, 50% off the platform fee for 6 months; credits never below the floor |
 | Public price list | Published after the pilot's first gate |
-| Model price changes | Passed through to the credit price immediately |
+| Model price changes | Passed through to the price of new credits immediately; credits already bought and quotes already approved keep their price |
 | Public launch gate | 60% of S tickets delivered at €4 or less per delivered S |
 
 ### Consequences
@@ -104,5 +104,5 @@ Confirmed when every delivered ticket shows its size, quote, authorized cap and 
 * 2026-09-29 — The owner moved the charge point from review-ready to the agency reviewer's acceptance, so rejected and failed tickets are never charged.
 * 2026-09-29 — The owner set silent acceptance at 10 working days, with reminders on day 3 and 7.
 * 2026-09-29 — The owner kept tokens and compute inside the ticket price, kept Glide's metered rates, and let agencies set their own markup on metered usage.
-* 2026-09-29 — The owner decided that model price changes pass through to the credit price immediately.
+* 2026-09-29 — The owner decided that model price changes pass through to the credit price immediately, while bought credits and approved quotes keep their price.
 * 2026-09-29 — The owner set credit validity, purchase forms, metered rates, the default usage cap, the billing stack, design-partner terms and when prices go public.

@@ -35,6 +35,7 @@ Chosen option: "A refinement Run drafts a Ready Work Item and a quote; the clien
 * The agency can approve on the client's behalf, and can require its own approval in addition to the client's.
 * When the client and the agency disagree on the Definition of Done, the agency's definition wins; the client adds requirements on top.
 * Linear is the next tracker provider after Vikunja and ClickUp.
+* When a client disputes a preview, the agency decides against the approved Acceptance Conditions. A pull request that meets them is accepted; a new wish becomes a new ticket.
 
 Not implemented yet.
 
@@ -64,3 +65,4 @@ Confirmed when a Work Item created from a client request cannot enter a Shift wi
 
 * 2026-09-28 — The owner described client intake by portal, email and phone, notifications that say what is missing, and per-client definitions of Ready and Done.
 * 2026-09-29 — Accepted. The owner decided the approval rule, who owns the Definition of Done, and Linear as the next tracker.
+* 2026-09-29 — The owner decided that the agency settles preview disputes against the approved Acceptance Conditions.
