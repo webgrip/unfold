@@ -1,7 +1,11 @@
 # execution-boundary-comparison Specification
 
 ## Purpose
-TBD - created by archiving change assemble-glide-monorepo. Update Purpose after archive.
+How Glide decides whether standalone and Ploeg-admitted execution share an
+engine: both paths run through real application code and are compared against
+the existing contracts, and a shared runner is extracted only when that evidence
+shows a common responsibility. Archived from the change
+`2026-09-23-assemble-glide-monorepo`.
 ## Requirements
 ### Requirement: Compare explicit execution authority
 

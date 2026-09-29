@@ -1,7 +1,11 @@
 # operator-api Specification
 
 ## Purpose
-TBD - created by archiving change unified-operator-execution. Update Purpose after archive.
+The operator-facing Run API: authenticated, Team-scoped reads under a versioned
+contract, idempotent admission of operator work under Ploeg's authority, and
+explicit stop and recovery that survive a restart without handing a stale
+execution new authority. Archived from the change
+`2026-09-23-unified-operator-execution`.
 ## Requirements
 ### Requirement: Scoped operator read model
 
