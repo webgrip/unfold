@@ -29,7 +29,7 @@ Chosen option: "A refinement Run drafts a Ready Work Item and a quote; the clien
 
 * **Intake:** the client portal, an imported tracker item (Vikunja and ClickUp exist in Ploeg; Linear is next), or email. Voice is later.
 * **Refinement:** a refinement Role reads the request, asks the client questions when information is missing, and writes a Work Item with Acceptance Conditions and a size ([ADR-0006](adr-0006-the-ticket-is-the-billing-unit.md)). It cannot dispatch the Work Item.
-* **Waiting on the client:** when the request is incomplete, Glide notifies the client with what it knows, what it needs and a link to answer.
+* **Waiting on the client:** when the request is incomplete, Glide tells the agency what it knows and what it needs. Glide never contacts an agency's clients directly; the agency passes questions on, and clients answer in the portal.
 * **Approval:** the client approves the Work Item and its price. The Work Item stays `proposed` until then, reusing [Ploeg ADR-0031](../../apps/ploeg/docs/adrs/0031-runs-create-work-items-held-for-approval-within-limits.md).
 * **Client profile:** each client has a Definition of Ready, a Definition of Done and extra instructions for agents. They rank below the delivery contract, like repository instructions ([Ploeg ADR-0030](../../apps/ploeg/docs/adrs/0030-target-repository-instructions-rank-below-the-delivery-contract.md)). The Definition of Done becomes Acceptance Conditions that the reviewer's Verdict checks.
 * The agency can approve on the client's behalf, and can require its own approval in addition to the client's.
@@ -66,3 +66,4 @@ Confirmed when a Work Item created from a client request cannot enter a Shift wi
 * 2026-09-28 — The owner described client intake by portal, email and phone, notifications that say what is missing, and per-client definitions of Ready and Done.
 * 2026-09-29 — Accepted. The owner decided the approval rule, who owns the Definition of Done, and Linear as the next tracker.
 * 2026-09-29 — The owner decided that the agency settles preview disputes against the approved Acceptance Conditions.
+* 2026-09-29 — The owner decided that Glide never contacts an agency's clients directly.
