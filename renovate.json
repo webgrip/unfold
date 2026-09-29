@@ -75,6 +75,14 @@
       "pinDigests": false
     },
     {
+      "description": "Forgejo-resolved workflow pins keep the CI-only commit shape. The org forgejo overlay sets it too, but as runner-level config it is applied before the preset's per-update-type commit types, which then win.",
+      "matchDatasources": [
+        "gitea-tags"
+      ],
+      "semanticCommitType": "ci",
+      "semanticCommitScope": "actions"
+    },
+    {
       "description": "The agent image and the mise pin must move together: one OpenCode version is what the workbench, the probe and the image share.",
       "matchPackageNames": [
         "opencode-ai"
