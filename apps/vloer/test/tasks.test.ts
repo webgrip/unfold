@@ -43,7 +43,7 @@ test('task source validation binds registered repositories, explicit authority a
     assert.equal(configured.token, token);
     assert.equal(configured.project, 'team/orders');
     assert.equal(configured.baseUrl, 'https://forge.example/api/v1');
-    assert.deepEqual(publicTaskSource(configured), { id: 'orders', name: 'Order issues', provider: 'forgejo', repositoryId: 'order-service', executionOwner: 'interactive' });
+    assert.deepEqual(publicTaskSource(configured), { id: 'orders', name: 'Order issues', provider: 'forgejo', repositoryId: 'order-service', executionOwner: 'interactive', handoff: false });
     for (const change of [
       { token }, { tokenEnv: 'NOT_PRESENT_VLOER_TASK_SECRET' }, { tokenEnv: 'token$(cat)' }, { repositoryId: 'unregistered' }, { executionOwner: undefined },
       { baseUrl: 'https://user:password@forge.example/api/v1' }, { baseUrl: 'https://forge.example/api/v1?token=secret' }, { baseUrl: 'https://forge.example/api/v1#fragment' },
@@ -276,4 +276,43 @@ test('demo tasks are labeled fixtures, bound to the demo repository and unavaila
   assert.deepEqual(await getTask(configured, '1'), page.tasks[0]);
   assert.deepEqual(await listTasks(configured, 2), { tasks: [] });
   await assert.rejects(getTask(configured, '2'), expectedError('task_not_found'));
+});
+
+test('Vikunja snapshots carry labels, assignees, priority, due date, identifier and Markdown without changing the revision', async () => {
+  let current = issue('vikunja', { description: '<p>Use <strong>decimal</strong> totals.</p><ul data-type="taskList"><li data-checked="true"><p>Round</p></li></ul>', index: 7, identifier: 'GLIDE-7', priority: 3, due_date: '2026-10-01T12:00:00Z', labels: [{ id: 1, title: 'backend', hex_color: 'E8E8E8' }, { id: 2, title: `leak ${token}`, hex_color: 'not-a-color' }, 'junk', { title: '' }], assignees: [{ id: 11, username: 'silver', name: 'Silver team' }, { id: 12, username: 'plain' }, { id: 13 }] });
+  const remote = await fixture((request, response) => json(response, request.url?.startsWith('/api/v1/tasks/17') ? current : [current]));
+  try {
+    const configured = source('vikunja', remote.origin);
+    const task = await getTask(configured, '17');
+    assert.deepEqual(task.labels, [{ name: 'backend', color: '#e8e8e8' }, { name: 'leak [redacted]' }]);
+    assert.deepEqual(task.assignees, [{ username: 'silver', name: 'Silver team' }, { username: 'plain' }]);
+    assert.equal(task.priority, 3);
+    assert.equal(task.dueAt, '2026-10-01T12:00:00.000Z');
+    assert.equal(task.identifier, 'GLIDE-7');
+    assert.equal(task.descriptionMarkdown, 'Use **decimal** totals.\n\n- [x] Round');
+    assert.equal(task.description, current.description, 'the stored description stays the tracker text');
+    assert.equal(task.descriptionTruncated, undefined);
+    current = { ...current, labels: [], assignees: [], priority: 0, due_date: '0001-01-01T00:00:00Z', identifier: '' };
+    const bare = await getTask(configured, '17');
+    assert.equal(bare.revision, task.revision, 'labels, assignees, priority and due date are outside the revision');
+    for (const key of ['labels', 'assignees', 'priority', 'dueAt'] as const) assert.equal(bare[key], undefined, key);
+    assert.equal(bare.identifier, '#7');
+    current = issue('vikunja', { description: 'Plain text, no markup.' });
+    assert.equal((await getTask(configured, '17')).descriptionMarkdown, undefined);
+  } finally { await remote.close(); }
+});
+
+test('a list page truncates one oversized description instead of failing, while detail still refuses it', async () => {
+  const long = `<p>${'x'.repeat(20000)}</p>`;
+  const remote = await fixture((request, response) => json(response, request.url?.startsWith('/api/v1/tasks/17') ? issue('vikunja', { description: long }) : [issue('vikunja', { description: long }), issue('vikunja', { id: 18, description: 'short' })]));
+  try {
+    const configured = source('vikunja', remote.origin);
+    const page = await listTasks(configured);
+    assert.equal(page.tasks.length, 2);
+    assert.equal(page.tasks[0].description.length, 16000);
+    assert.equal(page.tasks[0].descriptionTruncated, true);
+    assert(page.tasks[0].descriptionMarkdown!.length <= 16000);
+    assert.equal(page.tasks[1].descriptionTruncated, undefined);
+    await assert.rejects(getTask(configured, '17'), expectedError('task_response_invalid'));
+  } finally { await remote.close(); }
 });

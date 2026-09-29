@@ -2,7 +2,8 @@ import type { AppConfig, User } from './types.ts';
 import { ploegDemo } from './ploeg-demo.ts';
 
 export type PloegState = 'ingested' | 'queued' | 'leased' | 'done' | 'needs_human' | 'awaiting_review' | 'stale' | 'withdrawn' | 'proposed';
-export type PloegTeam = { id: string; paused: boolean | null; queueDepth: number; roles: { id: string; queueDepth: number }[] };
+export type PloegTeam = { id: string; paused: boolean | null; queueDepth: number; roles: { id: string; queueDepth: number }[]; assignees: string[] };
+export type PloegTrackerItems = { items: PloegItem[]; supported: boolean; message?: string };
 export type PloegShift = { id: string; workItemId: string; team: string; branch: string; round: number; budgetUsd: number; spentUsd: number; reservedUsd: number; openedAt: string; closedAt: string | null; closeReason: string };
 export type PloegItem = { id: string; provider: string; externalId: string; revision: string; team: string; state: PloegState; title: string; description: string; url: string; priority: number; attempts: number; infraFailures: number; nextEligibleAt: string | null; createdAt: string; updatedAt: string; target: { forge: string; owner: string; repo: string; baseBranch: string } | null; latestShift: PloegShift | null; lease: { expiresAt: string; renewedAt: string } | null; sourceWorkItemId?: string; createdKind?: string; ready?: boolean };
 export type PloegRun = { id: string; workItemId: string; shiftId: string | null; team: string; role: string; round: number; writes: boolean; state: 'pending' | 'running' | 'finished'; startedAt: string | null; finishedAt: string | null; expiresAt: string | null; outcome: string | null; summary: string; stuckReason: string; links: string[]; findings: string; verdict: string; failureReason: string | null; authorizedUsd: number; usage: { inputTokens?: number; outputTokens?: number; costUsd?: number } | null; costStatus: 'observed' | 'unknown'; keyAlias: string | null };
@@ -55,7 +56,7 @@ function link(value: unknown): string {
 function envelope(value: unknown): Record<string, unknown> { const data = record(value); if (data.schemaVersion !== '1.0') throw invalid(); return data; }
 function team(value: unknown): PloegTeam {
   const data = record(value);
-  return { id: field(data.id, 100), paused: nullable(data.paused, boolean), queueDepth: numeric(data.queueDepth, true), roles: array(data.roles, value => { const role = record(value); return { id: field(role.id, 100), queueDepth: numeric(role.queueDepth, true) }; }, 100) };
+  return { id: field(data.id, 100), paused: nullable(data.paused, boolean), queueDepth: numeric(data.queueDepth, true), roles: array(data.roles, value => { const role = record(value); return { id: field(role.id, 100), queueDepth: numeric(role.queueDepth, true) }; }, 100), assignees: data.assignees === undefined || data.assignees === null ? [] : array(data.assignees, value => field(value, 256), 100).filter(Boolean) };
 }
 function shift(value: unknown): PloegShift {
   const data = record(value);
@@ -113,6 +114,7 @@ function runRow(value: unknown): PloegRunRow {
 }
 function activityEvent(value: unknown): PloegActivityEvent { const data = record(value); return { ...event(data), workItemTitle: typeof data.workItemTitle === 'string' && data.workItemTitle.length <= 4096 ? data.workItemTitle : '' }; }
 const unsupported = () => new PloegError(501, 'ploeg_unsupported', 'This Ploeg version does not provide activity data yet.');
+const olderTracker = 'This Ploeg version cannot look up work by tracker task. Update Ploeg to see its work here.';
 const decisionFailures: Record<number, [string, string]> = {
   400: ['ploeg_decision', 'Ploeg refused the request. A rejection needs a reason of at most 4096 characters.'],
   403: ['ploeg_decision_forbidden', 'Vloer’s Ploeg credential cannot record decisions. An administrator must grant it execute permission.'],
@@ -171,7 +173,7 @@ export class PloegClient {
       if (post) this.cache.clear();
       if (!response.ok) {
         await response.body?.cancel();
-        if (options.added && (response.status === 404 || (response.status === 400 && path.startsWith('events?')))) throw unsupported();
+        if (options.added && (response.status === 404 || (response.status === 400 && /^(?:events|work-items)\?/.test(path)))) throw unsupported();
         if (post && decisionFailures[response.status]) { const [code, message] = decisionFailures[response.status]; throw new PloegError(response.status, code, message); }
         throw new PloegError(response.status === 404 ? 404 : 503, 'ploeg_unavailable', response.status === 404 ? 'Ploeg work item not found in your authorized teams.' : 'Ploeg could not provide its operator data. Check the connection and consumer access.');
       }
@@ -188,10 +190,27 @@ export class PloegClient {
       return structuredClone(data);
     } catch (error) { if (error instanceof PloegError) throw error; throw new PloegError(503, 'ploeg_unavailable', 'Ploeg could not be reached or returned incomplete data. Refresh to try again.'); }
   }
-  async teams(user: User, fresh = false): Promise<PloegTeam[]> {
+  async teams(user: User, fresh = false): Promise<PloegTeam[]> { return (await this.routing(user, fresh)).teams; }
+  /** Lists the caller's teams and whether this Ploeg reports the tracker users that route work to each team. */
+  async routing(user: User, fresh = false): Promise<{ teams: PloegTeam[]; reported: boolean }> {
     this.authorize(user);
-    const teams = this.demo ? ploegDemo.teams : array(envelope(await this.request('teams', fresh)).teams, team, 500);
-    return teams.filter(team => this.allowed(user, team.id));
+    if (this.demo) return { teams: ploegDemo.teams.filter(team => this.allowed(user, team.id)), reported: false };
+    const data = envelope(await this.request('teams', fresh));
+    const teams = array(data.teams, team, 500);
+    return { teams: teams.filter(team => this.allowed(user, team.id)), reported: (data.teams as unknown[]).some(entry => Array.isArray(record(entry).assignees)) };
+  }
+  /** Lists Work Items for one tracker task across the caller's teams; a Ploeg without that filter yields none and says why. */
+  async trackerItems(user: User, provider: string, externalId: string, fresh = false): Promise<PloegTrackerItems> {
+    this.authorize(user);
+    if (this.demo) return { items: [], supported: false, message: 'Illustrative Ploeg records are not linked to tracker tasks.' };
+    if (!/^[a-z][a-z0-9_-]{0,31}$/.test(provider) || !/^[A-Za-z0-9_-]{1,128}$/.test(externalId)) throw new PloegError(400, 'ploeg_filter', 'Use a valid tracker provider and task identifier.');
+    let result: PloegPage;
+    try { result = page(await this.request(`work-items?${new URLSearchParams({ provider, externalId, limit: '25' })}`, fresh, { added: true })); }
+    catch (error) { if (error instanceof PloegError && error.code === 'ploeg_unsupported') return { items: [], supported: false, message: olderTracker }; throw error; }
+    if (result.items.some(entry => entry.provider !== provider || entry.externalId !== externalId)) return { items: [], supported: false, message: olderTracker };
+    const items = result.items.filter(entry => this.allowed(user, entry.team));
+    for (const entry of items) this.remember(entry.id, entry.title);
+    return { items, supported: true };
   }
   async items(user: User, selectedTeam: string, state: PloegState | 'all' = 'all', after = '0', fresh = false): Promise<PloegPage> {
     this.authorize(user);
