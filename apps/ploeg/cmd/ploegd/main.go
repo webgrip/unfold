@@ -257,6 +257,12 @@ func run(log *slog.Logger) error {
 	// back to the pre-Shift path, and needs only a ploegd restart.
 	uniform := envOr("PLOEG_SHIFTS_UNIFORM", "true") != "false"
 
+	// The usage and evidence report on every agent pull request. Default on;
+	// PLOEG_USAGE_REPORT=false silences it without a rollback (the report is
+	// additive transport and changes no lifecycle state). The two base URLs
+	// are where its links point; unset omits the links section.
+	usageReport := usageReportFromEnv()
+
 	// The engine is nil only when it would have nothing to do: no plans AND
 	// no uniform dispatch. Then dispatch is exactly the pre-Shift path.
 	var engine *shiftengine.Engine
@@ -267,8 +273,11 @@ func run(log *slog.Logger) error {
 			DefaultForge: forgeID,
 			Trackers:     trackers,
 			Uniform:      uniform,
+			UsageReport:  usageReport,
+			GrafanaURL:   trimSlash(os.Getenv("PLOEG_REPORT_GRAFANA_URL")),
+			VloerURL:     trimSlash(os.Getenv("PLOEG_REPORT_VLOER_URL")),
 		}
-		log.Info("shift engine enabled", "planned_teams", len(plans), "uniform", uniform)
+		log.Info("shift engine enabled", "planned_teams", len(plans), "uniform", uniform, "usage_report", usageReport)
 	} else {
 		log.Info("shift engine disabled (no plans, PLOEG_SHIFTS_UNIFORM=false)")
 	}
@@ -411,6 +420,13 @@ func envOr(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// usageReportFromEnv reads PLOEG_USAGE_REPORT. Default on: the outcome is
+// "every agent pull request", and the value exists so a noisy deployment can
+// silence the report without a rollback.
+func usageReportFromEnv() bool {
+	return envOr("PLOEG_USAGE_REPORT", "true") != "false"
 }
 
 func durationOr(key string, def time.Duration) time.Duration {

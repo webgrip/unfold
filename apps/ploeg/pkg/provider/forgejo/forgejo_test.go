@@ -334,3 +334,89 @@ func TestParseWebhook_WithoutASecretRejectsEveryDelivery(t *testing.T) {
 		})
 	}
 }
+
+// Comments follows pagination to exhaustion, so a marker on any page is
+// returned and the caller's find-by-marker scan cannot miss it.
+func TestForgejoComments_PagesToExhaustion(t *testing.T) {
+	var pages []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		pages = append(pages, r.URL.Query().Get("page"))
+		if r.URL.Query().Get("page") == "1" {
+			var items []map[string]any
+			for i := 1; i <= commentsPageSize; i++ {
+				items = append(items, map[string]any{"id": i, "body": "noise"})
+			}
+			_ = json.NewEncoder(w).Encode(items)
+			return
+		}
+		_, _ = w.Write([]byte(`[{"id":51,"body":"<!-- ploeg:usage-report -->"}]`))
+	}))
+	defer srv.Close()
+
+	p := &Provider{BaseURL: srv.URL, Token: "s3cret", HC: srv.Client()}
+	got, err := p.Comments(context.Background(), "webgrip/ploeg", 5)
+	if err != nil {
+		t.Fatalf("Comments: %v", err)
+	}
+	if len(got) != commentsPageSize+1 || got[len(got)-1].Body != "<!-- ploeg:usage-report -->" {
+		t.Fatalf("comments = %d, last = %+v", len(got), got[len(got)-1])
+	}
+	if len(pages) != 2 {
+		t.Errorf("pages fetched = %v, want two", pages)
+	}
+}
+
+func TestForgejoEditComment_SendsBody(t *testing.T) {
+	var gotPath, gotMethod, gotBody, gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotMethod, gotAuth = r.URL.Path, r.Method, r.Header.Get("Authorization")
+		b, _ := io.ReadAll(r.Body)
+		gotBody = string(b)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	p := &Provider{BaseURL: srv.URL, Token: "s3cret", HC: srv.Client()}
+	if err := p.EditComment(context.Background(), "webgrip/ploeg", 5, 42, "updated"); err != nil {
+		t.Fatalf("EditComment: %v", err)
+	}
+	if gotMethod != http.MethodPatch || gotPath != "/api/v1/repos/webgrip/ploeg/issues/comments/42" {
+		t.Errorf("%s %s", gotMethod, gotPath)
+	}
+	if gotAuth != "token s3cret" {
+		t.Errorf("auth = %q", gotAuth)
+	}
+	if !strings.Contains(gotBody, `"body":"updated"`) {
+		t.Errorf("body = %q", gotBody)
+	}
+}
+
+func TestForgejoEditComment_FailureSurfacesWithoutLeakingTheToken(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"message":"no permission"}`))
+	}))
+	defer srv.Close()
+	err := (&Provider{BaseURL: srv.URL, Token: "s3cret", HC: srv.Client()}).EditComment(context.Background(), "webgrip/ploeg", 5, 42, "x")
+	if err == nil || !strings.Contains(err.Error(), "403") {
+		t.Fatalf("err = %v", err)
+	}
+	if strings.Contains(err.Error(), "s3cret") {
+		t.Errorf("error leaked the token: %v", err)
+	}
+}
+
+func TestForgejoComments_SurfacesFailureWithoutLeakingTheToken(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"message":"bad token"}`))
+	}))
+	defer srv.Close()
+	_, err := (&Provider{BaseURL: srv.URL, Token: "s3cret", HC: srv.Client()}).Comments(context.Background(), "webgrip/ploeg", 5)
+	if err == nil || !strings.Contains(err.Error(), "401") {
+		t.Fatalf("err = %v", err)
+	}
+	if strings.Contains(err.Error(), "s3cret") {
+		t.Errorf("error leaked the token: %v", err)
+	}
+}

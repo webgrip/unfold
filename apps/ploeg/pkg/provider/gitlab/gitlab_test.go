@@ -332,3 +332,89 @@ func TestParseWebhookWithoutASecretRejectsEveryDelivery(t *testing.T) {
 		}
 	}
 }
+
+// Comments follows per_page pagination to exhaustion, so a marker on any page
+// is returned and the caller's find-by-marker scan cannot miss it.
+func TestGitlabComments_PagesToExhaustion(t *testing.T) {
+	var pages []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		pages = append(pages, r.URL.Query().Get("page"))
+		if r.URL.Query().Get("page") == "1" {
+			var items []map[string]any
+			for i := 1; i <= notesPerPage; i++ {
+				items = append(items, map[string]any{"id": i, "body": "noise"})
+			}
+			_ = json.NewEncoder(w).Encode(items)
+			return
+		}
+		_, _ = w.Write([]byte(`[{"id":101,"body":"<!-- ploeg:usage-report -->"}]`))
+	}))
+	defer srv.Close()
+
+	p := &Provider{BaseURL: srv.URL, Token: "tok", HC: srv.Client()}
+	got, err := p.Comments(context.Background(), "group/sub/proj", 7)
+	if err != nil {
+		t.Fatalf("Comments: %v", err)
+	}
+	if len(got) != notesPerPage+1 || got[len(got)-1].Body != "<!-- ploeg:usage-report -->" {
+		t.Fatalf("comments = %d, last = %+v", len(got), got[len(got)-1])
+	}
+	if len(pages) != 2 {
+		t.Errorf("pages fetched = %v, want two", pages)
+	}
+}
+
+func TestGitlabEditComment_SendsBody(t *testing.T) {
+	var gotPath, gotMethod, gotBody, gotToken string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotMethod, gotToken = r.URL.EscapedPath(), r.Method, r.Header.Get("PRIVATE-TOKEN")
+		b, _ := io.ReadAll(r.Body)
+		gotBody = string(b)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	p := &Provider{BaseURL: srv.URL, Token: "tok", HC: srv.Client()}
+	if err := p.EditComment(context.Background(), "group/sub/proj", 7, 42, "updated"); err != nil {
+		t.Fatalf("EditComment: %v", err)
+	}
+	if gotMethod != http.MethodPut || gotPath != "/api/v4/projects/group%2Fsub%2Fproj/merge_requests/7/notes/42" {
+		t.Errorf("%s %s", gotMethod, gotPath)
+	}
+	if gotToken != "tok" {
+		t.Errorf("PRIVATE-TOKEN = %q", gotToken)
+	}
+	if !strings.Contains(gotBody, `"body":"updated"`) {
+		t.Errorf("body = %q", gotBody)
+	}
+}
+
+func TestGitlabEditComment_FailureSurfacesWithoutLeakingTheToken(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"message":"403 Forbidden"}`))
+	}))
+	defer srv.Close()
+	err := (&Provider{BaseURL: srv.URL, Token: "s3cret", HC: srv.Client()}).EditComment(context.Background(), "group/proj", 7, 42, "x")
+	if err == nil || !strings.Contains(err.Error(), "403") {
+		t.Fatalf("err = %v", err)
+	}
+	if strings.Contains(err.Error(), "s3cret") {
+		t.Errorf("error leaked the token: %v", err)
+	}
+}
+
+func TestGitlabComments_SurfacesFailureWithoutLeakingTheToken(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"message":"401 Unauthorized"}`))
+	}))
+	defer srv.Close()
+	_, err := (&Provider{BaseURL: srv.URL, Token: "s3cret", HC: srv.Client()}).Comments(context.Background(), "group/proj", 7)
+	if err == nil || !strings.Contains(err.Error(), "401") {
+		t.Fatalf("err = %v", err)
+	}
+	if strings.Contains(err.Error(), "s3cret") {
+		t.Errorf("error leaked the token: %v", err)
+	}
+}

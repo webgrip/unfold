@@ -2,8 +2,8 @@
 type: how-to
 audience: [owner]
 owner: glide
-last_verified: 2026-09-23
-verified_by: "Read apps/ploeg pkg/worker/{task,worker}.go, pkg/shiftengine/{engine,reviewloop,publish,review}.go, pkg/store/{store,review}.go, pkg/httpapi/server.go, cmd/ploegd/{main,sweep}.go and apps/vloer/public/ploeg.js on 2026-09-23"
+last_verified: 2026-09-29
+verified_by: "Read apps/ploeg pkg/shiftengine/{usage,publish,engine}.go, pkg/store/{usage,llm_settlement}.go, pkg/provider/provider.go, cmd/ploegd/{main,sweep}.go and ops/helm/ploeg/values.yaml on 2026-09-29"
 ---
 
 # Review an agent's pull request
@@ -50,6 +50,20 @@ The screen is read-only. You merge or send the work back on the forge and in the
 5. **CI.** Check the pipeline status on the forge yourself. The prompt tells the writer to run the repository's gates in Docker before opening the pull request, but nothing verifies it did. If the Team sets `forgeFollowUps.repairFailedChecks`, a failed check on this branch queues a repair Follow-Up that pushes to the same pull request, up to `maxRepairs` times ([how work flows](../concepts/how-work-flows.md#forge-events-that-act)). Wait for that repair before you review. Without the switch, Ploeg only records the failure in the audit log ([forge_followup.go](../../apps/ploeg/pkg/httpapi/forge_followup.go), [forgejo.go](../../apps/ploeg/pkg/provider/forgejo/forgejo.go)).
 6. **Diff.** Read the change against the ticket's acceptance conditions. The pull request description is the agent's claim, not evidence.
 
+## Read the usage and evidence report
+
+Every agent pull request carries one comment headed `### Ploeg usage report`, marked with a hidden `<!-- ploeg:usage-report -->` line. Ploeg creates it when a writing Run opens or updates the pull request and edits that same comment on every later Round and again when the settlement sweep reconciles a Run's account. There is only ever one, so read the comment rather than scrolling the thread ([usage.go](../../apps/ploeg/pkg/shiftengine/usage.go), [publish.go](../../apps/ploeg/pkg/shiftengine/publish.go)).
+
+It answers three questions in one place:
+
+- **What ran.** A table of each finished Run with its Role, Round, whether it wrote, its Outcome and its verdict, the models the gateway billed it against, and prompt/completion tokens. The Shift's totals follow: authorized, spent, reserved and remaining pool, the Rounds used and the close reason, and the writing Run's trace alias `ploeg-<12hex>`.
+- **What it cost.** Each Run's settled cost in US dollars to two decimals (`US$ 0,06`). A Run whose account has not been reconciled yet is marked **(provisional)**; the header says so too. A Run whose gateway spend Ploeg could not read shows **unavailable** rather than a guess — Ploeg never prints the authorization as if it were the cost.
+- **Did it check its work.** The **Evidence** section names the writing Run's verification result (`passed`, `failed (<command>)` or `incomplete (<reason>)`) and the commit it verified, and points you at the writing Run's findings comment for the full output. When Ploeg recorded no verification — a reading Role, no configured checks, or a Shift older than worker verification — it says **verification: not recorded**; it never leaves a blank that could read as a pass.
+
+When the deployment sets `PLOEG_REPORT_GRAFANA_URL` and `PLOEG_REPORT_VLOER_URL`, a **Where to dig deeper** section links the Glide — Loop dashboard, the Run Explorer for this Run (filtered by the trace alias), Spend & Attribution for the Team, and Vloer's Ploeg overview. Unset base URLs simply omit those links ([values.yaml](../../apps/ploeg/ops/helm/ploeg/values.yaml)).
+
+The report is accounting Ploeg reads from what it already stored; it makes no gateway call and is not a billing statement. Turn it off with `PLOEG_USAGE_REPORT=false` if a deployment finds it noisy.
+
 ## After you merge or close
 
 Ploeg notices what you did on the forge and moves the Work Item out of `awaiting_review` ([review.go](../../apps/ploeg/pkg/shiftengine/review.go)):
@@ -80,6 +94,7 @@ Without that switch, or on GitLab, ask for another attempt this way:
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | No findings comment on the pull request | Readers ran before a pull request existed, the Work Item has no resolved target, or no forge provider is configured | Check the Run's **Review findings** in Vloer; check ploegd's `findings not published` log line |
+| No usage report comment, or its costs say unavailable | The report is switched off, there is no pull request yet, or a Run's gateway spend could not be read | Check `PLOEG_USAGE_REPORT` and the two base URLs; check ploegd's `usage report` log lines. A Run marked **unavailable** had no readable spend log |
 | Closed `review_approved` but the diff is wrong | An agent reviewer approved | Review the diff yourself; the verdict is not a human approval |
 | Re-assigning does nothing | The Work Item is still `queued` or `leased` | Wait for the Shift to close, then re-assign |
 | Work Item still `awaiting_review` after a merge | The webhook did not arrive and the reconcile has not run yet, the target never resolved, or the forge read failed | Wait one `PLOEG_REVIEW_RECONCILE_INTERVAL`; check ploegd's `review reconcile` log lines |
