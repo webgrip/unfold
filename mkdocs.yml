@@ -16,6 +16,7 @@ nav:
   - Understand:
       - How work flows: concepts/how-work-flows.md
       - Architecture: concepts/architecture.md
+      - Who Glide is for: concepts/who-glide-is-for.md
   - How-to:
       - Assign work to an agent: how-to/assign-work-to-an-agent.md
       - Review an agent pull request: how-to/review-an-agent-pr.md

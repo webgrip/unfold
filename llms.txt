@@ -1,6 +1,6 @@
 # Glide
 
-> Glide turns units of work (Work Items: decided intent, or a problem described well enough to conceive a solution) into pull requests written by AI agents. Ploeg authorizes, budgets and runs every agent Run; Vloer is its front end. Self-hosted and pre-1.0; a hosted offering for agencies is decided but not built (ADRs 0005–0010 under Decisions).
+> Glide turns units of work (Work Items: decided intent, or a problem described well enough to conceive a solution) into pull requests written by AI agents. Ploeg authorizes, budgets and runs every agent Run; Vloer is its front end. Self-hosted and pre-1.0; a hosted offering for agencies is decided but not built.
 
 Use Ploeg's terms: a Run is one Role executing against a Work Item, a Shift is the whole attempt, and a Lease is the right to write the Shift's branch. Code and executable tests describe the implementation; research and ADR pages are records.
 
@@ -9,6 +9,7 @@ Use Ploeg's terms: a Run is one Role executing against a Work Item, a Shift is t
 - [Start page](docs/index.md): what Glide is and where to go next
 - [How work flows](docs/concepts/how-work-flows.md): one Work Item from assignment to pull request, and work that creates work
 - [Architecture](docs/concepts/architecture.md): goals, context, containers and key decisions
+- [Who Glide is for](docs/concepts/who-glide-is-for.md): the self-hosted first phase and the hosted agency offering (decided, not built)
 
 ## Reference
 
