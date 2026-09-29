@@ -27,11 +27,12 @@ A client cannot review a diff. To accept work, the client needs to use the chang
 
 Chosen option: "A preview environment per pull request, deleted when the pull request closes", because it gives the client something to accept without making us a hosting company.
 
-* When a pull request is delivered, Glide builds it and runs it in a namespace owned by the agency's tenant ([ADR-0009](adr-0009-one-tenant-per-agency.md)), with a URL posted to the pull request and the client portal.
+* Previews are an optional add-on delivered as a CI step: Glide ships a preview-deploy action for GitHub Actions, GitLab CI and Forgejo Actions that runs in the agency's own pipeline when Glide opens a pull request.
+* The step deploys either to the agency's own infrastructure, which costs nothing extra, or to Glide's preview hosting, in a namespace owned by the agency's tenant ([ADR-0009](adr-0009-one-tenant-per-agency.md)). Either way the URL is posted to the pull request and the client portal.
 * The repository declares how to build and run a preview. Repositories without a declaration get no preview and are marked so.
 * Previews use generated test data only. They never receive production secrets.
 * A preview is deleted when its pull request is merged or closed, or after an idle time limit.
-* Preview environment-hours are metered and billed separately from tickets ([ADR-0006](adr-0006-the-ticket-is-the-billing-unit.md)).
+* On Glide's preview hosting, preview hours are metered and billed separately from tickets ([ADR-0006](adr-0006-the-ticket-is-the-billing-unit.md)). Ingress is free; 100 GB of egress a month is included, then egress is billed at provider cost plus markup.
 * Merging and production deployment stay with the agency.
 
 Not implemented yet. The first supported declaration is a Dockerfile in the repository; buildpacks and Helm charts may follow.
@@ -62,3 +63,4 @@ Confirmed when a delivered pull request in a declared repository gets a reachabl
 
 * 2026-09-28 — The owner chose previews ("feature previews", "review apps") over production hosting.
 * 2026-09-29 — Accepted. The owner chose a Dockerfile as the first preview declaration.
+* 2026-09-29 — The owner made previews an optional CI-step add-on that deploys to the agency's own infrastructure or to metered Glide hosting, with free ingress and an egress allowance.

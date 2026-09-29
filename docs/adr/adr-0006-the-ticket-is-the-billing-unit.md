@@ -59,6 +59,8 @@ The [pricing units record](../research/2026-09-28-pricing-units.md) compares the
 | Tokens and compute inside a ticket | Charged per attempt at cost plus a published markup, up to the ticket's cap |
 | Metered usage above allowances | €0.008 per CI minute, €0.06 per preview hour, €0.10 per GB-month, extra tokens at list price × 1.25 |
 | Agency markup on metered usage | Each agency sets its own multiplier toward its clients; Glide bills the agency at the rates above |
+| Previews | Deploy step free; on Glide hosting €0.06 per preview hour, ingress free, 100 GB egress a month included, then provider cost plus markup ([ADR-0008](adr-0008-every-pull-request-gets-a-preview-environment.md)) |
+| Self-hosted | No charge from Glide; the operator pays its own model provider and infrastructure |
 | Default cap on metered usage | €100 a month, alerts at 50, 75, 90 and 100%; work pauses at the cap |
 | Billing stack | Mollie for payment, Lago self-hosted for metering; Ploeg enforces every cap before spend |
 | Design partners | 3 to 5, 50% off the platform fee for 6 months; credits never below the floor |
@@ -111,3 +113,4 @@ Confirmed when every delivered ticket shows its size, quote, authorized cap and 
 * 2026-09-29 — The owner made a merge count as acceptance, allowed bring-your-own-key, and grouped models into credit tiers.
 * 2026-09-29 — The owner set credit validity, purchase forms, metered rates, the default usage cap, the billing stack, design-partner terms and when prices go public.
 * 2026-09-29 — The owner replaced the all-in ticket price with a two-part price: tokens per attempt at cost plus markup, capped, and credits as a delivery fee on acceptance. L stays 8 credits. How credits are defined and valued, and any gamification, wait for research on fair pricing.
+* 2026-09-29 — The owner set preview pricing and confirmed that self-hosters pay Glide nothing.
