@@ -120,6 +120,21 @@
       "enabled": false
     },
     {
+      "description": "An image bump in Ploeg's chart values changes rendered manifests, and the golden check makes every rendered byte part of the review. The update regenerates the goldens in the same branch so the pull request carries its own render diff and passes the check.",
+      "matchFileNames": [
+        "apps/ploeg/ops/helm/ploeg/values.yaml"
+      ],
+      "postUpgradeTasks": {
+        "commands": [
+          "sh apps/ploeg/scripts/helm-golden.sh update"
+        ],
+        "fileFilters": [
+          "apps/ploeg/ops/helm/ploeg/ci/golden/*.yaml"
+        ],
+        "executionMode": "branch"
+      }
+    },
+    {
       "description": "A preset bump changes how Renovate treats this repository, not what Glide ships, so it never cuts a release.",
       "matchPackageNames": [
         "webgrip/renovate-config"
