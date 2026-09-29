@@ -1,3 +1,13 @@
+## [glide-v0.4.0-rc.14](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.13...glide-v0.4.0-rc.14) (2026-09-29)
+
+### Fixed
+
+* **ploeg:** write OpenHands agent settings so its ACP session starts ([964d61e](https://forgejo.webgrip.dev/webgrip/glide/commit/964d61e785eee6f66f95c520f9130012f77953cb))
+
+### Internal
+
+* **ploeg:** commit the mise.lock that lockfile = true expects ([6150dd0](https://forgejo.webgrip.dev/webgrip/glide/commit/6150dd067158bcf10d8a45547e8e585868ce3062))
+
 ## [glide-v0.4.0-rc.13](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.12...glide-v0.4.0-rc.13) (2026-09-29)
 
 ### Fixed
