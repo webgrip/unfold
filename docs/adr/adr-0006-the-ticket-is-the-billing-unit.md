@@ -32,7 +32,7 @@ Chosen option: "A ticket", because it is the only option where the price is know
 * An agency buys **credits** in bundles. A **ticket** consumes credits by **size** (for example S = 1, M = 3, L = 8).
 * The refinement Run proposes a size when it makes a Work Item Ready. The client sees the size and price and approves them ([ADR-0007](adr-0007-clients-approve-ready-work.md)).
 * Each size maps to a Team tier and a Shift budget cap. Ploeg refuses a Shift it cannot fund and never raises the cap on its own ([Ploeg ADR-0032](../../apps/ploeg/docs/adrs/0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md)).
-* Credits are charged only after the agency's reviewer accepts the pull request. A pull request with no reviewer decision after 10 working days counts as accepted; the agency gets reminders on day 3 and day 7. A ticket that fails or is rejected costs nothing: the agency retires it, iterates on it, has it remade, or picks it up itself. A charge is reversed when the change is reverted within 14 days for a defect inside its Acceptance Conditions. A Shift that ends without delivery returns the credits. Reaching the cap stops the Shift and offers the client a split into new tickets, never a silent top-up.
+* Credits are charged only after the agency's reviewer accepts the pull request. A merge counts as acceptance, whether or not the forge required a review. A pull request with no reviewer decision after 10 working days counts as accepted; the agency gets reminders on day 3 and day 7. A ticket that fails or is rejected costs nothing: the agency retires it, iterates on it, has it remade, or picks it up itself. A charge is reversed when the change is reverted within 14 days for a defect inside its Acceptance Conditions. A Shift that ends without delivery returns the credits. Reaching the cap stops the Shift and offers the client a split into new tickets, never a silent top-up.
 * A Follow-Up is a new ticket, approved and sized like any other ([Ploeg ADR-0031](../../apps/ploeg/docs/adrs/0031-runs-create-work-items-held-for-approval-within-limits.md)). A fix Round inside the Shift is not.
 * The agency sets its own price per size for its clients. Glide reports both numbers per ticket.
 * Preview environments are metered separately in environment-hours ([ADR-0008](adr-0008-every-pull-request-gets-a-preview-environment.md)).
@@ -45,6 +45,7 @@ The [pricing units record](../research/2026-09-28-pricing-units.md) compares the
 | --- | --- |
 | Credits per size S / M / L | 1 / 3 / 8; no XL. Refinement must split work it estimates above the L cap |
 | Premium model tier | 2x credits per size |
+| Custom agents and Teams | Agencies may bring their own model keys (BYOK) and build their own agents and Teams; models are grouped in credit tiers |
 | Delivery rate for financial planning | 55%; 70% is the target after refinement |
 | Shift budget cap per size | €4 / €10 / €20 |
 | List price per credit | €15 |
@@ -105,4 +106,5 @@ Confirmed when every delivered ticket shows its size, quote, authorized cap and 
 * 2026-09-29 — The owner set silent acceptance at 10 working days, with reminders on day 3 and 7.
 * 2026-09-29 — The owner kept tokens and compute inside the ticket price, kept Glide's metered rates, and let agencies set their own markup on metered usage.
 * 2026-09-29 — The owner decided that model price changes pass through to the credit price immediately, while bought credits and approved quotes keep their price.
+* 2026-09-29 — The owner made a merge count as acceptance, allowed bring-your-own-key, and grouped models into credit tiers.
 * 2026-09-29 — The owner set credit validity, purchase forms, metered rates, the default usage cap, the billing stack, design-partner terms and when prices go public.
