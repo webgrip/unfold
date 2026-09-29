@@ -83,6 +83,8 @@ type OperatorRunListItem struct {
 	AuthorizedUSD   *float64          `json:"authorizedUsd"`
 	SettledUSD      *float64          `json:"settledUsd"`
 	Usage           *OperatorRunUsage `json:"usage"`
+	ObservedUSD     *float64          `json:"observedUsd"`
+	ReservedModels  []string          `json:"reservedModels"`
 }
 
 // OperatorRunFilter selects Runs newest first. Before is an exclusive Run id
@@ -118,7 +120,12 @@ const operatorRunListJSON = `jsonb_build_object(
 		'models', CASE WHEN jsonb_typeof(r.usage->'models') = 'array' THEN (
 			SELECT COALESCE(jsonb_agg(left(m.value #>> '{}', 256) ORDER BY m.ord), '[]'::jsonb)
 			FROM jsonb_array_elements(r.usage->'models') WITH ORDINALITY AS m(value, ord)
-			WHERE jsonb_typeof(m.value) = 'string' AND m.ord <= 32) ELSE '[]'::jsonb END) END)`
+			WHERE jsonb_typeof(m.value) = 'string' AND m.ord <= 32) ELSE '[]'::jsonb END) END,
+	'observedUsd', a.observed_spend,
+	'reservedModels', CASE WHEN jsonb_typeof(a.models) = 'array' THEN (
+		SELECT COALESCE(jsonb_agg(left(m.value #>> '{}', 256) ORDER BY m.ord), '[]'::jsonb)
+		FROM jsonb_array_elements(a.models) WITH ORDINALITY AS m(value, ord)
+		WHERE jsonb_typeof(m.value) = 'string' AND m.ord <= 32) ELSE '[]'::jsonb END)`
 
 var operatorRunListProjection = fmt.Sprintf(operatorRunListJSON, fmt.Sprintf(operatorRunTokens, "inputTokens"), fmt.Sprintf(operatorRunTokens, "outputTokens"))
 
@@ -155,6 +162,9 @@ func (s *Store) OperatorRuns(ctx context.Context, f OperatorRunFilter) ([]Operat
 		run.StartedAt, run.FinishedAt = operatorUTC(run.StartedAt), operatorUTC(run.FinishedAt)
 		if run.Usage != nil && run.Usage.Models == nil {
 			run.Usage.Models = []string{}
+		}
+		if run.ReservedModels == nil {
+			run.ReservedModels = []string{}
 		}
 		runs = append(runs, run)
 	}
