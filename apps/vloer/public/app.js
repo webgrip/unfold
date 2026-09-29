@@ -101,7 +101,7 @@ function metrics() {
   const attention = sessions.filter(session => ['waiting_input','failed','interrupted'].includes(session.status)).length;
   return `<section class="metrics" aria-label="Workspace totals">${[
     ['Active sessions', sessions.filter(isActive).length, `${state.bootstrap.maxConcurrentSessions} concurrent slots`, 'activity'],
-    ['Ready for review', sessions.filter(session => session.status === 'completed').length, 'Required reviewers approved', 'check'],
+    ['Ready for review', sessions.filter(session => session.status === 'completed' && !session.review).length, 'Required reviewers approved', 'check'],
     ['Needs attention', attention, attention ? 'Your next decision is waiting' : 'No decisions waiting', 'circle'],
     ['Recorded spend', money(spent), state.bootstrap.mode === 'demo' ? 'Demo · no model usage' : sessions.some(session => ['pending','unknown'].includes(session.costStatus)) ? 'Some usage is unsettled' : 'Gateway-reconciled usage', 'layers']
   ].map(([label, value, detail, glyph]) => `<article class="metric"><div>${escape(label)}${icon(glyph)}</div><strong>${escape(value)}</strong><span>${escape(detail)}</span></article>`).join('')}</section>`;
