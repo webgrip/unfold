@@ -77,13 +77,18 @@ func Lookup(name string, o ProfileOverrides) (Profile, error) {
 			return Profile{}, fmt.Errorf("acp profile \"goose\" is configured by environment only and takes no config JSON")
 		}
 		p = gooseProfile()
+	case "openhands":
+		if o.ConfigJSON != "" {
+			return Profile{}, fmt.Errorf("acp profile \"openhands\" is configured by environment only and takes no config JSON")
+		}
+		p = openhandsProfile()
 	case "custom":
 		if len(o.Argv) == 0 {
 			return Profile{}, fmt.Errorf("acp profile \"custom\" requires an explicit argv")
 		}
 		p = Profile{Name: "custom", Argv: o.Argv, Env: openAICompatEnv}
 	default:
-		return Profile{}, fmt.Errorf("unknown acp profile %q (known: opencode, qwen-code, goose, custom)", name)
+		return Profile{}, fmt.Errorf("unknown acp profile %q (known: opencode, qwen-code, goose, openhands, custom)", name)
 	}
 	if len(o.Argv) > 0 {
 		p.Argv = o.Argv
@@ -235,6 +240,32 @@ func gooseProfile() Profile {
 				out = append(out, "LLM_TRACE_ID="+env.LLM.TraceID)
 			}
 			return out, nil
+		},
+	}
+}
+
+// openhandsProfile runs the OpenHands CLI (MIT) as an ACP agent.
+// --override-with-envs makes it read LLM_API_KEY, LLM_BASE_URL and LLM_MODEL,
+// and the model carries LiteLLM's proxy prefix, which OpenHands routes on.
+func openhandsProfile() Profile {
+	return Profile{
+		Name: "openhands",
+		Argv: []string{"openhands", "acp", "--override-with-envs"},
+		Env: func(l harness.LLMEnv) []string {
+			out := []string{"OPENHANDS_SUPPRESS_BANNER=1"}
+			if l.APIKey != "" {
+				out = append(out, "LLM_API_KEY="+l.APIKey)
+			}
+			if l.BaseURL != "" {
+				out = append(out, "LLM_BASE_URL="+l.BaseURL)
+			}
+			if l.Model != "" {
+				out = append(out, "LLM_MODEL=litellm_proxy/"+l.Model)
+			}
+			if l.TraceID != "" {
+				out = append(out, "LLM_TRACE_ID="+l.TraceID)
+			}
+			return out
 		},
 	}
 }

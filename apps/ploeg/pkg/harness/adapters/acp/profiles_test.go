@@ -40,6 +40,7 @@ func TestLookup_KnowsTheQwenCodeAndGooseProfiles(t *testing.T) {
 	for name, argv := range map[string][]string{
 		"qwen-code": {"qwen", "--acp", "--auth-type=openai"},
 		"goose":     {"goose", "acp"},
+		"openhands": {"openhands", "acp", "--override-with-envs"},
 	} {
 		p, err := Lookup(name, ProfileOverrides{})
 		if err != nil {
@@ -241,5 +242,32 @@ func TestSplitGatewayURL(t *testing.T) {
 		if _, _, err := splitGatewayURL(bad); err == nil {
 			t.Errorf("splitGatewayURL(%q) accepted a relative URL", bad)
 		}
+	}
+}
+
+func TestProfile_OpenHandsReadsTheGatewayFromEnvironmentWithTheProxyPrefix(t *testing.T) {
+	p, err := Lookup("openhands", ProfileOverrides{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, env, err := p.Prepare(harness.TaskSpec{TraceID: "ploeg-abc123def456"}, harness.RunEnv{
+		ScratchDir: t.TempDir(),
+		LLM:        harness.LLMEnv{APIKey: "sk-run", BaseURL: "http://127.0.0.1:40777/v1", Model: "deepseek-chat"},
+	}, PermissionAllowAll)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]string{
+		"LLM_API_KEY":               "sk-run",
+		"LLM_BASE_URL":              "http://127.0.0.1:40777/v1",
+		"LLM_MODEL":                 "litellm_proxy/deepseek-chat",
+		"OPENHANDS_SUPPRESS_BANNER": "1",
+	} {
+		if got := envValue(t, env, key); got != want {
+			t.Errorf("%s = %q, want %q", key, got, want)
+		}
+	}
+	if _, err := Lookup("openhands", ProfileOverrides{ConfigJSON: `{}`}); err == nil {
+		t.Fatal("openhands accepted a config document it would silently ignore")
 	}
 }

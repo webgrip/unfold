@@ -893,6 +893,7 @@
             "opencode",
             "qwen-code",
             "goose",
+            "openhands",
             "custom"
           ]
         },

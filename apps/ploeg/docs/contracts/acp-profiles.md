@@ -37,6 +37,16 @@ Neither profile is qualified yet. Before a team switches, run the live conforman
 - **Permission storms.** Under `allow_read_only` and `deny_all`, both agents ask once per tool call. The adapter stops a Run after 200 requests, or after 60 in one minute ([permission.go](../../pkg/harness/adapters/acp/permission.go)).
 - **The loopback proxy.** Both agents make their model calls from inside the worker container, so `PLOEG_LLM_KEY_ISOLATION=proxy` should hold. That is not yet measured.
 
+## `openhands`
+
+The OpenHands CLI (`openhands` on PyPI, MIT) serves ACP with `openhands acp`. The profile runs `openhands acp --override-with-envs`, checked against the CLI's help for 1.16.0, the version `agent-runner` ships for the native `openhands` adapter. That same image needs nothing added.
+
+- **Gateway wiring.** `--override-with-envs` makes the CLI read `LLM_API_KEY`, `LLM_BASE_URL` and `LLM_MODEL`. The profile prefixes the model with `litellm_proxy/`, which the native adapter also passes and OpenHands routes on. It writes no config file and refuses `configJson` at startup.
+- **Approval.** The profile passes no approval flag, so OpenHands asks for each action over ACP and the adapter answers from the Run's permission mode.
+- **Not yet checked:** stop reasons, shutdown on stdin EOF or SIGTERM, calls outside the gateway, and which instruction files it loads. Run the live conformance suite (`acp-openhands`) in the team's image before a team switches.
+
+Why this profile exists alongside the native adapter: ACP gives structured tool calls and stop reasons instead of log tailing, and it keeps OpenHands swappable behind the same seam as the other agents.
+
 ## What an image needs
 
 Ploeg does not install agents. Every profile's binary must be on `PATH` in the image that the team's `executor.harness.image` names (by default `executor.runnerImage`, `agent-runner`, which is built outside this repository). The worker checks this before it claims ([adapters.go](../../pkg/worker/adapters.go)). `executor.harness.entrypoint` replaces the binary path and keeps the profile's arguments.

@@ -36,10 +36,10 @@ The generator follows each binary's imports inside the module and records every 
 | `NODE_NAME` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go), [worker.go](../../pkg/worker/worker.go) |
 | `PATH` | ploeg-worker |  | Passed to `git` and `openspec` subprocesses; also on the harness allowlist. | [git.go](../../pkg/worker/git.go), [openspec.go](../../pkg/worker/openspec.go) |
 | `PLOEG_ACP_ARGV` | ploeg-worker |  | `acp` harness only: the whole launch command as a JSON array; required when the profile is `custom`. | [main.go](../../cmd/ploeg-worker/main.go) |
-| `PLOEG_ACP_CONFIG_JSON` | ploeg-worker |  | `acp` harness only: replaces the generated agent configuration of the `opencode` or `qwen-code` profile wholesale. The `goose` profile refuses it at startup. | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_ACP_CONFIG_JSON` | ploeg-worker |  | `acp` harness only: replaces the generated agent configuration of the `opencode` or `qwen-code` profile wholesale. The `goose` and `openhands` profiles refuse it at startup. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_ACP_IDLE_TIMEOUT` | ploeg-worker |  | `acp` harness only: timeout without protocol traffic. Empty means the adapter default (10m). | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_ACP_PERMISSION_MODE` | ploeg-worker |  | `acp` harness only: `allow_always` (default), `allow_read_only` or `deny_all`. | [main.go](../../cmd/ploeg-worker/main.go) |
-| `PLOEG_ACP_PROFILE` | ploeg-worker |  | `acp` harness only: `opencode`, `qwen-code`, `goose` or `custom` (chart `executor.harness.acp.profile`). See [ACP profiles](../contracts/acp-profiles.md). | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_ACP_PROFILE` | ploeg-worker |  | `acp` harness only: `opencode`, `qwen-code`, `goose`, `openhands` or `custom` (chart `executor.harness.acp.profile`). See [ACP profiles](../contracts/acp-profiles.md). | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_ACP_PROMPT_TIMEOUT` | ploeg-worker |  | `acp` harness only: prompt timeout as a Go duration. Empty means the adapter default (45m). | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_API_URL` | ploeg-worker | required | ploegd's run API (chart `executor.apiUrl`, default `http://<fullname>:<service.port>`). | [main.go](../../cmd/ploeg-worker/main.go), [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_BASE_BRANCH` | ploeg-worker |  | Fallback branch the worker clones, branches from and targets. Unset means the repository default branch. | [main.go](../../cmd/ploeg-worker/main.go) |
@@ -172,7 +172,7 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `executor.harness.acp.configJson` |  | `""` | Replaces the profile's generated agent config (opencode, qwen-code) wholesale, so a wrong provider block is a values edit rather than an agent image rebuild. goose is configured by environment and refuses it. | values.yaml |
 | `executor.harness.acp.idleTimeout` |  | `""` | Go duration; "" = adapter default (10m) with no protocol traffic | values.yaml |
 | `executor.harness.acp.permissionMode` |  | `""` | allow_always (default) \| allow_read_only \| deny_all | values.yaml |
-| `executor.harness.acp.profile` |  | `opencode` | opencode \| qwen-code \| goose \| custom (PLOEG_ACP_PROFILE) | values.yaml |
+| `executor.harness.acp.profile` |  | `opencode` | opencode \| qwen-code \| goose \| openhands \| custom (PLOEG_ACP_PROFILE) | values.yaml |
 | `executor.harness.acp.promptTimeout` |  | `""` | Go duration; "" = adapter default (45m) | values.yaml |
 | `executor.harness.args` |  | `[]` | exec harness only: argv template with {taskspec}/{taskfile} | values.yaml |
 | `executor.harness.dind` |  | `true` | privileged DinD sidecar + DOCKER_* wiring (OpenHands + gates need it) | values.yaml |
@@ -384,7 +384,7 @@ name becomes the workload suffix (ploeg-worker-<team>-<role>); writes marks the 
 
 | Key | Type | Description |
 | --- | --- | --- |
-| `profile` | one of `"opencode"`, `"qwen-code"`, `"goose"`, `"custom"` | `opencode`, `qwen-code`, `goose` or `custom`. |
+| `profile` | one of `"opencode"`, `"qwen-code"`, `"goose"`, `"openhands"`, `"custom"` | `opencode`, `qwen-code`, `goose` or `custom`. |
 | `argv` | array | Whole launch command; required when the profile is `custom`. |
 | `permissionMode` | one of `""`, `"allow_always"`, `"allow_read_only"`, `"deny_all"` | `allow_always` (default), `allow_read_only` or `deny_all`. |
 | `promptTimeout` | string | Go duration. Empty means the adapter default (45m). |
