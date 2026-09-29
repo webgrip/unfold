@@ -9,12 +9,20 @@ description: >
   feature inventory. Current behavior is documented in ../index.md and the
   application architecture guides. Execution terms such as Run, Shift, Lease,
   Team, Role and Outcome belong to Ploeg's model; this model imports them.
-version: "0.3"
+  The agency offering (Glide ADRs 0005 to 0010) is decided and not implemented;
+  its terms are in the Offering and Billing contexts.
+version: "0.4"
 combined_glossary: ../reference/glossary.md
 references:
   - label: Glide ADR-0002
     path: ../adr/adr-0002-ploeg-is-the-only-engine.md
     note: Ploeg is the only execution engine and Vloer is its front end.
+  - label: Glide ADR-0005
+    path: ../adr/adr-0005-glide-is-offered-to-agencies.md
+    note: Glide is offered to agencies; delivery ends at a reviewed pull request with a preview.
+  - label: Glide ADR-0006
+    path: ../adr/adr-0006-the-ticket-is-the-billing-unit.md
+    note: A Work Item with a Quote is the billing unit; the Delivery Fee is charged on Acceptance.
 imports:
   - model: ../../apps/ploeg/docs/domain/model.yaml
     terms: [Run, Shift, Lease, Team, Role, Outcome, Verdict, Harness, Work Item, Tracker Item, Follow-Up, Admission, Authority]
@@ -27,7 +35,15 @@ contexts:
     description: How people take part in AI work through Vloer and inspect what happened.
   - name: Execution
     description: The product view of AI work. Ploeg's model owns the execution vocabulary.
-  - name: Delivery
+  - name: Offering
+    description: >
+      Who uses Glide and what they see: Agencies, their Clients and the Client
+      Portal. Decided in Glide ADRs 0005 to 0010; not implemented yet.
+  - name: Billing
+    description: >
+      How work is sized, quoted and charged: Sizes, Quotes, Credits and the two
+      parts of a price. Decided in Glide ADR-0006; not implemented yet.
+  - name: Release
     description: How Glide's own source, releases and documentation are proven and switched over.
   - name: Tooling
     description: External tools and protocols that Glide builds on or has evaluated.
@@ -65,14 +81,18 @@ terms:
       A Work Item is ready when it states something we have decided to do, or
       describes a problem in enough detail that a solution can be formulated or
       at least conceived. Ready work can be given to agents. Work that is not
-      ready can itself be given to agents whose job is to make it ready.
-    see_also: [Work Item, Acceptance Conditions, Follow-Up]
+      ready can itself be given to agents whose job is to make it ready. A
+      Client's Definition of Ready adds conditions for that Client's work; it
+      never removes this baseline.
+    see_also: [Work Item, Acceptance Conditions, Follow-Up, Client Profile, Refinement]
   - name: Acceptance Conditions
     context: Work
     definition: >
       The observable conditions a Result must satisfy to answer the requested work.
       They depend on the work; software tests alone cannot validate a business case.
-    see_also: [Work Item, Result, Review]
+      For a Client's work, the Client's Definition of Done supplies conditions and
+      the Agency's own definition wins where they conflict.
+    see_also: [Work Item, Result, Review, Acceptance, Client Profile]
   - name: Result
     context: Work
     definition: >
@@ -198,10 +218,14 @@ terms:
     definition: >
       An authorized spending limit for work. It is separate from a provisional
       usage estimate and from the eventual reconciled charge. Ploeg holds the
-      budget pool of each Shift.
-    see_also: [Shift, Authority]
+      budget pool of each Shift. A Budget is named by what it limits: a Shift
+      Budget (set by the Work Item's Size), a Client Budget (per Client per
+      month, set by the Agency) or an Agency Budget (metered usage per month).
+      Its cap is the limit amount, not a separate concept.
+    avoid: [cap (as a noun for a limit)]
+    see_also: [Shift, Authority, Size, Client, Agency]
   - name: Qualification
-    context: Delivery
+    context: Release
     definition: >
       Recorded, repeatable proof that a component or path works as required
       before anyone relies on it. For example, `mise run integration` qualifies
@@ -209,7 +233,7 @@ terms:
       spend. A qualification record states what it did not cover.
     see_also: [Cutover]
   - name: Cutover
-    context: Delivery
+    context: Release
     definition: >
       The switch from the old per-application repositories to Glide for releases
       and published documentation, including a first live pilot. Documentation
@@ -248,13 +272,176 @@ terms:
       boundary.
     synonyms: [Agent Host Protocol]
     see_also: [Vloer, Harness]
-retired_terms:
-  - name: Ticket
+  - name: Acceptance
     context: Work
-    use: [Work Item, Tracker Item]
-    because: >
-      The unit of work is the Work Item, whatever its source. A tracker is one place a Work
-      Item's text can live (a Tracker Item); Vloer and other Runs are others.
+    definition: >
+      The Agency's decision that a pull request delivers its Work Item. An
+      explicit approval, a merge with or without review, or no decision ten
+      working days after the pull request opened all count. Acceptance charges
+      the Delivery Fee. A Client's feedback on the Preview Environment is input
+      to it, not Acceptance itself.
+    avoid: [client acceptance, silent approval]
+    not_to_be_confused_with:
+      - term: Review
+        note: An assessment of a Result against its Acceptance Conditions; Acceptance is the Agency's decision that follows.
+      - term: Verdict
+        note: A reviewing Run's answer; Evidence for the Agency, never Acceptance.
+    see_also: [Delivery, Delivery Fee, Review, Acceptance Conditions, Agency]
+  - name: Preview Environment
+    context: Work
+    definition: >
+      A running copy of one pull request's change, deployed with generated test
+      data by a CI step in the Agency's own pipeline, to the Agency's
+      infrastructure or to Glide's preview hosting in the Agency's Tenant. Its
+      address is posted to the pull request and the Client Portal. It is deleted
+      when the pull request merges or closes, or after an idle limit, and never
+      receives production secrets.
+    synonyms: [Preview]
+    avoid: [staging, review app]
+    see_also: [Acceptance, Client Portal, Tenant]
+  - name: Refinement
+    context: Work
+    definition: >
+      Turning a request into a Ready Work Item with Acceptance Conditions and a
+      proposed Size. A refinement Role does it, asks for missing information
+      through the Agency, and cannot dispatch the Work Item. Its Ready Check
+      tells the Agency, before any Shift spend, whether the Work Item is ready
+      for agents. Sold on its own, it is request-to-quote.
+    synonyms: [request-to-quote]
+    see_also: [Ready, Quote, Size, Client Profile]
+  - name: Attention Path
+    context: Work
+    definition: >
+      A repository path whose changes need careful review, listed as a glob in
+      .glide/attention or covered by CODEOWNERS. Agents may change it; a pull
+      request that does is labelled and lists those files first.
+    see_also: [Review, Diff Limit]
+  - name: Diff Limit
+    context: Work
+    definition: >
+      The most changed lines and files a Size allows in one pull request,
+      counted without tests, lockfiles and generated files. A Shift that would
+      exceed it stops and proposes a split into Follow-Ups.
+    avoid: [diff budget]
+    examples: ["S: at most 150 lines in 5 files."]
+    see_also: [Size, Follow-Up, Attention Path]
+  - name: Agency
+    context: Offering
+    definition: >
+      A business that uses Glide to build software for its Clients and pays for
+      it. A freelancer, or an in-house team that is its own only Client, is an
+      Agency too. An Agency reviews and merges every pull request and owns
+      production. It uses Glide hosted, in its own Tenant, or self-hosted.
+    avoid: [customer, operator, reseller]
+    not_to_be_confused_with:
+      - term: Tenant
+        note: The isolated space that holds one Agency's work in hosted Glide.
+      - term: Client
+        note: The Agency's own customer.
+    see_also: [Tenant, Client, Acceptance]
+  - name: Tenant
+    context: Offering
+    definition: >
+      The isolated space in hosted Glide that holds one Agency's Work Items,
+      Shifts, credentials, Preview Environments and Budgets: its own namespaces,
+      default-deny network, sandboxed runtime and model budget. Ploeg records it
+      on every Team, Work Item, Shift and credential. Clients are users inside a
+      Tenant, never Tenants. Self-hosted Glide has no Tenants.
+    see_also: [Agency, Client, Preview Environment]
+  - name: Client
+    context: Offering
+    definition: >
+      An Agency's customer. A Client submits requests, answers Refinement
+      questions, approves Quotes and gives feedback on Preview Environments in
+      the Client Portal. Glide never contacts a Client directly.
+    avoid: [customer, end client, end customer]
+    see_also: [Agency, Client Portal, Client Profile, Quote]
+  - name: Client Portal
+    context: Offering
+    owner: vloer
+    definition: >
+      The part of Vloer where Clients submit requests, talk to the refinement
+      agent, approve Quotes and open Preview Environments through signed links.
+      It shows the Agency's price; Glide's own charge is hidden unless the
+      Agency shows it.
+    synonyms: [Portal]
+    see_also: [Client, Quote, Vloer]
+  - name: Client Profile
+    context: Offering
+    definition: >
+      A Client's Definition of Ready, Definition of Done and extra instructions
+      for agents. It ranks below the delivery contract, like repository
+      instructions. The Definition of Done becomes Acceptance Conditions.
+    see_also: [Client, Ready, Acceptance Conditions, Refinement]
+  - name: Ticket
+    context: Offering
+    definition: >
+      The word Agencies and Clients use for a Work Item with a Quote. Use it
+      only in the Client Portal, sales material and price lists. Everywhere
+      else, including code and these docs, say Work Item: the unit of work is
+      the Work Item, whatever its source.
+    see_also: [Work Item, Quote, Tracker Item]
+  - name: Size
+    context: Billing
+    definition: >
+      The class S, M or L that Refinement proposes for a Work Item and the
+      Client approves in its Quote. A Size sets the Delivery Fee in Credits,
+      the Shift Budget and the Diff Limit. There is no larger Size; Refinement
+      splits work estimated above L.
+    examples: ["S: 1 Credit, a €4 Shift Budget, at most 150 changed lines in 5 files."]
+    see_also: [Quote, Credit, Budget, Diff Limit]
+  - name: Quote
+    context: Billing
+    definition: >
+      A Work Item's Size and the Agency's price for it, drafted by Refinement
+      and approved by the Client or by the Agency on its behalf. A Work Item
+      with a Client waits as proposed until its Quote is approved.
+    see_also: [Size, Refinement, Client, Ticket]
+  - name: Credit
+    context: Billing
+    definition: >
+      The unit of the Delivery Fee: one Credit pays for one accepted S Work
+      Item. Agencies buy Credits in bundles, and a Credit is always shown with
+      its euro value. Paid Credits never expire while the account is active;
+      promotional Credits can expire and are used first. Tokens and hosting are
+      charged in euros, never in Credits.
+    not_to_be_confused_with:
+      - term: Budget
+        note: An authorized spending limit, not something bought.
+    see_also: [Delivery Fee, Size]
+  - name: Delivery Fee
+    context: Billing
+    definition: >
+      The part of a Work Item's price paid in Credits, charged only on
+      Acceptance. A Shift that ends without a Delivery returns its Credits.
+    see_also: [Credit, Token Charge, Acceptance, Delivery]
+  - name: Token Charge
+    context: Billing
+    definition: >
+      The part of a Work Item's price charged for every attempt: model tokens
+      and compute at cost plus the Agency's Markup, up to the Shift Budget.
+      Rejected work still pays it; attempts that fail through Glide's own fault
+      do not.
+    see_also: [Delivery Fee, Markup, Budget]
+  - name: Markup
+    context: Billing
+    definition: >
+      The published percentage Glide adds to token and compute cost when
+      billing an Agency. It depends on the Agency's tier, which is recalculated
+      quarterly from its acceptance rate. The price an Agency charges its
+      Client is the Agency's own and is not a Markup.
+    see_also: [Token Charge, Agency]
+  - name: Delivery
+    context: Billing
+    definition: >
+      A Work Item whose pull request received Acceptance. The Delivery Fee is
+      charged per Delivery. The delivery rate is Deliveries divided by closed
+      Work Items.
+    not_to_be_confused_with:
+      - term: Delivery Candidate
+        note: Ploeg's immutable record of one canonical commit prepared for verification.
+    see_also: [Acceptance, Delivery Fee, Work Item]
+retired_terms:
   - name: Workload
     context: Execution
     use: [Work Item]
@@ -330,21 +517,29 @@ rules:
       for a Team that opted in.
     rationale: Refining and dividing work is itself work; agents should do it under the same authority, budget and review as code.
     applies_to: [Work Item, Follow-Up, Ready, Run]
+  - id: R13
+    statement: >
+      Intended behavior — the Delivery Fee is charged only on Acceptance. The Token Charge is charged for every
+      attempt up to the Shift Budget, except attempts that fail through Glide's own fault.
+    rationale: The Agency pays for delivered work, and rejecting work is never free, so neither side profits from the other's mistakes.
+    applies_to: [Delivery Fee, Token Charge, Acceptance]
+  - id: R14
+    statement: >
+      Intended behavior — Ploeg refuses a Shift it cannot fund and never raises a Budget on its own. A Shift that
+      reaches its Shift Budget stops and offers a split into new Work Items.
+    rationale: A guaranteed ceiling on spend is what Agencies buy.
+    applies_to: [Budget, Shift, Size]
+  - id: R15
+    statement: Intended behavior — Glide never contacts a Client directly; questions for a Client go through its Agency.
+    rationale: The Agency owns the Client relationship.
+    applies_to: [Client, Agency, Refinement]
+  - id: R16
+    statement: >
+      Intended behavior — Glide never merges a pull request or deploys to production. A Preview Environment never
+      receives production secrets.
+    rationale: Glide's responsibility ends at a reviewed pull request and its preview; production stays with the Agency.
+    applies_to: [Agency, Preview Environment, Acceptance]
 ambiguities:
-  - phrase: shared execution implementation
-    issue: Earlier text required local work without Ploeg and kept two engines, which left open which execution code the applications should share.
-    options: [Keep separate implementations behind compatible contracts, Extract a runner callable by either application, Make Ploeg the only engine]
-    status: resolved
-    resolution: >
-      Glide ADR-0002 (2026-09-22) makes Ploeg the only engine, so no shared runner is needed. Vloer is to delegate
-      execution to ploeg-worker and keep only its deterministic demo; that migration is not yet implemented.
-  - phrase: local work without Ploeg
-    issue: The product model required local work to be usable without Ploeg, with the person as authority for standalone work.
-    options: [Standalone Vloer authority, A local Ploeg worker for offline use, Ploeg authority for every Run]
-    status: resolved
-    resolution: >
-      Glide ADR-0002 chose Ploeg authority for every Run. Offline laptop use requires a running Ploeg; without it
-      Vloer offers only the deterministic demo.
   - phrase: a CI failure with no original ticket
     issue: Repair subtickets require a parent, but a human-written change may not already have an external ticket.
     options: [Create a parent work ticket linked to the change, Attach repair to a project incident ticket]
@@ -391,3 +586,14 @@ dialogues:
         text: And the whole attempt, with its branch and budget?
       - speaker: Platform engineer
         text: That is the Shift. Only the writing Run holds the Lease on its branch.
+  - title: Acceptance, Review and the Client
+    context: Billing
+    lines:
+      - speaker: Agency developer
+        text: The Client liked the **Preview Environment**. Is the Work Item accepted now?
+      - speaker: Product owner
+        text: No. The Client's feedback is input. **Acceptance** is our decision on the pull request, by approving it or merging it.
+      - speaker: Agency developer
+        text: And the reviewer Role's approve Verdict?
+      - speaker: Product owner
+        text: That is Evidence for our **Review**. Only our Acceptance makes it a **Delivery** and charges the **Delivery Fee**.
