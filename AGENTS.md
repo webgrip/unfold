@@ -22,6 +22,7 @@ Glide turns units of work (Work Items) into pull requests that are ready for hum
 ## Where things live
 
 - Each application's `AGENTS.md` adds its own rules. Read it before changing that application.
+- Product direction: Glide is self-hosted first, then offered to agencies as a hosted service ([ADR-0005](docs/adr/adr-0005-glide-is-offered-to-agencies.md)). ADRs 0005–0010 record the agency offering, and none of it is implemented yet. Read them before product, pricing, portal or tenancy work.
 - Shared guides are in `docs/`, starting at [docs/index.md](docs/index.md). Application contracts, ADRs and research stay inside the application.
 - Before changing behavior that crosses Ploeg and Vloer, read [managed execution](docs/workflows/managed-execution.md).
 - `.openhands/`, `.opencode/` and `.agents/` hold configuration for agents working on Glide itself. What Ploeg supports for other repositories is defined in `apps/ploeg/pkg/harness` and `apps/ploeg/docs/contracts/`.
