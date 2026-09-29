@@ -51,6 +51,13 @@ The [pricing units record](../research/2026-09-28-pricing-units.md) compares the
 | Floor price per credit | €12, recalculated quarterly from measured cost |
 | Volume steps | €14 / €13 / €12 at 100 / 250 / 500+ credits a month |
 | Refinement Runs | Free within a monthly allowance per client |
+| Credit validity | 12 months; one month of volume rolls over |
+| Purchase forms | Prepaid bundles, and 12-month monthly commitments that unlock the volume steps |
+| Metered usage above allowances | €0.008 per CI minute, €0.06 per preview hour, €0.10 per GB-month, extra tokens at list price × 1.25 |
+| Default cap on metered usage | €100 a month, alerts at 50, 75, 90 and 100%; work pauses at the cap |
+| Billing stack | Mollie for payment, Lago self-hosted for metering; Ploeg enforces every cap before spend |
+| Design partners | 3 to 5, 50% off the platform fee for 6 months; credits never below the floor |
+| Public price list | Published after the pilot's first gate |
 | Public launch gate | 60% of S tickets delivered at €4 or less per delivered S |
 
 ### Consequences
@@ -91,3 +98,4 @@ Confirmed when every delivered ticket shows its size, quote, authorized cap and 
 * 2026-09-29 — Research proposed a stricter definition of delivered and revised numbers.
 * 2026-09-29 — Accepted. The owner kept review-ready as the charge point and 1 / 3 / 8 credits, and set the price, floor, volume steps, refinement allowance and launch gate.
 * 2026-09-29 — The owner set the planning delivery rate, the premium multiplier, the reversal rule, the L split rule, and kept rejected pull requests charged.
+* 2026-09-29 — The owner set credit validity, purchase forms, metered rates, the default usage cap, the billing stack, design-partner terms and when prices go public.
