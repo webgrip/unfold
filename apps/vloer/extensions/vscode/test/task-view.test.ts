@@ -93,7 +93,8 @@ test('a read retries once when the gateway cannot reach the workbench, and expla
 
 test('only unreachable workbenches and gateway failures count as transient', () => {
   assert.equal(transient(new ApiError(0, 'unreachable', '')), true);
-  assert.equal(transient(new ApiError(504, 'task_timeout', '')), true);
+  assert.equal(transient(new ApiError(504, 'gateway_unavailable', '')), true);
+  assert.equal(transient(new ApiError(502, 'task_service_failed', '')), false, 'the workbench’s own JSON error is an answer, not a lost request');
   assert.equal(transient(new ApiError(401, 'unauthenticated', '')), false);
   assert.equal(transient(new ApiError(409, 'task_changed', '')), false);
   assert.equal(transient(new Error('other')), false);
@@ -123,4 +124,8 @@ test('task hand-off calls use the contracted routes, and a missing lookup reads 
     'GET /api/tasks/lookup?provider=vikunja&id=1505 ',
   ]);
   assert.throws(() => client.handoff('glide', '1505', '../admin', 'rev1'));
+});
+
+test('tooltips drop Markdown escapes too', () => {
+  assert.equal(plainText('snake\\_case \\& a\\[0\\]'), 'snake_case & a[0]');
 });

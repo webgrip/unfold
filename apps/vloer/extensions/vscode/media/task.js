@@ -25,7 +25,8 @@ function ploegSituation(current) {
   const item = currentItem(status);
   if (item && !settled.includes(item.state)) {
     switch (item.state) {
-      case 'queued': case 'ingested': return { tone: 'active', headline: `Queued for team ${item.team}.`, next: `Ploeg starts it when a ${item.team} worker is free. You can take it back until then.` };
+      case 'queued': return { tone: 'active', headline: `Queued for team ${item.team}.`, next: `Ploeg starts it when a ${item.team} worker is free. You can take it back until then.` };
+      case 'ingested': return { tone: 'active', headline: `Team ${item.team} received it.`, next: 'Ploeg is preparing it for the queue.' };
       case 'leased': return { tone: 'active', headline: `Team ${item.team} is working on it.`, next: `Attempt ${item.attempts || 1}. Follow the runs in the Ploeg workbench.` };
       case 'awaiting_review': return { tone: 'good', headline: 'A pull request is waiting for your review.', next: 'Ploeg finished its work. Review and merge it on the forge, or request changes there.' };
       case 'needs_human': return { tone: 'warn', headline: `Team ${item.team} stopped and needs a human.`, next: 'Open it in the Ploeg workbench to read why, then decide how to continue.' };
@@ -114,7 +115,7 @@ function ploegCard(current) {
   const status = current.status;
   const situation = ploegSituation(current);
   const item = currentItem(status);
-  const takeBack = status.available && status.handoff.allowed && status.assignedTeams.length && (!item || ['queued', 'ingested'].includes(item.state) || settled.includes(item.state));
+  const takeBack = status.available && status.handoff.allowed && status.assignedTeams.length && (!item || item.state === 'queued' || settled.includes(item.state));
   return element('section', { className: 'card ploeg-card', 'aria-labelledby': 'ploeg-heading' },
     element('div', { className: 'section-heading' }, element('h2', { id: 'ploeg-heading' }, 'Glide'), element('span', {}, status.demo ? 'Demo · no model calls or spend' : status.fetchedAt ? `checked ${clock(status.fetchedAt)}` : '')),
     element('div', { className: `situation tone-${situation.tone}`, role: 'status' }, element('p', { className: 'headline' }, situation.headline), situation.next ? element('p', { className: 'next' }, situation.next) : null),

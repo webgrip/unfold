@@ -38,12 +38,13 @@ function fact(label, value, attributes = {}) { return element('div', { className
 function safeHttps(value) { try { const url = new URL(value); return url.protocol === 'https:' && !url.username && !url.password ? url.toString() : ''; } catch { return ''; } }
 function inline(text) {
   const fragment = document.createDocumentFragment();
-  const pattern = /(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(__[^_\n]+__)|(\*[^*\n]+\*)|(_[^_\n]+_)|(\[[^\]\n]+\]\([^)\s]+\))/g;
+  const pattern = /(\\[\\`*_[\]{}()#+\-.!<>~|&])|(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(__[^_\n]+__)|(\*[^*\n]+\*)|(_[^_\n]+_)|(\[[^\]\n]+\]\([^)\s]+\))/g;
   let last = 0;
   for (const match of text.matchAll(pattern)) {
     if (match.index > last) fragment.append(text.slice(last, match.index));
     const token = match[0];
-    if (token.startsWith('`')) fragment.append(element('code', {}, token.slice(1, -1)));
+    if (token.startsWith('\\')) fragment.append(token.slice(1));
+    else if (token.startsWith('`')) fragment.append(element('code', {}, token.slice(1, -1)));
     else if (token.startsWith('**') || token.startsWith('__')) fragment.append(element('strong', {}, inline(token.slice(2, -2))));
     else if (token.startsWith('[')) { const [, label, url] = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/); const target = safeHttps(url); fragment.append(element('span', { className: target ? 'link-text openable' : 'link-text', 'data-open-url': target || undefined, role: target ? 'link' : undefined, tabindex: target ? '0' : undefined, title: target || undefined }, inline(label)), element('span', { className: 'link-target' }, ` (${target ? new URL(target).host : url})`)); }
     else fragment.append(element('em', {}, inline(token.slice(1, -1))));

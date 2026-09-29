@@ -499,9 +499,11 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     await this.startSession(value.source, task);
   }
 
-  async startSession(source: TaskSource, task: TaskSnapshot): Promise<void> {
+  async startSession(source: TaskSource, shown: TaskSnapshot): Promise<void> {
     const target = this.current; const generation = this.generation;
     const bootstrap = await this.bootstrap();
+    const task = shown.descriptionTruncated ? await target.task(source.id, shown.id) : shown;
+    this.assertTarget(target, generation);
     const eligibility = sessionEligibility(bootstrap, source, task);
     if (!eligibility.allowed) { void vscode.window.showInformationMessage(eligibility.reason ?? 'This task cannot start a session.'); return; }
     const draft = await this.engagement(bootstrap, `import:${task.key}`, { repositoryId: task.repositoryId, title: task.title, objective: task.description || task.title }, 'Start a supervised session');

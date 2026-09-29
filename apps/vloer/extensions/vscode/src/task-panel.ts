@@ -37,6 +37,8 @@ export class TaskPanel implements vscode.Disposable {
   private timer?: ReturnType<typeof setTimeout>;
   private fastUntil = 0;
   private loading = false;
+  private pending?: { reloadTask: boolean; problem: string };
+  private mutations = 0;
   private disposed = false;
   private readonly subscriptions: vscode.Disposable[] = [];
 
@@ -50,6 +52,7 @@ export class TaskPanel implements vscode.Disposable {
   }
 
   static create(host: TaskPanelHost, source: TaskSource, taskId: string, title: string, onDispose: () => void): TaskPanel {
+    if (!/^[a-zA-Z0-9_-]{1,200}$/.test(taskId) || !/^[a-z0-9-]{1,64}$/.test(source.id)) throw new Error('Invalid linked task identifier.');
     const panel = vscode.window.createWebviewPanel('vloer.task', title, vscode.ViewColumn.Active, { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(host.extensionUri, 'media')], retainContextWhenHidden: true, enableFindWidget: true });
     panel.iconPath = vscode.Uri.joinPath(host.extensionUri, 'media', 'vloer.svg');
     return new TaskPanel(host, source, taskId, panel, onDispose);
@@ -60,15 +63,17 @@ export class TaskPanel implements vscode.Disposable {
   offline() { this.stop(); void this.panel.webview.postMessage({ type: 'connection', connected: false }); }
 
   async load(reloadTask: boolean, problem = ''): Promise<void> {
-    if (this.disposed || this.loading) return;
+    if (this.disposed) return;
+    if (this.loading) { this.pending = { reloadTask: reloadTask || Boolean(this.pending?.reloadTask), problem: problem || this.pending?.problem || '' }; return; }
     this.loading = true;
     const client = this.host.client();
     const revision = this.host.revision();
+    const mutations = this.mutations;
     try {
       const bootstrap = await this.host.bootstrap();
-      const task = reloadTask || !this.view ? await client.task(this.source.id, this.taskId) : this.view.task;
+      const task = reloadTask || !this.view ? await client.task(this.source.id, this.taskId, true) : this.view.task;
       const status = await this.status(client, task, reloadTask);
-      if (this.disposed || client !== this.host.client() || revision !== this.host.revision()) return;
+      if (this.disposed || client !== this.host.client() || revision !== this.host.revision() || mutations !== this.mutations) return;
       const repository = bootstrap.repositories.find(item => item.id === task.repositoryId);
       this.view = {
         task, status, host: new URL(client.origin).host, loadedAt: new Date().toISOString(),
@@ -79,7 +84,12 @@ export class TaskPanel implements vscode.Disposable {
       await this.panel.webview.postMessage({ type: 'state', view: this.view, problem });
     } catch (error) {
       await this.panel.webview.postMessage({ type: 'problem', message: error instanceof Error ? error.message : 'The task could not be loaded.' });
-    } finally { this.loading = false; this.schedule(); }
+    } finally {
+      this.loading = false;
+      const next = this.pending;
+      this.pending = undefined;
+      if (next && !this.disposed) void this.load(next.reloadTask, next.problem); else this.schedule();
+    }
   }
 
   private async status(client: VloerClient, task: TaskSnapshot, fresh: boolean): Promise<TaskPloegStatus> {
@@ -95,8 +105,7 @@ export class TaskPanel implements vscode.Disposable {
   private schedule() {
     this.stop();
     if (this.disposed || !this.panel.visible) return;
-    const waiting = this.view && awaitingPloeg(this.view.status);
-    const delay = Date.now() < this.fastUntil || waiting ? 3000 : 15000;
+    const delay = Date.now() >= this.fastUntil ? 15000 : this.view && awaitingPloeg(this.view.status) ? 3000 : 6000;
     this.timer = setTimeout(() => void this.load(false), delay);
   }
 
@@ -133,6 +142,7 @@ export class TaskPanel implements vscode.Disposable {
     ].join('\n\n') }, `Hand to ${team.id}`);
     if (choice !== `Hand to ${team.id}`) { await this.panel.webview.postMessage({ type: 'idle' }); return; }
     const client = this.host.client();
+    this.mutations++;
     try {
       const status = await client.handoff(this.source.id, view.task.id, team.id, view.task.revision);
       await this.host.rememberTeam(team.id);
@@ -152,6 +162,7 @@ export class TaskPanel implements vscode.Disposable {
     if (!view) return;
     const choice = await vscode.window.showWarningMessage(`Take “${view.task.title}” back from team ${teamId}?`, { modal: true, detail: `Vloer removes ${teamId}'s assignee in the tracker and comments that you took it back. Ploeg withdraws the item while it is still queued; work that already started must be cancelled from the Ploeg view.` }, 'Take back');
     if (choice !== 'Take back') { await this.panel.webview.postMessage({ type: 'idle' }); return; }
+    this.mutations++;
     const status = await this.host.client().takeBack(this.source.id, view.task.id, teamId);
     this.fastUntil = Date.now() + 30_000;
     this.view = { ...view, status, loadedAt: new Date().toISOString() };

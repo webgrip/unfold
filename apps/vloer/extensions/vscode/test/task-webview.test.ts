@@ -84,3 +84,10 @@ test('markdown links in a description open through the host only when they are H
   assert.equal(links[1]?.dataset.openUrl, undefined);
   assert.equal(root.find('a').length, 0);
 });
+
+test('Markdown escapes from the tracker converter render as the plain characters they protect', () => {
+  const root: StubElement = view.markdown('Rename snake\\_case\\_name \\& fix a\\[0\\] with (x\\*y)\n\n1\\. not a list\n\n\\# not a heading');
+  assert.equal(root.textContent, 'Rename snake_case_name & fix a[0] with (x*y)1. not a list# not a heading');
+  assert.equal(root.find('em').length, 0);
+  assert.equal(root.find('ol').length + root.find('h3').length, 0);
+});
