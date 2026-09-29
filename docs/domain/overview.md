@@ -38,6 +38,9 @@ These terms are contested or vague. Resolve them before writing specs that depen
 - **which decision records are required** — Visibility into decisions needs a defined record beyond raw model messages and tool logs.
   - Options: Written decision with options and evidence, Transcript and actions alone
   - Recommendation: Capture the decision, responsible person or rule, evidence, and expected consequence.
+- **a Request that arrives through a tracker** — Ploeg mirrors every assigned Tracker Item into a Work Item. A Client's ask that arrives as a ClickUp or Vikunja task is a Request, not yet a Work Item, so either the mirror must wait for Refinement or the Request must live in Glide beside the Tracker Item.
+  - Options: The tracker task is the Request; Refinement's Work Items become new Tracker Items or stay in Ploeg (Ploeg ADR-0031), Ploeg mirrors it as an unready Work Item that Refinement replaces with the real ones, Requests only come through the Client Portal; tracker tasks are always Work Items
+  - Recommendation: The tracker task is the Request. Refinement's Work Items stay in Ploeg as proposed until their Quotes are approved, which reuses Ploeg ADR-0031 and keeps the Agency's tracker as the one place its Clients' asks live.
 
 ## Contents
 

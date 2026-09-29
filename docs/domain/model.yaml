@@ -302,13 +302,13 @@ terms:
   - name: Refinement
     context: Work
     definition: >
-      Turning a request into a Ready Work Item with Acceptance Conditions and a
-      proposed Size. A refinement Role does it, asks for missing information
+      Turning a Request into one or more Ready Work Items, each with Acceptance
+      Conditions and a proposed Size. A refinement Role does it, asks for missing information
       through the Agency, and cannot dispatch the Work Item. Its Ready Check
       tells the Agency, before any Shift spend, whether the Work Item is ready
       for agents. Sold on its own, it is request-to-quote.
     synonyms: [request-to-quote]
-    see_also: [Ready, Quote, Size, Client Profile]
+    see_also: [Request, Ready, Quote, Size, Client Profile]
   - name: Attention Path
     context: Work
     definition: >
@@ -351,16 +351,16 @@ terms:
   - name: Client
     context: Offering
     definition: >
-      An Agency's customer. A Client submits requests, answers Refinement
+      An Agency's customer. A Client submits Requests, answers Refinement
       questions, approves Quotes and gives feedback on Preview Environments in
       the Client Portal. Glide never contacts a Client directly.
     avoid: [customer, end client, end customer]
-    see_also: [Agency, Client Portal, Client Profile, Quote]
+    see_also: [Agency, Client Portal, Client Profile, Quote, Request]
   - name: Client Portal
     context: Offering
     owner: vloer
     definition: >
-      The part of Vloer where Clients submit requests, talk to the refinement
+      The part of Vloer where Clients submit Requests, talk to the refinement
       agent, approve Quotes and open Preview Environments through signed links.
       It shows the Agency's price; Glide's own charge is hidden unless the
       Agency shows it.
@@ -427,10 +427,9 @@ terms:
     context: Billing
     definition: >
       The published percentage Glide adds to token and compute cost when
-      billing an Agency. It depends on the Agency's tier, which is recalculated
-      quarterly from its acceptance rate. The price an Agency charges its
-      Client is the Agency's own and is not a Markup.
-    see_also: [Token Charge, Agency]
+      billing an Agency. The Agency's Markup Tier sets it. The price an Agency
+      charges its Client is the Agency's own and is not a Markup.
+    see_also: [Token Charge, Markup Tier, Agency]
   - name: Delivery
     context: Billing
     definition: >
@@ -441,6 +440,52 @@ terms:
       - term: Delivery Candidate
         note: Ploeg's immutable record of one canonical commit prepared for verification.
     see_also: [Acceptance, Delivery Fee, Work Item]
+  - name: Request
+    context: Offering
+    definition: >
+      A Client's ask and the conversation about it, received through the Client
+      Portal, a tracker or email. Refinement turns one Request into one or more
+      Work Items, each with its own Quote. A Request is never dispatched; only
+      its Work Items are.
+    avoid: [client ticket]
+    not_to_be_confused_with:
+      - term: Work Item
+        note: The unit of work Ploeg runs Shifts against; a Request becomes one or more of them.
+    see_also: [Client, Refinement, Quote, Client Portal]
+  - name: Edition
+    context: Offering
+    definition: >
+      The plan an Agency is on: Freelancer, Studio, White label or Enterprise.
+      It sets the monthly platform fee and the Credits it includes. Every feature
+      is in the open-source code, so an Edition buys hosting, support or white
+      labelling, never features.
+    see_also: [Agency, Credit]
+  - name: Markup Tier
+    context: Billing
+    definition: >
+      An Agency's pricing level, which sets its Markup. It is recalculated each
+      quarter from the Agency's acceptance rate against published thresholds,
+      and an Agency drops at most one Markup Tier per quarter, with a month's
+      notice. "Tier" names nothing else: a Size maps to a Team, not to a tier.
+    avoid: [team tier]
+    see_also: [Markup, Acceptance]
+  - name: Dispute
+    context: Billing
+    definition: >
+      A disagreement between Glide and an Agency about a charge, such as a
+      change resembling a closed pull request that landed on the base branch on
+      a weak match. It opens with ten working days' notice before any charge. A
+      Client objecting to a Preview Environment is feedback that the Agency
+      decides against the Acceptance Conditions, not a Dispute.
+    avoid: [preview dispute, client dispute]
+    see_also: [Reversal, Acceptance, Delivery Fee]
+  - name: Reversal
+    context: Billing
+    definition: >
+      The refund of a Delivery Fee when an accepted change is reverted within
+      14 days for a defect inside its Acceptance Conditions.
+    avoid: [chargeback]
+    see_also: [Delivery Fee, Acceptance, Dispute]
 retired_terms:
   - name: Workload
     context: Execution
@@ -458,6 +503,12 @@ retired_terms:
       second name for a Shift would make every execution statement ambiguous.
       The word remains a bounded-context name and part of Ploeg's Operator
       Execution record.
+  - name: Agency Edition
+    context: Offering
+    use: [Edition]
+    because: >
+      Agency names the business that uses Glide, so "the Agency edition" would
+      mean two things in one sentence. The middle Edition is Studio.
 rules:
   - id: R1
     statement: A Work Item states the intended Result; each Shift records one attempt at it, and a failed Shift leaves the Work Item in place.
@@ -556,6 +607,20 @@ ambiguities:
     issue: Visibility into decisions needs a defined record beyond raw model messages and tool logs.
     options: [Written decision with options and evidence, Transcript and actions alone]
     recommendation: Capture the decision, responsible person or rule, evidence, and expected consequence.
+  - phrase: a Request that arrives through a tracker
+    issue: >
+      Ploeg mirrors every assigned Tracker Item into a Work Item. A Client's ask
+      that arrives as a ClickUp or Vikunja task is a Request, not yet a Work Item,
+      so either the mirror must wait for Refinement or the Request must live in
+      Glide beside the Tracker Item.
+    options:
+      - The tracker task is the Request; Refinement's Work Items become new Tracker Items or stay in Ploeg (Ploeg ADR-0031)
+      - Ploeg mirrors it as an unready Work Item that Refinement replaces with the real ones
+      - Requests only come through the Client Portal; tracker tasks are always Work Items
+    recommendation: >
+      The tracker task is the Request. Refinement's Work Items stay in Ploeg as
+      proposed until their Quotes are approved, which reuses Ploeg ADR-0031 and
+      keeps the Agency's tracker as the one place its Clients' asks live.
 dialogues:
   - title: Research can stop implementation
     context: Work

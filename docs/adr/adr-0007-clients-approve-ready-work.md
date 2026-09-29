@@ -36,7 +36,7 @@ Chosen option: "A refinement Run drafts a Ready Work Item and a quote; the clien
 * When the client and the agency disagree on the Definition of Done, the agency's definition wins; the client adds requirements on top.
 * Linear is the next tracker provider after Vikunja and ClickUp. At launch Glide works with GitHub, GitLab and Forgejo; intake is the portal and tracker imports, with email later.
 * **Client portal:** clients may add instructions for agents and talk to the refinement agent in the request thread. They open previews through a signed link that expires with the preview. The agency sends clients a monthly report and sets a monthly budget per client, which Ploeg enforces. Agencies are notified by email; other channels come later.
-* When a client disputes a preview, the agency decides against the approved Acceptance Conditions. A pull request that meets them is accepted; a new wish becomes a new Work Item.
+* When a client objects to a preview, the agency decides against the approved Acceptance Conditions. A pull request that meets them is accepted; a new wish becomes a new Work Item.
 
 Not implemented yet.
 
@@ -72,3 +72,4 @@ Confirmed when a Work Item created from a client request cannot enter a Shift wi
 * 2026-09-29 — The owner let agencies override the ready-check at their own risk.
 * 2026-09-29 — The owner confirmed the client portal defaults: client instructions, refinement conversations, signed preview links, monthly reports, per-client budgets and email notifications.
 * 2026-09-29 — Wording aligned with the domain model (Work Item); no decision changed.
+* 2026-09-30 — Wording aligned with the domain model (Dispute is a billing term); no decision changed.

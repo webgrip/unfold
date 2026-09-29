@@ -80,15 +80,15 @@ The reviewable change Vloer captures from a Session's Workspace when its Crew st
 ## Client
 *Context: Offering*
 
-An Agency's customer. A Client submits requests, answers Refinement questions, approves Quotes and gives feedback on Preview Environments in the Client Portal. Glide never contacts a Client directly.
+An Agency's customer. A Client submits Requests, answers Refinement questions, approves Quotes and gives feedback on Preview Environments in the Client Portal. Glide never contacts a Client directly.
 
 **Do not use:** customer, end client, end customer  
-**See also:** [Agency](#agency), [Client Portal](#client-portal), [Client Profile](#client-profile), [Quote](#quote)  
+**See also:** [Agency](#agency), [Client Portal](#client-portal), [Client Profile](#client-profile), [Quote](#quote), [Request](#request)  
 
 ## Client Portal
 *Context: Offering · Owner: Vloer*
 
-The part of Vloer where Clients submit requests, talk to the refinement agent, approve Quotes and open Preview Environments through signed links. It shows the Agency's price; Glide's own charge is hidden unless the Agency shows it.
+The part of Vloer where Clients submit Requests, talk to the refinement agent, approve Quotes and open Preview Environments through signed links. It shows the Agency's price; Glide's own charge is hidden unless the Agency shows it.
 
 **Also known as:** Portal  
 **See also:** [Client](#client), [Quote](#quote), [Vloer](#vloer)  
@@ -147,6 +147,21 @@ The most changed lines and files a Size allows in one pull request, counted with
 **Examples:** S: at most 150 lines in 5 files.  
 **See also:** [Size](#size), [Follow-Up](../reference/glossary.md#follow-up), [Attention Path](#attention-path)  
 
+## Dispute
+*Context: Billing*
+
+A disagreement between Glide and an Agency about a charge, such as a change resembling a closed pull request that landed on the base branch on a weak match. It opens with ten working days' notice before any charge. A Client objecting to a Preview Environment is feedback that the Agency decides against the Acceptance Conditions, not a Dispute.
+
+**Do not use:** preview dispute, client dispute  
+**See also:** [Reversal](#reversal), [Acceptance](#acceptance), [Delivery Fee](#delivery-fee)  
+
+## Edition
+*Context: Offering*
+
+The plan an Agency is on: Freelancer, Studio, White label or Enterprise. It sets the monthly platform fee and the Credits it includes. Every feature is in the open-source code, so an Edition buys hosting, support or white labelling, never features.
+
+**See also:** [Agency](#agency), [Credit](#credit)  
+
 ## Evidence
 *Context: Work*
 
@@ -164,9 +179,17 @@ The product and the monorepo that holds Vloer and Ploeg. A person creates a work
 ## Markup
 *Context: Billing*
 
-The published percentage Glide adds to token and compute cost when billing an Agency. It depends on the Agency's tier, which is recalculated quarterly from its acceptance rate. The price an Agency charges its Client is the Agency's own and is not a Markup.
+The published percentage Glide adds to token and compute cost when billing an Agency. The Agency's Markup Tier sets it. The price an Agency charges its Client is the Agency's own and is not a Markup.
 
-**See also:** [Token Charge](#token-charge), [Agency](#agency)  
+**See also:** [Token Charge](#token-charge), [Markup Tier](#markup-tier), [Agency](#agency)  
+
+## Markup Tier
+*Context: Billing*
+
+An Agency's pricing level, which sets its Markup. It is recalculated each quarter from the Agency's acceptance rate against published thresholds, and an Agency drops at most one Markup Tier per quarter, with a month's notice. "Tier" names nothing else: a Size maps to a Team, not to a tier.
+
+**Do not use:** team tier  
+**See also:** [Markup](#markup), [Acceptance](#acceptance)  
 
 ## Model
 *Context: Execution*
@@ -236,10 +259,19 @@ A Work Item is ready when it states something we have decided to do, or describe
 ## Refinement
 *Context: Work*
 
-Turning a request into a Ready Work Item with Acceptance Conditions and a proposed Size. A refinement Role does it, asks for missing information through the Agency, and cannot dispatch the Work Item. Its Ready Check tells the Agency, before any Shift spend, whether the Work Item is ready for agents. Sold on its own, it is request-to-quote.
+Turning a Request into one or more Ready Work Items, each with Acceptance Conditions and a proposed Size. A refinement Role does it, asks for missing information through the Agency, and cannot dispatch the Work Item. Its Ready Check tells the Agency, before any Shift spend, whether the Work Item is ready for agents. Sold on its own, it is request-to-quote.
 
 **Also known as:** request-to-quote  
-**See also:** [Ready](#ready), [Quote](#quote), [Size](#size), [Client Profile](#client-profile)  
+**See also:** [Request](#request), [Ready](#ready), [Quote](#quote), [Size](#size), [Client Profile](#client-profile)  
+
+## Request
+*Context: Offering*
+
+A Client's ask and the conversation about it, received through the Client Portal, a tracker or email. Refinement turns one Request into one or more Work Items, each with its own Quote. A Request is never dispatched; only its Work Items are.
+
+**Do not use:** client ticket  
+**Not to be confused with** [Work Item](../reference/glossary.md#work-item): The unit of work Ploeg runs Shifts against; a Request becomes one or more of them.  
+**See also:** [Client](#client), [Refinement](#refinement), [Quote](#quote), [Client Portal](#client-portal)  
 
 ## Result
 *Context: Work*
@@ -248,6 +280,14 @@ What a Work Item delivers, together with the evidence needed to judge it. It can
 
 **Not to be confused with** [Outcome](../reference/glossary.md#outcome): Ploeg's terminal code for one Run, such as pr_opened or stuck.  
 **See also:** [Work Item](../reference/glossary.md#work-item), [Evidence](#evidence), [Review](#review)  
+
+## Reversal
+*Context: Billing*
+
+The refund of a Delivery Fee when an accepted change is reverted within 14 days for a defect inside its Acceptance Conditions.
+
+**Do not use:** chargeback  
+**See also:** [Delivery Fee](#delivery-fee), [Acceptance](#acceptance), [Dispute](#dispute)  
 
 ## Review
 *Context: Work*
@@ -361,6 +401,11 @@ A repair is work created by work; Ploeg's Follow-Up already names it.
 
 The attempt it named is a Shift, and one Role's part of it is a Run. A second name for a Shift would make every execution statement ambiguous. The word remains a bounded-context name and part of Ploeg's Operator Execution record.
 
+### Agency Edition
+*Use instead: [Edition](#edition)*
+
+Agency names the business that uses Glide, so "the Agency edition" would mean two things in one sentence. The middle Edition is Studio.
+
 ## Terms owned by other models
 
 This model uses these terms with their owners' meaning: [Admission](../reference/glossary.md#admission), [Authority](../reference/glossary.md#authority), [Follow-Up](../reference/glossary.md#follow-up), [Harness](../reference/glossary.md#harness), [Lease](../reference/glossary.md#lease), [Outcome](../reference/glossary.md#outcome), [Role](../reference/glossary.md#role), [Run](../reference/glossary.md#run), [Shift](../reference/glossary.md#shift), [Team](../reference/glossary.md#team), [Tracker Item](../reference/glossary.md#tracker-item), [Verdict](../reference/glossary.md#verdict), [Work Item](../reference/glossary.md#work-item).
@@ -438,3 +483,10 @@ Visibility into decisions needs a defined record beyond raw model messages and t
 
 **Options:** Written decision with options and evidence, Transcript and actions alone  
 **Recommendation:** Capture the decision, responsible person or rule, evidence, and expected consequence.  
+
+### a Request that arrives through a tracker
+
+Ploeg mirrors every assigned Tracker Item into a Work Item. A Client's ask that arrives as a ClickUp or Vikunja task is a Request, not yet a Work Item, so either the mirror must wait for Refinement or the Request must live in Glide beside the Tracker Item.
+
+**Options:** The tracker task is the Request; Refinement's Work Items become new Tracker Items or stay in Ploeg (Ploeg ADR-0031), Ploeg mirrors it as an unready Work Item that Refinement replaces with the real ones, Requests only come through the Client Portal; tracker tasks are always Work Items  
+**Recommendation:** The tracker task is the Request. Refinement's Work Items stay in Ploeg as proposed until their Quotes are approved, which reuses Ploeg ADR-0031 and keeps the Agency's tracker as the one place its Clients' asks live.  
