@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { VloerClient, ApiError, normalizeServerUrl, type Secrets } from '../src/client.ts';
 import { application, createInput, sessionUntil } from '../../../test/api-support.ts';
 import { hashPassword } from '../../../src/auth.ts';
+import { deadlineAfter, testTimeout } from '../../../test/timeframes.ts';
 import type { SessionInput } from '../src/types.ts';
 
 class MemorySecrets implements Secrets {
@@ -20,7 +21,7 @@ test('server origins require HTTPS except loopback and reject credential-bearing
   for (const value of ['http://vloer.example', 'https://user:password@vloer.example', 'https://vloer.example/api', 'https://vloer.example?token=secret', 'https://vloer.example/#token', 'file:///etc/passwd', 'http://127.0.0.1.attacker.example']) assert.throws(() => normalizeServerUrl(value));
 });
 
-test('the client drives the actual demo server to real checks and independently reviewed evidence', { timeout: 30_000 }, async t => {
+test('the client drives the actual demo server to real checks and independently reviewed evidence', { timeout: testTimeout(30_000) }, async t => {
   const server = await application();
   t.after(() => server.close());
   const secrets = new MemorySecrets();
@@ -51,7 +52,7 @@ test('the client drives the actual demo server to real checks and independently 
   assert.equal(client.dashboard(session.id), `${server.url}/#session/${session.id}`);
 });
 
-test('pause, durable instruction, resume and cancel use the real authenticated mutation contract', { timeout: 20_000 }, async t => {
+test('pause, durable instruction, resume and cancel use the real authenticated mutation contract', { timeout: testTimeout(20_000) }, async t => {
   const server = await application();
   t.after(() => server.close());
   const client = new VloerClient(server.url, new MemorySecrets());
@@ -67,7 +68,7 @@ test('pause, durable instruction, resume and cancel use the real authenticated m
   await assert.rejects(client.action(session.id, 'start'), (error: unknown) => error instanceof ApiError && error.status === 409);
 });
 
-test('live login stores only the opaque session cookie, restores it, clears expired credentials and logs out', { timeout: 20_000 }, async t => {
+test('live login stores only the opaque session cookie, restores it, clears expired credentials and logs out', { timeout: testTimeout(20_000) }, async t => {
   const server = await application('live');
   t.after(() => server.close());
   const secrets = new MemorySecrets();
@@ -88,7 +89,7 @@ test('live login stores only the opaque session cookie, restores it, clears expi
   assert.equal(secrets.values.size, 0);
 });
 
-test('the actual server enforces object ownership for desktop clients', { timeout: 20_000 }, async t => {
+test('the actual server enforces object ownership for desktop clients', { timeout: testTimeout(20_000) }, async t => {
   const server = await application('live');
   t.after(() => server.close());
   server.app.store.addUser({ id: 'alice', name: 'alice', role: 'operator', passwordHash: hashPassword('alice-password-314159') });
@@ -132,7 +133,7 @@ test('invalid route identifiers are rejected before any network action', async (
   }
 });
 
-test('linked demo task import preserves its revision, deduplicates commands and starts only on operator action', { timeout: 30_000 }, async t => {
+test('linked demo task import preserves its revision, deduplicates commands and starts only on operator action', { timeout: testTimeout(30_000) }, async t => {
   const server = await application('demo', config => {
     config.taskSources = [{ id: 'demo-tasks', name: 'Demo tasks', provider: 'demo', baseUrl: 'https://example.invalid', project: 'demo', repositoryId: 'order-service', executionOwner: 'interactive' }];
   });
@@ -168,7 +169,7 @@ test('linked demo task import preserves its revision, deduplicates commands and 
   assert.equal((await client.importTask(input)).id, first.id, 're-importing a completed revision never starts replacement work');
 });
 
-test('a desktop client links Vikunja through the actual authenticated server and refuses stale snapshots and Ploeg execution', { timeout: 20_000 }, async t => {
+test('a desktop client links Vikunja through the actual authenticated server and refuses stale snapshots and Ploeg execution', { timeout: testTimeout(20_000) }, async t => {
   let title = 'Improve remote task import';
   const requests: { path: string; authorization: string }[] = [];
   const upstream = createServer((request, response) => {
@@ -241,14 +242,14 @@ test('candidate downloads reject redirects and oversized responses without forwa
 });
 
 async function until(condition: () => Promise<boolean> | boolean, timeoutMs = 10_000): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
+  const deadline = deadlineAfter(timeoutMs);
   while (!(await condition())) {
     if (Date.now() > deadline) throw new Error('Condition not met in time');
     await new Promise(resolve => setTimeout(resolve, 100));
   }
 }
 
-test('the live event stream delivers durable events in order, replays after a cursor and stops cleanly on abort', { timeout: 30_000 }, async t => {
+test('the live event stream delivers durable events in order, replays after a cursor and stops cleanly on abort', { timeout: testTimeout(30_000) }, async t => {
   const server = await application();
   t.after(() => server.close());
   const client = new VloerClient(server.url, new MemorySecrets());
@@ -279,7 +280,7 @@ test('the live event stream delivers durable events in order, replays after a cu
   await assert.rejects(client.stream('../events', 0, { onEvent: () => undefined }, new AbortController().signal));
 });
 
-test('the live event stream requires the stored login and never invents one', { timeout: 20_000 }, async t => {
+test('the live event stream requires the stored login and never invents one', { timeout: testTimeout(20_000) }, async t => {
   const server = await application('live');
   t.after(() => server.close());
   const secrets = new MemorySecrets();
@@ -288,7 +289,7 @@ test('the live event stream requires the stored login and never invents one', { 
   assert.equal(secrets.values.size, 0);
 });
 
-test('administrators authorize additional budget through the real mutation contract', { timeout: 20_000 }, async t => {
+test('administrators authorize additional budget through the real mutation contract', { timeout: testTimeout(20_000) }, async t => {
   const server = await application('live');
   t.after(() => server.close());
   const client = new VloerClient(server.url, new MemorySecrets());

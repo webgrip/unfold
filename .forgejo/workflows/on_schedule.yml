@@ -14,8 +14,8 @@ jobs:
     runs-on: docker
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-      - uses: https://github.com/jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: https://github.com/jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           version: 2026.6.14
           install: false
@@ -29,12 +29,12 @@ jobs:
     runs-on: docker
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
       - name: Fetch imported release metadata
         run: git fetch origin '+refs/notes/*:refs/notes/*'
-      - uses: https://github.com/jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+      - uses: https://github.com/jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           version: 2026.6.14
           install_args: uv

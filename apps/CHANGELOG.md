@@ -1,3 +1,13 @@
+## [glide-v0.4.0-rc.12](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.11...glide-v0.4.0-rc.12) (2026-09-29)
+
+### Added
+
+* **ploeg:** add an openhands ACP profile ([050fa3b](https://forgejo.webgrip.dev/webgrip/glide/commit/050fa3bee5913c0aa45ad174ab0307f0e79f1c2d))
+
+### Fixed
+
+* **vloer:** stop counting reviewed sessions as ready for review ([b88f389](https://forgejo.webgrip.dev/webgrip/glide/commit/b88f3892945866dc9584ed852e1e42ea13bcb3d6))
+
 ## [glide-v0.4.0-rc.11](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.10...glide-v0.4.0-rc.11) (2026-09-28)
 
 ### Added
