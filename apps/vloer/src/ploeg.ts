@@ -17,12 +17,15 @@ export type PloegRunCounts = Record<'pending' | 'running' | 'finished' | 'failed
 export type PloegSpend = { settledUsd: number; reservedUsd: number };
 export type PloegTeamSummary = { team: string; workItems: PloegWorkCounts; runs: PloegRunCounts; spend: PloegSpend; lastActivityAt: string | null };
 export type PloegSummary = { demo: boolean; window: PloegWindow; generatedAt: string; teams: PloegTeamSummary[]; totals: { workItems: PloegWorkCounts; runs: PloegRunCounts; spend: PloegSpend }; fetchedAt: string };
-export type PloegRunRow = { id: string; workItemId: string; workItemTitle: string; externalRef: string; team: string; role: string; round: number; writes: boolean; state: string; outcome: string; verdict: string; failureReason: string; startedAt: string | null; finishedAt: string | null; durationSeconds: number | null; authorizedUsd: number | null; settledUsd: number | null; usage: { inputTokens: number | null; outputTokens: number | null; models: string[] } | null };
+export type PloegRunRow = { id: string; workItemId: string; workItemTitle: string; externalRef: string; team: string; role: string; round: number; writes: boolean; state: string; outcome: string; verdict: string; failureReason: string; startedAt: string | null; finishedAt: string | null; durationSeconds: number | null; authorizedUsd: number | null; settledUsd: number | null; observedUsd: number | null; reservedModels: string[]; usage: { inputTokens: number | null; outputTokens: number | null; models: string[] } | null };
 export type PloegRunsPage = { demo: boolean; runs: PloegRunRow[]; nextBefore: string | null; fetchedAt: string };
 export type PloegActivityEvent = PloegEvent & { workItemTitle: string };
 export type PloegEventsPage = { demo: boolean; events: PloegActivityEvent[]; nextCursor: string | null; fetchedAt: string };
 export type PloegProposedItem = PloegItem & { sourceTitle: string };
 export type PloegProposedPage = { demo: boolean; items: PloegProposedItem[]; truncated: boolean; fetchedAt: string };
+export type PloegNowItem = Pick<PloegItem, 'id' | 'team' | 'state' | 'title' | 'url' | 'createdAt' | 'updatedAt'> & { spentUsd: number | null; pullRequestUrl: string };
+export type PloegNowGroup = 'waiting' | 'running' | 'recent';
+export type PloegNow = { demo: boolean; teams: string[]; waiting: PloegNowItem[]; running: PloegRunRow[]; recent: PloegRunRow[]; errors: Partial<Record<PloegNowGroup, string>>; fetchedAt: string };
 export type PloegDecision = 'approve' | 'reject' | 'cancel';
 export type PloegRunFilter = { team?: string; state?: string; outcome?: string; before?: string };
 export type PloegOverview = { configured: boolean; available: boolean; demo: boolean; teams: PloegTeam[]; selectedTeam?: string; lanes?: Record<PloegLane, PloegPage>; fetchedAt?: string; trackerUrl?: string; message: string };
@@ -109,7 +112,19 @@ function runRow(value: unknown): PloegRunRow {
   const usage = nullable(data.usage ?? null, entry => { const usage = record(entry); return { inputTokens: count(usage.inputTokens), outputTokens: count(usage.outputTokens), models: usage.models === undefined || usage.models === null ? [] : array(usage.models, model => field(model, 200), 20) }; });
   const state = token(data.state);
   if (!state) throw invalid();
-  return { id: identifier(data.id), workItemId: identifier(data.workItemId), workItemTitle: text(data.workItemTitle, 4096), externalRef: text(data.externalRef, 512), team: field(data.team, 100), role: field(data.role, 100), round: numeric(data.round, true), writes: boolean(data.writes), state, outcome: token(data.outcome), verdict: token(data.verdict), failureReason: text(data.failureReason, 16000), startedAt: nullable(data.startedAt ?? null, timestamp), finishedAt: nullable(data.finishedAt ?? null, timestamp), durationSeconds: nullable(data.durationSeconds ?? null, value => numeric(value)), authorizedUsd: nullable(data.authorizedUsd ?? null, value => numeric(value)), settledUsd: nullable(data.settledUsd ?? null, value => numeric(value)), usage };
+  return { id: identifier(data.id), workItemId: identifier(data.workItemId), workItemTitle: text(data.workItemTitle, 4096), externalRef: text(data.externalRef, 512), team: field(data.team, 100), role: field(data.role, 100), round: numeric(data.round, true), writes: boolean(data.writes), state, outcome: token(data.outcome), verdict: token(data.verdict), failureReason: text(data.failureReason, 16000), startedAt: nullable(data.startedAt ?? null, timestamp), finishedAt: nullable(data.finishedAt ?? null, timestamp), durationSeconds: nullable(data.durationSeconds ?? null, value => numeric(value)), authorizedUsd: nullable(data.authorizedUsd ?? null, value => numeric(value)), settledUsd: nullable(data.settledUsd ?? null, value => numeric(value)), observedUsd: nullable(data.observedUsd ?? null, value => numeric(value)), reservedModels: data.reservedModels === undefined || data.reservedModels === null ? [] : array(data.reservedModels, model => field(model, 200), 32), usage };
+}
+const pullRequestPath = /\/(?:pulls?|merge_requests)\/\d+\/?$/;
+/** Extracts the pull request link Ploeg recorded for a Work Item, preferring a checkpoint. */
+export function pullRequestUrl(data: PloegDetail): string {
+  const checkpoint = data.checkpoints.find(entry => entry.prUrl);
+  if (checkpoint) return checkpoint.prUrl;
+  const ordered = data.runs.slice().sort((a, b) => a.round - b.round || (BigInt(a.id) < BigInt(b.id) ? -1 : 1));
+  for (const run of ordered.reverse()) for (const link of run.links.slice().reverse()) if (pullRequestPath.test(link)) return link;
+  return '';
+}
+function nowItem(entry: PloegItem): PloegNowItem {
+  return { id: entry.id, team: entry.team, state: entry.state, title: entry.title, url: entry.url, createdAt: entry.createdAt, updatedAt: entry.updatedAt, spentUsd: entry.latestShift?.spentUsd ?? null, pullRequestUrl: '' };
 }
 function activityEvent(value: unknown): PloegActivityEvent { const data = record(value); return { ...event(data), workItemTitle: typeof data.workItemTitle === 'string' && data.workItemTitle.length <= 4096 ? data.workItemTitle : '' }; }
 const unsupported = () => new PloegError(501, 'ploeg_unsupported', 'This Ploeg version does not provide activity data yet.');
@@ -296,6 +311,33 @@ export class PloegClient {
       return { ...entry, ...(source ? { sourceWorkItemId: source } : {}), sourceTitle: source ? this.titles.get(source) ?? '' : '' };
     }));
     return { demo: this.demo, items: enriched, truncated: pages.some(entry => entry.nextCursor !== null) || enriched.length === 50, fetchedAt: new Date().toISOString() };
+  }
+  /** Everything the caller can read, for the Now page: what waits on them, what runs now and what finished recently. */
+  async now(user: User, fresh = false): Promise<PloegNow> {
+    this.connected(user);
+    const teams = await this.teams(user, fresh);
+    const errors: PloegNow['errors'] = {};
+    const capture = async <T>(group: PloegNowGroup, work: () => Promise<T>, empty: T): Promise<T> => {
+      try { return await work(); }
+      catch (error) { errors[group] = error instanceof PloegError ? error.message : 'Ploeg could not be reached.'; return empty; }
+    };
+    const waiting = await capture('waiting', () => this.waitingItems(user, teams, fresh), [] as PloegNowItem[]);
+    const running = await capture('running', async () => (await this.runs(user, { state: 'running' }, fresh)).runs, [] as PloegRunRow[]);
+    const recent = await capture('recent', async () => (await this.runs(user, { state: 'finished' }, fresh)).runs, [] as PloegRunRow[]);
+    return { demo: this.demo, teams: teams.map(entry => entry.id), waiting, running, recent, errors, fetchedAt: new Date().toISOString() };
+  }
+  private async waitingItems(user: User, teams: PloegTeam[], fresh: boolean): Promise<PloegNowItem[]> {
+    const calls: Promise<PloegPage>[] = [];
+    for (const entry of teams) for (const state of ['awaiting_review', 'needs_human'] as const) calls.push(this.items(user, entry.id, state, '0', fresh));
+    const pages = await Promise.all(calls);
+    const proposed = (await this.proposed(user, fresh)).items;
+    const order: Record<string, number> = { awaiting_review: 0, needs_human: 1, proposed: 2 };
+    const rows = [...pages.flatMap(page => page.items), ...proposed].map(nowItem);
+    await Promise.all(rows.filter(row => row.state === 'awaiting_review').slice(0, 10).map(async row => { row.pullRequestUrl = await this.reviewUrl(user, row.id, fresh); }));
+    return rows.sort((a, b) => (order[a.state] ?? 9) - (order[b.state] ?? 9) || a.createdAt.localeCompare(b.createdAt) || (BigInt(a.id) < BigInt(b.id) ? -1 : 1));
+  }
+  private async reviewUrl(user: User, id: string, fresh: boolean): Promise<string> {
+    try { return pullRequestUrl(await this.detail(user, id, fresh)); } catch { return ''; }
   }
   /** Approves, rejects or cancels a Work Item for an operator or administrator, as that user. */
   async decide(user: User, id: string, decision: PloegDecision, reason = ''): Promise<{ workItemId: string; team: string; state: string; demo: boolean }> {

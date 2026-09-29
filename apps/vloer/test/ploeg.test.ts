@@ -375,3 +375,71 @@ test('the demo serves illustrative activity with zero spend, pages events and ke
   assert.equal((await request(demo.url, '/api/ploeg/work-items/105/cancel', { method: 'POST' })).body.error.code, 'ploeg_demo');
   assert.equal(demo.app.store.listSessions().length, 0);
 });
+
+test('the Now projection lists waiting work, running Runs and recent Runs across the caller’s teams', async (t) => {
+  const upstreamApi = await upstream(t);
+  upstreamApi.intercept((req, res) => {
+    const url = new URL(req.url!, 'http://fixture.invalid');
+    if (!url.pathname.endsWith('/runs')) return false;
+    const rows = url.searchParams.get('state') === 'running'
+      ? [{ ...listRun('40', '102', 'delivery'), state: 'running', outcome: '', settledUsd: null, finishedAt: null, durationSeconds: null, observedUsd: null, reservedModels: [] }]
+      : [listRun('31', '105', 'delivery'), listRun('30', '104', 'research')];
+    return reply(res, 200, { runs: rows, nextBefore: null });
+  });
+  const now = await client(upstreamApi.config).now(admin);
+  assert.equal(now.demo, false);
+  assert.deepEqual(now.teams, ['delivery', 'research']);
+  assert.deepEqual(now.waiting.map(entry => entry.id), ['105', '101', '106', '107'], 'awaiting review sorts before needs human, proposed before queued work');
+  assert.equal(now.waiting[0].team, 'delivery');
+  assert.equal(now.waiting[0].spentUsd, 0, 'the latest Shift spend travels with the row');
+  assert.equal(now.waiting[0].pullRequestUrl, 'https://forge.example.invalid/example/order-service/pulls/5');
+  assert.equal(now.waiting[1].pullRequestUrl, '', 'only awaiting-review rows carry a pull request link');
+  assert.deepEqual(now.running.map(run => run.id), ['40']);
+  assert.equal(now.running[0].observedUsd, null, 'an unobserved Run reports null, never zero');
+  assert.deepEqual(now.running[0].reservedModels, []);
+  assert.deepEqual(now.recent.map(run => run.id), ['31', '30']);
+  assert.deepEqual(now.errors, {});
+});
+
+test('a Ploeg group that fails reports an error and never masquerades as an empty list', async (t) => {
+  const upstreamApi = await upstream(t);
+  upstreamApi.intercept((req, res) => new URL(req.url!, 'http://fixture.invalid').pathname.endsWith('/runs') ? reply(res, 503, { error: { code: 'unavailable', message: 'Planned outage.' } }) : false);
+  const now = await client(upstreamApi.config).now(admin);
+  assert.deepEqual(now.running, []);
+  assert.deepEqual(now.recent, []);
+  assert.match(now.errors.running ?? '', /Ploeg could not provide/);
+  assert.match(now.errors.recent ?? '', /Ploeg could not provide/);
+  assert.equal(now.errors.waiting, undefined, 'a healthy group carries no error');
+  assert.deepEqual(now.waiting.map(entry => entry.id), ['105', '101', '106', '107'], 'the healthy groups still return their work');
+});
+
+test('the Now page is scoped to the caller’s teams and refuses a user without team access', async (t) => {
+  const upstreamApi = await upstream(t);
+  const server = await application('live', config => { config.ploeg = { ...upstreamApi.config, userTeams: { reader: ['delivery'] } }; });
+  t.after(() => server.close());
+  assert.equal((await request(server.url, '/api/ploeg/now')).status, 401);
+  const password = randomBytes(24).toString('hex');
+  for (const id of ['reader', 'unmapped']) server.app.store.addUser({ id, name: id, role: 'viewer', passwordHash: await hashPassword(password) });
+  const reader = await login(server.url, 'reader', password);
+  const denied = await request(server.url, '/api/ploeg/now', await login(server.url, 'unmapped', password));
+  assert.equal(denied.status, 403);
+  assert.equal(denied.body.error.code, 'ploeg_scope');
+  const view = await request(server.url, '/api/ploeg/now', reader);
+  assert.equal(view.status, 200, JSON.stringify(view.body));
+  assert.deepEqual(view.body.teams, ['delivery']);
+  assert.deepEqual(view.body.waiting.map((entry: { id: string }) => entry.id), ['105', '101', '106']);
+  assert(view.body.waiting.every((entry: { team: string }) => entry.team === 'delivery'));
+});
+
+test('the demo Now projection names its limitation and never invents model calls or spend', async (t) => {
+  const demo = await application('demo');
+  t.after(() => demo.close());
+  const now = await request(demo.url, '/api/ploeg/now');
+  assert.equal(now.status, 200);
+  assert.equal(now.body.demo, true);
+  assert.deepEqual(now.body.teams, ['delivery', 'research']);
+  assert.deepEqual(now.body.waiting.map((entry: { id: string }) => entry.id), ['105', '101', '106', '107']);
+  assert(now.body.running.every((run: { observedUsd: number | null; reservedModels: string[]; usage: unknown }) => run.observedUsd === null && run.reservedModels.length === 0 && run.usage === null));
+  assert(now.body.recent.every((run: { settledUsd: number | null }) => run.settledUsd === 0));
+  assert.deepEqual(now.body.errors, {});
+});

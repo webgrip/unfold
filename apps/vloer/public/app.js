@@ -1,5 +1,6 @@
 import { ploegMarkup, ploegLanes, activePloegLane } from './ploeg.js';
 import { activityMarkup, mergeFeed, overviewMarkup, ploegTabsMarkup, proposedMarkup, runFilter, runsMarkup } from './ploeg-activity.js';
+import { nowMarkup } from './now.js';
 import { deliveryMarkup } from './delivery.js';
 
 const $ = selector => document.querySelector(selector);
@@ -39,7 +40,7 @@ const icon = (name, cls = '') => `<svg class="icon ${cls}" viewBox="0 0 24 24" f
 const labels = { queued: 'Ready to start', running: 'Working', exporting: 'Preparing review', waiting_input: 'Needs your input', paused: 'Paused', completed: 'Awaiting your review', failed: 'Needs attention', cancelled: 'Cancelled', interrupted: 'Interrupted' };
 const evidenceTabs = [['stream','activity','Activity'],['gateway','layers','Gateway'],['diff','code','Changes'],['test','terminal','Checks'],['handoff','branch','Handoff']];
 const providers = { forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp', vikunja: 'Vikunja', demo: 'Demo fixture' };
-const state = { deliveryRequest: 0, delivery: null, deliveryError: '', deliveryBusy: false, evidenceScroll: {}, bootstrap: null, sessions: [], session: null, events: [], permissions: [], view: 'sessions', tab: 'stream', filter: 'all', search: '', draft: '', stream: null, online: true, busy: false, refreshTimer: null, toastTimer: null, ploeg: null, ploegLane: null, ploegDetail: null, ploegDetailError: '', ploegDetailLoading: false, ploegLoading: false, ploegRequest: 0, ploegTab: 'overview', ploegTeams: null, ploegTimer: null, ploegSummary: { window: '24h', data: null, error: null, loading: false }, ploegFeed: { events: null, nextCursor: null, team: '', kind: '', error: null, loading: false, refreshedAt: null, demo: false }, ploegRuns: { runs: null, nextBefore: null, filter: {}, error: null, loading: false, demo: false }, ploegProposed: { items: null, error: null, loading: false, busy: false, demo: false, truncated: false }, health: null, taskSourceId: '', tasks: [], task: null, taskPage: 1, taskNextPage: null, taskSearch: '', taskLoading: false, taskPreviewLoading: false, taskError: '', taskPreviewError: '', taskChanged: false, taskDraft: null, taskRequest: 0, previewRequest: 0, taskImporting: false };
+const state = { deliveryRequest: 0, delivery: null, deliveryError: '', deliveryBusy: false, evidenceScroll: {}, bootstrap: null, sessions: [], session: null, events: [], permissions: [], view: 'now', now: { data: null, error: null, loading: false, request: 0 }, tab: 'stream', filter: 'all', search: '', draft: '', stream: null, online: true, busy: false, refreshTimer: null, toastTimer: null, ploeg: null, ploegLane: null, ploegDetail: null, ploegDetailError: '', ploegDetailLoading: false, ploegLoading: false, ploegRequest: 0, ploegTab: 'overview', ploegTeams: null, ploegTimer: null, ploegSummary: { window: '24h', data: null, error: null, loading: false }, ploegFeed: { events: null, nextCursor: null, team: '', kind: '', error: null, loading: false, refreshedAt: null, demo: false }, ploegRuns: { runs: null, nextBefore: null, filter: {}, error: null, loading: false, demo: false }, ploegProposed: { items: null, error: null, loading: false, busy: false, demo: false, truncated: false }, health: null, taskSourceId: '', tasks: [], task: null, taskPage: 1, taskNextPage: null, taskSearch: '', taskLoading: false, taskPreviewLoading: false, taskError: '', taskPreviewError: '', taskChanged: false, taskDraft: null, taskRequest: 0, previewRequest: 0, taskImporting: false };
 
 async function api(path, options = {}) {
   const response = await fetch(path, { ...options, headers: { 'Content-Type': 'application/json', 'X-Vloer-Request': '1', ...options.headers }, credentials: 'same-origin' });
@@ -82,9 +83,9 @@ function shell(content, title = 'Sessions', subtitle = 'Your work, running elsew
   const user = state.bootstrap.user;
   return `<div class="layout">
     <aside class="sidebar" aria-label="Primary navigation">
-      <a class="brand" href="#sessions" aria-label="De Vloer home"><svg class="brand-mark" viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M17.5 14.5L32 49.5L46.5 14.5" stroke="var(--peil)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/><rect x="10" y="42" width="44" height="8" fill="currentColor"/></svg><span>De Vloer<span class="brand-caption">AGENT WORKBENCH</span></span></a>
+      <a class="brand" href="#now" aria-label="De Vloer home"><svg class="brand-mark" viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M17.5 14.5L32 49.5L46.5 14.5" stroke="var(--peil)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/><rect x="10" y="42" width="44" height="8" fill="currentColor"/></svg><span>De Vloer<span class="brand-caption">AGENT WORKBENCH</span></span></a>
       <div class="workspace-label">WORKSPACE <span>01</span></div>
-      <nav>${[['sessions','grid','Sessions'],['tasks','folder','Tasks'],['ploeg','layers','Ploeg'],['account','link','Linked accounts'],['system','shield','Environment']].map(([id, glyph, label]) => `<a href="#${id}" aria-label="${escape(label)}" class="nav-item ${state.view === id || state.view === 'session' && id === 'sessions' ? 'active' : ''}" ${state.view === id ? 'aria-current="page"' : ''}>${icon(glyph)}<span>${label}</span>${id === 'sessions' ? `<b>${state.sessions.filter(isActive).length}</b>` : ''}</a>`).join('')}</nav>
+      <nav>${[['now','clock','Now'],['sessions','grid','Sessions'],['tasks','folder','Tasks'],['ploeg','layers','Ploeg'],['account','link','Linked accounts'],['system','shield','Environment']].map(([id, glyph, label]) => `<a href="#${id}" aria-label="${escape(label)}" class="nav-item ${state.view === id || state.view === 'session' && id === 'sessions' ? 'active' : ''}" ${state.view === id ? 'aria-current="page"' : ''}>${icon(glyph)}<span>${label}</span>${id === 'sessions' ? `<b>${state.sessions.filter(isActive).length}</b>` : ''}</a>`).join('')}</nav>
       <div class="sidebar-note"><span class="tiny-label">THE WORKING AGREEMENT</span><p>You set the direction.<br>Agents bring back evidence.</p><div class="small-rule"></div><span>Human review stays in the loop.</span></div>
       <div class="user-card"><span class="avatar">${escape(user.name.slice(0, 2).toUpperCase())}</span><div><strong>${escape(user.name)}</strong><span>${escape(user.role)}${state.bootstrap.mode === 'demo' ? ' · local demo' : ''}</span></div>${state.bootstrap.mode !== 'demo' ? `<button class="icon-button" data-action="logout" aria-label="Sign out">${icon('logout')}</button>` : ''}</div>
     </aside>
@@ -333,6 +334,21 @@ function renderPloeg() {
   renderHtml(shell(`${ploegTabsMarkup(tab, activePloegLane(state), helpers)}${content}`, 'Ploeg', 'The work in motion. The decisions that need you.'));
 }
 
+function renderNow() {
+  const content = nowMarkup(state.now, { escape, icon, safeUrl, grafanaUrl: state.bootstrap?.observability?.grafanaUrl });
+  renderHtml(shell(content, 'Now', 'What waits on you, what runs now, what finished recently — across every team you can read.'));
+}
+
+async function loadNow(fresh = false) {
+  const view = state.now;
+  const request = ++view.request;
+  view.loading = true;
+  if (state.bootstrap && state.view === 'now') renderNow();
+  try { const data = await api(`/api/ploeg/now${fresh ? '?refresh=1' : ''}`); if (request !== view.request) return; view.data = data; view.error = null; }
+  catch (error) { if (request !== view.request) return; view.data = null; view.error = { message: error.message, code: error.code || '' }; }
+  finally { if (request === view.request) { view.loading = false; if (state.bootstrap && state.view === 'now') renderNow(); } }
+}
+
 const ploegVisible = tab => Boolean(state.bootstrap) && state.view === 'ploeg' && state.ploegTab === tab;
 const ploegFailure = error => ({ message: error.message, code: error.code || '' });
 
@@ -568,6 +584,7 @@ function renderHtml(markup) {
 
 function render() {
   if (!state.bootstrap) return renderLogin();
+  if (state.view === 'now') return renderNow();
   if (state.view === 'session') return renderSession();
   if (state.view === 'ploeg') return renderPloeg();
   if (state.view === 'account') return renderAccount();
@@ -675,19 +692,21 @@ async function openSession(id) {
 
 async function route() {
   if (!state.bootstrap) return;
-  const hash = location.hash.slice(1) || 'sessions';
+  if (!location.hash) history.replaceState(null, '', '#now');
+  const hash = location.hash.slice(1) || 'now';
   state.ploegRequest++;
   try {
     if (hash === 'ploeg' || hash.startsWith('ploeg/')) { disconnect(); state.session = null; state.view = 'ploeg'; return await openPloeg(hash.slice(6)); }
     if (hash.startsWith('session/')) return await openSession(hash.slice(8));
     if (hash.startsWith('compare/')) { const [left, right] = hash.slice(8).split('/'); disconnect(); state.session = null; state.view = 'compare'; state.compare = null; renderCompare(); state.compare = await Promise.all([api(`/api/sessions/${encodeURIComponent(left)}`), api(`/api/sessions/${encodeURIComponent(right)}`)]); return renderCompare(); }
-    disconnect(); state.session = null; state.view = ['sessions','tasks','ploeg','account','system'].includes(hash) ? hash : 'sessions';
+    disconnect(); state.session = null; state.view = ['now','sessions','tasks','ploeg','account','system'].includes(hash) ? hash : 'now';
     state.sessions = await api('/api/sessions'); render();
+    if (state.view === 'now') await loadNow();
     if (state.view === 'tasks' && !state.links) { try { state.links = (await api('/api/links')).links; } catch { state.links = []; } }
     if (state.view === 'tasks' && taskSources().length) await loadTasks(state.taskSourceId || taskSources()[0].id);
     if (state.view === 'account') { state.links = (await api('/api/links')).links; renderAccount(); }
     if (state.view === 'system') { state.health = await api('/api/health'); renderSystem(); }
-  } catch (error) { notify(error.message, true); if (state.bootstrap) { state.view = 'sessions'; renderDashboard(); } }
+  } catch (error) { notify(error.message, true); if (state.bootstrap) { state.view = 'now'; renderNow(); } }
 }
 
 function download(filename, content, type = 'text/plain') {
@@ -734,7 +753,8 @@ document.addEventListener('click', async event => {
   if (!button || button.disabled) return;
   const action = button.dataset.action;
   try {
-    if (action === 'delivery-refresh') await loadDelivery(state.session.id);
+    if (action === 'now-retry') await loadNow(true);
+    else if (action === 'delivery-refresh') await loadDelivery(state.session.id);
     else if (action === 'delivery-verify' || action === 'delivery-approve') await actDelivery(action);
     else if (action === 'ploeg-refresh') await loadPloeg(state.ploeg?.selectedTeam, /^#ploeg\/([1-9][0-9]{0,19})$/.exec(location.hash)?.[1], true);
     else if (action === 'ploeg-item') location.hash = `ploeg/${button.dataset.id}`;
@@ -879,6 +899,16 @@ document.addEventListener('keydown', event => {
       selectEvidenceTab(evidenceTabs[next][0]);
       return;
     }
+  }
+  if (state.view === 'now' && ['j', 'k'].includes(event.key.toLowerCase()) && !event.ctrlKey && !event.metaKey && !event.altKey && !['INPUT','TEXTAREA','SELECT'].includes(event.target.tagName) && !$('#confirm-dialog').open) {
+    const rows = [...document.querySelectorAll('[data-now-row]')];
+    if (rows.length) {
+      event.preventDefault();
+      const current = rows.indexOf(document.activeElement);
+      const next = event.key.toLowerCase() === 'j' ? (current === -1 ? 0 : Math.min(rows.length - 1, current + 1)) : Math.max(0, current === -1 ? 0 : current - 1);
+      rows[next].focus();
+    }
+    return;
   }
   if (event.key.toLowerCase() === 'n' && !event.ctrlKey && !event.metaKey && !event.altKey && !['INPUT','TEXTAREA','SELECT'].includes(event.target.tagName) && state.bootstrap && state.bootstrap.user.role !== 'viewer' && !$('#new-session').open && !$('#confirm-dialog').open && !$('#task-connections').open) { event.preventDefault(); openNew(); }
 });
