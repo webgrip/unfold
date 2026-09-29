@@ -56,7 +56,7 @@ The [pricing units record](../research/2026-09-28-pricing-units.md) compares the
 | What a credit is | One accepted S ticket, worth €15. Credits only measure delivery fees and are always shown with their euro value; tokens and hosting are charged in euros |
 | Credit validity | Paid credits never expire while the account is active and are refunded at purchase price when the account closes; promotional credits can expire and are used first |
 | Purchase forms | Prepaid bundles, and 12-month monthly commitments that unlock the volume steps |
-| Tokens and compute inside a ticket | Charged per attempt at cost plus a published markup, up to the ticket's cap. The markup depends on the agency's tier: 25% to start, lower for higher quality tiers (levels to be set) |
+| Tokens and compute inside a ticket | Charged per attempt at cost plus a published markup, up to the ticket's cap. The markup depends on the agency's tier: 25% to start; 20% once its acceptance rate is above the platform median; 15% at top-quartile acceptance with at least 100 accepted tickets. Tiers are recalculated quarterly from published thresholds, and an agency drops at most one tier per quarter, with a month's notice |
 | Invoices | Show the platform fee split, for example "€249 = 10 credits (€150) + platform €99" |
 | Acceptance review | An agency is reviewed, not penalised, when its acceptance rate falls below half the platform median over at least 20 closed tickets, after 2 or more confirmed copies in 90 days, or when reversals exceed 10% |
 | Metered usage above allowances | €0.10 per GB-month of storage, extra tokens at list price plus the agency's markup. CI is not charged |
@@ -123,3 +123,4 @@ Confirmed when every delivered ticket shows its size, quote, authorized cap and 
 * 2026-09-29 — The owner started the silence timer when the pull request opens, required a reason to close one, and refunded unused paid credits on account closure.
 * 2026-09-29 — The owner charged refinement tokens and credited them against the delivery fee on acceptance within 30 days.
 * 2026-09-29 — The owner kept €12 as a margin floor, made the token markup depend on the agency's tier, set the acceptance review rule, and required invoices to show the fee split.
+* 2026-09-29 — The owner set the markup tiers at 25%, 20% and 15%, recalculated quarterly with at most one tier dropped per quarter.
