@@ -32,7 +32,9 @@ Chosen option: "A ticket", because it is the only option where the price is know
 * An agency buys **credits** in bundles. A **ticket** consumes credits by **size** (for example S = 1, M = 3, L = 8).
 * The refinement Run proposes a size when it makes a Work Item Ready. The client sees the size and price and approves them ([ADR-0007](adr-0007-clients-approve-ready-work.md)).
 * Each size maps to a Team tier and a Shift budget cap. Ploeg refuses a Shift it cannot fund and never raises the cap on its own ([Ploeg ADR-0032](../../apps/ploeg/docs/adrs/0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md)).
-* Credits are charged only after the agency's reviewer accepts the pull request. A merge counts as acceptance, whether or not the forge required a review. A pull request with no reviewer decision after 10 working days counts as accepted; the agency gets reminders on day 3 and day 7. A ticket that fails or is rejected costs nothing: the agency retires it, iterates on it, has it remade, or picks it up itself. A charge is reversed when the change is reverted within 14 days for a defect inside its Acceptance Conditions. A Shift that ends without delivery returns the credits. Reaching the cap stops the Shift and offers the client a split into new tickets, never a silent top-up.
+* **Two-part price.** Model tokens are charged for every attempt at cost plus a published markup, up to the ticket's cap. Credits are the delivery fee, charged only on acceptance.
+* Credits are charged only after the agency's reviewer accepts the pull request. A merge counts as acceptance, whether or not the forge required a review. A pull request with no reviewer decision after 10 working days counts as accepted; the agency gets reminders on day 3 and day 7. A ticket that fails or is rejected costs its tokens but no credits: the agency retires it, iterates on it, has it remade, or picks it up itself. A charge is reversed when the change is reverted within 14 days for a defect inside its Acceptance Conditions. A Shift that ends without delivery returns the credits. Reaching the cap stops the Shift and offers the client a split into new tickets, never a silent top-up.
+* **Abuse defenses:** Glide counts a ticket as accepted when its change lands on the base branch by another route (matching commits); agencies see their own acceptance rate; tokens are always charged, so rejecting work is never free.
 * A Follow-Up is a new ticket, approved and sized like any other ([Ploeg ADR-0031](../../apps/ploeg/docs/adrs/0031-runs-create-work-items-held-for-approval-within-limits.md)). A fix Round inside the Shift is not.
 * The agency sets its own price per size for its clients. Glide reports both numbers per ticket.
 * Preview environments are metered separately in environment-hours ([ADR-0008](adr-0008-every-pull-request-gets-a-preview-environment.md)).
@@ -54,7 +56,7 @@ The [pricing units record](../research/2026-09-28-pricing-units.md) compares the
 | Refinement Runs | Free within a monthly allowance per client |
 | Credit validity | 12 months; one month of volume rolls over |
 | Purchase forms | Prepaid bundles, and 12-month monthly commitments that unlock the volume steps |
-| Tokens and compute inside a ticket | Included in the ticket price, up to the ticket's cap; never billed separately |
+| Tokens and compute inside a ticket | Charged per attempt at cost plus a published markup, up to the ticket's cap |
 | Metered usage above allowances | €0.008 per CI minute, €0.06 per preview hour, €0.10 per GB-month, extra tokens at list price × 1.25 |
 | Agency markup on metered usage | Each agency sets its own multiplier toward its clients; Glide bills the agency at the rates above |
 | Default cap on metered usage | €100 a month, alerts at 50, 75, 90 and 100%; work pauses at the cap |
@@ -108,3 +110,4 @@ Confirmed when every delivered ticket shows its size, quote, authorized cap and 
 * 2026-09-29 — The owner decided that model price changes pass through to the credit price immediately, while bought credits and approved quotes keep their price.
 * 2026-09-29 — The owner made a merge count as acceptance, allowed bring-your-own-key, and grouped models into credit tiers.
 * 2026-09-29 — The owner set credit validity, purchase forms, metered rates, the default usage cap, the billing stack, design-partner terms and when prices go public.
+* 2026-09-29 — The owner replaced the all-in ticket price with a two-part price: tokens per attempt at cost plus markup, capped, and credits as a delivery fee on acceptance. L stays 8 credits. How credits are defined and valued, and any gamification, wait for research on fair pricing.
