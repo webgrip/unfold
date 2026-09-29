@@ -28,6 +28,7 @@ Glide turns Work Items into review-ready pull requests. To sell it, we must choo
 
 Chosen option: "Agencies, with a client portal; delivery ends at a reviewed pull request and a preview environment", because agencies already sell fixed-scope work to clients, carry the cost risk Glide caps, and keep a developer who reviews every change.
 
+* **Phasing.** Glide is built first for the people who use it: the owner, who runs it daily on their own backlog, and the owner's employer, an agency that will self-host it with ClickUp as its tracker. Both pay their own model provider (Fireworks today) and nothing to Glide. The hosted agency business below is the designed second phase; its spending, hosting, legal and sales steps start once the self-hosted phase works and there is money to fund them.
 * **Customer (tenant):** an agency. **Client:** the agency's customer, who submits requests and approves work in the portal.
 * **Loop:** client request → refinement Run makes it Ready → client approves the quote → Shift → pull request with a preview environment → agency developer reviews and merges → client accepts.
 * **Boundary:** Glide delivers the pull request and its preview ([ADR-0008](adr-0008-every-pull-request-gets-a-preview-environment.md)). The agency owns merging, production and the client relationship.
@@ -40,7 +41,7 @@ Chosen option: "Agencies, with a client portal; delivery ends at a reviewed pull
 * **Disclosure:** every pull request and the portal say that an agent wrote the change and name the developer who reviewed it.
 * **Liability:** Glide opens pull requests on semantically named branches and never deploys. Production deploys run in the agency's own CI, and whether a pull request may merge without review is the agency's forge and repository setting. Glide's liability is capped at fees paid, as stated in the terms.
 * **Trust:** agency owners see live spend against the cap for every ticket, the full agent log per pull request, a public security page with a pentest summary, and a kill switch that stops all of the agency's Runs at once. Each agency privately sees all 35 quality, speed, cost, client and business numbers, with revenue per developer hour on the front page. The agency chooses which numbers its clients see in the portal. Anonymised platform-wide numbers, including the medians the markup tiers use, are published monthly.
-* **Pilot:** the first external agency signs a 4 to 6 week pilot agreement with an NDA and a data processing agreement; Glide never trains on its code and deletes it on exit. The pilot delivers 5 to 10 of the agency's real small tickets in its own repository.
+* **Pilot:** in the hosted phase, the first external agency signs a 4 to 6 week pilot agreement with an NDA and a data processing agreement; Glide never trains on its code and deletes it on exit. The pilot delivers 5 to 10 of the agency's real small tickets in its own repository.
 * **Refinement as a product:** request-to-quote (refinement and pricing without agent code) is also sold on its own, for agencies not ready to let agents change code.
 * **Never built:** an account or ticket without a hard spending cap, and features made for one agency that others will not use.
 * **Agents and Teams:** agencies, and their clients where the agency allows it, define their own agents and Teams (Roles, models, instructions). Glide ships default Teams. Every Team runs inside the ticket's spending cap.
@@ -100,3 +101,4 @@ This record is confirmed when one agency, other than webgrip, runs a client requ
 * 2026-09-29 — The owner chose the first quality numbers agencies see.
 * 2026-09-29 — The owner made all 35 numbers visible to agencies, put revenue per developer hour on the front page, let agencies choose what clients see, and chose to publish anonymised platform numbers monthly.
 * 2026-09-29 — The owner confirmed the white-label defaults, set referrals at 15% of first-year revenue as credit, and kept overflow routing, the marketplace and vendor reselling for later.
+* 2026-09-29 — The owner set a self-hosted first phase for the owner and the owner's employer, each paying its own model provider, with the hosted agency business as the second phase.
