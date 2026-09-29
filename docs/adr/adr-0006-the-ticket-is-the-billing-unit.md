@@ -50,14 +50,16 @@ The [pricing units record](../research/2026-09-28-pricing-units.md) compares the
 | Delivery rate for financial planning | 55%; 70% is the target after refinement |
 | Shift budget cap per size | €4 / €10 / €20 |
 | List price per credit | €15 |
-| Floor price per credit | €12, recalculated quarterly from measured cost |
+| Floor price per credit | €12, a margin floor on delivery fees that no discount goes below |
 | Volume steps | €14 / €13 / €12 at 100 / 250 / 500+ credits a month |
 | Refinement Runs | Tokens charged like any attempt, then credited against the delivery fee when the ticket is accepted within 30 days |
 | What a credit is | One accepted S ticket, worth €15. Credits only measure delivery fees and are always shown with their euro value; tokens and hosting are charged in euros |
 | Credit validity | Paid credits never expire while the account is active and are refunded at purchase price when the account closes; promotional credits can expire and are used first |
 | Purchase forms | Prepaid bundles, and 12-month monthly commitments that unlock the volume steps |
-| Tokens and compute inside a ticket | Charged per attempt at cost plus a published markup, up to the ticket's cap |
-| Metered usage above allowances | €0.10 per GB-month of storage, extra tokens at list price × 1.25. CI is not charged |
+| Tokens and compute inside a ticket | Charged per attempt at cost plus a published markup, up to the ticket's cap. The markup depends on the agency's tier: 25% to start, lower for higher quality tiers (levels to be set) |
+| Invoices | Show the platform fee split, for example "€249 = 10 credits (€150) + platform €99" |
+| Acceptance review | An agency is reviewed, not penalised, when its acceptance rate falls below half the platform median over at least 20 closed tickets, after 2 or more confirmed copies in 90 days, or when reversals exceed 10% |
+| Metered usage above allowances | €0.10 per GB-month of storage, extra tokens at list price plus the agency's markup. CI is not charged |
 | Agency markup on metered usage | Each agency sets its own multiplier toward its clients; Glide bills the agency at the rates above |
 | Previews | Deploy step free; on Glide hosting each delivery credit includes one preview deploy for 7 days; extra deploys cost €0.50 each and €0.50 per day beyond 7 days, taken from the account balance; ingress free, 100 GB egress a month included, then provider cost plus markup ([ADR-0008](adr-0008-every-pull-request-gets-a-preview-environment.md)) |
 | Incentives | A private per-agency quality score from acceptance rate, over a minimum sample, unlocks a lower markup or higher caps; a ready-check gives feedback on a ticket before any spend; quarterly tiers with published thresholds; referral rewards in euro credit that does not expire. No streaks, leaderboards or random bonuses |
@@ -72,7 +74,7 @@ The [pricing units record](../research/2026-09-28-pricing-units.md) compares the
 ### Consequences
 
 * Good, because the client's worst case is the quote, and our worst case per attempt is the cap.
-* Good, because a failed Shift costs us, not the client, which rewards improving success rate.
+* Good, because a failed Shift costs the client only its tokens, and Glide earns its margin only on accepted work, which rewards improving success rate.
 * Bad, because sizing is a judgment. A wrong size either loses us money or loses the client.
 * Bad, because refunds on failure need a clear failure definition; Ploeg's split between infrastructure and agent failures ([Ploeg ADR-0021](../../apps/ploeg/docs/adrs/0021-infra-failures-and-agent-failures-get-separate-retry-budgets.md)) is the starting point.
 
@@ -120,3 +122,4 @@ Confirmed when every delivered ticket shows its size, quote, authorized cap and 
 * 2026-09-29 — The owner dropped the 2x premium credit multiplier, unlinked the credit price from model costs, set the markup as the charge for bring-your-own-key agencies, and set preview prices.
 * 2026-09-29 — The owner started the silence timer when the pull request opens, required a reason to close one, and refunded unused paid credits on account closure.
 * 2026-09-29 — The owner charged refinement tokens and credited them against the delivery fee on acceptance within 30 days.
+* 2026-09-29 — The owner kept €12 as a margin floor, made the token markup depend on the agency's tier, set the acceptance review rule, and required invoices to show the fee split.
