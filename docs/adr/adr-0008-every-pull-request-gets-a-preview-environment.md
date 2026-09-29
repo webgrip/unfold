@@ -12,7 +12,7 @@ A client cannot review a diff. To accept work, the client needs to use the chang
 
 ## Decision Drivers
 
-* The client accepts a working feature, not code.
+* The client judges a working feature, not code.
 * Glide must not own the uptime, data or incidents of a client's production system.
 * A preview runs code an agent wrote, so it is untrusted and must be isolated like a Run.
 * Previews cost compute for as long as they live.
@@ -39,7 +39,7 @@ Not implemented yet. The first supported declaration is a Dockerfile in the repo
 
 ### Consequences
 
-* Good, because the client accepts by using the feature, and the agency reviews faster.
+* Good, because the client gives feedback by using the feature, and the agency reviews faster.
 * Good, because CPU and memory are what a preview consumes, so CPU minutes finally have a use as a unit.
 * Bad, because building arbitrary repositories is a large and varied problem. The first version supports one declared format.
 * Bad, because a preview is internet-reachable agent-written code. It needs default-deny egress and authentication in front of it.
@@ -66,3 +66,4 @@ Confirmed when a delivered pull request in a declared repository gets a reachabl
 * 2026-09-29 — The owner made previews an optional CI-step add-on that deploys to the agency's own infrastructure or to metered Glide hosting, with free ingress and an egress allowance.
 * 2026-09-29 — The owner replaced hourly preview billing with a flat fee per deploy plus a daily fee after 7 days.
 * 2026-09-29 — The owner included one preview deploy per delivery credit and set €0.50 per extra deploy and per extra day.
+* 2026-09-29 — Wording aligned with the domain model (Acceptance belongs to the agency); no decision changed.

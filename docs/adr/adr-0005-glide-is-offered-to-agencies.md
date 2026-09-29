@@ -29,8 +29,8 @@ Glide turns Work Items into review-ready pull requests. To sell it, we must choo
 Chosen option: "Agencies, with a client portal; delivery ends at a reviewed pull request and a preview environment", because agencies already sell fixed-scope work to clients, carry the cost risk Glide caps, and keep a developer who reviews every change.
 
 * **Phasing.** Glide is built first for the people who use it: the owner, who runs it daily on their own backlog, and the owner's employer, an agency that will self-host it with ClickUp as its tracker. Both pay their own model provider (Fireworks today) and nothing to Glide. The hosted agency business below is the designed second phase; its spending, hosting, legal and sales steps start once the self-hosted phase works and there is money to fund them.
-* **Customer (tenant):** an agency. **Client:** the agency's customer, who submits requests and approves work in the portal.
-* **Loop:** client request → refinement Run makes it Ready → client approves the quote → Shift → pull request with a preview environment → agency developer reviews and merges → client accepts.
+* **Agency:** the business that uses and pays for Glide; in hosted Glide its work lives in one Tenant ([ADR-0009](adr-0009-one-tenant-per-agency.md)). **Client:** the agency's customer, who submits requests and approves Quotes in the portal.
+* **Loop:** client request → refinement Run makes it Ready → client approves the quote → Shift → pull request with a preview environment → the agency's developer reviews and accepts it, by approving or merging. The client's feedback on the preview is input to that Acceptance.
 * **Boundary:** Glide delivers the pull request and its preview ([ADR-0008](adr-0008-every-pull-request-gets-a-preview-environment.md)). The agency owns merging, production and the client relationship.
 * In-house teams can use the same product as an agency with one client (themselves). We do not build for non-developers.
 * **First segment:** Dutch, development-heavy agencies of 5 to 80 FTE with maintenance work. First stacks: WordPress, Laravel, Next.js/React, Shopify and DevOps work. Flanders follows in the second quarter. Sales are in Dutch; the product is in Dutch and English. Agencies without version control or CI are not a fit.
@@ -40,12 +40,12 @@ Chosen option: "Agencies, with a client portal; delivery ends at a reviewed pull
 * **Editions:** the Agency edition launches first. White label follows once two partners ask for it; it is a paid tier, and white-label agencies resell their own service, never Glide credits. Freelancers can self-host the open-source release from day one; the hosted Freelancer edition and Enterprise follow after the pilot's third gate. Platform fees per month: Freelancer €29, Agency €249, White label €690, including 1, 10 and 30 credits. Enterprise, from €18k a year, buys support, an SLA, security updates and setup for a self-hosted install; every feature, SSO and audit included, is open source.
 * **Disclosure:** every pull request and the portal say that an agent wrote the change and name the developer who reviewed it.
 * **Liability:** Glide opens pull requests on semantically named branches and never deploys. Production deploys run in the agency's own CI, and whether a pull request may merge without review is the agency's forge and repository setting. Glide's liability is capped at fees paid, as stated in the terms.
-* **Trust:** agency owners see live spend against the cap for every ticket, the full agent log per pull request, a public security page with a pentest summary, and a kill switch that stops all of the agency's Runs at once. Each agency privately sees all 35 quality, speed, cost, client and business numbers, with revenue per developer hour on the front page. The agency chooses which numbers its clients see in the portal. Anonymised platform-wide numbers, including the medians the markup tiers use, are published monthly.
+* **Trust:** agency owners see live spend against the Shift Budget for every Work Item, the full agent log per pull request, a public security page with a pentest summary, and a kill switch that stops all of the agency's Runs at once. Each agency privately sees all 35 quality, speed, cost, client and business numbers, with revenue per developer hour on the front page. The agency chooses which numbers its clients see in the portal. Anonymised platform-wide numbers, including the medians the markup tiers use, are published monthly.
 * **Pilot:** in the hosted phase, the first external agency signs a 4 to 6 week pilot agreement with an NDA and a data processing agreement; Glide never trains on its code and deletes it on exit. The pilot delivers 5 to 10 of the agency's real small tickets in its own repository.
 * **Refinement as a product:** request-to-quote (refinement and pricing without agent code) is also sold on its own, for agencies not ready to let agents change code.
-* **Never built:** an account or ticket without a hard spending cap, and features made for one agency that others will not use.
-* **Agents and Teams:** agencies, and their clients where the agency allows it, define their own agents and Teams (Roles, models, instructions). Glide ships default Teams. Every Team runs inside the ticket's spending cap.
-* **Invoicing and maintenance:** exporting accepted tickets to Moneybird, Exact and e-Boekhouden is part of the pilot. Maintenance subscriptions, where dependency updates and failing checks become tickets automatically, come in version 2 after the delivery rate is measured.
+* **Never built:** an account or Work Item without a hard Budget, and features made for one agency that others will not use.
+* **Agents and Teams:** agencies, and their clients where the agency allows it, define their own agents and Teams (Roles, models, instructions). Glide ships default Teams. Every Team runs inside the Work Item's Shift Budget.
+* **Invoicing and maintenance:** exporting accepted Work Items to Moneybird, Exact and e-Boekhouden is part of the pilot. Maintenance subscriptions, where dependency updates and failing checks become Work Items automatically, come in version 2 after the delivery rate is measured.
 * **White label and partners:** Glide suggests retail prices but never fixes them. The agency is first-line support for its clients and Glide is second line. "Powered by Glide" is optional. A referral earns 15% of the referred agency's first-year revenue as euro credit that does not expire. Overflow routing between agencies and a marketplace for Teams, packages and client profiles come later. Tool vendors such as Simplicate and Teamleader start as integrations; reselling through them stays an option.
 * **Portal:** the client portal is part of Vloer. Clients see the agency's price. Glide's charge is hidden by default; an agency can choose to show it.
 
@@ -56,11 +56,11 @@ Not implemented yet. The [agency offering proposal](../research/2026-09-28-agenc
 * Good, because the ticket model ([ADR-0006](adr-0006-the-ticket-is-the-billing-unit.md)) matches how agencies already quote work.
 * Good, because a human developer stays accountable for every merge, which keeps Glide inside its review-ready boundary.
 * Bad, because the portal, client accounts and reporting are new surface in Vloer.
-* Bad, because multi-tenancy becomes a precondition for the second customer ([ADR-0009](adr-0009-one-tenant-per-agency.md)).
+* Bad, because multi-tenancy becomes a precondition for the second agency ([ADR-0009](adr-0009-one-tenant-per-agency.md)).
 
 ### Confirmation
 
-This record is confirmed when one agency, other than webgrip, runs a client request from the portal to a merged pull request, and the agency's invoice to its client is higher than Glide's charge for that ticket.
+This record is confirmed when one agency, other than webgrip, runs a client request from the portal to a merged pull request, and the agency's invoice to its client is higher than Glide's charge for that Work Item.
 
 ## Pros and Cons of the Options
 
@@ -102,3 +102,4 @@ This record is confirmed when one agency, other than webgrip, runs a client requ
 * 2026-09-29 — The owner made all 35 numbers visible to agencies, put revenue per developer hour on the front page, let agencies choose what clients see, and chose to publish anonymised platform numbers monthly.
 * 2026-09-29 — The owner confirmed the white-label defaults, set referrals at 15% of first-year revenue as credit, and kept overflow routing, the marketplace and vendor reselling for later.
 * 2026-09-29 — The owner set a self-hosted first phase for the owner and the owner's employer, each paying its own model provider, with the hosted agency business as the second phase.
+* 2026-09-29 — Wording aligned with the domain model (Agency, Client, Acceptance, Budget); no decision changed.

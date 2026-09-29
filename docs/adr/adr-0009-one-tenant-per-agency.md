@@ -62,7 +62,7 @@ Confirmed when a cross-tenant test Run fails to reach another tenant's namespace
 ### One cluster per agency
 
 * Good, because it is the strongest isolation.
-* Bad, because a cluster per customer costs more than a small agency pays. It stays an option for large customers and self-hosters.
+* Bad, because a cluster per agency costs more than a small agency pays. It stays an option for large agencies and self-hosters.
 
 ## More Information
 
@@ -72,3 +72,4 @@ Confirmed when a cross-tenant test Run fails to reach another tenant's namespace
 * 2026-09-29 — The owner let the pilot agency self-host Glide in its own cluster instead.
 * 2026-09-29 — The owner set deletion on exit with opt-in retention of anonymised traces.
 * 2026-09-29 — The owner moved the rented EU cloud to the hosted phase; until then every user self-hosts.
+* 2026-09-29 — Wording aligned with the domain model (Agency); no decision changed.
