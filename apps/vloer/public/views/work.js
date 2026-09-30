@@ -4,6 +4,7 @@ import { api } from '../core/api.js';
 import { $, renderHtml, notify } from '../core/dom.js';
 import { buildHash, parseHash } from '../core/route.js';
 import { live } from '../core/live.js';
+import { prefs } from '../core/prefs.js';
 import { shell } from '../shell.js';
 import { enterPloegView, ploegHelpers } from './ploeg-common.js';
 
@@ -45,6 +46,7 @@ async function loadPloeg(team, id, fresh = false) {
     if (data.available) live.touch();
   } catch (error) {
     if (request !== state.ploegRequest || state.view !== 'work' || !state.bootstrap) return;
+    if (error.code === 'ploeg_not_found' && team && team === prefs.get('team')) { prefs.set('team', null); void loadPloeg(undefined, id, fresh); return; }
     state.ploeg = { configured: true, available: false, demo: false, teams: [], message: error.message };
   } finally {
     if (request === state.ploegRequest && state.view === 'work' && state.bootstrap) {
@@ -76,7 +78,7 @@ async function enterWork({ id, query = {} } = {}) {
   enterPloegView('work');
   if (lanes.includes(query.lane)) state.ploegLane = query.lane;
   else if (!id) state.ploegLane = null;
-  return await loadPloeg(query.team || state.ploeg?.selectedTeam, id);
+  return await loadPloeg(query.team || state.ploeg?.selectedTeam || prefs.get('team') || undefined, id);
 }
 
 function selectLane(button) {
@@ -86,7 +88,7 @@ function selectLane(button) {
   renderWork();
 }
 
-/** Work: a Team's Work Items by lane (`#work?lane=&team=`) and one Work Item's execution evidence (`#work/<id>`). */
+/** Work: a Team's Work Items by lane (`#work?lane=&team=`, the Team remembered per browser) and one Work Item's execution evidence (`#work/<id>`). */
 export default {
   id: 'work',
   match: hash => { if (hash === 'work') return {}; const item = /^work\/([1-9][0-9]{0,19})$/.exec(hash); return item ? { id: item[1] } : null; },
@@ -100,6 +102,6 @@ export default {
     'ploeg-more': () => loadMorePloeg(),
   },
   changes: {
-    '#ploeg-team': element => { state.ploegLane = null; history.replaceState(null, '', `#${buildHash('work', { team: element.value })}`); loadPloeg(element.value); },
+    '#ploeg-team': element => { state.ploegLane = null; prefs.set('team', element.value); history.replaceState(null, '', `#${buildHash('work', { team: element.value })}`); loadPloeg(element.value); },
   },
 };
