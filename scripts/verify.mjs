@@ -49,7 +49,7 @@ const cpus = process.env.GLIDE_VERIFY_CPUS;
 const parallelism = cpus ? { GOMAXPROCS: cpus, GOFLAGS: `${process.env.GOFLAGS ?? ''} -p=${cpus}`.trim(), VLOER_TEST_CONCURRENCY: cpus } : {};
 
 const results = process.env.GLIDE_VERIFY_RESULTS ? resultCache(process.env.GLIDE_VERIFY_RESULTS, { reuse: process.env.GLIDE_VERIFY_REUSE === 'true' }) : undefined;
-const toolVersions = scope => JSON.parse(execFileSync('mise', ['-C', scope, 'ls', '--current', '--json'], { cwd: root, encoding: 'utf8' }));
+const toolVersions = scope => Object.fromEntries(Object.entries(JSON.parse(execFileSync('mise', ['-C', scope, 'ls', '--current', '--json'], { cwd: root, encoding: 'utf8' }))).map(([tool, installs]) => [tool, installs.map(install => install.version)]));
 const shared = results && {
   paths: ['mise.toml', 'apps/vloer/mise.toml', 'apps/ploeg/mise.toml', 'scripts/verify.mjs', 'scripts/verify-cache.mjs'],
   tools: Object.fromEntries(['.', 'apps/vloer', 'apps/ploeg'].map(scope => [scope, toolVersions(scope)])),
