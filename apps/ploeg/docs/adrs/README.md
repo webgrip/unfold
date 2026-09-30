@@ -111,6 +111,7 @@ fails otherwise.
 | [0034](0034-the-harness-gets-placeholders-the-worker-keeps-credentials.md) | The harness gets placeholders; the worker keeps the credentials | proposed | 2026-09-26 |
 | [0035](0035-runs-get-ploeg-owned-skills-mounted-toolchains-and-worker-verification.md) | Runs get Ploeg-owned skills, mounted toolchains and a verification the worker runs | proposed | 2026-09-27 |
 | [0036](0036-stuck-work-reaches-the-owner-as-a-cited-proposal-not-an-agent-decision.md) | Stuck work reaches the owner as a cited proposal; no agent applies a decision | proposed | 2026-09-28 |
+| [0037](0037-teams-opt-into-registry-egress-through-a-logged-allowlist-proxy.md) | Teams opt into registry egress through a logged allowlist proxy; airgapped stays the default | accepted | 2026-10-01 |
 | [0038](0038-a-repo-label-selects-among-registered-targets-and-the-board-default-is-the-fallback.md) | A repo label selects among registered targets, and the board default is the fallback | accepted | 2026-09-28 |
 | [0039](0039-a-run-calls-only-its-roles-model-and-the-advisor-waits-for-metering.md) | A Run calls only its Role's model, and the advisor waits for metering that prices it | proposed | 2026-09-30 |
 | [0040](0040-a-conflicted-pull-request-becomes-a-priority-ticket-ploeg-resolves.md) | A conflicted pull request becomes a priority ticket that Ploeg resolves | proposed | 2026-09-30 |
@@ -130,6 +131,7 @@ triggers.
 | 2026-10-31 | [0006](0006-ahp-is-the-wrong-layer.md), [0007](0007-a2a-adopt-nothing-watchlist-a-facade.md), [0008](0008-litellm-is-the-credential-and-metering-seam.md), [0009](0009-paperclip-mine-for-design-never-integrate.md), [0024](0024-operator-work-uses-one-execution-authority.md), [0025](0025-management-authority-stays-in-the-control-plane.md), [0041](0041-the-openai-agents-api-stays-outside-the-run-until-it-takes-an-authorized-budget.md) — the quarterly market re-scan (`design.md` §10) |
 | 2026-11-30 | [0031](0031-runs-create-work-items-held-for-approval-within-limits.md) — or sooner, when the owner answers whether created Work Items are written back to the tracker and whether a person approves them |
 | 2026-12-31 | [0035](0035-runs-get-ploeg-owned-skills-mounted-toolchains-and-worker-verification.md) — or sooner, when worker pods can reach a Go module proxy |
+| 2026-12-31 | [0037](0037-teams-opt-into-registry-egress-through-a-logged-allowlist-proxy.md) — or sooner, when the first `registries` Run's verification passes `go test` or a denial alert fires that no build explains |
 | 2026-12-31 | [0038](0038-a-repo-label-selects-among-registered-targets-and-the-board-default-is-the-fallback.md) — or sooner, when the target registry passes 15 entries or a misroute reaches a merged pull request |
 | 2026-12-31 | [0039](0039-a-run-calls-only-its-roles-model-and-the-advisor-waits-for-metering.md) — or sooner, when LiteLLM prices advisor iterations per model or a Team runs `claude-code` |
 | 2026-12-31 | [0040](0040-a-conflicted-pull-request-becomes-a-priority-ticket-ploeg-resolves.md) — or sooner, when the homelab Forgejo reaches v17 or conflict results start being rejected |
