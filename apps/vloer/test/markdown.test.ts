@@ -74,7 +74,7 @@ test('the vloer dialect writes only what the browser renderer reads: no escapes,
     '[spec (v2)](https://x.example/) ops (ops@example.invalid)',
   ].join('\n\n'));
   const rendered = render(htmlToMarkdown(html, 'https://tasks.example/', 'vloer'));
-  assert.match(rendered, /<h4>Goal<\/h4><p>Make <strong>checkout<\/strong> round &amp; stay ~~wrong~~ correct\.<\/p>/);
+  assert.match(rendered, /<h4>Goal<\/h4><p>Make <strong>checkout<\/strong> round &amp; stay <del>wrong<\/del> correct\.<br>\nSecond line with a`b<\/p>/);
   assert.match(rendered, /<a href="https:\/\/x\.example\/" target="_blank" rel="noopener noreferrer">spec \(v2\)<\/a>/);
   assert.match(rendered, /<h6>Six<\/h6>/);
   assert.doesNotMatch(rendered, /\\/, 'no backslash escape reaches the reader');

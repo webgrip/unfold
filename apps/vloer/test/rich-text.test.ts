@@ -13,7 +13,7 @@ const rendererPath = new URL('../public/core/markdown.js', import.meta.url).href
 const { markdown: render } = await import(rendererPath) as { markdown: (text: string) => string };
 
 const allowedTags: Record<string, RegExp> = {
-  p: /^$/, ul: /^$/, li: /^$/, strong: /^$/, code: /^$/, h3: /^$/, h4: /^$/, h5: /^$/, h6: /^$/,
+  p: /^$/, ul: /^$/, ol: /^(?: start="\d+")?$/, li: /^$/, strong: /^$/, code: /^$/, h3: /^$/, h4: /^$/, h5: /^$/, h6: /^$/,
   pre: /^(?: class="md-code"(?: data-lang="[a-z0-9_-]*")?)?$/,
   a: /^ href="https?:\/\/[^"\s<>]+" target="_blank" rel="noopener noreferrer"$/,
 };
