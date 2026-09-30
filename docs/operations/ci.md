@@ -3,7 +3,7 @@ type: reference
 audience: [operator, contributor, agent]
 owner: glide
 last_verified: 2026-09-30
-verified_by: "Entry points, triggers, jobs, gates and caches checked against the workflow files, the local actions and scripts/workflow-policy.test.cjs"
+verified_by: "Entry points, triggers, jobs, gates and caches checked against the workflow files, the local actions, renovate.json and scripts/workflow-policy.test.cjs"
 ---
 
 # CI and release workflows
@@ -30,6 +30,12 @@ The weekly [demo smoke action](../../.forgejo/actions/tutorial-smoke/action.yml)
 Vloer and Ploeg release together under one Glide version ([ADR-0004](../adr/adr-0004-glide-releases-one-version.md)). The pinned Webgrip semantic-release monorepo composite runs [the Glide configuration](../../apps/.releaserc.cjs) with `package-path: apps`, so only commits that touch an application count. Tags are `glide-v<version>`, the notes go to `apps/CHANGELOG.md`, and [the prepare script](../../scripts/release-prepare.mjs) sets both charts, Vloer's manifests and the extension to the same version. The annotated tag `glide-v0.3.0` is the baseline where the last imported candidates met, so the first Glide candidate is `0.4.0-rc.1`. Both source checks and release-policy checks must pass before versioning.
 
 `GLIDE_RELEASES_ENABLED` must equal `true` to version or publish. A manual source-validation run never releases, even with the gate enabled. Release-channel notes live on Forgejo only; nothing copies them to GitHub. CI runs the import verifier with `GLIDE_REQUIRE_IMPORT_NOTES=true`, so missing notes fail the source gate instead of being skipped as they are locally. A [release test](../../scripts/test_release_refs.py) fails if any workflow, action, script or mise task prunes, mirrors or deletes refs, or pushes notes. The [notes-loss record](../research/2026-09-23-forgejo-notes-loss.md) explains why. Keep the `main` release baseline required by the shared preset; `development` remains trunk and the only automatic release branch. Use the [first cutover playbook](first-cutover.md) before enabling publication.
+
+## Dependency updates
+
+Renovate follows the org preset with repository overrides in [renovate.json](../../renovate.json). Minor, patch, digest and pin updates need no dashboard approval. They land in one `all non-major dependencies` branch, and Renovate merges the pull request once its checks are green. Renovate reads the combined commit status itself, so a merge never depends on branch protection. Lock-file maintenance and vulnerability fixes also merge themselves. Unattended updates keep the preset's soak of three days for a minor and one day for a patch. `internalChecksFilter: strict` leaves an unsoaked update out of the group, so it cannot hold the whole branch. Majors and Go toolchain minors still wait for a tick on the dependency dashboard.
+
+`rebaseWhen: conflicted` rebases a Renovate branch only when it conflicts. With the preset's `behind-base-branch`, every push to `development` rebased every open Renovate branch, and each rebase started a full pull request run. The runner pool cannot absorb that.
 
 ## Publication and recovery
 
