@@ -67,6 +67,12 @@ export function count(value) {
   return formatter('number', { maximumFractionDigits: 0 }).format(value);
 }
 
+/** Formats a share (`0.5`) as a whole percentage (`50%` in nl-NL); a missing or non-finite share reads `—`. */
+export function percent(value) {
+  if (!isAmount(value)) return '—';
+  return formatter('number', { style: 'percent', maximumFractionDigits: 0 }).format(value);
+}
+
 /** Counts a noun: `plural(1, 'attempt')` is "1 attempt", `plural(3, 'attempt')` is "3 attempts". */
 export function plural(value, singular, pluralForm = `${singular}s`) {
   return `${count(value)} ${value === 1 ? singular : pluralForm}`;
@@ -98,6 +104,29 @@ export function time(value, { seconds = false } = {}) {
   if (!locale) return formatter('date', options).format(moment);
   const part = pieces(moment, options);
   return `${part.hour}:${part.minute}${seconds ? `:${part.second}` : ''}`;
+}
+
+/** The local calendar day of a moment as `YYYY-MM-DD`, for grouping by day; empty for a missing or invalid value. */
+export function dayKey(value) {
+  const moment = toDate(value);
+  if (!moment) return '';
+  return `${moment.getFullYear()}-${String(moment.getMonth() + 1).padStart(2, '0')}-${String(moment.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * Names the local day of a moment relative to `now`: "Today", "Yesterday", "Tomorrow", otherwise the English
+ * weekday and the date ("Monday 28-09-2026"). Empty for a missing or invalid value.
+ */
+export function dayLabel(value, now = Date.now()) {
+  const moment = toDate(value);
+  const today = toDate(now);
+  if (!moment || !today) return '';
+  const midnight = day => new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime();
+  const days = Math.round((midnight(today) - midnight(moment)) / 86400000);
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days === -1) return 'Tomorrow';
+  return `${new Intl.DateTimeFormat('en-GB', { weekday: 'long' }).format(moment)} ${date(moment)}`;
 }
 
 /**

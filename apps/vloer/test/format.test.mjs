@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { ago, clock, configureFormat, count, date, dateTime, duration, formatLocale, money, moneyExact, moneyHtml, notReported, plural, relative, time, timeHtml } from '../public/core/format.js';
+import { ago, clock, configureFormat, count, date, dateTime, dayKey, dayLabel, duration, formatLocale, money, moneyExact, moneyHtml, notReported, percent, plural, relative, time, timeHtml } from '../public/core/format.js';
 
 const space = ' ';
 const local = new Date(2026, 8, 30, 21, 30, 5);
@@ -37,6 +37,30 @@ test('counts group thousands and plurals follow the count', () => {
   assert.equal(plural(0, 'Run'), '0 Runs');
   assert.equal(plural(1234, 'Run'), '1.234 Runs');
   assert.equal(plural(2, 'entry', 'entries'), '2 entries');
+});
+
+test('shares read as whole nl-NL percentages and a missing share is a dash, not zero', () => {
+  assert.equal(percent(0.5), '50%');
+  assert.equal(percent(0), '0%');
+  assert.equal(percent(1 / 3), '33%');
+  assert.equal(percent(1.25), '125%');
+  for (const missing of [null, undefined, Number.NaN, Infinity]) assert.equal(percent(missing), '—');
+});
+
+test('days group by local calendar day and read as Today, Yesterday or a weekday with the date', () => {
+  const now = new Date(2026, 8, 30, 9, 5).getTime();
+  assert.equal(dayKey(new Date(2026, 8, 30, 0, 1)), '2026-09-30');
+  assert.equal(dayKey(new Date(2026, 8, 29, 23, 59)), '2026-09-29');
+  assert.equal(dayKey(new Date(2026, 0, 2, 3, 4).toISOString()), '2026-01-02');
+  assert.equal(dayLabel(new Date(2026, 8, 30, 0, 1), now), 'Today');
+  assert.equal(dayLabel(new Date(2026, 8, 29, 23, 59), now), 'Yesterday');
+  assert.equal(dayLabel(new Date(2026, 9, 1, 8, 0), now), 'Tomorrow');
+  assert.equal(dayLabel(new Date(2026, 8, 28, 12, 0), now), 'Monday 28-09-2026');
+  assert.equal(dayLabel(new Date(2026, 2, 29, 1, 0), new Date(2026, 2, 30, 1, 0).getTime()), 'Yesterday', 'a 23-hour day across the clock change is still one day');
+  for (const missing of [null, undefined, '', 'not a date']) {
+    assert.equal(dayKey(missing), '');
+    assert.equal(dayLabel(missing, now), '');
+  }
 });
 
 test('dates are numeric nl-NL with a 24-hour clock in the browser time zone', () => {
