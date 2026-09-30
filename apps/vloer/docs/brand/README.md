@@ -350,10 +350,12 @@ use those rather than writing a new bio per platform.
 
 [`public/styles/tokens.css`](../../public/styles/tokens.css) keeps the seven brand colours, plus
 Peil Donker `#1F51AC` for the pressed accent, as primitives and maps them onto roles. Components
-use only the roles. Every role is a `light-dark()` pair written in OKLCH, a colour notation in
-which equal lightness numbers look equally light across hues, so one definition serves both
-themes: `color-scheme` picks the value, the operating system sets it by default, and the
-workbench's System · Light · Dark switch overrides it per browser.
+use only the roles. New values are written in OKLCH, a colour notation in which equal lightness
+numbers look equally light across hues. Every role that changes with the theme is a
+`light-dark()` pair, so one definition serves both themes: `color-scheme` picks the value, the
+operating system sets it by default, and the workbench's System · Light · Dark switch overrides
+it per browser. The solid fills (the button accent and each tone's `-emphasis`) and the white
+text on them keep one value in both themes.
 
 | Role | Token | Light | Dark |
 |---|---|---|---|
@@ -391,19 +393,22 @@ to stay the accent. Ploeg's Klei does not appear in Vloer.
 
 | Tone | Hue | Means |
 |---|---|---|
-| `neutral` | grey | queued, proposed, received, withdrawn, paused, cancelled |
+| `neutral` | grey | queued, proposed, received, withdrawn, pending, paused, cancelled, and results that ask nothing of you |
 | `live` | teal | running |
-| `attention` | amber | needs you: a person must decide |
-| `review` | violet | ready for review: a pull request waits on a person |
-| `success` | green | done, approved |
-| `danger` | red | failed, and destructive actions |
-| `severe` | orange | stopped retrying, interrupted |
+| `attention` | amber | a person must act: needs you, a stuck Run, an agent review that asked for changes, a session that needs your input |
+| `review` | violet | ready for review: a pull request or a session's result waits on a person |
+| `success` | green | done, a pull request opened or updated, an approving agent review, accepted |
+| `danger` | red | failed, the failure reasons that are not infrastructure, and destructive actions |
+| `severe` | orange | stopped retrying, interrupted, and infrastructure failures |
+
+[`public/core/states.js`](../../public/core/states.js) assigns each state its tone. Screens that
+still render the legacy markup keep the old stylesheet's colours until they are rebuilt.
 
 - **Running is teal**, not Peil and not amber: not Peil because the accent means interaction, not
   amber because running is not a warning. The old interface drew running in orange.
 - **Ready for review is violet.** It is the product's goal state and must not look like Done.
-- **Needs you is the only amber**, and the loudest tone. Severe and danger share warm hues, so
-  each carries its own glyph.
+- **Amber means a person must act**, and it is the loudest tone. Needs you is its main use.
+  Severe and danger share warm hues, so each carries its own glyph.
 - **Status is never colour alone.** Every state has a glyph and a word as well.
 
 Each tone has six roles. `-bg`, `-bg-hover` and `-border` are tints. `-fg` is text on the tint

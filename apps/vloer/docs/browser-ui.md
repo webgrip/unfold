@@ -3,7 +3,7 @@ type: reference
 audience: [contributor, agent]
 owner: vloer
 last_verified: 2026-09-30
-verified_by: "Source read of apps/vloer/public (index.html, app.js, shell.js, styles.css, core/, views/index.js and each view's match, styles/tokens.css, base.css, shell.css) and src/http.ts at 3506e94; test and browser-flow names read, not run. Screens being rebuilt at that commit (Now, Work, Proposed, Runs, Activity, Insights, Sessions, Tasks, Settings, sign-in, palette) were not checked beyond their routes"
+verified_by: "Source read of apps/vloer/public (index.html, app.js, shell.js, styles.css, core/, views/index.js and each view's match, styles/tokens.css, base.css, shell.css), scripts/browser-check.mjs and src/http.ts at 3506e94; test and browser-flow names read, not run. Screens being rebuilt at that commit (Now, Work, Proposed, Runs, Activity, Insights, Sessions, Tasks, Settings, sign-in, palette) were not checked beyond their routes, their live registrations and the legacy modules' money formatters"
 ---
 
 # Browser UI
@@ -119,7 +119,7 @@ Rules for handlers:
 
 * No single key approves, rejects or cancels anything. Those actions need a click and, when they spend money or stop work, a confirmation.
 * Live jobs run only while the tab is visible, someone is signed in, no dialog is open, live updates are on and their view is current. Use `scope: 'global'` only for data every page needs, as the navigation counts do.
-* The spec's intervals are 15 seconds for Activity, 30 seconds for Now, Work, Proposed and Runs, and 60 seconds for the navigation counts.
+* Activity refreshes every 15 seconds and the navigation counts every 60 seconds. Not implemented yet: the 30-second refresh the redesign specifies for Now, Work, Proposed and Runs.
 
 ## Core modules
 
@@ -141,7 +141,7 @@ Rules for handlers:
 | [`dom.js`](../public/core/dom.js) | `escape`, `safeUrl`, `renderHtml`, the toast and the live region | Escape every string from a user, tracker, agent or server before it enters markup |
 | [`state.js`](../public/core/state.js), [`api.js`](../public/core/api.js), [`navigation.js`](../public/core/navigation.js), [`registry.js`](../public/core/registry.js) | The shared state object, the API client with its 401 handler, page entry and the view registry | Add new state fields to the initial object in `state.js` |
 
-[`lookup.js`](../public/core/lookup.js) and [`observability.js`](../public/core/observability.js) hold the session labels and outbound Grafana links the session screens use. The legacy markup modules [`ploeg.js`](../public/ploeg.js), [`ploeg-activity.js`](../public/ploeg-activity.js), [`now.js`](../public/now.js) and [`delivery.js`](../public/delivery.js) stay at the top level because Node tests import them.
+[`lookup.js`](../public/core/lookup.js) and [`observability.js`](../public/core/observability.js) hold the session labels and outbound Grafana links the session screens use. The legacy markup modules [`ploeg.js`](../public/ploeg.js), [`ploeg-activity.js`](../public/ploeg-activity.js), [`now.js`](../public/now.js) and [`delivery.js`](../public/delivery.js) stay at the top level because Node tests import them. Now, Work, Proposed, Runs, Activity and Insights still render through them, with their own labels and money formatting, until those screens are rebuilt on `states.js`, `format.js` and `ui.js`.
 
 ## CSS
 
@@ -176,7 +176,7 @@ The tones mean: `live` running, `attention` needs you, `review` ready for review
 
 ## Theming and density
 
-* Every colour token is a `light-dark()` pair, so `color-scheme` picks the theme. The default follows the operating system. `data-theme="light"` or `"dark"` on `<html>` overrides it, and `data-density="compact"` tightens rows.
+* Every colour that changes with the theme is a `light-dark()` pair, so `color-scheme` picks the value. The solid fills (`--accent-solid` with its `-hover` and `-active`, and every `-emphasis` token) and the text on them (`--text-on-solid`, `--text-inverse`, `--text-inverse-muted`) keep one value in both themes, as do the brand primitives. The default follows the operating system. `data-theme="light"` or `"dark"` on `<html>` overrides it, and `data-density="compact"` tightens rows.
 * The theme and density preferences are set per browser from the account menu or Preferences. [`theme.js`](../public/core/theme.js) applies them before the stylesheet loads, so there is no flash, and `applyAppearance()` also updates the two `theme-color` metas.
 * An element can pin its own scheme with `color-scheme`. The sidebar and navigation drawer use `color-scheme: dark`, so they stay dark (Hal) in both themes.
 * While a page still renders legacy markup, a guard in `legacy.css` forces it to light, because the legacy rules were never written for dark.
@@ -191,7 +191,7 @@ The tones mean: `live` running, `attention` needs you, `review` ready for review
 * **Motion.** The live dot, the skeleton shimmer and the loading line are the only continuous animations. They, and the entrance of dialogs, drawers and toasts, run only under `prefers-reduced-motion: no-preference`. A busy button's spinner keeps turning under reduced motion because it is status.
 * **Live regions.** `#announcement` is polite. Announce a change once; never announce streamed tokens or every refresh.
 * **Layout.** No horizontal scroll at 390 px. Targets are at least 24 px, and larger on touch.
-* **Money.** Unknown spend reads "Not reported" and demo spend "Demo · no model calls"; neither is ever drawn or written as zero.
+* **Money.** Format amounts with `format.js` and draw them with the `ui.js` meters and stats: unknown spend then reads "Not reported" and demo spend "Demo · no model calls", and neither is drawn or written as zero. The legacy screens do not follow this rule yet: `ploeg.js` and `ploeg-activity.js` format with their own `usd2` and `usdNl`, which print an amount Ploeg did not report as zero.
 
 ## Content Security Policy
 
@@ -202,7 +202,7 @@ The server sends `default-src 'self'; script-src 'self'; style-src 'self'; img-s
 * No CDN, remote font or remote image. Images may be `data:` URLs.
 * Links from outside data pass `safeUrl()` (http or https, no credentials), and external links carry `rel="noopener noreferrer"`.
 
-The browser check fails on any console error, and a CSP violation is one.
+The browser check fails on any uncaught page error and on any console error, and a CSP violation is a console error. It ignores console errors whose text contains 401, 409 or 503, the responses its flows provoke on purpose ([`browser-check.mjs`](../scripts/browser-check.mjs)).
 
 ## Living style guide
 
