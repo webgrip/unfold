@@ -88,6 +88,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Vloer | [0018](../../apps/vloer/docs/adrs/0018-bind-tracker-imports-to-existing-ploeg-work.md) | Bind tracker imports to existing Ploeg work | 2026-09-11 | yes | Opt-in tracker binding; ratification outstanding ([source](../../apps/vloer/src/task-binding.ts)) |
 | Vloer | [0019](../../apps/vloer/docs/adrs/0019-verify-canonical-candidates-outside-agent-workspaces.md) | Verify canonical candidates outside agent workspaces | 2026-09-11 | yes | Bounded Docker verifier; live publication stays disabled ([source](../../apps/vloer/src/trusted-candidate.ts)) |
 | Vloer | [0023](../../apps/vloer/docs/adrs/0023-vloer-submits-work-to-ploeg-and-never-executes-it.md) | Vloer submits Work Items to Ploeg and never executes them | 2026-09-23 | no | Design proposal only; Vloer still runs the managed engine ([source](../../apps/vloer/docs/ploeg-front-end.md)) |
+| Vloer | [0024](../../apps/vloer/docs/adrs/0024-vloer-opens-on-now-with-one-vocabulary-and-one-token-system.md) | Vloer opens on Now, names every state one way and draws from one token system | 2026-09-30 | partial | Routes, redirects, vocabulary, formatter, tokens and shell exist (checked 2026-09-30); rebuilt screens, Cancel Work Item and removal of the legacy stylesheet do not ([source](../../apps/vloer/public/core/route.js)) |
 
 ## Other statuses
 

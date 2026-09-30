@@ -2,7 +2,7 @@
 type: landing
 audience: [owner, operator, integrator, contributor, agent]
 owner: vloer
-last_verified: 2026-09-23
+last_verified: 2026-09-30
 verified_by: "mise run docs-check (every link resolves); apps/vloer/llms.txt links this page"
 ---
 
@@ -33,6 +33,7 @@ De Vloer provides durable operator sessions, agent workspaces, intervention and 
 
 - [Vloer as Ploeg's front end](ploeg-front-end.md): proposed design and increment plan for retiring Vloer's engine
 - [Current architecture](architecture.md), [ADR index](adrs/README.md) and the [decision register](../../../docs/reference/decisions.md) across all three ledgers
+- [Browser UI](browser-ui.md): routes and redirects, the view contract, core modules, CSS layers, tokens and accessibility rules for the browser workbench
 - [Shared product explanation](../../../docs/landscape/index.md), [diagrams](../../../docs/landscape/c4.md) and [open choices](../../../docs/landscape/questions.md)
 - [Product domain YAML](../../../docs/domain/model.yaml), generated [rules](../../../docs/domain/rules.md) and the [combined glossary](../../../docs/reference/glossary.md)
 - [Monorepo and runner proposal](../../../docs/migration-proposal.md)
