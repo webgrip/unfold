@@ -195,7 +195,8 @@
   gap: var(--space-1-5);
 }
 
-.session-failure-steps-title {
+.session-failure-steps-title,
+.session-failure-steps > p {
   margin: 0;
 }
 
@@ -1195,6 +1196,10 @@
   padding-top: 0;
 }
 
+.session-secondary .card-body > .session-card-note:first-child {
+  margin-top: 0;
+}
+
 .session-gate > .card-body {
   display: grid;
   gap: var(--space-4);
@@ -1401,7 +1406,7 @@
   }
 
   .session-callout > .callout-actions {
-    flex: 1 0 100%;
+    flex: 1 1 100%;
     justify-content: flex-start;
     margin-inline-start: calc(var(--icon-md) + var(--space-2-5));
   }

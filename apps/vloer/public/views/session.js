@@ -442,7 +442,7 @@ function failureMarkup(session) {
   const body = [
     `<p class="session-failure-lead">${escape(message)}</p>`,
     notes.length ? `<p class="session-failure-context">${notes.map(note => `<span>${escape(note)}</span>`).join(' ')}</p>` : '',
-    steps.length ? `<div class="session-failure-steps"><h3 class="overline session-failure-steps-title">What to do</h3><ol class="session-steps-list">${steps.map(step => `<li>${escape(step)}</li>`).join('')}</ol></div>` : '',
+    steps.length ? `<div class="session-failure-steps"><h3 class="overline session-failure-steps-title">What to do</h3>${steps.length > 1 ? `<ol class="session-steps-list">${steps.map(step => `<li>${escape(step)}</li>`).join('')}</ol>` : `<p>${escape(steps[0])}</p>`}</div>` : '',
     facts.length ? `<p class="session-failure-facts">${facts.map(fact => `<span>${escape(fact)}</span>`).join(' ')}</p>` : '',
     failure?.detail ? disclosure({ id: 'session-failure-detail', plain: true, summary: 'Recorded error output', body: `<pre class="session-pre" aria-label="Recorded error output">${escape(failure.detail)}</pre>` }) : '',
   ].join('');
