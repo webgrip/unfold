@@ -1,6 +1,7 @@
-/** The Now page: landing route, the first-visit welcome, waiting groups with reasons, j/k/Enter/o keyboard, the "since you were away" digest, and marking it as caught up. */
+/** The Now page: landing route, the first-visit welcome, waiting groups with reasons, the phone's first screen, j/k/Enter/o keyboard, the "since you were away" digest, marking it as caught up, and focus that survives Refresh and Try again. */
 export async function run({ page, app, assert, screenshot }) {
   const base = `http://127.0.0.1:${app.server.address().port}`;
+  const active = () => page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName);
   await page.goto(base);
   await page.getByRole('heading', { name: 'Now', exact: true }).first().waitFor();
   assert.equal(new URL(page.url()).hash, '#now', 'Vloer does not open on the Now page');
@@ -15,14 +16,30 @@ export async function run({ page, app, assert, screenshot }) {
   assert.equal(await page.locator('.now-stats a.stat').count(), 3, 'Running, Queued and Spend link into their lists');
   assert.equal(await page.locator('.now-group[data-group="proposed"] a[href^="#proposed?id="]').count(), 2, 'Approve or reject does not lead to the proposal it names');
 
+  await page.locator('#now-refresh').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => !document.querySelector('#now-refresh[aria-busy]') && !document.querySelector('.now[aria-busy]'));
+  assert.equal(await active(), 'now-refresh', 'Refresh loses keyboard focus');
+  const failRunning = async route => { const response = await route.fetch(); const body = await response.json(); await route.fulfill({ response, body: JSON.stringify({ ...body, running: [], errors: { running: 'Ploeg did not answer within 5 seconds.' } }) }); };
+  await page.route('**/api/ploeg/now*', failRunning);
+  await page.locator('#now-refresh').click();
+  await page.locator('#now-retry-running').waitFor();
+  assert.equal(await page.locator('#now-refresh').count(), 0, 'Refresh and Try again are offered together');
+  await page.unroute('**/api/ploeg/now*', failRunning);
+  await page.locator('#now-retry-running').focus();
+  await page.keyboard.press('Enter');
+  await page.locator('.now-running .now-run').first().waitFor();
+  assert.equal(await active(), 'now-refresh', 'a successful Try again drops keyboard focus instead of moving it to Refresh');
 
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'Now layout overflows horizontally at 390px');
+  await page.evaluate(() => scrollTo(0, 0));
+  assert(await page.evaluate(() => document.querySelector('.now-waiting .now-item').getBoundingClientRect().top) < 400, 'the first waiting row is not on the phone’s first screen');
   await page.keyboard.press('j');
   assert.equal(await page.evaluate(() => document.activeElement?.dataset.nowRow !== undefined), true, 'j did not focus a Now row');
   const firstNowRow = await page.evaluate(() => document.activeElement?.getAttribute('href'));
-  await page.keyboard.press('j');
-  assert.notEqual(await page.evaluate(() => document.activeElement?.getAttribute('href')), firstNowRow, 'j did not move to the next Now row');
+  await page.keyboard.press('Shift+J');
+  assert.notEqual(await page.evaluate(() => document.activeElement?.getAttribute('href')), firstNowRow, 'J with Shift or Caps Lock did not move to the next Now row');
   await page.keyboard.press('k');
   assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('href')), firstNowRow, 'k did not move back to the previous Now row');
   const forge = 'https://forge.example.invalid/**';

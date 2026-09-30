@@ -1,4 +1,4 @@
-import { nowMarkup, nextBaseline, shownIds, visibleNow } from '../now.js';
+import { nowMarkup, nextBaseline, shownIds, visibleNow, offersRetry } from '../now.js';
 import { state } from '../core/state.js';
 import { api } from '../core/api.js';
 import { renderHtml, announce } from '../core/dom.js';
@@ -11,7 +11,7 @@ import { prefs } from '../core/prefs.js';
 import { applyNowCounts } from '../core/counts.js';
 
 const baselineKey = 'vloer.nowSince';
-const view = Object.assign(state.now, { summary: { data: null, error: null }, shown: null, since: undefined, caughtUp: false, hiddenAt: null, refreshing: false });
+const view = Object.assign(state.now, { summary: { data: null, error: null }, summaryRequest: 0, shown: null, since: undefined, caughtUp: false, hiddenAt: null, refreshing: false, keepFocus: false });
 
 function readBaseline() {
   try { const saved = JSON.parse(globalThis.sessionStorage?.getItem(baselineKey) ?? 'null'); return saved && typeof saved === 'object' && 'since' in saved ? saved.since : undefined; } catch { return undefined; }
@@ -35,8 +35,9 @@ const onNow = () => Boolean(state.bootstrap) && state.view === 'now';
 
 function refreshButton() {
   if (!view.data && ['ploeg_unconfigured', 'ploeg_scope'].includes(view.error?.code)) return '';
-  const busy = view.refreshing;
-  return `<button type="button" class="button secondary sm" id="now-refresh" data-action="now-refresh"${busy ? ' disabled aria-busy="true"' : ''}>${busy ? '<span class="spinner" aria-hidden="true"></span>' : icon('refresh')}<span class="button-label">Refresh</span></button>`;
+  if (offersRetry(view)) return '';
+  const busy = view.refreshing || (view.loading && !view.data);
+  return `<button type="button" class="button secondary sm now-refresh" id="now-refresh" data-action="now-refresh"${busy ? ' aria-disabled="true" aria-busy="true"' : ''}>${busy ? '<span class="spinner" aria-hidden="true"></span>' : icon('refresh')}<span class="button-label">Refresh</span></button>`;
 }
 
 function focusedTarget() {
@@ -46,17 +47,36 @@ function focusedTarget() {
   return href ? `#main a[href="${CSS.escape(href)}"]` : null;
 }
 
+function visible(element) {
+  return Boolean(element) && element.getClientRects().length > 0;
+}
+
+function restoreFocus(keep) {
+  const active = document.activeElement;
+  if (active && active !== document.body) return;
+  const kept = keep ? document.querySelector(keep) : null;
+  if (kept) { kept.focus({ preventScroll: true }); return; }
+  if (!view.keepFocus) return;
+  const refresh = document.getElementById('now-refresh');
+  (visible(refresh) ? refresh : document.getElementById('page-title'))?.focus({ preventScroll: true });
+}
+
 function renderNow() {
   if (view.since === undefined) arrive();
   const content = nowMarkup(view, { grafanaUrl: state.bootstrap?.observability?.grafanaUrl, singleKeys: singleKeysEnabled() });
   const keep = focusedTarget();
-  renderHtml(shell(content, { title: 'Now', subtitle: 'What waits on you, what runs and what finished, across every Team you can read.', actions: refreshButton() }));
-  if (keep && (!document.activeElement || document.activeElement === document.body)) document.querySelector(keep)?.focus({ preventScroll: true });
+  renderHtml(shell(content, { title: 'Now', actions: refreshButton() }));
+  restoreFocus(keep);
 }
 
 async function loadSummary(fresh) {
-  try { view.summary = { data: await api(`/api/ploeg/summary?window=24h${fresh ? '&refresh=1' : ''}`), error: null }; }
-  catch (error) { view.summary = { data: view.summary.data, error: { message: error.message, code: error.code || '' } }; }
+  const request = ++view.summaryRequest;
+  let next;
+  try { next = { data: await api(`/api/ploeg/summary?window=24h${fresh ? '&refresh=1' : ''}`), error: null }; }
+  catch (error) { next = { data: view.summary.data, error: { message: error.message, code: error.code || '' } }; }
+  if (request !== view.summaryRequest) return;
+  view.summary = next;
+  if (onNow() && view.data) renderNow();
 }
 
 function announceArrivals(before, after) {
@@ -71,8 +91,9 @@ async function loadNow(mode = 'open') {
   view.refreshing = mode !== 'live' && Boolean(view.data);
   if (mode !== 'live' && onNow()) renderNow();
   const heldBefore = visibleNow(view.data, view.shown).held;
+  loadSummary(fresh);
   try {
-    const [data] = await Promise.all([api(`/api/ploeg/now${fresh ? '?refresh=1' : ''}`), loadSummary(fresh)]);
+    const data = await api(`/api/ploeg/now${fresh ? '?refresh=1' : ''}`);
     if (request !== view.request) return;
     const first = !view.data;
     view.data = data;
@@ -87,8 +108,19 @@ async function loadNow(mode = 'open') {
     if (state.bootstrap) applyNowCounts(view.data, error);
     if (mode === 'live') throw error;
   } finally {
-    if (request === view.request) { view.loading = false; view.refreshing = false; if (onNow()) renderNow(); }
+    if (request === view.request) {
+      view.loading = false;
+      view.refreshing = false;
+      if (onNow()) renderNow();
+      view.keepFocus = false;
+    }
   }
+}
+
+function manualLoad(element) {
+  if (view.refreshing || (view.loading && !view.data)) return undefined;
+  view.keepFocus = element === document.activeElement || element.contains(document.activeElement);
+  return loadNow('manual');
 }
 
 function rows() { return [...document.querySelectorAll('[data-now-row]')]; }
@@ -110,14 +142,15 @@ function openLink(row) {
 }
 
 function nowKeys(event) {
-  if (state.view !== 'now' || !['j', 'k', 'o'].includes(event.key) || !singleKeyAllowed(event)) return false;
+  const key = typeof event.key === 'string' ? event.key.toLowerCase() : '';
+  if (state.view !== 'now' || !['j', 'k', 'o'].includes(key) || !singleKeyAllowed(event)) return false;
   const list = rows();
   if (!list.length) return false;
   const index = currentRow(list);
-  if (event.key === 'o' && index === -1) return false;
+  if (key === 'o' && index === -1) return false;
   event.preventDefault();
-  if (event.key === 'o') { openLink(list[index]); return true; }
-  const next = event.key === 'j' ? (index === -1 ? 0 : Math.min(list.length - 1, index + 1)) : Math.max(0, index === -1 ? 0 : index - 1);
+  if (key === 'o') { openLink(list[index]); return true; }
+  const next = key === 'j' ? (index === -1 ? 0 : Math.min(list.length - 1, index + 1)) : Math.max(0, index === -1 ? 0 : index - 1);
   list[next].focus();
   return true;
 }
@@ -169,8 +202,8 @@ export default {
   load: () => { arrive(); return loadNow('open'); },
   render: renderNow,
   actions: {
-    'now-retry': () => loadNow('manual'),
-    'now-refresh': () => loadNow('manual'),
+    'now-retry': manualLoad,
+    'now-refresh': manualLoad,
     'now-show-new': showNew,
     'now-caught-up': caughtUp,
   },
