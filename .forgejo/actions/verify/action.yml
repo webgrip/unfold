@@ -35,7 +35,9 @@ runs:
           ${{ steps.caches.outputs.gomod }}
           ${{ steps.caches.outputs.gobuild }}
         key: glide-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-${{ hashFiles('apps/ploeg/go.sum') }}
-        restore-keys: glide-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-
+        restore-keys: |
+          glide-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-
+          glide-go-${{ runner.os }}-
     - name: Restore npm download cache
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
