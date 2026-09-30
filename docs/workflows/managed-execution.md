@@ -3,7 +3,7 @@ type: how-to
 audience: [operator, integrator]
 owner: glide
 last_verified: 2026-09-23
-verified_by: "Checked each named command, setting, environment variable, UI label and qualification test against apps/ploeg (ops/helm/ploeg values and templates, cmd/ploegd/operator.go, pkg/httpapi qualification tests) and apps/vloer (package.json, config/unified.example.json, src/delivery-config.ts, public/app.js, public/delivery.js, scripts/qualify-*.ts); the external Renovate rule was not re-read. On 2026-09-30 the browser page name in Use it was re-read in apps/vloer/public/shell.js and the editor view name in extensions/vscode/package.json"
+verified_by: "Checked each named command, setting, environment variable, UI label and qualification test against apps/ploeg (ops/helm/ploeg values and templates, cmd/ploegd/operator.go, pkg/httpapi qualification tests) and apps/vloer (package.json, config/unified.example.json, src/delivery-config.ts, public/app.js, public/delivery.js, scripts/qualify-*.ts); the external Renovate rule was not re-read. On 2026-09-30 the browser pages and lane names in Use it were re-read against apps/vloer at 68c90cf on feat/vloer-redesign (public/shell.js, public/ploeg.js) and the editor view name in extensions/vscode/package.json"
 ---
 
 # Run the unified workbench
@@ -49,9 +49,9 @@ The registry is `PLOEG_OPERATOR_CONSUMERS`; the separate named environment varia
 
 ## Use it
 
-Open **Work** in the browser, or the **Ploeg** view in the editor. Choose a Team and inspect work awaiting review, work that needs a human, running work, queued work or the paginated full list. Details show shifts, runs, reviewer findings, checkpoints, safe audit records and observed versus unresolved budget. Every snapshot states its limits. An unavailable API clears stale content rather than presenting it as live.
+Open **Now** or **Work** in the browser, or the **Ploeg** view in the editor. In Work, choose a Team, or all of them, and a lane: **Ready for review**, **Needs you**, **Running**, **Queued** or the paginated **All**. A Work Item's page says why it waits and what to do, then shows its shifts and runs, reviewer findings, safe audit records with the checkpoints, and observed versus unresolved budget. Every snapshot states its limits. In the browser a failed refresh keeps the last data read, with its age in the status strip ("Updated … ago") and, on Now, Proposed, Runs, Activity and Insights, a notice that it could not refresh. The editor clears content it can no longer read rather than presenting it as live.
 
-Create a session with a registered repository, a crew, a concrete objective and a budget. Start explicitly. Its header links to the Ploeg work item and shows the authority state. **Continue in background** and **Supervise here** retain the execution, workspace and history. A message becomes durable before it is accepted for the next turn. Permission and question responses continue through the existing session UI.
+Create a session with a registered repository, a crew, a concrete objective and a budget. Start explicitly. Its **Ploeg runs this session** card shows the Team, who supervises and the Work Item's state, and links to the Work Item. **Continue in background** and **Supervise here** retain the execution, workspace and history. A message becomes durable before it is accepted for the next turn. Permission and question responses continue through the existing session UI.
 
 Close the client and reconnect: execution remains server-owned. Pause waits for runtime interruption and acknowledges it to Ploeg. Resume is explicit and advances the generation. Cancel persists intent, stops locally even if Ploeg is unreachable, and retries reconciliation without restarting work.
 

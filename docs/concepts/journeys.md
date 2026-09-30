@@ -3,7 +3,7 @@ type: explanation
 audience: [owner, contributor, operator, agent]
 owner: glide
 last_verified: 2026-09-29
-verified_by: "source read of apps/ploeg (pkg/httpapi, pkg/shiftengine, pkg/store, cmd/ploegd), apps/vloer/src and .forgejo/workflows at 050fa3b; homelab-cluster main at 432fc0d4; read-only kubectl in namespace ploeg on 2026-09-29. On 2026-09-30 the Vloer navigation and cancel route were re-read in apps/vloer/public/shell.js, public/ploeg.js, public/views/work.js, src/http.ts and src/ploeg.ts at 3506e94; no cancel button exists there, so it is marked not implemented"
+verified_by: "source read of apps/ploeg (pkg/httpapi, pkg/shiftengine, pkg/store, cmd/ploegd), apps/vloer/src and .forgejo/workflows at 050fa3b; homelab-cluster main at 432fc0d4; read-only kubectl in namespace ploeg on 2026-09-29. On 2026-09-30 the Vloer navigation and Cancel Work Item were re-read in apps/vloer/public/shell.js, public/ploeg.js, public/views/work.js, src/http.ts and src/ploeg.ts at 68c90cf on feat/vloer-redesign"
 ---
 
 # Journeys
@@ -124,7 +124,7 @@ sequenceDiagram
 * **Admission.** Vloer asks Ploeg to admit an Operator Execution with its operator token ([`execution-authority.ts`](../../apps/vloer/src/execution-authority.ts)). Ploeg records a Work Item marked operator-owned, a Shift, an `operator` Run and a Lease, so its budget and audit cover the session. In production Vloer executes for the `vloer` Team, the `de-vloer` consumer's budget ceiling is US$0.25, and the `vloer`/`operator` key policy allows `deepseek-chat` for 10 minutes.
 * **Execution.** The crew then runs inside Vloer, not in a Ploeg worker. Moving it to `ploeg-worker` is the [proposed front-end migration](../../apps/vloer/docs/ploeg-front-end.md).
 * **No fallback.** A session Ploeg was asked to manage never runs standalone. If Ploeg is unreachable, Vloer interrupts it and tries to block the key ([`engine.ts`](../../apps/vloer/src/engine.ts)). Vloer's standalone broker still exists in the code until ADR-0002 lands.
-* **Watching tracker work.** Vloer opens on **Now**, which lists what waits on you across your Teams. **Work**, **Proposed**, **Runs**, **Activity** and **Insights** read Teams, Work Items, Runs and events through the operator API ([`ploeg.ts`](../../apps/vloer/src/ploeg.ts)). Vloer's server proxies journey D's operator cancel as `POST /api/ploeg/work-items/{id}/cancel` for operators and administrators and returns what Ploeg reports it stopped; the demo cancels nothing and says so ([HTTP contract](../../apps/vloer/docs/contracts/api.md#cancel)). Not implemented yet: a **Cancel Work Item** button on the Work Item's page, proposed in [Vloer ADR 0024](../../apps/vloer/docs/adrs/0024-vloer-opens-on-now-with-one-vocabulary-and-one-token-system.md).
+* **Watching tracker work.** Vloer opens on **Now**, which lists what waits on you across your Teams. **Work**, **Proposed**, **Runs**, **Activity** and **Insights** read Teams, Work Items, Runs and events through the operator API ([`ploeg.ts`](../../apps/vloer/src/ploeg.ts)). On a Work Item's page, operators and administrators have **Cancel Work Item**. After a confirmation it calls journey D's operator cancel through Vloer's `POST /api/ploeg/work-items/{id}/cancel` and shows what Ploeg reports it stopped. The demo cancels nothing and says so ([HTTP contract](../../apps/vloer/docs/contracts/api.md#cancel)).
 
 The [managed execution guide](../workflows/managed-execution.md) sets this up, and the [local demo](../workflows/local-demo.md) runs it without spending anything.
 
@@ -147,8 +147,8 @@ sequenceDiagram
         You->>V: mark done
         V->>P: webhook: closed
         P->>P: withdraw (withdrawn_closed)
-    else operator cancel, directly or through Vloer's proxy
-        You->>VL: POST /api/ploeg/work-items/{id}/cancel
+    else Cancel Work Item in Vloer, or the operator API directly
+        You->>VL: Cancel Work Item
         VL->>P: POST /api/v1/operator/work-items/{id}/cancel
         P->>P: withdraw (withdrawn_by_operator)
         P->>V: comment: stopped, assign again to retry
@@ -163,7 +163,7 @@ sequenceDiagram
 | --- | --- | --- |
 | Unassign the Team on the ticket | Any time, if the removed assignee is the Work Item's Team | `withdrawn_unassigned` |
 | Close the ticket | Only while the Work Item is queued and no Run has started or been authorized to spend. Otherwise the close is ignored and the work finishes | `withdrawn_closed` |
-| Operator cancel: `POST /api/v1/operator/work-items/{id}/cancel`, or Vloer's proxy `POST /api/ploeg/work-items/{id}/cancel`. A button in Vloer is not implemented yet | Any time, within the consumer's Teams. Posts a comment on the ticket | `withdrawn_by_operator` |
+| Operator cancel, from Vloer's **Cancel Work Item** or `POST /api/v1/operator/work-items/{id}/cancel` | Any time, within the consumer's Teams. Posts a comment on the ticket | `withdrawn_by_operator` |
 
 An operator-owned Work Item (journey C) ignores all three. Cancel its execution instead. Assigning the ticket again starts a new attempt.
 
