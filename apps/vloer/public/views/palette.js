@@ -548,7 +548,16 @@ function observe() {
   seenAt(scope.trusted(state.now?.data));
 }
 
-function readRecent() { const user = signedIn(); try { return user ? parseRecent(globalThis.localStorage?.getItem(recentKey), user) : []; } catch { return []; } }
+function readRecent() {
+  const user = signedIn();
+  if (!user) return [];
+  try {
+    const raw = globalThis.localStorage?.getItem(recentKey);
+    const entries = parseRecent(raw, user);
+    if (raw && !entries.length) globalThis.localStorage.removeItem(recentKey);
+    return entries;
+  } catch { return []; }
+}
 function writeRecent(entries) { const user = signedIn(); if (!user) return; try { globalThis.localStorage?.setItem(recentKey, serializeRecent(user, entries)); } catch {} }
 
 function rememberRoute(hash = globalThis.location?.hash) {

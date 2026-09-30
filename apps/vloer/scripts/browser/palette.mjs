@@ -241,10 +241,12 @@ export async function run({ page, app, live, password, assert, screenshot }) {
   await signIn();
   await search('');
   assert.equal(await palette.getByText(secret.title).count(), 0, 'a recent list without an owner is never shown');
+  assert.equal(await page.evaluate(() => localStorage.getItem('vloer.recent')), null, 'and it is dropped from this browser');
   await close();
   await page.evaluate(entry => localStorage.setItem('vloer.recent', JSON.stringify({ user: 'someone-else', entries: [entry] })), secret);
   await search('');
   assert.equal(await palette.getByText(secret.title).count(), 0, 'another account’s recent Work Items stay hidden');
+  assert.equal(await page.evaluate(() => localStorage.getItem('vloer.recent')), null, 'and are dropped from this browser');
   await close();
   await route('work/4242');
   await route('settings/accounts');
