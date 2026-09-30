@@ -331,6 +331,131 @@
   }
 }
 
+.tasks-ploeg > .card-header {
+  padding: var(--space-4) var(--space-6);
+}
+
+.tasks-ploeg .card-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+}
+
+.tasks-ploeg-body {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-6) var(--space-5);
+}
+
+.tasks-work-items {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tasks-work-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1-5) var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.tasks-work-item > a {
+  font-weight: var(--weight-medium);
+}
+
+.tasks-work-item-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+}
+
+.tasks-handoff {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.tasks-handoff-teams {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.tasks-team-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: var(--space-1-5);
+}
+
+.tasks-team-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2-5);
+  padding: var(--space-2-5) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard);
+}
+
+.tasks-team-option:hover {
+  border-color: var(--border-control);
+}
+
+.tasks-team-option:has(input:checked) {
+  border-color: var(--accent-graphic);
+  background: var(--bg-selected);
+}
+
+.tasks-team-option > input {
+  margin-top: 0.125rem;
+}
+
+.tasks-team-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: var(--weight-medium);
+}
+
+.tasks-team-hint {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.tasks-handoff-actions,
+.tasks-ploeg-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.tasks-handoff-actions > .field-hint {
+  flex: 1 1 16rem;
+  margin: 0;
+}
+
+.tasks-ploeg-reason {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
 .tasks-first-run {
   padding: var(--space-8) var(--space-4);
 }
@@ -393,7 +518,9 @@
   }
 
   .tasks-import > .card-header,
-  .tasks-import-fields {
+  .tasks-import-fields,
+  .tasks-ploeg > .card-header,
+  .tasks-ploeg-body {
     padding-inline: var(--space-4);
   }
 
