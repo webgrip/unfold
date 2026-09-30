@@ -612,7 +612,7 @@ func (s *Server) handleOutcome(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := s.Store.ReportOutcome(r.Context(), r.PathValue("token"),
 		store.Report(req.Outcome, req.Summary, req.StuckReason, req.Links, usage, failureReason).
-			WithFindings(req.Findings).WithVerdict(req.Verdict).
+			WithFindings(req.Findings).WithVerdict(req.Verdict).WithProblemAndSolution(req.Problem, req.Solution).
 			WithCreatedWork(req.CreatedWorkItems, s.createdWorkPolicy, s.knownTeam))
 	if err != nil {
 		if errors.Is(err, store.ErrUnknownRun) {
