@@ -146,7 +146,7 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `executor.defaultTarget.baseBranch` | string | `""` |  | values.yaml, values.schema.json |
 | `executor.defaultTarget.name` | string | `""` |  | values.yaml, values.schema.json |
 | `executor.defaultTarget.owner` | string | `""` |  | values.yaml, values.schema.json |
-| `executor.dindImage` | string | `harbor.webgrip.dev/dockerhub/library/docker:29.6.2-dind` |  | values.yaml, values.schema.json |
+| `executor.dindImage` | string | `harbor.webgrip.dev/dockerhub/library/docker:29.6.2-dind@sha256:bfec1f5159c63a81ca6fdedbd81404d2c0e16378ed0feec3bb3fbf3998847659` |  | values.yaml, values.schema.json |
 | `executor.dindResources.limits.cpu` |  | `1` |  | values.yaml |
 | `executor.dindResources.limits.memory` |  | `1536Mi` |  | values.yaml |
 | `executor.dindResources.requests.cpu` |  | `1` |  | values.yaml |
