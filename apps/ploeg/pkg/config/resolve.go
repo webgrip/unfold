@@ -6,6 +6,9 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
+
+	"github.com/webgrip/ploeg/pkg/target"
+	"github.com/webgrip/ploeg/pkg/work"
 )
 
 // ScopeResolver reports the provider-side ids of the containers it hosts,
@@ -14,22 +17,20 @@ type ScopeResolver interface {
 	ProjectsByName(ctx context.Context) (map[string]string, error)
 }
 
-// TargetSpec is the wire format pkg/target already parses. Rendering to it
-// keeps ONE resolver in the codebase: this package decides what the routing
-// table means, pkg/target decides how a scope maps to a repository, and
-// neither grows a second copy of the other's rules.
+// RoutingTable resolves the configured projects to tracker ids and returns
+// them with the target registry, in the shape pkg/target resolves from. This
+// package decides what the configuration means; pkg/target decides how an
+// item maps to a repository, and neither grows a second copy of the other's
+// rules.
 //
-// Produced, never hand-written — which is the point. The operator writes
-// names; this writes the string with the ids in it.
-func (f *File) TargetSpec(ctx context.Context, r ScopeResolver, log *slog.Logger) (string, error) {
-	// Clickup entries carry pinned List ids (Validate enforces it), so only
-	// the vikunja half can need the resolver.
+// The operator writes names; this looks up the ids.
+func (f *File) RoutingTable(ctx context.Context, r ScopeResolver, log *slog.Logger) (target.Table, error) {
+	table := target.Table{Targets: f.registry()}
 	projects := append(append([]Project{}, f.Trackers.Vikunja.Projects...), f.Trackers.Clickup.Projects...)
 	if len(projects) == 0 {
-		return "", nil
+		return table, nil
 	}
 
-	// Only ask the tracker if at least one project needs resolving.
 	var byName map[string]string
 	needsLookup := false
 	for _, p := range projects {
@@ -39,43 +40,53 @@ func (f *File) TargetSpec(ctx context.Context, r ScopeResolver, log *slog.Logger
 	}
 	if needsLookup {
 		if r == nil {
-			return "", fmt.Errorf("routing config names projects but no tracker client is configured to resolve them; set the tracker URL and token, or pin ids")
+			return target.Table{}, fmt.Errorf("routing config names projects but no tracker client is configured to resolve them; set the tracker URL and token, or pin ids")
 		}
 		var err error
 		byName, err = r.ProjectsByName(ctx)
 		if err != nil {
-			return "", fmt.Errorf("resolving project names: %w", err)
+			return target.Table{}, fmt.Errorf("resolving project names: %w", err)
 		}
 	}
 
-	var entries []string
 	for _, p := range projects {
 		id := p.ID
 		if id == "" {
 			var ok bool
 			id, ok = byName[p.Name]
 			if !ok {
-				// Fail the boot, and say what WAS available: a typo here
-				// otherwise routes work somewhere plausible and wrong.
-				return "", fmt.Errorf("no tracker project named %q; available: %s",
+				return target.Table{}, fmt.Errorf("no tracker project named %q; available: %s",
 					p.Name, strings.Join(sortedKeys(byName), ", "))
 			}
-			log.Info("resolved tracker project", "name", p.Name, "id", id, "repo", p.Repo)
+			log.Info("resolved tracker project", "name", p.Name, "id", id, "routes_to", p.destination())
 		}
-		key := id
-		if p.Team != "" {
-			key = id + "/" + p.Team
-		}
-		entry := key + "=" + p.Repo
-		if p.Branch != "" {
-			entry += "@" + p.Branch
-		}
-		if p.Forge != "" {
-			entry += ";forge=" + p.Forge
-		}
-		entries = append(entries, entry)
+		table.Rules = append(table.Rules, p.rule(id))
 	}
-	return strings.Join(entries, ","), nil
+	return table, nil
+}
+
+func (p Project) rule(scope string) target.Rule {
+	r := target.Rule{Scope: scope, Team: p.Team, Default: p.Default, Allow: p.Allow}
+	if p.Repo != "" {
+		r.Target = targetOf(Target{Repo: p.Repo, Branch: p.Branch, Forge: p.Forge})
+	}
+	return r
+}
+
+func (f *File) registry() map[string]work.Target {
+	if len(f.Targets) == 0 {
+		return nil
+	}
+	out := map[string]work.Target{}
+	for key, t := range f.Targets {
+		out[key] = targetOf(t)
+	}
+	return out
+}
+
+func targetOf(t Target) work.Target {
+	owner, repo, _ := strings.Cut(t.Repo, "/")
+	return work.Target{Forge: t.Forge, Owner: owner, Repo: repo, BaseBranch: t.Branch}
 }
 
 func sortedKeys(m map[string]string) []string {
@@ -89,7 +100,7 @@ func sortedKeys(m map[string]string) []string {
 
 // ScopeTeams renders the container-to-team pins: every project that names a
 // `team:` and a pinned id. Name-resolved vikunja projects are deliberately
-// absent — their ids are only known after TargetSpec has run, and the one
+// absent — their ids are only known after RoutingTable has run, and the one
 // deployment shape that needs pinning (a board where the assignee must not
 // decide) is also the shape that pins ids. When a name resolver hands ids
 // back here, this grows with it.

@@ -95,7 +95,7 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_SWEEP_INTERVAL` | ploegd | `15s` |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_TARGET_FORGE` | ploeg-worker | `forgejo` | Forge dialect the worker acts against (chart `executor.forge`). | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_TARGET_FORGE` | ploegd | `forgejo` | Forge instance id a Work Target carries by default (chart `executor.forge`). Binds to the configured forge of that dialect, or to the only configured forge. | [sweep.go](../../cmd/ploegd/sweep.go) |
-| `PLOEG_TARGET_MAP` | ploegd |  | Legacy routing from tracker scope to repository, rendered from the org.yaml roster manifest. Replaced by `trackers.<tracker>.projects` in the `PLOEG_CONFIG` file. | [main.go](../../cmd/ploegd/main.go) |
+| `PLOEG_TARGET_MAP` | ploegd |  | Legacy routing from tracker scope to repository, rendered from the org.yaml roster manifest. Replaced by `trackers.<tracker>.projects` in the `PLOEG_CONFIG` file. | [routing.go](../../cmd/ploegd/routing.go) |
 | `PLOEG_TARGET_SOURCE` | ploeg-worker |  | `env` ignores the claim's target and uses the fallback repository. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_TEAM` | ploeg-worker | required | Team this worker claims work for. | [main.go](../../cmd/ploeg-worker/main.go), [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_TEAM_MAP` | ploegd |  | Legacy assignee roster, replaced by `teams.<name>.assignees` in the `PLOEG_CONFIG` file. | [main.go](../../cmd/ploegd/main.go), [operator.go](../../cmd/ploegd/operator.go) |
@@ -133,7 +133,7 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 
 | Key | Type | Default | Description | Source |
 | --- | --- | --- | --- | --- |
-| `config` | object | `{}` | ploegd's routing and roster as a file (mounted at /etc/ploeg/ploeg.yaml). Projects are NAMED and resolved to tracker ids at boot, so no magic numbers live in cluster config. Empty = the legacy PLOEG_TARGET_MAP/PLOEG_TEAM_MAP/PLOEG_TEAM_PLANS env vars still apply. | values.yaml, values.schema.json |
+| `config` | object | `{}` | ploegd's routing and roster as a file (mounted at /etc/ploeg/ploeg.yaml). Projects are NAMED and resolved to tracker ids at boot, so no magic numbers live in cluster config. `targets:` registers repositories a `repo/<key>` label may select, and a project's `default:`/`allow:` name them (ADR-0038). Empty = the legacy PLOEG_TARGET_MAP/PLOEG_TEAM_MAP/PLOEG_TEAM_PLANS env vars still apply. | values.yaml, values.schema.json |
 | `database.existingSecret` |  |  | CNPG auto-creates <cluster>-app with a `uri` key; ploegd consumes it whole. | values.yaml |
 | `database.existingSecret.key` |  | `uri` |  | values.yaml |
 | `database.existingSecret.name` |  | `ploeg-db-app` |  | values.yaml |

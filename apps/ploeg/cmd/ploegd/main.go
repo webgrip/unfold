@@ -27,7 +27,6 @@ import (
 	"github.com/webgrip/ploeg/pkg/provider/vikunja"
 	"github.com/webgrip/ploeg/pkg/shiftengine"
 	"github.com/webgrip/ploeg/pkg/store"
-	"github.com/webgrip/ploeg/pkg/target"
 )
 
 var version = "0.0.0-dev"
@@ -214,22 +213,10 @@ func run(log *slog.Logger) error {
 	// Routing rules come from the config file when it names projects — which
 	// is where the project IDs get resolved from names, so nothing in cluster
 	// config is a bare number. The env var remains as the fallback.
-	targetSpec := os.Getenv("PLOEG_TARGET_MAP")
-	if spec, err := cfg.TargetSpec(ctx, vik, log); err != nil {
-		return fmt.Errorf("routing config: %w", err)
-	} else if spec != "" {
-		targetSpec = spec
-	}
-	// forgeID, not a second read of the env var. The registry above defaults
-	// PLOEG_TARGET_FORGE to "forgejo"; reading it raw here defaulted it to ""
-	// instead, so every resolved Target carried forge="" while the registry
-	// was keyed "forgejo" and publishRound's lookup missed on every Shift.
-	// One value, one read.
-	targets, err := target.NewMapResolver(targetSpec, forgeID)
+	targets, readiness, err := routing(ctx, log, cfg, vik, forges, forgeID)
 	if err != nil {
-		return fmt.Errorf("routing rules: %w", err)
+		return err
 	}
-	log.Info("target map loaded", "rules", targets.Len())
 
 	// Team plans (run-multi-agent-shifts): config for the shift engine, parsed
 	// and validated at boot so a plan that could open a malformed Round never
@@ -312,6 +299,7 @@ func run(log *slog.Logger) error {
 		Store:          st,
 		Trackers:       trackers,
 		Targets:        targets,
+		Readiness:      readiness,
 		ScopeTeams:     cfg.ScopeTeams(),
 		LeaseTTL:       leaseTTL,
 		Log:            log,

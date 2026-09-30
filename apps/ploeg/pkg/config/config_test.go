@@ -31,7 +31,7 @@ func discard() *slog.Logger { return slog.New(slog.DiscardHandler) }
 
 // The whole point: an operator names the board, and the number never appears
 // in configuration.
-func TestTargetSpec_ResolvesProjectNamesToIDs(t *testing.T) {
+func TestRoutingTable_ResolvesProjectNamesToIDs(t *testing.T) {
 	f, err := Load(write(t, `
 trackers:
   vikunja:
@@ -50,7 +50,7 @@ teams:
 	if err != nil {
 		t.Fatal(err)
 	}
-	spec, err := f.TargetSpec(context.Background(), fakeResolver{projects: map[string]string{
+	spec, err := targetSpec(f, fakeResolver{projects: map[string]string{
 		"Ploeg Test": "11", "Erfbeeld": "14", "Something Else": "9",
 	}}, discard())
 	if err != nil {
@@ -68,7 +68,7 @@ teams:
 // the transitional routing pkg/target exists to express. Validation used to
 // reject it as a duplicate — the config was unbootable and the deployment
 // crash-looped — so this pins that the whole path works end to end.
-func TestTargetSpec_OneProjectRoutesPerTeam(t *testing.T) {
+func TestRoutingTable_OneProjectRoutesPerTeam(t *testing.T) {
 	f, err := Load(write(t, `
 trackers:
   vikunja:
@@ -90,7 +90,7 @@ teams:
 	if err != nil {
 		t.Fatalf("per-team routing on one project was rejected: %v", err)
 	}
-	spec, err := f.TargetSpec(context.Background(), fakeResolver{projects: map[string]string{
+	spec, err := targetSpec(f, fakeResolver{projects: map[string]string{
 		"Ploeg Test": "11",
 	}}, discard())
 	if err != nil {
@@ -105,7 +105,7 @@ teams:
 
 // A typo must not route work somewhere plausible — it must refuse to boot,
 // and say what the names actually are.
-func TestTargetSpec_UnknownProjectNameFailsLoudly(t *testing.T) {
+func TestRoutingTable_UnknownProjectNameFailsLoudly(t *testing.T) {
 	f, _ := Load(write(t, `
 trackers:
   vikunja:
@@ -113,7 +113,7 @@ trackers:
       - name: "Ploeg Tset"
         repo: webgrip/ploeg
 `))
-	_, err := f.TargetSpec(context.Background(), fakeResolver{projects: map[string]string{
+	_, err := targetSpec(f, fakeResolver{projects: map[string]string{
 		"Ploeg Test": "11", "Erfbeeld": "14",
 	}}, discard())
 	if err == nil {
@@ -128,7 +128,7 @@ trackers:
 
 // A pinned id skips resolution — the escape hatch, and it must not require a
 // tracker client at all.
-func TestTargetSpec_PinnedIDNeedsNoResolver(t *testing.T) {
+func TestRoutingTable_PinnedIDNeedsNoResolver(t *testing.T) {
 	f, _ := Load(write(t, `
 trackers:
   vikunja:
@@ -137,7 +137,7 @@ trackers:
         repo: webgrip/ploeg
         branch: development
 `))
-	spec, err := f.TargetSpec(context.Background(), nil, discard())
+	spec, err := targetSpec(f, nil, discard())
 	if err != nil {
 		t.Fatalf("a pinned id required a resolver: %v", err)
 	}
@@ -148,7 +148,7 @@ trackers:
 
 // Naming projects without a tracker client is a configuration error the
 // operator can act on, not a nil-pointer panic at boot.
-func TestTargetSpec_NamesWithoutAResolverIsAClearError(t *testing.T) {
+func TestRoutingTable_NamesWithoutAResolverIsAClearError(t *testing.T) {
 	f, _ := Load(write(t, `
 trackers:
   vikunja:
@@ -156,7 +156,7 @@ trackers:
       - name: "Ploeg Test"
         repo: webgrip/ploeg
 `))
-	_, err := f.TargetSpec(context.Background(), nil, discard())
+	_, err := targetSpec(f, nil, discard())
 	if err == nil || !strings.Contains(err.Error(), "no tracker client") {
 		t.Errorf("error = %v, want an explanation of what to configure", err)
 	}

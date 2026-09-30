@@ -166,8 +166,8 @@ func (s *Store) IngestAssigned(ctx context.Context, item work.WorkItem) (int64, 
 	var state string
 	err = tx.QueryRow(ctx, `
 		INSERT INTO work_items (provider, external_id, revision, team, state, origin, priority, title, description, url,
-			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule, route_hint)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 		ON CONFLICT (provider, external_id) DO UPDATE SET
 			revision = EXCLUDED.revision,
 			team     = CASE WHEN work_items.operator_owned THEN work_items.team ELSE EXCLUDED.team END,
@@ -184,6 +184,7 @@ func (s *Store) IngestAssigned(ctx context.Context, item work.WorkItem) (int64, 
 			target_repo        = CASE WHEN work_items.operator_owned OR work_items.state = 'leased' THEN work_items.target_repo        ELSE EXCLUDED.target_repo        END,
 			target_base_branch = CASE WHEN work_items.operator_owned OR work_items.state = 'leased' THEN work_items.target_base_branch ELSE EXCLUDED.target_base_branch END,
 			route_rule         = CASE WHEN work_items.operator_owned OR work_items.state = 'leased' THEN work_items.route_rule         ELSE EXCLUDED.route_rule         END,
+			route_hint         = CASE WHEN work_items.operator_owned OR work_items.state = 'leased' THEN work_items.route_hint         ELSE EXCLUDED.route_hint         END,
 			state    = CASE WHEN NOT work_items.operator_owned AND work_items.state IN ('ingested', 'stale', 'done', 'needs_human', 'awaiting_review', 'withdrawn') THEN 'queued' ELSE work_items.state END,
 			attempts = CASE WHEN NOT work_items.operator_owned AND work_items.state IN ('stale', 'done', 'needs_human', 'awaiting_review', 'withdrawn') THEN 0 ELSE work_items.attempts END,
 			next_eligible_at  = CASE WHEN work_items.operator_owned THEN work_items.next_eligible_at ELSE NULL END,
@@ -192,7 +193,7 @@ func (s *Store) IngestAssigned(ctx context.Context, item work.WorkItem) (int64, 
 		RETURNING id, state`,
 		item.Provider, item.ExternalID, item.Revision, item.Team,
 		string(work.StateQueued), string(work.OriginAssignment), item.Priority, item.Title, item.Description, item.URL,
-		item.ExternalScope, t.Forge, t.Owner, t.Repo, t.BaseBranch, item.RouteRule).Scan(&id, &state)
+		item.ExternalScope, t.Forge, t.Owner, t.Repo, t.BaseBranch, item.RouteRule, item.RouteHint).Scan(&id, &state)
 	if err != nil {
 		return 0, "", err
 	}
@@ -206,10 +207,29 @@ func (s *Store) IngestAssigned(ctx context.Context, item work.WorkItem) (int64, 
 		detail["target"] = t.Key()
 		detail["route_rule"] = item.RouteRule
 	}
+	if item.RouteHint != "" {
+		detail["route_hint"] = item.RouteHint
+	}
 	if err := audit(ctx, tx, "webhook:"+item.Provider, action, &id, detail); err != nil {
 		return 0, "", err
 	}
 	return id, work.State(state), tx.Commit(ctx)
+}
+
+// RefuseRoute records a tracker item that routing refused (ADR-0038): an
+// audit row and no Work Item, so nothing is queued anywhere.
+func (s *Store) RefuseRoute(ctx context.Context, item work.WorkItem, reason string) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	detail := map[string]any{"external_id": item.ExternalID, "team": item.Team, "title": item.Title,
+		"external_scope": item.ExternalScope, "labels": item.Labels, "reason": reason}
+	if err := audit(ctx, tx, "webhook:"+item.Provider, "work_item.route_refused", nil, detail); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 // Claimed is what a worker gets back from Claim: the item plus the run token
@@ -261,10 +281,10 @@ func (s *Store) ClaimWithin(ctx context.Context, team string, ttl time.Duration,
 			LIMIT 1
 		)
 		RETURNING id, provider, external_id, revision, team, origin, priority, title, description, url,
-			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule,
+			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule, route_hint,
 			COALESCE(source_work_item_id::text, ''), source_branch, source_pr`,
 		team).Scan(&id, &it.Provider, &it.ExternalID, &it.Revision, &it.Team, &it.Origin, &it.Priority, &it.Title, &it.Description, &it.URL,
-		&it.ExternalScope, &t.Forge, &t.Owner, &t.Repo, &t.BaseBranch, &it.RouteRule,
+		&it.ExternalScope, &t.Forge, &t.Owner, &t.Repo, &t.BaseBranch, &it.RouteRule, &it.RouteHint,
 		&it.SourceWorkItemID, &it.SourceBranch, &it.SourcePR)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNoWork
@@ -585,12 +605,12 @@ func (s *Store) WorkItem(ctx context.Context, id int64) (work.WorkItem, error) {
 	var t work.Target
 	err := s.pool.QueryRow(ctx, `
 		SELECT provider, external_id, revision, team, state, origin, priority, title, description, url,
-			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule,
+			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule, route_hint,
 			COALESCE(source_work_item_id::text, ''), source_branch, source_pr
 		FROM work_items WHERE id = $1`, id).
 		Scan(&it.Provider, &it.ExternalID, &it.Revision, &it.Team, &it.State, &it.Origin,
 			&it.Priority, &it.Title, &it.Description, &it.URL,
-			&it.ExternalScope, &t.Forge, &t.Owner, &t.Repo, &t.BaseBranch, &it.RouteRule,
+			&it.ExternalScope, &t.Forge, &t.Owner, &t.Repo, &t.BaseBranch, &it.RouteRule, &it.RouteHint,
 			&it.SourceWorkItemID, &it.SourceBranch, &it.SourcePR)
 	if err != nil {
 		return work.WorkItem{}, err
