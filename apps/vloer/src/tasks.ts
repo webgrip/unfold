@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { Repository } from './types.ts';
+import { descriptionMarkdown, markdownForms } from './rich-text.ts';
 
 export type TaskProvider = 'forgejo' | 'github' | 'gitlab' | 'clickup' | 'vikunja' | 'demo';
 export type TaskTarget = { forge: string; owner: string; repo: string; baseBranch: string };
@@ -7,6 +8,7 @@ export type PloegTaskSource = { workItemId: string; provider: string; externalId
 export type TaskSourceConfig = { id: string; name: string; provider: TaskProvider; baseUrl: string; project: string; repositoryId: string; token?: string; tokenType?: 'bearer'; executionOwner: 'interactive' | 'ploeg'; ploeg?: { target: TaskTarget } };
 export type TaskSnapshot = { key: string; sourceId: string; provider: TaskProvider; id: string; revision: string; title: string; description: string; url: string; status: 'open' | 'closed' | 'unknown'; updatedAt?: string; repositoryId: string; nativeRevision?: string; scope?: string; ploeg?: PloegTaskSource; bindingConfig?: string; bindingRevision?: string; ploegUnavailable?: { code: string; message: string } };
 export type TaskPage = { tasks: TaskSnapshot[]; nextPage?: number };
+export type PresentedTask = TaskSnapshot & { descriptionMarkdown: string };
 
 export class TaskError extends Error {
   readonly status: number;
@@ -151,6 +153,13 @@ function taskUrl(source: TaskSourceConfig, id: string, value: Record<string, unk
   }
   const project = source.project.split('/').map(encodeURIComponent).join('/');
   return `${base}/${project}/${source.provider === 'gitlab' ? '-/issues' : 'issues'}/${id}`;
+}
+
+/** Adds `descriptionMarkdown` for display: a Vikunja HTML description becomes Markdown, any other description is copied unchanged. The snapshot's own fields, and so its revision and import, are untouched. */
+export function presentTask(source: TaskSourceConfig, task: TaskSnapshot): PresentedTask {
+  let markdown = descriptionMarkdown(task.provider, task.description, `${webRoot(source)}/`);
+  if (source.token) for (const form of markdownForms(source.token)) markdown = markdown.replaceAll(form, '[redacted]');
+  return { ...task, descriptionMarkdown: markdown };
 }
 
 function digest(value: unknown): string { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }

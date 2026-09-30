@@ -5,7 +5,7 @@ import type { AppConfig, User, RuntimeKind, Session } from './types.ts';
 import { Auth } from './auth.ts';
 import type { Engine } from './engine.ts';
 import { publicSession, type Store } from './store.ts';
-import { getTask, listTasks, publicTaskSource, TaskError } from './tasks.ts';
+import { getTask, listTasks, presentTask, publicTaskSource, TaskError } from './tasks.ts';
 import { readCandidate, unavailableCandidate } from './candidates.ts';
 import { placements } from './config.ts';
 import type { WorkerRelay } from './runtime/relay.ts';
@@ -16,6 +16,7 @@ import type { Oidc } from './oidc.ts';
 import { readFileSync } from 'node:fs';
 import { PloegClient, PloegError, type PloegDecision, type PloegState } from './ploeg.ts';
 import { DeliveryService } from './delivery.ts';
+import { markdownForms } from './rich-text.ts';
 
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
 
@@ -73,7 +74,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const ploeg = new PloegClient(config);
   const delivery = new DeliveryService(config, store);
   const streams = new Set<ServerResponse>();
-  const knownSecrets = [config.delivery?.verifierTokenEnv ? process.env[config.delivery.verifierTokenEnv] : undefined, config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword, config.ploeg?.tokenEnv ? process.env[config.ploeg.tokenEnv] : undefined, ...(config.taskSources ?? []).map(source => source.token)].filter((value): value is string => Boolean(value));
+  const knownSecrets = [config.delivery?.verifierTokenEnv ? process.env[config.delivery.verifierTokenEnv] : undefined, config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword, config.ploeg?.tokenEnv ? process.env[config.ploeg.tokenEnv] : undefined, ...(config.taskSources ?? []).map(source => source.token)].filter((value): value is string => Boolean(value)).flatMap(markdownForms);
   function sanitize<T>(value: T): T {
     if (typeof value === 'string') {
       let cleaned: string = value;
@@ -224,7 +225,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const source = config.taskSources?.find(item => item.id === taskRoute[1]);
           if (!source) fault(404, 'source_not_found', 'Task connection not found.');
           const resolved = await withUserToken(source!);
-          if (taskRoute[2]) return json(res, 200, sanitize(await engine.previewTask(await getTask(resolved, taskRoute[2]), user)));
+          if (taskRoute[2]) return json(res, 200, sanitize(presentTask(resolved, await engine.previewTask(await getTask(resolved, taskRoute[2]), user))));
           const page = Number(url.searchParams.get('page') ?? 1);
           if (!Number.isSafeInteger(page) || page < 1 || page > 1000) fault(400, 'page', 'Choose a page between 1 and 1000.');
           return json(res, 200, sanitize(await listTasks(resolved, page)));
