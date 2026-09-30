@@ -1,0 +1,47 @@
+{
+  "name": "@webgrip/glide-site",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The static marketing site for Glide.",
+  "repository": {
+    "type": "git",
+    "url": "https://forgejo.webgrip.dev/webgrip/glide.git",
+    "directory": "apps/site"
+  },
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=24.10.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build && npm run validate:csp",
+    "preview": "astro preview",
+    "astro": "astro",
+    "typecheck": "astro check",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --test --experimental-strip-types \"src/**/*.test.ts\"",
+    "validate:csp": "webgrip-validate-csp",
+    "validate:a11y": "node --experimental-strip-types scripts/axe-scan.ts"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "3.7.3",
+    "astro": "7.1.6"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "@axe-core/playwright": "4.10.2",
+    "@webgrip/astro-site-toolkit": "0.5.0",
+    "@webgrip/eslint-config-astro": "0.2.0",
+    "@webgrip/prettier-config": "0.3.0",
+    "@webgrip/tsconfig": "0.2.0",
+    "eslint": "10.8.0",
+    "playwright-core": "1.56.1",
+    "prettier": "3.9.6",
+    "typescript": "5.9.3"
+  },
+  "prettier": "@webgrip/prettier-config"
+}

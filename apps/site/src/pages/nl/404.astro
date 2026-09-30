@@ -1,0 +1,18 @@
+---
+import NotFound from '../../components/NotFound.astro';
+import { dictionary } from '../../i18n/index.ts';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const t = dictionary('nl');
+---
+
+<BaseLayout
+  locale="nl"
+  routeKey="notFound"
+  title={t.meta.notFoundTitle}
+  description={t.meta.notFoundDescription}
+  noindex
+  errorPage
+>
+  <NotFound locale="nl" />
+</BaseLayout>

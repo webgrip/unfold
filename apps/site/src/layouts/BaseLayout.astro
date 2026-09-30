@@ -1,0 +1,45 @@
+---
+import BaseHead from '../components/BaseHead.astro';
+import Footer from '../components/Footer.astro';
+import Header from '../components/Header.astro';
+import { PRE_PAINT_THEME_SCRIPT } from '../config/theme.ts';
+import { LOCALE_TAGS, type Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+import type { RouteKey } from '../i18n/routes.ts';
+import '../styles/global.css';
+
+interface Props {
+  locale: Locale;
+  routeKey: RouteKey;
+  title: string;
+  description: string;
+  noindex?: boolean;
+  errorPage?: boolean;
+}
+
+const { locale, routeKey, title, description, noindex, errorPage } = Astro.props;
+const t = dictionary(locale);
+---
+
+<!doctype html>
+<html lang={LOCALE_TAGS[locale]}>
+  <head>
+    <BaseHead
+      locale={locale}
+      routeKey={routeKey}
+      title={title}
+      description={description}
+      noindex={noindex}
+      errorPage={errorPage}
+    />
+    <script is:inline set:html={PRE_PAINT_THEME_SCRIPT} />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">{t.a11y.skipLink}</a>
+    <Header locale={locale} routeKey={routeKey} />
+    <main id="main">
+      <slot />
+    </main>
+    <Footer locale={locale} />
+  </body>
+</html>
