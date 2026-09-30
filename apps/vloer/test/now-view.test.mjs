@@ -307,7 +307,7 @@ test('a long Needs-you list groups by reason: shared reasons first, largest firs
   assert.deepEqual(buckets[2].rows.map(row => row.id), ['300', '306']);
   const data = { ...nowData(), waiting: rows };
   const html = nowMarkup(view({ data }), options, nowAt);
-  assert.match(html, /<section class="now-group" data-group="needs" data-split/);
+  assert.match(html, /<div class="now-group" data-group="needs" data-split role="group"/);
   assert.match(html, /<h4 class="now-subgroup-title" id="now-reason-fix_round_cap_reached">[\s\S]*?<span>Reviewer still wants changes<\/span><\/span><span class="count">4<\/span><\/h4><p class="now-subgroup-note">The reviewer still asked for changes when the Team’s fix Rounds ran out\. <span class="now-why-fix">Read the findings\. Finish the branch by hand, or sharpen the ticket\.<\/span><\/p><a class="now-subgroup-more" href="#work\?lane=needs_human">1 more in Work/);
   assert.equal((html.match(/aria-labelledby="now-reason-fix_round_cap_reached"><li/g) || []).length, 1);
   const section = html.slice(html.indexOf('id="now-reason-fix_round_cap_reached"'), html.indexOf('id="now-reason-plan_exhausted"'));

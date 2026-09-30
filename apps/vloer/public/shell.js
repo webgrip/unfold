@@ -85,7 +85,7 @@ function navMarkup(where) {
 
 function sidebarMarkup() {
   const version = state.bootstrap.version ? `<p class="app-version">De Vloer ${escape(state.bootstrap.version)}</p>` : '';
-  return `<aside class="app-sidebar"><a class="app-brand" href="#now" aria-label="De Vloer home">${lockup}${mark}</a>${navMarkup('sidebar')}${version}</aside>`;
+  return `<div class="app-sidebar"><a class="app-brand" href="#now" aria-label="De Vloer home">${lockup}${mark}</a>${navMarkup('sidebar')}${version}</div>`;
 }
 
 function ploegStatus() {
@@ -166,19 +166,20 @@ function options(titleOrOptions, subtitle) {
  * Wraps a view's `content` in the workbench: the dark sidebar with grouped navigation and counts, the top bar
  * with breadcrumbs, search, the status strip and the account menu, the page header with the page's only `<h1>`
  * (`#page-title`), and on phones a bottom bar. Sets `document.title`.
- * Called as `shell(content, { title, subtitle, overline, actions, breadcrumbs: [{ label, href }], back, wide })`,
- * where `actions` is markup the view built and escaped and `back: { label, href }` puts a back link in place of the
- * title crumb on phones; or as the older `shell(content, title, subtitle)`.
+ * Called as `shell(content, { title, documentTitle, subtitle, overline, actions, breadcrumbs: [{ label, href }], back, wide })`,
+ * where `actions` is markup the view built and escaped, `documentTitle` names the browser tab when it should say more
+ * than the `<h1>` (a detail page), and `back: { label, href }` puts a back link in place of the title crumb on phones;
+ * or as the older `shell(content, title, subtitle)`.
  * @param {string} content
- * @param {string | { title: string, subtitle?: string, overline?: string, actions?: string, breadcrumbs?: { label: string, href?: string }[], back?: { label: string, href: string }, wide?: boolean }} [titleOrOptions]
+ * @param {string | { title: string, documentTitle?: string, subtitle?: string, overline?: string, actions?: string, breadcrumbs?: { label: string, href?: string }[], back?: { label: string, href: string }, wide?: boolean }} [titleOrOptions]
  * @param {string} [subtitle]
  * @returns {string}
  */
 export function shell(content, titleOrOptions, subtitle) {
   const page = options(titleOrOptions, subtitle);
-  lastTitle = page.title;
+  lastTitle = page.documentTitle || page.title;
   syncSessionCount();
-  document.title = documentTitle(page.title);
+  document.title = documentTitle(lastTitle);
   return `<div class="app-shell" data-area="${escape(area())}">${sidebarMarkup()}<div class="app-body">${topbarMarkup(page)}<main id="main" class="app-main${page.wide ? ' is-wide' : ''}" tabindex="-1">${headerMarkup(page)}${settingsMarkup()}${content}</main></div>${tabbarMarkup()}</div>`;
 }
 
@@ -250,6 +251,25 @@ export function closeTransientChrome() {
 export function handleChromeClick(event) {
   if (!event.target.closest('.app-user')) setUserMenu(false);
   if (event.target.id === 'nav-drawer') event.target.close();
+}
+
+/** Closes the account menu once keyboard focus moves to something outside it, so the open menu never covers the focused control. */
+export function handleChromeFocusOut(event) {
+  const menu = event.target?.closest?.('.app-user');
+  const next = event.relatedTarget;
+  if (!menu || !next || menu.contains(next)) return;
+  setUserMenu(false);
+}
+
+/** Escape hides the tooltip of the hovered or focused rail item until the pointer or focus leaves it (WCAG 1.4.13). */
+export function dismissRailTip(event) {
+  if (event.key !== 'Escape') return;
+  for (const item of document.querySelectorAll('.app-sidebar .app-nav-item:is(:hover, :focus-visible)')) {
+    item.dataset.tipHidden = '';
+    const show = () => { delete item.dataset.tipHidden; item.removeEventListener('blur', show); item.removeEventListener('mouseleave', show); };
+    item.addEventListener('blur', show);
+    item.addEventListener('mouseleave', show);
+  }
 }
 
 function closeMenuOnEscape(event) {

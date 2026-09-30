@@ -1,9 +1,10 @@
-import { activityMarkup, eventGroups, mergeFeed, newerEvents } from '../ploeg-activity.js';
+import { activityMarkup, eventGroups, eventKind, mergeFeed, newerEvents } from '../ploeg-activity.js';
 import { state } from '../core/state.js';
 import { api } from '../core/api.js';
 import { announce, renderHtml } from '../core/dom.js';
 import { buildHash } from '../core/route.js';
 import { live } from '../core/live.js';
+import { plural } from '../core/format.js';
 import { shell } from '../shell.js';
 import { enterPloegView, liveRefresh, loadPloegTeams, onPloegReload, ploegFailure, ploegHelpers, ploegVisible, refreshButton, settle, track } from './ploeg-common.js';
 
@@ -101,6 +102,30 @@ function showNewEvents() {
   announce(`${shown} new ${shown === 1 ? 'event' : 'events'} shown`);
 }
 
+function announceEvents() {
+  const feed = state.ploegFeed;
+  if (!ploegVisible('activity')) return;
+  if (!feed.events) { announce('Could not load Activity'); return; }
+  const shown = feed.kind ? feed.events.filter(entry => eventKind(entry.action).group === feed.kind).length : feed.events.length;
+  announce(`${plural(shown, 'event')}${feed.nextCursor ? ' loaded, more are older' : ''}`);
+}
+
+async function filterTeam(element) {
+  state.ploegFeed.team = element.value;
+  keepFiltersInHash();
+  const loading = loadFeed('reset');
+  const request = state.ploegRequest;
+  await loading.catch(() => {});
+  if (request === state.ploegRequest) announceEvents();
+}
+
+function filterKind(element) {
+  state.ploegFeed.kind = element.value;
+  keepFiltersInHash();
+  renderActivity();
+  announceEvents();
+}
+
 function keepFiltersInHash() {
   history.replaceState(null, '', `#${buildHash('activity', { team: state.ploegFeed.team, kind: state.ploegFeed.kind })}`);
 }
@@ -124,7 +149,7 @@ export default {
   render: renderActivity,
   actions: { 'ploeg-feed-older': loadOlder, 'activity-show-new': showNewEvents },
   changes: {
-    '#ploeg-feed-team': element => { state.ploegFeed.team = element.value; keepFiltersInHash(); void loadFeed('reset'); },
-    '#ploeg-feed-kind': element => { state.ploegFeed.kind = element.value; keepFiltersInHash(); renderActivity(); },
+    '#ploeg-feed-team': filterTeam,
+    '#ploeg-feed-kind': filterKind,
   },
 };

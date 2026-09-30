@@ -589,7 +589,7 @@ function needsYouBox(detail, model, reason, plan) {
   if (evidence.length) why.push(`<ul class="work-evidence-list" aria-label="Evidence">${evidence.map(run => evidenceLine(run, reason)).join('')}</ul>`);
   if (warning) why.push(`<div class="work-warning" data-tone="${warning.tone}">${icon(warning.glyph)}<p><strong>${escape(warning.chip)}.</strong> ${escape(warning.sentence)}</p></div>`);
   const body = `<div class="work-decision-part">${why.join('')}</div>${whatYouCanDo(`${steps(plan.entries)}<p class="meta">${escape(requeueNote)}</p>`)}`;
-  return ui.card({ id: 'work-decision', title: 'Why this needs you', icon: reason.glyph, tone: reason.tone, level: 3, body });
+  return ui.card({ id: 'work-decision', region: true, title: 'Why this needs you', icon: reason.glyph, tone: reason.tone, level: 3, body });
 }
 
 function check(tone, glyph, title, detailText) {
@@ -646,7 +646,7 @@ function reviewBox(detail, model, plan) {
   const truncated = review.truncated ? '<p class="meta">Ploeg capped this history. Earlier records may be missing.</p>' : '';
   const actions = plan.actions.length ? `<div class="work-decision-actions">${plan.actions.join('')}</div>` : '';
   const body = `<div class="work-decision-part"><p class="work-decision-sentence">${escape(pr ? 'The agents are done. Read the pull request and decide on the forge; Vloer does not merge.' : 'The agents are done, but Ploeg reported no pull request link.')}</p><div class="work-receipt">${receipt}</div>${truncated}</div><div class="work-decision-part"><h4 class="overline">Before you merge</h4><ul class="work-checklist">${ordered.map(entry => entry.html).join('')}</ul>${actions}</div><div class="work-decision-part"><h4 class="overline">On the forge</h4>${forge}</div>`;
-  return ui.card({ id: 'work-decision', title: 'Ready for your review', icon: 'pull-request', tone: 'review', level: 3, body });
+  return ui.card({ id: 'work-decision', region: true, title: 'Ready for your review', icon: 'pull-request', tone: 'review', level: 3, body });
 }
 
 function statusBox(detail, model) {
@@ -657,19 +657,19 @@ function statusBox(detail, model) {
     const lines = running.length ? running.map(run => `<li class="work-evidence" data-tone="live"><span class="work-evidence-icon" aria-hidden="true"><span class="live-dot"></span></span><div class="work-evidence-main"><p class="work-evidence-title"><strong>${escape(run.role || 'Agent')}</strong>${run.round ? ` · Round ${escape(run.round)}` : ''} · ${escape(run.state === 'running' ? `running${run.startedAt ? ` for ${duration(runSeconds(run, model.now)) || 'a moment'}` : ''}` : 'waiting for a worker')}</p>${run.expiresAt ? `<p class="meta">Must check in by ${ui.timeAt(run.expiresAt)}</p>` : ''}</div>${runJump(run)}</li>`).join('') : '';
     const lease = item.lease ? `<p class="meta">The worker last checked in ${ui.timeAgo(item.lease.renewedAt)}; its lease runs until ${ui.timeAt(item.lease.expiresAt)}.</p>` : '';
     const body = `<div class="work-decision-part"><p class="work-decision-sentence">${escape(shift ? `Round ${shift.round} of Shift ${shift.id} is running.` : 'An agent is working on it.')}</p>${lines ? `<ul class="work-evidence-list">${lines}</ul>` : ''}${lease}</div>${whatYouCanDo(`<p>${escape('Nothing is needed now. This page refreshes itself while live updates are on.')}${model.canCancel ? ` ${escape('Cancel the Work Item to stop its Runs.')}` : ''}</p>`)}`;
-    return ui.card({ id: 'work-decision', title: 'Running now', icon: 'activity', tone: 'live', level: 3, body });
+    return ui.card({ id: 'work-decision', region: true, title: 'Running now', icon: 'activity', tone: 'live', level: 3, body });
   }
   if (item.state === 'queued' || item.state === 'ingested') {
     const later = item.nextEligibleAt && Date.parse(item.nextEligibleAt) > model.now ? `<p>${escape('Ploeg retries it after')} ${ui.timeAt(item.nextEligibleAt)} ${escape('(infrastructure backoff).')}</p>` : '';
     const infra = amount(item.infraFailures) && item.infraFailures > 0 ? `<p>${escape(`${plural(item.infraFailures, 'infrastructure failure')} so far. These do not count against the agent’s attempts.`)}</p>` : '';
     const body = `<div class="work-decision-part"><p class="work-decision-sentence">${escape(item.state === 'ingested' ? 'Ploeg recorded the task and has not queued it yet.' : 'It starts when a worker of the Team is free. The tracker sets its priority.')}</p>${later}${infra}</div>${whatYouCanDo(`<p>${escape('Nothing is needed now. To change its priority, change it in the tracker; Vloer never re-ranks work.')}</p>`)}`;
-    return ui.card({ id: 'work-decision', title: 'Waiting to start', icon: 'circle-dashed', level: 3, body });
+    return ui.card({ id: 'work-decision', region: true, title: 'Waiting to start', icon: 'circle-dashed', level: 3, body });
   }
   if (item.state === 'done') {
     const rejected = detail.events.find(entry => entry.action === 'work_item.rejected');
     const done = detail.events.find(entry => entry.action === 'work_item.done');
     const sentence = rejected ? 'A person rejected this proposal, so it never ran.' : done?.detail?.reason === 'pull request merged' ? 'The pull request was merged.' : shift?.closeReason ? `${closeReasonLabel(shift.closeReason)}.` : 'Ploeg finished this Work Item.';
-    return ui.card({ id: 'work-decision', title: 'Done', icon: 'check-circle', tone: 'success', level: 3, body: `<div class="work-decision-part"><p class="work-decision-sentence">${escape(sentence)}</p>${rejected?.detail?.reason ? quote(rejected.detail.reason, rejected.at) : ''}</div>` });
+    return ui.card({ id: 'work-decision', region: true, title: 'Done', icon: 'check-circle', tone: 'success', level: 3, body: `<div class="work-decision-part"><p class="work-decision-sentence">${escape(sentence)}</p>${rejected?.detail?.reason ? quote(rejected.detail.reason, rejected.at) : ''}</div>` });
   }
   if (item.state === 'withdrawn') {
     const event = detail.events.find(entry => entry.action === 'work_item.withdrawn');
@@ -677,11 +677,11 @@ function statusBox(detail, model) {
     const tracker = trackerTarget(item, model);
     const link = tracker.href ? `<div class="work-decision-actions">${linkButton({ href: tracker.href, label: tracker.label, glyph: 'external', linkOut: 'tracker' })}</div>` : '';
     const body = `<div class="work-decision-part"><p class="work-decision-sentence">${escape(sentence)}</p></div>${whatYouCanDo(`<p>${escape(`To start again, assign the task to the Team in ${trackerName(item.provider) || 'its tracker'}.`)}</p>${link}`)}`;
-    return ui.card({ id: 'work-decision', title: 'Withdrawn', icon: 'circle-slash', level: 3, body });
+    return ui.card({ id: 'work-decision', region: true, title: 'Withdrawn', icon: 'circle-slash', level: 3, body });
   }
   if (item.state === 'proposed') {
     const body = `<div class="work-decision-part"><p class="work-decision-sentence">${escape('An agent proposed this work. Nothing runs until a person approves it.')}</p></div>${whatYouCanDo(`<div class="work-decision-actions">${ui.button({ label: 'Approve or reject it on Proposed', icon: 'proposed', variant: 'primary', href: '#proposed' })}</div>`)}`;
-    return ui.card({ id: 'work-decision', title: 'Waiting for your approval', icon: 'proposed', level: 3, body });
+    return ui.card({ id: 'work-decision', region: true, title: 'Waiting for your approval', icon: 'proposed', level: 3, body });
   }
   return '';
 }
@@ -695,7 +695,7 @@ function briefMarkup(detail, model) {
   const toggle = long ? `<button type="button" class="button ghost sm work-brief-toggle" data-action="work-brief" aria-expanded="${open ? 'true' : 'false'}" aria-controls="work-brief-text">${icon(open ? 'chevron-up' : 'chevron-down')}<span class="button-label">${open ? 'Show less' : 'Show the full brief'}</span></button>` : '';
   const task = safeUrl(item.url);
   const source = task ? `<a class="button ghost sm" href="${escape(task)}" target="_blank" rel="noopener noreferrer"><span class="button-label">Source</span>${icon('external', 'button-external')}${newTab}</a>` : '';
-  return ui.card({ id: 'work-brief', title: 'Brief', level: 3, actions: source, body: `<div class="prose work-brief-text" id="work-brief-text"${long && !open ? ' data-clamped' : ''}>${markdown(text)}</div>${toggle}` });
+  return ui.card({ id: 'work-brief', title: 'Brief', level: 3, actions: source, body: `<div class="prose work-brief-text" id="work-brief-text"${long && !open ? ' data-clamped' : ''}>${markdown(text, { baseLevel: 4 })}</div>${toggle}` });
 }
 
 function ladderButton(runs, demo, now) {
@@ -743,7 +743,7 @@ function runBody(run, { demo, now, live }) {
     const body = `${reasonText}${failure ? `<p>${escape(failureNote(run.failureReason, { live }))}</p>` : ''}`;
     parts.push(ui.callout({ tone, title, body }));
   }
-  if (run.findings?.trim()) parts.push(`<div class="work-findings"><h4 class="overline">Findings</h4><div class="prose">${markdown(run.findings)}</div></div>`);
+  if (run.findings?.trim()) parts.push(`<div class="work-findings"><h4 class="overline">Findings</h4><div class="prose">${markdown(run.findings, { baseLevel: 5 })}</div></div>`);
   const links = runLinks(run);
   if (links) parts.push(links);
   const time = runSeconds(run, now);
@@ -810,7 +810,7 @@ function storyMarkup(detail, model) {
   const runsNote = `${plural(runs.length, 'Run')}${failures ? `, ${failures === runs.length && failures > 1 ? 'all' : failures} failed or stuck` : ''}`;
   if (!shifts.length) {
     const subtitle = `${runsNote}. These Runs ran before Shifts existed, so there is no Round ladder or Shift budget.`;
-    return `<section class="card flush" id="work-rounds" aria-labelledby="work-rounds-title"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="work-rounds-title">Runs</h3><p class="card-subtitle">${escape(subtitle)}</p></div></header><div class="card-body">${runsMarkup(detail, model)}</div></section>`;
+    return `<section class="card flush" id="work-rounds"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="work-rounds-title">Runs</h3><p class="card-subtitle">${escape(subtitle)}</p></div></header><div class="card-body">${runsMarkup(detail, model)}</div></section>`;
   }
   const [current, ...earlier] = shifts;
   const currentRuns = runs.filter(run => run.shiftId === current.id);
@@ -820,7 +820,7 @@ function storyMarkup(detail, model) {
   const overview = `<div class="work-story-overview">${ladder}<div class="work-shift-budget">${shiftMeter(current, demo)}</div></div>`;
   const list = `<div class="work-story-runs"><p class="work-story-heading"><span class="overline">Runs</span><span class="meta">${escape(runsNote)}</span></p>${runsMarkup(detail, model)}</div>`;
   const tail = older || truncated ? `<div class="work-story-tail">${older}${truncated}</div>` : '';
-  return `<section class="card flush" id="work-rounds" aria-labelledby="work-rounds-title"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="work-rounds-title">Rounds</h3><p class="card-subtitle">${shiftLine(current)}</p></div></header><div class="card-body">${overview}${list}${tail}</div></section>`;
+  return `<section class="card flush" id="work-rounds"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="work-rounds-title">Rounds</h3><p class="card-subtitle">${shiftLine(current)}</p></div></header><div class="card-body">${overview}${list}${tail}</div></section>`;
 }
 
 function checkpointFor(entry, checkpoints) {
@@ -854,7 +854,7 @@ function eventsMarkup(detail, model) {
   const rest = events.length > visibleEvents ? ui.disclosure({ summary: `Show ${events.length - visibleEvents} earlier events`, plain: true, id: `work-events-more-${detail.item.id}`, body: `<ol class="timeline">${events.slice(visibleEvents).map(entry => eventItem(entry, detail, model.userId)).join('')}</ol>` }) : '';
   const raw = ui.disclosure({ summary: 'Show the raw events (JSON)', plain: true, id: `work-events-raw-${detail.item.id}`, body: `<pre class="work-raw mono">${escape(JSON.stringify(events, null, 2))}</pre>` });
   const truncated = detail.truncated?.events ? `<p class="meta">${escape('Ploeg capped the audit history. Earlier events may be missing.')}</p>` : '';
-  return `<section class="card" id="work-activity" aria-labelledby="work-activity-title"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="work-activity-title">Activity${ui.count(events.length)}</h3><p class="card-subtitle">${escape('Ploeg’s audit log for this Work Item, newest first')}</p></div></header><div class="card-body work-activity-body"><ol class="timeline">${first}</ol>${rest}${raw}${truncated}</div></section>`;
+  return `<section class="card" id="work-activity"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="work-activity-title">Activity${ui.count(events.length)}</h3><p class="card-subtitle">${escape('Ploeg’s audit log for this Work Item, newest first')}</p></div></header><div class="card-body work-activity-body"><ol class="timeline">${first}</ol>${rest}${raw}${truncated}</div></section>`;
 }
 
 function technicalMarkup(detail) {

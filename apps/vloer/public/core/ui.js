@@ -191,7 +191,7 @@ export function count(n, { tone, label } = {}) {
 /**
  * A bordered surface with an optional header. `title` and `subtitle` are text; `actions` and `body` are HTML.
  * @param {object} options
- * @param {string} [options.id] Element id; the title gets `<id>-title` and labels the card.
+ * @param {string} [options.id] Element id; the title gets `<id>-title`.
  * @param {string} [options.title]
  * @param {string} [options.subtitle]
  * @param {string|string[]} [options.actions] HTML.
@@ -200,14 +200,17 @@ export function count(n, { tone, label } = {}) {
  * @param {boolean} [options.flush] Removes the body padding, for lists and tables.
  * @param {string} [options.icon] Glyph before the title.
  * @param {2|3|4} [options.level] Heading level of the title; defaults to 2.
+ * @param {boolean} [options.region] Names the card by its title so it becomes a region landmark; keep it for the one
+ *   or two cards a person jumps to, so landmark navigation stays short.
  * @returns {string}
  */
-export function card({ id, title, subtitle, actions, body, tone, flush = false, icon: glyph, level = 2 } = {}) {
+export function card({ id, title, subtitle, actions, body, tone, flush = false, icon: glyph, level = 2, region = false } = {}) {
   const heading = [2, 3, 4].includes(level) ? level : 2;
   const titleId = present(id) && present(title) ? `${id}-title` : '';
+  const labelled = region && titleId;
   const header = present(title) || present(html(actions)) ? `<header class="card-header"><div class="card-heading">${present(title) ? `<h${heading} class="card-title"${idAttr(titleId)}>${glyph ? icon(glyph) : ''}${escape(title)}</h${heading}>` : ''}${present(subtitle) ? `<p class="card-subtitle">${escape(subtitle)}</p>` : ''}</div>${present(html(actions)) ? `<div class="card-actions">${html(actions)}</div>` : ''}</header>` : '';
   const tag = present(title) ? 'section' : 'div';
-  return `<${tag} class="card${flush ? ' flush' : ''}"${idAttr(id)}${titleId ? ` aria-labelledby="${escape(titleId)}"` : ''}${toneAttr(tone)}>${header}<div class="card-body">${html(body)}</div></${tag}>`;
+  return `<${tag} class="card${flush ? ' flush' : ''}"${idAttr(id)}${labelled ? ` aria-labelledby="${escape(titleId)}"` : ''}${toneAttr(tone)}>${header}<div class="card-body">${html(body)}</div></${tag}>`;
 }
 
 /**

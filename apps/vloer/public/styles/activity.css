@@ -44,6 +44,10 @@
   background: var(--bg-surface-subtle);
 }
 
+.activity-day :is(a, button, summary) {
+  scroll-margin-top: calc(2.5rem + var(--space-1));
+}
+
 .activity-day:first-of-type .activity-day-header {
   border-start-start-radius: calc(var(--radius-md) - 1px);
   border-start-end-radius: calc(var(--radius-md) - 1px);
@@ -116,7 +120,7 @@
 }
 
 .activity-event-item::before {
-  content: "·";
+  content: "·" / "";
   display: inline-block;
   margin-inline-end: var(--space-2);
   color: var(--text-disabled);
@@ -155,7 +159,7 @@
 }
 
 .activity-event-team::before {
-  content: "·";
+  content: "·" / "";
   margin-inline-end: var(--space-2);
   color: var(--text-disabled);
 }
@@ -260,7 +264,7 @@
   }
 
   .activity-event > .activity-event-meta::before {
-    content: "·";
+    content: "·" / "";
     color: var(--text-disabled);
   }
 }

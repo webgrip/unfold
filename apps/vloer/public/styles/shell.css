@@ -399,7 +399,7 @@
 
 .app-breadcrumbs li + li::before {
   color: var(--shell-border);
-  content: "/";
+  content: "/" / "";
 }
 
 .app-breadcrumbs li:not(:last-child) {
@@ -1221,6 +1221,10 @@
     opacity: 1;
   }
 
+  .app-sidebar .app-nav-item[data-tip-hidden]:is(:hover, :focus-visible)::after {
+    opacity: 0;
+  }
+
   .app-version {
     display: none;
   }
@@ -1413,8 +1417,35 @@
     --bottombar-height: calc(var(--tabbar-height) + env(safe-area-inset-bottom));
   }
 
+  :root:has(.app-tabbar) {
+    scroll-padding-bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom) + var(--space-3));
+  }
+
+  :root:has(.work-sticky-actions:not([data-covered]), .session-review-bar) {
+    scroll-padding-bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom) + 4.5rem);
+  }
+
   .shortcut-row {
     grid-template-columns: 6.5rem minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 719.98px) and (max-height: 30rem) {
+  .app-tabbar {
+    position: static;
+  }
+
+  .app-main {
+    padding-bottom: var(--space-6);
+  }
+
+  :root:has(.app-tabbar),
+  :root:has(.work-sticky-actions:not([data-covered]), .session-review-bar) {
+    scroll-padding-bottom: var(--space-3);
+  }
+
+  body:has(.app-tabbar) {
+    --bottombar-height: 0px;
   }
 }
 

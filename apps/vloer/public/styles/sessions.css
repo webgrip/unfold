@@ -150,7 +150,7 @@
 }
 
 .sessions-row-progress + .sessions-row-facts::before {
-  content: "·";
+  content: "·" / "";
   margin-inline-end: var(--space-2);
   color: var(--text-subtle);
 }
@@ -160,7 +160,7 @@
 }
 
 .sessions-row-fact:not(:last-child)::after {
-  content: "·";
+  content: "·" / "";
   margin-inline: var(--space-1-5);
   color: var(--text-subtle);
 }

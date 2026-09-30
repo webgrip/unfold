@@ -352,7 +352,7 @@ function subgroupsMarkup(buckets, group, context) {
     const note = reason ? `<p class="now-subgroup-note">${shared ? `${escape(sentenceOf(rows[0]))} ` : ''}<span class="now-why-fix">${escape(reason.fix)}</span></p>` : '';
     const more = hidden > 0 ? `<a class="now-subgroup-more" href="${escape(group.more)}">${escape(`${format.count(hidden)} more in ${group.place}`)}${icon('chevron')}</a>` : '';
     const header = `<header class="now-subgroup-header" data-tone="${reason ? reason.tone : group.tone}"><h4 class="now-subgroup-title" id="${id}"><span class="now-subgroup-glyph" aria-hidden="true">${icon(reason ? reasonGlyph(reason) : 'more')}</span>${label}${count(rows.length)}</h4>${note}${more}</header>`;
-    return `<section class="now-subgroup" aria-labelledby="${id}">${header}<ul class="list now-list" aria-labelledby="${id}">${shown.map(entry => waitingRow(entry, context, reason ? (shared ? 'shared' : 'grouped') : false)).join('')}</ul></section>`;
+    return `<div class="now-subgroup" role="group" aria-labelledby="${id}">${header}<ul class="list now-list" aria-labelledby="${id}">${shown.map(entry => waitingRow(entry, context, reason ? (shared ? 'shared' : 'grouped') : false)).join('')}</ul></div>`;
   }).join('');
 }
 
@@ -366,7 +366,7 @@ function groupMarkup(group, rows, context) {
     const shown = rows.slice(0, groupLimit);
     body = `<ul class="list now-list" aria-labelledby="${id}">${shown.map(entry => waitingRow(entry, context)).join('')}${stale}${moreRow(rows.length - shown.length, group)}</ul>`;
   } else body = `<p class="now-group-empty">${escape(group.empty)}</p>`;
-  return `<section class="now-group" data-group="${group.id}"${buckets ? ' data-split' : ''} aria-labelledby="${id}">${groupHeader(group, rows.length, id)}${body}</section>`;
+  return `<div class="now-group" data-group="${group.id}"${buckets ? ' data-split' : ''} role="group" aria-labelledby="${id}">${groupHeader(group, rows.length, id)}${body}</div>`;
 }
 
 function waitingCard(view, visible, held, context) {
@@ -445,7 +445,7 @@ function digestItem(value, singular, pluralForm, tone, more = false) {
 }
 
 function digestFrame(kind, glyph, title, body, action = '') {
-  return `<section class="now-digest" data-kind="${kind}" aria-labelledby="now-digest-title"><span class="now-digest-icon" aria-hidden="true">${icon(glyph)}</span><div class="now-digest-text"><h2 class="now-digest-title" id="now-digest-title">${title}</h2> ${body}</div>${action ? `<div class="now-digest-actions">${action}</div>` : ''}</section>`;
+  return `<section class="now-digest" data-kind="${kind}"><span class="now-digest-icon" aria-hidden="true">${icon(glyph)}</span><div class="now-digest-text"><h2 class="now-digest-title" id="now-digest-title">${title}</h2> ${body}</div>${action ? `<div class="now-digest-actions">${action}</div>` : ''}</section>`;
 }
 
 function digestMarkup(view, since, now) {

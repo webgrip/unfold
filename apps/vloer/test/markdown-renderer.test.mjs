@@ -74,8 +74,10 @@ test('lists nest by indentation, keep their numbering and show task checkboxes',
 });
 
 test('headings, quotes, rules and code blocks', () => {
-  assert.equal(markdown('# One\n## Two\n###### Six'), '<h3>One</h3><h4>Two</h4><h6>Six</h6>');
-  assert.equal(markdown('#### Deep heading'), '<h6>Deep heading</h6>');
+  assert.equal(markdown('# One\n## Two\n###### Six'), '<h3>One</h3><h4>Two</h4><h5>Six</h5>', 'a heading never skips a level');
+  assert.equal(markdown('#### Deep heading'), '<h3>Deep heading</h3>', 'the first heading takes the base level');
+  assert.equal(markdown('### Problem\n\ntext\n\n### Done when', { baseLevel: 4 }), '<h4>Problem</h4><p>text</p><h4>Done when</h4>');
+  assert.equal(markdown('## A\n### B\n# C\n#### D', { baseLevel: 5 }), '<h5>A</h5><h6>B</h6><h5>C</h5><h6>D</h6>');
   assert.equal(markdown('#hashtag'), '<p>#hashtag</p>');
   assert.equal(markdown('> quoted\n> two\n\nafter'), '<blockquote><p>quoted<br>\ntwo</p></blockquote><p>after</p>');
   assert.equal(markdown('above\n\n---\n\nbelow'), '<p>above</p><hr><p>below</p>');

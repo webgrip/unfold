@@ -1,9 +1,10 @@
 import { freshRuns, mergeRuns, runFilter, runsMarkup } from '../ploeg-activity.js';
 import { state } from '../core/state.js';
 import { api } from '../core/api.js';
-import { renderHtml } from '../core/dom.js';
+import { announce, renderHtml } from '../core/dom.js';
 import { buildHash } from '../core/route.js';
 import { runOutcomes, runStates } from '../core/states.js';
+import { plural } from '../core/format.js';
 import { live } from '../core/live.js';
 import { shell } from '../shell.js';
 import { editing, enterPloegView, liveRefresh, loadPloegTeams, onPloegReload, ploegFailure, ploegHelpers, ploegVisible, refreshButton, settle, track } from './ploeg-common.js';
@@ -82,10 +83,15 @@ async function poll() {
   if (ploegVisible('runs') && (signature(view) !== before || (running && !editing()))) renderRuns();
 }
 
-function filterRuns(field, element) {
+async function filterRuns(field, element) {
   state.ploegRuns.filter = runFilter({ ...state.ploegRuns.filter, [field]: element.value });
   history.replaceState(null, '', `#${buildHash('runs', state.ploegRuns.filter)}`);
-  void loadRuns('reset');
+  const loading = loadRuns('reset');
+  const request = state.ploegRequest;
+  await loading.catch(() => {});
+  const view = state.ploegRuns;
+  if (request !== state.ploegRequest || !ploegVisible('runs')) return;
+  announce(view.runs ? `${plural(view.runs.length, 'Run')}${view.nextBefore ? ' loaded, more are older' : ''}` : 'Could not load Runs');
 }
 
 async function enterRuns({ query: hash = {} } = {}) {

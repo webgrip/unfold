@@ -89,7 +89,7 @@ test('converted Markdown uses only what the browser renderer understands, so no 
   const rendered = render(converted);
   assertInertMarkup(rendered, 'fidelity');
   assert.match(rendered, /<p>Use order_id &amp; customer_id; 3 &lt; 4 \* 2 in C:\\temp\. See <a href="https:\/\/x\.example\/a_b" target="_blank" rel="noopener noreferrer">spec \(v2\)<\/a> and this\.<\/p>/);
-  assert.match(rendered, /<h6>Deep heading<\/h6>/);
+  assert.match(rendered, /<h3>Deep heading<\/h3>/);
   assert.match(rendered, /<p><code>ok<\/code> and ops \(ops@example\.invalid\)<\/p>/);
   assert.match(rendered, /<ul><li>Rate \| Amount<\/li><li>21% \| 2,10<\/li><\/ul>/);
   assert.match(rendered, /<pre class="md-code" data-lang="typescript">const a = 1;<\/pre>/);

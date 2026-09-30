@@ -5,6 +5,7 @@ import { $, renderHtml, notify, announce, safeUrl } from '../core/dom.js';
 import { buildHash } from '../core/route.js';
 import { live } from '../core/live.js';
 import { prefs } from '../core/prefs.js';
+import { plural } from '../core/format.js';
 import { singleKeyAllowed, isTyping } from '../core/keys.js';
 import { shell } from '../shell.js';
 import { enterPloegView } from './ploeg-common.js';
@@ -53,11 +54,16 @@ function model() {
   };
 }
 
+function tabTitle(item) {
+  const ref = item.provider === 'ploeg' || !String(item.externalId ?? '').trim() ? `#${item.id}` : workItemRef(item);
+  return `${ref} ${item.title || `Work Item ${item.id}`} · Work`;
+}
+
 function shellOptions(current) {
   const title = 'Work';
   if (!current.detailId) return { title };
   const item = current.detail?.item;
-  return { title, breadcrumbs: [{ label: 'Ploeg' }, { label: 'Work', href: current.listHref }, { label: item ? workItemRef(item) : `#${current.detailId}` }] };
+  return { title, documentTitle: item ? tabTitle(item) : undefined, breadcrumbs: [{ label: 'Ploeg' }, { label: 'Work', href: current.listHref }, { label: item ? workItemRef(item) : `#${current.detailId}` }] };
 }
 
 function focusTarget() {
@@ -318,7 +324,9 @@ function selectLane(button) {
   state.ploegLane = button.dataset.id;
   keepFiltersInHash();
   renderWork();
-  announce(`${ploegLanes.find(lane => lane.id === button.dataset.id).label}`);
+  const page = state.ploeg?.available ? state.ploeg.lanes?.[button.dataset.id] : null;
+  const total = page ? `, ${plural(page.items.length, 'Work Item')}${page.partial || state.ploeg.errors?.length ? ' loaded' : ''}` : '';
+  announce(`${ploegLanes.find(lane => lane.id === button.dataset.id).label}${total}`);
   void loadReviewFacts();
 }
 

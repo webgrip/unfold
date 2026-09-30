@@ -447,10 +447,6 @@
   background: transparent;
 }
 
-.now [data-now-row] {
-  scroll-margin-block: calc(var(--topbar-height) + var(--space-4)) var(--space-16);
-}
-
 .now-lead-blank {
   display: block;
   width: var(--icon-md);

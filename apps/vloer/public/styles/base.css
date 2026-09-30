@@ -218,7 +218,7 @@ textarea {
   padding: 0 var(--space-2-5);
   background-color: var(--bg-surface);
   color: var(--text);
-  border: 1px solid var(--border-control);
+  border: 1px solid var(--border-control-strong);
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
@@ -252,7 +252,7 @@ select[size]:not([size="1"]) {
 }
 
 :is(input, select, textarea):hover:not(:disabled, [type="checkbox"], [type="radio"]) {
-  border-color: var(--border-control-strong);
+  border-color: color-mix(in oklch, var(--border-control-strong), var(--text) 35%);
 }
 
 :is(input, select, textarea):focus-visible {

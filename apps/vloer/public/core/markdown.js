@@ -51,14 +51,23 @@ function taskItem(text) {
   return { open: '<li class="md-task">', body: `<span class="md-check${done ? ' done' : ''}" aria-hidden="true"></span><span class="sr-only">${done ? 'Done: ' : 'To do: '}</span>${inline(task[2])}` };
 }
 
-function blocks(lines, depth) {
+function headingLevel(outline, marks) {
+  if (outline.first === null) outline.first = marks;
+  let level = outline.base + Math.max(0, marks - outline.first);
+  if (outline.previous !== null) level = Math.min(level, outline.previous + 1);
+  level = Math.max(outline.base, Math.min(6, level));
+  outline.previous = level;
+  return level;
+}
+
+function blocks(lines, depth, outline) {
   const out = [];
   const lists = [];
   let paragraph = [];
   let quote = null;
   let blank = false;
   const flushParagraph = () => { if (paragraph.length) out.push(`<p>${paragraph.map(inline).join('<br>\n')}</p>`); paragraph = []; };
-  const flushQuote = () => { if (quote) out.push(`<blockquote>${depth < maxQuoteDepth ? blocks(quote, depth + 1) : `<p>${quote.map(inline).join('<br>\n')}</p>`}</blockquote>`); quote = null; };
+  const flushQuote = () => { if (quote) out.push(`<blockquote>${depth < maxQuoteDepth ? blocks(quote, depth + 1, outline) : `<p>${quote.map(inline).join('<br>\n')}</p>`}</blockquote>`); quote = null; };
   const closeLists = () => { while (lists.length) out.push(`</li></${lists.pop().tag}>`); };
   for (const raw of lines) {
     const line = raw.replace(/\t/g, '    ').trimEnd();
@@ -95,7 +104,7 @@ function blocks(lines, depth) {
     closeLists();
     blank = false;
     if (code) { flushParagraph(); out.push(text); }
-    else if (heading) { flushParagraph(); const level = Math.min(6, heading[1].length + 2); out.push(`<h${level}>${inline(heading[2])}</h${level}>`); }
+    else if (heading) { flushParagraph(); const level = headingLevel(outline, heading[1].length); out.push(`<h${level}>${inline(heading[2])}</h${level}>`); }
     else if (rule) { flushParagraph(); out.push('<hr>'); }
     else paragraph.push(text);
   }
@@ -110,12 +119,16 @@ function blocks(lines, depth) {
  * tag is added, so nothing in it can become markup. Supports paragraphs with line breaks, headings, bullet, numbered
  * and task lists with nesting, quotes, rules, fenced code blocks, inline code, bold, emphasis,
  * strikethrough, backslash escapes and http(s) links (Markdown links, `<url>` and bare URLs), which open in a new tab.
+ * The first heading becomes `baseLevel` (h3 by default, below the card or section that holds the text); later
+ * headings keep their distance from it but never skip a level, and none goes above `baseLevel` or below h6.
  * @param {string|null|undefined} text
+ * @param {{ baseLevel?: number }} [options]
  * @returns {string}
  */
-export function markdown(text) {
+export function markdown(text, { baseLevel = 3 } = {}) {
   const fences = [];
   const html = escape(String(text ?? '').replace(/[\u0000\u0001]/g, '').replace(/\r\n?/g, '\n'))
     .replace(/```([a-z0-9_-]*)\n?([\s\S]*?)```/g, (_, lang, code) => { fences.push(`<pre class="md-code"${lang ? ` data-lang="${lang}"` : ''}>${code.replace(/\n[ ]*$/, '')}</pre>`); return `\u0000${fences.length - 1}\u0000`; });
-  return blocks(html.split('\n'), 0).replace(/\u0000(\d+)\u0000/g, (_, index) => fences[Number(index)] ?? '');
+  const outline = { base: Math.max(1, Math.min(6, Math.trunc(Number(baseLevel)) || 3)), first: null, previous: null };
+  return blocks(html.split('\n'), 0, outline).replace(/\u0000(\d+)\u0000/g, (_, index) => fences[Number(index)] ?? '');
 }

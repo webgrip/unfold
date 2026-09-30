@@ -1,9 +1,10 @@
 import { overviewMarkup, ploegWindows } from '../ploeg-activity.js';
 import { state } from '../core/state.js';
 import { api } from '../core/api.js';
-import { renderHtml } from '../core/dom.js';
+import { announce, renderHtml } from '../core/dom.js';
 import { buildHash } from '../core/route.js';
 import { live } from '../core/live.js';
+import { count, plural } from '../core/format.js';
 import { shell } from '../shell.js';
 import { enterPloegView, liveRefresh, loadPloegTeams, onPloegReload, ploegFailure, ploegHelpers, ploegVisible, refreshButton, settle, track } from './ploeg-common.js';
 
@@ -75,6 +76,11 @@ async function selectWindow(button) {
   Object.assign(state.ploegSummary, { window: button.dataset.id, data: null, error: null });
   keepWindowInHash(button.dataset.id);
   await loadSummary();
+  const view = state.ploegSummary;
+  if (!ploegVisible('insights') || view.window !== button.dataset.id) return;
+  const label = ploegWindows.find(([id]) => id === view.window)?.[1] || view.window;
+  const finished = view.data?.totals?.runs?.finished;
+  announce(view.data ? `Last ${label}: ${typeof finished === 'number' ? `${count(finished)} ${finished === 1 ? 'Run' : 'Runs'} finished` : 'Runs not reported'}, ${plural(view.data.teams?.length || 0, 'Team')}` : `Could not load Insights for the last ${label}`);
 }
 
 onPloegReload('insights', () => loadSummary(true));

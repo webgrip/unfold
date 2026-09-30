@@ -202,7 +202,7 @@
 }
 
 .work-row-facts > * + *::before {
-  content: "·";
+  content: "·" / "";
   margin-inline-end: var(--space-1-5);
   color: var(--text-subtle);
 }
@@ -449,7 +449,7 @@
 }
 
 .work-fact + .work-fact::before {
-  content: "·";
+  content: "·" / "";
   margin-inline-end: var(--space-0-5);
   color: var(--text-subtle);
 }
@@ -1374,5 +1374,12 @@
   .work-sticky-actions,
   .work-sticky-actions[data-covered] {
     transition: none;
+  }
+}
+
+@media (max-width: 719.98px) and (max-height: 30rem) {
+  .work-sticky-actions {
+    position: static;
+    box-shadow: none;
   }
 }

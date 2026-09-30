@@ -41,6 +41,10 @@
   white-space: nowrap;
 }
 
+.runs-table tbody :is(a, button) {
+  scroll-margin-top: calc(var(--row-compact) + var(--space-2));
+}
+
 .runs-table .table thead th:first-child {
   border-start-start-radius: calc(var(--radius-md) - 1px);
 }

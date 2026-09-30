@@ -10,7 +10,7 @@ import { createRegistry, findRoute } from './core/registry.js';
 import { parseHash, redirect } from './core/route.js';
 import { views } from './views/index.js';
 import { renderLogin, takeReturnHash } from './views/login.js';
-import { updateChrome, updateLiveState, closeTransientChrome, handleChromeClick } from './shell.js';
+import { updateChrome, updateLiveState, closeTransientChrome, handleChromeClick, handleChromeFocusOut, dismissRailTip } from './shell.js';
 import { refreshCounts, onCountsChange } from './core/counts.js';
 import { linkFailure } from './views/account.js';
 
@@ -96,6 +96,8 @@ document.addEventListener('click', async event => {
   try { if (action) await action.handler(button, event); }
   catch (error) { button.disabled = false; notify(error.message, true); }
 });
+document.addEventListener('focusout', handleChromeFocusOut);
+document.addEventListener('keydown', dismissRailTip, true);
 document.addEventListener('input', event => dispatchField(registry.inputs, event));
 document.addEventListener('change', event => dispatchField(registry.changes, event));
 document.addEventListener('submit', async event => {

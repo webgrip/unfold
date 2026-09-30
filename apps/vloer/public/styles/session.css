@@ -1458,3 +1458,10 @@
     display: none;
   }
 }
+
+@media (max-width: 719.98px) and (max-height: 30rem) {
+  .session-review-bar {
+    position: static;
+    box-shadow: none;
+  }
+}
