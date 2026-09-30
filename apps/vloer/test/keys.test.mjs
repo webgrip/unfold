@@ -89,7 +89,7 @@ test('the help dialog lists every shortcut once, with the component keycaps and 
   assert.match(mac, /id="shortcuts-title">Keyboard shortcuts</);
   assert.match(mac, /data-pref="singleKeyShortcuts" checked/);
   assert.doesNotMatch(other, /data-pref="singleKeyShortcuts" checked/);
-  assert.match(mac, /Open the pull request or tracker item of the focused row or open Work Item<span class="shortcut-where"> · on Now and Work<\/span>/);
+  assert.match(mac, /Open the pull request or tracker item<span class="shortcut-where"> · on Now and Work<\/span>/);
   assert.doesNotMatch(mac, /shortcut-proposed/);
   for (const entry of shortcuts) assert(mac.includes(entry.label.replaceAll('’', '’')), entry.id);
   assert.equal(keyLabel('Mod', true), '⌘');

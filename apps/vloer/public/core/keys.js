@@ -35,7 +35,7 @@ export const shortcuts = [
   { id: 'next', keys: ['j'], label: 'Next row', group: 'Lists', single: true, where: 'Now, Work and Tasks' },
   { id: 'previous', keys: ['k'], label: 'Previous row', group: 'Lists', single: true, where: 'Now, Work and Tasks' },
   { id: 'open', keys: ['Enter'], label: 'Open the focused row', group: 'Lists' },
-  { id: 'open-link', keys: ['o'], label: 'Open the pull request or tracker item of the focused row or open Work Item', group: 'Lists', single: true, where: 'Now and Work' },
+  { id: 'open-link', keys: ['o'], label: 'Open the pull request or tracker item', group: 'Lists', single: true, where: 'Now and Work' },
   { id: 'new-session', keys: ['n'], label: 'New session', group: 'Sessions', single: true, where: 'Sessions' },
 ];
 
