@@ -90,6 +90,20 @@ export async function run({ page, app, assert, screenshot }) {
   await screenshot('shortcut-help');
   await page.keyboard.press('Escape');
   await help.waitFor({ state: 'hidden' });
+  await page.locator('.app-topbar').getByRole('button', { name: 'Search and commands' }).click();
+  await input.fill('single-key');
+  await page.waitForFunction(() => document.querySelector('#palette-option-0 .palette-option-label')?.textContent === 'Turn off single-key shortcuts');
+  await page.keyboard.press('Enter');
+  await palette.waitFor({ state: 'hidden' });
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('vloer.prefs')).singleKeyShortcuts), false);
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Search and commands', 'focus returns to the redrawn search button');
+  await search('single-key', 'Turn on single-key shortcuts');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem('vloer.prefs')).singleKeyShortcuts === true);
+  await search('refresh', 'Refresh this page');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => document.getElementById('announcement')?.textContent === 'Page refreshed');
+  assert.notEqual(await page.evaluate(() => document.activeElement?.tagName), 'BODY', 'refreshing keeps a focused element');
 
   await search('notifications', 'Desktop notifications');
   assert.equal(await results.locator('#palette-option-0').getAttribute('aria-disabled'), 'true', 'a browser that blocks notifications gets an explained, disabled row');

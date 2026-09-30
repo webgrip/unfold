@@ -68,13 +68,14 @@ function readable({ chunks }, text) {
   return chunks.length === 2 && boundary(text, chunks[0][0]) && chunks[0][1] - chunks[0][0] >= 3;
 }
 
-function matchToken(token, text) {
+function matchToken(token, text, starts = false) {
   let best = null;
   for (let at = text.indexOf(token); at !== -1; at = text.indexOf(token, at + 1)) {
+    if (starts && !boundary(text, at)) continue;
     const score = 60 + (at === 0 ? 30 : boundary(text, at) ? 20 : 0) + (token.length === text.length ? 20 : 0) - Math.min(at, 40) * 0.25;
     if (!best || score > best.score) best = { score, ranges: [[at, at + token.length]] };
   }
-  if (best || token.length < 2 || /^[0-9]+$/.test(token)) return best;
+  if (best || starts || token.length < 2 || /^[0-9]+$/.test(token)) return best;
   const hit = [subsequence(token, text, true), subsequence(token, text, false)].find(candidate => candidate && readable(candidate, text));
   if (!hit) return null;
   return { score: Math.max(1, Math.min(45, 36 - hit.chunks.length * 2 - hit.span * 0.2)), ranges: hit.chunks };
@@ -93,8 +94,9 @@ function merge(ranges) {
 
 /**
  * Scores `entry` against `query`. Every word of the query must match one of the entry's fields: its `label`,
- * `meta` (unless the entry is `quiet`), `parent` or hidden `keywords`, in falling weight. A word matches as a
- * substring (best at the start of a word) or, weaker and never for digits, as a subsequence whose pieces start
+ * `meta` (unless the entry is `quiet`), `parent` or hidden `keywords`, in falling weight. A word matches the
+ * parent and keywords only at the start of one of their words. In the label and meta it matches as a substring
+ * (best at the start of a word) or, weaker and never for digits, as a subsequence whose pieces start
  * words (`nh` for "needs human") or that continues a prefix of three letters (`prefs`). Case and accents are
  * ignored. Returns null without a match, otherwise the score (plus `entry.boost`) and the character ranges to
  * highlight in the label, meta and parent.
@@ -103,14 +105,14 @@ function merge(ranges) {
 export function matchEntry(query, entry) {
   const tokens = fold(query).folded.split(/\s+/).filter(Boolean);
   if (!tokens.length) return { score: 0, label: [], meta: [], parent: [] };
-  const fields = [['label', entry.label, 1], ['meta', entry.quiet ? '' : entry.meta, 0.8], ['parent', entry.parent, 0.7], ['keywords', entry.keywords, 0.6]].map(([name, text, weight]) => ({ name, weight, ...fold(text) }));
+  const fields = [['label', entry.label, 1, false], ['meta', entry.quiet ? '' : entry.meta, 0.8, false], ['parent', entry.parent, 0.7, true], ['keywords', entry.keywords, 0.6, true]].map(([name, text, weight, starts]) => ({ name, weight, starts, ...fold(text) }));
   const ranges = { label: [], meta: [], parent: [], keywords: [] };
   let total = 0;
   for (const token of tokens) {
     let best = null;
     for (const field of fields) {
       if (!field.folded) continue;
-      const hit = matchToken(token, field.folded);
+      const hit = matchToken(token, field.folded, field.starts);
       if (hit && (!best || hit.score * field.weight > best.score)) best = { score: hit.score * field.weight, field, ranges: hit.ranges };
     }
     if (!best) return null;
@@ -254,7 +256,8 @@ export function paletteEntries(context) {
     if (entry.kind === 'work') {
       const item = byId.get(entry.id);
       const title = item?.title || entry.title;
-      entries.push({ id: `recent-work-${entry.id}`, group: 'recent', primary: true, label: title || `Work Item #${entry.id}`, meta: title ? `Work Item #${entry.id}${item?.team ? ` · ${item.team}` : ''}` : 'Work Item', icon: 'work', time: entry.at, hash: `work/${entry.id}`, run: 'go' });
+      const standing = item?.state ? workItemState(item.state) : null;
+      entries.push({ id: `recent-work-${entry.id}`, group: 'recent', primary: true, label: title || `Work Item #${entry.id}`, meta: title ? `Work Item #${entry.id}${item?.team ? ` · ${item.team}` : ''}` : 'Work Item', icon: standing?.glyph || 'work', tone: standing?.tone, time: entry.at, hash: `work/${entry.id}`, run: 'go' });
     } else if (context.sessionsShown) {
       const session = sessionById.get(entry.id);
       if (!session && !entry.title) continue;
@@ -265,7 +268,7 @@ export function paletteEntries(context) {
     if (page.sessions && !context.sessionsShown) continue;
     entries.push({ id: `go-${page.id}`, group: 'go', primary: true, label: page.label, keywords: page.keywords, icon: page.icon, keys: page.keys, single: true, count: counted(page, counts), hash: page.id, run: 'go' });
   }
-  for (const lane of lanes) entries.push({ id: `go-${lane.hash}`, group: 'go', label: lane.label, parent: 'Work', keywords: lane.keywords, icon: lane.icon, count: counted(lane, counts), hash: lane.hash, run: 'go' });
+  for (const lane of lanes) entries.push({ id: `go-${lane.hash}`, group: 'go', label: lane.label, parent: 'Work', keywords: lane.keywords, icon: lane.icon, tone: lane.tone, count: counted(lane, counts), hash: lane.hash, run: 'go' });
   for (const page of settings) entries.push({ id: `go-${page.hash}`, group: 'go', label: page.label, parent: 'Settings', keywords: page.keywords, icon: page.icon, hash: page.hash, run: 'go' });
   const dark = Boolean(context.dark);
   entries.push({ id: 'theme', group: 'commands', primary: true, label: dark ? 'Switch to light theme' : 'Switch to dark theme', keywords: 'theme appearance colour mode dark light', icon: dark ? 'sun' : 'moon', action: 'theme-set', value: dark ? 'light' : 'dark', restore: true });
@@ -299,7 +302,8 @@ export function paletteEntries(context) {
  * Filters and orders `entries` for `query`. Without a query: the primary entries under Recent, Go to and
  * Commands. With one: every match, best first within each group, a few per group, groups ordered by their best
  * match. A Work Item number (`105` or `#105`) always offers that Work Item first, by title when it is loaded.
- * `status` adds the loading or failure state of the Work Item search.
+ * `status` adds the state of the Work Item search: `loading`, `partial`, `error` (true or the failure message),
+ * or `offline` when this account has no Ploeg to open Work Items in.
  * @returns {{ id: string, label: string, note?: string, loading?: boolean, results: { entry: object, match: object }[] }[]}
  */
 export function searchPalette(query, entries, status = {}) {
@@ -314,7 +318,7 @@ export function searchPalette(query, entries, status = {}) {
     const match = matchEntry(typed, entry);
     if (match) scored.push({ entry, match, order });
   });
-  const jump = /^#?([1-9][0-9]{0,19})$/.exec(typed.replace(/\s+/g, ''));
+  const jump = status.offline ? null : /^#?([1-9][0-9]{0,19})$/.exec(typed.replace(/\s+/g, ''));
   if (jump) {
     const known = scored.find(result => result.entry.itemId === jump[1]);
     if (known) known.match.score = Infinity;
@@ -336,7 +340,7 @@ export function searchPalette(query, entries, status = {}) {
     else if (status.partial) group.note = 'Some lists could not be read';
   }
   if (status.error) {
-    const retry = { id: 'items-retry', group: 'items', label: 'Work Items could not be loaded', meta: 'Select to try again', icon: 'refresh', tone: 'danger', run: 'retry', keepOpen: true };
+    const retry = { id: 'items-retry', group: 'items', label: 'Work Items could not be loaded', meta: [typeof status.error === 'string' ? status.error : '', 'Select to try again.'].filter(Boolean).join(' '), icon: 'refresh', tone: 'danger', run: 'retry', keepOpen: true, quiet: true };
     const items = ordered.find(group => group.id === 'items');
     if (items) items.results.push({ entry: retry, match: { score: 0, ...none } });
     else ordered.push({ id: 'items', label: groupLabels.items, best: 0, results: [{ entry: retry, match: { score: 0, ...none } }] });
@@ -358,7 +362,9 @@ function optionMarkup({ entry, match }, index, active, options) {
   const disabled = Boolean(entry.disabled);
   const behaviour = disabled ? '' : entry.action ? ` data-action="${escape(entry.action)}"${entry.value ? ` data-value="${escape(entry.value)}"` : ''}` : ' data-action="palette-run"';
   const parent = entry.parent ? `<span class="palette-option-parent">${highlight(entry.parent, match.parent)}${icon('chevron', 'palette-option-separator')}</span>` : '';
-  const meta = entry.meta ? `<span class="palette-option-meta">${highlight(entry.meta, match.meta)}</span>` : '';
+  const standing = entry.state ? workItemState(entry.state) : entry.status || null;
+  const status = standing ? `<span class="palette-option-state" data-tone="${escape(standing.tone)}">${escape(standing.label)}</span>` : '';
+  const meta = entry.meta || status ? `<span class="palette-option-meta">${status}${entry.meta ? `<span class="palette-option-detail">${highlight(entry.meta, match.meta)}</span>` : ''}</span>` : '';
   return `<div class="palette-option" role="option" id="palette-option-${index}" data-entry="${escape(entry.id)}" aria-selected="${index === active}"${disabled ? ' aria-disabled="true"' : ''}${behaviour}><span class="palette-option-icon"${entry.tone ? ` data-tone="${escape(entry.tone)}"` : ''}>${icon(entry.icon || 'circle')}</span><span class="palette-option-main"><span class="palette-option-title">${parent}<span class="palette-option-label">${highlight(entry.label, match.label)}</span></span>${meta}</span>${trailMarkup(entry, options)}</div>`;
 }
 
@@ -381,7 +387,7 @@ export function resultsMarkup(groups, active = 0, { query = '', singleKeys = tru
   }).join('');
 }
 
-const palette = { opener: null, query: '', active: 0, groups: [], results: [], statusTimer: null, wired: false };
+const palette = { opener: null, again: null, query: '', active: 0, groups: [], results: [], statusTimer: null, wired: false };
 const nowCache = { data: null, error: null, loading: false, at: 0 };
 
 function readRecent() { try { return parseRecent(globalThis.localStorage?.getItem(recentKey)); } catch { return []; } }
@@ -432,7 +438,7 @@ function paletteContext() {
     singleKeys: singleKeysEnabled(),
     mac: isMac(),
     notifications: attention.status(),
-    status: { loading: nowCache.loading, error: Boolean(nowCache.error) && !nowCache.loading, partial },
+    status: { loading: nowCache.loading, error: nowCache.error && !nowCache.loading ? nowCache.error.message || true : false, partial, offline: ['unconfigured', 'no-access'].includes(state.ploegStatus) },
   };
 }
 
@@ -506,6 +512,17 @@ function onKey(event) {
   }
 }
 
+function openerSelector(element) {
+  if (!element?.getAttribute) return null;
+  if (element.id) return `#${CSS.escape(element.id)}`;
+  return element.getAttribute('data-action') === 'palette-open' && element.closest('.app-topbar') ? '.app-topbar [data-action="palette-open"]' : null;
+}
+
+function restoreFocus(opener, again) {
+  const target = (opener?.isConnected && opener) || (again && document.querySelector(again)) || document.getElementById('page-title');
+  target?.focus({ preventScroll: true });
+}
+
 const focusLost = () => !document.activeElement || document.activeElement === document.body;
 
 function entryOf(option) { return palette.results.find(result => result.entry.id === option?.dataset.entry)?.entry || null; }
@@ -516,7 +533,7 @@ function onClick(event) {
   const option = event.target.closest('.palette-option');
   if (!option || option.getAttribute('aria-disabled') === 'true') return;
   const entry = entryOf(option);
-  if (entry && !entry.keepOpen) closePalette(Boolean(entry.restore));
+  if (entry && !entry.keepOpen) closePalette(Boolean(entry.restore) || (Boolean(entry.hash) && location.hash === `#${entry.hash}`));
 }
 
 function wire(dialog) {
@@ -537,7 +554,7 @@ function wire(dialog) {
     clearTimeout(palette.statusTimer);
     const opener = palette.opener;
     palette.opener = null;
-    if (focusLost() && opener?.isConnected) opener.focus({ preventScroll: true });
+    if (focusLost()) restoreFocus(opener, palette.again);
   });
 }
 
@@ -559,7 +576,7 @@ function closePalette(restore = true) {
   palette.opener = null;
   clearTimeout(palette.statusTimer);
   dialog.close();
-  if (restore && opener?.isConnected) opener.focus({ preventScroll: true });
+  if (restore) restoreFocus(opener, palette.again);
 }
 
 function openPalette() {
@@ -567,8 +584,12 @@ function openPalette() {
   if (!dialog || !state.bootstrap) return;
   if (dialog.open) { closePalette(true); return; }
   closeTransientChrome();
+  const help = $('#shortcuts');
+  if (help?.open) help.close();
+  if (document.querySelector('dialog[open]')) return;
   const active = document.activeElement;
   palette.opener = active && active !== document.body ? active : null;
+  palette.again = openerSelector(palette.opener);
   palette.query = '';
   palette.active = 0;
   rememberRoute();
@@ -584,14 +605,20 @@ function toggleDensity() {
   const compact = prefs.get('density') !== 'compact';
   prefs.set('density', compact ? 'compact' : 'comfortable');
   applyAppearance();
-  if (state.view === 'preferences') render();
+  if (state.view === 'preferences') redraw();
   announce(compact ? 'Compact density' : 'Comfortable density');
+}
+
+function redraw() {
+  const again = palette.again;
+  render();
+  if (focusLost()) restoreFocus(null, again);
 }
 
 function toggleSingleKeys() {
   const on = !singleKeysEnabled();
   prefs.set('singleKeyShortcuts', on);
-  render();
+  redraw();
   announce(on ? 'Single-key shortcuts on' : 'Single-key shortcuts off');
 }
 
@@ -610,8 +637,10 @@ async function copyLink() {
 }
 
 async function refreshPage() {
+  const again = palette.again;
   nowCache.at = 0;
   await boot();
+  if (focusLost()) restoreFocus(null, again);
   announce('Page refreshed');
 }
 

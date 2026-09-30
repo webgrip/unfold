@@ -148,7 +148,7 @@
   grid-template-columns: var(--icon-md) minmax(0, 1fr) auto;
   align-items: center;
   column-gap: var(--space-3);
-  min-height: var(--control-lg);
+  min-height: var(--density-row);
   padding: var(--space-1-5) var(--space-2) var(--space-1-5) var(--space-3);
   border-radius: var(--radius-md);
   color: var(--text);
@@ -247,6 +247,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.palette-option-state {
+  display: none;
+  color: var(--tone-fg);
+  font-weight: var(--weight-medium);
+}
+
 .palette-option[aria-disabled="true"] .palette-option-meta {
   color: var(--text-muted);
 }
@@ -261,6 +267,14 @@
   font-size: var(--text-xs);
   line-height: var(--leading-xs);
   white-space: nowrap;
+}
+
+.palette .kbd-group {
+  gap: var(--space-1);
+}
+
+.palette .kbd {
+  margin: 0;
 }
 
 .palette-option-keys {
@@ -285,7 +299,7 @@
   grid-template-columns: var(--icon-md) minmax(0, 1fr);
   align-items: center;
   column-gap: var(--space-3);
-  min-height: var(--control-lg);
+  min-height: var(--density-row);
   padding: 0 var(--space-3);
 }
 
@@ -488,6 +502,7 @@
 
 .shortcuts kbd {
   display: inline-grid;
+  margin: 0;
   place-items: center;
   min-width: 1.25rem;
   height: 1.25rem;
@@ -583,8 +598,18 @@
   }
 
   .palette-option-keys,
+  .palette-option-trail > .badge,
   .palette-footer {
     display: none;
+  }
+
+  .palette-option-state {
+    display: inline;
+  }
+
+  .palette-option-state + .palette-option-detail::before {
+    color: var(--text-subtle);
+    content: " · ";
   }
 
   .shortcuts-form .dialog-header {

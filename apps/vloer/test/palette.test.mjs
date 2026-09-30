@@ -75,6 +75,7 @@ test('before anything is typed the palette offers recent items, destinations and
   const groups = searchPalette('', paletteEntries(context()));
   assert.deepEqual(groups.map(group => group.id), ['recent', 'go', 'commands']);
   assert.deepEqual(labels(groups[0]), ['Show VAT per line on the order confirmation'], 'the page on screen is not offered again and titles come from loaded data');
+  assert.deepEqual([groups[0].results[0].entry.icon, groups[0].results[0].entry.tone], ['alert', 'attention'], 'a recent Work Item shows its state glyph and tone');
   assert.deepEqual(labels(groups[1]), ['Now', 'Work', 'Proposed', 'Runs', 'Activity', 'Insights']);
   assert.deepEqual(labels(groups[2]), ['Switch to dark theme', 'Pause live updates', 'Refresh this page', 'New session', 'Show keyboard shortcuts', 'Open preferences']);
   const now = groups[1].results[0].entry;
@@ -102,6 +103,7 @@ test('typing searches destinations, commands, loaded Work Items and sessions, be
   assert.equal(searchPalette('dark', entries)[0].results[0].entry.label, 'Switch to dark theme');
   assert.equal(searchPalette('rounding', entries).find(group => group.id === 'sessions').results[0].entry.hash, 'session/a1b2');
   assert.deepEqual(searchPalette('zzqxv', entries), []);
+  assert(!searchPalette('rou', entries).some(group => group.results.some(result => result.entry.label === 'Insights')), 'hidden keywords match only at the start of a word (not "throughput")');
 });
 
 test('a Work Item number always opens that Work Item first, by title when it is loaded', () => {
@@ -112,6 +114,7 @@ test('a Work Item number always opens that Work Item first, by title when it is 
   const known = searchPalette('#108', entries);
   assert.deepEqual([known[0].results[0].entry.label, known[0].results[0].entry.hash], ['Show VAT per line on the order confirmation', 'work/108']);
   assert.equal(searchPalette('0', entries).some(group => group.results.some(result => result.entry.label.startsWith('Open Work Item'))), false, 'zero is not a Work Item id');
+  assert.deepEqual(searchPalette('999', entries, { offline: true }), [], 'without Ploeg there is no Work Item to open');
 });
 
 test('the Work Item search shows its loading, failure and partial states', () => {
@@ -119,9 +122,10 @@ test('the Work Item search shows its loading, failure and partial states', () =>
   const loading = searchPalette('qqq', entries, { loading: true });
   assert.deepEqual(loading.map(group => [group.id, group.loading, group.note, group.results.length]), [['items', true, 'Loading…', 0]]);
   assert.match(resultsMarkup(loading), /aria-busy="true"/);
-  const failed = searchPalette('qqq', entries, { error: true });
+  const failed = searchPalette('qqq', entries, { error: 'Ploeg did not answer.' });
   assert.deepEqual(failed.map(group => group.id), ['items']);
-  assert.deepEqual([failed[0].results[0].entry.label, failed[0].results[0].entry.run, failed[0].results[0].entry.keepOpen], ['Work Items could not be loaded', 'retry', true]);
+  assert.deepEqual([failed[0].results[0].entry.label, failed[0].results[0].entry.meta, failed[0].results[0].entry.run, failed[0].results[0].entry.keepOpen], ['Work Items could not be loaded', 'Ploeg did not answer. Select to try again.', 'retry', true]);
+  assert.equal(searchPalette('qqq', entries, { error: true })[0].results[0].entry.meta, 'Select to try again.');
   assert.equal(searchPalette('vat', entries, { partial: true })[0].note, 'Some lists could not be read');
 });
 
