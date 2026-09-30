@@ -3,7 +3,7 @@ import { icon } from './core/icons.js';
 import * as format from './core/format.js';
 import { runOutcome, verdict as verdictMeta, failureReason, workItemState } from './core/states.js';
 import { listReason, routingWarning } from './core/reasons.js';
-import { badge, button, callout, chip, count, emptyState, kbd, listRow, meter, skeleton, stat, timeAgo, demoNote } from './core/ui.js';
+import { badge, button, callout, count, emptyState, kbd, listRow, meter, skeleton, demoNote } from './core/ui.js';
 
 /** How long the Now page must be out of sight before the digest starts a new "since" period. */
 export const awayAfter = 30 * 60 * 1000;
@@ -11,20 +11,88 @@ export const awayAfter = 30 * 60 * 1000;
 /** How many finished Runs the Now page lists; the rest are one link away on Runs. */
 export const recentLimit = 6;
 
+/** How many rows a waiting group lists before it points to the rest in Work or Proposed. */
+export const groupLimit = 8;
+
+/** How many Runs one page of `GET /api/ploeg/runs` holds, which is what Now receives per Run group: the demo pages by 10, a live Ploeg by 25. */
+export const runPage = { demo: 10, live: 25 };
+
+/**
+ * Whether a Run group of the Now response may hold more Runs than it lists: the server says so (`<group>Truncated`),
+ * or, when it does not, the list fills a whole page.
+ * @param {object} data
+ * @param {'recent'|'running'} group
+ * @returns {boolean}
+ */
+export function mayHoldMore(data, group) {
+  const flag = data?.[`${group}Truncated`];
+  if (typeof flag === 'boolean') return flag;
+  const list = Array.isArray(data?.[group]) ? data[group] : [];
+  return list.length >= (data?.demo ? runPage.demo : runPage.live);
+}
+
+/** Needs you splits into one sub-group per reason once it holds more than this many Work Items and a reason repeats. */
+export const groupAbove = 5;
+
+/** How many rows each reason sub-group of Needs you lists. */
+export const subgroupLimit = 3;
+
 const groups = [
-  { id: 'review', state: 'awaiting_review', title: 'Ready for your review', hint: 'Open the pull request, then merge or ask for changes in the forge.', empty: 'No pull request waits for your review.', tone: 'review', glyph: 'pull-request' },
-  { id: 'needs', state: 'needs_human', title: 'Needs you', hint: 'Ploeg stopped. Fix the cause, then assign the task to the Team again.', empty: 'Ploeg is not stuck on anything.', tone: 'attention', glyph: 'alert' },
-  { id: 'proposed', state: 'proposed', title: 'Proposed', hint: 'Agents found this work. Nothing runs until you approve it.', empty: 'No proposal waits for a decision.', tone: 'neutral', glyph: 'proposed' },
+  { id: 'review', state: 'awaiting_review', title: 'Ready for your review', hint: 'Open the pull request, then merge or ask for changes in the forge.', empty: 'No pull request waits for your review.', tone: 'review', glyph: 'pull-request', more: '#work?lane=awaiting_review', place: 'Work' },
+  { id: 'needs', state: 'needs_human', title: 'Needs you', hint: 'Ploeg stopped. Fix the cause, then assign the task to the Team again.', empty: 'Ploeg is not stuck on anything.', tone: 'attention', glyph: 'alert', more: '#work?lane=needs_human', place: 'Work' },
+  { id: 'proposed', state: 'proposed', title: 'Proposed', hint: 'Agents found this work. Nothing runs until you approve it.', empty: 'No proposal waits for a decision.', tone: 'neutral', glyph: 'proposed', more: '#proposed', place: 'Proposed' },
 ];
-const kinds = { split: 'Split from its source', clarify: 'Clarification', discovered: 'Found along the way' };
+const reasonGlyphs = {
+  plan_exhausted: 'pull-request',
+  fix_round_cap_reached: 'eye',
+  budget_exhausted: 'coins',
+  budget_exhausted_before_fix_round: 'coins',
+  writing_run_failed_repeatedly: 'x-circle',
+  writing_run_killed_repeatedly: 'zap',
+  run_stuck: 'pause-circle',
+  plan_removed: 'settings',
+  pull_request_closed: 'circle-slash',
+  operator_failed: 'sessions',
+  stale_infrastructure: 'zap',
+  stale_attempts: 'clock',
+  unknown: 'help-circle',
+};
+const origins = { split: 'Split from', clarify: 'Clarifies', discovered: 'Found while working on' };
+const kinds = { split: 'Split from other work.', clarify: 'Asks to clarify other work.', discovered: 'Found along the way.' };
 const infrastructure = new Set(['writing_run_killed_repeatedly', 'stale_infrastructure']);
 const amount = value => typeof value === 'number' && Number.isFinite(value);
-const moment = value => { const time = Date.parse(value ?? ''); return Number.isFinite(time) ? time : null; };
+const moment = value => { const time = typeof value === 'number' ? value : Date.parse(value ?? ''); return Number.isFinite(time) ? time : null; };
+const tidy = text => String(text ?? '').replace(/([.!?])”\.$/, '$1”');
 const after = (value, since) => since !== null && moment(value) !== null && moment(value) > since;
-const joinDots = parts => { const shown = parts.filter(Boolean); return shown.length ? `<span class="now-facts"><span class="now-facts-list">${shown.map(part => `<span>${part}</span>`).join('')}</span></span>` : ''; };
-const retryButton = `<button type="button" class="button secondary sm" data-action="now-retry">${icon('refresh')}<span class="button-label">Try again</span></button>`;
-const caughtUpButton = `<button type="button" class="button ghost sm" data-action="now-caught-up">${icon('check')}<span class="button-label">Mark as caught up</span></button>`;
-const showNew = text => `<button type="button" class="chip now-new" data-tone="accent" data-action="now-show-new">${icon('arrow-up-right')}<span>${escape(text)} · Show</span></button>`;
+const retryButton = id => `<button type="button" class="button secondary sm" id="now-retry-${id}" data-action="now-retry">${icon('refresh')}<span class="button-label">Try again</span></button>`;
+const showNew = (group, text) => `<button type="button" class="now-new" id="now-show-new-${group}" data-action="now-show-new">${icon('refresh')}<span>${escape(text)} · Show</span></button>`;
+
+function joinDots(parts) {
+  const shown = parts.filter(part => part && (typeof part === 'string' || part.html));
+  if (!shown.length) return '';
+  const item = part => typeof part === 'string' ? `<span>${part}</span>` : `<span class="${part.class}">${part.html}</span>`;
+  return `<span class="now-facts"><span class="now-facts-list">${shown.map(item).join('')}</span></span>`;
+}
+
+function timeTag(value, text) {
+  const at = moment(value);
+  if (at === null) return escape(text);
+  return `<time class="num" datetime="${escape(new Date(at).toISOString())}" title="${escape(format.dateTime(at))}">${escape(text)}</time>`;
+}
+
+function elapsedTag(started, now) {
+  const seconds = Math.max(0, Math.round((now - started) / 1000));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor(seconds % 3600 / 60);
+  const rest = seconds % 60;
+  const iso = `PT${hours ? `${hours}H` : ''}${minutes ? `${minutes}M` : ''}${rest || (!hours && !minutes) ? `${rest}S` : ''}`;
+  return `<time class="num" datetime="${iso}" title="${escape(`Started ${format.dateTime(started)}`)}">${escape(format.duration(seconds))}</time>`;
+}
+
+/** The glyph that tells one Needs-you reason from another at a glance; stale reasons keep the stopped-retrying clock. */
+export function reasonGlyph(reason) {
+  return reasonGlyphs[reason?.code] || reason?.glyph || 'alert';
+}
 
 /**
  * The baseline of the "Since you were away" digest. The first arrival in a browser tab starts from the last
@@ -41,6 +109,13 @@ export function nextBaseline({ current, lastVisit = null, now = Date.now(), away
   return baseline ?? null;
 }
 
+function sinceText(start, now) {
+  const clock = format.time(start);
+  if (format.date(start) === format.date(now)) return clock;
+  if (format.date(start) === format.date(now - 86400000)) return `yesterday ${clock}`;
+  return format.dateTime(start);
+}
+
 /**
  * Names the start of a digest period: "Since 09:12" today, "Since yesterday 22:10", otherwise
  * "Since 28-09-2026 22:10". Empty for a missing or invalid moment.
@@ -50,17 +125,14 @@ export function nextBaseline({ current, lastVisit = null, now = Date.now(), away
  */
 export function sinceLabel(since, now = Date.now()) {
   const start = moment(since);
-  if (start === null) return '';
-  const clock = format.time(start);
-  if (format.date(start) === format.date(now)) return `Since ${clock}`;
-  if (format.date(start) === format.date(now - 86400000)) return `Since yesterday ${clock}`;
-  return `Since ${format.dateTime(start)}`;
+  return start === null ? '' : `Since ${sinceText(start, now)}`;
 }
 
 /**
  * Counts what changed after `since` in a `GET /api/ploeg/now` response: Work Items that became ready for
  * review or started needing you (by `updatedAt`), proposals created, and finished Runs. A group that failed
- * to load counts as null. `finishedCapped` is true when every listed Run is newer, so the real number may be higher.
+ * to load counts as null. `finishedCapped` is true when every listed Run is newer and the list may hold more
+ * (see `mayHoldMore`), so the real number may be higher.
  * @param {object} data
  * @param {string|null} since
  * @returns {{ review: number|null, needsYou: number|null, proposed: number|null, finished: number|null, finishedCapped: boolean }}
@@ -71,7 +143,8 @@ export function digestCounts(data, since) {
   const recent = !data?.errors?.recent && Array.isArray(data?.recent) ? data.recent : null;
   const fresh = (state, field = 'updatedAt') => waiting ? waiting.filter(entry => entry.state === state && after(entry[field], start)).length : null;
   const finished = recent ? recent.filter(run => after(run.finishedAt, start)).length : null;
-  return { review: fresh('awaiting_review'), needsYou: fresh('needs_human'), proposed: fresh('proposed', 'createdAt'), finished, finishedCapped: Boolean(recent?.length) && finished === recent.length && recent.length >= 25 };
+  const finishedCapped = Boolean(recent?.length) && finished === recent.length && mayHoldMore(data, 'recent');
+  return { review: fresh('awaiting_review'), needsYou: fresh('needs_human'), proposed: fresh('proposed', 'createdAt'), finished, finishedCapped };
 }
 
 /** The ids on screen: every waiting Work Item and finished Run of `data`. */
@@ -108,15 +181,46 @@ export function openTarget(entry) {
   return tracker ? { href: tracker, label: 'tracker item' } : null;
 }
 
+/** Finished Runs newest first by the moment they finished; Runs without a finish time keep their order at the end. */
+export function byFinish(runs) {
+  return (runs || []).map((run, index) => ({ run, index, at: moment(run.finishedAt) })).sort((a, b) => (b.at ?? -Infinity) - (a.at ?? -Infinity) || a.index - b.index).map(entry => entry.run);
+}
+
+/**
+ * Splits the Needs-you rows into one bucket per reason code once there are more than `groupAbove` rows and at
+ * least one reason repeats; otherwise returns null and the group stays a flat list. Reasons shared by several
+ * Work Items come first, the largest first (one fix clears the most), ties in the order their oldest row appears.
+ * Reasons held by a single Work Item follow, pooled into one bucket with `reason` null when there are several.
+ * Rows keep Ploeg's oldest-first order inside every bucket.
+ * @param {object[]} rows
+ * @returns {{ reason: object|null, rows: object[] }[] | null}
+ */
+export function reasonBuckets(rows) {
+  if (!Array.isArray(rows) || rows.length <= groupAbove) return null;
+  const buckets = new Map();
+  for (const entry of rows) {
+    const reason = listReason(entry) || listReason({ ...entry, state: 'needs_human', latestShift: null, closeReason: '' });
+    if (!buckets.has(reason.code)) buckets.set(reason.code, { reason, rows: [], index: buckets.size });
+    buckets.get(reason.code).rows.push(entry);
+  }
+  if (buckets.size >= rows.length) return null;
+  const all = [...buckets.values()];
+  const shared = all.filter(bucket => bucket.rows.length > 1).sort((a, b) => b.rows.length - a.rows.length || a.index - b.index);
+  const single = all.filter(bucket => bucket.rows.length === 1);
+  const rest = single.length > 1 ? [{ reason: null, rows: single.flatMap(bucket => bucket.rows) }] : single;
+  return [...shared, ...rest].map(({ reason, rows: members }) => ({ reason, rows: members }));
+}
+
 function grafanaTeam(grafanaUrl, team) {
   const base = safeUrl(grafanaUrl);
   return base ? `${base.replace(/\/$/, '')}/d/glide-loop?var-team=${encodeURIComponent(team)}` : null;
 }
 
 function repository(target) {
-  if (!target?.repo) return '';
+  if (!target?.repo) return null;
   const full = target.owner ? `${target.owner}/${target.repo}` : target.repo;
-  return chip({ label: target.repo, icon: 'branch', title: target.baseBranch ? `${full}, base branch ${target.baseBranch}` : full });
+  const title = target.baseBranch ? `${full}, base branch ${target.baseBranch}` : full;
+  return { class: 'now-repo', html: `${icon('branch')}<span title="${escape(title)}">${escape(target.repo)}</span>` };
 }
 
 function reference(entry) {
@@ -131,132 +235,206 @@ function shiftSpend(entry, demo) {
   return amount(shift?.budgetUsd) && shift.budgetUsd > 0 ? `${format.moneyHtml(spent)} of ${format.moneyHtml(shift.budgetUsd)}` : `${format.moneyHtml(spent)} spent`;
 }
 
-function waitingMeta(entry, demo) {
-  const reason = listReason(entry);
-  const warning = routingWarning(entry);
-  const chips = [];
-  if (reason) chips.push(chip({ label: reason.chip, tone: reason.tone, title: `${reason.sentence} ${reason.action}` }));
-  if (warning) chips.push(chip({ label: warning.chip, tone: warning.tone, icon: warning.glyph, title: warning.sentence }));
-  else if (entry.state !== 'proposed') chips.push(repository(entry.target));
-  if (entry.state === 'proposed') {
-    if (entry.createdKind && kinds[entry.createdKind]) chips.push(chip({ label: kinds[entry.createdKind] }));
-    if (entry.ready === false) chips.push(chip({ label: 'Needs refinement', tone: 'attention', title: 'Not Ready yet: the brief needs refining before an agent can pick it up.' }));
+function latestVerdict(entry, runs) {
+  const run = byFinish(runs).find(candidate => candidate.workItemId === entry.id && candidate.verdict && candidate.verdict !== 'none');
+  return run ? verdictMeta(run.verdict) : null;
+}
+
+function chipMarkup({ label, tone, glyph, title, secondary = false }) {
+  return `<span class="chip${secondary ? ' now-warning' : ''}" data-tone="${tone}"${title ? ` title="${escape(title)}"` : ''}>${glyph ? icon(glyph) : ''}<span>${escape(label)}</span></span>`;
+}
+
+function origin(entry) {
+  if (entry.sourceTitle) return `${origins[entry.createdKind] || 'From'} “${entry.sourceTitle}”.`;
+  return kinds[entry.createdKind] || '';
+}
+
+function whyLine(entry, reason, warning, grouped) {
+  let sentence = '';
+  let fix = '';
+  let full = '';
+  if (reason) {
+    sentence = grouped === 'shared' ? '' : tidy(reason.sentence);
+    fix = grouped ? '' : reason.fix;
+    full = [tidy(reason.sentence), reason.action, warning?.sentence].filter(Boolean).join(' ');
+  } else if (entry.state === 'proposed') {
+    sentence = [origin(entry), warning?.sentence].filter(Boolean).join(' ');
+    full = sentence;
+  } else if (warning) {
+    sentence = warning.sentence;
+    full = sentence;
   }
-  const round = entry.state !== 'proposed' && entry.latestShift?.round ? `Round ${escape(entry.latestShift.round)}` : '';
-  const source = entry.state === 'proposed' && entry.sourceTitle ? `<span class="now-source-line">From <span class="now-source">${escape(entry.sourceTitle)}</span></span>` : '';
-  const spend = entry.state === 'awaiting_review' ? shiftSpend(entry, demo) : '';
-  return `${chips.join('')}${joinDots([escape(entry.team), reference(entry), round, spend])}${source}`;
+  if (!sentence) return '';
+  return `<span class="now-why" title="${escape(full)}">${escape(sentence)}${fix ? ` <span class="now-why-fix">${escape(fix)}</span>` : ''}</span>`;
+}
+
+function waitingMeta(entry, context, { reason, warning, grouped, unread }) {
+  const chips = [];
+  if (reason && !grouped) chips.push(chipMarkup({ label: reason.chip, tone: reason.tone, title: `${tidy(reason.sentence)} ${reason.action}` }));
+  if (entry.state === 'proposed' && entry.ready === false) chips.push(chipMarkup({ label: 'Needs refinement', tone: 'attention', title: 'Not Ready yet: the brief needs refining before an agent can pick it up.' }));
+  if (warning) chips.push(chipMarkup({ label: warning.chip, tone: warning.tone, glyph: warning.glyph, title: warning.sentence, secondary: true }));
+  const review = entry.state === 'awaiting_review' ? latestVerdict(entry, context.runs) : null;
+  const verdict = review ? badge({ tone: review.tone, glyph: review.glyph, label: review.label, size: 'sm' }) : '';
+  const round = entry.state !== 'proposed' && entry.latestShift?.round ? { class: 'now-round', html: `Round ${escape(entry.latestShift.round)}` } : null;
+  const spend = entry.state === 'awaiting_review' ? shiftSpend(entry, context.demo) : '';
+  const facts = joinDots([escape(entry.team), reference(entry), entry.state === 'proposed' ? null : repository(entry.target), round, spend]);
+  const fresh = unread ? '<span class="sr-only">New since your last visit.</span>' : '';
+  return `${verdict}${chips.join('')}${facts}${whyLine(entry, reason, warning, grouped)}${fresh}`;
 }
 
 function linkIcon(id, href, glyph, label) {
   return `<a class="button ghost sm icon-only" id="${escape(id)}" href="${escape(href)}" target="_blank" rel="noopener noreferrer" aria-label="${escape(`${label} (opens in a new tab)`)}" title="${escape(label)}">${icon(glyph)}</a>`;
 }
 
-function waitingActions(entry, options) {
+function waitingActions(entry, context, reason) {
   const title = entry.title || `Work Item ${entry.id}`;
-  const actions = [];
-  const tracker = safeUrl(entry.url);
-  if (tracker) actions.push(linkIcon(`now-tracker-${entry.id}`, tracker, 'external', `Open “${title}” in the tracker`));
-  const reason = listReason(entry);
-  const grafana = reason && infrastructure.has(reason.code) ? grafanaTeam(options.grafanaUrl, entry.team) : null;
-  if (grafana) actions.push(linkIcon(`now-grafana-${entry.id}`, grafana, 'activity', `Open Grafana for the ${entry.team} Team`));
+  let primary = '';
   const pr = entry.state === 'awaiting_review' ? safeUrl(entry.pullRequestUrl) : null;
-  if (pr) actions.push(button({ id: `now-pr-${entry.id}`, label: 'Pull request', icon: 'pull-request', size: 'sm', href: pr, external: true, ariaLabel: `Pull request for ${title}` }));
-  if (entry.state === 'proposed') actions.push(button({ id: `now-decide-${entry.id}`, label: 'Decide', icon: 'arrow', size: 'sm', href: '#proposed', ariaLabel: `Decide on ${title}` }));
-  return actions.length ? `<div class="now-item-actions">${actions.join('')}</div>` : '';
+  if (pr) primary = button({ id: `now-pr-${entry.id}`, label: 'Pull request', icon: 'pull-request', size: 'sm', href: pr, external: true, ariaLabel: `Open the pull request for “${title}” (opens in a new tab)` });
+  if (entry.state === 'proposed') primary = button({ id: `now-decide-${entry.id}`, label: 'Approve or reject', icon: 'arrow', size: 'sm', href: `#proposed?id=${encodeURIComponent(entry.id)}`, ariaLabel: `Approve or reject “${title}” on Proposed` });
+  const links = [];
+  const tracker = safeUrl(entry.url);
+  if (tracker) links.push(linkIcon(`now-tracker-${entry.id}`, tracker, 'external', `Open “${title}” in the tracker`));
+  const grafana = reason && infrastructure.has(reason.code) ? grafanaTeam(context.grafanaUrl, entry.team) : null;
+  if (grafana) links.push(linkIcon(`now-grafana-${entry.id}`, grafana, 'activity', `Open Grafana for the ${entry.team} Team`));
+  return `<div class="now-item-actions"${primary ? ' data-primary' : ''}><span class="now-action-primary">${primary}</span><span class="now-action-links">${links.join('')}</span></div>`;
 }
 
-function waitingRow(entry, options, since) {
+function waitingRow(entry, context, grouped = false) {
   const reason = listReason(entry);
+  const warning = routingWarning(entry);
   const meta = workItemState(entry.state);
   const target = openTarget(entry);
   const created = entry.state === 'proposed';
   const when = created ? entry.createdAt : entry.updatedAt;
+  const unread = context.dots && after(when, context.since);
   const row = listRow({
     href: `#work/${entry.id}`,
     id: `now-row-w-${entry.id}`,
     tone: reason?.tone || meta.tone,
-    lead: icon(reason?.glyph || meta.glyph),
+    lead: grouped ? '<span class="now-lead-blank"></span>' : icon(reason ? reasonGlyph(reason) : meta.glyph),
     title: entry.title || `Work Item ${entry.id}`,
-    meta: waitingMeta(entry, options.demo),
-    trail: when ? `<span class="now-when"><span class="now-when-label">${created ? 'Created' : 'Updated'} </span>${timeAgo(when)}</span>` : '',
-    data: { nowRow: true, openUrl: target?.href, openLabel: target?.label, unread: after(when, moment(since)) || null },
+    meta: waitingMeta(entry, context, { reason, warning, grouped, unread }),
+    trail: when ? `<span class="now-when"><span class="now-when-label">${created ? 'Created' : 'Updated'} </span>${format.timeHtml(when, { now: context.now })}</span>` : '',
+    data: { nowRow: true, openUrl: target?.href, openLabel: target?.label, unread: unread || null },
   });
-  return `<li class="now-item">${row}${waitingActions(entry, options)}</li>`;
+  return `<li class="now-item">${row}${waitingActions(entry, context, reason)}</li>`;
 }
 
-function groupError(title, message) {
-  return emptyState({ icon: 'x-circle', tone: 'danger', compact: true, title: `${title} could not be read`, body: escape(message), actions: retryButton });
+function moreRow(hidden, group) {
+  if (hidden < 1) return '';
+  return `<li class="now-item now-more-item"><a class="now-more" href="${escape(group.more)}">${escape(`Show ${format.count(hidden)} more in ${group.place}`)}${icon('chevron')}</a></li>`;
 }
 
-function staleNote(stale) {
+function staleRow(stale) {
   if (!amount(stale) || stale < 1) return '';
-  const subject = stale === 1 ? '1 Work Item stopped retrying' : `${format.count(stale)} Work Items stopped retrying`;
-  return `<div class="now-stale" data-tone="severe"><span class="now-stale-icon" aria-hidden="true">${icon('clock')}</span><p><strong>${escape(subject)}.</strong> Ploeg gave up after repeated failures. Now does not list ${stale === 1 ? 'it' : 'them'}; ${stale === 1 ? 'it is' : 'they are'} in Work under All.</p>${button({ id: 'now-stale-open', label: 'Open Work', size: 'sm', variant: 'ghost', href: '#work?lane=all', ariaLabel: 'Open all Work Items in Work' })}</div>`;
+  const subject = stale === 1 ? '1 Work Item stopped retrying after repeated failures.' : `${format.count(stale)} Work Items stopped retrying after repeated failures.`;
+  const row = listRow({ href: '#work?lane=all', id: 'now-stale-open', tone: 'severe', lead: icon('clock'), title: subject, trail: `<span class="now-go"><span class="now-go-text">See ${stale === 1 ? 'it' : 'them'} in Work</span>${icon('chevron')}</span>` });
+  return `<li class="now-item now-stale">${row}</li>`;
 }
 
-function allClear(data, summary, now) {
-  const running = data.errors?.running ? null : (data.running || []).length;
-  const last = (data.errors?.recent ? [] : data.recent || []).map(run => moment(run.finishedAt)).filter(value => value !== null).sort((a, b) => b - a)[0];
+function errorState(id, title, message) {
+  return emptyState({ icon: 'x-circle', tone: 'danger', compact: true, title, body: escape(message), actions: retryButton(id) });
+}
+
+function staleCount(view) {
+  if (view.data.waiting.some(entry => entry.state === 'stale')) return 0;
+  const stale = view.summary?.data?.totals?.workItems?.stale;
+  return amount(stale) ? stale : 0;
+}
+
+function allClear(view, now) {
+  const data = view.data;
+  const running = data.errors?.running ? null : data.running.length;
+  const last = (data.errors?.recent ? [] : data.recent).map(run => moment(run.finishedAt)).filter(value => value !== null).sort((a, b) => b - a)[0];
   const parts = [];
-  if (running) parts.push(`${format.plural(running, 'Run')} ${running === 1 ? 'is' : 'are'} working`);
+  if (running) parts.push(`${escape(format.plural(running, 'Run'))} ${running === 1 ? 'is' : 'are'} working`);
   else if (running === 0) parts.push('No Run is working right now');
-  if (last) parts.push(`the last Run finished ${format.relative(last, now)}`);
-  const queued = summary?.data?.totals?.workItems?.queued;
-  if (!running && amount(queued) && queued > 0) parts.push(`${format.plural(queued, 'Work Item')} ${queued === 1 ? 'is' : 'are'} queued`);
+  if (last) parts.push(`the last Run finished ${format.timeHtml(last, { now })}`);
+  const queued = view.summary?.data?.totals?.workItems?.queued;
+  if (!running && amount(queued) && queued > 0) parts.push(`${escape(format.plural(queued, 'Work Item'))} ${queued === 1 ? 'is' : 'are'} queued`);
   const sentence = parts.length ? `${parts.join('; ')}.` : 'Ploeg handles the rest and shows new decisions here first.';
-  return emptyState({ icon: 'check-circle', tone: 'success', title: 'Nothing waits on you', body: escape(sentence[0].toUpperCase() + sentence.slice(1)) });
+  return emptyState({ icon: 'check-circle', tone: 'success', title: 'Nothing waits on you', body: sentence[0].toUpperCase() + sentence.slice(1) });
 }
 
-function waitingCard(view, visible, held, options, since, now) {
-  const data = visible;
-  const error = view.data.errors?.waiting;
-  const total = error ? null : (view.data.waiting || []).length;
-  const pill = held.waiting ? showNew(format.plural(held.waiting, 'new Work Item')) : '';
-  const hints = options.singleKeys && !error && total ? `<p class="now-keys" aria-hidden="true">${kbd(['j', 'k'])}<span>move</span>${kbd('o')}<span>open link</span></p>` : '';
+function groupHeader(group, total, id) {
+  return `<header class="now-group-header" data-tone="${group.tone}"><h3 class="now-group-title" id="${id}">${icon(group.glyph)}<span>${escape(group.title)}</span>${total ? count(total) : ''}</h3>${total ? `<p class="now-group-hint">${escape(group.hint)}</p>` : ''}</header>`;
+}
+
+function subgroupsMarkup(buckets, group, context) {
+  return buckets.map(({ reason, rows }) => {
+    const id = `now-reason-${reason ? reason.code : 'other'}`;
+    const shown = rows.slice(0, subgroupLimit);
+    const hidden = rows.length - shown.length;
+    const shared = reason && rows.every(entry => listReason(entry)?.sentence === listReason(rows[0])?.sentence);
+    const label = reason ? chipMarkup({ label: reason.chip, tone: reason.tone }) : '<span class="now-subgroup-name">Other reasons</span>';
+    const note = reason ? `<p class="now-subgroup-note">${shared ? `${escape(tidy(listReason(rows[0]).sentence))} ` : ''}<span class="now-why-fix">${escape(reason.fix)}</span></p>` : '';
+    const more = hidden > 0 ? `<a class="now-subgroup-more" href="${escape(group.more)}">${escape(`${format.count(hidden)} more in ${group.place}`)}${icon('chevron')}</a>` : '';
+    const header = `<header class="now-subgroup-header" data-tone="${reason ? reason.tone : group.tone}"><h4 class="now-subgroup-title" id="${id}"><span class="now-subgroup-glyph" aria-hidden="true">${icon(reason ? reasonGlyph(reason) : 'more')}</span>${label}${count(rows.length)}</h4>${note}${more}</header>`;
+    return `<section class="now-subgroup" aria-labelledby="${id}">${header}<ul class="list now-list" aria-labelledby="${id}">${shown.map(entry => waitingRow(entry, context, reason ? (shared ? 'shared' : 'grouped') : false)).join('')}</ul></section>`;
+  }).join('');
+}
+
+function groupMarkup(group, rows, context) {
+  const id = `now-group-${group.id}`;
+  const stale = group.id === 'needs' ? staleRow(context.stale) : '';
+  const buckets = group.id === 'needs' ? reasonBuckets(rows) : null;
   let body;
-  if (error) body = groupError('Waiting work', error);
-  else if (!data.waiting.length && !held.waiting) body = allClear(view.data, view.summary, now);
-  else {
-    body = groups.map(group => {
-      const rows = data.waiting.filter(entry => entry.state === group.state || (group.id === 'needs' && !['awaiting_review', 'proposed'].includes(entry.state)));
-      const list = rows.length ? `<ul class="list now-list" aria-labelledby="now-group-${group.id}">${rows.map(entry => waitingRow(entry, options, since)).join('')}</ul>` : `<p class="now-group-empty">${escape(group.empty)}</p>`;
-      const extra = group.id === 'needs' && !data.waiting.some(entry => entry.state === 'stale') ? staleNote(view.summary?.data?.totals?.workItems?.stale) : '';
-      return `<section class="now-group" data-group="${group.id}" aria-labelledby="now-group-${group.id}"><header class="now-group-header" data-tone="${group.tone}"><h3 class="now-group-title" id="now-group-${group.id}">${icon(group.glyph)}<span>${escape(group.title)}</span>${count(rows.length)}</h3><p class="now-group-hint">${escape(group.hint)}</p></header>${list}${extra}</section>`;
-    }).join('');
-  }
-  return `<section class="card flush now-card now-waiting" aria-labelledby="now-waiting-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-waiting-title">Waiting on you${count(total, { tone: total ? 'attention' : undefined })}</h2></div><div class="card-actions">${pill}${hints}</div></header><div class="card-body">${body}</div></section>`;
+  if (buckets) body = `${subgroupsMarkup(buckets, group, context)}${stale ? `<ul class="list now-list">${stale}</ul>` : ''}`;
+  else if (rows.length || stale) {
+    const shown = rows.slice(0, groupLimit);
+    body = `<ul class="list now-list" aria-labelledby="${id}">${shown.map(entry => waitingRow(entry, context)).join('')}${stale}${moreRow(rows.length - shown.length, group)}</ul>`;
+  } else body = `<p class="now-group-empty">${escape(group.empty)}</p>`;
+  return `<section class="now-group" data-group="${group.id}"${buckets ? ' data-split' : ''} aria-labelledby="${id}">${groupHeader(group, rows.length, id)}${body}</section>`;
 }
 
-function runningRow(run, options, now) {
+function waitingCard(view, visible, held, context) {
+  const error = view.data.errors?.waiting;
+  const total = error ? null : view.data.waiting.length;
+  const pill = held.waiting ? showNew('waiting', format.plural(held.waiting, 'new Work Item')) : '';
+  const hints = context.singleKeys && !error && total ? `<p class="now-keys" aria-hidden="true">${kbd(['j', 'k'])}<span>move</span>${kbd('o')}<span>open PR or tracker</span></p>` : '';
+  const stale = error ? 0 : staleCount(view);
+  const rows = visible.waiting;
+  const allNew = rows.length > 0 && rows.every(entry => after(entry.state === 'proposed' ? entry.createdAt : entry.updatedAt, context.since));
+  const local = { ...context, stale, dots: !allNew };
+  let body;
+  if (error) body = errorState('waiting', 'Could not load what waits on you', error);
+  else if (!rows.length && !held.waiting) body = `${allClear(view, context.now)}${stale ? `<ul class="list now-list now-after-clear">${staleRow(stale)}</ul>` : ''}`;
+  else body = groups.map(group => groupMarkup(group, rows.filter(entry => entry.state === group.state || (group.id === 'needs' && !['awaiting_review', 'proposed'].includes(entry.state))), local)).join('');
+  return `<section class="card flush now-card now-waiting" aria-labelledby="now-waiting-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-waiting-title">Waiting on you${total ? count(total, { tone: 'attention' }) : ''}</h2></div>${hints ? `<div class="card-actions">${hints}</div>` : ''}</header><div class="card-body">${pill}${body}</div></section>`;
+}
+
+function runningRow(run, context) {
   const models = run.reservedModels?.length ? run.reservedModels : run.usage?.models || [];
   const started = moment(run.startedAt);
   const facts = joinDots([escape(run.team), run.role ? escape(run.role) : '', run.round ? `Round ${escape(run.round)}` : '', models.length ? escape(models.join(', ')) : '']);
-  const spend = meter({ settled: run.observedUsd, authorized: run.authorizedUsd, demo: options.demo, label: '', size: 'sm' });
-  const elapsed = started === null ? '<span class="subtle">Not started</span>' : `<span title="Started ${escape(format.dateTime(started))}">${escape(format.duration((now - started) / 1000))}</span>`;
+  const spend = meter({ settled: run.observedUsd, authorized: run.authorizedUsd, demo: context.demo, label: '', size: 'sm' });
+  const elapsed = started === null ? '<span class="now-when">Not started</span>' : elapsedTag(started, context.now);
   return `<li><a class="list-row now-run" href="#work/${escape(run.workItemId)}" id="now-row-r-${escape(run.id)}" data-tone="live" data-now-row><span class="list-row-lead"><span class="live-dot" aria-hidden="true"></span></span><div class="list-row-main"><span class="list-row-title">${escape(run.workItemTitle || `Work Item ${run.workItemId}`)}</span><span class="list-row-meta">${facts}</span><div class="now-run-meter">${spend}</div></div><span class="list-row-trail num">${elapsed}</span></a></li>`;
 }
 
-function runningCard(view, options, now) {
+function runningCard(view, context) {
   const data = view.data;
   const error = data.errors?.running;
-  const runs = data.running || [];
+  const runs = data.running;
   let body;
-  if (error) body = groupError('Running Runs', error);
+  if (error) body = errorState('running', 'Could not load what is running', error);
   else if (!runs.length) {
     const queued = view.summary?.data?.totals?.workItems?.queued;
     const pending = view.summary?.data?.totals?.runs?.pending;
     const detail = amount(pending) && pending > 0 ? `${format.plural(pending, 'Run')} ${pending === 1 ? 'waits' : 'wait'} for a worker.` : amount(queued) && queued > 0 ? `${format.plural(queued, 'Work Item')} ${queued === 1 ? 'is' : 'are'} queued.` : 'Nothing is queued either.';
     body = emptyState({ icon: 'runs', compact: true, title: 'No Run is working', body: escape(detail) });
-  } else body = `<ul class="list now-list">${runs.map(run => runningRow(run, options, now)).join('')}</ul>`;
-  return `<section class="card flush now-card now-running" aria-labelledby="now-running-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-running-title">Running now${count(error ? null : runs.length, { tone: runs.length ? 'live' : undefined })}</h2></div><div class="card-actions">${button({ id: 'now-running-all', label: 'View all', size: 'sm', variant: 'ghost', href: '#runs?state=running', ariaLabel: 'View all running Runs' })}</div></header><div class="card-body">${body}</div></section>`;
+  } else body = `<ul class="list now-list">${runs.map(run => runningRow(run, context)).join('')}</ul>`;
+  const total = error ? 0 : runs.length;
+  return `<section class="card flush now-card now-running" aria-labelledby="now-running-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-running-title">Running now${total ? count(total, { tone: 'live' }) : ''}</h2></div><div class="card-actions">${button({ id: 'now-running-all', label: 'View all', size: 'sm', variant: 'ghost', href: '#runs?state=running', ariaLabel: 'View all running Runs' })}</div></header><div class="card-body">${body}</div></section>`;
 }
 
-function recentRow(run, since) {
+function recentRow(run, context) {
   const outcome = runOutcome(run.outcome);
   const tone = outcome?.tone || 'neutral';
   const failure = failureReason(run.failureReason);
-  const verdict = run.verdict ? verdictMeta(run.verdict) : null;
+  const verdict = run.verdict && run.verdict !== 'none' ? verdictMeta(run.verdict) : null;
+  const unread = context.dots && after(run.finishedAt, context.since);
   const facts = joinDots([
     `<span class="now-outcome" data-tone="${tone}">${escape(outcome?.label || 'No outcome reported')}</span>`,
     failure ? escape(failure.label) : '',
@@ -264,23 +442,21 @@ function recentRow(run, since) {
     run.round ? `Round ${escape(run.round)}` : '',
   ]);
   const agentReview = verdict ? badge({ tone: verdict.tone, glyph: verdict.glyph, label: verdict.label, size: 'sm' }) : '';
-  return `<li>${listRow({ href: `#work/${run.workItemId}`, id: `now-row-f-${run.id}`, tone, lead: icon(outcome?.glyph || 'circle-slash'), title: run.workItemTitle || `Work Item ${run.workItemId}`, meta: `${agentReview}${facts}`, trail: timeAgo(run.finishedAt), data: { nowRow: true, unread: after(run.finishedAt, moment(since)) || null } })}</li>`;
+  const fresh = unread ? '<span class="sr-only">New since your last visit.</span>' : '';
+  return `<li>${listRow({ href: `#work/${run.workItemId}`, id: `now-row-f-${run.id}`, tone, lead: icon(outcome?.glyph || 'circle-slash'), title: run.workItemTitle || `Work Item ${run.workItemId}`, meta: `${agentReview}${facts}${fresh}`, trail: format.timeHtml(run.finishedAt, { now: context.now }), data: { nowRow: true, unread: unread || null } })}</li>`;
 }
 
-/** Finished Runs newest first by the moment they finished; Runs without a finish time keep their order at the end. */
-export function byFinish(runs) {
-  return (runs || []).map((run, index) => ({ run, index, at: moment(run.finishedAt) })).sort((a, b) => (b.at ?? -Infinity) - (a.at ?? -Infinity) || a.index - b.index).map(entry => entry.run);
-}
-
-function recentCard(view, visible, held, since) {
+function recentCard(view, visible, held, context) {
   const error = view.data.errors?.recent;
   const runs = byFinish(visible.recent).slice(0, recentLimit);
-  const pill = held.recent ? showNew(`${format.count(held.recent)} new`) : '';
+  const pill = held.recent ? showNew('recent', `${format.count(held.recent)} new`) : '';
+  const allNew = runs.length > 0 && runs.every(run => after(run.finishedAt, context.since));
+  const local = { ...context, dots: !allNew };
   let body;
-  if (error) body = groupError('Finished Runs', error);
+  if (error) body = errorState('recent', 'Could not load finished Runs', error);
   else if (!runs.length) body = emptyState({ icon: 'clock', compact: true, title: 'No Run has finished yet', body: 'Finished Runs appear here with their outcome and the agent’s review verdict.' });
-  else body = `<ul class="list now-list">${runs.map(run => recentRow(run, since)).join('')}</ul>`;
-  return `<section class="card flush now-card now-recent" aria-labelledby="now-recent-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-recent-title">Recently finished</h2></div><div class="card-actions">${pill}${button({ id: 'now-recent-all', label: 'View all', size: 'sm', variant: 'ghost', href: '#runs?state=finished', ariaLabel: 'View all finished Runs' })}</div></header><div class="card-body">${body}</div></section>`;
+  else body = `<ul class="list now-list">${runs.map(run => recentRow(run, local)).join('')}</ul>`;
+  return `<section class="card flush now-card now-recent" aria-labelledby="now-recent-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-recent-title">Recently finished</h2></div><div class="card-actions">${button({ id: 'now-recent-all', label: 'View all', size: 'sm', variant: 'ghost', href: '#runs?state=finished', ariaLabel: 'View all finished Runs' })}</div></header><div class="card-body">${pill}${body}</div></section>`;
 }
 
 function digestItem(value, singular, pluralForm, tone, more = false) {
@@ -288,78 +464,107 @@ function digestItem(value, singular, pluralForm, tone, more = false) {
   return `<li class="now-digest-item"><span class="status-dot" data-tone="${tone}" aria-hidden="true"></span><strong class="num">${escape(format.count(value))}${more ? '+' : ''}</strong> ${escape(value === 1 ? singular : pluralForm)}</li>`;
 }
 
+function digestFrame(kind, glyph, title, body, action = '') {
+  return `<section class="now-digest" data-kind="${kind}" aria-labelledby="now-digest-title"><span class="now-digest-icon" aria-hidden="true">${icon(glyph)}</span><div class="now-digest-text"><h2 class="now-digest-title" id="now-digest-title">${title}</h2> ${body}</div>${action ? `<div class="now-digest-actions">${action}</div>` : ''}</section>`;
+}
+
 function digestMarkup(view, since, now) {
   const data = view.data;
-  const waiting = data.errors?.waiting ? null : (data.waiting || []).length;
-  const still = waiting === null ? '' : waiting === 0 ? 'Nothing waits on you.' : `${format.plural(waiting, 'Work Item')} ${waiting === 1 ? 'waits' : 'wait'} on you.`;
-  if (since === null) {
-    return `<section class="now-digest" data-kind="welcome" aria-labelledby="now-digest-title"><span class="now-digest-icon" aria-hidden="true">${icon('spark')}</span><div class="now-digest-text"><h2 class="now-digest-title" id="now-digest-title">Welcome to De Vloer</h2><p class="now-digest-body">Now shows what waits on you, what runs and what finished, across every Team you can read. From your next visit, this line sums up what changed while you were away.</p></div></section>`;
-  }
+  const waiting = data.errors?.waiting ? null : data.waiting.length;
+  if (since === null) return digestFrame('welcome', 'spark', 'Welcome to De Vloer', '<p class="now-digest-body">From your next visit, this line sums up what changed while you were away.</p>');
+  const start = moment(since);
   const counts = digestCounts(data, since);
-  const label = sinceLabel(since, now);
-  const ago = format.relative(since, now);
-  const heading = `${escape(label)}<span class="now-digest-ago"> · ${escape(ago)}</span>`;
   const items = [
     digestItem(counts.review, 'ready for review', 'ready for review', 'review'),
     digestItem(counts.needsYou, 'needs you', 'need you', 'attention'),
     digestItem(counts.proposed, 'proposed', 'proposed', 'neutral'),
     digestItem(counts.finished, 'Run finished', 'Runs finished', 'success', counts.finishedCapped),
   ].filter(Boolean);
-  const unknown = [counts.review, counts.finished].some(value => value === null) ? '<li class="now-digest-item now-digest-unknown">Some changes could not be read</li>' : '';
+  const unknown = [counts.review, counts.finished].some(value => value === null);
   if (!items.length) {
-    const caughtUp = view.caughtUp;
-    return `<section class="now-digest" data-kind="quiet" aria-labelledby="now-digest-title"><span class="now-digest-icon" aria-hidden="true">${icon('check-circle')}</span><div class="now-digest-text"><h2 class="now-digest-title" id="now-digest-title">${caughtUp ? 'You are caught up' : `Nothing new ${escape(label.replace(/^Since/, 'since'))}`}</h2><p class="now-digest-body">${escape(still)}${unknown ? ' Some changes could not be read.' : ''}</p></div></section>`;
+    const still = waiting === null ? '' : waiting === 0 ? 'Nothing waits on you.' : `${format.plural(waiting, 'Work Item')} still ${waiting === 1 ? 'waits' : 'wait'} on you.`;
+    const title = view.caughtUp ? `Marked as read at ${timeTag(start, format.time(start))}` : `Nothing new since ${timeTag(start, sinceText(start, now))}`;
+    const body = [still, unknown ? 'Some changes could not be loaded.' : ''].filter(Boolean).join(' ');
+    return digestFrame('quiet', 'check-circle', title, body ? `<p class="now-digest-body">${escape(body)}</p>` : '');
   }
-  return `<section class="now-digest" data-kind="changes" aria-labelledby="now-digest-title"><span class="now-digest-icon" aria-hidden="true">${icon('spark')}</span><div class="now-digest-text"><h2 class="now-digest-title" id="now-digest-title">${heading}</h2><ul class="now-digest-list">${items.join('')}${unknown}</ul></div><div class="now-digest-actions">${caughtUpButton}</div></section>`;
+  const heading = `Since ${timeTag(start, sinceText(start, now))}<span class="now-digest-ago"> · ${format.timeHtml(start, { now })}</span>`;
+  const list = `<ul class="now-digest-list">${items.join('')}${unknown ? '<li class="now-digest-item now-digest-unknown">Some changes could not be loaded</li>' : ''}</ul>`;
+  const caughtUp = `<button type="button" class="button ghost sm" id="now-caught-up" title="Mark as caught up" data-action="now-caught-up">${icon('check')}<span class="button-label">Mark as caught up</span></button>`;
+  return digestFrame('changes', 'spark', heading, list, caughtUp);
+}
+
+function tile({ label, glyph, tone, value, detail, href, quiet = false }) {
+  const inner = `<span class="stat-label">${icon(glyph)}${escape(label)}</span><strong class="stat-value"${quiet ? ' data-quiet' : ''}>${escape(value)}</strong><span class="stat-detail">${detail}</span>`;
+  return href ? `<a class="stat now-stat" href="${escape(href)}" data-tone="${tone}">${inner}<span class="now-stat-go" aria-hidden="true">${icon('chevron')}</span></a>` : `<div class="stat now-stat" data-tone="${tone}">${inner}</div>`;
 }
 
 function statsMarkup(view) {
   const data = view.data;
+  const demo = Boolean(data.demo || view.summary?.data?.demo);
   const summary = view.summary?.data || null;
   const summaryError = view.summary?.error || null;
-  const waiting = data.errors?.waiting ? null : data.waiting || [];
-  const running = data.errors?.running ? null : data.running || [];
+  const waiting = data.errors?.waiting ? null : data.waiting;
+  const running = data.errors?.running ? null : data.running;
   const inState = state => waiting.filter(entry => entry.state === state).length;
-  const breakdown = waiting ? [[inState('awaiting_review'), 'to review'], [inState('needs_human'), 'need you'], [inState('proposed'), 'proposed']].filter(([n]) => n).map(([n, text]) => `${format.count(n)} ${n === 1 && text === 'need you' ? 'needs you' : text}`).join(' · ') : '';
-  const unreported = summaryError ? (summaryError.code === 'ploeg_unsupported' ? 'Not reported by this Ploeg' : 'Could not be read') : summary ? '' : 'Loading…';
+  const breakdown = waiting ? [[inState('awaiting_review'), 'to review'], [inState('needs_human'), 'need you'], [inState('proposed'), 'proposed']].filter(([n]) => n).map(([n, text]) => `${format.count(n)} ${n === 1 && text === 'need you' ? 'needs you' : text}`) : [];
+  const unreported = summaryError ? (summaryError.code === 'ploeg_unsupported' ? 'Not reported by this Ploeg' : 'Could not be loaded') : summary ? '' : 'Loading…';
   const queued = summary?.totals?.workItems?.queued;
   const pending = summary?.totals?.runs?.pending;
+  const runningCount = running ? running.length : null;
+  const runningMore = running && mayHoldMore(data, 'running') ? '+' : '';
   const settled = summary?.totals?.spend?.settledUsd;
   const reserved = summary?.totals?.spend?.reservedUsd;
+  const spend = demo ? { value: '—', quiet: true, detail: 'Demo · no model calls' }
+    : summary ? { value: amount(settled) ? format.money(settled) : format.notReported, quiet: !amount(settled), detail: amount(reserved) && reserved > 0 ? `Settled · ${format.money(reserved)} reserved` : 'Settled' }
+    : { value: '—', quiet: true, detail: unreported };
   const tiles = [
-    stat({ label: 'Waiting on you', icon: 'inbox', tone: 'attention', value: waiting ? format.count(waiting.length) : '—', detail: waiting ? breakdown || 'Nothing to decide' : 'Could not be read' }),
-    stat({ label: 'Running', icon: 'runs', tone: 'live', href: '#runs?state=running', value: running ? `${format.count(running.length)}${running.length >= 25 ? '+' : ''}` : '—', detail: running ? amount(pending) && pending > 0 ? `${format.plural(pending, 'Run')} waiting for a worker` : running.length ? 'Working now' : 'Nothing is working' : 'Could not be read' }),
-    stat({ label: 'Queued', icon: 'circle-dashed', tone: 'neutral', href: '#work?lane=queued', value: amount(queued) ? format.count(queued) : '—', detail: amount(queued) ? queued ? 'Waiting to start' : 'Nothing waits to start' : unreported }),
-    stat({ label: 'Spend · 24 h', icon: 'coins', tone: 'neutral', href: '#insights?window=24h', value: summary ? amount(settled) ? format.money(settled) : format.notReported : '—', detail: summary ? data.demo || summary.demo ? 'Demo · no model calls' : amount(reserved) && reserved > 0 ? `Settled · ${format.money(reserved)} reserved` : 'Settled' : unreported }),
+    tile({ label: 'Waiting on you', glyph: 'inbox', tone: 'attention', value: waiting ? format.count(waiting.length) : '—', quiet: !waiting, detail: waiting ? breakdown.length ? joinDots(breakdown.map(part => escape(part))) : 'Nothing to decide' : 'Could not be loaded' }),
+    tile({ label: 'Running', glyph: 'runs', tone: 'live', href: '#runs?state=running', value: running ? `${format.count(runningCount)}${runningMore}` : '—', quiet: !running, detail: escape(running ? amount(pending) && pending > 0 ? `+${format.count(pending)} waiting for a worker` : runningCount ? 'Working now' : 'Nothing is working' : 'Could not be loaded') }),
+    tile({ label: 'Queued', glyph: 'circle-dashed', tone: 'neutral', href: '#work?lane=queued', value: amount(queued) ? format.count(queued) : '—', quiet: !amount(queued), detail: escape(amount(queued) ? queued ? 'Waiting to start' : 'Nothing waits to start' : unreported) }),
+    tile({ label: 'Spend · 24 h', glyph: 'coins', tone: 'neutral', href: '#insights?window=24h', value: spend.value, quiet: spend.quiet, detail: escape(spend.detail) }),
   ];
   return `<div class="stat-row now-stats">${tiles.join('')}</div>`;
 }
 
 function failureMarkup(error) {
   const code = error?.code || '';
-  if (code === 'ploeg_unconfigured') return emptyState({ icon: 'settings', title: 'Connect Ploeg to see your work', body: 'No Ploeg connection is configured for this workbench. An administrator sets it up; Environment shows what is missing.', actions: button({ label: 'Open Environment', href: '#settings/environment' }) });
+  if (code === 'ploeg_unconfigured') return emptyState({ icon: 'settings', title: 'Connect Ploeg to see your work', body: 'No Ploeg connection is configured for this workbench. An administrator sets it up; Environment shows what is missing.', actions: button({ id: 'now-environment', label: 'Open Environment', href: '#settings/environment' }) });
   if (code === 'ploeg_scope') return emptyState({ icon: 'lock', title: 'Your account has no Ploeg Teams', body: 'Ask an administrator to give your account access to a Team. Its work shows up here as soon as they do.' });
-  return emptyState({ icon: 'x-circle', tone: 'danger', title: 'Now could not be read', body: `${escape(error?.message || 'Ploeg did not answer.')} Nothing was started or changed.`, actions: retryButton });
+  const actions = `${retryButton('page')}${button({ id: 'now-environment', label: 'Check Environment', size: 'sm', variant: 'ghost', href: '#settings/environment' })}`;
+  return emptyState({ icon: 'x-circle', tone: 'danger', title: 'Could not reach Ploeg', body: `${escape(error?.message || 'Ploeg did not answer.')} Nothing was started or changed.`, actions });
 }
 
 function loadingMarkup() {
-  return `<div class="now now-skeleton" aria-busy="true"><div class="now-top"><div class="now-digest now-digest-skeleton">${skeleton({ rows: 1, variant: 'text' })}</div>${skeleton({ rows: 4, variant: 'cards' })}</div><div class="now-columns"><div class="card now-card">${skeleton({ rows: 6 })}</div><div class="now-rail"><div class="card now-card">${skeleton({ rows: 2 })}</div><div class="card now-card">${skeleton({ rows: 4 })}</div></div></div></div>`;
+  const tileShape = '<div class="stat now-stat now-stat-skeleton" aria-hidden="true"><span class="skeleton text"></span><span class="skeleton title"></span><span class="skeleton text"></span></div>';
+  return `<div class="now now-skeleton" aria-busy="true"><div class="now-digest now-digest-skeleton">${skeleton({ rows: 1, variant: 'text' })}</div><div class="stat-row now-stats">${tileShape.repeat(4)}</div><div class="now-columns"><div class="card now-card now-waiting">${skeleton({ rows: 6 })}</div><div class="now-rail"><div class="card now-card">${skeleton({ rows: 2 })}</div><div class="card now-card">${skeleton({ rows: 4 })}</div></div></div></div>`;
 }
 
 function staleBanner(view, now) {
   if (!view.error || !view.data) return '';
   const read = moment(view.data.fetchedAt);
-  const when = read === null ? '' : ` Showing what Ploeg reported ${format.relative(read, now)}.`;
-  return `<div class="now-banner" role="status">${callout({ tone: 'attention', title: 'Could not refresh', body: `<p>${escape(view.error.message || 'Ploeg did not answer.')}${escape(when)}</p>`, actions: retryButton })}</div>`;
+  const when = read === null ? '' : ` Showing what Ploeg reported ${format.timeHtml(read, { now })}.`;
+  return `<div class="now-banner" role="status">${callout({ tone: 'attention', title: 'Could not refresh', body: `<p>${escape(view.error.message || 'Ploeg did not answer.')}${when}</p>`, actions: retryButton('banner') })}</div>`;
+}
+
+/**
+ * Whether the Now page currently shows a "Try again" button: the page failed, a refresh failed over older
+ * data, or one of its groups failed. The page's own Refresh button stays hidden while one is on screen.
+ * @param {object} input `state.now`.
+ * @returns {boolean}
+ */
+export function offersRetry(input) {
+  if (input?.error) return !['ploeg_unconfigured', 'ploeg_scope'].includes(input.error.code) || Boolean(input.data);
+  const errors = input?.data?.errors || {};
+  return Boolean(errors.waiting || errors.running || errors.recent);
 }
 
 /**
  * Renders the Now page body: the "Since you were away" digest, the stat row, what waits on you (ready for
  * review, needs you with its reason, proposed), what runs now with its budget meter and what finished recently.
- * `view` is `state.now` plus `since` (the digest baseline, null on a first visit), `shown` (the ids on screen,
+ * `input` is `state.now` plus `since` (the digest baseline, null on a first visit), `shown` (the ids on screen,
  * see `visibleNow`), `summary` ({ data, error } of the 24-hour summary) and `caughtUp`.
  * `options` takes `grafanaUrl` and `singleKeys` (show the j/k/o hints).
- * @param {object} view
+ * @param {object} input
  * @param {{ grafanaUrl?: string, singleKeys?: boolean }} [options]
  * @param {number} [now]
  * @returns {string}
@@ -368,9 +573,9 @@ export function nowMarkup(input, options = {}, now = Date.now()) {
   if (!input?.data) return input?.error ? `<div class="now now-failed">${failureMarkup(input.error)}</div>` : loadingMarkup();
   const list = value => Array.isArray(value) ? value : [];
   const view = { ...input, data: { ...input.data, errors: input.data.errors || {}, waiting: list(input.data.waiting), running: list(input.data.running), recent: list(input.data.recent) } };
-  const settings = { ...options, demo: Boolean(view.data.demo) };
   const since = view.since === undefined ? null : view.since;
+  const context = { ...options, demo: Boolean(view.data.demo), now, since: moment(since), runs: view.data.errors.recent ? [] : view.data.recent, dots: true };
   const { data: visible, held } = visibleNow(view.data, view.shown ?? null);
-  const note = view.data.demo ? demoNote('Illustrative Ploeg records. No Run executes, no model is called and nothing is spent.') : '';
-  return `<div class="now"${view.loading ? ' aria-busy="true"' : ''}>${note}${staleBanner(view, now)}<div class="now-top">${digestMarkup(view, since, now)}${statsMarkup(view)}</div><div class="now-columns"><div class="now-main">${waitingCard(view, visible, held, settings, since, now)}</div><div class="now-rail">${runningCard(view, settings, now)}${recentCard(view, visible, held, since)}</div></div></div>`;
+  const note = view.data.demo ? demoNote('Illustrative records · no model calls, no spend') : '';
+  return `<div class="now"${view.loading ? ' aria-busy="true"' : ''}>${note}${staleBanner(view, now)}${digestMarkup(view, since, now)}${statsMarkup(view)}<div class="now-columns"><div class="now-main">${waitingCard(view, visible, held, context)}</div><div class="now-rail">${runningCard(view, context)}${recentCard(view, visible, held, context)}</div></div></div>`;
 }
