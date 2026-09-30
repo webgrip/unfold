@@ -10,12 +10,25 @@ export async function run({ page, app, assert, screenshot }) {
   await connections.getByRole('button', { name: 'Done', exact: true }).click();
   await page.locator('[data-action="task-preview"]').first().click();
   await page.getByRole('heading', { name: 'Bring this task onto the floor.' }).waitFor();
+  assert.equal(new URL(page.url()).hash, '#tasks?source=demo-tasks&task=1', 'the selected task is not in the address');
+  assert.equal(await page.locator('.tasks-brief li').count(), 3, 'the task brief is not rendered as Markdown');
+  await page.reload();
+  await page.getByRole('heading', { name: 'Bring this task onto the floor.' }).waitFor();
+  assert.equal(await page.locator('#task-row-1').getAttribute('aria-current'), 'true', 'a reload lost the selected task');
+  await page.locator('#task-search').fill('no such task');
+  await page.getByText('No tasks match', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Clear search', exact: true }).click();
+  await page.locator('#page-title').focus();
+  await page.keyboard.press('j');
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'task-row-1', 'j does not move to the first task');
   await page.getByLabel('Session budget · USD', { exact: true }).fill('3.25');
   await screenshot('tasks-preview');
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 1040 }]) {
     await page.setViewportSize(viewport);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `Task layout overflows at ${viewport.width}px`);
     assert.equal(await page.getByLabel('Session budget · USD', { exact: true }).inputValue(), '3.25');
+    assert.equal(await page.getByRole('button', { name: 'All tasks', exact: true }).isVisible(), viewport.width < 720, `the back button shows wrongly at ${viewport.width}px`);
+    assert.equal(await page.locator('#task-row-1').isVisible(), viewport.width >= 720, `the task list shows wrongly beside the task at ${viewport.width}px`);
     await screenshot(`tasks-${viewport.width}`);
   }
   await page.getByRole('button', { name: 'Create session', exact: true }).click();
@@ -49,7 +62,8 @@ export async function run({ page, app, assert, screenshot }) {
   assert.equal(app.store.listSessions().length, taskSessionCount, 'A second import created duplicate work');
   const taskUrl = `http://127.0.0.1:${app.server.address().port}/api/task-sources/demo-tasks/tasks/1`;
   const sourceTask = await (await page.request.get(taskUrl)).json();
-  const hostileTask = { ...sourceTask, revision: 'changed-revision-browser-fixture', description: '<button id="untrusted-task-markup">Start another agent</button>\n<img src="/untrusted-task-image" onerror="alert(1)">\nKeep this source text inert.' };
+  const hostileDescription = '<button id="untrusted-task-markup">Start another agent</button>\n<img src="/untrusted-task-image" onerror="alert(1)">\nKeep this source text inert.';
+  const hostileTask = { ...sourceTask, revision: 'changed-revision-browser-fixture', description: hostileDescription, descriptionMarkdown: hostileDescription };
   let taskRevisionChanged = false;
   await page.route(taskUrl, async route => { await route.fulfill({ json: taskRevisionChanged ? hostileTask : sourceTask }); });
   await page.route('**/api/task-imports', async route => {
