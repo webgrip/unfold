@@ -48,14 +48,14 @@ test('the shared prerelease configuration needs an existing main baseline', asyn
   }
 });
 
-test('one Glide release selects commits in either application and ignores changes outside them', async () => {
+test('one Glide release selects commits in either application and ignores the site and changes outside the applications', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'glide-release-'));
   const previous = process.cwd();
   try {
     git(directory, 'init', '-b', 'development');
     git(directory, 'config', 'user.name', 'Glide qualification');
     git(directory, 'config', 'user.email', 'qualification@example.invalid');
-    for (const app of ['vloer', 'ploeg']) fs.mkdirSync(path.join(directory, 'apps', app), { recursive: true });
+    for (const app of ['vloer', 'ploeg', 'site']) fs.mkdirSync(path.join(directory, 'apps', app), { recursive: true });
     fs.mkdirSync(path.join(directory, 'scripts'));
     fs.mkdirSync(path.join(directory, 'docs'));
     const files = ['apps/.releaserc.cjs', 'scripts/release-policy.cjs'];
@@ -70,6 +70,8 @@ test('one Glide release selects commits in either application and ignores change
       ['ploeg', 'feat: extend managed work', ['apps/ploeg/change.txt']],
       ['both', 'fix: align a shared contract', ['apps/vloer/change.txt', 'apps/ploeg/change.txt']],
       ['docs', 'fix: clarify shared documentation', ['docs/guide.md']],
+      ['site', 'feat(site): add the landing page', ['apps/site/change.txt']],
+      ['site-breaking', 'feat(site)!: move the site to a new domain', ['apps/site/change.txt']],
     ]) {
       for (const file of paths) fs.writeFileSync(path.join(directory, file), name);
       git(directory, 'add', '--', ...paths);
@@ -83,7 +85,7 @@ test('one Glide release selects commits in either application and ignores change
     const input = { cwd, env: process.env, logger, stdout: process.stdout, stderr: process.stderr };
     const { options, plugins } = await getConfig(input, { repositoryUrl: 'https://example.invalid/glide.git' });
     assert.equal(options.tagFormat, 'glide-v${version}');
-    const expected = { vloer: 'patch', ploeg: 'minor', both: 'patch', docs: null };
+    const expected = { vloer: 'patch', ploeg: 'minor', both: 'patch', docs: null, site: null, 'site-breaking': null };
     for (const commit of commits) {
       const actual = await plugins.analyzeCommits({ ...input, options, commits: [commit] });
       assert.equal(actual ?? null, expected[commit.name], commit.name);
