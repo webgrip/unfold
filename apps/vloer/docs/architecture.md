@@ -83,6 +83,10 @@ Outside `src/`:
 | Path | Role |
 | --- | --- |
 | [`public/`](../public/) | Browser workbench: native modules, no build step |
+| [`public/app.js`](../public/app.js) | Browser entry: boots, routes each hash to a view and dispatches delegated events to the handlers views register |
+| [`public/core/`](../public/core/) | Shared browser state, API client, DOM and format helpers, icons, and the view descriptor contract in [`registry.js`](../public/core/registry.js) |
+| [`public/views/`](../public/views/) | One module per screen area, each exporting a view descriptor; [`index.js`](../public/views/index.js) lists them |
+| [`public/shell.js`](../public/shell.js) | Sidebar, top bar, page heading and footer around every signed-in view |
 | [`extensions/vscode/`](../extensions/vscode/) | VS Code extension: sessions, task import, Ploeg view, linked accounts and agent-host setup |
 | [`scripts/`](../scripts/) | Checks, smoke and browser checks, and the `qualify-*` scripts Ploeg's opt-in qualification runs |
 | [`ops/`](../ops/) | Agent image, Helm chart, local Compose and cluster manifests |

@@ -28,8 +28,8 @@ try {
   page.on('console', message => { if (message.type() === 'error' && !/\b(401|409|503)\b/.test(message.text())) errors.push(message.text()); });
   const screenshot = async name => { if (screenshots) { await mkdir(screenshots, { recursive: true }); await page.screenshot({ path: join(screenshots, `${name}.png`), fullPage: true }); } };
   await page.goto(`http://127.0.0.1:${app.server.address().port}`);
-  assert.equal(new URL(page.url()).hash, '#now', 'Vloer does not open on the Now page');
   await page.getByRole('heading', { name: 'Now', exact: true }).first().waitFor();
+  assert.equal(new URL(page.url()).hash, '#now', 'Vloer does not open on the Now page');
   await page.locator('.now-group').first().waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'Now layout overflows horizontally at 390px');
