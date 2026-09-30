@@ -134,6 +134,10 @@ func (s *Server) maxRunning(team string) int {
 type ShiftEngine interface {
 	EnsureShift(ctx context.Context, workItemID int64, item work.WorkItem) error
 	EvaluateItem(ctx context.Context, workItemID int64) error
+	// RefreshUsageReport re-renders the Shift's usage report after a late
+	// settlement. The settlement sweep calls it after a successful Settle and
+	// only then; a Shift with no pull request is a silent no-op.
+	RefreshUsageReport(ctx context.Context, shiftID int64) error
 }
 
 func (s *Server) Handler() http.Handler {

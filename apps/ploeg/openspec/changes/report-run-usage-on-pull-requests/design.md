@@ -35,12 +35,11 @@ The whole artifact is one function whose input is already read:
 ```go
 // usageReportInput is everything the report renders.
 type usageReportInput struct {
-    Shift    store.ShiftUsage // id, work item, team, branch, rounds, close reason
-    Runs     []store.RunUsage // oldest first
+    Shift    store.ShiftUsage // id, work item, team, branch, rounds, close reason, Runs
     Ledger   store.ShiftLedger
     TraceID  string           // writing Run's alias ploeg-<12hex>; "" if none
     Evidence Evidence         // what Ploeg observed of the writing Run's verification
-    Settled  bool             // false when any managed account is unreconciled
+    Links    reportLinkConfig // optional dashboard bases; empty omits the links
 }
 
 // Evidence is the writing Run's verification as stored; the zero value means
@@ -56,12 +55,14 @@ func usageReport(in usageReportInput) string
 
 `store.ShiftUsage(ctx, shiftID)` reads `agent_runs` LEFT JOIN `run_llm_accounts`
 plus `Ledger`, once. `RunUsage` carries `Role, Round, Writes, Outcome, Verdict,
-Alias, Models, InputTokens, OutputTokens, CostUSD, AccountState`. Tokens, models
-and cost come from `agent_runs.usage` (`inputTokens`, `outputTokens`, `models`,
-`costUsd` — the keys `ReconcileLLMAccountWithUsage` writes); the account state
-comes from `run_llm_accounts.state` (`reserved|minting|issued|unknown|blocked|
-reconciled`, migration 0012). Because both already exist, **no migration is
-needed** — the rejected alternative below is the one that would have added one.
+Alias, Models, InputTokens, OutputTokens, CostUSD, Duration, AccountState`. The
+gateway-settled figures (tokens, models, cost) come from `agent_runs.usage`
+(`inputTokens`, `outputTokens`, `models`, `costUsd` — the keys
+`ReconcileLLMAccountWithUsage` writes); `Duration` is derived from the stored
+`started_at` and `finished_at`; the account state comes from
+`run_llm_accounts.state` (`reserved|minting|issued|unknown|blocked|reconciled`,
+migration 0012). Because both already exist, **no migration is needed** — the
+rejected alternative below is the one that would have added one.
 
 `Evidence` is the one input that is not a column, and the plan owes it a named
 source. ADR-0035 has the worker append the verification to the writing Run's
@@ -176,18 +177,21 @@ report is **skipped rather than posted blind**, because a comment we cannot find
 is a duplicate waiting to happen on the next refresh. A killed pod records
 nothing partial: the next refresh edits the one comment (R6).
 
-### D7 — One chart value, and it is the kill switch
+### D7 — Chart values: a kill switch and the two link bases
 
 The chart already renders a generic `env:` map onto the deployment
 (`ops/helm/ploeg/values.yaml`: "Plain PLOEG_* env rendered onto the deployment"),
 so the switch is `PLOEG_USAGE_REPORT: "true"` added there — **no
-`values.schema.json` change**, unlike a new typed values key. `cmd/ploegd/main.go`
-reads it with the same `envOr(...) != "false"` helper as
-`PLOEG_SHIFTS_UNIFORM`, into `Engine.UsageReport`. It is the only new desired
-state; rollback is a values edit that removes the env line (the code default is
-the same `true`), not a redeploy of anything but ploegd. Default `true` because
-the outcome is "every agent PR"; the value exists so a noisy deployment can
-silence the report without a rollback.
+`values.schema.json` change**, unlike a new typed values key. The two link bases
+ride the same map: `PLOEG_REPORT_GRAFANA_URL` and `PLOEG_REPORT_VLOER_URL`
+(default `""`). `cmd/ploegd/main.go` reads the switch with the same
+`envOr(...) != "false"` helper as `PLOEG_SHIFTS_UNIFORM`, into
+`Engine.UsageReport`, and the URLs into `Engine.GrafanaURL`/`VloerURL`. These are
+the only new desired state; rollback is a values edit that removes the env lines
+(the code default is the same `true`), not a redeploy of anything but ploegd.
+Default `true` because the outcome is "every agent PR"; the switch exists so a
+noisy deployment can silence the report without a rollback, and unsetting a URL
+drops its links.
 
 ### D8 — The report prints the alias, never a secret
 
@@ -251,3 +255,9 @@ edit.
 - Whether the report earns an ADR if it becomes the surface a human bills from.
 - The single-publisher assumption above, if ploegd ever runs more than one
   replica.
+- **Per-Run harness name.** The Work Item asks each Run to show its harness, but
+  `agent_runs` has no harness column and the change forbids a migration
+  (protected area). The Run's Role, Outcome and models are shown instead; a
+  harness name would need either a new column or reading it from the Run's
+  stored usage JSON, which the worker does not write today. Flagged for a
+  follow-up rather than invented here.

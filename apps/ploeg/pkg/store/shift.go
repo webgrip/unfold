@@ -639,6 +639,17 @@ func (s *Store) QueuedWithoutShift(ctx context.Context) ([]int64, error) {
 	return ids, rows.Err()
 }
 
+// ShiftInfoByID reads one Shift's identity, live or closed, for a caller that
+// has only the id — the settlement sweep, refreshing a report after a Run's
+// account finally reconciles.
+func (s *Store) ShiftInfoByID(ctx context.Context, shiftID int64) (ShiftInfo, error) {
+	var si ShiftInfo
+	err := s.pool.QueryRow(ctx, `
+		SELECT id, work_item_id, team, round, branch FROM shifts WHERE id = $1`, shiftID).
+		Scan(&si.ID, &si.WorkItemID, &si.Team, &si.Round, &si.Branch)
+	return si, err
+}
+
 // LiveShiftForItem returns the live Shift on a Work Item, or nil. This is
 // what makes EnsureShift idempotent: the read answers "already open", and the
 // unique partial index settles the race two openers can still run into.

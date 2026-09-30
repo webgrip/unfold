@@ -161,6 +161,82 @@ func (e *Engine) publishBudgetExhausted(ctx context.Context, si store.ShiftInfo,
 	e.Log.Info("budget notice published", "shift", si.ID, "repo", repo, "pr", pr)
 }
 
+// publishUsageReport maintains the one usage report comment on the Shift's
+// pull request: it renders the Shift's usage and evidence, finds the comment
+// by its marker and edits it, or creates it when there is none.
+//
+// Best-effort and outside the lifecycle (R2, R3): every failure is logged and
+// skipped, and none changes an Outcome, a close reason or a Work Item state.
+// A failed list is a skip, never a blind post, because a comment we cannot see
+// is a duplicate waiting to happen on the next refresh (design D6).
+func (e *Engine) publishUsageReport(ctx context.Context, si store.ShiftInfo) {
+	if !e.UsageReport || len(e.Forges) == 0 {
+		return
+	}
+	reports, err := e.Store.RoundReports(ctx, si.ID)
+	if err != nil {
+		e.Log.Error("usage report not published: reports read failed", "shift", si.ID, "err", err)
+		return
+	}
+	fp, repo, pr, skip := e.pullRequestThread(ctx, si, reports)
+	if skip != "" {
+		e.Log.Info("usage report not published: "+skip, "shift", si.ID, "work_item", si.WorkItemID)
+		return
+	}
+	usage, err := e.Store.ShiftUsage(ctx, si.ID)
+	if err != nil {
+		e.Log.Error("usage report not published: usage read failed", "shift", si.ID, "err", err)
+		return
+	}
+	body := usageReport(usageReportInput{
+		Shift:    usage,
+		Ledger:   usage.Ledger,
+		TraceID:  traceAlias(usage.Runs),
+		Evidence: parseEvidence(reports),
+		Links:    reportLinkConfig{GrafanaURL: e.GrafanaURL, VloerURL: e.VloerURL},
+	})
+
+	comments, err := fp.Comments(ctx, repo, pr)
+	if err != nil {
+		// Do not post blind: without the thread we cannot know whether the
+		// report already exists, and a second copy is exactly what the marker
+		// is for.
+		e.Log.Error("usage report not published: comments list failed", "shift", si.ID, "repo", repo, "pr", pr, "err", err)
+		return
+	}
+	for _, c := range comments {
+		if strings.HasPrefix(strings.TrimSpace(c.Body), usageReportMarker) {
+			if err := fp.EditComment(ctx, repo, pr, c.ID, body); err != nil {
+				e.Log.Error("usage report edit failed", "shift", si.ID, "repo", repo, "pr", pr, "comment", c.ID, "err", err)
+				return
+			}
+			e.Log.Info("usage report updated", "shift", si.ID, "repo", repo, "pr", pr, "comment", c.ID)
+			return
+		}
+	}
+	if err := fp.Comment(ctx, repo, pr, body); err != nil {
+		e.Log.Error("usage report comment failed", "shift", si.ID, "repo", repo, "pr", pr, "err", err)
+		return
+	}
+	e.Log.Info("usage report published", "shift", si.ID, "repo", repo, "pr", pr)
+}
+
+// RefreshUsageReport re-renders and updates the usage report after a late
+// settlement has moved its numbers. It is a no-op for a Shift with no pull
+// request and returns no error for one, so the sweep treats it as best-effort
+// (R2, R3).
+func (e *Engine) RefreshUsageReport(ctx context.Context, shiftID int64) error {
+	if !e.UsageReport {
+		return nil
+	}
+	si, err := e.Store.ShiftInfoByID(ctx, shiftID)
+	if err != nil {
+		return err
+	}
+	e.publishUsageReport(ctx, si)
+	return nil
+}
+
 // findingsComment renders one Role's findings for the pull request thread.
 // Attribution first: a human scanning the thread needs to know which
 // specialist said what before they read the prose.

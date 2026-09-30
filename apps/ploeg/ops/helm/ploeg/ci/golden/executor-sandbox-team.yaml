@@ -179,10 +179,16 @@ spec:
               value: "default"
             - name: PLOEG_LEASE_TTL
               value: "5m"
+            - name: PLOEG_REPORT_GRAFANA_URL
+              value: ""
+            - name: PLOEG_REPORT_VLOER_URL
+              value: ""
             - name: PLOEG_SWEEP_INTERVAL
               value: "15s"
             - name: PLOEG_TEAM_MAP
               value: ""
+            - name: PLOEG_USAGE_REPORT
+              value: "true"
             - name: LITELLM_ADMIN_URL
               value: "http://litellm.ai.svc.cluster.local:4000"
             - name: LITELLM_MASTER_KEY
