@@ -401,6 +401,44 @@ test('the Now projection lists waiting work, running Runs and recent Runs across
   assert.deepEqual(now.errors, {});
 });
 
+test('Now rows carry the close reason, attempts, routing, priority and Shift money that the list payload already has', async (t) => {
+  const upstreamApi = await upstream(t);
+  const parked = upstreamApi.details['101'].item;
+  parked.target = null;
+  parked.attempts = 3;
+  parked.infraFailures = 2;
+  parked.priority = 4;
+  parked.latestShift = { ...parked.latestShift!, round: 4, closeReason: 'fix_round_cap_reached', budgetUsd: 3, spentUsd: 2.5, reservedUsd: 0.25, closedAt: '2026-09-10T08:00:00Z' };
+  const now = await client(upstreamApi.config).now(admin);
+  const row = now.waiting.find(entry => entry.id === '101')!;
+  assert.equal(row.provider, parked.provider);
+  assert.equal(row.externalId, parked.externalId);
+  assert.equal(row.priority, 4);
+  assert.equal(row.attempts, 3);
+  assert.equal(row.infraFailures, 2);
+  assert.equal(row.target, null, 'an unresolved repository stays null so the browser can say "Not routed"');
+  assert.equal(row.closeReason, 'fix_round_cap_reached');
+  assert.deepEqual(row.latestShift, { round: 4, closeReason: 'fix_round_cap_reached', budgetUsd: 3, spentUsd: 2.5, reservedUsd: 0.25, closedAt: '2026-09-10T08:00:00Z' });
+  assert.equal(row.spentUsd, 2.5, 'the existing spentUsd field is kept');
+  for (const entry of now.waiting) {
+    const source = upstreamApi.details[entry.id].item;
+    assert.deepEqual(entry.target, source.target, entry.id);
+    assert.equal(entry.closeReason, source.latestShift?.closeReason || null, entry.id);
+    assert.equal(entry.latestShift?.round ?? null, source.latestShift?.round ?? null, entry.id);
+    assert.equal('description' in entry, false, 'Now rows stay small: the brief is read from the Work Item');
+  }
+  const proposal = now.waiting.find(entry => entry.state === 'proposed' && entry.sourceWorkItemId)!;
+  assert.equal(proposal.createdKind, upstreamApi.details[proposal.id].item.createdKind);
+  assert.equal(proposal.sourceTitle, upstreamApi.details[proposal.sourceWorkItemId!].item.title);
+  const unshifted = structuredClone(upstreamApi.details['105'].item);
+  upstreamApi.details['105'].item.latestShift = null;
+  const bare = (await client(upstreamApi.config).now(admin)).waiting.find(entry => entry.id === '105')!;
+  assert.equal(bare.closeReason, null);
+  assert.equal(bare.latestShift, null);
+  assert.equal(bare.spentUsd, null);
+  upstreamApi.details['105'].item = unshifted;
+});
+
 test('a Ploeg group that fails reports an error and never masquerades as an empty list', async (t) => {
   const upstreamApi = await upstream(t);
   upstreamApi.intercept((req, res) => new URL(req.url!, 'http://fixture.invalid').pathname.endsWith('/runs') ? reply(res, 503, { error: { code: 'unavailable', message: 'Planned outage.' } }) : false);

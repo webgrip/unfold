@@ -23,7 +23,8 @@ export type PloegActivityEvent = PloegEvent & { workItemTitle: string };
 export type PloegEventsPage = { demo: boolean; events: PloegActivityEvent[]; nextCursor: string | null; fetchedAt: string };
 export type PloegProposedItem = PloegItem & { sourceTitle: string };
 export type PloegProposedPage = { demo: boolean; items: PloegProposedItem[]; truncated: boolean; fetchedAt: string };
-export type PloegNowItem = Pick<PloegItem, 'id' | 'team' | 'state' | 'title' | 'url' | 'createdAt' | 'updatedAt'> & { spentUsd: number | null; pullRequestUrl: string };
+export type PloegNowShift = Pick<PloegShift, 'round' | 'closeReason' | 'budgetUsd' | 'spentUsd' | 'reservedUsd' | 'closedAt'>;
+export type PloegNowItem = Pick<PloegItem, 'id' | 'team' | 'state' | 'title' | 'url' | 'createdAt' | 'updatedAt' | 'provider' | 'externalId' | 'priority' | 'attempts' | 'infraFailures' | 'target'> & { closeReason: string | null; latestShift: PloegNowShift | null; spentUsd: number | null; pullRequestUrl: string } & Partial<Pick<PloegProposedItem, 'sourceWorkItemId' | 'sourceTitle' | 'createdKind' | 'ready'>>;
 export type PloegNowGroup = 'waiting' | 'running' | 'recent';
 export type PloegNow = { demo: boolean; teams: string[]; waiting: PloegNowItem[]; running: PloegRunRow[]; recent: PloegRunRow[]; errors: Partial<Record<PloegNowGroup, string>>; fetchedAt: string };
 export type PloegDecision = 'approve' | 'reject' | 'cancel';
@@ -123,8 +124,10 @@ export function pullRequestUrl(data: PloegDetail): string {
   for (const run of ordered.reverse()) for (const link of run.links.slice().reverse()) if (pullRequestPath.test(link)) return link;
   return '';
 }
-function nowItem(entry: PloegItem): PloegNowItem {
-  return { id: entry.id, team: entry.team, state: entry.state, title: entry.title, url: entry.url, createdAt: entry.createdAt, updatedAt: entry.updatedAt, spentUsd: entry.latestShift?.spentUsd ?? null, pullRequestUrl: '' };
+function nowItem(entry: PloegItem & Partial<Pick<PloegProposedItem, 'sourceTitle'>>): PloegNowItem {
+  const shift = entry.latestShift;
+  const provenance = { ...(entry.sourceWorkItemId ? { sourceWorkItemId: entry.sourceWorkItemId } : {}), ...(entry.sourceTitle ? { sourceTitle: entry.sourceTitle } : {}), ...(entry.createdKind ? { createdKind: entry.createdKind } : {}), ...(entry.ready !== undefined ? { ready: entry.ready } : {}) };
+  return { id: entry.id, team: entry.team, state: entry.state, title: entry.title, url: entry.url, createdAt: entry.createdAt, updatedAt: entry.updatedAt, provider: entry.provider, externalId: entry.externalId, priority: entry.priority, attempts: entry.attempts, infraFailures: entry.infraFailures, target: entry.target ? { ...entry.target } : null, closeReason: shift?.closeReason || null, latestShift: shift ? { round: shift.round, closeReason: shift.closeReason, budgetUsd: shift.budgetUsd, spentUsd: shift.spentUsd, reservedUsd: shift.reservedUsd, closedAt: shift.closedAt } : null, spentUsd: shift?.spentUsd ?? null, pullRequestUrl: '', ...provenance };
 }
 function activityEvent(value: unknown): PloegActivityEvent { const data = record(value); return { ...event(data), workItemTitle: typeof data.workItemTitle === 'string' && data.workItemTitle.length <= 4096 ? data.workItemTitle : '' }; }
 const unsupported = () => new PloegError(501, 'ploeg_unsupported', 'This Ploeg version does not provide activity data yet.');
