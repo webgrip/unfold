@@ -1,4 +1,4 @@
-/** Sessions: the demonstration, evidence tabs, export, a new session with pause, keyboard evidence navigation, instructions, cancel and failure guidance. */
+/** Sessions: the demonstration, evidence tabs, export, the review decision at phone width and its contrast, the reviewed label and search in the list, a new session with pause, keyboard evidence navigation, instructions, cancel and failure guidance. */
 export async function run({ page, app, assert, screenshot }) {
   await page.getByRole('link', { name: 'Sessions', exact: true }).click();
   await page.getByRole('heading', { name: 'Sessions', exact: true }).first().waitFor();
@@ -19,7 +19,36 @@ export async function run({ page, app, assert, screenshot }) {
   assert(downloadPath);
   await page.reload();
   await page.getByText('Your review is next.', { exact: true }).waitFor();
-  await page.getByRole('link', { name: 'All sessions' }).click();
+  const accept = page.locator('.session-review').getByRole('button', { name: 'Accept', exact: true });
+  const contrast = await accept.evaluate(button => {
+    const channels = value => { const probe = document.createElement('canvas').getContext('2d'); probe.fillStyle = value; probe.fillRect(0, 0, 1, 1); return [...probe.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+    const luminance = rgb => { const [r, g, b] = rgb.map(part => { const c = part / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    const style = getComputedStyle(button);
+    const [light, dark] = [luminance(channels(style.color)), luminance(channels(style.backgroundColor))].sort((a, b) => b - a);
+    return (light + 0.05) / (dark + 0.05);
+  });
+  assert(contrast >= 4.5, `The Accept button text has a contrast of ${contrast.toFixed(2)}:1`);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const reviewBar = page.getByRole('group', { name: 'Record your review' });
+  assert.equal(await reviewBar.getByRole('button', { name: 'Accept', exact: true }).isVisible(), true, 'The review decision is hidden at phone width');
+  assert.equal(await reviewBar.getByRole('button', { name: 'Reject…', exact: true }).isVisible(), true, 'The review decision is hidden at phone width');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'The session page overflows horizontally at 390px');
+  await screenshot('session-review-mobile');
+  await page.setViewportSize({ width: 1440, height: 1040 });
+  await accept.click();
+  await page.getByRole('dialog', { name: 'Accept this outcome?' }).getByRole('button', { name: 'Accept', exact: true }).click();
+  await page.getByRole('heading', { name: /^Accepted by Demo operator/ }).waitFor();
+  await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Sessions', exact: true }).click();
+  await page.getByRole('heading', { level: 1, name: 'Sessions', exact: true }).waitFor();
+  const reviewed = page.locator('.list-row', { hasText: 'Fix order total rounding' }).first();
+  await reviewed.getByText('Accepted', { exact: true }).waitFor();
+  assert.equal(await reviewed.getByText('Ready for your review', { exact: true }).count(), 0, 'A reviewed session still reads as awaiting review');
+  const search = page.getByRole('searchbox', { name: 'Search sessions' });
+  const searchField = await search.elementHandle();
+  await search.pressSequentially('rounding');
+  assert.equal(await page.evaluate(field => document.getElementById('session-search') === field && document.activeElement === field, searchField), true, 'Searching redrew the page instead of the list');
+  await page.getByRole('status').filter({ hasText: /match “rounding”$/ }).waitFor();
+  await search.fill('');
   await page.getByRole('button', { name: /New session/ }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Create session' }).click();
   await page.getByRole('button', { name: 'Start crew' }).click();
