@@ -290,7 +290,7 @@ function renderDesign() {
   }
   const intro = `<div class="design-intro"><p>The living style guide for De Vloer: tokens, type and every component the views build with, in the current theme. Use it to check a change in light and dark before it ships.</p>${controls()}${jumpNav()}</div>`;
   const content = `<div class="design-page">${intro}${colourBlock()}${typeBlock()}${spaceBlock()}${iconBlock()}${buttonBlock()}${statusBlock()}${surfaceBlock()}${feedbackBlock()}${meterBlock()}${navigationBlock()}${dataBlock()}${listBlock()}${overlayBlock()}${progressBlock()}${formBlock()}${textBlock()}${classBlock()}</div>`;
-  renderHtml(shell(content, 'Design system', 'Tokens and components, in the current theme.'));
+  renderHtml(shell(content, { title: 'Design system', subtitle: 'Tokens and components, in the current theme.' }));
   applyDemoValues();
 }
 

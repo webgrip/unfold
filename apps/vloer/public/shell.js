@@ -142,14 +142,8 @@ function topbarMarkup(page) {
   return `<header class="app-topbar"><button class="app-icon-button app-menu-button" type="button" data-action="nav-open" aria-label="Open navigation" aria-haspopup="dialog" aria-controls="nav-drawer">${icon('menu')}</button><a class="app-home" href="#now" aria-label="De Vloer home">${mark}</a>${backMarkup(page)}${breadcrumbs(page)}<div class="app-topbar-end"><button class="app-search" type="button" data-action="palette-open" aria-label="Search and commands" aria-keyshortcuts="Control+K Meta+K">${icon('search')}<span class="app-search-text" aria-hidden="true">Search or jump to…</span><kbd class="app-kbd" aria-hidden="true">${escape(keyLabel('Mod'))} K</kbd></button>${statusMarkup()}${userMenuMarkup()}</div></header>`;
 }
 
-function legacyActions() {
-  if (state.view === 'sessions' && state.bootstrap.user.role !== 'viewer') return `<button class="button primary" data-action="new">${icon('plus')} New session${singleKeysEnabled() ? ' <kbd>N</kbd>' : ''}</button>`;
-  if (state.view === 'tasks') return `<button class="button secondary" data-action="connections">${icon('layers')} Connections</button>`;
-  return '';
-}
-
 function headerMarkup(page) {
-  const actions = page.actions ?? legacyActions();
+  const actions = page.actions ?? '';
   return `<div class="app-page-header"><div class="app-page-heading">${page.overline ? `<p class="app-overline">${escape(page.overline)}</p>` : ''}<h1 id="page-title" class="app-page-title" tabindex="-1">${escape(page.title)}</h1>${page.subtitle ? `<p class="app-page-subtitle">${escape(page.subtitle)}</p>` : ''}</div>${actions ? `<div class="app-page-actions">${actions}</div>` : ''}</div>`;
 }
 

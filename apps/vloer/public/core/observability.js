@@ -1,6 +1,8 @@
 import { state } from './state.js';
-import { escape } from './dom.js';
+import { escape, safeUrl } from './dom.js';
 import { icon } from './icons.js';
+
+const link = (href, label) => { const target = safeUrl(href); return target ? `<a href="${escape(target)}" target="_blank" rel="noopener noreferrer">${escape(label)} ${icon('external')}<span class="sr-only"> (opens in a new tab)</span></a>` : ''; };
 
 /** Renders Grafana trace and log links for a session, or for one gateway request of it. */
 export function observabilityLinks(session, request) {
@@ -12,9 +14,9 @@ export function observabilityLinks(session, request) {
   const explore = (uid, query, queryType) => `${grafana}/explore?schemaVersion=1&orgId=1&panes=${encodeURIComponent(JSON.stringify({ v: { datasource: uid, queries: [{ refId: 'A', datasource: { uid }, ...(queryType ? { queryType } : {}), ...(query !== undefined ? (queryType === 'traceql' ? { query } : { expr: query }) : {}) }], range } }))}`;
   const fill = template => template.replace('{callId}', request?.callId || '').replace('{alias}', session ? `de-vloer-${session.id}` : '').replace('{sessionId}', session?.id || '');
   const links = [];
-  if (o.tracesDatasource) links.push(`<a href="${escape(explore(o.tracesDatasource, fill(o.traceQuery || '{ resource.service.name = "litellm" }'), 'traceql'))}" target="_blank" rel="noopener noreferrer">Traces ${icon('external')}</a>`);
-  if (o.logsDatasource) links.push(`<a href="${escape(explore(o.logsDatasource, fill(o.logsQuery || 'k8s_namespace:"ai" AND k8s_container:"litellm"')))}" target="_blank" rel="noopener noreferrer">Logs ${icon('external')}</a>`);
-  return links.join(' ');
+  if (o.tracesDatasource) links.push(link(explore(o.tracesDatasource, fill(o.traceQuery || '{ resource.service.name = "litellm" }'), 'traceql'), 'Traces'));
+  if (o.logsDatasource) links.push(link(explore(o.logsDatasource, fill(o.logsQuery || 'k8s_namespace:"ai" AND k8s_container:"litellm"')), 'Logs'));
+  return links.filter(Boolean).join(' ');
 }
 
 /** Renders links to the configured Grafana dashboards. */
@@ -23,5 +25,5 @@ export function dashboardLinks() {
   if (!o || !o.grafanaUrl || !o.dashboards) return '';
   const grafana = o.grafanaUrl.replace(/\/$/, '');
   const names = { spend: 'Spend, budgets and savings', reliability: 'Latency and reliability', finops: 'FinOps' };
-  return Object.entries(o.dashboards).map(([key, uid]) => `<a class="external-link" href="${escape(`${grafana}/d/${uid}`)}" target="_blank" rel="noopener noreferrer">${escape(names[key] || key)} ${icon('external')}</a>`).join('');
+  return Object.entries(o.dashboards).map(([key, uid]) => link(`${grafana}/d/${encodeURIComponent(uid)}`, names[key] || key)).filter(Boolean).join(' ');
 }

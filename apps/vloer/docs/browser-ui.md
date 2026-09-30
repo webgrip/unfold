@@ -141,7 +141,7 @@ Rules for handlers:
 | [`dom.js`](../public/core/dom.js) | `escape`, `safeUrl`, `renderHtml`, the toast and the live region | Escape every string from a user, tracker, agent or server before it enters markup |
 | [`state.js`](../public/core/state.js), [`api.js`](../public/core/api.js), [`navigation.js`](../public/core/navigation.js), [`registry.js`](../public/core/registry.js) | The shared state object, the API client with its 401 handler, page entry and the view registry | Add new state fields to the initial object in `state.js` |
 
-[`lookup.js`](../public/core/lookup.js) and [`observability.js`](../public/core/observability.js) hold the session labels and outbound Grafana links the session screens use. The legacy markup modules [`ploeg.js`](../public/ploeg.js), [`ploeg-activity.js`](../public/ploeg-activity.js), [`now.js`](../public/now.js) and [`delivery.js`](../public/delivery.js) stay at the top level because Node tests import them. Now, Work, Proposed, Runs, Activity and Insights still render through them, with their own labels and money formatting, until those screens are rebuilt on `states.js`, `format.js` and `ui.js`.
+[`lookup.js`](../public/core/lookup.js) and [`observability.js`](../public/core/observability.js) hold the session labels and outbound Grafana links the session screens use. The markup modules [`ploeg.js`](../public/ploeg.js), [`ploeg-activity.js`](../public/ploeg-activity.js), [`now.js`](../public/now.js) and [`delivery.js`](../public/delivery.js) stay at the top level because Node tests import them. Now, Work, Proposed, Runs, Activity and Insights render through them, on `states.js`, `format.js` and `ui.js` like every other view.
 
 ## CSS
 
@@ -149,7 +149,6 @@ Rules for handlers:
 
 | Layer | File | Holds |
 | --- | --- | --- |
-| `legacy` | `styles/legacy.css` | The pre-redesign stylesheet, unchanged. Lowest priority, so any later rule wins whatever its specificity. Deleted once no markup uses its classes |
 | `tokens` | `styles/tokens.css` | Custom properties only |
 | `base` | `styles/base.css` | Element defaults, focus, forms, text utilities, reduced motion, forced colours and print |
 | `components` | `styles/components.css` | The classes `ui.js` emits; the [living style guide](#living-style-guide) lists them all |
@@ -179,7 +178,6 @@ The tones mean: `live` running, `attention` needs you, `review` ready for review
 * Every colour that changes with the theme is a `light-dark()` pair, so `color-scheme` picks the value. The solid fills (`--accent-solid` with its `-hover` and `-active`, and every `-emphasis` token) and the text on them (`--text-on-solid`, `--text-inverse`, `--text-inverse-muted`) keep one value in both themes, as do the brand primitives. The default follows the operating system. `data-theme="light"` or `"dark"` on `<html>` overrides it, and `data-density="compact"` tightens rows.
 * The theme and density preferences are set per browser from the account menu or Preferences. [`theme.js`](../public/core/theme.js) applies them before the stylesheet loads, so there is no flash, and `applyAppearance()` also updates the two `theme-color` metas.
 * An element can pin its own scheme with `color-scheme`. The sidebar and navigation drawer use `color-scheme: dark`, so they stay dark (Hal) in both themes.
-* While a page still renders legacy markup, a guard in `legacy.css` forces it to light, because the legacy rules were never written for dark.
 * Coarse pointers get larger controls and taller rows automatically.
 
 ## Accessibility
@@ -191,7 +189,7 @@ The tones mean: `live` running, `attention` needs you, `review` ready for review
 * **Motion.** The live dot, the skeleton shimmer and the loading line are the only continuous animations. They, and the entrance of dialogs, drawers and toasts, run only under `prefers-reduced-motion: no-preference`. A busy button's spinner keeps turning under reduced motion because it is status.
 * **Live regions.** `#announcement` is polite. Announce a change once; never announce streamed tokens or every refresh.
 * **Layout.** No horizontal scroll at 390 px. Targets are at least 24 px, and larger on touch.
-* **Money.** Format amounts with `format.js` and draw them with the `ui.js` meters and stats: unknown spend then reads "Not reported" and demo spend "Demo · no model calls", and neither is drawn or written as zero. The legacy screens do not follow this rule yet: `ploeg.js` and `ploeg-activity.js` format with their own `usd2` and `usdNl`, which print an amount Ploeg did not report as zero.
+* **Money.** Format amounts with `format.js` and draw them with the `ui.js` meters and stats: unknown spend then reads "Not reported" and demo spend "Demo · no model calls", and neither is drawn or written as zero.
 
 ## Content Security Policy
 

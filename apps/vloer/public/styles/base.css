@@ -98,6 +98,11 @@ canvas {
   height: auto;
 }
 
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
 a:not([class]) {
   color: var(--accent-fg);
   text-decoration-line: underline;
@@ -182,6 +187,14 @@ textarea {
   font: inherit;
   letter-spacing: inherit;
   touch-action: manipulation;
+}
+
+button {
+  color: inherit;
+}
+
+button svg {
+  pointer-events: none;
 }
 
 button,

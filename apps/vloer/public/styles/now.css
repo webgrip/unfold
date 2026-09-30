@@ -292,10 +292,6 @@
   height: var(--icon-sm);
 }
 
-.now-group {
-  overflow: visible;
-}
-
 .now-group + .now-group > .now-group-header {
   border-top: var(--border-width) solid var(--border-subtle);
 }
