@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseDiff, checkSummary, summaryFacts } from '../public/views/session.js';
+import { parseDiff, checkSummary, summaryFacts, remediationSteps } from '../public/views/session.js';
 import { sessionGroup, sessionProgress, listStatus } from '../public/views/sessions.js';
 import { deliveryGated, deliveryMarkup, deliveryStatus } from '../public/delivery.js';
 
@@ -85,6 +85,21 @@ test('a handoff summary separates its leading facts from the prose after them', 
     rest: 'No merge was performed.',
   });
   assert.deepEqual(summaryFacts('The reviewer found no issues.\nVerdict: approve'), { facts: [], rest: 'The reviewer found no issues.\nVerdict: approve' });
+});
+
+test('a remediation becomes numbered steps, one per instruction, with statements kept as context', () => {
+  assert.deepEqual(remediationSteps('Do not resubmit the prompt. Confirm the remote turn has stopped, inspect its evidence and reconcile gateway spend before deciding whether to start new work.'), {
+    steps: ['Do not resubmit the prompt.', 'Confirm the remote turn has stopped.', 'Inspect its evidence.', 'Reconcile gateway spend before deciding whether to start new work.'],
+    notes: [],
+  });
+  assert.deepEqual(remediationSteps('Check the registered repository, clone access, workspace storage and provisioning policy. Inspect restricted infrastructure logs using the session identifier.').steps, ['Check the registered repository, clone access, workspace storage and provisioning policy.', 'Inspect restricted infrastructure logs using the session identifier.']);
+  assert.deepEqual(remediationSteps('The session was stopped and its gateway credential revoked. Check the gateway route for the model and the workbench policy before starting new work.'), {
+    steps: ['Check the gateway route for the model and the workbench policy before starting new work.'],
+    notes: ['The session was stopped and its gateway credential revoked.'],
+  });
+  assert.deepEqual(remediationSteps('Authorize more budget and resume. The gateway settles the spend it already recorded within a minute.'), { steps: ['Authorize more budget.', 'Resume.'], notes: ['The gateway settles the spend it already recorded within a minute.'] });
+  assert.deepEqual(remediationSteps('<img src=x onerror=alert(1)>'), { steps: [], notes: ['<img src=x onerror=alert(1)>'] });
+  assert.deepEqual(remediationSteps(undefined), { steps: [], notes: [] });
 });
 
 test('the list groups sessions by what they need and says where each one stands without repeating its state', () => {

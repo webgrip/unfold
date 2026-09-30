@@ -1,4 +1,4 @@
-/** Sessions: the demonstration, evidence tabs, export, the review decision at phone width and its contrast, the reviewed label and search in the list, a new session with pause, keyboard evidence navigation, instructions, cancel and failure guidance. */
+/** Sessions: the demonstration, evidence tabs and the handoff layout, export, the review decision at phone width and its contrast, focus after the review, the reviewed label and search in the list, a new session started from its decision slot with pause, keyboard evidence navigation, a question answer that survives live updates, instructions, cancel and failure guidance. */
 export async function run({ page, app, assert, screenshot }) {
   await page.getByRole('link', { name: 'Sessions', exact: true }).click();
   await page.getByRole('heading', { name: 'Sessions', exact: true }).first().waitFor();
@@ -11,6 +11,11 @@ export async function run({ page, app, assert, screenshot }) {
   await page.getByRole('tab', { name: /Checks/ }).click();
   await page.getByRole('heading', { name: 'Baseline checks (expected failure)', exact: true }).waitFor();
   await page.getByRole('heading', { name: 'Independent review checks', exact: true }).waitFor();
+  await page.getByRole('tab', { name: 'Handoff', exact: true }).click();
+  await page.getByRole('heading', { name: 'What the crew reported', exact: true }).waitFor();
+  const narrowFacts = await page.locator('#evidence-panel-handoff .fact').evaluateAll(facts => facts.map(fact => fact.getBoundingClientRect().width).filter(width => width < 200));
+  assert.deepEqual(narrowFacts, [], 'The handoff findings are squeezed into narrow columns');
+  await page.getByRole('tab', { name: /Checks/ }).click();
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export handoff' }).click();
   const download = await downloadPromise;
@@ -36,8 +41,11 @@ export async function run({ page, app, assert, screenshot }) {
   await screenshot('session-review-mobile');
   await page.setViewportSize({ width: 1440, height: 1040 });
   await accept.click();
-  await page.getByRole('dialog', { name: 'Accept this outcome?' }).getByRole('button', { name: 'Accept', exact: true }).click();
+  const acceptDialog = page.getByRole('dialog', { name: 'Accept this outcome?' });
+  assert.equal(await acceptDialog.getByRole('button', { name: 'Accept', exact: true }).evaluate(button => document.activeElement === button), true, 'The accept dialog does not start on its confirming button');
+  await acceptDialog.getByRole('button', { name: 'Accept', exact: true }).click();
   await page.getByRole('heading', { name: /^Accepted by Demo operator/ }).waitFor();
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'session-review-title', 'Focus was lost after recording the review');
   await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Sessions', exact: true }).click();
   await page.getByRole('heading', { level: 1, name: 'Sessions', exact: true }).waitFor();
   const reviewed = page.locator('.list-row', { hasText: 'Fix order total rounding' }).first();
@@ -50,8 +58,9 @@ export async function run({ page, app, assert, screenshot }) {
   await page.getByRole('status').filter({ hasText: /match “rounding”$/ }).waitFor();
   await search.fill('');
   await page.getByRole('button', { name: /New session/ }).click();
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'new-title-input', 'The new-session dialog does not start on its first field');
   await page.getByRole('dialog').getByRole('button', { name: 'Create session' }).click();
-  await page.getByRole('button', { name: 'Start crew' }).click();
+  await page.getByRole('region', { name: 'Start the crew when the brief is right' }).getByRole('button', { name: 'Start crew', exact: true }).click();
   const keyboardSessionId = new URL(page.url()).hash.slice('#session/'.length);
   const pausePath = `**/api/sessions/${keyboardSessionId}/pause`;
   const pauseReceived = Promise.withResolvers();
@@ -71,6 +80,21 @@ export async function run({ page, app, assert, screenshot }) {
   } finally { releasePause.resolve(); }
   await page.waitForFunction(() => document.querySelector('[data-action="resume"]')?.disabled === false);
   await page.unroute(pausePath);
+  const questionSession = app.store.getSession(keyboardSessionId);
+  app.store.savePermission({ id: 'browser-question', sessionId: keyboardSessionId, runId: questionSession.runs[0].id, nativeId: 'browser-question', kind: 'question', title: 'Which rounding mode should negative totals use?', detail: 'Which rounding mode should negative totals use?', questions: [{ question: 'Which rounding mode should negative totals use?', options: [{ label: 'Half away from zero' }, { label: 'Half to even' }] }] });
+  app.store.appendEvent(keyboardSessionId, 'permission', 'browser-test', { kind: 'question', title: 'Which rounding mode should negative totals use?' }, questionSession.runs[0].id);
+  const ownWords = page.getByRole('textbox', { name: 'Or answer in your own words' });
+  await ownWords.waitFor();
+  await page.getByRole('radio', { name: 'Half to even' }).check();
+  await ownWords.fill('Half away from zero, like positive totals');
+  app.store.appendEvent(keyboardSessionId, 'message', 'browser-test', { role: 'operator', text: 'An update while an answer is being typed.' });
+  await page.getByText('An update while an answer is being typed.', { exact: true }).waitFor();
+  assert.equal(await ownWords.inputValue(), 'Half away from zero, like positive totals', 'A live update wiped the answer being typed');
+  assert.equal(await ownWords.evaluate(field => document.activeElement === field), true, 'A live update took focus away from the answer being typed');
+  assert.equal(await page.getByRole('radio', { name: 'Half to even' }).isChecked(), true, 'A live update cleared the chosen option');
+  app.store.savePermission({ ...app.store.getPermission('browser-question'), resolved: true });
+  app.store.appendEvent(keyboardSessionId, 'permission.replied', 'browser-test', {});
+  await ownWords.waitFor({ state: 'detached' });
   for (let index = 0; index < 32; index++) app.store.appendEvent(keyboardSessionId, 'message', 'browser-test', { role: 'operator', text: `Keyboard evidence fixture ${index + 1}: preserve the current reading position during durable stream refreshes.` });
   await page.getByText('Keyboard evidence fixture 32: preserve the current reading position during durable stream refreshes.', { exact: true }).waitFor();
   const draft = 'Keep this unsent instruction while I inspect the evidence.';
@@ -149,7 +173,8 @@ export async function run({ page, app, assert, screenshot }) {
   await page.reload();
   const failure = page.getByRole('region', { name: 'Prompt submission needs attention' });
   await failure.getByText(failedSession.failure.message, { exact: true }).waitFor();
-  await failure.getByText(failedSession.failure.remediation, { exact: true }).waitFor();
+  assert.deepEqual(await failure.getByRole('listitem').allTextContents(), ['Do not resubmit the prompt.', 'Confirm the remote turn has stopped.', 'Inspect its evidence.', 'Reconcile gateway spend before deciding whether to start new work.'], 'The remediation is not a list of steps');
+  await page.locator('#evidence-panel-stream').getByText(failedSession.failure.message, { exact: true }).waitFor();
   await failure.getByText('Prompt submission is unconfirmed. Check remote execution and gateway spend before starting new work.', { exact: true }).waitFor();
   await failure.getByText('No automatic retry will be started.', { exact: true }).waitFor();
   assert.equal(await page.getByRole('button', { name: /^(Start crew|Resume|Retry)$/ }).count(), 0, 'Ambiguous paid execution offers an unsafe repeat action');
