@@ -3,7 +3,7 @@ type: tutorial
 audience: [owner, operator, contributor]
 owner: vloer
 last_verified: 2026-09-23
-verified_by: "Read apps/vloer/package.json (demo, smoke), src/config.ts (demo repository, crew, port 4080, VLOER_DATA_DIR), src/runtime/demo.ts, scripts/smoke.mjs and examples/order-service; on 2026-09-30 the landing page, Demo badge and Sessions item were re-read in apps/vloer/public/app.js and shell.js"
+verified_by: "Read apps/vloer/package.json (demo, smoke), src/config.ts (demo repository, crew, port 4080, VLOER_DATA_DIR), src/runtime/demo.ts, scripts/smoke.mjs and examples/order-service; on 2026-09-30 the landing page, Demo badge, Sessions item, session start, evidence tabs and demo budget label were re-read in apps/vloer/public/app.js, shell.js, views/sessions.js and views/session.js at 68c90cf on feat/vloer-redesign"
 ---
 
 # A ten-minute coworker walkthrough
@@ -31,13 +31,13 @@ Starting this path requires no `npm install`. Running the development type check
 | Time | Show or do | What a coworker should understand |
 | --- | --- | --- |
 | 0–1 min | Open the workbench, which lands on **Now**, and point at the **Demo** badge in the status strip | This is executable workflow evidence with no AI spend |
-| 1–2 min | Open **Sessions** and create an **Order service** session with **Delivery crew**. Use “Fix the rounding regression and independently review the resulting diff.” as the objective | Repository, crew and spending authorization are explicit inputs |
-| 2–4 min | Start the session and inspect the run activity | The implementer copies an isolated fixture, proves the regression, edits source and reruns the checks |
+| 1–2 min | Open **Sessions**, choose **New session** and create an **Order service** session with **Delivery crew**. Use “Fix the rounding regression and independently review the resulting diff.” as the objective | Repository, crew and spending authorization are explicit inputs |
+| 2–4 min | Select **Start crew** and follow the **Activity** tab | The implementer copies an isolated fixture, proves the regression, edits source and reruns the checks |
 | 4–5 min | Open the baseline and verification artifacts | A deliberately failing `node --test` baseline is followed by passing tests; green status has executable evidence |
-| 5–6 min | Inspect **Workspace changes** and **Independent review checks** | The reviewer inspects the actual diff and reruns tests; approval is a distinct result |
+| 5–6 min | Inspect **Workspace changes** on the **Changes** tab and **Independent review checks** on the **Checks** tab | The reviewer inspects the actual diff and reruns tests; approval is a distinct result |
 | 6–7 min | Reload the browser and return to the session | A connection does not own the work; the result and event history are durable |
 | 7–8 min | Create a second session; start and pause it while it runs, add an instruction, then resume | A recorded instruction and a deliberate execution intervention have different meanings |
-| 8–9 min | Inspect the review outcome and the demo's accounting, which records no spend | Completion does not merge or deploy; a person reviews the change |
+| 8–9 min | Inspect the review outcome and the **Budget** card, which reads **Demo · no model calls** | Completion does not merge or deploy; a person reviews the change |
 | 9–10 min | Explain the live deployment boundary and one-replica limit | Agents move to the server or Kubernetes in live mode; this demo has not qualified a provider or cluster |
 
 The fixture is `examples/order-service`. Its defect is rounding `1.005` to cents with `Math.round(amount * 100)`. The deterministic writer adds `Number.EPSILON`, verifies the correction and retains the Git diff. The reviewer runs a separate check invocation. If a session fails, inspect its actual artifact and blocker; do not present it as a successful demo.

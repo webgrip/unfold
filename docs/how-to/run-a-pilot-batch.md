@@ -3,7 +3,7 @@ type: how-to
 audience: [owner]
 owner: glide
 last_verified: 2026-09-23
-verified_by: "node --test scripts/eval/eval.test.mjs; mise run evaluate; read apps/vloer/public/ploeg.js, apps/ploeg/pkg/shiftengine/{engine,reviewloop}.go and the assign and review how-tos on 2026-09-23. On 2026-09-30 only the Vloer page names were updated for the redesigned navigation (apps/vloer/public/shell.js)"
+verified_by: "node --test scripts/eval/eval.test.mjs; mise run evaluate; read apps/vloer/public/ploeg.js, apps/ploeg/pkg/shiftengine/{engine,reviewloop}.go and the assign and review how-tos on 2026-09-23. On 2026-09-30 the Vloer page names and where each recorded value appears were re-read against apps/vloer at 68c90cf on feat/vloer-redesign (public/shell.js, public/ploeg.js)"
 ---
 
 # Run a pilot batch
@@ -65,9 +65,9 @@ Record one row per Work Item. Read the values from the Work Item's page in Vloer
 | `ticket` | Tracker id, such as `VIK-812` | The tracker |
 | `size`, `kind` | Your classification from the picking step | You |
 | `estimate_min` | Your own estimate in minutes | You, before assigning |
-| `outcome` | `awaiting_review` or `needs_human`, and the close reason, such as `review_approved` | The Work Item's page |
-| `rounds` | The number of Rounds the Shift ran, fix Rounds included | The highest Round among the Work Item's Runs |
-| `settled_usd` | The Shift's recorded spend, two decimals | The Shift's spend on the Work Item's page, after settlement |
+| `outcome` | `awaiting_review` or `needs_human`, and the close reason, such as `review_approved` | The state badge under the title, and the close reason under **Technical details** |
+| `rounds` | The number of Rounds the Shift ran, fix Rounds included | The line under the **Rounds** heading, or the receipt in **Ready for your review** |
+| `settled_usd` | The Shift's recorded spend, two decimals | The Shift budget meter in the **Rounds** card, after settlement |
 | `review_min` | Minutes from opening the pull request to your merge or send-back decision | Your timer |
 | `merged` | `yes`, `yes-after-edits` or `no` | The forge |
 | `rework` | `none`, `owner-<minutes>` for edits you made, or `reassigned-<count>` for send-backs | You |
