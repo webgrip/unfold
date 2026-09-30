@@ -12,7 +12,7 @@ Use this to put ten real Work Items through Glide and write down what happened. 
 
 Terms: a **Work Item** is Ploeg's copy of a ticket. A **Shift** is one Team's whole attempt at it, run in **Rounds**, and a **Run** is one Role working once. **Ready** means the ticket states something you have decided to do, or describes a problem well enough that a solution can be conceived. See the [glossary](../reference/glossary.md#ready).
 
-**Before you start:** assigning a ticket already works end to end ([assign work to an agent](assign-work-to-an-agent.md)), the target repositories are [prepared](prepare-a-repository.md), and you can see what is ready for your review on Vloer's **Now** page ([review an agent pull request](review-an-agent-pr.md)).
+**Before you start:** assigning a ticket already works end to end ([assign work to an agent](assign-work-to-an-agent.md)), the target repositories are [prepared](prepare-a-repository.md), and you can find the Work Items awaiting your review on Vloer's **Now** page ([review an agent pull request](review-an-agent-pr.md)).
 
 ## Pick ten Work Items
 

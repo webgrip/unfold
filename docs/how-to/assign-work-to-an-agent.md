@@ -3,7 +3,7 @@ type: how-to
 audience: [owner, operator]
 owner: glide
 last_verified: 2026-09-23
-verified_by: "Read apps/ploeg pkg/config, pkg/httpapi/{server,withdraw,operator_activity}.go, pkg/store/withdraw.go, pkg/provider/{vikunja,clickup}, pkg/shiftengine, pkg/worker/worker.go, cmd/ploegd/main.go, ops/helm/ploeg/values.yaml and apps/vloer/src/ploeg.ts; go test ./pkg/httpapi -run Withdraw; apps/vloer npm test and npm run test:browser on feat/vloer-ploeg-activity. On 2026-09-30 the Vloer navigation, routes and cancel route were re-read in apps/vloer/public (shell.js, core/route.js, views/) and src/http.ts; the rebuilt Work, Runs, Activity and Insights screens and the Cancel Work Item button follow the redesign specification and were not yet in the code read"
+verified_by: "Read apps/ploeg pkg/config, pkg/httpapi/{server,withdraw,operator_activity}.go, pkg/store/withdraw.go, pkg/provider/{vikunja,clickup}, pkg/shiftengine, pkg/worker/worker.go, cmd/ploegd/main.go, ops/helm/ploeg/values.yaml and apps/vloer/src/ploeg.ts; go test ./pkg/httpapi -run Withdraw; apps/vloer npm test and npm run test:browser on feat/vloer-ploeg-activity. On 2026-09-30 the Vloer sections were re-read against apps/vloer at 3506e94 (public/shell.js, core/route.js, core/live.js, views/, now.js, ploeg.js, ploeg-activity.js; src/http.ts, src/ploeg.ts); what the redesign adds later is marked not implemented"
 ---
 
 # Assign work to an agent
@@ -59,7 +59,7 @@ ClickUp is only registered when `PLOEG_CLICKUP_SECRET` or `PLOEG_CLICKUP_TOKEN` 
 ## Watch progress and spend
 
 - **ploegd log:** `work item queued`, `target resolved`, `shift opened`, `round opened`, `shift closed`, `work item withdrawn`.
-- **Vloer:** Vloer opens on **Now**, which lists what waits on you across your Teams, the Runs running now and the ones that finished recently. **Work** lists one Team's Work Items by lane: **Needs you**, **Ready for review**, **Running**, **Queued** and **All**. The Team and lane are part of the address, for example `#work?lane=needs_human&team=bronze`, so you can share the link ([review an agent's pull request](review-an-agent-pr.md)). A Work Item's page, `#work/<id>`, shows why it waits on you, its brief, its Shifts with their spend, each Run's Role, Round, outcome and verdict, its checkpoints and its audit events. [See what Ploeg has been doing](#see-what-ploeg-has-been-doing) covers the other pages. Vloer needs a `ploeg` block with `url`, `tokenEnv` and team access in `userTeams` ([ploeg.ts](../../apps/vloer/src/ploeg.ts)).
+- **Vloer:** Vloer opens on **Now**, which lists what waits on you across your Teams, the Runs running now and the ones that finished recently. **Work** lists one Team's Work Items by lane: **Awaiting review**, **Needs human**, **Running**, **Queue** and **All work**. The Team and lane are part of the address, for example `#work?lane=needs_human&team=bronze`, so you can share the link ([review an agent's pull request](review-an-agent-pr.md)). A Work Item's page, `#work/<id>`, shows its task brief, its Shifts with their spend, each Run's Role, Round, outcome and verdict with the reason a Run got stuck or failed, its checkpoints and its audit events. Not implemented yet: a headline on that page saying why the Work Item waits on you, and a brief rendered from Markdown; a Vikunja brief still shows its HTML tags as text. [See what Ploeg has been doing](#see-what-ploeg-has-been-doing) covers the other pages. Vloer needs a `ploeg` block with `url`, `tokenEnv` and team access in `userTeams` ([ploeg.ts](../../apps/vloer/src/ploeg.ts)).
 - **Spend:** each Run shows its authorized spend and its observed model cost. Under managed auth, a Run's key budget is the smallest of the team's key policy, the Role cap and what is left of the Shift pool. ploegd settles each finished Run from LiteLLM's spend logs after `PLOEG_LLM_SETTLE_AFTER` (default 15 minutes); until then the amount counts as reserved. Settlement also fills the Run's input and output tokens from the same spend-log entries, and records the models they name in the Run's stored usage ([llm_control.go](../../apps/ploeg/pkg/httpapi/llm_control.go)).
 - **Tracker:** when the Shift closes, the ticket gets a comment with the outcome and pull request link ([publish.go](../../apps/ploeg/pkg/shiftengine/publish.go)). A successful Shift moves the Work Item to `awaiting_review`, and merging the pull request moves it to `done`. Ploeg marks the tracker ticket done on merge only when `PLOEG_TRACKER_DONE_ON_MERGE=true` ([review an agent's pull request](review-an-agent-pr.md#after-you-merge-or-close)).
 - **Budget exhausted:** when the Shift pool cannot fund another Round, the Shift closes, the Work Item moves to `needs_human`, and the ticket comment says **Budget exhausted** with the spent, reserved and pool amounts in dollars to two decimals. If the Shift has a pull request, the same notice is posted there.
@@ -68,12 +68,12 @@ ClickUp is only registered when `PLOEG_CLICKUP_SECRET` or `PLOEG_CLICKUP_TOKEN` 
 
 The **Ploeg** group in Vloer's sidebar reads Ploeg's operator activity API for the Teams your account may see ([ploeg-activity.js](../../apps/vloer/public/ploeg-activity.js), [ploeg.ts](../../apps/vloer/src/ploeg.ts)):
 
-- **Insights:** choose **24h**, **7d** or **30d**. Stat tiles and a table per Team count the Work Items in each state now, the Runs that finished in the window (failed and stuck ones included), the spend settled in the window next to the spend reserved now, and the last activity. There are no charts. Hover a time to see the exact moment. Money shows as US dollars to two decimals in Dutch notation, for example `US$ 0,98`, and spend Ploeg did not report reads **Not reported**, never zero.
+- **Insights:** choose **24h**, **7d** or **30d**. Stat tiles and a table per Team count the Work Items in each state now, the Runs that finished in the window (failed and stuck ones included), the spend settled in the window next to the spend reserved now, and the last activity. There are no charts. Hover a time to see the exact moment. Money shows as US dollars to two decimals in Dutch notation, for example `US$ 0,98`. An amount Ploeg did not report shows as `US$ 0,00`; showing it as **Not reported** instead is not implemented yet.
 - **Activity:** Ploeg's audit events, newest first, with the Team, what happened in plain words and a link to the Work Item. Filter by Team or kind, and page back to older events. The feed refreshes every 15 seconds while the tab is visible and keeps your reading position. **Live** in the status strip pauses every automatic refresh.
-- **Runs:** recent Runs with their Team, Work Item, Role and Round, state, outcome or verdict, duration, spend and model. Filter by Team, state and outcome; Ploeg only accepts an outcome filter for finished Runs.
+- **Runs:** recent Runs with their Team, Work Item, Role and Round, state, outcome or verdict, duration, settled spend (or **Reserved** / **Not settled yet**), tokens and models. Filter by Team, state and outcome; Ploeg only accepts an outcome filter for finished Runs.
 - **Proposed:** Work Items an agent created, across your Teams, held in state `proposed` until a person decides ([how work flows](../concepts/how-work-flows.md)). Each shows its kind, its Ready flag and the Work Item it came from, when Ploeg reports them. Operators and administrators see **Approve**, which queues it, and **Reject**, which asks for a reason. Viewers only read. Vloer sends the decision to Ploeg as you, through its own authenticated proxy.
 
-A Ploeg without these routes shows "This Ploeg version does not provide activity data yet"; Now and Work keep working. The demo (`mise run demo`) shows illustrative records with no model calls and zero spend.
+A Ploeg without these routes shows "This Ploeg version does not provide activity data yet"; Work and the list of what waits on you on Now keep working. The demo (`mise run demo`) shows illustrative records with no model calls and zero spend.
 
 ## Stop it
 
@@ -81,13 +81,14 @@ To stop tracker work, do one of these:
 
 - **Unassign the ticket.** Remove the assignee that routed it to the Team. The webhook needs `task.assignee.deleted` for Vikunja; ClickUp's `taskAssigneeUpdated` already covers it. Removing an assignee that maps to another Team changes nothing.
 - **Close the ticket before work starts.** Marking a Vikunja task done withdraws its Work Item while no Run has started (the webhook needs `task.updated`). Once a Run has started, closing the ticket stops nothing: unassign or cancel instead.
-- **Cancel it in Vloer.** On the Work Item's page, operators and administrators select **Cancel Work Item** and confirm. Vloer sends the operator cancel below as you, then shows how many Runs Ploeg stopped and whether their model keys are blocked yet. In the demo nothing is cancelled.
 - **Cancel it through the operator API.** Send `POST /api/v1/operator/work-items/{id}/cancel` with an operator bearer that has `execute` permission and an `X-Ploeg-Actor` header. The request has no body. The ticket gets a comment naming who cancelled it. The [operator contract](../../apps/ploeg/docs/contracts/README.md#operator-read-consumers) describes the request and response.
 
    ```sh
    curl -X POST -H "Authorization: Bearer $PLOEG_OPERATOR_TOKEN" -H "X-Ploeg-Actor: ryan" \
      https://<ploegd>/api/v1/operator/work-items/<id>/cancel
    ```
+
+   Not implemented yet: a **Cancel Work Item** button on the Work Item's page in Vloer, proposed in [Vloer ADR 0024](../../apps/vloer/docs/adrs/0024-vloer-opens-on-now-with-one-vocabulary-and-one-token-system.md). Vloer's server already forwards the cancel as `POST /api/ploeg/work-items/{id}/cancel` ([HTTP contract](../../apps/vloer/docs/contracts/api.md#cancel)).
 
 Each way, Ploeg withdraws the Work Item in one transaction ([withdraw.go](../../apps/ploeg/pkg/store/withdraw.go)):
 

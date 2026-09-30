@@ -49,7 +49,7 @@ The registry is `PLOEG_OPERATOR_CONSUMERS`; the separate named environment varia
 
 ## Use it
 
-Open **Work** in the browser, or the **Ploeg** view in the editor. Choose a Team and inspect work that needs you, work ready for review, running work, queued work or the paginated full list. Details show shifts, runs, reviewer findings, checkpoints, safe audit records and observed versus unresolved budget. Every snapshot states its limits. An unavailable API clears stale content rather than presenting it as live.
+Open **Work** in the browser, or the **Ploeg** view in the editor. Choose a Team and inspect work awaiting review, work that needs a human, running work, queued work or the paginated full list. Details show shifts, runs, reviewer findings, checkpoints, safe audit records and observed versus unresolved budget. Every snapshot states its limits. An unavailable API clears stale content rather than presenting it as live.
 
 Create a session with a registered repository, a crew, a concrete objective and a budget. Start explicitly. Its header links to the Ploeg work item and shows the authority state. **Continue in background** and **Supervise here** retain the execution, workspace and history. A message becomes durable before it is accepted for the next turn. Permission and question responses continue through the existing session UI.
 

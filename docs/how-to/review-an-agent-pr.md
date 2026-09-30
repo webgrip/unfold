@@ -3,7 +3,7 @@ type: how-to
 audience: [owner]
 owner: glide
 last_verified: 2026-09-23
-verified_by: "Read apps/ploeg pkg/worker/{task,worker}.go, pkg/shiftengine/{engine,reviewloop,publish,review}.go, pkg/store/{store,review}.go, pkg/httpapi/server.go, cmd/ploegd/{main,sweep}.go and apps/vloer/public/ploeg.js on 2026-09-23. On 2026-09-30 the Vloer navigation and routes were re-read in apps/vloer/public (shell.js, core/route.js, core/states.js); the rebuilt Work lanes and the Cancel Work Item button follow the redesign specification and were not yet in the code read"
+verified_by: "Read apps/ploeg pkg/worker/{task,worker}.go, pkg/shiftengine/{engine,reviewloop,publish,review}.go, pkg/store/{store,review}.go, pkg/httpapi/server.go, cmd/ploegd/{main,sweep}.go and apps/vloer/public/ploeg.js on 2026-09-23. On 2026-09-30 the Vloer sections were re-read against apps/vloer at 3506e94 (public/shell.js, core/route.js, core/counts.js, now.js, ploeg.js, views/now.js, views/work.js; src/ploeg.ts); what the redesign adds later is marked not implemented"
 ---
 
 # Review an agent's pull request
@@ -31,15 +31,15 @@ A Shift that closes with `review_approved` or `plan_exhausted` after a writer op
 
 ## Find what waits for you
 
-Vloer opens on **Now**. Its **Ready for your review** group lists every Work Item in `awaiting_review` across your Teams, and the count on **Now** in the sidebar and in the browser tab says how many items wait on you. For one Team, open **Work** and choose the **Ready for review** lane. Select a Work Item to open its page, `#work/<id>`, with the review evidence above the full history ([ploeg.js](../../apps/vloer/public/ploeg.js)). For the Shift that settled the Work Item it shows:
+Vloer opens on **Now**, which lists what waits on you across your Teams: the Work Items in `awaiting_review` first, each with a link to its pull request when Vloer found one, then those that need a human and the proposed ones. The count on **Now** in the sidebar and in the browser tab is the number of items in that list ([now.js](../../apps/vloer/public/now.js)). For one Team, open **Work** and choose the **Awaiting review** lane. Select a Work Item to open its page, `#work/<id>`. For a Work Item in `awaiting_review`, the panel **Ready for your review** sits above the full history ([ploeg.js](../../apps/vloer/public/ploeg.js)). For the Shift that settled the Work Item it shows:
 
 - **Open pull request**, a link to the pull request on the forge. Vloer takes it from the newest checkpoint, or else from the Runs' links. If Ploeg recorded neither, the screen says so and you find the pull request by its branch.
 - The branch and the close reason, with what that close reason means.
 - Each Run's Role, Round, outcome and verdict, and every reviewer's findings.
-- Spend: authorized, reserved and settled, in US dollars to two decimals. Spend Ploeg has not reported reads **Not reported**, never zero.
+- Spend: authorized, reserved and settled, in dollars to two decimals. An amount Ploeg did not report shows as `$0.00`; showing it as **Not reported** instead is not implemented yet.
 - **Instruction files named in findings**, when a reviewer's findings mention `AGENTS.md`, `CLAUDE.md`, `.claude/`, `.agents/`, `.openhands/`, `.mcp.json` or `.cursorrules`. Ploeg has no structured flag for this. Vloer matches the findings text, so check those files in the diff yourself.
 
-You merge or send the work back on the forge and in the tracker, not in Vloer. The one action Vloer offers on the Work Item itself is **Cancel Work Item**, which withdraws it ([stop it](assign-work-to-an-agent.md#stop-it)).
+The screen is read-only. You merge or send the work back on the forge and in the tracker, not in Vloer. Not implemented yet: a **Cancel Work Item** button on this page; to withdraw the Work Item now, see [stop it](assign-work-to-an-agent.md#stop-it).
 
 ## Check the evidence
 
