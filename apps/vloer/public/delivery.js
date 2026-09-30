@@ -13,6 +13,20 @@ export function deliveryGated(state) {
   return Boolean(session?.execution && state.bootstrap?.deliveryRepositories?.includes(session.repositoryId) && session.status === 'completed');
 }
 
+/**
+ * The state a delivery-gated session shows in the list and on its page: "Awaiting your approval" until the
+ * approval of the current candidate is known to be recorded, then "Commit approved". Returns null when the
+ * session does not go through the gate.
+ * @param {{ session?: object, bootstrap?: object, delivery?: object|null }} state
+ * @returns {{ key: string, label: string, tone: string, glyph: string } | null}
+ */
+export function deliveryStatus(state) {
+  if (!deliveryGated(state)) return null;
+  const view = state.delivery;
+  const approved = Boolean(view?.approval && (!view.candidate || view.candidate.policySha256 === view.policySha256));
+  return approved ? { key: 'commit_approved', label: 'Commit approved', tone: 'success', glyph: 'check-circle' } : { key: 'awaiting_approval', label: 'Awaiting your approval', tone: 'review', glyph: 'shield' };
+}
+
 function stage({ number, done, tone, title, name, text, extra = '' }) {
   const marker = done ? icon('check') : tone === 'danger' ? icon('x') : '';
   return `<li class="gate-stage"${tone ? ` data-tone="${tone}"` : ''}${done ? ' data-done' : ''}><span class="gate-marker" aria-hidden="true">${marker || number}</span><div class="gate-body"><p class="overline gate-name">${escape(name)}</p><h3 class="gate-title">${escape(title)}</h3><p class="gate-text">${escape(text)}</p>${extra}</div></li>`;
@@ -52,5 +66,5 @@ export function deliveryMarkup(state) {
     stage({ number: 2, done: verified, tone: receipt && !verified ? 'danger' : '', name: 'Independent verification', title: verified ? 'Checks passed' : receipt ? 'Checks need attention' : 'Evidence before approval', text: 'A fresh, isolated verifier runs the fixed checks in your registered policy.', extra: `${results}${verify}` }),
     stage({ number: 3, done: Boolean(approval), name: 'Your decision', title: approval ? 'Commit approved' : 'Review the evidence', text: approval ? `Recorded by ${approval.actor}. Ploeg keeps the commit, its checks and your approval together.` : 'Inspect the change and its check results, then approve this specific commit.', extra: approve }),
   ].join('');
-  return `<section class="card session-gate" aria-labelledby="delivery-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="delivery-title">${icon('shield')}Delivery gate</h2><p class="card-subtitle">Publication is disabled in this workbench baseline. Approval does not push, merge or deploy.</p></div><div class="card-actions">${badge({ tone: status[0], glyph: status[2], label: status[1] })}</div></header><div class="card-body">${notices}<ol class="gate-stages">${stages}</ol></div></section>`;
+  return `<section class="card session-decision session-gate" data-tone="${approval ? 'success' : 'review'}" aria-labelledby="delivery-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="delivery-title">${icon('shield')}Delivery gate</h2><p class="card-subtitle">Publication is disabled in this workbench baseline. Approval does not push, merge or deploy.</p></div><div class="card-actions">${badge({ tone: status[0], glyph: status[2], label: status[1] })}</div></header><div class="card-body">${notices}<ol class="gate-stages">${stages}</ol></div></section>`;
 }

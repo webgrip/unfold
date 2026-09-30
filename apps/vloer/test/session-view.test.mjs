@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseDiff, checkSummary, summaryFacts } from '../public/views/session.js';
-import { sessionGroup, sessionProgress } from '../public/views/sessions.js';
-import { deliveryGated, deliveryMarkup } from '../public/delivery.js';
+import { sessionGroup, sessionProgress, listStatus } from '../public/views/sessions.js';
+import { deliveryGated, deliveryMarkup, deliveryStatus } from '../public/delivery.js';
 
 const demoDiff = `diff --git a/src/order.js b/src/order.js
 index 1d029ed..1a31590 100644
@@ -150,4 +150,17 @@ test('the delivery gate explains a changed policy, an interrupted verification a
   const failed = deliveryMarkup(gated({ deliveryError: 'Ploeg did not answer <in time>.' }));
   assert.match(failed, /Ploeg did not answer &lt;in time&gt;\./);
   assert.match(failed, /data-action="delivery-refresh"/);
+});
+
+test('a finished session behind the delivery gate reads as awaiting your approval in the list and on its page, until the approval is recorded', () => {
+  const session = gated().session;
+  const bootstrap = gated().bootstrap;
+  assert.deepEqual(listStatus(session, bootstrap), { key: 'awaiting_approval', label: 'Awaiting your approval', tone: 'review', glyph: 'shield' });
+  assert.equal(sessionProgress({ ...session, runs: [] }, bootstrap), 'Verify, then approve the frozen commit');
+  assert.equal(listStatus(session, { deliveryRepositories: [] }).label, 'Ready for your review');
+  assert.equal(listStatus({ ...session, review: { decision: 'accepted', byName: 'Ryan' } }, { deliveryRepositories: [] }).label, 'Accepted');
+  assert.equal(deliveryStatus(gated({ delivery: { policySha256: policy, candidate, approval: { actor: 'Ryan' } } })).label, 'Commit approved');
+  assert.equal(deliveryStatus(gated({ delivery: { policySha256: 'e'.repeat(64), candidate, approval: { actor: 'Ryan' } } })).label, 'Awaiting your approval');
+  assert.equal(deliveryStatus(gated({ session: { ...session, status: 'running' } })), null);
+  assert.match(deliveryMarkup(gated()), /class="card session-decision session-gate" data-tone="review"/);
 });
