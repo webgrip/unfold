@@ -136,6 +136,15 @@ func TestOutcomeReport_MatchesSchema(t *testing.T) {
 		}
 	}
 
+	// A writing Run's account of its change (ADR-0042).
+	writer := OutcomeReport{
+		Outcome: work.OutcomePROpened, Summary: "opened a PR",
+		Problem: "Refunds over €500 fail.", Solution: "- `refund.go` checks the limit first.",
+	}
+	if err := validate(t, sch, writer); err != nil {
+		t.Errorf("OutcomeReport with a problem and solution does not validate: %v", err)
+	}
+
 	stuckOK := OutcomeReport{Outcome: work.OutcomeStuck, Summary: "blocked", StuckReason: "gate failed"}
 	if err := validate(t, sch, stuckOK); err != nil {
 		t.Errorf("stuck-with-reason does not validate: %v", err)

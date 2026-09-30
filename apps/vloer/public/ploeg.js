@@ -701,6 +701,29 @@ function statusBox(detail, model) {
   return '';
 }
 
+/**
+ * The writer's account of the Work Item's change: the problem and solution of the newest writing Run that reported
+ * either, from the latest Shift when one there did. `earlierShift` marks an account carried over from an older Shift.
+ * Null when no writer reported one.
+ */
+export function writerAccount(detail) {
+  const text = value => String(value ?? '').trim();
+  const reported = (detail.runs || []).filter(run => run.writes && (text(run.problem) || text(run.solution))).sort(newestFirst);
+  const shift = latestShift(detail);
+  const run = reported.find(entry => shift && entry.shiftId === shift.id) || reported[0];
+  if (!run) return null;
+  return { runId: run.id, role: run.role || '', round: run.round || 0, at: run.finishedAt || run.startedAt || '', problem: text(run.problem), solution: text(run.solution), earlierShift: Boolean(shift && run.shiftId !== shift.id) };
+}
+
+function accountMarkup(detail) {
+  const account = writerAccount(detail);
+  if (!account) return '';
+  const part = (heading, text) => text ? `<div class="work-account-part"><h4 class="overline">${heading}</h4><div class="prose">${markdown(text, { baseLevel: 5 })}</div></div>` : '';
+  const who = `Written by the ${account.role || 'writer'}${account.round ? ` in Round ${account.round}` : ''}${account.earlierShift ? ' of an earlier Shift' : ''}`;
+  const meta = `<p class="meta work-account-meta">${escape(who)}${account.at ? `, ${ui.timeAgo(account.at)}` : ''}. ${escape('Check it against the pull request.')}</p>`;
+  return ui.card({ id: 'work-account', region: true, title: 'Problem and solution', icon: 'file', level: 3, actions: runJump({ id: account.runId }), body: `<div class="work-account">${part('Problem', account.problem)}${part('Solution', account.solution)}</div>${meta}` });
+}
+
 function briefMarkup(detail, model) {
   const item = detail.item;
   const text = String(item.descriptionMarkdown ?? item.description ?? '').trim();
@@ -908,7 +931,7 @@ function cancelResultMarkup(model) {
   return `<div class="work-cancel-result" id="work-cancel-result" tabindex="-1" role="status">${ui.callout({ tone: summary.tone, title: summary.title, body: `<ul class="work-cancel-lines">${summary.items.map(entry => `<li data-tone="${entry.tone}">${icon(entry.glyph)}<span>${escape(entry.text)}</span></li>`).join('')}</ul>` })}</div>`;
 }
 
-/** The Work Item detail: header, the decision box for its state, the brief, Rounds and Runs, activity, technical details and, on phones, the action bar. */
+/** The Work Item detail: header, the writer's problem and solution, the decision box for its state, the brief, Rounds and Runs, activity, technical details and, on phones, the action bar. */
 export function detailMarkup(detail, model) {
   const reason = detailReason(detail);
   const item = detail.item;
@@ -926,6 +949,7 @@ export function detailMarkup(detail, model) {
   const parts = [
     headerMarkup(detail, model, reason),
     cancelResultMarkup(model),
+    accountMarkup(detail),
     decision,
     sessionsMarkup(detail, model.sessions),
     briefMarkup(detail, model),
