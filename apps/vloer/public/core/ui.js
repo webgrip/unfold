@@ -42,10 +42,17 @@ function actionAttrs(action, data) {
   return `${present(action) ? ` data-action="${escape(action)}"` : ''}${dataAttrs(data)}`;
 }
 
+const inAppOrigin = 'http://in-app.invalid';
+
+function inAppPath(text) {
+  if (!/^(#|\?|\/(?![/\\]))/.test(text) || /[\u0000-\u001f\u007f\\]/.test(text)) return false;
+  try { return new URL(text, `${inAppOrigin}/`).origin === inAppOrigin; } catch { return false; }
+}
+
 function linkTarget(href, external) {
   if (!present(href)) return null;
   const text = String(href);
-  if (!external && /^(#|\/(?!\/)|\?)/.test(text)) return text;
+  if (!external && inAppPath(text)) return text;
   return safeUrl(text);
 }
 
@@ -82,7 +89,7 @@ function timeElement(iso, display) {
 
 /**
  * A button, or a link styled as one when `href` is set. Text params (`label`, `ariaLabel`, `title`) are escaped;
- * `href` must be an in-app path (`#…`, `/…`) or pass `safeUrl()`, otherwise the control renders disabled.
+ * `href` must be an in-app path (`#…`, `?…` or `/…` that resolves to this origin, with no backslash or control character) or pass `safeUrl()`; otherwise the control renders disabled.
  * @param {object} options
  * @param {string} [options.label] Visible text.
  * @param {string} [options.icon] Leading glyph name from core/icons.js.

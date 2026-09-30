@@ -77,6 +77,28 @@ test('links only render for in-app paths and safe http(s) URLs, and external lin
   assert.equal(count(ui.button({ label: 'x', href: 'https://a.example', external: false }), /target=/g), 0);
 });
 
+test('an in-app path never resolves to another host through a backslash or a stripped control character', () => {
+  const escapes = ['/\\evil.example/x', '/\\\\evil.example', '/\t/evil.example', '/\n/evil.example', '/\r/evil.example', '/\\\t/evil.example', '/ok\u0000', '/%0a/ok\n'];
+  const builders = {
+    button: href => ui.button({ label: 'x', href }),
+    iconButton: href => ui.iconButton({ icon: 'external', label: 'x', href }),
+    chip: href => ui.chip({ label: 'x', href }),
+    stat: href => ui.stat({ label: 'x', value: 1, href }),
+    segmented: href => ui.segmented({ label: 'x', items: [{ id: 'a', label: 'a', href }] }),
+    listRow: href => ui.listRow({ title: 'x', href }),
+  };
+  for (const [name, build] of Object.entries(builders)) {
+    for (const href of escapes) {
+      const out = build(href);
+      assert(!out.includes('href='), `${name} refuses ${JSON.stringify(href)}`);
+      assert(!out.includes('evil.example'), `${name} drops ${JSON.stringify(href)}`);
+    }
+    assert.match(build('/api/work-items/101'), /href="\/api\/work-items\/101"/, `${name} keeps a plain in-app path`);
+    assert.match(build('#work?lane=needs_human&team=delivery'), /href="#work\?lane=needs_human&amp;team=delivery"/, `${name} keeps a hash route`);
+    assert.match(build('?window=7d'), /href="\?window=7d"/, `${name} keeps a query-only link`);
+  }
+});
+
 test('buttons carry their variant, size, state and hints', () => {
   assert.match(ui.button({ label: 'Save' }), /^<button type="button" class="button secondary">/);
   assert.match(ui.button({ label: 'Go', variant: 'primary', size: 'sm', type: 'submit' }), /type="submit" class="button primary sm"/);
