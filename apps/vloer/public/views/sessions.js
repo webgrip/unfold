@@ -19,7 +19,7 @@ function metrics() {
 }
 
 function sessionRow(session) {
-  return `<button class="session-row" data-action="open" data-id="${escape(session.id)}"><span class="row-symbol ${isActive(session) ? 'working' : ''}">${icon(session.status === 'completed' ? 'check' : session.status === 'failed' ? 'info' : 'code')}</span><span class="row-main"><strong>${escape(session.title)}</strong><span>${escape(repoName(session.repositoryId))}<i>·</i>${escape(crewName(session.crewId))}</span></span><span class="row-status">${status(session.status)}<small>${escape(ago(session.updatedAt))}</small></span>${icon('chevron')}</button>`;
+  return `<button class="session-row" data-action="open" data-id="${escape(session.id)}"><span class="row-symbol ${isActive(session) ? 'working' : ''}">${icon(session.status === 'completed' ? 'check' : session.status === 'failed' ? 'info' : 'code')}</span><span class="row-main"><strong>${escape(session.title)}</strong><span>${escape(repoName(session.repositoryId))}<i>·</i>${escape(crewName(session.crewId))}</span></span><span class="row-status">${status(session.status, statusLabel(session))}<small>${escape(ago(session.updatedAt))}</small></span>${icon('chevron')}</button>`;
 }
 
 function renderDashboard() {

@@ -1,8 +1,9 @@
 import { state } from './state.js';
 import { escape } from './dom.js';
+import { sessionStatuses, sessionStatus } from './states.js';
 
-/** Plain-language names for each session status. */
-export const labels = { queued: 'Ready to start', running: 'Working', exporting: 'Preparing review', waiting_input: 'Needs your input', paused: 'Paused', completed: 'Awaiting your review', failed: 'Needs attention', cancelled: 'Cancelled', interrupted: 'Interrupted' };
+/** Plain-language names for each session status, from the shared state vocabulary. */
+export const labels = Object.fromEntries(['queued', 'running', 'exporting', 'waiting_input', 'paused', 'completed', 'failed', 'cancelled', 'interrupted'].map(key => [key, sessionStatuses[key].label]));
 const providers = { forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp', vikunja: 'Vikunja', demo: 'Demo fixture' };
 /** Display names for the providers that link a personal account. */
 export const providerLabels = { gitlab: 'GitLab', clickup: 'ClickUp' };
@@ -33,7 +34,4 @@ export function selectedTaskSource() { return taskSources().find(source => sourc
 /** Names a tracker provider, falling back to its id. */
 export function providerName(id) { return providers[id] || id; }
 /** Names a session's status, including the recorded review decision once completed. */
-export function statusLabel(session) {
-  if (session.status === 'completed' && session.review) return session.review.decision === 'accepted' ? 'Accepted' : 'Rejected';
-  return labels[session.status] || session.status;
-}
+export function statusLabel(session) { return sessionStatus(session).label; }

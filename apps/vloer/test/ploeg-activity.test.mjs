@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activityMarkup, canDecide, duration, eventKind, mergeFeed, overviewMarkup, ploegTabsMarkup, proposedMarkup, relativeTime, runFilter, runSpend, runsMarkup, usdNl } from '../public/ploeg-activity.js';
+import { activityMarkup, canDecide, duration, eventKind, mergeFeed, overviewMarkup, proposedMarkup, relativeTime, runFilter, runSpend, runsMarkup, usdNl } from '../public/ploeg-activity.js';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 import { summaryTotals } from '../src/ploeg.ts';
 
@@ -78,7 +78,7 @@ test('the activity feed links each Work Item, filters by kind and escapes Ploeg 
   const view = { events: [hostile, event(39, 'llm.reconciled'), { ...event(38), workItemTitle: '' }], nextCursor: '38', team: '', kind: '', loading: false, demo: false, refreshedAt: '2026-09-10T08:59:00Z' };
   const html = activityMarkup(view, ['delivery'], helpers, now);
   assert.doesNotMatch(html, /<img/);
-  assert.match(html, /<a class="ploeg-link" href="#ploeg\/105">&#60;img/);
+  assert.match(html, /<a class="ploeg-link" href="#work\/105">&#60;img/);
   assert.match(html, /Work Item 105/);
   assert.match(html, /<strong>Proposed by an agent<\/strong>/);
   assert.match(html, /<time datetime="2026-09-10T08:00:00Z" title="[^"]+">1 h ago<\/time>/);
@@ -92,8 +92,8 @@ test('the overview shows totals as tiles and a per-team table, never a chart', (
   const data = summary('30d');
   const html = overviewMarkup({ window: '30d', data, loading: false, error: null }, helpers, now);
   for (const label of ['Awaiting review', 'Needs human', 'Running', 'Queued', 'Proposed', 'Settled · 30d']) assert.match(html, new RegExp(`${label}</span>`));
-  assert.match(html, /href="#ploeg\/lane\/awaiting_review"/);
-  assert.match(html, /href="#ploeg\/proposed"/);
+  assert.match(html, /href="#work\?lane=awaiting_review"/);
+  assert.match(html, /href="#proposed"/);
   assert.match(html, /<th scope="row">delivery<\/th>/);
   assert.match(html, /<th scope="row">research<\/th>/);
   assert.match(html, /<th scope="row">All teams<\/th>/);
@@ -118,7 +118,7 @@ test('an older Ploeg without the activity routes gets a clear note, not an error
   const error = { code: 'ploeg_unsupported', message: 'This Ploeg version does not provide activity data yet.' };
   for (const html of [overviewMarkup({ window: '24h', data: null, error }, helpers, now), activityMarkup({ events: null, error, team: '', kind: '' }, [], helpers, now), runsMarkup({ runs: null, error, filter: {} }, [], helpers, now)]) {
     assert.match(html, /This Ploeg version does not provide activity data yet/);
-    assert.match(html, /href="#ploeg\/work"/);
+    assert.match(html, /href="#work"/);
     assert.doesNotMatch(html, /Ploeg needs attention|role="alert"/);
   }
   const other = overviewMarkup({ window: '24h', data: null, error: { code: 'ploeg_unavailable', message: 'Ploeg could not be reached.' } }, helpers, now);
@@ -136,7 +136,7 @@ test('Run rows show settled, reserved or unsettled spend, tokens and models', ()
   assert.match(html, /12\.345 in · 678 out/);
   assert.match(html, /claude-sonnet, claude-haiku/);
   assert.match(html, /14 min/);
-  assert.match(html, /href="#ploeg\/105"/);
+  assert.match(html, /href="#work\/105"/);
   assert.match(html, /data-action="ploeg-runs-older"/);
   const demo = runsMarkup({ runs: ploegDemo.runs, nextBefore: null, filter: {}, demo: true }, ['delivery'], helpers, now);
   assert.doesNotMatch(demo, /US\$\s0,00<\/td>/);
@@ -167,16 +167,9 @@ test('only operators and administrators see Approve and Reject; viewers never do
   assert.match(viewer, /Clarification/);
   assert.match(viewer, /<span class="ploeg-flag ready">Ready<\/span>/);
   assert.match(viewer, /<span class="ploeg-flag not-ready">Needs refinement<\/span>/);
-  assert.match(viewer, /From <a class="ploeg-link" href="#ploeg\/105">Round half-cent totals consistently<\/a>/);
+  assert.match(viewer, /From <a class="ploeg-link" href="#work\/105">Round half-cent totals consistently<\/a>/);
   const unknown = proposedMarkup({ ...view, items: [{ ...items[0], sourceWorkItemId: undefined, createdKind: undefined, ready: undefined, sourceTitle: '' }] }, { role: 'operator' }, helpers, now);
   assert.match(unknown, /Source Work Item not reported/);
   assert.match(unknown, /Kind not reported/);
   assert.match(unknown, /Ready not reported/);
-});
-
-test('the tabs put Overview, Activity, Runs and Proposed before the existing lanes', () => {
-  const html = ploegTabsMarkup('lanes', 'needs_human', helpers);
-  assert.deepEqual([...html.matchAll(/data-tab="([a-z_]+)"/g)].map(match => match[1]), ['overview', 'activity', 'runs', 'proposed', 'awaiting_review', 'needs_human', 'leased', 'queued', 'all']);
-  assert.match(html, /href="#ploeg\/lane\/needs_human" data-tab="needs_human" class="selected" aria-current="page"/);
-  assert.match(ploegTabsMarkup('overview', 'needs_human', helpers), /href="#ploeg" data-tab="overview" class="selected"/);
 });
