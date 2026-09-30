@@ -271,7 +271,7 @@
   color: var(--text-muted);
 }
 
-.dialog-body > .demo-note {
+.session-dialog .dialog-body > .demo-note {
   flex-wrap: nowrap;
   align-items: flex-start;
   color: var(--text-muted);
@@ -279,7 +279,7 @@
   line-height: var(--leading-xs);
 }
 
-.dialog-body > .demo-note > .demo-note-tag {
+.session-dialog .dialog-body > .demo-note > .demo-note-tag {
   flex: none;
   margin-top: -0.0625rem;
 }
@@ -294,7 +294,7 @@
   gap: var(--space-4);
 }
 
-.dialog .disclosure > summary {
+.session-dialog .disclosure > summary {
   font-size: var(--text-sm);
 }
 
@@ -303,12 +303,21 @@
   gap: var(--space-4);
 }
 
-.dialog .field > :is(input, select, textarea) {
+.session-dialog .field > :is(input, select, textarea) {
   width: 100%;
 }
 
-.dialog .field > textarea {
+.session-dialog .field > textarea {
   min-height: 6rem;
+}
+
+.session-dialog label {
+  display: block;
+}
+
+.session-dialog .button.icon-only,
+.sessions-page .button.icon-only {
+  margin-block-end: 0;
 }
 
 .session-choice {
@@ -325,8 +334,8 @@
   margin: var(--space-0-5) 0 0;
 }
 
-.dialog .field-hint,
-.dialog .field-error {
+.session-dialog .field-hint,
+.session-dialog .field-error {
   margin: 0;
 }
 
@@ -338,7 +347,7 @@
   color: var(--text-muted);
 }
 
-.dialog .facts {
+.session-dialog .facts {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   padding: var(--space-3);
   border: 1px solid var(--border-subtle);
