@@ -11,7 +11,7 @@
     "start": "node --env-file-if-exists=.env src/main.ts",
     "demo": "node --env-file-if-exists=.env src/main.ts --demo",
     "demo:unified": "node scripts/unified-demo.ts",
-    "test": "node --test test/*.test.ts test/*.test.mjs",
+    "test": "node --test ${VLOER_TEST_CONCURRENCY:+--test-concurrency=$VLOER_TEST_CONCURRENCY} --test-timeout=120000 --test-force-exit test/*.test.ts test/*.test.mjs",
     "check": "node scripts/check.mjs",
     "user:add": "node scripts/user-add.ts",
     "smoke": "node scripts/smoke.mjs",
