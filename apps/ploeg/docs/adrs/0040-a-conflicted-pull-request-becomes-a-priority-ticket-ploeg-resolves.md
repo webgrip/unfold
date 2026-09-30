@@ -64,6 +64,9 @@ binding between ticket and pull request in Ploeg's hands.
 3. For an AGit pull request, Ploeg opens a superseding pull request, and the
    owner closes the original.
 4. Glide builds this itself, from tickets on the Glide board.
+5. (2026-10-01, after agent pull request #45 conflicted and Vloer showed it as
+   ready for review) A conflict must be clear inside Vloer. This holds on every
+   route, whether or not it opts in to conflict tickets.
 
 The values below (priority 5, two polls, the caps) are this record's defaults,
 not owner decisions.
@@ -178,6 +181,27 @@ ploegd records the original as superseded and files no more tickets for it.
 * **`stuck` or `failed`:** the Work Item goes to `needs_human` as it does today.
   The stuck reason is posted on the pull request and on the ticket.
 
+### Show
+
+The review reconcile already reads every `awaiting_review` pull request. It
+also reads the pull request's `mergeable` flag, head SHA and base branch, from
+the same single request, through an optional forge capability. It records the
+Work Item's merge state with the two-poll rule from Detect: `conflicted` after
+two `false` polls on one head SHA, `clean` on `true`, and `unknown` otherwise
+or after a new push. A forge read failure leaves the recorded state as it was.
+Entering or leaving `conflicted` writes an audit row with the Work Item's id.
+
+The operator API adds `pullRequest` (number, merge state, base branch, head
+SHA, checked at) to each Work Item. Vloer flags `conflicted` in attention tone
+on the review lane chip, the Now row and the first line of the "Before you
+merge" checklist, and notifies once per head SHA. `unknown` and a missing field
+never read as clean.
+
+Showing a conflict changes no Work Item state: the item stays
+`awaiting_review`, because the pull request is still the person's to review.
+It needs no `conflicts` block. Detect reuses the same two-poll rule for the
+other open pull requests on routes that opt in.
+
 ### Relation to other records
 
 * [ADR-0031](0031-runs-create-work-items-held-for-approval-within-limits.md):
@@ -232,6 +256,10 @@ This record is proposed, and nothing has been built yet. When the tickets land,
   mentions a pull request does not; an in-place Work Item is invisible to
   `FindBranchOwner`.
 * `pkg/work`: a golden file for the conflict brief.
+* Show: one `false` poll leaves an `awaiting_review` Work Item `unknown`; two on
+  one head SHA make it `conflicted` and write one audit row; a read failure
+  changes nothing; the operator API returns `pullRequest`. Vloer's `npm test`
+  covers each merge state on the chip, the Now row and the checklist.
 
 `go test ./internal/ledger/` gates this record.
 
@@ -283,8 +311,9 @@ This record is proposed, and nothing has been built yet. When the tickets land,
 ## More Information
 
 * Evidence: [2026-09-30 merge conflict signals](../research/2026-09-30-merge-conflict-signals.md).
-* Board: epic VIK-1584 on the Glide board, slices VIK-1585 to VIK-1588, and
-  the rollout VIK-1589 on Homelab Roadmap.
+* Board: epic VIK-1584 on the Glide board, slices VIK-1585 to VIK-1588, Show
+  as VIK-1598 (Ploeg) and VIK-1599 (Vloer), and the rollout VIK-1589 on
+  Homelab Roadmap.
 * VIK-1280 polls pull request head checks in the same reconcile, for the same
   reason: Forgejo 15 does not deliver the event.
 * VIK-571 asks whether to serialize writing Runs per repository and was waiting
