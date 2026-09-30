@@ -36,7 +36,7 @@ Nine findings change how `ploeg-mcp` must be built. Each one either corrects the
    - pointer and slice fields become nullable type arrays that Cursor and JetBrains reject.
 6. **Tool schemas must use the common subset.** No `$schema`, `$ref`, `anyOf`/`oneOf`/`allOf`, `const` or nullable type arrays; only `enum` of strings for closed sets. Every property is declared and every array has `items`. Codex silently drops `format`, `default`, `pattern` and bounds, so the server validates them.
 7. **Every tool call returns in 30 seconds or less.** Claude Code's HTTP default, Cursor, Zed and ChatGPT sit around 60 seconds, and Codex's documented default is 60 seconds. Long work returns a Work Item id and is polled. No MCP Tasks.
-8. **Authentik can serve the remote phase only for clients registered in advance, and some clients break.** It has no client metadata documents, no anonymous dynamic registration, no `resource` audience, no typed access tokens and no `iss` in the authorize response. Gemini CLI 0.61 and later refuses the missing `iss`. Choosing the identity provider for the remote phase is an open owner decision (§6).
+8. **Authentik can serve the remote phase only for clients registered in advance, and some clients break.** It has no client metadata documents, no anonymous dynamic registration, no `resource` audience, no typed access tokens and no `iss` in the authorize response. Gemini CLI 0.61 and later refuses the missing `iss`. The owner chose Authentik with pre-registered clients on 2026-09-30 (§6).
 9. **The conformance command in the ADR's Confirmation cannot pass against the real binary.** Most required scenarios call fixture tools, such as `test_simple_text`, that a production server does not have. The fix is a build with those fixtures behind the same middleware, plus a per-check baseline.
 
 ## 1. Protocol and transport
@@ -218,7 +218,7 @@ Delimiting lowers attack success; it is not a boundary. The boundaries are the g
 - Run `govulncheck` in CI and on the binary; go-sdk had four advisories in 2026.
 - Pin the toolchain, sign the image by digest with a key reference, and attach an SBOM. Keyless signing from Forgejo does not work today, because public Fulcio does not trust Forgejo's OIDC issuer.
 
-## 6. The remote phase needs an identity decision
+## 6. The identity provider for the remote phase
 
 The owner accepted the remote phase. Research found that Authentik, the estate's identity provider, supports MCP clients only partly:
 
@@ -245,7 +245,7 @@ The owner accepted the remote phase. Research found that Authentik, the estate's
    - Pros: every client works, including zero-config Claude.ai.
    - Cons: a new security-critical component with its own consent-page duties.
 
-**Recommendation:** option 1 now, because it serves the owner's own clients with no new component. Revisit option 3 when the agency phase needs arbitrary clients to connect.
+**Decided (owner, 2026-09-30): option 1.** It serves the owner's own clients with no new component. Revisit option 3 when the agency phase needs arbitrary clients to connect, or when Gemini CLI matters before Authentik sends `iss`.
 
 Phase 1 (stdio with a token) and phase 2 (a static bearer on the internal gateway) need none of this. JetBrains AI Assistant has no OAuth at all, so the static bearer path stays even after phase 3.
 
@@ -344,7 +344,7 @@ Phase 1 (stdio with a token) and phase 2 (a static bearer on the internal gatewa
 
 ## 11. What this changes
 
-- **[ADR-0011](../adr/adr-0011-glide-is-reachable-over-mcp-through-a-read-first-server.md)** gets a dated refinement: both eras are served, both result channels are full, approval is described as consent backed by grants and single use, the identity-provider choice is open, and the Confirmation uses the fixture build.
+- **[ADR-0011](../adr/adr-0011-glide-is-reachable-over-mcp-through-a-read-first-server.md)** gets a dated refinement: both eras are served, both result channels are full, approval is described as consent backed by grants and single use, the OAuth phase uses Authentik with pre-registered clients, and the Confirmation uses the fixture build.
 - **Tickets on the Glide board:**
   - VIK-1507, 1508 and 1509 gain these rules as comments.
   - New tickets cover the OAuth resource server, the per-consumer actor allowlist in Ploeg, and the eval harness.

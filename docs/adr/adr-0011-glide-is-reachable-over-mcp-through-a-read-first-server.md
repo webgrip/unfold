@@ -46,7 +46,7 @@ Chosen option: "A separate `ploeg-mcp` command", because it is the only option t
   * tool schemas stay in the common subset;
   * every call returns within 30 seconds;
   * approve, reject and cancel are gated by the owner's grant, a sealed single-use `requestState` and `_meta["anthropic/requiresUserInteraction"]`, because a form `accept` is the client's consent, not proof of a person;
-  * the identity provider for the OAuth phase is an open owner decision (guide §6).
+  * the OAuth phase uses Authentik with pre-registered clients (Claude.ai, ChatGPT, and one public client for CLIs), and `ploeg-mcp` checks `aud` against those client ids, because Authentik ignores `resource` (owner decision, 2026-09-30; guide §6).
 * **South side.** Runs get no Glide MCP server. Third-party MCP servers reach a Run only through LiteLLM's gateway with per-Run keys, and no harness loads MCP configuration from the target repository.
 
 **The owner's answers (2026-09-30):**
@@ -117,3 +117,4 @@ Accepted, not implemented. It is implemented when:
 * 2026-09-29 — Proposed after an eight-agent research sweep. Numbered 0011 because system ADRs 0005–0010 are on the unmerged `docs/agency-offering` branch.
 * 2026-09-30 — Accepted by the owner, remote phase included; the four open questions answered in the Decision Outcome (VIK-1502).
 * 2026-09-30 — Refined by a six-agent build-pattern sweep ([research record](../research/2026-09-30-mcp-server-patterns.md)); the Confirmation's conformance check now uses a fixture build, because most required scenarios call fixture tools a production server does not have.
+* 2026-09-30 — The owner chose Authentik with pre-registered clients as the OAuth-phase identity provider, over Keycloak and an authorization server in front of Authentik.
