@@ -6,7 +6,7 @@ const root = resolve(import.meta.dirname, '..');
 
 const gate = (scope, command, args, options = {}) => ({ scope, command, args, ...options });
 const vloer = task => gate('apps/vloer', 'npm', ['run', ...task.split(' ')]);
-const site = task => gate('apps/site', 'npm', ['run', task]);
+const site = task => gate('apps/site', 'corepack', ['pnpm', 'run', task]);
 const helm = [];
 for (const [scope, name, variants] of [
   ['vloer', 'de-vloer', ['', 'values.live.example.yaml']],

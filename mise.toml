@@ -16,7 +16,7 @@ run = [
   "mise -C apps/site install",
   "npm --prefix apps/vloer ci --no-audit --no-fund",
   "npm --prefix apps/vloer/extensions/vscode ci --no-audit --no-fund",
-  "npm --prefix apps/site ci --no-audit --no-fund",
+  "mise -C apps/site exec -- corepack pnpm install --frozen-lockfile",
   "uv sync --frozen",
 ]
 description = "Install the locked application and documentation dependencies"
