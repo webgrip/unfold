@@ -1012,7 +1012,8 @@
     display: none;
   }
 
-  .work-actions-tools {
+  .work-actions-tools,
+  .work-actions-links + .work-actions-tools {
     margin-inline-start: 0;
   }
 

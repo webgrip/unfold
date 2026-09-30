@@ -563,7 +563,8 @@ function roundsMarkup(detail, model) {
   const shifts = detail.shifts || [];
   const demo = detail.demo;
   if (!shifts.length) {
-    const legacy = detail.runs.length ? 'These Runs ran before Shifts existed, so there is no Round ladder or Shift budget.' : 'No Shift has opened yet. It opens when a worker of the Team takes the Work Item.';
+    const state = detail.item.state;
+    const legacy = detail.runs.length ? 'These Runs ran before Shifts existed, so there is no Round ladder or Shift budget.' : state === 'proposed' ? 'No Shift yet. One opens after a person approves the proposal.' : ['done', 'withdrawn', 'stale', 'needs_human'].includes(state) ? 'No Shift ran for this Work Item.' : 'No Shift has opened yet. It opens when a worker of the Team takes the Work Item.';
     return ui.card({ id: 'work-rounds', title: 'Rounds', level: 3, body: `<p class="subtle">${escape(legacy)}</p>` });
   }
   const [current, ...earlier] = shifts;
