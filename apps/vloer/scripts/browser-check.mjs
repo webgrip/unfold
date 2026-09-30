@@ -12,7 +12,7 @@ const flows = [
   ['tasks', 'task connections for five providers, fixture import with explicit start, duplicate import, binary candidate downloads, changed-revision draft preservation and inert source text, task desktop/mobile layout'],
   ['sessions', 'demo, diff, checks, export, reload, create, pause, evidence keyboard navigation at desktop/mobile widths, draft preservation, stream reading-position and tail-follow preservation, instruction, resume, cancel, actionable ambiguous-failure guidance and escaped error text'],
   ['shell', 'redirects from old links, heading focus, title and announcement on route changes, the shortcut help, g chords, opening the command palette, mobile navigation'],
-  ['palette', 'the command palette (fuzzy search, keyboard, recent Work Items, number jumps, commands) at desktop/mobile widths, the favicon dot and opt-in desktop notifications'],
+  ['palette', 'the command palette (fuzzy search, keyboard, recent Work Items kept per user, number jumps, commands) at desktop/mobile widths, the favicon dot and opt-in desktop notifications'],
   ['settings', 'the Environment page, theme, density and single-key preferences kept across a reload'],
   ['feeds', 'Ploeg overview, activity paging, Runs filters and proposed-work rejection at desktop/mobile widths'],
   ['work', 'Ploeg awaiting-review lane and review screen'],

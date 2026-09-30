@@ -13,7 +13,7 @@ import { parseHash, redirect } from '../core/route.js';
 import { attention, installAttention } from '../core/attention.js';
 import { showsSessions, closeTransientChrome } from '../shell.js';
 
-/** The localStorage key of the recently opened Work Items and sessions, newest first. */
+/** The localStorage key of the recently opened Work Items and sessions, newest first, stored per user. */
 export const recentKey = 'vloer.recent';
 
 const recentLimit = 8;
@@ -188,10 +188,21 @@ export function recentFromHash(hash) {
 
 const validRecent = entry => entry && (entry.kind === 'work' ? workItemId.test(entry.id) : entry.kind === 'session' && sessionId.test(entry.id)) && typeof entry.title === 'string' && entry.title.length <= 300 && !Number.isNaN(Date.parse(entry.at));
 
-/** Reads the stored recent list; anything malformed is dropped. */
-export function parseRecent(raw) {
-  try { const list = JSON.parse(raw || '[]'); return Array.isArray(list) ? list.filter(validRecent).slice(0, recentLimit) : []; } catch { return []; }
+/**
+ * Reads the stored recent list of `user`. A list stored for someone else, a list without an owner and anything
+ * malformed read as empty.
+ */
+export function parseRecent(raw, user) {
+  if (!user) return [];
+  try {
+    const stored = JSON.parse(raw || 'null');
+    if (!stored || typeof stored !== 'object' || Array.isArray(stored) || stored.user !== user || !Array.isArray(stored.entries)) return [];
+    return stored.entries.filter(validRecent).slice(0, recentLimit);
+  } catch { return []; }
 }
+
+/** The stored form of `user`'s recent list; writing it replaces the list of whoever used this browser before. */
+export function serializeRecent(user, entries) { return JSON.stringify({ user, entries }); }
 
 /**
  * Moves `entry` (`{ kind, id, title? }`) to the front of the recent `list`, keeping its known title, and keeps at
@@ -202,6 +213,38 @@ export function rememberRecent(list, entry, at = new Date().toISOString()) {
   const same = item => item.kind === entry.kind && item.id === entry.id;
   const before = list.find(same);
   return [{ kind: entry.kind, id: entry.id, title: text(entry.title) || before?.title || '', at }, ...list.filter(item => !same(item))].slice(0, recentLimit);
+}
+
+/**
+ * Tracks who is signed in, so data one person loaded never reaches the next person's search in the same tab.
+ * `observe(source)` takes the app state: it returns true when the signed-in user changed (the caller then drops
+ * what it keeps per user), and it marks every cached list present when someone signs out, or when a different
+ * user appears without a sign-out in between, as stale. `leave(source)` marks them at once, for a sign-out.
+ * `trusted(value)` returns a cached list only when it is not stale.
+ */
+export function createScope() {
+  let user = null;
+  let away = true;
+  const stale = new WeakSet();
+  const mark = source => {
+    for (const value of [source?.now?.data, source?.ploegDetail, source?.ploeg, source?.ploegProposed, source?.ploegRuns, source?.ploegFeed, source?.sessions]) {
+      if (value && typeof value === 'object') stale.add(value);
+    }
+  };
+  return {
+    observe(source) {
+      const id = String(source?.bootstrap?.user?.id ?? '') || null;
+      if (!id) { mark(source); away = true; return false; }
+      if (id === user && !away) return false;
+      if (user !== null && id !== user && !away) mark(source);
+      user = id;
+      away = false;
+      return true;
+    },
+    leave(source) { mark(source); away = true; },
+    trusted(value) { return value && typeof value === 'object' && !stale.has(value) ? value : null; },
+    get user() { return away ? null : user; },
+  };
 }
 
 const pages = [
@@ -388,20 +431,35 @@ export function resultsMarkup(groups, active = 0, { query = '', singleKeys = tru
 }
 
 const palette = { opener: null, again: null, query: '', active: 0, groups: [], results: [], statusTimer: null, wired: false };
-const nowCache = { data: null, error: null, loading: false, at: 0 };
+const nowCache = { data: null, error: null, loading: false, at: 0, generation: 0 };
+const scope = createScope();
+let pendingRoute = null;
 
-function readRecent() { try { return parseRecent(globalThis.localStorage?.getItem(recentKey)); } catch { return []; } }
-function writeRecent(list) { try { globalThis.localStorage?.setItem(recentKey, JSON.stringify(list)); } catch {} }
+const signedIn = () => (state.bootstrap ? scope.user : null);
+
+function resetNowCache() { Object.assign(nowCache, { data: null, error: null, loading: false, at: 0, generation: nowCache.generation + 1 }); }
+
+function observe() {
+  if (!scope.observe(state)) return;
+  resetNowCache();
+  const pending = pendingRoute;
+  pendingRoute = null;
+  if (pending) rememberRoute(pending);
+}
+
+function readRecent() { const user = signedIn(); try { return user ? parseRecent(globalThis.localStorage?.getItem(recentKey), user) : []; } catch { return []; } }
+function writeRecent(entries) { const user = signedIn(); if (!user) return; try { globalThis.localStorage?.setItem(recentKey, serializeRecent(user, entries)); } catch {} }
 
 function rememberRoute(hash = globalThis.location?.hash) {
+  if (!signedIn()) { pendingRoute = hash; return; }
   const entry = recentFromHash(hash);
   if (entry) writeRecent(rememberRecent(readRecent(), entry));
 }
 
-function resolvedRecent(items) {
+function resolvedRecent(items, sessions) {
   const list = readRecent();
   const titles = new Map(items.filter(item => item.title).map(item => [`work:${item.id}`, item.title]));
-  for (const session of state.sessions || []) if (text(session?.title)) titles.set(`session:${session.id}`, text(session.title));
+  for (const session of sessions) if (text(session?.title)) titles.set(`session:${session.id}`, text(session.title));
   let changed = false;
   const resolved = list.map(entry => {
     const title = titles.get(`${entry.kind}:${entry.id}`);
@@ -414,18 +472,21 @@ function resolvedRecent(items) {
 }
 
 const prefersDark = () => Boolean(globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches);
-const nowData = () => [nowCache.data].filter(Boolean);
-
 function paletteContext() {
+  observe();
+  const user = signedIn();
+  const trusted = value => (user ? scope.trusted(value) : null);
   const theme = prefs.get('theme');
-  const items = workItemIndex(state, nowData());
-  const sessionsShown = Boolean(state.bootstrap) && showsSessions();
-  const partial = [state.now?.data, nowCache.data].some(data => Object.values(data?.errors || {}).some(Boolean));
+  const page = trusted(state.now?.data);
+  const items = workItemIndex({ now: { data: page }, ploegDetail: trusted(state.ploegDetail), ploeg: trusted(state.ploeg), ploegProposed: trusted(state.ploegProposed), ploegRuns: trusted(state.ploegRuns), ploegFeed: trusted(state.ploegFeed) }, [nowCache.data].filter(Boolean));
+  const sessions = Array.isArray(trusted(state.sessions)) ? state.sessions : [];
+  const sessionsShown = Boolean(user) && showsSessions();
+  const partial = [page, nowCache.data].some(data => Object.values(data?.errors || {}).some(Boolean));
   return {
     counts: state.counts,
     items,
-    sessions: state.sessions || [],
-    recent: resolvedRecent(items),
+    sessions,
+    recent: resolvedRecent(items, sessions),
     current: recentFromHash(location.hash),
     sessionsShown,
     canCreate: sessionsShown && state.bootstrap?.user?.role !== 'viewer',
@@ -559,14 +620,27 @@ function wire(dialog) {
 }
 
 async function loadWorkItems(force = false) {
-  if (!state.bootstrap || nowCache.loading || ['unconfigured', 'no-access'].includes(state.ploegStatus)) return;
-  if (!force && (Date.now() - nowCache.at < nowFresh || (state.view === 'now' && state.now?.data))) return;
+  observe();
+  const user = signedIn();
+  if (!user || nowCache.loading || ['unconfigured', 'no-access'].includes(state.ploegStatus)) return;
+  if (!force && (Date.now() - nowCache.at < nowFresh || (state.view === 'now' && scope.trusted(state.now?.data)))) return;
+  const generation = nowCache.generation;
+  const current = () => generation === nowCache.generation && signedIn() === user;
   nowCache.loading = true;
   nowCache.error = null;
   if ($('#palette')?.open) refreshResults({ keep: true });
-  try { nowCache.data = await api('/api/ploeg/now'); }
-  catch (error) { if (['ploeg_unconfigured', 'ploeg_scope'].includes(error.code)) nowCache.data = null; else nowCache.error = { message: error.message, code: error.code || '' }; }
-  finally { nowCache.at = Date.now(); nowCache.loading = false; if ($('#palette')?.open) refreshResults({ keep: true }); }
+  try {
+    const data = await api('/api/ploeg/now');
+    if (current()) nowCache.data = data;
+  } catch (error) {
+    if (current()) {
+      if (['ploeg_unconfigured', 'ploeg_scope'].includes(error.code)) nowCache.data = null;
+      else nowCache.error = { message: error.message, code: error.code || '' };
+    }
+  } finally {
+    if (current()) { nowCache.at = Date.now(); nowCache.loading = false; }
+    if ($('#palette')?.open) refreshResults({ keep: true });
+  }
 }
 
 function closePalette(restore = true) {
@@ -592,6 +666,7 @@ function openPalette() {
   palette.again = openerSelector(palette.opener);
   palette.query = '';
   palette.active = 0;
+  observe();
   rememberRoute();
   wire(dialog);
   dialog.innerHTML = frameMarkup();
@@ -638,7 +713,7 @@ async function copyLink() {
 
 async function refreshPage() {
   const again = palette.again;
-  nowCache.at = 0;
+  resetNowCache();
   await boot();
   if (focusLost()) restoreFocus(null, again);
   announce('Page refreshed');
@@ -657,17 +732,22 @@ function runEntry(element) {
 }
 
 installAttention();
-onCountsChange((...args) => { if (args[0] && typeof args[0] === 'object') { nowCache.data = args[0]; nowCache.error = null; nowCache.at = Date.now(); } });
+onCountsChange(data => {
+  observe();
+  if (signedIn() && data && typeof data === 'object' && !Array.isArray(data)) Object.assign(nowCache, { data, error: null, at: Date.now() });
+});
+live.subscribe(() => observe());
 if (globalThis.window && globalThis.location) {
-  window.addEventListener('hashchange', () => rememberRoute());
-  rememberRoute(redirect(location.hash) ?? location.hash);
+  pendingRoute = redirect(location.hash) ?? location.hash;
+  window.addEventListener('hashchange', () => { observe(); rememberRoute(); });
+  document.addEventListener('click', event => { if (event.target.closest?.('[data-action="logout"]')) { scope.leave(state); resetNowCache(); } }, true);
 }
 
 /**
  * The command palette (`#palette`): `palette-open` (the search button, `/` and ⌘K or Ctrl K) opens a combobox
  * over a grouped listbox of recent items, destinations, commands, Work Items and sessions with fuzzy matching;
  * `palette-run` runs a result and `palette-close` closes it. Loading the view also connects the favicon dot and
- * desktop notifications to the counts, and records the Work Items and sessions opened as recent.
+ * desktop notifications to the counts, and records the Work Items and sessions each user opens as recent.
  */
 export default {
   id: 'palette',

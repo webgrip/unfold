@@ -1,5 +1,5 @@
-/** The command palette: opening from the search button, `/` and Ctrl K, the combobox and listbox contract, fuzzy search with highlighted matches, arrow keys, number jumps, recent Work Items, commands (theme, live updates, shortcuts, desktop notifications), Escape restoring focus, the phone sheet, and the favicon dot that follows what waits on you. */
-export async function run({ page, app, assert, screenshot }) {
+/** The command palette: opening from the search button, `/` and Ctrl K, the combobox and listbox contract, fuzzy search with highlighted matches, arrow keys, number jumps, recent Work Items kept per user, commands (theme, live updates, shortcuts, desktop notifications), Escape restoring focus, the phone sheet, and the favicon dot that follows what waits on you. */
+export async function run({ page, app, live, password, assert, screenshot }) {
   const base = `http://127.0.0.1:${app.server.address().port}`;
   const palette = page.getByRole('dialog', { name: 'Search and commands' });
   const input = palette.getByRole('combobox', { name: 'Search pages, commands and Work Items' });
@@ -161,4 +161,47 @@ export async function run({ page, app, assert, screenshot }) {
   await page.waitForFunction(() => location.hash === '#runs');
   assert.equal(await hash(), '#runs');
   await page.setViewportSize({ width: 1440, height: 1040 });
+
+  const liveBase = `http://127.0.0.1:${live.server.address().port}`;
+  const signIn = async () => {
+    await page.getByRole('textbox', { name: 'Account name' }).fill('browser-operator');
+    await page.getByLabel('Password', { exact: true }).fill(password);
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await page.locator('#page-title').waitFor();
+  };
+  const open = async () => { await page.keyboard.press('Control+k'); await input.waitFor(); };
+  const close = async () => { await page.keyboard.press('Escape'); await palette.waitFor({ state: 'hidden' }); };
+  const signOut = async () => {
+    await open();
+    await input.fill('sign out');
+    await page.waitForFunction(() => document.querySelector('#palette-option-0 .palette-option-label')?.textContent === 'Sign out');
+    await page.keyboard.press('Enter');
+    await page.getByRole('heading', { name: 'Welcome back.' }).waitFor();
+  };
+  const secret = { kind: 'work', id: '4242', title: 'Confidential acquisition of Acme', at: new Date().toISOString() };
+  await page.goto(`${liveBase}/#settings/accounts`);
+  await page.getByRole('heading', { name: 'Welcome back.' }).waitFor();
+  await page.evaluate(entry => localStorage.setItem('vloer.recent', JSON.stringify([entry])), secret);
+  await signIn();
+  await open();
+  assert.equal(await palette.getByText(secret.title).count(), 0, 'a recent list without an owner is never shown');
+  await close();
+  await page.evaluate(entry => localStorage.setItem('vloer.recent', JSON.stringify({ user: 'someone-else', entries: [entry] })), secret);
+  await open();
+  assert.equal(await palette.getByText(secret.title).count(), 0, 'another account’s recent Work Items stay hidden');
+  await close();
+  await route('work/4242');
+  await route('settings/accounts');
+  await open();
+  await results.getByRole('group', { name: 'Recent' }).getByRole('option', { name: /^Work Item #4242/ }).waitFor();
+  await close();
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('vloer.recent')).user === 'someone-else'), false, 'the list now belongs to this account');
+  await signOut();
+  await signIn();
+  await open();
+  await results.getByRole('group', { name: 'Recent' }).getByRole('option', { name: /^Work Item #4242/ }).waitFor();
+  await close();
+  await signOut();
+  await page.goto(`${base}/#runs`);
+  await page.getByRole('heading', { level: 1, name: 'Runs', exact: true }).waitFor();
 }

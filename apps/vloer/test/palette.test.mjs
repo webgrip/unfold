@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fuzzyMatch, highlight, workItemIndex, recentFromHash, parseRecent, rememberRecent, paletteEntries, searchPalette, resultsMarkup } from '../public/views/palette.js';
+import { fuzzyMatch, highlight, workItemIndex, recentFromHash, parseRecent, serializeRecent, rememberRecent, createScope, paletteEntries, searchPalette, resultsMarkup } from '../public/views/palette.js';
 
 const source = {
   ploegDetail: { item: { id: '105', title: 'Round half-cent totals consistently', team: 'delivery', state: 'awaiting_review', externalId: 'DEMO-5' } },
@@ -65,11 +65,53 @@ test('recent Work Items and sessions come from the hash, move to the front and k
   for (let id = 1; id <= 12; id++) list = rememberRecent(list, { kind: 'work', id: String(id) }, '2026-09-30T11:00:00Z');
   assert.equal(list.length, 8);
   assert.equal(list[0].id, '12');
-  assert.deepEqual(parseRecent(JSON.stringify(list)), list);
-  assert.deepEqual(parseRecent('not json'), []);
-  assert.deepEqual(parseRecent('{"kind":"work"}'), []);
-  assert.deepEqual(parseRecent(JSON.stringify([{ kind: 'work', id: '1', title: 'ok', at: '2026-09-30T10:00:00Z' }, { kind: 'work', id: 'x', title: '', at: '2026-09-30T10:00:00Z' }, { kind: 'other', id: '1', title: '', at: '2026-09-30T10:00:00Z' }, { kind: 'work', id: '2', title: 'no date', at: 'never' }])).map(entry => entry.id), ['1']);
+  assert.deepEqual(parseRecent(serializeRecent('u1', list), 'u1'), list);
+  assert.deepEqual(parseRecent('not json', 'u1'), []);
+  assert.deepEqual(parseRecent('{"kind":"work"}', 'u1'), []);
+  assert.deepEqual(parseRecent(serializeRecent('u1', [{ kind: 'work', id: '1', title: 'ok', at: '2026-09-30T10:00:00Z' }, { kind: 'work', id: 'x', title: '', at: '2026-09-30T10:00:00Z' }, { kind: 'other', id: '1', title: '', at: '2026-09-30T10:00:00Z' }, { kind: 'work', id: '2', title: 'no date', at: 'never' }]), 'u1').map(entry => entry.id), ['1']);
 });
+
+test('the recent list belongs to the user who opened those pages', () => {
+  const stored = serializeRecent('u1', [{ kind: 'work', id: '4242', title: 'Confidential acquisition of Acme', at: '2026-09-30T10:00:00Z' }]);
+  assert.equal(parseRecent(stored, 'u1').length, 1);
+  assert.deepEqual(parseRecent(stored, 'u2'), [], 'another account sees nothing');
+  assert.deepEqual(parseRecent(stored, null), [], 'nobody signed in sees nothing');
+  assert.deepEqual(parseRecent(JSON.stringify([{ kind: 'work', id: '4242', title: 'Confidential acquisition of Acme', at: '2026-09-30T10:00:00Z' }]), 'u1'), [], 'a list without an owner is dropped');
+});
+
+test('a user switch in the same tab hides every list the previous user loaded', () => {
+  const scope = createScope();
+  const app = { bootstrap: { user: { id: 'u1' } }, now: { data: { waiting: [] } }, ploegRuns: { runs: [] }, ploegFeed: { events: [] }, ploegProposed: { items: [] }, ploeg: { lanes: {} }, ploegDetail: { item: {} }, sessions: [] };
+  const before = { now: app.now.data, runs: app.ploegRuns, feed: app.ploegFeed, proposed: app.ploegProposed, ploeg: app.ploeg, detail: app.ploegDetail, sessions: app.sessions };
+  assert.equal(scope.observe(app), true, 'the first user to appear is a change');
+  assert.equal(scope.user, 'u1');
+  assert.equal(scope.observe(app), false);
+  for (const value of Object.values(before)) assert.equal(scope.trusted(value), value);
+  app.bootstrap = null;
+  assert.equal(scope.observe(app), false);
+  assert.equal(scope.user, null, 'nobody is signed in');
+  app.bootstrap = { user: { id: 'u2' } };
+  assert.equal(scope.observe(app), true);
+  for (const value of Object.values(before)) assert.equal(scope.trusted(value), null, 'the previous user’s lists stay hidden');
+  app.ploegRuns = { runs: [] };
+  assert.equal(scope.trusted(app.ploegRuns), app.ploegRuns, 'a list loaded for the new user counts');
+
+  const direct = createScope();
+  const tab = { bootstrap: { user: { id: 'u1' } }, ploegRuns: { runs: [] } };
+  direct.observe(tab);
+  tab.bootstrap = { user: { id: 'u2' } };
+  assert.equal(direct.observe(tab), true);
+  assert.equal(direct.trusted(tab.ploegRuns), null, 'a switch nobody saw the sign-out of still hides the old lists');
+
+  const leaving = createScope();
+  const page = { bootstrap: { user: { id: 'u1' } }, ploegFeed: { events: [] } };
+  leaving.observe(page);
+  leaving.leave(page);
+  assert.equal(leaving.trusted(page.ploegFeed), null, 'signing out hides the lists at once');
+  assert.equal(leaving.observe(page), true, 'the same user signing in again starts afresh');
+  assert.equal(createScope().trusted(null), null);
+});
+
 
 test('before anything is typed the palette offers recent items, destinations and commands, each with its shortcut', () => {
   const groups = searchPalette('', paletteEntries(context()));
