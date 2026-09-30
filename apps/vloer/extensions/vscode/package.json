@@ -636,8 +636,8 @@
     "test:webview": "node test/webview.mjs"
   },
   "devDependencies": {
-    "@types/node": "24.13.3",
-    "@types/vscode": "1.99.0",
+    "@types/node": "24.19.0",
+    "@types/vscode": "1.99.1",
     "@vscode/vsce": "3.9.2",
     "ovsx": "1.2.0",
     "typescript": "7.0.2"

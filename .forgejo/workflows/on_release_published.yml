@@ -129,7 +129,7 @@ jobs:
       - name: Build and push (Harbor)
         id: build
         if: steps.probe.outputs.exists != 'true'
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/docker-build-push-registry-fast@v1.11.0
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/docker-build-push-registry-fast@v1.11.3
         with:
           registry: harbor.webgrip.dev
           docker-context: ${{ matrix.context }}
@@ -169,7 +169,7 @@ jobs:
           vex-dir: apps/vloer/ops/vex/statements
 
       - name: Sign, attest and SBOM (Harbor)
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/cosign-sign-attest@v1.11.2
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/cosign-sign-attest@v1.11.3
         with:
           registry: harbor.webgrip.dev
           image-name: harbor.webgrip.dev/webgrip/${{ matrix.name }}
@@ -337,7 +337,7 @@ jobs:
 
       - name: Build and push (Harbor)
         if: steps.probe.outputs.exists != 'true'
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/docker-build-push-registry-fast@v1.11.0
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/docker-build-push-registry-fast@v1.11.3
         with:
           registry: harbor.webgrip.dev
           docker-context: "apps/ploeg"
@@ -438,7 +438,7 @@ jobs:
     enable-openid-connect: true
     steps:
       - name: Sign, attest and SBOM (Harbor)
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/cosign-sign-attest@v1.11.2
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/cosign-sign-attest@v1.11.3
         with:
           registry: harbor.webgrip.dev
           image-name: harbor.webgrip.dev/webgrip/ploegd

@@ -44,7 +44,7 @@ jobs:
           printf 'enabled=%s\n' "$enabled" >> "$GITHUB_OUTPUT"
           printf 'Documentation publication enabled: %s\n' "$enabled"
   generate-documentation:
-    uses: webgrip/workflows/.forgejo/workflows/techdocs-generate.yml@v2.7.1
+    uses: webgrip/workflows/.forgejo/workflows/techdocs-generate.yml@v2.7.5
     with:
       enabled: 'true'
       source-dir: '.'
@@ -52,7 +52,7 @@ jobs:
       finalize-command: python3 scripts/docs-output.py --site techdocs-site
   deploy-docs-site:
     needs: [generate-documentation, authorize-publication]
-    uses: webgrip/workflows/.forgejo/workflows/techdocs-deploy-docs-site.yml@v2.7.1
+    uses: webgrip/workflows/.forgejo/workflows/techdocs-deploy-docs-site.yml@v2.7.5
     with:
       enabled: ${{ needs.authorize-publication.outputs.enabled }}
       source-dir: '.'
