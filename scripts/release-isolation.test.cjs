@@ -109,6 +109,7 @@ test('the publisher shell rejects application tags and mismatched manual refs be
       [valid, 'refs/heads/development', false],
       ['vloer-v0.4.0-rc.5', 'refs/tags/vloer-v0.4.0-rc.5', false],
       ['ploeg-v0.4.0-rc.5', 'refs/tags/ploeg-v0.4.0-rc.5', false],
+      ['glide-site-v0.1.0-rc.1', 'refs/tags/glide-site-v0.1.0-rc.1', false],
       ["glide-v0.4.0'; exit 0; #", 'refs/heads/development', false],
     ]) {
       fs.writeFileSync(output, '');
@@ -116,6 +117,78 @@ test('the publisher shell rejects application tags and mismatched manual refs be
       assert.equal(result.status, accepted ? 0 : 1, `${tag}: ${result.stderr}`);
       assert.equal(fs.readFileSync(output, 'utf8').includes('version='), accepted);
     }
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('the site train selects only site commits and cuts glide-site-v tags', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'glide-site-release-'));
+  const previous = process.cwd();
+  try {
+    git(directory, 'init', '-b', 'development');
+    git(directory, 'config', 'user.name', 'Glide qualification');
+    git(directory, 'config', 'user.email', 'qualification@example.invalid');
+    for (const app of ['vloer', 'ploeg', 'site']) fs.mkdirSync(path.join(directory, 'apps', app), { recursive: true });
+    fs.mkdirSync(path.join(directory, 'docs'));
+    const site = JSON.parse(fs.readFileSync(path.join(root, 'apps/site/package.json'), 'utf8'));
+    fs.writeFileSync(path.join(directory, 'apps/site/package.json'), JSON.stringify({ name: site.name, version: site.version, private: true }));
+    fs.copyFileSync(path.join(root, 'apps/site/.releaserc.cjs'), path.join(directory, 'apps/site/.releaserc.cjs'));
+    git(directory, 'add', '--', 'apps/site/package.json', 'apps/site/.releaserc.cjs');
+    git(directory, 'commit', '-m', 'chore: establish fixture');
+    const commits = [];
+    for (const [name, message, paths] of [
+      ['site', 'feat(site): add the landing page', ['apps/site/change.txt']],
+      ['site-fix', 'fix(site): correct a link', ['apps/site/change.txt']],
+      ['vloer', 'feat: extend interactive work', ['apps/vloer/change.txt']],
+      ['ploeg', 'fix: correct managed work', ['apps/ploeg/change.txt']],
+      ['docs', 'fix: clarify shared documentation', ['docs/guide.md']],
+    ]) {
+      for (const file of paths) fs.writeFileSync(path.join(directory, file), name);
+      git(directory, 'add', '--', ...paths);
+      git(directory, 'commit', '-m', message);
+      commits.push({ name, hash: git(directory, 'rev-parse', 'HEAD'), message });
+    }
+    const moduleRoot = path.dirname(require.resolve('semantic-release'));
+    const { default: getConfig } = await import(pathToFileURL(path.join(moduleRoot, 'lib/get-config.js')).href);
+    const cwd = path.join(directory, 'apps/site');
+    process.chdir(cwd);
+    const input = { cwd, env: process.env, logger, stdout: process.stdout, stderr: process.stderr };
+    const { options, plugins } = await getConfig(input, { repositoryUrl: 'https://example.invalid/glide.git' });
+    assert.equal(options.tagFormat, 'glide-site-v${version}');
+    assert.equal(options.tagFormat, `${site.name}-v\${version}`, 'semantic-release-monorepo names release notes after the package');
+    assert.ok(!options.plugins.some(plugin => (Array.isArray(plugin) ? plugin[0] : plugin).includes('release-policy')), 'the Glide zero-major policy is not the site policy');
+    const expected = { site: 'minor', 'site-fix': 'patch', vloer: null, ploeg: null, docs: null };
+    for (const commit of commits) {
+      const actual = await plugins.analyzeCommits({ ...input, options, commits: [commit] });
+      assert.equal(actual ?? null, expected[commit.name], commit.name);
+    }
+  } finally {
+    process.chdir(previous);
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('each train reads only its own tags', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'glide-release-tags-'));
+  try {
+    git(directory, 'init', '-b', 'development');
+    git(directory, 'config', 'user.name', 'Glide qualification');
+    git(directory, 'config', 'user.email', 'qualification@example.invalid');
+    git(directory, 'commit', '--allow-empty', '-m', 'chore: establish fixture');
+    const tags = ['glide-v0.3.0', 'glide-v0.4.0-rc.1', 'glide-site-v0.0.0', 'glide-site-v0.1.0-rc.1', 'vloer-v0.3.0', 'ploeg-v0.3.0'];
+    for (const tag of tags) git(directory, 'tag', tag);
+    const moduleRoot = path.dirname(require.resolve('semantic-release'));
+    const { default: getTags } = await import(pathToFileURL(path.join(moduleRoot, 'lib/branches/get-tags.js')).href);
+    const read = async tagFormat => (await getTags({ cwd: directory, env: process.env, options: { tagFormat } }, [{ name: 'development' }]))[0].tags.map(tag => tag.gitTag).sort();
+    const glide = require(path.join(root, 'apps/.releaserc.cjs'));
+    const site = require(path.join(root, 'apps/site/.releaserc.cjs'));
+    assert.deepEqual(await read(glide.tagFormat), ['glide-v0.3.0', 'glide-v0.4.0-rc.1']);
+    assert.deepEqual(await read(site.tagFormat), ['glide-site-v0.0.0', 'glide-site-v0.1.0-rc.1']);
+    const policy = require(path.join(root, 'scripts/release-policy.cjs'));
+    const branch = { name: 'development', type: 'prerelease', prerelease: 'rc', channel: 'development' };
+    assert.throws(() => policy.verifyConditions({}, { branch, options: { tagFormat: site.tagFormat } }), /glide-v/);
+    assert.throws(() => policy.verifyRelease({}, { branch, options: { tagFormat: glide.tagFormat }, nextRelease: { version: '0.1.0-rc.1', gitTag: 'glide-site-v0.1.0-rc.1', channel: 'development' } }), /must agree/);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
