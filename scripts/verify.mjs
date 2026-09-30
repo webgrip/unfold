@@ -1,8 +1,8 @@
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { resolve } from 'node:path';
+import { gateKey, resultCache } from './verify-cache.mjs';
 
 const root = resolve(import.meta.dirname, '..');
-const portOffset = Number.parseInt(process.env.PLOEG_TEST_PG_PORT_OFFSET ?? '', 10) || 0;
 
 const gate = (scope, command, args, options = {}) => ({ scope, command, args, ...options });
 const vloer = task => gate('apps/vloer', 'npm', ['run', ...task.split(' ')]);
@@ -20,10 +20,11 @@ for (const [scope, name, variants] of [
 }
 
 const groups = [
-  { name: 'vloer', gates: ['typecheck', 'test', 'check', 'design:check', 'brand:check', 'license:check', 'backlog -- check'].map(vloer) },
-  { name: 'vloer-extension', gates: ['extension:build', 'extension:test', 'extension:package', 'extension:verify'].map(vloer) },
+  { name: 'vloer', inputs: ['apps/vloer', 'docs'], gates: ['typecheck', 'test', 'check', 'design:check', 'brand:check', 'license:check', 'backlog -- check'].map(vloer) },
+  { name: 'vloer-extension', inputs: ['apps/vloer'], gates: ['extension:build', 'extension:test', 'extension:package', 'extension:verify'].map(vloer) },
   {
     name: 'ploeg',
+    inputs: ['apps/ploeg'],
     gates: [
       gate('apps/ploeg', 'gofmt', ['-l', '.'], { emptyStdout: true }),
       ...['vet', 'build', 'test'].map(task => gate('apps/ploeg', 'go', [task, './...'])),
@@ -31,18 +32,32 @@ const groups = [
       gate('apps/ploeg', 'openspec', ['validate', '--all', '--strict']),
     ],
   },
-  { name: 'helm', gates: [...helm, gate('apps/ploeg', 'sh', ['scripts/helm-golden.sh', 'check'])] },
+  { name: 'helm', inputs: ['apps/vloer/ops/helm', 'apps/ploeg'], gates: [...helm, gate('apps/ploeg', 'sh', ['scripts/helm-golden.sh', 'check'])] },
   {
     name: 'release',
     gates: [
       gate('.', 'python3', ['scripts/verify-import.py']),
       gate('.', 'uv', ['run', '--frozen', 'python', '-m', 'unittest', 'discover', '-s', 'scripts', '-p', 'test_release*.py']),
-      gate('.', process.execPath, ['--test', 'scripts/fake-litellm.test.mjs', 'scripts/eval/eval.test.mjs']),
+      gate('.', process.execPath, ['--test', 'scripts/fake-litellm.test.mjs', 'scripts/eval/eval.test.mjs', 'scripts/verify-cache.test.mjs']),
     ],
   },
-  { name: 'integration', gates: [gate('.', process.execPath, ['scripts/integration.mjs'], { env: { PLOEG_TEST_PG_PORT_OFFSET: String(portOffset + 1) } })] },
+  { name: 'integration', gates: [gate('.', process.execPath, ['scripts/integration.mjs'])] },
   { name: 'docs', gates: [gate('.', 'uv', ['run', '--frozen', 'python', 'scripts/docs.py', '--check'])] },
 ];
+
+const cpus = process.env.GLIDE_VERIFY_CPUS;
+const parallelism = cpus ? { GOMAXPROCS: cpus, GOFLAGS: `${process.env.GOFLAGS ?? ''} -p=${cpus}`.trim(), VLOER_TEST_CONCURRENCY: cpus } : {};
+
+const results = process.env.GLIDE_VERIFY_RESULTS ? resultCache(process.env.GLIDE_VERIFY_RESULTS, { reuse: process.env.GLIDE_VERIFY_REUSE === 'true' }) : undefined;
+const toolVersions = scope => Object.fromEntries(Object.entries(JSON.parse(execFileSync('mise', ['-C', scope, 'ls', '--current', '--json'], { cwd: root, encoding: 'utf8' }))).map(([tool, installs]) => [tool, installs.map(install => install.version)]));
+const shared = results && {
+  paths: ['mise.toml', 'apps/vloer/mise.toml', 'apps/ploeg/mise.toml', 'scripts/verify.mjs', 'scripts/verify-cache.mjs'],
+  tools: Object.fromEntries(['.', 'apps/vloer', 'apps/ploeg'].map(scope => [scope, toolVersions(scope)])),
+  env: { GOFLAGS: process.env.GOFLAGS ?? '', VLOER_TEST_TIMEOUT_SCALE: process.env.VLOER_TEST_TIMEOUT_SCALE ?? '' },
+};
+if (shared) for (const group of groups) for (const step of group.gates) {
+  if (group.inputs) step.key = gateKey(root, { scope: step.scope, command: step.command === process.execPath ? 'node' : step.command, args: step.args, inputs: group.inputs }, shared);
+}
 
 const running = new Set();
 let failed = false;
@@ -53,11 +68,16 @@ function execute(step) {
     step.status = 'skipped';
     return Promise.resolve();
   }
+  if (step.key && results.passed(step.key)) {
+    step.status = 'cached';
+    step.seconds = 0;
+    return Promise.resolve();
+  }
   const started = performance.now();
   return new Promise(done => {
     const child = spawn('mise', ['exec', '--', step.command, ...step.args], {
       cwd: resolve(root, step.scope),
-      env: { ...process.env, ...step.env },
+      env: { ...process.env, ...parallelism, ...step.env },
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: true,
     });
@@ -76,6 +96,7 @@ function execute(step) {
       if (error) step.output += `${error.message}\n`;
       if (step.emptyStdout && stdout.trim()) step.output += `${step.label} reported files that need formatting\n`;
       if (step.status !== 'cancelled') step.status = status === 0 && !error && !(step.emptyStdout && stdout.trim()) ? 'passed' : 'failed';
+      if (step.status === 'passed' && step.key) results.record(step.key, `${step.scope}: ${step.label}`);
       if (step.status === 'failed' && !failed) cancel();
       done();
     };

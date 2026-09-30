@@ -13,6 +13,7 @@ import { workspaceName } from '../src/runtime/kubernetes.ts';
 import { WorkerRelay } from '../src/runtime/relay.ts';
 import { RuntimeFailure } from '../src/failures.ts';
 import type { AppConfig, Repository, Session } from '../src/types.ts';
+import { testTimeout } from './timeframes.ts';
 
 const repository = { id: 'repo', name: 'Repo', description: '', url: 'https://forge.example/project.git', baseBranch: 'main', verify: ['npm', 'test'] } as Repository;
 const session = { id: 'docker-session', branch: 'vloer/docker-session', ownerId: 'alice', placement: 'docker' } as Session;
@@ -200,7 +201,7 @@ test('session placement selects an enabled backend and rejects the rest', () => 
   assert.equal(manager.docker, undefined);
 });
 
-test('docker pull transport publishes no port, hands the container a relay token and reaches the harness through the dial-out worker', { timeout: 30_000 }, async t => {
+test('docker pull transport publishes no port, hands the container a relay token and reaches the harness through the dial-out worker', { timeout: testTimeout(30_000) }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'vloer-docker-pull-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const engine = await fakeEngine(directory);

@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { application, createInput, login, request } from './api-support.ts';
+import { deadlineAfter, settle } from './timeframes.ts';
 import { ExecutionAuthority } from '../src/execution-authority.ts';
 import type { AgentRuntime, Credential, ExecutionContext, ExecutionResult, Session, User } from '../src/types.ts';
 
@@ -11,7 +12,7 @@ const owner: User = { id: 'owner', name: 'Owner', role: 'operator' };
 const outsider: User = { id: 'outsider', name: 'Outsider', role: 'operator' };
 
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; }
-async function until(predicate: () => boolean, reason: string) { const deadline = Date.now() + 4000; while (!predicate()) { if (Date.now() >= deadline) assert.fail(reason); await delay(5); } }
+async function until(predicate: () => boolean, reason: string) { const deadline = deadlineAfter(15_000); while (!predicate()) { if (Date.now() >= deadline) assert.fail(reason); await delay(5); } }
 
 class ControlledExecution implements AgentRuntime {
   readonly kind = 'opencode';
@@ -234,7 +235,7 @@ test('cancelling while admission is pending cannot resurrect the local session o
   await until(() => f.state.admissions === 1, 'admission did not arrive');
   await f.server.app.engine.cancel(session.id, owner);
   f.state.admissionGate.resolve(); await start;
-  await delay(30);
+  await settle(30);
   assert.equal(f.server.app.store.getSession(session.id)?.status, 'cancelled');
   assert.equal(f.runtime.calls, 0);
   assert.equal(f.runtime.prepared.length, 0);
@@ -469,7 +470,7 @@ test('losing Ploeg authority mid-run interrupts execution and blocks resume unti
   assert.equal(f.server.app.store.getSecret(`authority-unresolved:${session.id}`), true);
   await assert.rejects(f.server.app.engine.resume(session.id, owner), { code: 'execution_unconfirmed' });
   f.state.unavailable = false;
-  await delay(150);
+  await settle(150);
   assert.equal(f.runtime.calls, 1, 'authority loss must never become an automatic retry');
   assert.equal(f.state.credentialRequests, 1);
   assert.equal(f.state.gatewayRequests, 0);

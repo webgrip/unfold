@@ -100,7 +100,13 @@ The obligations hold through three backstops: the worker pod's
 `executor.sandbox.shutdownMarginSeconds`) with `shutdownPolicy: Delete` and a
 `ttlSecondsAfterFinished`; and the claim's owner reference to the launcher's
 Job, which lets Job garbage collection remove the claim, its Sandbox and its
-pod. The Lease still expires first.
+pod. The Lease still expires first. A claim that is not `Ready` within
+`executor.sandbox.startTimeoutSeconds` is deleted by its launcher, so a claim
+the controller cannot serve does not hold the Team's slot until the shutdown
+deadline. The launcher then claims one of its Team and Role's Runs with the
+worker bootstrap credential and reports it `failed` with `infra_node` and the
+controller's reason, so the Work Item follows the infra retry budget
+(ADR-0021) instead of staying queued. The launcher Job fails either way.
 
 Only the launcher holds a Kubernetes API token. Its Role allows `create`,
 `get` and `delete` on `sandboxclaims` in its namespace. The template sets
@@ -114,6 +120,9 @@ agent-sandbox's own secure default is never used, because it blocks all three.
 
 Prerequisites, installed outside this chart: agent-sandbox v1.0.x with its
 extensions, and the RuntimeClass named in `executor.sandbox.runtimeClassName`
-when one is set. Qualify a RuntimeClass with the privileged DinD sidecar on
-your nodes before using it. Warm pools are not supported yet: a warm pod would
-start its worker and claim a Run before any `SandboxClaim` exists.
+when one is set. Qualify that RuntimeClass with the daemonless worker pod
+shape — `ploeg.workerPodTemplate`, the same template the ScaledJob uses, run
+under the RuntimeClass until one Run reaches a terminal outcome. The privileged
+DinD sidecar is not part of that qualification; it belongs only to harnesses
+that build inside a container. Warm pools are not supported yet: a warm pod
+would start its worker and claim a Run before any `SandboxClaim` exists.

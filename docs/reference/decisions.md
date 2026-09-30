@@ -43,6 +43,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Ploeg | [0014](../../apps/ploeg/docs/adrs/0014-work-target-is-a-work-item-attribute.md) | Bind the Work Target to the Work Item, not to the Team | 2026-07-29 | — |
 | Ploeg | [0020](../../apps/ploeg/docs/adrs/0020-published-artifacts-name-the-mirror-as-source.md) | Published artifacts name the GitHub mirror as their source, and Forgejo as their URL | 2026-08-26 | — |
 | Ploeg | [0022](../../apps/ploeg/docs/adrs/0022-the-name-and-mark-are-trademarks-not-cc-licensed-artwork.md) | The name and mark are trademarks under a usage policy, not CC-licensed artwork | 2026-08-27 | — |
+| Ploeg | [0038](../../apps/ploeg/docs/adrs/0038-a-repo-label-selects-among-registered-targets-and-the-board-default-is-the-fallback.md) | A repo label selects among registered targets, and the board default is the fallback | 2026-09-28 | — |
 | Vloer | [0001](../../apps/vloer/docs/adrs/0001-the-human-workbench-beside-ploeg.md) | The human workbench beside Ploeg | 2026-09-09 | — |
 | Vloer | [0002](../../apps/vloer/docs/adrs/0002-native-node-and-single-writer-storage.md) | Native Node and one durable writer | 2026-09-09 | — |
 | Vloer | [0003](../../apps/vloer/docs/adrs/0003-runtime-workspace-and-credential-seams.md) | Keep harness, workspace and credential seams distinct | 2026-09-09 | — |
@@ -84,6 +85,8 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Ploeg | [0033](../../apps/ploeg/docs/adrs/0033-board-control-planes-are-mined-for-design-never-depended-on.md) | Board control planes are mined for design and never depended on | 2026-09-26 | unknown | — |
 | Ploeg | [0034](../../apps/ploeg/docs/adrs/0034-the-harness-gets-placeholders-the-worker-keeps-credentials.md) | The harness gets placeholders; the worker keeps the credentials | 2026-09-26 | unknown | — |
 | Ploeg | [0035](../../apps/ploeg/docs/adrs/0035-runs-get-ploeg-owned-skills-mounted-toolchains-and-worker-verification.md) | Runs get Ploeg-owned skills, mounted toolchains and a verification the worker runs | 2026-09-27 | unknown | — |
+| Ploeg | [0036](../../apps/ploeg/docs/adrs/0036-stuck-work-reaches-the-owner-as-a-cited-proposal-not-an-agent-decision.md) | Stuck work reaches the owner as a cited proposal, and no agent applies a decision | 2026-09-28 | unknown | — |
+| Ploeg | [0039](../../apps/ploeg/docs/adrs/0039-a-run-calls-only-its-roles-model-and-the-advisor-waits-for-metering.md) | A Run calls only its Role's model, and the advisor waits for metering that prices it | 2026-09-30 | unknown | — |
 | Vloer | [0005](../../apps/vloer/docs/adrs/0005-one-work-authority.md) | One work authority across unattended and interactive delivery | 2026-09-09 | partial | Guarded commands to Ploeg exist; work orders and fenced takeover do not ([source](../../apps/vloer/src/execution-authority.ts)) |
 | Vloer | [0006](../../apps/vloer/docs/adrs/0006-trusted-verifier-and-publisher.md) | Verify and publish outside the agent workspace | 2026-09-09 | partial | Independent verifier exists; the trusted publisher does not ([source](../../apps/vloer/src/delivery-verifier.ts)) |
 | Vloer | [0008](../../apps/vloer/docs/adrs/0008-task-connections-and-candidate-handoff.md) | Shared task connections and portable candidate handoff | 2026-09-09 | yes | Implemented in the 0.2.0 prototype; team adoption is what remains proposed ([source](../../apps/vloer/src/candidates.ts)) |
@@ -92,6 +95,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Vloer | [0018](../../apps/vloer/docs/adrs/0018-bind-tracker-imports-to-existing-ploeg-work.md) | Bind tracker imports to existing Ploeg work | 2026-09-11 | yes | Opt-in tracker binding; ratification outstanding ([source](../../apps/vloer/src/task-binding.ts)) |
 | Vloer | [0019](../../apps/vloer/docs/adrs/0019-verify-canonical-candidates-outside-agent-workspaces.md) | Verify canonical candidates outside agent workspaces | 2026-09-11 | yes | Bounded Docker verifier; live publication stays disabled ([source](../../apps/vloer/src/trusted-candidate.ts)) |
 | Vloer | [0023](../../apps/vloer/docs/adrs/0023-vloer-submits-work-to-ploeg-and-never-executes-it.md) | Vloer submits Work Items to Ploeg and never executes them | 2026-09-23 | no | Design proposal only; Vloer still runs the managed engine ([source](../../apps/vloer/docs/ploeg-front-end.md)) |
+| Vloer | [0024](../../apps/vloer/docs/adrs/0024-vloer-opens-on-now-with-one-vocabulary-and-one-token-system.md) | Vloer opens on Now, names every state one way and draws from one token system | 2026-09-30 | yes | Every screen rebuilt on the shared vocabulary, formatter and components, legacy stylesheet deleted, Cancel Work Item on the Work Item page (checked 2026-09-30 on the redesign branch) ([source](../../apps/vloer/test/ploeg-view.test.mjs)) |
 
 ## Other statuses
 

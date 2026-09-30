@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import type { AppConfig, Repository, Session, Workspace } from '../src/types.ts';
 import { captureLocalCandidate, pinCandidateBase, readCandidate, persistRemoteCandidate, type CandidateManifest } from '../src/candidates.ts';
+import { deadlineAfter, settle } from './timeframes.ts';
 
 
 const registeredRepository: Repository = { id: 'fixture', name: 'Fixture', description: '', url: 'https://forge.invalid/fixture.git', baseBranch: 'main', verify: [] };
@@ -221,12 +222,13 @@ test('the exact trusted Kubernetes helper executes without TypeScript or reposit
     child = spawn(process.execPath, argv, { env: { PATH: process.env.PATH, CANDIDATE_SESSION: options.sessionId, CANDIDATE_REPOSITORY: options.repositoryId, CANDIDATE_BASE: options.baseSha, OPENCODE_SERVER_USERNAME: 'export', OPENCODE_SERVER_PASSWORD: 'helper-test' }, stdio: ['ignore', 'ignore', 'pipe'] });
     let failure = ''; child.stderr!.on('data', chunk => { failure += chunk.toString(); });
     let ready = false;
-    for (let i = 0; i < 100; i++) {
+    const deadline = deadlineAfter(5_000);
+    while (Date.now() < deadline) {
       assert.equal(child.exitCode, null, failure);
       try {
         const response = await fetch(`http://127.0.0.1:${port}/health`, { headers: { authorization: 'Basic ' + Buffer.from('export:helper-test').toString('base64') } });
         const result = await response.json(); assert.equal(result.status, 'ready', result.reason); ready = true; break;
-      } catch { await new Promise(done => setTimeout(done, 50)); }
+      } catch { await settle(50); }
     }
     assert.equal(ready, true, failure);
     assert.equal((await fetch(`http://127.0.0.1:${port}/bundle`)).status, 401);

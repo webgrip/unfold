@@ -1,8 +1,10 @@
 import copy
 import json
 import os
+import re
 import tempfile
 import unittest
+import urllib.error
 import urllib.request
 from pathlib import Path
 from unittest.mock import patch
@@ -122,6 +124,61 @@ class DistributionTests(unittest.TestCase):
         index = json.dumps({'mediaType': 'application/vnd.oci.image.index.v1+json', 'manifests': []}).encode()
         self.assertEqual(manifest_media_type(index), 'application/vnd.oci.image.index.v1+json')
 
+    def test_github_release_takes_its_assets_as_a_draft_then_publishes(self):
+        source = {'name': 'glide-v0.4.0-rc.8', 'body': 'notes', 'assets': [{'name': 'a.json', 'browser_download_url': 'https://forgejo.webgrip.dev/a.json'}]}
+        calls = []
+
+        def api(url, token, method='GET', data=None, missing=False):
+            calls.append((method, url.rsplit('/glide', 1)[1], data))
+            if method == 'GET' and '/releases/tags/' in url:
+                return None
+            if method == 'GET':
+                return []
+            if method == 'POST':
+                return {**data, 'id': 7, 'assets': [], 'upload_url': 'https://uploads.github.com/repos/webgrip/glide/releases/7/assets{?name,label}'}
+            return {'html_url': 'https://github.com/webgrip/glide/releases/tag/glide-v0.4.0-rc.8', **data}
+
+        uploads = []
+        with patch.object(publish_release, 'api', api), patch.object(publish_release, 'git', lambda *a, **k: 'sha' if a[0] == 'rev-parse' else 'sha\trefs/tags/glide-v0.4.0-rc.8'), \
+                patch.object(publish_release, 'fetch_asset', lambda asset, token: b'{}'), \
+                patch.object(publish_release, 'request', lambda url, **k: uploads.append(url) or (b'', {})):
+            url = publish_release.mirror_release('glide-v0.4.0-rc.8', source, 'forge', 'github')
+        self.assertEqual(url, 'https://github.com/webgrip/glide/releases/tag/glide-v0.4.0-rc.8')
+        self.assertTrue(calls[2][2]['draft'])
+        self.assertEqual(len(uploads), 1)
+        self.assertEqual(calls[-1][:2], ('PATCH', '/releases/7'))
+        self.assertFalse(calls[-1][2]['draft'])
+
+    def test_only_the_last_publisher_takes_the_github_release_out_of_draft(self):
+        source = {'name': 'glide-v0.4.0-rc.9', 'body': 'notes', 'assets': []}
+        draft = {'tag_name': 'glide-v0.4.0-rc.9', 'name': 'glide-v0.4.0-rc.9', 'body': 'notes', 'prerelease': True, 'draft': True, 'id': 9, 'assets': [], 'html_url': 'draft-url'}
+        for publish, expected in [(False, []), (True, ['PATCH'])]:
+            calls = []
+
+            def api(url, token, method='GET', data=None, missing=False):
+                calls.append(method)
+                if '/releases/tags/' in url:
+                    return None
+                if method == 'GET':
+                    return [draft]
+                return {**draft, **data, 'html_url': 'published-url'}
+
+            with self.subTest(publish=publish), patch.object(publish_release, 'api', api), patch.object(publish_release, 'git', lambda *a, **k: 'sha' if a[0] == 'rev-parse' else 'sha\trefs/tags/glide-v0.4.0-rc.9'):
+                publish_release.mirror_release('glide-v0.4.0-rc.9', source, 'forge', 'github', publish=publish)
+                self.assertEqual([m for m in calls if m != 'GET'], expected)
+        self.assertEqual(publish_release.PUBLISHES_LAST, 'ploeg')
+        workflow = (Path(__file__).resolve().parent.parent / '.forgejo/workflows/on_release_published.yml').read_text()
+        needs = re.search(r'\n  ploeg-release-distribute:\n(?:    .*\n)*?    needs: \[([^\]]*)\]', workflow).group(1)
+        self.assertIn('vloer-release-distribute', needs)
+
+    def test_a_published_github_release_missing_an_asset_fails_plainly(self):
+        source = {'name': 'glide-v0.4.0-rc.8', 'body': 'notes', 'assets': [{'name': 'a.json', 'browser_download_url': 'https://forgejo.webgrip.dev/a.json'}]}
+        published = {'tag_name': 'glide-v0.4.0-rc.8', 'name': 'glide-v0.4.0-rc.8', 'body': 'notes', 'prerelease': True, 'draft': False, 'assets': []}
+        with patch.object(publish_release, 'api', lambda *a, **k: published), patch.object(publish_release, 'git', lambda *a, **k: 'sha' if a[0] == 'rev-parse' else 'sha\trefs/tags/glide-v0.4.0-rc.8'), \
+                patch.object(publish_release, 'fetch_asset', lambda asset, token: b'{}'):
+            with self.assertRaisesRegex(RuntimeError, 'immutable'):
+                publish_release.mirror_release('glide-v0.4.0-rc.8', source, 'forge', 'github')
+
     def test_unsigned_source_and_failed_accessory_copy_fail_publication(self):
         source, target = fixture(), fixture()
         target.host = 'target'
@@ -178,6 +235,78 @@ class DistributionTests(unittest.TestCase):
             finally:
                 os.chdir(previous)
 
+
+
+class FlakyOpener:
+    def __init__(self, *outcomes):
+        self.outcomes = list(outcomes)
+        self.calls = 0
+
+    def open(self, req, timeout):
+        self.calls += 1
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
+
+
+class Answer:
+    def __init__(self, body):
+        self.body = body
+        self.headers = {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def read(self):
+        return self.body
+
+
+class RequestRetryTests(unittest.TestCase):
+    def serve(self, *outcomes):
+        opener = FlakyOpener(*outcomes)
+        patchers = [patch.object(release_registry.urllib.request, 'build_opener', return_value=opener), patch.object(release_registry.time, 'sleep')]
+        for patcher in patchers:
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        return opener
+
+    def test_a_read_cut_off_mid_body_is_retried(self):
+        opener = self.serve(release_registry.http.client.IncompleteRead(b'', 4557), Answer(b'{}'))
+        self.assertEqual(release_registry.request('https://ghcr.io/v2/x/blobs/sha256:a')[0], b'{}')
+        self.assertEqual(opener.calls, 2)
+
+    def test_a_dropped_connection_and_a_server_error_are_retried_for_reads(self):
+        server_error = urllib.error.HTTPError('https://ghcr.io/v2/x', 503, 'unavailable', {}, None)
+        opener = self.serve(ConnectionResetError(), server_error, Answer(b'ok'))
+        self.assertEqual(release_registry.request('https://ghcr.io/v2/x', method='HEAD')[0], b'ok')
+        self.assertEqual(opener.calls, 3)
+
+    def test_a_write_is_never_repeated(self):
+        opener = self.serve(ConnectionResetError())
+        with self.assertRaises(ConnectionResetError):
+            release_registry.request('https://ghcr.io/v2/x/blobs/uploads/', method='POST', data=b'')
+        self.assertEqual(opener.calls, 1)
+
+    def test_a_read_that_keeps_failing_gives_up_after_three_attempts(self):
+        cut = release_registry.http.client.IncompleteRead(b'', 1)
+        opener = self.serve(cut, cut, cut)
+        with self.assertRaises(release_registry.http.client.IncompleteRead):
+            release_registry.request('https://ghcr.io/v2/x')
+        self.assertEqual(opener.calls, 3)
+
+    def test_a_missing_manifest_and_a_denied_read_are_answers_not_retries(self):
+        not_found = urllib.error.HTTPError('https://ghcr.io/v2/x', 404, 'missing', {}, None)
+        opener = self.serve(not_found)
+        self.assertIsNone(release_registry.request('https://ghcr.io/v2/x', missing=True)[0])
+        denied = urllib.error.HTTPError('https://ghcr.io/v2/x', 401, 'denied', {}, None)
+        opener = self.serve(denied)
+        with self.assertRaisesRegex(RuntimeError, 'HTTP 401'):
+            release_registry.request('https://ghcr.io/v2/x')
+        self.assertEqual(opener.calls, 1)
 
 if __name__ == '__main__':
     unittest.main()

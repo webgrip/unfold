@@ -2,7 +2,9 @@ import * as vscode from 'vscode';
 import type { PloegItem, PloegLane, PloegOverview, PloegTeam } from './ploeg-types.js';
 
 export type PloegEntry = { kind: 'team'; team: PloegTeam } | { kind: 'lane'; team: PloegTeam; lane: PloegLane; overview: PloegOverview } | { kind: 'item'; item: PloegItem; demo: boolean } | { kind: 'message'; label: string; open?: boolean };
-const lanes: { id: PloegLane; label: string; icon: string }[] = [{ id: 'needs_human', label: 'Needs human', icon: 'bell-dot' }, { id: 'leased', label: 'In execution', icon: 'pulse' }, { id: 'queued', label: 'Queue', icon: 'layers' }, { id: 'all', label: 'All work', icon: 'list-flat' }];
+const lanes: { id: PloegLane; label: string; icon: string }[] = [{ id: 'needs_human', label: 'Needs you', icon: 'bell-dot' }, { id: 'leased', label: 'Running', icon: 'pulse' }, { id: 'queued', label: 'Queued', icon: 'layers' }, { id: 'all', label: 'All', icon: 'list-flat' }];
+const stateLabels: Record<string, string> = { proposed: 'Proposed', ingested: 'Received', queued: 'Queued', leased: 'Running', awaiting_review: 'Ready for review', needs_human: 'Needs you', stale: 'Stopped retrying', withdrawn: 'Withdrawn', done: 'Done' };
+const stateLabel = (state: string) => stateLabels[state] ?? state.replaceAll('_', ' ');
 
 export class PloegTree implements vscode.TreeDataProvider<PloegEntry>, vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<PloegEntry | undefined>();
@@ -35,18 +37,18 @@ export class PloegTree implements vscode.TreeDataProvider<PloegEntry>, vscode.Di
       const item = new vscode.TreeItem(lane.label, vscode.TreeItemCollapsibleState.Collapsed);
       item.id = `ploeg:lane:${entry.team.id}:${entry.lane}`;
       item.description = `${page?.items.length ?? 0}${page?.nextCursor ? '+' : ''}`;
-      item.tooltip = entry.lane === 'leased' ? 'Ploeg holds an execution lease for these items. This snapshot does not imply an active model call.' : 'Records in the current operator snapshot.';
+      item.tooltip = entry.lane === 'leased' ? 'An agent is working on these Work Items. This snapshot does not imply an active model call.' : 'Records in the current operator snapshot.';
       item.iconPath = new vscode.ThemeIcon(lane.icon);
       return item;
     }
-    const item = new vscode.TreeItem(entry.item.title || `Work item ${entry.item.id}`);
+    const item = new vscode.TreeItem(entry.item.title || `Work Item ${entry.item.id}`);
     item.id = `ploeg:item:${entry.item.id}`;
     item.description = `${entry.demo ? 'illustration · ' : ''}${entry.item.provider} #${entry.item.externalId || entry.item.id}`;
-    item.tooltip = `${entry.item.title}\n${entry.item.team} · ${entry.item.state.replaceAll('_', ' ')} · ${entry.item.attempts} attempts\n${entry.item.description.slice(0, 600)}\nOpen shifts, runs, review findings, costs and checkpoints in the web workbench.`;
+    item.tooltip = `${entry.item.title}\n${entry.item.team} · ${stateLabel(entry.item.state)} · ${entry.item.attempts} attempts\n${entry.item.description.slice(0, 600)}\nOpen shifts, runs, review findings, costs and checkpoints in the web workbench.`;
     item.iconPath = new vscode.ThemeIcon(entry.item.state === 'needs_human' ? 'bell-dot' : entry.item.state === 'leased' ? 'pulse' : 'issues');
     item.contextValue = 'ploeg:item';
     item.command = { command: 'vloer.openPloeg', title: 'Open Ploeg execution evidence', arguments: [entry.item.id] };
-    item.accessibilityInformation = { label: `${entry.item.title}, ${entry.item.state.replaceAll('_', ' ')}, ${entry.item.team}` };
+    item.accessibilityInformation = { label: `${entry.item.title}, ${stateLabel(entry.item.state)}, ${entry.item.team}` };
     return item;
   }
   async getChildren(entry?: PloegEntry): Promise<PloegEntry[]> {

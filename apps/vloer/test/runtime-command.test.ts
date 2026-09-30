@@ -10,6 +10,7 @@ import { RuntimeFailure } from '../src/failures.ts';
 import type { RuntimeWorkspaces } from '../src/runtime/opencode.ts';
 import type { AppConfig, RuntimeEvent } from '../src/types.ts';
 import { executionFixture } from './runtime-fixture.ts';
+import { deadlineAfter } from './timeframes.ts';
 
 async function fixture(code: string, argv?: string[]) {
   const directory = await mkdtemp(join(tmpdir(), 'vloer-command-'));
@@ -77,7 +78,7 @@ runtime.execute({session:{id:'s'},run:{id:'r'},workspace,repository:{verify:[]},
   const host = spawn(process.execPath, [hostScript], { stdio: 'ignore' });
   let runnerPid: number | undefined;
   try {
-    const deadline = Date.now() + 5000;
+    const deadline = deadlineAfter(5_000);
     while (Date.now() < deadline && !runnerPid) {
       try { runnerPid = Number(await readFile(join(directory, 'runner.pid'), 'utf8')); } catch { await delay(25); }
     }
@@ -86,7 +87,8 @@ runtime.execute({session:{id:'s'},run:{id:'r'},workspace,repository:{verify:[]},
     host.kill('SIGKILL');
     await closed;
     let stopped = false;
-    while (Date.now() < deadline && !stopped) {
+    const reapDeadline = deadlineAfter(5_000);
+    while (Date.now() < reapDeadline && !stopped) {
       try { process.kill(runnerPid, 0); await delay(25); } catch { stopped = true; }
     }
     assert.equal(stopped, true, 'runner process was reaped after supervisor observed input EOF');
@@ -97,6 +99,67 @@ runtime.execute({session:{id:'s'},run:{id:'r'},workspace,repository:{verify:[]},
   }
 });
 
+
+async function pidFrom(directory: string, name: string): Promise<number> {
+  const deadline = deadlineAfter(5_000);
+  while (Date.now() < deadline) {
+    try { return Number(await readFile(join(directory, name), 'utf8')); } catch { await delay(25); }
+  }
+  assert.fail(`${name} was never written`);
+}
+
+async function exited(pid: number): Promise<boolean> {
+  try { process.kill(pid, 0); } catch { return true; }
+  try {
+    const stat = await readFile(`/proc/${pid}/stat`, 'utf8');
+    return stat.slice(stat.lastIndexOf(')') + 2).startsWith('Z');
+  } catch { return false; }
+}
+
+async function gone(pid: number): Promise<boolean> {
+  const deadline = deadlineAfter(5_000);
+  while (Date.now() < deadline) {
+    if (await exited(pid)) return true;
+    await delay(25);
+  }
+  return false;
+}
+
+test('a supervisor killed before it can stop its bridge still settles the turn and leaves no bridge behind', { skip: process.platform === 'win32', timeout: 20_000 }, async () => {
+  const f = await fixture("import {writeFileSync} from 'node:fs';writeFileSync('runner.pid',String(process.pid));setInterval(()=>{},1000)");
+  const pending = f.runtime.execute(f.context);
+  const settled = pending.then(() => 'resolved', () => 'rejected');
+  let runnerPid: number | undefined;
+  try {
+    runnerPid = await pidFrom(f.context.workspace.directory, 'runner.pid');
+    const supervisor = (f.runtime as unknown as { active: Map<string, { child: { pid: number } }> }).active.get(f.context.workspace.id)!.child.pid;
+    process.kill(supervisor, 'SIGKILL');
+    assert.equal(await Promise.race([settled, delay(10_000).then(() => 'hung')]), 'rejected');
+    assert.equal(await gone(runnerPid), true, 'the orphaned bridge was not reaped');
+  } finally {
+    if (runnerPid) try { process.kill(runnerPid, 'SIGKILL'); } catch {}
+    await f.cleanup();
+  }
+});
+
+test('a result is kept when the bridge leaves a background child holding its output open', { skip: process.platform === 'win32', timeout: 20_000 }, async () => {
+  const f = await fixture(`import {spawn} from 'node:child_process';import {writeFileSync} from 'node:fs';
+const lingering=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:['ignore','inherit','inherit']});
+writeFileSync('lingering.pid',String(lingering.pid));
+console.log(JSON.stringify({type:'result',summary:'Finished'}));
+process.exit(0)`);
+  let lingeringPid: number | undefined;
+  try {
+    const settled = f.runtime.execute(f.context);
+    lingeringPid = await pidFrom(f.context.workspace.directory, 'lingering.pid');
+    const result = await Promise.race([settled, delay(10_000).then(() => undefined)]);
+    assert.equal(result?.summary, 'Finished');
+    assert.equal(await gone(lingeringPid), true, 'the background child outlived the turn');
+  } finally {
+    if (lingeringPid) try { process.kill(lingeringPid, 'SIGKILL'); } catch {}
+    await f.cleanup();
+  }
+});
 
 test('command supervisor distinguishes missing executable from an actual runner exiting 127', async () => {
   const missing = await fixture('', ['/no-such-vloer-command-binary']);

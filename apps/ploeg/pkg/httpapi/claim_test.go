@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -26,14 +26,15 @@ import (
 // forever, so these exercise the real HTTP surface against a real Postgres
 // rather than a fake store.
 
-var testPort = testPortWithOffset(55443)
+var testPort = freeTestPort()
 
-func testPortWithOffset(port uint32) uint32 {
-	offset, err := strconv.Atoi(os.Getenv("PLOEG_TEST_PG_PORT_OFFSET"))
+func freeTestPort() uint32 {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return port
+		panic(err)
 	}
-	return port + uint32(offset)
+	defer l.Close()
+	return uint32(l.Addr().(*net.TCPAddr).Port)
 }
 
 var (

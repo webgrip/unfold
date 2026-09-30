@@ -1,5 +1,5 @@
 import type { PloegOverview } from './ploeg-types.js';
-import type { AccountLink, Approval, Bootstrap, Session, SessionEvent, SessionInput, Permission, Decision, TaskSource, TaskSnapshot, TaskPage, TaskImportInput, CandidateFormat } from './types.js';
+import type { AccountLink, Approval, Bootstrap, Session, SessionEvent, SessionInput, Permission, Decision, TaskSource, TaskPreview, TaskPage, TaskImportInput, CandidateFormat } from './types.js';
 
 export type StreamHandlers = { onOpen?: () => void; onEvent: (event: SessionEvent) => void };
 
@@ -184,7 +184,7 @@ export class VloerClient {
     if (!Number.isSafeInteger(page) || page < 1 || page > 1000) throw new Error('Invalid task page.');
     return this.request(`/api/task-sources/${identifier(sourceId)}/tasks?page=${page}`);
   }
-  task(sourceId: string, taskId: string): Promise<TaskSnapshot> { return this.request(`/api/task-sources/${identifier(sourceId)}/tasks/${identifier(taskId)}`); }
+  task(sourceId: string, taskId: string): Promise<TaskPreview> { return this.request(`/api/task-sources/${identifier(sourceId)}/tasks/${identifier(taskId)}`); }
   importTask(input: TaskImportInput): Promise<Session> { return this.request('/api/task-imports', 'POST', input); }
   async downloadCandidate(id: string, format: CandidateFormat): Promise<Uint8Array> {
     if (!['bundle', 'patch', 'manifest', 'attestation', 'trace'].includes(format)) throw new Error('Invalid candidate format.');

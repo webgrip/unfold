@@ -49,7 +49,6 @@ metadata:
     helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
 automountServiceAccountToken: false
-
 ---
 # Source: ploeg/templates/sandbox.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -86,7 +85,6 @@ subjects:
   - kind: ServiceAccount
     name: ploeg-sandbox-launcher
     namespace: default
-
 ---
 # Source: ploeg/templates/service.yaml
 apiVersion: v1
@@ -108,7 +106,6 @@ spec:
     - name: http
       port: 8080
       targetPort: http
-
 ---
 # Source: ploeg/templates/deployment.yaml
 apiVersion: apps/v1
@@ -225,7 +222,6 @@ spec:
             requests:
               cpu: 100m
               memory: 256Mi
-
 ---
 # Source: ploeg/templates/sandbox.yaml
 apiVersion: extensions.agents.x-k8s.io/v1beta1
@@ -625,8 +621,23 @@ spec:
                 value: "7200s"
               - name: PLOEG_SANDBOX_SHUTDOWN_MARGIN
                 value: "600s"
+              - name: PLOEG_SANDBOX_START_TIMEOUT
+                value: "600s"
               - name: PLOEG_SANDBOX_TTL_SECONDS_AFTER_FINISHED
                 value: "60"
+              - name: PLOEG_API_URL
+                value: "http://ploeg:8080"
+              - name: PLOEG_TEAM
+                value: "copper"
+              - name: PLOEG_WORKER_ID
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.uid
+              - name: PLOEG_WORKER_BOOTSTRAP_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: ploeg-worker-bootstrap
+                    key: "copper--default"
             securityContext:
               runAsNonRoot: true
               runAsUser: 65532
@@ -660,7 +671,6 @@ spec:
         activationTargetQueryValue: "0"
       authenticationRef:
         name: ploeg-scaler
-
 ---
 # Source: ploeg/templates/triggerauthentication.yaml
 apiVersion: keda.sh/v1alpha1

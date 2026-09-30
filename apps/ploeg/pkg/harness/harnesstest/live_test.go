@@ -114,6 +114,16 @@ var liveHarnessTable = []liveHarness{
 			{harnesstest.LayoutAgentsOnly, loads, unmeasured},
 		},
 	},
+	{
+		name: "acp-openhands",
+		bin:  "openhands",
+		adapter: func(bin string) (harness.Adapter, error) {
+			return acp.New("openhands", acp.ProfileOverrides{Entrypoint: bin}, acp.Options{})
+		},
+		claims: []canaryExpectation{
+			{harnesstest.LayoutAgentsOnly, loads, unmeasured},
+		},
+	},
 }
 
 func requireLiveOptIn(t *testing.T) {

@@ -8,6 +8,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { application, createInput } from './api-support.ts';
 import { DemoRuntime } from '../src/runtime/demo.ts';
+import { deadlineAfter } from './timeframes.ts';
 
 const command = promisify(execFile);
 
@@ -57,7 +58,7 @@ test('demo cancellation waits until its child has actually stopped', async t => 
   const controller = new AbortController();
   const program = `const fs = require('node:fs'); process.on('SIGTERM', () => setTimeout(() => { fs.writeFileSync('stopped', 'confirmed'); process.exit(0); }, 50)); fs.writeFileSync('ready', 'ready'); setInterval(() => {}, 1000);`;
   const outcome = runtime.command(process.execPath, ['-e', program], root, controller.signal).catch(error => error);
-  const deadline = Date.now() + 3000;
+  const deadline = deadlineAfter(3_000);
   while (await access(join(root, 'ready')).then(() => false, () => true)) {
     assert.ok(Date.now() < deadline, 'child did not start');
     await delay(1);
@@ -72,9 +73,9 @@ test('demo cancellation terminates a child that ignores its initial stop signal'
   t.after(() => rm(root, { recursive: true, force: true }));
   const runtime = new DemoRuntime(root) as unknown as { command(binary: string, args: string[], cwd: string, signal: AbortSignal): Promise<unknown> };
   const controller = new AbortController();
-  const program = `const fs = require('node:fs'); process.on('SIGTERM', () => {}); fs.writeFileSync('ready', String(process.pid)); setInterval(() => {}, 1000);`;
+  const program = `const fs = require('node:fs'); process.on('SIGTERM', () => {}); fs.writeFileSync('ready.tmp', String(process.pid)); fs.renameSync('ready.tmp', 'ready'); setInterval(() => {}, 1000);`;
   const outcome = runtime.command(process.execPath, ['-e', program], root, controller.signal).catch(error => error);
-  const deadline = Date.now() + 3000;
+  const deadline = deadlineAfter(3_000);
   while (await access(join(root, 'ready')).then(() => false, () => true)) {
     assert.ok(Date.now() < deadline, 'child did not start');
     await delay(1);
@@ -82,7 +83,7 @@ test('demo cancellation terminates a child that ignores its initial stop signal'
   const pid = Number(await readFile(join(root, 'ready'), 'utf8'));
   controller.abort(new DOMException('Operator paused', 'AbortError'));
   assert.equal((await outcome as Error).name, 'AbortError');
-  const gone = Date.now() + 5000;
+  const gone = deadlineAfter(5_000);
   while ((() => { try { process.kill(pid, 0); return true; } catch { return false; } })() && Date.now() < gone) await delay(10);
   assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
 });

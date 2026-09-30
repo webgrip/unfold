@@ -95,7 +95,7 @@ spec:
                  there is no ForgeProvider and findings stay in the database. */}}
             {{- with .Values.executor.forgejo }}
             - name: PLOEG_FORGEJO_URL
-              value: {{ .url | quote }}
+              value: {{ .publicUrl | default .url | quote }}
             - name: PLOEG_FORGEJO_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -132,7 +132,7 @@ spec:
             {{- with .Values.executor.gitlab }}
             {{- if .url }}
             - name: PLOEG_GITLAB_URL
-              value: {{ .url | quote }}
+              value: {{ .publicUrl | default .url | quote }}
             - name: PLOEG_GITLAB_TOKEN
               valueFrom:
                 secretKeyRef:

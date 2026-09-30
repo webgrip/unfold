@@ -20,6 +20,7 @@ var ErrOperatorOwned = errors.New("work item is owned by an operator execution")
 const (
 	CloseReasonWithdrawnUnassigned = "withdrawn_unassigned"
 	CloseReasonWithdrawnByOperator = "withdrawn_by_operator"
+	CloseReasonWithdrawnClosed     = "withdrawn_closed"
 )
 
 // Withdrawal is what WithdrawWorkItem changed.
@@ -51,6 +52,15 @@ func (s *Store) TrackerWorkItemID(ctx context.Context, provider, externalID stri
 	}
 	it.Provider, it.ExternalID = provider, externalID
 	return id, it, err
+}
+
+// WorkItemStarted reports whether any Run of the Work Item has started or
+// been authorized to spend.
+func (s *Store) WorkItemStarted(ctx context.Context, workItemID int64) (bool, error) {
+	var started bool
+	err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM agent_runs
+		WHERE work_item_id = $1 AND (started_at IS NOT NULL OR authorized <> 0))`, workItemID).Scan(&started)
+	return started, err
 }
 
 // WithdrawWorkItem takes back the mandate for tracker-originated work: its

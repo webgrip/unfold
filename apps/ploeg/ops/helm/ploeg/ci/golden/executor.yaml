@@ -36,7 +36,6 @@ metadata:
     helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
 automountServiceAccountToken: false
-
 ---
 # Source: ploeg/templates/service.yaml
 apiVersion: v1
@@ -58,7 +57,6 @@ spec:
     - name: http
       port: 8080
       targetPort: http
-
 ---
 # Source: ploeg/templates/deployment.yaml
 apiVersion: apps/v1
@@ -122,7 +120,7 @@ spec:
             - name: PLOEG_TEAM_MAX_RUNNING
               value: "{\"zinc\":2}"
             - name: PLOEG_FORGEJO_URL
-              value: "http://forgejo-http.forgejo.svc.cluster.local:3000"
+              value: "https://forgejo.example.com"
             - name: PLOEG_FORGEJO_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -189,7 +187,6 @@ spec:
             requests:
               cpu: 100m
               memory: 256Mi
-
 ---
 # Source: ploeg/templates/scaledjob.yaml
 # One ScaledJob per (team, Role) — the flagship executor. A team without a
@@ -2180,7 +2177,6 @@ spec:
         activationTargetQueryValue: "0"
       authenticationRef:
         name: ploeg-scaler
-
 ---
 # Source: ploeg/templates/triggerauthentication.yaml
 apiVersion: keda.sh/v1alpha1

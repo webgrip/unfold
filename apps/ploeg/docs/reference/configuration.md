@@ -36,12 +36,12 @@ The generator follows each binary's imports inside the module and records every 
 | `NODE_NAME` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go), [worker.go](../../pkg/worker/worker.go) |
 | `PATH` | ploeg-worker |  | Passed to `git` and `openspec` subprocesses; also on the harness allowlist. | [git.go](../../pkg/worker/git.go), [openspec.go](../../pkg/worker/openspec.go) |
 | `PLOEG_ACP_ARGV` | ploeg-worker |  | `acp` harness only: the whole launch command as a JSON array; required when the profile is `custom`. | [main.go](../../cmd/ploeg-worker/main.go) |
-| `PLOEG_ACP_CONFIG_JSON` | ploeg-worker |  | `acp` harness only: replaces the generated agent configuration of the `opencode` or `qwen-code` profile wholesale. The `goose` profile refuses it at startup. | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_ACP_CONFIG_JSON` | ploeg-worker |  | `acp` harness only: replaces the generated agent configuration of the `opencode` or `qwen-code` profile wholesale. The `goose` and `openhands` profiles refuse it at startup. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_ACP_IDLE_TIMEOUT` | ploeg-worker |  | `acp` harness only: timeout without protocol traffic. Empty means the adapter default (10m). | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_ACP_PERMISSION_MODE` | ploeg-worker |  | `acp` harness only: `allow_always` (default), `allow_read_only` or `deny_all`. | [main.go](../../cmd/ploeg-worker/main.go) |
-| `PLOEG_ACP_PROFILE` | ploeg-worker |  | `acp` harness only: `opencode`, `qwen-code`, `goose` or `custom` (chart `executor.harness.acp.profile`). See [ACP profiles](../contracts/acp-profiles.md). | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_ACP_PROFILE` | ploeg-worker |  | `acp` harness only: `opencode`, `qwen-code`, `goose`, `openhands` or `custom` (chart `executor.harness.acp.profile`). See [ACP profiles](../contracts/acp-profiles.md). | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_ACP_PROMPT_TIMEOUT` | ploeg-worker |  | `acp` harness only: prompt timeout as a Go duration. Empty means the adapter default (45m). | [main.go](../../cmd/ploeg-worker/main.go) |
-| `PLOEG_API_URL` | ploeg-worker | required | ploegd's run API (chart `executor.apiUrl`, default `http://<fullname>:<service.port>`). | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_API_URL` | ploeg-worker | required | ploegd's run API (chart `executor.apiUrl`, default `http://<fullname>:<service.port>`). | [main.go](../../cmd/ploeg-worker/main.go), [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_BASE_BRANCH` | ploeg-worker |  | Fallback branch the worker clones, branches from and targets. Unset means the repository default branch. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_CLAUDE_PERMISSION_MODE` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_CLICKUP_DONE_STATUS` | ploegd |  | List status applied when a Shift finishes (chart `tracker.clickup.doneStatus`). Empty leaves the board untouched. | [main.go](../../cmd/ploegd/main.go) |
@@ -81,11 +81,12 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_OPERATOR_DELIVERY_POLICIES` | ploegd |  | JSON array of trusted delivery policies with `repositoryId`, `policySha256`, `verifierId`, `minTests` and optional `publicationEnabled` (chart `operator.deliveryPolicies`). | [operator.go](../../cmd/ploegd/operator.go) |
 | `PLOEG_OUTCOME_FILE` | ploeg-worker |  | `exec` harness only: OutcomeReport JSON path override (chart `executor.harness.outcomeFile`). | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_REVIEW_RECONCILE_INTERVAL` | ploegd | `10m` |  | [main.go](../../cmd/ploegd/main.go) |
-| `PLOEG_ROLE` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_ROLE` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go), [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_SANDBOX_JOB_NAME` | ploeg-worker |  |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_SANDBOX_JOB_UID` | ploeg-worker |  |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_SANDBOX_RUN_DEADLINE` | ploeg-worker | `0` |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_SANDBOX_SHUTDOWN_MARGIN` | ploeg-worker | `10m` |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
+| `PLOEG_SANDBOX_START_TIMEOUT` | ploeg-worker | `10m` |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_SANDBOX_TTL_SECONDS_AFTER_FINISHED` | ploeg-worker | `60` |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_SANDBOX_WARM_POOL` | ploeg-worker |  |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_SHIFTS_UNIFORM` | ploegd | `true` |  | [main.go](../../cmd/ploegd/main.go) |
@@ -94,7 +95,7 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_TARGET_FORGE` | ploegd | `forgejo` | Forge instance id a Work Target carries by default (chart `executor.forge`). Binds to the configured forge of that dialect, or to the only configured forge. | [sweep.go](../../cmd/ploegd/sweep.go) |
 | `PLOEG_TARGET_MAP` | ploegd |  | Legacy routing from tracker scope to repository, rendered from the org.yaml roster manifest. Replaced by `trackers.<tracker>.projects` in the `PLOEG_CONFIG` file. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_TARGET_SOURCE` | ploeg-worker |  | `env` ignores the claim's target and uses the fallback repository. | [main.go](../../cmd/ploeg-worker/main.go) |
-| `PLOEG_TEAM` | ploeg-worker | required | Team this worker claims work for. | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_TEAM` | ploeg-worker | required | Team this worker claims work for. | [main.go](../../cmd/ploeg-worker/main.go), [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_TEAM_MAP` | ploegd |  | Legacy assignee roster, replaced by `teams.<name>.assignees` in the `PLOEG_CONFIG` file. | [main.go](../../cmd/ploegd/main.go), [operator.go](../../cmd/ploegd/operator.go) |
 | `PLOEG_TEAM_MAX_RUNNING` | ploegd |  |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_TEAM_PLANS` | ploegd |  | Legacy Shift plans, replaced by `teams.<name>.plan` in the `PLOEG_CONFIG` file. A malformed plan stops ploegd at boot. | [main.go](../../cmd/ploegd/main.go) |
@@ -110,14 +111,14 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_WORKER_AUTH_MODE` | ploegd |  | `legacy` opts into historical worker authentication; anything else is managed mode (chart `executor.workerAuth.mode`). | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_WORKER_BOOTSTRAPS` | ploeg-worker |  | Controller-only. The worker refuses to start when it is set. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_WORKER_BOOTSTRAPS` | ploegd |  | Bootstrap registry, a JSON array of `token`, `team` and `role` entries (chart `executor.workerAuth.bootstrapSecret`). | [main.go](../../cmd/ploegd/main.go) |
-| `PLOEG_WORKER_BOOTSTRAP_TOKEN` | ploeg-worker |  | This worker's bootstrap credential, the `<team>--<role>` entry of the bootstrap Secret. | [main.go](../../cmd/ploeg-worker/main.go) |
-| `PLOEG_WORKER_ID` | ploeg-worker | `$POD_UID` | Worker identity for managed mode. | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_WORKER_BOOTSTRAP_TOKEN` | ploeg-worker |  | This worker's bootstrap credential, the `<team>--<role>` entry of the bootstrap Secret. | [main.go](../../cmd/ploeg-worker/main.go), [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
+| `PLOEG_WORKER_ID` | ploeg-worker | `$POD_UID` | Worker identity for managed mode. | [main.go](../../cmd/ploeg-worker/main.go), [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_WORKER_LLM_POLICIES` | ploegd |  | Trusted team and role inference policies. The chart builds them from each team and role model and budget plus `executor.workerAuth.additionalLLMPolicies`. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_WORKER_SIGNING_KEY` | ploeg-worker |  | Controller-only. The worker refuses to start when it is set. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_WORKER_SIGNING_KEY` | ploegd |  | Controller-only signing material for worker control capabilities, at least 32 bytes (chart `executor.workerAuth.signingKeySecret`). | [main.go](../../cmd/ploegd/main.go) |
 | `POD_NAME` | ploeg-worker |  |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `POD_NAMESPACE` | ploeg-worker |  |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
-| `POD_UID` | ploeg-worker |  | Downward-API pod UID; the worker identity when `PLOEG_WORKER_ID` is unset. | [main.go](../../cmd/ploeg-worker/main.go), [worker.go](../../pkg/worker/worker.go) |
+| `POD_UID` | ploeg-worker |  | Downward-API pod UID; the worker identity when `PLOEG_WORKER_ID` is unset. | [main.go](../../cmd/ploeg-worker/main.go), [sandbox.go](../../cmd/ploeg-worker/sandbox.go), [worker.go](../../pkg/worker/worker.go) |
 | `REPO_NAME` | ploeg-worker |  | Fallback repository name for a team that pins one. The repository normally comes from the claimed Work Item. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `REPO_OWNER` | ploeg-worker |  | Fallback repository owner for a team that pins one. The repository normally comes from the claimed Work Item. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `TZ` | ploeg-worker |  |  | [git.go](../../pkg/worker/git.go), [openspec.go](../../pkg/worker/openspec.go) |
@@ -155,10 +156,12 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `executor.forgeTokenIsolation` | one of `""`, `"proxy"` | `""` | "proxy" keeps a writer's forge token inside ploeg-worker: git and the forge API reach only the Run's own repository through a loopback proxy that adds the token, and the harness sees a placeholder. "" hands the token over. Qualify per harness: one that pushes from inside DinD cannot reach it. | values.yaml, values.schema.json |
 | `executor.forgejo.botPasswordSecret` | [secretRef](#secretref) | `{}` | ADR-0013 tier 2: the password of botUser, which ploegd uses to MINT per-run push tokens limited to the Run's repository. Held only by ploegd, never by a worker. Unset = nothing is minted. | values.yaml, values.schema.json |
 | `executor.forgejo.botUser` | string | `agent-builder` | the forge user whose tokens are minted (default agent-builder) | values.yaml, values.schema.json |
+| `executor.forgejo.publicUrl` | string | `""` | ploegd's forge URL (PLOEG_FORGEJO_URL). Empty = url. Set it to the public https URL when url is in-cluster: ploegd matches Vloer's https repository URLs against it and accepts only https or ssh ones. | values.yaml, values.schema.json |
 | `executor.forgejo.readTokenSecret` | [readTokenSecretRef](#readtokensecretref) | `{}` | ADR-0013 tier 1: read-only credential for reading Roles. Required (name and key) when any team has a reading Role: the render fails without it rather than hand readers the read-write builder token. | values.yaml, values.schema.json |
 | `executor.forgejo.tokenSecret` | [secretRef](#secretref) | `{"name": "agent-builder-token", "key": "FORGEJO_TOKEN"}` | Shared bot token every Run uses when no admin token mints per-run push tokens. | values.yaml, values.schema.json |
-| `executor.forgejo.url` | string | `http://forgejo-http.forgejo.svc.cluster.local:3000` |  | values.yaml, values.schema.json |
+| `executor.forgejo.url` | string | `http://forgejo-http.forgejo.svc.cluster.local:3000` | The workers' forge URL (FORGE_URL): clone, push, pull-request API and the forge proxy upstream. An in-cluster URL keeps Run traffic off the public gateway. | values.yaml, values.schema.json |
 | `executor.forgejo.webhookSecret` | [secretRef](#secretref) | `{}` | HMAC secret that verifies X-Forgejo-Signature on POST /webhooks/forge/forgejo. Unset = every forge webhook is rejected: merges are still found by the periodic pull request reconcile, but human reviews and failed checks never reach Ploeg. | values.yaml, values.schema.json |
+| `executor.gitlab.publicUrl` | string | `""` | ploegd's GitLab URL when it differs from the workers' url. Empty = url. | values.yaml, values.schema.json |
 | `executor.gitlab.readTokenSecret` | [readTokenSecretRef](#readtokensecretref) | `{}` | ADR-0013 tier 1, as for forgejo: a read-only credential for reading Roles, so the reader/writer split is enforced at the forge and not only by scheduling. On GitLab a second project access token at read_repository scope. Required (name and key) when any team has a reading Role: the render fails without it rather than hand readers the read-write token. | values.yaml, values.schema.json |
 | `executor.gitlab.tokenSecret` | [secretRef](#secretref) | `{"name": "agent-builder-token", "key": "GITLAB_TOKEN"}` | Token with api scope on the target projects, sent as PRIVATE-TOKEN. ADR-0013 tier 2 does not apply on GitLab: per-run push credentials are minted through a Forgejo admin endpoint with no GitLab equivalent, so this shared token is what writing Runs use. | values.yaml, values.schema.json |
 | `executor.gitlab.url` | string | `""` | Base URL, no /api/v4. Empty = ploegd configures no GitLab provider, so findings never reach a merge request. | values.yaml, values.schema.json |
@@ -169,7 +172,7 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `executor.harness.acp.configJson` |  | `""` | Replaces the profile's generated agent config (opencode, qwen-code) wholesale, so a wrong provider block is a values edit rather than an agent image rebuild. goose is configured by environment and refuses it. | values.yaml |
 | `executor.harness.acp.idleTimeout` |  | `""` | Go duration; "" = adapter default (10m) with no protocol traffic | values.yaml |
 | `executor.harness.acp.permissionMode` |  | `""` | allow_always (default) \| allow_read_only \| deny_all | values.yaml |
-| `executor.harness.acp.profile` |  | `opencode` | opencode \| qwen-code \| goose \| custom (PLOEG_ACP_PROFILE) | values.yaml |
+| `executor.harness.acp.profile` |  | `opencode` | opencode \| qwen-code \| goose \| openhands \| custom (PLOEG_ACP_PROFILE) | values.yaml |
 | `executor.harness.acp.promptTimeout` |  | `""` | Go duration; "" = adapter default (45m) | values.yaml |
 | `executor.harness.args` |  | `[]` | exec harness only: argv template with {taskspec}/{taskfile} | values.yaml |
 | `executor.harness.dind` |  | `true` | privileged DinD sidecar + DOCKER_* wiring (OpenHands + gates need it) | values.yaml |
@@ -203,6 +206,7 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `executor.sandbox.networkPolicy.ingress` | array |  |  | values.schema.json |
 | `executor.sandbox.runtimeClassName` | string | `""` | type=sandbox only. Global fallback RuntimeClass for every team and role; a team's (or a Role's) own `sandbox.runtimeClassName` overrides it field by field. "" = the node's default runtime; set kata or gvisor only after qualifying it with the privileged DinD sidecar on your nodes. Place Kata on bare metal (its own kernel, no nested-virt requirement). Place gVisor systrap on VMs without nested virt, accepting its file-I/O penalty on clone-heavy runs. | values.yaml, values.schema.json |
 | `executor.sandbox.shutdownMarginSeconds` | integer | `600` | The claim's shutdownTime is activeDeadlineSeconds plus this margin, and the launcher Job's own deadline matches it. | values.yaml, values.schema.json |
+| `executor.sandbox.startTimeoutSeconds` | integer | `600` | A claim that is not Ready this long after creation is deleted and its launcher fails with the controller's reason, instead of holding the Team's slot until the shutdown deadline. Covers a cold image pull. | values.yaml, values.schema.json |
 | `executor.sandbox.ttlSecondsAfterFinished` | integer | `60` | A finished claim is deleted by its launcher; this TTL is the fallback. | values.yaml, values.schema.json |
 | `executor.scaler.dbName` |  | `app` |  | values.yaml |
 | `executor.scaler.host` |  | `""` | Empty = ploeg-db-rw.<release namespace>.svc.cluster.local. Must be a name the KEDA operator can resolve from its own namespace (FQDN). | values.yaml |
@@ -380,7 +384,7 @@ name becomes the workload suffix (ploeg-worker-<team>-<role>); writes marks the 
 
 | Key | Type | Description |
 | --- | --- | --- |
-| `profile` | one of `"opencode"`, `"qwen-code"`, `"goose"`, `"custom"` | `opencode`, `qwen-code`, `goose` or `custom`. |
+| `profile` | one of `"opencode"`, `"qwen-code"`, `"goose"`, `"openhands"`, `"custom"` | `opencode`, `qwen-code`, `goose` or `custom`. |
 | `argv` | array | Whole launch command; required when the profile is `custom`. |
 | `permissionMode` | one of `""`, `"allow_always"`, `"allow_read_only"`, `"deny_all"` | `allow_always` (default), `allow_read_only` or `deny_all`. |
 | `promptTimeout` | string | Go duration. Empty means the adapter default (45m). |

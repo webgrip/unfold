@@ -1,8 +1,9 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "local>webgrip/renovate-config#v1.9.0",
-    "local>webgrip/renovate-config:golang#v1.9.0"
+    "local>webgrip/renovate-config#v1.12.0",
+    "local>webgrip/renovate-config:golang#v1.12.0",
+    "local>webgrip/renovate-config:automerge-non-major#v1.12.0"
   ],
   "ignorePaths": [
     "**/node_modules/**",
@@ -27,20 +28,6 @@
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?\\s*\\nARG \\S+=\"?(?<currentValue>[^@\\s\"]+)\"?\\s"
       ],
       "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}"
-    },
-    {
-      "customType": "regex",
-      "description": "webgrip/* job-level reusable workflows live on Forgejo. The github-actions manager looks them up on github.com, where the lookup fails or a tagless twin freezes the pin silently. Glide pins them by tag, which the org Forgejo overlay's digest-and-comment pattern does not match.",
-      "managerFilePatterns": [
-        "/^\\.forgejo/workflows/[^/]+\\.ya?ml$/"
-      ],
-      "matchStrings": [
-        "uses:\\s+(?<depName>webgrip/[\\w.-]+)/[^@\\s]+@(?<currentValue>v\\d+\\.\\d+\\.\\d+)\\s"
-      ],
-      "datasourceTemplate": "gitea-tags",
-      "registryUrlTemplate": "https://forgejo.webgrip.dev",
-      "versioningTemplate": "semver",
-      "depTypeTemplate": "action"
     },
     {
       "customType": "regex",
@@ -69,19 +56,6 @@
       "enabled": false
     },
     {
-      "description": "The Forgejo regex manager owns webgrip/* reusable workflows. Before the import, Vloer disabled webgrip/workflows because the github.com lookup aborted the run. Composite actions named by their full Forgejo URL already resolve through forgejo-tags and stay enabled.",
-      "matchManagers": [
-        "github-actions"
-      ],
-      "matchDatasources": [
-        "github-tags"
-      ],
-      "matchPackageNames": [
-        "webgrip/**"
-      ],
-      "enabled": false
-    },
-    {
       "description": "Bare versions are reused outside the FROM line; digests are captured explicitly.",
       "matchManagers": [
         "custom.regex"
@@ -89,19 +63,12 @@
       "pinDigests": false
     },
     {
-      "description": "Forgejo-resolved workflow pins keep the CI-only commit shape the github-actions manager gives them.",
-      "matchManagers": [
-        "custom.regex"
-      ],
+      "description": "Forgejo-resolved workflow pins keep the CI-only commit shape. The org forgejo overlay sets it too, but as runner-level config it is applied before the preset's per-update-type commit types, which then win.",
       "matchDatasources": [
         "gitea-tags"
       ],
       "semanticCommitType": "ci",
-      "semanticCommitScope": "actions",
-      "commitMessagePrefix": "{{semanticCommitType}}({{semanticCommitScope}}):",
-      "addLabels": [
-        "github-actions"
-      ]
+      "semanticCommitScope": "actions"
     },
     {
       "description": "The agent image and the mise pin must move together: one OpenCode version is what the workbench, the probe and the image share.",
@@ -111,6 +78,49 @@
       "groupName": "opencode",
       "semanticCommitType": "fix",
       "semanticCommitScope": "agent"
+    },
+    {
+      "description": "engines ranges are compatibility floors, not dependencies. Pinning or bumping engines.vscode narrows which VS Code builds the extension installs on, and engines.node is the deliberate Node 24 line. Both move by hand.",
+      "matchManagers": [
+        "npm"
+      ],
+      "matchDepTypes": [
+        "engines"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "vsce refuses to package when @types/vscode is newer than engines.vscode (^1.99.0). Raise this bound together with engines.vscode.",
+      "matchPackageNames": [
+        "@types/vscode"
+      ],
+      "allowedVersions": "<1.100.0"
+    },
+    {
+      "description": "Each chart's own image tag is empty on purpose: the release train fills it from appVersion. Renovate would otherwise digest-pin it.",
+      "matchManagers": [
+        "helm-values"
+      ],
+      "matchPackageNames": [
+        "harbor.webgrip.dev/webgrip/ploegd",
+        "harbor.webgrip.dev/webgrip/de-vloer"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "An image bump in Ploeg's chart values changes rendered manifests, and the golden check makes every rendered byte part of the review. The update regenerates the goldens in the same branch so the pull request carries its own render diff and passes the check.",
+      "matchFileNames": [
+        "apps/ploeg/ops/helm/ploeg/values.yaml"
+      ],
+      "postUpgradeTasks": {
+        "commands": [
+          "sh apps/ploeg/scripts/helm-golden.sh update"
+        ],
+        "fileFilters": [
+          "apps/ploeg/ops/helm/ploeg/ci/golden/*.yaml"
+        ],
+        "executionMode": "branch"
+      }
     }
   ]
 }

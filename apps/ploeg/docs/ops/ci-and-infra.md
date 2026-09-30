@@ -8,6 +8,12 @@ Runner and cluster configuration belongs to [homelab-cluster](https://forgejo.we
 
 Do not copy cluster IPs, workstation kubeconfig paths, runner image contents or access-policy assumptions into Ploeg's setup instructions. Resolve those from the deployment's current configuration.
 
+## Cluster end-to-end tests
+
+A gate that needs a Kubernetes cluster cannot run on the current pull-request runner, and the failure is not a missing tool that `mise` can install. Jobs run `runs-on: docker` against a **remote** Docker daemon: there is no shared filesystem between the job and the daemon, `docker cp` is not usable and bind mounts resolve on the wrong host ([the CVE-gate action](../../../../.forgejo/actions/cve-gate/action.yml) records the same constraint for a different purpose). `kind` boots a node container and loads images through exactly those mechanisms, so it cannot create a cluster or seed one with local images there; the runner also carries no `kubectl`/`helm`, KEDA or agent-sandbox install step.
+
+Cluster-level qualification — including the sandbox executor e2e ([backlog #127](../backlog.md)) — therefore needs a runner change in [homelab-cluster](https://forgejo.webgrip.dev/webgrip/homelab-cluster), not a workflow in this repository. Until a kind-capable runner exists, keep cluster tests out of the pull-request gates and do not land a job that can never pass.
+
 ## Forge webhooks
 
 `POST /webhooks/forge/forgejo` and `POST /webhooks/forge/gitlab` act only when two things are in place:

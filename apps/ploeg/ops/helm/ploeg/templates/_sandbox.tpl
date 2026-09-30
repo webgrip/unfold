@@ -98,8 +98,31 @@ spec:
           value: {{ printf "%vs" $root.Values.executor.activeDeadlineSeconds | quote }}
         - name: PLOEG_SANDBOX_SHUTDOWN_MARGIN
           value: {{ printf "%vs" $sb.shutdownMarginSeconds | quote }}
+        - name: PLOEG_SANDBOX_START_TIMEOUT
+          value: {{ printf "%vs" $sb.startTimeoutSeconds | quote }}
         - name: PLOEG_SANDBOX_TTL_SECONDS_AFTER_FINISHED
           value: {{ $sb.ttlSecondsAfterFinished | quote }}
+        {{- /* A sandbox that never starts fails one Run as infra_node, so
+             the launcher claims it as its Team and Role like a worker. */}}
+        - name: PLOEG_API_URL
+          value: {{ include "ploeg.apiUrl" $root | quote }}
+        - name: PLOEG_TEAM
+          value: {{ .team.name | quote }}
+        {{- if .role.name }}
+        - name: PLOEG_ROLE
+          value: {{ .role.name | quote }}
+        {{- end }}
+        - name: PLOEG_WORKER_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        {{- if eq $root.Values.executor.workerAuth.mode "managed" }}
+        - name: PLOEG_WORKER_BOOTSTRAP_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ $root.Values.executor.workerAuth.bootstrapSecret.name }}
+              key: {{ printf "%s--%s" .team.name (.role.name | default "default") | quote }}
+        {{- end }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532

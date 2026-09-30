@@ -14,7 +14,7 @@ Requirements: Node **24**, Git and a modern browser. `mise install` selects the 
 npm run demo
 ```
 
-Open **http://127.0.0.1:4080** → **Tasks**. Preview **[Demo fixture] Fix checkout rounding**, choose **Delivery crew**, then **Create session**. Select **Start crew**, inspect the diff, failing baseline, repaired tests and independent review, then download the candidate from **Repository handoff**. You can also create an **Order service** session directly. [Follow the 0.2.0 coworker walkthrough](docs/operations/iteration-0.2.0.md).
+Open **http://127.0.0.1:4080**; it lands on **Now**, marked **Demo** in the status strip. Open **Tasks**: on a wide screen **[Demo fixture] Fix checkout rounding** opens beside the list (on a phone, select it). Keep **Delivery crew** and select **Create session**. On the session page select **Start crew**, then inspect the diff on **Changes**, the failing baseline, repaired tests and independent review on **Checks**, and download the candidate from **Repository handoff**. You can also start from **Sessions** › **New session** with the **Order service** repository. The [coworker walkthrough](docs/operations/demo.md) is a ten-minute script; the [0.2.0 walkthrough](docs/operations/iteration-0.2.0.md) records that release.
 
 This is an explicitly labeled deterministic demo. It copies an isolated Git fixture, modifies real source and executes real Node tests. It makes **zero AI calls** and records **zero model spend**. It demonstrates the operating workflow, not model quality.
 

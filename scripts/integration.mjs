@@ -15,9 +15,10 @@ function run(command, args, options) {
     const append = chunk => { if (log.length < 16 * 1024 * 1024) log += chunk; };
     child.stdout.setEncoding('utf8').on('data', append);
     child.stderr.setEncoding('utf8').on('data', append);
-    const timer = setTimeout(() => child.kill('SIGKILL'), 240000);
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, 240000);
     child.on('error', error => { clearTimeout(timer); done({ status: null, error, log }); });
-    child.on('close', status => { clearTimeout(timer); done({ status, log }); });
+    child.on('close', status => { clearTimeout(timer); done({ status, log, error: timedOut ? new Error('killed after 240 s') : undefined }); });
   });
 }
 
@@ -33,7 +34,7 @@ try {
     const result = await run(check.command, check.args, { cwd: resolve(root, check.cwd), env: { ...process.env, PLOEG_WORKBENCH_PATH: resolve(root, 'apps/vloer'), ...check.env } });
     const log = result.log.replaceAll(gateway.masterKey, '[redacted]');
     writeFileSync(resolve(output, `${check.name}.log`), log);
-    if (result.error || result.status !== 0) throw new Error(`${check.name} failed: ${result.error || log}`);
+    if (result.error || result.status !== 0) throw new Error(`${check.name} failed: ${result.error ? `${result.error.message}\n` : ''}${log}`);
     if (check.name === 'managed') {
       assert.match(log, /--- PASS: TestOperatorWorkbenchQualification /);
       assert.match(log, /--- PASS: TestOperatorWorkbenchInferenceQualification /);

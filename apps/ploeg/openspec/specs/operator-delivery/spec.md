@@ -1,7 +1,11 @@
 # operator-delivery Specification
 
 ## Purpose
-TBD - created by archiving change govern-candidate-delivery. Update Purpose after archive.
+How finished operator work becomes a published change: an immutable Delivery
+Candidate, a Verification Receipt from a separately configured verifier, human
+approval bound to that evidence, a Publication Operation reserved before any
+external effect, and uncertain publications resolved only by positive evidence.
+Archived from the change `2026-09-23-govern-candidate-delivery`.
 ## Requirements
 ### Requirement: Bind an immutable Delivery Candidate
 

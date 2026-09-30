@@ -71,12 +71,12 @@ env:
   PLOEG_TOOLCHAINS: "JSON array of mounted toolchains, each `{name, path, env}`: `path` directories go in front of the harness's `PATH` and `env` is added. The worker refuses to claim when a directory is missing (chart `executor.harness.toolchains`)."
   PLOEG_VERIFY_COMMANDS: "JSON array of shell command lines. The harness gets them as the script `$PLOEG_VERIFY_SCRIPT`; after a writing Run opens or updates a pull request the worker runs them itself and posts the result (chart `executor.harness.verify`)."
   PLOEG_VERIFY_TIMEOUT: "Bounds the worker's own run of `PLOEG_VERIFY_COMMANDS`. Empty means 15m (chart `executor.harness.verifyTimeout`)."
-  PLOEG_ACP_PROFILE: "`acp` harness only: `opencode`, `qwen-code`, `goose` or `custom` (chart `executor.harness.acp.profile`). See [ACP profiles](../contracts/acp-profiles.md)."
+  PLOEG_ACP_PROFILE: "`acp` harness only: `opencode`, `qwen-code`, `goose`, `openhands` or `custom` (chart `executor.harness.acp.profile`). See [ACP profiles](../contracts/acp-profiles.md)."
   PLOEG_ACP_ARGV: "`acp` harness only: the whole launch command as a JSON array; required when the profile is `custom`."
   PLOEG_ACP_PERMISSION_MODE: "`acp` harness only: `allow_always` (default), `allow_read_only` or `deny_all`."
   PLOEG_ACP_PROMPT_TIMEOUT: "`acp` harness only: prompt timeout as a Go duration. Empty means the adapter default (45m)."
   PLOEG_ACP_IDLE_TIMEOUT: "`acp` harness only: timeout without protocol traffic. Empty means the adapter default (10m)."
-  PLOEG_ACP_CONFIG_JSON: "`acp` harness only: replaces the generated agent configuration of the `opencode` or `qwen-code` profile wholesale. The `goose` profile refuses it at startup."
+  PLOEG_ACP_CONFIG_JSON: "`acp` harness only: replaces the generated agent configuration of the `opencode` or `qwen-code` profile wholesale. The `goose` and `openhands` profiles refuse it at startup."
   KUBECONFIG: Administrative configuration. The worker refuses to start when it is set.
   PATH: Passed to `git` and `openspec` subprocesses; also on the harness allowlist.
 helm:

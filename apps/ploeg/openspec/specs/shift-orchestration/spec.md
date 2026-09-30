@@ -1,7 +1,11 @@
 # shift-orchestration Specification
 
 ## Purpose
-TBD - created by archiving change run-multi-agent-shifts. Update Purpose after archive.
+How ploegd drives a Shift through its Team's plan: one live Shift per queued
+Work Item, Rounds that advance only when all their Runs have finished, a failed
+writing Run that re-opens its Round, closing on plan exhaustion or a terminal
+Outcome, and parking the Work Item when the budget pool runs out. Archived from
+the change `2026-07-29-run-multi-agent-shifts`.
 ## Requirements
 ### Requirement: A queued Work Item gets exactly one live Shift
 

@@ -8,6 +8,7 @@ import { RuntimeFailure, classifyFailure } from '../src/failures.ts';
 import { WorkspaceManager, isolatedEnvironment, managedConfig } from '../src/runtime/workspace.ts';
 import { KubernetesWorkspaces, workspaceManifests, candidateExportManifest } from '../src/runtime/kubernetes.ts';
 import type { AppConfig, Repository, Session } from '../src/types.ts';
+import { deadlineAfter } from './timeframes.ts';
 
 const repository = { id: 'repo', name: 'Repo', description: '', url: 'https://forge.example/project.git', baseBranch: 'main', verify: ['node', '--test'] } as Repository;
 const session = { id: 'abc123', branch: 'vloer/abc123', ownerId: 'alice' } as Session;
@@ -134,7 +135,8 @@ http.createServer((req,res)=>{res.writeHead(req.headers.authorization===auth?200
   assert.equal((await fetch(workspace.endpoint! + '/global/health', { headers: { authorization: auth } })).status, 200);
   manager.internal.get(workspace.id)!.process!.stdin!.end();
   let stopped = false;
-  for (let i = 0; i < 30; i++) {
+  const deadline = deadlineAfter(3_000);
+  while (Date.now() < deadline) {
     try { await fetch(workspace.endpoint! + '/global/health', { signal: AbortSignal.timeout(100) }); }
     catch { stopped = true; break; }
     await new Promise(done => setTimeout(done, 100));

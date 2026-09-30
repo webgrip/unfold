@@ -191,6 +191,9 @@ func (c *LLMControl) Settle(ctx context.Context, a store.UnsettledLLMAccount) er
 	evidence := fmt.Sprintf("litellm:spend-logs alias=%s keys=%d entries=%d usd=%s unchanged-since=%s read-at=%s",
 		a.Alias, spend.Keys, spend.Entries, strconv.FormatFloat(spend.USD, 'f', -1, 64), a.QuietSince.UTC().Format(time.RFC3339), time.Now().UTC().Format(time.RFC3339))
 	usage := store.SettledUsage{InputTokens: spend.InputTokens, OutputTokens: spend.OutputTokens, Models: spend.Models}
+	for _, m := range spend.ByModel {
+		usage.ByModel = append(usage.ByModel, store.ModelUsage{Model: m.Model, InputTokens: m.InputTokens, OutputTokens: m.OutputTokens, CostUSD: m.USD})
+	}
 	return c.Store.ReconcileLLMAccountWithUsage(ctx, a.RunToken, spend.USD, evidence, &usage)
 }
 
