@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activityMarkup, actorOf, approveDialogMarkup, canDecide, duration, eventDays, eventKind, eventStory, mergeFeed, mergeRuns, newerEvents, overviewMarkup, problemMarkup, proposalCreator, proposedMarkup, rejectDialogMarkup, relativeTime, runFilter, runSpend, runsMarkup, sortRuns, usdNl } from '../public/ploeg-activity.js';
+import { activityMarkup, actorOf, approveDialogMarkup, canDecide, duration, eventDays, eventKind, eventStory, freshRuns, mergeFeed, mergeRuns, newerEvents, overviewMarkup, problemMarkup, proposalCreator, proposedMarkup, rejectDialogMarkup, relativeTime, runFilter, runSpend, runsMarkup, sortRuns, usdNl } from '../public/ploeg-activity.js';
+import { liveRefresh, track } from '../public/views/ploeg-common.js';
+import { state } from '../public/core/state.js';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 import { summaryTotals } from '../src/ploeg.ts';
 
@@ -235,6 +237,19 @@ test('Runs list running work first, then pending, then finished, newest first wi
   assert.deepEqual(merged.map(entry => [entry.id, entry.state]), [['3', 'finished'], ['2', 'finished'], ['4', 'running']]);
 });
 
+test('a fresh first page replaces the Runs in its range, so a Run that left a filter disappears and older pages stay', () => {
+  const running = { runs: [run({ id: '71', state: 'running' }), run({ id: '70', state: 'running' })], nextBefore: null };
+  assert.deepEqual(freshRuns(running, { runs: [run({ id: '71', state: 'running' })], nextBefore: null }), { runs: [run({ id: '71', state: 'running' })], nextBefore: null });
+  assert.deepEqual(freshRuns(running, { runs: [], nextBefore: null }).runs, []);
+  const paged = { runs: [run({ id: '60', state: 'running' }), run({ id: '59' }), run({ id: '58' }), run({ id: '40' }), run({ id: '39' })], nextBefore: '39' };
+  const fresh = freshRuns(paged, { runs: [run({ id: '61' }), run({ id: '60' }), run({ id: '58' })], nextBefore: '58' });
+  assert.deepEqual(fresh.runs.map(entry => [entry.id, entry.state]), [['61', 'finished'], ['60', 'finished'], ['58', 'finished'], ['40', 'finished'], ['39', 'finished']]);
+  assert.equal(fresh.nextBefore, '39');
+  assert.deepEqual(freshRuns({ runs: [run({ id: '5' })], nextBefore: null }, { runs: [run({ id: '9' }), run({ id: '8' })], nextBefore: '8' }), { runs: [run({ id: '9' }), run({ id: '8' })], nextBefore: '8' }, 'A page that does not reach the Runs on screen replaces them instead of hiding the Runs between');
+  assert.deepEqual(freshRuns({ runs: [run({ id: '8' }), run({ id: '5' })], nextBefore: null }, { runs: [run({ id: '9' }), run({ id: '8' })], nextBefore: '8' }).runs.map(entry => entry.id), ['9', '8', '5']);
+  assert.deepEqual(freshRuns(null, { runs: [run()], nextBefore: '61' }), { runs: [run()], nextBefore: '61' });
+});
+
 test('a Run row shows state and outcome, verdict, failure, Work Item, Role, timing, a spend meter and the model, in the table and the phone cards', () => {
   const runs = [run({ id: '64', state: 'running', outcome: '', settledUsd: null, observedUsd: 0.42, durationSeconds: null, startedAt: '2026-09-10T08:54:00Z', usage: null, reservedModels: ['claude-opus'] }), run({ id: '63', role: 'reviewer', writes: false, outcome: 'no_change_needed', verdict: 'request_changes' }), run({ id: '62', outcome: 'failed', failureReason: 'lease_lost', settledUsd: null, usage: null }), run()];
   const html = runsMarkup({ runs, nextBefore: '25', filter: {}, demo: false }, ['delivery'], helpers, now);
@@ -338,4 +353,28 @@ test('the approve confirmation names the money at stake and the reject form says
   assert.match(reject, /<label class="field-label" for="proposal-reject-reason">Reason<\/label><textarea id="proposal-reject-reason" name="reason"[^>]* required/);
   assert.match(reject, /class="button danger">Reject<\/button>/);
   assert.match(rejectDialogMarkup(entry, true, helpers), /In this demo the proposal is withdrawn from the sample data\. Nothing is dispatched\./);
+});
+
+test('a live refresh reports an update only for data read without error while its page is on screen', async () => {
+  const view = { error: null };
+  const polls = [];
+  Object.assign(state, { bootstrap: { user: { role: 'operator' } }, view: 'runs' });
+  const refresh = liveRefresh('runs', async () => { polls.push('poll'); }, () => view.error);
+  await refresh();
+  assert.deepEqual(polls, ['poll']);
+  view.error = { message: 'Ploeg did not answer.' };
+  await assert.rejects(refresh(), /Ploeg did not answer/);
+  view.error = null;
+  let finish;
+  const load = track('runs', new Promise(done => { finish = done; }));
+  const waiting = refresh();
+  view.error = { message: 'Timed out.' };
+  finish();
+  await load;
+  await assert.rejects(waiting, /Timed out/);
+  assert.deepEqual(polls, ['poll', 'poll'], 'A refresh during a load a person started waits for that load instead of polling');
+  view.error = null;
+  state.view = 'activity';
+  await assert.rejects(refresh(), /Left runs/);
+  Object.assign(state, { bootstrap: null, view: 'now' });
 });

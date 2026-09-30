@@ -238,11 +238,31 @@ export function sortRuns(runs) {
   return [...(runs || [])].sort((a, b) => (runRank[a.state] ?? 2) - (runRank[b.state] ?? 2) || newestFirst(a, b));
 }
 
-/** Folds a fresh first page of Runs into the Runs on screen: rows that changed are replaced, new ones added, older pages kept. */
+/** Folds a page of older Runs into the Runs on screen without duplicates. A fresh first page goes through `freshRuns`, which also drops the Runs that left it. */
 export function mergeRuns(runs, page) {
   const byId = new Map((runs || []).map(run => [run.id, run]));
   for (const run of page || []) byId.set(run.id, run);
   return [...byId.values()];
+}
+
+const bigId = id => { try { return BigInt(id); } catch { return null; } };
+
+/**
+ * Applies a fresh first page of Runs (`{ runs, nextBefore }`) to the Runs on screen. The page replaces every Run in
+ * its id range, so a Run that finished or left the filter changes or disappears; older pages loaded earlier stay,
+ * unless the page does not reach the Runs on screen, which it then replaces so no Run in between goes missing.
+ * @returns {{ runs: object[], nextBefore: string | null }}
+ */
+export function freshRuns(view, page) {
+  const fresh = page?.runs || [];
+  const cursor = page?.nextBefore ?? null;
+  const ids = fresh.map(run => bigId(run.id));
+  if (!view?.runs?.length || cursor === null || !fresh.length || ids.includes(null)) return { runs: fresh, nextBefore: cursor };
+  const floor = ids.reduce((low, id) => id < low ? id : low);
+  const shown = view.runs.map(run => bigId(run.id)).filter(id => id !== null);
+  if (!shown.some(id => id >= floor)) return { runs: fresh, nextBefore: cursor };
+  const older = view.runs.filter(run => { const id = bigId(run.id); return id !== null && id < floor; });
+  return { runs: [...fresh, ...older], nextBefore: older.length ? view.nextBefore ?? null : cursor };
 }
 
 /** A Run's spend as text: settled when known, what is authorized while it runs, never an invented zero. */
