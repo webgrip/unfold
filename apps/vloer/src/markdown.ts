@@ -1,3 +1,6 @@
+/** The Markdown to produce: CommonMark with backslash escapes, or `vloer`, the subset that Vloer's browser renderer (`public/core/markdown.js`) displays without escapes. */
+export type MarkdownDialect = 'commonmark' | 'vloer';
+
 type Child = Element | string;
 type Element = { tag: string; attrs: Map<string, string>; children: Child[] };
 type Token = { kind: 'text'; text: string } | { kind: 'open'; tag: string; attrs: Map<string, string>; selfClosing: boolean } | { kind: 'close'; tag: string };
@@ -140,27 +143,40 @@ function codeSpan(text: string): string {
 
 class Renderer {
   private readonly base?: string;
-  constructor(base?: string) { this.base = base; }
+  private readonly subset: boolean;
+  constructor(base?: string, dialect: MarkdownDialect = 'commonmark') { this.base = base; this.subset = dialect === 'vloer'; }
+
+  text(value: string): string { return this.subset ? value : escapeText(value); }
+  lineStart(line: string): string { return this.subset ? line : escapeLineStart(line); }
+  linkText(value: string): string { return this.subset ? value.replace(/\[/g, '(').replace(/\]/g, ')') : value; }
+
+  codeSpan(text: string): string {
+    if (!this.subset) return codeSpan(text);
+    const content = text.replace(/\n/g, ' ');
+    return !content.trim() || content.includes('`') ? content : `\`${content}\``;
+  }
 
   inline(children: Child[]): string {
     return children.map(child => {
-      if (typeof child === 'string') return escapeText(child.replace(/\s+/g, ' ').replace(/[­]/g, ''));
+      if (typeof child === 'string') return this.text(child.replace(/\s+/g, ' ').replace(/[­]/g, ''));
       const inner = () => this.inline(child.children);
       switch (child.tag) {
         case 'br': return '\n';
         case 'strong': case 'b': return wrap('**', inner());
-        case 'em': case 'i': case 'cite': case 'dfn': return wrap('*', inner());
+        case 'em': case 'i': case 'cite': case 'dfn': return this.subset ? inner() : wrap('*', inner());
         case 's': case 'del': case 'strike': return wrap('~~', inner());
-        case 'code': case 'kbd': case 'samp': case 'tt': return codeSpan(textContent(child));
+        case 'code': case 'kbd': case 'samp': case 'tt': return this.codeSpan(textContent(child));
         case 'a': {
           const href = safeUrl(child.attrs.get('href'), this.base);
           const text = inner();
           if (!href) return text;
-          return `[${text.trim() ? text.replace(/\n/g, ' ') : escapeText(href)}](${href})`;
+          if (this.subset && href.startsWith('mailto:')) { const address = href.slice(7); return !text.trim() ? address : text.includes(address) ? text : `${text} (${address})`; }
+          return `[${text.trim() ? this.linkText(text.replace(/\n/g, ' ')) : this.text(href)}](${href})`;
         }
         case 'img': {
-          const alt = escapeText(oneLine(child.attrs.get('alt') || child.attrs.get('title') || 'image'));
+          const alt = this.text(oneLine(child.attrs.get('alt') || child.attrs.get('title') || 'image'));
           const src = safeUrl(child.attrs.get('src'), this.base);
+          if (this.subset) return src && !src.startsWith('mailto:') ? `[image: ${this.linkText(alt)}](${src})` : `[image: ${alt}]`;
           return src ? `[image: ${alt}](${src})` : `\\[image: ${alt}\\]`;
         }
         case 'input': return '';
@@ -173,7 +189,7 @@ class Renderer {
     const lines = this.inline(children).split('\n').map(line => line.replace(/ {2,}/g, ' ').trim());
     while (lines.length && !lines[0]) lines.shift();
     while (lines.length && !lines[lines.length - 1]) lines.pop();
-    return lines.map(escapeLineStart).join('  \n');
+    return lines.map(line => this.lineStart(line)).join(this.subset ? '\n' : '  \n');
   }
 
   blocks(children: Child[]): string[] { return this.parts(children).map(part => part.text); }
@@ -194,9 +210,9 @@ class Renderer {
 
   block(node: Element): string {
     const heading = /^h([1-6])$/.exec(node.tag);
-    if (heading) { const text = oneLine(this.inline(node.children)); return text ? `${'#'.repeat(Number(heading[1]))} ${escapeLineStart(text)}` : ''; }
+    if (heading) { const text = oneLine(this.inline(node.children)); return text ? `${'#'.repeat(this.subset ? Math.min(4, Number(heading[1])) : Number(heading[1]))} ${this.lineStart(text)}` : ''; }
     switch (node.tag) {
-      case 'hr': return '---';
+      case 'hr': return this.subset ? '' : '---';
       case 'ul': case 'ol': return this.list(node);
       case 'li': return this.list({ tag: 'ul', attrs: new Map(), children: [node] });
       case 'pre': return this.code(node);
@@ -213,7 +229,7 @@ class Renderer {
     let number = ordered && Number.isSafeInteger(start) && start >= 0 && start < 1e9 ? start : 1;
     const items: string[] = [];
     for (const child of node.children) {
-      if (typeof child === 'string') { if (child.trim()) items.push(`- ${escapeLineStart(escapeText(oneLine(child)))}`); continue; }
+      if (typeof child === 'string') { if (child.trim()) items.push(`- ${this.lineStart(this.text(oneLine(child)))}`); continue; }
       if (child.tag !== 'li') { const nested = this.block(child); if (nested.trim()) items.push(nested); continue; }
       const checked = child.attrs.get('data-checked');
       const task = taskList || checked !== undefined || child.attrs.get('data-type') === 'taskItem';
@@ -228,8 +244,10 @@ class Renderer {
 
   code(node: Element): string {
     const inner = node.children.find((child): child is Element => typeof child !== 'string' && child.tag === 'code');
-    const language = /(?:^|\s)language-([A-Za-z0-9+#.-]{1,30})(?:\s|$)/.exec(inner?.attrs.get('class') ?? '')?.[1] ?? '';
+    const declared = /(?:^|\s)language-([A-Za-z0-9+#.-]{1,30})(?:\s|$)/.exec(inner?.attrs.get('class') ?? '')?.[1] ?? '';
+    const language = this.subset ? (/^[a-z0-9_-]+$/.test(declared.toLowerCase()) ? declared.toLowerCase() : '') : declared;
     const content = textContent(node).replace(/^\n/, '').replace(/\n$/, '');
+    if (this.subset) return `\`\`\`${language}\n${content}\n\`\`\``;
     const longest = Math.max(0, ...(content.match(/`+/g) ?? []).map(run => run.length));
     const fence = '`'.repeat(Math.max(3, longest + 1));
     return `${fence}${language}\n${content}\n${fence}`;
@@ -242,15 +260,16 @@ class Renderer {
     const cells = rows.map(row => row.children.filter((child): child is Element => typeof child !== 'string' && (child.tag === 'td' || child.tag === 'th')).slice(0, 20).map(cell => oneLine(this.inline(cell.children))));
     const width = Math.max(0, ...cells.map(row => row.length));
     if (!width) return '';
+    if (this.subset) return cells.filter(row => row.some(Boolean)).map(row => `- ${row.join(' | ')}`).join('\n');
     const line = (row: string[]) => `| ${Array.from({ length: width }, (_, index) => row[index] ?? '').join(' | ')} |`;
     return [line(cells[0]), `| ${Array.from({ length: width }, () => '---').join(' | ')} |`, ...cells.slice(1).map(line)].join('\n');
   }
 }
 
-/** Converts tracker HTML (such as Vikunja's TipTap output) to inert Markdown text; links and images are kept only for http(s) and mailto URLs, resolved against `base` when given. */
-export function htmlToMarkdown(html: string, base?: string): string {
+/** Converts tracker HTML (such as Vikunja's TipTap output) to inert Markdown text in the given dialect; links and images are kept only for http(s) and mailto URLs, resolved against `base` when given. */
+export function htmlToMarkdown(html: string, base?: string, dialect: MarkdownDialect = 'commonmark'): string {
   const source = html.slice(0, maxInput).replace(/\r\n?/g, '\n');
-  const renderer = new Renderer(base);
+  const renderer = new Renderer(base, dialect);
   const markdown = renderer.blocks(parse(source).children).join('\n\n')
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f‪-‮⁦-⁩]/g, '')
     .replace(/\n{3,}/g, '\n\n')

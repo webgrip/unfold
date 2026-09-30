@@ -68,7 +68,9 @@ function configureSource(config: AppConfig, fixture: ProviderFixture) {
 async function snapshot(url: string, cookie?: string, sourceId = 'engineering', taskId = '17') {
   const result = await request(url, `/api/task-sources/${sourceId}/tasks/${taskId}`, { cookie });
   assert.equal(result.status, 200, result.text);
-  return result.body;
+  const { descriptionMarkdown, ...task } = result.body;
+  assert.equal(descriptionMarkdown, task.description, 'a non-HTML description is displayed as it is; the display copy never enters the snapshot');
+  return task;
 }
 
 function importInput(revision: string, overrides: Record<string, unknown> = {}) {

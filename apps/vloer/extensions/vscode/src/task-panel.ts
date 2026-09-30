@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { ApiError, type VloerClient } from './client.js';
 import { providerNames, safeHttpsUrl } from './status.js';
 import { awaitingPloeg, sessionEligibility, unsupportedStatus } from './task-view.js';
-import type { Bootstrap, TaskPloegStatus, TaskSnapshot, TaskSource } from './types.js';
+import type { Bootstrap, TaskPloegStatus, TaskPreview, TaskSnapshot, TaskSource } from './types.js';
 
 export interface TaskPanelHost {
   readonly extensionUri: vscode.Uri;
@@ -18,7 +18,7 @@ export interface TaskPanelHost {
 }
 
 export type TaskView = {
-  task: TaskSnapshot; source: { id: string; name: string; provider: string; handoff: boolean; executionOwner: string };
+  task: TaskPreview; source: { id: string; name: string; provider: string; handoff: boolean; executionOwner: string };
   repositoryName: string; status: TaskPloegStatus; session: { allowed: boolean; reason?: string }; host: string; loadedAt: string; preferredTeam?: string;
 };
 

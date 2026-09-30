@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { once } from 'node:events';
-import { getTask, listTasks, publicTaskSource, TaskError, validateTaskSources, type TaskSourceConfig, type TaskProvider } from '../src/tasks.ts';
+import { getTask, listTasks, presentTask, publicTaskSource, TaskError, validateTaskSources, type TaskSourceConfig, type TaskProvider } from '../src/tasks.ts';
 import type { Repository } from '../src/types.ts';
 
 const repositories: Repository[] = [{ id: 'order-service', name: 'Orders', description: '', url: 'https://forge.example/team/orders.git', baseBranch: 'main', verify: ['node', '--test'] }];
@@ -278,7 +278,7 @@ test('demo tasks are labeled fixtures, bound to the demo repository and unavaila
   await assert.rejects(getTask(configured, '2'), expectedError('task_not_found'));
 });
 
-test('Vikunja snapshots carry labels, assignees, priority, due date, identifier and Markdown without changing the revision', async () => {
+test('Vikunja snapshots carry labels, assignees, priority, due date and identifier without changing the revision, and the preview adds Markdown', async () => {
   let current = issue('vikunja', { description: '<p>Use <strong>decimal</strong> totals.</p><ul data-type="taskList"><li data-checked="true"><p>Round</p></li></ul>', index: 7, identifier: 'GLIDE-7', priority: 3, due_date: '2026-10-01T12:00:00Z', labels: [{ id: 1, title: 'backend', hex_color: 'E8E8E8' }, { id: 2, title: `leak ${token}`, hex_color: 'not-a-color' }, 'junk', { title: '' }], assignees: [{ id: 11, username: 'silver', name: 'Silver team' }, { id: 12, username: 'plain' }, { id: 13 }] });
   const remote = await fixture((request, response) => json(response, request.url?.startsWith('/api/v1/tasks/17') ? current : [current]));
   try {
@@ -289,7 +289,8 @@ test('Vikunja snapshots carry labels, assignees, priority, due date, identifier 
     assert.equal(task.priority, 3);
     assert.equal(task.dueAt, '2026-10-01T12:00:00.000Z');
     assert.equal(task.identifier, 'GLIDE-7');
-    assert.equal(task.descriptionMarkdown, 'Use **decimal** totals.\n\n- [x] Round');
+    assert.equal('descriptionMarkdown' in task, false, 'the snapshot never carries the display copy');
+    assert.equal(presentTask(configured, task).descriptionMarkdown, 'Use **decimal** totals.\n\n- [x] Round');
     assert.equal(task.description, current.description, 'the stored description stays the tracker text');
     assert.equal(task.descriptionTruncated, undefined);
     current = { ...current, labels: [], assignees: [], priority: 0, due_date: '0001-01-01T00:00:00Z', identifier: '' };
@@ -298,7 +299,7 @@ test('Vikunja snapshots carry labels, assignees, priority, due date, identifier 
     for (const key of ['labels', 'assignees', 'priority', 'dueAt'] as const) assert.equal(bare[key], undefined, key);
     assert.equal(bare.identifier, '#7');
     current = issue('vikunja', { description: 'Plain text, no markup.' });
-    assert.equal((await getTask(configured, '17')).descriptionMarkdown, undefined);
+    assert.equal(presentTask(configured, await getTask(configured, '17')).descriptionMarkdown, 'Plain text, no markup.');
   } finally { await remote.close(); }
 });
 
@@ -311,11 +312,11 @@ test('a list page and an opted-in detail read truncate one oversized description
     assert.equal(page.tasks.length, 2);
     assert.equal(page.tasks[0].description.length, 16000);
     assert.equal(page.tasks[0].descriptionTruncated, true);
-    assert(page.tasks[0].descriptionMarkdown!.length <= 16000);
     assert.equal(page.tasks[1].descriptionTruncated, undefined);
     await assert.rejects(getTask(configured, '17'), expectedError('task_response_invalid'));
     const shown = await getTask(configured, '17', true);
     assert.equal(shown.descriptionTruncated, true, 'the task view can still open it, marked as shortened');
+    assert(presentTask(configured, shown).descriptionMarkdown.length <= 16000);
     assert.equal(shown.revision, page.tasks[0].revision, 'the revision covers the full description, so a shortened view never passes for the original');
   } finally { await remote.close(); }
 });

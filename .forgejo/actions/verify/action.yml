@@ -6,6 +6,11 @@ runs:
     - name: Fetch imported release metadata
       shell: bash
       run: git fetch origin '+refs/notes/*:refs/notes/*'
+    - name: Restore mise tool installs
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ~/.local/share/mise/installs
+        key: glide-mise-${{ runner.os }}-${{ hashFiles('mise.toml', 'mise.lock', 'apps/vloer/mise.toml', 'apps/vloer/mise.lock', 'apps/ploeg/mise.toml', 'apps/ploeg/mise.lock') }}
     - uses: https://github.com/jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
       with:
         version: 2026.6.14
@@ -34,8 +39,9 @@ runs:
         path: |
           ${{ steps.caches.outputs.gomod }}
           ${{ steps.caches.outputs.gobuild }}
-        key: glide-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-${{ hashFiles('apps/ploeg/go.sum') }}
+        key: glide-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-${{ hashFiles('apps/ploeg/go.sum') }}-${{ hashFiles('apps/ploeg/**/*.go') }}
         restore-keys: |
+          glide-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-${{ hashFiles('apps/ploeg/go.sum') }}-
           glide-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-
           glide-go-${{ runner.os }}-
     - name: Restore npm download cache
@@ -44,6 +50,12 @@ runs:
         path: ${{ steps.caches.outputs.npm }}
         key: glide-npm-${{ runner.os }}-${{ hashFiles('apps/vloer/package-lock.json', 'apps/vloer/extensions/vscode/package-lock.json') }}
         restore-keys: glide-npm-${{ runner.os }}-
+    - name: Restore verified gate results
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ~/.cache/glide-verify
+        key: glide-verify-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: glide-verify-${{ runner.os }}-
     - run: mise run setup
       shell: bash
     - run: mise run verify
@@ -52,6 +64,9 @@ runs:
         GLIDE_REQUIRE_IMPORT_NOTES: 'true'
         GOFLAGS: -count=1
         VLOER_TEST_TIMEOUT_SCALE: '2'
+        GLIDE_VERIFY_RESULTS: ~/.cache/glide-verify
+        GLIDE_VERIFY_REUSE: ${{ github.event_name == 'pull_request' }}
+        GLIDE_VERIFY_CPUS: '4'
     - name: Container build contexts
       shell: bash
       run: |

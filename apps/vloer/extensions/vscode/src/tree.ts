@@ -213,7 +213,7 @@ export class TaskTree implements vscode.TreeDataProvider<TaskEntry>, vscode.Disp
     tooltip.appendText(entry.task.title);
     tooltip.appendMarkdown(`\n\n${entry.task.identifier ?? `#${entry.task.id}`} · ${entry.task.status}${entry.task.updatedAt ? ` · updated ${relativeTime(entry.task.updatedAt)}` : ''}\n\n`);
     const facts = [entry.task.assignees?.length ? `Assigned: ${entry.task.assignees.map(person => person.username).join(', ')}` : 'Unassigned', entry.task.labels?.length ? `Labels: ${entry.task.labels.map(label => label.name).join(', ')}` : ''].filter(Boolean);
-    tooltip.appendText(`${facts.join(' · ')}\n\n${plainText(entry.task.descriptionMarkdown ?? entry.task.description).slice(0, 400)}`);
+    tooltip.appendText(`${facts.join(' · ')}\n\n${plainText(entry.task.description).slice(0, 400)}`);
     item.tooltip = tooltip;
     item.iconPath = new vscode.ThemeIcon(entry.task.assignees?.length ? 'person' : 'circle-large-outline');
     item.contextValue = `task:${entry.source.executionOwner}${safeHttpsUrl(entry.task.url) ? ':linked' : ''}`;

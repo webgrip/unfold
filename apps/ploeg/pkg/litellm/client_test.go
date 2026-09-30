@@ -468,4 +468,17 @@ func TestSpendLogsAggregatesTokensAndModels(t *testing.T) {
 	if strings.Join(got.Models, ",") != "claude-sonnet,deepseek-chat" {
 		t.Fatalf("models=%v, want sorted and unique", got.Models)
 	}
+	want := []ModelUsage{
+		{Model: "claude-sonnet", USD: 0.25, Entries: 1, PromptTokens: 800, CompletionTokens: 150},
+		{Model: "deepseek-chat", USD: 0.1, Entries: 2, PromptTokens: 1200, CompletionTokens: 300},
+	}
+	if len(got.ByModel) != len(want) {
+		t.Fatalf("byModel=%+v, want one share per named model", got.ByModel)
+	}
+	for i, w := range want {
+		g := got.ByModel[i]
+		if g.Model != w.Model || g.Entries != w.Entries || g.PromptTokens != w.PromptTokens || g.CompletionTokens != w.CompletionTokens || g.USD < w.USD-1e-9 || g.USD > w.USD+1e-9 {
+			t.Fatalf("byModel[%d]=%+v, want %+v", i, g, w)
+		}
+	}
 }

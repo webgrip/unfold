@@ -100,14 +100,18 @@ async function fixture(t: TestContext) {
   return { state, server, token, bearer, operator, viewer, status, revision, handOff, takeBack };
 }
 
-test('task list and detail carry Vikunja labels, identifier and Markdown, and sources say whether they hand off', { timeout: testTimeout(15_000) }, async t => {
+test('task list and preview carry Vikunja labels and identifier, the preview adds Markdown, and sources say whether they hand off', { timeout: testTimeout(15_000) }, async t => {
   const f = await fixture(t);
   const page = await request(f.server.url, '/api/task-sources/board/tasks', { cookie: f.operator.cookie });
   assert.equal(page.status, 200, page.text);
   assert.deepEqual(page.body.tasks[0].labels, [{ name: 'backend', color: '#e8e8e8' }]);
   assert.equal(page.body.tasks[0].identifier, 'GLIDE-7');
   assert.equal(page.body.tasks[0].priority, 2);
-  assert.equal(page.body.tasks[0].descriptionMarkdown, 'Round **half** cents.');
+  assert.equal('descriptionMarkdown' in page.body.tasks[0], false, 'the list carries no display copy');
+  const preview = await request(f.server.url, '/api/task-sources/board/tasks/1505', { cookie: f.operator.cookie });
+  assert.equal(preview.status, 200, preview.text);
+  assert.equal(preview.body.identifier, 'GLIDE-7');
+  assert.equal(preview.body.descriptionMarkdown, 'Round **half** cents.');
   const sources = await request(f.server.url, '/api/task-sources', { cookie: f.operator.cookie });
   assert.deepEqual(sources.body.map((source: { id: string; handoff: boolean }) => [source.id, source.handoff]), [['board', true], ['plain', false]]);
   const bootstrap = await request(f.server.url, '/api/bootstrap', { cookie: f.operator.cookie });

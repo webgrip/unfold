@@ -1,5 +1,5 @@
 import type { PloegOverview } from './ploeg-types.js';
-import type { AccountLink, Approval, Bootstrap, Session, SessionEvent, SessionInput, Permission, Decision, TaskSource, TaskSnapshot, TaskPage, TaskImportInput, TaskPloegStatus, CandidateFormat } from './types.js';
+import type { AccountLink, Approval, Bootstrap, Session, SessionEvent, SessionInput, Permission, Decision, TaskSource, TaskPreview, TaskPage, TaskImportInput, TaskPloegStatus, CandidateFormat } from './types.js';
 
 export type StreamHandlers = { onOpen?: () => void; onEvent: (event: SessionEvent) => void };
 
@@ -203,7 +203,7 @@ export class VloerClient {
     if (!Number.isSafeInteger(page) || page < 1 || page > 1000) throw new Error('Invalid task page.');
     return this.request(`/api/task-sources/${identifier(sourceId)}/tasks?page=${page}`);
   }
-  task(sourceId: string, taskId: string, truncate = false): Promise<TaskSnapshot> { return this.request(`/api/task-sources/${identifier(sourceId)}/tasks/${identifier(taskId)}${truncate ? '?truncate=1' : ''}`); }
+  task(sourceId: string, taskId: string, truncate = false): Promise<TaskPreview> { return this.request(`/api/task-sources/${identifier(sourceId)}/tasks/${identifier(taskId)}${truncate ? '?truncate=1' : ''}`); }
   importTask(input: TaskImportInput): Promise<Session> { return this.request('/api/task-imports', 'POST', input); }
   taskPloeg(sourceId: string, taskId: string, fresh = false): Promise<TaskPloegStatus> { return this.request(`/api/task-sources/${identifier(sourceId)}/tasks/${identifier(taskId)}/ploeg${fresh ? '?refresh=1' : ''}`); }
   handoff(sourceId: string, taskId: string, team: string, revision: string): Promise<TaskPloegStatus> { return this.request(`/api/task-sources/${identifier(sourceId)}/tasks/${identifier(taskId)}/handoff`, 'POST', { team: identifier(team), revision }); }
