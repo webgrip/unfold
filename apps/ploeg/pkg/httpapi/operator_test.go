@@ -209,3 +209,77 @@ func TestOperatorHTTPReadsMatchPublishedSchema(t *testing.T) {
 		t.Fatalf("needs-human projection: %d %s", w.Code, w.Body)
 	}
 }
+
+func TestOperatorWorkItemReportsPullRequestLink(t *testing.T) {
+	reset(t)
+	ctx := context.Background()
+	id, _, err := testStore.IngestAssigned(ctx, work.WorkItem{Provider: "vikunja", ExternalID: "operator-pr", Team: "silver", Title: "PR item"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	shift, err := testStore.OpenShift(ctx, id, "silver", "agent/vik-1391", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := testStore.OpenRound(ctx, shift, 0, []store.Role{{Name: "builder", Writes: true, Cap: 1}}); err != nil {
+		t.Fatal(err)
+	}
+	run, err := testStore.ClaimRole(ctx, "silver", "builder", time.Minute, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const prURL = "https://forge.example/webgrip/ploeg/pulls/12"
+	if _, err := testStore.ReportOutcome(ctx, run.RunToken, store.Report(work.OutcomePROpened, "opened", "", []string{prURL}, nil, nil)); err != nil {
+		t.Fatal(err)
+	}
+
+	consumers, token := operatorTestConsumers(t, []string{"silver"}, false)
+	s := &Server{Store: testStore, OperatorConfig: OperatorConfig{Consumers: consumers, Teams: map[string][]string{"silver": {"builder"}}}}
+	path, err := filepath.Abs("../../docs/contracts/operator-api.v1.schema.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	schema, err := jsonschema.NewCompiler().Compile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, endpoint := range []string{"work-items", fmt.Sprintf("work-items/%d", id)} {
+		r := httptest.NewRequest("GET", "/api/v1/operator/"+endpoint, nil)
+		r.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		s.Handler().ServeHTTP(w, r)
+		if w.Code != 200 {
+			t.Fatalf("%s: %d %s", endpoint, w.Code, w.Body)
+		}
+		instance, err := jsonschema.UnmarshalJSON(bytes.NewReader(w.Body.Bytes()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := schema.Validate(instance); err != nil {
+			t.Fatalf("%s violates published schema: %v\n%s", endpoint, err, w.Body)
+		}
+		var body struct {
+			Items []struct {
+				PullRequest *store.OperatorPullRequest `json:"pullRequest"`
+			} `json:"items"`
+			Item struct {
+				PullRequest *store.OperatorPullRequest `json:"pullRequest"`
+			} `json:"item"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		var got *store.OperatorPullRequest
+		if endpoint == "work-items" {
+			if len(body.Items) != 1 {
+				t.Fatalf("%s: want one item, got %s", endpoint, w.Body)
+			}
+			got = body.Items[0].PullRequest
+		} else {
+			got = body.Item.PullRequest
+		}
+		if got == nil || got.URL != prURL || got.AgentVerdict != "" || got.HumanChangesRequested || got.RepairFollowUps != 0 || got.AgentVerdictRound != nil {
+			t.Fatalf("%s: unexpected pullRequest %+v", endpoint, got)
+		}
+	}
+}
