@@ -1,9 +1,16 @@
-/** The Now page: landing route, mobile layout and j/k row navigation. */
+/** The Now page: landing route, the first-visit welcome, waiting groups with reasons, mobile layout, j/k/Enter/o keyboard, the "since you were away" digest and marking it as caught up. */
 export async function run({ page, app, assert, screenshot }) {
   await page.goto(`http://127.0.0.1:${app.server.address().port}`);
   await page.getByRole('heading', { name: 'Now', exact: true }).first().waitFor();
   assert.equal(new URL(page.url()).hash, '#now', 'Vloer does not open on the Now page');
   await page.locator('.now-group').first().waitFor();
+  assert.match(await page.locator('.now-digest').innerText(), /Welcome to De Vloer/, 'a first visit is welcomed instead of summarised');
+  assert.deepEqual(await page.locator('.now-group-title > span:not(.count)').allInnerTexts(), ['Ready for your review', 'Needs you', 'Proposed'], 'waiting groups are not ordered Review, Needs you, Proposed');
+  const needs = page.locator('.now-group[data-group="needs"]');
+  for (const reason of ['No pull request or changes unresolved', 'Reviewer still wants changes', 'Budget ran out', 'Agent is stuck', 'Cluster kept stopping the writer', 'Not routed']) await needs.getByText(reason, { exact: true }).first().waitFor();
+  assert.equal(await page.locator('.demo-note').count(), 1, 'the demo disclaimer appears once');
+  assert.match(await page.locator('.now-running .meter').innerText(), /Demo · no model calls/, 'a demo Run shows no spend');
+  assert.equal(await page.locator('.now-stats a.stat').count(), 3, 'Running, Queued and Spend link into their lists');
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'Now layout overflows horizontally at 390px');
   await page.keyboard.press('j');
@@ -13,11 +20,25 @@ export async function run({ page, app, assert, screenshot }) {
   assert.notEqual(await page.evaluate(() => document.activeElement?.getAttribute('href')), firstNowRow, 'j did not move to the next Now row');
   await page.keyboard.press('k');
   assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('href')), firstNowRow, 'k did not move back to the previous Now row');
+  const forge = 'https://forge.example.invalid/**';
+  await page.context().route(forge, route => route.fulfill({ status: 200, contentType: 'text/plain', body: 'pull request' }));
+  const [popup] = await Promise.all([page.waitForEvent('popup'), page.keyboard.press('o')]);
+  await popup.waitForLoadState();
+  assert.match(popup.url(), /\/pulls\/5$/, 'o did not open the pull request of the focused review row');
+  await popup.close();
+  await page.context().unroute(forge);
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => location.hash.startsWith('#work/'));
+  await page.waitForFunction(() => location.hash.startsWith('#work/') && document.querySelector('.app-shell')?.dataset.area === 'work');
+  await page.evaluate(() => { const saved = JSON.parse(localStorage.getItem('vloer.prefs') || '{}'); saved.lastVisit = new Date(Date.now() - 3 * 3600 * 1000).toISOString(); localStorage.setItem('vloer.prefs', JSON.stringify(saved)); });
   await page.getByRole('link', { name: 'Now', exact: true }).click();
-  await page.locator('.now-group').first().waitFor();
+  await page.locator('.now-digest[data-kind="changes"]').waitFor();
+  assert.match(await page.locator('.now-digest').innerText(), /^Since .+ · 3 h ago\n[\s\S]*Runs? finished/, 'the digest does not sum up what changed while away');
+  assert(await page.locator('[data-now-row][data-unread]').count() > 0, 'rows that changed while away carry no unread dot');
   await screenshot('now-mobile');
+  await page.getByRole('button', { name: 'Mark as caught up' }).click();
+  await page.locator('.now-digest').getByText('You are caught up').waitFor();
+  assert.equal(await page.locator('[data-now-row][data-unread]').count(), 0, 'catching up does not clear the unread dots');
+  assert(await page.evaluate(() => Date.now() - Date.parse(JSON.parse(localStorage.getItem('vloer.prefs')).lastVisit) < 60000), 'catching up is not remembered');
   await page.setViewportSize({ width: 1440, height: 1040 });
   await screenshot('dashboard');
 }
