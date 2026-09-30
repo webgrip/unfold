@@ -17,9 +17,10 @@ import (
 // shiftengine.requestsChanges reads agent_runs.verdict — silently makes
 // ADR-0017's review loop inert rather than failing visibly.
 //
-// Writers normally leave the drop box absent, which is why "no file" means
-// "no structured signal" and never an error: the forge poll stays the sole
-// ground truth for whether a pull request exists (R2).
+// A writer puts only its problem and solution in the drop box (ADR-0042) and
+// may leave it absent, which is why "no file" means "no structured signal"
+// and never an error: the forge poll stays the sole ground truth for whether
+// a pull request exists (R2).
 
 // DropBoxEnv names the drop box to the agent. The prompt refers to this
 // variable by name, so the two must not drift.
@@ -58,8 +59,8 @@ func ReadDropBox(path string) (OutcomeReport, error) {
 //
 // The split is deliberate and is the whole of the precedence rule:
 //
-//   - Findings, Verdict and CreatedWorkItems are the agent's to report and
-//     ALWAYS survive. ploegd applies the Team's limits to created work. A
+//   - Findings, Verdict, Problem, Solution and CreatedWorkItems are the
+//     agent's to report and ALWAYS survive. ploegd applies the Team's limits to created work. A
 //     run that produced a review and then failed its shutdown handshake still
 //     did the review, and dropping it loses work that was actually done.
 //   - Outcome and Summary fill in only where the adapter concluded nothing.
@@ -76,6 +77,12 @@ func MergeDropBox(base, box OutcomeReport) OutcomeReport {
 	}
 	if box.Verdict != "" {
 		base.Verdict = box.Verdict
+	}
+	if strings.TrimSpace(box.Problem) != "" {
+		base.Problem = box.Problem
+	}
+	if strings.TrimSpace(box.Solution) != "" {
+		base.Solution = box.Solution
 	}
 	if len(box.CreatedWorkItems) > 0 {
 		base.CreatedWorkItems = box.CreatedWorkItems

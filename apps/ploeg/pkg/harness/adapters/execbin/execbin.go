@@ -77,7 +77,9 @@ func (a *Adapter) Prepare(spec harness.TaskSpec, env harness.RunEnv) (harness.In
 
 // ParseOutcome decodes the outcome file when present and valid; anything
 // else is "no structured signal" (zero value), letting the orchestrator's
-// heuristics decide — an invalid file must never mask the run result.
+// heuristics decide — an invalid file must never mask the run result. A file
+// without an outcome is valid: a writer reports only its problem and
+// solution (ADR-0042).
 func (a *Adapter) ParseOutcome(_ harness.TaskSpec, res harness.ExecResult) (harness.OutcomeReport, error) {
 	if res.OutcomeFile == "" {
 		return harness.OutcomeReport{}, nil
@@ -90,7 +92,7 @@ func (a *Adapter) ParseOutcome(_ harness.TaskSpec, res harness.ExecResult) (harn
 	if err := json.Unmarshal(b, &report); err != nil {
 		return harness.OutcomeReport{}, fmt.Errorf("decode %s: %w", res.OutcomeFile, err)
 	}
-	if !report.Outcome.Valid() {
+	if report.Outcome != "" && !report.Outcome.Valid() {
 		return harness.OutcomeReport{}, fmt.Errorf("outcome file %s: unknown outcome %q", res.OutcomeFile, report.Outcome)
 	}
 	return report, nil

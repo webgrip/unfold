@@ -469,6 +469,14 @@
             "request_changes"
           ]
         },
+        "problem": {
+          "type": "string",
+          "description": "A writing Run's account of what was wrong or missing (ADR-0042), markdown, at most 4096 characters. Empty for a reading Run and for a writer that reported none."
+        },
+        "solution": {
+          "type": "string",
+          "description": "A writing Run's account of what it changed (ADR-0042), markdown, at most 4096 characters. Empty for a reading Run and for a writer that reported none."
+        },
         "failureReason": {
           "anyOf": [
             {
