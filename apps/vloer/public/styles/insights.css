@@ -52,6 +52,20 @@
   margin: 0;
 }
 
+@media (max-width: 40rem) {
+  .feeds-stale {
+    flex-wrap: wrap;
+  }
+
+  .feeds-stale .callout-content {
+    flex-basis: calc(100% - var(--icon-md) - var(--space-2-5));
+  }
+
+  .feeds-stale .callout-actions {
+    margin-inline-start: calc(var(--icon-md) + var(--space-2-5));
+  }
+}
+
 .insights {
   container-type: inline-size;
   display: grid;
