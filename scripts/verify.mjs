@@ -6,6 +6,7 @@ const root = resolve(import.meta.dirname, '..');
 
 const gate = (scope, command, args, options = {}) => ({ scope, command, args, ...options });
 const vloer = task => gate('apps/vloer', 'npm', ['run', ...task.split(' ')]);
+const site = task => gate('apps/site', 'npm', ['run', task]);
 const helm = [];
 for (const [scope, name, variants] of [
   ['vloer', 'de-vloer', ['', 'values.live.example.yaml']],
@@ -32,6 +33,7 @@ const groups = [
       gate('apps/ploeg', 'openspec', ['validate', '--all', '--strict']),
     ],
   },
+  { name: 'site', inputs: ['apps/site'], gates: ['format:check', 'lint', 'typecheck', 'test', 'build'].map(site) },
   { name: 'helm', inputs: ['apps/vloer/ops/helm', 'apps/ploeg'], gates: [...helm, gate('apps/ploeg', 'sh', ['scripts/helm-golden.sh', 'check'])] },
   {
     name: 'release',
@@ -51,8 +53,8 @@ const parallelism = cpus ? { GOMAXPROCS: cpus, GOFLAGS: `${process.env.GOFLAGS ?
 const results = process.env.GLIDE_VERIFY_RESULTS ? resultCache(process.env.GLIDE_VERIFY_RESULTS, { reuse: process.env.GLIDE_VERIFY_REUSE === 'true' }) : undefined;
 const toolVersions = scope => Object.fromEntries(Object.entries(JSON.parse(execFileSync('mise', ['-C', scope, 'ls', '--current', '--json'], { cwd: root, encoding: 'utf8' }))).map(([tool, installs]) => [tool, installs.map(install => install.version)]));
 const shared = results && {
-  paths: ['mise.toml', 'apps/vloer/mise.toml', 'apps/ploeg/mise.toml', 'scripts/verify.mjs', 'scripts/verify-cache.mjs'],
-  tools: Object.fromEntries(['.', 'apps/vloer', 'apps/ploeg'].map(scope => [scope, toolVersions(scope)])),
+  paths: ['mise.toml', 'apps/vloer/mise.toml', 'apps/ploeg/mise.toml', 'apps/site/mise.toml', 'scripts/verify.mjs', 'scripts/verify-cache.mjs'],
+  tools: Object.fromEntries(['.', 'apps/vloer', 'apps/ploeg', 'apps/site'].map(scope => [scope, toolVersions(scope)])),
   env: { GOFLAGS: process.env.GOFLAGS ?? '', VLOER_TEST_TIMEOUT_SCALE: process.env.VLOER_TEST_TIMEOUT_SCALE ?? '' },
 };
 if (shared) for (const group of groups) for (const step of group.gates) {

@@ -9,18 +9,21 @@ uv = "0.12.12"
 run = [
   "mise trust apps/vloer/mise.toml",
   "mise trust apps/ploeg/mise.toml",
+  "mise trust apps/site/mise.toml",
   "if git remote get-url origin >/dev/null 2>&1; then git fetch --no-tags origin '+refs/notes/*:refs/notes/*'; else echo 'setup: no origin remote; imported release notes not fetched'; fi",
   "mise -C apps/vloer install",
   "mise -C apps/ploeg install",
+  "mise -C apps/site install",
   "npm --prefix apps/vloer ci --no-audit --no-fund",
   "npm --prefix apps/vloer/extensions/vscode ci --no-audit --no-fund",
+  "npm --prefix apps/site ci --no-audit --no-fund",
   "uv sync --frozen",
 ]
 description = "Install the locked application and documentation dependencies"
 
 [tasks.verify]
 run = "node scripts/verify.mjs"
-description = "Run both application gates and cross-application qualification"
+description = "Run both application gates, the site gates and cross-application qualification"
 
 [tasks.integration]
 run = "node scripts/integration.mjs"
