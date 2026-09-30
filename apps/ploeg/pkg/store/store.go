@@ -437,11 +437,12 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 		UPDATE agent_runs
 		SET state = 'finished', finished_at = now(), outcome = $1, summary = $2,
 		    stuck_reason = $3, links = $4, usage = $5, failure_reason = $6, findings = $7,
-		    verdict = CASE WHEN writes THEN '' ELSE $8 END, outcome_digest = $10
+		    verdict = CASE WHEN writes THEN '' ELSE $8 END, outcome_digest = $10,
+		    problem = CASE WHEN writes THEN $11 ELSE '' END, solution = CASE WHEN writes THEN $12 ELSE '' END
 		WHERE run_token = $9 AND state = 'running'
 		RETURNING id, work_item_id, team, shift_id`,
 		string(rep.Outcome), rep.Summary, rep.StuckReason, rep.Links, rep.Usage,
-		rep.FailureReason, rep.Findings, rep.Verdict, runToken, digest).Scan(&runID, &id, &team, &shiftID); err != nil {
+		rep.FailureReason, rep.Findings, rep.Verdict, runToken, digest, rep.Problem, rep.Solution).Scan(&runID, &id, &team, &shiftID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			if err := tx.QueryRow(ctx, `SELECT work_item_id,shift_id FROM agent_runs
 				WHERE run_token=$1 AND state='finished' AND outcome_digest=$2
@@ -513,6 +514,8 @@ type harnessReport struct {
 	FailureReason *string                   // nil = unclassified; set for failed outcomes (infra_llm, lease_lost, etc.)
 	Findings      string                    // a reading Run's blackboard contribution (ADR-0011); empty for most writers
 	Verdict       string                    // a reading Run's approve/request_changes (ADR-0017); empty = no opinion
+	Problem       string                    `json:",omitempty"` // a writing Run's account of its change (ADR-0042)
+	Solution      string                    `json:",omitempty"`
 	Created       []harness.CreatedWorkItem `json:",omitempty"`
 	policyFor     func(team string) followup.Policy
 	knownTeam     func(string) bool
@@ -542,6 +545,13 @@ func (r harnessReport) WithFindings(findings string) harnessReport {
 // WithVerdict attaches a reading Run's verdict (ADR-0017).
 func (r harnessReport) WithVerdict(verdict string) harnessReport {
 	r.Verdict = verdict
+	return r
+}
+
+// WithProblemAndSolution attaches a writing Run's account of its change
+// (ADR-0042). ReportOutcome drops it from a reading Run.
+func (r harnessReport) WithProblemAndSolution(problem, solution string) harnessReport {
+	r.Problem, r.Solution = problem, solution
 	return r
 }
 

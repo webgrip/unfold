@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activePloegLane, appendPage, cancelDialogMarkup, cancelSummary, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runGroups, runOrder, runResult, teamOverview, workItemRef, workMarkup } from '../public/ploeg.js';
+import { activePloegLane, appendPage, cancelDialogMarkup, cancelSummary, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runGroups, runOrder, runResult, teamOverview, workItemRef, workMarkup, writerAccount } from '../public/ploeg.js';
 import { detailReason } from '../public/core/reasons.js';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 
@@ -360,6 +360,39 @@ test('demo spend is never invented and unknown live spend is never zero', () => 
   assert.match(html, /<span class="meter-value">Not reported<\/span>/);
 });
 
+test('the writer’s problem and solution sit under the title, from the newest writing Run of the latest Shift', () => {
+  const current = detail();
+  current.runs[0].problem = 'A reviewer never reports this.';
+  current.runs[1].problem = 'Half-cent totals round differently in the cart and on the invoice.';
+  current.runs[1].solution = '- One rounding rule serves both.\n- A test covers half-cent totals.';
+  current.runs.push({ ...current.runs[2], id: '11', role: 'builder', writes: true, verdict: '', findings: '', problem: 'Older Shift problem.', solution: 'Older Shift solution.' });
+  assert.deepEqual(writerAccount(current), { runId: '13', role: 'builder', round: 1, at: later, problem: 'Half-cent totals round differently in the cart and on the invoice.', solution: '- One rounding rule serves both.\n- A test covers half-cent totals.', earlierShift: false });
+  const html = detailMarkup(current, model({ detailId: '50', lane: 'awaiting_review' }));
+  assert.ok(html.indexOf('id="work-account"') > html.indexOf('id="ploeg-item-title"') && html.indexOf('id="work-account"') < html.indexOf('id="work-decision"'), 'between the title and the decision box');
+  assert.match(html, /<h4 class="overline">Problem<\/h4><div class="prose"><p>Half-cent totals round differently/);
+  assert.match(html, /<h4 class="overline">Solution<\/h4><div class="prose"><ul>/);
+  assert.match(html, /Written by the builder in Round 1, <time[^>]*>[^<]*<\/time>\. Check it against the pull request\./);
+  assert.match(html, /data-action="work-run" data-id="13"/);
+  assert.doesNotMatch(html, /A reviewer never reports this|Older Shift problem/);
+
+  current.runs[1].problem = '';
+  current.runs[1].solution = '';
+  assert.equal(writerAccount(current).runId, '11');
+  assert.equal(writerAccount(current).earlierShift, true, 'a new Shift’s writer has not reported yet, so the earlier account shows and says so');
+  assert.match(detailMarkup(current, model({ detailId: '50' })), /Written by the builder in Round 1 of an earlier Shift/);
+
+  current.runs.pop();
+  assert.equal(writerAccount(current), null);
+  assert.doesNotMatch(detailMarkup(current, model({ detailId: '50' })), /work-account/, 'no card until a writer reports');
+});
+
+test('the demo’s writer accounts say they are illustrative', () => {
+  const html = detailMarkup(demoDetail('105'), model({ detailId: '105', lane: 'awaiting_review' }));
+  assert.match(html, /id="work-account"/);
+  assert.match(html, /illustrative content, not a result of an executed Run/);
+  assert.equal(writerAccount(demoDetail('114')).runId, '25', 'the fix Round’s account replaces the first one');
+});
+
 test('untrusted text from the tracker, agents and Ploeg stays inert everywhere on the page', () => {
   const hostile = detail();
   const attack = '<img src=x onerror=alert(1)>';
@@ -368,6 +401,8 @@ test('untrusted text from the tracker, agents and Ploeg stays inert everywhere o
   hostile.runs[0].findings = attack;
   hostile.runs[0].summary = attack;
   hostile.runs[0].stuckReason = attack;
+  hostile.runs[1].problem = `${attack}\n\n[x](javascript:alert(1))`;
+  hostile.runs[1].solution = attack;
   hostile.runs[0].links = ['javascript:alert(1)', 'https://forge.test/"onmouseover="x'];
   hostile.events = [{ id: '1', at, actor: attack, action: attack, workItemId: '50', team: 'delivery', detail: { reason: attack } }];
   hostile.item.url = 'javascript:alert(1)';

@@ -113,6 +113,8 @@ type OperatorRun struct {
 	Links         []string       `json:"links"`
 	Findings      string         `json:"findings"`
 	Verdict       string         `json:"verdict"`
+	Problem       string         `json:"problem"`
+	Solution      string         `json:"solution"`
 	FailureReason *string        `json:"failureReason"`
 	AuthorizedUSD float64        `json:"authorizedUsd"`
 	Usage         *OperatorUsage `json:"usage"`
@@ -183,6 +185,7 @@ const operatorRunJSON = `jsonb_build_object(
 	'startedAt', r.started_at, 'finishedAt', r.finished_at, 'expiresAt', r.expires_at,
 	'outcome', r.outcome, 'summary', left(r.summary, 4096), 'stuckReason', left(r.stuck_reason, 4096),
 	'links', to_jsonb(r.links[1:30]), 'findings', left(r.findings, 16384), 'verdict', r.verdict,
+	'problem', left(r.problem, 4096), 'solution', left(r.solution, 4096),
 	'failureReason', r.failure_reason, 'authorizedUsd', r.authorized,
 	'usage', CASE WHEN r.usage IS NULL AND (` + operatorRunCost + `) IS NULL THEN NULL ELSE jsonb_strip_nulls(jsonb_build_object(
 		'inputTokens', CASE WHEN jsonb_typeof(r.usage->'inputTokens') = 'number' THEN r.usage->'inputTokens' END,
