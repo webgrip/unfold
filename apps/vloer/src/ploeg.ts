@@ -31,6 +31,8 @@ export type PloegNowItem = Pick<PloegItem, 'id' | 'team' | 'state' | 'title' | '
 export type PloegNowGroup = 'waiting' | 'running' | 'recent';
 export type PloegNow = { demo: boolean; teams: string[]; waiting: PloegNowItem[]; running: PloegRunRow[]; recent: PloegRunRow[]; errors: Partial<Record<PloegNowGroup, string>>; fetchedAt: string };
 export type PloegDecision = 'approve' | 'reject' | 'cancel';
+export type PloegDecisionResult = { workItemId: string; team: string; state: string; demo: boolean };
+export type PloegCancellation = PloegDecisionResult & { withdrawn: boolean | null; shiftId: string | null; cancelledRuns: number | null; stoppedRuns: number | null; keysBlocked: boolean | null; message: string };
 export type PloegRunFilter = { team?: string; state?: string; outcome?: string; before?: string };
 export type PloegOverview = { configured: boolean; available: boolean; demo: boolean; teams: PloegTeam[]; selectedTeam?: string; lanes?: Record<PloegLane, PloegPresentedPage>; fetchedAt?: string; trackerUrl?: string; message: string };
 
@@ -134,6 +136,13 @@ function nowItem(entry: PloegItem & Partial<Pick<PloegProposedItem, 'sourceTitle
 }
 function presented<T extends PloegItem>(entry: T): T & { descriptionMarkdown: string } { return { ...entry, descriptionMarkdown: descriptionMarkdown(entry.provider, entry.description, entry.url || undefined) }; }
 function activityEvent(value: unknown): PloegActivityEvent { const data = record(value); return { ...event(data), workItemTitle: typeof data.workItemTitle === 'string' && data.workItemTitle.length <= 4096 ? data.workItemTitle : '' }; }
+function cancellation(data: Record<string, unknown>): Omit<PloegCancellation, keyof PloegDecisionResult> {
+  const count = (value: unknown) => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+  const flag = (value: unknown) => typeof value === 'boolean' ? value : null;
+  const shift = typeof data.shiftId === 'number' ? String(data.shiftId) : data.shiftId;
+  return { withdrawn: flag(data.withdrawn), shiftId: typeof shift === 'string' && /^[1-9][0-9]{0,19}$/.test(shift) ? shift : null, cancelledRuns: count(data.cancelledRuns), stoppedRuns: count(data.stoppedRuns), keysBlocked: flag(data.keysBlocked), message: typeof data.message === 'string' && data.message.length <= 4096 && !data.message.includes('\0') ? data.message : '' };
+}
+const demoCancellation = 'Illustrative demo record. Nothing was cancelled: no Run was stopped, no model key or push token was blocked and the tracker was not told.';
 const unsupported = () => new PloegError(501, 'ploeg_unsupported', 'This Ploeg version does not provide activity data yet.');
 const decisionFailures: Record<number, [string, string]> = {
   400: ['ploeg_decision', 'Ploeg refused the request. A rejection needs a reason of at most 4096 characters.'],
@@ -347,8 +356,8 @@ export class PloegClient {
   private async reviewUrl(user: User, id: string, fresh: boolean): Promise<string> {
     try { return pullRequestUrl(await this.detail(user, id, fresh)); } catch { return ''; }
   }
-  /** Approves, rejects or cancels a Work Item for an operator or administrator, as that user. */
-  async decide(user: User, id: string, decision: PloegDecision, reason = ''): Promise<{ workItemId: string; team: string; state: string; demo: boolean }> {
+  /** Approves, rejects or cancels a Work Item for an operator or administrator, as that user. A cancellation also reports what Ploeg stopped; the demo reports that nothing was cancelled. */
+  async decide(user: User, id: string, decision: PloegDecision, reason = ''): Promise<PloegDecisionResult | PloegCancellation> {
     if (user.role === 'viewer') throw new PloegError(403, 'forbidden', 'Viewers cannot change Ploeg work.');
     this.connected(user);
     if (!decisionKinds.includes(decision)) throw new PloegError(404, 'not_found', 'Ploeg operator view not found.');
@@ -358,16 +367,21 @@ export class PloegClient {
     const current = await this.detail(user, id, true);
     if (decision !== 'cancel' && current.item.state !== 'proposed') throw new PloegError(409, 'ploeg_decision_conflict', 'Only a proposed Work Item can be approved or rejected. Refresh to see where it stands.');
     if (this.demo) {
-      if (decision === 'cancel') throw new PloegError(409, 'ploeg_demo', 'Demo records are illustrative. Cancel is not available in the demo.');
+      if (decision === 'cancel') return { workItemId: id, team: current.item.team, state: current.item.state, demo: true, withdrawn: false, shiftId: null, cancelledRuns: 0, stoppedRuns: 0, keysBlocked: null, message: demoCancellation };
       this.demoDecisions.set(id, decision);
       return { workItemId: id, team: current.item.team, state: decision === 'approve' ? 'queued' : 'withdrawn', demo: true };
     }
     const body = decision === 'cancel' ? undefined : text ? { reason: text } : {};
-    const data = envelope(await this.request(`work-items/${id}/${decision}`, true, { actor: user.id, body }));
+    const response = await this.request(`work-items/${id}/${decision}`, true, { actor: user.id, body }).catch(error => {
+      if (decision === 'cancel' && error instanceof PloegError && error.status === 409) throw new PloegError(409, error.code, 'Ploeg did not cancel this Work Item: a workbench session drives it. Cancel that session instead.');
+      throw error;
+    });
+    const data = envelope(response);
     const result = record(decision === 'cancel' ? data.cancellation : data.decision);
     const workItemId = identifier(typeof result.workItemId === 'number' ? String(result.workItemId) : result.workItemId);
     if (workItemId !== id) throw invalid();
-    return { workItemId, team: typeof result.team === 'string' ? result.team : current.item.team, state: token(result.state), demo: false };
+    const decided = { workItemId, team: typeof result.team === 'string' ? result.team : current.item.team, state: token(result.state), demo: false };
+    return decision === 'cancel' ? { ...decided, ...cancellation(result) } : decided;
   }
   private remember(id: string, title: string): void {
     if (!title) return;

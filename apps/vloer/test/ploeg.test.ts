@@ -313,7 +313,7 @@ test('Work Item decisions go through an authenticated, CSRF-guarded, role- and t
       posts.push({ path: req.url!, actor: req.headers['x-ploeg-actor'] as string, acting: req.headers['x-ploeg-acting-user'] as string, body: Buffer.concat(chunks).toString('utf8') });
       if (status !== 200) { reply(res, status, { error: { code: 'not_proposed', message: 'Only a proposed Work Item can be approved or rejected.' } }); return; }
       const id = req.url!.split('/').at(-2);
-      reply(res, 200, req.url!.endsWith('/cancel') ? { cancellation: { workItemId: id, state: 'withdrawn' } } : { decision: { workItemId: Number(id), team: 'delivery', state: req.url!.endsWith('/approve') ? 'queued' : 'withdrawn', approved: req.url!.endsWith('/approve') } });
+      reply(res, 200, req.url!.endsWith('/cancel') ? { cancellation: { workItemId: id, state: 'withdrawn', withdrawn: true, shiftId: '13', cancelledRuns: 1, stoppedRuns: 2, keysBlocked: false } } : { decision: { workItemId: Number(id), team: 'delivery', state: req.url!.endsWith('/approve') ? 'queued' : 'withdrawn', approved: req.url!.endsWith('/approve') } });
     });
     return true;
   });
@@ -341,7 +341,9 @@ test('Work Item decisions go through an authenticated, CSRF-guarded, role- and t
   assert.deepEqual(approved.body, { workItemId: '106', team: 'delivery', state: 'queued', demo: false });
   const rejected = await decide('106', 'reject', op, { reason: '  Duplicate of DEMO-3  ' });
   assert.equal(rejected.body.state, 'withdrawn');
-  assert.equal((await decide('105', 'cancel', op)).body.state, 'withdrawn');
+  const cancelled = await decide('105', 'cancel', op);
+  assert.equal(cancelled.status, 200, cancelled.text);
+  assert.deepEqual(cancelled.body, { workItemId: '105', team: 'delivery', state: 'withdrawn', demo: false, withdrawn: true, shiftId: '13', cancelledRuns: 1, stoppedRuns: 2, keysBlocked: false, message: '' }, 'Ploeg’s cancellation result reaches the browser, including an unconfirmed key block');
   assert.deepEqual(posts, [
     { path: '/api/v1/operator/work-items/106/approve', actor: 'op', acting: 'op', body: '{}' },
     { path: '/api/v1/operator/work-items/106/reject', actor: 'op', acting: 'op', body: '{"reason":"Duplicate of DEMO-3"}' },
@@ -351,7 +353,25 @@ test('Work Item decisions go through an authenticated, CSRF-guarded, role- and t
   const conflict = await decide('106', 'approve', op);
   assert.equal(conflict.status, 409);
   assert.equal(conflict.body.error.code, 'ploeg_decision_conflict');
+  const owned = await decide('105', 'cancel', op);
+  assert.equal(owned.status, 409);
+  assert.equal(owned.body.error.code, 'ploeg_decision_conflict');
+  assert.match(owned.body.error.message, /workbench session drives it\. Cancel that session instead/);
   assert.equal(server.app.store.listSessions().length, 0);
+});
+
+test('a cancellation from an older Ploeg without result counts reports them as unknown, never as zero', async t => {
+  const upstreamApi = await upstream(t);
+  let cancellation: Record<string, unknown> = { workItemId: '102', state: 'withdrawn' };
+  upstreamApi.intercept((req, res) => req.method === 'POST' ? reply(res, 200, { cancellation }) : false);
+  const ploeg = client(upstreamApi.config);
+  assert.deepEqual(await ploeg.decide(admin, '102', 'cancel'), { workItemId: '102', team: 'delivery', state: 'withdrawn', demo: false, withdrawn: null, shiftId: null, cancelledRuns: null, stoppedRuns: null, keysBlocked: null, message: '' });
+  cancellation = { workItemId: 102, state: 'needs_human', withdrawn: false, shiftId: null, cancelledRuns: 0, stoppedRuns: 0, keysBlocked: true, message: 'Nothing was live.' };
+  assert.deepEqual(await ploeg.decide(admin, '102', 'cancel'), { workItemId: '102', team: 'delivery', state: 'needs_human', demo: false, withdrawn: false, shiftId: null, cancelledRuns: 0, stoppedRuns: 0, keysBlocked: true, message: 'Nothing was live.' }, 'a Work Item with nothing live keeps its state and says so');
+  cancellation = { workItemId: '102', state: 'withdrawn', withdrawn: 'yes', shiftId: '../1', cancelledRuns: -1, stoppedRuns: 1.5, keysBlocked: 'no', message: 7 };
+  assert.deepEqual(await ploeg.decide(admin, '102', 'cancel'), { workItemId: '102', team: 'delivery', state: 'withdrawn', demo: false, withdrawn: null, shiftId: null, cancelledRuns: null, stoppedRuns: null, keysBlocked: null, message: '' }, 'malformed counts are unknown, not zero');
+  cancellation = { workItemId: '103', state: 'withdrawn' };
+  await assert.rejects(ploeg.decide(admin, '102', 'cancel'), /unsupported operator response/);
 });
 
 test('the demo serves illustrative activity with zero spend, pages events and keeps decisions local', async t => {
@@ -372,7 +392,11 @@ test('the demo serves illustrative activity with zero spend, pages events and ke
   const approved = await request(demo.url, '/api/ploeg/work-items/106/approve', { method: 'POST' });
   assert.deepEqual(approved.body, { workItemId: '106', team: 'delivery', state: 'queued', demo: true });
   assert.deepEqual((await request(demo.url, '/api/ploeg/proposed')).body.items.map((entry: { id: string }) => entry.id), ['107']);
-  assert.equal((await request(demo.url, '/api/ploeg/work-items/105/cancel', { method: 'POST' })).body.error.code, 'ploeg_demo');
+  const cancelled = await request(demo.url, '/api/ploeg/work-items/105/cancel', { method: 'POST' });
+  assert.equal(cancelled.status, 200, cancelled.text);
+  assert.deepEqual({ ...cancelled.body, message: undefined }, { workItemId: '105', team: 'delivery', state: 'awaiting_review', demo: true, withdrawn: false, shiftId: null, cancelledRuns: 0, stoppedRuns: 0, keysBlocked: null, message: undefined });
+  assert.match(cancelled.body.message, /Illustrative demo record\. Nothing was cancelled/);
+  assert.equal((await request(demo.url, '/api/ploeg/work-items/105')).body.item.state, 'awaiting_review', 'a demo cancel changes nothing');
   assert.equal(demo.app.store.listSessions().length, 0);
 });
 
