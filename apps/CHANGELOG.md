@@ -1,3 +1,9 @@
+## [glide-v0.4.0-rc.17](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.16...glide-v0.4.0-rc.17) (2026-09-30)
+
+### Fixed
+
+* **vloer:** settle a command turn when its supervisor dies before the bridge ([ac050ff](https://forgejo.webgrip.dev/webgrip/glide/commit/ac050ffb715c42be290b65d0bdd4f20363bec323))
+
 ## [glide-v0.4.0-rc.16](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.15...glide-v0.4.0-rc.16) (2026-09-30)
 
 ### Fixed
