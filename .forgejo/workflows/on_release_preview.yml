@@ -40,7 +40,7 @@ jobs:
       - name: Record candidate revision
         run: git rev-parse HEAD
       - name: Preview version and release notes
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v2.6.1
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v2.7.5
         with:
           package-path: apps
           package-name: glide
