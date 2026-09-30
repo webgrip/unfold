@@ -1,3 +1,18 @@
+## [glide-v0.4.0-rc.19](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.18...glide-v0.4.0-rc.19) (2026-09-30)
+
+### Added
+
+* **ploeg:** report reserved models and observed spend for running Runs ([57b75d7](https://forgejo.webgrip.dev/webgrip/glide/commit/57b75d7e0f210ce147c70f2e857c7544b6d4acc5))
+
+### Docs
+
+* **ploeg:** plan credential isolation for the cluster ([560e495](https://forgejo.webgrip.dev/webgrip/glide/commit/560e49534e13595ea36a046f4af256b5fffa0967))
+
+### Tests
+
+* **vloer:** count a zombie as a reaped bridge on Linux ([375c504](https://forgejo.webgrip.dev/webgrip/glide/commit/375c5045822bf0d30ab0a2d65b60162449df5cff))
+* **vloer:** remove the conflict markers 375c504 committed ([ad3941e](https://forgejo.webgrip.dev/webgrip/glide/commit/ad3941ef091b764ca07780851f14b865ceeea4b9))
+
 ## [glide-v0.4.0-rc.18](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.17...glide-v0.4.0-rc.18) (2026-09-30)
 
 ### Added
