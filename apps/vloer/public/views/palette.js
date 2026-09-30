@@ -2,7 +2,7 @@ import { state } from '../core/state.js';
 import { api } from '../core/api.js';
 import { $, escape, notify, announce } from '../core/dom.js';
 import { icon } from '../core/icons.js';
-import { kbd, count, stateBadge, emptyState, timeAgo } from '../core/ui.js';
+import { kbd, count, emptyState, timeAgo, button } from '../core/ui.js';
 import { isMac, keyLabel, singleKeysEnabled } from '../core/keys.js';
 import { prefs, applyAppearance } from '../core/prefs.js';
 import { live } from '../core/live.js';
@@ -11,7 +11,7 @@ import { render, boot } from '../core/navigation.js';
 import { onCountsChange } from '../core/counts.js';
 import { parseHash, redirect } from '../core/route.js';
 import { attention, installAttention } from '../core/attention.js';
-import { showsSessions, closeTransientChrome } from '../shell.js';
+import { chrome, showsSessions, closeTransientChrome } from '../shell.js';
 
 /** The localStorage key of the recently opened Work Items and sessions, newest first, stored per user. */
 export const recentKey = 'vloer.recent';
@@ -19,13 +19,17 @@ export const recentKey = 'vloer.recent';
 const recentLimit = 8;
 const workItemId = /^[1-9][0-9]{0,19}$/;
 const sessionId = /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/;
+const internalRef = /^run-[0-9]+(?:-[0-9]+)?$/i;
 const word = /[\p{L}\p{N}]/u;
 const combining = /[\u0300-\u036f]/g;
 const nowFresh = 60000;
+const shortQuery = 2;
 
-const groupLabels = { recent: 'Recent', items: 'Work Items', go: 'Go to', commands: 'Commands', sessions: 'Sessions' };
-const emptyGroups = ['recent', 'go', 'commands'];
-const limits = { recent: 5, items: 8, go: 6, commands: 6, sessions: 5 };
+const groupLabels = { recent: 'Recent', items: 'Work Items', go: 'Go to', commands: 'Commands', sessions: 'Sessions', next: 'Next step' };
+const emptyGroups = ['recent', 'commands', 'go'];
+const commandGroups = ['go', 'commands'];
+const limits = { recent: 5, items: 8, go: 6, commands: 7, sessions: 5 };
+const listNames = { waiting: 'Waiting Work Items', running: 'Running Runs', recent: 'Finished Runs' };
 
 function fold(text) {
   const source = String(text ?? '');
@@ -69,13 +73,14 @@ function readable({ chunks }, text) {
 }
 
 function matchToken(token, text, starts = false) {
+  const anchored = starts || token.length === 1;
   let best = null;
   for (let at = text.indexOf(token); at !== -1; at = text.indexOf(token, at + 1)) {
-    if (starts && !boundary(text, at)) continue;
+    if (anchored && !boundary(text, at)) continue;
     const score = 60 + (at === 0 ? 30 : boundary(text, at) ? 20 : 0) + (token.length === text.length ? 20 : 0) - Math.min(at, 40) * 0.25;
     if (!best || score > best.score) best = { score, ranges: [[at, at + token.length]] };
   }
-  if (best || starts || token.length < 2 || /^[0-9]+$/.test(token)) return best;
+  if (best || anchored || /^[0-9]+$/.test(token)) return best;
   const hit = [subsequence(token, text, true), subsequence(token, text, false)].find(candidate => candidate && readable(candidate, text));
   if (!hit) return null;
   return { score: Math.max(1, Math.min(45, 36 - hit.chunks.length * 2 - hit.span * 0.2)), ranges: hit.chunks };
@@ -95,23 +100,25 @@ function merge(ranges) {
 /**
  * Scores `entry` against `query`. Every word of the query must match one of the entry's fields: its `label`,
  * `meta` (unless the entry is `quiet`), `parent` or hidden `keywords`, in falling weight. A word matches the
- * parent and keywords only at the start of one of their words. In the label and meta it matches as a substring
- * (best at the start of a word) or, weaker and never for digits, as a subsequence whose pieces start
- * words (`nh` for "needs human") or that continues a prefix of three letters (`prefs`). Case and accents are
- * ignored. Returns null without a match, otherwise the score (plus `entry.boost`) and the character ranges to
+ * parent and keywords only at the start of one of their words, and a one-letter word only at the start of a
+ * word of the label or parent. Longer words match the label and meta as a substring (best at the start of a
+ * word) or, weaker and never for digits, as a subsequence whose pieces start words (`nh` for "needs human") or
+ * that continues a prefix of three letters (`prefs`). Case and accents are ignored. Returns null without a
+ * match, otherwise `base` (the match alone), `score` (`base` plus `entry.boost`) and the character ranges to
  * highlight in the label, meta and parent.
- * @returns {{ score: number, label: number[][], meta: number[][], parent: number[][] } | null}
+ * @returns {{ score: number, base: number, label: number[][], meta: number[][], parent: number[][] } | null}
  */
 export function matchEntry(query, entry) {
   const tokens = fold(query).folded.split(/\s+/).filter(Boolean);
-  if (!tokens.length) return { score: 0, label: [], meta: [], parent: [] };
+  const boost = Number(entry.boost) || 0;
+  if (!tokens.length) return { score: boost, base: 0, label: [], meta: [], parent: [] };
   const fields = [['label', entry.label, 1, false], ['meta', entry.quiet ? '' : entry.meta, 0.8, false], ['parent', entry.parent, 0.7, true], ['keywords', entry.keywords, 0.6, true]].map(([name, text, weight, starts]) => ({ name, weight, starts, ...fold(text) }));
   const ranges = { label: [], meta: [], parent: [], keywords: [] };
   let total = 0;
   for (const token of tokens) {
     let best = null;
     for (const field of fields) {
-      if (!field.folded) continue;
+      if (!field.folded || (token.length === 1 && !['label', 'parent'].includes(field.name))) continue;
       const hit = matchToken(token, field.folded, field.starts);
       if (hit && (!best || hit.score * field.weight > best.score)) best = { score: hit.score * field.weight, field, ranges: hit.ranges };
     }
@@ -119,8 +126,8 @@ export function matchEntry(query, entry) {
     total += best.score;
     ranges[best.field.name].push(...best.ranges.map(([start, end]) => [best.field.map[start], best.field.map[end - 1] + 1]));
   }
-  const exact = fields[0].folded === tokens.join(' ') ? 25 : 0;
-  return { score: total / tokens.length + exact + (Number(entry.boost) || 0), label: merge(ranges.label), meta: merge(ranges.meta), parent: merge(ranges.parent) };
+  const base = total / tokens.length + (fields[0].folded === tokens.join(' ') ? 25 : 0);
+  return { score: base + boost, base, label: merge(ranges.label), meta: merge(ranges.meta), parent: merge(ranges.parent) };
 }
 
 /** Scores one text against `query` like {@link matchEntry} does for a label: `{ score, ranges }`, or null without a match. */
@@ -143,38 +150,58 @@ export function highlight(text, ranges = []) {
 }
 
 const text = value => typeof value === 'string' ? value.trim() : '';
+const list = value => Array.isArray(value) ? value : [];
 
 /**
  * Every Work Item the tab has already loaded, one entry per id: the open detail, the Work lanes, the proposed
- * list, Now's groups, the Runs list and the Activity feed, plus any extra Now responses in `more`. The first
- * source that names a title, Team, state or tracker reference wins for that field. Ids that are not Work Item
- * ids are dropped.
- * @returns {{ id: string, title: string, team: string, state: string, externalId: string }[]}
+ * list, Now's groups (in `source.now.data`, then any older Now responses in `more`), the Runs list and the
+ * Activity feed. The first source that names a field wins it. A Run that is running puts its Work Item in the
+ * `leased` state. Ids that are not Work Item ids are dropped.
+ * @returns {{ id: string, title: string, team: string, state: string, externalId: string, provider: string, source: string }[]}
  */
 export function workItemIndex(source = {}, more = []) {
   const found = new Map();
   const add = (id, fields = {}) => {
     const key = String(id ?? '');
     if (!workItemId.test(key)) return;
-    const known = found.get(key) || { id: key, title: '', team: '', state: '', externalId: '' };
+    const known = found.get(key) || { id: key, title: '', team: '', state: '', externalId: '', provider: '', source: '' };
+    const origin = String(fields.sourceWorkItemId ?? '');
     found.set(key, {
       id: key,
       title: known.title || text(fields.title),
       team: known.team || text(fields.team),
       state: known.state || (Object.hasOwn(workItemStates, fields.state) ? fields.state : ''),
       externalId: known.externalId || text(fields.externalId),
+      provider: known.provider || text(fields.provider),
+      source: known.source || (workItemId.test(origin) && origin !== key ? origin : ''),
     });
   };
   const nows = [source.now?.data, ...more].filter(Boolean);
   const detail = source.ploegDetail?.item;
   if (detail) add(detail.id, detail);
-  for (const lane of Object.values(source.ploeg?.lanes || {})) for (const item of lane?.items || []) add(item?.id, item);
-  for (const item of source.ploegProposed?.items || []) add(item?.id, item);
-  for (const now of nows) for (const item of Array.isArray(now.waiting) ? now.waiting : []) add(item?.id, item);
-  const runs = [...nows.flatMap(now => [...(Array.isArray(now.running) ? now.running : []), ...(Array.isArray(now.recent) ? now.recent : [])]), ...(source.ploegRuns?.runs || [])];
-  for (const run of runs) add(run?.workItemId, { title: run?.workItemTitle, team: run?.team, externalId: run?.externalRef });
-  for (const event of source.ploegFeed?.events || []) add(event?.workItemId, { title: event?.workItemTitle, team: event?.team });
+  for (const lane of Object.values(source.ploeg?.lanes || {})) for (const item of list(lane?.items)) add(item?.id, item);
+  for (const item of list(source.ploegProposed?.items)) add(item?.id, item);
+  for (const now of nows) for (const item of list(now.waiting)) add(item?.id, item);
+  const fromRun = (run, running) => add(run?.workItemId, { title: run?.workItemTitle, team: run?.team, externalId: run?.externalRef, state: running ? 'leased' : '' });
+  for (const now of nows) for (const run of list(now.running)) fromRun(run, true);
+  for (const now of nows) for (const run of list(now.recent)) fromRun(run, false);
+  for (const run of list(source.ploegRuns?.runs)) fromRun(run, run?.state === 'running');
+  for (const event of list(source.ploegFeed?.events)) add(event?.workItemId, { title: event?.workItemTitle, team: event?.team });
   return [...found.values()];
+}
+
+/**
+ * The short facts that identify a Work Item under its title, most important first: its number, its tracker
+ * reference (never a Ploeg-internal one such as `run-53-1`), the Work Item a proposal came from, and its Team.
+ * When space runs out the palette drops them from the end, whole.
+ */
+export function workItemFacts(item, id = item?.id) {
+  const facts = [`#${id}`];
+  const reference = text(item?.externalId);
+  if (reference && item.provider !== 'ploeg' && !internalRef.test(reference)) facts.push(reference);
+  if (item?.state === 'proposed' && item.source) facts.push(`by a Run on #${item.source}`);
+  if (text(item?.team)) facts.push(text(item.team));
+  return facts;
 }
 
 /** The Work Item (`work/<id>`) or session (`session/<id>`) a hash opens, or null for any other page. */
@@ -247,6 +274,28 @@ export function createScope() {
   };
 }
 
+function missingLists(data) {
+  const names = Object.entries(data?.errors || {}).filter(([, failed]) => failed).map(([group]) => listNames[group] || 'Some lists');
+  if (!names.length) return '';
+  const unique = [...new Set(names)];
+  return unique.length === 1 ? unique[0] : `${unique.slice(0, -1).join(', ')} and ${unique[unique.length - 1]}`;
+}
+
+/**
+ * Picks the newest Now response for the Work Item search: the Now page's (`page`, first seen at `pageAt`) or the
+ * palette's own read (`cache`: `{ data, error, at }`). Returns it as `newest` with the other as `older`, the
+ * failure of the palette's own read only while that read is the newest (the message, or true), and `missing`:
+ * the lists the newest response could not read, named for people ("Running Runs").
+ * @returns {{ newest: object|null, older: object|null, error: string|boolean, missing: string }}
+ */
+export function newestNow({ page = null, pageAt = 0, cache = null } = {}) {
+  const own = cache && (cache.data || cache.error) && cache.at > pageAt ? cache : null;
+  const newest = own ? own.data || null : page;
+  const older = own ? page : cache?.data || null;
+  const error = own?.error ? own.error.message || true : false;
+  return { newest, older, error, missing: missingLists(newest) };
+}
+
 const pages = [
   { id: 'now', label: 'Now', icon: 'inbox', keys: ['g', 'n'], keywords: 'home inbox waiting today start', count: 'waiting', tone: 'attention', describe: n => `${n} waiting on you` },
   { id: 'work', label: 'Work', icon: 'work', keys: ['g', 'w'], keywords: 'work items lanes team list board' },
@@ -276,17 +325,26 @@ function counted(spec, counts) {
 }
 
 function notificationCommand(status) {
-  if (status === 'on') return { label: 'Turn off desktop notifications', meta: 'You are told when something new waits on you', primary: true };
-  if (status === 'off') return { label: 'Turn on desktop notifications', meta: 'While a De Vloer tab is open, when something new waits on you', primary: true };
-  const why = { unsupported: 'This browser cannot show them here', insecure: 'They need a secure (HTTPS) connection', denied: 'Blocked in this browser’s site settings' }[status];
+  if (status === 'on') return { label: 'Turn off desktop notifications', meta: 'You are told when something new waits on you' };
+  if (status === 'off') return { label: 'Turn on desktop notifications', meta: 'While a De Vloer tab is open, when something new waits on you' };
+  const why = { unsupported: 'This browser cannot show them here', insecure: 'They need a secure (HTTPS) connection', denied: 'Blocked for this site. Allow notifications in the browser’s site settings.' }[status];
   return { label: 'Desktop notifications', meta: why, disabled: true };
+}
+
+const originFact = /^by a Run on #/;
+
+function workItemEntry(item, fields) {
+  const standing = item?.state ? workItemState(item.state) : null;
+  const facts = workItemFacts(item);
+  return { itemId: item.id, label: item.title || `Work Item #${item.id}`, facts, meta: facts.filter(fact => !originFact.test(fact)).join(' · '), standing, icon: standing?.glyph || 'work', tone: standing?.tone, hash: `work/${item.id}`, run: 'go', ...fields };
 }
 
 /**
  * Every palette entry for `context`: the recent Work Items and sessions, destinations (pages, Work lanes and
  * settings), commands, the loaded Work Items and the sessions. Each entry has an `id`, a `group`, a `label` and
- * what it does: a `hash` to open, a `run` command, or a shared chrome `action` (theme, live updates, shortcuts,
- * new session, sign out). `primary` entries make up the palette before anything is typed.
+ * what it does: a `hash` to open, a `run` command, or a shared chrome `action` (shortcuts, new session, sign
+ * out). Work Items and sessions carry their state as `standing` and their identifying `facts`; `primary`
+ * entries make up the palette before anything is typed.
  */
 export function paletteEntries(context) {
   const { counts = {}, items = [], sessions = [], recent = [] } = context;
@@ -298,13 +356,12 @@ export function paletteEntries(context) {
     if (context.current && context.current.kind === entry.kind && context.current.id === entry.id) continue;
     if (entry.kind === 'work') {
       const item = byId.get(entry.id);
-      const title = item?.title || entry.title;
-      const standing = item?.state ? workItemState(item.state) : null;
-      entries.push({ id: `recent-work-${entry.id}`, group: 'recent', primary: true, label: title || `Work Item #${entry.id}`, meta: title ? `Work Item #${entry.id}${item?.team ? ` · ${item.team}` : ''}` : 'Work Item', icon: standing?.glyph || 'work', tone: standing?.tone, time: entry.at, hash: `work/${entry.id}`, run: 'go' });
+      if (item) { entries.push(workItemEntry({ ...item, title: item.title || entry.title }, { id: `recent-work-${entry.id}`, group: 'recent', primary: true, time: entry.at })); continue; }
+      entries.push({ id: `recent-work-${entry.id}`, group: 'recent', primary: true, label: entry.title || `Work Item #${entry.id}`, facts: entry.title ? [`#${entry.id}`] : [], meta: entry.title ? `#${entry.id}` : '', icon: 'work', time: entry.at, hash: `work/${entry.id}`, run: 'go' });
     } else if (context.sessionsShown) {
       const session = sessionById.get(entry.id);
       if (!session && !entry.title) continue;
-      entries.push({ id: `recent-session-${entry.id}`, group: 'recent', primary: true, label: text(session?.title) || entry.title, meta: 'Session', icon: 'sessions', time: entry.at, hash: `session/${entry.id}`, run: 'go' });
+      entries.push({ id: `recent-session-${entry.id}`, group: 'recent', primary: true, label: text(session?.title) || entry.title, facts: ['Session'], meta: 'Session', standing: session ? sessionStatus(session) : null, icon: session ? sessionStatus(session).glyph : 'sessions', tone: session ? sessionStatus(session).tone : undefined, time: entry.at, hash: `session/${entry.id}`, run: 'go' });
     }
   }
   for (const page of pages) {
@@ -314,46 +371,49 @@ export function paletteEntries(context) {
   for (const lane of lanes) entries.push({ id: `go-${lane.hash}`, group: 'go', label: lane.label, parent: 'Work', keywords: lane.keywords, icon: lane.icon, tone: lane.tone, count: counted(lane, counts), hash: lane.hash, run: 'go' });
   for (const page of settings) entries.push({ id: `go-${page.hash}`, group: 'go', label: page.label, parent: 'Settings', keywords: page.keywords, icon: page.icon, hash: page.hash, run: 'go' });
   const dark = Boolean(context.dark);
-  entries.push({ id: 'theme', group: 'commands', primary: true, label: dark ? 'Switch to light theme' : 'Switch to dark theme', keywords: 'theme appearance colour mode dark light', icon: dark ? 'sun' : 'moon', action: 'theme-set', value: dark ? 'light' : 'dark', restore: true });
-  if (context.theme !== 'system') entries.push({ id: 'theme-system', group: 'commands', label: 'Follow the system theme', keywords: 'theme appearance automatic os', icon: 'monitor', action: 'theme-set', value: 'system', restore: true });
-  entries.push({ id: 'live', group: 'commands', primary: true, label: context.paused ? 'Resume live updates' : 'Pause live updates', keywords: 'live updates refresh automatically polling', icon: context.paused ? 'play' : 'pause', action: 'live-toggle', restore: true });
+  entries.push({ id: 'theme', group: 'commands', primary: true, label: dark ? 'Switch to light theme' : 'Switch to dark theme', keywords: 'theme appearance colour mode dark light', icon: dark ? 'sun' : 'moon', run: 'theme', value: dark ? 'light' : 'dark', restore: true });
+  if (context.theme !== 'system') entries.push({ id: 'theme-system', group: 'commands', label: 'Follow the system theme', keywords: 'theme appearance automatic os', icon: 'monitor', run: 'theme', value: 'system', restore: true });
+  entries.push({ id: 'live', group: 'commands', primary: true, label: context.paused ? 'Resume live updates' : 'Pause live updates', keywords: 'live updates refresh automatically polling', icon: context.paused ? 'play' : 'pause', run: 'live', restore: true });
   entries.push({ id: 'refresh', group: 'commands', primary: true, label: 'Refresh this page', keywords: 'reload update fetch again', icon: 'refresh', run: 'refresh', restore: true });
   if (context.canCreate) entries.push({ id: 'new-session', group: 'commands', primary: true, label: 'New session', keywords: 'create start crew objective', icon: 'plus', action: 'new', keys: context.view === 'sessions' ? ['n'] : null, single: true, restore: true });
   entries.push({ id: 'shortcuts', group: 'commands', primary: true, label: 'Show keyboard shortcuts', keywords: 'keys help hotkeys', icon: 'keyboard', action: 'shortcuts-open', keys: ['?'], single: true, restore: true });
   entries.push({ id: 'preferences', group: 'commands', primary: true, label: 'Open preferences', keywords: 'prefs settings theme density format shortcuts options', icon: 'settings', hash: 'settings/preferences', run: 'go' });
-  const notice = notificationCommand(context.notifications);
-  entries.push({ id: 'notify', group: 'commands', keywords: 'notifications desktop alerts bell notify', icon: 'bell', run: 'notify', restore: true, quiet: true, ...notice, primary: Boolean(notice.primary) });
+  entries.push({ id: 'notify', group: 'commands', keywords: 'notifications desktop alerts bell notify', icon: 'bell', run: 'notify', restore: true, quiet: true, ...notificationCommand(context.notifications) });
   entries.push({ id: 'density', group: 'commands', label: context.density === 'compact' ? 'Use comfortable density' : 'Use compact density', keywords: 'density rows spacing compact comfortable', icon: 'list', run: 'density', restore: true });
   entries.push({ id: 'single-keys', group: 'commands', label: context.singleKeys ? 'Turn off single-key shortcuts' : 'Turn on single-key shortcuts', keywords: 'keyboard shortcuts speech accessibility keys', icon: 'keyboard', run: 'single-keys', restore: true });
   entries.push({ id: 'copy-link', group: 'commands', label: 'Copy link to this page', keywords: 'share url address clipboard', icon: 'copy', run: 'copy-link', restore: true });
   if (!context.demo) entries.push({ id: 'sign-out', group: 'commands', primary: true, label: 'Sign out', keywords: 'log out logout leave', icon: 'logout', action: 'logout' });
-  for (const item of items) {
-    const meta = item.state ? workItemState(item.state) : null;
-    entries.push({ id: `item-${item.id}`, group: 'items', itemId: item.id, label: item.title || `Work Item #${item.id}`, meta: [`#${item.id}`, item.externalId, item.team].filter(Boolean).join(' · '), icon: meta?.glyph || 'work', tone: meta?.tone, state: item.state || null, hash: `work/${item.id}`, run: 'go', boost: recentIds.has(`work:${item.id}`) ? 6 : 0 });
-  }
+  for (const item of items) entries.push(workItemEntry(item, { id: `item-${item.id}`, group: 'items', boost: recentIds.has(`work:${item.id}`) ? 6 : 0 }));
   if (context.sessionsShown) {
     for (const session of sessions) {
       if (!sessionId.test(String(session?.id ?? ''))) continue;
       const status = sessionStatus(session);
-      entries.push({ id: `session-${session.id}`, group: 'sessions', label: text(session.title) || 'Untitled session', meta: 'Session', icon: status.glyph, tone: status.tone, status, hash: `session/${session.id}`, run: 'go', boost: recentIds.has(`session:${session.id}`) ? 6 : 0 });
+      entries.push({ id: `session-${session.id}`, group: 'sessions', label: text(session.title) || 'Untitled session', keywords: 'session', standing: status, icon: status.glyph, tone: status.tone, hash: `session/${session.id}`, run: 'go', boost: recentIds.has(`session:${session.id}`) ? 6 : 0 });
     }
   }
   return entries;
 }
 
+const noMatch = { score: 0, base: 0, label: [], meta: [], parent: [] };
+const retryEntry = { id: 'retry-work-items', run: 'retry' };
+const nextStep = { id: 'next-work', group: 'next', label: 'Open Work', meta: 'Search covers what this tab has loaded; Work lists every lane.', quiet: true, icon: 'work', hash: 'work', run: 'go', enter: true };
+
+function numberQuery(typed) { return /^#?([1-9][0-9]{0,19})$/.exec(typed.replace(/\s+/g, '')); }
+
 /**
- * Filters and orders `entries` for `query`. Without a query: the primary entries under Recent, Go to and
- * Commands. With one: every match, best first within each group, a few per group, groups ordered by their best
- * match. A Work Item number (`105` or `#105`) always offers that Work Item first, by title when it is loaded.
- * `status` adds the state of the Work Item search: `loading`, `partial`, `error` (true or the failure message),
- * or `offline` when this account has no Ploeg to open Work Items in.
+ * Filters and orders `entries` for `query`. Without a query: the primary entries under Recent, Commands and Go
+ * to. With one: every match, best first within each group (a recent item's boost counts there), a few per group,
+ * groups ordered by their best match without that boost; for one or two letters Go to and Commands come first. A
+ * Work Item number (`105` or `#105`) always offers that Work Item first, by title when it is loaded. Without
+ * any match there is one `next` group that offers the Work page. `status` holds the state of the Work Item
+ * search: `loading` shows a loading Work Items group when the query matched no page or command, and `offline` (no
+ * Ploeg for this account) drops the number jump and the Work page.
  * @returns {{ id: string, label: string, note?: string, loading?: boolean, results: { entry: object, match: object }[] }[]}
  */
 export function searchPalette(query, entries, status = {}) {
   const typed = String(query ?? '').trim();
-  const none = { label: [], meta: [], parent: [] };
   if (!typed) {
-    return emptyGroups.map(id => ({ id, label: groupLabels[id], results: entries.filter(entry => entry.group === id && entry.primary).slice(0, limits[id]).map(entry => ({ entry, match: { score: 0, ...none } })) })).filter(group => group.results.length);
+    return emptyGroups.map(id => ({ id, label: groupLabels[id], results: entries.filter(entry => entry.group === id && entry.primary).slice(0, limits[id]).map(entry => ({ entry, match: noMatch })) })).filter(group => group.results.length);
   }
   const scored = [];
   entries.forEach((entry, order) => {
@@ -361,66 +421,86 @@ export function searchPalette(query, entries, status = {}) {
     const match = matchEntry(typed, entry);
     if (match) scored.push({ entry, match, order });
   });
-  const jump = status.offline ? null : /^#?([1-9][0-9]{0,19})$/.exec(typed.replace(/\s+/g, ''));
+  const jump = status.offline ? null : numberQuery(typed);
   if (jump) {
     const known = scored.find(result => result.entry.itemId === jump[1]);
-    if (known) known.match.score = Infinity;
-    else scored.push({ entry: { id: `jump-${jump[1]}`, group: 'items', label: `Open Work Item #${jump[1]}`, meta: 'Go straight to its page', icon: 'hash', hash: `work/${jump[1]}`, run: 'go' }, match: { score: Infinity, ...none }, order: -1 });
+    if (known) known.match = { ...known.match, score: Infinity, base: Infinity };
+    else scored.push({ entry: { id: `jump-${jump[1]}`, group: 'items', label: `Open Work Item #${jump[1]}`, meta: 'Go straight to its page', quiet: true, icon: 'hash', hash: `work/${jump[1]}`, run: 'go' }, match: { ...noMatch, score: Infinity, base: Infinity }, order: -1 });
   }
   const groups = new Map();
   for (const result of scored) {
     if (!groups.has(result.entry.group)) groups.set(result.entry.group, []);
     groups.get(result.entry.group).push(result);
   }
-  if (status.loading && !groups.has('items')) groups.set('items', []);
+  const wantsItems = Boolean(jump) || ![...groups.keys()].some(id => commandGroups.includes(id));
+  if (status.loading && wantsItems && !groups.has('items')) groups.set('items', []);
+  const short = !jump && typed.replace(/\s+/g, '').length <= shortQuery;
+  const rank = id => (jump && id === 'items' ? 2 : short && commandGroups.includes(id) ? 1 : 0);
   const ordered = [...groups.entries()].map(([id, results]) => {
     results.sort((a, b) => Number(Boolean(a.entry.disabled)) - Number(Boolean(b.entry.disabled)) || b.match.score - a.match.score || a.order - b.order);
-    return { id, label: groupLabels[id], best: results.find(result => !result.entry.disabled)?.match.score ?? 0, results: results.slice(0, limits[id]).map(({ entry, match }) => ({ entry, match })) };
-  }).sort((a, b) => b.best - a.best);
-  for (const group of ordered) {
-    if (group.id !== 'items') continue;
-    if (status.loading) { group.loading = true; group.note = 'Loading…'; }
-    else if (status.partial) group.note = 'Some lists could not be read';
-  }
-  if (status.error) {
-    const retry = { id: 'items-retry', group: 'items', label: 'Work Items could not be loaded', meta: [typeof status.error === 'string' ? status.error : '', 'Select to try again.'].filter(Boolean).join(' '), icon: 'refresh', tone: 'danger', run: 'retry', keepOpen: true, quiet: true };
-    const items = ordered.find(group => group.id === 'items');
-    if (items) items.results.push({ entry: retry, match: { score: 0, ...none } });
-    else ordered.push({ id: 'items', label: groupLabels.items, best: 0, results: [{ entry: retry, match: { score: 0, ...none } }] });
-  }
+    const best = Math.max(0, ...results.filter(result => !result.entry.disabled).map(result => result.match.base));
+    const group = { id, label: groupLabels[id], best, results: results.slice(0, limits[id]).map(({ entry, match }) => ({ entry, match })) };
+    if (id === 'items' && status.loading) { group.loading = true; group.note = 'Loading…'; }
+    return group;
+  }).sort((a, b) => rank(b.id) - rank(a.id) || b.best - a.best);
+  if (!ordered.length) return status.offline ? [] : [{ id: 'next', label: groupLabels.next, results: [{ entry: nextStep, match: noMatch }] }];
   return ordered.map(({ best, ...group }) => group);
+}
+
+/**
+ * What the palette says about the Work Item search above its results, or null: that the Work Items could not be
+ * loaded (with a retry), or which lists are missing from them. It speaks only while the query may be after a
+ * Work Item: a number, a query that matched Work Items, or one that matched no page or command.
+ * @returns {{ tone: string, text: string, retry: boolean } | null}
+ */
+export function searchNotice(query, groups, status = {}) {
+  const typed = String(query ?? '').trim();
+  if (!typed || status.offline || status.loading) return null;
+  const others = groups.some(group => commandGroups.includes(group.id) && group.results.length);
+  const items = groups.some(group => group.id === 'items' && group.results.some(result => result.entry.itemId));
+  const wanted = Boolean(numberQuery(typed)) || !others;
+  if (status.error && wanted) return { tone: 'danger', text: ['Work Items could not be loaded.', typeof status.error === 'string' ? status.error : ''].filter(Boolean).join(' '), retry: true };
+  if (status.partial && (wanted || items)) return { tone: 'attention', text: `${status.partial} could not be read · results may be incomplete`, retry: true };
+  return null;
 }
 
 function trailMarkup(entry, { singleKeys = true, mac = false } = {}) {
   const parts = [];
   if (entry.count) parts.push(count(entry.count.value, { tone: entry.count.tone, label: entry.count.label }));
-  if (entry.state) parts.push(stateBadge(entry.state));
-  if (entry.status) parts.push(stateBadge(entry.status));
   if (entry.time) parts.push(`<span class="palette-option-time">${timeAgo(entry.time)}</span>`);
   if (entry.keys?.length && (!entry.single || singleKeys)) parts.push(`<span class="palette-option-keys" aria-hidden="true">${kbd(entry.keys.map(key => keyLabel(key, mac)))}</span>`);
+  if (entry.enter) parts.push(`<span class="palette-option-keys" aria-hidden="true">${kbd('↵')}</span>`);
   return parts.length ? `<span class="palette-option-trail">${parts.join('')}</span>` : '';
+}
+
+function factsMarkup(facts, ranges) {
+  let offset = 0;
+  return facts.map(fact => {
+    if (originFact.test(fact)) return `<span class="palette-fact">${escape(fact)}</span>`;
+    const start = offset;
+    offset += fact.length + 3;
+    const local = ranges.filter(([from, to]) => from < start + fact.length && to > start).map(([from, to]) => [Math.max(from, start) - start, Math.min(to, start + fact.length) - start]);
+    return `<span class="palette-fact">${highlight(fact, local)}</span>`;
+  }).join('');
 }
 
 function optionMarkup({ entry, match }, index, active, options) {
   const disabled = Boolean(entry.disabled);
-  const behaviour = disabled ? '' : entry.action ? ` data-action="${escape(entry.action)}"${entry.value ? ` data-value="${escape(entry.value)}"` : ''}` : ' data-action="palette-run"';
+  const behaviour = disabled ? '' : entry.action ? ` data-action="${escape(entry.action)}"` : ' data-action="palette-run"';
+  const value = entry.value ? ` data-value="${escape(entry.value)}"` : '';
   const parent = entry.parent ? `<span class="palette-option-parent">${highlight(entry.parent, match.parent)}${icon('chevron', 'palette-option-separator')}</span>` : '';
-  const standing = entry.state ? workItemState(entry.state) : entry.status || null;
-  const status = standing ? `<span class="palette-option-state" data-tone="${escape(standing.tone)}">${escape(standing.label)}</span>` : '';
-  const meta = entry.meta || status ? `<span class="palette-option-meta">${status}${entry.meta ? `<span class="palette-option-detail">${highlight(entry.meta, match.meta)}</span>` : ''}</span>` : '';
-  return `<div class="palette-option" role="option" id="palette-option-${index}" data-entry="${escape(entry.id)}" aria-selected="${index === active}"${disabled ? ' aria-disabled="true"' : ''}${behaviour}><span class="palette-option-icon"${entry.tone ? ` data-tone="${escape(entry.tone)}"` : ''}>${icon(entry.icon || 'circle')}</span><span class="palette-option-main"><span class="palette-option-title">${parent}<span class="palette-option-label">${highlight(entry.label, match.label)}</span></span>${meta}</span>${trailMarkup(entry, options)}</div>`;
+  const standing = entry.standing ? `<span class="palette-option-state" data-tone="${escape(entry.standing.tone)}">${escape(entry.standing.label)}</span>` : '';
+  const facts = entry.facts?.length ? `<span class="palette-option-facts">${factsMarkup(entry.facts, match.meta)}</span>` : entry.meta ? `<span class="palette-option-detail">${highlight(entry.meta, match.meta)}</span>` : '';
+  return `<div class="palette-option" role="option" id="palette-option-${index}" data-entry="${escape(entry.id)}" aria-selected="${index === active}"${disabled ? ' aria-disabled="true"' : ''}${behaviour}${value}><span class="palette-option-icon"${entry.tone ? ` data-tone="${escape(entry.tone)}"` : ''}>${icon(entry.icon || 'circle')}</span><span class="palette-option-main"><span class="palette-option-title">${parent}<span class="palette-option-label">${highlight(entry.label, match.label)}</span></span>${standing}${facts}</span>${trailMarkup(entry, options)}</div>`;
 }
 
 /**
  * The listbox content for `groups` from {@link searchPalette}: one `role="group"` per group with its visual
  * label, one `role="option"` per result with the id `palette-option-<n>` in reading order, `aria-selected="true"`
- * on the `active` one, the matched characters marked, and each row's shortcut. Without results it is an empty state.
+ * on the `active` one, the matched characters marked, a Work Item's state as tinted text before its facts, and
+ * each row's shortcut. A loading group shows placeholder rows.
  */
-export function resultsMarkup(groups, active = 0, { query = '', singleKeys = true, mac = false } = {}) {
-  if (!groups.length) {
-    const typed = String(query).trim();
-    return `<div class="palette-empty">${emptyState({ icon: 'search', compact: true, title: typed ? `No matches for “${typed}”` : 'Nothing to show', body: '<p>Search covers pages, commands and the Work Items this tab has loaded. A number always opens that Work Item.</p>' })}</div>`;
-  }
+export function resultsMarkup(groups, active = 0, { singleKeys = true, mac = false } = {}) {
   let index = 0;
   return groups.map(group => {
     const note = group.note ? `<span class="palette-group-note">${escape(group.note)}</span>` : '';
@@ -430,21 +510,42 @@ export function resultsMarkup(groups, active = 0, { query = '', singleKeys = tru
   }).join('');
 }
 
+/** The note shown outside the listbox when a query matched nothing: what was searched, and without Ploeg what search covers. */
+export function emptyMarkup(query, { offline = false } = {}) {
+  return emptyState({ icon: 'search', compact: true, title: `No matches for “${String(query ?? '').trim()}”`, body: offline ? '<p>Search covers pages and commands.</p>' : '' });
+}
+
+/** The notice from {@link searchNotice} as markup: a tinted icon, the sentence and, when it can help, a Retry button. */
+export function noticeMarkup(notice) {
+  if (!notice) return '';
+  return `<span class="palette-notice-icon" aria-hidden="true">${icon('alert')}</span><span class="palette-notice-text">${escape(notice.text)}</span>${notice.retry ? button({ label: 'Retry', icon: 'refresh', variant: 'ghost', size: 'xs', action: 'palette-run', data: { entry: retryEntry.id } }) : ''}`;
+}
+
 const palette = { opener: null, again: null, query: '', active: 0, groups: [], results: [], statusTimer: null, wired: false };
 const nowCache = { data: null, error: null, loading: false, at: 0, generation: 0 };
 const scope = createScope();
+const firstSeen = new WeakMap();
 let pendingRoute = null;
 
 const signedIn = () => (state.bootstrap ? scope.user : null);
+const offline = () => ['unconfigured', 'no-access'].includes(state.ploegStatus);
 
 function resetNowCache() { Object.assign(nowCache, { data: null, error: null, loading: false, at: 0, generation: nowCache.generation + 1 }); }
 
+function seenAt(data) {
+  if (!data) return 0;
+  if (!firstSeen.has(data)) firstSeen.set(data, Date.now());
+  return firstSeen.get(data);
+}
+
 function observe() {
-  if (!scope.observe(state)) return;
-  resetNowCache();
-  const pending = pendingRoute;
-  pendingRoute = null;
-  if (pending) rememberRoute(pending);
+  if (scope.observe(state)) {
+    resetNowCache();
+    const pending = pendingRoute;
+    pendingRoute = null;
+    if (pending) rememberRoute(pending);
+  }
+  seenAt(scope.trusted(state.now?.data));
 }
 
 function readRecent() { const user = signedIn(); try { return user ? parseRecent(globalThis.localStorage?.getItem(recentKey), user) : []; } catch { return []; } }
@@ -457,11 +558,11 @@ function rememberRoute(hash = globalThis.location?.hash) {
 }
 
 function resolvedRecent(items, sessions) {
-  const list = readRecent();
+  const entries = readRecent();
   const titles = new Map(items.filter(item => item.title).map(item => [`work:${item.id}`, item.title]));
   for (const session of sessions) if (text(session?.title)) titles.set(`session:${session.id}`, text(session.title));
   let changed = false;
-  const resolved = list.map(entry => {
+  const resolved = entries.map(entry => {
     const title = titles.get(`${entry.kind}:${entry.id}`);
     if (!title || title === entry.title) return entry;
     changed = true;
@@ -472,16 +573,17 @@ function resolvedRecent(items, sessions) {
 }
 
 const prefersDark = () => Boolean(globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches);
+
 function paletteContext() {
   observe();
   const user = signedIn();
   const trusted = value => (user ? scope.trusted(value) : null);
-  const theme = prefs.get('theme');
   const page = trusted(state.now?.data);
-  const items = workItemIndex({ now: { data: page }, ploegDetail: trusted(state.ploegDetail), ploeg: trusted(state.ploeg), ploegProposed: trusted(state.ploegProposed), ploegRuns: trusted(state.ploegRuns), ploegFeed: trusted(state.ploegFeed) }, [nowCache.data].filter(Boolean));
-  const sessions = Array.isArray(trusted(state.sessions)) ? state.sessions : [];
+  const { newest, older, error, missing } = newestNow({ page, pageAt: seenAt(page), cache: nowCache });
+  const items = workItemIndex({ now: { data: newest }, ploegDetail: trusted(state.ploegDetail), ploeg: trusted(state.ploeg), ploegProposed: trusted(state.ploegProposed), ploegRuns: trusted(state.ploegRuns), ploegFeed: trusted(state.ploegFeed) }, [older].filter(Boolean));
+  const sessions = list(trusted(state.sessions));
   const sessionsShown = Boolean(user) && showsSessions();
-  const partial = [page, nowCache.data].some(data => Object.values(data?.errors || {}).some(Boolean));
+  const theme = prefs.get('theme');
   return {
     counts: state.counts,
     items,
@@ -499,23 +601,25 @@ function paletteContext() {
     singleKeys: singleKeysEnabled(),
     mac: isMac(),
     notifications: attention.status(),
-    status: { loading: nowCache.loading, error: nowCache.error && !nowCache.loading ? nowCache.error.message || true : false, partial, offline: ['unconfigured', 'no-access'].includes(state.ploegStatus) },
+    status: { loading: nowCache.loading && !newest, error: nowCache.loading ? false : error, partial: missing, offline: offline() },
   };
 }
 
 function frameMarkup() {
   const hints = [[['↑', '↓'], 'Move'], [['↵'], 'Open']].map(([keys, label]) => `<span class="palette-hint">${kbd(keys)}<span>${label}</span></span>`).join('');
-  return `<div class="palette-frame"><h2 id="palette-title" class="sr-only">Search and commands</h2><div class="palette-search">${icon('search', 'palette-search-icon')}<input id="palette-input" class="palette-input" type="text" role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" aria-describedby="palette-help" aria-label="Search pages, commands and Work Items" placeholder="Search or jump to…" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"><button class="palette-dismiss" type="button" data-action="palette-close" aria-label="Close search"><span class="palette-dismiss-key" aria-hidden="true">${kbd('Esc')}</span><span class="palette-dismiss-text" aria-hidden="true">Cancel</span></button></div><div class="palette-results" id="palette-list" role="listbox" aria-label="Results"></div><div class="palette-footer" aria-hidden="true">${hints}<span class="palette-footer-tip">Type a number to open that Work Item</span></div><p class="sr-only" id="palette-help">Type a page, command or Work Item title or number. Arrow keys choose a result, Enter opens it, Escape closes the search.</p><p class="sr-only" id="palette-status" role="status" aria-live="polite"></p></div>`;
+  const tip = offline() ? '' : '<span class="palette-footer-tip">Type a number to open that Work Item</span>';
+  return `<div class="palette-frame"><h2 id="palette-title" class="sr-only">Search and commands</h2><div class="palette-search">${icon('search', 'palette-search-icon')}<input id="palette-input" class="palette-input" type="text" role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" aria-describedby="palette-help" aria-label="Search pages, commands and Work Items" placeholder="Search or jump to…" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"><button class="palette-dismiss" type="button" data-action="palette-close" aria-label="Cancel search" aria-keyshortcuts="Escape"><span class="palette-dismiss-key" aria-hidden="true">${kbd('Esc')}</span><span class="palette-dismiss-text" aria-hidden="true">Cancel</span></button></div><div class="palette-notice" id="palette-notice" hidden></div><div class="palette-empty" id="palette-empty" hidden></div><div class="palette-results" id="palette-list" role="listbox" aria-label="Results" tabindex="-1"></div><div class="palette-footer" aria-hidden="true"><span class="palette-hints">${hints}</span>${tip}</div><p class="sr-only" id="palette-help">Type a page, command or Work Item title or number. Arrow keys choose a result, Enter opens it, Escape closes the search.</p><p class="sr-only" id="palette-status" role="status" aria-live="polite"></p></div>`;
 }
 
-function announceResults() {
+function announceResults(notice) {
   clearTimeout(palette.statusTimer);
   palette.statusTimer = setTimeout(() => {
     const status = $('#palette-status');
     if (!status) return;
     const loading = palette.groups.some(group => group.loading);
-    const total = palette.results.length;
-    status.textContent = loading && !total ? 'Loading Work Items…' : total ? `${total} ${total === 1 ? 'result' : 'results'}` : 'No results';
+    const total = palette.results.filter(result => result.entry.group !== 'next').length;
+    const summary = loading && !total ? 'Loading Work Items…' : total ? `${total} ${total === 1 ? 'result' : 'results'}` : palette.results.length ? 'No matches. Enter opens Work.' : 'No matches';
+    status.textContent = notice ? `${summary}. ${notice.text}` : summary;
   }, 350);
 }
 
@@ -528,21 +632,49 @@ function firstEnabled(from = 0, step = 1) {
   return 0;
 }
 
+function updateOverflow(list = $('#palette-list')) {
+  if (!list) return;
+  const start = list.scrollTop > 1;
+  const end = list.scrollTop + list.clientHeight < list.scrollHeight - 1;
+  const value = [start && 'start', end && 'end'].filter(Boolean).join(' ');
+  if (value) list.dataset.overflow = value;
+  else delete list.dataset.overflow;
+}
+
 function refreshResults({ keep = false } = {}) {
   const list = $('#palette-list');
   const input = $('#palette-input');
   if (!list || !input) return;
   const context = paletteContext();
+  const typed = palette.query.trim();
+  const status = typed ? context.status : {};
   const kept = keep ? palette.results[palette.active]?.entry.id : null;
-  palette.groups = searchPalette(palette.query, paletteEntries(context), palette.query.trim() ? context.status : {});
+  palette.groups = searchPalette(palette.query, paletteEntries(context), status);
   palette.results = palette.groups.flatMap(group => group.results);
   const again = kept ? palette.results.findIndex(result => result.entry.id === kept) : -1;
   palette.active = again >= 0 ? again : firstEnabled();
-  list.innerHTML = resultsMarkup(palette.groups, palette.active, { query: palette.query, singleKeys: context.singleKeys, mac: context.mac });
+  const matched = palette.groups.some(group => group.id !== 'next');
+  const shown = palette.groups.length > 0;
+  list.innerHTML = resultsMarkup(palette.groups, palette.active, { singleKeys: context.singleKeys, mac: context.mac });
+  list.hidden = !shown;
+  input.setAttribute('aria-expanded', String(shown));
   if (palette.results.length) input.setAttribute('aria-activedescendant', `palette-option-${palette.active}`);
   else input.removeAttribute('aria-activedescendant');
+  const empty = $('#palette-empty');
+  if (empty) { empty.hidden = matched; empty.innerHTML = matched ? '' : emptyMarkup(typed, { offline: context.status.offline }); }
+  const notice = searchNotice(palette.query, palette.groups, status);
+  const band = $('#palette-notice');
+  if (band) {
+    const focused = band.contains(document.activeElement);
+    band.hidden = !notice;
+    band.innerHTML = noticeMarkup(notice);
+    if (notice) band.dataset.tone = notice.tone;
+    if (focused) input.focus();
+  }
+  list.closest('.palette-frame')?.toggleAttribute('data-unmatched', !matched || !palette.results.length);
   if (!keep) list.scrollTop = 0;
-  announceResults();
+  updateOverflow(list);
+  announceResults(notice);
 }
 
 function setActive(index, { scroll = true } = {}) {
@@ -557,20 +689,41 @@ function setActive(index, { scroll = true } = {}) {
 }
 
 function move(step) {
-  const total = palette.results.length;
-  if (!total) return;
+  if (!palette.results.length) return;
   setActive(firstEnabled(palette.active + step, step));
 }
 
+function cycleFocus(dialog, backwards) {
+  const stops = [...dialog.querySelectorAll('input, button, a[href]')].filter(element => !element.disabled && element.tabIndex >= 0 && element.getClientRects().length);
+  if (!stops.length) return;
+  const at = stops.indexOf(document.activeElement);
+  stops[backwards ? (at <= 0 ? stops.length - 1 : at - 1) : (at === -1 || at === stops.length - 1 ? 0 : at + 1)].focus();
+}
+
 function onKey(event) {
-  if (event.target.id !== 'palette-input' || event.isComposing) return;
-  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); move(event.key === 'ArrowDown' ? 1 : -1); return; }
-  if (event.key === 'PageDown' || event.key === 'PageUp') { event.preventDefault(); setActive(palette.active + (event.key === 'PageDown' ? 5 : -5)); return; }
-  if (event.key === 'Enter' && !event.shiftKey && !event.altKey) {
+  if (event.isComposing) return;
+  const input = $('#palette-input');
+  if (!input) return;
+  if (event.key === 'Tab' && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); cycleFocus(event.currentTarget, event.shiftKey); return; }
+  const typing = event.target === input;
+  const control = !typing && Boolean(event.target.closest?.('button, a[href], input'));
+  if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp'].includes(event.key)) {
     event.preventDefault();
+    if (!typing) input.focus();
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') move(event.key === 'ArrowDown' ? 1 : -1);
+    else setActive(palette.active + (event.key === 'PageDown' ? 5 : -5));
+    return;
+  }
+  if (event.key === 'Enter' && !event.shiftKey && !event.altKey) {
+    if (control) return;
+    event.preventDefault();
+    if (!typing) input.focus();
     const option = document.getElementById(`palette-option-${palette.active}`);
     if (option && option.getAttribute('aria-disabled') !== 'true') option.click();
+    return;
   }
+  if (typing || event.ctrlKey || event.metaKey || event.altKey) return;
+  if (event.key === 'Backspace' || (event.key.length === 1 && !(control && event.key === ' '))) input.focus();
 }
 
 function openerSelector(element) {
@@ -586,7 +739,11 @@ function restoreFocus(opener, again) {
 
 const focusLost = () => !document.activeElement || document.activeElement === document.body;
 
-function entryOf(option) { return palette.results.find(result => result.entry.id === option?.dataset.entry)?.entry || null; }
+function entryOf(element) {
+  const id = element?.dataset.entry;
+  if (id === retryEntry.id) return retryEntry;
+  return palette.results.find(result => result.entry.id === id)?.entry || null;
+}
 
 function onClick(event) {
   const dialog = event.currentTarget;
@@ -603,6 +760,7 @@ function wire(dialog) {
   dialog.addEventListener('keydown', onKey);
   dialog.addEventListener('input', event => { if (event.target.id !== 'palette-input') return; palette.query = event.target.value; refreshResults(); });
   dialog.addEventListener('click', onClick);
+  dialog.addEventListener('scroll', event => { if (event.target.id === 'palette-list') updateOverflow(event.target); }, { capture: true, passive: true });
   dialog.addEventListener('mousedown', event => { if (event.target.closest('.palette-option')) event.preventDefault(); });
   dialog.addEventListener('pointermove', event => {
     const option = event.target.closest('.palette-option');
@@ -622,12 +780,15 @@ function wire(dialog) {
 async function loadWorkItems(force = false) {
   observe();
   const user = signedIn();
-  if (!user || nowCache.loading || ['unconfigured', 'no-access'].includes(state.ploegStatus)) return;
-  if (!force && (Date.now() - nowCache.at < nowFresh || (state.view === 'now' && scope.trusted(state.now?.data)))) return;
+  if (!user || nowCache.loading || offline()) return;
+  const page = scope.trusted(state.now?.data);
+  if (!force) {
+    if (page && (state.view === 'now' || Date.now() - seenAt(page) < nowFresh)) { resetNowCache(); return; }
+    if (!nowCache.error && nowCache.data && Date.now() - nowCache.at < nowFresh) return;
+  }
   const generation = nowCache.generation;
   const current = () => generation === nowCache.generation && signedIn() === user;
-  nowCache.loading = true;
-  nowCache.error = null;
+  Object.assign(nowCache, { loading: true, error: null });
   if ($('#palette')?.open) refreshResults({ keep: true });
   try {
     const data = await api('/api/ploeg/now');
@@ -676,18 +837,20 @@ function openPalette() {
   void loadWorkItems();
 }
 
-function toggleDensity() {
-  const compact = prefs.get('density') !== 'compact';
-  prefs.set('density', compact ? 'compact' : 'comfortable');
-  applyAppearance();
-  if (state.view === 'preferences') redraw();
-  announce(compact ? 'Compact density' : 'Comfortable density');
-}
-
 function redraw() {
   const again = palette.again;
   render();
   if (focusLost()) restoreFocus(null, again);
+}
+
+function redrawPreferences() { if (state.view === 'preferences') redraw(); }
+
+function toggleDensity() {
+  const compact = prefs.get('density') !== 'compact';
+  prefs.set('density', compact ? 'compact' : 'comfortable');
+  applyAppearance();
+  redrawPreferences();
+  announce(compact ? 'Compact density' : 'Comfortable density');
 }
 
 function toggleSingleKeys() {
@@ -697,13 +860,24 @@ function toggleSingleKeys() {
   announce(on ? 'Single-key shortcuts on' : 'Single-key shortcuts off');
 }
 
+function setTheme(element) {
+  chrome.actions['theme-set'](element);
+  redrawPreferences();
+}
+
+function toggleLive() {
+  chrome.actions['live-toggle']();
+  redrawPreferences();
+}
+
 async function toggleNotifications() {
-  if (attention.status() === 'on') { attention.disable(); notify('Desktop notifications are off.'); return; }
+  if (attention.status() === 'on') { attention.disable(); notify('Desktop notifications are off.'); redrawPreferences(); return; }
   const status = await attention.enable();
   if (status === 'on') notify('Desktop notifications are on. While a De Vloer tab is open, you hear about each new item that waits on you.');
   else if (status === 'denied') notify('This browser blocks notifications for De Vloer. Allow them in the site settings, then turn them on again.', true);
   else if (status === 'off') notify('Desktop notifications stay off: the browser did not get permission.');
   else notify('This browser cannot show desktop notifications here.', true);
+  redrawPreferences();
 }
 
 async function copyLink() {
@@ -723,18 +897,21 @@ function runEntry(element) {
   const entry = entryOf(element);
   if (!entry || entry.disabled) return;
   if (entry.run === 'go') { location.hash = entry.hash; return; }
-  if (entry.run === 'retry') { void loadWorkItems(true); return; }
+  if (entry.run === 'theme') return setTheme(element);
+  if (entry.run === 'live') return toggleLive();
   if (entry.run === 'refresh') return refreshPage();
   if (entry.run === 'density') return toggleDensity();
   if (entry.run === 'single-keys') return toggleSingleKeys();
   if (entry.run === 'notify') return toggleNotifications();
   if (entry.run === 'copy-link') return copyLink();
+  if (entry.run === 'retry') { $('#palette-input')?.focus(); return loadWorkItems(true); }
 }
 
 installAttention();
 onCountsChange(data => {
   observe();
-  if (signedIn() && data && typeof data === 'object' && !Array.isArray(data)) Object.assign(nowCache, { data, error: null, at: Date.now() });
+  const user = signedIn();
+  if (user && data && typeof data === 'object' && !Array.isArray(data)) Object.assign(nowCache, { data, error: null, at: Date.now() });
 });
 live.subscribe(() => observe());
 if (globalThis.window && globalThis.location) {
@@ -745,9 +922,10 @@ if (globalThis.window && globalThis.location) {
 
 /**
  * The command palette (`#palette`): `palette-open` (the search button, `/` and ⌘K or Ctrl K) opens a combobox
- * over a grouped listbox of recent items, destinations, commands, Work Items and sessions with fuzzy matching;
- * `palette-run` runs a result and `palette-close` closes it. Loading the view also connects the favicon dot and
- * desktop notifications to the counts, and records the Work Items and sessions each user opens as recent.
+ * over a grouped listbox of recent items, commands, destinations, Work Items and sessions with fuzzy matching;
+ * `palette-run` runs a result or reads the Work Items again, and `palette-close` closes it. Loading
+ * the view also connects the favicon dot and desktop notifications to the counts, and records the Work Items and
+ * sessions each user opens as recent.
  */
 export default {
   id: 'palette',

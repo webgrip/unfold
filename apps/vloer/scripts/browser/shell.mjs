@@ -53,7 +53,7 @@ export async function run({ page, app, assert, screenshot }) {
   await palette.waitFor({ state: 'hidden' });
   await page.keyboard.press('Control+k');
   await palette.waitFor();
-  await palette.getByRole('button', { name: 'Close search' }).click();
+  await palette.getByRole('button', { name: 'Cancel search' }).click();
   await palette.waitFor({ state: 'hidden' });
   await status.getByText(/^Updated /).waitFor();
   await page.evaluate(() => { location.hash = 'settings/preferences'; });
