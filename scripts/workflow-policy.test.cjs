@@ -56,6 +56,17 @@ test('the CI verify gate requires the imported release notes', () => {
   assert.equal(step.env.GLIDE_REQUIRE_IMPORT_NOTES, 'true');
 });
 
+test('only a pull request reuses verified gate results; a development push runs every gate', () => {
+  const verification = read('.forgejo/actions/verify/action.yml');
+  const step = verification.runs.steps.find(step => step.run === 'mise run verify');
+  assert.equal(step.env.GOFLAGS, '-count=1');
+  for (const event_name of ['push', 'pull_request', 'workflow_dispatch', 'release', 'schedule']) {
+    assert.equal(evaluate(step.env.GLIDE_VERIFY_REUSE, { github: { event_name } }), event_name === 'pull_request');
+  }
+  const restore = verification.runs.steps.find(step => step.name === 'Restore verified gate results');
+  assert.equal(restore.with.path, step.env.GLIDE_VERIFY_RESULTS);
+});
+
 test('every published image passes its application CVE budget before signing', () => {
   const gate = './.forgejo/actions/cve-gate';
   const vloer = publisher.jobs['vloer-release-distribute-harbor'].steps;
