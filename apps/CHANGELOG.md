@@ -1,3 +1,19 @@
+## [glide-v0.4.0-rc.21](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.20...glide-v0.4.0-rc.21) (2026-09-30)
+
+### Dependencies
+
+* **deps:** lock file maintenance ([d393fba](https://forgejo.webgrip.dev/webgrip/glide/commit/d393fba42a4e2f266d74dfe6b3e251527a3f35c4))
+
+### Added
+
+* **deps:** update docker.io/golang docker tag ( 1.26 ➔ 1.27 ) ([21794a0](https://forgejo.webgrip.dev/webgrip/glide/commit/21794a0e7f5995b950bedfcc2be548e2de9d23fa))
+
+### Docs
+
+* **adr-0037:** accept per-team registry egress through a logged allowlist proxy ([f1b16b9](https://forgejo.webgrip.dev/webgrip/glide/commit/f1b16b97647ff9409fee410e10405a5543581e58))
+* **ploeg:** propose ADR-0037, per-team registry egress through a logged allowlist proxy ([1d024b8](https://forgejo.webgrip.dev/webgrip/glide/commit/1d024b8964616b78c6220b7d776a2c8baeb42a6b))
+* **ploeg:** record the owner's ADR-0037 decisions of 2026-09-28 ([25e9d7e](https://forgejo.webgrip.dev/webgrip/glide/commit/25e9d7e04bcfd28036913e4115b03e876e8ed65d))
+
 ## [glide-v0.4.0-rc.20](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.19...glide-v0.4.0-rc.20) (2026-09-30)
 
 ### Added
