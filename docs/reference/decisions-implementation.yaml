@@ -85,3 +85,7 @@ vloer:
     implemented: "no"
     note: Design proposal only; Vloer still runs the managed engine
     evidence: apps/vloer/docs/ploeg-front-end.md
+  "0024":
+    implemented: partial
+    note: Routes, redirects, vocabulary, formatter, tokens and shell exist (checked 2026-09-30); rebuilt screens, Cancel Work Item and removal of the legacy stylesheet do not
+    evidence: apps/vloer/public/core/route.js

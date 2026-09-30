@@ -348,24 +348,92 @@ use those rather than writing a new bio per platform.
 
 ### The application's own palette
 
-[`public/styles.css`](../../public/styles.css) declares the brand values at `:root` and maps
-them onto the roles the interface uses:
+[`public/styles/tokens.css`](../../public/styles/tokens.css) keeps the seven brand colours, plus
+Peil Donker `#1F51AC` for the pressed accent, as primitives and maps them onto roles. Components
+use only the roles. New values are written in OKLCH, a colour notation in which equal lightness
+numbers look equally light across hues. Every role that changes with the theme is a
+`light-dark()` pair, so one definition serves both themes: `color-scheme` picks the value, the
+operating system sets it by default, and the workbench's System · Light · Dark switch overrides
+it per browser. The solid fills (the button accent and each tone's `-emphasis`) and the white
+text on them keep one value in both themes.
 
-| Role | Token | Value |
+| Role | Token | Light | Dark |
+|---|---|---|---|
+| Page ground | `--bg-canvas` | Krijt | Hal |
+| Panels and cards | `--bg-surface` | white | Vlak |
+| Body text, headings | `--text` | Vlak | Krijt |
+| Tertiary text | `--text-subtle` | Stof | a grey lighter than Stof Licht |
+| Links, accent text | `--accent-fg` | Peil Diep | a light Peil tint |
+| Buttons | `--accent-solid`, `-hover` | Peil Diep, then Peil Donker | the same |
+| Focus rings, selection bars, indicators | `--focus-ring`, `--accent-graphic` | Peil | a lighter Peil |
+| Sidebar | — | Hal | Hal |
+
+The rules behind the mapping:
+
+- **No brand value moves.** The brand colours sit on a neutral scale as its anchors, and the
+  greys between them take the brand's own cool teal-grey rather than a generic slate.
+- **Peil is still graphic weight on a light ground.** Interactive text and white button labels
+  take Peil Diep; hover darkens to Peil Donker, because lightening would lose the white text's
+  contrast. On a dark ground Peil reads weak as small text, so links use a lighter tint.
+- **Stof Licht is too faint for small dark-mode text.** It passes WCAG on Hal at 6.35:1 but
+  scores only Lc 45 in APCA, the perceptual contrast measure that matters most in dark mode.
+  Dark mode therefore uses lighter greys for secondary and tertiary text and keeps Stof Licht
+  for large text and graphics.
+- **The accent is for interaction only**: links, primary buttons, selection and focus. It is
+  never a status, so a selected row and a running row never share a colour.
+- **The sidebar stays Hal in both themes.** It pins `color-scheme: dark`, which keeps today's
+  look; removing that one declaration makes it follow the theme.
+- **Hover and active fills are translucent ink**, so one token works on every surface in both
+  themes. They are never the background of a sticky or floating element.
+
+#### Status tones
+
+Status colours stay outside the brand palette, as before: they encode meaning, and the accent has
+to stay the accent. Ploeg's Klei does not appear in Vloer.
+
+| Tone | Hue | Means |
 |---|---|---|
-| Body text, headings | `--ink` | Vlak |
-| Muted text | `--muted` | Stof |
-| Page ground | `--paper` | Krijt |
-| Sidebar | `--nav` | Hal |
-| Buttons, links | `--accent` | Peil Diep — carries white text at 5.29:1 |
-| Focus rings, selection, indicators | `--accent-graphic` | Peil — graphic weight, 3.39:1 |
-| Button hover | `--accent-hover` | `#1F51AC` |
-| Success | `--ok` | `#1C7A55` |
+| `neutral` | grey | queued, proposed, received, withdrawn, pending, paused, cancelled, and results that ask nothing of you |
+| `live` | teal | running |
+| `attention` | amber | a person must act: needs you, a stuck Run, an agent review that asked for changes, a session that needs your input |
+| `review` | violet | ready for review: a pull request or a session's result waits on a person |
+| `success` | green | done, a pull request opened or updated, an approving agent review, accepted |
+| `danger` | red | failed, the failure reasons that are not infrastructure, and destructive actions |
+| `severe` | orange | stopped retrying, interrupted, and infrastructure failures |
 
-Interactive elements take **Peil Diep**, because Peil does not carry white text. Anything purely
-graphic — a focus ring, a selected-row bar, a tab underline — takes **Peil**. Status tints for
-warning and error are deliberately outside the brand palette: they encode meaning, and the
-accent has to stay the accent.
+[`public/core/states.js`](../../public/core/states.js) assigns each state its tone. Screens that
+still render the legacy markup keep the old stylesheet's colours until they are rebuilt.
+
+- **Running is teal**, not Peil and not amber: not Peil because the accent means interaction, not
+  amber because running is not a warning. The old interface drew running in orange.
+- **Ready for review is violet.** It is the product's goal state and must not look like Done.
+- **Amber means a person must act**, and it is the loudest tone. Needs you is its main use.
+  Severe and danger share warm hues, so each carries its own glyph.
+- **Status is never colour alone.** Every state has a glyph and a word as well.
+
+Each tone has six roles. `-bg`, `-bg-hover` and `-border` are tints. `-fg` is text on the tint
+and on the page. `-solid` is for dots, meter fills and stand-alone icons, never text.
+`-emphasis` carries white text, for at most one element per view and for destructive buttons.
+When the tokens were proposed, the `-fg` lightness was solved per hue so that every text pair
+reached 4.6:1 in WCAG and Lc 65 in APCA in both themes, and every solid 3:1. No automated
+contrast check exists yet; re-measure after changing a tone.
+
+#### Type and shape in the interface
+
+- Archivo at `wdth 110` throughout. Weight 800 stays the wordmark's; interface titles use 650.
+- Interface text is 13 px, prose 14 px. At `wdth 110` Archivo sets about as wide as a 14 px
+  grotesk, so 13 px is dense but legible. Nothing is smaller than 12 px, except 11 px uppercase
+  overlines and keyboard hints.
+- Numbers use tabular figures. Archivo's default figures are proportional, so columns would
+  not line up without them.
+- Status pills are squared lozenges with a 6 px radius, not capsules: the brand is a level
+  floor, and a lozenge reads as a label rather than a button.
+- The sidebar lockup is the outlined wordmark path in `currentColor`, never the name set in live
+  text (§3).
+
+The living style guide at `#design` in the running workbench shows every token and component in
+the current theme. The [browser UI reference](../browser-ui.md#css) lists the token families and
+the rules for using them.
 
 ---
 
