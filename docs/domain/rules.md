@@ -9,6 +9,16 @@ generated_by: "mise run domain"
 
 *Generated from `model.yaml` — do not edit by hand. Cite rules by id in specs.*
 
+## Agency
+
+### R16
+
+Intended behavior — Glide never merges a pull request or deploys to production. A Preview Environment never receives production secrets.
+
+**Why:** Glide's responsibility ends at a reviewed pull request and its preview; production stays with the Agency.
+
+**Also applies to:** Preview Environment, Acceptance
+
 ## Budget
 
 ### R6
@@ -18,6 +28,34 @@ An unknown or pending charge must not be described as zero spend against a Budge
 **Why:** Missing cost data cannot justify more expenditure.
 
 **Also applies to:** Shift
+
+### R14
+
+Intended behavior — Ploeg refuses a Shift it cannot fund and never raises a Budget on its own. A Shift that reaches its Shift Budget stops and offers a split into new Work Items.
+
+**Why:** A guaranteed ceiling on spend is what Agencies buy.
+
+**Also applies to:** Shift, Size
+
+## Client
+
+### R15
+
+Intended behavior — Glide never contacts a Client directly; questions for a Client go through its Agency.
+
+**Why:** The Agency owns the Client relationship.
+
+**Also applies to:** Agency, Refinement
+
+## Delivery Fee
+
+### R13
+
+Intended behavior — the Delivery Fee is charged only on Acceptance. The Token Charge is charged for every attempt up to the Shift Budget, except attempts that fail through Glide's own fault.
+
+**Why:** The Agency pays for delivered work, and rejecting work is never free, so neither side profits from the other's mistakes.
+
+**Also applies to:** Token Charge, Acceptance
 
 ## Evidence
 
