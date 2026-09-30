@@ -69,6 +69,12 @@ export async function run({ page, assert, screenshot }) {
     await page.locator('#ploeg-team').selectOption('');
     await page.locator('[data-work-row][data-id="109"]').waitFor();
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('vloer.prefs')).team), null);
+    await page.getByRole('button', { name: 'Refresh' }).focus();
+    const reads = overviewReads.length;
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => !document.querySelector('.work-refresh[aria-busy="true"]'));
+    assert(overviewReads.length > reads, 'Refresh reads the lists again');
+    assert.equal(await page.evaluate(() => document.activeElement?.dataset?.action), 'ploeg-refresh', 'Refresh keeps the keyboard focus');
   } finally {
     page.off('request', onRequest);
   }

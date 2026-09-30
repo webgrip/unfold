@@ -16,6 +16,7 @@ const work = { team: '', loadedTeam: null, listRequest: 0, detailRequest: 0, det
 
 const canCancel = () => ['operator', 'admin'].includes(state.bootstrap?.user?.role);
 const visible = () => Boolean(state.bootstrap) && state.view === 'work';
+const signature = value => JSON.stringify(value ?? null, (key, entry) => key === 'fetchedAt' ? undefined : entry);
 
 function listHash() {
   return buildHash('work', { lane: state.ploegLane, team: work.team });
@@ -53,16 +54,28 @@ function shellOptions(current) {
   return { title, breadcrumbs: [{ label: 'Ploeg' }, { label: 'Work', href: current.listHref }, { label: item ? workItemRef(item) : `#${current.detailId}` }] };
 }
 
+function focusTarget() {
+  const active = document.activeElement;
+  if (!active || active === document.body || active.id) return null;
+  if (active.matches('[data-work-row]')) return `[data-work-row][data-id="${CSS.escape(active.dataset.id)}"]`;
+  if (active.dataset.action) return `[data-action="${CSS.escape(active.dataset.action)}"]${active.dataset.id ? `[data-id="${CSS.escape(active.dataset.id)}"]` : ''}`;
+  const details = active.closest('details[id]');
+  if (active.tagName === 'SUMMARY' && details) return `#${CSS.escape(details.id)} > summary`;
+  return null;
+}
+
 function renderWork() {
   if (!visible()) return;
   const open = new Map([...document.querySelectorAll('#app details[id]')].map(element => [element.id, element.open]));
   const scroller = $('.work-list-pane .work-list');
   const listTop = scroller ? scroller.scrollTop : 0;
+  const target = focusTarget();
   const current = model();
   renderHtml(shell(workMarkup(current), shellOptions(current)));
   for (const element of document.querySelectorAll('#app details[id]')) if (open.has(element.id)) element.open = open.get(element.id);
   const list = $('.work-list-pane .work-list');
   if (list && listTop) list.scrollTop = listTop;
+  if (target && (!document.activeElement || document.activeElement === document.body)) document.querySelector(target)?.focus({ preventScroll: true });
   revealLane();
 }
 
@@ -79,25 +92,37 @@ function keepFiltersInHash() {
   history.replaceState(null, '', `#${buildHash(id ? `work/${id}` : 'work', { lane: state.ploegLane, team: work.team })}`);
 }
 
+async function readTeam(team, refresh) {
+  return api(`/api/ploeg?${new URLSearchParams({ team, ...refresh })}`).then(data => ({ team, data }), error => ({ team, error }));
+}
+
 async function readOverview(team, fresh) {
   const refresh = fresh ? { refresh: '1' } : {};
   if (team) return teamOverview(await api(`/api/ploeg?${new URLSearchParams({ team, ...refresh })}`));
+  const known = state.ploeg?.available && state.ploeg.allTeams ? state.ploeg.teams.map(entry => entry.id) : [];
+  if (known.length > 1) {
+    const results = await Promise.all(known.map(id => readTeam(id, refresh)));
+    if (results.every(result => result.error)) throw results[0].error;
+    return mergeOverviews(results);
+  }
   const first = await api(`/api/ploeg?${new URLSearchParams(refresh)}`);
   if (!first.available || first.teams.length < 2) return teamOverview(first);
   const others = first.teams.map(entry => entry.id).filter(id => id !== first.selectedTeam);
-  const rest = await Promise.all(others.map(id => api(`/api/ploeg?${new URLSearchParams({ team: id, ...refresh })}`).then(data => ({ team: id, data }), error => ({ team: id, error }))));
+  const rest = await Promise.all(others.map(id => readTeam(id, refresh)));
   return mergeOverviews([{ team: first.selectedTeam, data: first }, ...rest]);
 }
 
-async function loadOverview({ fresh = false, quiet = false } = {}) {
+async function loadOverview({ fresh = false, quiet = false, spinner = false } = {}) {
   const request = ++work.listRequest;
   const team = work.team;
-  if (quiet) work.refreshing = true;
-  else { state.ploegLoading = true; if (work.loadedTeam !== team) state.ploeg = null; }
-  renderWork();
+  let changed = !quiet || spinner;
+  if (spinner) work.refreshing = true;
+  if (!quiet) { state.ploegLoading = true; if (work.loadedTeam !== team) state.ploeg = null; }
+  if (changed) renderWork();
   try {
     const data = await readOverview(team, fresh);
     if (request !== work.listRequest || !visible()) return;
+    if (signature(data) !== signature(state.ploeg)) changed = true;
     state.ploeg = data;
     work.loadedTeam = team;
     if (data.available) live.touch('work');
@@ -112,11 +137,12 @@ async function loadOverview({ fresh = false, quiet = false } = {}) {
       return loadOverview({ fresh });
     }
     if (quiet && state.ploeg?.available) throw error;
+    changed = true;
     state.ploeg = { configured: error.code !== 'ploeg_unconfigured', available: false, demo: false, teams: [], message: error.message };
     work.loadedTeam = team;
     if (quiet) throw error;
   } finally {
-    if (request === work.listRequest) { state.ploegLoading = false; work.refreshing = false; renderWork(); }
+    if (request === work.listRequest) { state.ploegLoading = false; work.refreshing = false; if (changed) renderWork(); }
   }
 }
 
@@ -132,22 +158,25 @@ async function ensureSessions() {
 
 async function loadDetail(id, { fresh = false, quiet = false } = {}) {
   const request = ++work.detailRequest;
+  let changed = !quiet;
   if (!quiet) { state.ploegDetailLoading = true; state.ploegDetailError = ''; if (state.ploegDetail?.item.id !== id) state.ploegDetail = null; renderWork(); }
   try {
     const detail = await api(`/api/ploeg/work-items/${encodeURIComponent(id)}${fresh ? '?refresh=1' : ''}`);
     if (request !== work.detailRequest || !visible() || work.detailId !== id) return;
+    if (signature(detail) !== signature(state.ploegDetail)) changed = true;
     state.ploegDetail = detail;
     state.ploegDetailError = '';
   } catch (error) {
     if (request !== work.detailRequest || !visible() || work.detailId !== id) return;
     if (quiet && state.ploegDetail?.item.id === id) throw error;
+    changed = true;
     state.ploegDetail = null;
     state.ploegDetailError = { message: error.message, code: error.code || '' };
     if (quiet) throw error;
   } finally {
     if (request === work.detailRequest && visible() && work.detailId === id) {
       state.ploegDetailLoading = false;
-      renderWork();
+      if (changed) renderWork();
       if (!quiet && state.ploegDetail) {
         const title = $('#ploeg-item-title');
         title?.focus({ preventScroll: true });
@@ -355,13 +384,13 @@ export default {
   enter: enterWork,
   render: renderWork,
   actions: {
-    'ploeg-refresh': () => Promise.all([loadOverview({ fresh: true, quiet: Boolean(state.ploeg?.available) }).catch(error => notify(error.message, true)), work.detailId ? loadDetail(work.detailId, { fresh: true, quiet: Boolean(state.ploegDetail) }).catch(error => notify(error.message, true)) : null]),
+    'ploeg-refresh': () => state.ploegLoading || work.refreshing ? null : Promise.all([loadOverview({ fresh: true, quiet: Boolean(state.ploeg?.available), spinner: true }).catch(error => notify(error.message, true)), work.detailId ? loadDetail(work.detailId, { fresh: true, quiet: Boolean(state.ploegDetail) }).catch(error => notify(error.message, true)) : null]),
     'ploeg-close': () => closeDetail(),
     'ploeg-lane': selectLane,
     'ploeg-more': () => loadMore(),
     'work-detail-retry': () => work.detailId && loadDetail(work.detailId, { fresh: true }),
     'work-copy-link': copyLink,
-    'work-cancel': () => openCancel(),
+    'work-cancel': () => work.cancelBusy ? null : openCancel(),
     'work-brief': () => toggleBrief(),
     'work-run': jumpToRun,
   },

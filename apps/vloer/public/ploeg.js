@@ -304,7 +304,7 @@ function laneControl(model) {
 
 function refreshButton(model) {
   const busy = model.loading || model.refreshing;
-  return `<button type="button" class="button secondary icon-only work-refresh" data-action="ploeg-refresh" aria-label="Refresh" title="Refresh"${busy ? ' disabled aria-busy="true"' : ''}>${busy ? '<span class="spinner" aria-hidden="true"></span>' : icon('refresh')}</button>`;
+  return `<button type="button" class="button secondary icon-only work-refresh" data-action="ploeg-refresh" aria-label="Refresh" title="Refresh"${busy ? ' aria-disabled="true" aria-busy="true"' : ''}>${busy ? '<span class="spinner" aria-hidden="true"></span>' : icon('refresh')}</button>`;
 }
 
 function toolbarMarkup(model) {
@@ -323,7 +323,7 @@ function listMarkup(model) {
     const [glyph, title, body, tone] = data.teams.length ? laneEmpty[lane] || laneEmpty.all : ['lock', 'No Teams for your account', 'Ask an administrator to give your account access to a Ploeg Team.', 'neutral'];
     return `<section class="card work-list" aria-labelledby="work-list-title">${heading}${ui.emptyState({ icon: glyph, title, body: `<p>${escape(body)}</p>`, tone })}</section>`;
   }
-  const more = page.partial ? `<footer class="work-list-footer"><p class="meta">${data.allTeams ? 'Showing the first page of each Team.' : 'Showing the first page.'} Counts cover the loaded Work Items.</p><button type="button" class="button secondary sm" data-action="ploeg-more"${model.loadingMore ? ' disabled aria-busy="true"' : ''}>${model.loadingMore ? '<span class="spinner" aria-hidden="true"></span>' : icon('chevron-down')}<span class="button-label">Load more</span></button></footer>` : '';
+  const more = page.partial ? `<footer class="work-list-footer"><p class="meta">${data.allTeams ? 'Showing the first page of each Team.' : 'Showing the first page.'} Counts cover the loaded Work Items.</p><button type="button" class="button secondary sm" data-action="ploeg-more"${model.loadingMore ? ' aria-disabled="true" aria-busy="true"' : ''}>${model.loadingMore ? '<span class="spinner" aria-hidden="true"></span>' : icon('chevron-down')}<span class="button-label">Load more</span></button></footer>` : '';
   return `<section class="card flush work-list" aria-labelledby="work-list-title">${heading}<ul class="list work-list-rows" aria-busy="${model.loading ? 'true' : 'false'}">${page.items.map(item => workRow(item, context)).join('')}</ul>${more}</section>`;
 }
 
@@ -352,7 +352,7 @@ function actionButtons(detail, model, { phone = false } = {}) {
   if (tracker) links.push(`<a class="button secondary" href="${escape(tracker)}" target="_blank" rel="noopener noreferrer">${icon('external')}<span class="button-label">Open in ${escape(trackerName(item.provider) || 'tracker')}</span><span class="sr-only"> (opens in a new tab)</span></a>`);
   if (phone) return links.length ? `<div class="work-sticky-actions" role="group" aria-label="Open elsewhere">${links.join('')}</div>` : '';
   const tools = [`<button type="button" class="button ghost" data-action="work-copy-link" data-id="${escape(item.id)}">${icon('copy')}<span class="button-label">Copy link</span></button>`];
-  if (model.canCancel && cancellable.has(item.state)) tools.push(`<button type="button" class="button danger-ghost" data-action="work-cancel" data-id="${escape(item.id)}"${model.cancelBusy ? ' disabled aria-busy="true"' : ''}>${model.cancelBusy ? '<span class="spinner" aria-hidden="true"></span>' : icon('stop')}<span class="button-label">Cancel Work Item</span></button>`);
+  if (model.canCancel && cancellable.has(item.state)) tools.push(`<button type="button" class="button danger-ghost" data-action="work-cancel" data-id="${escape(item.id)}"${model.cancelBusy ? ' aria-disabled="true" aria-busy="true"' : ''}>${model.cancelBusy ? '<span class="spinner" aria-hidden="true"></span>' : icon('stop')}<span class="button-label">Cancel Work Item</span></button>`);
   return `<div class="work-actions">${links.length ? `<div class="work-actions-links">${links.join('')}</div>` : ''}<div class="work-actions-tools">${tools.join('')}</div></div>`;
 }
 
@@ -397,9 +397,12 @@ function evidenceLine(run, reason) {
 }
 
 function trackerLink(item, trackerUrl) {
-  const url = safeUrl(item.url) || safeUrl(trackerUrl);
+  const task = safeUrl(item.url);
+  const url = task || safeUrl(trackerUrl);
   if (!url) return '';
-  return ` <a class="work-inline-link" href="${escape(url)}" target="_blank" rel="noopener noreferrer">Open in ${escape(trackerName(item.provider) || 'the tracker')}${icon('external')}<span class="sr-only"> (opens in a new tab)</span></a>`;
+  const name = trackerName(item.provider);
+  const label = task ? `Open the task in ${name || 'its tracker'}` : `Open ${name || 'the tracker'}`;
+  return ` <a class="work-inline-link" href="${escape(url)}" target="_blank" rel="noopener noreferrer">${escape(label)}${icon('external')}<span class="sr-only"> (opens in a new tab)</span></a>`;
 }
 
 function steps(entries) {

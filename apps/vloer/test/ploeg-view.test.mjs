@@ -172,6 +172,11 @@ test('a needs-you item explains why with Ploeg’s own words, the evidence Runs 
   assert.match(html, /data-action="work-run" data-id="44"/);
   assert.match(html, /Read the findings\. Finish the branch by hand, or sharpen the ticket\.[^]*Then assign the task to the Team again in Vikunja\./);
   assert.match(html, /Starting again from Vloer is proposed Ploeg work\./);
+  assert.doesNotMatch(html, /Open the task in|>Open Vikunja</, 'no tracker link when Ploeg reported none');
+  const linked = demoDetail('109');
+  linked.item.url = 'https://tracker.test/tasks/9';
+  assert.match(detailMarkup(linked, model({ detailId: '109' })), /<a class="work-inline-link" href="https:\/\/tracker.test\/tasks\/9" target="_blank" rel="noopener noreferrer">Open the task in Vikunja/);
+  assert.match(detailMarkup(demoDetail('109'), model({ detailId: '109', trackerUrl: 'https://tracker.test/' })), />Open Vikunja</, 'only the tracker root is known, so the link says so');
   const unrouted = detailMarkup(demoDetail('108'), model({ detailId: '108' }));
   assert.match(unrouted, /<div class="work-warning" data-tone="attention">[^]*<strong>Not routed\.<\/strong>/);
   const stuck = detailMarkup(demoDetail('111'), model({ detailId: '111' }));
