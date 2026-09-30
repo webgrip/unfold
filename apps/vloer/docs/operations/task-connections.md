@@ -1,6 +1,6 @@
 # Connect a task system
 
-De Vloer reads tasks from **Vikunja, ClickUp, Forgejo, GitHub and GitLab** through the same operator workflow: choose a connection, browse tasks, inspect a preview, and explicitly import one into a queued session. Browser and VS Code use the same server registrations and API. Importing does not start agents, assign the task, post a comment or change its status.
+De Vloer reads tasks from **Vikunja, ClickUp, Forgejo, GitHub and GitLab** through the same operator workflow: choose a connection, browse tasks, inspect a preview, and explicitly import one into a queued session. Browser and VS Code use the same server registrations and API. Importing does not start agents, assign the task, post a comment or change its status. [Handing a Vikunja task to Ploeg](#hand-a-task-to-ploeg) is a separate, explicit action that does assign it and leaves a comment.
 
 An administrator registers each source in the server configuration. The application supplies five task adapters. Personal GitLab and ClickUp account links are also implemented, including optional OAuth; see [account linking](live.md#linking-clickup). Those account links do not replace administrator source registration. Adding another system requires a server adapter that implements the same list/get normalization contract.
 
@@ -118,7 +118,7 @@ The server refetches the task when importing and compares it with the previewed 
 
 Importing the same task revision again returns its existing session for that operator, including an already completed session; it does not create another paid attempt. If another operator owns the import, the server returns a conflict without exposing that person's session ID. Administrators can access the existing session. A changed task revision may create a new session only after prior work is terminal, no worker or uncertain interruption remains, and spend reservations are resolved. Otherwise inspect the existing work first. Standalone imports coordinate one Vloer store. Shared imports use the Ploeg claim described below.
 
-Task listing is paged, not an exhaustive background synchronization. Most providers return at most 50 records per request; ClickUp uses up to 100. Move to the next page to browse further. The server bounds response size and task text; oversized content produces an explicit error instead of silently dropping acceptance criteria. The imported revision covers normalized title, description, state, update timestamp and link. It does not include comments, labels, checklists, assignees, priority, custom fields or linked documents. Put the required acceptance criteria in the task description for this pilot; changes to other fields are outside its revision check.
+Task listing is paged, not an exhaustive background synchronization. Most providers return at most 50 records per request; ClickUp uses up to 100. Move to the next page to browse further. The server bounds response size and task text. A list page cuts a description over 16,000 characters and marks it truncated, so one long task does not hide the rest. Previewing or importing that task still refuses it with an explicit error instead of silently dropping acceptance criteria. Tasks also show labels, assignees, priority, due date and the tracker's own identifier where the provider returns them, and Vikunja's HTML descriptions are converted to plain Markdown for reading. The imported revision covers normalized title, description, state, update timestamp and link. It does not include comments, labels, checklists, assignees, priority, custom fields or linked documents. Put the required acceptance criteria in the task description for this pilot; changes to other fields are outside its revision check.
 
 The same task may be represented in several systems. This release identifies imports by their registered source and task identity; it does not infer that a ClickUp task and a linked Forgejo issue are the same work item. Use one authoritative source per work item for the pilot.
 
@@ -161,6 +161,27 @@ Open the task preview and review the linked Work Item and target. Import creates
 
 The [binding contract](../contracts/ploeg-tracker-binding.md) separates preview hashes, native tracker revisions and Ploeg row freshness. Browser qualification uses `mise exec -- node scripts/browser-task-binding-check.mjs`; its tracker and Ploeg are explicitly labelled fixtures and it starts no agents or model calls.
 
+## Hand a task to Ploeg
+
+Ploeg takes Vikunja work when a task is assigned to the tracker user that routes to one of its teams. The editor's task view offers **Hand to Ploeg** with a team picker, and **Take back** while Ploeg has not started. The server does the assignment with the connection's token, so nobody needs to know which tracker user belongs to which team. The [API contract](../contracts/api.md#hand-a-task-to-ploeg) lists the routes and refusals, and [ADR 0025](../adrs/0025-hand-tracker-tasks-to-ploeg-by-assignment.md) records why.
+
+A connection can hand off when all of these hold:
+
+* it is a Vikunja source with a `tokenEnv`;
+* its `executionOwner` is `"ploeg"`. A `ploeg.target` is not needed for hand-off; it is only for [importing the existing Ploeg work item](#import-the-existing-ploeg-work-item);
+* the server has a live `ploeg` operator connection, not the demo;
+* Ploeg reports tracker assignees for its teams. Ploeg's teams config `teams.<team>.assignees` and `PLOEG_TEAM_MAP` set them.
+
+Only one team holds a task at a time. Hand-off is refused while another team's tracker user is on the task or Ploeg has live work for it, and take-back is refused once any team has started. When Ploeg pins a board to a team (a project with an `id` and a `team:` in Ploeg's tracker configuration), every assignment on that board runs as the pinned team, so the task view offers only that team.
+
+The Vikunja token then needs more than reads. Give it permission to add and remove task assignees and to add task comments on the project. Vikunja lists these as separate API token permissions. A read-only token still browses and previews; hand-off answers `task_write_forbidden`.
+
+A person can hand a task only to a Ploeg team they may use (`ploeg.userTeams`, or any team in scope for an administrator) that has a tracker user. Viewers see the status but cannot hand off. The server rereads the task first. A done task or one that changed since it was opened is refused, and the client reloads it. Handing off again, or taking back a task that is not assigned, changes nothing.
+
+The comment reads *Handed to Ploeg team `silver` by NAME from Vloer.*, posted by the connection's Vikunja account. Taking back removes the assignee only while Ploeg's Work Items for that team are queued, withdrawn, done or stale; once Ploeg has started, cancel the work from the Ploeg view. Ploeg itself withdraws a queued Work Item when its assignee is removed.
+
+The status beside the task shows which team holds it, Ploeg's Work Items for it with their state, branch, spend and pull request, and why hand-off is unavailable when it is. The demo fixture source is not linked to Ploeg and shows no Ploeg work.
+
 ## Diagnose a connection
 
 | Symptom | Check |
@@ -173,7 +194,9 @@ The [binding contract](../contracts/ploeg-tracker-binding.md) separates preview 
 | Shared import blocked | Check the explicit source target, singleton API root, configured execution team and current queued/pristine Ploeg item. Unsupported tracker providers remain inspection-only in shared mode |
 | Standalone import blocked | The source and destination repository must belong to the interactive lane |
 | Redirect or unexpected content rejected | Configure the final API root directly and inspect the reverse proxy; login HTML is not an API response |
-| Description too large | Bound the task's actionable scope in the tracker, or create a smaller task. The connector does not silently truncate it |
+| Description too large | Bound the task's actionable scope in the tracker, or create a smaller task. A list shows it truncated; preview and import refuse it rather than truncate it |
+| Hand-off refused with `task_write_forbidden` | The Vikunja token can read but not change the task. Grant it task assignee and comment permissions |
+| No team to hand off to | Your account needs Ploeg team access in `ploeg.userTeams`, and the team needs a tracker user in Ploeg's configuration. An older Ploeg does not report tracker users at all |
 
 The tests exercise provider contracts with local HTTP fixtures. They do not demonstrate live authentication against your accounts, verify every self-hosted version, or create external tasks. The [connector source notes](../research/task-connector-sources.md) record the inspected official API contracts and adapter limits. Record the instance version and a real list → preview → import result in [validation](../validation.md) during qualification.
 

@@ -290,3 +290,5 @@ footer .session-id { margin-left: auto; font-family: var(--mono); }
 .link-button { background: none; border: none; color: var(--vscode-textLink-foreground); cursor: pointer; padding: 0; margin-right: 0.6rem; font: inherit; }
 .link-button:hover { text-decoration: underline; }
 .link-row { display: inline-flex; flex-wrap: wrap; gap: 0.2rem 0.4rem; }
+.markdown li.task-item { list-style: none; margin-left: -1.2em; }
+.markdown li.task-item .check { color: var(--muted); }
