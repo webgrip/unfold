@@ -1,17 +1,25 @@
 import { navigate } from './navigate.mjs';
 
-/** Settings: the Environment health checks, and Preferences for theme, density, single-key shortcuts and live updates, kept across a reload. */
+/** Settings: the Environment health checks, one content width on every Settings page, and Preferences for theme, density, single-key shortcuts and live updates, kept across a reload and in step with the top bar and account menu. */
 export async function run({ page, assert, screenshot }) {
   const root = name => page.evaluate(attribute => document.documentElement.getAttribute(attribute), name);
+  const pageWidth = () => page.locator('.settings-page').evaluate(element => element.getBoundingClientRect().width);
   await navigate(page, 'Settings');
   await page.getByRole('link', { name: 'Environment', exact: true }).click();
   await page.getByRole('heading', { name: 'Health checks', exact: true }).waitFor();
   const ploegCheck = page.locator('.health-check', { has: page.getByRole('heading', { name: 'Ploeg connection', exact: true }) });
   await ploegCheck.getByText('Demo data', { exact: true }).waitFor();
   assert.equal(await page.locator('.health-check').count(), 6, 'the Environment page does not list every health check');
+  const runtimeCheck = page.locator('.health-check', { has: page.getByRole('heading', { name: 'Agent runtimes', exact: true }) });
+  await runtimeCheck.getByText('Registered', { exact: true }).waitFor();
   await screenshot('environment');
+  const environmentWidth = await pageWidth();
+  await page.getByRole('link', { name: 'Linked accounts', exact: true }).click();
+  await page.getByRole('heading', { level: 1, name: 'Linked accounts', exact: true }).waitFor();
+  assert.equal(await pageWidth(), environmentWidth, 'Linked accounts and Environment use different content widths');
   await page.getByRole('link', { name: 'Preferences', exact: true }).click();
   await page.getByRole('heading', { level: 1, name: 'Preferences', exact: true }).waitFor();
+  assert.equal(await pageWidth(), environmentWidth, 'Preferences and Environment use different content widths');
   await page.getByRole('radio', { name: /^Dark/ }).check();
   assert.equal(await root('data-theme'), 'dark');
   await page.getByRole('radio', { name: /^Compact/ }).check();
@@ -33,6 +41,18 @@ export async function run({ page, assert, screenshot }) {
   await page.getByRole('dialog', { name: 'Search and commands' }).waitFor();
   await page.keyboard.press('Escape');
   await page.getByRole('switch', { name: 'Single-key shortcuts', exact: true }).check();
+  const viewport = page.viewportSize();
+  await page.setViewportSize({ width: 1440, height: 1040 });
+  await page.locator('.app-topbar [data-live-toggle]').click();
+  assert.equal(await page.getByRole('switch', { name: 'Refresh automatically', exact: true }).isChecked(), false, 'the Live button in the top bar left the Preferences switch on');
+  await page.locator('.app-topbar [data-live-toggle]').click();
+  assert.equal(await page.getByRole('switch', { name: 'Refresh automatically', exact: true }).isChecked(), true);
+  await page.getByRole('button', { name: /^Account and theme/ }).click();
+  await page.locator('.app-user-menu [data-action="theme-set"][data-value="light"]').click();
+  assert.equal(await page.getByRole('radio', { name: /^Light/ }).isChecked(), true, 'the account menu theme left the Preferences tiles on the old theme');
+  assert.equal(await page.locator('.app-user-menu').isVisible(), true, 'changing the theme from the account menu closed it');
+  await page.keyboard.press('Escape');
+  await page.setViewportSize(viewport);
   await page.getByRole('radio', { name: /^System/ }).check();
   await page.getByRole('radio', { name: /^Comfortable/ }).check();
   assert.equal(await root('data-theme'), null);

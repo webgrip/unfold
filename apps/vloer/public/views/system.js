@@ -13,7 +13,10 @@ const looks = {
   setup: { tone: 'attention', glyph: 'alert' },
   failing: { tone: 'danger', glyph: 'x-circle' },
   info: { tone: 'neutral', glyph: 'circle-dashed' },
+  listed: { tone: 'neutral', glyph: 'check' },
+  unknown: { tone: 'neutral', glyph: 'help-circle' },
 };
+const toDo = ['setup', 'failing', 'unknown'];
 const dashboardNames = { spend: 'Spend, budgets and savings', reliability: 'Latency and reliability', finops: 'FinOps' };
 
 let loading = false;
@@ -22,10 +25,11 @@ let failure = '';
 const act = (attribute, options) => button(options).replace('<button ', `<button ${attribute} `);
 const code = text => `<code>${escape(text)}</code>`;
 const isAdmin = () => state.bootstrap.user.role === 'admin';
+const refreshAction = label => act('data-action="environment-refresh"', { label, icon: 'refresh', size: 'sm' });
 const askAdmin = 'Ask an administrator to set this up.';
 
 function ploegCheck() {
-  const refresh = act('data-action="environment-refresh"', { label: 'Check again', icon: 'refresh', size: 'sm' });
+  const refresh = refreshAction('Check again');
   const cases = {
     demo: { status: 'info', label: 'Demo data', detail: 'Ploeg answers with illustrative Work Items and Runs. Nothing is dispatched and no model is called.' },
     connected: { status: 'ok', label: 'Connected', detail: 'Ploeg answered the last check. Now, Work, Runs and Activity read from it.' },
@@ -41,6 +45,7 @@ function gatewayCheck() {
   const policy = state.bootstrap.gatewayPolicy;
   const policyText = policy ? [policy.providers ? `providers ${policy.providers.join(', ')}` : '', policy.regions ? `regions ${policy.regions.join(', ')}` : ''].filter(Boolean).join(' · ') : '';
   if (state.bootstrap.mode === 'demo') return { id: 'gateway', title: 'Model gateway', status: 'info', label: 'Not used', detail: 'The demo runs real Git changes and checks without model calls or spend.' };
+  if (!state.health && failure) return { id: 'gateway', title: 'Model gateway', status: 'unknown', label: 'Unknown', detail: 'Vloer could not read its health, so the gateway state is unknown.', action: refreshAction('Check again') };
   if (!state.health) return { id: 'gateway', title: 'Model gateway', status: 'info', label: 'Checking…', detail: 'Reading the workbench health.' };
   if (state.health.litellm) {
     const host = state.bootstrap.gateway || state.health.gateway;
@@ -54,7 +59,7 @@ function placementCheck() {
   if (state.bootstrap.mode === 'demo') return { id: 'placements', title: 'Workspace placements', status: 'info', label: 'Demo fixture', detail: 'The demo prepares its repository fixture on this machine.' };
   if (!placements.length) return { id: 'placements', title: 'Workspace placements', status: 'setup', label: 'None', detail: `Workspaces use the ${escape(state.health?.workspaceBackend || 'default')} backend.`, next: isAdmin() ? `List the backends in ${code('runtime.backends')}: ${code('docker')} or ${code('kubernetes')} isolate each workspace.` : askAdmin };
   const names = placements.map(placement => `${escape(placement.name)}${placement.default && placements.length > 1 ? ' · default' : ''}`).join('; ');
-  if (placements.every(placement => placement.isolation === 'working-directory')) return { id: 'placements', title: 'Workspace placements', status: 'setup', label: 'Trusted work only', detail: `${names}. Agents work in a directory on the workbench host, without a container around them.`, next: isAdmin() ? `Add ${code('docker')} or ${code('kubernetes')} to ${code('runtime.backends')} to isolate workspaces.` : askAdmin };
+  if (placements.every(placement => placement.isolation === 'working-directory')) return { id: 'placements', title: 'Workspace placements', status: 'setup', label: 'Trusted work only', detail: `${names}. No container separates the agents from the host.`, next: isAdmin() ? `Add ${code('docker')} or ${code('kubernetes')} to ${code('runtime.backends')} to isolate workspaces.` : askAdmin };
   return { id: 'placements', title: 'Workspace placements', status: 'ok', label: plural(placements.length, 'placement'), detail: `${names}.` };
 }
 
@@ -64,7 +69,7 @@ function runtimeCheck() {
   const names = runtimes.map(runtime => escape(runtime.name)).join(' · ');
   if (!runtimes.length) return { id: 'runtimes', title: 'Agent runtimes', status: 'failing', label: 'None', detail: 'No agent runtime is registered, so sessions cannot start.', next: isAdmin() ? `Configure ${code('runtime.kind')} in the server configuration.` : askAdmin };
   if (missing.length) return { id: 'runtimes', title: 'Agent runtimes', status: 'setup', label: `${missing.length} unavailable`, detail: `${names}. ${missing.map(runtime => escape(runtime.name)).join(', ')} cannot start sessions right now.`, next: isAdmin() ? 'Check that the runtime is installed and reachable from the workbench.' : askAdmin };
-  return { id: 'runtimes', title: 'Agent runtimes', status: 'ok', label: 'Available', detail: `${names}.` };
+  return { id: 'runtimes', title: 'Agent runtimes', status: 'listed', label: 'Registered', detail: `${names}. Read from the server configuration; this page does not start ${runtimes.length === 1 ? 'it' : 'them'} to check.` };
 }
 
 function sourcesCheck() {
@@ -102,60 +107,61 @@ function checkRow(check) {
 function checklist() {
   if (loading && !state.health) return `<header class="settings-card-header health-summary"><div><h2 class="settings-card-title" id="health-title">Health checks</h2><p class="settings-card-description">Checking the workbench…</p></div></header><div class="health-loading">${skeleton({ rows: 5 })}</div>`;
   const checks = [ploegCheck(), gatewayCheck(), runtimeCheck(), placementCheck(), sourcesCheck(), dashboardsCheck()];
-  const counts = { ok: 0, setup: 0, failing: 0, info: 0 };
-  for (const check of checks) counts[check.status]++;
-  const open = counts.setup + counts.failing;
-  const summary = open ? `${plural(open, 'check')} ${open === 1 ? 'needs' : 'need'} attention` : failure && !state.health ? 'Some checks could not read the workbench health' : 'Everything this workbench needs is in place';
-  const tally = [counts.ok ? badge({ tone: 'success', glyph: 'check-circle', label: `${counts.ok} ready`, size: 'sm' }) : '', open ? badge({ tone: counts.failing ? 'danger' : 'attention', glyph: counts.failing ? 'x-circle' : 'alert', label: `${open} to do`, size: 'sm' }) : '', counts.info ? badge({ tone: 'neutral', glyph: 'circle-dashed', label: `${counts.info} not in use`, size: 'sm' }) : ''].join('');
+  const ready = checks.filter(check => ['ok', 'listed'].includes(check.status)).length;
+  const open = checks.filter(check => toDo.includes(check.status)).length;
+  const unused = checks.filter(check => check.status === 'info').length;
+  const failing = checks.some(check => check.status === 'failing');
+  const summary = open ? `${plural(open, 'check')} ${open === 1 ? 'needs' : 'need'} attention` : 'Everything this workbench needs is in place';
+  const tally = [ready ? badge({ tone: 'success', glyph: 'check-circle', label: `${ready} ready`, size: 'sm' }) : '', open ? badge({ tone: failing ? 'danger' : 'attention', glyph: failing ? 'x-circle' : 'alert', label: `${open} to do`, size: 'sm' }) : '', unused ? badge({ tone: 'neutral', glyph: 'circle-dashed', label: `${unused} not in use`, size: 'sm' }) : ''].join('');
   return `<header class="settings-card-header health-summary"><div><h2 class="settings-card-title" id="health-title">Health checks</h2><p class="settings-card-description">${escape(summary)}.</p></div><div class="health-tally">${tally}</div></header><ol class="health-list">${checks.map(checkRow).join('')}</ol>`;
 }
 
 function facts() {
   const boot = state.bootstrap;
   const policy = boot.gatewayPolicy;
-  const policyText = policy ? [policy.providers ? `Providers: ${policy.providers.map(escape).join(', ')}` : '', policy.regions ? `Regions: ${policy.regions.map(escape).join(', ')}` : ''].filter(Boolean).join('<br>') : 'Any provider and region the gateway routes to';
+  const policyText = policy ? [policy.providers ? `Providers: ${policy.providers.map(escape).join(', ')}` : '', policy.regions ? `Regions: ${policy.regions.map(escape).join(', ')}` : ''].filter(Boolean).join('<br>') : boot.mode === 'demo' ? 'Not used in the demo' : 'Any provider and region the gateway routes to';
   const rows = [
-    ['Mode', boot.mode === 'demo' ? `${badge({ tone: 'attention', label: 'Demo', size: 'sm' })} Local demonstration` : `${badge({ tone: 'success', label: 'Live', size: 'sm' })} Live workbench`],
+    ['Mode', boot.mode === 'demo' ? badge({ tone: 'attention', label: 'Demo', size: 'sm', title: 'A local demonstration: no model calls, no spend' }) : badge({ tone: 'success', label: 'Live', size: 'sm' })],
     ['Version', state.health?.version ? `<span class="num">${escape(state.health.version)}</span>` : null],
     ['Session ceiling', `<span class="num">${escape(money(boot.maxBudgetUsd))}</span> per session`],
-    ['Concurrent sessions', `<span class="num">${escape(boot.maxConcurrentSessions)}</span> at a time`],
+    ['Sessions at once', `<span class="num">${escape(boot.maxConcurrentSessions)}</span>`],
     ['Shared execution', boot.sharedExecution ? 'On: tasks continue Ploeg Work Items' : 'Off'],
     ['Gateway policy', `<span class="health-policy">${policyText}</span>`],
-    ['Storage', 'SQLite · one application replica'],
+    ['Storage', 'Local database (SQLite) on one server'],
   ];
-  return `<section class="card settings-card" aria-labelledby="workbench-title"><header class="settings-card-header"><div><h2 class="settings-card-title" id="workbench-title">This workbench</h2><p class="settings-card-description">Limits every session runs under.</p></div></header><div class="settings-card-body">${dl(rows, { rows: true })}</div></section>`;
+  return `<section class="card settings-card" aria-labelledby="workbench-title"><header class="settings-card-header"><div><h2 class="settings-card-title" id="workbench-title">This workbench</h2><p class="settings-card-description">Limits every session runs under.</p></div></header><div class="settings-card-body">${dl(rows.filter(([, value]) => value !== null), { rows: true })}</div></section>`;
 }
 
 function repositories() {
   const repos = state.bootstrap.repositories || [];
   const rows = repos.map(repo => {
     const tracker = safeUrl(repo.trackerUrl || '');
-    return `<li class="settings-item"><span class="settings-item-icon" aria-hidden="true">${icon('folder')}</span><div class="settings-item-main"><p class="settings-item-title">${escape(repo.name)}</p>${repo.description ? `<p class="settings-item-text">${escape(repo.description)}</p>` : ''}<div class="settings-item-meta">${chip({ label: repo.baseBranch, icon: 'branch', title: 'Base branch' })}${badge({ label: repo.executionOwner === 'ploeg' ? 'Runs through Ploeg' : 'Interactive sessions', tone: 'neutral', size: 'sm' })}${tracker ? chip({ label: 'Tracker', icon: 'external', href: tracker, external: true }) : ''}</div></div></li>`;
+    return `<li class="settings-item"><span class="settings-item-icon" aria-hidden="true">${icon('folder')}</span><div class="settings-item-main"><p class="settings-item-title">${escape(repo.name)}</p>${repo.description ? `<p class="settings-item-text">${escape(repo.description)}</p>` : ''}<div class="settings-item-meta">${chip({ label: repo.baseBranch, icon: 'branch', title: 'Base branch' })}${badge({ label: repo.executionOwner === 'ploeg' ? 'Handed to Ploeg' : 'Sessions here', tone: 'neutral', size: 'sm' })}${tracker ? chip({ label: 'Tracker', icon: 'external', href: tracker, external: true }) : ''}</div></div></li>`;
   }).join('');
   return `<section class="card settings-card" aria-labelledby="repositories-title"><header class="settings-card-header"><div><h2 class="settings-card-title" id="repositories-title">Registered repositories <span class="count">${repos.length}</span></h2><p class="settings-card-description">Sessions and imported tasks work in these repositories only.</p></div></header><ul class="settings-items">${rows || '<li class="settings-item settings-item-empty">None registered.</li>'}</ul></section>`;
 }
 
 function crews() {
   const list = state.bootstrap.crews || [];
-  const items = list.map(crew => `<li class="settings-crew"><p class="settings-crew-name">${escape(crew.name)}</p>${crew.description ? `<p class="settings-crew-text">${escape(crew.description)}</p>` : ''}<ul class="settings-crew-roles" aria-label="Roles">${crew.roles.map(role => `<li>${chip({ label: role.name, icon: role.mode === 'write' ? 'code' : 'eye', title: role.mode === 'write' ? 'Changes code' : 'Reads only' })}</li>`).join('')}</ul></li>`).join('');
-  return `<section class="card settings-card" aria-labelledby="crews-title"><header class="settings-card-header"><div><h2 class="settings-card-title" id="crews-title">Crews <span class="count">${list.length}</span></h2><p class="settings-card-description">Reusable Roles for sessions. Their instructions are versioned with the configuration.</p></div></header><ul class="settings-crews">${items}</ul></section>`;
+  const rows = list.map(crew => `<li class="settings-item"><span class="settings-item-icon" aria-hidden="true">${icon('bot')}</span><div class="settings-item-main"><p class="settings-item-title">${escape(crew.name)}</p>${crew.description ? `<p class="settings-item-text">${escape(crew.description)}</p>` : ''}<ul class="settings-item-meta" aria-label="Roles">${crew.roles.map(role => `<li>${chip({ label: role.name, icon: role.mode === 'write' ? 'code' : 'eye', title: role.mode === 'write' ? 'Changes code' : 'Reads only' })}</li>`).join('')}</ul></div></li>`).join('');
+  return `<section class="card settings-card" aria-labelledby="crews-title"><header class="settings-card-header"><div><h2 class="settings-card-title" id="crews-title">Crews <span class="count">${list.length}</span></h2><p class="settings-card-description">Reusable Roles for sessions. Their instructions are versioned with the configuration.</p></div></header><ul class="settings-items">${rows || '<li class="settings-item settings-item-empty">None configured.</li>'}</ul></section>`;
 }
 
 function renderSystem() {
   const error = failure ? callout({ tone: 'danger', title: 'Could not read the workbench health', body: `<p>${escape(failure)}</p>`, actions: act('data-action="environment-refresh"', { label: 'Try again', icon: 'refresh', size: 'sm' }) }) : '';
-  const demo = state.bootstrap.mode === 'demo' ? demoNote('Demo workbench: Ploeg and the model gateway are simulated. No model calls, no spend.') : '';
+  const demo = state.bootstrap.mode === 'demo' ? demoNote('Demo workbench: Ploeg data is illustrative and no model gateway is used. No model calls, no spend.') : '';
   const content = `<div class="settings-page">${error}${demo}<div class="environment-layout"><section class="card settings-card" aria-labelledby="health-title"${loading ? ' aria-busy="true"' : ''}>${checklist()}</section>${facts()}</div>${repositories()}${crews()}</div>`;
   renderHtml(shell(content, { title: 'Environment', subtitle: 'What this workbench is connected to, and what to set up next.' }));
 }
 
 async function loadSystem() {
   loading = true; failure = '';
-  if (state.view === 'system') renderSystem();
-  const results = await Promise.allSettled([api('/api/health'), refreshCounts(), state.links ? Promise.resolve() : api('/api/links').then(result => { state.links = result.links; })]);
+  if (state.view === 'system' && state.bootstrap) renderSystem();
+  try { state.health = await api('/api/health'); }
+  catch (error) { failure = error.message || 'The workbench did not answer.'; if (error.status === 401) { loading = false; return; } }
+  await Promise.allSettled([refreshCounts(), state.links ? Promise.resolve() : api('/api/links').then(result => { state.links = result.links; })]);
   loading = false;
-  if (results[0].status === 'fulfilled') state.health = results[0].value;
-  else failure = results[0].reason?.message || 'The workbench did not answer.';
-  if (state.view === 'system') renderSystem();
+  if (state.view === 'system' && state.bootstrap) renderSystem();
 }
 
 /** The Environment page (`#settings/environment`): health checks with next steps, the workbench limits, registered repositories and crews. */

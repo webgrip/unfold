@@ -4,12 +4,15 @@ import { configureFormat, dateTime, money } from '../core/format.js';
 import { prefs, prefDefaults, applyAppearance } from '../core/prefs.js';
 import { live } from '../core/live.js';
 import { keyLabel } from '../core/keys.js';
+import { icon } from '../core/icons.js';
 import { button, kbd } from '../core/ui.js';
 import { render } from '../core/navigation.js';
 import { shell } from '../shell.js';
 
 const sample = new Date(2026, 8, 30, 21, 30);
 const spoken = { theme: { system: 'System theme', light: 'Light theme', dark: 'Dark theme' }, density: { comfortable: 'Comfortable density', compact: 'Compact density' }, format: { nl: 'Dutch number and date format', browser: 'Browser number and date format' } };
+
+let watching = false;
 
 const act = (attribute, options) => button(options).replace('<button ', `<button ${attribute} `);
 const notificationsOffered = () => Object.hasOwn(prefDefaults, 'notifications') && typeof globalThis.Notification === 'function';
@@ -22,8 +25,8 @@ function example(locale) {
   return text;
 }
 
-function card(id, title, description, body) {
-  return `<section class="card settings-card" aria-labelledby="pref-${id}-title"><header class="settings-card-header"><div><h2 class="settings-card-title" id="pref-${id}-title">${escape(title)}</h2><p class="settings-card-description">${escape(description)}</p></div></header>${body}</section>`;
+function card(id, title, body) {
+  return `<section class="card settings-card" aria-labelledby="pref-${id}-title"><header class="settings-card-header"><h2 class="settings-card-title" id="pref-${id}-title">${escape(title)}</h2></header><div class="settings-rows">${body}</div></section>`;
 }
 
 function preview(scheme) {
@@ -45,24 +48,43 @@ function option(name, value, label, detail) {
   return `<label class="settings-option" for="${id}"><input type="radio" id="${id}" name="${name}" value="${escape(value)}" data-pref="${name}"${prefs.get(name) === value ? ' checked' : ''}><span class="settings-option-name">${escape(label)}</span><span class="settings-option-detail num">${escape(detail)}</span></label>`;
 }
 
-function switchRow(name, label, hint) {
+function switchRow(name, label, hint, extra = '') {
   const id = `pref-${name}`;
-  return `<div class="settings-row"><div class="settings-row-text"><label class="settings-row-label" for="${id}">${escape(label)}</label><p class="settings-row-hint" id="${id}-hint">${hint}</p></div><input type="checkbox" role="switch" id="${id}" data-pref="${name}" data-pref-label="${escape(label)}" aria-describedby="${id}-hint"${prefs.get(name) ? ' checked' : ''}></div>`;
+  return `<div class="settings-row"><div class="settings-row-text"><label class="settings-row-label" for="${id}">${escape(label)}</label><p class="settings-row-hint" id="${id}-hint">${hint}</p>${extra ? `<div class="settings-row-extra">${extra}</div>` : ''}</div><div class="settings-row-controls"><input type="checkbox" role="switch" id="${id}" data-pref="${name}" data-pref-label="${escape(label)}" aria-describedby="${id}-hint"${prefs.get(name) ? ' checked' : ''}></div></div>`;
 }
 
 function group(id, legend, hint, body, layout) {
   return `<fieldset class="settings-row settings-choice" aria-describedby="pref-${id}-hint"><legend class="settings-row-label">${escape(legend)}</legend><p class="settings-row-hint" id="pref-${id}-hint">${escape(hint)}</p><div class="${layout}">${body}</div></fieldset>`;
 }
 
+function syncWithChrome() {
+  if (state.view !== 'preferences' || !state.bootstrap) return;
+  for (const input of document.querySelectorAll('#app [data-pref]')) {
+    const value = prefs.get(input.dataset.pref);
+    input.checked = input.type === 'checkbox' ? Boolean(value) : input.value === String(value);
+  }
+}
+
+function watchChrome() {
+  if (watching) return;
+  watching = true;
+  live.subscribe(syncWithChrome);
+  new MutationObserver(syncWithChrome).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-density'] });
+}
+
 function renderPreferences() {
+  watchChrome();
   const mod = keyLabel('Mod');
-  const appearance = card('appearance', 'Appearance', 'Stored in this browser only.', `<div class="settings-rows">${group('theme', 'Theme', 'The sidebar stays dark in every theme.', [tile('theme', 'system', 'System', preview('system'), 'Follows your device'), tile('theme', 'light', 'Light', preview('light')), tile('theme', 'dark', 'Dark', preview('dark'))].join(''), 'settings-tiles')}${group('density', 'Density', 'Compact fits more rows on screen; touch screens keep roomy rows.', [tile('density', 'comfortable', 'Comfortable', densityPreview('comfortable')), tile('density', 'compact', 'Compact', densityPreview('compact'))].join(''), 'settings-tiles two')}</div>`);
-  const keyboard = card('keyboard', 'Keyboard', 'Move around without the mouse.', `<div class="settings-rows">${switchRow('singleKeyShortcuts', 'Single-key shortcuts', `${kbd('j')} and ${kbd('k')} move through lists, ${kbd('g')} then ${kbd('n')} opens Now, ${kbd('?')} shows help. Turn them off if you use speech input; ${kbd([mod, 'K'])} keeps working.`)}<div class="settings-row"><div class="settings-row-text"><p class="settings-row-label">All shortcuts</p><p class="settings-row-hint">Every shortcut and the page it works on.</p></div>${act('data-action="shortcuts-open"', { label: 'Show shortcuts', icon: 'keyboard', size: 'sm' })}</div></div>`);
-  const updates = card('live', 'Live updates', 'Pages refresh themselves while this tab is visible and no dialog is open.', `<div class="settings-rows">${switchRow('live', 'Refresh automatically', 'Open pages check for news every 15 to 60 seconds. The Live button in the top bar switches the same setting. When it is off, use Refresh on each page.')}</div>`);
-  const numbers = card('format', 'Numbers and dates', 'Amounts stay in US dollars; this only changes how they are written.', `<div class="settings-rows"><fieldset class="settings-row settings-choice"><legend class="settings-row-label">Format</legend><div class="settings-options">${option('format', 'nl', 'Dutch', example('nl'))}${option('format', 'browser', 'Your browser’s language', example('browser'))}</div></fieldset></div>`);
-  const notifications = notificationsOffered() ? card('notifications', 'Notifications', 'Only while a De Vloer tab is open.', `<div class="settings-rows">${switchRow('notifications', 'Desktop notifications', 'A notification when something new starts waiting on you. Your browser asks for permission the first time.')}</div>`) : '';
-  const guide = card('design', 'Style guide', 'For people who build De Vloer.', `<div class="settings-rows"><div class="settings-row"><div class="settings-row-text"><p class="settings-row-label">Living style guide</p><p class="settings-row-hint">Every component and token, in the current theme.</p></div>${button({ label: 'Open the style guide', href: '#design', size: 'sm', icon: 'arrow-up-right' })}</div></div>`);
-  renderHtml(shell(`<div class="settings-page">${appearance}${keyboard}${updates}${numbers}${notifications}${guide}</div>`, { title: 'Preferences', subtitle: 'How De Vloer looks and behaves in this browser.' }));
+  const themes = group('theme', 'Theme', 'The sidebar stays dark in every theme.', [tile('theme', 'system', 'System', preview('system'), 'Follows your device'), tile('theme', 'light', 'Light', preview('light')), tile('theme', 'dark', 'Dark', preview('dark'))].join(''), 'settings-tiles');
+  const density = group('density', 'Density', 'Compact fits more rows on screen; touch screens keep roomy rows.', [tile('density', 'comfortable', 'Comfortable', densityPreview('comfortable')), tile('density', 'compact', 'Compact', densityPreview('compact'))].join(''), 'settings-tiles two');
+  const numbers = group('format', 'Numbers and dates', 'Amounts stay in US dollars; this only changes how they are written.', `${option('format', 'nl', 'Dutch', example('nl'))}${option('format', 'browser', 'Your browser’s language', example('browser'))}`, 'settings-options');
+  const appearance = card('appearance', 'Appearance', `${themes}${density}${numbers}`);
+  const shortcuts = switchRow('singleKeyShortcuts', 'Single-key shortcuts', `${kbd('j')} and ${kbd('k')} move through lists, ${kbd('g')} then ${kbd('n')} opens Now, ${kbd('?')} shows help. Turn them off if you use speech input; ${kbd([mod, 'K'])} keeps working.`, act('data-action="shortcuts-open"', { label: 'Show shortcuts', icon: 'keyboard', size: 'sm', variant: 'ghost' }));
+  const updates = switchRow('live', 'Refresh automatically', 'Open pages check for news every 15 to 60 seconds while this tab is visible and no dialog is open. The Live button in the top bar switches the same setting.');
+  const notifications = notificationsOffered() ? switchRow('notifications', 'Desktop notifications', 'A notification when something new starts waiting on you, only while a De Vloer tab is open. Your browser asks for permission the first time.') : '';
+  const behaviour = card('behaviour', 'Behaviour', `${shortcuts}${updates}${notifications}`);
+  const guide = `<p class="settings-footnote">${icon('spark')}<span>Building De Vloer? The <a href="#design">living style guide</a> shows every component and token in the current theme.</span></p>`;
+  renderHtml(shell(`<div class="settings-page">${appearance}${behaviour}${guide}</div>`, { title: 'Preferences', subtitle: 'How De Vloer looks and behaves in this browser. Stored here only.' }));
 }
 
 async function permitNotifications(element) {
