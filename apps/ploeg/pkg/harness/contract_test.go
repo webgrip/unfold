@@ -67,6 +67,7 @@ func fullTaskSpec() TaskSpec {
 			ExternalScope: "11",
 			Target:        &work.Target{Forge: "webgrip", Owner: "webgrip", Repo: "ploeg", BaseBranch: "development"},
 			RouteRule:     "11/silver",
+			RouteHint:     "repo/ploeg",
 		},
 		Role:       "builder",
 		Checkpoint: &work.Checkpoint{Phase: "branch_created", Branch: "agent/vik-596"},
@@ -134,6 +135,15 @@ func TestOutcomeReport_MatchesSchema(t *testing.T) {
 		if err := validate(t, sch, reader); err != nil {
 			t.Errorf("OutcomeReport with verdict %q does not validate: %v", verdict, err)
 		}
+	}
+
+	// A writing Run's account of its change (ADR-0042).
+	writer := OutcomeReport{
+		Outcome: work.OutcomePROpened, Summary: "opened a PR",
+		Problem: "Refunds over €500 fail.", Solution: "- `refund.go` checks the limit first.",
+	}
+	if err := validate(t, sch, writer); err != nil {
+		t.Errorf("OutcomeReport with a problem and solution does not validate: %v", err)
 	}
 
 	stuckOK := OutcomeReport{Outcome: work.OutcomeStuck, Summary: "blocked", StuckReason: "gate failed"}

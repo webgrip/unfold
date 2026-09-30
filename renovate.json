@@ -1,8 +1,9 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "local>webgrip/renovate-config#v1.11.0",
-    "local>webgrip/renovate-config:golang#v1.11.0"
+    "local>webgrip/renovate-config#v1.12.0",
+    "local>webgrip/renovate-config:golang#v1.12.0",
+    "local>webgrip/renovate-config:automerge-non-major#v1.12.0"
   ],
   "ignorePaths": [
     "**/node_modules/**",

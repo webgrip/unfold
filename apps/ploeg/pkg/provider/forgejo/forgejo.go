@@ -103,6 +103,103 @@ func (p *Provider) Comment(ctx context.Context, repo string, pr int, body string
 	return nil
 }
 
+// commentsPage is the subset of Forgejo's issue-comment object we read.
+type commentsPage struct {
+	ID   int64  `json:"id"`
+	Body string `json:"body"`
+}
+
+// Comments lists every conversation comment on a pull request, oldest-first.
+// It follows Forgejo's page/limit pagination to exhaustion so a marker on any
+// page is returned: a caller searching for one cannot miss it.
+func (p *Provider) Comments(ctx context.Context, repo string, pr int) ([]provider.Comment, error) {
+	owner, name, ok := strings.Cut(repo, "/")
+	if !ok || owner == "" || name == "" {
+		return nil, fmt.Errorf("forgejo: repo %q must be owner/name", repo)
+	}
+	if pr <= 0 {
+		return nil, fmt.Errorf("forgejo: pull request number must be positive, got %d", pr)
+	}
+	base := fmt.Sprintf("%s/api/v1/repos/%s/%s/issues/%d/comments",
+		strings.TrimRight(p.BaseURL, "/"), owner, name, pr)
+	var out []provider.Comment
+	for page := 1; ; page++ {
+		url := fmt.Sprintf("%s?page=%d&limit=%d", base, page, commentsPageSize)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Accept", "application/json")
+		if p.Token != "" {
+			req.Header.Set("Authorization", "token "+p.Token)
+		}
+		resp, err := p.client().Do(req)
+		if err != nil {
+			return nil, err
+		}
+		var pageComments []commentsPage
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+			resp.Body.Close()
+			return nil, fmt.Errorf("forgejo: list %s#%d comments: HTTP %d: %s", repo, pr, resp.StatusCode, bytes.TrimSpace(snippet))
+		}
+		err = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&pageComments)
+		resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("forgejo: list %s#%d comments: %w", repo, pr, err)
+		}
+		for _, c := range pageComments {
+			out = append(out, provider.Comment{ID: c.ID, Body: c.Body})
+		}
+		if len(pageComments) < commentsPageSize {
+			return out, nil
+		}
+	}
+}
+
+// EditComment replaces the body of one existing comment.
+func (p *Provider) EditComment(ctx context.Context, repo string, pr int, id int64, body string) error {
+	owner, name, ok := strings.Cut(repo, "/")
+	if !ok || owner == "" || name == "" {
+		return fmt.Errorf("forgejo: repo %q must be owner/name", repo)
+	}
+	if pr <= 0 {
+		return fmt.Errorf("forgejo: pull request number must be positive, got %d", pr)
+	}
+	if id <= 0 {
+		return fmt.Errorf("forgejo: comment id must be positive, got %d", id)
+	}
+	payload, err := json.Marshal(map[string]string{"body": body})
+	if err != nil {
+		return err
+	}
+	url := fmt.Sprintf("%s/api/v1/repos/%s/%s/issues/comments/%d",
+		strings.TrimRight(p.BaseURL, "/"), owner, name, id)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	if p.Token != "" {
+		req.Header.Set("Authorization", "token "+p.Token)
+	}
+	resp, err := p.client().Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return fmt.Errorf("forgejo: edit comment %d on %s#%d: HTTP %d: %s", id, repo, pr, resp.StatusCode, bytes.TrimSpace(snippet))
+	}
+	return nil
+}
+
+// commentsPageSize is the page size the comments list asks for. Larger means
+// fewer round-trips for the common thread; the loop handles any size.
+const commentsPageSize = 50
+
 // PullRequestState reads a pull request's lifecycle from the pulls endpoint.
 // Forgejo reports a merged pull request as state "closed" with merged true.
 func (p *Provider) PullRequestState(ctx context.Context, repo string, pr int) (provider.PullRequestState, error) {

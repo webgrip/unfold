@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"log/slog"
 	"testing"
 
@@ -21,7 +22,7 @@ func testServer(t *testing.T, spec string) *Server {
 func TestResolveTarget_AssignsResolvedTarget(t *testing.T) {
 	s := testServer(t, "11/silver=webgrip/ploeg@development")
 	item := work.WorkItem{Team: "silver", ExternalScope: "11"}
-	s.resolveTarget(&item, provider.TrackerEvent{ExternalID: "596"})
+	s.resolveTarget(context.Background(), &item, true, provider.TrackerEvent{ExternalID: "596"})
 
 	if item.Target == nil {
 		t.Fatal("target not assigned")
@@ -40,7 +41,7 @@ func TestResolveTarget_AssignsResolvedTarget(t *testing.T) {
 func TestResolveTarget_UnmappedLeavesItemQueueable(t *testing.T) {
 	s := testServer(t, "11/silver=webgrip/ploeg")
 	item := work.WorkItem{Team: "bronze", ExternalScope: "99"}
-	s.resolveTarget(&item, provider.TrackerEvent{ExternalID: "1"})
+	s.resolveTarget(context.Background(), &item, true, provider.TrackerEvent{ExternalID: "1"})
 
 	if item.Target != nil || item.RouteRule != "" {
 		t.Errorf("unmapped scope must leave the target unresolved, got %+v", item.Target)
@@ -55,7 +56,7 @@ func TestResolveTarget_UnmappedLeavesItemQueueable(t *testing.T) {
 func TestResolveTarget_NoScopeAndNoResolver(t *testing.T) {
 	s := testServer(t, "11=webgrip/ploeg")
 	item := work.WorkItem{Team: "silver"} // provider sent no scope
-	s.resolveTarget(&item, provider.TrackerEvent{ExternalID: "1"})
+	s.resolveTarget(context.Background(), &item, true, provider.TrackerEvent{ExternalID: "1"})
 	if item.Target != nil {
 		t.Errorf("no scope must mean no target, got %+v", item.Target)
 	}
@@ -64,7 +65,7 @@ func TestResolveTarget_NoScopeAndNoResolver(t *testing.T) {
 	// unresolved and every worker uses its env repo.
 	bare := &Server{Log: slog.New(slog.DiscardHandler)}
 	item2 := work.WorkItem{Team: "silver", ExternalScope: "11"}
-	bare.resolveTarget(&item2, provider.TrackerEvent{ExternalID: "1"})
+	bare.resolveTarget(context.Background(), &item2, true, provider.TrackerEvent{ExternalID: "1"})
 	if item2.Target != nil {
 		t.Errorf("nil resolver must resolve nothing, got %+v", item2.Target)
 	}

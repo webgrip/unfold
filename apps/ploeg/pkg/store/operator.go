@@ -28,6 +28,8 @@ type OperatorFilter struct {
 	Desc       bool
 	Limit      int
 	WorkItemID int64
+	Provider   string
+	ExternalID string
 }
 
 type OperatorTeam struct {
@@ -35,6 +37,9 @@ type OperatorTeam struct {
 	Paused     *bool          `json:"paused"`
 	QueueDepth int64          `json:"queueDepth"`
 	Roles      []OperatorRole `json:"roles"`
+	Assignees  []string       `json:"assignees"`
+	// PinnedScopes are the tracker containers whose items always run as this team, whoever is assigned.
+	PinnedScopes []string `json:"pinnedScopes"`
 }
 
 type OperatorRole struct {
@@ -129,6 +134,8 @@ type OperatorRun struct {
 	Links         []string       `json:"links"`
 	Findings      string         `json:"findings"`
 	Verdict       string         `json:"verdict"`
+	Problem       string         `json:"problem"`
+	Solution      string         `json:"solution"`
 	FailureReason *string        `json:"failureReason"`
 	AuthorizedUSD float64        `json:"authorizedUsd"`
 	Usage         *OperatorUsage `json:"usage"`
@@ -222,6 +229,7 @@ const operatorRunJSON = `jsonb_build_object(
 	'startedAt', r.started_at, 'finishedAt', r.finished_at, 'expiresAt', r.expires_at,
 	'outcome', r.outcome, 'summary', left(r.summary, 4096), 'stuckReason', left(r.stuck_reason, 4096),
 	'links', to_jsonb(r.links[1:30]), 'findings', left(r.findings, 16384), 'verdict', r.verdict,
+	'problem', left(r.problem, 4096), 'solution', left(r.solution, 4096),
 	'failureReason', r.failure_reason, 'authorizedUsd', r.authorized,
 	'usage', CASE WHEN r.usage IS NULL AND (` + operatorRunCost + `) IS NULL THEN NULL ELSE jsonb_strip_nulls(jsonb_build_object(
 		'inputTokens', CASE WHEN jsonb_typeof(r.usage->'inputTokens') = 'number' THEN r.usage->'inputTokens' END,
@@ -272,7 +280,7 @@ func (s *Store) OperatorTeams(ctx context.Context, teams []string, registered ma
 	}
 	ensure := func(id string) *OperatorTeam {
 		if byID[id] == nil {
-			byID[id] = &OperatorTeam{ID: id, Roles: []OperatorRole{}}
+			byID[id] = &OperatorTeam{ID: id, Roles: []OperatorRole{}, Assignees: []string{}, PinnedScopes: []string{}}
 		}
 		return byID[id]
 	}
@@ -328,7 +336,8 @@ func (s *Store) OperatorItems(ctx context.Context, f OperatorFilter) ([]Operator
 	rows, err := s.pool.Query(ctx, `SELECT `+operatorItemJSON+` FROM work_items i
 		WHERE ($1::text[] IS NULL OR i.team = ANY($1)) AND ($2 = '' OR i.team = $2)
 		AND ($3 = '' OR i.state = $3) AND (NOT $4 OR i.state = 'needs_human') AND i.id > $5
-		ORDER BY i.id LIMIT $6`, f.Teams, f.Team, f.State, f.NeedsHuman, f.After, f.Limit+1)
+		AND ($7 = '' OR (i.provider = $7 AND i.external_id = $8))
+		ORDER BY i.id LIMIT $6`, f.Teams, f.Team, f.State, f.NeedsHuman, f.After, f.Limit+1, f.Provider, f.ExternalID)
 	if err != nil {
 		return nil, false, err
 	}
@@ -436,7 +445,7 @@ func (s *Store) OperatorEvents(ctx context.Context, f OperatorFilter) ([]Operato
 }
 
 func validateOperatorFilter(f OperatorFilter) error {
-	if f.Limit < 1 || f.Limit > 200 || f.After < 0 || f.Before < 0 || f.WorkItemID < 0 || (f.Desc && f.After != 0) || (!f.Desc && f.Before != 0) {
+	if f.Limit < 1 || f.Limit > 200 || f.After < 0 || f.Before < 0 || f.WorkItemID < 0 || (f.Desc && f.After != 0) || (!f.Desc && f.Before != 0) || (f.Provider == "") != (f.ExternalID == "") {
 		return errors.New("invalid operator pagination")
 	}
 	return nil

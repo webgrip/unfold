@@ -148,6 +148,21 @@ func TestRun_FakeClaudeOnPathIsToldToSkipTargetHooksAndMCPServers(t *testing.T) 
 	}
 }
 
+func TestPrepare_PinsEveryModelAliasToTheRunModelAndDisablesTheAdvisor(t *testing.T) {
+	inv, err := New("", "").Prepare(harness.TaskSpec{}, testEnv())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(inv.ExtraEnv, AdvisorDisabled) {
+		t.Errorf("the advisor must be off in every Run, got %v", inv.ExtraEnv)
+	}
+	for _, alias := range []string{"ANTHROPIC_DEFAULT_HAIKU_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_FABLE_MODEL"} {
+		if !slices.Contains(inv.ExtraEnv, alias+"=claude-sonnet-5") {
+			t.Errorf("%s must resolve to the Run's scoped model, got %v", alias, inv.ExtraEnv)
+		}
+	}
+}
+
 func TestPrepare_NoKeyNoEnv(t *testing.T) {
 	env := testEnv()
 	env.LLM = harness.LLMEnv{}
@@ -167,6 +182,9 @@ func TestPrepare_NoKeyNoEnv(t *testing.T) {
 		return strings.HasPrefix(kv, harness.DropBoxEnv+"=")
 	}) {
 		t.Errorf("every run must be told where its drop box is, got %v", inv.ExtraEnv)
+	}
+	if !slices.Contains(inv.ExtraEnv, AdvisorDisabled) {
+		t.Errorf("the advisor must stay off without a key too, got %v", inv.ExtraEnv)
 	}
 	if inv.Argv[0] != "claude-custom" {
 		t.Errorf("bin override ignored: %v", inv.Argv)

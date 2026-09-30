@@ -18,6 +18,7 @@ nav:
       - Architecture: concepts/architecture.md
       - Inside a Run: concepts/inside-a-run.md
       - Journeys: concepts/journeys.md
+      - Who Glide is for: concepts/who-glide-is-for.md
   - How-to:
       - Assign work to an agent: how-to/assign-work-to-an-agent.md
       - Review an agent pull request: how-to/review-an-agent-pr.md
@@ -31,6 +32,7 @@ nav:
           - Drain workers: ploeg/how-to/drain-workers.md
           - Investigate a Run's spend: ploeg/how-to/investigate-a-runs-spend.md
           - Restore after a database outage: ploeg/how-to/restore-after-a-database-outage.md
+          - Route a multi-repo board: ploeg/how-to/route-a-multi-repo-board.md
       - Operate Vloer: vloer/index.md
       - Set up shared execution: workflows/managed-execution.md
       - Release and live test: operations/first-cutover.md

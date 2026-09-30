@@ -107,11 +107,25 @@ type ForgeEvent struct {
 	Review ForgeReviewState
 }
 
+// Comment is one conversation comment on a pull request, as the forge reports
+// it. ID is the forge's own comment identifier, used to edit it in place.
+type Comment struct {
+	ID   int64
+	Body string
+}
+
 // ForgeProvider adapts one git forge (reference: Forgejo).
 type ForgeProvider interface {
 	Name() string
 	ParseWebhook(r *http.Request) ([]ForgeEvent, error)
 	Comment(ctx context.Context, repo string, pr int, body string) error
+	// Comments lists a pull request's conversation comments, oldest-first.
+	// Implementations return the WHOLE thread, following pagination to
+	// exhaustion: a caller that looks for a marker on any page must not miss
+	// one the forge put on a later page.
+	Comments(ctx context.Context, repo string, pr int) ([]Comment, error)
+	// EditComment replaces the body of one existing comment.
+	EditComment(ctx context.Context, repo string, pr int, id int64, body string) error
 	// PullRequestState reads whether a pull request is open, merged, or closed
 	// without merging. repo is the forge's project path; pr is the number a
 	// human sees in the forge's UI.

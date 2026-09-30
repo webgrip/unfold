@@ -34,7 +34,8 @@ func TestOperatorReadsAreScopedAndCredentialFree(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	report := Report(work.OutcomeNoChangeNeeded, "summary "+claimed.RunToken, "", []string{"https://forge.example/webgrip/ploeg/pulls/1?token=private"}, json.RawMessage(`{"costUsd":0.125,"inputTokens":10,"outputTokens":5,"sessionId":"opaque","apiKey":"private"}`), nil)
+	report := Report(work.OutcomeNoChangeNeeded, "summary "+claimed.RunToken, "", []string{"https://forge.example/webgrip/ploeg/pulls/1?token=private"}, json.RawMessage(`{"costUsd":0.125,"inputTokens":10,"outputTokens":5,"sessionId":"opaque","apiKey":"private"}`), nil).
+		WithProblemAndSolution("a reader's problem", "a reader's solution")
 	report.Findings, report.Verdict = "review findings", "approve"
 	if _, err := testStore.ReportOutcome(ctx, claimed.RunToken, report); err != nil {
 		t.Fatal(err)
@@ -55,6 +56,9 @@ func TestOperatorReadsAreScopedAndCredentialFree(t *testing.T) {
 	}
 	if len(detail.Runs) != 1 || detail.Runs[0].Verdict != "approve" || detail.Runs[0].CostStatus != "observed" || detail.Runs[0].Usage.CostUSD == nil || *detail.Runs[0].Usage.CostUSD != .125 {
 		t.Fatalf("lost run evidence: %+v", detail.Runs)
+	}
+	if detail.Runs[0].Problem != "" || detail.Runs[0].Solution != "" {
+		t.Fatalf("a reading Run's problem and solution were stored (ADR-0042): %+v", detail.Runs[0])
 	}
 	runID, _ := OperatorCursor(detail.Runs[0].ID)
 	run, err := testStore.OperatorRun(ctx, runID, []string{"silver"})
@@ -92,7 +96,7 @@ func TestOperatorReadsAreScopedAndCredentialFree(t *testing.T) {
 		}
 	}
 	teams, err := testStore.OperatorTeams(ctx, []string{"silver"}, map[string][]string{"silver": {"reviewer", "builder"}, "gold": {"writer"}})
-	if err != nil || len(teams) != 1 || teams[0].ID != "silver" || teams[0].Paused != nil || len(teams[0].Roles) != 2 {
+	if err != nil || len(teams) != 1 || teams[0].ID != "silver" || teams[0].Paused != nil || len(teams[0].Roles) != 2 || teams[0].Assignees == nil {
 		t.Fatalf("teams: %+v %v", teams, err)
 	}
 }
@@ -128,6 +132,12 @@ func TestOperatorPaginationAndUnknownCost(t *testing.T) {
 	}
 	if _, _, err := testStore.OperatorItems(ctx, OperatorFilter{Limit: 201}); err == nil {
 		t.Fatal("unbounded item limit accepted")
+	}
+	if _, _, err := testStore.OperatorItems(ctx, OperatorFilter{Provider: "vikunja", Limit: 1}); err == nil {
+		t.Fatal("provider without externalId accepted")
+	}
+	if items, more, err := testStore.OperatorItems(ctx, OperatorFilter{Provider: "vikunja", ExternalID: "1", Limit: 1}); err != nil || more || len(items) != 1 || items[0].ExternalID != "1" {
+		t.Fatalf("tracker identity filter: %+v %v %v", items, more, err)
 	}
 	if _, _, err := testStore.OperatorEvents(ctx, OperatorFilter{Limit: 0}); err == nil {
 		t.Fatal("invalid event limit accepted")
@@ -221,6 +231,9 @@ func TestOperatorItemReportsPullRequestState(t *testing.T) {
 	}
 	run := func(item, shiftID int64, token, role string, writes bool, outcome, verdict string, round int, links []string, finished string) int64 {
 		t.Helper()
+		if links == nil {
+			links = []string{}
+		}
 		var id int64
 		if err := testStore.pool.QueryRow(ctx,
 			`INSERT INTO agent_runs (work_item_id, team, run_token, shift_id, role, round, writes, state, started_at, finished_at, outcome, verdict, links)

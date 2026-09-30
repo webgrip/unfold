@@ -115,8 +115,14 @@ func TestControllerSettlementRecordsGatewayUsageOnTheRun(t *testing.T) {
 		InputTokens  int64    `json:"inputTokens"`
 		OutputTokens int64    `json:"outputTokens"`
 		Models       []string `json:"models"`
-		CostUSD      float64  `json:"costUsd"`
-		SessionID    string   `json:"sessionId"`
+		ByModel      []struct {
+			Model        string  `json:"model"`
+			InputTokens  int64   `json:"inputTokens"`
+			OutputTokens int64   `json:"outputTokens"`
+			CostUSD      float64 `json:"costUsd"`
+		} `json:"byModel"`
+		CostUSD   float64 `json:"costUsd"`
+		SessionID string  `json:"sessionId"`
 	}
 	if err := json.Unmarshal(raw, &usage); err != nil {
 		t.Fatal(err)
@@ -126,6 +132,16 @@ func TestControllerSettlementRecordsGatewayUsageOnTheRun(t *testing.T) {
 	}
 	if math.Abs(usage.CostUSD-0.33) > 1e-9 || usage.SessionID != "fixture-session" {
 		t.Fatalf("usage lost the settled cost or the harness session: %s", raw)
+	}
+	if len(usage.ByModel) != 2 {
+		t.Fatalf("a Run that used two models must be split per model: %s", raw)
+	}
+	sonnet, deepseek := usage.ByModel[0], usage.ByModel[1]
+	if sonnet.Model != "claude-sonnet" || sonnet.InputTokens != 900 || sonnet.OutputTokens != 120 || math.Abs(sonnet.CostUSD-0.2) > 1e-9 {
+		t.Fatalf("claude-sonnet share=%+v in %s", sonnet, raw)
+	}
+	if deepseek.Model != "deepseek-chat" || deepseek.InputTokens != 1600 || deepseek.OutputTokens != 405 || math.Abs(deepseek.CostUSD-0.13) > 1e-9 {
+		t.Fatalf("deepseek-chat share=%+v in %s", deepseek, raw)
 	}
 	if l, _ := testStore.Ledger(ctx, shiftID); math.Abs(l.Spent-0.33) > 1e-9 || l.Reserved != 0 {
 		t.Fatalf("ledger=%+v", l)

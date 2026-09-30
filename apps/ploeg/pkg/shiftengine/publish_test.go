@@ -16,16 +16,30 @@ import (
 
 // --- fakes ------------------------------------------------------------------
 
+// fakeComment is one stored conversation comment. ID is assigned by Comment so
+// EditComment can address it, exactly as a real forge does.
+type fakeComment struct {
+	ID   int64
+	Repo string
+	PR   int
+	Body string
+}
+
 type fakeForge struct {
 	mu       sync.Mutex
-	comments []struct {
-		Repo string
-		PR   int
-		Body string
-	}
+	comments []fakeComment
+	nextID   int64
 	err      error
+	// listErr fails Comments only; editErr fails EditComment only. Separate so
+	// a test can make the list fail without also making every write fail.
+	listErr  error
+	editErr  error
 	prStates map[int]provider.PullRequestState
 	reads    []int
+	// listCalls counts Comments invocations, and edits records the comment ids
+	// edited in order — enough to prove find-then-edit rather than re-post.
+	listCalls int
+	edits     []int64
 }
 
 func (f *fakeForge) PullRequestState(_ context.Context, _ string, pr int) (provider.PullRequestState, error) {
@@ -49,12 +63,55 @@ func (f *fakeForge) Comment(_ context.Context, repo string, pr int, body string)
 	if f.err != nil {
 		return f.err
 	}
-	f.comments = append(f.comments, struct {
-		Repo string
-		PR   int
-		Body string
-	}{repo, pr, body})
+	f.nextID++
+	f.comments = append(f.comments, fakeComment{ID: f.nextID, Repo: repo, PR: pr, Body: body})
 	return nil
+}
+
+func (f *fakeForge) Comments(_ context.Context, repo string, pr int) ([]provider.Comment, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.listCalls++
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	var out []provider.Comment
+	for _, c := range f.comments {
+		if c.Repo == repo && c.PR == pr {
+			out = append(out, provider.Comment{ID: c.ID, Body: c.Body})
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeForge) EditComment(_ context.Context, repo string, pr int, id int64, body string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.editErr != nil {
+		return f.editErr
+	}
+	for i := range f.comments {
+		if f.comments[i].ID == id {
+			f.comments[i].Body = body
+			f.edits = append(f.edits, id)
+			return nil
+		}
+	}
+	return errors.New("fakeForge: no such comment")
+}
+
+// commentsMatching returns the bodies of this fake's comments whose body
+// starts with marker.
+func (f *fakeForge) commentsMatching(marker string) []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []string
+	for _, c := range f.comments {
+		if strings.HasPrefix(strings.TrimSpace(c.Body), marker) {
+			out = append(out, c.Body)
+		}
+	}
+	return out
 }
 
 type fakeTracker struct {
@@ -577,6 +634,314 @@ func TestPublish_FailedRetryDoesNotNotify(t *testing.T) {
 	}
 	if len(tracker.comments) != 0 {
 		t.Errorf("tracker was told about a retry: %v", tracker.comments)
+	}
+}
+
+// --- unit: usage report publication -----------------------------------------
+
+// usageReportEnv opens a planned Shift with a resolved target and an enabled
+// usage report, returning the item id and the fake forge.
+func usageReportEnv(t *testing.T, e *Engine, externalID string) (int64, *fakeForge) {
+	t.Helper()
+	ctx := context.Background()
+	resetTables(t)
+	forge := &fakeForge{}
+	e.Forges = map[string]provider.ForgeProvider{"webgrip": forge}
+	e.UsageReport = true
+	id, _, err := testStore.IngestAssigned(ctx, work.WorkItem{
+		Provider: "vikunja", ExternalID: externalID, Team: "bronze", Title: "t",
+		Target: &work.Target{Forge: "webgrip", Owner: "webgrip", Repo: "ploeg", BaseBranch: "development"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, _ := testStore.WorkItem(ctx, id)
+	if err := e.EnsureShift(ctx, id, item); err != nil {
+		t.Fatal(err)
+	}
+	return id, forge
+}
+
+func TestPublishUsage_CreatesOnceThenEditsInPlace(t *testing.T) {
+	ctx := context.Background()
+	e := newEngine(reviewPlan())
+	id, forge := usageReportEnv(t, e, "980")
+	si, err := testStore.LiveShiftForItem(ctx, id)
+	if err != nil || si == nil {
+		t.Fatalf("no live shift: %v", err)
+	}
+
+	// Round 1: the writer opens the pull request. The report is created.
+	rw, err := testStore.ClaimRole(ctx, "bronze", "builder", time.Minute, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := testStore.ReportOutcome(ctx, rw.RunToken, store.Report(work.OutcomePROpened, "opened", "",
+		[]string{"https://forgejo.webgrip.dev/webgrip/ploeg/pulls/40"}, nil, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EvaluateItem(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	created := forge.commentsMatching(usageReportMarker)
+	if len(created) != 1 {
+		t.Fatalf("report comments after the first round = %d, want 1", len(created))
+	}
+
+	// Round 2: the reviewer finishes. The Shift then closes (plan exhausted).
+	// Every refresh edits the same comment, never posts another.
+	rr, err := testStore.ClaimRole(ctx, "bronze", "reviewer", time.Minute, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := testStore.ReportOutcome(ctx, rr.RunToken, store.Report(work.OutcomeNoChangeNeeded, "reviewed", "",
+		nil, nil, nil).WithFindings("- one thing")); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EvaluateItem(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	after := forge.commentsMatching(usageReportMarker)
+	if len(after) != 1 {
+		t.Fatalf("report comments after the second round = %d, want exactly 1 (edited in place)", len(after))
+	}
+	if len(forge.edits) == 0 {
+		t.Errorf("the report was never edited in place")
+	}
+	if !strings.Contains(after[0], "reviewer") {
+		t.Errorf("edited report did not pick up the second Run:\n%s", after[0])
+	}
+
+	// A refresh from the settlement sweep edits the same comment again; the
+	// Shift is closed by now, which is exactly the late-settlement case.
+	editsBefore := len(forge.edits)
+	if err := e.RefreshUsageReport(ctx, si.ID); err != nil {
+		t.Fatalf("RefreshUsageReport: %v", err)
+	}
+	if got := len(forge.commentsMatching(usageReportMarker)); got != 1 {
+		t.Fatalf("a refresh duplicated the report: %d comments", got)
+	}
+	if len(forge.edits) != editsBefore+1 {
+		t.Errorf("edits = %v, want one more after the refresh", forge.edits)
+	}
+}
+
+// A marker on a later page is edited, not duplicated (task 1.4).
+func TestPublishUsage_FindsMarkerOnALaterPage(t *testing.T) {
+	ctx := context.Background()
+	e := newEngine(reviewPlan())
+	id, forge := usageReportEnv(t, e, "981")
+	// Seed the forge with a report comment that the engine did not create —
+	// as if a previous ploegd had opened it.
+	if err := forge.Comment(ctx, "webgrip/ploeg", 41, usageReportMarker+"\n\n### Ploeg usage report\n\nstale\n"); err != nil {
+		t.Fatal(err)
+	}
+	rw, _ := testStore.ClaimRole(ctx, "bronze", "builder", time.Minute, 3)
+	if _, err := testStore.ReportOutcome(ctx, rw.RunToken, store.Report(work.OutcomePROpened, "opened", "",
+		[]string{"https://forgejo.webgrip.dev/webgrip/ploeg/pulls/41"}, nil, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EvaluateItem(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	got := forge.commentsMatching(usageReportMarker)
+	if len(got) != 1 {
+		t.Fatalf("report comments = %d, want 1 (edited, not duplicated)", len(got))
+	}
+	if strings.Contains(got[0], "stale") {
+		t.Errorf("the stale marker comment was not the one edited:\n%s", got[0])
+	}
+}
+
+func TestPublishUsage_SkipsWithoutAPullRequest(t *testing.T) {
+	ctx := context.Background()
+	e := newEngine(reviewPlan())
+	// A resolved target but no writing Run, so there is no pull request to post to.
+	id, forge := usageReportEnv(t, e, "982")
+	_ = id
+	si, err := testStore.LiveShiftForItem(ctx, id)
+	if err != nil || si == nil {
+		t.Fatalf("no live shift: %v", err)
+	}
+	e.publishUsageReport(ctx, *si)
+	if len(forge.comments) != 0 {
+		t.Errorf("published a report with no pull request: %+v", forge.comments)
+	}
+}
+
+func TestPublishUsage_SkipsWhenDisabled(t *testing.T) {
+	ctx := context.Background()
+	e := newEngine(reviewPlan())
+	id, forge := usageReportEnv(t, e, "983")
+	e.UsageReport = false
+	rw, _ := testStore.ClaimRole(ctx, "bronze", "builder", time.Minute, 3)
+	if _, err := testStore.ReportOutcome(ctx, rw.RunToken, store.Report(work.OutcomePROpened, "opened", "",
+		[]string{"https://forgejo.webgrip.dev/webgrip/ploeg/pulls/42"}, nil, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EvaluateItem(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	if len(forge.commentsMatching(usageReportMarker)) != 0 {
+		t.Error("the report was published while PLOEG_USAGE_REPORT was off")
+	}
+}
+
+func TestPublishUsage_ListFailureDoesNotPost(t *testing.T) {
+	ctx := context.Background()
+	e := newEngine(reviewPlan())
+	id, forge := usageReportEnv(t, e, "984")
+	forge.listErr = errors.New("forge list is down")
+	rw, _ := testStore.ClaimRole(ctx, "bronze", "builder", time.Minute, 3)
+	if _, err := testStore.ReportOutcome(ctx, rw.RunToken, store.Report(work.OutcomePROpened, "opened", "",
+		[]string{"https://forgejo.webgrip.dev/webgrip/ploeg/pulls/43"}, nil, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EvaluateItem(ctx, id); err != nil {
+		t.Fatalf("a list failure propagated into the lifecycle: %v", err)
+	}
+	if len(forge.comments) != 0 {
+		t.Errorf("posted blind despite a failed list (duplicate risk): %+v", forge.comments)
+	}
+}
+
+func TestPublishUsage_EditFailureChangesNothing(t *testing.T) {
+	ctx := context.Background()
+	e := newEngine(reviewPlan())
+	id, forge := usageReportEnv(t, e, "985")
+	if err := forge.Comment(ctx, "webgrip/ploeg", 44, usageReportMarker+"\n\nold\n"); err != nil {
+		t.Fatal(err)
+	}
+	forge.editErr = errors.New("edit rejected")
+	rw, _ := testStore.ClaimRole(ctx, "bronze", "builder", time.Minute, 3)
+	if _, err := testStore.ReportOutcome(ctx, rw.RunToken, store.Report(work.OutcomePROpened, "opened", "",
+		[]string{"https://forgejo.webgrip.dev/webgrip/ploeg/pulls/44"}, nil, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EvaluateItem(ctx, id); err != nil {
+		t.Fatalf("an edit failure propagated into the lifecycle: %v", err)
+	}
+	// Finish the plan too, so the Shift closes despite the edit failures.
+	rr, _ := testStore.ClaimRole(ctx, "bronze", "reviewer", time.Minute, 1)
+	if _, err := testStore.ReportOutcome(ctx, rr.RunToken, store.Report(work.OutcomeNoChangeNeeded, "reviewed", "",
+		nil, nil, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EvaluateItem(ctx, id); err != nil {
+		t.Fatalf("an edit failure propagated into the lifecycle: %v", err)
+	}
+	if got := len(forge.commentsMatching(usageReportMarker)); got != 1 {
+		t.Errorf("an edit failure posted a duplicate: %d report comments", got)
+	}
+	if s := itemState(t, id); s != "awaiting_review" {
+		t.Errorf("item state = %q, want awaiting_review despite the edit failure", s)
+	}
+}
+
+// The report publishes even when a Round produced no findings at all.
+func TestEnginePublishesReportAfterARoundWithoutFindings(t *testing.T) {
+	ctx := context.Background()
+	e := newEngine(reviewPlan())
+	id, forge := usageReportEnv(t, e, "986")
+	rw, _ := testStore.ClaimRole(ctx, "bronze", "builder", time.Minute, 3)
+	// pr_opened, no findings.
+	if _, err := testStore.ReportOutcome(ctx, rw.RunToken, store.Report(work.OutcomePROpened, "opened", "",
+		[]string{"https://forgejo.webgrip.dev/webgrip/ploeg/pulls/45"}, nil, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EvaluateItem(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	if len(forge.commentsMatching(usageReportMarker)) != 1 {
+		t.Fatalf("no report published for a round without findings: %+v", forge.comments)
+	}
+	if !strings.Contains(forge.commentsMatching(usageReportMarker)[0], "Verification: not recorded") {
+		t.Errorf("evidence did not degrade to not recorded:\n%s", forge.commentsMatching(usageReportMarker)[0])
+	}
+}
+
+// On close the report is refreshed from the terminal branch, even when the
+// caller passes nil reports (the floor-close path).
+func TestEnginePublishesReportOnClose(t *testing.T) {
+	ctx := context.Background()
+	e := newEngine(reviewPlan())
+	id, forge := usageReportEnv(t, e, "987")
+	rw, _ := testStore.ClaimRole(ctx, "bronze", "builder", time.Minute, 3)
+	if _, err := testStore.ReportOutcome(ctx, rw.RunToken, store.Report(work.OutcomePROpened, "opened", "",
+		[]string{"https://forgejo.webgrip.dev/webgrip/ploeg/pulls/46"}, nil, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EvaluateItem(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	// Round 2 completes, exhausting the plan and closing the Shift.
+	rr, _ := testStore.ClaimRole(ctx, "bronze", "reviewer", time.Minute, 1)
+	if _, err := testStore.ReportOutcome(ctx, rr.RunToken, store.Report(work.OutcomeNoChangeNeeded, "reviewed", "",
+		nil, nil, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EvaluateItem(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	_, closed, reason := shiftRow(t, id)
+	if !closed || reason != reasonPlanExhausted {
+		t.Fatalf("shift not closed by the plan: closed=%v reason=%q", closed, reason)
+	}
+	// The close branch refreshed the one comment rather than posting a second.
+	if got := len(forge.commentsMatching(usageReportMarker)); got != 1 {
+		t.Fatalf("report comments after close = %d, want 1", got)
+	}
+	if len(forge.edits) == 0 {
+		t.Errorf("close did not edit the existing report")
+	}
+}
+
+// The report changes no lifecycle state: the Shift closes and the item settles
+// exactly as it would without it.
+func TestPublishUsage_DoesNotChangeOutcome(t *testing.T) {
+	ctx := context.Background()
+	e := newEngine(reviewPlan())
+	id, _ := usageReportEnv(t, e, "988")
+	rw, _ := testStore.ClaimRole(ctx, "bronze", "builder", time.Minute, 3)
+	if _, err := testStore.ReportOutcome(ctx, rw.RunToken, store.Report(work.OutcomePROpened, "opened", "",
+		[]string{"https://forgejo.webgrip.dev/webgrip/ploeg/pulls/47"}, nil, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EvaluateItem(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	rr, _ := testStore.ClaimRole(ctx, "bronze", "reviewer", time.Minute, 1)
+	if _, err := testStore.ReportOutcome(ctx, rr.RunToken, store.Report(work.OutcomeNoChangeNeeded, "reviewed", "",
+		nil, nil, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.EvaluateItem(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	round, closed, reason := shiftRow(t, id)
+	if !closed || reason != reasonPlanExhausted || round != 2 {
+		t.Errorf("shift row = round %d, closed %v, reason %q", round, closed, reason)
+	}
+	if got := itemState(t, id); got != "awaiting_review" {
+		t.Errorf("item state = %q, want awaiting_review", got)
+	}
+}
+
+// RefreshUsageReport on a Shift with no pull request is a silent no-op, not an
+// error (task 5.3).
+func TestEngineRefreshUsageReportWithoutPullRequestIsSilent(t *testing.T) {
+	ctx := context.Background()
+	e := newEngine(reviewPlan())
+	id, forge := usageReportEnv(t, e, "989")
+	si, err := testStore.LiveShiftForItem(ctx, id)
+	if err != nil || si == nil {
+		t.Fatalf("no live shift: %v", err)
+	}
+	if err := e.RefreshUsageReport(ctx, si.ID); err != nil {
+		t.Fatalf("RefreshUsageReport returned an error for a PR-less shift: %v", err)
+	}
+	if len(forge.comments) != 0 {
+		t.Errorf("a PR-less refresh posted something: %+v", forge.comments)
 	}
 }
 

@@ -122,8 +122,22 @@ func ComposePrompt(spec harness.TaskSpec, writes bool, priorPR string, onReviewB
 `, priorPR, spec.Branch, noun)
 	} else {
 		b.WriteString(openChangeRequestInstruction(spec.Repo, base, ref))
+		fmt.Fprintf(&b, `- Start the %[1]s description with a "Problem" and a "Solution" section
+  holding the same text you write to PLOEG_OUTCOME_FILE below.
+`, noun)
 	}
 	fmt.Fprintf(&b, `- Do NOT merge the %[1]s. A human merges.
+- As the LAST thing you do, write this JSON to the file named by the
+  PLOEG_OUTCOME_FILE environment variable:
+
+      {"problem": "<what was wrong or missing, and who it affected>",
+       "solution": "<what you changed, and how a reviewer can see it works>"}
+
+  A person reads these two fields before opening the %[1]s, so write them
+  for someone who has not read the Work Item: plain words, markdown allowed.
+  Keep the problem to three sentences at most. Keep the solution to five
+  short bullets at most, naming the files you changed. Put nothing else in
+  the file: Ploeg reads the forge to learn what you delivered.
 - If the Work Item cannot be completed, explain why on stderr and exit non-zero.
 `, noun)
 	writeWriterRepositoryInstructions(&b, noun)

@@ -158,6 +158,11 @@ Shift stops). Both are red against the unfixed code.
   the cap above is now the **agent's** budget, and infrastructure-caused
   attempts are counted against `store.MaxInfraFailures` separately. Everything
   else this record decided stands.
+* 2026-10-01 — refined by
+  [ADR-0043](0043-a-failed-reading-run-is-retried-and-a-missing-review-closes-review-failed.md)
+  (proposed): a failed reading Run is now retried in place under the same
+  budgets, and a review that never came closes `review_failed`. "Readers are
+  untouched" above no longer holds once that record is implemented.
 * Evidence: `docs/research/2026-08-08-benchmarking-the-loop.md`, and the
   `hang` scenario in `webgrip/ploeg-bench`.
 * [ADR-0010](0010-shift-owns-the-item-lease-owns-the-branch.md) — a Round is
