@@ -27,6 +27,7 @@ export function takeReturnHash() {
 /** Draws the sign-in page, with single sign-on when configured, `error` when a sign-in failed and a note when the session expired. */
 export async function renderLogin(error = '') {
   if (!state.authMethods) { try { state.authMethods = await (await fetch('/api/auth/methods', { credentials: 'same-origin' })).json(); } catch { state.authMethods = { local: true, oidc: null }; } }
+  document.title = 'Sign in · De Vloer';
   const params = new URLSearchParams(location.search);
   if (params.get('login_error')) { error = error || loginFailure(params.get('login_error')); history.replaceState(null, '', location.pathname); }
   const sso = state.authMethods.oidc ? `<a class="button primary full sso-button" href="/api/auth/oidc" data-action="sso">Sign in with ${escape(state.authMethods.oidc.name)}</a><p class="form-help">Your estate identity. Your role follows your groups.</p><div class="login-divider"><span>or a local account</span></div>` : '';

@@ -16,6 +16,7 @@ export async function run({ page, live, password, assert, screenshot }) {
   await page.evaluate(() => { location.hash = 'settings/accounts'; });
   await page.getByText('Your session expired. Sign in to continue where you were.', { exact: true }).waitFor();
   assert.equal(await page.locator('dialog[open]').count(), 0, 'a dialog stayed open over the sign-in page');
+  assert.equal(await page.title(), 'Sign in · De Vloer', 'the sign-in page keeps the title of the page it replaced');
   assert.equal(new URL(page.url()).hash, '#settings/accounts');
   await signIn();
   await page.getByRole('heading', { level: 1, name: 'Linked accounts', exact: true }).waitFor();
