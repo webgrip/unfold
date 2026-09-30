@@ -228,8 +228,9 @@ function clearSearch() {
 }
 
 async function refreshSessions() {
+  const epoch = state.epoch;
   const sessions = await api('/api/sessions');
-  if (state.view !== 'sessions') return;
+  if (state.view !== 'sessions' || !state.bootstrap || state.epoch !== epoch) return;
   state.sessions = sessions;
   updateRegions();
   updateChrome();

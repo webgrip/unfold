@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { applyNowCounts, countsFromNow, onCountsChange, ploegStatusFrom, sessionsNeedingYou, unknownCounts } from '../public/core/counts.js';
-import { state } from '../public/core/state.js';
+import { applyNowCounts, countsFromNow, onCountsChange, ploegStatusFrom, refreshCounts, sessionsNeedingYou, unknownCounts } from '../public/core/counts.js';
+import { state, forgetUserData, onForget } from '../public/core/state.js';
 import { documentTitle } from '../public/shell.js';
 import { rememberReturnHash, takeReturnHash } from '../public/views/login.js';
 
@@ -83,4 +83,40 @@ test('single sign-on keeps the deep link across the round trip, and a bad stored
     assert.doesNotThrow(() => rememberReturnHash());
     assert.equal(takeReturnHash(), '');
   } finally { globalThis.location = saved.location; globalThis.sessionStorage = saved.sessionStorage; }
+});
+
+test('signing out forgets the person in place, makes reads in flight stale and resets what views keep themselves', () => {
+  const now = state.now;
+  Object.assign(state.now, { data: { waiting: [{ id: '901', title: 'SECRET' }] }, error: null, request: 3, summaryRequest: 2, summary: { data: { totals: {} }, error: null }, shown: { waiting: new Set(['901']), recent: new Set() }, since: '2026-09-30T08:00:00Z', caughtUp: true });
+  Object.assign(state, { links: [{ provider: 'gitlab', linked: true }], models: [{ id: 'm' }], delivery: { candidate: {} }, deliveryError: 'x', ploegLane: 'needs_human' });
+  const epoch = state.epoch;
+  let resets = 0;
+  const off = onForget(() => { resets++; });
+  forgetUserData();
+  off();
+  assert.equal(state.now, now, 'the Now view keeps reading the same object');
+  assert.deepEqual([state.now.data, state.now.error, state.now.shown, state.now.since, state.now.caughtUp, state.now.summary.data], [null, null, null, undefined, false, null]);
+  assert.equal(state.now.request, 4);
+  assert.equal(state.now.summaryRequest, 3);
+  assert.deepEqual([state.links, state.models, state.delivery, state.deliveryError, state.ploegLane], [null, null, null, '', null]);
+  assert.equal(state.epoch, epoch + 1);
+  assert.equal(resets, 1);
+  forgetUserData();
+  assert.equal(resets, 1, 'a removed reset is not called again');
+});
+
+test('a counts read that lands after sign-out leaves the counts unknown', async () => {
+  const saved = { fetch: globalThis.fetch, bootstrap: state.bootstrap, view: state.view };
+  let answer;
+  globalThis.fetch = () => new Promise(done => { answer = done; });
+  try {
+    state.bootstrap = { mode: 'live', user: { id: 'a' } };
+    state.view = 'runs';
+    applyNowCounts(null);
+    const pending = refreshCounts();
+    forgetUserData();
+    answer({ ok: true, status: 200, json: async () => now() });
+    await pending;
+    assert.equal(state.counts.waiting, null, 'the previous person\u2019s count came back');
+  } finally { Object.assign(globalThis, { fetch: saved.fetch }); state.bootstrap = saved.bootstrap; state.view = saved.view; }
 });

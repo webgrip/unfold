@@ -1,5 +1,5 @@
 import { workMarkup, ploegLanes, activePloegLane, mergeOverviews, teamOverview, appendPage, refreshOverview, reviewFacts, cancelDialogMarkup, workItemRef } from '../ploeg.js';
-import { state } from '../core/state.js';
+import { state, onForget } from '../core/state.js';
 import { api } from '../core/api.js';
 import { $, renderHtml, notify, announce, safeUrl } from '../core/dom.js';
 import { buildHash } from '../core/route.js';
@@ -13,7 +13,9 @@ const lanes = ploegLanes.map(lane => lane.id);
 const itemPath = /^work\/([1-9][0-9]{0,19})$/;
 const liveInterval = 30000;
 const reviewFactLimit = 12;
-const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null };
+const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false };
+
+onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set() }));
 
 const canCancel = () => ['operator', 'admin'].includes(state.bootstrap?.user?.role);
 const visible = () => Boolean(state.bootstrap) && state.view === 'work';
@@ -157,8 +159,8 @@ async function readOverview(team, fresh) {
   if (team) return teamOverview(await api(`/api/ploeg?${new URLSearchParams({ team, ...refresh })}`));
   if (work.teams.length > 1) {
     const results = await Promise.all(work.teams.map(id => readTeam(id, refresh)));
-    if (results.every(result => result.error)) throw results[0].error;
-    return mergeOverviews(results);
+    if (!results.every(result => result.error)) return mergeOverviews(results);
+    work.teams = [];
   }
   const first = await api(`/api/ploeg?${new URLSearchParams(refresh)}`);
   if (!first.available || first.teams.length < 2) return teamOverview(first);
@@ -192,7 +194,7 @@ async function loadOverview({ fresh = false, quiet = false, spinner = false } = 
       if (prefs.get('team') === team) prefs.set('team', null);
       work.team = '';
       keepFiltersInHash();
-      notify(`Team ${team} is not available to your account. Showing all Teams.`, true);
+      notify(work.savedTeam ? 'The Team saved in this browser is not available to your account. Showing all Teams.' : `Team ${team} is not available to your account. Showing all Teams.`, true);
       state.ploegLoading = false; work.refreshing = false;
       return loadOverview({ fresh });
     }
@@ -272,8 +274,8 @@ function registerLive() {
 }
 
 function teamFromQuery(query) {
-  if (Object.hasOwn(query, 'team')) return query.team || '';
-  return prefs.get('team') || '';
+  work.savedTeam = !Object.hasOwn(query, 'team');
+  return work.savedTeam ? prefs.get('team') || '' : query.team || '';
 }
 
 async function enterWork({ id, query = {} } = {}) {
@@ -324,6 +326,7 @@ function changeTeam(select) {
   const team = select.value || '';
   prefs.set('team', team || null);
   work.team = team;
+  work.savedTeam = false;
   keepFiltersInHash();
   void loadOverview();
 }

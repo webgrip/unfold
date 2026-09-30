@@ -59,7 +59,11 @@
 }
 
 .session-request {
-  max-width: none;
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .session-review .facts {

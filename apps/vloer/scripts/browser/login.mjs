@@ -1,4 +1,4 @@
-/** Live sign-in and sign-out against the live-mode server, whose bootstrap account uses `password`: a failed attempt that keeps the account name, the phone layout, and a session that expires mid-use. */
+/** Live sign-in and sign-out against the live-mode server, whose bootstrap account uses `password`: a failed attempt that keeps the account name, the phone layout, a session that expires mid-use, and a sign-out after which the next person never sees the previous person's Now page. */
 export async function run({ page, live, password, assert, screenshot }) {
   const signIn = async () => {
     await page.getByRole('textbox', { name: 'Account name' }).fill('browser-operator');
@@ -58,4 +58,23 @@ export async function run({ page, live, password, assert, screenshot }) {
   await page.getByRole('heading', { name: 'Welcome back.' }).waitFor();
   assert.equal(await page.getByText('Your session expired', { exact: false }).count(), 0, 'signing out on purpose is not an expired session');
   assert.equal(await page.getByRole('textbox', { name: 'Account name' }).inputValue(), '', 'signing out kept the last account name');
+  const at = new Date().toISOString();
+  const secret = { demo: false, fetchedAt: at, errors: {}, running: [], recent: [], waiting: [{ id: '901', team: 'delivery', state: 'needs_human', title: 'SECRET-A Confidential acquisition', url: '', createdAt: at, updatedAt: at, provider: 'vikunja', externalId: 'VIK-901', attempts: 1, infraFailures: 0, target: null, closeReason: 'plan_exhausted', latestShift: null, spentUsd: null, pullRequestUrl: '' }] };
+  let nowAnswer = { status: 200, json: secret };
+  await page.route('**/api/ploeg/now*', route => route.fulfill(nowAnswer));
+  await page.evaluate(() => { location.hash = 'now'; });
+  await signIn();
+  await page.getByText('SECRET-A Confidential acquisition', { exact: true }).first().waitFor();
+  await page.getByRole('button', { name: /^Account and theme/ }).click();
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.getByRole('heading', { name: 'Welcome back.' }).waitFor();
+  nowAnswer = { status: 503, json: { error: { code: 'ploeg_unavailable', message: 'Ploeg did not answer.' } } };
+  await signIn();
+  await page.getByText('Could not reach Ploeg', { exact: true }).waitFor();
+  assert.equal(await page.getByText('SECRET-A', { exact: false }).count(), 0, 'the next person to sign in saw the previous person’s Now page');
+  assert.equal(await page.title(), 'Now · De Vloer', 'the previous person’s waiting count stayed in the tab title');
+  await page.unroute('**/api/ploeg/now*');
+  await page.getByRole('button', { name: /^Account and theme/ }).click();
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.getByRole('heading', { name: 'Welcome back.' }).waitFor();
 }

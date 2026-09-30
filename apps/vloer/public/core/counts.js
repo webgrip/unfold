@@ -54,13 +54,16 @@ export function applyNowCounts(data, error = null) {
 
 /**
  * Reads `GET /api/ploeg/now` and updates the counts. Errors leave the counts unknown and are rethrown for the
- * scheduler's backoff. It skips the read while the Now page is on screen, because Now reads the same data itself.
+ * scheduler's backoff. It skips the read while the Now page is on screen, because Now reads the same data itself, and
+ * drops an answer that arrives after the person signed out (`state.epoch` changed).
  */
 export async function refreshCounts() {
   if (!state.bootstrap) return;
   if (state.view === 'now' && globalThis.document?.visibilityState === 'visible') return;
-  try { applyNowCounts(await api('/api/ploeg/now')); }
-  catch (error) { if (state.bootstrap) applyNowCounts(null, error); throw error; }
+  const epoch = state.epoch;
+  const current = () => Boolean(state.bootstrap) && state.epoch === epoch;
+  try { const data = await api('/api/ploeg/now'); if (current()) applyNowCounts(data); }
+  catch (error) { if (current()) applyNowCounts(null, error); throw error; }
 }
 
 live.register('counts', { interval: 60000, scope: 'global', hidden: true, refresh: refreshCounts });

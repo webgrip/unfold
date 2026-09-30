@@ -20,7 +20,23 @@ const signedOut = 'login';
 const unknownView = 'sessions';
 const globalKeys = createGlobalKeys({ dispatch: (name, event) => { const action = registry.actions.get(name); if (action) Promise.resolve(action.handler(null, event)).catch(error => notify(error.message, true)); } });
 
-function applyPreferences() { configureFormat({ locale: prefs.get('format') }); applyAppearance(); }
+const sharedPrefs = ['theme', 'density', 'format', 'singleKeyShortcuts', 'live'];
+const readShared = () => Object.fromEntries(sharedPrefs.map(key => [key, prefs.get(key)]));
+let applied = readShared();
+prefs.subscribe((key, value) => { if (sharedPrefs.includes(key)) applied = { ...applied, [key]: value }; });
+
+function applyPreferences() { applied = readShared(); configureFormat({ locale: applied.format }); applyAppearance(); }
+
+function preferencesChanged(event) {
+  if (event.key !== prefsKey && event.key !== null) return;
+  const next = readShared();
+  const changed = sharedPrefs.filter(key => next[key] !== applied[key]);
+  if (!changed.length) return;
+  applyPreferences();
+  live.wake();
+  if (!state.bootstrap) return;
+  if (changed.every(key => key === 'live')) updateChrome(); else render();
+}
 
 function render() {
   if (!state.bootstrap) return registry.views.get(signedOut).render();
@@ -95,7 +111,7 @@ document.addEventListener('submit', async event => {
 document.addEventListener('keydown', event => { if (globalKeys(event)) return; for (const binding of registry.keys) if (binding(event)) return; });
 document.addEventListener('visibilitychange', () => live.wake());
 document.addEventListener('close', () => live.wake(), true);
-window.addEventListener('storage', event => { if (event.key !== prefsKey && event.key !== null) return; applyPreferences(); live.wake(); if (state.bootstrap) render(); });
+window.addEventListener('storage', preferencesChanged);
 window.addEventListener('hashchange', () => { closeTransientChrome(); state.focusHeading = true; void route(); });
 window.addEventListener('beforeunload', disconnect);
 void boot();

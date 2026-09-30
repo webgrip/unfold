@@ -21,10 +21,12 @@ export function validPref(key, value) {
 /**
  * Creates a preference store over `storage()` (localStorage by default). Every storage access is wrapped in
  * try/catch: when storage is missing, blocked or throws, preferences still work in memory for this page.
- * Unknown keys and invalid values fall back to the default on read and are refused on write.
+ * Unknown keys and invalid values fall back to the default on read and are refused on write. `subscribe` hears
+ * this page's own writes; other tabs' writes arrive as `storage` events.
  */
 export function createPrefs(storage = () => globalThis.localStorage) {
   const memory = {};
+  const listeners = new Set();
   const stored = () => {
     try { const raw = storage()?.getItem(prefsKey); const value = raw ? JSON.parse(raw) : {}; return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; }
     catch { return null; }
@@ -43,8 +45,11 @@ export function createPrefs(storage = () => globalThis.localStorage) {
       if (!validPref(key, value)) return false;
       memory[key] = value;
       try { const saved = stored() ?? {}; saved[key] = value; storage()?.setItem(prefsKey, JSON.stringify(saved)); } catch {}
+      for (const listener of listeners) { try { listener(key, value); } catch {} }
       return true;
     },
+    /** Calls `listener(key, value)` after this page stores a preference; returns an unsubscribe function. */
+    subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     /** Every preference with its current value. */
     all() { return Object.fromEntries(Object.keys(prefDefaults).map(key => [key, this.get(key)])); },
   };

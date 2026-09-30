@@ -37,6 +37,7 @@ const startsWithVerb = text => { const lower = text.toLowerCase(); return stepVe
 let load = { id: null, error: null };
 let busyAction = null;
 let renderedId = null;
+let opening = 0;
 const answers = new Map();
 
 const canOperate = () => state.bootstrap.user.role !== 'viewer';
@@ -452,7 +453,7 @@ function permissionMarkup(session, request) {
   const id = `permission-${escape(request.id)}`;
   if (request.kind === 'permission') {
     const actions = canOperate() ? `<div class="session-decision-actions">${button({ label: 'Allow once', icon: 'check', variant: 'primary', action: 'permission', data: { id: request.id, decision: 'once' } })}${button({ label: 'Allow matching requests', action: 'permission', data: { id: request.id, decision: 'always' } })}${button({ label: 'Reject', icon: 'x', variant: 'danger-ghost', action: 'permission', data: { id: request.id, decision: 'reject' } })}</div>` : '<p class="subtle">An operator decides this request.</p>';
-    return `<section class="card session-decision" data-tone="attention" aria-labelledby="${id}-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="${id}-title">${icon('lock')}${escape(role)} asks for permission</h2><p class="card-subtitle">The role waits until you decide.</p></div></header><div class="card-body"><div class="prose session-request">${markdown(request.title)}</div>${request.detail && request.detail !== request.title ? `<p class="session-decision-text">${escape(request.detail)}</p>` : ''}${actions}</div></section>`;
+    return `<section class="card session-decision" data-tone="attention" aria-labelledby="${id}-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="${id}-title">${icon('lock')}${escape(role)} asks for permission</h2><p class="card-subtitle">The role waits until you decide.</p></div></header><div class="card-body"><p class="session-request">${escape(request.title)}</p>${request.detail && request.detail !== request.title ? `<p class="session-decision-text">${escape(request.detail)}</p>` : ''}${actions}</div></section>`;
   }
   const questions = request.questions?.length ? request.questions : [{ question: request.detail || request.title }];
   const draft = answers.get(request.id) || { choices: {}, other: {}, error: '' };
@@ -681,6 +682,7 @@ async function actDelivery(action) {
 }
 
 async function openSession(id) {
+  const token = ++opening;
   disconnect();
   if (state.session?.id !== id) state.tab = 'stream';
   ++state.deliveryRequest; state.delivery = null; state.deliveryError = ''; state.deliveryBusy = false;
@@ -690,16 +692,17 @@ async function openSession(id) {
   let session; let events; let permissions;
   try { [session, events, permissions] = await Promise.all([api(`/api/sessions/${id}`), api(`/api/sessions/${id}/history`), api(`/api/sessions/${id}/permissions`)]); }
   catch (error) {
-    if (!state.bootstrap || location.hash !== `#session/${id}`) return;
+    if (token !== opening || !state.bootstrap || location.hash !== `#session/${id}`) return;
     load = { id, error };
     renderSession();
     return;
   }
-  if (location.hash !== `#session/${id}`) return;
+  if (token !== opening || location.hash !== `#session/${id}`) return;
   state.session = session; state.events = events; state.permissions = permissions; state.view = 'session'; state.online = true; state.draft = ''; state.evidenceScroll = isFinished(session) ? { stream: { top: 0, atBottom: false } } : {}; render();
   live.touch('session');
   if (session.execution && state.bootstrap.deliveryRepositories?.includes(session.repositoryId)) void loadDelivery(id);
   const after = events.at(-1)?.id || 0;
+  state.stream?.close();
   const stream = new EventSource(`/api/sessions/${id}/events?after=${after}`);
   state.stream = stream;
   stream.onopen = () => { state.online = true; showConnection(true); };

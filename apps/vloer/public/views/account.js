@@ -121,7 +121,7 @@ function unlink(button) {
   const provider = button.dataset.provider;
   const label = nameOf(provider);
   const consequence = provider === 'gitlab' ? 'forgets your tokens and asks GitLab to revoke them. Sessions on private repositories from this host cannot clone until you link again' : `forgets your token. ${label} task connections show nothing until you link again`;
-  confirmAction(`Unlink ${label}?`, `The workbench ${consequence}.`, 'Unlink', async () => { await api(`/api/links/${encodeURIComponent(provider)}`, { method: 'DELETE' }); state.links = (await api('/api/links')).links; if (state.view === 'account' && state.bootstrap) renderAccount(); notify(`${label} is unlinked.`); });
+  confirmAction(`Unlink ${label}?`, `The workbench ${consequence}.`, 'Unlink', async () => { await api(`/api/links/${encodeURIComponent(provider)}`, { method: 'DELETE' }); state.links = (await api('/api/links')).links; if (state.view === 'account' && state.bootstrap) renderAccount(); notify(`${label} is unlinked.`); }, { tone: 'danger', dismiss: 'Keep it linked' });
 }
 
 async function pasteToken(data, form) {

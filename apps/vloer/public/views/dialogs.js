@@ -77,8 +77,8 @@ export function openNew() {
 }
 
 /**
- * Opens the confirmation dialog and runs `callback` when the person confirms. `tone: 'danger'` styles the
- * confirm button as destructive and puts focus on the safe button; `details` lists consequences.
+ * Opens the confirmation dialog and runs `callback` when the person confirms. Focus starts on the safe button, so a
+ * second Enter never confirms; `tone: 'danger'` styles the confirm button as destructive and `details` lists consequences.
  * @param {string} title
  * @param {string} description
  * @param {string} label The confirm button.
@@ -88,7 +88,7 @@ export function openNew() {
 export function confirmAction(title, description, label, callback, { tone = 'primary', dismiss = 'Cancel', details = [] } = {}) {
   const dialog = prepare($('#confirm-dialog'), 'sm');
   const danger = tone === 'danger';
-  dialog.innerHTML = `<form method="dialog">${header('confirm-title', title, false)}<div class="dialog-body"><p>${escape(description)}</p>${details.length ? `<ul class="session-dialog-list">${details.map(item => `<li>${escape(item)}</li>`).join('')}</ul>` : ''}</div><footer class="dialog-footer">${button({ label: dismiss, type: 'submit', value: 'cancel', autofocus: danger })}${button({ label, variant: danger ? 'danger' : 'primary', type: 'submit', value: 'confirm', autofocus: !danger })}</footer></form>`;
+  dialog.innerHTML = `<form method="dialog">${header('confirm-title', title, false)}<div class="dialog-body"><p>${escape(description)}</p>${details.length ? `<ul class="session-dialog-list">${details.map(item => `<li>${escape(item)}</li>`).join('')}</ul>` : ''}</div><footer class="dialog-footer">${button({ label: dismiss, type: 'submit', value: 'cancel', autofocus: true })}${button({ label, variant: danger ? 'danger' : 'primary', type: 'submit', value: 'confirm' })}</footer></form>`;
   dialog.addEventListener('close', () => { if (dialog.returnValue === 'confirm') void callback(); }, { once: true });
   dialog.returnValue = '';
   dialog.showModal();
