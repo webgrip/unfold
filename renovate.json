@@ -113,43 +113,43 @@
     },
     {
       "description": "With minor and patch combined, Renovate offers only the highest non-major Go version, a minor that waits for approval, so the toolchain patch would never be proposed. Go keeps them apart.",
-      "matchPackageNames": [
+      "separateMinorPatch": true,
+      "matchDepNames": [
         "go",
         "golang",
         "docker.io/golang",
         "**/golang"
-      ],
-      "separateMinorPatch": true
+      ]
     },
     {
       "description": "A Go toolchain minor decides what compiles the shipped binaries and raises the floor for contributors. It stays a deliberate, dashboard-approved change outside the automerge group; toolchain patches still merge themselves.",
-      "matchPackageNames": [
-        "go",
-        "golang",
-        "docker.io/golang",
-        "**/golang"
-      ],
       "matchUpdateTypes": [
         "minor"
       ],
       "groupName": null,
       "groupSlug": null,
       "automerge": false,
-      "dependencyDashboardApproval": true
-    },
-    {
-      "description": "Go toolchain patches merge themselves in their own branch: kept apart from minors, they cannot share the non-major group's branch.",
-      "matchPackageNames": [
+      "dependencyDashboardApproval": true,
+      "matchDepNames": [
         "go",
         "golang",
         "docker.io/golang",
         "**/golang"
-      ],
+      ]
+    },
+    {
+      "description": "Go toolchain patches merge themselves in their own branch: kept apart from minors, they cannot share the non-major group's branch.",
       "matchUpdateTypes": [
         "patch"
       ],
       "groupName": "Go toolchain patches",
-      "groupSlug": "go-toolchain-patches"
+      "groupSlug": "go-toolchain-patches",
+      "matchDepNames": [
+        "go",
+        "golang",
+        "docker.io/golang",
+        "**/golang"
+      ]
     },
     {
       "description": "A preset bump changes how Renovate treats this repository and can widen what merges unattended, so it keeps the dashboard tick and its own branch.",
