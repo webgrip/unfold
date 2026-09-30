@@ -369,9 +369,11 @@ test('the writer’s problem and solution sit under the title, from the newest w
   assert.deepEqual(writerAccount(current), { runId: '13', role: 'builder', round: 1, at: later, problem: 'Half-cent totals round differently in the cart and on the invoice.', solution: '- One rounding rule serves both.\n- A test covers half-cent totals.', earlierShift: false });
   const html = detailMarkup(current, model({ detailId: '50', lane: 'awaiting_review' }));
   assert.ok(html.indexOf('id="work-account"') > html.indexOf('id="ploeg-item-title"') && html.indexOf('id="work-account"') < html.indexOf('id="work-decision"'), 'between the title and the decision box');
-  assert.match(html, /<h4 class="overline">Problem<\/h4><div class="prose"><p>Half-cent totals round differently/);
-  assert.match(html, /<h4 class="overline">Solution<\/h4><div class="prose"><ul>/);
-  assert.match(html, /Written by the builder in Round 1, <time[^>]*>[^<]*<\/time>\. Check it against the pull request\./);
+  assert.match(html, /<section class="work-account" id="work-account" aria-labelledby="work-account-title"><h3 class="sr-only" id="work-account-title">Problem and solution<\/h3>/);
+  assert.match(html, /data-side="problem"><h4 class="work-account-label"><span class="work-account-index" aria-hidden="true">01<\/span>Problem<\/h4><div class="prose work-account-text"><p>Half-cent totals round differently/);
+  assert.match(html, /data-side="solution"><h4 class="work-account-label"><span class="work-account-index" aria-hidden="true">02<\/span>Solution<\/h4><div class="prose work-account-text"><ul>/);
+  assert.match(html, /Written by<\/span><span>builder<\/span><span>Round 1<\/span><time/);
+  assert.match(html, /The agent’s own account: verify it against pull request #9\./);
   assert.match(html, /data-action="work-run" data-id="13"/);
   assert.doesNotMatch(html, /A reviewer never reports this|Older Shift problem/);
 
@@ -379,7 +381,9 @@ test('the writer’s problem and solution sit under the title, from the newest w
   current.runs[1].solution = '';
   assert.equal(writerAccount(current).runId, '11');
   assert.equal(writerAccount(current).earlierShift, true, 'a new Shift’s writer has not reported yet, so the earlier account shows and says so');
-  assert.match(detailMarkup(current, model({ detailId: '50' })), /Written by the builder in Round 1 of an earlier Shift/);
+  assert.match(detailMarkup(current, model({ detailId: '50' })), /<span>Round 1<\/span><span>earlier Shift<\/span>/);
+  current.runs.at(-1).solution = '';
+  assert.match(detailMarkup(current, model({ detailId: '50' })), /Solution<\/h4><p class="work-account-missing">Not reported\.<\/p>/, 'a missing half says so instead of leaving a hole');
 
   current.runs.pop();
   assert.equal(writerAccount(current), null);
