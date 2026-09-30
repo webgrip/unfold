@@ -73,7 +73,8 @@ Not every unit of work is code. Deciding what to build, splitting a large Work I
 | A Run that splits a Work Item, makes it Ready or records work it discovered | Implemented, proposed in [Ploeg ADR-0031](../../apps/ploeg/docs/adrs/0031-runs-create-work-items-held-for-approval-within-limits.md). Created Work Items stay in Ploeg and wait for your approval |
 | A failed check on a Ploeg pull request | Implemented, off by default. With `repairFailedChecks`, Ploeg queues a repair Follow-Up for the Team that owns the branch |
 | A person's review requesting changes on a Ploeg pull request | Implemented, off by default. With `reworkOnChangesRequested`, the review goes back to the same Work Item: it creates no new Work Item |
-| Other forge events, such as a merge conflict or a review comment | Recorded only |
+| A merge conflict on an open pull request | Recorded only. Proposed in [Ploeg ADR-0040](../../apps/ploeg/docs/adrs/0040-a-conflicted-pull-request-becomes-a-priority-ticket-ploeg-resolves.md): Ploeg polls for conflicts and files a priority ticket that a configured Team picks up |
+| Other forge events, such as a review comment | Recorded only |
 
 A Work Item created by work is a **Follow-Up**. It names its source. One that a Run creates names the source Work Item and Run, and states whether it is Ready. A Run returns the Work Items it wants in `createdWorkItems` on its outcome. A Role marked `planner` in a team's plan is told to do only that: split or clarify the Work Item instead of writing code.
 

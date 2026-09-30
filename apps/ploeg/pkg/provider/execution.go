@@ -36,3 +36,21 @@ func RepositoryURL(base, owner, repository string) (string, error) {
 	u.Path = strings.TrimRight(u.Path, "/") + "/" + owner + "/" + strings.TrimSuffix(repository, ".git") + ".git"
 	return u.String(), nil
 }
+
+// RepositoryState is what a forge reports about a repository that decides
+// whether agent work may target it (ADR-0038's readiness gate).
+type RepositoryState struct {
+	Archived bool
+	Mirror   bool
+	// Branch is the branch that was inspected: the requested base branch, or
+	// the repository's default branch when none was requested.
+	Branch string
+	// AgentsFile reports an AGENTS.md at the root of Branch.
+	AgentsFile bool
+}
+
+// RepositoryInspector is implemented by a ForgeProvider that can read
+// RepositoryState. A repository the forge does not show is an error.
+type RepositoryInspector interface {
+	InspectRepository(ctx context.Context, owner, repository, branch string) (RepositoryState, error)
+}

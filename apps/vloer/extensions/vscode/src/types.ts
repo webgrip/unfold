@@ -47,10 +47,15 @@ export type Observability = { grafanaUrl?: string; dashboards?: Record<string, s
 export type SessionDetail = { session: Session; events: SessionEvent[]; permissions: Permission[]; user: User; mode: 'demo' | 'live'; sharedExecution?: boolean; origin: string; freshness: Freshness; gateway?: string; observability?: Observability };
 
 export type TaskProvider = 'demo' | 'forgejo' | 'github' | 'gitlab' | 'clickup' | 'vikunja';
-export type TaskSource = { id: string; name: string; provider: TaskProvider; repositoryId: string; executionOwner: 'interactive' | 'ploeg'; ploeg?: { target: { forge: string; owner: string; repo: string; baseBranch: string } } };
-export type TaskSnapshot = { key: string; sourceId: string; provider: TaskProvider; id: string; revision: string; title: string; description: string; url: string; status: 'open' | 'closed' | 'unknown'; updatedAt?: string; repositoryId: string; bindingRevision?: string; nativeRevision?: string; ploeg?: { workItemId: string; expectedTarget: { owner: string; repo: string; baseBranch: string } }; ploegUnavailable?: { code: string; message: string } };
+export type TaskSource = { id: string; name: string; provider: TaskProvider; repositoryId: string; executionOwner: 'interactive' | 'ploeg'; handoff?: boolean; ploeg?: { target: { forge: string; owner: string; repo: string; baseBranch: string } } };
+export type TaskLabel = { name: string; color?: string };
+export type TaskAssignee = { username: string; name?: string };
+export type TaskSnapshot = { key: string; sourceId: string; provider: TaskProvider; id: string; revision: string; title: string; description: string; url: string; status: 'open' | 'closed' | 'unknown'; updatedAt?: string; repositoryId: string; bindingRevision?: string; nativeRevision?: string; ploeg?: { workItemId: string; expectedTarget: { owner: string; repo: string; baseBranch: string } }; ploegUnavailable?: { code: string; message: string }; labels?: TaskLabel[]; assignees?: TaskAssignee[]; priority?: number; dueAt?: string; identifier?: string; descriptionTruncated?: true };
 /** A task as the preview endpoint returns it: the snapshot plus its description as Markdown, which an import does not store. */
 export type TaskPreview = TaskSnapshot & { descriptionMarkdown?: string };
+export type TaskPloegTeam = { id: string; assignee: string; queueDepth: number; paused: boolean | null; roles: string[] };
+export type TaskPloegItem = { id: string; team: string; state: string; attempts: number; updatedAt: string; prUrl?: string; branch?: string; spentUsd?: number; budgetUsd?: number };
+export type TaskPloegStatus = { available: boolean; message?: string; demo: boolean; handoff: { allowed: boolean; reason?: string }; teams: TaskPloegTeam[]; assignedTeams: string[]; workItems: TaskPloegItem[]; fetchedAt: string; warnings?: string[] };
 export type TaskPage = { tasks: TaskSnapshot[]; nextPage?: number };
 export type TaskImportInput = { sourceId: string; taskId: string; revision: string; bindingRevision?: string; crewId: string; runtime: string; placement?: string; budgetUsd: number };
 export type Candidate = { status: 'ready' | 'unavailable'; reason?: string; message?: string; createdAt?: string; baseSha?: string; snapshotBaseSha?: string; headSha?: string; treeSha?: string; fileCount?: number; bytes?: number; sha256?: { bundle: string; patch: string }; formats?: CandidateFormat[] };

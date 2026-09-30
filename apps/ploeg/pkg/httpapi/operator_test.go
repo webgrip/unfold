@@ -87,6 +87,13 @@ func TestOperatorRoutesRejectInvalidOrUnauthorizedQueriesBeforeStore(t *testing.
 		{"GET", "/api/v1/operator/work-items?state=imagined", 400},
 		{"GET", "/api/v1/operator/work-items?state=done&needsHuman=true", 400},
 		{"GET", "/api/v1/operator/work-items?needsHuman=yes", 400},
+		{"GET", "/api/v1/operator/work-items?provider=vikunja", 400},
+		{"GET", "/api/v1/operator/work-items?externalId=1505", 400},
+		{"GET", "/api/v1/operator/work-items?provider=vikunja&externalId=", 400},
+		{"GET", "/api/v1/operator/work-items?provider=../vikunja&externalId=1505", 400},
+		{"GET", "/api/v1/operator/work-items?provider=vikunja&externalId=1505&externalId=1506", 400},
+		{"GET", "/api/v1/operator/work-items?provider=vikunja&externalId=1505&team=gold", 403},
+		{"GET", "/api/v1/operator/events?provider=vikunja&externalId=1505", 400},
 		{"GET", "/api/v1/operator/events?after=9223372036854775808", 400},
 		{"GET", "/api/v1/operator/events?workItemId=0", 400},
 		{"GET", "/api/v1/operator/events?token=ignored", 400},
@@ -207,5 +214,177 @@ func TestOperatorHTTPReadsMatchPublishedSchema(t *testing.T) {
 	}
 	if w.Code != 200 || len(list.Items) != 1 || list.Items[0].State != "needs_human" {
 		t.Fatalf("needs-human projection: %d %s", w.Code, w.Body)
+	}
+}
+
+func operatorSchemaGET(t *testing.T, s *Server, token, endpoint string) []byte {
+	t.Helper()
+	path, err := filepath.Abs("../../docs/contracts/operator-api.v1.schema.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	schema, err := jsonschema.NewCompiler().Compile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := httptest.NewRequest("GET", "/api/v1/operator/"+endpoint, nil)
+	r.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	s.Handler().ServeHTTP(w, r)
+	if w.Code != 200 {
+		t.Fatalf("%s: %d %s", endpoint, w.Code, w.Body)
+	}
+	instance, err := jsonschema.UnmarshalJSON(bytes.NewReader(w.Body.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := schema.Validate(instance); err != nil {
+		t.Fatalf("%s violates published schema: %v\n%s", endpoint, err, w.Body)
+	}
+	return w.Body.Bytes()
+}
+
+func TestOperatorWorkItemReportsPullRequestLink(t *testing.T) {
+	reset(t)
+	ctx := context.Background()
+	id, _, err := testStore.IngestAssigned(ctx, work.WorkItem{Provider: "vikunja", ExternalID: "operator-pr", Team: "silver", Title: "PR item"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	shift, err := testStore.OpenShift(ctx, id, "silver", "agent/vik-1391", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := testStore.OpenRound(ctx, shift, 0, []store.Role{{Name: "builder", Writes: true, Cap: 1}}); err != nil {
+		t.Fatal(err)
+	}
+	run, err := testStore.ClaimRole(ctx, "silver", "builder", time.Minute, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const prURL = "https://forge.example/webgrip/ploeg/pulls/12"
+	if _, err := testStore.ReportOutcome(ctx, run.RunToken, store.Report(work.OutcomePROpened, "opened", "", []string{prURL}, nil, nil)); err != nil {
+		t.Fatal(err)
+	}
+
+	consumers, token := operatorTestConsumers(t, []string{"silver"}, false)
+	s := &Server{Store: testStore, OperatorConfig: OperatorConfig{Consumers: consumers, Teams: map[string][]string{"silver": {"builder"}}}}
+	for _, endpoint := range []string{"work-items", fmt.Sprintf("work-items/%d", id)} {
+		raw := operatorSchemaGET(t, s, token, endpoint)
+		var body struct {
+			Items []struct {
+				PullRequest *store.OperatorPullRequest `json:"pullRequest"`
+			} `json:"items"`
+			Item struct {
+				PullRequest *store.OperatorPullRequest `json:"pullRequest"`
+			} `json:"item"`
+		}
+		if err := json.Unmarshal(raw, &body); err != nil {
+			t.Fatal(err)
+		}
+		var got *store.OperatorPullRequest
+		if endpoint == "work-items" {
+			if len(body.Items) != 1 {
+				t.Fatalf("%s: want one item, got %s", endpoint, raw)
+			}
+			got = body.Items[0].PullRequest
+		} else {
+			got = body.Item.PullRequest
+		}
+		if got == nil || got.URL != prURL || got.AgentVerdict != "" || got.HumanChangesRequested || got.RepairFollowUps != 0 || got.AgentVerdictRound != nil {
+			t.Fatalf("%s: unexpected pullRequest %+v", endpoint, got)
+		}
+	}
+}
+
+func TestOperatorTeamsListTheTrackerAssigneesThatRouteToEachTeam(t *testing.T) {
+	reset(t)
+	consumers, token := operatorTestConsumers(t, []string{"silver", "vloer"}, false)
+	s := &Server{Store: testStore, OperatorConfig: OperatorConfig{
+		Consumers:     consumers,
+		Teams:         map[string][]string{"silver": {"builder"}, "vloer": {}, "gold": {"writer"}},
+		TeamAssignees: map[string][]string{"silver": {"silver", "agent-silver"}, "gold": {"gold"}},
+		TeamScopes:    map[string][]string{"vloer": {"11"}, "gold": {"12"}},
+	}}
+	var body struct {
+		Teams []struct {
+			ID           string    `json:"id"`
+			Assignees    *[]string `json:"assignees"`
+			PinnedScopes *[]string `json:"pinnedScopes"`
+		} `json:"teams"`
+	}
+	if err := json.Unmarshal(operatorSchemaGET(t, s, token, "teams"), &body); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string][]string{}
+	pinned := map[string][]string{}
+	for _, team := range body.Teams {
+		if team.Assignees == nil || team.PinnedScopes == nil {
+			t.Fatalf("team %s lacks its assignees or pinnedScopes array", team.ID)
+		}
+		got[team.ID] = *team.Assignees
+		pinned[team.ID] = *team.PinnedScopes
+	}
+	if strings.Join(pinned["vloer"], ",") != "11" || len(pinned["silver"]) != 0 {
+		t.Fatalf("pinned scopes by team: %v", pinned)
+	}
+	if len(got) != 2 || strings.Join(got["silver"], ",") != "agent-silver,silver" || got["vloer"] == nil || len(got["vloer"]) != 0 {
+		t.Fatalf("assignees by team: %v", got)
+	}
+}
+
+func TestOperatorWorkItemsFilterByTrackerIdentityWithinScope(t *testing.T) {
+	reset(t)
+	ctx := context.Background()
+	ids := map[string]int64{}
+	for _, item := range []work.WorkItem{
+		{Provider: "vikunja", ExternalID: "1505", Team: "silver", Title: "wanted"},
+		{Provider: "vikunja", ExternalID: "1506", Team: "silver", Title: "sibling"},
+		{Provider: "clickup", ExternalID: "1505", Team: "bronze", Title: "other tracker"},
+		{Provider: "vikunja", ExternalID: "1507", Team: "gold", Title: "Hidden other item"},
+	} {
+		id, _, err := testStore.IngestAssigned(ctx, item)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids[item.Provider+"/"+item.ExternalID] = id
+	}
+	consumers, token := operatorTestConsumers(t, []string{"silver", "bronze"}, false)
+	s := &Server{Store: testStore, OperatorConfig: OperatorConfig{Consumers: consumers}}
+	list := func(query string) []store.OperatorItem {
+		t.Helper()
+		var page struct {
+			Items      []store.OperatorItem `json:"items"`
+			NextCursor *string              `json:"nextCursor"`
+		}
+		if err := json.Unmarshal(operatorSchemaGET(t, s, token, "work-items?"+query), &page); err != nil {
+			t.Fatal(err)
+		}
+		if page.NextCursor != nil {
+			t.Fatalf("%s: unexpected next page %s", query, *page.NextCursor)
+		}
+		return page.Items
+	}
+	for query, want := range map[string]string{
+		"provider=vikunja&externalId=1505":              "vikunja/1505",
+		"provider=vikunja&externalId=1505&team=silver":  "vikunja/1505",
+		"provider=vikunja&externalId=1505&state=queued": "vikunja/1505",
+		"provider=clickup&externalId=1505&limit=1":      "clickup/1505",
+	} {
+		items := list(query)
+		if len(items) != 1 || items[0].ID != fmt.Sprint(ids[want]) {
+			t.Fatalf("%s: got %+v, want only %s", query, items, want)
+		}
+	}
+	for _, query := range []string{
+		"provider=vikunja&externalId=1507",
+		"provider=vikunja&externalId=1505&team=bronze",
+		"provider=vikunja&externalId=1505&state=done",
+		"provider=vikunja&externalId=9999",
+		fmt.Sprintf("provider=vikunja&externalId=1505&after=%d", ids["vikunja/1505"]),
+	} {
+		if items := list(query); len(items) != 0 {
+			t.Fatalf("%s: got %+v, want none", query, items)
+		}
 	}
 }

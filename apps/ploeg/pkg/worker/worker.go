@@ -595,6 +595,9 @@ func resolveOutcome(adapterName string, report harness.OutcomeReport, runErr, ct
 		if r.CreatedWorkItems == nil {
 			r.CreatedWorkItems = report.CreatedWorkItems
 		}
+		if r.Problem == "" && r.Solution == "" {
+			r.Problem, r.Solution = report.Problem, report.Solution
+		}
 		return r
 	}
 	switch {

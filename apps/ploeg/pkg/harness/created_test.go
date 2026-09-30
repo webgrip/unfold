@@ -96,3 +96,15 @@ func TestMergeDropBox_CreatedWorkItemsSurviveTheAdapter(t *testing.T) {
 		t.Errorf("created work items were dropped: %+v", got)
 	}
 }
+
+func TestMergeDropBox_ProblemAndSolutionSurviveTheAdapter(t *testing.T) {
+	base := OutcomeReport{Outcome: work.OutcomeFailed, Summary: "adapter classified a failure"}
+	box := OutcomeReport{Problem: "Refunds over €500 fail.", Solution: "Check the limit first."}
+	got := MergeDropBox(base, box)
+	if got.Outcome != work.OutcomeFailed || got.Summary != base.Summary {
+		t.Errorf("an outcome-less drop box changed the adapter's outcome: %+v", got)
+	}
+	if got.Problem != box.Problem || got.Solution != box.Solution {
+		t.Errorf("the writer's account was dropped: %+v", got)
+	}
+}

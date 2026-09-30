@@ -111,6 +111,101 @@ func (p *Provider) Comment(ctx context.Context, repo string, mr int, body string
 	return nil
 }
 
+// note is the subset of GitLab's merge-request note object we read.
+type note struct {
+	ID   int64  `json:"id"`
+	Body string `json:"body"`
+}
+
+// Comments lists every note on a merge request, oldest-first (GitLab's own
+// order). It follows GitLab's per_page pagination to exhaustion so a marker on
+// any page is returned.
+func (p *Provider) Comments(ctx context.Context, repo string, mr int) ([]provider.Comment, error) {
+	if err := validRepo(repo); err != nil {
+		return nil, err
+	}
+	if mr <= 0 {
+		return nil, fmt.Errorf("gitlab: merge request iid must be positive, got %d", mr)
+	}
+	base := fmt.Sprintf("%s/api/v4/projects/%s/merge_requests/%d/notes",
+		strings.TrimRight(p.BaseURL, "/"), url.PathEscape(repo), mr)
+	var out []provider.Comment
+	for page := 1; ; page++ {
+		endpoint := fmt.Sprintf("%s?per_page=%d&page=%d", base, notesPerPage, page)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Accept", "application/json")
+		if p.Token != "" {
+			req.Header.Set("PRIVATE-TOKEN", p.Token)
+		}
+		resp, err := p.client().Do(req)
+		if err != nil {
+			return nil, err
+		}
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+			resp.Body.Close()
+			return nil, fmt.Errorf("gitlab: list %s!%d notes: HTTP %d: %s", repo, mr, resp.StatusCode, bytes.TrimSpace(snippet))
+		}
+		var notes []note
+		err = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&notes)
+		resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("gitlab: list %s!%d notes: %w", repo, mr, err)
+		}
+		for _, n := range notes {
+			out = append(out, provider.Comment{ID: n.ID, Body: n.Body})
+		}
+		if len(notes) < notesPerPage {
+			return out, nil
+		}
+	}
+}
+
+// EditComment replaces the body of one existing note.
+func (p *Provider) EditComment(ctx context.Context, repo string, mr int, id int64, body string) error {
+	if err := validRepo(repo); err != nil {
+		return err
+	}
+	if mr <= 0 {
+		return fmt.Errorf("gitlab: merge request iid must be positive, got %d", mr)
+	}
+	if id <= 0 {
+		return fmt.Errorf("gitlab: note id must be positive, got %d", id)
+	}
+	payload, err := json.Marshal(map[string]string{"body": body})
+	if err != nil {
+		return err
+	}
+	endpoint := fmt.Sprintf("%s/api/v4/projects/%s/merge_requests/%d/notes/%d",
+		strings.TrimRight(p.BaseURL, "/"), url.PathEscape(repo), mr, id)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, endpoint, bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	if p.Token != "" {
+		req.Header.Set("PRIVATE-TOKEN", p.Token)
+	}
+	resp, err := p.client().Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return fmt.Errorf("gitlab: edit note %d on %s!%d: HTTP %d: %s", id, repo, mr, resp.StatusCode, bytes.TrimSpace(snippet))
+	}
+	return nil
+}
+
+// notesPerPage is GitLab's maximum page size, so the common thread is one
+// round-trip; the loop handles larger threads.
+const notesPerPage = 100
+
 // PullRequestState reads a merge request's lifecycle. GitLab's "locked" is a
 // transient state of an open merge request.
 func (p *Provider) PullRequestState(ctx context.Context, repo string, mr int) (provider.PullRequestState, error) {

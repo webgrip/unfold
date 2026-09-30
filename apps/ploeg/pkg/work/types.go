@@ -173,6 +173,12 @@ type WorkItem struct {
 	// RouteRule is the id of the routing rule that decided Team and Target,
 	// recorded so an audit can answer why this item went where it went.
 	RouteRule string `json:"routeRule,omitempty"`
+	// RouteHint is the tracker label that selected the Target among the
+	// registered targets (ADR-0038). Empty when a board's default decided.
+	RouteHint string `json:"routeHint,omitempty"`
+	// Labels are the tracker item's label titles, read from the authoritative
+	// item at ingest for routing and never stored.
+	Labels []string `json:"-"`
 	// SourceWorkItemID names the Work Item a Follow-Up was created from.
 	// Empty for work that did not come from other work.
 	SourceWorkItemID string `json:"sourceWorkItemId,omitempty"`

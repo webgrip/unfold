@@ -255,3 +255,16 @@ splinters the per-board pick-up queue.
   hint) and relies on [ADR-0014](0014-work-target-is-a-work-item-attribute.md) (pinning).
 * Backlog #9, #34, #96, #105, #108, #120 and #122; ticket VIK-1340.
 * No questions are open. The owner's answers are recorded under Decision Outcome.
+* 2026-09-30: points 2 to 7 and 9 are implemented ([pkg/target](../../pkg/target/resolver.go),
+  [readiness gate](../../pkg/target/readiness.go)), with the Confirmation tests in `pkg/target`,
+  `pkg/httpapi` and `pkg/provider/vikunja`. Hints apply only once `targets:` is configured, so a
+  deployment without it routes exactly as before. Every refusal this record lists is refused at
+  ingest without fallback. Point 1 is in part: an item that no board rule covers and that carries
+  no hint still falls back to the worker's env repository until #108. Recognising a hint needs
+  one prefix test (`repo/`), because an unregistered `repo/*` label must be refused; selection
+  is still whole-title equality. A board with its own `repo:` and no `allow:` may select a
+  registered key whose target is that repository. Labels come only from `FetchItem`; a board
+  that selects by label refuses when that read fails. Readiness is checked by the Forgejo
+  provider only; a target on any other forge is not ready. At ingest a forge that cannot be
+  reached lets the item queue, and the claim-time check decides. How-to:
+  [route a board that serves several repositories](../how-to/route-a-multi-repo-board.md).

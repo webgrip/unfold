@@ -80,6 +80,14 @@
       ],
       "description": "a reading Run's answer to whether the work is done (ADR-0017). request_changes re-opens the plan's own writing Round, bounded by the Shift pool, maxFixRounds and the verdict itself. Ignored from a writing Role; it can name no Role, author no Round and raise no budget."
     },
+    "problem": {
+      "type": "string",
+      "description": "a writing Run's account of what was wrong or missing (ADR-0042), markdown for the person who reviews the pull request. It decides nothing. Ignored from a reading Role."
+    },
+    "solution": {
+      "type": "string",
+      "description": "a writing Run's account of what it changed and how a reviewer can see it works (ADR-0042), markdown. It decides nothing. Ignored from a reading Role."
+    },
     "createdWorkItems": {
       "type": "array",
       "maxItems": 50,

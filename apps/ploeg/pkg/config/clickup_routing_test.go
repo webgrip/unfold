@@ -1,12 +1,11 @@
 package config
 
 import (
-	"context"
 	"strings"
 	"testing"
 )
 
-func TestTargetSpec_ClickupListsRouteByPinnedID(t *testing.T) {
+func TestRoutingTable_ClickupListsRouteByPinnedID(t *testing.T) {
 	f, err := Load(write(t, `
 trackers:
   clickup:
@@ -32,7 +31,7 @@ teams:
 	if err != nil {
 		t.Fatal(err)
 	}
-	spec, err := f.TargetSpec(context.Background(), nil, discard())
+	spec, err := targetSpec(f, nil, discard())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +75,7 @@ trackers:
 	}
 }
 
-func TestTargetSpec_MixedTrackersJoinOneSpec(t *testing.T) {
+func TestRoutingTable_MixedTrackersJoinOneSpec(t *testing.T) {
 	f, err := Load(write(t, `
 trackers:
   vikunja:
@@ -95,7 +94,7 @@ teams:
 	if err != nil {
 		t.Fatal(err)
 	}
-	spec, err := f.TargetSpec(context.Background(), nil, discard())
+	spec, err := targetSpec(f, nil, discard())
 	if err != nil {
 		t.Fatal(err)
 	}
