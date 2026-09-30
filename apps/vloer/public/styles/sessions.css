@@ -1,0 +1,77 @@
+.session-dialog-lead {
+  color: var(--text-muted);
+}
+
+.dialog-body > .demo-note {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.dialog-body > .demo-note > .demo-note-tag {
+  flex: none;
+  margin-top: -0.0625rem;
+}
+
+.session-dialog-note {
+  color: var(--text-muted);
+}
+
+.session-dialog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: var(--space-4);
+}
+
+.dialog .disclosure > summary {
+  font-size: var(--text-sm);
+}
+
+.session-dialog-advanced {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.dialog .field > :is(input, select, textarea) {
+  width: 100%;
+}
+
+.dialog .field > textarea {
+  min-height: 6rem;
+}
+
+.session-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2-5);
+}
+
+.session-choice > input {
+  margin-top: 0.125rem;
+}
+
+.session-choice .field-hint {
+  margin: var(--space-0-5) 0 0;
+}
+
+.dialog .field-hint,
+.dialog .field-error {
+  margin: 0;
+}
+
+.session-dialog-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  color: var(--text-muted);
+}
+
+.dialog .facts {
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-subtle);
+}
