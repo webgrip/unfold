@@ -40,6 +40,13 @@ Chosen option: "A separate `ploeg-mcp` command", because it is the only option t
 * **Approval needs a person.** Approve and cancel return an MCP elicitation form; only `accept` acts. A client without elicitation gets a refusal and a link to approve in Vloer or the tracker.
 * **Identity by phase.** First stdio with an operator token from the environment. Then Streamable HTTP with a static bearer on the internal gateway, for command-line clients. Then an OAuth 2.1 resource server for Authentik tokens, with audience validation and no token passthrough, for Claude.ai and ChatGPT. The OAuth phase requires a public route and gets its own security review.
 * **Long-running work** is addressed by Work Item id and polled; the server keeps no session state and does not use the MCP Tasks extension.
+* **Refined on 2026-09-30** by [the build guide](../research/2026-09-30-mcp-server-patterns.md), which binds the implementation:
+  * one `/mcp` serves both protocol eras;
+  * `structuredContent` and `content` each carry the full answer;
+  * tool schemas stay in the common subset;
+  * every call returns within 30 seconds;
+  * approve, reject and cancel are gated by the owner's grant, a sealed single-use `requestState` and `_meta["anthropic/requiresUserInteraction"]`, because a form `accept` is the client's consent, not proof of a person;
+  * the identity provider for the OAuth phase is an open owner decision (guide §6).
 * **South side.** Runs get no Glide MCP server. Third-party MCP servers reach a Run only through LiteLLM's gateway with per-Run keys, and no harness loads MCP configuration from the target repository.
 
 **The owner's answers (2026-09-30):**
@@ -65,7 +72,7 @@ The evidence, prior art and security requirements are in [the research record](.
 Accepted, not implemented. It is implemented when:
 
 * `go test ./cmd/ploeg-mcp/...` in `apps/ploeg` drives every tool through `mcp.NewInMemoryTransports()` against a test ploegd, including a propose that stays `proposed`, an approve that is declined and dispatches nothing, and a read-only consumer that cannot list write tools;
-* `npx @modelcontextprotocol/conformance server --url <ploeg-mcp>/mcp --spec-version 2026-07-28` passes in CI;
+* `npx @modelcontextprotocol/conformance@0.2.0-alpha.11 server` passes in CI with `--requirements 2026-07-28` and again with `2025-11-25`, against a `-tags conformance` build that adds the fixture tools behind the same middleware, using a per-check baseline; the protocol scenarios (`server-stateless`, `tools-list`, `caching`, `dns-rebinding-protection`) also pass against the production binary;
 * `grep -rn "operator" apps/ploeg/cmd/ploeg-mcp` shows it reaching Glide only through the shared operator client, and no ploegd route serves `/mcp`.
 
 ## Pros and Cons of the Options
@@ -109,3 +116,4 @@ Accepted, not implemented. It is implemented when:
 * Related: [Ploeg ADR-0007](../../apps/ploeg/docs/adrs/0007-a2a-adopt-nothing-watchlist-a-facade.md) keeps the A2A dispatch facade on its watchlist; this record answers the same need for MCP clients first.
 * 2026-09-29 — Proposed after an eight-agent research sweep. Numbered 0011 because system ADRs 0005–0010 are on the unmerged `docs/agency-offering` branch.
 * 2026-09-30 — Accepted by the owner, remote phase included; the four open questions answered in the Decision Outcome (VIK-1502).
+* 2026-09-30 — Refined by a six-agent build-pattern sweep ([research record](../research/2026-09-30-mcp-server-patterns.md)); the Confirmation's conformance check now uses a fixture build, because most required scenarios call fixture tools a production server does not have.
