@@ -1,4 +1,4 @@
-/** The workbench chrome: redirects from old links, focus, title and announcement on route changes, the status strip, the account menu with the theme switch, live updates, keyboard shortcuts, the palette placeholder, the skip link, and the drawer, bottom bar and home link at phone width. */
+/** The workbench chrome: redirects from old links, focus, title and announcement on route changes, the status strip, the account menu with the theme switch, live updates, keyboard shortcuts, opening and closing the command palette, the skip link, and the drawer, bottom bar and home link at phone width. */
 export async function run({ page, app, assert, screenshot }) {
   const base = `http://127.0.0.1:${app.server.address().port}`;
   const hash = () => page.evaluate(() => location.hash);
@@ -48,7 +48,7 @@ export async function run({ page, app, assert, screenshot }) {
   await page.getByRole('heading', { level: 1, name: 'Work', exact: true }).waitFor();
   await page.keyboard.press('/');
   const palette = page.getByRole('dialog', { name: 'Search and commands' });
-  await palette.getByText('Coming soon.', { exact: true }).waitFor();
+  await palette.getByRole('combobox', { name: 'Search pages, commands and Work Items' }).waitFor();
   await page.keyboard.press('Escape');
   await palette.waitFor({ state: 'hidden' });
   await page.keyboard.press('Control+k');
