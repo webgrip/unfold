@@ -1418,16 +1418,38 @@
   .app-sidebar,
   .app-topbar,
   .app-tabbar,
-  .skip-link {
-    display: none;
+  .app-subnav,
+  .app-page-actions,
+  .app-user-menu,
+  .nav-drawer,
+  #toast,
+  .skip-link,
+  .work-sticky-actions,
+  .session-review-bar,
+  .activity-new,
+  .tasks-decision {
+    display: none !important;
   }
 
-  .app-shell {
+  .app-shell,
+  .app-body {
     display: block;
-    background: #FFFFFF;
+    min-height: 0;
+    background: white;
   }
 
   .app-main {
+    max-width: none;
     padding: 0;
+    overflow: visible;
+  }
+
+  .app-main * {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .app-main :is([class*="sticky"], .work-list-pane, .work-group-header, .activity-day-header, .tasks-list-card) {
+    position: static !important;
   }
 }
