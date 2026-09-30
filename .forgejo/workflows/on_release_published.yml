@@ -55,7 +55,7 @@ jobs:
     if: needs.parse-release-tag.outputs.version != ''
     runs-on: docker
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: glide-v${{ needs.parse-release-tag.outputs.version }}
       - name: Publish the canonical chart
@@ -279,7 +279,7 @@ jobs:
     if: needs.parse-release-tag.outputs.version != ''
     runs-on: docker
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: glide-v${{ needs.parse-release-tag.outputs.version }}
       - name: Publish the canonical chart
@@ -458,7 +458,7 @@ jobs:
     runs-on: docker
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
           ref: glide-v${{ needs.parse-release-tag.outputs.version }}
@@ -485,11 +485,11 @@ jobs:
     runs-on: docker
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
           ref: glide-v${{ needs.parse-release-tag.outputs.version }}
-      - uses: https://github.com/actions/setup-go@v5
+      - uses: https://github.com/actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: apps/ploeg/go.mod
           cache: false

@@ -1,7 +1,11 @@
 # documentation-discovery Specification
 
 ## Purpose
-TBD - created by archiving change audit-current-documentation. Update Purpose after archive.
+How the documentation is found and how far an audit of it can be trusted: one
+human entry point and one machine index over the same current sources, audits
+that state their evidence and limits, and product choices that are still open
+described as open. Archived from the change
+`2026-09-23-audit-current-documentation`.
 ## Requirements
 ### Requirement: Current guidance has a clear entry point
 

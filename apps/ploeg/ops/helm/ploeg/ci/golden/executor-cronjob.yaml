@@ -36,7 +36,6 @@ metadata:
     helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
 automountServiceAccountToken: false
-
 ---
 # Source: ploeg/templates/service.yaml
 apiVersion: v1
@@ -58,7 +57,6 @@ spec:
     - name: http
       port: 8080
       targetPort: http
-
 ---
 # Source: ploeg/templates/deployment.yaml
 apiVersion: apps/v1
@@ -175,7 +173,6 @@ spec:
             requests:
               cpu: 100m
               memory: 256Mi
-
 ---
 # Source: ploeg/templates/cronjob.yaml
 # The KEDA-free executor (docs/contracts/executor.md): a plain CronJob per

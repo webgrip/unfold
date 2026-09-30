@@ -77,13 +77,18 @@ func Lookup(name string, o ProfileOverrides) (Profile, error) {
 			return Profile{}, fmt.Errorf("acp profile \"goose\" is configured by environment only and takes no config JSON")
 		}
 		p = gooseProfile()
+	case "openhands":
+		if o.ConfigJSON != "" {
+			return Profile{}, fmt.Errorf("acp profile \"openhands\" writes its own agent settings and takes no config JSON")
+		}
+		p = openhandsProfile()
 	case "custom":
 		if len(o.Argv) == 0 {
 			return Profile{}, fmt.Errorf("acp profile \"custom\" requires an explicit argv")
 		}
 		p = Profile{Name: "custom", Argv: o.Argv, Env: openAICompatEnv}
 	default:
-		return Profile{}, fmt.Errorf("unknown acp profile %q (known: opencode, qwen-code, goose, custom)", name)
+		return Profile{}, fmt.Errorf("unknown acp profile %q (known: opencode, qwen-code, goose, openhands, custom)", name)
 	}
 	if len(o.Argv) > 0 {
 		p.Argv = o.Argv
@@ -237,6 +242,64 @@ func gooseProfile() Profile {
 			return out, nil
 		},
 	}
+}
+
+// openhandsProfile runs the OpenHands CLI (MIT) as an ACP agent.
+// docs/contracts/acp-profiles.md records why it writes agent_settings.json.
+func openhandsProfile() Profile {
+	return Profile{
+		Name: "openhands",
+		Argv: []string{"openhands", "acp", "--override-with-envs"},
+		Env: func(l harness.LLMEnv) []string {
+			out := []string{"OPENHANDS_SUPPRESS_BANNER=1"}
+			if l.APIKey != "" {
+				out = append(out, "LLM_API_KEY="+l.APIKey, "LITELLM_PROXY_API_KEY="+l.APIKey)
+			}
+			if l.BaseURL != "" {
+				out = append(out, "LLM_BASE_URL="+l.BaseURL)
+			}
+			if l.Model != "" {
+				out = append(out, "LLM_MODEL="+openhandsModel(l.Model))
+			}
+			if l.TraceID != "" {
+				out = append(out, "LLM_TRACE_ID="+l.TraceID)
+			}
+			return out
+		},
+		Configure: func(spec harness.TaskSpec, env harness.RunEnv, _ PermissionMode) ([]string, error) {
+			if env.LLM.Model == "" {
+				return nil, fmt.Errorf("acp profile \"openhands\" needs a model for its agent settings")
+			}
+			dir := filepath.Join(env.ScratchDir, "openhands-"+safeSuffix(spec.TraceID))
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				return nil, fmt.Errorf("create openhands persistence directory: %w", err)
+			}
+			doc, err := openhandsAgentSettingsDoc(env.LLM)
+			if err != nil {
+				return nil, err
+			}
+			if err := os.WriteFile(filepath.Join(dir, "agent_settings.json"), []byte(doc), 0o600); err != nil {
+				return nil, fmt.Errorf("write openhands agent settings: %w", err)
+			}
+			return []string{"OPENHANDS_PERSISTENCE_DIR=" + dir}, nil
+		},
+	}
+}
+
+func openhandsModel(model string) string {
+	return "litellm_proxy/" + model
+}
+
+func openhandsAgentSettingsDoc(l harness.LLMEnv) (string, error) {
+	llm := map[string]any{
+		"model":    openhandsModel(l.Model),
+		"usage_id": "agent",
+	}
+	if l.BaseURL != "" {
+		llm["base_url"] = l.BaseURL
+	}
+	b, err := json.MarshalIndent(map[string]any{"llm": llm}, "", "  ")
+	return string(b), err
 }
 
 func splitGatewayURL(baseURL string) (host, chatPath string, err error) {

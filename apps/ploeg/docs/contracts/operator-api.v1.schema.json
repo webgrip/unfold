@@ -1288,6 +1288,25 @@
               "type": "null"
             }
           ]
+        },
+        "observedUsd": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reservedModels": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "string",
+            "maxLength": 256
+          }
         }
       }
     },

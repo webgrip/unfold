@@ -1,7 +1,11 @@
 # tracker-execution-binding Specification
 
 ## Purpose
-TBD - created by archiving change bind-tracker-execution. Update Purpose after archive.
+How operator execution binds to a tracker Work Item: the operator API resolves
+only existing, Team-authorized Work Items against a fresh provider read, adopts
+only pristine queued items, and keeps operator ownership through tracker
+refreshes so unattended claims and Shifts leave that work alone. Archived from
+the change `2026-09-23-bind-tracker-execution`.
 ## Requirements
 ### Requirement: Canonical source lookup
 

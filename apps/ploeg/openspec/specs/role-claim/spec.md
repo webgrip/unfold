@@ -1,7 +1,10 @@
 # role-claim Specification
 
 ## Purpose
-TBD - created by archiving change run-multi-agent-shifts. Update Purpose after archive.
+How a worker claims work for its Role: the claim and the KEDA scale signal
+select with one predicate, a Team's `maxRunning` cap bounds its claims, and only
+writing Runs take the Shift's Lease. Archived from the change
+`2026-07-29-run-multi-agent-shifts`.
 ## Requirements
 ### Requirement: A worker claims work for its Role only
 

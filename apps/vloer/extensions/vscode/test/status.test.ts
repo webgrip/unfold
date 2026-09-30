@@ -30,7 +30,8 @@ test('the situation counts only the final read role as a reviewer', () => {
   assert.equal(situation(session()).headline, 'The crew finished and the candidate is captured. Your review is next.');
   assert.equal(situation(session({ review: { decision: 'accepted', by: 'u', byName: 'Ryan', at: '2026-09-10T14:00:00.000Z', note: 'Fine.' } })).headline, 'Accepted by Ryan.');
   assert.equal(presentationFor(session({ review: { decision: 'rejected', by: 'u', byName: 'Ryan', at: '2026-09-10T14:00:00.000Z', note: 'No.' } })).name, 'Rejected');
-  assert.equal(presentationFor(session()).name, 'Awaiting your review');
+  assert.equal(presentationFor(session()).name, 'Ready for your review');
+  assert.equal(presentationFor(session({ status: 'failed' })).name, 'Failed', 'a failed session reads Failed, as in the browser');
   const rejected = session({ status: 'failed', runs: [{ id: 'r1', roleName: 'Engineer', mode: 'write', status: 'completed' }, { id: 'r2', roleName: 'Reviewer', mode: 'read', status: 'failed', verdict: 'request_changes' }] });
   assert.equal(situation(rejected).headline, 'Reviewer requested changes.');
 });

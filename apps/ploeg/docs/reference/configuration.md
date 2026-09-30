@@ -36,12 +36,12 @@ The generator follows each binary's imports inside the module and records every 
 | `NODE_NAME` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go), [worker.go](../../pkg/worker/worker.go) |
 | `PATH` | ploeg-worker |  | Passed to `git` and `openspec` subprocesses; also on the harness allowlist. | [git.go](../../pkg/worker/git.go), [openspec.go](../../pkg/worker/openspec.go) |
 | `PLOEG_ACP_ARGV` | ploeg-worker |  | `acp` harness only: the whole launch command as a JSON array; required when the profile is `custom`. | [main.go](../../cmd/ploeg-worker/main.go) |
-| `PLOEG_ACP_CONFIG_JSON` | ploeg-worker |  | `acp` harness only: replaces the generated agent configuration of the `opencode` or `qwen-code` profile wholesale. The `goose` profile refuses it at startup. | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_ACP_CONFIG_JSON` | ploeg-worker |  | `acp` harness only: replaces the generated agent configuration of the `opencode` or `qwen-code` profile wholesale. The `goose` and `openhands` profiles refuse it at startup. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_ACP_IDLE_TIMEOUT` | ploeg-worker |  | `acp` harness only: timeout without protocol traffic. Empty means the adapter default (10m). | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_ACP_PERMISSION_MODE` | ploeg-worker |  | `acp` harness only: `allow_always` (default), `allow_read_only` or `deny_all`. | [main.go](../../cmd/ploeg-worker/main.go) |
-| `PLOEG_ACP_PROFILE` | ploeg-worker |  | `acp` harness only: `opencode`, `qwen-code`, `goose` or `custom` (chart `executor.harness.acp.profile`). See [ACP profiles](../contracts/acp-profiles.md). | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_ACP_PROFILE` | ploeg-worker |  | `acp` harness only: `opencode`, `qwen-code`, `goose`, `openhands` or `custom` (chart `executor.harness.acp.profile`). See [ACP profiles](../contracts/acp-profiles.md). | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_ACP_PROMPT_TIMEOUT` | ploeg-worker |  | `acp` harness only: prompt timeout as a Go duration. Empty means the adapter default (45m). | [main.go](../../cmd/ploeg-worker/main.go) |
-| `PLOEG_API_URL` | ploeg-worker | required | ploegd's run API (chart `executor.apiUrl`, default `http://<fullname>:<service.port>`). | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_API_URL` | ploeg-worker | required | ploegd's run API (chart `executor.apiUrl`, default `http://<fullname>:<service.port>`). | [main.go](../../cmd/ploeg-worker/main.go), [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_BASE_BRANCH` | ploeg-worker |  | Fallback branch the worker clones, branches from and targets. Unset means the repository default branch. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_CLAUDE_PERMISSION_MODE` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_CLICKUP_DONE_STATUS` | ploegd |  | List status applied when a Shift finishes (chart `tracker.clickup.doneStatus`). Empty leaves the board untouched. | [main.go](../../cmd/ploegd/main.go) |
@@ -81,7 +81,7 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_OPERATOR_DELIVERY_POLICIES` | ploegd |  | JSON array of trusted delivery policies with `repositoryId`, `policySha256`, `verifierId`, `minTests` and optional `publicationEnabled` (chart `operator.deliveryPolicies`). | [operator.go](../../cmd/ploegd/operator.go) |
 | `PLOEG_OUTCOME_FILE` | ploeg-worker |  | `exec` harness only: OutcomeReport JSON path override (chart `executor.harness.outcomeFile`). | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_REVIEW_RECONCILE_INTERVAL` | ploegd | `10m` |  | [main.go](../../cmd/ploegd/main.go) |
-| `PLOEG_ROLE` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_ROLE` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go), [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_SANDBOX_JOB_NAME` | ploeg-worker |  |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_SANDBOX_JOB_UID` | ploeg-worker |  |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_SANDBOX_RUN_DEADLINE` | ploeg-worker | `0` |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
@@ -95,7 +95,7 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_TARGET_FORGE` | ploegd | `forgejo` | Forge instance id a Work Target carries by default (chart `executor.forge`). Binds to the configured forge of that dialect, or to the only configured forge. | [sweep.go](../../cmd/ploegd/sweep.go) |
 | `PLOEG_TARGET_MAP` | ploegd |  | Legacy routing from tracker scope to repository, rendered from the org.yaml roster manifest. Replaced by `trackers.<tracker>.projects` in the `PLOEG_CONFIG` file. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_TARGET_SOURCE` | ploeg-worker |  | `env` ignores the claim's target and uses the fallback repository. | [main.go](../../cmd/ploeg-worker/main.go) |
-| `PLOEG_TEAM` | ploeg-worker | required | Team this worker claims work for. | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_TEAM` | ploeg-worker | required | Team this worker claims work for. | [main.go](../../cmd/ploeg-worker/main.go), [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_TEAM_MAP` | ploegd |  | Legacy assignee roster, replaced by `teams.<name>.assignees` in the `PLOEG_CONFIG` file. | [main.go](../../cmd/ploegd/main.go), [operator.go](../../cmd/ploegd/operator.go) |
 | `PLOEG_TEAM_MAX_RUNNING` | ploegd |  |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_TEAM_PLANS` | ploegd |  | Legacy Shift plans, replaced by `teams.<name>.plan` in the `PLOEG_CONFIG` file. A malformed plan stops ploegd at boot. | [main.go](../../cmd/ploegd/main.go) |
@@ -111,14 +111,14 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_WORKER_AUTH_MODE` | ploegd |  | `legacy` opts into historical worker authentication; anything else is managed mode (chart `executor.workerAuth.mode`). | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_WORKER_BOOTSTRAPS` | ploeg-worker |  | Controller-only. The worker refuses to start when it is set. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_WORKER_BOOTSTRAPS` | ploegd |  | Bootstrap registry, a JSON array of `token`, `team` and `role` entries (chart `executor.workerAuth.bootstrapSecret`). | [main.go](../../cmd/ploegd/main.go) |
-| `PLOEG_WORKER_BOOTSTRAP_TOKEN` | ploeg-worker |  | This worker's bootstrap credential, the `<team>--<role>` entry of the bootstrap Secret. | [main.go](../../cmd/ploeg-worker/main.go) |
-| `PLOEG_WORKER_ID` | ploeg-worker | `$POD_UID` | Worker identity for managed mode. | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_WORKER_BOOTSTRAP_TOKEN` | ploeg-worker |  | This worker's bootstrap credential, the `<team>--<role>` entry of the bootstrap Secret. | [main.go](../../cmd/ploeg-worker/main.go), [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
+| `PLOEG_WORKER_ID` | ploeg-worker | `$POD_UID` | Worker identity for managed mode. | [main.go](../../cmd/ploeg-worker/main.go), [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_WORKER_LLM_POLICIES` | ploegd |  | Trusted team and role inference policies. The chart builds them from each team and role model and budget plus `executor.workerAuth.additionalLLMPolicies`. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_WORKER_SIGNING_KEY` | ploeg-worker |  | Controller-only. The worker refuses to start when it is set. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_WORKER_SIGNING_KEY` | ploegd |  | Controller-only signing material for worker control capabilities, at least 32 bytes (chart `executor.workerAuth.signingKeySecret`). | [main.go](../../cmd/ploegd/main.go) |
 | `POD_NAME` | ploeg-worker |  |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `POD_NAMESPACE` | ploeg-worker |  |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
-| `POD_UID` | ploeg-worker |  | Downward-API pod UID; the worker identity when `PLOEG_WORKER_ID` is unset. | [main.go](../../cmd/ploeg-worker/main.go), [worker.go](../../pkg/worker/worker.go) |
+| `POD_UID` | ploeg-worker |  | Downward-API pod UID; the worker identity when `PLOEG_WORKER_ID` is unset. | [main.go](../../cmd/ploeg-worker/main.go), [sandbox.go](../../cmd/ploeg-worker/sandbox.go), [worker.go](../../pkg/worker/worker.go) |
 | `REPO_NAME` | ploeg-worker |  | Fallback repository name for a team that pins one. The repository normally comes from the claimed Work Item. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `REPO_OWNER` | ploeg-worker |  | Fallback repository owner for a team that pins one. The repository normally comes from the claimed Work Item. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `TZ` | ploeg-worker |  |  | [git.go](../../pkg/worker/git.go), [openspec.go](../../pkg/worker/openspec.go) |
@@ -172,7 +172,7 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `executor.harness.acp.configJson` |  | `""` | Replaces the profile's generated agent config (opencode, qwen-code) wholesale, so a wrong provider block is a values edit rather than an agent image rebuild. goose is configured by environment and refuses it. | values.yaml |
 | `executor.harness.acp.idleTimeout` |  | `""` | Go duration; "" = adapter default (10m) with no protocol traffic | values.yaml |
 | `executor.harness.acp.permissionMode` |  | `""` | allow_always (default) \| allow_read_only \| deny_all | values.yaml |
-| `executor.harness.acp.profile` |  | `opencode` | opencode \| qwen-code \| goose \| custom (PLOEG_ACP_PROFILE) | values.yaml |
+| `executor.harness.acp.profile` |  | `opencode` | opencode \| qwen-code \| goose \| openhands \| custom (PLOEG_ACP_PROFILE) | values.yaml |
 | `executor.harness.acp.promptTimeout` |  | `""` | Go duration; "" = adapter default (45m) | values.yaml |
 | `executor.harness.args` |  | `[]` | exec harness only: argv template with {taskspec}/{taskfile} | values.yaml |
 | `executor.harness.dind` |  | `true` | privileged DinD sidecar + DOCKER_* wiring (OpenHands + gates need it) | values.yaml |
@@ -384,7 +384,7 @@ name becomes the workload suffix (ploeg-worker-<team>-<role>); writes marks the 
 
 | Key | Type | Description |
 | --- | --- | --- |
-| `profile` | one of `"opencode"`, `"qwen-code"`, `"goose"`, `"custom"` | `opencode`, `qwen-code`, `goose` or `custom`. |
+| `profile` | one of `"opencode"`, `"qwen-code"`, `"goose"`, `"openhands"`, `"custom"` | `opencode`, `qwen-code`, `goose` or `custom`. |
 | `argv` | array | Whole launch command; required when the profile is `custom`. |
 | `permissionMode` | one of `""`, `"allow_always"`, `"allow_read_only"`, `"deny_all"` | `allow_always` (default), `allow_read_only` or `deny_all`. |
 | `promptTimeout` | string | Go duration. Empty means the adapter default (45m). |

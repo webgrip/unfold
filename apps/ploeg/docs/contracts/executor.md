@@ -101,9 +101,12 @@ The obligations hold through three backstops: the worker pod's
 `ttlSecondsAfterFinished`; and the claim's owner reference to the launcher's
 Job, which lets Job garbage collection remove the claim, its Sandbox and its
 pod. The Lease still expires first. A claim that is not `Ready` within
-`executor.sandbox.startTimeoutSeconds` is deleted by its launcher, which then
-fails with the controller's reason, so a claim the controller cannot serve
-does not hold the Team's slot until the shutdown deadline.
+`executor.sandbox.startTimeoutSeconds` is deleted by its launcher, so a claim
+the controller cannot serve does not hold the Team's slot until the shutdown
+deadline. The launcher then claims one of its Team and Role's Runs with the
+worker bootstrap credential and reports it `failed` with `infra_node` and the
+controller's reason, so the Work Item follows the infra retry budget
+(ADR-0021) instead of staying queued. The launcher Job fails either way.
 
 Only the launcher holds a Kubernetes API token. Its Role allows `create`,
 `get` and `delete` on `sandboxclaims` in its namespace. The template sets

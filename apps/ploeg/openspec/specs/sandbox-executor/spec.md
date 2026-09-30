@@ -93,3 +93,17 @@ exactly as under `executor.type`.
 #### Scenario: executorType under the CronJob executor
 - **WHEN** `executor.type` is `cronjob` and a team sets `executorType`
 - **THEN** the chart fails to render with a message naming the team
+
+### Requirement: A sandbox that never starts fails one Run as infrastructure
+A launcher whose claim is not Ready within `executor.sandbox.startTimeoutSeconds`
+MUST delete the claim, claim one Run for its Team and Role, and report that Run
+`failed` with failure reason `infra_node` and the controller's Ready reason.
+
+#### Scenario: The controller refuses the claim
+- **WHEN** a claim stays `Ready=False` past the start timeout
+- **THEN** the launcher deletes it, one queued Run of its Team and Role ends
+`failed` with `infra_node`, and the launcher Job fails
+
+#### Scenario: Nothing is waiting
+- **WHEN** the claim times out and the Team's queue is empty
+- **THEN** the launcher deletes the claim, reports nothing, and the Job fails

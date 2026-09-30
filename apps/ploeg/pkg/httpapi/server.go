@@ -182,6 +182,14 @@ func (s *Server) handleTrackerWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, ev := range events {
+		if ev.Kind == provider.TrackerClosed {
+			if err := s.trackerClosed(r.Context(), name, ev); err != nil {
+				s.Log.Error("withdrawal failed", "provider", name, "external_id", ev.ExternalID, "err", err)
+				http.Error(w, "withdrawal failed", http.StatusInternalServerError)
+				return
+			}
+			continue
+		}
 		if ev.Kind == provider.TrackerUnassigned {
 			if err := s.trackerUnassigned(r.Context(), name, ev); err != nil {
 				s.Log.Error("withdrawal failed", "provider", name, "external_id", ev.ExternalID, "err", err)
