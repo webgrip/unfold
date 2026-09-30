@@ -34,6 +34,10 @@ test('text is escaped before any markup is added, so hostile input stays inert t
     '- [x] <svg onload=alert(1)>',
     '\u00000\u0000 \u00010\u0001 placeholder look-alikes',
     '[x](https://a.example/" onmouseover="alert(1)) https://b.example/"onclick="x',
+    '<https://x.example/[a](https://y.example//onmouseover=location=name//)>',
+    '<https://x.example/[a](https://y.example//data-action=logout//)>',
+    '[a](https://x.example/```js```)',
+    '[a](https://x.example/`code`) <https://x.example/`code`>',
   ];
   for (const input of hostile) {
     const html = markdown(input);
@@ -98,6 +102,16 @@ test('only http(s) links become anchors, with bare URLs trimmed of trailing punc
   assert.equal(markdown('<https://x.example/?q=1&r=2>'), `<p>${external('https://x.example/?q=1&amp;r=2')}https://x.example/?q=1&amp;r=2</a></p>`);
   assert.equal(markdown('ftp://x.example/ and mailto:a@b.example'), '<p>ftp://x.example/ and mailto:a@b.example</p>');
   assert.equal(markdown('[bad](javascript:alert(1))'), '<p>[bad](javascript:alert(1))</p>');
+});
+
+test('a link, code span or code block never lands inside another link\'s address', () => {
+  const external = href => `<a href="${href}" target="_blank" rel="noopener noreferrer">`;
+  assert.equal(markdown('<https://x.example/[a](https://y.example//onmouseover=x//)>'), `<p>&lt;https://x.example/${external('https://y.example//onmouseover=x//')}a</a>&gt;</p>`);
+  assert.equal(markdown('[a](https://x.example/```js```)'), `<p>[a](${external('https://x.example/')}https://x.example/</a><pre class="md-code" data-lang="js"></pre>)</p>`);
+  assert.equal(markdown('<https://x.example/`code`>'), '<p>&lt;https://x.example/<code>code</code>&gt;</p>');
+  for (const input of ['[a](https://x.example/`b`)', '<https://x.example/[a](https://y.example/)>', '[a](https://x.example/```\ncode\n```)']) {
+    for (const [, href] of markdown(input).matchAll(/href="([^"]*)"/g)) assert.doesNotMatch(href, /[<>]/, input);
+  }
 });
 
 test('pathological input renders in bounded time', () => {

@@ -33,8 +33,8 @@ function inline(text) {
   let html = text
     .replace(/`([^`\n]+)`/g, (_, code) => keep(`<code>${code}</code>`))
     .replace(escapable, (_, char) => keep(char))
-    .replace(/\[([^\]\n]{1,500})\]\((https?:\/\/[^)\s]{1,2048})\)/g, (_, label, href) => keep(link(href, emphasis(label))))
-    .replace(/&lt;(https?:\/\/(?:(?!&gt;)[^\s])+)&gt;/g, (_, href) => keep(link(href, href)))
+    .replace(/\[([^\]\n]{1,500})\]\((https?:\/\/[^)\s\u0000\u0001]{1,2048})\)/g, (_, label, href) => keep(link(href, emphasis(label))))
+    .replace(/&lt;(https?:\/\/(?:(?!&gt;)[^\s\u0000\u0001]){1,2048})&gt;/g, (_, href) => keep(link(href, href)))
     .replace(bareUrl, (_, before, url) => { const href = trimUrl(url); return `${before}${keep(link(href, href))}${url.slice(href.length)}`; });
   html = emphasis(html);
   for (let round = 0; round < 4 && /\u0001\d+\u0001/.test(html); round++) html = html.replace(placeholder, (_, index) => tokens[Number(index)] ?? '');
