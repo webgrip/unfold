@@ -1,8 +1,9 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "local>webgrip/renovate-config#v1.11.0",
-    "local>webgrip/renovate-config:golang#v1.11.0"
+    "local>webgrip/renovate-config#v1.12.0",
+    "local>webgrip/renovate-config:golang#v1.12.0",
+    "local>webgrip/renovate-config:automerge-non-major#v1.12.0"
   ],
   "ignorePaths": [
     "**/node_modules/**",
@@ -15,16 +16,6 @@
     "**/__fixtures__/**",
     "apps/*/.forgejo/**"
   ],
-  "rebaseWhen": "conflicted",
-  "internalChecksFilter": "strict",
-  "separateMinorPatch": false,
-  "lockFileMaintenance": {
-    "automerge": true,
-    "dependencyDashboardApproval": false
-  },
-  "vulnerabilityAlerts": {
-    "automerge": true
-  },
   "customManagers": [
     {
       "customType": "regex",
@@ -78,88 +69,6 @@
       ],
       "semanticCommitType": "ci",
       "semanticCommitScope": "actions"
-    },
-    {
-      "description": "Non-major updates need no dashboard tick and merge themselves once the pull request checks are green. Renovate reads the combined commit status itself, so no branch protection is needed. One grouped branch per Renovate run instead of one per dependency: every open branch costs a full CI run each time it is rebased, and the runner pool cannot absorb twenty of them per push.",
-      "matchUpdateTypes": [
-        "minor",
-        "patch",
-        "digest",
-        "pin",
-        "pinDigest"
-      ],
-      "groupName": "all non-major dependencies",
-      "groupSlug": "all-non-major",
-      "dependencyDashboardApproval": false,
-      "automerge": true,
-      "automergeType": "pr",
-      "addLabels": [
-        "automerge"
-      ]
-    },
-    {
-      "description": "The org preset drops the release-age soak because the dashboard tick was the gate. Unattended merges get the preset's soak back; internalChecksFilter strict keeps an unsoaked update out of the group instead of holding the whole branch.",
-      "matchUpdateTypes": [
-        "minor"
-      ],
-      "minimumReleaseAge": "3 days"
-    },
-    {
-      "description": "Patch soak for unattended merges.",
-      "matchUpdateTypes": [
-        "patch"
-      ],
-      "minimumReleaseAge": "1 day"
-    },
-    {
-      "description": "With minor and patch combined, Renovate offers only the highest non-major Go version, a minor that waits for approval, so the toolchain patch would never be proposed. Go keeps them apart.",
-      "separateMinorPatch": true,
-      "matchDepNames": [
-        "go",
-        "golang",
-        "docker.io/golang",
-        "**/golang"
-      ]
-    },
-    {
-      "description": "A Go toolchain minor decides what compiles the shipped binaries and raises the floor for contributors. It stays a deliberate, dashboard-approved change outside the automerge group; toolchain patches still merge themselves.",
-      "matchUpdateTypes": [
-        "minor"
-      ],
-      "groupName": null,
-      "groupSlug": null,
-      "automerge": false,
-      "dependencyDashboardApproval": true,
-      "matchDepNames": [
-        "go",
-        "golang",
-        "docker.io/golang",
-        "**/golang"
-      ]
-    },
-    {
-      "description": "Go toolchain patches merge themselves in their own branch: kept apart from minors, they cannot share the non-major group's branch.",
-      "matchUpdateTypes": [
-        "patch"
-      ],
-      "groupName": "Go toolchain patches",
-      "groupSlug": "go-toolchain-patches",
-      "matchDepNames": [
-        "go",
-        "golang",
-        "docker.io/golang",
-        "**/golang"
-      ]
-    },
-    {
-      "description": "A preset bump changes how Renovate treats this repository and can widen what merges unattended, so it keeps the dashboard tick and its own branch.",
-      "matchPackageNames": [
-        "webgrip/renovate-config"
-      ],
-      "groupName": null,
-      "groupSlug": null,
-      "automerge": false,
-      "dependencyDashboardApproval": true
     },
     {
       "description": "The agent image and the mise pin must move together: one OpenCode version is what the workbench, the probe and the image share.",
