@@ -15,4 +15,4 @@ The site uses pnpm through corepack. Run `mise exec -- corepack pnpm install --f
 - The demo is described as deterministic, with no model calls and no spend.
 - The dark palette exists twice in `src/styles/tokens.css`; change both blocks or the tests fail.
 - The build validates the CSP. Never add an `is:inline` or `define:vars` script below the CSP meta; the pre-paint theme script is the only inline one.
-- `SITE_URL` in `src/config/site.ts` holds a `SUBDOMAIN` placeholder, and the deploy job's `apex-url` must match it. While it is a `workers.dev` host, every page is `noindex`. Keep `workers_dev = true` in `wrangler.toml` until a route exists: `workers_dev = false` without a route is a green deploy and a dead site.
+- `SITE_URL` in `src/config/site.ts` comes from `GLIDE_SITE_URL` at build time and falls back to `http://localhost:4321`. The deploy sets it to the `workers.dev` origin Cloudflare reports. While it is a `workers.dev` or local host, every page is `noindex`. Keep `workers_dev = true` in `wrangler.toml` until a route exists: `workers_dev = false` without a route is a green deploy and a dead site.

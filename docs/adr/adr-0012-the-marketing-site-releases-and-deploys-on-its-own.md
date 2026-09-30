@@ -36,7 +36,7 @@ Chosen option: "A separate `glide-site-v…` release train that deploys the site
 * Good, because a site fix goes live without a Glide release, and a Glide release never touches the site.
 * Good, because a deploy is a tagged, published release that can be redeployed from its tag.
 * Bad, because contributors must scope site commits `site`; an unscoped commit that touches only `apps/site` still versions Glide.
-* Bad, because there are now two release jobs pushing version commits to `development`, and their pushes can race. The shared release action retries a rejected push.
+* Bad, because there are now two release jobs pushing version commits to `development`. The site's job runs after Glide's, so a Glide release failure also holds back a site release until the next push.
 
 ### Confirmation
 
@@ -57,4 +57,4 @@ Chosen option: "A separate `glide-site-v…` release train that deploys the site
 ## More Information
 
 * Refines [ADR-0004](adr-0004-glide-releases-one-version.md): one Glide version covers Vloer and Ploeg, not the marketing site.
-* 2026-10-01 — Accepted. The workflow jobs that run the site train and the deploy are not wired yet; [the site's deploy guide](../../apps/site/docs/deploy.md) lists what remains.
+* 2026-10-01 — Accepted. The site train and the deploy run from `on_source_change.yml` and `on_release_published.yml`; the deploy reads the `workers.dev` origin from Cloudflare and uses the org-level Cloudflare credential that the bridge publishes from OpenBao.

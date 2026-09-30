@@ -48,3 +48,23 @@ jobs:
           package-path: apps
           package-name: glide
           token: ${{ secrets.WEBGRIP_CI_TOKEN }}
+
+  site-release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/development' && vars.GLIDE_RELEASES_ENABLED == 'true'
+    needs: [checks, release-policy, release]
+    runs-on: docker
+    container:
+      image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.3
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+      - name: Semantic Release
+        id: release
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v2.6.1
+        with:
+          package-path: apps/site
+          package-name: glide-site
+          token: ${{ secrets.WEBGRIP_CI_TOKEN }}
