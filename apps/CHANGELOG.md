@@ -1,3 +1,25 @@
+## [glide-v0.4.0-rc.15](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.14...glide-v0.4.0-rc.15) (2026-09-30)
+
+### Added
+
+* **ploeg:** split a Run's settled spend and tokens per model ([0587669](https://forgejo.webgrip.dev/webgrip/glide/commit/05876692abc5aca65e22f44376fe44cc1aeb21f4))
+
+### Fixed
+
+* **ploeg:** keep claude-code subagents and the advisor on the Run's model ([2c8f8a0](https://forgejo.webgrip.dev/webgrip/glide/commit/2c8f8a0662315dbbab91d91c7a2f21fbca174508))
+
+### Docs
+
+* **ploeg:** propose ADR-0039 on multi-model Runs and the advisor tool ([2b73770](https://forgejo.webgrip.dev/webgrip/glide/commit/2b73770274860bb9cbf5ecded33a467d1f8b5262))
+
+### Tests
+
+* **ploeg:** give the idle-watchdog test room for a slow exec ([47ff826](https://forgejo.webgrip.dev/webgrip/glide/commit/47ff8262e508379022eee9c517946ac8fb53c791))
+* **ploeg:** run the talking harness inline so a file scan cannot stall it ([6c9b358](https://forgejo.webgrip.dev/webgrip/glide/commit/6c9b358f88b97712cd0724d8c705ef9f1ba0292f))
+* **vloer:** fail a test that never settles and accept a concurrency cap ([cece343](https://forgejo.webgrip.dev/webgrip/glide/commit/cece3433de8e4062c4faf8443190302fefeea3fb))
+* **vloer:** run the API demo at 100 ms per step instead of 1 s ([b34a598](https://forgejo.webgrip.dev/webgrip/glide/commit/b34a598c7c8ea66d0a505afc5a65c51a7f5c4044))
+* **vloer:** write the stop-signal child's pid file atomically ([3f73be4](https://forgejo.webgrip.dev/webgrip/glide/commit/3f73be4a2ba18503d5a0badcd11b0af9ed9510b2))
+
 ## [glide-v0.4.0-rc.14](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.13...glide-v0.4.0-rc.14) (2026-09-29)
 
 ### Fixed
