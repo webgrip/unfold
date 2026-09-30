@@ -77,8 +77,8 @@ test('live operator projection reads all lanes, complete evidence and honest unk
   assert.equal(detail.demo, false);
   assert.equal(detail.runs[0].costStatus, 'unknown');
   assert.equal(detail.runs[0].usage, null);
-  assert.equal(detail.checkpoints.length, 3);
-  assert.equal(detail.events.length, 12);
+  assert.equal(detail.checkpoints.length, 1);
+  assert.equal(detail.events.length, 7);
   assert.equal(detail.shifts.length, 1);
   assert(upstreamApi.seen.every(call => call.authorized && call.method === 'GET'));
 });
@@ -415,7 +415,7 @@ test('the demo serves illustrative activity with zero spend, pages events and ke
 test('the demo exercises every needs-you reason with Ploeg’s own sentences and the Runs behind them', async t => {
   const demo = await application(); t.after(() => demo.close());
   const parked = ploegDemo.items.filter(item => item.state === 'needs_human');
-  assert.deepEqual(parked.map(item => item.latestShift?.closeReason).sort(), ['budget exhausted: pool 3.00, spent 2.96, reserved 0.10', 'fix_round_cap_reached', 'plan_exhausted', 'run stuck: builder round 2', 'run stuck: reviewer round 2', 'writing_run_killed_repeatedly']);
+  assert.deepEqual(parked.map(item => item.latestShift?.closeReason).sort(), ['Illustrative escalation to a human reviewer.', 'budget exhausted: pool 0.04, spent 0.00, reserved 0.00', 'fix_round_cap_reached', 'plan_exhausted', 'run stuck: builder round 2', 'writing_run_killed_repeatedly']);
   assert.deepEqual([...new Set(parked.map(item => item.team))], ['delivery', 'research']);
   for (const item of parked) {
     const detail = await request(demo.url, `/api/ploeg/work-items/${item.id}`);
@@ -430,9 +430,20 @@ test('the demo exercises every needs-you reason with Ploeg’s own sentences and
       assert.equal(writers.length, 10, 'ten infrastructure kills');
       assert.match(reason, /killed 10 times in round 1/);
     }
+    if (closeReason.startsWith('budget exhausted')) {
+      const [pool, spent, reserved] = [...closeReason.matchAll(/\d+\.\d+/g)].map(match => Number(match[0]));
+      const shift = detail.body.shifts[0];
+      assert.deepEqual([pool, spent, reserved], [shift.budgetUsd, shift.spentUsd, shift.reservedUsd], 'the close reason quotes the Shift’s own zero spend, never sample amounts');
+      assert(pool < 0.05, 'a pool below the least Ploeg authorizes is what parks a Shift that spent nothing');
+      assert(detail.body.runs.every((run: { startedAt: string | null; summary: string }) => run.startedAt === null && run.summary.startsWith('cancelled: shift closed (budget exhausted')), 'no Run started, so no model was called');
+    }
+    if (!closeReason.startsWith('run stuck:') && detail.body.runs.some((run: { outcome: string }) => run.outcome === 'stuck')) assert.match(closeReason, /^Illustrative /, `${item.id}: a stuck Run without a run-stuck close reason is the free-text escalation`);
     if (closeReason === 'fix_round_cap_reached') assert.deepEqual(detail.body.runs.map((run: { round: number; verdict: string }) => [run.round, run.verdict]).reverse(), [[1, ''], [2, 'request_changes'], [3, ''], [4, 'request_changes']]);
     assert.equal(detail.body.events[0].action, 'work_item.needs_human', `${item.id}: the newest event is the park`);
   }
+  const escalation = ploegDemo.details['101'];
+  assert.equal(escalation.item.provider, 'demo');
+  assert.deepEqual(escalation.runs.filter(entry => entry.outcome === 'stuck').map(entry => [entry.role, entry.round, entry.stuckReason]), [['reviewer', 1, 'The acceptance criteria need a human decision.']], 'DEMO-1 keeps its free-text escalation with a reviewer stuck in Round 1');
   const unrouted = parked.find(item => item.target === null)!;
   assert.equal(unrouted.provider, 'vikunja');
   for (const markup of ['<p>', '<ul><li>', '<strong>', '<a href="https://']) assert(unrouted.description.includes(markup), `the unrouted brief is Vikunja HTML with ${markup}`);
@@ -571,6 +582,6 @@ test('the demo Now projection names its limitation and never invents model calls
   assert.deepEqual([...new Set(now.body.waiting.map((entry: { team: string }) => entry.team))], ['delivery', 'research'], 'waiting work spans both teams');
   assert(now.body.waiting.every((entry: { latestShift: { spentUsd: number; reservedUsd: number } | null }) => !entry.latestShift || (entry.latestShift.spentUsd === 0 && entry.latestShift.reservedUsd === 0)));
   assert(now.body.running.every((run: { observedUsd: number | null; reservedModels: string[]; usage: unknown }) => run.observedUsd === null && run.reservedModels.length === 0 && run.usage === null));
-  assert(now.body.recent.every((run: { settledUsd: number | null }) => run.settledUsd === 0));
+  assert(now.body.recent.every((run: { settledUsd: number | null; startedAt: string | null }) => run.settledUsd === 0 || (run.settledUsd === null && run.startedAt === null)), 'a finished demo Run settles zero; one that never started reports no settlement');
   assert.deepEqual(now.body.errors, {});
 });
