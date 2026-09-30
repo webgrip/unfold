@@ -49,6 +49,8 @@ export type SessionDetail = { session: Session; events: SessionEvent[]; permissi
 export type TaskProvider = 'demo' | 'forgejo' | 'github' | 'gitlab' | 'clickup' | 'vikunja';
 export type TaskSource = { id: string; name: string; provider: TaskProvider; repositoryId: string; executionOwner: 'interactive' | 'ploeg'; ploeg?: { target: { forge: string; owner: string; repo: string; baseBranch: string } } };
 export type TaskSnapshot = { key: string; sourceId: string; provider: TaskProvider; id: string; revision: string; title: string; description: string; url: string; status: 'open' | 'closed' | 'unknown'; updatedAt?: string; repositoryId: string; bindingRevision?: string; nativeRevision?: string; ploeg?: { workItemId: string; expectedTarget: { owner: string; repo: string; baseBranch: string } }; ploegUnavailable?: { code: string; message: string } };
+/** A task as the preview endpoint returns it: the snapshot plus its description as Markdown, which an import does not store. */
+export type TaskPreview = TaskSnapshot & { descriptionMarkdown?: string };
 export type TaskPage = { tasks: TaskSnapshot[]; nextPage?: number };
 export type TaskImportInput = { sourceId: string; taskId: string; revision: string; bindingRevision?: string; crewId: string; runtime: string; placement?: string; budgetUsd: number };
 export type Candidate = { status: 'ready' | 'unavailable'; reason?: string; message?: string; createdAt?: string; baseSha?: string; snapshotBaseSha?: string; headSha?: string; treeSha?: string; fileCount?: number; bytes?: number; sha256?: { bundle: string; patch: string }; formats?: CandidateFormat[] };
