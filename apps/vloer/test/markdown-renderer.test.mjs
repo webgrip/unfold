@@ -104,6 +104,15 @@ test('only http(s) links become anchors, with bare URLs trimmed of trailing punc
   assert.equal(markdown('[bad](javascript:alert(1))'), '<p>[bad](javascript:alert(1))</p>');
 });
 
+test('a link with credentials in its address stays text, like every link that safeUrl refuses', () => {
+  for (const [source, text] of [['[pay](https://user:secret@bank.example/)', 'pay'], ['<https://user@bank.example/login>', 'https://user@bank.example/login'], ['see https://user:secret@bank.example/login', 'https://user:secret@bank.example/login']]) {
+    const html = markdown(source);
+    assert.doesNotMatch(html, /<a /, source);
+    assert(html.includes(text), `the text of ${source} is kept`);
+  }
+  assert.match(markdown('[docs](https://docs.example/a?b=1&c=2)'), /<a href="https:\/\/docs\.example\/a\?b=1&amp;c=2" target="_blank" rel="noopener noreferrer">docs<\/a>/, 'an ordinary address is unchanged');
+});
+
 test('a link, code span or code block never lands inside another link\'s address', () => {
   const external = href => `<a href="${href}" target="_blank" rel="noopener noreferrer">`;
   assert.equal(markdown('<https://x.example/[a](https://y.example//onmouseover=x//)>'), `<p>&lt;https://x.example/${external('https://y.example//onmouseover=x//')}a</a>&gt;</p>`);

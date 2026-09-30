@@ -1,7 +1,7 @@
 import { escape, safeUrl } from './core/dom.js';
 import { icon } from './core/icons.js';
 import { markdown } from './core/markdown.js';
-import { money, plural, duration, dateTime } from './core/format.js';
+import { count as formatCount, money, plural, duration, dateTime } from './core/format.js';
 import * as ui from './core/ui.js';
 import { workItemState, runOutcome, runState, verdict as verdictMeta, failureReason, failureNote, checkpointPhase, auditEvent, actorName } from './core/states.js';
 import { listReason, routingWarning, detailReason, closeReasonLabel, withdrawnReason, requeueNote } from './core/reasons.js';
@@ -747,7 +747,7 @@ function runBody(run, { demo, now, live }) {
   const links = runLinks(run);
   if (links) parts.push(links);
   const time = runSeconds(run, now);
-  const tokens = run.usage && (amount(run.usage.inputTokens) || amount(run.usage.outputTokens)) ? `${amount(run.usage.inputTokens) ? escape(run.usage.inputTokens.toLocaleString('nl-NL')) : '—'} in · ${amount(run.usage.outputTokens) ? escape(run.usage.outputTokens.toLocaleString('nl-NL')) : '—'} out` : null;
+  const tokens = run.usage && (amount(run.usage.inputTokens) || amount(run.usage.outputTokens)) ? `${escape(formatCount(run.usage.inputTokens))} in · ${escape(formatCount(run.usage.outputTokens))} out` : null;
   parts.push(ui.dl([
     ['Started', run.startedAt ? ui.timeAt(run.startedAt) : '<span class="subtle">Not started</span>'],
     ['Finished', run.finishedAt ? ui.timeAt(run.finishedAt) : run.state === 'running' ? 'Still running' : null],

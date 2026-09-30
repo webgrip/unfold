@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as ui from '../public/core/ui.js';
-import { icons } from '../public/core/icons.js';
+import { icon, icons } from '../public/core/icons.js';
+import { workItemStates } from '../public/core/states.js';
 import { money } from '../public/core/format.js';
 
 const hostile = '<img src=x onerror="alert(1)">\'&';
@@ -203,6 +204,9 @@ test('state badges read the shared vocabulary', () => {
   assert.match(ui.stateBadge('leased'), /<span class="live-dot" aria-hidden="true"><\/span>Running/);
   assert(!ui.stateBadge('needs_human').includes('live-dot'));
   assert.match(ui.stateBadge('workItem:done'), />Done<\/span>$/, 'a kind prefix is accepted');
+  assert.match(ui.stateBadge('session:queued'), /data-state="queued">.*Ready to start<\/span>$/, 'a session prefix reads the session vocabulary');
+  assert.match(ui.stateBadge('run:running'), /data-tone="live" data-state="running"><span class="live-dot"/, 'a run prefix reads the Run vocabulary');
+  for (const key of Object.keys(workItemStates)) assert(ui.stateBadge(key).includes(icon(workItemStates[key].glyph)) || workItemStates[key].live, `${key} uses the glyph from states.js`);
   assert.match(ui.stateBadge('some_new_state'), /data-tone="neutral" data-state="some_new_state">.*Some new state<\/span>$/);
   assert.match(ui.stateBadge({ key: 'running', label: 'Working', tone: 'live', live: true }), /data-tone="live" data-state="running"><span class="live-dot"/);
   const reason = ui.stateBadge('needs_human', { reason: 'Budget ran out' });

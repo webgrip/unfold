@@ -1,4 +1,4 @@
-import { escape } from './dom.js';
+import { escape, safeUrl } from './dom.js';
 
 const maxListDepth = 6;
 const maxQuoteDepth = 3;
@@ -6,7 +6,10 @@ const placeholder = /\u0001(\d+)\u0001/g;
 const escapable = /\\(&(?:amp|lt|gt|quot|#39);|[!#$%()*+,\-./:;=?@[\]\\^_`{|}~])/g;
 const bareUrl = /(^|[\s(])(https?:\/\/(?:(?!&(?:lt|gt|quot|#39);)[^\s<>"'`\u0000\u0001])+)/g;
 
+const entities = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" };
+
 function link(href, label) {
+  if (!safeUrl(href.replace(/&(?:amp|lt|gt|quot|#39);/g, entity => entities[entity]))) return label;
   return `<a href="${href}" target="_blank" rel="noopener noreferrer">${label}</a>`;
 }
 

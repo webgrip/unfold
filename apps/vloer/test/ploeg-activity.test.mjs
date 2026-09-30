@@ -307,7 +307,7 @@ test('a Run row shows state and outcome, verdict, failure, Work Item, Role, timi
   assert.match(html, /data-action="ploeg-runs-older"/);
   assert.match(html, /4 Runs loaded/);
   const demo = runsMarkup({ runs: ploegDemo.runs, nextBefore: null, filter: {}, demo: true }, ['delivery'], helpers, now);
-  assert.doesNotMatch(demo.replace('spend is US$ 0,00.', ''), /US\$\s0,00/);
+  assert.doesNotMatch(demo, /US\$\s0,00/, 'the demo never writes spend it did not have');
   assert.match(demo, /<td class="runs-spend"><span class="subtle" title="Demo · no model calls"><span aria-hidden="true">—<\/span><span class="sr-only">Demo · no model calls<\/span><\/span><\/td>/);
   assert.doesNotMatch(demo, />None<|>No model calls<|runs-card-line">Demo|runs-card-spend/);
   assert.match(demo, /The worker stopped responding/);

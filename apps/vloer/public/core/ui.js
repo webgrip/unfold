@@ -1,23 +1,13 @@
 import { escape, safeUrl } from './dom.js';
 import { icon } from './icons.js';
 import * as format from './format.js';
+import { stateMeta } from './states.js';
 
 const toneNames = new Set(['neutral', 'live', 'attention', 'review', 'success', 'danger', 'severe', 'accent']);
 const variants = new Set(['primary', 'secondary', 'ghost', 'danger', 'danger-ghost']);
 const sizes = new Set(['xs', 'sm', 'md', 'lg']);
 const avatarTones = ['neutral', 'accent', 'review', 'live', 'success', 'severe'];
 const calloutIcons = { neutral: 'info', accent: 'info', live: 'activity', attention: 'alert', review: 'eye', success: 'check-circle', danger: 'x-circle', severe: 'alert' };
-const workItemStates = {
-  proposed: { key: 'proposed', label: 'Proposed', tone: 'neutral', glyph: 'proposed' },
-  ingested: { key: 'ingested', label: 'Received', tone: 'neutral', glyph: 'inbox' },
-  queued: { key: 'queued', label: 'Queued', tone: 'neutral', glyph: 'circle-dashed' },
-  leased: { key: 'leased', label: 'Running', tone: 'live', glyph: 'circle-half', live: true },
-  awaiting_review: { key: 'awaiting_review', label: 'Ready for review', tone: 'review', glyph: 'pull-request' },
-  needs_human: { key: 'needs_human', label: 'Needs you', tone: 'attention', glyph: 'alert' },
-  stale: { key: 'stale', label: 'Stopped retrying', tone: 'severe', glyph: 'clock' },
-  withdrawn: { key: 'withdrawn', label: 'Withdrawn', tone: 'neutral', glyph: 'circle-slash' },
-  done: { key: 'done', label: 'Done', tone: 'success', glyph: 'check-circle' },
-};
 
 const html = value => Array.isArray(value) ? value.join('') : value === undefined || value === null || value === false ? '' : String(value);
 const present = value => value !== undefined && value !== null && value !== false && value !== '';
@@ -25,7 +15,6 @@ const toneOf = value => toneNames.has(value) ? value : 'neutral';
 const toneAttr = value => toneNames.has(value) ? ` data-tone="${value}"` : '';
 const attr = (name, value) => value === undefined || value === null || value === false ? '' : value === true ? ` ${name}` : ` ${name}="${escape(value)}"`;
 const idAttr = value => present(value) ? ` id="${escape(value)}"` : '';
-const humanize = key => { const words = String(key ?? '').replaceAll('_', ' ').trim(); return words ? words[0].toUpperCase() + words.slice(1) : 'Unknown'; };
 const amount = value => typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : null;
 const round2 = value => Math.round(value * 100) / 100;
 const moneyText = value => format.money(value);
@@ -62,29 +51,9 @@ function externalAttrs(external) {
 
 const newTab = '<span class="sr-only"> (opens in a new tab)</span>';
 
-function lookupState(stateKey) {
-  if (stateKey && typeof stateKey === 'object') return stateKey;
-  const key = String(stateKey ?? '');
-  const bare = key.includes(':') ? key.slice(key.indexOf(':') + 1) : key;
-  return workItemStates[bare] || { key: bare, label: humanize(bare), tone: 'neutral', glyph: 'circle' };
-}
-
-function absolute(date) {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(date).filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
-  return `${parts.day}-${parts.month}-${parts.year} ${parts.hour}:${parts.minute}`;
-}
-
 function timeElement(iso, display) {
   if (!present(iso)) return '';
-  if (typeof format.timeHtml === 'function') {
-    const rendered = format.timeHtml(iso, { display });
-    if (rendered) return rendered;
-  }
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return `<span class="subtle">${escape(iso)}</span>`;
-  const title = absolute(date);
-  const text = display === 'absolute' ? title : format.ago(date.toISOString());
-  return `<time class="num" datetime="${escape(date.toISOString())}" title="${escape(title)}">${escape(text)}</time>`;
+  return format.timeHtml(iso, { display }) || `<span class="subtle">${escape(iso)}</span>`;
 }
 
 /**
@@ -165,9 +134,10 @@ export function badge({ tone, glyph, label = '', title, size, style } = {}) {
 }
 
 /**
- * The badge of a state from the shared vocabulary, with an optional reason after it (for example the reason a
- * Work Item needs you). `stateKey` is a state key such as `'needs_human'` (a `kind:` prefix is accepted) or a
- * state meta object `{ key, label, tone, glyph, live }`. Running states show the live dot instead of a glyph.
+ * The badge of a state from the shared vocabulary in core/states.js, with an optional reason after it (for example
+ * the reason a Work Item needs you). `stateKey` is a key that `stateMeta` reads (`'needs_human'`, or with a kind
+ * prefix such as `'session:queued'` or `'run:running'`) or a state meta object `{ key, label, tone, glyph, live }`.
+ * Running states show the live dot instead of a glyph.
  * @param {string|{key: string, label: string, tone: string, glyph?: string, live?: boolean}} stateKey
  * @param {object} [options]
  * @param {string} [options.reason] Plain text (escaped).
@@ -175,7 +145,7 @@ export function badge({ tone, glyph, label = '', title, size, style } = {}) {
  * @returns {string}
  */
 export function stateBadge(stateKey, { reason, reasonTone } = {}) {
-  const meta = lookupState(stateKey);
+  const meta = stateKey && typeof stateKey === 'object' ? stateKey : stateMeta(stateKey);
   const tone = toneOf(meta.tone);
   const lead = meta.live ? '<span class="live-dot" aria-hidden="true"></span>' : icon(meta.glyph || 'circle');
   const pill = `<span class="badge" data-tone="${tone}" data-state="${escape(meta.key)}">${lead}${escape(meta.label)}</span>`;

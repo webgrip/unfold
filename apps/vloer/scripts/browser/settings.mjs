@@ -1,6 +1,6 @@
 import { navigate } from './navigate.mjs';
 
-/** Settings: the Environment health checks, one content width on every Settings page, and Preferences for theme, density, single-key shortcuts and live updates, kept across a reload and in step with the top bar and account menu. */
+/** Settings: the Environment health checks, one content width on every Settings page, Preferences for theme, density, single-key shortcuts and live updates, kept across a reload and in step with the top bar and account menu, and the style guide's preview that leaving restores. */
 export async function run({ page, assert, screenshot }) {
   const root = name => page.evaluate(attribute => document.documentElement.getAttribute(attribute), name);
   const pageWidth = () => page.locator('.settings-page').evaluate(element => element.getBoundingClientRect().width);
@@ -57,4 +57,12 @@ export async function run({ page, assert, screenshot }) {
   await page.getByRole('radio', { name: /^Comfortable/ }).check();
   assert.equal(await root('data-theme'), null);
   assert.equal(await root('data-density'), null);
+  await page.getByRole('link', { name: 'living style guide' }).click();
+  await page.getByRole('heading', { level: 1, name: 'Design system', exact: true }).waitFor();
+  await page.getByRole('group', { name: 'Preview theme' }).getByRole('button', { name: 'Dark', exact: true }).click();
+  await page.getByRole('group', { name: 'Preview density' }).getByRole('button', { name: 'Compact', exact: true }).click();
+  assert.deepEqual([await root('data-theme'), await root('data-density')], ['dark', 'compact'], 'the style guide preview did not apply');
+  await page.evaluate(() => { location.hash = 'settings/preferences'; });
+  await page.getByRole('heading', { level: 1, name: 'Preferences', exact: true }).waitFor();
+  assert.deepEqual([await root('data-theme'), await root('data-density')], [null, null], 'leaving the style guide kept its preview instead of the saved preference');
 }

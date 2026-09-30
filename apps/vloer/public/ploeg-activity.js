@@ -10,7 +10,7 @@ export const ploegWindows = [['24h', '24 hours'], ['7d', '7 days'], ['30d', '30 
 export const eventGroups = [['work', 'Work Items'], ['runs', 'Runs and Shifts'], ['review', 'Review and delivery'], ['spend', 'Spend'], ['other', 'Other']];
 const groupNouns = { work: 'Work Item', runs: 'Run and Shift', review: 'review and delivery', spend: 'spend', other: 'other' };
 
-const demoText = 'Illustrative Ploeg records. No Run executed, no model was called and spend is US$ 0,00.';
+const demoText = 'Illustrative Ploeg records. No Run executed, no model was called and nothing was spent.';
 const eventTable = {
   'work_item.queued': ['Queued', 'neutral', 'circle-dashed'],
   'work_item.refreshed': ['Tracker task changed', 'neutral', 'refresh'],
@@ -429,7 +429,7 @@ export function activityMarkup(view, teams, helpers, now = Date.now(), user = nu
 }
 
 function runBadge(run) {
-  if (run.state === 'running') return ui.stateBadge({ key: 'running', label: 'Running', tone: 'live', live: true });
+  if (run.state === 'running') return ui.stateBadge('run:running');
   if (run.state === 'pending') { const meta = runState('pending'); return ui.badge({ tone: meta.tone, glyph: meta.glyph, label: meta.label }); }
   const outcome = runOutcome(run.outcome);
   if (outcome) return ui.badge({ tone: outcome.tone, glyph: outcome.glyph, label: outcome.label });

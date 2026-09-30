@@ -4,6 +4,7 @@ import { $, escape, renderHtml } from '../core/dom.js';
 import { icon, icons } from '../core/icons.js';
 import { markdown } from '../core/markdown.js';
 import { money } from '../core/format.js';
+import { applyAppearance } from '../core/prefs.js';
 import * as ui from '../core/ui.js';
 import { shell } from '../shell.js';
 
@@ -88,6 +89,19 @@ const surface = (body, sunken = false) => `<div class="design-surface${sunken ? 
 const row = (...items) => `<div class="design-row">${items.join('')}</div>`;
 const listFrame = rows => `<div class="design-list" role="list">${rows.map(item => `<div role="listitem">${item}</div>`).join('')}</div>`;
 
+let previewing = false;
+
+function restoreOnLeave() {
+  if (previewing) return;
+  previewing = true;
+  globalThis.addEventListener('hashchange', function restore() {
+    if (location.hash === '#design') return;
+    globalThis.removeEventListener('hashchange', restore);
+    previewing = false;
+    applyAppearance();
+  });
+}
+
 function currentTheme() { return document.documentElement.dataset.theme || 'system'; }
 function currentDensity() { return document.documentElement.dataset.density || 'comfortable'; }
 function resolvedTheme() { return currentTheme() === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : currentTheme(); }
@@ -98,7 +112,7 @@ function controls() {
   const pressed = on => `aria-pressed="${on ? 'true' : 'false'}"`;
   const themes = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']].map(([choice, label]) => `<button type="button" class="segment" data-action="design-theme" data-choice="${choice}" ${pressed(theme === choice)}>${label}</button>`).join('');
   const densities = [['comfortable', 'Comfortable'], ['compact', 'Compact']].map(([choice, label]) => `<button type="button" class="segment" data-action="design-density" data-choice="${choice}" ${pressed(density === choice)}>${label}</button>`).join('');
-  return `<div class="cluster gap-md"><div class="segmented" role="group" aria-label="Preview theme">${themes}</div><div class="segmented" role="group" aria-label="Preview density">${densities}</div><span class="meta">Showing ${escape(resolvedTheme())} · ${escape(density)}. Preview only; nothing is saved.</span></div>`;
+  return `<div class="cluster gap-md"><div class="segmented" role="group" aria-label="Preview theme">${themes}</div><div class="segmented" role="group" aria-label="Preview density">${densities}</div><span class="meta">Showing ${escape(resolvedTheme())} · ${escape(density)}. Preview only: nothing is saved, and leaving this page restores your own preference.</span></div>`;
 }
 
 function jumpNav() {
@@ -199,7 +213,7 @@ function dataBlock() {
   const factRows = ui.dl([['Branch', '<span class="mono">glide/work-item-101</span>'], ['Lease', 'Held by worker-3 until 21:40'], ['Created', ui.timeAt('2026-09-28T08:12:00Z')]], { rows: true });
   const columns = [{ key: 'run', label: 'Run' }, { key: 'role', label: 'Role' }, { key: 'state', label: 'State' }, { key: 'spend', label: 'Spend', numeric: true }, { key: 'duration', label: 'Duration', numeric: true }];
   const runs = [
-    { run: '<span class="mono">run-41</span>', role: 'writer', state: ui.stateBadge({ key: 'running', label: 'Running', tone: 'live', live: true }), spend: escape(money(0.42)), duration: '4 min' },
+    { run: '<span class="mono">run-41</span>', role: 'writer', state: ui.stateBadge('run:running'), spend: escape(money(0.42)), duration: '4 min' },
     { run: '<span class="mono">run-40</span>', role: 'reviewer', state: ui.badge({ tone: 'attention', glyph: 'alert', label: 'Changes requested' }), spend: escape(money(1.07)), duration: '12 min' },
     { run: '<span class="mono">run-39</span>', role: 'writer', state: ui.badge({ tone: 'success', glyph: 'pull-request', label: 'Opened a pull request' }), spend: escape(money(0.88)), duration: '9 min' },
     { run: '<span class="mono">run-38</span>', role: 'writer', state: ui.badge({ tone: 'danger', glyph: 'x-circle', label: 'Failed' }), spend: '<span class="subtle">Not reported</span>', duration: '45 s' },
@@ -314,12 +328,14 @@ export default {
   render: renderDesign,
   actions: {
     'design-theme': element => {
+      restoreOnLeave();
       const choice = element.dataset.choice;
       if (choice === 'light' || choice === 'dark') document.documentElement.dataset.theme = choice;
       else delete document.documentElement.dataset.theme;
       renderDesign();
     },
     'design-density': element => {
+      restoreOnLeave();
       if (element.dataset.choice === 'compact') document.documentElement.dataset.density = 'compact';
       else delete document.documentElement.dataset.density;
       renderDesign();
