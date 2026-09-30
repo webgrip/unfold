@@ -11,7 +11,6 @@ const scripts = directory => readdirSync(directory).flatMap(name => { const path
 const builderKey = { 'data-action': 'action' };
 const named = attribute => new Set(scripts(publicDir).flatMap(path => { const text = readFileSync(path, 'utf8'); return [...text.matchAll(new RegExp(`${attribute}="([a-z][a-z-]*)"`, 'g')), ...(builderKey[attribute] ? text.matchAll(new RegExp(`\\b${builderKey[attribute]}: '([a-z][a-z-]*)'`, 'g')) : [])].map(match => match[1]); }));
 const noop = () => {};
-const formsOfTheRemovedCompareDialog = new Set(['compare']);
 
 test('the registered views build one registry with unique view ids', () => {
   const registry = createRegistry(views);
@@ -27,13 +26,16 @@ test('every data-action and data-form in the browser markup has exactly one hand
   assert.deepEqual([...actions].filter(name => !registry.actions.has(name)), [], 'buttons without a handler');
   assert.deepEqual([...forms].filter(name => !registry.forms.has(name)), [], 'forms without a handler');
   assert.deepEqual([...registry.actions.keys()].filter(name => !actions.has(name)), [], 'action handlers without markup');
-  assert.deepEqual([...registry.forms.keys()].filter(name => !forms.has(name) && !formsOfTheRemovedCompareDialog.has(name)), [], 'form handlers without markup');
+  assert.deepEqual([...registry.forms.keys()].filter(name => !forms.has(name)), [], 'form handlers without markup');
 });
 
-test('the compare view and dialog removed in e0ffac5 are still missing behind the compare route, action and form', () => {
+test('the removed compare view only sends old compare links to Sessions', () => {
   const compare = createRegistry(views).views.get('compare');
-  assert.throws(() => compare.render(), { name: 'ReferenceError', message: 'renderCompare is not defined' });
-  assert.throws(() => compare.actions.compare(), { name: 'ReferenceError', message: 'openCompareDialog is not defined' });
+  assert.equal(typeof compare.enter, 'function');
+  assert.equal(compare.render, undefined);
+  assert.equal(compare.actions, undefined);
+  assert.equal(compare.forms, undefined);
+  assert(!named('data-action').has('compare'));
   assert(!named('data-form').has('compare'));
 });
 
@@ -61,7 +63,7 @@ test('every hash routes to at most one view with the params that view expects', 
   const cases = [
     ['now', 'now', {}], ['sessions', 'sessions', {}], ['tasks', 'tasks', {}], ['settings/accounts', 'account', {}], ['settings/environment', 'system', {}], ['settings/preferences', 'preferences', {}],
     ['work', 'work', {}], ['work/105', 'work', { id: '105' }], ['proposed', 'proposed', {}], ['runs', 'runs', {}], ['activity', 'activity', {}], ['insights', 'insights', {}],
-    ['session/0f1e', 'session', { id: '0f1e' }], ['compare/a/b', 'compare', { left: 'a', right: 'b' }],
+    ['session/0f1e', 'session', { id: '0f1e' }], ['compare/a/b', 'compare', {}],
     ['nowhere', null], ['sessionsx', null], ['ploeg', null], ['ploeg/105', null], ['account', null], ['system', null], ['work/abc', null], ['work/0', null], ['workx', null], ['', null], ['login', null], ['dialogs', null], ['ploeg-feeds', null], ['palette', null], ['chrome', null], ['settings', null],
   ];
   for (const [hash, id, params] of cases) {
