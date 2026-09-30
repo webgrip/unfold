@@ -3,7 +3,7 @@ ARG REGISTRY_DHI=harbor.webgrip.dev/dhi
 # renovate: datasource=docker depName=dhi.io/node versioning=docker
 ARG NODE_DEV_IMAGE=${REGISTRY_DHI}/node:24.19.0-alpine3.24-dev@sha256:dc2989ad23938772abaf549ed7bde5d61d70377005229bb55bef94bff40f8bbd
 # renovate: datasource=npm depName=opencode-ai
-ARG OPENCODE_VERSION=1.18.30
+ARG OPENCODE_VERSION=1.18.33
 # renovate: datasource=npm depName=brace-expansion
 ARG NPM_BRACE_EXPANSION_VERSION=5.0.12
 # renovate: datasource=npm depName=undici
