@@ -183,7 +183,7 @@ small, and produces evidence the author of the change cannot edit.
   `kubernetes/apps/ploeg/ploeg/app/worker-egress-probe.job.yaml` checks it.
 * 2026-09-28 — Amended by
   [0037](0037-teams-opt-into-registry-egress-through-a-logged-allowlist-proxy.md)
-  (proposed): a team can opt into a `registries` network profile that reaches
+  (accepted 2026-10-01): a team can opt into a `registries` network profile that reaches
   package registries through a logged allowlist proxy, which answers the
   first Bad consequence above for that team. `airgapped` stays the default.
 * Related: [0011](0011-the-pull-request-is-the-blackboard.md),

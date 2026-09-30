@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-09-28
+status: accepted
+date: 2026-10-01
 decision-makers: Ryan Grippeling
 supersedes: none
 review-by: 2026-12-31
@@ -257,7 +257,8 @@ implementation.
 
 ### Owner decisions
 
-2026-09-28, on review of this record:
+2026-09-28, on review of this record. The owner accepted the record with these
+decisions on 2026-10-01.
 
 1. TLS is terminated for **every** allowlisted host, not only the writable
    ones, for one read-only rule set and a full-URL log in every ecosystem.
@@ -328,6 +329,7 @@ implementation.
   `kubernetes/apps/kube-system/cilium/app/helmrelease.yaml`; the existing
   `toFQDNs` precedent in `kubernetes/apps/ai/tei-embeddings/app/networkpolicy.yaml`;
   cert-manager and trust-manager are installed.
+* 2026-10-01 — Accepted by the owner with the decisions under *Owner decisions*.
 * Implementation: VIK-1332 (chart profile) and VIK-1333 (Run attribution) in
   Glide; VIK-1334 (proxy and policies), VIK-1336 (DNS lockdown), VIK-1335
   (per-profile probes) and VIK-1337 (first team) in homelab-cluster; all under
