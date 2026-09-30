@@ -827,7 +827,7 @@
 
 .work-ladder .round-ladder td {
   width: 9rem;
-  min-width: 7.5rem;
+  min-width: 6.5rem;
   height: 1px;
 }
 
@@ -849,6 +849,7 @@
 }
 
 .work-round-cell {
+  contain: inline-size;
   width: 100%;
   height: 100%;
   margin: 0;
@@ -862,11 +863,17 @@
   background: var(--tone-bg-hover);
 }
 
+.work-round-cell .round-cell-title {
+  align-items: flex-start;
+}
+
 .work-round-cell .round-cell-title > span {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: break-word;
+}
+
+.work-round-cell .round-cell-title > :is(svg.icon, .live-dot) {
+  margin-top: 0.1875rem;
 }
 
 .work-round-cell .round-cell-title > :is(svg.icon, .live-dot) {

@@ -847,7 +847,7 @@ function eventItem(entry, detail, userId) {
   const meta = auditEvent(entry);
   const reason = typeof entry.detail?.reason === 'string' && entry.detail.reason && entry.action !== 'work_item.withdrawn' ? entry.detail.reason : '';
   const shiftReason = entry.action === 'shift.closed' && reason ? closeReasonLabel(reason) : '';
-  return `<li class="timeline-item" data-tone="${meta.tone}"><span class="timeline-marker">${icon(meta.glyph)}</span><div class="timeline-content"><span class="timeline-title">${eventTitle(entry, meta, detail)}${shiftReason ? `<span class="work-event-reason">: ${escape(shiftReason.charAt(0).toLowerCase() + shiftReason.slice(1))}</span>` : ''}</span>${reason && !shiftReason ? `<span class="work-event-quote">${escape(`“${reason}”`)}</span>` : ''}<span class="timeline-meta">${escape(actorName(entry.actor, { userId }))} · ${ui.timeAgo(entry.at)}</span></div></li>`;
+  return `<li class="timeline-item" data-tone="${meta.tone}"><span class="timeline-marker">${icon(meta.glyph)}</span><div class="timeline-content"><span class="timeline-title">${eventTitle(entry, meta, detail)}${shiftReason ? `<span class="work-event-reason">: ${escape(/^(Ploeg|Vloer|A Vloer)\b/.test(shiftReason) ? shiftReason : shiftReason.charAt(0).toLowerCase() + shiftReason.slice(1))}</span>` : ''}</span>${reason && !shiftReason ? `<span class="work-event-quote">${escape(`“${reason}”`)}</span>` : ''}<span class="timeline-meta">${escape(actorName(entry.actor, { userId }))} · ${ui.timeAgo(entry.at)}</span></div></li>`;
 }
 
 function eventsMarkup(detail, model) {
