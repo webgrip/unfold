@@ -24,10 +24,10 @@ func TestRunCommand_IdleWatchdogKillsASilentHarnessAndItsChildren(t *testing.T) 
 }
 
 func TestRunCommand_IdleWatchdogSparesAHarnessThatKeepsTalking(t *testing.T) {
-	bin := writeScript(t, "echo tick; for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do sleep 0.1; echo tick; done")
+	talking := "echo tick; for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do sleep 0.1; echo tick; done"
 	env := testEnv(t)
 	env.IdleTimeout = time.Second
-	if _, err := RunCommand(scriptAdapter{argv: []string{bin}}).Run(context.Background(), TaskSpec{}, env); err != nil {
+	if _, err := RunCommand(scriptAdapter{argv: []string{"/bin/sh", "-c", talking}}).Run(context.Background(), TaskSpec{}, env); err != nil {
 		t.Fatalf("talking harness was stopped: %v", err)
 	}
 }
