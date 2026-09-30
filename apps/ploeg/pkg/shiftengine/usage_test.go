@@ -194,16 +194,17 @@ func TestUsageReportEvidenceNotRecordedIsExplicit(t *testing.T) {
 }
 
 func TestUsageReportLinksFromConfiguration(t *testing.T) {
-	u := store.ShiftUsage{Team: "bronze", Runs: []store.RunUsage{{Role: "builder", Round: 1, Writes: true, AccountState: "reconciled"}}}
+	u := store.ShiftUsage{WorkItemID: 138, Team: "bronze", Runs: []store.RunUsage{{Role: "builder", Round: 1, Writes: true, AccountState: "reconciled"}}}
 	withLinks := usageReport(usageReportInput{
 		Shift: u, TraceID: "ploeg-abcdef012345",
 		Links: reportLinkConfig{GrafanaURL: "https://grafana.example/", VloerURL: "https://vloer.example/"},
 	})
 	for _, want := range []string{
-		"https://grafana.example/d/glide-loop",
-		"https://grafana.example/d/dark-factory-run-explorer?var-run=ploeg-abcdef012345",
-		"https://grafana.example/d/spend-attribution?var-team=bronze",
-		"https://vloer.example/ploeg",
+		"**Where to dig deeper**",
+		"(https://grafana.example/d/glide-loop?var-team=bronze)",
+		"(https://grafana.example/d/dark-factory-run-explorer?var-run=ploeg-abcdef012345)",
+		"(https://grafana.example/d/dark-factory-spend-attribution)",
+		"[This Work Item in Vloer](https://vloer.example/#work/138)",
 	} {
 		if !strings.Contains(withLinks, want) {
 			t.Errorf("report missing link %q:\n%s", want, withLinks)
@@ -217,11 +218,90 @@ func TestUsageReportLinksFromConfiguration(t *testing.T) {
 	if !strings.Contains(noLinks, "### Ploeg usage report") {
 		t.Errorf("report stopped rendering when links were omitted:\n%s", noLinks)
 	}
+}
 
-	// Only Vloer set: no Grafana links, and no alias-only Run Explorer line.
-	vloerOnly := usageReport(usageReportInput{Shift: u, TraceID: "ploeg-abcdef012345", Links: reportLinkConfig{VloerURL: "https://vloer.example"}})
-	if strings.Contains(vloerOnly, "grafana") || !strings.Contains(vloerOnly, "https://vloer.example/ploeg") {
-		t.Errorf("vloer-only links are wrong:\n%s", vloerOnly)
+func TestLinksSection(t *testing.T) {
+	const grafana, vloer = "https://grafana.example", "https://vloer.example"
+	cases := []struct {
+		name    string
+		links   reportLinkConfig
+		usage   store.ShiftUsage
+		alias   string
+		want    []string
+		notWant []string
+	}{
+		{
+			name:  "both bases empty omits the section",
+			usage: store.ShiftUsage{WorkItemID: 7, Team: "bronze"},
+			alias: "ploeg-abcdef012345",
+		},
+		{
+			name:  "grafana only",
+			links: reportLinkConfig{GrafanaURL: grafana + "/"},
+			usage: store.ShiftUsage{WorkItemID: 7, Team: "bronze"},
+			alias: "ploeg-abcdef012345",
+			want: []string{
+				"- [Glide — Loop dashboard](https://grafana.example/d/glide-loop?var-team=bronze)\n",
+				"- [Run Explorer](https://grafana.example/d/dark-factory-run-explorer?var-run=ploeg-abcdef012345)\n",
+				"- [Spend & Attribution](https://grafana.example/d/dark-factory-spend-attribution)\n",
+			},
+			notWant: []string{"vloer", "#work", "spend-attribution?"},
+		},
+		{
+			name:    "vloer only",
+			links:   reportLinkConfig{VloerURL: vloer + "/"},
+			usage:   store.ShiftUsage{WorkItemID: 7, Team: "bronze"},
+			alias:   "ploeg-abcdef012345",
+			want:    []string{"- [This Work Item in Vloer](https://vloer.example/#work/7)\n"},
+			notWant: []string{"grafana", "Run Explorer", "/ploeg"},
+		},
+		{
+			name:    "no alias and no team",
+			links:   reportLinkConfig{GrafanaURL: grafana, VloerURL: vloer},
+			usage:   store.ShiftUsage{WorkItemID: 7, Team: "  "},
+			want:    []string{"(https://grafana.example/d/glide-loop)\n", "(https://grafana.example/d/dark-factory-spend-attribution)\n", "(https://vloer.example/#work/7)\n"},
+			notWant: []string{"Run Explorer", "var-team"},
+		},
+		{
+			name:    "no Work Item id links Vloer's Work page",
+			links:   reportLinkConfig{VloerURL: vloer},
+			want:    []string{"- [Work in Vloer](https://vloer.example/#work)\n"},
+			notWant: []string{"#work/"},
+		},
+		{
+			name:  "query values are escaped",
+			links: reportLinkConfig{GrafanaURL: grafana},
+			usage: store.ShiftUsage{Team: "red & blue (ops)"},
+			alias: "ploeg run#1",
+			want: []string{
+				"(https://grafana.example/d/glide-loop?var-team=red+%26+blue+%28ops%29)",
+				"(https://grafana.example/d/dark-factory-run-explorer?var-run=ploeg+run%231)",
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := linksSection(tc.links, tc.usage, tc.alias)
+			if len(tc.want) == 0 {
+				if got != "" {
+					t.Fatalf("linksSection = %q, want empty", got)
+				}
+				return
+			}
+			if !strings.HasPrefix(got, "**Where to dig deeper**\n\n") {
+				t.Errorf("section heading missing:\n%s", got)
+			}
+			for _, w := range tc.want {
+				if !strings.Contains(got, w) {
+					t.Errorf("missing %q:\n%s", w, got)
+				}
+			}
+			for _, nw := range tc.notWant {
+				if strings.Contains(got, nw) {
+					t.Errorf("unexpected %q:\n%s", nw, got)
+				}
+			}
+		})
 	}
 }
 

@@ -2,6 +2,7 @@ package shiftengine
 
 import (
 	"fmt"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -20,11 +21,12 @@ const usageReportMarker = "<!-- ploeg:usage-report -->"
 // reportLinkConfig is the two optional dashboard bases. The links section is
 // omitted entirely when both are empty, and the report still renders.
 type reportLinkConfig struct {
-	// GrafanaURL is the Grafana base. The Glide — Loop dashboard, the Run
-	// Explorer filtered by alias and Spend & Attribution filtered by team all
-	// hang off it.
+	// GrafanaURL is the Grafana base. The Glide — Loop dashboard filtered by
+	// team, the Run Explorer filtered by alias and the Spend & Attribution
+	// dashboard all hang off it.
 	GrafanaURL string
-	// VloerURL is Vloer's base; the report links its Ploeg overview.
+	// VloerURL is Vloer's base; the report links the Work Item page,
+	// <VloerURL>/#work/<id>.
 	VloerURL string
 }
 
@@ -256,16 +258,22 @@ func linksSection(links reportLinkConfig, u store.ShiftUsage, alias string) stri
 	var b strings.Builder
 	b.WriteString("**Where to dig deeper**\n\n")
 	if grafana != "" {
-		fmt.Fprintf(&b, "- [Glide — Loop dashboard](%s/d/glide-loop)\n", grafana)
+		loop := grafana + "/d/glide-loop"
+		if team := strings.TrimSpace(u.Team); team != "" {
+			loop += "?var-team=" + url.QueryEscape(team)
+		}
+		fmt.Fprintf(&b, "- [Glide — Loop dashboard](%s)\n", loop)
 		if alias != "" {
-			fmt.Fprintf(&b, "- [Run Explorer](%s/d/dark-factory-run-explorer?var-run=%s)\n", grafana, alias)
+			fmt.Fprintf(&b, "- [Run Explorer](%s/d/dark-factory-run-explorer?var-run=%s)\n", grafana, url.QueryEscape(alias))
 		}
-		if strings.TrimSpace(u.Team) != "" {
-			fmt.Fprintf(&b, "- [Spend & Attribution](%s/d/spend-attribution?var-team=%s)\n", grafana, u.Team)
-		}
+		fmt.Fprintf(&b, "- [Spend & Attribution](%s/d/dark-factory-spend-attribution)\n", grafana)
 	}
 	if vloer != "" {
-		fmt.Fprintf(&b, "- [Vloer — Ploeg overview](%s/ploeg)\n", vloer)
+		if u.WorkItemID > 0 {
+			fmt.Fprintf(&b, "- [This Work Item in Vloer](%s/#work/%d)\n", vloer, u.WorkItemID)
+		} else {
+			fmt.Fprintf(&b, "- [Work in Vloer](%s/#work)\n", vloer)
+		}
 	}
 	return b.String()
 }
