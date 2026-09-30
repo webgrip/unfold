@@ -2,7 +2,7 @@
 type: reference
 audience: [owner, contributor, agent]
 owner: glide
-last_verified: 2026-09-27
+last_verified: 2026-10-01
 verified_by: "validate_adr_consistency.py registry parity for docs/adr, run by mise run docs-check"
 ---
 
@@ -17,7 +17,7 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0001](adr-0001-glide-contains-independent-applications.md) | Glide contains independently deployable Vloer and Ploeg | accepted | 2026-09-12 |
 | [ADR-0002](adr-0002-ploeg-is-the-only-engine.md) | Ploeg is the only execution engine and Vloer is its front end | accepted | 2026-09-22 |
 | [ADR-0003](adr-0003-the-unit-of-work-is-the-work-item.md) | The unit of work is the Work Item, and work can create work | accepted | 2026-09-22 |
-| [ADR-0004](adr-0004-glide-releases-one-version.md) | Glide releases Vloer and Ploeg under one version | accepted | 2026-09-27 |
+| [ADR-0004](adr-0004-glide-releases-one-version.md) | Glide releases Vloer and Ploeg under one version | accepted | 2026-10-01 |
 | [ADR-0005](adr-0005-glide-is-offered-to-agencies.md) | Glide is offered to agencies, and delivery ends at a reviewed pull request with a preview | accepted | 2026-09-29 |
 | [ADR-0006](adr-0006-the-ticket-is-the-billing-unit.md) | The ticket is the billing unit: a quoted, capped Shift budget charged on delivery | accepted | 2026-09-29 |
 | [ADR-0007](adr-0007-clients-approve-ready-work.md) | Clients approve Ready work, and each client sets its own definitions of Ready and Done | accepted | 2026-09-29 |
@@ -25,3 +25,4 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0009](adr-0009-one-tenant-per-agency.md) | One tenant per agency, isolated by namespace, network, runtime and credentials | accepted | 2026-09-29 |
 | [ADR-0010](adr-0010-pull-requests-are-small-whole-and-explained.md) | Glide pull requests are small, whole and explained, and CI asks the reviewer questions | accepted | 2026-09-29 |
 | [ADR-0011](adr-0011-glide-is-reachable-over-mcp-through-a-read-first-server.md) | Glide is reachable over MCP through a separate, read-first server on Ploeg's operator API | accepted | 2026-09-30 |
+| [ADR-0012](adr-0012-the-marketing-site-releases-and-deploys-on-its-own.md) | The marketing site releases and deploys on its own, outside the Glide version | accepted | 2026-10-01 |
