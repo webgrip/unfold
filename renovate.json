@@ -1,8 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "local>webgrip/renovate-config#v1.10.0",
-    "local>webgrip/renovate-config:golang#v1.10.0"
+    "local>webgrip/renovate-config#v1.11.0",
+    "local>webgrip/renovate-config:golang#v1.11.0"
   ],
   "ignorePaths": [
     "**/node_modules/**",
@@ -40,19 +40,6 @@
       ],
       "datasourceTemplate": "docker",
       "versioningTemplate": "semver"
-    },
-    {
-      "customType": "regex",
-      "description": "The org preset reference in this file. The renovate-config manager cannot resolve local> presets and skips them, so without this the pin never moves. forgejo-tags, not gitea-tags, keeps it clear of the org overlay's CI-only commit rule for workflow pins.",
-      "managerFilePatterns": [
-        "/^renovate\\.json$/"
-      ],
-      "matchStrings": [
-        "\"local>(?<depName>webgrip/renovate-config)(?::[\\w-]+)?#(?<currentValue>v\\d+\\.\\d+\\.\\d+)\""
-      ],
-      "datasourceTemplate": "forgejo-tags",
-      "registryUrlTemplate": "https://forgejo.webgrip.dev",
-      "versioningTemplate": "semver"
     }
   ],
   "packageRules": [
@@ -73,6 +60,14 @@
         "custom.regex"
       ],
       "pinDigests": false
+    },
+    {
+      "description": "Forgejo-resolved workflow pins keep the CI-only commit shape. The org forgejo overlay sets it too, but as runner-level config it is applied before the preset's per-update-type commit types, which then win.",
+      "matchDatasources": [
+        "gitea-tags"
+      ],
+      "semanticCommitType": "ci",
+      "semanticCommitScope": "actions"
     },
     {
       "description": "The agent image and the mise pin must move together: one OpenCode version is what the workbench, the probe and the image share.",
@@ -112,12 +107,19 @@
       "enabled": false
     },
     {
-      "description": "A preset bump changes how Renovate treats this repository, not what Glide ships, so it never cuts a release.",
-      "matchPackageNames": [
-        "webgrip/renovate-config"
+      "description": "An image bump in Ploeg's chart values changes rendered manifests, and the golden check makes every rendered byte part of the review. The update regenerates the goldens in the same branch so the pull request carries its own render diff and passes the check.",
+      "matchFileNames": [
+        "apps/ploeg/ops/helm/ploeg/values.yaml"
       ],
-      "semanticCommitType": "chore",
-      "semanticCommitScope": "renovate"
+      "postUpgradeTasks": {
+        "commands": [
+          "sh apps/ploeg/scripts/helm-golden.sh update"
+        ],
+        "fileFilters": [
+          "apps/ploeg/ops/helm/ploeg/ci/golden/*.yaml"
+        ],
+        "executionMode": "branch"
+      }
     }
   ]
 }

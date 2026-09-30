@@ -259,6 +259,7 @@ func TestProfile_OpenHandsReadsTheGatewayFromEnvironmentWithTheProxyPrefix(t *te
 	}
 	for key, want := range map[string]string{
 		"LLM_API_KEY":               "sk-run",
+		"LITELLM_PROXY_API_KEY":     "sk-run",
 		"LLM_BASE_URL":              "http://127.0.0.1:40777/v1",
 		"LLM_MODEL":                 "litellm_proxy/deepseek-chat",
 		"OPENHANDS_SUPPRESS_BANNER": "1",
@@ -269,5 +270,75 @@ func TestProfile_OpenHandsReadsTheGatewayFromEnvironmentWithTheProxyPrefix(t *te
 	}
 	if _, err := Lookup("openhands", ProfileOverrides{ConfigJSON: `{}`}); err == nil {
 		t.Fatal("openhands accepted a config document it would silently ignore")
+	}
+}
+
+func TestProfile_OpenHandsWritesKeylessAgentSettingsSoSessionNewIsAuthorized(t *testing.T) {
+	p, err := Lookup("openhands", ProfileOverrides{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := profileEnv(t)
+	_, extra, err := p.Prepare(testSpec(), env, PermissionAllowAll)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := envValue(t, extra, "OPENHANDS_PERSISTENCE_DIR")
+	if !filepath.IsAbs(dir) || !strings.HasPrefix(dir, env.ScratchDir) || !strings.Contains(dir, "ploeg-abc123def456") {
+		t.Errorf("OPENHANDS_PERSISTENCE_DIR %q is not a trace-scoped directory in scratch", dir)
+	}
+	if fi, err := os.Stat(dir); err != nil || !fi.IsDir() || fi.Mode().Perm() != 0o700 {
+		t.Fatalf("persistence directory %q: %v", dir, err)
+	}
+	path := filepath.Join(dir, "agent_settings.json")
+	if fi, err := os.Stat(path); err != nil || fi.Mode().Perm() != 0o600 {
+		t.Fatalf("agent settings %q: %v", path, err)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(body), env.LLM.APIKey) || strings.Contains(string(body), "api_key") {
+		t.Fatalf("the model key was written into the agent settings: %s", body)
+	}
+	var doc struct {
+		LLM map[string]any `json:"llm"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("agent settings are not JSON: %v", err)
+	}
+	for key, want := range map[string]string{
+		"model":    "litellm_proxy/" + env.LLM.Model,
+		"base_url": env.LLM.BaseURL,
+		"usage_id": "agent",
+	} {
+		if got := doc.LLM[key]; got != want {
+			t.Errorf("llm.%s = %v, want %q", key, got, want)
+		}
+	}
+	if got := envValue(t, extra, "LITELLM_PROXY_API_KEY"); got != env.LLM.APIKey {
+		t.Errorf("LITELLM_PROXY_API_KEY = %q, want the Run's key %q", got, env.LLM.APIKey)
+	}
+
+	other := testSpec()
+	other.TraceID = "ploeg-other"
+	_, extra2, err := p.Prepare(other, env, PermissionAllowAll)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if envValue(t, extra2, "OPENHANDS_PERSISTENCE_DIR") == dir {
+		t.Error("two Runs sharing a scratch directory got the same OpenHands persistence directory")
+	}
+}
+
+func TestProfile_OpenHandsRefusesARunWithoutAModel(t *testing.T) {
+	p, err := Lookup("openhands", ProfileOverrides{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := profileEnv(t)
+	env.LLM.Model = ""
+	if _, _, err := p.Prepare(testSpec(), env, PermissionAllowAll); err == nil {
+		t.Fatal("openhands started without a model; its agent settings would be invalid")
 	}
 }

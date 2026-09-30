@@ -36,7 +36,6 @@ metadata:
     helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
 automountServiceAccountToken: false
-
 ---
 # Source: ploeg/templates/service.yaml
 apiVersion: v1
@@ -58,7 +57,6 @@ spec:
     - name: http
       port: 8080
       targetPort: http
-
 ---
 # Source: ploeg/templates/deployment.yaml
 apiVersion: apps/v1
@@ -189,7 +187,6 @@ spec:
             requests:
               cpu: 100m
               memory: 256Mi
-
 ---
 # Source: ploeg/templates/scaledjob.yaml
 # One ScaledJob per (team, Role) — the flagship executor. A team without a
@@ -2180,7 +2177,6 @@ spec:
         activationTargetQueryValue: "0"
       authenticationRef:
         name: ploeg-scaler
-
 ---
 # Source: ploeg/templates/triggerauthentication.yaml
 apiVersion: keda.sh/v1alpha1

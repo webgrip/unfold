@@ -1,7 +1,11 @@
 # experimental-release-policy Specification
 
 ## Purpose
-TBD - created by archiving change guard-zero-major-prereleases. Update Purpose after archive.
+How releases stay in the experimental `0.x` series: breaking changes raise the
+minor version, only `development` releases `0.x.y-rc.N` versions automatically,
+CI proves the effective release behavior, and artifact publication rejects any
+tag outside that boundary. Archived from the change
+`2026-09-23-guard-zero-major-prereleases`.
 ## Requirements
 ### Requirement: Breaking changes remain in the experimental series
 

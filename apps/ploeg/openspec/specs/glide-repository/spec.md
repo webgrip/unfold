@@ -1,7 +1,11 @@
 # glide-repository Specification
 
 ## Purpose
-TBD - created by archiving change assemble-glide-monorepo. Update Purpose after archive.
+How Ploeg and Vloer live in one Glide repository: both source histories and
+application identities are preserved, root commands and CI validate both
+applications and their shared contract, and shared documentation sits at the
+root while contracts and decisions stay with their application. Archived from
+the change `2026-09-23-assemble-glide-monorepo`.
 ## Requirements
 ### Requirement: Preserve source histories and reviewed content
 
