@@ -1,32 +1,26 @@
-import { activityMarkup, eventGroups, mergeFeed } from '../ploeg-activity.js';
+import { activityMarkup, eventGroups, mergeFeed, newerEvents } from '../ploeg-activity.js';
 import { state } from '../core/state.js';
 import { api } from '../core/api.js';
-import { renderHtml } from '../core/dom.js';
+import { announce, renderHtml } from '../core/dom.js';
 import { buildHash } from '../core/route.js';
 import { live } from '../core/live.js';
 import { shell } from '../shell.js';
-import { enterPloegView, loadPloegTeams, onPloegReload, ploegFailure, ploegHelpers, ploegVisible } from './ploeg-common.js';
+import { enterPloegView, loadPloegTeams, onPloegReload, ploegFailure, ploegHelpers, ploegVisible, refreshButton } from './ploeg-common.js';
 
 const kinds = eventGroups.map(([id]) => id);
 
 function renderActivity() {
-  renderHtml(shell(activityMarkup(state.ploegFeed, state.ploegTeams || [], ploegHelpers()), { title: 'Activity', subtitle: 'What Ploeg recorded across your Teams, newest first.' }));
-}
-
-function keepReadingPosition(render) {
-  const anchor = window.scrollY > 0 ? [...document.querySelectorAll('[data-event-id]')].find(row => row.getBoundingClientRect().top >= 0) : null;
-  const before = anchor?.getBoundingClientRect().top;
-  render();
-  const after = anchor && document.getElementById(anchor.id)?.getBoundingClientRect().top;
-  if (anchor && after !== undefined) window.scrollBy(0, after - before);
+  const feed = state.ploegFeed;
+  renderHtml(shell(activityMarkup(feed, state.ploegTeams || [], ploegHelpers(), Date.now(), state.bootstrap.user), { title: 'Activity', subtitle: 'What Ploeg recorded across your Teams, newest first.', actions: refreshButton(feed.loading && feed.mode !== 'older') }));
 }
 
 async function loadFeed(mode = 'reset', fresh = false) {
   const feed = state.ploegFeed;
   if (feed.loading && mode !== 'reset') return;
-  const request = mode === 'reset' ? ++state.ploegRequest : state.ploegRequest;
+  const request = mode === 'reset' || mode === 'refresh' ? ++state.ploegRequest : state.ploegRequest;
   feed.loading = true;
-  if (mode === 'reset') { feed.events = null; feed.nextCursor = null; feed.error = null; }
+  feed.mode = mode;
+  if (mode === 'reset') { feed.events = null; feed.nextCursor = null; feed.error = null; feed.latest = null; }
   if (mode !== 'newer') renderActivity();
   const query = new URLSearchParams();
   if (feed.team) query.set('team', feed.team);
@@ -35,11 +29,32 @@ async function loadFeed(mode = 'reset', fresh = false) {
   try {
     const page = await api(`/api/ploeg/events?${query}`);
     if (request !== state.ploegRequest) return;
-    const merged = mergeFeed(mode === 'reset' ? null : feed, page, mode === 'older' ? 'older' : 'newer');
-    Object.assign(feed, { events: merged.events, nextCursor: merged.nextCursor, demo: page.demo, error: null, refreshedAt: page.fetchedAt });
-    if (mode !== 'newer') live.touch('activity');
-  } catch (error) { if (request !== state.ploegRequest) return; feed.error = ploegFailure(error); }
-  finally { if (request === state.ploegRequest) { feed.loading = false; if (ploegVisible('activity')) { if (mode === 'newer') keepReadingPosition(renderActivity); else renderActivity(); } } }
+    if (mode === 'newer' && feed.events?.length) feed.latest = newerEvents(feed, page).events.length ? page : null;
+    else {
+      const merged = mergeFeed(mode === 'older' ? feed : null, page, mode === 'older' ? 'older' : 'newer');
+      Object.assign(feed, { events: merged.events, nextCursor: merged.nextCursor });
+      if (mode !== 'older') feed.latest = null;
+    }
+    Object.assign(feed, { demo: page.demo, error: null, refreshedAt: page.fetchedAt });
+    live.touch('activity');
+  } catch (error) {
+    if (request !== state.ploegRequest) return;
+    feed.error = ploegFailure(error);
+    if (mode === 'newer') throw error;
+  } finally { if (request === state.ploegRequest) { feed.loading = false; feed.mode = null; if (ploegVisible('activity')) renderActivity(); } }
+}
+
+function showNewEvents() {
+  const feed = state.ploegFeed;
+  if (!feed.latest) return;
+  const shown = newerEvents(feed, feed.latest).events.length;
+  const merged = mergeFeed(feed, feed.latest, 'newer');
+  Object.assign(feed, { events: merged.events, nextCursor: merged.nextCursor, latest: null });
+  renderActivity();
+  const region = document.getElementById('activity-feed');
+  region?.scrollIntoView({ block: 'start' });
+  region?.focus({ preventScroll: true });
+  announce(`${shown} new ${shown === 1 ? 'event' : 'events'} shown`);
 }
 
 function keepFiltersInHash() {
@@ -55,21 +70,20 @@ async function enterActivity({ query = {} } = {}) {
 }
 
 async function refreshFeed() {
-  if (state.ploegFeed.loading) return;
+  if (state.ploegFeed.loading || !state.ploegFeed.events) return;
   await loadFeed('newer');
-  if (state.ploegFeed.error) throw new Error(state.ploegFeed.error.message);
 }
 
-onPloegReload('activity', () => loadFeed('reset', true));
+onPloegReload('activity', () => loadFeed(state.ploegFeed.events ? 'refresh' : 'reset', true));
 live.register('activity', { interval: 15000, refresh: refreshFeed });
 
-/** Activity: Ploeg's audit feed across the Teams you can read, newest first, filtered by Team and kind (`#activity?team=&kind=`). Refreshes every 15 seconds. */
+/** Activity: Ploeg's audit feed across the Teams you can read, grouped by day and filtered by Team and kind (`#activity?team=&kind=`). Checks for new events every 15 seconds and holds them behind an "N new" button. */
 export default {
   id: 'activity',
   match: hash => hash === 'activity' ? {} : null,
   enter: enterActivity,
   render: renderActivity,
-  actions: { 'ploeg-feed-older': () => loadFeed('older') },
+  actions: { 'ploeg-feed-older': () => loadFeed('older'), 'activity-show-new': showNewEvents },
   changes: {
     '#ploeg-feed-team': element => { state.ploegFeed.team = element.value; keepFiltersInHash(); void loadFeed('reset'); },
     '#ploeg-feed-kind': element => { state.ploegFeed.kind = element.value; keepFiltersInHash(); renderActivity(); },

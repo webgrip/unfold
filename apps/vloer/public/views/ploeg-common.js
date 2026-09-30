@@ -1,6 +1,6 @@
 import { state, disconnect } from '../core/state.js';
 import { api } from '../core/api.js';
-import { escape, safeUrl } from '../core/dom.js';
+import { $, escape, safeUrl } from '../core/dom.js';
 import { money, ago } from '../core/format.js';
 import { icon } from '../core/icons.js';
 import { render } from '../core/navigation.js';
@@ -28,8 +28,26 @@ export async function loadPloegTeams() {
 /** Registers what "Try again" and Refresh (`ploeg-reload`) do while the view `id` is on screen. */
 export function onPloegReload(id, reload) { reloaders.set(id, reload); }
 
-/** The Refresh and Try again action shared by Insights, Activity, Runs and Proposed. */
+/** The page-header Refresh button of Insights, Activity, Runs and Proposed. It keeps its label while `busy`. */
+export function refreshButton(busy = false) {
+  return `<button type="button" class="button secondary" id="ploeg-refresh" data-action="ploeg-reload"${busy ? ' disabled aria-busy="true"' : ''}>${busy ? '<span class="spinner" aria-hidden="true"></span>' : icon('refresh')}<span class="button-label">Refresh</span></button>`;
+}
+
+/** Fills and opens the shared `#confirm-dialog` with `markup`, styled as a dialog, and returns it. */
+export function openPloegDialog(markup) {
+  const dialog = $('#confirm-dialog');
+  dialog.className = 'dialog';
+  dialog.innerHTML = markup;
+  dialog.returnValue = '';
+  dialog.showModal();
+  return dialog;
+}
+
+/** The Refresh and Try again action shared by Insights, Activity, Runs and Proposed, and the close button of their dialogs. */
 export default {
   id: 'ploeg-feeds',
-  actions: { 'ploeg-reload': () => reloaders.get(state.view)?.() },
+  actions: {
+    'ploeg-reload': () => reloaders.get(state.view)?.(),
+    'ploeg-dialog-close': () => $('#confirm-dialog')?.close(),
+  },
 };

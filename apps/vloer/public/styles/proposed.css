@@ -1,0 +1,163 @@
+.feeds-proposed {
+  container-type: inline-size;
+}
+
+.proposals-count {
+  margin: 0;
+}
+
+.proposals {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.proposal {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 19rem;
+}
+
+.proposal-main {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-5);
+}
+
+.proposal-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.proposal-meta > .meta time {
+  color: inherit;
+}
+
+.proposal-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-snug);
+  overflow-wrap: anywhere;
+}
+
+.proposal-title a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.proposal-title a:hover {
+  color: var(--accent-fg);
+  text-decoration: underline;
+}
+
+.proposal-brief {
+  color: var(--text-muted);
+}
+
+.proposal-brief-empty {
+  margin: 0;
+}
+
+.proposal-facts {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.proposal-agent {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+}
+
+.proposal-agent > svg.icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  flex: none;
+  color: var(--text-subtle);
+}
+
+.proposal-decision {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-5);
+  border-inline-start: 1px solid var(--border-subtle);
+  border-start-end-radius: calc(var(--radius-md) - 1px);
+  border-end-end-radius: calc(var(--radius-md) - 1px);
+  background: var(--bg-surface-subtle);
+}
+
+.proposal-decision > p {
+  margin: 0;
+}
+
+.proposal-stake {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.proposal-stake > svg.icon {
+  flex: none;
+  width: var(--icon-md);
+  height: var(--icon-md);
+  margin-top: var(--space-0-5);
+  color: var(--attention-fg);
+}
+
+.proposal-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.proposal-viewer {
+  margin-top: var(--space-2);
+}
+
+.proposal-dialog-title {
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.proposal-dialog .facts.rows > .fact {
+  grid-template-columns: minmax(7rem, 1fr) minmax(0, 2.5fr);
+}
+
+.proposal-dialog .callout-body > p {
+  margin: 0;
+}
+
+.proposals-loading .skeleton.block {
+  height: 12rem;
+}
+
+@container (max-width: 48rem) {
+  .proposal {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .proposal-main,
+  .proposal-decision {
+    padding: var(--space-4);
+  }
+
+  .proposal-decision {
+    border-inline-start: 0;
+    border-top: 1px solid var(--border-subtle);
+    border-start-end-radius: 0;
+    border-end-start-radius: calc(var(--radius-md) - 1px);
+  }
+}

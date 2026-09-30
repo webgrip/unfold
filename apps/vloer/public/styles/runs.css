@@ -1,0 +1,228 @@
+.runs-list {
+  container-type: inline-size;
+}
+
+.runs-table {
+  overflow: visible;
+}
+
+.runs-table .table :is(th, td) {
+  height: auto;
+  padding-block: var(--space-2-5);
+  vertical-align: top;
+}
+
+.runs-table .table thead th {
+  top: var(--topbar-height);
+  padding-block: var(--space-1-5);
+  vertical-align: middle;
+}
+
+.runs-table .table thead th:first-child {
+  border-start-start-radius: calc(var(--radius-md) - 1px);
+}
+
+.runs-table .table thead th:last-child {
+  border-start-end-radius: calc(var(--radius-md) - 1px);
+}
+
+.runs-table .runs-group th {
+  padding-block: var(--space-4) var(--space-1-5);
+  color: var(--text-subtle);
+  font-size: var(--text-2xs);
+  line-height: var(--leading-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.runs-table .runs-group:first-child th {
+  padding-top: var(--space-2-5);
+}
+
+.runs-table .runs-group:hover {
+  background: transparent;
+}
+
+.runs-group .count {
+  margin-inline-start: var(--space-1);
+  letter-spacing: 0;
+}
+
+.runs-cell {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-0-5);
+  min-width: 0;
+}
+
+.runs-cell > :first-child {
+  display: flex;
+  align-items: center;
+  min-height: 1.375rem;
+}
+
+.runs-status {
+  width: 13rem;
+}
+
+.runs-status .runs-cell {
+  white-space: normal;
+}
+
+.runs-item {
+  min-width: 14rem;
+  white-space: normal;
+}
+
+.runs-item a {
+  color: var(--text);
+  font-weight: var(--weight-medium);
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.runs-item a:hover {
+  color: var(--accent-fg);
+  text-decoration: underline;
+}
+
+.runs-spend {
+  width: 12rem;
+  min-width: 11rem;
+  white-space: normal;
+}
+
+.runs-spend-note {
+  display: block;
+  margin-top: var(--space-1);
+}
+
+.runs-model {
+  min-width: 9rem;
+  white-space: normal;
+}
+
+.runs-model .meta {
+  white-space: nowrap;
+}
+
+.runs-note {
+  color: var(--tone-fg);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-medium);
+}
+
+.runs-cards {
+  display: none;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.runs-cards-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  padding: var(--space-4) var(--space-4) var(--space-1-5);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-subtle);
+  font-size: var(--text-2xs);
+  line-height: var(--leading-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.runs-cards-group:first-child {
+  padding-top: var(--space-2-5);
+}
+
+.runs-cards-group .count {
+  letter-spacing: 0;
+}
+
+.runs-card {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.runs-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.runs-card-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-0-5) var(--space-3);
+}
+
+.runs-card-title {
+  margin-top: var(--space-1);
+  color: var(--text);
+  font-weight: var(--weight-medium);
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.runs-card-title:hover {
+  color: var(--accent-fg);
+  text-decoration: underline;
+}
+
+.runs-card > .meta {
+  margin: 0;
+}
+
+.runs-card .facts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-2);
+}
+
+.runs-card .fact:has(.meter) {
+  grid-column: 1 / -1;
+}
+
+.runs-card-sub {
+  display: block;
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.runs-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+@container (max-width: 59.99rem) {
+  .runs-table {
+    display: none;
+  }
+
+  .runs-cards {
+    display: grid;
+  }
+}
+
+@media (max-width: 40rem) {
+  .runs-cards-group,
+  .runs-card,
+  .runs-footer {
+    padding-inline: var(--space-3);
+  }
+}
