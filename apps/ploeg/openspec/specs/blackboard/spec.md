@@ -1,7 +1,11 @@
 # blackboard Specification
 
 ## Purpose
-TBD - created by archiving change run-multi-agent-shifts. Update Purpose after archive.
+How the Runs of one Shift share findings and hand the result to a person: a
+reading Run reports through its `OutcomeReport` with a read-only forge
+credential or none, and a Shift that closes without a further Round writes back
+to ask a person to merge. Archived from the change
+`2026-07-29-run-multi-agent-shifts`.
 ## Requirements
 ### Requirement: Findings travel by OutcomeReport, never by agent-side tooling
 

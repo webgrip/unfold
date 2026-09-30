@@ -1,7 +1,10 @@
 # worker-authority Specification
 
 ## Purpose
-TBD - created by archiving change unified-operator-execution. Update Purpose after archive.
+What authority an Executor workload receives: inference capability issued at the
+Run boundary through an explicit environment allowlist and without management
+credentials, and a Run's authorized budget held while its spend is unknown.
+Archived from the change `2026-09-23-unified-operator-execution`.
 ## Requirements
 ### Requirement: Scoped inference capability
 

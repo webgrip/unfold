@@ -27,7 +27,7 @@ The upstream facts below come from reading each project's source at the named ta
 | ACP `authenticate` | Not needed | Not needed once the auth type resolves from the flag. Calling it would write to the user settings file | Not needed (the handler accepts and does nothing) |
 | Shutdown | — | Exits 0 on stdin EOF and handles SIGTERM | Exits when stdin closes; has no SIGTERM handler, so SIGTERM kills it at once |
 
-The adapter never calls `authenticate`, and neither new profile needs it.
+The adapter never calls `authenticate`, and no profile needs it. OpenHands advertises only an OpenHands Cloud login; its profile writes an agent settings file instead (see below).
 
 ## Before a team uses `qwen-code` or `goose`
 
@@ -41,9 +41,11 @@ Neither profile is qualified yet. Before a team switches, run the live conforman
 
 The OpenHands CLI (`openhands` on PyPI, MIT) serves ACP with `openhands acp`. The profile runs `openhands acp --override-with-envs`, checked against the CLI's help for 1.16.0, the version `agent-runner` ships for the native `openhands` adapter. That same image needs nothing added.
 
-- **Gateway wiring.** `--override-with-envs` makes the CLI read `LLM_API_KEY`, `LLM_BASE_URL` and `LLM_MODEL`. The profile prefixes the model with `litellm_proxy/`, which the native adapter also passes and OpenHands routes on. It writes no config file and refuses `configJson` at startup.
+- **Agent settings.** OpenHands 1.16.0 answers `session/new` with `auth_required` ("Authentication required to create a session") until `$OPENHANDS_PERSISTENCE_DIR/agent_settings.json` exists. Its ACP entrypoint does not pass `--override-with-envs` on, so the `LLM_*` variables alone do not count, and the only method `initialize` advertises is `oauth`, a device-flow login to OpenHands Cloud. The profile therefore writes `openhands-<trace>/agent_settings.json` in the scratch directory and points `OPENHANDS_PERSISTENCE_DIR` at it. The file holds `llm.model` (`litellm_proxy/<model>`), `llm.base_url` and `llm.usage_id`, and no key. OpenHands keeps its conversation history in the same directory. `configJson` is refused at startup.
+- **Gateway wiring.** The `litellm_proxy/` model prefix makes LiteLLM inside OpenHands read the key from `LITELLM_PROXY_API_KEY`, which the profile sets alongside `LLM_API_KEY`, `LLM_BASE_URL` and `LLM_MODEL`. The profile keeps `--override-with-envs`: in 1.16.0 it only suppresses the CLI's warning that the `LLM_*` variables are ignored, and a release that honours it gets the same values.
 - **Approval.** The profile passes no approval flag, so OpenHands asks for each action over ACP and the adapter answers from the Run's permission mode.
-- **Not yet checked:** stop reasons, shutdown on stdin EOF or SIGTERM, calls outside the gateway, and which instruction files it loads. Run the live conformance suite (`acp-openhands`) in the team's image before a team switches.
+- **Checked on 29 September 2026** with the 1.16.0 CLI (SDK 1.21.0, LiteLLM 1.92.0) against a stub gateway, through the adapter itself: `session/new` succeeds, the model request carries `Authorization: Bearer <the Run's key or placeholder>`, a tool call raises `session/request_permission` (options `accept`, `reject`, `always_proceed` and more), and a finished turn stops with `end_turn`. OpenHands exits at once on SIGTERM but not on stdin EOF (still running after 30 seconds); the adapter sends both. Besides the model request it makes an unauthenticated `GET <base URL>/v1/model/info` to the gateway, and two calls outside it: LiteLLM's model cost map from `raw.githubusercontent.com` and a `git clone` of `github.com/OpenHands/extensions` into `$HOME/.openhands/cache`. Both fail harmlessly when the connection is refused; a pod whose egress drops packets instead may wait for their timeouts. Per its source, it reads `AGENTS.md` and other third-party instruction files such as `CLAUDE.md` and `.cursorrules` from the working directory.
+- **Not yet checked:** other stop reasons, and the loopback proxy under `PLOEG_LLM_KEY_ISOLATION=proxy`. Run the live conformance suite (`acp-openhands`) in the team's image before a team switches.
 
 Why this profile exists alongside the native adapter: ACP gives structured tool calls and stop reasons instead of log tailing, and it keeps OpenHands swappable behind the same seam as the other agents.
 
