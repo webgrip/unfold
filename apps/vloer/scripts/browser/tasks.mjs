@@ -4,19 +4,19 @@ import { readFile } from 'node:fs/promises';
 export async function run({ page, app, assert, screenshot }) {
   await page.getByRole('link', { name: 'Tasks', exact: true }).click();
   await page.locator('[data-action="task-preview"]').first().waitFor();
-  await page.getByRole('heading', { name: 'Bring this task onto the floor.' }).waitFor();
+  await page.getByRole('heading', { name: 'Bring this task onto the floor' }).waitFor();
   assert.equal(new URL(page.url()).hash, '#tasks?source=demo-tasks&task=1', 'a wide screen does not open the first task beside the list');
-  assert.equal(await page.getByLabel('Session budget · USD', { exact: true }).inputValue(), '5.00', 'the budget is not prefilled with cents');
+  assert.equal(await page.getByLabel('Session budget', { exact: true }).inputValue(), '5,00', 'the budget is not prefilled with cents in the number format');
   await page.getByRole('button', { name: 'Connections', exact: true }).click();
-  const connections = page.getByRole('dialog', { name: 'Your tasks, connected.' });
+  const connections = page.getByRole('dialog', { name: 'Your tasks, connected' });
   for (const provider of ['Forgejo', 'GitHub', 'GitLab', 'ClickUp', 'Vikunja']) await connections.getByText(provider, { exact: true }).waitFor();
   await connections.getByRole('button', { name: 'Done', exact: true }).click();
   await page.locator('[data-action="task-preview"]').first().click();
-  await page.getByRole('heading', { name: 'Bring this task onto the floor.' }).waitFor();
+  await page.getByRole('heading', { name: 'Bring this task onto the floor' }).waitFor();
   assert.equal(new URL(page.url()).hash, '#tasks?source=demo-tasks&task=1', 'the selected task is not in the address');
   assert.equal(await page.locator('.tasks-brief li').count(), 3, 'the task brief is not rendered as Markdown');
   await page.reload();
-  await page.getByRole('heading', { name: 'Bring this task onto the floor.' }).waitFor();
+  await page.getByRole('heading', { name: 'Bring this task onto the floor' }).waitFor();
   assert.equal(await page.locator('#task-row-1').getAttribute('aria-current'), 'true', 'a reload lost the selected task');
   await page.locator('#task-search').fill('no such task');
   await page.getByText('No tasks match', { exact: true }).waitFor();
@@ -24,7 +24,7 @@ export async function run({ page, app, assert, screenshot }) {
   await page.locator('#page-title').focus();
   await page.keyboard.press('j');
   assert.equal(await page.evaluate(() => document.activeElement?.id), 'task-row-1', 'j does not move to the first task');
-  await page.getByLabel('Session budget · USD', { exact: true }).fill('3.25');
+  await page.getByLabel('Session budget', { exact: true }).fill('3.25');
   await screenshot('tasks-preview');
   await page.setViewportSize({ width: 1280, height: 800 });
   const create = await page.getByRole('button', { name: 'Create session', exact: true }).boundingBox();
@@ -32,7 +32,7 @@ export async function run({ page, app, assert, screenshot }) {
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 1040 }]) {
     await page.setViewportSize(viewport);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `Task layout overflows at ${viewport.width}px`);
-    assert.equal(await page.getByLabel('Session budget · USD', { exact: true }).inputValue(), '3.25');
+    assert.equal(await page.getByLabel('Session budget', { exact: true }).inputValue(), '3.25');
     assert.equal(await page.getByRole('button', { name: 'All tasks', exact: true }).isVisible(), viewport.width < 720, `the back button shows wrongly at ${viewport.width}px`);
     assert.equal(await page.locator('#task-row-1').isVisible(), viewport.width >= 720, `the task list shows wrongly beside the task at ${viewport.width}px`);
     await screenshot(`tasks-${viewport.width}`);
@@ -40,10 +40,10 @@ export async function run({ page, app, assert, screenshot }) {
       await page.getByRole('button', { name: 'All tasks', exact: true }).click();
       await page.locator('#task-row-1').focus();
       await page.keyboard.press('Enter');
-      await page.getByRole('heading', { name: 'Bring this task onto the floor.' }).waitFor();
+      await page.getByRole('heading', { name: 'Bring this task onto the floor' }).waitFor();
       assert.equal(await page.evaluate(() => document.activeElement?.id), 'task-back', 'opening a task on a phone drops focus to the page');
       assert((await page.locator('#task-back').boundingBox()).y < 100, 'the phone task view keeps the page header above the task');
-      await page.getByLabel('Session budget · USD', { exact: true }).fill('3.25');
+      await page.getByLabel('Session budget', { exact: true }).fill('3.25');
     }
   }
   await page.getByRole('button', { name: 'Create session', exact: true }).click();
@@ -56,7 +56,7 @@ export async function run({ page, app, assert, screenshot }) {
   assert.equal(imported.sourceTask.id, '1');
   await page.getByRole('link', { name: 'Open original task (opens in a new tab)', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Start crew', exact: true }).click();
-  await page.getByText('Your review is next.', { exact: true }).waitFor({ timeout: 25000 });
+  await page.getByText('Your review is next', { exact: true }).waitFor({ timeout: 25000 });
   await page.getByText('Repository snapshot saved', { exact: true }).waitFor();
   for (const [name, format] of [['Git bundle', 'bundle'], ['Binary patch', 'patch'], ['Manifest', 'manifest']]) {
     const candidateDownload = page.waitForEvent('download');
@@ -72,7 +72,7 @@ export async function run({ page, app, assert, screenshot }) {
   await page.getByRole('link', { name: 'Tasks', exact: true }).click();
   await page.locator('[data-action="task-preview"]').first().click();
   await page.getByRole('button', { name: 'Create session', exact: true }).click();
-  await page.getByText('Your review is next.', { exact: true }).waitFor();
+  await page.getByText('Your review is next', { exact: true }).waitFor();
   assert.equal(new URL(page.url()).hash, `#session/${importedId}`, 'A second import did not open the original session');
   assert.equal(app.store.listSessions().length, taskSessionCount, 'A second import created duplicate work');
   const taskUrl = `http://127.0.0.1:${app.server.address().port}/api/task-sources/demo-tasks/tasks/1`;
@@ -87,14 +87,14 @@ export async function run({ page, app, assert, screenshot }) {
   });
   await page.getByRole('link', { name: 'Tasks', exact: true }).click();
   await page.locator('[data-action="task-preview"]').first().click();
-  await page.getByLabel('Session budget · USD', { exact: true }).fill('4.75');
+  await page.getByLabel('Session budget', { exact: true }).fill('4.75');
   const selectedCrew = await page.getByRole('combobox', { name: 'Crew', exact: true }).inputValue();
   const selectedRuntime = await page.locator('[data-form="task-import"] [name="runtime"]').inputValue();
   await page.getByRole('button', { name: 'Create session', exact: true }).click();
-  await page.getByText('The source task changed.', { exact: true }).waitFor();
+  await page.getByText('The source task changed', { exact: true }).waitFor();
   await page.getByText(hostileTask.description, { exact: true }).waitFor();
   assert.equal(await page.locator('#untrusted-task-markup, img[src="/untrusted-task-image"]').count(), 0, 'Source task content rendered active markup');
-  assert.equal(await page.getByLabel('Session budget · USD', { exact: true }).inputValue(), '4.75', 'Revision conflict discarded the budget draft');
+  assert.equal(await page.getByLabel('Session budget', { exact: true }).inputValue(), '4.75', 'Revision conflict discarded the budget draft');
   assert.equal(await page.getByRole('combobox', { name: 'Crew', exact: true }).inputValue(), selectedCrew);
   assert.equal(await page.locator('[data-form="task-import"] [name="runtime"]').inputValue(), selectedRuntime);
   assert.equal(app.store.listSessions().length, taskSessionCount, 'Revision conflict created a session');

@@ -1,6 +1,7 @@
 import { prefs } from './prefs.js';
 import { escape } from './dom.js';
-import { button, kbd } from './ui.js';
+import { kbd } from './ui.js';
+import { icon } from './icons.js';
 
 /**
  * One keyboard shortcut. `keys` is the sequence to press (`Mod` is ⌘ on macOS and Ctrl elsewhere); `single`
@@ -103,7 +104,7 @@ export function shortcutsMarkup({ mac = isMac(), singleKeys = singleKeysEnabled(
   const keys = entry => `${entry.keys.map((key, index) => `${index && entry.keys[0] === 'g' ? '<span class="shortcut-then">then</span>' : ''}${kbd([keyLabel(key, mac)])}`).join('')}${entry.also ? `<span class="shortcut-then">or</span>${caps(entry.also)}` : ''}`;
   const row = entry => `<div class="shortcut-row${entry.proposed ? ' is-proposed' : ''}"><dt>${keys(entry)}</dt><dd>${escape(entry.label)}${entry.where ? `<span class="shortcut-where"> · on ${escape(entry.where)}</span>` : ''}${entry.proposed ? ' <span class="shortcut-proposed">Proposed</span>' : ''}</dd></div>`;
   const slug = group => escape(group.toLowerCase().replaceAll(' ', '-'));
-  return `<form method="dialog" class="shortcuts-form"><header class="dialog-header"><h2 id="shortcuts-title">Keyboard shortcuts</h2>${button({ label: 'Close', size: 'sm', type: 'submit', ariaLabel: 'Close keyboard shortcuts' })}</header><div class="dialog-body"><label class="shortcuts-toggle"><input type="checkbox" autofocus data-pref="singleKeyShortcuts" ${singleKeys ? 'checked' : ''}><span><strong>Single-key shortcuts</strong><small>When off, only ${escape(keyLabel('Mod', mac))} K, Enter and Esc work, so speech input never triggers a shortcut by accident.</small></span></label>${groups.map(group => `<section class="shortcut-group" aria-labelledby="shortcuts-${slug(group)}"><h3 id="shortcuts-${slug(group)}">${escape(group)}</h3><dl>${shortcuts.filter(entry => entry.group === group).map(row).join('')}</dl></section>`).join('')}</div></form>`;
+  return `<form method="dialog" class="shortcuts-form"><header class="dialog-header"><h2 id="shortcuts-title">Keyboard shortcuts</h2><button type="submit" class="button ghost icon-only sm" aria-label="Close keyboard shortcuts" title="Close">${icon('x')}</button></header><div class="dialog-body"><label class="shortcuts-toggle"><input type="checkbox" autofocus data-pref="singleKeyShortcuts" ${singleKeys ? 'checked' : ''}><span><strong>Single-key shortcuts</strong><small>When off, only ${escape(keyLabel('Mod', mac))} K, Enter and Esc work, so speech input never triggers a shortcut by accident.</small></span></label>${groups.map(group => `<section class="shortcut-group" aria-labelledby="shortcuts-${slug(group)}"><h3 id="shortcuts-${slug(group)}">${escape(group)}</h3><dl>${shortcuts.filter(entry => entry.group === group).map(row).join('')}</dl></section>`).join('')}</div></form>`;
 }
 
 /** Opens the `#shortcuts` dialog with the current table. */

@@ -447,6 +447,10 @@ meter {
   border-radius: var(--radius-full);
   overflow: hidden;
   background: var(--bg-track);
+  color: var(--neutral-solid);
+}
+
+progress {
   color: var(--accent-graphic);
 }
 
@@ -476,7 +480,7 @@ meter::-webkit-meter-bar {
 }
 
 meter::-webkit-meter-optimum-value {
-  background: var(--accent-graphic);
+  background: var(--neutral-solid);
 }
 
 meter::-webkit-meter-suboptimum-value {
@@ -488,7 +492,7 @@ meter::-webkit-meter-even-less-good-value {
 }
 
 meter::-moz-meter-bar {
-  background: var(--accent-graphic);
+  background: var(--neutral-solid);
 }
 
 meter:-moz-meter-sub-optimum::-moz-meter-bar {

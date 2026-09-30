@@ -30,9 +30,9 @@ export async function run({ page, assert, screenshot }) {
   assert.equal(await page.getByRole('radio', { name: /^Dark/ }).isChecked(), true);
   await screenshot('preferences-dark');
   await page.getByRole('switch', { name: 'Refresh automatically', exact: true }).uncheck();
-  assert.equal(await page.locator('.app-topbar [data-live-label]').textContent(), 'Paused', 'the live updates switch and the top bar disagree');
+  assert.equal(await page.locator('.app-topbar [data-live-toggle]').getAttribute('aria-label'), 'Resume auto-refresh', 'the live updates switch and the top bar disagree');
   await page.getByRole('switch', { name: 'Refresh automatically', exact: true }).check();
-  assert.equal(await page.locator('.app-topbar [data-live-label]').textContent(), 'Live');
+  assert.equal(await page.locator('.app-topbar [data-live-toggle]').getAttribute('aria-label'), 'Pause auto-refresh');
   await page.getByRole('switch', { name: 'Single-key shortcuts', exact: true }).uncheck();
   await page.locator('#page-title').focus();
   await page.keyboard.press('?');
@@ -44,7 +44,7 @@ export async function run({ page, assert, screenshot }) {
   const viewport = page.viewportSize();
   await page.setViewportSize({ width: 1440, height: 1040 });
   await page.locator('.app-topbar [data-live-toggle]').click();
-  assert.equal(await page.getByRole('switch', { name: 'Refresh automatically', exact: true }).isChecked(), false, 'the Live button in the top bar left the Preferences switch on');
+  assert.equal(await page.getByRole('switch', { name: 'Refresh automatically', exact: true }).isChecked(), false, 'the pause button in the top bar left the Preferences switch on');
   await page.locator('.app-topbar [data-live-toggle]').click();
   assert.equal(await page.getByRole('switch', { name: 'Refresh automatically', exact: true }).isChecked(), true);
   await page.getByRole('button', { name: /^Account and theme/ }).click();

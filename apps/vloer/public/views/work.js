@@ -1,4 +1,4 @@
-import { workMarkup, ploegLanes, activePloegLane, mergeOverviews, teamOverview, appendPage, refreshOverview, reviewFacts, cancelDialogMarkup, workItemRef } from '../ploeg.js';
+import { workMarkup, ploegLanes, activePloegLane, mergeOverviews, teamOverview, appendPage, refreshOverview, reviewFacts, cancelDialogMarkup, workItemRef, workRefreshButton, laneBackLabel } from '../ploeg.js';
 import { state, onForget } from '../core/state.js';
 import { api } from '../core/api.js';
 import { $, renderHtml, notify, announce, safeUrl } from '../core/dom.js';
@@ -14,11 +14,19 @@ const lanes = ploegLanes.map(lane => lane.id);
 const itemPath = /^work\/([1-9][0-9]{0,19})$/;
 const liveInterval = 30000;
 const reviewFactLimit = 12;
-const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false };
+const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null };
 
-onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set() }));
+onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null }));
 
+const laneOfState = { needs_human: 'needs_human', awaiting_review: 'awaiting_review', leased: 'leased', queued: 'queued' };
+const laneFor = item => laneOfState[item?.state] || 'all';
 const canCancel = () => ['operator', 'admin'].includes(state.bootstrap?.user?.role);
+
+function knownItem(id) {
+  if (state.ploegDetail?.item.id === id) return state.ploegDetail.item;
+  for (const page of Object.values(state.ploeg?.available ? state.ploeg.lanes || {} : {})) { const found = page.items.find(item => item.id === id); if (found) return found; }
+  return null;
+}
 const visible = () => Boolean(state.bootstrap) && state.view === 'work';
 const signature = value => JSON.stringify(value ?? null, (key, entry) => key === 'fetchedAt' ? undefined : entry);
 
@@ -31,6 +39,7 @@ function model() {
   return {
     data: state.ploeg,
     lane: activePloegLane(state),
+    lanePending: Boolean(work.pickLane) && work.pickLane === work.detailId,
     team: work.team,
     teams: work.teams,
     loading: state.ploegLoading,
@@ -61,9 +70,11 @@ function tabTitle(item) {
 
 function shellOptions(current) {
   const title = 'Work';
-  if (!current.detailId) return { title };
+  const subtitle = 'Work Items of your Teams by lane. Open one to see why it waits and what to do.';
+  const actions = workRefreshButton(current);
+  if (!current.detailId) return { title, subtitle, actions };
   const item = current.detail?.item;
-  return { title, documentTitle: item ? tabTitle(item) : undefined, breadcrumbs: [{ label: 'Ploeg' }, { label: 'Work', href: current.listHref }, { label: item ? workItemRef(item) : `#${current.detailId}` }] };
+  return { title, subtitle, actions, documentTitle: item ? tabTitle(item) : undefined, back: { label: laneBackLabel(current.lanePending ? 'all' : current.lane), href: current.listHref }, breadcrumbs: [{ label: 'Ploeg' }, { label: 'Work', href: current.listHref }, { label: item ? workItemRef(item) : `#${current.detailId}` }] };
 }
 
 function focusTarget() {
@@ -246,11 +257,13 @@ async function loadDetail(id, { fresh = false, quiet = false } = {}) {
     if (!quiet) work.revealedId = null;
     state.ploegDetail = detail;
     state.ploegDetailError = '';
+    if (work.pickLane === id) { work.pickLane = null; state.ploegLane = laneFor(detail.item); keepFiltersInHash(); changed = true; void loadReviewFacts(); }
     if (detail.item.state === 'awaiting_review') work.reviewFacts.set(id, reviewFacts(detail));
   } catch (error) {
     if (request !== work.detailRequest || !visible() || work.detailId !== id) return;
     if (quiet && state.ploegDetail?.item.id === id) throw error;
     changed = true;
+    if (work.pickLane === id) work.pickLane = null;
     state.ploegDetail = null;
     state.ploegDetailError = { message: error.message, code: error.code || '' };
     if (quiet) throw error;
@@ -289,13 +302,17 @@ async function enterWork({ id, query = {} } = {}) {
   const previous = within ? work.detailId : null;
   enterPloegView('work');
   registerLive();
+  work.pickLane = null;
+  let chosen = false;
   if (lanes.includes(query.lane)) state.ploegLane = query.lane;
-  else if (!id && !within) state.ploegLane = null;
+  else if (id) { const known = knownItem(id); if (known) { state.ploegLane = laneFor(known); chosen = true; } else work.pickLane = id; }
+  else if (!within) state.ploegLane = null;
   const team = teamFromQuery(query);
   const teamChanged = team !== work.team;
   work.team = team;
   if (!previous && id) work.listScroll = window.scrollY;
   work.detailId = id || null;
+  if (chosen) keepFiltersInHash();
   if (!id) { state.ploegDetailLoading = false; state.ploegDetailError = ''; work.revealedId = null; }
   const listReady = within && !teamChanged && state.ploeg && work.loadedTeam === team;
   const detailReady = id && previous === id && state.ploegDetail?.item.id === id && !state.ploegDetailError;
@@ -365,6 +382,13 @@ async function copyLink(button) {
   const url = `${location.origin}${location.pathname}#work/${button.dataset.id}`;
   try { await navigator.clipboard.writeText(url); notify('Link copied'); }
   catch { notify(`Copy did not work. The link is ${url}`, true); }
+}
+
+async function copyRef(button) {
+  const value = button.dataset.value || '';
+  if (!value) return;
+  try { await navigator.clipboard.writeText(value); notify(`Copied ${value}`); }
+  catch { notify(`Copy did not work. The task is ${value}`, true); }
 }
 
 function openCancel() {
@@ -490,6 +514,7 @@ export default {
     'ploeg-more': () => loadMore(),
     'work-detail-retry': () => work.detailId && loadDetail(work.detailId, { fresh: true }),
     'work-copy-link': copyLink,
+    'work-copy-ref': copyRef,
     'work-cancel': () => work.cancelBusy ? null : openCancel(),
     'work-brief': () => toggleBrief(),
     'work-run': jumpToRun,

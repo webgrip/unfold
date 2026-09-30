@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { closeReasonLabel, detailReason, listReason, parseBudgetReason, parseStuckReason, requeueNote, routingWarning, withdrawnReason } from '../public/core/reasons.js';
+import { closeReasonLabel, detailReason, listReason, needsYouBlocks, parseBudgetReason, parseStuckReason, requeueNote, routingWarning, withdrawnReason } from '../public/core/reasons.js';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 
 const space = ' ';
@@ -10,7 +10,7 @@ const chip = (closeReason, extra) => listReason(item(closeReason, extra))?.chip;
 
 test('every needs-human close reason code gets a chip, a sentence and an action that ends with re-assigning in the tracker', () => {
   const expected = {
-    plan_exhausted: 'No pull request or changes unresolved',
+    plan_exhausted: 'Every Round ran',
     fix_round_cap_reached: 'Reviewer still wants changes',
     budget_exhausted_before_fix_round: 'Budget ran out',
     writing_run_failed_repeatedly: 'Writer kept failing',
@@ -90,7 +90,7 @@ test('only needs_human and stale items have a reason; stale separates infrastruc
 
 test('an unresolved repository is a secondary Not routed warning, never the primary reason', () => {
   const unrouted = item('plan_exhausted', { target: null });
-  assert.equal(listReason(unrouted).chip, 'No pull request or changes unresolved');
+  assert.equal(listReason(unrouted).chip, 'Every Round ran');
   assert.deepEqual([routingWarning(unrouted).chip, routingWarning(unrouted).tone], ['Not routed', 'attention']);
   assert.equal(routingWarning(unrouted).fix, 'Add a repository label or a routing rule to the task.');
   assert.equal(routingWarning(item('plan_exhausted')), null);
@@ -137,10 +137,10 @@ test('the detail reason shows the failing writer’s failure reason and recognis
   assert.equal(detailReason(null), null);
 });
 
-test('the demo’s free-text escalation with a stuck reviewer reads as a stuck agent with its reason', () => {
+test('the demo’s free-text escalation keeps the list’s chip and shows the stuck reviewer as its evidence', () => {
   const reason = detailReason(ploegDemo.details['101']);
-  assert.equal(reason.chip, 'Agent is stuck');
-  assert.equal(reason.sentence, 'The reviewer reported that it cannot finish in Round 1 without a person.');
+  assert.equal(reason.chip, 'Needs a decision');
+  assert.equal(reason.sentence, 'Ploeg recorded: “Illustrative escalation to a human reviewer.”');
   assert.equal(reason.run.text, 'The acceptance criteria need a human decision.');
   assert.equal(reason.requeue, 'Then assign the task to the Team again in its tracker.');
   assert.equal(listReason(ploegDemo.details['101'].item).chip, 'Needs a decision');
@@ -150,16 +150,17 @@ test('the detail tells plan_exhausted apart: no pull request when the writer cha
   const run = (id, writes, extra) => ({ id, shiftId: '9', role: writes ? 'implementer' : 'reviewer', round: writes ? 1 : 2, writes, state: 'finished', outcome: 'no_change_needed', verdict: '', links: [], stuckReason: '', summary: '', failureReason: null, ...extra });
   const detail = runs => ({ item: item('plan_exhausted'), shifts: [shift('plan_exhausted')], runs, checkpoints: [], events: [{ id: '1', action: 'work_item.needs_human', detail: { reason: 'plan complete; a person is asked to review and merge' } }] });
   const none = detailReason(detail([run('2', false), run('1', true)]));
-  assert.deepEqual([none.variant, none.chip, none.headline], ['no_pull_request', 'No pull request', null], 'Ploeg’s plan-complete sentence would suggest a merge, so it is not the headline');
+  assert.deepEqual([none.variant, none.chip, none.headline], ['no_pull_request', 'Every Round ran', null], 'Ploeg’s plan-complete sentence would suggest a merge, so it is not the headline');
   assert.equal(none.sentence, 'Every planned Round ran, but the writer changed nothing, so there is no pull request to review.');
   assert.match(none.action, /^Check that the task says what must change and where\. If the change is already there, close the task\. Then assign/);
   assert.equal(detailReason(detail([run('2', false)])).sentence, 'Every planned Round ran, but no writer ran, so there is no pull request to review.');
   assert.equal(detailReason(detail([run('1', true, { outcome: 'failed' })])).sentence, 'Every planned Round ran, but no writer reported a pull request.');
   const unresolved = detailReason(detail([run('2', false, { verdict: 'request_changes' }), run('1', true, { outcome: 'pr_opened', links: ['https://forge.test/a/b/pulls/3'] })]));
-  assert.deepEqual([unresolved.variant, unresolved.chip], ['changes_unresolved', 'Changes unresolved']);
+  assert.deepEqual([unresolved.variant, unresolved.chip], ['changes_unresolved', 'Every Round ran']);
+  assert.match(unresolved.sentence, /last reviewer still asked for changes/);
   assert.match(unresolved.fix, /reviewer’s findings/);
   const opened = detailReason(detail([run('2', false), run('1', true, { outcome: 'pr_opened' })]));
-  assert.deepEqual([opened.variant, opened.chip], [null, 'No pull request or changes unresolved'], 'with a pull request and no request for changes Vloer does not guess');
+  assert.deepEqual([opened.variant, opened.chip], [null, 'Every Round ran'], 'with a pull request and no request for changes Vloer does not guess');
 });
 
 test('the demo’s budget sentence names the budget but never spend it did not have', () => {
@@ -191,4 +192,29 @@ test('a Shift close reason reads in a few plain words, never as a raw code', () 
   assert.equal(withdrawnReason('withdrawn_by_operator'), 'An operator cancelled it.');
   assert.equal(withdrawnReason('plan_exhausted'), null);
   assert.equal(withdrawnReason(undefined), null);
+});
+
+test('every demo Work Item reads with the same reason chip in the lists and on its own page', () => {
+  for (const item of ploegDemo.items) {
+    const detail = { ...ploegDemo.details[item.id], demo: true };
+    const list = listReason(item, { demo: true });
+    const page = detailReason(detail);
+    assert.equal(page?.chip ?? null, list?.chip ?? null, `${item.id} ${item.externalId}`);
+    const now = { ...item, closeReason: item.latestShift?.closeReason || null, latestShift: item.latestShift ? { ...item.latestShift } : null };
+    assert.equal(listReason(now, { demo: true })?.chip ?? null, list?.chip ?? null, `${item.id} as a Now row`);
+  }
+});
+
+test('Needs you groups only reasons that two or more Work Items share, after the flat rows', () => {
+  const rows = [item('plan_exhausted', { id: '1' }), item('fix_round_cap_reached', { id: '2' }), item('budget exhausted: pool 1', { id: '3' }), item('run stuck: builder', { id: '4' }), item('budget_exhausted_before_fix_round', { id: '5' }), item('plan_exhausted', { id: '6' }), item('', { id: '7', state: 'stale', attempts: 3 })];
+  const blocks = needsYouBlocks(rows);
+  assert.deepEqual(blocks.map(block => [block.grouped, block.reason.chip, block.items.map(entry => entry.id)]), [
+    [false, 'Reviewer still wants changes', ['2']],
+    [false, 'Agent is stuck', ['4']],
+    [false, 'Agents kept failing', ['7']],
+    [true, 'Every Round ran', ['1', '6']],
+    [true, 'Budget ran out', ['3', '5']],
+  ]);
+  assert.deepEqual(needsYouBlocks(rows.slice(1, 4)).map(block => block.grouped), [false, false, false], 'different reasons stay one flat list');
+  assert.deepEqual(needsYouBlocks([]), []);
 });

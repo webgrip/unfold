@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { ago, clock, configureFormat, count, date, dateTime, dayKey, dayLabel, duration, formatLocale, money, moneyExact, moneyHtml, notReported, percent, plural, relative, seconds, time, timeHtml } from '../public/core/format.js';
+import { ago, amountText, clock, configureFormat, count, date, dateTime, dayKey, dayLabel, duration, formatLocale, money, moneyExact, moneyHtml, notReported, parseAmount, percent, plural, relative, seconds, time, timeHtml } from '../public/core/format.js';
 
 const space = ' ';
 const local = new Date(2026, 8, 30, 21, 30, 5);
@@ -137,4 +137,13 @@ test('the browser locale preference switches number and date formats and can swi
   } finally { configureFormat({ locale: 'nl' }); }
   assert.equal(formatLocale(), 'nl');
   assert.equal(money(2.5), `US$${space}2,50`);
+});
+
+test('a budget field writes its amount in the number format and reads a comma or a full stop', () => {
+  configureFormat({ locale: 'nl' });
+  assert.equal(amountText(5), '5,00');
+  assert.equal(amountText(1234.5), '1234,50', 'no grouping inside a field');
+  assert.equal(amountText(null), '');
+  for (const [text, value] of [['5,00', 5], ['5.00', 5], ['2.5', 2.5], ['2,5', 2.5], ['1.234,50', 1234.5], ['1,234.50', 1234.5], ['US$ 5', 5], [' 3,25 ', 3.25], [4.75, 4.75]]) assert.equal(parseAmount(text), value, String(text));
+  for (const text of ['', 'abc', '5,', '5,123,45', '-1']) assert(Number.isNaN(parseAmount(text)), text);
 });

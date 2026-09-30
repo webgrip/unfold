@@ -87,7 +87,7 @@ function linkCard(link) {
   }
   const unlink = link.linked ? act('data-action="unlink"', { label: `Unlink ${label}`, variant: 'danger-ghost', size: 'sm', data: { provider: link.provider } }) : '';
   const footer = note ? `<footer class="settings-card-footer"><p class="settings-card-note">${icon('lock')}<span>${escape(note)}</span></p>${unlink}</footer>` : '';
-  return `<section class="card settings-card account-card" aria-labelledby="${id}-title"><header class="settings-card-header account-header"><div class="account-heading"><h2 class="settings-card-title" id="${id}-title">${escape(label)}</h2><p class="settings-card-description">${escape(link.host)}</p></div>${linkState(link)}</header><div class="settings-card-body">${body}</div>${footer}</section>`;
+  return `<section class="card settings-card account-card" aria-labelledby="${id}-title"><header class="card-header account-header"><div class="account-heading"><h2 class="card-title" id="${id}-title">${escape(label)}</h2><p class="card-subtitle">${escape(link.host)}</p></div>${linkState(link)}</header><div class="card-body">${body}</div>${footer}</section>`;
 }
 
 function renderAccount() {

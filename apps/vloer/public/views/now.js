@@ -37,7 +37,7 @@ function refreshButton() {
   if (!view.data && ['ploeg_unconfigured', 'ploeg_scope'].includes(view.error?.code)) return '';
   if (offersRetry(view)) return '';
   const busy = view.refreshing || (view.loading && !view.data);
-  return `<button type="button" class="button secondary sm now-refresh" id="now-refresh" data-action="now-refresh"${busy ? ' aria-disabled="true" aria-busy="true"' : ''}>${busy ? '<span class="spinner" aria-hidden="true"></span>' : icon('refresh')}<span class="button-label">Refresh</span></button>`;
+  return `<button type="button" class="button secondary icon-only now-refresh" id="now-refresh" data-action="now-refresh" aria-label="Refresh" title="Refresh"${busy ? ' aria-disabled="true" aria-busy="true"' : ''}>${busy ? '<span class="spinner" aria-hidden="true"></span>' : icon('refresh')}</button>`;
 }
 
 function focusedTarget() {
@@ -65,7 +65,7 @@ function renderNow() {
   if (view.since === undefined) arrive();
   const content = nowMarkup(view, { grafanaUrl: state.bootstrap?.observability?.grafanaUrl, singleKeys: singleKeysEnabled() });
   const keep = focusedTarget();
-  renderHtml(shell(content, { title: 'Now', actions: refreshButton() }));
+  renderHtml(shell(content, { title: 'Now', subtitle: 'What waits on you, what runs and what finished, across your Teams.', actions: refreshButton() }));
   restoreFocus(keep);
 }
 

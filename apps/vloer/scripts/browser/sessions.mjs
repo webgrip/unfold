@@ -3,7 +3,7 @@ export async function run({ page, app, assert, screenshot }) {
   await page.getByRole('link', { name: 'Sessions', exact: true }).click();
   await page.getByRole('heading', { name: 'Sessions', exact: true }).first().waitFor();
   await page.getByRole('button', { name: 'Run the demonstration' }).click();
-  await page.getByText('Your review is next.', { exact: true }).waitFor({ timeout: 25000 });
+  await page.getByText('Your review is next', { exact: true }).waitFor({ timeout: 25000 });
   await screenshot('session');
   await page.getByRole('tab', { name: /Changes/ }).click();
   await page.getByText('+  return Math.round((amount + Number.EPSILON) * 100);', { exact: true }).waitFor();
@@ -23,7 +23,7 @@ export async function run({ page, app, assert, screenshot }) {
   const downloadPath = await download.path();
   assert(downloadPath);
   await page.reload();
-  await page.getByText('Your review is next.', { exact: true }).waitFor();
+  await page.getByText('Your review is next', { exact: true }).waitFor();
   const accept = page.locator('.session-review').getByRole('button', { name: 'Accept', exact: true });
   const contrast = await accept.evaluate(button => {
     const channels = value => { const probe = document.createElement('canvas').getContext('2d'); probe.fillStyle = value; probe.fillRect(0, 0, 1, 1); return [...probe.getImageData(0, 0, 1, 1).data].slice(0, 3); };

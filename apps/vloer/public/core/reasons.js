@@ -1,5 +1,7 @@
 import { money } from './format.js';
-import { failureReason } from './states.js';
+import { failureReason, parseBudgetReason, parseStuckReason, closeReasonLabel, withdrawnReason } from './states.js';
+
+export { parseBudgetReason, parseStuckReason, closeReasonLabel, withdrawnReason };
 
 /**
  * Why a Work Item waits on a person, and what to do about it. `chip` is the short label, `sentence` explains it,
@@ -36,7 +38,7 @@ export const requeueNote = 'Starting again from Vloer is proposed Ploeg work. To
 
 const copy = {
   plan_exhausted: {
-    chip: 'No pull request or changes unresolved',
+    chip: 'Every Round ran',
     sentence: 'Every planned Round ran, but no writer reported a pull request, or the last reviewer asked for changes and this team has no fix rounds.',
     fix: 'Open the Work Item to see whether the writer changed nothing or the reviewer still wants changes.',
   },
@@ -109,11 +111,9 @@ const copy = {
 
 const planVariants = {
   no_pull_request: {
-    chip: 'No pull request',
     fix: 'Check that the task says what must change and where. If the change is already there, close the task.',
   },
   changes_unresolved: {
-    chip: 'Changes unresolved',
     sentence: 'Every planned Round ran and the last reviewer still asked for changes. This Team’s plan has no fix Rounds left.',
     fix: 'Read the reviewer’s findings. Finish the branch by hand, or sharpen the ticket.',
   },
@@ -132,19 +132,6 @@ function classify(closeReason) {
   if (lower === 'plan removed from configuration') return { code: 'plan_removed', text };
   if (text === 'review_approved') return { code: 'pull_request_closed', text };
   return { code: 'unknown', text };
-}
-
-/** Reads `budget exhausted: pool P, spent S, reserved R` into numbers; missing parts are null. */
-export function parseBudgetReason(text) {
-  const read = name => { const match = new RegExp(`${name}\\s+(-?\\d+(?:\\.\\d+)?)`, 'i').exec(String(text ?? '')); return match ? Number(match[1]) : null; };
-  return { pool: read('pool'), spent: read('spent'), reserved: read('reserved') };
-}
-
-/** Reads `run stuck: <role> round <n>` into the Role and Round; missing parts are null. */
-export function parseStuckReason(text) {
-  const match = /^run stuck:\s*(.*?)(?:\s+round\s+(\d+))?\s*$/i.exec(String(text ?? '').trim());
-  if (!match) return { role: null, round: null };
-  return { role: match[1] || null, round: match[2] ? Number(match[2]) : null };
 }
 
 function sentenceFor(code, text, item, demo) {
@@ -261,12 +248,13 @@ function noPullRequestSentence(writer) {
 }
 
 /**
- * The detail-level reason: the list reason refined with what the detail shows. It carries Ploeg's own sentence from
- * the latest `work_item.needs_human` event (`headline`, null when absent, and always null for `plan_exhausted`,
- * whose Ploeg sentence reads as if the work were ready to merge) and, for stuck or failing Runs, the matching Run
- * (`run`: its id, Role, Round, `text` from its stuck reason or summary, and its failure reason meta). For
- * `plan_exhausted` it tells the two causes apart with `variant`: `no_pull_request` (no writer reported one) or
- * `changes_unresolved` (the last reviewer asked for changes). Returns null unless the item is `needs_human` or `stale`.
+ * The detail-level reason: the list reason, with the same `code` and `chip` as every list shows, refined with what the
+ * detail shows. It carries Ploeg's own sentence from the latest `work_item.needs_human` event as a quote (`headline`,
+ * null when absent, and always null for `plan_exhausted`, whose Ploeg sentence reads as if the work were ready to
+ * merge) and, for stuck or failing Runs, the matching Run (`run`: its id, Role, Round, `text` from its stuck reason or
+ * summary, and its failure reason meta). For `plan_exhausted` it tells the two causes apart with `variant`
+ * (`no_pull_request`: no writer reported one; `changes_unresolved`: the last reviewer asked for changes), which
+ * changes the sentence and the fix but not the chip. Returns null unless the item is `needs_human` or `stale`.
  */
 export function detailReason(detail) {
   const item = detail?.item;
@@ -276,10 +264,8 @@ export function detailReason(detail) {
   if (!reason) return null;
   const event = (detail.events || []).find(entry => entry.action === `work_item.${item.state}` && entry.detail?.reason);
   let headline = event ? String(event.detail.reason) : null;
-  if (headline && /pull request closed without merging/i.test(headline)) reason = build('pull_request_closed', item);
   const closeReason = shift?.closeReason ?? '';
   const run = relevantRun(detail, reason, closeReason);
-  if (run && reason.code === 'unknown' && run.outcome === 'stuck') reason = { ...build('run_stuck', item), sentence: `The ${run.role} reported that it cannot finish${run.round ? ` in Round ${run.round}` : ''} without a person.` };
   if (reason.code === 'writing_run_killed_repeatedly' && !(number(item.infraFailures) && item.infraFailures > 0)) {
     const killed = (detail.runs || []).filter(entry => entry.writes && (!shift?.id || entry.shiftId === shift.id) && failureReason(entry.failureReason)?.infra).length;
     if (killed > 1) reason = { ...reason, sentence: sentenceFor(reason.code, '', { ...item, infraFailures: killed }) };
@@ -292,7 +278,7 @@ export function detailReason(detail) {
       variant = found.variant;
       const entry = planVariants[variant];
       const sentence = variant === 'no_pull_request' ? noPullRequestSentence(found.writer) : entry.sentence;
-      reason = { ...reason, chip: entry.chip, sentence, fix: entry.fix, action: `${entry.fix} ${reason.requeue}` };
+      reason = { ...reason, sentence, fix: entry.fix, action: `${entry.fix} ${reason.requeue}` };
     }
   }
   return {
@@ -303,48 +289,25 @@ export function detailReason(detail) {
   };
 }
 
-const closeLabels = {
-  review_approved: 'An agent reviewer approved',
-  plan_exhausted: 'Every planned Round ran',
-  fix_round_cap_reached: 'The fix Rounds ran out',
-  budget_exhausted_before_fix_round: 'The budget ran out before a fix Round',
-  writing_run_failed_repeatedly: 'The writer kept failing',
-  writing_run_killed_repeatedly: 'The cluster kept stopping the writer',
-  withdrawn_unassigned: 'The task was unassigned from the Team',
-  withdrawn_closed: 'The task was closed before any Run started',
-  withdrawn_by_operator: 'An operator cancelled it',
-  operator_adopted: 'A Vloer session took it over',
-  operator_completed: 'The Vloer session completed it',
-  operator_cancelled: 'The Vloer session was cancelled',
-  operator_failed: 'The Vloer session failed',
-  operator_admission_expired: 'The Vloer session never started',
-};
-
 /**
- * A Shift close reason in a few plain words, for Shift rows and audit lines: `plan_exhausted` reads "Every planned
- * Round ran", the `budget exhausted: …` and `run stuck: <role> round <n>` prefixes read as sentences, an empty
- * reason is an open Shift and anything else is quoted as Ploeg wrote it.
- * @param {string | null | undefined} closeReason
- * @returns {string}
+ * The one grouping rule for Needs you, on Now and on Work: Work Items whose reason chip (what the row reads) is shared by at
+ * least two items form a group under that reason, the largest group first and ties in the order their first item
+ * appears; every other item stays a flat row with its own reason chip, before the groups and in the order given.
+ * An item Vloer does not group by state (for example `stale`) is read as a Needs-you item.
+ * @param {object[]} items
+ * @param {{ demo?: boolean }} [options]
+ * @returns {{ key: string, reason: Reason, grouped: boolean, items: object[] }[]}
  */
-export function closeReasonLabel(closeReason) {
-  const text = String(closeReason ?? '').trim();
-  if (!text) return 'Still open';
-  if (Object.hasOwn(closeLabels, text)) return closeLabels[text];
-  const lower = text.toLowerCase();
-  if (lower.startsWith('budget exhausted')) { const { pool } = parseBudgetReason(text); return pool !== null ? `The ${money(pool)} budget ran out` : 'The budget ran out'; }
-  if (lower.startsWith('run stuck:')) { const { role, round } = parseStuckReason(text); return role ? `The ${role} got stuck${round ? ` in Round ${round}` : ''}` : 'An agent got stuck'; }
-  if (lower === 'plan removed from configuration') return 'The Team plan was removed';
-  return `Ploeg recorded: “${text}”`;
-}
-
-/**
- * Why a withdrawn Work Item was withdrawn, from its Shift close reason or the `work_item.withdrawn` event reason.
- * Returns null for a reason Vloer does not recognise.
- * @param {string | null | undefined} code
- * @returns {string | null}
- */
-export function withdrawnReason(code) {
-  const text = String(code ?? '').trim();
-  return text.startsWith('withdrawn_') && Object.hasOwn(closeLabels, text) ? `${closeLabels[text]}.` : null;
+export function needsYouBlocks(items, { demo = false } = {}) {
+  const buckets = new Map();
+  for (const item of items || []) {
+    const reason = listReason(item, { demo }) || listReason({ ...item, state: 'needs_human' }, { demo });
+    const key = reason.chip;
+    if (!buckets.has(key)) buckets.set(key, { key, reason, items: [], index: buckets.size });
+    buckets.get(key).items.push(item);
+  }
+  const all = [...buckets.values()];
+  const singles = (items || []).map(item => all.find(bucket => bucket.items.length === 1 && bucket.items[0] === item)).filter(Boolean).map(bucket => ({ key: bucket.key, reason: bucket.reason, grouped: false, items: bucket.items }));
+  const groups = all.filter(bucket => bucket.items.length > 1).sort((a, b) => b.items.length - a.items.length || a.index - b.index).map(bucket => ({ key: bucket.key, reason: bucket.reason, grouped: true, items: bucket.items }));
+  return [...singles, ...groups];
 }

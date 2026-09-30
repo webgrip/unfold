@@ -70,7 +70,7 @@ export function sessionProgress(session, bootstrap) {
   if (session.status === 'completed' && session.review) return `${session.review.decision === 'accepted' ? 'Accepted' : 'Rejected'} by ${session.review.byName}`;
   if (session.status === 'completed') {
     const review = [...(session.runs || [])].reverse().find(item => item.mode === 'read' && item.verdict);
-    return review ? verdict(review.verdict).label : 'The crew finished';
+    return review ? verdict(review.verdict).short : 'The crew finished';
   }
   return '';
 }
@@ -179,7 +179,8 @@ function contentMarkup() {
 }
 
 function renderDashboard() {
-  const actions = canOperate() ? button({ label: 'New session', icon: 'plus', variant: 'primary', action: 'new', kbd: singleKeysEnabled() ? 'N' : undefined }) : '';
+  const refresh = `<button type="button" class="button secondary icon-only" id="sessions-refresh" data-action="sessions-refresh" aria-label="Refresh" title="Refresh">${icon('refresh')}</button>`;
+  const actions = `${refresh}${canOperate() ? button({ label: 'New session', icon: 'plus', variant: 'primary', action: 'new', kbd: singleKeysEnabled() ? 'N' : undefined }) : ''}`;
   renderHtml(shell(contentMarkup(), { title: 'Sessions', subtitle: 'Crews you start and supervise from the workbench, each with its own brief and budget.', actions }));
   live.touch('sessions');
 }
@@ -250,6 +251,6 @@ export default {
   id: 'sessions',
   match: hash => hash === 'sessions' ? {} : null,
   render: renderDashboard,
-  actions: { filter: filterSessions, 'quick-demo': runDemonstration, 'sessions-clear': clearSearch },
+  actions: { filter: filterSessions, 'quick-demo': runDemonstration, 'sessions-clear': clearSearch, 'sessions-refresh': () => refreshSessions().then(() => live.touch('sessions')) },
   inputs: { '#session-search': searchSessions },
 };

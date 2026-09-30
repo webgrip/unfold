@@ -366,8 +366,14 @@
   color: var(--tone-fg);
 }
 
-.session-step[data-tone] .session-step-kind {
+.session-step-kind {
+  display: -webkit-box;
+  overflow: hidden;
   color: var(--text-subtle);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .session-step .step-marker > .live-dot {

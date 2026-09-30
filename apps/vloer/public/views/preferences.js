@@ -33,7 +33,7 @@ function example(locale) {
 }
 
 function card(id, title, body) {
-  return `<section class="card settings-card" aria-labelledby="pref-${id}-title"><header class="settings-card-header"><h2 class="settings-card-title" id="pref-${id}-title">${escape(title)}</h2></header><div class="settings-rows">${body}</div></section>`;
+  return `<section class="card settings-card" aria-labelledby="pref-${id}-title"><header class="card-header"><h2 class="card-title" id="pref-${id}-title">${escape(title)}</h2></header><div class="settings-rows">${body}</div></section>`;
 }
 
 function preview(scheme) {
@@ -93,7 +93,7 @@ function renderPreferences() {
   const numbers = group('format', 'Numbers and dates', 'Amounts stay in US dollars; this only changes how they are written.', `${option('format', 'nl', 'Dutch', example('nl'))}${option('format', 'browser', 'Your browser’s language', example('browser'))}`, 'settings-options');
   const appearance = card('appearance', 'Appearance', `${themes}${density}${numbers}`);
   const shortcuts = switchRow('singleKeyShortcuts', 'Single-key shortcuts', `${kbd('j')} and ${kbd('k')} move through lists, ${kbd('g')} then ${kbd('n')} opens Now, ${kbd('?')} shows help. Turn them off if you use speech input; ${kbd([mod, 'K'])} keeps working.`, act('data-action="shortcuts-open"', { label: 'Show shortcuts', icon: 'keyboard', size: 'sm', variant: 'ghost' }));
-  const updates = switchRow('live', 'Refresh automatically', 'Open pages check for news every 15 to 60 seconds while this tab is visible and no dialog is open. The Live button in the top bar switches the same setting.');
+  const updates = switchRow('live', 'Refresh automatically', 'Open pages check for news every 15 to 60 seconds while this tab is visible and no dialog is open. The pause button in the top bar switches the same setting.');
   const notifications = notificationsRow();
   const behaviour = card('behaviour', 'Behaviour', `${shortcuts}${updates}${notifications}`);
   const guide = `<p class="settings-footnote">${icon('spark')}<span>Building De Vloer? The <a href="#design">living style guide</a> shows every component and token in the current theme.</span></p>`;

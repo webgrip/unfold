@@ -1,3 +1,5 @@
+import { money, plural } from './format.js';
+
 /**
  * The status tones. Accent blue is not a tone: it is reserved for interaction.
  * @typedef {'neutral' | 'live' | 'attention' | 'review' | 'success' | 'danger' | 'severe'} Tone
@@ -33,7 +35,26 @@ export const workItemStates = table({
   stale: ['Stopped retrying', 'severe', 'clock', { description: 'Ploeg gave up after repeated agent or infrastructure failures.' }],
   withdrawn: ['Withdrawn', 'neutral', 'circle-slash', { description: 'A person took the mandate back.' }],
   done: ['Done', 'success', 'check-circle', { description: 'Finished: merged, no change needed, follow-up created, or a rejected proposal.' }],
+  rejected: ['Rejected', 'neutral', 'circle-slash', { description: 'A person rejected the proposal, so it never ran. Ploeg keeps it as Done.', derived: true }],
 });
+
+/**
+ * The state key a Work Item is shown with: its Ploeg state, except that a Done proposal a person rejected reads
+ * `rejected` (neutral), never a green Done, because it never ran. Rejection shows as the latest
+ * `work_item.rejected` event when `events` are known, or, in a list without events, as a Done Ploeg proposal that
+ * never opened a Shift or used an attempt. The data keeps the state `done`.
+ * @param {{ state?: string, provider?: string, latestShift?: object|null, attempts?: number }} item
+ * @param {{ action: string, id?: string }[]} [events]
+ * @returns {string}
+ */
+export function displayState(item, events) {
+  if (item?.state !== 'done') return item?.state ?? '';
+  if (Array.isArray(events) && events.length) {
+    const newest = [...events].sort((a, b) => { try { const x = BigInt(a.id), y = BigInt(b.id); return x < y ? 1 : x > y ? -1 : 0; } catch { return 0; } }).find(entry => /^work_item\.(done|rejected|approved)$/.test(entry.action));
+    if (newest) return newest.action === 'work_item.rejected' ? 'rejected' : 'done';
+  }
+  return item.provider === 'ploeg' && !item.latestShift && !(item.attempts > 0) ? 'rejected' : 'done';
+}
 
 /** Run states. */
 export const runStates = table({
@@ -59,7 +80,7 @@ export const runOutcomes = table({
  */
 export const verdicts = table({
   approve: ['Agent review: approve', 'success', 'check-circle', { short: 'Agent approved' }],
-  request_changes: ['Agent review: changes requested', 'attention', 'alert', { short: 'Changes requested' }],
+  request_changes: ['Agent review: changes requested', 'attention', 'alert', { short: 'Agent asked for changes' }],
   inconclusive: ['Agent review: inconclusive', 'neutral', 'circle', { short: 'Inconclusive' }],
   none: ['No agent verdict', 'neutral', 'circle', { short: 'No verdict' }],
 });
@@ -163,80 +184,201 @@ export function sessionNeedsYou(session) {
   return ['waiting_input', 'failed', 'interrupted'].includes(session?.status) || (session?.status === 'completed' && !session.review);
 }
 
-const trackerNames = { vikunja: 'Vikunja', forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp', demo: 'the demo tracker' };
-const withdrawals = { withdrawn_unassigned: 'the task was unassigned from the Team', withdrawn_closed: 'the task was closed before any Run started', withdrawn_by_operator: 'an operator cancelled it' };
-const event = (label, tone = 'neutral', glyph = 'circle') => Object.freeze({ label, tone, glyph });
+const trackerNames = { vikunja: 'Vikunja', forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp', gitea: 'Gitea', demo: 'Demo tracker' };
+const event = (label, tone = 'neutral', glyph = 'circle', detail = '') => Object.freeze({ label, tone, glyph, detail });
 const words = text => String(text ?? '').replaceAll('_', ' ').trim();
 const role = detail => (typeof detail?.role === 'string' && detail.role.trim()) ? detail.role.trim() : 'An agent';
 const capital = text => text ? text[0].toUpperCase() + text.slice(1) : text;
+const sentence = text => { const value = String(text ?? '').trim(); return value ? value[0].toUpperCase() + value.slice(1) : ''; };
+const isAmount = value => typeof value === 'number' && Number.isFinite(value);
+const outcomeEvents = { pr_opened: 'Opened a pull request', pr_updated: 'Updated the pull request', no_change_needed: 'Reported no change needed', follow_up_created: 'Created follow-up work', issue_updated: 'Updated the tracker item', stuck: 'Reported that it is stuck', failed: 'Run failed' };
+
+/** Reads `budget exhausted: pool P, spent S, reserved R` into numbers; missing parts are null. */
+export function parseBudgetReason(text) {
+  const read = name => { const match = new RegExp(`${name}\\s+(-?\\d+(?:\\.\\d+)?)`, 'i').exec(String(text ?? '')); return match ? Number(match[1]) : null; };
+  return { pool: read('pool'), spent: read('spent'), reserved: read('reserved') };
+}
+
+/** Reads `run stuck: <role> round <n>` into the Role and Round; missing parts are null. */
+export function parseStuckReason(text) {
+  const match = /^run stuck:\s*(.*?)(?:\s+round\s+(\d+))?\s*$/i.exec(String(text ?? '').trim());
+  if (!match) return { role: null, round: null };
+  return { role: match[1] || null, round: match[2] ? Number(match[2]) : null };
+}
+
+const closeLabels = {
+  review_approved: ['An agent reviewer approved', 'success'],
+  plan_exhausted: ['Every planned Round ran', 'neutral'],
+  fix_round_cap_reached: ['The fix Rounds ran out', 'attention'],
+  budget_exhausted_before_fix_round: ['The budget ran out before a fix Round', 'attention'],
+  writing_run_failed_repeatedly: ['The writer kept failing', 'danger'],
+  writing_run_killed_repeatedly: ['The cluster kept stopping the writer', 'severe'],
+  withdrawn_unassigned: ['The task was unassigned from the Team', 'neutral'],
+  withdrawn_closed: ['The task was closed before any Run started', 'neutral'],
+  withdrawn_by_operator: ['An operator cancelled it', 'neutral'],
+  operator_adopted: ['A Vloer session took it over', 'neutral'],
+  operator_completed: ['The Vloer session completed it', 'neutral'],
+  operator_cancelled: ['The Vloer session was cancelled', 'neutral'],
+  operator_failed: ['The Vloer session failed', 'danger'],
+  operator_admission_expired: ['The Vloer session never started', 'neutral'],
+};
 
 /**
- * Names the actor of a Ploeg audit event in plain words: `team:<t>` is "Team <t>", `ploegd:*` is "Ploeg",
- * `webhook:<tracker>` is the tracker, `operator:<consumer>:<user>` is "You" for `userId` and "An operator"
- * otherwise. Anything else is returned as written.
- * @param {string} actor
- * @param {{ userId?: string }} [options]
+ * A Shift close reason in a few plain words, for Shift rows and audit lines: `plan_exhausted` reads "Every planned
+ * Round ran", the `budget exhausted: …` and `run stuck: <role> round <n>` prefixes read as sentences, an empty
+ * reason is an open Shift and anything else is quoted as Ploeg wrote it.
+ * @param {string | null | undefined} closeReason
  * @returns {string}
  */
-export function actorName(actor, { userId } = {}) {
-  const text = String(actor ?? '').trim();
-  if (!text) return 'Ploeg';
-  const [kind, ...rest] = text.split(':');
-  if (kind === 'team' && rest.length) return `Team ${rest.join(':')}`;
-  if (kind === 'ploegd') return 'Ploeg';
-  if (kind === 'webhook' && rest.length) return capital(trackerNames[rest[0]] || rest[0]);
-  if (kind === 'operator') return userId && rest[rest.length - 1] === String(userId) ? 'You' : 'An operator';
-  if (text === 'demo-fixture') return 'Demo';
-  return text;
+export function closeReasonLabel(closeReason) {
+  return closeReasonMeta(closeReason).label;
+}
+
+/** The label and tone of a Shift close reason; see closeReasonLabel. */
+export function closeReasonMeta(closeReason) {
+  const text = String(closeReason ?? '').trim();
+  if (!text) return { label: 'Still open', tone: 'neutral' };
+  if (Object.hasOwn(closeLabels, text)) return { label: closeLabels[text][0], tone: closeLabels[text][1] };
+  const lower = text.toLowerCase();
+  if (lower.startsWith('budget exhausted')) { const { pool } = parseBudgetReason(text); return { label: pool !== null ? `The ${money(pool)} budget ran out` : 'The budget ran out', tone: 'attention' }; }
+  if (lower.startsWith('run stuck:')) { const { role: who, round } = parseStuckReason(text); return { label: who ? `The ${who} got stuck${round ? ` in Round ${round}` : ''}` : 'An agent got stuck', tone: 'attention' }; }
+  if (lower === 'plan removed from configuration') return { label: 'The Team plan was removed', tone: 'attention' };
+  return { label: `Ploeg recorded: “${text}”`, tone: 'neutral' };
 }
 
 /**
- * How a Ploeg audit event reads: a plain label, a tone and a glyph, from its `action` and the `detail` fields the
- * operator API keeps (`reason`, `round`, `role`, `writes`, `phase`, `authorizedUsd`, `infraFailures`).
- * Unknown actions are humanized, never dropped.
+ * Why a withdrawn Work Item was withdrawn, from its Shift close reason or the `work_item.withdrawn` event reason.
+ * Returns null for a reason Vloer does not recognise.
+ * @param {string | null | undefined} code
+ * @returns {string | null}
+ */
+export function withdrawnReason(code) {
+  const text = String(code ?? '').trim();
+  return text.startsWith('withdrawn_') && Object.hasOwn(closeLabels, text) ? `${closeLabels[text][0]}.` : null;
+}
+
+/**
+ * Who acted on a Ploeg audit event, in the one form every page uses: `team:<t>` is an agent ("Agent · <t>"),
+ * `ploegd:*` is "Ploeg", `webhook:<tracker>` the tracker, and `operator:<consumer>:<user>` is "You" for `userId`
+ * and "An operator" otherwise. `kind` (agent, system, tracker or person) keeps agents from reading as people.
+ * @param {string} actor
+ * @param {{ userId?: string }} [options]
+ * @returns {{ name: string, kind: 'agent' | 'system' | 'tracker' | 'person', glyph: string, title: string, team: string }}
+ */
+export function auditActor(actor, { userId } = {}) {
+  const text = String(actor ?? '').trim();
+  const [kind, ...rest] = text.split(':');
+  const tail = rest.join(':');
+  if (!text) return { name: 'Ploeg', kind: 'system', glyph: 'layers', title: 'Ploeg', team: '' };
+  if (kind === 'team' && tail) return { name: `Agent · ${tail}`, kind: 'agent', glyph: 'bot', title: `An agent of the ${tail} Team`, team: tail };
+  if (kind === 'ploegd') return { name: 'Ploeg', kind: 'system', glyph: 'layers', title: `Ploeg${tail ? ` (${words(tail).replaceAll('-', ' ')})` : ''}`, team: '' };
+  if (kind === 'webhook' && tail) { const name = trackerNames[rest[0]] || capital(rest[0]); return { name, kind: 'tracker', glyph: 'tag', title: `${name}, through its webhook`, team: '' }; }
+  if (kind === 'operator' && rest.length) {
+    const id = rest.length > 1 ? rest.slice(1).join(':') : rest[0];
+    const through = rest.length > 1 ? rest[0] : 'Vloer';
+    if (userId && id === String(userId)) return { name: 'You', kind: 'person', glyph: 'user', title: `You, through ${through}`, team: '' };
+    return { name: 'An operator', kind: 'person', glyph: 'user', title: `Operator ${id}, through ${through}`, team: '' };
+  }
+  if (text === 'demo-fixture') return { name: 'Demo', kind: 'system', glyph: 'circle', title: 'Illustrative demo record', team: '' };
+  return { name: text, kind: 'system', glyph: 'circle', title: text, team: '' };
+}
+
+/** The name of an audit actor; see auditActor. */
+export function actorName(actor, options = {}) {
+  return auditActor(actor, options).name;
+}
+
+/**
+ * How a Ploeg audit event reads on every page: a plain label, a tone, a glyph and a `detail` line built from the
+ * `detail` fields the operator API keeps (`reason`, `round`, `role`, `writes`, `phase`, `authorizedUsd`,
+ * `infraFailures`). Unknown actions are humanized, never dropped.
  * @param {{ action: string, detail?: Record<string, unknown> }} entry
- * @returns {{ label: string, tone: import('./states.js').Tone, glyph: string }}
+ * @returns {{ label: string, tone: import('./states.js').Tone, glyph: string, detail: string }}
  */
 export function auditEvent(entry) {
   const action = String(entry?.action ?? '');
   const detail = entry?.detail && typeof entry.detail === 'object' ? entry.detail : {};
-  const round = Number.isInteger(detail.round) ? ` ${detail.round}` : '';
+  const reason = typeof detail.reason === 'string' ? detail.reason.trim() : '';
+  const round = Number.isInteger(detail.round) && detail.round > 0 ? ` ${detail.round}` : '';
   const access = detail.writes === true ? 'writer' : detail.writes === false ? 'reader' : '';
+  const authorized = isAmount(detail.authorizedUsd) && detail.authorizedUsd > 0 ? `Up to ${money(detail.authorizedUsd)} authorized` : '';
+  const failures = isAmount(detail.infraFailures) ? `${plural(detail.infraFailures, 'infrastructure failure')} so far` : '';
+  const said = sentence(reason);
   switch (action) {
-    case 'work_item.queued': return event(detail.reason ? 'Queued again' : 'Queued', 'neutral', 'circle-dashed');
-    case 'work_item.refreshed': return event('The tracker task changed', 'neutral', 'refresh');
-    case 'work_item.proposed': return event('An agent proposed this work', 'neutral', 'proposed');
-    case 'work_item.approved': return event('Approved', 'success', 'check');
-    case 'work_item.rejected': return event('Rejected', 'neutral', 'x');
-    case 'work_item.withdrawn': return event(withdrawals[detail.reason] ? `Withdrawn: ${withdrawals[detail.reason]}` : 'Withdrawn', 'neutral', 'circle-slash');
-    case 'work_item.needs_human': return event('Stopped: needs you', 'attention', 'alert');
-    case 'work_item.awaiting_review': return event('Ready for your review', 'review', 'pull-request');
-    case 'work_item.done': return event(detail.reason === 'pull request merged' ? 'Done: the pull request was merged' : 'Done', 'success', 'check-circle');
-    case 'work_item.stale': return event('Stopped retrying', 'severe', 'clock');
-    case 'created_work_item.accepted': return event('Created follow-up work', 'neutral', 'plus');
-    case 'created_work_item.rejected': return event('Proposed work was refused by policy', 'neutral', 'x');
-    case 'follow_up.created': return event('Follow-up created from the forge', 'neutral', 'plus');
-    case 'follow_up.skipped': return event('Follow-up skipped', 'neutral', 'minus');
-    case 'review.changes_requested': return event('Changes requested on the pull request', 'attention', 'alert');
-    case 'round.opened': return event(`Round${round} started`, 'neutral', 'play');
-    case 'round.reopened': return event(`Round${round} retried after a failed writer`, 'severe', 'refresh');
-    case 'run.claimed': return event(`${capital(role(detail))} started${round ? ` Round${round}` : ''}${access ? ` as ${access}` : ''}`, 'live', 'play');
-    case 'run.expired': return event(`${capital(role(detail))} stopped checking in`, 'severe', 'zap');
-    case 'shift.closed': return event('Shift closed', 'neutral', 'stop');
-    case 'lease.acquired': return event('An agent claimed the Work Item', 'live', 'play');
-    case 'lease.expired': return event('The worker was lost; Ploeg retries later', 'severe', 'zap');
-    case 'infra_cap': return event('Infrastructure failed too often; Ploeg stopped', 'severe', 'zap');
-    case 'checkpoint.written': return event(detail.phase ? checkpointPhase(detail.phase).label : 'Wrote a checkpoint', 'neutral', detail.phase ? checkpointPhase(detail.phase).glyph : 'branch');
-    case 'operator.admitted': return event('A Vloer session took over', 'neutral', 'sessions');
-    case 'operator.admission_expired': return event('The Vloer session never started', 'neutral', 'clock');
-    case 'llm.reserved': return event('Budget reserved for a Run', 'neutral', 'coins');
-    case 'llm.unknown': return event('Spend could not be settled', 'attention', 'coins');
-    case 'llm.reconciled': return event('Spend settled', 'neutral', 'coins');
-    case 'llm.blocked': case 'llm.unissued_blocked': return event('Model key blocked', 'neutral', 'lock');
+    case 'work_item.queued': return event(reason ? 'Queued again' : 'Queued', 'neutral', 'circle-dashed', said);
+    case 'work_item.refreshed': return event('The tracker task changed', 'neutral', 'refresh', said);
+    case 'work_item.proposed': return event('Proposed by an agent', 'neutral', 'proposed', said);
+    case 'work_item.approved': return event('Approved', 'success', 'check', said);
+    case 'work_item.rejected': return event('Rejected', 'neutral', 'circle-slash', said);
+    case 'work_item.withdrawn': return event('Withdrawn', 'neutral', 'circle-slash', withdrawnReason(reason) || said);
+    case 'work_item.leased': return event('Running', 'live', 'runs', said);
+    case 'work_item.needs_human': return event('Needs you', 'attention', 'alert', said);
+    case 'work_item.awaiting_review': return event('Ready for your review', 'review', 'pull-request', said);
+    case 'work_item.done': return event('Done', 'success', 'check-circle', reason === 'pull request merged' ? 'The pull request was merged' : said);
+    case 'work_item.stale': return event('Stopped retrying', 'severe', 'clock', said);
+    case 'created_work_item.accepted': return event('Created follow-up work', 'neutral', 'plus', said);
+    case 'created_work_item.rejected': return event('Proposed work was refused by policy', 'neutral', 'x', said);
+    case 'follow_up.created': return event('Follow-up created from the forge', 'neutral', 'plus', said);
+    case 'follow_up.skipped': return event('Follow-up skipped', 'neutral', 'minus', said);
+    case 'review.changes_requested': return event('Changes requested on the pull request', 'attention', 'alert', said);
+    case 'round.opened': return event(`Round${round} started`, 'neutral', 'play', said);
+    case 'round.reopened': return event(`Round${round} retried after a failed writer`, 'severe', 'refresh', said);
+    case 'run.claimed': return event(`${capital(role(detail))} started${round ? ` Round${round}` : ''}${access ? ` as ${access}` : ''}`, 'live', 'play', authorized);
+    case 'run.expired': return event(`${capital(role(detail))} stopped responding`, 'severe', 'zap', said);
+    case 'shift.closed': { const meta = closeReasonMeta(reason); return event('Shift closed', reason ? meta.tone : 'neutral', 'stop', reason ? meta.label : ''); }
+    case 'lease.acquired': return event('A worker took the Work Item', 'live', 'play', said);
+    case 'lease.expired': return event('Worker stopped responding · Ploeg retries', 'severe', 'zap', failures);
+    case 'infra_cap': return event('Infrastructure kept failing; Ploeg stopped', 'severe', 'zap', failures);
+    case 'checkpoint.written': return event(detail.phase ? (Object.hasOwn(checkpointPhases, detail.phase) ? checkpointPhases[detail.phase].label : `Checkpoint: ${words(detail.phase)}`) : 'Wrote a checkpoint', 'neutral', Object.hasOwn(checkpointPhases, detail.phase ?? '') ? checkpointPhases[detail.phase].glyph : 'branch', said);
+    case 'operator.admitted': return event('A Vloer session took over', 'neutral', 'sessions', said);
+    case 'operator.admission_expired': return event('The Vloer session never started', 'neutral', 'clock', said);
+    case 'delivery.candidate_admitted': return event('Delivery candidate admitted', 'neutral', 'inbox', said);
+    case 'delivery.verification_recorded': return event('Verification recorded', 'neutral', 'check', said);
+    case 'delivery.approved': return event('Delivery approved', 'success', 'check-circle', said);
+    case 'delivery.publication_published': return event('Published to the forge', 'success', 'pull-request', said);
+    case 'delivery.publication_unknown': return event('Publication result unknown', 'attention', 'alert', said);
+    case 'llm.reserved': return event('Budget reserved for a Run', 'neutral', 'coins', authorized);
+    case 'llm.minting': return event('Model key requested', 'neutral', 'lock', said);
+    case 'llm.issued': return event('Model key issued', 'neutral', 'lock', said);
+    case 'llm.observed': return event('Model spend observed', 'neutral', 'coins', said);
+    case 'llm.unknown': return event('Spend could not be settled', 'attention', 'alert', said);
+    case 'llm.reconciled': return event('Spend settled', 'neutral', 'coins', said);
+    case 'llm.blocked': return event('Model key blocked', 'neutral', 'lock', said);
+    case 'llm.unissued_blocked': return event('Unused model key blocked', 'neutral', 'lock', said);
     default: break;
   }
-  if (action.startsWith('outcome.')) { const meta = runOutcome(action.slice(8)); return event(`Reported: ${meta.label.toLowerCase()}`, meta.tone, meta.glyph); }
-  if (action.startsWith('llm.')) return event(`Model key ${words(action.slice(4))}`, 'neutral', 'lock');
-  if (action.startsWith('delivery.')) return event(`Delivery: ${words(action.slice(9).replace('.', ' '))}`, 'neutral', 'send');
-  return event(capital(words(action.replace('.', ' '))) || 'Event', 'neutral', 'circle');
+  if (action.startsWith('outcome.')) { const key = action.slice(8); const meta = runOutcome(key); return event(outcomeEvents[key] || `Reported ${meta.label.toLowerCase()}`, meta.tone, meta.glyph, said); }
+  if (action.startsWith('delivery.publication_')) return event(`Publication ${words(action.slice('delivery.publication_'.length))}`, 'neutral', 'pull-request', said);
+  if (action.startsWith('llm.')) return event(`Model key ${words(action.slice(4))}`, 'neutral', 'lock', said);
+  if (action.startsWith('delivery.')) return event(`Delivery: ${words(action.slice(9))}`, 'neutral', 'send', said);
+  const [head, ...rest] = action.split('.');
+  return event(head ? `${capital(words(head))}${rest.length ? `: ${words(rest.join('.'))}` : ''}` : 'Event', 'neutral', 'circle', said);
 }
+
+/**
+ * What a finished Run that reported no outcome reads as: "Cancelled before it started" when Ploeg closed it before a
+ * worker picked it up (it finished without a start time, or its summary starts with `cancelled:`), otherwise "No
+ * outcome reported".
+ * @param {{ startedAt?: string | null, summary?: string }} run
+ * @returns {StateMeta}
+ */
+export function unreportedOutcome(run) {
+  const cancelled = !run?.startedAt && (run?.state === 'finished' || /^cancelled\b/i.test(String(run?.summary ?? '').trim()));
+  return cancelled ? Object.freeze({ key: 'cancelled', label: 'Cancelled before it started', tone: 'neutral', glyph: 'circle-slash' }) : Object.freeze({ key: 'none', label: 'No outcome reported', tone: 'neutral', glyph: 'circle-slash' });
+}
+
+/**
+ * The detail lines of the Work Item and Run stat tiles, shared by Now and Insights so a tile says the same thing on
+ * both pages. `running` and `pending` are Run counts.
+ */
+export const tileDetail = Object.freeze({
+  review: () => 'Pull requests to read',
+  needsYou: () => 'Stopped until a person acts',
+  proposed: () => 'Waiting for approval',
+  queued: queued => queued === 0 ? 'Nothing waits to start' : 'Waiting for a worker',
+  running: ({ running, pending }) => {
+    const working = isAmount(running) && running > 0 ? `${plural(running, 'Run')} working` : '';
+    const waiting = isAmount(pending) && pending > 0 ? `${pending} waiting for a worker` : '';
+    return [working, waiting].filter(Boolean).join(' · ') || 'Nothing is working';
+  },
+});

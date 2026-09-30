@@ -105,7 +105,7 @@ function checkRow(check) {
 }
 
 function checklist() {
-  if (loading && !state.health) return `<header class="settings-card-header health-summary"><div><h2 class="settings-card-title" id="health-title">Health checks</h2><p class="settings-card-description">Checking the workbench…</p></div></header><div class="health-loading">${skeleton({ rows: 5 })}</div>`;
+  if (loading && !state.health) return `<header class="card-header health-summary"><div class="card-heading"><h2 class="card-title" id="health-title">Health checks</h2><p class="card-subtitle">Checking the workbench…</p></div></header><div class="health-loading">${skeleton({ rows: 5 })}</div>`;
   const checks = [ploegCheck(), gatewayCheck(), runtimeCheck(), placementCheck(), sourcesCheck(), dashboardsCheck()];
   const ready = checks.filter(check => ['ok', 'listed'].includes(check.status)).length;
   const open = checks.filter(check => toDo.includes(check.status)).length;
@@ -113,7 +113,7 @@ function checklist() {
   const failing = checks.some(check => check.status === 'failing');
   const summary = open ? `${plural(open, 'check')} ${open === 1 ? 'needs' : 'need'} attention` : 'Everything this workbench needs is in place';
   const tally = [ready ? badge({ tone: 'success', glyph: 'check-circle', label: `${ready} ready`, size: 'sm' }) : '', open ? badge({ tone: failing ? 'danger' : 'attention', glyph: failing ? 'x-circle' : 'alert', label: `${open} to do`, size: 'sm' }) : '', unused ? badge({ tone: 'neutral', glyph: 'circle-dashed', label: `${unused} not in use`, size: 'sm' }) : ''].join('');
-  return `<header class="settings-card-header health-summary"><div><h2 class="settings-card-title" id="health-title">Health checks</h2><p class="settings-card-description">${escape(summary)}.</p></div><div class="health-tally">${tally}</div></header><ol class="health-list">${checks.map(checkRow).join('')}</ol>`;
+  return `<header class="card-header health-summary"><div class="card-heading"><h2 class="card-title" id="health-title">Health checks</h2><p class="card-subtitle">${escape(summary)}.</p></div><div class="health-tally">${tally}</div></header><ol class="health-list">${checks.map(checkRow).join('')}</ol>`;
 }
 
 function facts() {
@@ -129,7 +129,7 @@ function facts() {
     ['Gateway policy', `<span class="health-policy">${policyText}</span>`],
     ['Storage', 'Local database (SQLite) on one server'],
   ];
-  return `<section class="card settings-card" aria-labelledby="workbench-title"><header class="settings-card-header"><div><h2 class="settings-card-title" id="workbench-title">This workbench</h2><p class="settings-card-description">Limits every session runs under.</p></div></header><div class="settings-card-body">${dl(rows.filter(([, value]) => value !== null), { rows: true })}</div></section>`;
+  return `<section class="card settings-card" aria-labelledby="workbench-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="workbench-title">This workbench</h2><p class="card-subtitle">Limits every session runs under.</p></div></header><div class="card-body">${dl(rows.filter(([, value]) => value !== null), { rows: true })}</div></section>`;
 }
 
 function repositories() {
@@ -138,18 +138,18 @@ function repositories() {
     const tracker = safeUrl(repo.trackerUrl || '');
     return `<li class="settings-item"><span class="settings-item-icon" aria-hidden="true">${icon('folder')}</span><div class="settings-item-main"><p class="settings-item-title">${escape(repo.name)}</p>${repo.description ? `<p class="settings-item-text">${escape(repo.description)}</p>` : ''}<div class="settings-item-meta">${chip({ label: repo.baseBranch, icon: 'branch', title: 'Base branch' })}${badge({ label: repo.executionOwner === 'ploeg' ? 'Handed to Ploeg' : 'Sessions here', tone: 'neutral', size: 'sm' })}${tracker ? chip({ label: 'Tracker', icon: 'external', href: tracker, external: true }) : ''}</div></div></li>`;
   }).join('');
-  return `<section class="card settings-card" aria-labelledby="repositories-title"><header class="settings-card-header"><div><h2 class="settings-card-title" id="repositories-title">Registered repositories <span class="count">${repos.length}</span></h2><p class="settings-card-description">Sessions and imported tasks work in these repositories only.</p></div></header><ul class="settings-items">${rows || '<li class="settings-item settings-item-empty">None registered.</li>'}</ul></section>`;
+  return `<section class="card settings-card" aria-labelledby="repositories-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="repositories-title">Registered repositories <span class="count">${repos.length}</span></h2><p class="card-subtitle">Sessions and imported tasks work in these repositories only.</p></div></header><ul class="settings-items">${rows || '<li class="settings-item settings-item-empty">None registered.</li>'}</ul></section>`;
 }
 
 function crews() {
   const list = state.bootstrap.crews || [];
   const rows = list.map(crew => `<li class="settings-item"><span class="settings-item-icon" aria-hidden="true">${icon('bot')}</span><div class="settings-item-main"><p class="settings-item-title">${escape(crew.name)}</p>${crew.description ? `<p class="settings-item-text">${escape(crew.description)}</p>` : ''}<ul class="settings-item-meta" aria-label="Roles">${crew.roles.map(role => `<li>${chip({ label: role.name, icon: role.mode === 'write' ? 'code' : 'eye', title: role.mode === 'write' ? 'Changes code' : 'Reads only' })}</li>`).join('')}</ul></div></li>`).join('');
-  return `<section class="card settings-card" aria-labelledby="crews-title"><header class="settings-card-header"><div><h2 class="settings-card-title" id="crews-title">Crews <span class="count">${list.length}</span></h2><p class="settings-card-description">Reusable Roles for sessions. Their instructions are versioned with the configuration.</p></div></header><ul class="settings-items">${rows || '<li class="settings-item settings-item-empty">None configured.</li>'}</ul></section>`;
+  return `<section class="card settings-card" aria-labelledby="crews-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="crews-title">Crews <span class="count">${list.length}</span></h2><p class="card-subtitle">Reusable Roles for sessions. Their instructions are versioned with the configuration.</p></div></header><ul class="settings-items">${rows || '<li class="settings-item settings-item-empty">None configured.</li>'}</ul></section>`;
 }
 
 function renderSystem() {
   const error = failure ? callout({ tone: 'danger', title: 'Could not read the workbench health', body: `<p>${escape(failure)}</p>`, actions: act('data-action="environment-refresh"', { label: 'Try again', icon: 'refresh', size: 'sm' }) }) : '';
-  const demo = state.bootstrap.mode === 'demo' ? demoNote('Demo workbench: Ploeg data is illustrative and no model gateway is used. No model calls, no spend.') : '';
+  const demo = state.bootstrap.mode === 'demo' ? demoNote() : '';
   const content = `<div class="settings-page">${error}${demo}<div class="environment-layout"><section class="card settings-card" aria-labelledby="health-title"${loading ? ' aria-busy="true"' : ''}>${checklist()}</section>${facts()}</div>${repositories()}${crews()}</div>`;
   renderHtml(shell(content, { title: 'Environment', subtitle: 'What this workbench is connected to, and what to set up next.' }));
 }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { actorName, auditEvent, checkpointPhase, checkpointPhases, failureNote, failureReason, failureReasons, runOutcome, runOutcomes, runState, runStates, sessionNeedsYou, sessionStatus, sessionStatuses, stateMeta, tones, verdict, verdicts, workItemState, workItemStates } from '../public/core/states.js';
+import { actorName, auditActor, auditEvent, displayState, tileDetail, unreportedOutcome, checkpointPhase, checkpointPhases, failureNote, failureReason, failureReasons, runOutcome, runOutcomes, runState, runStates, sessionNeedsYou, sessionStatus, sessionStatuses, stateMeta, tones, verdict, verdicts, workItemState, workItemStates } from '../public/core/states.js';
 import { stateBadge } from '../public/core/ui.js';
 import { labels, statusLabel } from '../public/core/lookup.js';
 import { icons } from '../public/core/icons.js';
@@ -22,7 +22,8 @@ test('every state has a label, a design-system tone and a known glyph, so status
 });
 
 test('Work Item states use the one vocabulary: Needs you, Ready for review, Done and never Merged', () => {
-  assert.deepEqual(Object.keys(workItemStates).sort(), ['awaiting_review', 'done', 'ingested', 'leased', 'needs_human', 'proposed', 'queued', 'stale', 'withdrawn']);
+  assert.deepEqual(Object.keys(workItemStates).filter(key => !workItemStates[key].derived).sort(), ['awaiting_review', 'done', 'ingested', 'leased', 'needs_human', 'proposed', 'queued', 'stale', 'withdrawn']);
+  assert.deepEqual([workItemStates.rejected.label, workItemStates.rejected.tone, workItemStates.rejected.glyph], ['Rejected', 'neutral', 'circle-slash']);
   const read = key => [workItemStates[key].label, workItemStates[key].tone];
   assert.deepEqual(read('proposed'), ['Proposed', 'neutral']);
   assert.deepEqual(read('ingested'), ['Received', 'neutral']);
@@ -103,7 +104,7 @@ test('Work Item state glyphs match the state badge, so a list glyph and its badg
 });
 
 test('verdicts have a short form for a reviewer’s own cell that still never says human', () => {
-  assert.deepEqual(Object.values(verdicts).map(meta => meta.short), ['Agent approved', 'Changes requested', 'Inconclusive', 'No verdict']);
+  assert.deepEqual(Object.values(verdicts).map(meta => meta.short), ['Agent approved', 'Agent asked for changes', 'Inconclusive', 'No verdict']);
   assert(Object.values(verdicts).every(meta => !/human/i.test(meta.short)));
 });
 
@@ -134,35 +135,65 @@ test('checkpoint phases read as what the Run did', () => {
 
 test('audit events read in plain words from their action and kept detail, and unknown actions are humanized', () => {
   const label = (action, detail = {}) => auditEvent({ action, detail }).label;
-  assert.equal(label('work_item.needs_human', { reason: 'x' }), 'Stopped: needs you');
+  assert.equal(label('work_item.needs_human', { reason: 'x' }), 'Needs you');
   assert.equal(auditEvent({ action: 'work_item.needs_human' }).tone, 'attention');
   assert.equal(label('work_item.awaiting_review'), 'Ready for your review');
-  assert.equal(label('work_item.done', { reason: 'pull request merged' }), 'Done: the pull request was merged');
+  assert.deepEqual([label('work_item.done', { reason: 'pull request merged' }), auditEvent({ action: 'work_item.done', detail: { reason: 'pull request merged' } }).detail], ['Done', 'The pull request was merged']);
   assert.equal(label('work_item.stale'), 'Stopped retrying');
-  assert.equal(label('work_item.withdrawn', { reason: 'withdrawn_unassigned' }), 'Withdrawn: the task was unassigned from the Team');
   assert.equal(label('work_item.queued'), 'Queued');
   assert.equal(label('work_item.queued', { reason: 'changes requested' }), 'Queued again');
   assert.equal(label('round.opened', { round: 2 }), 'Round 2 started');
   assert.equal(label('run.claimed', { role: 'reviewer', round: 2, writes: false }), 'Reviewer started Round 2 as reader');
   assert.equal(label('run.claimed', {}), 'An agent started');
-  assert.equal(label('run.expired', { role: 'implementer' }), 'Implementer stopped checking in');
+  assert.equal(label('run.expired', { role: 'implementer' }), 'Implementer stopped responding');
+  assert.equal(label('lease.expired'), 'Worker stopped responding · Ploeg retries');
+  assert.equal(auditEvent({ action: 'run.claimed', detail: { role: 'implementer', round: 2, writes: true, authorizedUsd: 1.5 } }).detail, 'Up to US$\u00a01,50 authorized');
+  assert.equal(label('work_item.proposed'), 'Proposed by an agent');
+  assert.deepEqual(auditEvent({ action: 'work_item.rejected', detail: { reason: 'duplicate of DEMO-3' } }), { label: 'Rejected', tone: 'neutral', glyph: 'circle-slash', detail: 'Duplicate of DEMO-3' });
+  assert.deepEqual([label('work_item.withdrawn', { reason: 'withdrawn_unassigned' }), auditEvent({ action: 'work_item.withdrawn', detail: { reason: 'withdrawn_unassigned' } }).detail], ['Withdrawn', 'The task was unassigned from the Team.']);
+  assert.deepEqual([label('shift.closed', { reason: 'fix_round_cap_reached' }), auditEvent({ action: 'shift.closed', detail: { reason: 'fix_round_cap_reached' } }).detail], ['Shift closed', 'The fix Rounds ran out']);
+  assert.equal(label('checkpoint.written', { phase: 'smoke_tested' }), 'Checkpoint: smoke tested');
+  assert.equal(label('delivery.publication_confirmed'), 'Publication confirmed');
   assert.equal(label('checkpoint.written', { phase: 'pr_opened' }), 'Opened a pull request');
-  assert.equal(label('outcome.no_change_needed'), 'Reported: no change needed');
+  assert.equal(label('outcome.no_change_needed'), 'Reported no change needed');
   assert.equal(auditEvent({ action: 'outcome.failed' }).tone, 'danger');
-  assert.equal(label('infra_cap'), 'Infrastructure failed too often; Ploeg stopped');
-  assert.equal(label('delivery.publication_reserved'), 'Delivery: publication reserved');
+  assert.equal(label('infra_cap'), 'Infrastructure kept failing; Ploeg stopped');
+  assert.equal(label('delivery.publication_reserved'), 'Publication reserved');
   assert.equal(label('llm.unknown'), 'Spend could not be settled');
-  assert.equal(label('something.new_here'), 'Something new_here'.replace('_', ' '));
+  assert.equal(label('something.new_here'), 'Something: new here');
   assert.equal(auditEvent(null).label, 'Event');
 });
 
 test('actors are named in plain words, and the signed-in operator reads as You', () => {
-  assert.equal(actorName('team:delivery'), 'Team delivery');
+  assert.equal(actorName('team:delivery'), 'Agent · delivery');
   assert.equal(actorName('ploegd:shift-engine'), 'Ploeg');
   assert.equal(actorName('webhook:vikunja'), 'Vikunja');
-  assert.equal(actorName('webhook:demo'), 'The demo tracker');
+  assert.equal(actorName('webhook:demo'), 'Demo tracker');
   assert.equal(actorName('operator:vloer:u1', { userId: 'u1' }), 'You');
   assert.equal(actorName('operator:vloer:u2', { userId: 'u1' }), 'An operator');
   assert.equal(actorName(''), 'Ploeg');
   assert.equal(actorName('something-else'), 'something-else');
+  assert.deepEqual(auditActor('team:delivery'), { name: 'Agent · delivery', kind: 'agent', glyph: 'bot', title: 'An agent of the delivery Team', team: 'delivery' });
+  assert.deepEqual(auditActor('operator:vloer:u-1', { userId: 'u-1' }), { name: 'You', kind: 'person', glyph: 'user', title: 'You, through vloer', team: '' });
+  assert.deepEqual([auditActor('operator:vloer:u-2', { userId: 'u-1' }).name, auditActor('operator:vloer:u-2', { userId: 'u-1' }).title], ['An operator', 'Operator u-2, through vloer']);
+  assert.equal(auditActor('ploegd:shift-engine').title, 'Ploeg (shift engine)');
+});
+
+test('a rejected proposal reads as neutral Rejected, never a green Done, while its state stays done', () => {
+  const proposal = { state: 'done', provider: 'ploeg', latestShift: null, attempts: 0 };
+  assert.equal(displayState(proposal), 'rejected');
+  assert.equal(displayState(proposal, [{ id: '2', action: 'work_item.rejected' }, { id: '1', action: 'work_item.proposed' }]), 'rejected');
+  assert.equal(displayState({ ...proposal, latestShift: { id: '9' } }), 'done', 'a proposal that ran is Done');
+  assert.equal(displayState({ state: 'done', provider: 'vikunja', latestShift: { id: '1' }, attempts: 3 }, [{ id: '5', action: 'work_item.done' }]), 'done');
+  assert.equal(displayState({ state: 'needs_human' }), 'needs_human');
+  assert.equal(proposal.state, 'done');
+});
+
+test('a Run cancelled before it started says so, and tiles say the same thing on Now and Insights', () => {
+  assert.equal(unreportedOutcome({ startedAt: null, summary: 'cancelled: shift closed (budget exhausted)' }).label, 'Cancelled before it started');
+  assert.equal(unreportedOutcome({ startedAt: '2026-09-30T10:00:00Z', summary: 'cancelled: x' }).label, 'No outcome reported');
+  assert.equal(unreportedOutcome({}).label, 'No outcome reported');
+  assert.equal(tileDetail.queued(2), 'Waiting for a worker');
+  assert.equal(tileDetail.running({ running: 1, pending: 1 }), '1 Run working · 1 waiting for a worker');
+  assert.equal(tileDetail.running({ running: 0, pending: 0 }), 'Nothing is working');
 });

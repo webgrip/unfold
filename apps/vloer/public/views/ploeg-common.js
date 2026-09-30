@@ -66,12 +66,12 @@ export function liveRefresh(id, poll, failure) {
 }
 
 /**
- * The page-header Refresh button of Insights, Activity, Runs and Proposed. It keeps its label while `busy`, and
+ * The page-header Refresh button of Insights, Activity, Runs and Proposed: the one icon button every live page uses.
  * `shown: false` leaves it out while the page shows its own Try again.
  */
 export function refreshButton({ busy = false, shown = true } = {}) {
   if (!shown) return '';
-  return `<button type="button" class="button secondary" id="ploeg-refresh" data-action="ploeg-reload" data-compact title="Refresh"${busy ? ' disabled aria-busy="true"' : ''}>${busy ? '<span class="spinner" aria-hidden="true"></span>' : icon('refresh')}<span class="button-label">Refresh</span></button>`;
+  return `<button type="button" class="button secondary icon-only" id="ploeg-refresh" data-action="ploeg-reload" aria-label="Refresh" title="Refresh"${busy ? ' disabled aria-busy="true"' : ''}>${busy ? '<span class="spinner" aria-hidden="true"></span>' : icon('refresh')}</button>`;
 }
 
 /** Fills and opens the shared `#confirm-dialog` with `markup` as a component dialog, and restores its classes when it closes. */

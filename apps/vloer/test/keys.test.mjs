@@ -84,7 +84,7 @@ test('the help dialog lists every shortcut once, with the component keycaps and 
   assert.match(other, /<kbd class="kbd">Ctrl<\/kbd><kbd class="kbd">K<\/kbd>/);
   assert.match(mac, /<kbd class="kbd">g<\/kbd><\/span><span class="shortcut-then">then<\/span><span class="kbd-group"><kbd class="kbd">w<\/kbd>/);
   assert.equal(mac.match(/Search and commands/g).length, 1, 'the palette is listed once');
-  assert.match(mac, /<button type="submit" class="button secondary sm" aria-label="Close keyboard shortcuts"><span class="button-label">Close<\/span><\/button>/);
+  assert.match(mac, /<button type="submit" class="button ghost icon-only sm" aria-label="Close keyboard shortcuts" title="Close"><svg[^]*?<\/svg><\/button>/, 'the help closes with the same × as every dialog');
   assert.match(mac, /autofocus data-pref="singleKeyShortcuts"/);
   assert.match(mac, /id="shortcuts-title">Keyboard shortcuts</);
   assert.match(mac, /data-pref="singleKeyShortcuts" checked/);

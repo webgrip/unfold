@@ -106,7 +106,7 @@ test('the list groups sessions by what they need and says where each one stands 
   const runs = [{ roleName: 'Implementer', mode: 'write', status: 'completed' }, { roleName: 'Reviewer', mode: 'read', status: 'completed', verdict: 'approve' }];
   const review = { decision: 'accepted', byName: 'Ryan', at: '2026-09-30T10:00:00Z' };
   assert.equal(sessionGroup({ status: 'completed', runs }), 'needs');
-  assert.equal(sessionProgress({ status: 'completed', runs }), 'Agent review: approve');
+  assert.equal(sessionProgress({ status: 'completed', runs }), 'Agent approved');
   assert.equal(sessionGroup({ status: 'completed', review, runs }), 'done');
   assert.equal(sessionProgress({ status: 'completed', review, runs }), 'Accepted by Ryan');
   assert.equal(sessionProgress({ status: 'completed', review: { ...review, decision: 'rejected' }, runs }), 'Rejected by Ryan');

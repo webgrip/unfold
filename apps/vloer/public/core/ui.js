@@ -511,11 +511,40 @@ export function timeAt(iso) {
 }
 
 /**
- * The one-line demo disclaimer: a hatched DEMO tag and the text (escaped).
- * @param {string} [text] Defaults to "Illustrative data. No model calls, no spend."
+ * The one money field for a budget: a `US$` prefix, the amount written in the number format in use (`5,00` in nl-NL),
+ * `inputmode="decimal"`, and both a comma and a full stop accepted (read it back with `format.parseAmount`). `value`
+ * is a number or the text a person already typed; `attrs` is extra, already escaped attribute markup (for example
+ * `aria-describedby`).
+ * @param {{ id: string, name: string, value?: number|string, attrs?: string }} options
  * @returns {string}
  */
-export function demoNote(text = 'Illustrative data. No model calls, no spend.') {
+export function budgetInput({ id, name, value, attrs = '' } = {}) {
+  const text = typeof value === 'number' ? format.amountText(value) : String(value ?? '');
+  return `<span class="money-input"><span class="money-input-prefix" aria-hidden="true">US$</span><input id="${escape(id)}" name="${escape(name)}" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${escape(text)}" required${attrs ? ` ${attrs}` : ''}></span>`;
+}
+
+/**
+ * The one empty state of every Ploeg page while no Ploeg connection is configured: the same card, title, body and
+ * Environment link on Now, Work, Proposed, Runs, Activity and Insights.
+ * @returns {string}
+ */
+export function ploegUnconfigured() {
+  return `<div class="card ploeg-unconfigured">${emptyState({ icon: 'settings', title: 'Ploeg is not connected', body: '<p>An administrator connects Ploeg in the workbench configuration. Environment shows what is missing.</p>', actions: button({ label: 'Open Environment', icon: 'settings', href: '#settings/environment' }) })}</div>`;
+}
+
+/** The one demo disclaimer for Ploeg's illustrative records, on every Ploeg page and Environment. */
+export const demoRecordsText = 'Illustrative records · no model calls, no spend';
+
+/** The demo disclaimer where a person starts a session, which runs real Git changes and checks in the demo. */
+export const demoSessionsText = 'Demo sessions run real Git changes and checks · no model calls, no spend';
+
+/**
+ * The one-line demo disclaimer: a hatched DEMO tag and the text (escaped), in the same inline layout everywhere.
+ * Pages drop it below 720 px, where the top bar's DEMO badge already says it; dialogs keep it.
+ * @param {string} [text] Defaults to `demoRecordsText`.
+ * @returns {string}
+ */
+export function demoNote(text = demoRecordsText) {
   return `<p class="demo-note"><span class="demo-note-tag">Demo</span><span>${escape(text)}</span></p>`;
 }
 

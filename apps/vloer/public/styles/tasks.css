@@ -147,11 +147,6 @@
   min-width: 0;
 }
 
-.tasks-back {
-  justify-self: start;
-  margin-inline-start: calc(var(--space-2) * -1);
-}
-
 .tasks-task {
   min-width: 0;
 }
@@ -281,27 +276,6 @@
   line-height: var(--leading-sm);
 }
 
-.tasks-money {
-  position: relative;
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
-
-.tasks-money-prefix {
-  position: absolute;
-  inset-inline-start: var(--space-2-5);
-  color: var(--text-subtle);
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
-  pointer-events: none;
-}
-
-.tasks-money > input {
-  padding-inline-start: var(--space-10);
-  font-variant-numeric: tabular-nums;
-}
-
 .tasks-decision {
   container: tasks-decision / scroll-state;
   position: sticky;
@@ -380,10 +354,6 @@
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
-  }
-
-  .tasks-back {
-    display: none;
   }
 
   :root[data-density="compact"] .tasks-row .list-row-main {

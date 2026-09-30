@@ -61,6 +61,28 @@ export function moneyHtml(value) {
   return `<span class="num money"${exact === text ? '' : ` title="${html(exact)}"`}>${html(text)}</span>`;
 }
 
+/** Writes an amount for a form field with two decimals and no currency or grouping (`5,00` in nl-NL); a non-number is ''. */
+export function amountText(value) {
+  if (!isAmount(value)) return '';
+  return formatter('number', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false }).format(value);
+}
+
+/**
+ * Reads an amount a person typed, with a comma or a full stop as the decimal separator (`5,00`, `5.00`, `1.234,50`,
+ * `1,234.50`, `US$ 5`). Returns NaN for anything else.
+ * @param {string|number} text
+ * @returns {number}
+ */
+export function parseAmount(text) {
+  if (typeof text === 'number') return text;
+  const value = String(text ?? '').replace(/US\$|\$|\s/g, '');
+  const match = /^(\d{1,3}(?:([.,])\d{3})+|\d+)(?:([.,])(\d{1,2}))?$/.exec(value);
+  if (!match) return Number.NaN;
+  const [, whole, group, decimal, fraction] = match;
+  if (group && decimal && group === decimal) return Number.NaN;
+  return Number(`${whole.replace(/[.,]/g, '')}.${fraction || '0'}`);
+}
+
 /** Formats a count with grouping (`12.345` in nl-NL); a missing count reads `—`. */
 export function count(value) {
   if (!isAmount(value)) return '—';

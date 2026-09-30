@@ -46,13 +46,15 @@ export async function run({ page, app, assert, screenshot }) {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'the Work Item page overflows horizontally at 390 px');
     assert.equal(await page.evaluate(() => document.getElementById('page-title').getBoundingClientRect().width <= 1), true, 'the page heading steps aside, for screen readers only, on a phone Work Item page');
     await screenshot('ploeg-review-mobile');
-    await page.locator('.work-back').click();
+    assert.equal(await page.locator('.app-topbar .app-back').textContent(), 'Ready for review', 'the phone back link names the list it returns to');
+    await page.locator('.app-topbar .app-back').click();
     await page.locator('[data-work-row][data-id="105"]').waitFor();
     assert.equal(overviewReads.length, listReads, 'opening and closing a Work Item does not reload the lists');
     await page.waitForFunction(() => document.activeElement?.dataset?.id === '105');
     await lanes.getByRole('button', { name: /^Needs you/ }).click();
     await page.locator('[data-work-row][data-id="101"]').waitFor();
-    assert.equal(await page.getByRole('heading', { name: /Reviewer still wants changes/ }).count(), 1, 'Needs you groups its rows under their reason');
+    assert.equal(await page.locator('[data-work-row][data-id="109"]').getByText('Reviewer still wants changes', { exact: true }).count(), 1, 'a reason no other Work Item shares stays a chip on its row');
+    assert.equal(await page.locator('.reason-band').count(), 0, 'Needs you groups only reasons that two or more Work Items share');
     assert.equal(await page.evaluate(() => { const bar = document.querySelector('.work-lanes'); return [...bar.children].every(segment => { const box = segment.getBoundingClientRect(); const frame = bar.getBoundingClientRect(); return box.left >= frame.left - 1 && box.right <= frame.right + 1; }); }), true, 'every lane is visible at 390 px');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'the Work list overflows horizontally at 390 px');
 
@@ -96,6 +98,13 @@ export async function run({ page, app, assert, screenshot }) {
     assert.equal(await page.evaluate(() => document.querySelector('.work-list-pane').getBoundingClientRect().bottom <= innerHeight + 1), true, 'the list pane ends inside the window');
     await page.getByRole('button', { name: 'Close work item details' }).click();
     await page.locator('#ploeg-item-title').waitFor({ state: 'detached' });
+    await page.goto(`http://127.0.0.1:${app.server.address().port}/#work/109`);
+    await page.waitForFunction(() => document.activeElement?.id === 'ploeg-item-title');
+    await page.waitForFunction(() => location.hash === '#work/109?lane=needs_human');
+    assert.equal(await page.locator('[data-work-row][data-id="109"]').getAttribute('aria-current'), 'true', 'a link without a lane opens beside the lane the Work Item is in');
+    assert.match(await page.title(), /DEMO-9 Reject negative quantities in the cart API · Work · De Vloer$/, 'the tab names the open Work Item');
+    await page.getByRole('button', { name: 'Close work item details' }).click();
+    await page.locator('#ploeg-item-title').waitFor({ state: 'detached' });
     assert(sessionReads.length <= 1, `Work reads the sessions at most once, read ${sessionReads.length} times`);
 
     await page.locator('#ploeg-team').selectOption('research');
@@ -112,7 +121,7 @@ export async function run({ page, app, assert, screenshot }) {
     await page.keyboard.press('ArrowUp');
     await page.waitForFunction(() => document.querySelector('#ploeg-team')?.value === '' && !document.querySelector('.work-list-loading'));
     assert.equal(await page.evaluate(() => document.activeElement?.id), 'ploeg-team');
-    await page.getByRole('button', { name: 'Refresh' }).focus();
+    await page.getByRole('button', { name: 'Refresh', exact: true }).focus();
     const before = overviewReads.length;
     await page.keyboard.press('Enter');
     await page.waitForFunction(() => !document.querySelector('.work-refresh[aria-busy="true"]'));
@@ -127,10 +136,10 @@ export async function run({ page, app, assert, screenshot }) {
     });
     await page.route('**/api/ploeg/work-items?*', route => route.fulfill({ json: { items: [pageTwo], nextCursor: null } }));
     await lanes.getByRole('button', { name: /^Needs you/ }).click();
-    await page.getByRole('button', { name: 'Refresh' }).click();
+    await page.getByRole('button', { name: 'Refresh', exact: true }).click();
     await page.getByRole('button', { name: 'Load more' }).click();
     await page.locator('[data-work-row][data-id="999"]').waitFor();
-    await page.getByRole('button', { name: 'Refresh' }).click();
+    await page.getByRole('button', { name: 'Refresh', exact: true }).click();
     await page.waitForFunction(() => !document.querySelector('.work-refresh[aria-busy="true"]'));
     assert.equal(await page.locator('[data-work-row][data-id="999"]').count(), 1, 'a refresh keeps the Work Items that Load more added');
     assert.equal(await page.getByRole('button', { name: 'Load more' }).count(), 0, 'and remembers that the second page was the last');

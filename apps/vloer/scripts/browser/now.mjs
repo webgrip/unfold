@@ -9,7 +9,7 @@ export async function run({ page, app, assert, screenshot }) {
   assert.match(await page.locator('.now-digest').innerText(), /Welcome to De Vloer/, 'a first visit is welcomed instead of summarised');
   assert.deepEqual(await page.locator('.now-group-title > span:not(.count)').allInnerTexts(), ['Ready for your review', 'Needs you', 'Proposed'], 'waiting groups are not ordered Review, Needs you, Proposed');
   const needs = page.locator('.now-group[data-group="needs"]');
-  for (const reason of ['No pull request or changes unresolved', 'Reviewer still wants changes', 'Budget ran out', 'Agent is stuck', 'Cluster kept stopping the writer', 'Not routed']) await needs.getByText(reason, { exact: true }).first().waitFor();
+  for (const reason of ['Every Round ran', 'Reviewer still wants changes', 'Budget ran out', 'Agent is stuck', 'Cluster kept stopping the writer', 'Not routed']) await needs.getByText(reason, { exact: true }).first().waitFor();
   assert.match(await needs.locator('.now-why').first().innerText(), /\S/, 'a Needs-you row does not say why in words');
   assert.equal(await page.locator('.demo-note').count(), 1, 'the demo disclaimer appears once');
   assert.match(await page.locator('.now-running .meter').innerText(), /Demo · no model calls/, 'a demo Run shows no spend');

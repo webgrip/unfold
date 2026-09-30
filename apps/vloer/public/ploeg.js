@@ -3,8 +3,8 @@ import { icon } from './core/icons.js';
 import { markdown } from './core/markdown.js';
 import { count as formatCount, money, plural, duration, dateTime } from './core/format.js';
 import * as ui from './core/ui.js';
-import { workItemState, runOutcome, runState, verdict as verdictMeta, failureReason, failureNote, checkpointPhase, auditEvent, actorName } from './core/states.js';
-import { listReason, routingWarning, detailReason, closeReasonLabel, withdrawnReason, requeueNote } from './core/reasons.js';
+import { workItemState, runOutcome, runState, verdict as verdictMeta, failureReason, failureNote, auditEvent, actorName, displayState, unreportedOutcome, closeReasonLabel, withdrawnReason } from './core/states.js';
+import { listReason, routingWarning, detailReason, requeueNote, needsYouBlocks, reasonGlyph } from './core/reasons.js';
 
 /** The Work lanes in the order the lane control shows them: closest to shipping first. */
 export const ploegLanes = Object.freeze([
@@ -208,7 +208,7 @@ export function runOrder(runs) {
 
 /**
  * Groups Runs by Shift and Round for the Runs list: the current Shift's Rounds are labelled `Round N`, earlier
- * Shifts' `Shift S · Round N`, and Runs without a Round form one unlabelled group. Groups holding a failed or stuck
+ * Shifts' `Earlier Shift · Round N`, and Runs without a Round form one unlabelled group. Groups holding a failed or stuck
  * Run come first, then the rest from the newest Round down; inside a group the order is `runOrder`.
  * @returns {{ key: string, label: string, failed: boolean, runs: object[] }[]}
  */
@@ -223,7 +223,7 @@ export function runGroups(runs, currentShiftId = null) {
   const current = shiftId => !shiftId || String(shiftId) === String(currentShiftId ?? shiftId);
   const shiftRank = group => current(group.shiftId) ? Number.MAX_SAFE_INTEGER : Number(group.shiftId) || 0;
   return [...groups.values()]
-    .map(group => ({ key: group.key, label: group.round ? `${current(group.shiftId) ? '' : `Shift ${group.shiftId} · `}Round ${group.round}` : '', failed: group.runs.some(failed), shiftRank: shiftRank(group), round: group.round, runs: runOrder(group.runs) }))
+    .map(group => ({ key: group.key, label: group.round ? `${current(group.shiftId) ? '' : 'Earlier Shift · '}Round ${group.round}` : '', failed: group.runs.some(failed), shiftRank: shiftRank(group), round: group.round, runs: runOrder(group.runs) }))
     .sort((a, b) => Number(b.failed) - Number(a.failed) || b.shiftRank - a.shiftRank || b.round - a.round)
     .map(({ key, label, failed: hasFailure, runs: members }) => ({ key, label, failed: hasFailure, runs: members }));
 }
@@ -234,7 +234,7 @@ export function runResult(run) {
   if (!run.writes && run.verdict) { const meta = verdictMeta(run.verdict); return { ...meta, label: meta.short, title: meta.label }; }
   if (run.outcome) { const meta = runOutcome(run.outcome); return { ...meta, label: meta.short || meta.label, title: meta.label }; }
   if (run.failureReason) return { ...failureReason(run.failureReason), tone: 'danger' };
-  return { key: 'none', label: /^cancelled/i.test(run.summary || '') ? 'Cancelled before it started' : 'No outcome reported', tone: 'neutral', glyph: 'circle-slash' };
+  return unreportedOutcome(run);
 }
 
 function runCost(run, demo) {
@@ -318,17 +318,17 @@ function rowMeta(item, context) {
   const reason = listReason(item, { demo });
   const warning = routingWarning(item);
   const chips = [];
-  if (lane === 'all') chips.push(`<span class="work-row-state"${reason ? ` title="${escape(`${reason.chip}: ${reason.sentence}`)}"` : ''}>${ui.stateBadge(workItemState(item.state), reason ? { reason: reason.chip, reasonTone: reason.tone } : {})}</span>`);
-  else if (reason && !grouped) chips.push(ui.chip({ label: reason.chip, tone: reason.tone, title: reason.sentence }));
+  if (lane === 'all') chips.push(`<span class="work-row-state"${reason ? ` title="${escape(`${reason.chip}: ${reason.sentence}`)}"` : ''}>${ui.stateBadge(workItemState(displayState(item)), reason ? { reason: reason.chip, reasonTone: reason.tone } : {})}</span>`);
+  else if (reason && !grouped) chips.push(ui.chip({ label: reason.chip, tone: reason.tone, title: `${reason.sentence} ${reason.fix}` }));
   const hint = laneHint(item, context);
   if (hint) chips.push(hint);
-  if (warning && !grouped) chips.push(ui.chip({ label: warning.chip, tone: warning.tone, icon: warning.glyph, title: warning.sentence }));
+  if (warning) chips.push(ui.chip({ label: warning.chip, tone: warning.tone, icon: warning.glyph, title: warning.sentence }));
   if (amount(item.infraFailures) && item.infraFailures > 0 && item.state !== 'needs_human') chips.push(ui.chip({ label: plural(item.infraFailures, 'infrastructure failure'), tone: 'severe', icon: 'zap' }));
   const facts = [`<span class="work-row-ref">${allTeams ? `${escape(item.team)} · ` : ''}${escape(workItemRef(item))}</span>`];
   if (item.target) facts.push(`<span class="work-row-repo">${icon('branch')}${escape(repoName(item.target))}</span>`);
   if (amount(item.attempts) && item.attempts > 0) facts.push(`<span class="work-row-attempts">${escape(plural(item.attempts, 'attempt'))}</span>`);
   if (item.latestShift) facts.push(`<span>Round ${escape(item.latestShift.round)}</span>`);
-  return `${chips.length ? `<span class="work-row-chips">${chips.join('')}</span>` : ''}<span class="work-row-facts">${facts.join('')}</span>`;
+  return `${chips.length ? `<span class="work-row-chips">${chips.join('')}</span>` : ''}<span class="work-row-facts dots">${facts.join('')}</span>`;
 }
 
 function rowHref(item, { lane, team }) {
@@ -336,15 +336,16 @@ function rowHref(item, { lane, team }) {
   return `#work/${encodeURIComponent(item.id)}${query.toString() ? `?${query}` : ''}`;
 }
 
-/** One Work Item row of the list: state glyph, title, reason and warning chips (unless its group names them), reference, repository, counters, spend of budget when there is any, and age. */
+/** One Work Item row of the list: a glyph for its reason (or state), title, reason and warning chips (unless its group names the reason), reference, repository, counters, spend of budget when there is any, and age. */
 export function workRow(item, context) {
-  const meta = workItemState(item.state);
+  const meta = workItemState(displayState(item));
+  const reason = listReason(item, { demo: context.demo });
   return `<li>${ui.listRow({
     href: rowHref(item, context),
     data: { workRow: true, id: item.id },
     selected: context.selectedId === item.id,
-    tone: meta.tone,
-    lead: `<span title="${escape(meta.label)}">${stateGlyph(meta)}</span>`,
+    tone: reason?.tone || meta.tone,
+    lead: `<span title="${escape(reason ? reason.chip : meta.label)}">${reason ? icon(reasonGlyph(reason)) : stateGlyph(meta)}</span>`,
     title: item.title || `Work Item ${item.id}`,
     meta: rowMeta(item, context),
     trail: `${spendMini(item, context)}<span class="work-row-age"><span class="sr-only">Updated </span>${ui.timeAgo(item.updatedAt)}</span>`,
@@ -352,27 +353,29 @@ export function workRow(item, context) {
 }
 
 /**
- * Groups Needs-you items by why they wait: one group per reason and routing warning, in the order the first item
- * of each appears (the tracker's order is kept inside a group). Each group carries the reason, the warning (or
- * null), the fix that clears the whole group, and its items.
- * @returns {{ key: string, reason: object, warning: object | null, fix: string, items: object[] }[]}
+ * The Needs-you list in blocks, by the one rule Now uses too (`needsYouBlocks`): flat rows with their own reason
+ * chip, then one group per reason that two or more Work Items share, the largest first.
+ * @returns {{ key: string, reason: object, grouped: boolean, items: object[] }[]}
  */
 export function reasonGroups(items, { demo = false } = {}) {
-  const groups = new Map();
-  for (const item of items || []) {
-    const reason = listReason(item, { demo }) || listReason({ ...item, state: 'needs_human' }, { demo });
-    const warning = routingWarning(item);
-    const key = `${reason.code}|${reason.chip}|${warning ? warning.code : ''}`;
-    if (!groups.has(key)) groups.set(key, { key, reason, warning, fix: warning ? warning.fix : reason.fix, items: [] });
-    groups.get(key).items.push(item);
-  }
-  return [...groups.values()];
+  return needsYouBlocks(items, { demo });
 }
 
-function groupMarkup(group, index, context) {
-  const id = `work-group-${index + 1}`;
-  const warning = group.warning ? ui.chip({ label: group.warning.chip, tone: group.warning.tone, icon: group.warning.glyph, title: group.warning.sentence }) : '';
-  return `<li class="work-group" aria-labelledby="${id}"><div class="work-group-header" data-tone="${group.reason.tone}"><span class="work-group-icon" aria-hidden="true">${icon(group.reason.glyph)}</span><div class="work-group-text"><h3 class="work-group-title" id="${id}"><span class="work-group-label">${escape(group.reason.chip)}</span>${warning}${ui.count(group.items.length, { label: plural(group.items.length, 'Work Item') })}</h3><p class="work-group-fix">${escape(group.fix)}</p></div></div><ul class="list work-list-rows">${group.items.map(item => workRow(item, { ...context, grouped: true })).join('')}</ul></li>`;
+/**
+ * The band that heads a group of Work Items sharing one reason, on Now and Work: a sunken strip with the reason as an
+ * overline, a small count and the one fix that clears the group. `id` labels the group.
+ */
+export function reasonBand(reason, total, id, { fix = true } = {}) {
+  return `<div class="reason-band" data-tone="${reason.tone}"><span class="reason-band-icon" aria-hidden="true">${icon(reasonGlyph(reason))}</span><h3 class="reason-band-title" id="${escape(id)}">${escape(reason.chip)}<span class="reason-band-count num"><span class="sr-only">, </span>${escape(total)}<span class="sr-only"> ${total === 1 ? 'Work Item' : 'Work Items'}</span></span></h3>${fix ? `<p class="reason-band-fix" title="${escape(reason.fix)}">${escape(reason.fix)}</p>` : ''}</div>`;
+}
+
+function needsMarkup(items, context) {
+  const blocks = reasonGroups(items, { demo: context.demo });
+  const flat = blocks.filter(block => !block.grouped).flatMap(block => block.items);
+  const groups = blocks.filter(block => block.grouped);
+  const rows = flat.length ? `<li class="work-flat"><ul class="list work-list-rows">${flat.map(item => workRow(item, context)).join('')}</ul></li>` : '';
+  const banded = groups.map((group, index) => { const id = `work-group-${index + 1}`; return `<li class="work-group" role="group" aria-labelledby="${id}">${reasonBand(group.reason, group.items.length, id)}<ul class="list work-list-rows">${group.items.map(item => workRow(item, { ...context, grouped: true })).join('')}</ul></li>`; }).join('');
+  return `<ul class="work-groups">${rows}${banded}</ul>`;
 }
 
 function laneCount(page, errors) {
@@ -396,19 +399,21 @@ function laneControl(model) {
   const errors = Boolean(model.data?.errors?.length);
   const segments = ploegLanes.map(lane => {
     const total = laneCount(lanes?.[lane.id], errors);
-    return `<button type="button" class="segment" data-action="ploeg-lane" data-id="${lane.id}" aria-pressed="${model.lane === lane.id}">${escape(lane.label)}${total === null ? '' : `<span class="count">${escape(total)}</span>`}</button>`;
+    return `<button type="button" class="segment" data-action="ploeg-lane" data-id="${lane.id}" aria-pressed="${!model.lanePending && model.lane === lane.id}">${escape(lane.label)}${total === null ? '' : `<span class="count">${escape(total)}</span>`}</button>`;
   }).join('');
   return `<div class="segmented work-lanes" role="group" aria-label="Lane">${segments}</div>`;
 }
 
-function refreshButton(model) {
+/** The page-header Refresh button of Work, left out while Ploeg is unavailable (the page shows its own Try again). */
+export function workRefreshButton(model) {
+  if (model.data && !model.data.available) return '';
   const busy = model.loading || model.refreshing;
   return `<button type="button" class="button secondary icon-only work-refresh" data-action="ploeg-refresh" data-id="toolbar" aria-label="Refresh" title="Refresh"${busy ? ' aria-disabled="true" aria-busy="true"' : ''}>${busy ? '<span class="spinner" aria-hidden="true"></span>' : icon('refresh')}</button>`;
 }
 
 function toolbarMarkup(model) {
   if (model.data && !model.data.available) return '';
-  return `<div class="toolbar work-toolbar">${teamControl(model)}${laneControl(model)}<span class="toolbar-spacer"></span>${refreshButton(model)}</div>`;
+  return `<div class="toolbar work-toolbar">${teamControl(model)}${laneControl(model)}</div>`;
 }
 
 function listMarkup(model) {
@@ -424,7 +429,7 @@ function listMarkup(model) {
   }
   const more = page.partial ? `<footer class="work-list-footer"><p class="meta">${data.allTeams ? 'Showing the loaded pages of each Team.' : 'Showing the loaded pages.'} Counts cover the loaded Work Items.</p><button type="button" class="button secondary sm" data-action="ploeg-more"${model.loadingMore ? ' aria-disabled="true" aria-busy="true"' : ''}>${model.loadingMore ? '<span class="spinner" aria-hidden="true"></span>' : icon('chevron-down')}<span class="button-label">Load more</span></button></footer>` : '';
   const rows = lane === 'needs_human'
-    ? `<ul class="work-groups">${reasonGroups(page.items, { demo: data.demo }).map((group, index) => groupMarkup(group, index, context)).join('')}</ul>`
+    ? needsMarkup(page.items, context)
     : `<ul class="list work-list-rows">${page.items.map(item => workRow(item, context)).join('')}</ul>`;
   return `<section class="card flush work-list" aria-labelledby="work-list-title" aria-busy="${model.loading ? 'true' : 'false'}">${heading}${rows}${more}</section>`;
 }
@@ -438,7 +443,7 @@ function partialNotice(data) {
 
 function unavailableMarkup(model) {
   const data = model.data;
-  if (!data.configured) return `<div class="card">${ui.emptyState({ icon: 'settings', title: 'Ploeg is not connected', body: `<p>${escape('An administrator connects Ploeg’s operator API in the server configuration and gives your account access to its Teams.')}</p>` })}</div>`;
+  if (!data.configured) return ui.ploegUnconfigured();
   return `<div class="card">${ui.emptyState({ icon: 'x-circle', tone: 'danger', title: 'Could not load Work', body: `<p>${escape(data.message || 'Ploeg did not answer.')}</p>`, actions: '<button type="button" class="button secondary" data-action="ploeg-refresh" data-id="unavailable">Try again</button>' })}</div>`;
 }
 
@@ -465,7 +470,7 @@ function ref(item) {
 
 function headerMarkup(detail, model, reason) {
   const item = detail.item;
-  const meta = workItemState(item.state);
+  const meta = workItemState(displayState(item, detail.events));
   const warning = routingWarning(item);
   const shift = latestShift(detail);
   const pr = safeUrl(prLink(detail));
@@ -475,16 +480,19 @@ function headerMarkup(detail, model, reason) {
   if (amount(item.attempts) && item.attempts > 0) facts.push(`<span class="work-fact">${escape(plural(item.attempts, 'attempt'))}</span>`);
   if (shift) facts.push(`<span class="work-fact">Round ${escape(shift.round)}</span>`);
   if (item.updatedAt) facts.push(`<span class="work-fact">Updated ${ui.timeAgo(item.updatedAt)}</span>`);
-  const backLabel = model.lane === 'all' ? 'All Work Items' : ploegLanes.find(lane => lane.id === model.lane)?.label || 'Work';
-  const back = `<a class="button ghost sm work-back" href="${escape(model.listHref)}">${icon('chevron-left')}<span class="button-label">${escape(backLabel)}</span></a>`;
   const close = `<button type="button" class="button ghost icon-only sm work-close" data-action="ploeg-close" aria-label="Close work item details" title="Close">${icon('x')}</button>`;
   const tools = [`<button type="button" class="button ghost sm work-copy" data-action="work-copy-link" data-id="${escape(item.id)}">${icon('copy')}<span class="button-label">Copy link</span></button>`];
-  if (model.canCancel && cancellable.has(item.state)) tools.push(`<button type="button" class="button danger-ghost sm" data-action="work-cancel" data-id="${escape(item.id)}"${model.cancelBusy ? ' aria-disabled="true" aria-busy="true"' : ''}>${model.cancelBusy ? '<span class="spinner" aria-hidden="true"></span>' : icon('x-circle')}<span class="button-label">Cancel Work Item</span></button>`);
-  return `<header class="work-detail-header"><div class="work-detail-bar">${back}<p class="work-detail-ref">${escape(item.team)} · ${ref(item)}</p><div class="work-detail-tools">${tools.join('')}</div>${close}</div><h2 class="work-detail-title" id="ploeg-item-title" tabindex="-1">${escape(item.title || `Work Item ${item.id}`)}</h2><div class="work-detail-status">${ui.stateBadge(meta, reason ? { reason: reason.chip, reasonTone: reason.tone } : {})}${warning ? ui.chip({ label: warning.chip, tone: warning.tone, icon: warning.glyph, title: warning.sentence }) : ''}</div>${facts.length ? `<p class="work-detail-facts">${facts.join('')}</p>` : ''}</header>`;
+  if (model.canCancel && cancellable.has(item.state)) tools.push(`<button type="button" class="button ghost sm work-cancel" data-action="work-cancel" data-id="${escape(item.id)}"${model.cancelBusy ? ' aria-disabled="true" aria-busy="true"' : ''}>${model.cancelBusy ? '<span class="spinner" aria-hidden="true"></span>' : icon('x-circle')}<span class="button-label">Cancel Work Item</span></button>`);
+  return `<header class="work-detail-header"><div class="work-detail-bar"><p class="work-detail-ref overline"><span class="work-detail-kind">Work Item · </span>${escape(item.team)} · ${ref(item)}</p><div class="work-detail-tools">${tools.join('')}</div>${close}</div><h2 class="work-detail-title" id="ploeg-item-title" tabindex="-1">${escape(item.title || `Work Item ${item.id}`)}</h2><div class="work-detail-status">${ui.stateBadge(meta, reason ? { reason: reason.chip, reasonTone: reason.tone } : {})}${warning ? ui.chip({ label: warning.chip, tone: warning.tone, icon: warning.glyph, title: warning.sentence }) : ''}</div>${facts.length ? `<p class="work-detail-facts dots">${facts.join('')}</p>` : ''}</header>`;
 }
 
-function quote(text, at) {
-  return `<blockquote class="work-quote"><p>${escape(`“${text}”`)}</p><footer class="meta">Ploeg${at ? ` · ${ui.timeAgo(at)}` : ''}</footer></blockquote>`;
+/** The label of the list a Work Item page goes back to: its lane, or "All Work Items". */
+export function laneBackLabel(lane) {
+  return lane === 'all' ? 'All Work Items' : ploegLanes.find(entry => entry.id === lane)?.label || 'Work';
+}
+
+function quote(text, at, who = 'Ploeg') {
+  return `<blockquote class="work-quote"><p>${escape(`“${text}”`)}</p><footer class="meta">${escape(who)}${at ? ` · ${ui.timeAgo(at)}` : ''}</footer></blockquote>`;
 }
 
 function runJump(run, label = 'Show this Run') {
@@ -571,8 +579,11 @@ export function decisionPlan(detail, model, reason) {
   if (trackerHtml) requeue.actions.push(trackerHtml);
   entries.push(requeue);
   if (!primary) {
-    trackerEntry.actions.unshift(ui.button({ label: tracker.label, icon: 'external', variant: 'primary', disabled: true, title: 'Ploeg reported no link to this task' }));
-    trackerEntry.note = escape(`Ploeg reported no link to this task. Find ${workItemRef(item)} in ${trackerName(item.provider) || 'the tracker'}.`);
+    const key = String(item.externalId ?? '').trim();
+    const where = trackerName(item.provider) || (item.provider === 'demo' ? 'the demo tracker' : 'its tracker');
+    trackerEntry.actions.unshift(`<span class="work-find">Find <strong class="mono">${escape(key || `#${item.id}`)}</strong> in ${escape(where)}</span>`);
+    if (key) trackerEntry.actions.splice(1, 0, ui.button({ label: `Copy ${key}`, icon: 'copy', variant: 'secondary', action: 'work-copy-ref', data: { value: key } }));
+    trackerEntry.note = escape('Ploeg reported no link to this task, so Vloer cannot open it for you.');
   }
   return { entries, primary: primary?.html || '' };
 }
@@ -654,9 +665,9 @@ function statusBox(detail, model) {
   const shift = latestShift(detail);
   const running = detail.runs.filter(run => run.state !== 'finished');
   if (item.state === 'leased') {
-    const lines = running.length ? running.map(run => `<li class="work-evidence" data-tone="live"><span class="work-evidence-icon" aria-hidden="true"><span class="live-dot"></span></span><div class="work-evidence-main"><p class="work-evidence-title"><strong>${escape(run.role || 'Agent')}</strong>${run.round ? ` · Round ${escape(run.round)}` : ''} · ${escape(run.state === 'running' ? `running${run.startedAt ? ` for ${duration(runSeconds(run, model.now)) || 'a moment'}` : ''}` : 'waiting for a worker')}</p>${run.expiresAt ? `<p class="meta">Must check in by ${ui.timeAt(run.expiresAt)}</p>` : ''}</div>${runJump(run)}</li>`).join('') : '';
-    const lease = item.lease ? `<p class="meta">The worker last checked in ${ui.timeAgo(item.lease.renewedAt)}; its lease runs until ${ui.timeAt(item.lease.expiresAt)}.</p>` : '';
-    const body = `<div class="work-decision-part"><p class="work-decision-sentence">${escape(shift ? `Round ${shift.round} of Shift ${shift.id} is running.` : 'An agent is working on it.')}</p>${lines ? `<ul class="work-evidence-list">${lines}</ul>` : ''}${lease}</div>${whatYouCanDo(`<p>${escape('Nothing is needed now. This page refreshes itself while live updates are on.')}${model.canCancel ? ` ${escape('Cancel the Work Item to stop its Runs.')}` : ''}</p>`)}`;
+    const lines = running.length ? running.map(run => `<li class="work-evidence" data-tone="live"><span class="work-evidence-icon" aria-hidden="true"><span class="live-dot"></span></span><div class="work-evidence-main"><p class="work-evidence-title"><strong>${escape(run.role || 'Agent')}</strong>${run.round ? ` · Round ${escape(run.round)}` : ''} · ${escape(run.state === 'running' ? `running${run.startedAt ? ` for ${duration(runSeconds(run, model.now)) || 'a moment'}` : ''}` : 'waiting for a worker')}</p></div>${runJump(run)}</li>`).join('') : '';
+    const lease = item.lease?.renewedAt ? `<p class="meta">The worker last checked in ${ui.timeAgo(item.lease.renewedAt)}.</p>` : '';
+    const body = `<div class="work-decision-part"><p class="work-decision-sentence">${escape(shift ? `Round ${shift.round} is running.` : 'An agent is working on it.')}</p>${lines ? `<ul class="work-evidence-list">${lines}</ul>` : ''}${lease}</div>${whatYouCanDo(`<p>${escape('Nothing is needed now. This page refreshes itself while live updates are on.')}${model.canCancel ? ` ${escape('Cancel the Work Item to stop its Runs.')}` : ''}</p>`)}`;
     return ui.card({ id: 'work-decision', region: true, title: 'Running now', icon: 'activity', tone: 'live', level: 3, body });
   }
   if (item.state === 'queued' || item.state === 'ingested') {
@@ -665,11 +676,15 @@ function statusBox(detail, model) {
     const body = `<div class="work-decision-part"><p class="work-decision-sentence">${escape(item.state === 'ingested' ? 'Ploeg recorded the task and has not queued it yet.' : 'It starts when a worker of the Team is free. The tracker sets its priority.')}</p>${later}${infra}</div>${whatYouCanDo(`<p>${escape('Nothing is needed now. To change its priority, change it in the tracker; Vloer never re-ranks work.')}</p>`)}`;
     return ui.card({ id: 'work-decision', region: true, title: 'Waiting to start', icon: 'circle-dashed', level: 3, body });
   }
-  if (item.state === 'done') {
+  if (item.state === 'done' && displayState(item, detail.events) === 'rejected') {
     const rejected = detail.events.find(entry => entry.action === 'work_item.rejected');
+    const body = `<div class="work-decision-part"><p class="work-decision-sentence">${escape('A person rejected this proposal, so it never ran and spent nothing. Ploeg keeps it as Done.')}</p>${rejected?.detail?.reason ? quote(rejected.detail.reason, rejected.at, 'The reason given') : ''}</div>`;
+    return ui.card({ id: 'work-decision', region: true, title: 'Rejected', icon: 'circle-slash', level: 3, body });
+  }
+  if (item.state === 'done') {
     const done = detail.events.find(entry => entry.action === 'work_item.done');
-    const sentence = rejected ? 'A person rejected this proposal, so it never ran.' : done?.detail?.reason === 'pull request merged' ? 'The pull request was merged.' : shift?.closeReason ? `${closeReasonLabel(shift.closeReason)}.` : 'Ploeg finished this Work Item.';
-    return ui.card({ id: 'work-decision', region: true, title: 'Done', icon: 'check-circle', tone: 'success', level: 3, body: `<div class="work-decision-part"><p class="work-decision-sentence">${escape(sentence)}</p>${rejected?.detail?.reason ? quote(rejected.detail.reason, rejected.at) : ''}</div>` });
+    const sentence = done?.detail?.reason === 'pull request merged' ? 'The pull request was merged.' : shift?.closeReason ? `${closeReasonLabel(shift.closeReason)}.` : 'Ploeg finished this Work Item.';
+    return ui.card({ id: 'work-decision', region: true, title: 'Done', icon: 'check-circle', tone: 'success', level: 3, body: `<div class="work-decision-part"><p class="work-decision-sentence">${escape(sentence)}</p></div>` });
   }
   if (item.state === 'withdrawn') {
     const event = detail.events.find(entry => entry.action === 'work_item.withdrawn');
@@ -722,7 +737,7 @@ function shiftMeter(shift, demo, label = 'Shift budget') {
 
 function shiftLine(shift) {
   const when = shift.closedAt ? `closed ${ui.timeAgo(shift.closedAt)}` : `opened ${ui.timeAgo(shift.openedAt)}`;
-  return `Shift ${escape(shift.id)} · ${escape(plural(shift.round, 'Round'))} · ${when} · ${escape(closeReasonLabel(shift.closeReason))}`;
+  return `${escape(plural(shift.round, 'Round'))} · ${when} · ${escape(closeReasonLabel(shift.closeReason))}`;
 }
 
 function runLinks(run) {
@@ -803,7 +818,7 @@ function storyMarkup(detail, model) {
   const demo = detail.demo;
   if (!runs.length) {
     const shift = shifts[0];
-    const text = shift.closedAt ? `Shift ${shift.id} closed ${ui.timeAgo(shift.closedAt)} before any Run started: ${escape(closeReasonLabel(shift.closeReason).replace(/^./, letter => letter.toLowerCase()))}.` : `Shift ${escape(shift.id)} opened ${ui.timeAgo(shift.openedAt)}. No Run has started yet.`;
+    const text = shift.closedAt ? `The Shift closed ${ui.timeAgo(shift.closedAt)} before any Run started: ${escape(closeReasonLabel(shift.closeReason).replace(/^./, letter => letter.toLowerCase()))}.` : `A Shift opened ${ui.timeAgo(shift.openedAt)}. No Run has started yet.`;
     return `<p class="work-note" id="work-rounds">${icon('circle-dashed')}<span>${text}</span></p>`;
   }
   const failures = runs.filter(failed).length;
@@ -814,8 +829,8 @@ function storyMarkup(detail, model) {
   }
   const [current, ...earlier] = shifts;
   const currentRuns = runs.filter(run => run.shiftId === current.id);
-  const ladder = ladderMarkup(currentRuns, { demo, now: model.now, label: `Rounds of Shift ${current.id}` });
-  const older = earlier.length ? `<div class="work-shifts"><h4 class="overline">Earlier Shifts</h4><ul class="work-shift-list">${earlier.map(shift => `<li class="work-shift"><p class="work-shift-line">${shiftLine(shift)}</p>${shiftMeter(shift, demo, '')}${ui.disclosure({ summary: 'Show its Rounds', plain: true, id: `work-shift-${shift.id}`, body: ladderMarkup(runs.filter(run => run.shiftId === shift.id), { demo, now: model.now, label: `Rounds of Shift ${shift.id}` }) || '<p class="subtle">No Runs.</p>' })}</li>`).join('')}</ul></div>` : '';
+  const ladder = ladderMarkup(currentRuns, { demo, now: model.now, label: 'Rounds of the current Shift' });
+  const older = earlier.length ? `<div class="work-shifts"><h4 class="overline">Earlier Shifts</h4><ul class="work-shift-list">${earlier.map(shift => `<li class="work-shift"><p class="work-shift-line">${shiftLine(shift)}</p>${shiftMeter(shift, demo, '')}${ui.disclosure({ summary: 'Show its Rounds', plain: true, id: `work-shift-${shift.id}`, body: ladderMarkup(runs.filter(run => run.shiftId === shift.id), { demo, now: model.now, label: `Rounds of the Shift opened ${dateTime(shift.openedAt)}` }) || '<p class="subtle">No Runs.</p>' })}</li>`).join('')}</ul></div>` : '';
   const truncated = [detail.truncated?.shifts ? 'Ploeg capped the Shift history. Earlier Shifts may be missing.' : '', detail.truncated?.runs ? 'Ploeg capped the Run history. Earlier Runs may be missing.' : ''].filter(Boolean).map(text => `<p class="meta">${escape(text)}</p>`).join('');
   const overview = `<div class="work-story-overview">${ladder}<div class="work-shift-budget">${shiftMeter(current, demo)}</div></div>`;
   const list = `<div class="work-story-runs"><p class="work-story-heading"><span class="overline">Runs</span><span class="meta">${escape(runsNote)}</span></p>${runsMarkup(detail, model)}</div>`;
@@ -842,9 +857,7 @@ function eventTitle(entry, meta, detail) {
 
 function eventItem(entry, detail, userId) {
   const meta = auditEvent(entry);
-  const reason = typeof entry.detail?.reason === 'string' && entry.detail.reason && entry.action !== 'work_item.withdrawn' ? entry.detail.reason : '';
-  const shiftReason = entry.action === 'shift.closed' && reason ? closeReasonLabel(reason) : '';
-  return `<li class="timeline-item" data-tone="${meta.tone}"><span class="timeline-marker">${icon(meta.glyph)}</span><div class="timeline-content"><span class="timeline-title">${eventTitle(entry, meta, detail)}${shiftReason ? `<span class="work-event-reason">: ${escape(/^(Ploeg|Vloer|A Vloer)\b/.test(shiftReason) ? shiftReason : shiftReason.charAt(0).toLowerCase() + shiftReason.slice(1))}</span>` : ''}</span>${reason && !shiftReason ? `<span class="work-event-quote">${escape(`“${reason}”`)}</span>` : ''}<span class="timeline-meta">${escape(actorName(entry.actor, { userId }))} · ${ui.timeAgo(entry.at)}</span></div></li>`;
+  return `<li class="timeline-item" data-tone="${meta.tone}"><span class="timeline-marker">${icon(meta.glyph)}</span><div class="timeline-content"><span class="timeline-title">${eventTitle(entry, meta, detail)}</span>${meta.detail ? `<span class="work-event-detail">${escape(meta.detail)}</span>` : ''}<span class="timeline-meta">${escape(actorName(entry.actor, { userId }))} · ${ui.timeAgo(entry.at)}</span></div></li>`;
 }
 
 function eventsMarkup(detail, model) {
@@ -938,16 +951,15 @@ function detailError(model) {
 function demoMarkup(model) {
   const data = model.data;
   if (!(data?.demo || model.detail?.demo || (!data && model.demoMode))) return '';
-  const long = data?.message || 'Illustrative Ploeg records. No Run executed and no model was called.';
-  return `<div class="work-demo"><div class="work-demo-long">${ui.demoNote(long)}</div><div class="work-demo-short">${ui.demoNote('Illustrative records. Nothing ran.')}</div></div>`;
+  return ui.demoNote();
 }
 
 /**
- * The whole Work page body for `model`: the demo note, the toolbar (Team, lane, refresh), a partial-data notice,
+ * The whole Work page body for `model`: the demo note, the toolbar (Team and lane), a partial-data notice,
  * the list, and the Work Item detail beside it (wide) or instead of it (narrow).
- * `model` = { data, lane, team, teams, loading, refreshing, loadingMore, detailId, detail, detailLoading,
- * detailError, listHref, canCancel, cancelBusy, cancelResult, briefOpen, sessions, userId, trackerUrl, reviewFacts,
- * demoMode, now }.
+ * `model` = { data, lane, lanePending (the lane waits for the open Work Item's state), team, teams, loading, refreshing,
+ * loadingMore, detailId, detail, detailLoading, detailError, listHref, canCancel, cancelBusy, cancelResult, briefOpen,
+ * sessions, userId, trackerUrl, reviewFacts, demoMode, now }.
  */
 export function workMarkup(model) {
   const data = model.data;
@@ -955,7 +967,7 @@ export function workMarkup(model) {
   const teams = model.teams || (data?.available ? (data.teams || []).map(team => team.id) : []);
   const current = { ...model, teams };
   let list;
-  if (!data) list = listSkeleton();
+  if (!data || (model.lanePending && data.available)) list = listSkeleton();
   else if (!data.available) list = unavailableMarkup(current);
   else list = `${partialNotice(data)}${listMarkup(current)}`;
   const detail = !hasDetail ? '' : model.detail ? detailMarkup(model.detail, current) : model.detailError ? detailError(current) : detailSkeleton();

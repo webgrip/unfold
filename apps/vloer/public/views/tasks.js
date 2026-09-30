@@ -1,13 +1,13 @@
 import { state } from '../core/state.js';
 import { api } from '../core/api.js';
 import { $, escape, safeUrl, renderHtml, notify, announce } from '../core/dom.js';
-import { dateTime, money, relative } from '../core/format.js';
+import { amountText, dateTime, money, parseAmount, relative } from '../core/format.js';
 import { icon } from '../core/icons.js';
 import { markdown } from '../core/markdown.js';
 import { parseHash, buildHash } from '../core/route.js';
 import { singleKeyAllowed } from '../core/keys.js';
 import { sessionStatus } from '../core/states.js';
-import { badge, button, callout, chip, count, demoNote, disclosure, emptyState, skeleton, stateBadge, timeAgo } from '../core/ui.js';
+import { badge, budgetInput, button, callout, chip, count, demoNote, demoSessionsText, disclosure, emptyState, skeleton, stateBadge, timeAgo } from '../core/ui.js';
 import { repoName, taskSources, selectedTaskSource, providerName, providerLabels } from '../core/lookup.js';
 import { shell } from '../shell.js';
 
@@ -108,15 +108,15 @@ function importForm(task) {
   const crew = boot.crews.find(entry => entry.id === draft.crewId) || boot.crews[0];
   const placements = boot.placements || [];
   const placement = draft.placement || placements.find(entry => entry.default)?.id || placements[0]?.id;
-  const budget = `<div class="tasks-money"><span class="tasks-money-prefix" aria-hidden="true">US$</span><input id="task-budget" name="budgetUsd" type="number" inputmode="decimal" min="0.01" max="${escape(boot.maxBudgetUsd)}" step="0.01" value="${escape(draft.budgetUsd)}" required aria-describedby="task-budget-hint"></div>`;
+  const budget = budgetInput({ id: 'task-budget', name: 'budgetUsd', value: draft.budgetUsd, attrs: 'aria-describedby="task-budget-hint"' });
   const fields = [
     field('task-crew', 'Crew', `<select id="task-crew" name="crewId" aria-describedby="task-crew-hint">${options(boot.crews, draft.crewId)}</select>`, escape(crew ? crew.roles.map(role => role.name).join(' and ') : '')),
     runtimeField(boot.runtimes || [], draft.runtime),
     placements.length > 1 ? field('task-placement', 'Workspace placement', `<select id="task-placement" name="placement">${options(placements, placement)}</select>`) : '',
-    field('task-budget', 'Session budget · USD', budget, `At most ${escape(money(boot.maxBudgetUsd))} per session.`),
+    field('task-budget', 'Session budget', budget, `At most ${escape(money(boot.maxBudgetUsd))} per session.`),
   ].join('');
   const form = `<form id="task-import-form" class="tasks-import-fields" data-form="task-import">${fields}${importNote('form')}</form>`;
-  return `<section class="card tasks-import" aria-labelledby="task-import-title"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="task-import-title">Bring this task onto the floor.</h3><p class="card-subtitle">Creates a queued session for ${escape(repoName(task.repositoryId))} with the crew and budget you choose.</p></div></header>${form}</section>`;
+  return `<section class="card tasks-import" aria-labelledby="task-import-title"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="task-import-title">Bring this task onto the floor</h3><p class="card-subtitle">Creates a queued session for ${escape(repoName(task.repositoryId))} with the crew and budget you choose.</p></div></header>${form}</section>`;
 }
 
 function decisionBar() {
@@ -136,7 +136,7 @@ function importArea(task, source) {
 
 function notices(task) {
   const parts = [];
-  if (state.taskChanged) parts.push(callout({ tone: 'attention', title: 'The source task changed.', body: '<p>This is its latest version. Read the updated brief before you create the session. Your crew and budget choices are kept.</p>' }));
+  if (state.taskChanged) parts.push(callout({ tone: 'attention', title: 'The source task changed', body: '<p>This is its latest version. Read the updated brief before you create the session. Your crew and budget choices are kept.</p>' }));
   if (state.taskPreviewError) parts.push(`<div role="alert">${callout({ tone: 'danger', title: 'The session was not created', body: `<p>${escape(state.taskPreviewError)}</p>` })}</div>`);
   const session = sessionFor(task);
   if (session) {
@@ -173,14 +173,13 @@ function detailHeader(task) {
 }
 
 function detailPane(source) {
-  const back = `<div class="tasks-back">${act('data-action="task-close"', { label: 'All tasks', icon: 'chevron-left', variant: 'ghost', size: 'sm', id: 'task-back' })}</div>`;
-  if (state.taskPreviewLoading || (state.taskLoading && !state.task)) return `<div class="tasks-detail" aria-busy="true">${state.taskPreviewLoading ? back : ''}<article class="card tasks-task tasks-task-loading"><div class="tasks-task-header">${skeleton({ rows: 1, variant: 'text' })}</div><div class="tasks-task-body">${skeleton({ rows: 6, variant: 'text' })}</div></article></div>`;
+  if (state.taskPreviewLoading || (state.taskLoading && !state.task)) return `<div class="tasks-detail" aria-busy="true"><article class="card tasks-task tasks-task-loading"><div class="tasks-task-header">${skeleton({ rows: 1, variant: 'text' })}</div><div class="tasks-task-body">${skeleton({ rows: 6, variant: 'text' })}</div></article></div>`;
   if (previewFailed && !state.task) {
-    return `<div class="tasks-detail">${back}<article class="card tasks-task">${emptyState({ tone: 'danger', icon: 'x-circle', title: 'Could not open this task', body: `<span role="alert">${escape(state.taskPreviewError)}</span>`, actions: act('data-action="task-preview"', { label: 'Try again', icon: 'refresh', size: 'sm', data: { id: requestedId } }) })}</article></div>`;
+    return `<div class="tasks-detail"><article class="card tasks-task">${emptyState({ tone: 'danger', icon: 'x-circle', title: 'Could not open this task', body: `<span role="alert">${escape(state.taskPreviewError)}</span>`, actions: act('data-action="task-preview"', { label: 'Try again', icon: 'refresh', size: 'sm', data: { id: requestedId } }) })}</article></div>`;
   }
   const task = state.task;
   if (!task) return `<div class="tasks-detail"><article class="card tasks-task tasks-task-empty">${emptyState({ compact: true, icon: 'tasks', title: 'Select a task', body: 'Pick a task from the list to read its brief.' })}</article></div>`;
-  return `<div class="tasks-detail">${back}<article class="card tasks-task" aria-labelledby="task-preview-title">${detailHeader(task)}<div class="tasks-task-body">${brief(task)}</div></article>${notices(task)}${importArea(task, source)}</div>`;
+  return `<div class="tasks-detail"><article class="card tasks-task" aria-labelledby="task-preview-title">${detailHeader(task)}<div class="tasks-task-body">${brief(task)}</div></article>${notices(task)}${importArea(task, source)}</div>`;
 }
 
 function unlinkedNotice(source) {
@@ -207,9 +206,9 @@ function renderTasks() {
     return;
   }
   const focus = layoutFocus();
-  const demo = state.bootstrap.mode === 'demo' ? demoNote('Sample tracker task. Importing it runs the real demonstration: real Git changes and checks, no model calls and no spend.') : '';
+  const demo = state.bootstrap.mode === 'demo' ? demoNote(demoSessionsText) : '';
   const content = `<div class="tasks-page">${unlinkedNotice(source)}${demo}<div class="tasks-layout" data-focus="${focus === 'solo' ? 'list' : focus}"${focus === 'solo' ? ' data-solo' : ''}>${listPane(source, sources)}${focus === 'solo' ? '' : detailPane(source)}</div></div>`;
-  renderHtml(shell(content, page));
+  renderHtml(shell(content, focus === 'detail' ? { ...page, back: { label: 'All tasks', action: 'task-close', id: 'task-back' } } : page));
 }
 
 function settleFocus(fromRow) {
@@ -240,7 +239,7 @@ function openConnections() {
     : '<p class="connections-none">None yet. Tasks stays empty until an administrator adds one.</p>';
   const steps = `<ol class="connections-steps"><li><strong>Register the connection</strong><span>Add it to the server’s <code>taskSources</code> configuration: the tracker, its address, the project or list, and the registered repository it feeds.</span></li><li><strong>Give it a read-only token</strong><span>Put the token in the server environment and name that variable in the connection. It never leaves the server.</span></li><li><strong>Choose who runs the work</strong><span><code>interactive</code> keeps the sessions here. <code>ploeg</code> hands the tasks to a Ploeg Team through its registered tracker target.</span></li></ol><p class="connections-help">Examples for all five trackers are in <code>docs/operations/task-connections.md</code>. Restart the server after you change its configuration.</p>`;
   dialog.className = 'dialog connections-dialog';
-  dialog.innerHTML = `<div class="dialog-frame"><header class="dialog-header"><h2 id="connections-title">Your tasks, connected.</h2>${act('data-action="close-connections"', { icon: 'x', ariaLabel: 'Close', title: 'Close', variant: 'ghost', size: 'sm' })}</header><div class="dialog-body"><p class="connections-intro">Each connection reads one project or list from a tracker and feeds its tasks to one registered repository. Credentials stay on the server.</p><section class="connections-section" aria-labelledby="connections-registered"><h3 id="connections-registered" class="overline">Registered on this workbench</h3>${registered}</section><section class="connections-section" aria-labelledby="connections-supported"><h3 id="connections-supported" class="overline">Trackers you can connect</h3><ul class="connections-trackers">${trackers.map(provider => `<li>${providerMark(provider)}</li>`).join('')}</ul></section>${disclosure({ summary: 'How an administrator adds a connection', open: !sources.length, body: steps })}</div><footer class="dialog-footer">${act('data-action="close-connections"', { label: 'Done', variant: 'primary' })}</footer></div>`;
+  dialog.innerHTML = `<div class="dialog-frame"><header class="dialog-header"><h2 id="connections-title">Your tasks, connected</h2>${act('data-action="close-connections"', { icon: 'x', ariaLabel: 'Close', title: 'Close', variant: 'ghost', size: 'sm' })}</header><div class="dialog-body"><p class="connections-intro">Each connection reads one project or list from a tracker and feeds its tasks to one registered repository. Credentials stay on the server.</p><section class="connections-section" aria-labelledby="connections-registered"><h3 id="connections-registered" class="overline">Registered on this workbench</h3>${registered}</section><section class="connections-section" aria-labelledby="connections-supported"><h3 id="connections-supported" class="overline">Trackers you can connect</h3><ul class="connections-trackers">${trackers.map(provider => `<li>${providerMark(provider)}</li>`).join('')}</ul></section>${disclosure({ summary: 'How an administrator adds a connection', open: !sources.length, body: steps })}</div><footer class="dialog-footer">${act('data-action="close-connections"', { label: 'Done', variant: 'primary' })}</footer></div>`;
   dialog.showModal();
 }
 
@@ -270,7 +269,7 @@ async function openTask(id, preserveDraft = false) {
   const fromRow = Boolean(document.activeElement?.closest?.('.tasks-row'));
   requestedId = String(id); previewFailed = false; briefExpanded = false;
   state.taskPreviewLoading = true; state.taskPreviewError = ''; state.taskChanged = preserveDraft;
-  if (!preserveDraft) state.taskDraft = { crewId: state.bootstrap.crews[0]?.id || '', runtime: state.bootstrap.runtimes[0]?.id || '', budgetUsd: Math.min(5, state.bootstrap.maxBudgetUsd).toFixed(2) };
+  if (!preserveDraft) state.taskDraft = { crewId: state.bootstrap.crews[0]?.id || '', runtime: state.bootstrap.runtimes[0]?.id || '', budgetUsd: amountText(Math.min(5, state.bootstrap.maxBudgetUsd)) };
   remember(requestedId);
   if (onTasks()) { renderTasks(); settleFocus(fromRow); revealDetail(); }
   try {
@@ -308,7 +307,7 @@ async function importTask(data) {
   const existingIds = new Set(state.sessions.map(session => session.id));
   if (onTasks()) renderTasks();
   try {
-    const session = await api('/api/task-imports', { method: 'POST', body: JSON.stringify({ sourceId: selected.sourceId, taskId: selected.id, revision: selected.revision, ...(selected.bindingRevision ? { bindingRevision: selected.bindingRevision } : {}), crewId: data.crewId, runtime: data.runtime, ...(data.placement ? { placement: data.placement } : {}), budgetUsd: Number(data.budgetUsd) }) });
+    const session = await api('/api/task-imports', { method: 'POST', body: JSON.stringify({ sourceId: selected.sourceId, taskId: selected.id, revision: selected.revision, ...(selected.bindingRevision ? { bindingRevision: selected.bindingRevision } : {}), crewId: data.crewId, runtime: data.runtime, ...(data.placement ? { placement: data.placement } : {}), budgetUsd: parseAmount(data.budgetUsd) }) });
     state.sessions = [session, ...state.sessions.filter(item => item.id !== session.id)]; state.tab = 'stream';
     location.hash = `session/${session.id}`;
     notify(existingIds.has(session.id) ? 'Opened the existing session for this task. No additional work was started.' : 'Task imported. Read the brief, then start the crew when you are ready.');

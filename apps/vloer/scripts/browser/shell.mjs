@@ -6,7 +6,8 @@ export async function run({ page, app, assert, screenshot }) {
   for (const [from, to, heading] of [['#ploeg/lane/needs_human', '#work?lane=needs_human', 'Work'], ['#ploeg/105', '#work/105', 'Work'], ['#ploeg', '#insights', 'Insights'], ['#ploeg/runs', '#runs', 'Runs'], ['#account', '#settings/accounts', 'Linked accounts'], ['#system', '#settings/environment', 'Environment'], ['#compare/a/b', '#sessions', 'Sessions']]) {
     await page.goto(`${base}/${from}`);
     await page.getByRole('heading', { level: 1, name: heading, exact: true }).waitFor();
-    assert.equal(await hash(), to, `${from} did not redirect to ${to}`);
+    const landed = await hash();
+    assert(landed === to || landed.startsWith(`${to}?lane=`), `${from} did not redirect to ${to} (${landed})`);
   }
   const historyLength = await page.evaluate(() => history.length);
   await page.evaluate(() => { location.hash = 'ploeg/activity'; });
@@ -19,12 +20,14 @@ export async function run({ page, app, assert, screenshot }) {
   const status = page.locator('.app-topbar').getByRole('group', { name: 'Status' });
   await status.getByText('Ploeg: demo data', { exact: true }).waitFor();
   await status.getByText('Demo', { exact: true }).waitFor();
-  await status.getByText(/^Updated /).waitFor();
-  const liveToggle = status.getByRole('button', { name: 'Updates: Live' });
+  const updatedTip = () => page.waitForFunction(() => /Updated /.test(document.querySelector('.app-topbar [data-ploeg-status]')?.title || ''));
+  await updatedTip();
+  assert.equal(await status.locator('[data-live-updated]').evaluate(element => element.classList.contains('app-visually-hidden')), true, 'the update time is a tooltip, not another visible signal');
+  const liveToggle = status.getByRole('button', { name: 'Pause auto-refresh' });
   await liveToggle.click();
-  await status.getByRole('button', { name: 'Updates: Paused' }).waitFor();
+  await status.getByRole('button', { name: 'Resume auto-refresh' }).waitFor();
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('vloer.prefs')).live), false, 'pausing is remembered');
-  await status.getByRole('button', { name: 'Updates: Paused' }).click();
+  await status.getByRole('button', { name: 'Resume auto-refresh' }).click();
   await liveToggle.waitFor();
   const account = page.getByRole('button', { name: /^Account and theme/ });
   await account.click();
@@ -53,9 +56,9 @@ export async function run({ page, app, assert, screenshot }) {
   await palette.waitFor({ state: 'hidden' });
   await page.keyboard.press('Control+k');
   await palette.waitFor();
-  await palette.getByRole('button', { name: 'Cancel search' }).click();
+  await palette.getByRole('button', { name: 'Close search' }).click();
   await palette.waitFor({ state: 'hidden' });
-  await status.getByText(/^Updated /).waitFor();
+  await updatedTip();
   await page.evaluate(() => { location.hash = 'settings/preferences'; });
   await page.getByRole('heading', { level: 1, name: 'Preferences', exact: true }).waitFor();
   assert.equal(await page.evaluate(() => [...document.querySelectorAll('[data-live-updated]')].every(element => element.hidden && !element.textContent)), true, 'a page that loads nothing live must not claim to be fresh');

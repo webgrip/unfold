@@ -243,16 +243,9 @@
   }
 
   .activity-event > .activity-event-meta {
-    flex-wrap: wrap;
     justify-content: flex-start;
     column-gap: var(--space-2);
     max-width: none;
-    white-space: normal;
-  }
-
-  .activity-event-team {
-    overflow: visible;
-    overflow-wrap: anywhere;
   }
 
   .activity-event-line {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { nowMarkup, digestCounts, sinceLabel, nextBaseline, visibleNow, shownIds, openTarget, byFinish, awayAfter, reasonBuckets, reasonGlyph, offersRetry, mayHoldMore, runPage, groupLimit, subgroupLimit } from '../public/now.js';
+import { nowMarkup, digestCounts, sinceLabel, nextBaseline, visibleNow, shownIds, openTarget, byFinish, awayAfter, reasonGlyph, offersRetry, mayHoldMore, runPage, groupLimit, subgroupLimit } from '../public/now.js';
 import { listReason } from '../public/core/reasons.js';
 import { icon } from '../public/core/icons.js';
 
@@ -50,21 +50,21 @@ test('the Now page lists waiting work in the order Review, Needs you, Proposed, 
 
 test('a waiting row says why it waits and what to do, in words every pointer can read', () => {
   const html = nowMarkup(view(), options, nowAt);
-  assert.match(html, /No pull request or changes unresolved/, 'plan_exhausted in needs_human reads as unresolved');
+  assert.match(html, /Every Round ran/, 'plan_exhausted in needs_human says what happened, without hedging');
   assert.match(html, /Cluster kept stopping the writer/);
   assert.match(html, /Stopped; open for details/, 'a row without the reason fields still gets a chip');
-  assert.match(html, /<span class="now-why" title="[^"]*">Not the Work Item’s fault: the cluster stopped the writer 10 times before it could finish, so the work was never really tried\. <span class="now-why-fix">Look at the cluster \(evictions, node pressure, image pulls\), not the ticket\.<\/span><\/span>/, 'the sentence and the fix sit on the row, not only in a tooltip');
-  assert.match(html, /id="now-row-w-107"[\s\S]*?<span class="now-why"[^>]*>Clarifies “Define the research brief”\. No routing rule matched a repository/, 'a proposal says where it came from and why it is not routed');
-  assert.match(html, /<span class="now-why"[^>]*>Ploeg stopped this Work Item without a reason Vloer recognises\./);
+  assert.match(html, /<span class="now-why now-why-fix" title="Not the Work Item’s fault: the cluster stopped the writer 10 times before it could finish, so the work was never really tried\. Look at the cluster[^"]*">Look at the cluster \(evictions, node pressure, image pulls\), not the ticket\.<\/span>/, 'the fix leads the row and the sentence sits in its title and on the Work Item page');
+  assert.match(html, /id="now-row-w-107"[\s\S]*?<span class="now-why" title="Clarifies “Define the research brief”\. No routing rule matched a repository[^"]*">Clarifies “Define the research brief”\.<\/span>/, 'a proposal says where it came from, with why it is not routed in the title');
+  assert.match(html, /<span class="now-why now-why-fix" title="Ploeg stopped this Work Item without a reason Vloer recognises\.[^"]*">Open the Work Item and read its history\.<\/span>/);
 });
 
 test('Not routed is a secondary outline chip and the repository is a plain fact', () => {
   const html = nowMarkup(view(), options, nowAt);
   assert.match(html, /<span class="chip now-warning" data-tone="attention"[^>]*><svg[^>]*>[\s\S]*?<\/svg><span>Not routed<\/span>/);
   assert.equal(html.match(/>Not routed</g).length, 2, 'only the items without a target are Not routed');
-  assert(html.indexOf('>No pull request or changes unresolved<', html.indexOf('id="now-row-w-108"')) < html.indexOf('>Not routed<', html.indexOf('id="now-row-w-108"')), 'the reason comes before the warning');
+  assert(html.indexOf('>Every Round ran<', html.indexOf('id="now-row-w-108"')) < html.indexOf('>Not routed<', html.indexOf('id="now-row-w-108"')), 'the reason comes before the warning');
   assert(html.indexOf('>Needs refinement<', html.indexOf('id="now-row-w-107"')) < html.indexOf('>Not routed<', html.indexOf('id="now-row-w-107"')), 'on a proposal the warning is not the first chip');
-  assert.match(html, /<span class="now-repo"><svg[^>]*>[\s\S]*?<\/svg><span title="acme\/shop, base branch main">shop<\/span><\/span>/);
+  assert.match(html, /<span class="now-repo"><svg[^>]*>[\s\S]*?<\/svg><span title="acme\/shop, base branch main">acme\/shop<\/span><\/span>/, 'the repository reads owner\/repo, as on Work');
   assert.doesNotMatch(html, /class="chip"[^>]*title="acme\/shop/, 'the repository is not an inert chip');
   assert.doesNotMatch(html, /Clarification</, 'the proposal kind is part of the why line, not a third chip style');
 });
@@ -98,7 +98,7 @@ test('row actions put the primary action first, name it fully and go where the d
 test('a review row shows the agent review of its latest Run, never as a human review', () => {
   const html = nowMarkup(view(), options, nowAt);
   const row = html.slice(html.indexOf('id="now-row-w-105"'), html.indexOf('</li>', html.indexOf('id="now-row-w-105"')));
-  assert.match(row, /Agent review: approve/);
+  assert.match(row, /title="Agent review: approve\. Agent review is evidence, not a human review\."[\s\S]*?Agent approved/);
   assert.match(row, /Round 2/);
   const data = nowData();
   data.recent[0].verdict = '';
@@ -122,7 +122,7 @@ test('money is nl-NL and unknown spend is never zero', () => {
 test('finished Runs show outcome, agent verdict and failure in plain words, newest finish first', () => {
   const html = nowMarkup(view(), options, nowAt);
   assert.match(html, /Opened a pull request/);
-  assert.match(html, /Agent review: approve/, 'an agent verdict is never presented as a human review');
+  assert.match(html, />Agent approved</, 'an agent verdict is never presented as a human review');
   assert.match(html, /Failed<\/span><\/span><span>The worker stopped responding/);
   assert(html.indexOf('id="now-row-f-30"') < html.indexOf('id="now-row-f-31"'), 'the Run that finished last comes first');
   assert.deepEqual(byFinish([{ id: 'a', finishedAt: '2026-09-20T08:00:00Z' }, { id: 'b', finishedAt: null }, { id: 'c', finishedAt: '2026-09-20T09:00:00Z' }]).map(run => run.id), ['c', 'a', 'b']);
@@ -175,7 +175,7 @@ test('the page-level failure names the cause and offers the ways forward', () =>
   assert.match(failure, /Ploeg could not be reached\./);
   assert.match(failure, /id="now-retry-page"[^>]*data-action="now-retry"/);
   assert.match(failure, /href="#settings\/environment"[^>]*>[\s\S]*?Check Environment/);
-  assert.match(nowMarkup({ data: null, error: { message: 'x', code: 'ploeg_unconfigured' } }, options, nowAt), /Connect Ploeg to see your work[\s\S]*href="#settings\/environment"/);
+  assert.match(nowMarkup({ data: null, error: { message: 'x', code: 'ploeg_unconfigured' } }, options, nowAt), /Ploeg is not connected[\s\S]*href="#settings\/environment"/);
   assert.match(nowMarkup({ data: null, error: { message: 'x', code: 'ploeg_scope' } }, options, nowAt), /Your account has no Ploeg Teams/);
   const loading = nowMarkup({ data: null, error: null }, options, nowAt);
   assert.match(loading, /aria-busy="true"/);
@@ -291,30 +291,22 @@ test('unread dots mark what changed since the last visit, only when they tell ro
   assert.doesNotMatch(all, /data-unread|New since your last visit/);
 });
 
-test('Needs you stays a flat list up to five items or when every reason differs', () => {
-  const five = ['plan_exhausted', 'plan_exhausted', 'fix_round_cap_reached', 'plan_exhausted', 'plan_exhausted'].map((code, index) => needsItem(String(200 + index), code));
-  assert.equal(reasonBuckets(five), null);
+test('Needs you on Now follows the one rule of Work: flat rows with their chip unless two or more share a reason', () => {
   const distinct = ['plan_exhausted', 'fix_round_cap_reached', 'writing_run_failed_repeatedly', 'writing_run_killed_repeatedly', 'run stuck: builder round 2', 'budget exhausted: pool 1, spent 1, reserved 0'].map((code, index) => needsItem(String(210 + index), code));
-  assert.equal(reasonBuckets(distinct), null, 'six different reasons would give six headers of one row');
-});
-
-test('a long Needs-you list groups by reason: shared reasons first, largest first, singles pooled', () => {
-  const codes = ['run stuck: builder round 2', 'fix_round_cap_reached', 'plan_exhausted', 'fix_round_cap_reached', 'plan_exhausted', 'fix_round_cap_reached', 'budget exhausted: pool 1, spent 1, reserved 0', 'fix_round_cap_reached', 'plan_exhausted'];
+  const flat = nowMarkup(view({ data: { ...nowData(), waiting: distinct } }), options, nowAt);
+  assert.doesNotMatch(flat, /class="reason-band"/, 'six different reasons stay six flat rows');
+  assert.equal((flat.match(/<span class="chip" data-tone="(attention|severe)"/g) || []).length, 6, 'every flat row carries its reason chip');
+  const codes = ['run stuck: builder round 2', 'fix_round_cap_reached', 'plan_exhausted', 'fix_round_cap_reached', 'fix_round_cap_reached', 'budget exhausted: pool 1, spent 1, reserved 0', 'fix_round_cap_reached'];
   const rows = codes.map((code, index) => needsItem(String(300 + index), code));
-  const buckets = reasonBuckets(rows);
-  assert.deepEqual(buckets.map(bucket => bucket.reason?.code ?? 'other'), ['fix_round_cap_reached', 'plan_exhausted', 'other']);
-  assert.deepEqual(buckets[0].rows.map(row => row.id), ['301', '303', '305', '307'], 'rows keep Ploeg’s oldest-first order');
-  assert.deepEqual(buckets[2].rows.map(row => row.id), ['300', '306']);
-  const data = { ...nowData(), waiting: rows };
-  const html = nowMarkup(view({ data }), options, nowAt);
+  const html = nowMarkup(view({ data: { ...nowData(), waiting: rows } }), options, nowAt);
   assert.match(html, /<div class="now-group" data-group="needs" data-split role="group"/);
-  assert.match(html, /<h4 class="now-subgroup-title" id="now-reason-fix_round_cap_reached">[\s\S]*?<span>Reviewer still wants changes<\/span><\/span><span class="count">4<\/span><\/h4><p class="now-subgroup-note">The reviewer still asked for changes when the Team’s fix Rounds ran out\. <span class="now-why-fix">Read the findings\. Finish the branch by hand, or sharpen the ticket\.<\/span><\/p><a class="now-subgroup-more" href="#work\?lane=needs_human">1 more in Work/);
-  assert.equal((html.match(/aria-labelledby="now-reason-fix_round_cap_reached"><li/g) || []).length, 1);
-  const section = html.slice(html.indexOf('id="now-reason-fix_round_cap_reached"'), html.indexOf('id="now-reason-plan_exhausted"'));
-  assert.equal((section.match(/<li class="now-item">/g) || []).length, subgroupLimit);
-  assert.doesNotMatch(section, /<span class="chip" data-tone="attention"[^>]*title=/, 'grouped rows leave the reason to their header');
-  assert.doesNotMatch(section, /class="now-why"/, 'a sentence the whole group shares is said once');
-  assert.match(html, /id="now-reason-other">[\s\S]*?Other reasons[\s\S]*?Agent is stuck[\s\S]*?Budget ran out/, 'single reasons keep their chips in one pooled group');
+  assert.equal((html.match(/class="reason-band"/g) || []).length, 1, 'only the shared reason gets a band');
+  assert.match(html, /<h3 class="reason-band-title" id="now-reason-fix_round_cap_reached">Reviewer still wants changes<span class="reason-band-count num"><span class="sr-only">, <\/span>4<span class="sr-only"> Work Items<\/span><\/span><\/h3><p class="reason-band-fix"/);
+  assert(html.indexOf('id="now-row-w-300"') < html.indexOf('class="reason-band"'), 'the flat rows come before the groups');
+  const band = html.slice(html.indexOf('class="reason-band"'));
+  assert.equal((band.match(/<li class="now-item">/g) || []).length, subgroupLimit + 0, 'a band lists its first rows');
+  assert.match(band, /Show 1 more in Work/);
+  assert.doesNotMatch(band, /class="now-why/, 'grouped rows leave the fix to their band');
 });
 
 test('a long flat group lists the first rows and points to the rest', () => {
@@ -368,7 +360,7 @@ test('a live refresh holds new rows behind an "N new" button instead of moving t
 test('the stat row links into Work, Runs and Insights with honest partial labels', () => {
   const html = nowMarkup(view(), options, nowAt);
   assert.match(html, /<div class="stat now-stat" data-tone="attention">[\s\S]*?Waiting on you[\s\S]*?>5<[\s\S]*?<span>1 to review<\/span><span>3 need you<\/span><span>1 proposed<\/span>/, 'the breakdown hides separators at line starts');
-  assert.match(html, /href="#runs\?state=running"[^>]*>[\s\S]*?Running[\s\S]*?\+1 waiting for a worker/, 'pending Runs read as an addition, not as the running one');
+  assert.match(html, /href="#runs\?state=running"[^>]*>[\s\S]*?Running[\s\S]*?1 Run working · 1 waiting for a worker/, 'the Running tile words its detail as Insights does');
   assert.match(html, /href="#work\?lane=queued"[^>]*>[\s\S]*?Queued[\s\S]*?>2</);
   assert.match(html, /href="#insights\?window=24h"/);
   assert.equal((html.match(/<span class="stat-go" aria-hidden="true">/g) || []).length, 3, 'linked tiles show where they go; Waiting stays a summary');

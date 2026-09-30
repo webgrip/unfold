@@ -2,7 +2,7 @@ import { deliveryMarkup, deliveryGated, deliveryStatus } from '../delivery.js';
 import { state, disconnect } from '../core/state.js';
 import { api, unauthorized } from '../core/api.js';
 import { $, escape, safeUrl, renderHtml, download, notify, announce } from '../core/dom.js';
-import { money, moneyHtml, plural, duration, time, dateTime, timeHtml, seconds, count as formatCount } from '../core/format.js';
+import { money, moneyHtml, parseAmount, plural, duration, time, dateTime, timeHtml, seconds, count as formatCount } from '../core/format.js';
 import { icon } from '../core/icons.js';
 import { markdown } from '../core/markdown.js';
 import { avatar, badge, button, card, chip, disclosure, dl, emptyState, iconButton, meter, skeleton, stateBadge, tabs, timeAgo, timeAt } from '../core/ui.js';
@@ -30,7 +30,6 @@ const submissions = {
   unknown: 'Prompt submission is unconfirmed. Check remote execution and gateway spend before starting new work.',
 };
 const downloads = [['bundle', 'Git bundle'], ['patch', 'Binary patch'], ['manifest', 'Manifest'], ['attestation', 'Signed provenance'], ['trace', 'Agent Trace']];
-const verdictShort = { approve: 'Approved', request_changes: 'Changes requested', inconclusive: 'Inconclusive' };
 const stepVerbs = ['do not', 'confirm', 'inspect', 'reconcile', 'check', 'ask', 'authorize', 'read', 'sharpen', 'raise', 'wait', 'resume', 'review', 'retry', 'try', 'verify', 'rotate', 'revoke', 'fix', 'update', 'open', 'run', 'stop'];
 const startsWithVerb = text => { const lower = text.toLowerCase(); return stepVerbs.some(verb => lower === verb || lower.startsWith(`${verb} `)); };
 
@@ -231,7 +230,7 @@ function eventMarkup(event) {
   if (event.type === 'review.recorded') return streamItem({ kind: 'system', tone: data.decision === 'accepted' ? 'success' : 'neutral', marker: icon(data.decision === 'accepted' ? 'check-circle' : 'x-circle'), head: `<span class="stream-text-inline">${escape(data.decision === 'accepted' ? 'Accepted' : 'Rejected')} by ${escape(data.byName || role)}${data.note ? `: ${escape(data.note)}` : ''}</span>${at}` });
   if (event.type === 'run.finished') {
     const verdict = data.verdict ? verdictMeta(data.verdict) : null;
-    return streamItem({ kind: 'system', tone: verdict?.tone === 'attention' ? 'attention' : 'success', marker: icon(verdict ? verdict.glyph : 'check'), head: `<span class="stream-text-inline"><strong>${escape(role)}</strong> finished${verdict ? ` · ${escape(verdict.label)}` : ''}</span>${at}`, body: data.summary ? `<p class="stream-note">${escape(data.summary)}</p>` : '' });
+    return streamItem({ kind: 'system', tone: verdict?.tone === 'attention' ? 'attention' : 'success', marker: icon(verdict ? verdict.glyph : 'check'), head: `<span class="stream-text-inline"><strong>${escape(role)}</strong> finished${verdict ? ` · <span title="${escape(verdict.label)}">${escape(verdict.short)}</span>` : ''}</span>${at}`, body: data.summary ? `<p class="stream-note">${escape(data.summary)}</p>` : '' });
   }
   const display = data.message || data.summary || (event.type === 'workspace.ready' ? `Workspace ready · ${data.backend}` : event.type === 'run.started' ? `${data.role} started` : event.type === 'session.created' ? 'Session created. Budget authorized; no work started.' : event.type === 'session.started' ? data.resumed ? 'Resumed by the operator' : 'Session started' : event.type === 'run.completed' ? `${role} completed` : event.type === 'budget.increased' ? `Additional authorization: ${money(data.amountUsd)}` : event.type.startsWith('permission.') ? 'An operator decision was recorded' : event.type.startsWith('budget.') ? `Budget accounting: ${event.type.split('.').at(-1)}` : humanize(event.type));
   const tone = event.type.includes('failed') ? 'danger' : event.type.includes('completed') || event.type.endsWith('.ready') ? 'success' : '';
@@ -361,11 +360,11 @@ function handoffMarkup(session) {
   const artifacts = session.artifacts.filter(artifact => ['summary', 'link', 'transcript'].includes(artifact.kind));
   const summaries = session.runs.filter(run => run.summary);
   if (!artifacts.length && !summaries.length) return emptyState({ icon: 'branch', compact: true, title: 'No handoff yet', body: '<p>Each role leaves a summary and the reviewer its findings when they finish.</p>' });
-  const crew = summaries.length ? `<section class="session-artifact" aria-labelledby="handoff-crew-title"><header class="session-artifact-header"><h3 class="session-artifact-title" id="handoff-crew-title">What the crew reported</h3></header><ul class="session-summaries">${summaries.map(run => `<li>${avatar({ name: run.roleName, kind: 'agent', size: 'sm' })}<div class="session-summary-body"><p class="session-summary-head"><strong>${escape(run.roleName)}</strong>${run.verdict ? stateBadge(verdictMeta(run.verdict)) : ''}</p><p class="session-summary-text">${escape(run.summary)}</p></div></li>`).join('')}</ul></section>` : '';
+  const crew = summaries.length ? `<section class="session-artifact" aria-labelledby="handoff-crew-title"><header class="session-artifact-header"><h3 class="session-artifact-title" id="handoff-crew-title">What the crew reported</h3></header><ul class="session-summaries">${summaries.map(run => `<li>${avatar({ name: run.roleName, kind: 'agent', size: 'sm' })}<div class="session-summary-body"><p class="session-summary-head"><strong>${escape(run.roleName)}</strong>${run.verdict ? (meta => badge({ tone: meta.tone, glyph: meta.glyph, label: meta.short, title: `${meta.label}. Agent review is evidence, not a human review.` }))(verdictMeta(run.verdict)) : ''}</p><p class="session-summary-text">${escape(run.summary)}</p></div></li>`).join('')}</ul></section>` : '';
   const parts = artifacts.map(artifact => {
     if (artifact.kind === 'summary') {
       const { facts, rest } = summaryFacts(artifact.content);
-      const value = ([key, text]) => /^verdict$/i.test(key) ? stateBadge(verdictMeta(text.trim())) : /^(true|false)$/i.test(text.trim()) ? (text.trim().toLowerCase() === 'true' ? 'Yes' : 'No') : escape(text);
+      const value = ([key, text]) => /^verdict$/i.test(key) ? (meta => badge({ tone: meta.tone, glyph: meta.glyph, label: meta.short, title: `${meta.label}. Agent review is evidence, not a human review.` }))(verdictMeta(text.trim())) : /^(true|false)$/i.test(text.trim()) ? (text.trim().toLowerCase() === 'true' ? 'Yes' : 'No') : escape(text);
       return `<section class="session-artifact" aria-label="${escape(artifact.name)}">${artifactHeader(artifact)}${facts.length ? dl(facts.map(fact => [fact[0], value(fact)]), { rows: true }) : ''}${rest ? `<div class="prose session-prose">${markdown(rest)}</div>` : ''}</section>`;
     }
     if (artifact.kind === 'transcript') return `<section class="session-artifact" aria-label="${escape(artifact.name)}">${artifactHeader(artifact)}${disclosure({ id: `transcript-${escape(artifact.id)}`, summary: 'Show the full transcript', body: `<div class="prose session-prose">${markdown(artifact.content)}</div>` })}</section>`;
@@ -398,7 +397,7 @@ function evidenceMarkup(session) {
 }
 
 function stepState(run) {
-  if (run.status === 'completed') return run.verdict ? { tone: run.verdict === 'approve' ? 'success' : run.verdict === 'request_changes' ? 'attention' : 'neutral', html: escape(verdictShort[run.verdict] || 'Done'), marker: icon(run.verdict === 'request_changes' ? 'alert' : 'check') } : { tone: 'success', html: 'Done', marker: icon('check') };
+  if (run.status === 'completed') return run.verdict ? (meta => ({ tone: meta.tone, html: `<span title="${escape(meta.label)}">${escape(meta.short)}</span>`, marker: icon(meta.glyph), verdict: true }))(verdictMeta(run.verdict)) : { tone: 'success', html: 'Done', marker: icon('check') };
   if (run.status === 'running') return { tone: 'live', html: run.startedAt ? `Working since ${timeHtml(run.startedAt, { display: 'time' })}` : 'Working', marker: '<span class="live-dot"></span>' };
   if (run.status === 'waiting_input') return { tone: 'attention', html: 'Waiting for you', marker: icon('alert') };
   if (run.status === 'failed') return { tone: 'danger', html: 'Failed', marker: icon('x') };
@@ -413,7 +412,7 @@ function crewMarkup(session) {
   const steps = session.runs.map((run, index) => {
     const shown = stepState(run);
     const kind = run.mode === 'write' ? 'Writes the change' : index === session.runs.length - 1 ? 'Reviews independently' : 'Analyses';
-    return `<li class="step session-step"${shown.tone ? ` data-tone="${shown.tone}"` : ''}${index === current ? ' aria-current="step"' : ''}><span class="step-marker">${shown.marker}</span><span class="session-step-text"><span class="step-label">${escape(run.roleName)}</span><span class="session-step-state">${shown.html}<span class="session-step-kind"> · ${escape(kind)}</span></span></span></li>`;
+    return `<li class="step session-step"${shown.tone ? ` data-tone="${shown.tone}"` : ''}${index === current ? ' aria-current="step"' : ''}><span class="step-marker">${shown.marker}</span><span class="session-step-text"><span class="step-label">${escape(run.roleName)}</span><span class="session-step-state">${shown.html}</span><span class="session-step-kind">${escape(kind)}</span></span></li>`;
   }).join('');
   return `<section class="card session-crew" aria-labelledby="session-crew-title"><div class="session-crew-heading"><h2 class="session-section-title" id="session-crew-title">Crew</h2><p class="session-section-note">${escape(crewName(session.crewId))}</p></div><ol class="steps session-steps">${steps}</ol></section>`;
 }
@@ -489,7 +488,7 @@ function receiptMarkup(session) {
   const took = started.length && ended.length ? duration((Math.max(...ended) - Math.min(...started)) / 1000) : '';
   const spend = session.costStatus === 'demo' ? 'Demo · no model calls' : session.costStatus === 'unknown' ? 'Not reported' : `${money(session.spentUsd)} of ${money(session.budgetUsd)}`;
   return dl([
-    ['Agent review', review ? (meta => badge({ tone: meta.tone, glyph: meta.glyph, label: verdictShort[review.verdict] || meta.label }))(verdictMeta(review.verdict)) : escape('No agent verdict')],
+    ['Agent review', review ? (meta => badge({ tone: meta.tone, glyph: meta.glyph, label: meta.short, title: `${meta.label}. Agent review is evidence, not a human review.` }))(verdictMeta(review.verdict)) : escape('No agent verdict')],
     ['Changes', files.length ? `${escape(plural(files.length, 'file'))} <span class="diff-stat"><span class="diff-stat-add">+${added}</span> <span class="diff-stat-del">−${removed}</span></span>` : null],
     ['Checks', last ? `${escape(passedText(last.summary))}${first ? `<span class="session-receipt-was">${escape(passedText(first.summary).replace(' passed', ''))} before the change</span>` : ''}` : null],
     ['Spend', escape(spend)],
@@ -505,7 +504,7 @@ function reviewMarkup(session) {
     return `<section class="callout session-callout" data-tone="${accepted ? 'success' : 'neutral'}" aria-labelledby="session-review-title"><span class="callout-icon" aria-hidden="true">${icon(accepted ? 'check-circle' : 'x-circle')}</span><div class="callout-content"><h2 class="callout-title" id="session-review-title" tabindex="-1">${accepted ? 'Accepted' : 'Rejected'} by ${escape(session.review.byName)} <span class="session-callout-time">${timeAgo(session.review.at)}</span></h2><div class="callout-body">${session.review.note ? `<p>“${escape(session.review.note)}”</p>` : '<p>No note was left.</p>'}<p class="subtle">Recorded in the session history. The workbench did not push or merge anything.</p></div></div>${actions}</section>`;
   }
   const actions = canOperate() ? `<div class="session-decision-actions session-review-actions">${button({ label: 'Accept', icon: 'check', variant: 'primary', action: 'review', data: { decision: 'accepted' } })}${button({ label: 'Reject…', icon: 'x', variant: 'danger-ghost', action: 'review', data: { decision: 'rejected' } })}${button({ label: 'Inspect changes', icon: 'arrow', variant: 'ghost', action: 'tab', data: { id: 'diff' } })}</div>` : '<p class="subtle">An operator records the review.</p>';
-  return `<section class="card session-decision session-review" data-tone="review" aria-labelledby="session-review-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="session-review-title" tabindex="-1">${icon('eye')}Your review is next.</h2><p class="card-subtitle">The crew finished and captured the change. Nothing has been pushed or merged.</p></div></header><div class="card-body">${receiptMarkup(session)}<p class="session-decision-text">An agent review is not your review. Inspect the changes, checks and transcripts, then record your decision.</p>${actions}</div></section>`;
+  return `<section class="card session-decision session-review" data-tone="review" aria-labelledby="session-review-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="session-review-title" tabindex="-1">${icon('eye')}Your review is next</h2><p class="card-subtitle">The crew finished and captured the change. Nothing has been pushed or merged.</p></div></header><div class="card-body">${receiptMarkup(session)}<p class="session-decision-text">An agent review is not your review. Inspect the changes, checks and transcripts, then record your decision.</p>${actions}</div></section>`;
 }
 
 function stateNoticeMarkup(session) {
@@ -833,7 +832,7 @@ async function recordReview(data, form) {
 async function saveInstruction(data, form) { await api(`/api/sessions/${state.session.id}/messages`, { method: 'POST', body: JSON.stringify({ text: data.text }) }); state.draft = ''; form.reset(); notify('Instruction saved for the next execution.'); }
 
 async function authorizeBudget(data, form) {
-  const amount = Number(data.amountUsd);
+  const amount = parseAmount(data.amountUsd);
   const room = state.bootstrap.maxBudgetUsd - state.session.budgetUsd;
   if (!Number.isFinite(amount) || amount <= 0 || amount > room + 1e-9) { fieldError(form, 'budget-amount', `Enter an amount above zero and at most ${money(Math.max(0, room))}.`)?.focus(); return; }
   state.session = await api(`/api/sessions/${state.session.id}/budget`, { method: 'POST', body: JSON.stringify({ amountUsd: amount }) });

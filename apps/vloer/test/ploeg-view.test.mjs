@@ -64,21 +64,22 @@ test('the Work list has one lane control with counts and rows that link to the W
   assert.match(empty, /No pull requests wait for your review/);
 });
 
-test('the Needs you lane groups rows by reason and routing, with the fix once per group and no repeated chips', () => {
+test('the Needs you lane shows flat rows with their reason chip when no reason repeats', () => {
   const items = ploegDemo.items.filter(item => item.team === 'delivery');
   const html = workMarkup(model({ data: teamOverview(overview('delivery', items)), lane: 'needs_human' }));
-  assert.match(html, /<ul class="work-groups">/);
-  assert.match(html, /<h3 class="work-group-title" id="work-group-2"><span class="work-group-label">No pull request or changes unresolved<\/span><span class="chip" data-tone="attention" title="No routing rule[^"]*">[^]*?<span>Not routed<\/span><\/span><span class="count" aria-label="1 Work Item">1<\/span><\/h3><p class="work-group-fix">Add a repository label or a routing rule to the task\.<\/p>/, 'a group names its reason, its routing warning, its size and the one fix');
-  assert.match(html, /<span class="work-group-label">Reviewer still wants changes<\/span>/);
-  assert.match(html, /<span class="work-group-label">Cluster kept stopping the writer<\/span>/);
-  assert.match(html, /<span class="work-group-label">Needs a decision<\/span>/, 'a free-text close reason reads as a decision, not as a stop');
-  assert.doesNotMatch(html, /work-row-chips/, 'rows repeat neither the reason nor the routing chip of their group');
-  assert.match(html, /4 attempts<\/span><span>Round 4<\/span>/);
+  assert.match(html, /<ul class="work-groups"><li class="work-flat">/);
+  assert.doesNotMatch(html, /class="reason-band"/, 'a reason no other Work Item shares gets no header');
+  for (const chip of ['Every Round ran', 'Reviewer still wants changes', 'Cluster kept stopping the writer', 'Needs a decision']) assert.match(html, new RegExp(`<span class="chip" data-tone="attention" title="[^"]*"><span>${chip}</span></span>`), chip);
+  assert.match(html, /<span>Not routed<\/span>/, 'the routing warning stays on its row');
+  assert.match(html, /<span class="work-row-attempts">4 attempts<\/span><span>Round 4<\/span>/);
+  assert.match(html, /class="work-row-facts dots"/, 'row facts join with dots that never start a line');
   assert.doesNotMatch(html, /work-row-spend/, 'demo rows show no budget meter: nothing was spent');
   assert.doesNotMatch(html, new RegExp(`US\\$${space}0,00`));
   assert.match(html, /<span class="sr-only">Updated <\/span><time class="num" datetime=/);
   const all = workMarkup(model({ data: teamOverview(overview('delivery', items)), lane: 'all' }));
   assert.match(all, /<span class="state-badge"><span class="badge" data-tone="attention" data-state="needs_human">[^]*?Needs you<\/span><span class="state-reason" data-tone="attention">Reviewer still wants changes<\/span>/, 'the All lane shows each state with its reason');
+  const research = workMarkup(model({ data: teamOverview(overview('research', ploegDemo.items.filter(item => item.team === 'research'))), lane: 'all' }));
+  assert.match(research, /data-id="116"[^]*?<span class="badge" data-tone="neutral" data-state="rejected">[^]*?Rejected<\/span>/, 'a rejected proposal is a neutral Rejected, never a green Done');
 });
 
 test('All teams merges one overview per Team in id order, keeps each Team’s cursor and reports a Team that failed', () => {
@@ -111,13 +112,17 @@ test('All teams merges one overview per Team in id order, keeps each Team’s cu
   assert.doesNotMatch(unavailable, /work-toolbar/, 'no toolbar Refresh beside the card that has its own Try again');
 });
 
-test('grouping keeps the tracker order inside a group and orders groups by their first item', () => {
+test('grouping bands only reasons two or more Work Items share, after the flat rows, largest first', () => {
   const base = ploegDemo.items.find(item => item.id === '108');
-  const items = ['7', '3', '9', '5'].map((id, index) => ({ ...base, id, target: index % 2 ? base.target : { forge: 'forgejo', owner: 'a', repo: 'b', baseBranch: 'main' } }));
+  const other = ploegDemo.items.find(item => item.id === '109');
+  const items = [{ ...other, id: '2' }, ...['7', '3', '9'].map(id => ({ ...base, id }))];
   const groups = reasonGroups(items);
-  assert.deepEqual(groups.map(group => [group.reason.chip, group.warning?.chip ?? null, group.items.map(item => item.id)]), [['No pull request or changes unresolved', null, ['7', '9']], ['No pull request or changes unresolved', 'Not routed', ['3', '5']]]);
-  assert.equal(groups[0].fix, 'Open the Work Item to see whether the writer changed nothing or the reviewer still wants changes.');
-  assert.equal(groups[1].fix, 'Add a repository label or a routing rule to the task.');
+  assert.deepEqual(groups.map(group => [group.grouped, group.reason.chip, group.items.map(item => item.id)]), [[false, 'Reviewer still wants changes', ['2']], [true, 'Every Round ran', ['7', '3', '9']]]);
+  const html = workMarkup(model({ data: teamOverview(overview('delivery', items)), lane: 'needs_human' }));
+  assert.match(html, /<li class="work-group" role="group" aria-labelledby="work-group-1"><div class="reason-band" data-tone="attention"><span class="reason-band-icon" aria-hidden="true"><svg[^]*?<\/svg><\/span><h3 class="reason-band-title" id="work-group-1">Every Round ran<span class="reason-band-count num"><span class="sr-only">, <\/span>3<span class="sr-only"> Work Items<\/span><\/span><\/h3><p class="reason-band-fix" title="[^"]+">Open the Work Item to see whether the writer changed nothing or the reviewer still wants changes\.<\/p><\/div>/);
+  const band = html.slice(html.indexOf('class="reason-band"'));
+  assert.doesNotMatch(band, /<span>Every Round ran<\/span>/, 'rows in a band leave the reason to it');
+  assert.match(band, /<span>Not routed<\/span>/, 'rows keep their own routing warning');
 });
 
 test('rows show spend only when there is some, or while a Work Item runs, and never in the demo', () => {
@@ -247,16 +252,17 @@ test('a needs-you item explains why with Ploeg’s own words, the evidence Runs 
 test('plan_exhausted tells no pull request apart from unresolved changes and never quotes Ploeg’s plan-complete sentence', () => {
   const unrouted = demoDetail('108');
   const reason = detailReason(unrouted);
-  assert.deepEqual([reason.variant, reason.chip, reason.headline], ['no_pull_request', 'No pull request', null]);
+  assert.deepEqual([reason.variant, reason.chip, reason.headline], ['no_pull_request', 'Every Round ran', null], 'the chip matches the list; the sentence tells the case apart');
   assert.equal(reason.sentence, 'Every planned Round ran, but the writer changed nothing, so there is no pull request to review.');
   const html = detailMarkup(unrouted, model({ detailId: '108' }));
   const box = html.slice(html.indexOf('id="work-decision"'), html.indexOf('id="work-brief"'));
   assert.doesNotMatch(box, /plan complete/, 'the misleading sentence stays in Activity only');
-  assert.match(html, /“plan complete; a person is asked to review and merge”/);
+  assert.match(html, /<span class="work-event-detail">Plan complete; a person is asked to review and merge<\/span>/, 'Activity keeps Ploeg’s words, in the same form as the Activity page');
   assert.match(box, /<div class="work-warning" data-tone="attention">[^]*<strong>Not routed\.<\/strong>/);
-  assert.match(box, /Add a repository label or a routing rule to the task\.<\/p><div class="work-step-actions"><button type="button" class="button primary" title="Ploeg reported no link to this task" disabled>[^]*Open the task in Vikunja/, 'without a link the primary action is shown, disabled, where it belongs');
-  assert.match(box, /Ploeg reported no link to this task\. Find Vikunja DEMO-8 in Vikunja\./);
-  assert.doesNotMatch(html, /work-sticky-actions/, 'no phone action bar for a disabled action');
+  assert.match(box, /Add a repository label or a routing rule to the task\.<\/p><div class="work-step-actions"><span class="work-find">Find <strong class="mono">DEMO-8<\/strong> in Vikunja<\/span><button type="button" class="button secondary" data-action="work-copy-ref" data-value="DEMO-8">[^]*Copy DEMO-8/, 'without a link the step names the task to find, with a Copy button');
+  assert.doesNotMatch(html, /disabled/, 'no disabled primary action');
+  assert.match(box, /Ploeg reported no link to this task, so Vloer cannot open it for you\./);
+  assert.doesNotMatch(html, /work-sticky-actions/, 'no phone action bar without an action to open');
   unrouted.item.url = 'https://tracker.test/tasks/8';
   const plan = decisionPlan(unrouted, model(), detailReason(unrouted));
   assert.match(plan.entries[0].actions[0], /class="button primary" href="https:\/\/tracker\.test\/tasks\/8"[^]*Open the task in Vikunja/, 'the routing fix opens the task');
@@ -265,7 +271,7 @@ test('plan_exhausted tells no pull request apart from unresolved changes and nev
   const changes = demoDetail('108');
   changes.runs[0].verdict = 'request_changes';
   const unresolved = detailReason(changes);
-  assert.deepEqual([unresolved.variant, unresolved.chip], ['changes_unresolved', 'Changes unresolved']);
+  assert.deepEqual([unresolved.variant, unresolved.chip], ['changes_unresolved', 'Every Round ran']);
   assert.match(unresolved.sentence, /the last reviewer still asked for changes/);
 });
 
@@ -275,19 +281,19 @@ test('a budget stop shows its meter in the decision box and never zero money in 
   assert.match(box, new RegExp(`The Shift’s budget of US\\$${space}0,04 could not pay for the next Round\\.<`));
   assert.match(box, /<div class="work-decision-meter"><div class="meter" data-demo>[^]*Demo · no model calls/);
   assert.doesNotMatch(html, new RegExp(`US\\$${space}0,00`));
-  assert.match(box, /Then assign the task to the Team again in its tracker\.<\/p><div class="work-step-actions"><button type="button" class="button primary"[^>]*disabled>/, 'the tracker is the next step');
+  assert.match(box, /Then assign the task to the Team again in its tracker\.<\/p><div class="work-step-actions"><span class="work-find">Find <strong class="mono">DEMO-10<\/strong> in the demo tracker<\/span><button type="button" class="button secondary" data-action="work-copy-ref" data-value="DEMO-10">/, 'the tracker is the next step, named and copyable');
 });
 
 test('the page says each thing once: checkpoints fold into Activity, an empty story is one line and failures read as a cause', () => {
   const html = detailMarkup(demoDetail('109'), model({ detailId: '109' }));
   assert.doesNotMatch(html, /work-checkpoints|work-ladder-list/);
-  assert.match(html, /<p class="work-detail-facts">[^]*data-link-out="pr">[^]*Pull request #7/, 'the pull request is one fact in the header');
+  assert.match(html, /<p class="work-detail-facts dots">[^]*data-link-out="pr">[^]*Pull request #7/, 'the pull request is one fact in the header');
   assert.match(html, /Updated <a class="work-inline-link" href="https:\/\/forge\.example\.invalid\/example\/order-service\/pulls\/7"[^>]*>pull request #7/, 'Activity names the pull request once, as a link');
   assert.doesNotMatch(html, /Updated the pull request Pull request/);
   assert.match(html, /<p class="work-run-group">Round 4<\/p>/, 'Runs are grouped by Round for phones');
   assert.match(html, /<span class="work-run-round">Round 4 · <\/span>reader/, 'and name their Round in the row on wide screens');
   const withdrawn = detailMarkup(demoDetail('115'), model({ detailId: '115' }));
-  assert.match(withdrawn, /<p class="work-note" id="work-rounds">[^]*Shift 17 closed <time[^]*before any Run started: the task was unassigned from the Team\./);
+  assert.match(withdrawn, /<p class="work-note" id="work-rounds">[^]*The Shift closed <time[^]*before any Run started: the task was unassigned from the Team\./);
   assert.doesNotMatch(withdrawn, /class="card flush" id="work-rounds"/);
   const legacy = detailMarkup(demoDetail('113'), model({ detailId: '113' }));
   assert.match(legacy, /3 Runs, all failed or stuck\. These Runs ran before Shifts existed/);
@@ -306,7 +312,7 @@ test('Runs are grouped by Shift and Round, failures first, newest Round first', 
     { id: '3', shiftId: '7', round: 2, state: 'finished', outcome: 'no_change_needed' },
     { id: '4', shiftId: '7', round: 1, state: 'finished', outcome: 'failed', failureReason: 'infra_node' },
   ];
-  assert.deepEqual(runGroups(runs, '7').map(group => [group.label, group.runs.map(run => run.id)]), [['Round 1', ['4', '2']], ['Round 2', ['3']], ['Shift 6 · Round 1', ['1']]]);
+  assert.deepEqual(runGroups(runs, '7').map(group => [group.label, group.runs.map(run => run.id)]), [['Round 1', ['4', '2']], ['Round 2', ['3']], ['Earlier Shift · Round 1', ['1']]]);
   assert.deepEqual(runGroups([{ id: '9', round: 0, state: 'finished', outcome: 'failed' }]).map(group => group.label), ['']);
 });
 
@@ -326,7 +332,7 @@ test('the Round ladder is Roles by Rounds with retries counted, and Runs list fa
 });
 
 test('a Run reads as its verdict when it reviewed and as its outcome when it wrote; a Run cancelled before it started says so', () => {
-  assert.equal(runResult({ state: 'finished', writes: false, verdict: 'request_changes', outcome: 'no_change_needed' }).label, 'Changes requested');
+  assert.equal(runResult({ state: 'finished', writes: false, verdict: 'request_changes', outcome: 'no_change_needed' }).label, 'Agent asked for changes');
   assert.equal(runResult({ state: 'finished', writes: false, verdict: 'request_changes' }).title, 'Agent review: changes requested');
   assert.equal(runResult({ state: 'finished', writes: true, outcome: 'pr_opened' }).label, 'PR opened');
   assert.equal(runResult({ state: 'finished', writes: true, outcome: 'pr_opened' }).title, 'Opened a pull request');

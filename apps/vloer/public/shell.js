@@ -7,6 +7,7 @@ import { prefs, applyAppearance } from './core/prefs.js';
 import { keyLabel, openShortcuts, singleKeysEnabled } from './core/keys.js';
 import { sessionsNeedingYou } from './core/counts.js';
 import { lockupSvg, markSvg } from './core/brand.js';
+import { avatar } from './core/ui.js';
 
 const lockup = lockupSvg({ className: 'app-lockup' });
 const mark = markSvg({ className: 'app-mark' });
@@ -24,10 +25,10 @@ const groups = [
     { id: 'tasks', href: '#tasks', glyph: 'tasks', label: 'Tasks' },
     { id: 'sessions', href: '#sessions', glyph: 'sessions', label: 'Sessions', count: 'sessions', describe: n => `${n} ${n === 1 ? 'needs' : 'need'} you`, tone: 'attention', when: () => showsSessions() },
   ] },
-  { id: 'settings', items: [{ id: 'settings', href: '#settings/accounts', glyph: 'settings', label: 'Settings' }] },
+  { id: 'settings', items: [{ id: 'settings', href: '#settings/preferences', glyph: 'settings', label: 'Settings' }] },
 ];
 const quick = ['now', 'work', 'runs'];
-const settingsPages = [['account', '#settings/accounts', 'Linked accounts'], ['system', '#settings/environment', 'Environment'], ['preferences', '#settings/preferences', 'Preferences']];
+const settingsPages = [['preferences', '#settings/preferences', 'Preferences'], ['system', '#settings/environment', 'Environment'], ['account', '#settings/accounts', 'Linked accounts']];
 const areas = { session: 'sessions', account: 'settings', system: 'settings', preferences: 'settings', design: 'settings' };
 const groupOf = { work: 'Ploeg', proposed: 'Ploeg', runs: 'Ploeg', activity: 'Ploeg', insights: 'Ploeg', tasks: 'Workbench', sessions: 'Workbench', settings: 'Settings' };
 const themes = [['system', 'monitor', 'System'], ['light', 'sun', 'Light'], ['dark', 'moon', 'Dark']];
@@ -42,7 +43,6 @@ const ploegStates = {
 let lastTitle = 'De Vloer';
 
 const area = () => areas[state.view] || state.view;
-const initials = name => escape(String(name || '?').trim().slice(0, 2).toUpperCase());
 
 /** Whether the Sessions area is offered: in demo mode, with shared execution configured, or when sessions exist. */
 export function showsSessions() {
@@ -69,17 +69,22 @@ function countMarkup(item, where) {
   return `<span class="app-count" data-tone="${item.tone}" data-count-for="${item.count}" aria-hidden="true" ${value ? '' : 'hidden'}>${value ?? ''}</span><span class="app-hidden-description" id="${where}-count-${item.id}" data-count-describe="${item.count}" hidden>${value ? escape(item.describe(value)) : ''}</span>`;
 }
 
+function hrefOf(item) {
+  return item.id === 'settings' && state.bootstrap?.user?.role === 'admin' ? '#settings/environment' : item.href;
+}
+
 function itemMarkup(item, where) {
   const current = area() === item.id;
-  return `<li><a class="app-nav-item" href="${item.href}" aria-label="${escape(item.label)}" data-tip="${escape(item.label)}" ${item.count ? `aria-describedby="${where}-count-${item.id}"` : ''} ${current ? 'aria-current="page"' : ''}>${icon(item.glyph)}<span class="app-nav-label" aria-hidden="true">${escape(item.label)}</span>${countMarkup(item, where)}</a></li>`;
+  return `<li><a class="app-nav-item" href="${hrefOf(item)}" aria-label="${escape(item.label)}" data-tip="${escape(item.label)}" ${item.count ? `aria-describedby="${where}-count-${item.id}"` : ''} ${current ? 'aria-current="page"' : ''}>${icon(item.glyph)}<span class="app-nav-label" aria-hidden="true">${escape(item.label)}</span>${countMarkup(item, where)}</a></li>`;
 }
 
 function navMarkup(where) {
   return `<nav class="app-nav" aria-label="Primary navigation">${groups.map(group => {
     const items = group.items.filter(item => !item.when || item.when());
     if (!items.length) return '';
-    const heading = group.label ? `<p class="app-nav-group" id="${where}-group-${group.id}">${escape(group.label)}</p>` : '';
-    return `<div class="app-nav-section" data-group="${group.id}">${heading}<ul class="app-nav-list" ${group.label ? `aria-labelledby="${where}-group-${group.id}"` : ''}>${items.map(item => itemMarkup(item, where)).join('')}</ul></div>`;
+    const offline = group.id === 'ploeg' && state.ploegStatus === 'unconfigured';
+    const heading = group.label ? `<p class="app-nav-group" id="${where}-group-${group.id}">${escape(group.label)}${offline ? '<span class="app-nav-hint"> · Not connected</span>' : ''}</p>` : '';
+    return `<div class="app-nav-section" data-group="${group.id}"${offline ? ' data-unconfigured' : ''}>${heading}<ul class="app-nav-list" ${group.label ? `aria-labelledby="${where}-group-${group.id}"` : ''}>${items.map(item => itemMarkup(item, where)).join('')}</ul></div>`;
   }).join('')}</nav>`;
 }
 
@@ -95,17 +100,26 @@ function ploegStatus() {
 
 function updatedText() { return live.lastUpdated ? `Updated ${relative(live.lastUpdated)}` : ''; }
 
+function streamState() { return state.view === 'session' && state.session ? (state.online ? 'online' : 'offline') : null; }
+
+function statusFacts() {
+  const ploeg = ploegStatus();
+  const stream = streamState();
+  const updated = updatedText();
+  const tip = [ploeg.detail, stream === 'online' ? 'The session stream is connected.' : stream === 'offline' ? 'The session stream is reconnecting.' : '', live.paused ? 'Auto-refresh is paused.' : '', updated ? `${updated}.` : ''].filter(Boolean).join(' ');
+  return { tone: stream === 'offline' ? 'attention' : ploeg.tone, text: stream === 'offline' ? 'Reconnecting…' : ploeg.text, tip, updated };
+}
+
 function liveButton() {
   const paused = live.paused;
-  return `<button class="app-live" type="button" data-action="live-toggle" data-live-toggle data-state="${paused ? 'paused' : 'live'}" title="${paused ? 'Live updates are paused. Select to resume.' : 'Pages refresh themselves. Select to pause.'}"><span class="app-dot" aria-hidden="true"></span><span class="app-visually-hidden">Updates: </span><span data-live-label>${paused ? 'Paused' : 'Live'}</span></button>`;
+  const label = paused ? 'Resume auto-refresh' : 'Pause auto-refresh';
+  return `<button class="app-live" type="button" data-action="live-toggle" data-live-toggle data-state="${paused ? 'paused' : 'live'}" aria-label="${label}" title="${label}">${icon(paused ? 'play' : 'pause')}<span class="app-live-label" data-live-label ${paused ? '' : 'hidden'}>Paused</span></button>`;
 }
 
 function statusMarkup() {
   const demo = state.bootstrap.mode === 'demo';
-  const ploeg = ploegStatus();
-  const updated = updatedText();
-  const stream = state.view === 'session' && state.session ? `<span class="app-stream${state.online ? '' : ' offline'}"><i></i>${state.online ? 'Connected' : 'Reconnecting'}</span>` : '';
-  return `<div class="app-status" role="group" aria-label="Status">${stream}<span class="app-status-ploeg" data-ploeg-status data-tone="${ploeg.tone}" title="${escape(ploeg.detail)}"><span class="app-dot" aria-hidden="true"></span><span data-ploeg-text>${escape(ploeg.text)}</span></span><span class="app-status-updated" data-live-updated ${updated ? '' : 'hidden'}>${escape(updated)}</span>${liveButton()}<span class="app-mode" data-mode="${demo ? 'demo' : 'live'}" title="${demo ? 'Demonstration mode: real code changes and tests, no AI model calls or charges.' : 'Live workbench: Runs spend real budget.'}">${demo ? 'Demo' : 'Live'}</span></div>`;
+  const facts = statusFacts();
+  return `<div class="app-status" role="group" aria-label="Status"><span class="app-status-ploeg" data-ploeg-status data-tone="${facts.tone}" title="${escape(facts.tip)}"><span class="app-dot" aria-hidden="true"></span><span data-ploeg-text>${escape(facts.text)}</span><span class="app-visually-hidden" data-live-updated ${facts.updated ? '' : 'hidden'}>${escape(facts.updated)}</span></span>${liveButton()}<span class="app-mode" data-mode="${demo ? 'demo' : 'live'}" title="${demo ? 'Demonstration mode: illustrative Ploeg records and real code changes, no model calls or charges.' : 'Live workbench: Runs spend real budget.'}">${demo ? 'Demo' : 'Live'}</span></div>`;
 }
 
 function themeSwitch() {
@@ -118,14 +132,18 @@ function accountItems() {
   return `${themeSwitch()}<a class="app-menu-item" href="#settings/preferences">${icon('settings')}<span>Preferences</span></a><button class="app-menu-item" type="button" data-action="shortcuts-open">${icon('keyboard')}<span>Keyboard shortcuts</span>${singleKeysEnabled() ? '<kbd class="app-kbd">?</kbd>' : ''}</button>${demo ? '' : `<button class="app-menu-item" type="button" data-action="logout">${icon('logout')}<span>Sign out</span></button>`}`;
 }
 
+function userAvatar(size) {
+  return `<span class="app-avatar" aria-hidden="true">${avatar({ name: state.bootstrap.user.name, size })}</span>`;
+}
+
 function identity() {
   const user = state.bootstrap.user;
-  return `<div class="app-identity"><span class="app-avatar" aria-hidden="true">${initials(user.name)}</span><span><strong>${escape(user.name)}</strong><small>${escape(user.role)}${state.bootstrap.mode === 'demo' ? ' · local demo' : ''}</small></span></div>`;
+  return `<div class="app-identity">${userAvatar()}<span><strong>${escape(user.name)}</strong><small>${escape(user.role)}${state.bootstrap.mode === 'demo' ? ' · local demo' : ''}</small></span></div>`;
 }
 
 function userMenuMarkup() {
   const user = state.bootstrap.user;
-  return `<div class="app-user"><button class="app-user-trigger" type="button" data-action="user-menu" aria-expanded="false" aria-controls="app-user-menu" aria-label="Account and theme, ${escape(user.name)}"><span class="app-avatar" aria-hidden="true">${initials(user.name)}</span><span class="app-user-name" aria-hidden="true">${escape(user.name)}</span>${icon('chevron-down')}</button><div class="app-user-menu" id="app-user-menu" hidden>${identity()}${accountItems()}</div></div>`;
+  return `<div class="app-user"><button class="app-user-trigger" type="button" data-action="user-menu" aria-expanded="false" aria-controls="app-user-menu" aria-label="Account and theme, ${escape(user.name)}">${userAvatar('sm')}<span class="app-user-name" aria-hidden="true">${escape(user.name)}</span>${icon('chevron-down')}</button><div class="app-user-menu" id="app-user-menu" hidden>${identity()}${accountItems()}</div></div>`;
 }
 
 function breadcrumbs(page) {
@@ -134,8 +152,11 @@ function breadcrumbs(page) {
 }
 
 function backMarkup(page) {
-  if (!page.back?.href) return '';
-  return `<a class="app-back" href="${escape(page.back.href)}">${icon('chevron-left')}<span>${escape(page.back.label || 'Back')}</span></a>`;
+  const back = page.back;
+  if (!back?.href && !back?.action) return '';
+  const inner = `${icon('chevron-left')}<span>${escape(back.label || 'Back')}</span>`;
+  if (back.action) return `<button type="button" class="app-back"${back.id ? ` id="${escape(back.id)}"` : ''} data-action="${escape(back.action)}">${inner}</button>`;
+  return `<a class="app-back"${back.id ? ` id="${escape(back.id)}"` : ''} href="${escape(back.href)}">${inner}</a>`;
 }
 
 function topbarMarkup(page) {
@@ -183,12 +204,21 @@ export function shell(content, titleOrOptions, subtitle) {
   return `<div class="app-shell" data-area="${escape(area())}">${sidebarMarkup()}<div class="app-body">${topbarMarkup(page)}<main id="main" class="app-main${page.wide ? ' is-wide' : ''}" tabindex="-1">${headerMarkup(page)}${settingsMarkup()}${content}</main></div>${tabbarMarkup()}</div>`;
 }
 
-/** Shows in the status strip whether the open session's event stream is connected. */
+/** Folds whether the open session's event stream is connected into the status dot: its tooltip, and "Reconnecting…" when it is not. */
 export function showConnection(online) {
-  const connection = $('.app-stream');
-  if (!connection) return;
-  if (online) { connection.classList.remove('offline'); connection.innerHTML = '<i></i>Connected'; }
-  else { connection.classList.add('offline'); connection.innerHTML = '<i></i>Reconnecting'; }
+  state.online = online;
+  updateStatus();
+}
+
+function updateStatus() {
+  const facts = statusFacts();
+  for (const status of document.querySelectorAll('[data-ploeg-status]')) {
+    status.dataset.tone = facts.tone;
+    status.title = facts.tip;
+    status.querySelector('[data-ploeg-text]').textContent = facts.text;
+    const updated = status.querySelector('[data-live-updated]');
+    if (updated) { updated.textContent = facts.updated; updated.hidden = !facts.updated; }
+  }
 }
 
 /** Brings the counts, the Ploeg status, the live state, the theme buttons and the document title up to date without redrawing the page. */
@@ -202,22 +232,23 @@ export function updateChrome() {
     const item = groups.flatMap(group => group.items).find(entry => entry.count === description.dataset.countDescribe);
     description.textContent = value && item ? item.describe(value) : '';
   }
-  const ploeg = ploegStatus();
-  for (const status of document.querySelectorAll('[data-ploeg-status]')) { status.dataset.tone = ploeg.tone; status.title = ploeg.detail; status.querySelector('[data-ploeg-text]').textContent = ploeg.text; }
+  for (const section of document.querySelectorAll('.app-nav-section[data-group="ploeg"]')) section.toggleAttribute('data-unconfigured', state.ploegStatus === 'unconfigured');
   updateLiveState();
   const theme = prefs.get('theme');
   for (const button of document.querySelectorAll('[data-action="theme-set"]')) button.setAttribute('aria-pressed', String(button.dataset.value === theme));
 }
 
-/** Refreshes the "Updated … ago" text and the Live or Paused button. */
+/** Refreshes the status tooltip ("Updated … ago") and the pause or resume auto-refresh button. */
 export function updateLiveState() {
-  const updated = updatedText();
-  for (const element of document.querySelectorAll('[data-live-updated]')) { element.textContent = updated; element.hidden = !updated; }
+  updateStatus();
   const paused = live.paused;
+  const label = paused ? 'Resume auto-refresh' : 'Pause auto-refresh';
   for (const button of document.querySelectorAll('[data-live-toggle]')) {
+    if (button.dataset.state === (paused ? 'paused' : 'live')) continue;
     button.dataset.state = paused ? 'paused' : 'live';
-    button.title = paused ? 'Live updates are paused. Select to resume.' : 'Pages refresh themselves. Select to pause.';
-    button.querySelector('[data-live-label]').textContent = paused ? 'Paused' : 'Live';
+    button.setAttribute('aria-label', label);
+    button.title = label;
+    button.innerHTML = `${icon(paused ? 'play' : 'pause')}<span class="app-live-label" data-live-label ${paused ? '' : 'hidden'}>Paused</span>`;
   }
 }
 
@@ -282,7 +313,7 @@ function closeMenuOnEscape(event) {
 function toggleLive() {
   const paused = live.toggle();
   updateLiveState();
-  announce(paused ? 'Live updates paused' : 'Live updates on');
+  announce(paused ? 'Auto-refresh paused' : 'Auto-refresh on');
 }
 
 function setTheme(button) {

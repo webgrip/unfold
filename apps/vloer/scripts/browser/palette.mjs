@@ -45,7 +45,7 @@ export async function run({ page, app, live, password, assert, screenshot }) {
   await page.keyboard.press('ArrowDown');
   const before = (await active()).id;
   await page.keyboard.press('Tab');
-  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Cancel search');
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Close search');
   await page.keyboard.press('Tab');
   assert.equal(await page.evaluate(() => document.activeElement?.id), 'palette-input', 'Tab stays inside the palette');
   await page.keyboard.press('ArrowDown');
@@ -102,13 +102,13 @@ export async function run({ page, app, live, password, assert, screenshot }) {
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => document.documentElement.dataset.theme === undefined && document.querySelector('input[data-pref="theme"]:checked')?.value === 'system');
   const status = page.locator('.app-topbar').getByRole('group', { name: 'Status' });
-  await search('pause live', 'Pause live updates');
+  await search('pause live', 'Pause auto-refresh');
   await page.keyboard.press('Enter');
-  await status.getByRole('button', { name: 'Updates: Paused' }).waitFor();
+  await status.getByRole('button', { name: 'Resume auto-refresh' }).waitFor();
   assert.equal(await page.evaluate(() => document.querySelector('input[data-pref="live"]')?.checked), false, 'Preferences follows a live-updates change made in the palette');
-  await search('resume', 'Resume live updates');
+  await search('resume', 'Resume auto-refresh');
   await page.keyboard.press('Enter');
-  await status.getByRole('button', { name: 'Updates: Live' }).waitFor();
+  await status.getByRole('button', { name: 'Pause auto-refresh' }).waitFor();
   assert.equal(await page.evaluate(() => document.querySelector('input[data-pref="live"]')?.checked), true);
   await search('shortcuts', 'Show keyboard shortcuts');
   await page.keyboard.press('Enter');
@@ -214,9 +214,8 @@ export async function run({ page, app, live, password, assert, screenshot }) {
   const sheet = await palette.boundingBox();
   assert.deepEqual([Math.round(sheet.x), Math.round(sheet.width)], [0, 390], 'the palette is a full-width sheet on phones');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth || document.getElementById('palette').scrollWidth > document.getElementById('palette').clientWidth), false, 'the phone palette overflows horizontally');
-  const cancel = palette.getByRole('button', { name: 'Cancel search' });
-  assert((await cancel.boundingBox()).height >= 44, 'the phone Cancel button is at least 44 px tall');
-  assert.equal(await cancel.innerText(), 'Cancel', 'its visible word is part of its name');
+  const cancel = palette.getByRole('button', { name: 'Close search' });
+  assert((await cancel.boundingBox()).height >= 44, 'the phone close button is at least 44 px tall');
   await screenshot('palette-390');
   await cancel.click();
   await palette.waitFor({ state: 'hidden' });

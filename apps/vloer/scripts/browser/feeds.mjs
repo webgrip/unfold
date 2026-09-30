@@ -27,7 +27,9 @@ export async function run({ page, assert, screenshot }) {
     assert.equal(await page.getByRole('button', { name: '7 days', exact: true }).getAttribute('aria-pressed'), 'true');
     assert.equal(await page.locator('.insights .stat').count(), 9);
     assert.equal(await page.locator('.insights a.stat[href="#work?lane=needs_human"]').count(), 1, 'The Needs you tile links to its lane');
-    await page.getByText('Illustrative Ploeg records. No Run executed, no model was called and nothing was spent.', { exact: true }).waitFor();
+    const note = page.locator('.demo-note', { hasText: 'Illustrative records · no model calls, no spend' });
+    await note.waitFor({ state: 'attached' });
+    assert.equal(await note.isVisible(), !phone, 'the in-page demo note gives way to the top bar’s DEMO badge on phones');
     assert.equal(await page.locator('.insights-table').first().locator('tbody tr').count(), 2);
     assert.equal(await page.locator('.insights-table[tabindex], .insights-table[role="region"]').count(), 0, 'Tables that never scroll are no tab stop');
     assert.equal(await visible('.insights-team'), phone ? 2 : 0, 'Per-Team cards replace the tables on phones');
@@ -61,7 +63,7 @@ export async function run({ page, assert, screenshot }) {
     assert.equal(await visible('.runs-card'), phone ? 10 : 0, 'Runs become cards on phones');
     assert.equal(await visible('.runs-table tbody tr[data-run-id]'), phone ? 0 : 10);
     assert.equal(await page.locator('.runs-table tbody tr[data-run-id]').first().getAttribute('data-state'), 'running', 'Running work comes first');
-    assert.deepEqual(await page.locator('.runs-table thead th').allTextContents(), ['Status', 'Work Item', 'Started', 'Spend', 'Model']);
+    assert.deepEqual(await page.locator('.runs-table thead th').allTextContents(), ['Status', 'Work Item', 'Started'], 'the demo drops the Spend and Model columns that would only hold dashes');
     await page.getByLabel('State', { exact: true }).selectOption('running');
     await page.waitForFunction(() => document.querySelectorAll('.runs-table tbody tr[data-run-id]').length === 1);
     const outcome = page.getByLabel('Outcome', { exact: true });

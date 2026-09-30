@@ -14,6 +14,15 @@
   width: 13rem;
 }
 
+.runs-table[data-demo] .runs-col-status {
+  width: 15rem;
+}
+
+.runs-badge > .badge {
+  max-width: 100%;
+  white-space: normal;
+}
+
 .runs-col-started {
   width: 10rem;
 }
@@ -86,6 +95,10 @@
 
 .runs-table td > * + * {
   margin-top: var(--space-0-5);
+}
+
+.runs-table td > .dots {
+  display: flex;
 }
 
 .runs-table td > .runs-badge {
@@ -241,7 +254,7 @@
 }
 
 .runs-card-line {
-  margin: 0;
+  margin-block: 0;
   overflow-wrap: anywhere;
 }
 

@@ -1,9 +1,10 @@
 import { escape, safeUrl } from './core/dom.js';
 import { icon } from './core/icons.js';
 import * as format from './core/format.js';
-import { runOutcome, verdict as verdictMeta, failureReason, workItemState } from './core/states.js';
-import { listReason, reasonGlyph, routingWarning } from './core/reasons.js';
-import { badge, button, callout, count, emptyState, iconButton, kbd, listRow, meter, skeleton, stat, demoNote } from './core/ui.js';
+import { runOutcome, verdict as verdictMeta, failureReason, workItemState, tileDetail, unreportedOutcome } from './core/states.js';
+import { listReason, reasonGlyph, routingWarning, needsYouBlocks } from './core/reasons.js';
+import { workItemRef, reasonBand } from './ploeg.js';
+import { badge, button, callout, count, emptyState, iconButton, kbd, listRow, meter, skeleton, stat, demoNote, ploegUnconfigured } from './core/ui.js';
 
 /** How long the Now page must be out of sight before the digest starts a new "since" period. */
 export const awayAfter = 30 * 60 * 1000;
@@ -31,10 +32,7 @@ export function mayHoldMore(data, group) {
   return list.length >= (data?.demo ? runPage.demo : runPage.live);
 }
 
-/** Needs you splits into one sub-group per reason once it holds more than this many Work Items and a reason repeats. */
-export const groupAbove = 5;
-
-/** How many rows each reason sub-group of Needs you lists. */
+/** How many rows each reason group of Needs you lists before it points to the rest in Work. */
 export const subgroupLimit = 3;
 
 const groups = [
@@ -167,31 +165,6 @@ export function byFinish(runs) {
   return (runs || []).map((run, index) => ({ run, index, at: moment(run.finishedAt) })).sort((a, b) => (b.at ?? -Infinity) - (a.at ?? -Infinity) || a.index - b.index).map(entry => entry.run);
 }
 
-/**
- * Splits the Needs-you rows into one bucket per reason code once there are more than `groupAbove` rows and at
- * least one reason repeats; otherwise returns null and the group stays a flat list. Reasons shared by several
- * Work Items come first, the largest first (one fix clears the most), ties in the order their oldest row appears.
- * Reasons held by a single Work Item follow, pooled into one bucket with `reason` null when there are several.
- * Rows keep Ploeg's oldest-first order inside every bucket.
- * @param {object[]} rows
- * @returns {{ reason: object|null, rows: object[] }[] | null}
- */
-export function reasonBuckets(rows) {
-  if (!Array.isArray(rows) || rows.length <= groupAbove) return null;
-  const buckets = new Map();
-  for (const entry of rows) {
-    const reason = listReason(entry) || listReason({ ...entry, state: 'needs_human', latestShift: null, closeReason: '' });
-    if (!buckets.has(reason.code)) buckets.set(reason.code, { reason, rows: [], index: buckets.size });
-    buckets.get(reason.code).rows.push(entry);
-  }
-  if (buckets.size >= rows.length) return null;
-  const all = [...buckets.values()];
-  const shared = all.filter(bucket => bucket.rows.length > 1).sort((a, b) => b.rows.length - a.rows.length || a.index - b.index);
-  const single = all.filter(bucket => bucket.rows.length === 1);
-  const rest = single.length > 1 ? [{ reason: null, rows: single.flatMap(bucket => bucket.rows) }] : single;
-  return [...shared, ...rest].map(({ reason, rows: members }) => ({ reason, rows: members }));
-}
-
 function grafanaTeam(grafanaUrl, team) {
   const base = safeUrl(grafanaUrl);
   return base ? `${base.replace(/\/$/, '')}/d/glide-loop?var-team=${encodeURIComponent(team)}` : null;
@@ -201,11 +174,11 @@ function repository(target) {
   if (!target?.repo) return null;
   const full = target.owner ? `${target.owner}/${target.repo}` : target.repo;
   const title = target.baseBranch ? `${full}, base branch ${target.baseBranch}` : full;
-  return { class: 'now-repo', html: `${icon('branch')}<span title="${escape(title)}">${escape(target.repo)}</span>` };
+  return { class: 'now-repo', html: `${icon('branch')}<span title="${escape(title)}">${escape(full)}</span>` };
 }
 
 function reference(entry) {
-  return entry.externalId ? `<span class="now-ref">${escape(entry.externalId)}</span>` : '';
+  return entry.externalId || entry.provider === 'ploeg' ? `<span class="now-ref">${escape(workItemRef(entry))}</span>` : '';
 }
 
 function shiftSpend(entry, demo) {
@@ -231,22 +204,21 @@ function origin(entry) {
 }
 
 function whyLine(entry, reason, warning, grouped) {
-  let sentence = '';
-  let fix = '';
+  if (grouped) return '';
+  let text = '';
   let full = '';
   if (reason) {
-    sentence = grouped === 'shared' ? '' : reason.sentence;
-    fix = grouped ? '' : reason.fix;
+    text = reason.fix;
     full = [reason.sentence, reason.action, warning?.sentence].filter(Boolean).join(' ');
   } else if (entry.state === 'proposed') {
-    sentence = [origin(entry), warning?.sentence].filter(Boolean).join(' ');
-    full = sentence;
+    text = origin(entry);
+    full = [origin(entry), warning?.sentence].filter(Boolean).join(' ');
   } else if (warning) {
-    sentence = warning.sentence;
-    full = sentence;
+    text = warning.fix;
+    full = warning.sentence;
   }
-  if (!sentence) return '';
-  return `<span class="now-why" title="${escape(full)}">${escape(sentence)}${fix ? ` <span class="now-why-fix">${escape(fix)}</span>` : ''}</span>`;
+  if (!text) return '';
+  return `<span class="now-why${reason ? ' now-why-fix' : ''}" title="${escape(full)}">${escape(text)}</span>`;
 }
 
 function waitingMeta(entry, context, { reason, warning, grouped }) {
@@ -255,7 +227,7 @@ function waitingMeta(entry, context, { reason, warning, grouped }) {
   if (entry.state === 'proposed' && entry.ready === false) chips.push(chipMarkup({ label: 'Needs refinement', tone: 'attention', title: 'Not Ready yet: the brief needs refining before an agent can pick it up.' }));
   if (warning) chips.push(chipMarkup({ label: warning.chip, tone: warning.tone, glyph: warning.glyph, title: warning.sentence, secondary: true }));
   const review = entry.state === 'awaiting_review' ? latestVerdict(entry, context.runs) : null;
-  const verdict = review ? badge({ tone: review.tone, glyph: review.glyph, label: review.label, size: 'sm' }) : '';
+  const verdict = review ? badge({ tone: review.tone, glyph: review.glyph, label: review.short, title: `${review.label}. Agent review is evidence, not a human review.`, size: 'sm' }) : '';
   const round = entry.state !== 'proposed' && entry.latestShift?.round ? { class: 'now-round', html: `Round ${escape(entry.latestShift.round)}` } : null;
   const spend = entry.state === 'awaiting_review' ? shiftSpend(entry, context.demo) : '';
   const facts = joinDots([escape(entry.team), reference(entry), entry.state === 'proposed' ? null : repository(entry.target), round, spend]);
@@ -292,7 +264,7 @@ function waitingRow(entry, context, grouped = false) {
     href: `#work/${entry.id}`,
     id: `now-row-w-${entry.id}`,
     tone: reason?.tone || meta.tone,
-    lead: grouped ? '<span class="now-lead-blank"></span>' : icon(reason ? reasonGlyph(reason) : meta.glyph),
+    lead: icon(reason ? reasonGlyph(reason) : meta.glyph),
     title: entry.title || `Work Item ${entry.id}`,
     meta: waitingMeta(entry, context, { reason, warning, grouped }),
     trail: when ? `<span class="now-when"><span class="now-when-label">${created ? 'Created' : 'Updated'} </span>${format.timeHtml(when, { now: context.now })}</span>` : '',
@@ -341,32 +313,31 @@ function groupHeader(group, total, id) {
   return `<header class="now-group-header" data-tone="${group.tone}"><h3 class="now-group-title" id="${id}">${icon(group.glyph)}<span>${escape(group.title)}</span>${total ? count(total) : ''}</h3>${total ? `<p class="now-group-hint">${escape(group.hint)}</p>` : ''}</header>`;
 }
 
-function subgroupsMarkup(buckets, group, context) {
-  return buckets.map(({ reason, rows }) => {
-    const id = `now-reason-${reason ? reason.code : 'other'}`;
-    const shown = rows.slice(0, subgroupLimit);
-    const hidden = rows.length - shown.length;
-    const sentenceOf = entry => listReason(entry, { demo: context.demo })?.sentence;
-    const shared = reason && rows.every(entry => sentenceOf(entry) === sentenceOf(rows[0]));
-    const label = reason ? chipMarkup({ label: reason.chip, tone: reason.tone }) : '<span class="now-subgroup-name">Other reasons</span>';
-    const note = reason ? `<p class="now-subgroup-note">${shared ? `${escape(sentenceOf(rows[0]))} ` : ''}<span class="now-why-fix">${escape(reason.fix)}</span></p>` : '';
-    const more = hidden > 0 ? `<a class="now-subgroup-more" href="${escape(group.more)}">${escape(`${format.count(hidden)} more in ${group.place}`)}${icon('chevron')}</a>` : '';
-    const header = `<header class="now-subgroup-header" data-tone="${reason ? reason.tone : group.tone}"><h4 class="now-subgroup-title" id="${id}"><span class="now-subgroup-glyph" aria-hidden="true">${icon(reason ? reasonGlyph(reason) : 'more')}</span>${label}${count(rows.length)}</h4>${note}${more}</header>`;
-    return `<div class="now-subgroup" role="group" aria-labelledby="${id}">${header}<ul class="list now-list" aria-labelledby="${id}">${shown.map(entry => waitingRow(entry, context, reason ? (shared ? 'shared' : 'grouped') : false)).join('')}</ul></div>`;
+function needsMarkup(rows, group, context, id) {
+  const blocks = needsYouBlocks(rows, { demo: context.demo });
+  const flat = blocks.filter(block => !block.grouped).flatMap(block => block.items);
+  const shown = flat.slice(0, groupLimit);
+  const stale = staleRow(context.stale);
+  const list = shown.length || stale ? `<ul class="list now-list" aria-labelledby="${id}">${shown.map(entry => waitingRow(entry, context)).join('')}${moreRow(flat.length - shown.length, group)}${stale}</ul>` : '';
+  const bands = blocks.filter(block => block.grouped).map(block => {
+    const bandId = `now-reason-${block.reason.code}`;
+    const first = block.items.slice(0, subgroupLimit);
+    return `<div class="now-band" role="group" aria-labelledby="${bandId}">${reasonBand(block.reason, block.items.length, bandId)}<ul class="list now-list" aria-labelledby="${bandId}">${first.map(entry => waitingRow(entry, context, true)).join('')}${moreRow(block.items.length - first.length, group)}</ul></div>`;
   }).join('');
+  return `${list}${bands}`;
 }
 
 function groupMarkup(group, rows, context) {
   const id = `now-group-${group.id}`;
   const stale = group.id === 'needs' ? staleRow(context.stale) : '';
-  const buckets = group.id === 'needs' ? reasonBuckets(rows) : null;
+  const banded = group.id === 'needs' && needsYouBlocks(rows, { demo: context.demo }).some(block => block.grouped);
   let body;
-  if (buckets) body = `${subgroupsMarkup(buckets, group, context)}${stale ? `<ul class="list now-list">${stale}</ul>` : ''}`;
+  if (group.id === 'needs' && (rows.length || stale)) body = needsMarkup(rows, group, context, id);
   else if (rows.length || stale) {
     const shown = rows.slice(0, groupLimit);
     body = `<ul class="list now-list" aria-labelledby="${id}">${shown.map(entry => waitingRow(entry, context)).join('')}${stale}${moreRow(rows.length - shown.length, group)}</ul>`;
   } else body = `<p class="now-group-empty">${escape(group.empty)}</p>`;
-  return `<div class="now-group" data-group="${group.id}"${buckets ? ' data-split' : ''} role="group" aria-labelledby="${id}">${groupHeader(group, rows.length, id)}${body}</div>`;
+  return `<div class="now-group" data-group="${group.id}"${banded ? ' data-split' : ''} role="group" aria-labelledby="${id}">${groupHeader(group, rows.length, id)}${body}</div>`;
 }
 
 function waitingCard(view, visible, held, context) {
@@ -416,13 +387,14 @@ function recentRow(run, context) {
   const failure = failureReason(run.failureReason);
   const verdict = run.verdict && run.verdict !== 'none' ? verdictMeta(run.verdict) : null;
   const unread = context.dots && after(run.finishedAt, context.since);
+  const none = outcome ? null : unreportedOutcome(run);
   const facts = joinDots([
-    `<span class="now-outcome" data-tone="${tone}">${escape(outcome?.label || 'No outcome reported')}</span>`,
+    `<span class="now-outcome" data-tone="${tone}">${escape(outcome?.label || none.label)}</span>`,
     failure ? escape(failure.label) : '',
     run.role ? escape(run.role) : '',
     run.round ? `Round ${escape(run.round)}` : '',
   ]);
-  const agentReview = verdict ? badge({ tone: verdict.tone, glyph: verdict.glyph, label: verdict.label, size: 'sm' }) : '';
+  const agentReview = verdict ? badge({ tone: verdict.tone, glyph: verdict.glyph, label: verdict.short, title: `${verdict.label}. Agent review is evidence, not a human review.`, size: 'sm' }) : '';
   return `<li>${listRow({ href: `#work/${run.workItemId}`, id: `now-row-f-${run.id}`, tone, lead: icon(outcome?.glyph || 'circle-slash'), title: run.workItemTitle || `Work Item ${run.workItemId}`, meta: `${agentReview}${facts}`, trail: format.timeHtml(run.finishedAt, { now: context.now }), data: { nowRow: true, unread: unread || null } })}</li>`;
 }
 
@@ -498,8 +470,8 @@ function statsMarkup(view) {
     : { value: '—', quiet: true, detail: unreported };
   const tiles = [
     tile({ label: 'Waiting on you', glyph: 'inbox', tone: 'attention', value: waiting ? format.count(waiting.length) : '—', quiet: !waiting, detail: waiting ? breakdown.length ? joinDots(breakdown.map(part => escape(part))) : 'Nothing to decide' : 'Could not be loaded' }),
-    tile({ label: 'Running', glyph: 'runs', tone: 'live', href: '#runs?state=running', value: running ? `${format.count(runningCount)}${runningMore}` : '—', quiet: !running, detail: escape(running ? amount(pending) && pending > 0 ? `+${format.count(pending)} waiting for a worker` : runningCount ? 'Working now' : 'Nothing is working' : 'Could not be loaded') }),
-    tile({ label: 'Queued', glyph: 'circle-dashed', tone: 'neutral', href: '#work?lane=queued', value: amount(queued) ? format.count(queued) : '—', quiet: !amount(queued), detail: escape(amount(queued) ? queued ? 'Waiting to start' : 'Nothing waits to start' : unreported) }),
+    tile({ label: 'Running', glyph: 'runs', tone: 'live', href: '#runs?state=running', value: running ? `${format.count(runningCount)}${runningMore}` : '—', quiet: !running, detail: escape(running ? tileDetail.running({ running: runningCount, pending }) : 'Could not be loaded') }),
+    tile({ label: 'Queued', glyph: 'circle-dashed', tone: 'neutral', href: '#work?lane=queued', value: amount(queued) ? format.count(queued) : '—', quiet: !amount(queued), detail: escape(amount(queued) ? tileDetail.queued(queued) : unreported) }),
     tile({ label: 'Spend · 24 h', glyph: 'coins', tone: 'neutral', href: '#insights?window=24h', value: spend.value, quiet: spend.quiet, detail: escape(spend.detail) }),
   ];
   return `<div class="stat-row now-stats">${tiles.join('')}</div>`;
@@ -507,7 +479,7 @@ function statsMarkup(view) {
 
 function failureMarkup(error) {
   const code = error?.code || '';
-  if (code === 'ploeg_unconfigured') return emptyState({ icon: 'settings', title: 'Connect Ploeg to see your work', body: 'No Ploeg connection is configured for this workbench. An administrator sets it up; Environment shows what is missing.', actions: button({ id: 'now-environment', label: 'Open Environment', href: '#settings/environment' }) });
+  if (code === 'ploeg_unconfigured') return ploegUnconfigured();
   if (code === 'ploeg_scope') return emptyState({ icon: 'lock', title: 'Your account has no Ploeg Teams', body: 'Ask an administrator to give your account access to a Team. Its work shows up here as soon as they do.' });
   const actions = `${retryButton('page')}${button({ id: 'now-environment', label: 'Check Environment', size: 'sm', variant: 'ghost', href: '#settings/environment' })}`;
   return emptyState({ icon: 'x-circle', tone: 'danger', title: 'Could not reach Ploeg', body: `${escape(error?.message || 'Ploeg did not answer.')} Nothing was started or changed.`, actions });

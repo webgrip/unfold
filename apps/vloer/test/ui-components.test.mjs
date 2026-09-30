@@ -245,7 +245,9 @@ test('small builders keep unknown values honest and structure predictable', () =
   assert.match(ui.listRow({ title: 'Row', href: '#work/1', selected: true, tone: 'attention', data: { unread: true } }), /^<a class="list-row" href="#work\/1" aria-current="true" data-tone="attention" data-unread>/);
   assert.match(ui.listRow({ title: 'Row', action: 'open', data: { id: 'x' } }), /^<button type="button" class="list-row" data-action="open" data-id="x">/);
   assert.match(ui.listRow({ title: 'Row' }), /^<div class="list-row">/);
-  assert.match(ui.demoNote(), /<span class="demo-note-tag">Demo<\/span><span>Illustrative data\. No model calls, no spend\.<\/span>/);
+  assert.match(ui.demoNote(), /<span class="demo-note-tag">Demo<\/span><span>Illustrative records · no model calls, no spend<\/span>/);
+  assert.match(ui.budgetInput({ id: 'b', name: 'budgetUsd', value: 5 }), /<span class="money-input"><span class="money-input-prefix" aria-hidden="true">US\$<\/span><input id="b" name="budgetUsd" type="text" inputmode="decimal"[^>]*value="5,00" required><\/span>/, 'a budget is prefilled in the number format in use');
+  assert.match(ui.ploegUnconfigured(), /Ploeg is not connected[^]*href="#settings\/environment"/);
   assert.equal(ui.toolbar(['a', 'b']), '<div class="toolbar">ab</div>');
 });
 

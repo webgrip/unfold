@@ -7,7 +7,7 @@ const moved = {
   'ploeg/proposed': 'proposed',
   account: 'settings/accounts',
   system: 'settings/environment',
-  settings: 'settings/accounts',
+  settings: 'settings/preferences',
 };
 
 /**

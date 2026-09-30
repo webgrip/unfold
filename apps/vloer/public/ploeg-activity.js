@@ -1,8 +1,8 @@
 import * as ui from './core/ui.js';
 import { count, dateTime, dayKey, dayLabel, duration as span, money, percent, plural, timeHtml } from './core/format.js';
-import { failureReason, runOutcome, runState, verdict as verdictMeta } from './core/states.js';
+import { auditActor, auditEvent, failureReason, runOutcome, runState, tileDetail, unreportedOutcome, verdict as verdictMeta } from './core/states.js';
 import { markdown } from './core/markdown.js';
-import { parseBudgetReason, parseStuckReason, routingWarning } from './core/reasons.js';
+import { routingWarning } from './core/reasons.js';
 
 /** The Insights time windows as `[id, label]`. */
 export const ploegWindows = [['24h', '24 hours'], ['7d', '7 days'], ['30d', '30 days']];
@@ -10,67 +10,17 @@ export const ploegWindows = [['24h', '24 hours'], ['7d', '7 days'], ['30d', '30 
 export const eventGroups = [['work', 'Work Items'], ['runs', 'Runs and Shifts'], ['review', 'Review and delivery'], ['spend', 'Spend'], ['other', 'Other']];
 const groupNouns = { work: 'Work Item', runs: 'Run and Shift', review: 'review and delivery', spend: 'spend', other: 'other' };
 
-const demoText = 'Illustrative Ploeg records. No Run executed, no model was called and nothing was spent.';
-const eventTable = {
-  'work_item.queued': ['Queued', 'neutral', 'circle-dashed'],
-  'work_item.refreshed': ['Tracker task changed', 'neutral', 'refresh'],
-  'work_item.proposed': ['Proposed by an agent', 'neutral', 'proposed'],
-  'work_item.approved': ['Approved', 'success', 'check'],
-  'work_item.rejected': ['Rejected', 'neutral', 'x'],
-  'work_item.withdrawn': ['Withdrawn', 'neutral', 'circle-slash'],
-  'work_item.needs_human': ['Needs you', 'attention', 'alert'],
-  'work_item.awaiting_review': ['Ready for your review', 'review', 'pull-request'],
-  'work_item.done': ['Done', 'success', 'check-circle'],
-  'work_item.stale': ['Stopped retrying', 'severe', 'clock'],
-  'work_item.leased': ['Running', 'live', 'runs'],
-  'created_work_item.accepted': ['Created new work', 'neutral', 'plus'],
-  'created_work_item.rejected': ['New work refused by policy', 'neutral', 'x'],
-  'follow_up.created': ['Follow-up created', 'neutral', 'plus'],
-  'follow_up.skipped': ['Follow-up skipped', 'neutral', 'minus'],
-  'run.claimed': ['Run started', 'live', 'runs'],
-  'run.expired': ['Run stopped checking in', 'severe', 'zap'],
-  'round.opened': ['Round opened', 'neutral', 'layers'],
-  'round.reopened': ['Round retried after a failed writer', 'attention', 'refresh'],
-  'shift.closed': ['Shift closed', 'neutral', 'stop'],
-  'lease.acquired': ['Worker claimed it', 'live', 'runs'],
-  'lease.expired': ['Worker lost; Ploeg retries later', 'severe', 'zap'],
-  infra_cap: ['Infrastructure kept failing; Ploeg stopped', 'severe', 'zap'],
-  'operator.admitted': ['A Vloer session took over', 'neutral', 'user'],
-  'operator.admission_expired': ['Session admission expired', 'neutral', 'clock'],
-  'checkpoint.written': ['Checkpoint saved', 'neutral', 'branch'],
-  'review.changes_requested': ['Changes requested on the pull request', 'attention', 'alert'],
-  'delivery.candidate_admitted': ['Delivery candidate admitted', 'neutral', 'inbox'],
-  'delivery.verification_recorded': ['Verification recorded', 'neutral', 'check'],
-  'delivery.approved': ['Delivery approved', 'success', 'check-circle'],
-  'delivery.publication_reserved': ['Publication reserved', 'neutral', 'lock'],
-  'delivery.publication_published': ['Published to the forge', 'success', 'pull-request'],
-  'delivery.publication_unknown': ['Publication result unknown', 'attention', 'alert'],
-  'llm.reserved': ['Budget reserved', 'neutral', 'coins'],
-  'llm.minting': ['Model key requested', 'neutral', 'lock'],
-  'llm.issued': ['Model key issued', 'neutral', 'lock'],
-  'llm.observed': ['Model spend observed', 'neutral', 'coins'],
-  'llm.reconciled': ['Spend settled', 'neutral', 'coins'],
-  'llm.blocked': ['Model key blocked', 'neutral', 'lock'],
-  'llm.unissued_blocked': ['Unused model key blocked', 'neutral', 'lock'],
-  'llm.unknown': ['Spend could not be settled', 'attention', 'alert'],
-};
-const outcomeLabels = { pr_opened: 'Opened a pull request', pr_updated: 'Updated the pull request', no_change_needed: 'Found no change needed', follow_up_created: 'Created follow-up work', issue_updated: 'Updated the tracker item', stuck: 'Reported that it is stuck', failed: 'Run failed' };
-const phases = { branch_created: ['Created the branch', 'branch'], progress: ['Reported progress', 'activity'], pr_opened: ['Opened a pull request', 'pull-request'], pr_updated: ['Updated the pull request', 'pull-request'], reviewed: ['Recorded a review', 'eye'], review: ['Recorded a review', 'eye'] };
 const groupPrefixes = { work_item: 'work', created_work_item: 'work', follow_up: 'work', run: 'runs', round: 'runs', shift: 'runs', lease: 'runs', infra_cap: 'runs', operator: 'runs', outcome: 'runs', checkpoint: 'runs', review: 'review', delivery: 'review', llm: 'spend' };
-const withdrawnReasons = { withdrawn_unassigned: 'the task was unassigned from the Team in the tracker', withdrawn_closed: 'the task was closed in the tracker', withdrawn_by_operator: 'an operator cancelled it' };
-const trackerNames = { vikunja: 'Vikunja', forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp', gitea: 'Gitea', demo: 'Demo tracker' };
 const createdKinds = { split: 'Split from its source', clarify: 'Clarification', discovered: 'Discovered work' };
 const runStateOptions = [['pending', 'Pending'], ['running', 'Running'], ['finished', 'Finished']];
 const runOutcomeOptions = ['pr_opened', 'pr_updated', 'issue_updated', 'follow_up_created', 'no_change_needed', 'stuck', 'failed'];
 const problems = {
   ploeg_unsupported: { glyph: 'info', title: 'This Ploeg version has no activity data yet', body: 'Upgrade Ploeg to read Insights, Runs and Activity here. Work and review keep working.', link: ['Open Work', '#work'] },
-  ploeg_unconfigured: { glyph: 'layers', title: 'Ploeg is not connected', body: 'An administrator connects Ploeg in the workbench configuration. Until then there is nothing to show here.', link: ['Open Environment', '#settings/environment'] },
   ploeg_scope: { glyph: 'lock', title: 'Your account has no Ploeg Teams', body: 'Ask an administrator to give your account access to a Team.' },
 };
 
 const words = value => String(value ?? '').replaceAll('_', ' ').trim();
 const capital = value => { const text = words(value); return text ? text[0].toUpperCase() + text.slice(1) : ''; };
-const sentence = value => { const text = String(value ?? '').trim(); return text ? text[0].toUpperCase() + text.slice(1) : ''; };
 const isNumber = value => typeof value === 'number' && Number.isFinite(value);
 const newestFirst = (a, b) => { const x = BigInt(a.id), y = BigInt(b.id); return x < y ? 1 : x > y ? -1 : 0; };
 function unique(events) { const seen = new Set(); return events.filter(entry => !seen.has(entry.id) && seen.add(entry.id)).sort(newestFirst); }
@@ -103,89 +53,24 @@ export function duration(seconds) {
 export const canDecide = user => user?.role === 'admin' || user?.role === 'operator';
 
 /**
- * Names an audit action in plain words, with its filter group, tone and glyph. Every action Ploeg writes for a
- * Work Item has its own label; an unknown action reads as its humanized name in the `other` group.
+ * Names an audit action in plain words, with its filter group, tone and glyph. The words come from the one audit
+ * table in core/states.js (`auditEvent`), so Activity and the Work Item page read the same; an unknown action reads
+ * as its humanized name in the `other` group.
  * @returns {{ group: string, label: string, tone: string, glyph: string }}
  */
 export function eventKind(action) {
   const text = String(action ?? '');
-  const group = groupPrefixes[text.split('.')[0]] || 'other';
-  if (Object.hasOwn(eventTable, text)) { const [label, tone, glyph] = eventTable[text]; return { group, label, tone, glyph }; }
-  if (text.startsWith('outcome.')) {
-    const key = text.slice('outcome.'.length);
-    const meta = runOutcome(key);
-    return { group, label: outcomeLabels[key] || `Reported ${words(key)}`, tone: meta?.tone || 'neutral', glyph: meta?.glyph || 'circle' };
-  }
-  if (text.startsWith('delivery.publication_')) return { group, label: `Publication ${words(text.slice('delivery.publication_'.length))}`, tone: 'neutral', glyph: 'pull-request' };
-  const [head, ...rest] = text.split('.');
-  return { group, label: `${capital(head) || 'Event'}${rest.length ? `: ${words(rest.join('.'))}` : ''}`, tone: 'neutral', glyph: 'circle' };
-}
-
-function shiftReason(reason) {
-  const text = String(reason ?? '').trim();
-  const lower = text.toLowerCase();
-  if (!text) return ['', 'neutral'];
-  if (text === 'plan_exhausted') return ['Every planned Round ran', 'neutral'];
-  if (text === 'review_approved') return ['The reviewer approved', 'success'];
-  if (text === 'fix_round_cap_reached') return ['The reviewer still wanted changes when the fix Rounds ran out', 'attention'];
-  if (text === 'budget_exhausted_before_fix_round') return ['The budget could not pay for another fix Round', 'attention'];
-  if (lower.startsWith('budget exhausted')) { const { pool } = parseBudgetReason(text); return [pool === null ? 'The budget ran out' : `The budget of ${money(pool)} could not pay for the next Round`, 'attention']; }
-  if (text === 'writing_run_failed_repeatedly') return ['The writer kept failing', 'danger'];
-  if (text === 'writing_run_killed_repeatedly') return ['The cluster kept stopping the writer (not the Work Item’s fault)', 'severe'];
-  if (lower.startsWith('run stuck:')) { const { role, round } = parseStuckReason(text); return [role ? `The ${role} reported that it is stuck${round ? ` in Round ${round}` : ''}` : 'An agent reported that it is stuck', 'attention']; }
-  if (lower === 'plan removed from configuration') return ['The Team’s plan was removed from the configuration', 'attention'];
-  if (Object.hasOwn(withdrawnReasons, text)) return [`Withdrawn: ${withdrawnReasons[text]}`, 'neutral'];
-  if (text === 'operator_failed') return ['The Vloer session failed', 'danger'];
-  return [sentence(text), 'neutral'];
+  const { label, tone, glyph } = auditEvent({ action: text });
+  return { group: groupPrefixes[text.split('.')[0]] || 'other', label, tone, glyph };
 }
 
 /**
- * Tells one audit event as a person would read it: a label ("Implementer started Round 1"), a tone and glyph,
- * and a detail line from the event's own fields (Ploeg's reason, the Round, the authorized amount).
+ * Tells one audit event as a person would read it: its filter group plus `auditEvent`'s label, tone, glyph and
+ * detail line (Ploeg's reason, the authorized amount, the infrastructure failures so far).
  * @returns {{ group: string, label: string, tone: string, glyph: string, detail: string }}
  */
 export function eventStory(entry) {
-  const kind = eventKind(entry?.action);
-  const detail = entry?.detail && typeof entry.detail === 'object' ? entry.detail : {};
-  const reason = typeof detail.reason === 'string' ? detail.reason.trim() : '';
-  const role = typeof detail.role === 'string' ? detail.role.trim() : '';
-  const round = Number.isInteger(detail.round) && detail.round > 0 ? detail.round : null;
-  const access = detail.writes === true ? 'Writes to the branch' : detail.writes === false ? 'Reads only' : '';
-  const authorized = isNumber(detail.authorizedUsd) && detail.authorizedUsd > 0 ? `up to ${money(detail.authorizedUsd)} authorized` : '';
-  const failures = isNumber(detail.infraFailures) ? `${plural(detail.infraFailures, 'infrastructure failure')} so far` : '';
-  const story = { ...kind, detail: '' };
-  switch (entry?.action) {
-    case 'run.claimed': return { ...story, label: role ? `${capital(role)} started${round ? ` Round ${round}` : ''}` : kind.label, detail: [access, authorized].filter(Boolean).join(' · ') };
-    case 'run.expired': return { ...story, label: role ? `${capital(role)} stopped checking in` : kind.label, detail: access };
-    case 'round.opened': return { ...story, label: round ? `Round ${round} opened` : kind.label };
-    case 'round.reopened': return { ...story, label: round ? `Round ${round} retried after a failed writer` : kind.label };
-    case 'shift.closed': { const [text, tone] = shiftReason(reason); return { ...story, tone, detail: text }; }
-    case 'checkpoint.written': { const phase = phases[detail.phase]; return { ...story, label: phase ? phase[0] : detail.phase ? `Checkpoint: ${words(detail.phase)}` : kind.label, glyph: phase ? phase[1] : kind.glyph }; }
-    case 'lease.expired': case 'infra_cap': return { ...story, detail: failures };
-    case 'work_item.withdrawn': return { ...story, detail: Object.hasOwn(withdrawnReasons, reason) ? sentence(withdrawnReasons[reason]) : sentence(reason) };
-    case 'llm.reserved': return { ...story, detail: authorized ? sentence(authorized) : '' };
-    default: return { ...story, detail: sentence(reason) };
-  }
-}
-
-/**
- * Names who acted on an event: an agent of a Team, Ploeg itself, a tracker webhook or a Vloer operator (the
- * signed-in `user` reads as "you"). `kind` is agent, system, tracker or person, so agents are never mistaken for people.
- * @returns {{ name: string, kind: 'agent' | 'system' | 'tracker' | 'person', glyph: string, title: string }}
- */
-export function actorOf(actor, user = null) {
-  const text = String(actor ?? '').trim();
-  const [kind, ...rest] = text.split(':');
-  const tail = rest.join(':');
-  if (kind === 'team' && tail) return { name: 'Agent', kind: 'agent', glyph: 'bot', title: `An agent of the ${tail} Team` };
-  if (kind === 'ploegd') return { name: 'Ploeg', kind: 'system', glyph: 'layers', title: `Ploeg${tail ? ` (${words(tail).replaceAll('-', ' ')})` : ''}` };
-  if (kind === 'webhook' && tail) { const name = trackerNames[rest[0]] || capital(rest[0]); return { name, kind: 'tracker', glyph: 'tag', title: `${name}, through its webhook` }; }
-  if (kind === 'operator' && rest.length >= 2) {
-    const id = rest.slice(1).join(':');
-    if (user && String(user.id) === id) return { name: `${user.name || 'You'} (you)`, kind: 'person', glyph: 'user', title: `You, through ${rest[0] || 'Vloer'}` };
-    return { name: 'An operator', kind: 'person', glyph: 'user', title: `Operator ${id}, through ${rest[0] || 'Vloer'}` };
-  }
-  return { name: text || 'Unknown', kind: 'system', glyph: 'circle', title: text || 'Not reported' };
+  return { group: groupPrefixes[String(entry?.action ?? '').split('.')[0]] || 'other', ...auditEvent(entry) };
 }
 
 /**
@@ -296,6 +181,7 @@ function linkButton(label, href, { escape, icon }, glyph = 'arrow') {
 /** The first-load failure of a Ploeg page: a known setup gap reads as guidance; anything else as an error with Try again. */
 export function problemMarkup(error, subject, helpers) {
   const { escape } = helpers;
+  if (error?.code === 'ploeg_unconfigured') return `<div class="feeds-problem">${ui.ploegUnconfigured()}</div>`;
   const known = problems[error?.code];
   if (known) return `<div class="feeds-problem card">${empty({ glyph: known.glyph, title: known.title, body: `<p>${escape(known.body)}</p>`, actions: known.link ? linkButton(known.link[0], known.link[1], helpers) : '', compact: false }, helpers)}</div>`;
   return `<div class="feeds-problem card" role="alert">${empty({ glyph: 'x-circle', tone: 'danger', title: `Could not load ${subject}`, body: `<p>${escape(error?.message || 'Ploeg did not answer.')}</p>`, actions: retryButton(helpers), compact: false }, helpers)}</div>`;
@@ -307,9 +193,8 @@ function staleNotice(view, helpers) {
   return `<div class="callout feeds-stale" data-tone="attention" role="status"><span class="callout-icon" aria-hidden="true">${icon('alert')}</span><div class="callout-content"><p class="callout-title">Could not refresh. ${since ? `Showing data from ${since}.` : 'Showing the last data Vloer read.'}</p><div class="callout-body"><p>${escape(view.error.message || 'Ploeg did not answer.')}</p></div></div><div class="callout-actions">${retryButton(helpers)}</div></div>`;
 }
 
-const demoNote = demo => demo ? ui.demoNote(demoText) : '';
+const demoNote = demo => demo ? ui.demoNote() : '';
 const page = (name, ...parts) => `<div class="feeds feeds-${name}">${parts.join('')}</div>`;
-const demoDash = '<span class="subtle" title="Demo · no model calls"><span aria-hidden="true">—</span><span class="sr-only">Demo · no model calls</span></span>';
 
 function teamField(id, teams, selected, escape) {
   return `<div class="field inline feeds-field"><label class="field-label" for="${id}">Team</label><select id="${id}"><option value="">All Teams</option>${teams.map(team => `<option value="${escape(team)}"${team === selected ? ' selected' : ''}>${escape(team)}</option>`).join('')}</select></div>`;
@@ -365,11 +250,11 @@ export function overviewMarkup(view, helpers, now = Date.now()) {
     settledTile,
   ].join('');
   const workTiles = [
-    tile({ label: 'Ready for review', value: count(items.awaitingReview), detail: 'Pull requests to read', href: '#work?lane=awaiting_review', tone: 'review', glyph: 'pull-request' }, helpers),
-    tile({ label: 'Needs you', value: count(items.needsHuman), detail: 'Ploeg stopped; see why', href: '#work?lane=needs_human', tone: 'attention', glyph: 'alert' }, helpers),
-    tile({ label: 'Running', value: count(items.leased), detail: `${plural(runs.running, 'Run')} working · ${count(runs.pending)} waiting`, href: '#work?lane=leased', tone: 'live', glyph: 'activity' }, helpers),
-    tile({ label: 'Queued', value: count(items.queued), detail: 'Waiting for a worker', href: '#work?lane=queued', glyph: 'circle-dashed' }, helpers),
-    tile({ label: 'Proposed', value: count(items.proposed), detail: 'Waiting for approval', href: '#proposed', glyph: 'proposed' }, helpers),
+    tile({ label: 'Ready for review', value: count(items.awaitingReview), detail: tileDetail.review(), href: '#work?lane=awaiting_review', tone: 'review', glyph: 'pull-request' }, helpers),
+    tile({ label: 'Needs you', value: count(items.needsHuman), detail: tileDetail.needsYou(), href: '#work?lane=needs_human', tone: 'attention', glyph: 'alert' }, helpers),
+    tile({ label: 'Running', value: count(items.leased), detail: tileDetail.running(runs), href: '#work?lane=leased', tone: 'live', glyph: 'activity' }, helpers),
+    tile({ label: 'Queued', value: count(items.queued), detail: tileDetail.queued(items.queued), href: '#work?lane=queued', glyph: 'circle-dashed' }, helpers),
+    tile({ label: 'Proposed', value: count(items.proposed), detail: tileDetail.proposed(), href: '#proposed', glyph: 'proposed' }, helpers),
   ].join('');
   const when = value => value ? timeHtml(value, { now }) : '<span class="subtle">None</span>';
   const settled = entry => data.demo ? '<span class="subtle">No model calls</span>' : escape(money(entry.spend.settledUsd));
@@ -392,10 +277,10 @@ export function overviewMarkup(view, helpers, now = Date.now()) {
 function eventItem(entry, helpers, now, user) {
   const { escape, icon } = helpers;
   const story = eventStory(entry);
-  const actor = actorOf(entry.actor, user);
+  const actor = auditActor(entry.actor, { userId: user?.id });
   const title = entry.workItemTitle || `Work Item ${entry.workItemId}`;
   const link = entry.workItemId ? `<a class="activity-event-item" href="#work/${escape(entry.workItemId)}">${escape(title)}</a>` : '';
-  const team = entry.team ? `<span class="activity-event-team" title="${escape(entry.team)}">${escape(entry.team)}</span>` : '';
+  const team = entry.team && actor.team !== entry.team ? `<span class="activity-event-team" title="${escape(entry.team)}">${escape(entry.team)}</span>` : '';
   return `<li class="timeline-item activity-event" data-tone="${story.tone}" id="activity-event-${escape(entry.id)}" data-event-id="${escape(entry.id)}"><span class="activity-event-time">${timeHtml(entry.at, { display: 'time', now }) || '<span class="subtle">—</span>'}</span><span class="timeline-marker" aria-hidden="true">${icon(story.glyph)}</span><div class="timeline-content"><p class="activity-event-line"><span class="timeline-title">${escape(story.label)}</span>${link}</p>${story.detail ? `<p class="activity-event-detail">${escape(story.detail)}</p>` : ''}</div><p class="timeline-meta activity-event-meta"><span class="activity-actor" data-kind="${actor.kind}" title="${escape(actor.title)}">${icon(actor.glyph)}${escape(actor.name)}</span>${team}</p></li>`;
 }
 
@@ -433,12 +318,13 @@ function runBadge(run) {
   if (run.state === 'pending') { const meta = runState('pending'); return ui.badge({ tone: meta.tone, glyph: meta.glyph, label: meta.label }); }
   const outcome = runOutcome(run.outcome);
   if (outcome) return ui.badge({ tone: outcome.tone, glyph: outcome.glyph, label: outcome.label });
-  return ui.badge({ tone: 'neutral', glyph: 'circle', label: 'No outcome reported' });
+  const none = unreportedOutcome(run);
+  return ui.badge({ tone: none.tone, glyph: none.glyph, label: none.label });
 }
 
 function runNotes(run, escape) {
   const notes = [];
-  if (run.verdict) { const meta = verdictMeta(run.verdict); notes.push(`<span class="runs-note" data-tone="${meta.tone}">${escape(meta.label)}</span>`); }
+  if (run.verdict) { const meta = verdictMeta(run.verdict); notes.push(`<span class="runs-note" data-tone="${meta.tone}" title="${escape(`${meta.label}. Agent review is evidence, not a human review.`)}">${escape(meta.short)}</span>`); }
   const failure = failureReason(run.failureReason);
   if (failure) notes.push(`<span class="runs-note" data-tone="${failure.tone}">${escape(failure.label)}</span>`);
   else if (run.failureReason) notes.push(`<span class="runs-note" data-tone="danger">${escape(capital(run.failureReason))}</span>`);
@@ -447,9 +333,11 @@ function runNotes(run, escape) {
 }
 
 function runRole(run) {
-  const role = run.role ? capital(run.role) : 'Role not reported';
-  return [role, run.round > 0 ? `Round ${run.round}` : 'Before Shifts', run.writes ? 'writer' : 'reader'].join(' · ');
+  if (!(run.round > 0)) return [run.role ? `${capital(run.role)} (before Shifts)` : 'Role unknown (before Shifts)', run.writes ? 'writer' : 'reader'];
+  return [run.role ? capital(run.role) : 'Role unknown', `Round ${run.round}`, run.writes ? 'writer' : 'reader'];
 }
+
+const dots = (parts, escape, className = '') => `<span class="meta dots${className ? ` ${className}` : ''}">${parts.filter(Boolean).map(part => `<span>${escape(part)}</span>`).join('')}</span>`;
 
 function runTiming(run, now, escape) {
   if (run.state === 'pending') return { started: '<span class="subtle">Waiting for a worker</span>', took: '' };
@@ -471,7 +359,6 @@ function spendMeter(run) {
 }
 
 function runSpendCell(run, demo, { escape }) {
-  if (demo) return demoDash;
   if (run.state === 'pending') return `<span class="subtle">${isNumber(run.authorizedUsd) && run.authorizedUsd > 0 ? `Up to ${escape(money(run.authorizedUsd))}` : 'Not authorized yet'}</span>`;
   const { meter, note, tone } = spendMeter(run);
   return `${meter}${note ? `<span class="runs-spend-note"${tone ? ` data-tone="${tone}"` : ''}>${escape(note)}</span>` : ''}`;
@@ -489,9 +376,9 @@ function runRow(run, demo, helpers, now) {
   const { notes, next } = runNotes(run, escape);
   const { started, took } = runTiming(run, now, escape);
   const { models, tokens } = runModel(run, escape);
-  const ref = [run.externalRef, run.team, `Run ${run.id}`].filter(Boolean).map(escape).join(' · ');
-  const model = models.length ? `<span class="runs-models">${models.map(name => `<span class="runs-model-name">${name}</span>`).join('')}</span>` : demo ? demoDash : '<span class="subtle">Not reported</span>';
-  return `<tr data-run-id="${escape(run.id)}" data-state="${escape(run.state)}"><td class="runs-status"><span class="runs-badge">${runBadge(run)}</span>${notes}${next}</td><td class="runs-item"><a class="runs-title" href="#work/${escape(run.workItemId)}">${escape(title)}</a><span class="meta">${escape(runRole(run))}</span><span class="meta">${ref}</span></td><td class="runs-started">${started}${took ? `<span class="meta num">${escape(took)}</span>` : ''}</td><td class="runs-spend">${runSpendCell(run, demo, helpers)}</td><td class="runs-model">${model}${tokens ? `<span class="meta num">${escape(tokens)}</span>` : ''}</td></tr>`;
+  const model = models.length ? `<span class="runs-models">${models.map(name => `<span class="runs-model-name">${name}</span>`).join('')}</span>` : '<span class="subtle">Not reported</span>';
+  const usage = demo ? '' : `<td class="runs-spend">${runSpendCell(run, demo, helpers)}</td><td class="runs-model">${model}${tokens ? `<span class="meta num">${escape(tokens)}</span>` : ''}</td>`;
+  return `<tr data-run-id="${escape(run.id)}" data-state="${escape(run.state)}"><td class="runs-status"><span class="runs-badge">${runBadge(run)}</span>${notes}${next}</td><td class="runs-item"><a class="runs-title" href="#work/${escape(run.workItemId)}">${escape(title)}</a>${dots(runRole(run), escape)}${dots([run.externalRef, run.team, `Run ${run.id}`], escape)}</td><td class="runs-started">${started}${took ? `<span class="meta num">${escape(took)}</span>` : ''}</td>${usage}</tr>`;
 }
 
 function runCard(run, demo, helpers, now) {
@@ -500,19 +387,19 @@ function runCard(run, demo, helpers, now) {
   const { notes, next } = runNotes(run, escape);
   const { started, took } = runTiming(run, now, escape);
   const { models, tokens } = runModel(run, escape);
-  const ref = [run.externalRef, run.team, runRole(run)].filter(Boolean).map(escape).join(' · ');
   const model = `${models.length ? `<span class="runs-model-name">${models.join(', ')}</span>` : '<span class="subtle">Model not reported</span>'}${tokens ? ` · <span class="num">${escape(tokens)}</span>` : ''}`;
   const usage = demo ? '' : `<p class="meta runs-card-line">${model}</p><div class="runs-card-spend">${runSpendCell(run, demo, helpers)}</div>`;
-  return `<li class="runs-card" data-run-id="${escape(run.id)}" data-state="${escape(run.state)}"><div class="runs-card-head">${runBadge(run)}<span class="meta">Run ${escape(run.id)}</span></div>${notes || next ? `<div class="runs-card-notes">${notes}${next}</div>` : ''}<a class="runs-card-title" href="#work/${escape(run.workItemId)}">${escape(title)}</a><p class="meta runs-card-line">${ref}</p><p class="meta runs-card-line">${started}${took ? ` · ${escape(took)}` : ''}</p>${usage}</li>`;
+  return `<li class="runs-card" data-run-id="${escape(run.id)}" data-state="${escape(run.state)}"><div class="runs-card-head">${runBadge(run)}<span class="meta">Run ${escape(run.id)}</span></div>${notes || next ? `<div class="runs-card-notes">${notes}${next}</div>` : ''}<a class="runs-card-title" href="#work/${escape(run.workItemId)}">${escape(title)}</a>${dots([run.externalRef, run.team, ...runRole(run)], escape, 'runs-card-line')}<p class="meta runs-card-line">${started}${took ? ` · ${escape(took)}` : ''}</p>${usage}</li>`;
 }
 
-const runColumns = [['status', 'Status'], ['item', 'Work Item'], ['started', 'Started'], ['spend', 'Spend'], ['model', 'Model']];
-const runHead = `<colgroup>${runColumns.map(([key]) => `<col class="runs-col-${key}">`).join('')}</colgroup><thead><tr>${runColumns.map(([, label]) => `<th scope="col">${label}</th>`).join('')}</tr></thead>`;
+const allRunColumns = [['status', 'Status'], ['item', 'Work Item'], ['started', 'Started'], ['spend', 'Spend'], ['model', 'Model']];
+const runColumnsFor = demo => demo ? allRunColumns.filter(([key]) => key !== 'spend' && key !== 'model') : allRunColumns;
+const runHead = (demo = false) => `<colgroup>${runColumnsFor(demo).map(([key]) => `<col class="runs-col-${key}">`).join('')}</colgroup><thead><tr>${runColumnsFor(demo).map(([, label]) => `<th scope="col">${label}</th>`).join('')}</tr></thead>`;
 
 function runsSkeleton() {
   const row = '<tr><td><span class="skeleton pill"></span></td><td><span class="skeleton runs-skeleton-title"></span><span class="skeleton runs-skeleton-meta"></span></td><td><span class="skeleton runs-skeleton-short"></span></td><td><span class="skeleton runs-skeleton-short"></span><span class="skeleton runs-skeleton-bar"></span></td><td><span class="skeleton runs-skeleton-short"></span></td></tr>';
   const card = '<li class="runs-card"><span class="skeleton pill"></span><span class="skeleton runs-skeleton-title"></span><span class="skeleton runs-skeleton-meta"></span><span class="skeleton runs-skeleton-short"></span><span class="skeleton runs-skeleton-bar"></span></li>';
-  return `<div class="card flush runs-list" aria-busy="true"><span class="sr-only">Loading…</span><div class="table-wrap runs-table" aria-hidden="true"><table class="table runs-skeleton">${runHead}<tbody>${row.repeat(6)}</tbody></table></div><ul class="runs-cards" aria-hidden="true">${card.repeat(4)}</ul></div>`;
+  return `<div class="card flush runs-list" aria-busy="true"><span class="sr-only">Loading…</span><div class="table-wrap runs-table" aria-hidden="true"><table class="table runs-skeleton">${runHead()}<tbody>${row.repeat(6)}</tbody></table></div><ul class="runs-cards" aria-hidden="true">${card.repeat(4)}</ul></div>`;
 }
 
 /**
@@ -533,8 +420,8 @@ export function runsMarkup(view, teams, helpers, now = Date.now()) {
   const active = runs.filter(run => run.state !== 'finished');
   const done = runs.filter(run => run.state === 'finished');
   const grouped = Boolean(active.length && done.length);
-  const group = (label, list) => list.length ? `<tbody>${grouped ? `<tr class="runs-group"><th scope="rowgroup" colspan="${runColumns.length}">${escape(label)} <span class="count">${count(list.length)}</span></th></tr>` : ''}${list.map(run => runRow(run, view.demo, helpers, now)).join('')}</tbody>` : '';
-  const table = `<div class="table-wrap runs-table"><table class="table"><caption class="sr-only">Runs, running first, then newest first</caption>${runHead}${group('Running and waiting', active)}${group('Finished', done)}</table></div>`;
+  const group = (label, list) => list.length ? `<tbody>${grouped ? `<tr class="runs-group"><th scope="rowgroup" colspan="${runColumnsFor(view.demo).length}">${escape(label)} <span class="count">${count(list.length)}</span></th></tr>` : ''}${list.map(run => runRow(run, view.demo, helpers, now)).join('')}</tbody>` : '';
+  const table = `<div class="table-wrap runs-table"${view.demo ? ' data-demo' : ''}><table class="table"><caption class="sr-only">Runs, running first, then newest first</caption>${runHead(view.demo)}${group('Running and waiting', active)}${group('Finished', done)}</table></div>`;
   const cardGroup = (label, total) => grouped ? `<li class="runs-cards-group">${escape(label)} <span class="count">${count(total)}</span></li>` : '';
   const cards = `<ul class="runs-cards" aria-label="Runs, running first">${cardGroup('Running and waiting', active.length)}${active.map(run => runCard(run, view.demo, helpers, now)).join('')}${cardGroup('Finished', done.length)}${done.map(run => runCard(run, view.demo, helpers, now)).join('')}</ul>`;
   const busy = view.mode === 'older';

@@ -29,7 +29,7 @@ test('every old link redirects permanently to its new home, and current links st
     ['#ploeg', 'insights'], ['#ploeg/overview', 'insights'], ['#ploeg/105', 'work/105'], ['#ploeg/lane/needs_human', 'work?lane=needs_human'],
     ['#ploeg/lane/queued', 'work?lane=queued'], ['#ploeg/work', 'work'], ['#ploeg/activity', 'activity'], ['#ploeg/runs', 'runs'], ['#ploeg/proposed', 'proposed'],
     ['#ploeg/something-else', 'insights'], ['#ploeg/0', 'insights'],
-    ['#account', 'settings/accounts'], ['#system', 'settings/environment'], ['#settings', 'settings/accounts'],
+    ['#account', 'settings/accounts'], ['#system', 'settings/environment'], ['#settings', 'settings/preferences'],
     ['#compare/a/b', 'sessions'], ['#compare', 'sessions'],
   ];
   for (const [from, to] of cases) assert.equal(redirect(from), to, from);

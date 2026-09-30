@@ -153,8 +153,8 @@ test('before anything is typed the palette offers recent items, commands and des
   assert.deepEqual(labels(groups[0]), ['Show VAT per line on the order confirmation'], 'the page on screen is not offered again and titles come from loaded data');
   const recent = groups[0].results[0].entry;
   assert.deepEqual([recent.icon, recent.tone, recent.standing.label, recent.facts], ['alert', 'attention', 'Needs you', ['#108', 'DEMO-8', 'delivery']], 'a recent Work Item shows its state as a glyph and a label, and the same facts as in search');
-  assert.deepEqual(labels(groups[1]), ['Switch to dark theme', 'Pause live updates', 'Refresh this page', 'New session', 'Show keyboard shortcuts', 'Open preferences']);
-  assert.deepEqual(labels(searchPalette('', paletteEntries(context({ demo: false }))).find(group => group.id === 'commands')), ['Switch to dark theme', 'Pause live updates', 'Refresh this page', 'New session', 'Show keyboard shortcuts', 'Open preferences', 'Sign out'], 'every command the brief names fits');
+  assert.deepEqual(labels(groups[1]), ['Switch to dark theme', 'Pause auto-refresh', 'Refresh this page', 'New session', 'Show keyboard shortcuts', 'Open preferences']);
+  assert.deepEqual(labels(searchPalette('', paletteEntries(context({ demo: false }))).find(group => group.id === 'commands')), ['Switch to dark theme', 'Pause auto-refresh', 'Refresh this page', 'New session', 'Show keyboard shortcuts', 'Open preferences', 'Sign out'], 'every command the brief names fits');
   assert.deepEqual(labels(groups[2]), ['Now', 'Work', 'Proposed', 'Runs', 'Activity', 'Insights']);
   const now = groups[2].results[0].entry;
   assert.deepEqual([now.hash, now.keys, now.count], ['now', ['g', 'n'], { value: 9, tone: 'attention', label: '9 waiting on you' }]);
@@ -167,7 +167,7 @@ test('before anything is typed the palette offers recent items, commands and des
   assert.equal(all.find(entry => entry.id === 'live').run, 'live', 'theme and live updates run through the palette, which redraws Preferences');
   assert.equal(paletteEntries(context({ dark: true, theme: 'dark' })).find(entry => entry.id === 'theme').label, 'Switch to light theme');
   assert(paletteEntries(context({ theme: 'dark' })).some(entry => entry.label === 'Follow the system theme'));
-  assert.equal(paletteEntries(context({ paused: true })).find(entry => entry.id === 'live').label, 'Resume live updates');
+  assert.equal(paletteEntries(context({ paused: true })).find(entry => entry.id === 'live').label, 'Resume auto-refresh');
   const unknown = paletteEntries(context({ items: [], recent: [{ kind: 'work', id: '4', title: 'Stored title', at: '2026-09-30T10:00:00Z' }], current: null })).find(entry => entry.id === 'recent-work-4');
   assert.deepEqual([unknown.icon, unknown.standing, unknown.facts], ['work', undefined, ['#4']], 'an unknown state shows the neutral glyph and no label');
 });

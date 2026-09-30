@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activityMarkup, actorOf, approveDialogMarkup, canDecide, duration, eventDays, eventKind, eventStory, freshRuns, mergeFeed, mergeRuns, newerEvents, overviewMarkup, problemMarkup, proposalCreator, proposedMarkup, rejectDialogMarkup, relativeTime, runFilter, runSpend, runsMarkup, sortRuns, usdNl } from '../public/ploeg-activity.js';
+import { activityMarkup, approveDialogMarkup, canDecide, duration, eventDays, eventKind, eventStory, freshRuns, mergeFeed, mergeRuns, newerEvents, overviewMarkup, problemMarkup, proposalCreator, proposedMarkup, rejectDialogMarkup, relativeTime, runFilter, runSpend, runsMarkup, sortRuns, usdNl } from '../public/ploeg-activity.js';
 import { liveRefresh, track } from '../public/views/ploeg-common.js';
+import { auditActor } from '../public/core/states.js';
 import { state } from '../public/core/state.js';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 import { summaryTotals } from '../src/ploeg.ts';
@@ -49,35 +50,35 @@ test('every audit action Ploeg writes for a Work Item has its own human label, t
 });
 
 test('an event tells what happened from its own fields: the Role and Round, Ploeg’s reason, the amount and the failures', () => {
-  assert.deepEqual(eventStory(event(1, 'run.claimed', 'delivery', { detail: { role: 'implementer', round: 2, writes: true, authorizedUsd: 1.5 } })), { group: 'runs', label: 'Implementer started Round 2', tone: 'live', glyph: 'runs', detail: `Writes to the branch · up to US$${space}1,50 authorized` });
-  assert.equal(eventStory(event(1, 'run.claimed', 'delivery', { detail: { role: 'reviewer', round: 1, writes: false } })).detail, 'Reads only');
+  assert.deepEqual(eventStory(event(1, 'run.claimed', 'delivery', { detail: { role: 'implementer', round: 2, writes: true, authorizedUsd: 1.5 } })), { group: 'runs', label: 'Implementer started Round 2 as writer', tone: 'live', glyph: 'play', detail: `Up to US$${space}1,50 authorized` });
+  assert.equal(eventStory(event(1, 'run.claimed', 'delivery', { detail: { role: 'reviewer', round: 1, writes: false } })).label, 'Reviewer started Round 1 as reader');
   assert.equal(eventStory(event(1, 'round.reopened', 'delivery', { detail: { round: 3 } })).label, 'Round 3 retried after a failed writer');
+  assert.deepEqual([eventStory(event(1, 'round.opened', 'delivery', { detail: { round: 2 } })).label, eventStory(event(1, 'round.opened', 'delivery', { detail: { round: 2 } })).glyph], ['Round 2 started', 'play'], 'the same words and glyph as the Work Item page');
   const closed = reason => eventStory(event(1, 'shift.closed', 'delivery', { detail: { reason } }));
   assert.equal(closed('plan_exhausted').detail, 'Every planned Round ran');
-  assert.deepEqual([closed('review_approved').detail, closed('review_approved').tone], ['The reviewer approved', 'success']);
-  assert.equal(closed('budget exhausted: pool 0.04, spent 0.00, reserved 0.00').detail, `The budget of US$${space}0,04 could not pay for the next Round`);
-  assert.equal(closed('run stuck: builder round 2').detail, 'The builder reported that it is stuck in Round 2');
-  assert.deepEqual([closed('writing_run_killed_repeatedly').detail, closed('writing_run_killed_repeatedly').tone], ['The cluster kept stopping the writer (not the Work Item’s fault)', 'severe']);
-  assert.equal(closed('withdrawn_unassigned').detail, 'Withdrawn: the task was unassigned from the Team in the tracker');
-  assert.equal(eventStory(event(1, 'work_item.withdrawn', 'delivery', { detail: { reason: 'withdrawn_closed' } })).detail, 'The task was closed in the tracker');
+  assert.deepEqual([closed('review_approved').detail, closed('review_approved').tone], ['An agent reviewer approved', 'success']);
+  assert.equal(closed('budget exhausted: pool 0.04, spent 0.00, reserved 0.00').detail, `The US$${space}0,04 budget ran out`);
+  assert.equal(closed('run stuck: builder round 2').detail, 'The builder got stuck in Round 2');
+  assert.deepEqual([closed('writing_run_killed_repeatedly').detail, closed('writing_run_killed_repeatedly').tone], ['The cluster kept stopping the writer', 'severe']);
+  assert.equal(closed('withdrawn_unassigned').detail, 'The task was unassigned from the Team');
+  assert.equal(eventStory(event(1, 'work_item.withdrawn', 'delivery', { detail: { reason: 'withdrawn_closed' } })).detail, 'The task was closed before any Run started.');
   assert.equal(eventStory(event(1, 'work_item.needs_human', 'delivery', { detail: { reason: 'the budget could not fund the next round; a person is asked to take over' } })).detail, 'The budget could not fund the next round; a person is asked to take over');
   assert.equal(eventStory(event(1, 'checkpoint.written', 'delivery', { detail: { phase: 'branch_created' } })).label, 'Created the branch');
+  assert.equal(eventStory(event(1, 'checkpoint.written', 'delivery', { detail: { phase: 'review' } })).label, 'Reviewed the change');
   assert.equal(eventStory(event(1, 'checkpoint.written', 'delivery', { detail: { phase: 'smoke_tested' } })).label, 'Checkpoint: smoke tested');
-  assert.equal(eventStory(event(1, 'lease.expired', 'delivery', { detail: { infraFailures: 2 } })).detail, '2 infrastructure failures so far');
+  assert.equal(eventStory(event(1, 'outcome.no_change_needed', 'delivery')).label, 'Reported no change needed');
+  assert.deepEqual([eventStory(event(1, 'lease.expired', 'delivery', { detail: { infraFailures: 2 } })).label, eventStory(event(1, 'lease.expired', 'delivery', { detail: { infraFailures: 2 } })).detail], ['Worker stopped responding · Ploeg retries', '2 infrastructure failures so far']);
   assert.equal(eventStory(event(1, 'infra_cap', 'delivery', { detail: { infraFailures: 10 } })).detail, '10 infrastructure failures so far');
   assert.equal(eventStory(event(1, 'llm.reserved', 'delivery', { detail: { authorizedUsd: 1.5 } })).detail, `Up to US$${space}1,50 authorized`);
 });
 
-test('actors read as agents, Ploeg, a tracker or a person, and the signed-in operator reads as you', () => {
+test('actors read as agents, Ploeg, a tracker or a person, in the same words on every page', () => {
   const user = { id: 'u-1', name: 'Ryan' };
-  assert.deepEqual(actorOf('team:delivery', user), { name: 'Agent', kind: 'agent', glyph: 'bot', title: 'An agent of the delivery Team' });
-  assert.deepEqual(actorOf('ploegd:shift-engine', user), { name: 'Ploeg', kind: 'system', glyph: 'layers', title: 'Ploeg (shift engine)' });
-  assert.equal(actorOf('webhook:vikunja', user).name, 'Vikunja');
-  assert.equal(actorOf('webhook:demo', user).name, 'Demo tracker');
-  assert.deepEqual(actorOf('operator:vloer:u-1', user), { name: 'Ryan (you)', kind: 'person', glyph: 'user', title: 'You, through vloer' });
-  assert.deepEqual([actorOf('operator:vloer:u-2', user).name, actorOf('operator:vloer:u-2', user).title], ['An operator', 'Operator u-2, through vloer']);
-  assert.equal(actorOf('demo-fixture').name, 'demo-fixture');
-  assert.equal(actorOf('').name, 'Unknown');
+  assert.deepEqual(auditActor('team:delivery', { userId: user.id }), { name: 'Agent · delivery', kind: 'agent', glyph: 'bot', title: 'An agent of the delivery Team', team: 'delivery' });
+  assert.equal(auditActor('webhook:demo').name, 'Demo tracker');
+  assert.equal(auditActor('operator:vloer:u-1', { userId: user.id }).name, 'You');
+  const html = activityMarkup({ events: [event(1, 'run.claimed', 'delivery', { actor: 'team:delivery', detail: { role: 'implementer', round: 1, writes: true } })], nextCursor: null, team: '', kind: '' }, ['delivery'], helpers, now, user);
+  assert.match(html, /data-kind="agent" title="An agent of the delivery Team"><i data-icon="bot"><\/i>Agent · delivery<\/span><\/p>/, 'an agent names its Team once, without a second Team label');
 });
 
 test('loading older events appends without duplicates and keeps newest first', () => {
@@ -142,8 +143,8 @@ test('the activity feed groups by day, labels and links every event, humanises a
   assert.match(html, /<span class="timeline-title">Proposed by an agent<\/span>/);
   assert.match(html, /<span class="timeline-title">Approved<\/span>/);
   assert.match(html, /Worth it &#60;b&#62;now&#60;\/b&#62;/);
-  assert.match(html, /Ryan \(you\)/);
-  assert.match(html, /data-kind="agent"[^>]*>[^<]*<i data-icon="bot"><\/i>Agent/);
+  assert.match(html, /data-kind="person"[^>]*><i data-icon="user"><\/i>You<\/span>/, 'the signed-in operator reads as You, as on the Work Item page');
+  assert.match(html, /data-kind="agent"[^>]*>[^<]*<i data-icon="bot"><\/i>Agent · delivery/);
   assert.match(html, /<time class="num" datetime="2026-09-10T08:00:00.000Z" title="[^"]+">\d\d:00<\/time>/);
   assert.match(html, /data-action="ploeg-feed-older"/);
   assert.match(html, /<span class="activity-event-team" title="delivery">delivery<\/span>/);
@@ -197,7 +198,7 @@ test('Insights shows tiles and per-Team tables for the window and for right now,
   assert.match(html, /class="insights-teams"/);
   assert.doesNotMatch(html, /<svg|<canvas|polyline/);
   const demo = overviewMarkup({ window: '24h', data: { ...summary('24h'), demo: true }, loading: false, error: null }, helpers, now);
-  assert.match(demo, /Illustrative Ploeg records/);
+  assert.match(demo, /Illustrative records · no model calls, no spend/);
   assert.match(demo, /Settled spend<\/span><strong class="stat-value is-text">No model calls<\/strong><span class="stat-detail">Demo<\/span>/);
   assert.doesNotMatch(demo, /US\$\s0,00<\/strong>|insights-footnote/);
   assert.match(demo, /<td class="num"><span class="subtle">No model calls<\/span><\/td>/);
@@ -284,7 +285,7 @@ test('a Run row shows state and outcome, verdict, failure, Work Item, Role, timi
   assert.match(html, /aria-valuetext="US\$\s0,42 observed so far of US\$\s1,50 authorized"/);
   assert.doesNotMatch(html.match(/<tr data-run-id="64"[\s\S]*?<\/tr>/)[0], /settled of/);
   assert.doesNotMatch(html, /class="meter-end"/);
-  assert.match(html, /Agent review: changes requested/);
+  assert.match(html, /title="Agent review: changes requested\. Agent review is evidence, not a human review\.">Agent asked for changes</, 'the short verdict, with the full one in its title');
   assert.match(html, /The worker stopped responding/);
   assert.match(html, /<span class="runs-next">Not the agent’s fault\. It retries automatically\.<\/span>/);
   assert.doesNotMatch(html, /title="[^"]*retries automatically/);
@@ -294,9 +295,8 @@ test('a Run row shows state and outcome, verdict, failure, Work Item, Role, timi
   assert.match(html, /<p class="meta runs-card-line"><span class="runs-model-name">claude-sonnet, claude-haiku<\/span> · <span class="num">12\.345 in · 678 out<\/span><\/p>/);
   assert.match(html, /Took 20 min/);
   assert.match(html, /href="#work\/205"/);
-  assert.match(html, /VIK-642 · delivery · Run 61/);
-  assert.match(html, /<span class="meta">Implementer · Round 1 · writer<\/span><span class="meta">VIK-642 · delivery · Run 61<\/span>/);
-  assert.match(html, /<p class="meta runs-card-line">VIK-642 · delivery · Implementer · Round 1 · writer<\/p>/);
+  assert.match(html, /<span class="meta dots"><span>Implementer<\/span><span>Round 1<\/span><span>writer<\/span><\/span><span class="meta dots"><span>VIK-642<\/span><span>delivery<\/span><span>Run 61<\/span><\/span>/, 'meta separators belong to the item before them, so no wrapped line starts with a dot');
+  assert.match(html, /<span class="meta dots runs-card-line"><span>VIK-642<\/span><span>delivery<\/span><span>Implementer<\/span><span>Round 1<\/span><span>writer<\/span><\/span>/);
   const edges = runsMarkup({ runs: [run({ id: '70', state: 'pending', startedAt: null, settledUsd: null, authorizedUsd: null, usage: null }), run({ id: '69', settledUsd: 1.92, authorizedUsd: 1.5 }), run({ id: '68', startedAt: null, settledUsd: null, authorizedUsd: 0, usage: null, outcome: '' })], filter: {}, demo: false }, [], helpers, now);
   assert.match(edges, /<td class="runs-started"><span class="subtle">Waiting for a worker<\/span><\/td><td class="runs-spend"><span class="subtle">Not authorized yet<\/span><\/td>/);
   assert.match(edges, /data-level="over"[\s\S]*?<span class="meter-end">US\$\s0,42 over<\/span>/, 'the meter itself names the overspend');
@@ -308,11 +308,12 @@ test('a Run row shows state and outcome, verdict, failure, Work Item, Role, timi
   assert.match(html, /4 Runs loaded/);
   const demo = runsMarkup({ runs: ploegDemo.runs, nextBefore: null, filter: {}, demo: true }, ['delivery'], helpers, now);
   assert.doesNotMatch(demo, /US\$\s0,00/, 'the demo never writes spend it did not have');
-  assert.match(demo, /<td class="runs-spend"><span class="subtle" title="Demo · no model calls"><span aria-hidden="true">—<\/span><span class="sr-only">Demo · no model calls<\/span><\/span><\/td>/);
-  assert.doesNotMatch(demo, />None<|>No model calls<|runs-card-line">Demo|runs-card-spend/);
+  assert.deepEqual([...demo.matchAll(/<th scope="col">([^<]+)<\/th>/g)].map(match => match[1]), ['Status', 'Work Item', 'Started'], 'the demo drops the Spend and Model columns its one note explains');
+  assert.doesNotMatch(demo, /class="runs-spend"|class="runs-model"|>None<|>No model calls<|runs-card-line">Demo|runs-card-spend/);
   assert.match(demo, /The worker stopped responding/);
-  assert.match(demo, /No outcome reported/);
-  assert.match(demo, /Illustrative Ploeg records/);
+  assert.match(demo, /Cancelled before it started/, 'a Run cancelled while pending says so');
+  assert.match(demo, /Role unknown \(before Shifts\)|\(before Shifts\)/);
+  assert.match(demo, /Illustrative records · no model calls, no spend/);
 });
 
 test('an outcome filter only applies to finished Runs, and an empty filtered list offers to clear the filters', () => {
