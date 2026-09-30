@@ -50,7 +50,7 @@ test('a waiting row carries its reason chip, the Not routed warning and honest l
   assert.match(html, /<span class="chip" data-tone="attention"[^>]*><svg[^>]*>[\s\S]*?<\/svg><span>Not routed<\/span>/);
   assert.equal(html.match(/>Not routed</g).length, 2, 'only the items without a target are Not routed');
   assert.match(html, /href="https:\/\/forge\.test\/acme\/shop\/pulls\/9"[^>]*aria-label="Pull request for Round half-cent totals"/);
-  assert.match(html, /href="https:\/\/tracker\.test\/tasks\/108"[^>]*aria-label="Tracker item for Show VAT per line"/);
+  assert.match(html, /href="https:\/\/tracker\.test\/tasks\/108" target="_blank" rel="noopener noreferrer" aria-label="Open “Show VAT per line” in the tracker \(opens in a new tab\)"/);
   assert.match(html, /href="https:\/\/grafana\.example\.test\/d\/glide-loop\?var-team=delivery"/, 'infrastructure trouble links the Team dashboard');
   assert.equal(html.match(/grafana\.example\.test/g).length, 1, 'Grafana only for infrastructure reasons');
   assert.match(html, /href="#proposed"[^>]*aria-label="Decide on Clarify the research markets"/);

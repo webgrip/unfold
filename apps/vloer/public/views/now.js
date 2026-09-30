@@ -34,14 +34,24 @@ function markSeen() { prefs.set('lastVisit', new Date().toISOString()); }
 const onNow = () => Boolean(state.bootstrap) && state.view === 'now';
 
 function refreshButton() {
+  if (!view.data && ['ploeg_unconfigured', 'ploeg_scope'].includes(view.error?.code)) return '';
   const busy = view.refreshing;
   return `<button type="button" class="button secondary sm" id="now-refresh" data-action="now-refresh"${busy ? ' disabled aria-busy="true"' : ''}>${busy ? '<span class="spinner" aria-hidden="true"></span>' : icon('refresh')}<span class="button-label">Refresh</span></button>`;
+}
+
+function focusedTarget() {
+  const active = document.activeElement;
+  if (!active || active === document.body || active.id || !document.getElementById('main')?.contains(active)) return null;
+  const href = active.getAttribute('href');
+  return href ? `#main a[href="${CSS.escape(href)}"]` : null;
 }
 
 function renderNow() {
   if (view.since === undefined) arrive();
   const content = nowMarkup(view, { grafanaUrl: state.bootstrap?.observability?.grafanaUrl, singleKeys: singleKeysEnabled() });
+  const keep = focusedTarget();
   renderHtml(shell(content, { title: 'Now', subtitle: 'What waits on you, what runs and what finished, across every Team you can read.', actions: refreshButton() }));
+  if (keep && (!document.activeElement || document.activeElement === document.body)) document.querySelector(keep)?.focus({ preventScroll: true });
 }
 
 async function loadSummary(fresh) {
@@ -104,6 +114,7 @@ function nowKeys(event) {
   const list = rows();
   if (!list.length) return false;
   const index = currentRow(list);
+  if (event.key === 'o' && index === -1) return false;
   event.preventDefault();
   if (event.key === 'o') { openLink(list[index]); return true; }
   const next = event.key === 'j' ? (index === -1 ? 0 : Math.min(list.length - 1, index + 1)) : Math.max(0, index === -1 ? 0 : index - 1);

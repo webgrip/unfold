@@ -148,17 +148,21 @@ function waitingMeta(entry, demo) {
   return `${chips.join('')}${joinDots([escape(entry.team), reference(entry), round, spend])}${source}`;
 }
 
+function linkIcon(id, href, glyph, label) {
+  return `<a class="button ghost sm icon-only" id="${escape(id)}" href="${escape(href)}" target="_blank" rel="noopener noreferrer" aria-label="${escape(`${label} (opens in a new tab)`)}" title="${escape(label)}">${icon(glyph)}</a>`;
+}
+
 function waitingActions(entry, options) {
   const title = entry.title || `Work Item ${entry.id}`;
   const actions = [];
-  const pr = entry.state === 'awaiting_review' ? safeUrl(entry.pullRequestUrl) : null;
-  if (pr) actions.push(button({ label: 'Pull request', icon: 'pull-request', size: 'sm', href: pr, external: true, ariaLabel: `Pull request for ${title}` }));
   const tracker = safeUrl(entry.url);
-  if (tracker) actions.push(button({ label: 'Tracker', icon: 'tag', size: 'sm', variant: pr ? 'ghost' : 'secondary', href: tracker, external: true, ariaLabel: `Tracker item for ${title}` }));
+  if (tracker) actions.push(linkIcon(`now-tracker-${entry.id}`, tracker, 'external', `Open “${title}” in the tracker`));
   const reason = listReason(entry);
   const grafana = reason && infrastructure.has(reason.code) ? grafanaTeam(options.grafanaUrl, entry.team) : null;
-  if (grafana) actions.push(button({ label: 'Grafana', icon: 'activity', size: 'sm', variant: 'ghost', href: grafana, external: true, ariaLabel: `Grafana for the ${entry.team} Team` }));
-  if (entry.state === 'proposed') actions.push(button({ label: 'Decide', icon: 'arrow', size: 'sm', href: '#proposed', ariaLabel: `Decide on ${title}` }));
+  if (grafana) actions.push(linkIcon(`now-grafana-${entry.id}`, grafana, 'activity', `Open Grafana for the ${entry.team} Team`));
+  const pr = entry.state === 'awaiting_review' ? safeUrl(entry.pullRequestUrl) : null;
+  if (pr) actions.push(button({ id: `now-pr-${entry.id}`, label: 'Pull request', icon: 'pull-request', size: 'sm', href: pr, external: true, ariaLabel: `Pull request for ${title}` }));
+  if (entry.state === 'proposed') actions.push(button({ id: `now-decide-${entry.id}`, label: 'Decide', icon: 'arrow', size: 'sm', href: '#proposed', ariaLabel: `Decide on ${title}` }));
   return actions.length ? `<div class="now-item-actions">${actions.join('')}</div>` : '';
 }
 
@@ -182,13 +186,13 @@ function waitingRow(entry, options, since) {
 }
 
 function groupError(title, message) {
-  return `<div class="now-error">${emptyState({ icon: 'x-circle', tone: 'danger', compact: true, title: `${title} could not be read`, body: `<p>${escape(message)}</p>`, actions: retryButton })}</div>`;
+  return emptyState({ icon: 'x-circle', tone: 'danger', compact: true, title: `${title} could not be read`, body: escape(message), actions: retryButton });
 }
 
 function staleNote(stale) {
   if (!amount(stale) || stale < 1) return '';
   const subject = stale === 1 ? '1 Work Item stopped retrying' : `${format.count(stale)} Work Items stopped retrying`;
-  return `<div class="now-stale" data-tone="severe"><span class="now-stale-icon" aria-hidden="true">${icon('clock')}</span><p><strong>${escape(subject)}.</strong> Ploeg gave up after repeated failures. Now does not list ${stale === 1 ? 'it' : 'them'}; ${stale === 1 ? 'it is' : 'they are'} in Work under All.</p>${button({ label: 'Open Work', size: 'sm', variant: 'ghost', href: '#work?lane=all' })}</div>`;
+  return `<div class="now-stale" data-tone="severe"><span class="now-stale-icon" aria-hidden="true">${icon('clock')}</span><p><strong>${escape(subject)}.</strong> Ploeg gave up after repeated failures. Now does not list ${stale === 1 ? 'it' : 'them'}; ${stale === 1 ? 'it is' : 'they are'} in Work under All.</p>${button({ id: 'now-stale-open', label: 'Open Work', size: 'sm', variant: 'ghost', href: '#work?lane=all', ariaLabel: 'Open all Work Items in Work' })}</div>`;
 }
 
 function allClear(data, summary, now) {
@@ -201,7 +205,7 @@ function allClear(data, summary, now) {
   const queued = summary?.data?.totals?.workItems?.queued;
   if (!running && amount(queued) && queued > 0) parts.push(`${format.plural(queued, 'Work Item')} ${queued === 1 ? 'is' : 'are'} queued`);
   const sentence = parts.length ? `${parts.join('; ')}.` : 'Ploeg handles the rest and shows new decisions here first.';
-  return emptyState({ icon: 'check-circle', tone: 'success', title: 'Nothing waits on you', body: `<p>${escape(sentence[0].toUpperCase() + sentence.slice(1))}</p>` });
+  return emptyState({ icon: 'check-circle', tone: 'success', title: 'Nothing waits on you', body: escape(sentence[0].toUpperCase() + sentence.slice(1)) });
 }
 
 function waitingCard(view, visible, held, options, since, now) {
@@ -243,9 +247,9 @@ function runningCard(view, options, now) {
     const queued = view.summary?.data?.totals?.workItems?.queued;
     const pending = view.summary?.data?.totals?.runs?.pending;
     const detail = amount(pending) && pending > 0 ? `${format.plural(pending, 'Run')} ${pending === 1 ? 'waits' : 'wait'} for a worker.` : amount(queued) && queued > 0 ? `${format.plural(queued, 'Work Item')} ${queued === 1 ? 'is' : 'are'} queued.` : 'Nothing is queued either.';
-    body = emptyState({ icon: 'runs', compact: true, title: 'No Run is working', body: `<p>${escape(detail)}</p>` });
+    body = emptyState({ icon: 'runs', compact: true, title: 'No Run is working', body: escape(detail) });
   } else body = `<ul class="list now-list">${runs.map(run => runningRow(run, options, now)).join('')}</ul>`;
-  return `<section class="card flush now-card now-running" aria-labelledby="now-running-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-running-title">Running now${count(error ? null : runs.length, { tone: runs.length ? 'live' : undefined })}</h2></div><div class="card-actions">${button({ label: 'View all', size: 'sm', variant: 'ghost', href: '#runs?state=running', ariaLabel: 'View all running Runs' })}</div></header><div class="card-body">${body}</div></section>`;
+  return `<section class="card flush now-card now-running" aria-labelledby="now-running-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-running-title">Running now${count(error ? null : runs.length, { tone: runs.length ? 'live' : undefined })}</h2></div><div class="card-actions">${button({ id: 'now-running-all', label: 'View all', size: 'sm', variant: 'ghost', href: '#runs?state=running', ariaLabel: 'View all running Runs' })}</div></header><div class="card-body">${body}</div></section>`;
 }
 
 function recentRow(run, since) {
@@ -274,9 +278,9 @@ function recentCard(view, visible, held, since) {
   const pill = held.recent ? showNew(`${format.count(held.recent)} new`) : '';
   let body;
   if (error) body = groupError('Finished Runs', error);
-  else if (!runs.length) body = emptyState({ icon: 'clock', compact: true, title: 'No Run has finished yet', body: '<p>Finished Runs appear here with their outcome and the agent’s review verdict.</p>' });
+  else if (!runs.length) body = emptyState({ icon: 'clock', compact: true, title: 'No Run has finished yet', body: 'Finished Runs appear here with their outcome and the agent’s review verdict.' });
   else body = `<ul class="list now-list">${runs.map(run => recentRow(run, since)).join('')}</ul>`;
-  return `<section class="card flush now-card now-recent" aria-labelledby="now-recent-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-recent-title">Recently finished</h2></div><div class="card-actions">${pill}${button({ label: 'View all', size: 'sm', variant: 'ghost', href: '#runs?state=finished', ariaLabel: 'View all finished Runs' })}</div></header><div class="card-body">${body}</div></section>`;
+  return `<section class="card flush now-card now-recent" aria-labelledby="now-recent-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-recent-title">Recently finished</h2></div><div class="card-actions">${pill}${button({ id: 'now-recent-all', label: 'View all', size: 'sm', variant: 'ghost', href: '#runs?state=finished', ariaLabel: 'View all finished Runs' })}</div></header><div class="card-body">${body}</div></section>`;
 }
 
 function digestItem(value, singular, pluralForm, tone) {
@@ -334,13 +338,13 @@ function statsMarkup(view) {
 
 function failureMarkup(error) {
   const code = error?.code || '';
-  if (code === 'ploeg_unconfigured') return emptyState({ icon: 'settings', title: 'Connect Ploeg to see your work', body: '<p>No Ploeg connection is configured for this workbench. An administrator sets it up; Environment shows what is missing.</p>', actions: button({ label: 'Open Environment', href: '#settings/environment' }) });
-  if (code === 'ploeg_scope') return emptyState({ icon: 'lock', title: 'Your account has no Ploeg Teams', body: '<p>Ask an administrator to give your account access to a Team. Its work shows up here as soon as they do.</p>' });
-  return emptyState({ icon: 'x-circle', tone: 'danger', title: 'Now could not be read', body: `<p>${escape(error?.message || 'Ploeg did not answer.')}</p><p>Nothing was started or changed.</p>`, actions: retryButton });
+  if (code === 'ploeg_unconfigured') return emptyState({ icon: 'settings', title: 'Connect Ploeg to see your work', body: 'No Ploeg connection is configured for this workbench. An administrator sets it up; Environment shows what is missing.', actions: button({ label: 'Open Environment', href: '#settings/environment' }) });
+  if (code === 'ploeg_scope') return emptyState({ icon: 'lock', title: 'Your account has no Ploeg Teams', body: 'Ask an administrator to give your account access to a Team. Its work shows up here as soon as they do.' });
+  return emptyState({ icon: 'x-circle', tone: 'danger', title: 'Now could not be read', body: `${escape(error?.message || 'Ploeg did not answer.')} Nothing was started or changed.`, actions: retryButton });
 }
 
 function loadingMarkup() {
-  return `<div class="now now-loading" aria-busy="true"><div class="now-top"><div class="now-digest now-digest-skeleton">${skeleton({ rows: 1, variant: 'text' })}</div>${skeleton({ rows: 4, variant: 'cards' })}</div><div class="now-columns"><div class="card now-card">${skeleton({ rows: 6 })}</div><div class="now-rail"><div class="card now-card">${skeleton({ rows: 2 })}</div><div class="card now-card">${skeleton({ rows: 4 })}</div></div></div></div>`;
+  return `<div class="now now-skeleton" aria-busy="true"><div class="now-top"><div class="now-digest now-digest-skeleton">${skeleton({ rows: 1, variant: 'text' })}</div>${skeleton({ rows: 4, variant: 'cards' })}</div><div class="now-columns"><div class="card now-card">${skeleton({ rows: 6 })}</div><div class="now-rail"><div class="card now-card">${skeleton({ rows: 2 })}</div><div class="card now-card">${skeleton({ rows: 4 })}</div></div></div></div>`;
 }
 
 function staleBanner(view, now) {

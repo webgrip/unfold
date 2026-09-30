@@ -23,12 +23,23 @@
   display: grid;
   gap: var(--space-5);
   align-content: start;
+  align-items: start;
   min-width: 0;
 }
 
-@container now (min-width: 62rem) {
+@container now (min-width: 48rem) {
+  .now-rail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container now (min-width: 96rem) {
   .now-columns {
-    grid-template-columns: minmax(0, 1fr) minmax(19rem, 23rem);
+    grid-template-columns: minmax(0, 1fr) minmax(22rem, 26rem);
+  }
+
+  .now-rail {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -180,6 +191,11 @@
 
 .now-new {
   font-weight: var(--weight-medium);
+}
+
+.now-group {
+  min-width: 0;
+  overflow: visible;
 }
 
 .now-group + .now-group > .now-group-header {
@@ -399,7 +415,7 @@
   padding-block: var(--space-16);
 }
 
-.now-loading {
+.now-skeleton {
   animation: now-appear var(--duration-base) var(--ease-standard) 200ms both;
 }
 
