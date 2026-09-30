@@ -238,7 +238,8 @@ test('Runs list running work first, then pending, then finished, newest first wi
 test('a Run row shows state and outcome, verdict, failure, Work Item, Role, timing, a spend meter and the model, in the table and the phone cards', () => {
   const runs = [run({ id: '64', state: 'running', outcome: '', settledUsd: null, observedUsd: 0.42, durationSeconds: null, startedAt: '2026-09-10T08:54:00Z', usage: null, reservedModels: ['claude-opus'] }), run({ id: '63', role: 'reviewer', writes: false, outcome: 'no_change_needed', verdict: 'request_changes' }), run({ id: '62', outcome: 'failed', failureReason: 'lease_lost', settledUsd: null, usage: null }), run()];
   const html = runsMarkup({ runs, nextBefore: '25', filter: {}, demo: false }, ['delivery'], helpers, now);
-  assert.match(html, /<tr class="runs-group"><th scope="colgroup" colspan="6">Running and waiting <span class="count">1<\/span>/);
+  assert.match(html, /<tbody><tr class="runs-group"><th scope="rowgroup" colspan="6">Running and waiting <span class="count">1<\/span><\/th><\/tr><tr data-run-id="64"[\s\S]*?<\/tbody><tbody><tr class="runs-group"><th scope="rowgroup" colspan="6">Finished <span class="count">3<\/span>/);
+  assert.doesNotMatch(runsMarkup({ runs: [run()], filter: {}, demo: false }, [], helpers, now), /runs-group/);
   assert.deepEqual([...html.matchAll(/<tr data-run-id="(\d+)"/g)].map(match => match[1]), ['64', '63', '62', '61']);
   assert.deepEqual([...html.matchAll(/<li class="runs-card" data-run-id="(\d+)"/g)].map(match => match[1]), ['64', '63', '62', '61']);
   assert.match(html, /<span class="live-dot" aria-hidden="true"><\/span>Running/);

@@ -36,8 +36,12 @@
   text-transform: uppercase;
 }
 
-.runs-table .runs-group:first-child th {
+.runs-table tbody:first-of-type .runs-group th {
   padding-top: var(--space-2-5);
+}
+
+.runs-table tbody + tbody .runs-group th {
+  border-top: 1px solid var(--border-subtle);
 }
 
 .runs-table .runs-group:hover {

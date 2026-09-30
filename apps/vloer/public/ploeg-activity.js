@@ -268,8 +268,8 @@ function retryButton({ icon }, label = 'Try again') {
   return `<button type="button" class="button secondary sm" data-action="ploeg-reload">${icon('refresh')}<span class="button-label">${label}</span></button>`;
 }
 
-function linkButton(label, href, { escape, icon }) {
-  return `<a class="button secondary sm" href="${escape(href)}">${icon('arrow')}<span class="button-label">${escape(label)}</span></a>`;
+function linkButton(label, href, { escape, icon }, glyph = 'arrow') {
+  return `<a class="button secondary sm" href="${escape(href)}">${icon(glyph)}<span class="button-label">${escape(label)}</span></a>`;
 }
 
 /** The first-load failure of a Ploeg page: a known setup gap reads as guidance; anything else as an error with Try again. */
@@ -467,16 +467,17 @@ export function runsMarkup(view, teams, helpers, now = Date.now()) {
   if (!view.runs && view.error) return page('runs', toolbar, problemMarkup(view.error, 'Runs', helpers));
   if (!view.runs) return page('runs', toolbar, `<div class="card runs-list" aria-busy="true"><div class="card-body">${ui.skeleton({ rows: 8, variant: 'table' })}</div></div>`);
   const filtered = Boolean(filter.team || filter.state || filter.outcome);
-  if (!view.runs.length) return page('runs', demoNote(view.demo), toolbar, view.error ? staleNotice(view.error, 'Runs', helpers) : '', `<div class="card">${empty({ glyph: 'runs', title: filtered ? 'No Runs match these filters' : 'No Runs yet', body: `<p>${filtered ? 'Choose another Team, state or outcome.' : 'Runs appear here once a Team’s worker picks up a Work Item.'}</p>`, actions: filtered ? linkButton('Clear filters', '#runs', helpers) : '' }, helpers)}</div>`);
+  if (!view.runs.length) return page('runs', demoNote(view.demo), toolbar, view.error ? staleNotice(view.error, 'Runs', helpers) : '', `<div class="card">${empty({ glyph: 'runs', title: filtered ? 'No Runs match these filters' : 'No Runs yet', body: `<p>${filtered ? 'Choose another Team, state or outcome.' : 'Runs appear here once a Team’s worker picks up a Work Item.'}</p>`, actions: filtered ? linkButton('Clear filters', '#runs', helpers, 'x') : '' }, helpers)}</div>`);
   const runs = sortRuns(view.runs);
   const active = runs.filter(run => run.state !== 'finished');
   const done = runs.filter(run => run.state === 'finished');
-  const groupRow = (label, total) => `<tr class="runs-group"><th scope="colgroup" colspan="6">${escape(label)} <span class="count">${count(total)}</span></th></tr>`;
-  const rows = [active.length && done.length ? groupRow('Running and waiting', active.length) : '', ...active.map(run => runRow(run, view.demo, helpers, now)), active.length && done.length ? groupRow('Finished', done.length) : '', ...done.map(run => runRow(run, view.demo, helpers, now))].join('');
+  const grouped = Boolean(active.length && done.length);
+  const group = (label, list) => list.length ? `<tbody>${grouped ? `<tr class="runs-group"><th scope="rowgroup" colspan="6">${escape(label)} <span class="count">${count(list.length)}</span></th></tr>` : ''}${list.map(run => runRow(run, view.demo, helpers, now)).join('')}</tbody>` : '';
+  const bodies = `${group('Running and waiting', active)}${group('Finished', done)}`;
   const head = ['Run', 'Work Item', 'Role', 'Started', 'Spend', 'Model'].map(label => `<th scope="col">${label}</th>`).join('');
-  const table = `<div class="table-wrap runs-table" role="region" tabindex="0" aria-label="Runs, running first"><table class="table"><caption class="sr-only">Runs, running first, then newest first</caption><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
-  const cardGroup = (label, total) => `<li class="runs-cards-group">${escape(label)} <span class="count">${count(total)}</span></li>`;
-  const cards = `<ul class="runs-cards" aria-label="Runs, running first">${[active.length && done.length ? cardGroup('Running and waiting', active.length) : '', ...active.map(run => runCard(run, view.demo, helpers, now)), active.length && done.length ? cardGroup('Finished', done.length) : '', ...done.map(run => runCard(run, view.demo, helpers, now))].join('')}</ul>`;
+  const table = `<div class="table-wrap runs-table"><table class="table"><caption class="sr-only">Runs, running first, then newest first</caption><thead><tr>${head}</tr></thead>${bodies}</table></div>`;
+  const cardGroup = (label, total) => grouped ? `<li class="runs-cards-group">${escape(label)} <span class="count">${count(total)}</span></li>` : '';
+  const cards = `<ul class="runs-cards" aria-label="Runs, running first">${cardGroup('Running and waiting', active.length)}${active.map(run => runCard(run, view.demo, helpers, now)).join('')}${cardGroup('Finished', done.length)}${done.map(run => runCard(run, view.demo, helpers, now)).join('')}</ul>`;
   const older = view.nextBefore ? `<button type="button" class="button secondary" id="ploeg-runs-older" data-action="ploeg-runs-older"${view.loading ? ' disabled aria-busy="true"' : ''}>${view.loading ? '<span class="spinner" aria-hidden="true"></span>' : icon('chevron-down')}<span class="button-label">Load older</span></button>` : '<span class="meta">No older Runs.</span>';
   return page('runs', demoNote(view.demo), toolbar, view.error ? staleNotice(view.error, 'Runs', helpers) : '', `<div class="card flush runs-list">${table}${cards}<footer class="runs-footer">${older}<span class="meta">${plural(view.runs.length, 'Run')} loaded</span></footer></div>`);
 }
