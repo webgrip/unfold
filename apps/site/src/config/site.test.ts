@@ -1,12 +1,17 @@
 import { strict as assert } from 'node:assert';
 import { describe, test } from 'node:test';
 
-import { SITE_INDEXABLE, SITE_URL, isIndexable } from './site.ts';
+import { LOCAL_SITE_URL, SITE_INDEXABLE, SITE_URL, isIndexable, resolveSiteUrl } from './site.ts';
 
 describe('site indexing', () => {
   test('a Cloudflare platform hostname is never indexed', () => {
     assert.equal(isIndexable('https://glide-site.example.workers.dev'), false);
     assert.equal(isIndexable('https://glide-site.pages.dev'), false);
+  });
+
+  test('a local build is never indexed', () => {
+    assert.equal(isIndexable(LOCAL_SITE_URL), false);
+    assert.equal(isIndexable('http://127.0.0.1:4321'), false);
   });
 
   test('a real domain is indexed', () => {
@@ -20,5 +25,24 @@ describe('site indexing', () => {
 
   test('the URL is an origin without a trailing slash', () => {
     assert.equal(new URL(SITE_URL).origin, SITE_URL.toLowerCase());
+  });
+});
+
+describe('site URL', () => {
+  test('an unset or blank build URL falls back to the local origin', () => {
+    assert.equal(resolveSiteUrl(undefined), LOCAL_SITE_URL);
+    assert.equal(resolveSiteUrl('  '), LOCAL_SITE_URL);
+  });
+
+  test('the deploy passes the workers.dev origin through unchanged', () => {
+    assert.equal(
+      resolveSiteUrl('https://glide-site.example.workers.dev'),
+      'https://glide-site.example.workers.dev',
+    );
+  });
+
+  test('a URL with a path or trailing slash is refused', () => {
+    assert.throws(() => resolveSiteUrl('https://glide-site.example.workers.dev/'));
+    assert.throws(() => resolveSiteUrl('https://glide.example/site'));
   });
 });
