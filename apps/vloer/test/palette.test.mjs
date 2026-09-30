@@ -224,6 +224,7 @@ test('without a match the palette offers the Work page as the one next step', ()
   assert.deepEqual([none[0].results[0].entry.label, none[0].results[0].entry.hash], ['Open Work', 'work']);
   assert.deepEqual(searchPalette('zzqxv', entries, { offline: true }), [], 'without Ploeg there is nothing to suggest');
   assert.match(emptyMarkup('zzqxv'), /No matches for “zzqxv”/);
+  assert.match(emptyMarkup('zzqxv'), /Search covers pages, commands and the Work Items this tab has loaded\./);
   assert.doesNotMatch(emptyMarkup('zzqxv'), /number/, 'the footer, not the empty state, explains numbers');
   assert.match(emptyMarkup('zzqxv', { offline: true }), /Search covers pages and commands/);
   assert.doesNotMatch(emptyMarkup('<b>'), /<b>/);

@@ -396,7 +396,7 @@ export function paletteEntries(context) {
 
 const noMatch = { score: 0, base: 0, label: [], meta: [], parent: [] };
 const retryEntry = { id: 'retry-work-items', run: 'retry' };
-const nextStep = { id: 'next-work', group: 'next', label: 'Open Work', meta: 'Search covers what this tab has loaded; Work lists every lane.', quiet: true, icon: 'work', hash: 'work', run: 'go', enter: true };
+const nextStep = { id: 'next-work', group: 'next', label: 'Open Work', meta: 'Every lane of every Team', quiet: true, icon: 'work', hash: 'work', run: 'go', enter: true };
 
 function numberQuery(typed) { return /^#?([1-9][0-9]{0,19})$/.exec(typed.replace(/\s+/g, '')); }
 
@@ -510,9 +510,9 @@ export function resultsMarkup(groups, active = 0, { singleKeys = true, mac = fal
   }).join('');
 }
 
-/** The note shown outside the listbox when a query matched nothing: what was searched, and without Ploeg what search covers. */
+/** The note shown outside the listbox when a query matched nothing: what was searched and what search covers. */
 export function emptyMarkup(query, { offline = false } = {}) {
-  return emptyState({ icon: 'search', compact: true, title: `No matches for “${String(query ?? '').trim()}”`, body: offline ? '<p>Search covers pages and commands.</p>' : '' });
+  return emptyState({ icon: 'search', compact: true, title: `No matches for “${String(query ?? '').trim()}”`, body: `<p>${offline ? 'Search covers pages and commands.' : 'Search covers pages, commands and the Work Items this tab has loaded.'}</p>` });
 }
 
 /** The notice from {@link searchNotice} as markup: a tinted icon, the sentence and, when it can help, a Retry button. */
