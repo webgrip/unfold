@@ -4,9 +4,15 @@ ARG REGISTRY_DHI=harbor.webgrip.dev/dhi
 ARG NODE_DEV_IMAGE=${REGISTRY_DHI}/node:24.19.0-alpine3.24-dev@sha256:dc2989ad23938772abaf549ed7bde5d61d70377005229bb55bef94bff40f8bbd
 # renovate: datasource=npm depName=opencode-ai
 ARG OPENCODE_VERSION=1.18.30
+# renovate: datasource=npm depName=brace-expansion
+ARG NPM_BRACE_EXPANSION_VERSION=5.0.12
+# renovate: datasource=npm depName=undici
+ARG NPM_UNDICI_VERSION=6.28.1
 
 FROM ${NODE_DEV_IMAGE} AS fetch
 ARG OPENCODE_VERSION
+ARG NPM_BRACE_EXPANSION_VERSION
+ARG NPM_UNDICI_VERSION
 ARG TARGETARCH
 WORKDIR /tmp/opencode
 RUN case "${TARGETARCH}" in amd64) platform=x64 ;; arm64) platform=arm64 ;; *) echo "unsupported TARGETARCH ${TARGETARCH}" >&2; exit 1 ;; esac \
@@ -14,6 +20,10 @@ RUN case "${TARGETARCH}" in amd64) platform=x64 ;; arm64) platform=arm64 ;; *) e
  && tar -xzf "opencode-linux-${platform}-musl-${OPENCODE_VERSION}.tgz" \
  && install -m 0755 package/bin/opencode /opencode \
  && /opencode --version
+WORKDIR /npm-patches
+RUN for spec in "brace-expansion@${NPM_BRACE_EXPANSION_VERSION}" "undici@${NPM_UNDICI_VERSION}"; do \
+      name="${spec%@*}" && npm pack --quiet "${spec}" && install -d "${name}" && tar -xzf "${name}-${spec##*@}.tgz" -C "${name}" --strip-components=1 && rm "${name}-${spec##*@}.tgz"; \
+    done
 
 FROM ${NODE_DEV_IMAGE}
 ARG OPENCODE_VERSION
@@ -30,6 +40,9 @@ COPY relay-worker.mjs /usr/local/lib/de-vloer/relay-worker.mjs
 RUN chmod 0644 /usr/local/lib/de-vloer/relay-worker.mjs && su node -s /bin/sh -c 'node --check /usr/local/lib/de-vloer/relay-worker.mjs'
 RUN opencode --version | grep -F "${OPENCODE_VERSION}"
 RUN --mount=type=bind,source=check-gz-imports.mjs,target=/tmp/check-gz-imports.mjs node /tmp/check-gz-imports.mjs
+RUN --mount=type=bind,from=fetch,source=/npm-patches,target=/tmp/npm-patches \
+    --mount=type=bind,source=patch-bundled-npm.mjs,target=/tmp/patch-bundled-npm.mjs \
+    node /tmp/patch-bundled-npm.mjs /tmp/npm-patches
 USER node
 WORKDIR /workspace
 EXPOSE 4096

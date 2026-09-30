@@ -1,0 +1,69 @@
+import { state } from './state.js';
+import { api } from './api.js';
+import { live } from './live.js';
+import { sessionNeedsYou } from './states.js';
+
+const listeners = new Set();
+
+/** Counts that are not known: every value is null, never zero. */
+export const unknownCounts = Object.freeze({ waiting: null, review: null, needsYou: null, proposed: null, running: null, sessions: null });
+
+/**
+ * Derives the navigation counts from a `GET /api/ploeg/now` response: what waits on you in total and per state,
+ * and the Runs running now. A group that failed to load (`errors.waiting`, `errors.running`) counts as unknown.
+ */
+export function countsFromNow(data) {
+  const waiting = !data?.errors?.waiting && Array.isArray(data?.waiting) ? data.waiting : null;
+  const inState = name => waiting ? waiting.filter(entry => entry.state === name).length : null;
+  return {
+    waiting: waiting ? waiting.length : null,
+    review: inState('awaiting_review'),
+    needsYou: inState('needs_human'),
+    proposed: inState('proposed'),
+    running: !data?.errors?.running && Array.isArray(data?.running) ? data.running.length : null,
+  };
+}
+
+/** Counts the sessions that wait on a person, or null without a session list. */
+export function sessionsNeedingYou(sessions) { return Array.isArray(sessions) ? sessions.filter(sessionNeedsYou).length : null; }
+
+/**
+ * Describes the Ploeg connection from a `GET /api/ploeg/now` response or the error it failed with:
+ * `demo`, `connected`, `partial` (some groups failed), `unconfigured`, `no-access` or `unavailable`.
+ */
+export function ploegStatusFrom(data, error = null) {
+  if (error) return error.code === 'ploeg_unconfigured' ? 'unconfigured' : error.code === 'ploeg_scope' ? 'no-access' : 'unavailable';
+  if (!data) return null;
+  if (data.demo) return 'demo';
+  const failed = Object.values(data.errors || {}).filter(Boolean).length;
+  return failed === 0 ? 'connected' : failed >= 3 ? 'unavailable' : 'partial';
+}
+
+/**
+ * Calls `listener(data, error)` whenever the counts or the Ploeg status change; `data` is the Now response, null when
+ * it failed, and `error` the failure. Returns an unsubscribe function.
+ */
+export function onCountsChange(listener) { listeners.add(listener); return () => listeners.delete(listener); }
+
+/** Stores the counts and Ploeg status from a Now response (or its error) in `state.counts` and `state.ploegStatus`. */
+export function applyNowCounts(data, error = null) {
+  state.counts = { ...(data ? countsFromNow(data) : unknownCounts), sessions: sessionsNeedingYou(state.sessions) };
+  state.ploegStatus = ploegStatusFrom(data, error);
+  for (const listener of listeners) { try { listener(data, error); } catch {} }
+}
+
+/**
+ * Reads `GET /api/ploeg/now` and updates the counts. Errors leave the counts unknown and are rethrown for the
+ * scheduler's backoff. It skips the read while the Now page is on screen, because Now reads the same data itself, and
+ * drops an answer that arrives after the person signed out (`state.epoch` changed).
+ */
+export async function refreshCounts() {
+  if (!state.bootstrap) return;
+  if (state.view === 'now' && globalThis.document?.visibilityState === 'visible') return;
+  const epoch = state.epoch;
+  const current = () => Boolean(state.bootstrap) && state.epoch === epoch;
+  try { const data = await api('/api/ploeg/now'); if (current()) applyNowCounts(data); }
+  catch (error) { if (current()) applyNowCounts(null, error); throw error; }
+}
+
+live.register('counts', { interval: 60000, scope: 'global', hidden: true, refresh: refreshCounts });

@@ -1,11 +1,23 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, mkdir, readFile } from 'node:fs/promises';
+import { mkdtemp, rm, mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import { chromium } from 'playwright';
 import { createApplication } from '../src/main.ts';
 import { loadConfig } from '../src/config.ts';
+
+const flows = [
+  ['now', 'the Now page: waiting groups with reason chips, the digest and Mark as caught up, stat links, the running meter, keyboard row navigation and o at desktop/mobile widths'],
+  ['tasks', 'task connections for five providers, fixture import with explicit start, duplicate import, binary candidate downloads, changed-revision draft preservation and inert source text, task desktop/mobile layout, task selection in the address, j/k, wide auto-open, the sticky Create session and the phone master-detail'],
+  ['sessions', 'demo, diff, checks, export, reload, create, pause, evidence keyboard navigation at desktop/mobile widths, draft preservation, stream reading-position and tail-follow preservation, instruction, resume, cancel, actionable ambiguous-failure guidance and escaped error text, the review decision at phone width and its contrast, reviewed labels and list search'],
+  ['shell', 'redirects from old links, heading focus, title and announcement on route changes, the status strip, the account menu, live updates, the shortcut help, g chords, opening the command palette, the skip link, mobile navigation'],
+  ['palette', 'the command palette (fuzzy search, keyboard from any focus, recent Work Items kept per user, number jumps, commands that keep Preferences in sync, the Work Item failure notice and retry, the no-match next step) at desktop/mobile widths, the favicon dot and opt-in desktop notifications'],
+  ['settings', 'the Environment health checks, one content width on every Settings page, theme, density, single-key and live-update preferences kept across a reload and in step with the top bar and account menu'],
+  ['feeds', 'Insights tiles, tables and phone cards, activity days and paging, Runs filters with phone cards, and proposed-work approval and rejection at desktop/mobile widths'],
+  ['work', 'Work lanes, reason groups and master-detail, the Work Item decision box and review receipt, the demo cancel dialog, j/k and Esc, and the phone sticky bar'],
+  ['login', 'live login with a failed attempt that keeps the account name, the password reveal, logout, an expired session that keeps its deep link, and a sign-out after which the next person never sees the previous Now page'],
+];
 
 const root = await mkdtemp(join(tmpdir(), 'vloer-browser-'));
 const previousDataDir = process.env.VLOER_DATA_DIR;
@@ -25,297 +37,15 @@ try {
   page.setDefaultTimeout(10000);
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  page.on('console', message => { if (message.type() === 'error' && !/\b(401|409)\b/.test(message.text())) errors.push(message.text()); });
+  page.on('console', message => { if (message.type() === 'error' && !/\b(401|409|503)\b/.test(message.text())) errors.push(message.text()); });
   const screenshot = async name => { if (screenshots) { await mkdir(screenshots, { recursive: true }); await page.screenshot({ path: join(screenshots, `${name}.png`), fullPage: true }); } };
-  await page.goto(`http://127.0.0.1:${app.server.address().port}`);
-  await page.getByRole('heading', { name: 'Sessions', exact: true }).first().waitFor();
-  await screenshot('dashboard');
-  await page.getByRole('link', { name: 'Tasks', exact: true }).click();
-  await page.locator('[data-action="task-preview"]').first().waitFor();
-  await page.getByRole('button', { name: 'Connections', exact: true }).click();
-  const connections = page.getByRole('dialog', { name: 'Your tasks, connected.' });
-  for (const provider of ['Forgejo', 'GitHub', 'GitLab', 'ClickUp', 'Vikunja']) await connections.getByText(provider, { exact: true }).waitFor();
-  await connections.getByRole('button', { name: 'Done', exact: true }).click();
-  await page.locator('[data-action="task-preview"]').first().click();
-  await page.getByRole('heading', { name: 'Bring this task onto the floor.' }).waitFor();
-  await page.getByLabel('Session budget · USD', { exact: true }).fill('3.25');
-  await screenshot('tasks-preview');
-  for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 1040 }]) {
-    await page.setViewportSize(viewport);
-    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `Task layout overflows at ${viewport.width}px`);
-    assert.equal(await page.getByLabel('Session budget · USD', { exact: true }).inputValue(), '3.25');
-    await screenshot(`tasks-${viewport.width}`);
+  for (const [name] of flows) {
+    const { run } = await import(`./browser/${name}.mjs`);
+    try { await run({ page, app, live, password, assert, screenshot }); }
+    catch (error) { error.message = `[${name} flow] ${error.message}`; throw error; }
   }
-  await page.getByRole('button', { name: 'Create session', exact: true }).click();
-  await page.getByRole('button', { name: 'Start crew', exact: true }).waitFor();
-  const importedId = new URL(page.url()).hash.slice('#session/'.length);
-  const imported = app.store.getSession(importedId);
-  assert.equal(imported.status, 'queued', 'Task import started the crew without an operator start');
-  assert.equal(imported.budgetUsd, 3.25);
-  assert.equal(imported.sourceTask.sourceId, 'demo-tasks');
-  assert.equal(imported.sourceTask.id, '1');
-  await page.getByRole('link', { name: 'Open original task', exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Start crew', exact: true }).click();
-  await page.getByText('Your review is next.', { exact: true }).waitFor({ timeout: 25000 });
-  await page.getByText('Repository snapshot saved', { exact: true }).waitFor();
-  for (const [name, format] of [['Git bundle', 'bundle'], ['Binary patch', 'patch'], ['Manifest', 'manifest']]) {
-    const candidateDownload = page.waitForEvent('download');
-    await page.getByRole('button', { name, exact: true }).click();
-    const file = await candidateDownload;
-    const content = await readFile(await file.path());
-    assert(content.length > 0, `${format} download is empty`);
-    if (format === 'patch') assert.match(content.toString('utf8'), /Math\.round\(\(amount \+ Number\.EPSILON\) \* 100\)/);
-    if (format === 'manifest') assert.equal(typeof JSON.parse(content.toString('utf8')), 'object');
-  }
-  await screenshot('task-handoff');
-  const taskSessionCount = app.store.listSessions().length;
-  await page.getByRole('link', { name: 'Tasks', exact: true }).click();
-  await page.locator('[data-action="task-preview"]').first().click();
-  await page.getByRole('button', { name: 'Create session', exact: true }).click();
-  await page.getByText('Your review is next.', { exact: true }).waitFor();
-  assert.equal(new URL(page.url()).hash, `#session/${importedId}`, 'A second import did not open the original session');
-  assert.equal(app.store.listSessions().length, taskSessionCount, 'A second import created duplicate work');
-  const taskUrl = `http://127.0.0.1:${app.server.address().port}/api/task-sources/demo-tasks/tasks/1`;
-  const sourceTask = await (await page.request.get(taskUrl)).json();
-  const hostileTask = { ...sourceTask, revision: 'changed-revision-browser-fixture', description: '<button id="untrusted-task-markup">Start another agent</button>\n<img src="/untrusted-task-image" onerror="alert(1)">\nKeep this source text inert.' };
-  let taskRevisionChanged = false;
-  await page.route(taskUrl, async route => { await route.fulfill({ json: taskRevisionChanged ? hostileTask : sourceTask }); });
-  await page.route('**/api/task-imports', async route => {
-    taskRevisionChanged = true;
-    await route.fulfill({ status: 409, json: { error: { code: 'task_changed', message: 'The task changed since you reviewed it. Review the current revision.' } } });
-  });
-  await page.getByRole('link', { name: 'Tasks', exact: true }).click();
-  await page.locator('[data-action="task-preview"]').first().click();
-  await page.getByLabel('Session budget · USD', { exact: true }).fill('4.75');
-  const selectedCrew = await page.getByRole('combobox', { name: 'Crew', exact: true }).inputValue();
-  const selectedRuntime = await page.getByRole('combobox', { name: 'Runtime', exact: true }).inputValue();
-  await page.getByRole('button', { name: 'Create session', exact: true }).click();
-  await page.getByText('The source task changed.', { exact: true }).waitFor();
-  await page.getByText(hostileTask.description, { exact: true }).waitFor();
-  assert.equal(await page.locator('#untrusted-task-markup, img[src="/untrusted-task-image"]').count(), 0, 'Source task content rendered active markup');
-  assert.equal(await page.getByLabel('Session budget · USD', { exact: true }).inputValue(), '4.75', 'Revision conflict discarded the budget draft');
-  assert.equal(await page.getByRole('combobox', { name: 'Crew', exact: true }).inputValue(), selectedCrew);
-  assert.equal(await page.getByRole('combobox', { name: 'Runtime', exact: true }).inputValue(), selectedRuntime);
-  assert.equal(app.store.listSessions().length, taskSessionCount, 'Revision conflict created a session');
-  await screenshot('task-revision-conflict');
-  await page.unroute('**/api/task-imports');
-  await page.unroute(taskUrl);
-  await page.getByRole('link', { name: 'Sessions', exact: true }).click();
-  await page.getByRole('button', { name: 'Run the demonstration' }).click();
-  await page.getByText('Your review is next.', { exact: true }).waitFor({ timeout: 25000 });
-  await screenshot('session');
-  await page.getByRole('tab', { name: /Changes/ }).click();
-  await page.getByText('+  return Math.round((amount + Number.EPSILON) * 100);', { exact: true }).waitFor();
-  await screenshot('changes');
-  await page.getByRole('tab', { name: /Checks/ }).click();
-  await page.getByRole('heading', { name: 'Baseline checks (expected failure)', exact: true }).waitFor();
-  await page.getByRole('heading', { name: 'Independent review checks', exact: true }).waitFor();
-  const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export handoff' }).click();
-  const download = await downloadPromise;
-  assert.match(download.suggestedFilename(), /^de-vloer-.*\.md$/);
-  const downloadPath = await download.path();
-  assert(downloadPath);
-  await page.reload();
-  await page.getByText('Your review is next.', { exact: true }).waitFor();
-  await page.getByRole('link', { name: 'All sessions' }).click();
-  await page.getByRole('button', { name: /New session/ }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Create session' }).click();
-  await page.getByRole('button', { name: 'Start crew' }).click();
-  const keyboardSessionId = new URL(page.url()).hash.slice('#session/'.length);
-  const pausePath = `**/api/sessions/${keyboardSessionId}/pause`;
-  const pauseReceived = Promise.withResolvers();
-  const releasePause = Promise.withResolvers();
-  await page.route(pausePath, async route => {
-    const response = await route.fetch();
-    pauseReceived.resolve();
-    await releasePause.promise;
-    await route.fulfill({ response });
-  });
-  try {
-    await page.getByRole('button', { name: 'Pause', exact: true }).click();
-    await pauseReceived.promise;
-    await page.getByRole('button', { name: 'Resume', exact: true }).waitFor();
-    assert.equal(await page.getByRole('button', { name: 'Resume', exact: true }).isDisabled(), true, 'SSE exposed an enabled resume action while pause was still awaiting its response');
-    assert.equal(await page.getByRole('button', { name: 'Cancel', exact: true }).isDisabled(), true, 'SSE exposed an enabled cancel action while pause was still awaiting its response');
-  } finally { releasePause.resolve(); }
-  await page.waitForFunction(() => document.querySelector('[data-action="resume"]')?.disabled === false);
-  await page.unroute(pausePath);
-  for (let index = 0; index < 32; index++) app.store.appendEvent(keyboardSessionId, 'message', 'browser-test', { role: 'operator', text: `Keyboard evidence fixture ${index + 1}: preserve the current reading position during durable stream refreshes.` });
-  await page.getByText('Keyboard evidence fixture 32: preserve the current reading position during durable stream refreshes.', { exact: true }).waitFor();
-  const draft = 'Keep this unsent instruction while I inspect the evidence.';
-  await page.getByRole('textbox', { name: 'Steer the next execution' }).fill(draft);
-  const selectedTab = async id => {
-    const tabs = await page.getByRole('tab').evaluateAll(elements => elements.map(element => ({ id: element.dataset.id, selected: element.getAttribute('aria-selected'), tabIndex: element.tabIndex, panel: document.getElementById(element.getAttribute('aria-controls'))?.id, label: document.getElementById(element.getAttribute('aria-controls'))?.getAttribute('aria-labelledby') })));
-    assert.equal(tabs.length, 5);
-    assert.deepEqual(tabs.filter(tab => tab.selected === 'true').map(tab => tab.id), [id]);
-    assert.deepEqual(tabs.filter(tab => tab.tabIndex === 0).map(tab => tab.id), [id]);
-    for (const tab of tabs) {
-      assert.equal(tab.panel, `evidence-panel-${tab.id}`);
-      assert.equal(tab.label, `evidence-tab-${tab.id}`);
-      assert.equal(tab.tabIndex, tab.id === id ? 0 : -1);
-    }
-    assert.equal(await page.locator('[role="tabpanel"]:visible').count(), 1);
-    assert.equal(await page.locator('[role="tabpanel"]:visible').getAttribute('id'), `evidence-panel-${id}`);
-    assert.equal(await page.evaluate(() => document.activeElement.id), `evidence-tab-${id}`);
-    assert.equal(await page.getByRole('textbox', { name: 'Steer the next execution' }).inputValue(), draft);
-  };
-  for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }]) {
-    await page.setViewportSize(viewport);
-    await page.getByRole('tab', { name: 'Activity', exact: true }).click();
-    await selectedTab('stream');
-    for (const [key, id] of [['ArrowRight', 'gateway'], ['ArrowRight', 'diff'], ['ArrowRight', 'test'], ['End', 'handoff'], ['ArrowRight', 'stream'], ['ArrowLeft', 'handoff'], ['Home', 'stream']]) {
-      await page.keyboard.press(key);
-      await selectedTab(id);
-    }
-    await page.keyboard.press('Tab');
-    assert.equal(await page.evaluate(() => document.activeElement.id), 'evidence-panel-stream');
-    await page.keyboard.press('Shift+Tab');
-    await selectedTab('stream');
-    const readingPosition = await page.locator('#evidence-panel-stream').evaluate(panel => {
-      if (panel.scrollHeight - panel.clientHeight < 200) throw new Error('Stream fixture must overflow to verify reading-position preservation');
-      panel.scrollTop = 120;
-      return panel.scrollTop;
-    });
-    await page.keyboard.press('ArrowRight');
-    await selectedTab('gateway');
-    await page.keyboard.press('ArrowRight');
-    await selectedTab('diff');
-    const hiddenUpdate = `Durable event while inspecting Changes at width ${viewport.width}.`;
-    app.store.appendEvent(keyboardSessionId, 'message', 'browser-test', { role: 'operator', text: hiddenUpdate });
-    await page.keyboard.press('Home');
-    await page.getByText(hiddenUpdate, { exact: true }).waitFor();
-    await selectedTab('stream');
-    assert.equal(await page.locator('#evidence-panel-stream').evaluate(panel => panel.scrollTop), readingPosition, 'Switching tabs or receiving an event moved the stream away from the reading position');
-    await page.locator('#evidence-panel-stream').evaluate(panel => { panel.scrollTop = panel.scrollHeight; });
-    await page.keyboard.press('End');
-    const tailUpdate = `Durable event while following the stream tail at width ${viewport.width}.`;
-    app.store.appendEvent(keyboardSessionId, 'message', 'browser-test', { role: 'operator', text: tailUpdate });
-    await page.keyboard.press('Home');
-    await page.getByText(tailUpdate, { exact: true }).waitFor();
-    assert(await page.locator('#evidence-panel-stream').evaluate(panel => panel.scrollHeight - panel.scrollTop - panel.clientHeight < 2), 'Following the stream tail was lost after switching tabs');
-    await selectedTab('stream');
-    await screenshot(`evidence-keyboard-${viewport.width}`);
-  }
-  await page.setViewportSize({ width: 1440, height: 1040 });
-  await page.getByRole('textbox', { name: 'Steer the next execution' }).fill('Preserve the invalid input checks and explain the scope of the rounding fix.');
-  await page.getByRole('button', { name: 'Save instruction' }).click();
-  await page.getByText('Next execution', { exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Resume', exact: true }).click();
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Cancel session' }).click();
-  try { await page.getByText('Cancelled', { exact: true }).first().waitFor(); }
-  catch (error) {
-    const stopped = app.store.getSession(keyboardSessionId);
-    process.stderr.write(JSON.stringify({ status: stopped?.status, failure: stopped?.failure, runStatuses: stopped?.runs.map(run => run.status), toast: await page.locator('#toast').textContent(), url: page.url() }) + '\n');
-    await screenshot('cancel-failure');
-    throw error;
-  }
-  const failedSession = app.store.getSession(keyboardSessionId);
-  failedSession.status = 'failed';
-  failedSession.failure = { category: 'prompt_acceptance_unknown', stage: 'prompt', message: 'Prompt acceptance is unknown; the runtime may already have started paid work.', remediation: 'Do not resubmit the prompt. Confirm the remote turn has stopped, inspect its evidence and reconcile gateway spend before deciding whether to start new work.', promptAcceptance: 'unknown', automaticRetry: false };
-  failedSession.blocker = failedSession.failure.message;
-  app.store.saveSession(failedSession);
-  await page.reload();
-  const failure = page.getByRole('region', { name: 'Prompt submission needs attention' });
-  await failure.getByText(failedSession.failure.message, { exact: true }).waitFor();
-  await failure.getByText(failedSession.failure.remediation, { exact: true }).waitFor();
-  await failure.getByText('Prompt submission is unconfirmed. Check remote execution and gateway spend before starting new work.', { exact: true }).waitFor();
-  await failure.getByText('No automatic retry will be started.', { exact: true }).waitFor();
-  assert.equal(await page.getByRole('button', { name: /^(Start crew|Resume|Retry)$/ }).count(), 0, 'Ambiguous paid execution offers an unsafe repeat action');
-  await screenshot('failure-guidance');
-  failedSession.failure.message = '<button id="untrusted-runtime-markup">Execute again</button>';
-  failedSession.failure.remediation = '<img src="/untrusted-runtime-markup" onerror="alert(1)">';
-  app.store.saveSession(failedSession);
-  await page.reload();
-  await failure.getByText(failedSession.failure.message, { exact: true }).waitFor();
-  await failure.getByText(failedSession.failure.remediation, { exact: true }).waitFor();
-  assert.equal(await page.locator('#untrusted-runtime-markup, img[src="/untrusted-runtime-markup"]').count(), 0, 'Failure guidance rendered untrusted markup');
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole('link', { name: 'De Vloer home' }).click();
-  await page.getByRole('heading', { name: 'Sessions', exact: true }).first().waitFor();
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'Mobile layout overflows horizontally');
-  await screenshot('mobile');
-  await page.getByRole('link', { name: 'Environment' }).click();
-  await page.getByRole('heading', { name: 'Execution environment', exact: true }).waitFor();
-  await page.getByRole('link', { name: 'Ploeg', exact: true }).click();
-  const ploegTab = name => page.locator('.ploeg-tabs').getByRole('link', { name, exact: true });
-  const noOverflow = async label => assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${label} overflows horizontally`);
-  await page.getByRole('heading', { name: 'Teams', exact: true }).waitFor();
-  for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }]) {
-    await page.setViewportSize(viewport);
-    await ploegTab('Overview').click();
-    await page.getByRole('heading', { name: 'Teams', exact: true }).waitFor();
-    await page.getByRole('button', { name: '7 days', exact: true }).click();
-    await page.getByText('Settled · 7d', { exact: true }).waitFor();
-    await page.getByRole('button', { name: 'Refresh', exact: true }).waitFor();
-    assert.equal(await page.getByRole('button', { name: '7 days', exact: true }).getAttribute('aria-pressed'), 'true');
-    assert.equal(await page.locator('.ploeg-tile').count(), 6);
-    await page.getByText('Illustrative Ploeg records. No Run executed, no model was called and spend is US$ 0,00.', { exact: true }).waitFor();
-    assert.equal(await page.locator('.ploeg-table tbody tr').count(), 2);
-    assert.equal(await page.locator('main svg polyline, main canvas').count(), 0, 'The overview must not draw a line chart');
-    await noOverflow(`Ploeg overview at ${viewport.width}px`);
-    await screenshot(`ploeg-overview-${viewport.width}`);
-    await ploegTab('Activity').click();
-    await page.locator('.ploeg-feed-item').first().waitFor();
-    assert.equal(await page.locator('.ploeg-feed-item').count(), 10);
-    await page.getByRole('button', { name: 'Load older', exact: true }).click();
-    await page.waitForFunction(() => document.querySelectorAll('.ploeg-feed-item').length === 15);
-    assert.equal(new Set(await page.locator('.ploeg-feed-item').evaluateAll(rows => rows.map(row => row.dataset.eventId))).size, 15, 'The activity feed repeated an event');
-    await page.getByLabel('Event kind', { exact: true }).selectOption('work');
-    assert(await page.locator('.ploeg-feed-item').count() < 15);
-    await page.getByLabel('Event kind', { exact: true }).selectOption('');
-    await noOverflow(`Ploeg activity at ${viewport.width}px`);
-    await screenshot(`ploeg-activity-${viewport.width}`);
-    await ploegTab('Runs').click();
-    await page.locator('.ploeg-runs-table tbody tr').first().waitFor();
-    assert.equal(await page.locator('.ploeg-runs-table tbody tr').count(), 7);
-    await page.getByLabel('Run state', { exact: true }).selectOption('running');
-    await page.waitForFunction(() => document.querySelectorAll('.ploeg-runs-table tbody tr').length === 1);
-    assert.equal(await page.getByLabel('Run outcome', { exact: true }).isDisabled(), true, 'Only finished Runs have an outcome');
-    await page.getByLabel('Run state', { exact: true }).selectOption('');
-    await page.waitForFunction(() => document.querySelectorAll('.ploeg-runs-table tbody tr').length === 7);
-    await noOverflow(`Ploeg runs at ${viewport.width}px`);
-    await screenshot(`ploeg-runs-${viewport.width}`);
-    await ploegTab('Proposed').click();
-    await page.getByRole('heading', { name: 'Proposed work', exact: true }).waitFor();
-    await page.getByRole('heading', { name: 'Add a regression test for negative half-cent totals', exact: true }).waitFor();
-    await noOverflow(`Ploeg proposed work at ${viewport.width}px`);
-    await screenshot(`ploeg-proposed-${viewport.width}`);
-  }
-  await page.setViewportSize({ width: 1440, height: 1040 });
-  const research = page.getByRole('article', { name: 'Clarify which markets the research brief covers' });
-  await research.getByRole('button', { name: 'Reject', exact: true }).click();
-  const rejection = page.getByRole('dialog');
-  await rejection.getByRole('button', { name: 'Reject', exact: true }).click();
-  assert.equal(await rejection.isVisible(), true, 'A rejection without a reason was submitted');
-  await rejection.getByLabel('Reason', { exact: true }).fill('The brief already names its markets.');
-  await rejection.getByRole('button', { name: 'Reject', exact: true }).click();
-  await page.getByText('Recorded in this demo only. Nothing was dispatched.', { exact: true }).waitFor();
-  await research.waitFor({ state: 'detached' });
-  assert.equal(await page.getByRole('button', { name: 'Approve', exact: true }).count(), 1);
-  await page.setViewportSize({ width: 390, height: 844 });
-  await ploegTab('Awaiting review').click();
-  await page.locator('[data-action="ploeg-item"][data-id="105"]').click();
-  await page.getByRole('heading', { name: 'Ready for your review' }).waitFor();
-  assert.equal(await page.getByRole('link', { name: 'Open pull request' }).getAttribute('href'), 'https://forge.example.invalid/example/order-service/pulls/5');
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'Ploeg review layout overflows horizontally');
-  await screenshot('ploeg-review-mobile');
-  await page.getByRole('button', { name: 'Close work item details' }).click();
-  await page.locator('.ploeg-lanes').getByRole('button', { name: 'Needs human' }).click();
-  await page.locator('[data-action="ploeg-item"][data-id="101"]').waitFor();
-  await page.setViewportSize({ width: 1440, height: 1040 });
-  await page.goto(`http://127.0.0.1:${live.server.address().port}`);
-  await page.getByRole('heading', { name: 'Welcome back.' }).waitFor();
-  await screenshot('login');
-  await page.getByRole('textbox', { name: 'Account name' }).fill('browser-operator');
-  await page.getByLabel('Password', { exact: true }).fill(password);
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await page.getByRole('heading', { name: 'Sessions', exact: true }).first().waitFor();
-  await page.getByRole('button', { name: 'Sign out' }).click();
-  await page.getByRole('heading', { name: 'Welcome back.' }).waitFor();
   assert.deepEqual(errors, [], 'Browser script or CSP errors occurred');
-  process.stdout.write(`PASS: Chromium ${browser.version()}; task connections for five providers, fixture import with explicit start, duplicate import, binary candidate downloads, changed-revision draft preservation and inert source text, task desktop/mobile layout, demo, diff, checks, export, reload, create, pause, evidence keyboard navigation at desktop/mobile widths, draft preservation, stream reading-position and tail-follow preservation, instruction, resume, cancel, actionable ambiguous-failure guidance and escaped error text, mobile, Ploeg overview, activity paging, Runs filters and proposed-work rejection at desktop/mobile widths, Ploeg awaiting-review lane and review screen, navigation, live login/logout. No inference requests.\n`);
+  process.stdout.write(`PASS: Chromium ${browser.version()}; ${flows.map(([, covers]) => covers).join(', ')}, navigation. No inference requests.\n`);
 } finally {
   await browser?.close();
   await Promise.all([app.close(), live.close()]);

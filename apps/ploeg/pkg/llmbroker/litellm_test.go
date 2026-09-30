@@ -291,6 +291,16 @@ func TestSettledSpend_AggregatesUsageAcrossKeys(t *testing.T) {
 	if strings.Join(got.Models, ",") != "claude-sonnet,deepseek-chat" {
 		t.Fatalf("models=%v", got.Models)
 	}
+	if len(got.ByModel) != 2 {
+		t.Fatalf("byModel=%+v", got.ByModel)
+	}
+	sonnet, deepseek := got.ByModel[0], got.ByModel[1]
+	if sonnet.Model != "claude-sonnet" || math.Abs(sonnet.USD-0.2) > 1e-9 || sonnet.InputTokens != 500 || sonnet.OutputTokens != 50 {
+		t.Fatalf("claude-sonnet share=%+v", sonnet)
+	}
+	if deepseek.Model != "deepseek-chat" || math.Abs(deepseek.USD-0.15) > 1e-9 || deepseek.InputTokens != 1100 || deepseek.OutputTokens != 210 {
+		t.Fatalf("deepseek-chat share summed across keys=%+v", deepseek)
+	}
 }
 
 func TestRevoke_EmptyCredentialIsNoop(t *testing.T) {
