@@ -21,7 +21,7 @@ test('event entry points preserve validation and keep application publication ou
   assert.deepEqual(Object.keys(source.on).sort(), ['push', 'workflow_dispatch']);
   const pr = workflows['on_pull_request.yml'];
   assert.deepEqual(Object.keys(pr.on).sort(), ['pull_request', 'workflow_dispatch']);
-  assert.deepEqual(Object.keys(pr.jobs).sort(), ['checks', 'release-policy', 'tutorial-smoke']);
+  assert.deepEqual(Object.keys(pr.jobs).sort(), ['checks', 'release-policy']);
   for (const job of Object.keys(pr.jobs)) assert.deepEqual(pr.jobs[job], source.jobs[job]);
   for (const name of ['on_pull_request.yml', 'on_docs_change.yml']) {
     assert.doesNotMatch(JSON.stringify(workflows[name]), /GLIDE_RELEASES_ENABLED|contents":"write|semantic-release-monorepo@/);
@@ -34,7 +34,7 @@ test('event entry points preserve validation and keep application publication ou
 
 test('only an enabled development push can version Glide after both gates', () => {
   assert.equal(source.concurrency['cancel-in-progress'], false);
-  assert.deepEqual(Object.keys(source.jobs).sort(), ['checks', 'release', 'release-policy', 'tutorial-smoke']);
+  assert.deepEqual(Object.keys(source.jobs).sort(), ['checks', 'release', 'release-policy']);
   const job = source.jobs.release;
   assert.deepEqual(job.needs, ['checks', 'release-policy']);
   const release = job.steps.find(step => step.id === 'release');
@@ -209,21 +209,21 @@ test('live verification follows publication and only runs for an authorized publ
 });
 
 
-test('the tutorial smoke job only runs the deterministic demo and never gates a release', () => {
-  const job = source.jobs['tutorial-smoke'];
+test('the tutorial smoke job runs weekly, only runs the deterministic demo and never gates a release', () => {
+  const job = workflows['on_schedule.yml'].jobs['tutorial-smoke'];
   assert.deepEqual(job.steps.map(step => step.uses), ['actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09', './.forgejo/actions/tutorial-smoke']);
   const action = read('.forgejo/actions/tutorial-smoke/action.yml');
   assert.deepEqual(action.runs.steps.filter(step => step.run).map(step => step.run), ['bash scripts/tutorial-smoke.sh --check', 'mise trust apps/vloer/mise.toml && mise trust apps/ploeg/mise.toml && bash scripts/tutorial-smoke.sh']);
   assert.equal(action.runs.steps.at(-1).if, "steps.prerequisites.outputs.ready == 'true'");
   assert.doesNotMatch(JSON.stringify(action) + JSON.stringify(job), /secrets\.|GLIDE_RELEASES_ENABLED|permissions/);
-  for (const [name, other] of Object.entries(source.jobs)) assert.ok(!(other.needs || []).includes('tutorial-smoke'), name);
+  for (const workflow of ['on_pull_request.yml', 'on_source_change.yml']) assert.ok(!('tutorial-smoke' in workflows[workflow].jobs), workflow);
 });
 
 test('the weekly external link check is scheduled, pinned and reports without blocking or publishing', () => {
   const schedule = workflows['on_schedule.yml'];
   assert.deepEqual(Object.keys(schedule.on).sort(), ['schedule', 'workflow_dispatch']);
   assert.match(schedule.on.schedule[0].cron, /^\d+ \d+ \* \* [0-6]$/);
-  assert.deepEqual(Object.keys(schedule.jobs), ['external-links', 'release-notes']);
+  assert.deepEqual(Object.keys(schedule.jobs), ['external-links', 'tutorial-smoke', 'release-notes']);
   const step = schedule.jobs['external-links'].steps.find(step => step.run === 'mise run docs-links-external');
   assert.equal(step['continue-on-error'], true);
   assert.doesNotMatch(JSON.stringify(schedule), /secrets\.|permissions|GLIDE_(RELEASES|DOCS_PUBLISH)_ENABLED/);
