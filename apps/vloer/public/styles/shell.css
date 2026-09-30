@@ -107,11 +107,6 @@
   pointer-events: auto;
 }
 
-#toast.toast.error {
-  border-color: var(--danger-border);
-  box-shadow: inset 3px 0 var(--danger-solid), var(--shadow-lg);
-}
-
 .app-visually-hidden {
   position: absolute;
   width: 1px;
