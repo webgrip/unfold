@@ -60,6 +60,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 
 | Scope | ADR | Title | Date | Implemented? | Evidence |
 | --- | --- | --- | --- | --- | --- |
+| System | [0011](../adr/adr-0011-glide-is-reachable-over-mcp-through-a-read-first-server.md) | Glide is reachable over MCP through a separate, read-first server on Ploeg's operator API | 2026-09-29 | unknown | — |
 | Ploeg | [0015](../../apps/ploeg/docs/adrs/0015-routing-is-core-policy-over-provider-opaque-scopes.md) | Route work in the core over provider-opaque Scopes | 2026-07-29 | partial | Scope resolver exists; tracker team mapping is still live ([source](../../apps/ploeg/pkg/target/resolver.go)) |
 | Ploeg | [0016](../../apps/ploeg/docs/adrs/0016-forge-registry-and-per-run-repo-scoped-credentials.md) | Resolve forges through a registry and mint forge credentials per Run | 2026-07-29 | partial | Per-run forge tokens exist; the worker still calls the forge API directly ([source](../../apps/ploeg/pkg/forgebroker/broker.go)) |
 | Ploeg | [0017](../../apps/ploeg/docs/adrs/0017-the-review-loop-is-verdict-driven-and-capped.md) | The review loop is verdict-driven and capped | 2026-07-29 | yes | Verdict loop and fix-round cap are tested ([source](../../apps/ploeg/pkg/shiftengine/reviewloop_test.go)) |
