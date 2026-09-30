@@ -58,10 +58,10 @@ export class StubElement extends StubNode {
 
 export type Webview = Record<string, any> & { posted: unknown[]; document: any };
 
-export function loadWebview(): Webview {
+export function loadWebview(script = 'session.js', dataset: Record<string, string> = { sessionId: 'session-under-test' }): Webview {
   const posted: unknown[] = [];
   const body = new StubElement('body');
-  body.dataset.sessionId = 'session-under-test';
+  Object.assign(body.dataset, dataset);
   const document = {
     body,
     activeElement: null,
@@ -78,11 +78,12 @@ export function loadWebview(): Webview {
     document,
     window: { addEventListener: () => undefined, scrollY: 0, scrollTo: () => undefined },
     HTMLDetailsElement: class {},
+    URL,
     acquireVsCodeApi: () => ({ getState: () => ({}), setState: () => undefined, postMessage: (message: unknown) => { posted.push(message); } }),
     console,
   };
   createContext(context);
-  runInContext(readFileSync(new URL('../media/session.js', import.meta.url), 'utf8'), context, { filename: 'session.js' });
+  for (const file of ['common.js', script]) runInContext(readFileSync(new URL(`../media/${file}`, import.meta.url), 'utf8'), context, { filename: file });
   context.posted = posted;
   return context as Webview;
 }

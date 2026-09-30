@@ -84,10 +84,23 @@ provisioning path, supplied through environment references.
 Read routes are `GET /api/v1/operator/teams`, `/summary`, `/work-items`,
 `/work-items/{id}`, `/runs`, `/runs/{id}` and `/events`. Item/event pages accept `after`
 and `limit` (default 50, maximum 200); IDs and cursors are decimal strings.
-Item filters are `team`, `state` and `needsHuman=true`; event filters are
-`team` and `workItemId`. Detail embeds the latest 200 records per collection
-and marks truncated histories. Unknown costs remain unknown, and `paused`
-is null because the current team model has no pause state.
+Item filters are `team`, `state`, `needsHuman=true` and the tracker identity
+`provider` plus `externalId`; event filters are `team` and `workItemId`.
+`provider` and `externalId` must be given together, otherwise the request
+returns 400. Without `team` they match across every team in the consumer's
+scope, so a client can ask whether Ploeg holds a given Tracker Item. Detail
+embeds the latest 200 records per collection and marks truncated histories.
+Unknown costs remain unknown, and `paused` is null because the current team
+model has no pause state.
+
+Each team lists its `assignees`: the tracker usernames, lowercased and sorted,
+whose assignment routes a Tracker Item to that team. They come from
+`teams.<team>.assignees` in the configuration file and from `PLOEG_TEAM_MAP`.
+A team no username routes to has an empty list.
+Each team also lists its `pinnedScopes`: tracker container ids (a Vikunja
+project or ClickUp list, pinned by id with `team:` in the configuration file)
+whose items run as that team whoever is assigned. A client that assigns tracker
+users uses it to know which team will actually receive the work.
 
 Events default to ascending order. `order=desc` returns the newest events
 first and pages older with `before=<id>`; its `nextCursor` is the next `before`

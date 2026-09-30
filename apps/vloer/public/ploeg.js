@@ -718,10 +718,12 @@ export function writerAccount(detail) {
 function accountMarkup(detail) {
   const account = writerAccount(detail);
   if (!account) return '';
-  const part = (heading, text) => text ? `<div class="work-account-part"><h4 class="overline">${heading}</h4><div class="prose">${markdown(text, { baseLevel: 5 })}</div></div>` : '';
-  const who = `Written by the ${account.role || 'writer'}${account.round ? ` in Round ${account.round}` : ''}${account.earlierShift ? ' of an earlier Shift' : ''}`;
-  const meta = `<p class="meta work-account-meta">${escape(who)}${account.at ? `, ${ui.timeAgo(account.at)}` : ''}. ${escape('Check it against the pull request.')}</p>`;
-  return ui.card({ id: 'work-account', region: true, title: 'Problem and solution', icon: 'file', level: 3, actions: runJump({ id: account.runId }), body: `<div class="work-account">${part('Problem', account.problem)}${part('Solution', account.solution)}</div>${meta}` });
+  const side = (key, index, heading, text) => `<div class="work-account-side" data-side="${key}"><h4 class="work-account-label"><span class="work-account-index" aria-hidden="true">${index}</span>${heading}</h4>${text ? `<div class="prose work-account-text">${markdown(text, { baseLevel: 5 })}</div>` : `<p class="work-account-missing">${escape('Not reported.')}</p>`}</div>`;
+  const source = [account.role || 'writer', account.round ? `Round ${account.round}` : '', account.earlierShift ? 'earlier Shift' : ''].filter(Boolean).map(part => `<span>${escape(part)}</span>`);
+  if (account.at) source.push(ui.timeAgo(account.at));
+  const number = ploegReview(detail).pullRequestNumber;
+  const foot = `<footer class="work-account-foot"><p class="work-account-source"><span class="work-account-source-label">Written by</span>${source.join('')}</p><p class="work-account-caveat">${escape(`The agent’s own account: verify it against ${number ? `pull request #${number}` : 'the pull request'}.`)}</p>${runJump({ id: account.runId })}</footer>`;
+  return `<section class="work-account" id="work-account" aria-labelledby="work-account-title"><h3 class="sr-only" id="work-account-title">Problem and solution</h3><div class="work-account-grid">${side('problem', '01', 'Problem', account.problem)}<span class="work-account-arrow" aria-hidden="true">${icon('arrow')}</span>${side('solution', '02', 'Solution', account.solution)}</div>${foot}</section>`;
 }
 
 function briefMarkup(detail, model) {

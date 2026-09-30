@@ -28,6 +28,8 @@ type OperatorFilter struct {
 	Desc       bool
 	Limit      int
 	WorkItemID int64
+	Provider   string
+	ExternalID string
 }
 
 type OperatorTeam struct {
@@ -35,6 +37,9 @@ type OperatorTeam struct {
 	Paused     *bool          `json:"paused"`
 	QueueDepth int64          `json:"queueDepth"`
 	Roles      []OperatorRole `json:"roles"`
+	Assignees  []string       `json:"assignees"`
+	// PinnedScopes are the tracker containers whose items always run as this team, whoever is assigned.
+	PinnedScopes []string `json:"pinnedScopes"`
 }
 
 type OperatorRole struct {
@@ -236,7 +241,7 @@ func (s *Store) OperatorTeams(ctx context.Context, teams []string, registered ma
 	}
 	ensure := func(id string) *OperatorTeam {
 		if byID[id] == nil {
-			byID[id] = &OperatorTeam{ID: id, Roles: []OperatorRole{}}
+			byID[id] = &OperatorTeam{ID: id, Roles: []OperatorRole{}, Assignees: []string{}, PinnedScopes: []string{}}
 		}
 		return byID[id]
 	}
@@ -292,7 +297,8 @@ func (s *Store) OperatorItems(ctx context.Context, f OperatorFilter) ([]Operator
 	rows, err := s.pool.Query(ctx, `SELECT `+operatorItemJSON+` FROM work_items i
 		WHERE ($1::text[] IS NULL OR i.team = ANY($1)) AND ($2 = '' OR i.team = $2)
 		AND ($3 = '' OR i.state = $3) AND (NOT $4 OR i.state = 'needs_human') AND i.id > $5
-		ORDER BY i.id LIMIT $6`, f.Teams, f.Team, f.State, f.NeedsHuman, f.After, f.Limit+1)
+		AND ($7 = '' OR (i.provider = $7 AND i.external_id = $8))
+		ORDER BY i.id LIMIT $6`, f.Teams, f.Team, f.State, f.NeedsHuman, f.After, f.Limit+1, f.Provider, f.ExternalID)
 	if err != nil {
 		return nil, false, err
 	}
@@ -400,7 +406,7 @@ func (s *Store) OperatorEvents(ctx context.Context, f OperatorFilter) ([]Operato
 }
 
 func validateOperatorFilter(f OperatorFilter) error {
-	if f.Limit < 1 || f.Limit > 200 || f.After < 0 || f.Before < 0 || f.WorkItemID < 0 || (f.Desc && f.After != 0) || (!f.Desc && f.Before != 0) {
+	if f.Limit < 1 || f.Limit > 200 || f.After < 0 || f.Before < 0 || f.WorkItemID < 0 || (f.Desc && f.After != 0) || (!f.Desc && f.Before != 0) || (f.Provider == "") != (f.ExternalID == "") {
 		return errors.New("invalid operator pagination")
 	}
 	return nil

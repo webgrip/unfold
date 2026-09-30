@@ -96,7 +96,7 @@ func TestOperatorReadsAreScopedAndCredentialFree(t *testing.T) {
 		}
 	}
 	teams, err := testStore.OperatorTeams(ctx, []string{"silver"}, map[string][]string{"silver": {"reviewer", "builder"}, "gold": {"writer"}})
-	if err != nil || len(teams) != 1 || teams[0].ID != "silver" || teams[0].Paused != nil || len(teams[0].Roles) != 2 {
+	if err != nil || len(teams) != 1 || teams[0].ID != "silver" || teams[0].Paused != nil || len(teams[0].Roles) != 2 || teams[0].Assignees == nil {
 		t.Fatalf("teams: %+v %v", teams, err)
 	}
 }
@@ -132,6 +132,12 @@ func TestOperatorPaginationAndUnknownCost(t *testing.T) {
 	}
 	if _, _, err := testStore.OperatorItems(ctx, OperatorFilter{Limit: 201}); err == nil {
 		t.Fatal("unbounded item limit accepted")
+	}
+	if _, _, err := testStore.OperatorItems(ctx, OperatorFilter{Provider: "vikunja", Limit: 1}); err == nil {
+		t.Fatal("provider without externalId accepted")
+	}
+	if items, more, err := testStore.OperatorItems(ctx, OperatorFilter{Provider: "vikunja", ExternalID: "1", Limit: 1}); err != nil || more || len(items) != 1 || items[0].ExternalID != "1" {
+		t.Fatalf("tracker identity filter: %+v %v %v", items, more, err)
 	}
 	if _, _, err := testStore.OperatorEvents(ctx, OperatorFilter{Limit: 0}); err == nil {
 		t.Fatal("invalid event limit accepted")

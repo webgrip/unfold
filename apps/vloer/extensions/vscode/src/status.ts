@@ -1,4 +1,5 @@
-import type { ExecutionFailure, Run, Session, SessionStatus } from './types.js';
+import type { ExecutionFailure, Run, Session, SessionStatus, TaskSnapshot } from './types.js';
+import type { PloegTeam } from './ploeg-types.js';
 
 export type StatusPresentation = { name: string; icon: string; color?: string; group: 'attention' | 'active' | 'ready' | 'history' };
 
@@ -118,4 +119,19 @@ export function spendLabel(session: Session): string {
 export function safeHttpsUrl(value: string | undefined): string | undefined {
   if (!value) return undefined;
   try { const url = new URL(value); return url.protocol === 'https:' && !url.username && !url.password ? url.toString() : undefined; } catch { return undefined; }
+}
+
+export function plural(count: number, noun: string): string { return `${count} ${noun}${count === 1 ? '' : 's'}`; }
+export function teamDescription(team: PloegTeam): string { return `${team.paused ? 'paused · ' : ''}${plural(team.roles.length, 'role')} · ${team.queueDepth} queued`; }
+/** Reduces tracker HTML to readable single-spaced text for tooltips. */
+export function plainText(value: string): string {
+  return value.replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, ' ').replace(/<br\s*\/?>|<\/(p|div|li|h[1-6]|tr|blockquote)>/gi, '\n').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&').replace(/\\([\\`*_[\]{}()#+\-.!<>~|&])/g, '$1').replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{2,}/g, '\n').trim();
+}
+
+export const providerNames: Record<string, string> = { vikunja: 'Vikunja', forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp', demo: 'Demo' };
+
+/** The compact row text after a task title: tracker id, who holds it, and age. */
+export function taskDescription(task: TaskSnapshot): string {
+  const holders = task.assignees?.map(person => person.username) ?? [];
+  return [task.identifier ?? `#${task.id}`, holders.length ? `→ ${holders.slice(0, 2).join(', ')}${holders.length > 2 ? ` +${holders.length - 2}` : ''}` : '', task.updatedAt ? relativeTime(task.updatedAt) : ''].filter(Boolean).join(' · ');
 }

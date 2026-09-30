@@ -5,8 +5,8 @@ const ago = (minutes: number) => new Date(anchor - minutes * 60_000).toISOString
 const at = ago(0);
 
 const teams: PloegTeam[] = [
-  { id: 'delivery', paused: null, queueDepth: 0, roles: [{ id: 'implementer', queueDepth: 0 }, { id: 'reviewer', queueDepth: 0 }] },
-  { id: 'research', paused: null, queueDepth: 1, roles: [{ id: 'analyst', queueDepth: 1 }, { id: 'builder', queueDepth: 0 }] },
+  { id: 'delivery', paused: null, queueDepth: 0, roles: [{ id: 'implementer', queueDepth: 0 }, { id: 'reviewer', queueDepth: 0 }], assignees: [], pinnedScopes: [] },
+  { id: 'research', paused: null, queueDepth: 1, roles: [{ id: 'analyst', queueDepth: 1 }, { id: 'builder', queueDepth: 0 }], assignees: [], pinnedScopes: [] },
 ];
 const orders = { forge: 'demo', owner: 'example', repo: 'order-service', baseBranch: 'main' };
 const studies = { forge: 'demo', owner: 'example', repo: 'market-research', baseBranch: 'main' };

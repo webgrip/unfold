@@ -1,12 +1,14 @@
 import { createHash } from 'node:crypto';
-import type { Repository } from './types.ts';
+import type { AppConfig, Repository } from './types.ts';
 import { descriptionMarkdown } from './rich-text.ts';
 
 export type TaskProvider = 'forgejo' | 'github' | 'gitlab' | 'clickup' | 'vikunja' | 'demo';
 export type TaskTarget = { forge: string; owner: string; repo: string; baseBranch: string };
 export type PloegTaskSource = { workItemId: string; provider: string; externalId: string; expectedBaseUrl: string; expectedScope: string; expectedRevision: string; expectedUpdatedAt: string; expectedTarget: TaskTarget };
 export type TaskSourceConfig = { id: string; name: string; provider: TaskProvider; baseUrl: string; project: string; repositoryId: string; token?: string; tokenType?: 'bearer'; executionOwner: 'interactive' | 'ploeg'; ploeg?: { target: TaskTarget } };
-export type TaskSnapshot = { key: string; sourceId: string; provider: TaskProvider; id: string; revision: string; title: string; description: string; url: string; status: 'open' | 'closed' | 'unknown'; updatedAt?: string; repositoryId: string; nativeRevision?: string; scope?: string; ploeg?: PloegTaskSource; bindingConfig?: string; bindingRevision?: string; ploegUnavailable?: { code: string; message: string } };
+export type TaskSnapshot = { key: string; sourceId: string; provider: TaskProvider; id: string; revision: string; title: string; description: string; url: string; status: 'open' | 'closed' | 'unknown'; updatedAt?: string; repositoryId: string; nativeRevision?: string; scope?: string; ploeg?: PloegTaskSource; bindingConfig?: string; bindingRevision?: string; ploegUnavailable?: { code: string; message: string }; labels?: TaskLabel[]; assignees?: TaskAssignee[]; priority?: number; dueAt?: string; identifier?: string; descriptionTruncated?: true };
+export type TaskLabel = { name: string; color?: string };
+export type TaskAssignee = { username: string; name?: string };
 export type TaskPage = { tasks: TaskSnapshot[]; nextPage?: number };
 export type PresentedTask = TaskSnapshot & { descriptionMarkdown: string };
 
@@ -24,6 +26,7 @@ export class TaskError extends Error {
 const providers: TaskProvider[] = ['forgejo', 'github', 'gitlab', 'clickup', 'vikunja', 'demo'];
 const maxResponseBytes = 2 * 1024 * 1024;
 const maxPage = 1000;
+const maxDescription = 16000;
 const timeoutMs = 10000;
 const slug = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const numericId = /^[1-9][0-9]{0,19}$/;
@@ -110,8 +113,19 @@ export function validateTaskSources(raw: unknown, repositories: Repository[], mo
   });
 }
 
-export function publicTaskSource(source: TaskSourceConfig) {
-  return { id: source.id, name: source.name, provider: source.provider, repositoryId: source.repositoryId, executionOwner: source.executionOwner, ...(source.ploeg ? { ploeg: source.ploeg } : {}) };
+/** Reports why a source cannot hand tasks to Ploeg, or undefined when it can. */
+export function handoffUnsupported(source: TaskSourceConfig, ploeg: AppConfig['ploeg']): string | undefined {
+  if (source.provider === 'demo') return 'Demo fixture tasks are not linked to Ploeg.';
+  if (source.provider !== 'vikunja') return 'Only Vikunja tasks can be handed to Ploeg from the workbench.';
+  if (source.executionOwner !== 'ploeg') return 'This connection is not assigned to Ploeg. An administrator sets its executionOwner to "ploeg" to enable hand-off.';
+  if (!source.token) return 'This connection has no tracker token, so the workbench cannot assign its tasks.';
+  if (ploeg?.demo) return 'Ploeg is showing illustrative demo records. Hand-off needs a live Ploeg operator connection.';
+  if (!ploeg?.url || !ploeg.tokenEnv) return 'Connect the authenticated Ploeg operator API in the server configuration to hand tasks off.';
+  return undefined;
+}
+
+export function publicTaskSource(source: TaskSourceConfig, ploeg?: AppConfig['ploeg']) {
+  return { id: source.id, name: source.name, provider: source.provider, repositoryId: source.repositoryId, executionOwner: source.executionOwner, ...(source.ploeg ? { ploeg: source.ploeg } : {}), handoff: !handoffUnsupported(source, ploeg) };
 }
 
 function taskId(source: TaskSourceConfig, value: unknown): string {
@@ -164,7 +178,34 @@ export function presentTask(source: TaskSourceConfig, task: TaskSnapshot): Prese
 
 function digest(value: unknown): string { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
 
-function snapshot(source: TaskSourceConfig, raw: unknown): TaskSnapshot {
+function entries(value: unknown): Record<string, unknown>[] { return Array.isArray(value) ? value.slice(0, 50).filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry)) : []; }
+
+function details(source: TaskSourceConfig, value: Record<string, unknown>): Pick<TaskSnapshot, 'labels' | 'assignees' | 'priority' | 'dueAt' | 'identifier'> {
+  const label = (entry: unknown, max = 200) => typeof entry === 'string' && entry.trim() && entry.length <= max && !/[\u0000-\u001f\u007f]/.test(entry) ? (source.token ? entry.replaceAll(source.token, '[redacted]') : entry) : undefined;
+  const color = (entry: unknown) => typeof entry === 'string' && /^#?[0-9a-fA-F]{6}$/.test(entry) ? `#${entry.replace('#', '').toLowerCase()}` : undefined;
+  const date = (entry: unknown, milliseconds = false) => {
+    if ((typeof entry !== 'string' && typeof entry !== 'number') || entry === '' || String(entry).startsWith('0001-')) return undefined;
+    const parsed = new Date(milliseconds ? Number(entry) : entry);
+    return Number.isFinite(parsed.getTime()) && parsed.getUTCFullYear() > 1970 ? parsed.toISOString() : undefined;
+  };
+  const labels = (list: unknown, name: string, tint: string) => entries(list).map(entry => ({ name: label(entry[name]), color: color(entry[tint]) })).filter((entry): entry is { name: string; color: string | undefined } => Boolean(entry.name)).map(({ name, color }) => ({ name, ...(color ? { color } : {}) }));
+  const people = (list: unknown, username: string, name: string) => entries(list).map(entry => ({ username: label(entry[username], 256), name: label(entry[name]) })).filter((entry): entry is { username: string; name: string | undefined } => Boolean(entry.username)).map(({ username, name }) => ({ username, ...(name ? { name } : {}) }));
+  let result: Pick<TaskSnapshot, 'labels' | 'assignees' | 'priority' | 'dueAt' | 'identifier'> = {};
+  if (source.provider === 'vikunja') {
+    const index = typeof value.index === 'number' && Number.isSafeInteger(value.index) && value.index > 0 ? `#${value.index}` : undefined;
+    result = { labels: labels(value.labels, 'title', 'hex_color'), assignees: people(value.assignees, 'username', 'name'), priority: typeof value.priority === 'number' && Number.isSafeInteger(value.priority) && value.priority > 0 && value.priority <= 100 ? value.priority : undefined, dueAt: date(value.due_date), identifier: label(value.identifier, 64) ?? index };
+  } else if (source.provider === 'forgejo' || source.provider === 'github') {
+    result = { labels: labels(value.labels, 'name', 'color'), assignees: people(value.assignees, 'login', 'full_name'), dueAt: date(value.due_date), identifier: typeof value.number === 'number' ? `#${value.number}` : undefined };
+  } else if (source.provider === 'gitlab') {
+    result = { labels: Array.isArray(value.labels) ? value.labels.slice(0, 50).map(entry => typeof entry === 'string' ? label(entry) : entry && typeof entry === 'object' ? label((entry as Record<string, unknown>).name) : undefined).filter((name): name is string => Boolean(name)).map(name => ({ name })) : [], assignees: people(value.assignees, 'username', 'name'), dueAt: date(value.due_date), identifier: typeof value.iid === 'number' ? `#${value.iid}` : undefined };
+  } else if (source.provider === 'clickup') {
+    const priority = value.priority && typeof value.priority === 'object' ? Number((value.priority as Record<string, unknown>).id) : NaN;
+    result = { labels: labels(value.tags, 'name', 'tag_bg'), assignees: people(value.assignees, 'username', 'email'), priority: Number.isSafeInteger(priority) && priority > 0 && priority <= 100 ? priority : undefined, dueAt: date(value.due_date, true), identifier: label(value.custom_id, 64) };
+  }
+  return Object.fromEntries(Object.entries(result).filter(([, entry]) => entry !== undefined && !(Array.isArray(entry) && !entry.length)));
+}
+
+function snapshot(source: TaskSourceConfig, raw: unknown, truncate = false): TaskSnapshot {
   const value = record(raw);
   let id: string;
   let title: string;
@@ -173,17 +214,18 @@ function snapshot(source: TaskSourceConfig, raw: unknown): TaskSnapshot {
   let updatedAt: string | undefined;
   let nativeRevision: string | undefined;
   let project = source.project;
+  const limit = truncate ? maxResponseBytes : maxDescription;
   if (source.provider === 'forgejo' || source.provider === 'github') {
     if (value.pull_request) throw new TaskError(422, 'task_is_pull_request', 'Select an issue instead of a pull request.');
     id = taskId(source, value.number);
     title = field(value.title, 500);
-    description = field(value.body, 16000, true);
+    description = field(value.body, limit, true);
     status = value.state === 'open' ? 'open' : value.state === 'closed' ? 'closed' : 'unknown';
     updatedAt = updated(value.updated_at);
   } else if (source.provider === 'gitlab') {
     id = taskId(source, value.iid);
     title = field(value.title, 500);
-    description = field(value.description, 16000, true);
+    description = field(value.description, limit, true);
     status = value.state === 'opened' ? 'open' : value.state === 'closed' ? 'closed' : 'unknown';
     updatedAt = updated(value.updated_at);
     if (value.project_id !== undefined) {
@@ -194,7 +236,7 @@ function snapshot(source: TaskSourceConfig, raw: unknown): TaskSnapshot {
     id = taskId(source, value.id);
     if (String(record(value.list).id) !== source.project) throw new TaskError(404, 'task_outside_source', 'This task is outside the configured home list.');
     title = field(value.name, 500);
-    description = field(value.markdown_description ?? value.text_content ?? value.description, 16000, true);
+    description = field(value.markdown_description ?? value.text_content ?? value.description, limit, true);
     const type = record(value.status).type;
     status = value.archived === true || type === 'closed' || type === 'done' ? 'closed' : type === 'open' || type === 'custom' ? 'open' : 'unknown';
     updatedAt = updated(value.date_updated, true);
@@ -203,14 +245,14 @@ function snapshot(source: TaskSourceConfig, raw: unknown): TaskSnapshot {
     id = taskId(source, value.id);
     if (String(value.project_id) !== source.project) throw new TaskError(404, 'task_outside_source', 'This task is outside the configured project.');
     title = field(value.title, 500);
-    description = field(value.description, 16000, true);
+    description = field(value.description, limit, true);
     status = value.done === true ? 'closed' : value.done === false ? 'open' : 'unknown';
     updatedAt = updated(value.updated);
     if (value.updated !== undefined && value.updated !== null) nativeRevision = field(value.updated, 128);
   } else {
     id = taskId(source, value.id);
     title = field(value.title, 500);
-    description = field(value.description, 16000, true);
+    description = field(value.description, limit, true);
     status = 'open';
     updatedAt = '2026-09-09T00:00:00.000Z';
   }
@@ -226,7 +268,9 @@ function snapshot(source: TaskSourceConfig, raw: unknown): TaskSnapshot {
     if (decoded.includes(source.token)) throw new TaskError(502, 'task_sensitive_response', 'The task service returned credential material in a task link. This snapshot cannot be imported.');
   }
   const revision = digest({ key, title, description, status, updatedAt, url });
-  const result = { key, sourceId: source.id, provider: source.provider, id, revision, title, description, url, status, ...(updatedAt ? { updatedAt } : {}), ...(nativeRevision ? { nativeRevision, scope: project } : {}), repositoryId: source.repositoryId };
+  const truncated = description.length > maxDescription;
+  if (truncated) description = description.slice(0, maxDescription).replace(/[\ud800-\udbff]$/, '');
+  const result = { key, sourceId: source.id, provider: source.provider, id, revision, title, description, url, status, ...(updatedAt ? { updatedAt } : {}), ...(nativeRevision ? { nativeRevision, scope: project } : {}), repositoryId: source.repositoryId, ...details(source, value), ...(truncated ? { descriptionTruncated: true as const } : {}) };
   if (source.token && Object.values(result).some(value => typeof value === 'string' && value.includes(source.token!))) throw new TaskError(502, 'task_sensitive_response', 'The task service returned credential material in a task identity, revision or link. This snapshot cannot be imported.');
   return result;
 }
@@ -314,7 +358,7 @@ export async function listTasks(source: TaskSourceConfig, page = 1): Promise<Tas
   const response = await request(source, path, query);
   const rawTasks = source.provider === 'clickup' ? record(response.value).tasks : response.value;
   if (!Array.isArray(rawTasks) || rawTasks.length > 100) throw new TaskError(502, 'task_response_invalid', 'The task service returned an unsupported task page.');
-  const tasks = rawTasks.filter(value => !((source.provider === 'github' || source.provider === 'forgejo') && record(value).pull_request)).map(value => snapshot(source, value)).filter(task => task.status === 'open');
+  const tasks = rawTasks.filter(value => !((source.provider === 'github' || source.provider === 'forgejo') && record(value).pull_request)).map(value => snapshot(source, value, true)).filter(task => task.status === 'open');
   let hasNext = rawTasks.length >= pageSize;
   if (source.provider === 'clickup' && typeof record(response.value).last_page === 'boolean') hasNext = record(response.value).last_page === false;
   else if (response.headers.has('x-next-page')) hasNext = Number(response.headers.get('x-next-page')) === page + 1;
@@ -323,15 +367,81 @@ export async function listTasks(source: TaskSourceConfig, page = 1): Promise<Tas
   return { tasks, ...(hasNext && page < maxPage ? { nextPage: page + 1 } : {}) };
 }
 
-export async function getTask(source: TaskSourceConfig, nativeId: string): Promise<TaskSnapshot> {
+/** Reads one task; `truncate` shortens an oversized description for display and marks it, while import keeps refusing it. */
+export async function getTask(source: TaskSourceConfig, nativeId: string, truncate = false): Promise<TaskSnapshot> { return (await readTask(source, nativeId, truncate)).task; }
+
+async function readTask(source: TaskSourceConfig, nativeId: string, truncate: boolean): Promise<{ task: TaskSnapshot; value: Record<string, unknown> }> {
   const id = taskId(source, nativeId);
   if (source.provider === 'demo') {
     if (id !== '1') throw new TaskError(404, 'task_not_found', 'The demonstration task does not exist.');
-    return demoTask(source);
+    return { task: demoTask(source), value: {} };
   }
   const path = source.provider === 'clickup' ? `/task/${encodeURIComponent(id)}` : source.provider === 'vikunja' ? `/tasks/${id}` : `${issuePath(source)}/${id}`;
   const response = await request(source, path, source.provider === 'clickup' ? { include_markdown_description: 'true' } : {});
-  const task = snapshot(source, response.value);
+  const task = snapshot(source, response.value, truncate);
   if (task.id !== id) throw new TaskError(502, 'task_response_invalid', 'The task service returned a different task than requested.');
-  return task;
+  return { task, value: record(response.value) };
+}
+
+/** Reads a Vikunja task for hand-off: an oversized description is truncated rather than refused, and assignee user IDs are keyed by lowercase username. */
+export async function getHandoffTask(source: TaskSourceConfig, nativeId: string): Promise<{ task: TaskSnapshot; assigneeIds: Map<string, number> }> {
+  if (source.provider !== 'vikunja') throw new TaskError(422, 'handoff_unsupported', 'Only Vikunja tasks can be handed to Ploeg from the workbench.');
+  const { task, value } = await readTask(source, nativeId, true);
+  const assigneeIds = new Map<string, number>();
+  for (const entry of entries(value.assignees)) if (typeof entry.username === 'string' && typeof entry.id === 'number' && Number.isSafeInteger(entry.id) && entry.id > 0) assigneeIds.set(entry.username.toLowerCase(), entry.id);
+  return { task, assigneeIds };
+}
+
+/** Returns the Vikunja project that holds a task, or undefined when the source cannot read it. */
+export async function taskProject(source: TaskSourceConfig, nativeId: string): Promise<string | undefined> {
+  if (source.provider !== 'vikunja') return undefined;
+  const id = taskId(source, nativeId);
+  try { const value = record((await request(source, `/tasks/${id}`)).value); return typeof value.project_id === 'number' && Number.isSafeInteger(value.project_id) ? String(value.project_id) : undefined; }
+  catch (error) { if (error instanceof TaskError) return undefined; throw error; }
+}
+
+/** Resolves a Vikunja username to its user ID, first among the project's users and then through user search; matching ignores case. */
+export async function findTrackerUser(source: TaskSourceConfig, username: string): Promise<number | undefined> {
+  const wanted = username.toLowerCase();
+  for (const [path, query] of [[`/projects/${source.project}/projectusers`, { s: username }], ['/users', { s: username }]] as const) {
+    let users: unknown;
+    try { users = (await request(source, path, query)).value; } catch (error) { if (error instanceof TaskError && error.code !== 'task_unreachable' && error.code !== 'task_timeout') continue; throw error; }
+    const match = entries(users).find(user => typeof user.username === 'string' && user.username.toLowerCase() === wanted && typeof user.id === 'number' && Number.isSafeInteger(user.id) && user.id > 0);
+    if (match) return match.id as number;
+  }
+  return undefined;
+}
+
+async function write(source: TaskSourceConfig, method: 'PUT' | 'DELETE', path: string, payload?: unknown): Promise<void> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(new URL(`${source.baseUrl}${path}`), { method, headers: { ...headers(source), ...(payload === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(payload === undefined ? {} : { body: JSON.stringify(payload) }), redirect: 'manual', signal: controller.signal });
+    await response.body?.cancel();
+    if (response.ok) return;
+    if (response.status >= 300 && response.status < 400) throw new TaskError(502, 'task_redirect_refused', 'The task service redirected the request. Update its configured API root.');
+    if (response.status === 401 || response.status === 403) throw new TaskError(502, 'task_write_forbidden', 'The workbench’s Vikunja token may not change this task. Give it permission to add and remove task assignees and to add task comments, then try again.');
+    if (response.status === 404) throw new TaskError(404, 'task_not_found', 'The task or configured source was not found or is inaccessible.');
+    if (response.status === 400 || response.status === 409) throw new TaskError(409, 'task_write_conflict', 'The task service refused the change. Refresh the task and try again.');
+    if (response.status === 429) throw new TaskError(503, 'task_rate_limited', 'The task service rate limit was reached. Try again later.');
+    throw new TaskError(502, 'task_service_failed', 'The task service could not complete this request.');
+  } catch (error) {
+    if (error instanceof TaskError) throw error;
+    if (controller.signal.aborted) throw new TaskError(504, 'task_timeout', 'The task service did not respond in time.');
+    throw new TaskError(502, 'task_unreachable', 'The task service could not be reached. Check its configured URL and network access.');
+  } finally { clearTimeout(timer); }
+}
+
+/** Adds or removes one Vikunja assignee on a task, using the source's server credential. */
+export async function setTrackerAssignee(source: TaskSourceConfig, nativeId: string, userId: number, assigned: boolean): Promise<void> {
+  const id = taskId(source, nativeId);
+  if (source.provider !== 'vikunja' || !Number.isSafeInteger(userId) || userId < 1) throw new TaskError(422, 'handoff_unsupported', 'Only Vikunja tasks can be handed to Ploeg from the workbench.');
+  await (assigned ? write(source, 'PUT', `/tasks/${id}/assignees`, { user_id: userId }) : write(source, 'DELETE', `/tasks/${id}/assignees/${userId}`));
+}
+
+/** Leaves an HTML comment on a Vikunja task, using the source's server credential. */
+export async function commentOnTask(source: TaskSourceConfig, nativeId: string, html: string): Promise<void> {
+  const id = taskId(source, nativeId);
+  if (source.provider !== 'vikunja') throw new TaskError(422, 'handoff_unsupported', 'Only Vikunja tasks can be handed to Ploeg from the workbench.');
+  await write(source, 'PUT', `/tasks/${id}/comments`, { comment: html });
 }
