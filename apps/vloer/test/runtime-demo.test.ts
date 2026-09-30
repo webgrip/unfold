@@ -73,7 +73,7 @@ test('demo cancellation terminates a child that ignores its initial stop signal'
   t.after(() => rm(root, { recursive: true, force: true }));
   const runtime = new DemoRuntime(root) as unknown as { command(binary: string, args: string[], cwd: string, signal: AbortSignal): Promise<unknown> };
   const controller = new AbortController();
-  const program = `const fs = require('node:fs'); process.on('SIGTERM', () => {}); fs.writeFileSync('ready', String(process.pid)); setInterval(() => {}, 1000);`;
+  const program = `const fs = require('node:fs'); process.on('SIGTERM', () => {}); fs.writeFileSync('ready.tmp', String(process.pid)); fs.renameSync('ready.tmp', 'ready'); setInterval(() => {}, 1000);`;
   const outcome = runtime.command(process.execPath, ['-e', program], root, controller.signal).catch(error => error);
   const deadline = deadlineAfter(3_000);
   while (await access(join(root, 'ready')).then(() => false, () => true)) {

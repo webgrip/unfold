@@ -217,11 +217,22 @@ type SettledUsage struct {
 	InputTokens  int64
 	OutputTokens int64
 	Models       []string
+	ByModel      []ModelUsage
+}
+
+// ModelUsage is the part of a Run's settled usage that one model accounts for.
+type ModelUsage struct {
+	Model        string  `json:"model"`
+	InputTokens  int64   `json:"inputTokens"`
+	OutputTokens int64   `json:"outputTokens"`
+	CostUSD      float64 `json:"costUsd"`
 }
 
 // ReconcileLLMAccountWithUsage settles like ReconcileLLMAccount and, when
-// usage is not nil, merges inputTokens, outputTokens, models and costUsd into
-// agent_runs.usage in the same transaction. Other keys a harness reported,
+// usage is not nil, merges inputTokens, outputTokens, models, byModel and
+// costUsd into agent_runs.usage in the same transaction. Each byModel cost is
+// rounded to four decimals on its own, so the parts may differ from costUsd
+// in the last digit. Other keys a harness reported,
 // such as sessionId, are kept. spend is rounded half-up to run_llm_accounts'
 // own NUMERIC(12,4) precision before it is compared with observed_spend,
 // charged to the Shift, or stored, so a spend-log total is never refused as
@@ -232,6 +243,13 @@ func (s *Store) ReconcileLLMAccountWithUsage(ctx context.Context, token string, 
 	}
 	if usage != nil && (usage.InputTokens < 0 || usage.OutputTokens < 0) {
 		return ErrLLMAccountState
+	}
+	if usage != nil {
+		for _, m := range usage.ByModel {
+			if m.Model == "" || m.InputTokens < 0 || m.OutputTokens < 0 || !validSpend(m.CostUSD) {
+				return ErrLLMAccountState
+			}
+		}
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -248,8 +266,13 @@ func (s *Store) ReconcileLLMAccountWithUsage(ctx context.Context, token string, 
 		if models == nil {
 			models = []string{}
 		}
+		byModel := make([]ModelUsage, 0, len(usage.ByModel))
+		for _, m := range usage.ByModel {
+			m.CostUSD = math.Round(m.CostUSD*1e4) / 1e4
+			byModel = append(byModel, m)
+		}
 		if usageJSON, err = json.Marshal(map[string]any{
-			"inputTokens": usage.InputTokens, "outputTokens": usage.OutputTokens, "models": models, "costUsd": roundedSpend,
+			"inputTokens": usage.InputTokens, "outputTokens": usage.OutputTokens, "models": models, "byModel": byModel, "costUsd": roundedSpend,
 		}); err != nil {
 			return err
 		}

@@ -61,6 +61,10 @@ func seedActivity(t *testing.T) activityFixture {
 		VALUES ('token-stuck', 'ploeg-stuck', 1, '[]', 60, 'reconciled', 0.25, 0.25)`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := testStore.pool.Exec(ctx, `INSERT INTO run_llm_accounts(run_token, alias, authorized, models, ttl_seconds, state, observed_spend)
+		VALUES ('token-running', 'ploeg-running', 1.5, '["deepseek-chat"]', 60, 'issued', 0.12)`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := testStore.pool.Exec(ctx, `INSERT INTO audit_log(actor, action, work_item_id, detail, at) VALUES
 		('ploegd:reconciliation', 'llm.reconciled', $1, '{"delta":0.25}', now() - interval '30 minutes'),
 		('ploegd:reconciliation', 'llm.reconciled', $2, '{"delta":4}', now() - interval '30 minutes')`, f.silver, f.gold); err != nil {
@@ -150,6 +154,13 @@ func TestOperatorRunsAreNewestFirstScopedAndPaged(t *testing.T) {
 	}
 	if running := byName["running"]; running.ExternalRef != "" || running.SettledUSD != nil || running.DurationSeconds != nil || *running.AuthorizedUSD != 1.5 {
 		t.Fatalf("running manual run: %+v", running)
+	}
+	if running := byName["running"]; running.ObservedUSD == nil || *running.ObservedUSD != 0.12 ||
+		len(running.ReservedModels) != 1 || running.ReservedModels[0] != "deepseek-chat" {
+		t.Fatalf("running run llm account: %+v", running)
+	}
+	if opened := byName["opened"]; opened.ObservedUSD != nil || opened.ReservedModels == nil || len(opened.ReservedModels) != 0 {
+		t.Fatalf("run with no llm account: %+v", opened)
 	}
 	if pending := byName["pending"]; pending.StartedAt != nil || pending.AuthorizedUSD != nil || pending.Outcome != "" {
 		t.Fatalf("pending run: %+v", pending)

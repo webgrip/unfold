@@ -25,7 +25,22 @@ const (
 	// repository's hooks from running. Command-line settings outrank the
 	// repository's .claude/settings.json (Ploeg ADR-0030).
 	TargetHooksDisabled = `{"disableAllHooks":true}`
+	// AdvisorDisabled keeps the server-side advisor tool off in every Run.
+	// LiteLLM prices advisor tokens at the executor model's rate and the
+	// key's model scope does not cover the advisor model (Ploeg ADR-0039).
+	AdvisorDisabled = "CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1"
 )
+
+// ModelAliasEnv names the variables Claude Code resolves its model aliases
+// through. Each is pinned to the Run's model, so a subagent or background
+// task that asks for haiku, sonnet, opus or fable stays on the model the
+// Run's key is scoped to (Ploeg ADR-0039).
+var ModelAliasEnv = []string{
+	"ANTHROPIC_DEFAULT_HAIKU_MODEL",
+	"ANTHROPIC_DEFAULT_SONNET_MODEL",
+	"ANTHROPIC_DEFAULT_OPUS_MODEL",
+	"ANTHROPIC_DEFAULT_FABLE_MODEL",
+}
 
 type Adapter struct {
 	Bin            string // empty = DefaultBin
@@ -49,7 +64,7 @@ func (a *Adapter) Prepare(spec harness.TaskSpec, env harness.RunEnv) (harness.In
 		mode = DefaultPermissionMode
 	}
 
-	extraEnv := []string{}
+	extraEnv := []string{AdvisorDisabled}
 	if env.LLM.APIKey != "" {
 		extraEnv = append(extraEnv, "ANTHROPIC_API_KEY="+env.LLM.APIKey)
 	}
@@ -60,6 +75,9 @@ func (a *Adapter) Prepare(spec harness.TaskSpec, env harness.RunEnv) (harness.In
 	}
 	if env.LLM.Model != "" {
 		extraEnv = append(extraEnv, "ANTHROPIC_MODEL="+env.LLM.Model)
+		for _, alias := range ModelAliasEnv {
+			extraEnv = append(extraEnv, alias+"="+env.LLM.Model)
+		}
 	}
 
 	// The drop box (ADR-0018). Claude Code's result envelope carries usage and

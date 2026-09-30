@@ -1,8 +1,10 @@
 import base64
 import hashlib
+import http.client
 import json
 import re
 import subprocess
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -17,16 +19,39 @@ class SafeRedirect(urllib.request.HTTPRedirectHandler):
         return redirected
 
 
+READ_ATTEMPTS = 3
+TRANSIENT_STATUS = {429, 500, 502, 503, 504}
+TRANSIENT_ERRORS = (http.client.IncompleteRead, http.client.RemoteDisconnected, ConnectionError, TimeoutError, urllib.error.URLError)
+
+
 def request(url, method='GET', data=None, headers=None, missing=False):
+    attempts = READ_ATTEMPTS if method in ('GET', 'HEAD') else 1
+    for attempt in range(1, attempts + 1):
+        try:
+            return request_once(url, method, data, headers, missing)
+        except urllib.error.HTTPError as error:
+            if error.code not in TRANSIENT_STATUS or attempt == attempts:
+                raise_http_error(url, method, error)
+        except TRANSIENT_ERRORS:
+            if attempt == attempts:
+                raise
+        time.sleep(2 ** attempt)
+
+
+def request_once(url, method, data, headers, missing):
+    req = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
     try:
-        req = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
         with urllib.request.build_opener(SafeRedirect).open(req, timeout=120) as response:
             return response.read(), response.headers
     except urllib.error.HTTPError as error:
         if missing and error.code == 404:
             return None, error.headers
-        detail = error.read(300).decode('utf-8', 'replace').strip()
-        raise RuntimeError(f'{method} {urllib.parse.urlsplit(url).netloc} returned HTTP {error.code}' + (f': {detail}' if detail else '')) from None
+        raise
+
+
+def raise_http_error(url, method, error):
+    detail = error.read(300).decode('utf-8', 'replace').strip() if error.fp else ''
+    raise RuntimeError(f'{method} {urllib.parse.urlsplit(url).netloc} returned HTTP {error.code}' + (f': {detail}' if detail else '')) from None
 
 
 def command(*args, env=None, input=None):

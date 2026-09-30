@@ -183,7 +183,7 @@ Any one of these reopens this record:
   Substrate completes its CNCF donation and tags v1.
 * OpenAI documents a settable per-session budget on the Agents API (its
   `session_budget_exceeded` error already exists without one); see
-  [0039](0039-the-openai-agents-api-stays-outside-the-run-until-it-takes-an-authorized-budget.md).
+  [0041](0041-the-openai-agents-api-stays-outside-the-run-until-it-takes-an-authorized-budget.md).
 * The 2027-04 project review gate (`design.md` §10) arrives.
 
 ## More Information

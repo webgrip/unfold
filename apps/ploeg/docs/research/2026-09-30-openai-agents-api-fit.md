@@ -11,7 +11,7 @@
 > `openai-go` v3.68.0. The openai.com launch post returned 403 to every fetch,
 > so the launch wording comes from the changelog and the official community
 > announcement instead. The decision is recorded in
-> [ADR-0039](../adrs/0039-the-openai-agents-api-stays-outside-the-run-until-it-takes-an-authorized-budget.md).
+> [ADR-0041](../adrs/0041-the-openai-agents-api-stays-outside-the-run-until-it-takes-an-authorized-budget.md).
 
 **Verdict: the Agents API is a hosted agent loop, one layer below Ploeg. Do not
 run Glide's Runs on it yet. Meet it from above through MCP, and use OpenAI's
@@ -435,7 +435,7 @@ Record these; do not adopt them wholesale.
 ## 8. Recommendations
 
 1. Record the verdict as
-   [ADR-0039](../adrs/0039-the-openai-agents-api-stays-outside-the-run-until-it-takes-an-authorized-budget.md)
+   [ADR-0041](../adrs/0041-the-openai-agents-api-stays-outside-the-run-until-it-takes-an-authorized-budget.md)
    (proposed), with a review on the 2026-10-31 market re-scan.
 2. Add one re-evaluation trigger to ADR-0032: OpenAI documents a settable
    per-session budget.
