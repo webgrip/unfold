@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { Repository } from './types.ts';
-import { descriptionMarkdown, markdownForms } from './rich-text.ts';
+import { descriptionMarkdown } from './rich-text.ts';
 
 export type TaskProvider = 'forgejo' | 'github' | 'gitlab' | 'clickup' | 'vikunja' | 'demo';
 export type TaskTarget = { forge: string; owner: string; repo: string; baseBranch: string };
@@ -158,7 +158,7 @@ function taskUrl(source: TaskSourceConfig, id: string, value: Record<string, unk
 /** Adds `descriptionMarkdown` for display: a Vikunja HTML description becomes Markdown, any other description is copied unchanged. The snapshot's own fields, and so its revision and import, are untouched. */
 export function presentTask(source: TaskSourceConfig, task: TaskSnapshot): PresentedTask {
   let markdown = descriptionMarkdown(task.provider, task.description, `${webRoot(source)}/`);
-  if (source.token) for (const form of markdownForms(source.token)) markdown = markdown.replaceAll(form, '[redacted]');
+  if (source.token) markdown = markdown.replaceAll(source.token, '[redacted]');
   return { ...task, descriptionMarkdown: markdown };
 }
 

@@ -2,7 +2,7 @@ import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import { randomBytes } from 'node:crypto';
-import { descriptionMarkdown, markdownForms } from '../src/rich-text.ts';
+import { descriptionMarkdown } from '../src/rich-text.ts';
 import { PloegClient, type PloegDetail } from '../src/ploeg.ts';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 import { presentTask, type TaskSourceConfig, type TaskSnapshot } from '../src/tasks.ts';
@@ -51,6 +51,7 @@ test('hostile Vikunja HTML becomes Markdown that the escape-first browser render
   assert.doesNotMatch(descriptionMarkdown('vikunja', hostile.handlers), /alert|onclick|onerror|onload/, 'event handler attributes never reach the Markdown');
   assert.doesNotMatch(descriptionMarkdown('vikunja', hostile.script), /alert|steal/);
   assert.doesNotMatch(descriptionMarkdown('vikunja', hostile.iframe), /frame text|evil/);
+  assert.doesNotMatch(render(descriptionMarkdown('vikunja', hostile.markdownInjection)), /<a /, 'Markdown typed into the tracker cannot make a javascript: link');
 });
 
 test('huge and deeply nested descriptions convert within the size cap and in bounded time', () => {
@@ -75,15 +76,36 @@ test('only Vikunja HTML is converted; plain text, Markdown and other providers p
   assert.equal(descriptionMarkdown('vikunja', '<p><a href="/tasks/9">relative</a></p>'), 'relative', 'a relative link without a base stays text');
 });
 
-test('secrets are redacted in their Markdown-escaped form as well as verbatim', () => {
-  assert.deepEqual(markdownForms('plain-token'), ['plain-token']);
-  assert.deepEqual(markdownForms('tk_a*b'), ['tk_a*b', 'tk\\_a\\*b']);
+test('converted Markdown uses only what the browser renderer understands, so no escape or emphasis marker shows as text', () => {
+  const html = '<p>Use order_id &amp; customer_id; 3 &lt; 4 * 2 in C:\\temp. See <a href="https://x.example/a_b">spec [v2]</a> and <em>this</em>.</p><h5>Deep heading</h5><hr><p><code>ok</code> and <a href="mailto:ops@example.invalid">ops</a></p><table><tr><th>Rate</th><th>Amount</th></tr><tr><td>21%</td><td>2,10</td></tr></table><pre><code class="language-TypeScript">const a = 1;</code></pre>';
+  const converted = descriptionMarkdown('vikunja', html);
+  assert.equal(converted, [
+    'Use order_id & customer_id; 3 < 4 * 2 in C:\\temp. See [spec (v2)](https://x.example/a_b) and this.',
+    '#### Deep heading',
+    '`ok` and ops (ops@example.invalid)',
+    '- Rate | Amount\n- 21% | 2,10',
+    '```typescript\nconst a = 1;\n```',
+  ].join('\n\n'));
+  const rendered = render(converted);
+  assertInertMarkup(rendered, 'fidelity');
+  assert.match(rendered, /<p>Use order_id &amp; customer_id; 3 &lt; 4 \* 2 in C:\\temp\. See <a href="https:\/\/x\.example\/a_b" target="_blank" rel="noopener noreferrer">spec \(v2\)<\/a> and this\.<\/p>/);
+  assert.match(rendered, /<h6>Deep heading<\/h6>/);
+  assert.match(rendered, /<p><code>ok<\/code> and ops \(ops@example\.invalid\)<\/p>/);
+  assert.match(rendered, /<ul><li>Rate \| Amount<\/li><li>21% \| 2,10<\/li><\/ul>/);
+  assert.match(rendered, /<pre class="md-code" data-lang="typescript">const a = 1;<\/pre>/);
+  for (const item of ploegDemo.items.filter(entry => entry.provider === 'vikunja')) {
+    const shown = render(descriptionMarkdown(item.provider, item.description)).replace(/<[^>]+>/g, '');
+    assert.doesNotMatch(shown, /[\\*_]|\[|\]/, `${item.id}: no Markdown marker reaches the reader`);
+    assert.match(shown, /Illustrative Vikunja-style task/, `${item.id}: the demo note survives`);
+  }
+});
+
+test('a token hidden in entity-encoded tracker HTML is redacted from the display Markdown', () => {
   const secret = 'tk_vikunja_secret_7788';
   const source: TaskSourceConfig = { id: 'board', name: 'Board', provider: 'vikunja', baseUrl: 'https://tracker.example/api/v1', project: '42', repositoryId: 'order-service', executionOwner: 'interactive', token: secret };
   const task: TaskSnapshot = { key: 'task:x', sourceId: 'board', provider: 'vikunja', id: '8', revision: 'r', title: 'T', description: '<p>tk&#95;vikunja&#95;secret&#95;7788 and <b></b>[redacted]</p>', url: 'https://tracker.example/tasks/8', status: 'open', repositoryId: 'order-service' };
   const presented = presentTask(source, task);
-  assert(!presented.descriptionMarkdown.includes(secret));
-  assert(!presented.descriptionMarkdown.includes(markdownForms(secret)[1]));
+  assert.equal(presented.descriptionMarkdown, '[redacted] and [redacted]');
   assert.equal(presented.description, task.description, 'the snapshot description is untouched');
   assert.equal(presented.revision, task.revision);
 });
