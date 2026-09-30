@@ -1016,7 +1016,7 @@
 }
 
 .meter-track {
-  fill: var(--bg-skeleton);
+  fill: var(--bg-track);
 }
 
 .meter-settled {
@@ -1049,7 +1049,7 @@
 }
 
 .meter[data-unknown] .meter-bar {
-  background: repeating-linear-gradient(135deg, var(--bg-skeleton) 0 3px, transparent 3px 6px);
+  background: repeating-linear-gradient(135deg, var(--bg-track) 0 3px, transparent 3px 6px);
   box-shadow: inset 0 0 0 1px var(--border-subtle);
 }
 

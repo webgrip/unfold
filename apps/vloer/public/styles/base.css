@@ -424,12 +424,12 @@ meter {
   border: 0;
   border-radius: var(--radius-full);
   overflow: hidden;
-  background: var(--bg-skeleton);
+  background: var(--bg-track);
   color: var(--accent-graphic);
 }
 
 progress::-webkit-progress-bar {
-  background: var(--bg-skeleton);
+  background: transparent;
 }
 
 progress::-webkit-progress-value {
@@ -448,7 +448,7 @@ progress:indeterminate::-moz-progress-bar {
 
 meter::-webkit-meter-bar {
   height: 100%;
-  background: var(--bg-skeleton);
+  background: transparent;
   border: 0;
   border-radius: var(--radius-full);
 }
