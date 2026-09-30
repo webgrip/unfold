@@ -443,7 +443,7 @@ function paletteContext() {
 }
 
 function frameMarkup() {
-  const hints = [[['↑', '↓'], 'Move'], [['↵'], 'Open'], [['Esc'], 'Close']].map(([keys, label]) => `<span class="palette-hint">${kbd(keys)}<span>${label}</span></span>`).join('');
+  const hints = [[['↑', '↓'], 'Move'], [['↵'], 'Open']].map(([keys, label]) => `<span class="palette-hint">${kbd(keys)}<span>${label}</span></span>`).join('');
   return `<div class="palette-frame"><h2 id="palette-title" class="sr-only">Search and commands</h2><div class="palette-search">${icon('search', 'palette-search-icon')}<input id="palette-input" class="palette-input" type="text" role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" aria-describedby="palette-help" aria-label="Search pages, commands and Work Items" placeholder="Search or jump to…" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"><button class="palette-dismiss" type="button" data-action="palette-close" aria-label="Close search"><span class="palette-dismiss-key" aria-hidden="true">${kbd('Esc')}</span><span class="palette-dismiss-text" aria-hidden="true">Cancel</span></button></div><div class="palette-results" id="palette-list" role="listbox" aria-label="Results"></div><div class="palette-footer" aria-hidden="true">${hints}<span class="palette-footer-tip">Type a number to open that Work Item</span></div><p class="sr-only" id="palette-help">Type a page, command or Work Item title or number. Arrow keys choose a result, Enter opens it, Escape closes the search.</p><p class="sr-only" id="palette-status" role="status" aria-live="polite"></p></div>`;
 }
 
