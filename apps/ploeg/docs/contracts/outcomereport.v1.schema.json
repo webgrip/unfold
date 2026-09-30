@@ -42,7 +42,8 @@
         "agent_error",
         "budget",
         "lease_lost",
-        "timeout"
+        "timeout",
+        "idle"
       ]
     },
     "findings": {

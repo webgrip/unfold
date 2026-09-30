@@ -228,6 +228,40 @@ export function runGroups(runs, currentShiftId = null) {
     .map(({ key, label, failed: hasFailure, runs: members }) => ({ key, label, failed: hasFailure, runs: members }));
 }
 
+/**
+ * Numbers the attempts at one job: Runs of the same Shift, Round, Role and access, oldest first. Only jobs Ploeg ran
+ * more than once get an entry. `machineFailures` counts the earlier attempts that failed for an infrastructure reason,
+ * and `next` is the attempt that followed this one, if any.
+ * @returns {Map<string, { attempt: number, total: number, machineFailures: number, next: number | null }>}
+ */
+export function runAttempts(runs) {
+  const jobs = new Map();
+  for (const run of runs || []) {
+    if (!run.shiftId) continue;
+    const key = `${run.shiftId}:${run.round ?? 0}:${run.role ?? ''}:${run.writes ? 'w' : 'r'}`;
+    if (!jobs.has(key)) jobs.set(key, []);
+    jobs.get(key).push(run);
+  }
+  const attempts = new Map();
+  for (const job of jobs.values()) {
+    if (job.length < 2) continue;
+    const ordered = [...job].sort(byId);
+    let machineFailures = 0;
+    ordered.forEach((run, index) => {
+      attempts.set(String(run.id), { attempt: index + 1, total: ordered.length, machineFailures, next: index + 1 < ordered.length ? index + 2 : null });
+      if (failureReason(run.failureReason)?.infra) machineFailures += 1;
+    });
+  }
+  return attempts;
+}
+
+/** The attempt label for a Run's header, for example `Attempt 3 of 3 · after 2 machine failures`; '' for a job that ran once. */
+export function attemptLabel(attempt) {
+  if (!attempt) return '';
+  const after = attempt.machineFailures ? ` · after ${plural(attempt.machineFailures, 'machine failure')}` : '';
+  return `Attempt ${attempt.attempt} of ${attempt.total}${after}`;
+}
+
 /** What a Run reported, as one state meta: the verdict of a reading Run, otherwise its outcome, otherwise its state. `label` is the short form and `title` the full one. */
 export function runResult(run) {
   if (run.state !== 'finished') return run.state === 'running' ? runState('running') : { ...runState('pending'), label: 'Waiting for a worker' };
@@ -771,8 +805,9 @@ function runLinks(run) {
   return `<div class="cluster gap-sm">${links.map(link => `<a class="chip" href="${escape(link.url)}" target="_blank" rel="noopener noreferrer">${icon(/^Pull request/.test(link.label) ? 'pull-request' : 'link')}<span>${escape(link.label)}</span>${newTab}</a>`).join('')}</div>`;
 }
 
-function runBody(run, { demo, now, live }) {
+function runBody(run, { demo, now, live, attempts }) {
   const failure = failureReason(run.failureReason);
+  const retriedAs = failure?.retries ? attempts?.get(String(run.id))?.next : null;
   const parts = [];
   const repeated = run.stuckReason && overlaps(run.summary, run.stuckReason);
   if (run.summary && !repeated) parts.push(`<p class="work-run-summary">${escape(run.summary)}</p>`);
@@ -780,7 +815,8 @@ function runBody(run, { demo, now, live }) {
     const tone = run.outcome === 'stuck' ? 'attention' : failure?.tone || 'danger';
     const title = run.outcome === 'stuck' ? 'Why it is stuck' : failure ? failure.label : 'Why it failed';
     const reasonText = run.stuckReason ? `<p class="${logLike.test(run.stuckReason) ? 'work-log' : 'work-run-reason'}">${escape(run.stuckReason)}</p>` : '';
-    const body = `${reasonText}${failure ? `<p>${escape(failureNote(run.failureReason, { live }))}</p>` : ''}`;
+    const note = failure ? [failureNote(run.failureReason, { live: live && !retriedAs }), retriedAs ? `Ploeg retried it as attempt ${retriedAs}.` : ''].filter(Boolean).join(' ') : '';
+    const body = `${reasonText}${note ? `<p>${escape(note)}</p>` : ''}`;
     parts.push(ui.callout({ tone, title, body }));
   }
   if (run.findings?.trim()) parts.push(`<div class="work-findings"><h4 class="overline">Findings</h4><div class="prose">${markdown(run.findings, { baseLevel: 5 })}</div></div>`);
@@ -807,14 +843,15 @@ function runRow(run, context, { round }) {
   const lead = result.live ? '<span class="live-dot" aria-hidden="true"></span>' : icon(result.glyph || 'circle');
   const when = run.finishedAt || run.startedAt;
   const failure = failureReason(run.failureReason);
-  const role = `${round ? `<span class="work-run-round">${escape(round)} · </span>` : ''}${run.writes ? 'writer' : 'reader'}${failure && result.label !== failure.label ? ` · ${escape(failure.label)}` : ''}`;
+  const attempt = attemptLabel(context.attempts?.get(String(run.id)));
+  const role = `${round ? `<span class="work-run-round">${escape(round)} · </span>` : ''}${run.writes ? 'writer' : 'reader'}${attempt ? ` · ${escape(attempt)}` : ''}${failure && result.label !== failure.label ? ` · ${escape(failure.label)}` : ''}`;
   return `<details class="work-run" id="work-run-${escape(run.id)}" data-tone="${result.tone}"><summary><span class="work-run-lead" aria-hidden="true">${lead}</span><span class="work-run-name"><strong>${escape(run.role || 'Agent')}</strong><span class="meta">${role}</span></span>${ui.badge({ tone: result.tone, label: result.label, title: result.title, size: 'sm' })}<span class="work-run-numbers meta">${time !== null ? `<span class="num">${escape(duration(time))}</span>` : ''}${cost ? `<span class="num">${escape(cost)}</span>` : ''}${when ? ui.timeAgo(when) : ''}</span>${icon('chevron-down', 'work-run-chevron')}</summary><div class="work-run-body">${runBody(run, context)}</div></details>`;
 }
 
 function runsMarkup(detail, model) {
   const shift = latestShift(detail);
   const groups = runGroups(detail.runs, shift?.id);
-  const context = { demo: detail.demo, now: model.now, live: !stopped.has(detail.item.state) };
+  const context = { demo: detail.demo, now: model.now, live: !stopped.has(detail.item.state), attempts: runAttempts(detail.runs) };
   const render = (list, continued) => list.map(group => `${group.label && !continued.has(group.key) ? `<p class="work-run-group">${escape(group.label)}</p>` : ''}${group.runs.map(run => runRow(run, context, { round: group.label })).join('')}`).join('');
   const shown = [];
   const rest = [];

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activePloegLane, appendPage, cancelDialogMarkup, cancelSummary, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runGroups, runOrder, runResult, teamOverview, workItemRef, workMarkup, writerAccount } from '../public/ploeg.js';
+import { activePloegLane, appendPage, attemptLabel, cancelDialogMarkup, cancelSummary, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runAttempts, runGroups, runOrder, runResult, teamOverview, workItemRef, workMarkup, writerAccount } from '../public/ploeg.js';
 import { detailReason } from '../public/core/reasons.js';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 
@@ -303,6 +303,24 @@ test('the page says each thing once: checkpoints fold into Activity, an empty st
   assert.doesNotMatch(killed, /Who to call|retries automatically/, 'Ploeg stopped retrying this Work Item, so the page does not say it retries');
   const stuck = detailMarkup(demoDetail('111'), model({ detailId: '111' }));
   assert.match(stuck, /<p class="work-run-reason">The brief asks for 2026 market sizes/, 'a stuck reason in prose keeps the body font');
+});
+
+test('repeated Runs of one job are numbered, so a silent Run after two machine failures reads as the third attempt', () => {
+  const runs = [
+    { id: '196', shiftId: '113', round: 1, role: 'builder', writes: true, state: 'finished', outcome: 'failed', failureReason: 'idle' },
+    { id: '193', shiftId: '113', round: 1, role: 'builder', writes: true, state: 'finished', outcome: 'failed', failureReason: 'infra_node' },
+    { id: '189', shiftId: '113', round: 1, role: 'builder', writes: true, state: 'finished', outcome: 'failed', failureReason: 'infra_node' },
+    { id: '190', shiftId: '113', round: 1, role: 'reviewer', writes: false, state: 'finished', outcome: 'no_change_needed' },
+  ];
+  const attempts = runAttempts(runs);
+  assert.deepEqual(attempts.get('189'), { attempt: 1, total: 3, machineFailures: 0, next: 2 });
+  assert.deepEqual(attempts.get('196'), { attempt: 3, total: 3, machineFailures: 2, next: null });
+  assert.equal(attempts.has('190'), false, 'a job that ran once carries no attempt label');
+  assert.equal(attemptLabel(attempts.get('196')), 'Attempt 3 of 3 · after 2 machine failures');
+  assert.equal(attemptLabel(attempts.get('189')), 'Attempt 1 of 3');
+  const html = detailMarkup(demoDetail('112'), model({ detailId: '112' }));
+  assert.match(html, /implementer<\/strong><span class="meta">[^<]*<span class="work-run-round">Round 1 · <\/span>writer · Attempt 10 of 10 · after 9 machine failures/);
+  assert.match(html, /Ploeg retried it as attempt 2\./, 'a retried machine failure names the attempt that followed it');
 });
 
 test('Runs are grouped by Shift and Round, failures first, newest Round first', () => {

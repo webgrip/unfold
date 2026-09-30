@@ -47,9 +47,10 @@ func TestPrepare_WritesTaskFileAndArgv(t *testing.T) {
 	if string(b) != env.Prompt {
 		t.Errorf("task.md = %q, want the prompt verbatim", b)
 	}
-	// The only env this adapter adds: LLM_* passthrough stays in BaseEnv.
-	if len(inv.ExtraEnv) != 1 || !strings.HasPrefix(inv.ExtraEnv[0], "PLOEG_OUTCOME_FILE=") {
-		t.Errorf("extra env = %v, want only PLOEG_OUTCOME_FILE", inv.ExtraEnv)
+	// LLM_* passthrough stays in BaseEnv. Unbuffered Python output is what
+	// lets the idle watchdog see a working agent.
+	if len(inv.ExtraEnv) != 2 || !strings.HasPrefix(inv.ExtraEnv[0], "PLOEG_OUTCOME_FILE=") || inv.ExtraEnv[1] != "PYTHONUNBUFFERED=1" {
+		t.Errorf("extra env = %v, want PLOEG_OUTCOME_FILE and PYTHONUNBUFFERED=1", inv.ExtraEnv)
 	}
 	if inv.OutcomeFile == "" || !strings.HasSuffix(inv.ExtraEnv[0], inv.OutcomeFile) {
 		t.Errorf("the declared outcome file and PLOEG_OUTCOME_FILE disagree: %q vs %v", inv.OutcomeFile, inv.ExtraEnv)
