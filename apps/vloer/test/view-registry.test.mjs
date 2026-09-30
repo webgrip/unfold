@@ -8,7 +8,8 @@ import { views } from '../public/views/index.js';
 
 const publicDir = fileURLToPath(new URL('../public/', import.meta.url));
 const scripts = directory => readdirSync(directory).flatMap(name => { const path = join(directory, name); return statSync(path).isDirectory() ? scripts(path) : path.endsWith('.js') ? [path] : []; });
-const named = attribute => new Set(scripts(publicDir).flatMap(path => [...readFileSync(path, 'utf8').matchAll(new RegExp(`${attribute}="([a-z][a-z-]*)"`, 'g'))].map(match => match[1])));
+const builderKey = { 'data-action': 'action' };
+const named = attribute => new Set(scripts(publicDir).flatMap(path => { const text = readFileSync(path, 'utf8'); return [...text.matchAll(new RegExp(`${attribute}="([a-z][a-z-]*)"`, 'g')), ...(builderKey[attribute] ? text.matchAll(new RegExp(`\\b${builderKey[attribute]}: '([a-z][a-z-]*)'`, 'g')) : [])].map(match => match[1]); }));
 const noop = () => {};
 const formsOfTheRemovedCompareDialog = new Set(['compare']);
 
