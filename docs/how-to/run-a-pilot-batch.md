@@ -3,7 +3,7 @@ type: how-to
 audience: [owner]
 owner: glide
 last_verified: 2026-09-23
-verified_by: "node --test scripts/eval/eval.test.mjs; mise run evaluate; read apps/vloer/public/ploeg.js, apps/ploeg/pkg/shiftengine/{engine,reviewloop}.go and the assign and review how-tos on 2026-09-23"
+verified_by: "node --test scripts/eval/eval.test.mjs; mise run evaluate; read apps/vloer/public/ploeg.js, apps/ploeg/pkg/shiftengine/{engine,reviewloop}.go and the assign and review how-tos on 2026-09-23. On 2026-09-30 only the Vloer page names were updated for the redesigned navigation (apps/vloer/public/shell.js)"
 ---
 
 # Run a pilot batch
@@ -12,7 +12,7 @@ Use this to put ten real Work Items through Glide and write down what happened. 
 
 Terms: a **Work Item** is Ploeg's copy of a ticket. A **Shift** is one Team's whole attempt at it, run in **Rounds**, and a **Run** is one Role working once. **Ready** means the ticket states something you have decided to do, or describes a problem well enough that a solution can be conceived. See the [glossary](../reference/glossary.md#ready).
 
-**Before you start:** assigning a ticket already works end to end ([assign work to an agent](assign-work-to-an-agent.md)), the target repositories are [prepared](prepare-a-repository.md), and you can open the **Awaiting review** lane in Vloer ([review an agent pull request](review-an-agent-pr.md)).
+**Before you start:** assigning a ticket already works end to end ([assign work to an agent](assign-work-to-an-agent.md)), the target repositories are [prepared](prepare-a-repository.md), and you can see what is ready for your review on Vloer's **Now** page ([review an agent pull request](review-an-agent-pr.md)).
 
 ## Pick ten Work Items
 
@@ -58,22 +58,22 @@ Terms: a **Work Item** is Ploeg's copy of a ticket. A **Shift** is one Team's wh
 
 ## Record each item
 
-Record one row per Work Item. Read the values from Vloer's review screen and the Work Item's detail.
+Record one row per Work Item. Read the values from the Work Item's page in Vloer.
 
 | Field | What to write | Where it comes from |
 | --- | --- | --- |
 | `ticket` | Tracker id, such as `VIK-812` | The tracker |
 | `size`, `kind` | Your classification from the picking step | You |
 | `estimate_min` | Your own estimate in minutes | You, before assigning |
-| `outcome` | `awaiting_review` or `needs_human`, and the close reason, such as `review_approved` | Review screen |
-| `rounds` | The number of Rounds the Shift ran, fix Rounds included | Highest Round under **Execution & review** |
-| `settled_usd` | The Shift's **Recorded spend**, two decimals | **Shifts & spending**, after settlement |
+| `outcome` | `awaiting_review` or `needs_human`, and the close reason, such as `review_approved` | The Work Item's page |
+| `rounds` | The number of Rounds the Shift ran, fix Rounds included | The highest Round among the Work Item's Runs |
+| `settled_usd` | The Shift's recorded spend, two decimals | The Shift's spend on the Work Item's page, after settlement |
 | `review_min` | Minutes from opening the pull request to your merge or send-back decision | Your timer |
 | `merged` | `yes`, `yes-after-edits` or `no` | The forge |
 | `rework` | `none`, `owner-<minutes>` for edits you made, or `reassigned-<count>` for send-backs | You |
 | `notes` | What went wrong or surprised you, in one line | You |
 
-ploegd settles a Run's spend from LiteLLM's spend logs after `PLOEG_LLM_SETTLE_AFTER`, 15 minutes by default. Until then the amount shows under **Reserved**. Write `settled_usd` only after settlement; if an amount stays reserved, record it with a `reserved` note.
+ploegd settles a Run's spend from LiteLLM's spend logs after `PLOEG_LLM_SETTLE_AFTER`, 15 minutes by default. Until then the amount counts as reserved. Write `settled_usd` only after settlement; if an amount stays reserved, record it with a `reserved` note.
 
 Count a send-back and its new Shift in the same row: add the Rounds and spend of every Shift, and your review minutes for every pass.
 

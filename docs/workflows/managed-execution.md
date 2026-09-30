@@ -3,7 +3,7 @@ type: how-to
 audience: [operator, integrator]
 owner: glide
 last_verified: 2026-09-23
-verified_by: "Checked each named command, setting, environment variable, UI label and qualification test against apps/ploeg (ops/helm/ploeg values and templates, cmd/ploegd/operator.go, pkg/httpapi qualification tests) and apps/vloer (package.json, config/unified.example.json, src/delivery-config.ts, public/app.js, public/delivery.js, scripts/qualify-*.ts); the external Renovate rule was not re-read"
+verified_by: "Checked each named command, setting, environment variable, UI label and qualification test against apps/ploeg (ops/helm/ploeg values and templates, cmd/ploegd/operator.go, pkg/httpapi qualification tests) and apps/vloer (package.json, config/unified.example.json, src/delivery-config.ts, public/app.js, public/delivery.js, scripts/qualify-*.ts); the external Renovate rule was not re-read. On 2026-09-30 the browser page name in Use it was re-read in apps/vloer/public/shell.js and the editor view name in extensions/vscode/package.json"
 ---
 
 # Run the unified workbench
@@ -49,7 +49,7 @@ The registry is `PLOEG_OPERATOR_CONSUMERS`; the separate named environment varia
 
 ## Use it
 
-Open **Ploeg** in the browser or editor tree. Choose a team and inspect work needing a human, running work, queued work or the paginated full list. Details show shifts, runs, reviewer findings, checkpoints, safe audit records and observed versus unresolved budget. Every snapshot states its limits. An unavailable API clears stale content rather than presenting it as live.
+Open **Work** in the browser, or the **Ploeg** view in the editor. Choose a Team and inspect work that needs you, work ready for review, running work, queued work or the paginated full list. Details show shifts, runs, reviewer findings, checkpoints, safe audit records and observed versus unresolved budget. Every snapshot states its limits. An unavailable API clears stale content rather than presenting it as live.
 
 Create a session with a registered repository, a crew, a concrete objective and a budget. Start explicitly. Its header links to the Ploeg work item and shows the authority state. **Continue in background** and **Supervise here** retain the execution, workspace and history. A message becomes durable before it is accepted for the next turn. Permission and question responses continue through the existing session UI.
 
