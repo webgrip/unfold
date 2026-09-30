@@ -1,23 +1,69 @@
-/** The Now page: landing route, mobile layout and j/k row navigation. */
+/** The Now page: landing route, the first-visit welcome, waiting groups with reasons, the phone's first screen, j/k/Enter/o keyboard, the "since you were away" digest, marking it as caught up, and focus that survives Refresh and Try again. */
 export async function run({ page, app, assert, screenshot }) {
-  await page.goto(`http://127.0.0.1:${app.server.address().port}`);
+  const base = `http://127.0.0.1:${app.server.address().port}`;
+  const active = () => page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName);
+  await page.goto(base);
   await page.getByRole('heading', { name: 'Now', exact: true }).first().waitFor();
   assert.equal(new URL(page.url()).hash, '#now', 'Vloer does not open on the Now page');
   await page.locator('.now-group').first().waitFor();
+  assert.match(await page.locator('.now-digest').innerText(), /Welcome to De Vloer/, 'a first visit is welcomed instead of summarised');
+  assert.deepEqual(await page.locator('.now-group-title > span:not(.count)').allInnerTexts(), ['Ready for your review', 'Needs you', 'Proposed'], 'waiting groups are not ordered Review, Needs you, Proposed');
+  const needs = page.locator('.now-group[data-group="needs"]');
+  for (const reason of ['No pull request or changes unresolved', 'Reviewer still wants changes', 'Budget ran out', 'Agent is stuck', 'Cluster kept stopping the writer', 'Not routed']) await needs.getByText(reason, { exact: true }).first().waitFor();
+  assert.match(await needs.locator('.now-why').first().innerText(), /\S/, 'a Needs-you row does not say why in words');
+  assert.equal(await page.locator('.demo-note').count(), 1, 'the demo disclaimer appears once');
+  assert.match(await page.locator('.now-running .meter').innerText(), /Demo · no model calls/, 'a demo Run shows no spend');
+  assert.equal(await page.locator('.now-stats a.stat').count(), 3, 'Running, Queued and Spend link into their lists');
+  assert.equal(await page.locator('.now-group[data-group="proposed"] a[href^="#proposed?id="]').count(), 2, 'Approve or reject does not lead to the proposal it names');
+
+  await page.locator('#now-refresh').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => !document.querySelector('#now-refresh[aria-busy]') && !document.querySelector('.now[aria-busy]'));
+  assert.equal(await active(), 'now-refresh', 'Refresh loses keyboard focus');
+  const failRunning = async route => { const response = await route.fetch(); const body = await response.json(); await route.fulfill({ response, body: JSON.stringify({ ...body, running: [], errors: { running: 'Ploeg did not answer within 5 seconds.' } }) }); };
+  await page.route('**/api/ploeg/now*', failRunning);
+  await page.locator('#now-refresh').click();
+  await page.locator('#now-retry-running').waitFor();
+  assert.equal(await page.locator('#now-refresh').count(), 0, 'Refresh and Try again are offered together');
+  await page.unroute('**/api/ploeg/now*', failRunning);
+  await page.locator('#now-retry-running').focus();
+  await page.keyboard.press('Enter');
+  await page.locator('.now-running .now-run').first().waitFor();
+  assert.equal(await active(), 'now-refresh', 'a successful Try again drops keyboard focus instead of moving it to Refresh');
+
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'Now layout overflows horizontally at 390px');
+  await page.evaluate(() => scrollTo(0, 0));
+  assert(await page.evaluate(() => document.querySelector('.now-waiting .now-item').getBoundingClientRect().top) < 400, 'the first waiting row is not on the phone’s first screen');
   await page.keyboard.press('j');
   assert.equal(await page.evaluate(() => document.activeElement?.dataset.nowRow !== undefined), true, 'j did not focus a Now row');
   const firstNowRow = await page.evaluate(() => document.activeElement?.getAttribute('href'));
-  await page.keyboard.press('j');
-  assert.notEqual(await page.evaluate(() => document.activeElement?.getAttribute('href')), firstNowRow, 'j did not move to the next Now row');
+  await page.keyboard.press('Shift+J');
+  assert.notEqual(await page.evaluate(() => document.activeElement?.getAttribute('href')), firstNowRow, 'J with Shift or Caps Lock did not move to the next Now row');
   await page.keyboard.press('k');
   assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('href')), firstNowRow, 'k did not move back to the previous Now row');
+  const forge = 'https://forge.example.invalid/**';
+  await page.context().route(forge, route => route.fulfill({ status: 200, contentType: 'text/plain', body: 'pull request' }));
+  const [popup] = await Promise.all([page.waitForEvent('popup'), page.keyboard.press('o')]);
+  await popup.waitForLoadState();
+  assert.match(popup.url(), /\/pulls\/5$/, 'o did not open the pull request of the focused review row');
+  await popup.close();
+  await page.context().unroute(forge);
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => location.hash.startsWith('#work/'));
+  await page.waitForFunction(() => location.hash.startsWith('#work/') && document.querySelector('.app-shell')?.dataset.area === 'work');
+  await page.evaluate(() => { const saved = JSON.parse(localStorage.getItem('vloer.prefs') || '{}'); saved.lastVisit = new Date(Date.now() - 3 * 3600 * 1000).toISOString(); localStorage.setItem('vloer.prefs', JSON.stringify(saved)); });
   await page.getByRole('link', { name: 'Now', exact: true }).click();
-  await page.locator('.now-group').first().waitFor();
+  await page.locator('.now-digest[data-kind="changes"]').waitFor();
+  assert.match(await page.locator('.now-digest').innerText(), /^Since \d\d:\d\d[\s\S]*Runs? finished/, 'the digest does not sum up what changed while away');
+  const since = await page.evaluate(() => JSON.parse(sessionStorage.getItem('vloer.nowSince')).since);
+  assert.equal(Date.parse(await page.locator('.now-digest-title time').first().getAttribute('datetime')), Date.parse(since), 'the digest start is not a time element');
+  assert(await page.locator('[data-now-row][data-unread]').count() > 0, 'rows that changed while away carry no unread dot');
+  assert.equal(await page.locator('[data-now-row][data-unread] .sr-only').first().innerText(), 'New since your last visit.', 'an unread dot has no text alternative');
   await screenshot('now-mobile');
+  await page.getByRole('button', { name: 'Mark as caught up' }).click();
+  await page.locator('.now-digest').getByText(/^Marked as read at \d\d:\d\d/).waitFor();
+  assert.equal(await page.locator('[data-now-row][data-unread]').count(), 0, 'catching up does not clear the unread dots');
+  assert(await page.evaluate(() => Date.now() - Date.parse(JSON.parse(localStorage.getItem('vloer.prefs')).lastVisit) < 60000), 'catching up is not remembered');
   await page.setViewportSize({ width: 1440, height: 1040 });
   await screenshot('dashboard');
 }
