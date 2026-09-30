@@ -14,7 +14,7 @@ export async function run({ page, app, assert, screenshot }) {
   await page.keyboard.press('k');
   assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('href')), firstNowRow, 'k did not move back to the previous Now row');
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => location.hash.startsWith('#ploeg/'));
+  await page.waitForFunction(() => location.hash.startsWith('#work/'));
   await page.getByRole('link', { name: 'Now', exact: true }).click();
   await page.locator('.now-group').first().waitFor();
   await screenshot('now-mobile');

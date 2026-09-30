@@ -3,6 +3,7 @@ import { api, onUnauthorized } from './core/api.js';
 import { notify } from './core/dom.js';
 import { useNavigation, openPage } from './core/navigation.js';
 import { createRegistry, findRoute } from './core/registry.js';
+import { parseHash, redirect } from './core/route.js';
 import { views } from './views/index.js';
 import { renderLogin } from './views/login.js';
 import { linkFailure } from './views/account.js';
@@ -20,12 +21,13 @@ function render() {
 
 async function route() {
   if (!state.bootstrap) return;
-  if (!location.hash) history.replaceState(null, '', '#now');
-  const hash = location.hash.slice(1) || 'now';
+  const moved = redirect(location.hash);
+  if (moved !== null) history.replaceState(null, '', `#${moved}`);
+  const { path, query } = parseHash(location.hash);
   state.ploegRequest++;
   try {
-    const found = findRoute(registry, hash);
-    if (found?.view.enter) return await found.view.enter(found.params);
+    const found = findRoute(registry, path);
+    if (found?.view.enter) return await found.view.enter({ ...found.params, query });
     await openPage(found ? found.view.id : landing);
     for (const page of registry.pages) if (page.load && state.view === page.id) await page.load();
   } catch (error) { notify(error.message, true); if (state.bootstrap) { state.view = landing; registry.views.get(landing).render(); } }
@@ -41,7 +43,7 @@ function dispatchField(table, event) {
 async function boot() {
   const params = new URLSearchParams(location.search);
   const linkNotice = params.get('linked') ? `${({ gitlab: 'GitLab', clickup: 'ClickUp' })[params.get('linked')] || params.get('linked')} is linked to your account.` : params.get('link_error') ? linkFailure(params.get('link_error')) : '';
-  if (linkNotice) history.replaceState(null, '', `${location.pathname}#account`);
+  if (linkNotice) history.replaceState(null, '', `${location.pathname}#settings/accounts`);
   const editorDone = params.get('editor') === 'done';
   if (editorDone) history.replaceState(null, '', location.pathname);
   try { state.bootstrap = await api('/api/bootstrap'); state.sessions = await api('/api/sessions'); await route(); if (linkNotice) notify(linkNotice, Boolean(params.get('link_error'))); if (editorDone) notify('Signed in for your editor. You can return to it now.'); }
@@ -71,6 +73,6 @@ document.addEventListener('submit', async event => {
   finally { if (submit) submit.disabled = false; }
 });
 document.addEventListener('keydown', event => { for (const binding of registry.keys) if (binding(event)) return; });
-window.addEventListener('hashchange', route);
+window.addEventListener('hashchange', () => { state.focusHeading = true; void route(); });
 window.addEventListener('beforeunload', disconnect);
 void boot();

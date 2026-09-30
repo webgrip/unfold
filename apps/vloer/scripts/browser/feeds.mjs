@@ -1,12 +1,12 @@
-/** Ploeg feeds: overview tiles and table, activity paging and kinds, Runs filters and proposed-work rejection, at desktop and phone widths. */
+/** Ploeg feeds: Insights tiles and table, activity paging and kinds, Runs filters and proposed-work rejection, at desktop and phone widths. */
 export async function run({ page, assert, screenshot }) {
-  await page.getByRole('link', { name: 'Ploeg', exact: true }).click();
-  const ploegTab = name => page.locator('.ploeg-tabs').getByRole('link', { name, exact: true });
+  const ploegTab = name => page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('link', { name, exact: true });
+  await ploegTab('Insights').click();
   const noOverflow = async label => assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${label} overflows horizontally`);
   await page.getByRole('heading', { name: 'Teams', exact: true }).waitFor();
   for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(viewport);
-    await ploegTab('Overview').click();
+    await ploegTab('Insights').click();
     await page.getByRole('heading', { name: 'Teams', exact: true }).waitFor();
     await page.getByRole('button', { name: '7 days', exact: true }).click();
     await page.getByText('Settled · 7d', { exact: true }).waitFor();

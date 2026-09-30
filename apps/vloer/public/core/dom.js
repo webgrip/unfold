@@ -7,7 +7,10 @@ export const escape = value => String(value ?? '').replace(/[&<>"']/g, char => (
 /** Returns the URL when it is http(s) without embedded credentials, otherwise null. */
 export function safeUrl(value) { try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password ? url.href : null; } catch { return null; } }
 
-/** Replaces #app with `markup`, keeping focus, text selection and each evidence panel's scroll position. */
+/**
+ * Replaces #app with `markup`, keeping focus, text selection and each evidence panel's scroll position. After a
+ * route change (`state.focusHeading`) it moves focus to the page heading `#page-title` and announces its text.
+ */
 export function renderHtml(markup) {
   const active = document.activeElement;
   const focusId = active?.id;
@@ -26,6 +29,12 @@ export function renderHtml(markup) {
   if (panel) {
     const previous = state.evidenceScroll[panel.dataset.tab];
     panel.scrollTop = panel.dataset.tab === 'stream' && (!previous || previous.atBottom) ? panel.scrollHeight : previous?.top || 0;
+  }
+  const heading = state.focusHeading && document.getElementById('page-title');
+  if (heading) {
+    state.focusHeading = false;
+    if (!focusId || !document.getElementById(focusId)) heading.focus({ preventScroll: true });
+    announce(heading.textContent.trim());
   }
 }
 

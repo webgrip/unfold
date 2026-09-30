@@ -37,7 +37,7 @@ function waitingRow(entry, helpers, now) {
     grafanaLink(entry.team, helpers),
   ];
   const cost = entry.spentUsd === null || entry.spentUsd === undefined ? 'Cost not reported' : `${usd2(entry.spentUsd)} spent`;
-  return `<article class="now-row"><a class="now-row-main" data-now-row href="#ploeg/${escape(entry.id)}"><span class="now-row-head"><span class="tag">${escape(entry.team)}</span><span class="ploeg-state ${escape(entry.state)}">${escape(stateLabels[entry.state] || entry.state)}</span></span><strong>${escape(entry.title || `Work Item ${entry.id}`)}</strong><span class="now-row-meta"><span>${escape(relativeTime(entry.createdAt, now))}</span><span>${escape(cost)}</span></span></a>${linksMarkup(links, helpers)}</article>`;
+  return `<article class="now-row"><a class="now-row-main" data-now-row href="#work/${escape(entry.id)}"><span class="now-row-head"><span class="tag">${escape(entry.team)}</span><span class="ploeg-state ${escape(entry.state)}">${escape(stateLabels[entry.state] || entry.state)}</span></span><strong>${escape(entry.title || `Work Item ${entry.id}`)}</strong><span class="now-row-meta"><span>${escape(relativeTime(entry.createdAt, now))}</span><span>${escape(cost)}</span></span></a>${linksMarkup(links, helpers)}</article>`;
 }
 function runningRow(run, helpers, now) {
   const { escape } = helpers;
@@ -46,13 +46,13 @@ function runningRow(run, helpers, now) {
   const spend = run.observedUsd === null || run.observedUsd === undefined ? 'not reported' : usd2(run.observedUsd);
   const cap = run.authorizedUsd === null || run.authorizedUsd === undefined ? 'not reported' : usd2(run.authorizedUsd);
   const elapsed = run.startedAt ? `${duration(Math.max(0, (now - Date.parse(run.startedAt)) / 1000))} elapsed` : 'not started';
-  return `<article class="now-row"><a class="now-row-main" data-now-row href="#ploeg/${escape(run.workItemId)}"><span class="now-row-head"><span class="tag">${escape(run.team)}</span><span class="ploeg-state run-running">Running</span></span><strong>${escape(run.workItemTitle || `Work Item ${run.workItemId}`)}</strong><span class="now-row-meta"><span>${escape(run.role)}${run.round ? ` · round ${run.round}` : ''}</span><span>Model ${escape(model)}</span><span>${escape(elapsed)}</span><span>Spend ${escape(spend)} of ${escape(cap)}</span></span></a></article>`;
+  return `<article class="now-row"><a class="now-row-main" data-now-row href="#work/${escape(run.workItemId)}"><span class="now-row-head"><span class="tag">${escape(run.team)}</span><span class="ploeg-state run-running">Running</span></span><strong>${escape(run.workItemTitle || `Work Item ${run.workItemId}`)}</strong><span class="now-row-meta"><span>${escape(run.role)}${run.round ? ` · round ${run.round}` : ''}</span><span>Model ${escape(model)}</span><span>${escape(elapsed)}</span><span>Spend ${escape(spend)} of ${escape(cap)}</span></span></a></article>`;
 }
 function recentRow(run, helpers, now) {
   const { escape } = helpers;
   const outcome = run.outcome ? run.outcome.replaceAll('_', ' ') : 'No outcome reported';
   const verdict = run.verdict ? run.verdict.replaceAll('_', ' ') : '';
-  return `<article class="now-row"><a class="now-row-main" data-now-row href="#ploeg/${escape(run.workItemId)}"><span class="now-row-head"><span class="tag">${escape(run.team)}</span><span class="ploeg-state run-finished">Finished</span></span><strong>${escape(run.workItemTitle || `Work Item ${run.workItemId}`)}</strong><span class="now-row-meta"><span>${escape(run.role)}${run.round ? ` · round ${run.round}` : ''}</span><span>Outcome ${escape(outcome)}</span>${verdict ? `<span>Verdict ${escape(verdict)}</span>` : ''}<span>${escape(relativeTime(run.finishedAt, now))}</span></span></a></article>`;
+  return `<article class="now-row"><a class="now-row-main" data-now-row href="#work/${escape(run.workItemId)}"><span class="now-row-head"><span class="tag">${escape(run.team)}</span><span class="ploeg-state run-finished">Finished</span></span><strong>${escape(run.workItemTitle || `Work Item ${run.workItemId}`)}</strong><span class="now-row-meta"><span>${escape(run.role)}${run.round ? ` · round ${run.round}` : ''}</span><span>Outcome ${escape(outcome)}</span>${verdict ? `<span>Verdict ${escape(verdict)}</span>` : ''}<span>${escape(relativeTime(run.finishedAt, now))}</span></span></a></article>`;
 }
 
 /** Renders the Now page: what waits on a human, what runs now and what finished recently. */

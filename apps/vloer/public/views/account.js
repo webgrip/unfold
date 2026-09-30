@@ -37,7 +37,7 @@ async function pasteToken(data, form) { await api(`/api/links/${form.dataset.pro
 /** The Linked accounts page: link, unlink or paste a personal token per provider. */
 export default {
   id: 'account',
-  match: hash => hash === 'account' ? {} : null,
+  match: hash => hash === 'settings/accounts' ? {} : null,
   load: async () => { state.links = (await api('/api/links')).links; renderAccount(); },
   render: renderAccount,
   actions: { link, unlink },

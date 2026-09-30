@@ -129,7 +129,7 @@ function executionOwnershipMarkup(session) {
   if (!binding) return '';
   const canSupervise = state.bootstrap.user.role !== 'viewer' && (state.bootstrap.user.role === 'admin' || state.bootstrap.user.id === session.ownerId) && ['running', 'waiting_input'].includes(session.status);
   const human = binding.supervision === 'human';
-  const link = /^[1-9][0-9]{0,19}$/.test(binding.workItemId) ? `<a class="ploeg-link" href="#ploeg/${binding.workItemId}">Inspect Ploeg work ${icon('arrow')}</a>` : '';
+  const link = /^[1-9][0-9]{0,19}$/.test(binding.workItemId) ? `<a class="ploeg-link" href="#work/${binding.workItemId}">Inspect Ploeg work ${icon('arrow')}</a>` : '';
   return `<section class="execution-ownership" aria-label="Ploeg execution ownership"><span class="execution-ownership-icon">${icon('shield')}</span><div><strong>Ploeg owns this execution</strong><p>${escape(binding.team)} · ${human ? 'Human supervised' : 'Background supervision'} · ${escape(binding.state.replaceAll('_', ' '))}</p><small>The same execution and workspace continue when supervision changes.</small></div><div class="execution-ownership-actions">${link}${canSupervise ? `<button class="button secondary" data-action="supervision" data-supervision="${human ? 'background' : 'human'}" ${state.busy ? 'disabled' : ''}>${icon(human ? 'layers' : 'activity')}${human ? 'Continue in background' : 'Supervise here'}</button>` : ''}</div></section>`;
 }
 

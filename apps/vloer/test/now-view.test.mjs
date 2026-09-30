@@ -29,7 +29,7 @@ function nowData() {
 test('the Now page renders every readable team’s waiting work, running Runs and recent Runs with honest cost and links', () => {
   const html = nowMarkup({ data: nowData(), error: null }, grafanaHelpers, nowAt);
   for (const title of ['Waiting on you', 'Running now', 'Recently finished']) assert.match(html, new RegExp(title));
-  assert.match(html, /data-now-row[^>]*href="#ploeg\/105"/);
+  assert.match(html, /data-now-row[^>]*href="#work\/105"/);
   assert.match(html, /href="https:\/\/tracker\.test\/tasks\/105"[^>]*>[\s\S]*Tracker/);
   assert.match(html, /Pull request/);
   assert.match(html, /href="https:\/\/forge\.test\/acme\/shop\/pulls\/9"/);

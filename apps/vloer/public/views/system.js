@@ -15,7 +15,7 @@ function renderSystem() {
 /** The Environment page: execution environment, registered repositories and reusable crews. */
 export default {
   id: 'system',
-  match: hash => hash === 'system' ? {} : null,
+  match: hash => hash === 'settings/environment' ? {} : null,
   load: async () => { state.health = await api('/api/health'); renderSystem(); },
   render: renderSystem,
 };
