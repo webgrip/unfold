@@ -129,6 +129,62 @@ test('a global job runs on every view, touch restarts the current view’s inter
   assert.throws(() => scheduler.register('bad', { interval: 10 }), /refresh function/);
 });
 
+test('a global job never moves lastUpdated, on a view with no job of its own either', async () => {
+  const env = fakeEnvironment();
+  env.view = 'work';
+  const scheduler = createLive(env);
+  let counts = 0;
+  scheduler.register('counts', { interval: 60000, scope: 'global', refresh: async () => { counts++; } });
+  scheduler.start();
+  await env.advance(60000);
+  assert.equal(counts, 1);
+  assert.equal(scheduler.lastUpdated, null, 'refreshing the nav counts does not make the Work list fresh');
+  env.clock = 61000;
+  scheduler.touch();
+  await env.advance(125000);
+  assert.equal(counts, 3);
+  assert.equal(scheduler.lastUpdated, 61000, 'the strip keeps the time of the last Work load while counts refresh');
+  let failing = 0;
+  scheduler.register('counts', { interval: 60000, scope: 'global', refresh: async () => { failing++; throw new Error('Ploeg unreachable'); } });
+  await env.advance(60000);
+  assert.equal(failing, 1);
+  assert.equal(scheduler.lastUpdated, 61000);
+});
+
+test('switching views clears lastUpdated until the new view records a load', async () => {
+  const env = fakeEnvironment();
+  const scheduler = createLive(env);
+  scheduler.register('activity', { interval: 15000, refresh: async () => {} });
+  scheduler.start();
+  await env.advance(15000);
+  assert.equal(scheduler.lastUpdated, 15000, 'a view job’s refresh counts for its own view');
+  env.view = 'tasks';
+  scheduler.wake();
+  assert.equal(scheduler.lastUpdated, null, 'Tasks never recorded a load');
+  await env.advance(60000);
+  assert.equal(scheduler.lastUpdated, null, 'the Activity job does not run while Tasks is current');
+  env.view = 'work';
+  assert.equal(scheduler.lastUpdated, null);
+  env.clock = 80000;
+  scheduler.touch();
+  assert.equal(scheduler.lastUpdated, 80000);
+  env.view = 'settings-preferences';
+  assert.equal(scheduler.lastUpdated, null);
+  env.view = 'work';
+  assert.equal(scheduler.lastUpdated, 80000, 'the last recorded load still belongs to Work');
+});
+
+test('touch records the load for the view that names itself, even after the user moved on', () => {
+  const env = fakeEnvironment();
+  env.view = 'tasks';
+  const scheduler = createLive(env);
+  env.clock = 5000;
+  scheduler.touch('now');
+  assert.equal(scheduler.lastUpdated, null, 'a Now load that finishes on Tasks does not make Tasks fresh');
+  env.view = 'now';
+  assert.equal(scheduler.lastUpdated, 5000);
+});
+
 test('the page scheduler is created without touching the DOM and is not running in Node', () => {
   assert.equal(typeof live.register, 'function');
   assert(live.jobs.includes('activity'), 'importing the views registers the Activity poll');

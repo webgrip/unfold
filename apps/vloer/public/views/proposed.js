@@ -16,7 +16,7 @@ async function loadProposed(fresh = false) {
   const view = state.ploegProposed;
   const request = ++state.ploegRequest;
   view.loading = true; renderProposed();
-  try { const page = await api(`/api/ploeg/proposed${fresh ? '?refresh=1' : ''}`); if (request !== state.ploegRequest) return; Object.assign(view, { items: page.items, truncated: page.truncated, demo: page.demo, error: null }); live.touch(); }
+  try { const page = await api(`/api/ploeg/proposed${fresh ? '?refresh=1' : ''}`); if (request !== state.ploegRequest) return; Object.assign(view, { items: page.items, truncated: page.truncated, demo: page.demo, error: null }); live.touch('proposed'); }
   catch (error) { if (request !== state.ploegRequest) return; view.error = ploegFailure(error); }
   finally { if (request === state.ploegRequest) { view.loading = false; if (ploegVisible('proposed')) renderProposed(); } }
 }

@@ -43,7 +43,7 @@ async function loadPloeg(team, id, fresh = false) {
     state.ploeg = data;
     state.sessions = sessions;
     state.ploegDetail = data.available ? detail || null : null;
-    if (data.available) live.touch();
+    if (data.available) live.touch('work');
   } catch (error) {
     if (request !== state.ploegRequest || state.view !== 'work' || !state.bootstrap) return;
     if (error.code === 'ploeg_not_found' && team && team === prefs.get('team')) { prefs.set('team', null); void loadPloeg(undefined, id, fresh); return; }

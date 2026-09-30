@@ -55,6 +55,10 @@ export async function run({ page, app, assert, screenshot }) {
   await palette.waitFor();
   await palette.getByRole('button', { name: 'Close search' }).click();
   await palette.waitFor({ state: 'hidden' });
+  await status.getByText(/^Updated /).waitFor();
+  await page.evaluate(() => { location.hash = 'settings/preferences'; });
+  await page.getByRole('heading', { level: 1, name: 'Preferences', exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('[data-live-updated]')].every(element => element.hidden && !element.textContent)), true, 'a page that loads nothing live must not claim to be fresh');
   const before = await hash();
   await page.locator('.skip-link').focus();
   await page.keyboard.press('Enter');

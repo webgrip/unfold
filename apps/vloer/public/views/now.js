@@ -18,7 +18,7 @@ async function loadNow(fresh = false) {
   const request = ++view.request;
   view.loading = true;
   if (state.bootstrap && state.view === 'now') renderNow();
-  try { const data = await api(`/api/ploeg/now${fresh ? '?refresh=1' : ''}`); if (request !== view.request) return; view.data = data; view.error = null; applyNowCounts(data); live.touch(); }
+  try { const data = await api(`/api/ploeg/now${fresh ? '?refresh=1' : ''}`); if (request !== view.request) return; view.data = data; view.error = null; applyNowCounts(data); live.touch('now'); }
   catch (error) { if (request !== view.request) return; view.data = null; view.error = { message: error.message, code: error.code || '' }; if (state.bootstrap) applyNowCounts(null, error); }
   finally { if (request === view.request) { view.loading = false; if (state.bootstrap && state.view === 'now') renderNow(); } }
 }

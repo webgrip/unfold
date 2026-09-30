@@ -19,6 +19,8 @@ export function createLive(env) {
   let timer = null;
   let started = false;
   let lastUpdated = null;
+  let updatedView = null;
+  const record = view => { lastUpdated = env.now(); updatedView = view; };
   const notify = () => { for (const listener of listeners) { try { listener(); } catch {} } };
   const eligible = job => !job.running && env.visible() && env.signedIn() && !env.paused() && !env.blocked() && (job.scope === 'global' || env.currentView() === job.id);
   const backoff = job => Math.min(job.interval * 2 ** job.failures, Math.max(maxBackoff, job.interval));
@@ -34,7 +36,7 @@ export function createLive(env) {
 
   async function run(job) {
     job.running = true;
-    try { await job.refresh(); job.failures = 0; job.due = env.now() + job.interval; lastUpdated = env.now(); }
+    try { await job.refresh(); job.failures = 0; job.due = env.now() + job.interval; if (job.scope !== 'global') record(job.id); }
     catch { job.failures += 1; job.due = env.now() + backoff(job); }
     finally { job.running = false; notify(); schedule(); }
   }
@@ -65,19 +67,25 @@ export function createLive(env) {
     stop() { started = false; schedule(); },
     /** Re-evaluates the conditions now, for example after the tab became visible or a dialog closed. */
     wake() { schedule(); },
-    /** Records a successful load by a view: updates `lastUpdated` and restarts the current view's interval. */
-    touch() {
-      lastUpdated = env.now();
-      const job = jobs.get(env.currentView());
-      if (job && !job.running) { job.due = lastUpdated + job.interval; job.failures = 0; }
+    /**
+     * Records a successful load by the view `id` (default: the current view): updates `lastUpdated` for that
+     * view and restarts its interval.
+     */
+    touch(id = env.currentView()) {
+      record(id);
+      const job = jobs.get(id);
+      if (job && job.scope !== 'global' && !job.running) { job.due = lastUpdated + job.interval; job.failures = 0; }
       notify(); schedule();
     },
     /** Switches live updates on or off and returns whether they are now paused. */
     toggle() { env.setPaused(!env.paused()); notify(); schedule(); return env.paused(); },
     /** Calls `listener()` after every heartbeat, refresh, touch and toggle. Returns an unsubscribe function. */
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
-    /** When a refresh or a view load last succeeded (ms since the epoch), or null. */
-    get lastUpdated() { return lastUpdated; },
+    /**
+     * When the current view's data last loaded or refreshed (ms since the epoch), or null when the current
+     * view has not recorded a load since it became current. Global jobs never count.
+     */
+    get lastUpdated() { return updatedView !== null && updatedView === env.currentView() ? lastUpdated : null; },
     /** Whether live updates are off. */
     get paused() { return env.paused(); },
     /** The registered job ids, for tests and diagnostics. */

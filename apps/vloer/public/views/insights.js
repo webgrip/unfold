@@ -17,7 +17,7 @@ async function loadSummary(fresh = false) {
   const view = state.ploegSummary;
   const request = ++state.ploegRequest;
   view.loading = true; renderInsights();
-  try { const data = await api(`/api/ploeg/summary?window=${encodeURIComponent(view.window)}${fresh ? '&refresh=1' : ''}`); if (request !== state.ploegRequest) return; view.data = data; view.error = null; live.touch(); }
+  try { const data = await api(`/api/ploeg/summary?window=${encodeURIComponent(view.window)}${fresh ? '&refresh=1' : ''}`); if (request !== state.ploegRequest) return; view.data = data; view.error = null; live.touch('insights'); }
   catch (error) { if (request !== state.ploegRequest) return; view.data = null; view.error = ploegFailure(error); }
   finally { if (request === state.ploegRequest) { view.loading = false; if (ploegVisible('insights')) renderInsights(); } }
 }

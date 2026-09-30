@@ -28,7 +28,7 @@ async function loadRuns(mode = 'reset', fresh = false) {
     const seen = new Set((view.runs || []).map(run => run.id));
     view.runs = mode === 'older' ? [...view.runs, ...page.runs.filter(run => !seen.has(run.id))] : page.runs;
     Object.assign(view, { nextBefore: page.nextBefore, demo: page.demo, error: null });
-    live.touch();
+    live.touch('runs');
   } catch (error) { if (request !== state.ploegRequest) return; view.error = ploegFailure(error); }
   finally { if (request === state.ploegRequest) { view.loading = false; if (ploegVisible('runs')) renderRuns(); } }
 }

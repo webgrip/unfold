@@ -37,7 +37,7 @@ async function loadFeed(mode = 'reset', fresh = false) {
     if (request !== state.ploegRequest) return;
     const merged = mergeFeed(mode === 'reset' ? null : feed, page, mode === 'older' ? 'older' : 'newer');
     Object.assign(feed, { events: merged.events, nextCursor: merged.nextCursor, demo: page.demo, error: null, refreshedAt: page.fetchedAt });
-    if (mode !== 'newer') live.touch();
+    if (mode !== 'newer') live.touch('activity');
   } catch (error) { if (request !== state.ploegRequest) return; feed.error = ploegFailure(error); }
   finally { if (request === state.ploegRequest) { feed.loading = false; if (ploegVisible('activity')) { if (mode === 'newer') keepReadingPosition(renderActivity); else renderActivity(); } } }
 }
