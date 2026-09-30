@@ -1,13 +1,13 @@
 import { state } from '../core/state.js';
 import { api } from '../core/api.js';
 import { $, escape, safeUrl, renderHtml, notify, announce } from '../core/dom.js';
-import { money } from '../core/format.js';
+import { dateTime, money, relative } from '../core/format.js';
 import { icon } from '../core/icons.js';
 import { markdown } from '../core/markdown.js';
 import { parseHash, buildHash } from '../core/route.js';
 import { singleKeyAllowed } from '../core/keys.js';
 import { sessionStatus } from '../core/states.js';
-import { badge, button, callout, card, chip, demoNote, disclosure, emptyState, skeleton, stateBadge, timeAgo, toolbar } from '../core/ui.js';
+import { badge, button, callout, chip, count, demoNote, disclosure, emptyState, skeleton, stateBadge, timeAgo } from '../core/ui.js';
 import { repoName, taskSources, selectedTaskSource, providerName, providerLabels } from '../core/lookup.js';
 import { shell } from '../shell.js';
 
@@ -21,38 +21,46 @@ let listErrorCode = '';
 let briefExpanded = false;
 
 const act = (attribute, options) => button(options).replace('<button ', `<button ${attribute} `);
-const ownerLabel = source => source?.executionOwner === 'ploeg' ? 'Ploeg managed' : 'Operator led';
+const ownerLabel = source => source?.executionOwner === 'ploeg' ? 'Handed to Ploeg' : 'Sessions here';
 const sessionFor = task => state.sessions.find(session => session.sourceTask?.sourceId === task.sourceId && session.sourceTask?.id === task.id);
 const briefText = task => typeof task.descriptionMarkdown === 'string' ? task.descriptionMarkdown : task.description || '';
+const importNote = where => `<p class="tasks-import-note" data-where="${where}">${icon('lock')}<span>Nothing runs until you press Start on the session. The task stays as it is in its tracker.</span></p>`;
+const visible = element => Boolean(element) && (typeof element.checkVisibility === 'function' ? element.checkVisibility() : element.getClientRects().length > 0);
+const onTasks = () => state.view === 'tasks' && Boolean(state.bootstrap);
 
 function remember(taskId = '') {
   const hash = `#${buildHash('tasks', { source: state.taskSourceId, task: taskId })}`;
   if (state.view === 'tasks' && location.hash !== hash) history.replaceState(null, '', hash);
 }
 
-function statusBadge(status, size) {
+function statusBadge(status, style) {
   const [label, glyph] = statuses[status] || statuses.unknown;
-  return badge({ label, glyph, tone: 'neutral', size });
+  return badge({ label, glyph, tone: 'neutral', size: 'sm', style });
+}
+
+function filteredTasks() {
+  const search = state.taskSearch.trim().toLowerCase();
+  return state.tasks.filter(task => `${task.id} ${task.title}`.toLowerCase().includes(search));
 }
 
 function taskRow(task) {
   const selected = requestedId === String(task.id);
   const session = sessionFor(task);
-  const meta = `<span class="num">#${escape(task.id)}</span>${task.status === 'open' ? '' : statusBadge(task.status, 'sm')}${session ? chip({ label: 'Has a session', icon: 'sessions' }) : ''}`;
-  return `<li><button type="button" class="list-row tasks-row" id="task-row-${escape(task.id)}" data-action="task-preview" data-id="${escape(task.id)}"${selected ? ' aria-current="true"' : ''}><span class="list-row-lead"></span><span class="list-row-main"><span class="list-row-title">${escape(task.title)}</span><span class="list-row-meta">${meta}</span></span><span class="list-row-trail">${timeAgo(task.updatedAt)}</span></button></li>`;
+  const updated = task.updatedAt ? `<span class="tasks-row-dot" aria-hidden="true">·</span>${timeAgo(task.updatedAt)}` : '';
+  const meta = `<span class="num">#${escape(task.id)}</span>${task.status === 'open' ? '' : statusBadge(task.status, 'plain')}${session ? badge({ label: 'Has a session', glyph: 'sessions', tone: 'neutral', size: 'sm', style: 'plain' }) : ''}${updated}`;
+  return `<li><button type="button" class="list-row tasks-row" id="task-row-${escape(task.id)}" data-action="task-preview" data-id="${escape(task.id)}"${selected ? ' aria-current="true"' : ''}><span class="list-row-main"><span class="list-row-title" title="${escape(task.title)}">${escape(task.title)}</span><span class="list-row-meta">${meta}</span></span></button></li>`;
 }
 
 function listBody(source) {
-  if (state.taskLoading) return `<div class="tasks-list-state" aria-busy="true">${skeleton({ rows: 4 })}</div>`;
+  if (state.taskLoading) return `<div class="tasks-list-state" aria-busy="true">${skeleton({ rows: 5 })}</div>`;
   if (state.taskError) {
     const unlinked = listErrorCode === 'source_unlinked';
     const actions = unlinked ? button({ label: 'Open Linked accounts', href: '#settings/accounts', size: 'sm', variant: 'primary' }) : act('data-action="task-refresh"', { label: 'Try again', icon: 'refresh', size: 'sm' });
-    return emptyState({ compact: true, tone: unlinked ? 'attention' : 'danger', icon: unlinked ? 'link' : 'x-circle', title: unlinked ? 'Link your account first' : 'Could not load tasks', body: `<span role="alert">${escape(state.taskError)}</span>`, actions });
+    return emptyState({ tone: unlinked ? 'attention' : 'danger', icon: unlinked ? 'link' : 'x-circle', title: unlinked ? 'Link your account first' : 'Could not load tasks', body: `<span role="alert">${escape(state.taskError)}</span>`, actions });
   }
-  const search = state.taskSearch.trim().toLowerCase();
-  const shown = state.tasks.filter(task => `${task.id} ${task.title}`.toLowerCase().includes(search));
-  if (!shown.length && search) return emptyState({ compact: true, icon: 'search', title: 'No tasks match', body: `Nothing on this page matches “${escape(state.taskSearch.trim())}”. Search covers titles and numbers.`, actions: act('data-action="task-search-clear"', { label: 'Clear search', size: 'sm' }) });
-  if (!shown.length) return emptyState({ compact: true, icon: 'inbox', title: state.taskPage > 1 ? 'No open tasks on this page' : 'No open tasks', body: `Open tasks in ${escape(source?.name || 'this connection')} show up here. Refresh after you add one.` });
+  const shown = filteredTasks();
+  if (!shown.length && state.taskSearch.trim()) return emptyState({ icon: 'search', title: 'No tasks match', body: `Nothing on this page matches “${escape(state.taskSearch.trim())}”. Search covers titles and numbers.`, actions: act('data-action="task-search-clear"', { label: 'Clear search', size: 'sm' }) });
+  if (!shown.length) return emptyState({ icon: 'inbox', title: state.taskPage > 1 ? 'No open tasks on this page' : 'No open tasks', body: `Open tasks in ${escape(source?.name || 'this connection')} show up here. Refresh after you add one.`, actions: act('data-action="task-refresh"', { label: 'Refresh', icon: 'refresh', size: 'sm' }) });
   return `<ul class="list tasks-list" aria-label="Tasks">${shown.map(taskRow).join('')}</ul>`;
 }
 
@@ -61,11 +69,23 @@ function pagination() {
   return `<footer class="tasks-pagination">${act('data-action="task-page"', { label: 'Previous', icon: 'chevron-left', variant: 'ghost', size: 'sm', data: { page: state.taskPage - 1 }, disabled: state.taskPage <= 1 || state.taskLoading })}<span class="tasks-page-number num">Page ${state.taskPage}</span>${act('data-action="task-page"', { label: 'Next', icon: 'chevron', variant: 'ghost', size: 'sm', data: { page: state.taskNextPage || '' }, disabled: !state.taskNextPage || state.taskLoading })}</footer>`;
 }
 
-function listPane(source) {
-  const count = !state.taskLoading && !state.taskError && state.tasks.length ? `<span class="count">${state.tasks.length}</span>` : '';
+function listCount() {
+  if (state.taskLoading || state.taskError || !state.tasks.length || state.taskPage > 1) return '';
+  const total = state.tasks.length;
+  return state.taskNextPage ? count(`${total}+`, { label: `${total} on this page, more on the next` }) : count(total);
+}
+
+function listTitle(source, sources) {
+  if (sources.length < 2) return `<h2 class="card-title" id="tasks-source-title">${escape(source?.name || 'Tasks')}${listCount()}</h2>`;
+  const picker = `<select id="task-source" class="tasks-source-select">${sources.map(entry => `<option value="${escape(entry.id)}"${state.taskSourceId === entry.id ? ' selected' : ''}>${escape(entry.name)}</option>`).join('')}</select>`;
+  return `<h2 class="card-title tasks-source-title" id="tasks-source-title"><label class="sr-only" for="task-source">Connection</label>${picker}${listCount()}</h2>`;
+}
+
+function listPane(source, sources) {
   const refresh = act('data-action="task-refresh"', { icon: 'refresh', ariaLabel: 'Refresh tasks', title: 'Refresh tasks', variant: 'ghost', size: 'sm', disabled: state.taskLoading });
   const search = `<div class="tasks-search-row"><label class="tasks-search">${icon('search')}<span class="sr-only">Search loaded tasks</span><input id="task-search" type="search" placeholder="Filter by title or number" value="${escape(state.taskSearch)}" autocomplete="off"></label></div>`;
-  return `<section class="card tasks-list-card" aria-labelledby="tasks-source-title"><header class="card-header tasks-list-header"><div class="card-heading"><h2 class="card-title" id="tasks-source-title">${escape(source?.name || 'Tasks')}${count}</h2><p class="card-subtitle">${escape(providerName(source?.provider))} · ${escape(repoName(source?.repositoryId))} · ${ownerLabel(source)}</p></div><div class="card-actions">${refresh}</div></header>${search}<div class="tasks-list-body">${listBody(source)}</div>${pagination()}</section>`;
+  const subtitle = `${escape(providerName(source?.provider))} · ${escape(repoName(source?.repositoryId))} · ${ownerLabel(source)}`;
+  return `<section class="card tasks-list-card" aria-labelledby="tasks-source-title"><header class="card-header tasks-list-header"><div class="card-heading">${listTitle(source, sources)}<p class="card-subtitle">${subtitle}</p></div><div class="card-actions">${refresh}</div></header>${search}<div class="tasks-list-body">${listBody(source)}</div>${pagination()}</section>`;
 }
 
 function field(id, label, control, hint = '') {
@@ -76,21 +96,32 @@ function options(list, selected) {
   return list.map(item => `<option value="${escape(item.id)}"${selected === item.id ? ' selected' : ''}>${escape(item.name)}</option>`).join('');
 }
 
+function runtimeField(runtimes, selected) {
+  if (runtimes.length > 1) return field('task-runtime', 'Runtime', `<select id="task-runtime" name="runtime">${options(runtimes, selected)}</select>`);
+  const only = runtimes[0];
+  return `<div class="field"><span class="field-label" id="task-runtime-label">Runtime</span><p class="tasks-readonly" aria-labelledby="task-runtime-label">${escape(only?.name || 'None registered')}</p><input type="hidden" name="runtime" value="${escape(only?.id || '')}"></div>`;
+}
+
 function importForm(task) {
   const draft = state.taskDraft;
   const boot = state.bootstrap;
   const crew = boot.crews.find(entry => entry.id === draft.crewId) || boot.crews[0];
   const placements = boot.placements || [];
   const placement = draft.placement || placements.find(entry => entry.default)?.id || placements[0]?.id;
+  const budget = `<div class="tasks-money"><span class="tasks-money-prefix" aria-hidden="true">US$</span><input id="task-budget" name="budgetUsd" type="number" inputmode="decimal" min="0.01" max="${escape(boot.maxBudgetUsd)}" step="0.01" value="${escape(draft.budgetUsd)}" required aria-describedby="task-budget-hint"></div>`;
   const fields = [
     field('task-crew', 'Crew', `<select id="task-crew" name="crewId" aria-describedby="task-crew-hint">${options(boot.crews, draft.crewId)}</select>`, escape(crew ? crew.roles.map(role => role.name).join(' and ') : '')),
-    field('task-runtime', 'Runtime', `<select id="task-runtime" name="runtime">${options(boot.runtimes, draft.runtime)}</select>`),
+    runtimeField(boot.runtimes || [], draft.runtime),
     placements.length > 1 ? field('task-placement', 'Workspace placement', `<select id="task-placement" name="placement">${options(placements, placement)}</select>`) : '',
-    field('task-budget', 'Session budget · USD', `<input id="task-budget" name="budgetUsd" type="number" inputmode="decimal" min="0.01" max="${escape(boot.maxBudgetUsd)}" step="0.01" value="${escape(draft.budgetUsd)}" required aria-describedby="task-budget-hint">`, `The most this session may spend, up to ${escape(money(boot.maxBudgetUsd))}.`),
+    field('task-budget', 'Session budget · USD', budget, `At most ${escape(money(boot.maxBudgetUsd))} per session.`),
   ].join('');
-  const submit = button({ type: 'submit', variant: 'primary', icon: 'plus', label: state.taskImporting ? 'Creating session…' : 'Create session', busy: state.taskImporting });
-  const body = `<form data-form="task-import"><div class="tasks-import-fields">${fields}</div><footer class="tasks-import-footer"><p class="tasks-import-note">${icon('lock')}<span>Nothing runs until you press Start on the session. The task itself stays as it is in its tracker.</span></p>${submit}</footer></form>`;
-  return card({ id: 'task-import', level: 3, flush: true, title: 'Bring this task onto the floor.', subtitle: `Creates a queued session for ${repoName(task.repositoryId)} with the crew and budget you choose.`, body });
+  const form = `<form id="task-import-form" class="tasks-import-fields" data-form="task-import">${fields}${importNote('form')}</form>`;
+  return `<section class="card tasks-import" aria-labelledby="task-import-title"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="task-import-title">Bring this task onto the floor.</h3><p class="card-subtitle">Creates a queued session for ${escape(repoName(task.repositoryId))} with the crew and budget you choose.</p></div></header>${form}</section>`;
+}
+
+function decisionBar() {
+  const submit = button({ type: 'submit', variant: 'primary', icon: 'plus', label: state.taskImporting ? 'Creating session…' : 'Create session', busy: state.taskImporting, id: 'task-import-submit' }).replace('<button ', '<button form="task-import-form" ');
+  return `<div class="tasks-decision"><div class="tasks-decision-bar">${importNote('bar')}${submit}</div></div>`;
 }
 
 function importArea(task, source) {
@@ -100,7 +131,7 @@ function importArea(task, source) {
   if (bindingBlocked) return callout({ tone: 'attention', title: 'Ploeg binding needs attention', body: `<p>${escape(task.ploegUnavailable?.message || 'This connection needs its registered Ploeg tracker target before you can import work here.')}</p>` });
   if (role === 'viewer') return callout({ tone: 'neutral', icon: 'eye', title: 'Your account can read tasks', body: '<p>An operator or administrator brings them onto the floor.</p>' });
   if (task.status !== 'open') return callout({ tone: 'neutral', title: 'Only open tasks can be imported', body: `<p>This task is ${escape((statuses[task.status] || statuses.unknown)[0].toLowerCase())}. Reopen it in its tracker first.</p>` });
-  return importForm(task);
+  return `${importForm(task)}${decisionBar()}`;
 }
 
 function notices(task) {
@@ -127,22 +158,28 @@ function brief(task) {
   return `<div class="tasks-brief${long && !briefExpanded ? ' is-clipped' : ''}"><div class="prose" id="task-brief">${markdown(text)}</div></div>${toggle ? `<div class="tasks-brief-toggle">${toggle}</div>` : ''}`;
 }
 
+function updated(task) {
+  if (!task.updatedAt) return '';
+  const moment = new Date(task.updatedAt);
+  if (Number.isNaN(moment.getTime())) return '';
+  const title = [dateTime(moment), task.revision ? `revision ${task.revision.slice(0, 12)}` : ''].filter(Boolean).join(' · ');
+  return `<span class="tasks-updated">Updated <time class="num" datetime="${escape(moment.toISOString())}" title="${escape(title)}">${escape(relative(moment))}</time></span>`;
+}
+
 function detailHeader(task) {
   const link = safeUrl(task.url);
   const open = link ? button({ label: task.provider === 'demo' ? 'Open original' : `Open in ${providerName(task.provider)}`, href: link, external: true, size: 'sm' }) : '';
-  const revision = task.revision ? `<span class="tasks-revision" title="Revision ${escape(task.revision)}">${icon('hash')}<span class="mono">${escape(task.revision.slice(0, 12))}</span></span>` : '';
-  const updated = task.updatedAt ? `<span>Updated ${timeAgo(task.updatedAt)}</span>` : '';
-  return `<header class="tasks-task-header"><div class="tasks-task-titlebar"><div class="tasks-task-heading"><p class="overline">${escape(providerName(task.provider))} · #${escape(task.id)}</p><h2 class="tasks-task-title" id="task-preview-title">${escape(task.title)}</h2></div>${open ? `<div class="tasks-task-actions">${open}</div>` : ''}</div><div class="tasks-task-meta">${statusBadge(task.status)}${chip({ label: repoName(task.repositoryId), icon: 'branch', title: 'Registered repository' })}${updated}${revision}</div></header>`;
+  return `<header class="tasks-task-header"><div class="tasks-task-heading"><p class="overline">${escape(providerName(task.provider))} · #${escape(task.id)}</p><h2 class="tasks-task-title" id="task-preview-title" tabindex="-1">${escape(task.title)}</h2></div><div class="tasks-task-meta">${statusBadge(task.status)}${chip({ label: repoName(task.repositoryId), icon: 'folder', title: 'Registered repository' })}${updated(task)}${open ? `<span class="tasks-task-actions">${open}</span>` : ''}</div></header>`;
 }
 
 function detailPane(source) {
-  const back = `<div class="tasks-back">${act('data-action="task-close"', { label: 'All tasks', icon: 'chevron-left', variant: 'ghost', size: 'sm' })}</div>`;
-  if (state.taskPreviewLoading) return `<div class="tasks-detail" aria-busy="true">${back}<article class="card tasks-task tasks-task-loading">${skeleton({ rows: 6, variant: 'text' })}</article></div>`;
+  const back = `<div class="tasks-back">${act('data-action="task-close"', { label: 'All tasks', icon: 'chevron-left', variant: 'ghost', size: 'sm', id: 'task-back' })}</div>`;
+  if (state.taskPreviewLoading || (state.taskLoading && !state.task)) return `<div class="tasks-detail" aria-busy="true">${state.taskPreviewLoading ? back : ''}<article class="card tasks-task tasks-task-loading"><div class="tasks-task-header">${skeleton({ rows: 1, variant: 'text' })}</div><div class="tasks-task-body">${skeleton({ rows: 6, variant: 'text' })}</div></article></div>`;
   if (previewFailed && !state.task) {
     return `<div class="tasks-detail">${back}<article class="card tasks-task">${emptyState({ tone: 'danger', icon: 'x-circle', title: 'Could not open this task', body: `<span role="alert">${escape(state.taskPreviewError)}</span>`, actions: act('data-action="task-preview"', { label: 'Try again', icon: 'refresh', size: 'sm', data: { id: requestedId } }) })}</article></div>`;
   }
   const task = state.task;
-  if (!task) return `<div class="tasks-detail"><article class="card tasks-task tasks-task-empty">${emptyState({ icon: 'tasks', title: 'Select a task', body: 'Its brief, status and revision open here. You choose a crew and a budget before anything runs.' })}</article></div>`;
+  if (!task) return `<div class="tasks-detail"><article class="card tasks-task tasks-task-empty">${emptyState({ compact: true, icon: 'tasks', title: 'Select a task', body: 'Pick a task from the list to read its brief.' })}</article></div>`;
   return `<div class="tasks-detail">${back}<article class="card tasks-task" aria-labelledby="task-preview-title">${detailHeader(task)}<div class="tasks-task-body">${brief(task)}</div></article>${notices(task)}${importArea(task, source)}</div>`;
 }
 
@@ -152,9 +189,11 @@ function unlinkedNotice(source) {
   return callout({ tone: 'attention', icon: 'link', title: `${label} is not linked`, body: `<p>${escape(source.name)} reads tasks with your own ${escape(label)} account.</p>`, actions: button({ label: 'Open Linked accounts', href: '#settings/accounts', size: 'sm' }) });
 }
 
-function sourcePicker(sources) {
-  if (sources.length < 2) return '';
-  return toolbar(`<label class="tasks-source-picker"><span class="tasks-source-label">Connection</span><select id="task-source">${sources.map(source => `<option value="${escape(source.id)}"${state.taskSourceId === source.id ? ' selected' : ''}>${escape(source.name)} · ${escape(providerName(source.provider))}</option>`).join('')}</select></label>`);
+function layoutFocus() {
+  if (state.task || state.taskPreviewLoading || previewFailed) return 'detail';
+  if (state.taskLoading) return 'list';
+  if (state.taskError || !filteredTasks().length) return 'solo';
+  return 'list';
 }
 
 function renderTasks() {
@@ -167,25 +206,41 @@ function renderTasks() {
     renderHtml(shell(`<div class="tasks-page"><section class="card tasks-first-run">${body}</section></div>`, page));
     return;
   }
-  const focus = state.task || state.taskPreviewLoading || previewFailed ? 'detail' : 'list';
+  const focus = layoutFocus();
   const demo = state.bootstrap.mode === 'demo' ? demoNote('Sample tracker task. Importing it runs the real demonstration: real Git changes and checks, no model calls and no spend.') : '';
-  const content = `<div class="tasks-page">${unlinkedNotice(source)}${sourcePicker(sources)}${demo}<div class="tasks-layout" data-focus="${focus}">${listPane(source)}${detailPane(source)}</div></div>`;
+  const content = `<div class="tasks-page">${unlinkedNotice(source)}${demo}<div class="tasks-layout" data-focus="${focus === 'solo' ? 'list' : focus}"${focus === 'solo' ? ' data-solo' : ''}>${listPane(source, sources)}${focus === 'solo' ? '' : detailPane(source)}</div></div>`;
   renderHtml(shell(content, page));
 }
 
+function settleFocus(fromRow) {
+  const active = document.activeElement;
+  if (!fromRow || (active && active !== document.body && visible(active))) return;
+  const target = [document.getElementById('task-preview-title'), document.getElementById('task-back')].find(visible);
+  target?.focus({ preventScroll: true });
+}
+
+function revealDetail() {
+  const detail = document.querySelector('.tasks-detail');
+  if (visible(detail) && detail.getBoundingClientRect().top < 0) detail.scrollIntoView({ block: 'start' });
+}
+
+function paneBesideList() {
+  return visible(document.querySelector('.tasks-list-card')) && visible(document.querySelector('.tasks-detail'));
+}
+
 function providerMark(provider) {
-  return `<span class="connections-mark" aria-hidden="true">${escape(providerName(provider).slice(0, 1))}</span>`;
+  return chip({ label: providerName(provider) });
 }
 
 function openConnections() {
   const dialog = $('#task-connections');
   const sources = taskSources();
   const registered = sources.length
-    ? `<ul class="connections-list">${sources.map(source => `<li class="connections-item">${providerMark(source.provider)}<span class="connections-main"><strong>${escape(source.name)}</strong><span class="connections-meta">${escape(providerName(source.provider))} ${icon('arrow')} ${escape(repoName(source.repositoryId))}</span></span>${badge({ label: ownerLabel(source), tone: 'neutral', size: 'sm' })}</li>`).join('')}</ul>`
+    ? `<ul class="connections-list">${sources.map(source => `<li class="connections-item"><span class="connections-main"><strong>${escape(source.name)}</strong><span class="connections-meta">${escape(providerName(source.provider))} ${icon('arrow')} ${escape(repoName(source.repositoryId))}</span></span>${badge({ label: ownerLabel(source), tone: 'neutral', size: 'sm' })}</li>`).join('')}</ul>`
     : '<p class="connections-none">None yet. Tasks stays empty until an administrator adds one.</p>';
-  const steps = `<ol class="connections-steps"><li><strong>Register the connection</strong><span>Add it to the server’s <code>taskSources</code> configuration: the tracker, its address, the project or list, and the registered repository it feeds.</span></li><li><strong>Give it a read-only token</strong><span>Put the token in the server environment and name that variable in the connection. It never leaves the server.</span></li><li><strong>Choose who runs the work</strong><span><code>interactive</code> creates sessions here. <code>ploeg</code> hands tasks to a Ploeg Team through its registered tracker target.</span></li></ol><p class="connections-help">Examples for all five trackers are in <code>docs/operations/task-connections.md</code>. Restart the server after you change its configuration.</p>`;
+  const steps = `<ol class="connections-steps"><li><strong>Register the connection</strong><span>Add it to the server’s <code>taskSources</code> configuration: the tracker, its address, the project or list, and the registered repository it feeds.</span></li><li><strong>Give it a read-only token</strong><span>Put the token in the server environment and name that variable in the connection. It never leaves the server.</span></li><li><strong>Choose who runs the work</strong><span><code>interactive</code> keeps the sessions here. <code>ploeg</code> hands the tasks to a Ploeg Team through its registered tracker target.</span></li></ol><p class="connections-help">Examples for all five trackers are in <code>docs/operations/task-connections.md</code>. Restart the server after you change its configuration.</p>`;
   dialog.className = 'dialog connections-dialog';
-  dialog.innerHTML = `<div class="dialog-frame"><header class="dialog-header"><h2 id="connections-title">Your tasks, connected.</h2>${act('data-action="close-connections"', { icon: 'x', ariaLabel: 'Close', title: 'Close', variant: 'ghost', size: 'sm' })}</header><div class="dialog-body"><p class="connections-intro">Each connection reads one project or list from a tracker and feeds its tasks to one registered repository. Credentials stay on the server.</p><section class="connections-section" aria-labelledby="connections-registered"><h3 id="connections-registered" class="overline">Registered on this workbench</h3>${registered}</section><section class="connections-section" aria-labelledby="connections-supported"><h3 id="connections-supported" class="overline">Trackers you can connect</h3><ul class="connections-trackers">${trackers.map(provider => `<li>${providerMark(provider)}<span>${escape(providerName(provider))}</span></li>`).join('')}</ul></section>${disclosure({ summary: 'How an administrator adds a connection', open: !sources.length, body: steps })}</div><footer class="dialog-footer">${act('data-action="close-connections"', { label: 'Done', variant: 'primary' })}</footer></div>`;
+  dialog.innerHTML = `<div class="dialog-frame"><header class="dialog-header"><h2 id="connections-title">Your tasks, connected.</h2>${act('data-action="close-connections"', { icon: 'x', ariaLabel: 'Close', title: 'Close', variant: 'ghost', size: 'sm' })}</header><div class="dialog-body"><p class="connections-intro">Each connection reads one project or list from a tracker and feeds its tasks to one registered repository. Credentials stay on the server.</p><section class="connections-section" aria-labelledby="connections-registered"><h3 id="connections-registered" class="overline">Registered on this workbench</h3>${registered}</section><section class="connections-section" aria-labelledby="connections-supported"><h3 id="connections-supported" class="overline">Trackers you can connect</h3><ul class="connections-trackers">${trackers.map(provider => `<li>${providerMark(provider)}</li>`).join('')}</ul></section>${disclosure({ summary: 'How an administrator adds a connection', open: !sources.length, body: steps })}</div><footer class="dialog-footer">${act('data-action="close-connections"', { label: 'Done', variant: 'primary' })}</footer></div>`;
   dialog.showModal();
 }
 
@@ -196,31 +251,35 @@ async function loadTasks(sourceId, page = 1, { keepTask = '' } = {}) {
   state.taskSourceId = sourceId; state.taskPage = page; state.taskNextPage = null; state.task = null; state.taskSearch = ''; state.taskError = ''; state.taskPreviewError = ''; state.taskChanged = false; state.taskLoading = true; state.taskPreviewLoading = false; state.tasks = [];
   requestedId = ''; previewFailed = false; listErrorCode = '';
   remember();
-  if (state.view === 'tasks') renderTasks();
+  if (onTasks()) renderTasks();
   try {
     const result = await api(`/api/task-sources/${encodeURIComponent(sourceId)}/tasks?page=${page}`);
     if (request !== state.taskRequest) return;
     state.tasks = result.tasks; state.taskNextPage = result.nextPage || null;
   } catch (error) { if (request === state.taskRequest) { state.taskError = error.message; listErrorCode = error.code || ''; } }
-  finally { if (request === state.taskRequest) { state.taskLoading = false; if (state.view === 'tasks' && state.bootstrap) renderTasks(); } }
-  if (keepTask && request === state.taskRequest && !state.taskError) await openTask(keepTask);
+  finally { if (request === state.taskRequest) { state.taskLoading = false; if (onTasks()) renderTasks(); } }
+  if (request !== state.taskRequest || !onTasks() || state.taskError) return;
+  const first = state.tasks[0]?.id;
+  const open = keepTask || (first !== undefined && paneBesideList() ? String(first) : '');
+  if (open) await openTask(open);
 }
 
 async function openTask(id, preserveDraft = false) {
   const sourceId = state.taskSourceId;
   const request = ++state.previewRequest;
+  const fromRow = Boolean(document.activeElement?.closest?.('.tasks-row'));
   requestedId = String(id); previewFailed = false; briefExpanded = false;
   state.taskPreviewLoading = true; state.taskPreviewError = ''; state.taskChanged = preserveDraft;
-  if (!preserveDraft) state.taskDraft = { crewId: state.bootstrap.crews[0]?.id || '', runtime: state.bootstrap.runtimes[0]?.id || '', budgetUsd: Math.min(5, state.bootstrap.maxBudgetUsd) };
+  if (!preserveDraft) state.taskDraft = { crewId: state.bootstrap.crews[0]?.id || '', runtime: state.bootstrap.runtimes[0]?.id || '', budgetUsd: Math.min(5, state.bootstrap.maxBudgetUsd).toFixed(2) };
   remember(requestedId);
-  renderTasks();
+  if (onTasks()) { renderTasks(); settleFocus(fromRow); revealDetail(); }
   try {
     const task = await api(`/api/task-sources/${encodeURIComponent(sourceId)}/tasks/${encodeURIComponent(id)}`);
     if (request !== state.previewRequest || sourceId !== state.taskSourceId) return;
     state.task = task;
     if (state.view === 'tasks') announce(`Task preview ready: ${task.title}`);
   } catch (error) { if (request === state.previewRequest) { state.task = null; state.taskPreviewError = error.message; previewFailed = true; } }
-  finally { if (request === state.previewRequest) { state.taskPreviewLoading = false; if (state.view === 'tasks' && state.bootstrap) renderTasks(); } }
+  finally { if (request === state.previewRequest) { state.taskPreviewLoading = false; if (onTasks()) { renderTasks(); settleFocus(fromRow); } } }
 }
 
 function closeTask() {
@@ -230,7 +289,8 @@ function closeTask() {
   requestedId = ''; previewFailed = false;
   remember();
   renderTasks();
-  document.getElementById(`task-row-${id}`)?.focus();
+  const row = document.getElementById(`task-row-${id}`);
+  if (visible(row)) { row.focus({ preventScroll: true }); row.scrollIntoView({ block: 'nearest' }); }
 }
 
 async function loadTaskPage() {
@@ -246,7 +306,7 @@ async function importTask(data) {
   state.taskImporting = true;
   const selected = state.task;
   const existingIds = new Set(state.sessions.map(session => session.id));
-  renderTasks();
+  if (onTasks()) renderTasks();
   try {
     const session = await api('/api/task-imports', { method: 'POST', body: JSON.stringify({ sourceId: selected.sourceId, taskId: selected.id, revision: selected.revision, ...(selected.bindingRevision ? { bindingRevision: selected.bindingRevision } : {}), crewId: data.crewId, runtime: data.runtime, ...(data.placement ? { placement: data.placement } : {}), budgetUsd: Number(data.budgetUsd) }) });
     state.sessions = [session, ...state.sessions.filter(item => item.id !== session.id)]; state.tab = 'stream';
@@ -255,14 +315,14 @@ async function importTask(data) {
   } catch (error) {
     if (error.status === 409 && ['task_changed', 'task_binding_changed'].includes(error.code) && state.view === 'tasks' && state.taskSourceId === selected.sourceId) await openTask(selected.id, true);
     else { state.taskPreviewError = error.message; notify(error.message, true); }
-  } finally { state.taskImporting = false; if (state.view === 'tasks') renderTasks(); }
+  } finally { state.taskImporting = false; if (onTasks()) renderTasks(); }
 }
 
 function keepTaskDraft(element, event) { if (state.taskDraft && event.target.name) state.taskDraft[event.target.name] = event.target.value; }
 
 function moveInList(event) {
   if (state.view !== 'tasks' || !['j', 'k'].includes(event.key) || !singleKeyAllowed(event)) return false;
-  const rows = [...document.querySelectorAll('.tasks-row')];
+  const rows = [...document.querySelectorAll('.tasks-row')].filter(visible);
   if (!rows.length) return false;
   const current = rows.indexOf(document.activeElement);
   const selected = rows.findIndex(row => row.getAttribute('aria-current') === 'true');
@@ -282,7 +342,7 @@ export default {
   actions: {
     connections: () => openConnections(),
     'close-connections': () => $('#task-connections').close(),
-    'task-refresh': () => loadTasks(state.taskSourceId, state.taskPage),
+    'task-refresh': () => loadTasks(state.taskSourceId, state.taskPage, { keepTask: requestedId }),
     'task-page': button => loadTasks(state.taskSourceId, Number(button.dataset.page)),
     'task-preview': button => openTask(button.dataset.id),
     'task-close': () => closeTask(),
