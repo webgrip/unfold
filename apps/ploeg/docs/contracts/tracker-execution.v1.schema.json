@@ -210,6 +210,16 @@
             }
           ]
         },
+        "pullRequest": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/pullRequest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "latestShift": {
           "anyOf": [
             {
@@ -335,6 +345,43 @@
         "renewedAt": {
           "type": "string",
           "format": "date-time"
+        }
+      }
+    },
+    "pullRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url",
+        "agentVerdict",
+        "agentVerdictRound",
+        "humanChangesRequested",
+        "repairFollowUps"
+      ],
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "agentVerdict": {
+          "type": "string"
+        },
+        "agentVerdictRound": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "humanChangesRequested": {
+          "type": "boolean"
+        },
+        "repairFollowUps": {
+          "type": "integer",
+          "minimum": 0
         }
       }
     }

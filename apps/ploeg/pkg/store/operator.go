@@ -59,25 +59,41 @@ type OperatorLease struct {
 	RenewedAt time.Time `json:"renewedAt"`
 }
 
+// OperatorPullRequest is where a Work Item's pull request stands: the reported
+// link, the newest agent reviewer's verdict, whether a human asked for changes,
+// and how many repair follow-ups it spawned. It is nil when no Run or Checkpoint
+// ever reported a pull request link. URL selects the newest finished writer Run
+// that opened or updated a pull request, exactly as AwaitingReview does, and
+// falls back to the newest Checkpoint pr_url; the operator link sanitizer
+// blanks it when it is not a safe http(s) URL.
+type OperatorPullRequest struct {
+	URL                   string `json:"url"`
+	AgentVerdict          string `json:"agentVerdict"`
+	AgentVerdictRound     *int   `json:"agentVerdictRound"`
+	HumanChangesRequested bool   `json:"humanChangesRequested"`
+	RepairFollowUps       int64  `json:"repairFollowUps"`
+}
+
 type OperatorItem struct {
-	ID             string          `json:"id"`
-	Provider       string          `json:"provider"`
-	ExternalID     string          `json:"externalId"`
-	Revision       string          `json:"revision"`
-	Team           string          `json:"team"`
-	State          string          `json:"state"`
-	Title          string          `json:"title"`
-	Description    string          `json:"description"`
-	URL            string          `json:"url"`
-	Priority       int             `json:"priority"`
-	Attempts       int             `json:"attempts"`
-	InfraFailures  int             `json:"infraFailures"`
-	NextEligibleAt *time.Time      `json:"nextEligibleAt"`
-	CreatedAt      time.Time       `json:"createdAt"`
-	UpdatedAt      time.Time       `json:"updatedAt"`
-	Target         *OperatorTarget `json:"target"`
-	LatestShift    *OperatorShift  `json:"latestShift"`
-	Lease          *OperatorLease  `json:"lease"`
+	ID             string               `json:"id"`
+	Provider       string               `json:"provider"`
+	ExternalID     string               `json:"externalId"`
+	Revision       string               `json:"revision"`
+	Team           string               `json:"team"`
+	State          string               `json:"state"`
+	Title          string               `json:"title"`
+	Description    string               `json:"description"`
+	URL            string               `json:"url"`
+	Priority       int                  `json:"priority"`
+	Attempts       int                  `json:"attempts"`
+	InfraFailures  int                  `json:"infraFailures"`
+	NextEligibleAt *time.Time           `json:"nextEligibleAt"`
+	CreatedAt      time.Time            `json:"createdAt"`
+	UpdatedAt      time.Time            `json:"updatedAt"`
+	Target         *OperatorTarget      `json:"target"`
+	LatestShift    *OperatorShift       `json:"latestShift"`
+	Lease          *OperatorLease       `json:"lease"`
+	PullRequest    *OperatorPullRequest `json:"pullRequest"`
 }
 
 type OperatorShift struct {
@@ -170,6 +186,23 @@ const operatorShiftJSON = `jsonb_build_object(
 	'spentUsd', sh.spent, 'reservedUsd', (SELECT COALESCE(SUM(reserved), 0) FROM run_budget_holds WHERE shift_id = sh.id),
 	'openedAt', sh.opened_at, 'closedAt', sh.closed_at, 'closeReason', left(sh.close_reason, 4096))`
 
+const operatorPullRequestURL = `COALESCE(
+	(SELECT left(x.link, 4096) FROM agent_runs r
+	 CROSS JOIN LATERAL unnest(r.links) WITH ORDINALITY AS x(link, ord)
+	 WHERE r.work_item_id = i.id AND r.writes AND r.state = 'finished'
+	   AND r.outcome IN ('pr_opened', 'pr_updated')
+	   AND x.link ~ '/(pulls?|merge_requests)/[0-9]+/?$'
+	 ORDER BY r.finished_at DESC NULLS LAST, r.id DESC, x.ord DESC LIMIT 1),
+	(SELECT left(c.pr_url, 4096) FROM checkpoints c
+	 WHERE c.work_item_id = i.id AND c.pr_url <> ''
+	 ORDER BY c.created_at DESC, c.id DESC LIMIT 1))`
+
+const operatorAgentVerdictJSON = `(
+	SELECT jsonb_build_object('verdict', v.verdict, 'round', v.round) FROM agent_runs v
+	WHERE v.shift_id = (SELECT sh2.id FROM shifts sh2 WHERE sh2.work_item_id = i.id ORDER BY sh2.id DESC LIMIT 1)
+	  AND v.writes = false AND v.state = 'finished'
+	ORDER BY v.finished_at DESC NULLS LAST, v.id DESC LIMIT 1)`
+
 const operatorItemJSON = `jsonb_build_object(
 	'id', i.id::text, 'provider', i.provider, 'externalId', i.external_id, 'revision', i.revision,
 	'team', i.team, 'state', i.state, 'title', left(i.title, 4096), 'description', left(i.description, 16384),
@@ -178,7 +211,13 @@ const operatorItemJSON = `jsonb_build_object(
 	'target', CASE WHEN i.target_forge <> '' AND i.target_owner <> '' AND i.target_repo <> '' THEN
 		jsonb_build_object('forge', i.target_forge, 'owner', i.target_owner, 'repo', i.target_repo, 'baseBranch', i.target_base_branch) ELSE NULL END,
 	'latestShift', (SELECT ` + operatorShiftJSON + ` FROM shifts sh WHERE sh.work_item_id = i.id ORDER BY sh.id DESC LIMIT 1),
-	'lease', (SELECT jsonb_build_object('expiresAt', l.expires_at, 'renewedAt', l.renewed_at) FROM leases l WHERE l.work_item_id = i.id))`
+	'lease', (SELECT jsonb_build_object('expiresAt', l.expires_at, 'renewedAt', l.renewed_at) FROM leases l WHERE l.work_item_id = i.id),
+	'pullRequest', CASE WHEN (` + operatorPullRequestURL + `) IS NOT NULL THEN jsonb_build_object(
+		'url', ` + operatorPullRequestURL + `,
+		'agentVerdict', COALESCE((` + operatorAgentVerdictJSON + `)->>'verdict', ''),
+		'agentVerdictRound', (` + operatorAgentVerdictJSON + `)->'round',
+		'humanChangesRequested', EXISTS (SELECT 1 FROM work_item_reviews w WHERE w.work_item_id = i.id),
+		'repairFollowUps', (SELECT count(*) FROM work_items f WHERE f.source_work_item_id = i.id AND f.source_run_id IS NULL)) ELSE NULL END)`
 
 const operatorRunCost = `CASE WHEN EXISTS (SELECT 1 FROM run_llm_accounts WHERE run_token = r.run_token)
 	THEN (SELECT to_jsonb(COALESCE(reconciled_spend, observed_spend)) FROM run_llm_accounts WHERE run_token = r.run_token)

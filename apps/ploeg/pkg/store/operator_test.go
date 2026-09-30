@@ -208,3 +208,174 @@ func TestOperatorProjectionKeepsUnresolvedManagedSpendReserved(t *testing.T) {
 		t.Fatalf("untrusted worker cost hid managed observation: %+v", detail.Runs)
 	}
 }
+
+func TestOperatorItemReportsPullRequestState(t *testing.T) {
+	resetTables(t)
+	ctx := context.Background()
+
+	ingest := func(external string) int64 {
+		t.Helper()
+		id, _, err := testStore.IngestAssigned(ctx, work.WorkItem{Provider: "vikunja", ExternalID: external, Team: "silver", Title: external})
+		if err != nil {
+			t.Fatalf("ingest %s: %v", external, err)
+		}
+		return id
+	}
+	shift := func(item int64, branch string) int64 {
+		t.Helper()
+		id, err := testStore.OpenShift(ctx, item, "silver", branch, 0)
+		if err != nil {
+			t.Fatalf("open shift: %v", err)
+		}
+		return id
+	}
+	run := func(item, shiftID int64, token, role string, writes bool, outcome, verdict string, round int, links []string, finished string) int64 {
+		t.Helper()
+		if links == nil {
+			links = []string{}
+		}
+		var id int64
+		if err := testStore.pool.QueryRow(ctx,
+			`INSERT INTO agent_runs (work_item_id, team, run_token, shift_id, role, round, writes, state, started_at, finished_at, outcome, verdict, links)
+			 VALUES ($1, 'silver', $2, $3, $4, $5, $6, 'finished', now() - interval '2 hours', `+finished+`, NULLIF($7, ''), $8, $9) RETURNING id`,
+			item, token, shiftID, role, round, writes, outcome, verdict, links).Scan(&id); err != nil {
+			t.Fatalf("insert run %s: %v", token, err)
+		}
+		return id
+	}
+	checkpoint := func(item int64, prURL, created string) {
+		t.Helper()
+		if _, err := testStore.pool.Exec(ctx,
+			`INSERT INTO checkpoints (work_item_id, phase, pr_url, created_at) VALUES ($1, 'branch', $2, `+created+`)`,
+			item, prURL); err != nil {
+			t.Fatalf("insert checkpoint: %v", err)
+		}
+	}
+	review := func(item int64) {
+		t.Helper()
+		if _, err := testStore.pool.Exec(ctx,
+			`INSERT INTO work_item_reviews (work_item_id, provider, repo, reviewer) VALUES ($1, 'forgejo', 'glide', 'human')`, item); err != nil {
+			t.Fatalf("insert review: %v", err)
+		}
+	}
+	linkChild := func(child, parent int64, sourceRun any) {
+		t.Helper()
+		if _, err := testStore.pool.Exec(ctx,
+			`UPDATE work_items SET source_work_item_id = $1, source_run_id = $2, source_branch = 'agent/vik-1391', source_pr = 12 WHERE id = $3`,
+			parent, sourceRun, child); err != nil {
+			t.Fatalf("link child: %v", err)
+		}
+	}
+
+	const (
+		pr11 = "https://forge.example/webgrip/ploeg/pulls/11"
+		pr12 = "https://forge.example/webgrip/ploeg/pulls/12"
+		pr20 = "https://forge.example/glide/glide/pulls/20"
+		pr30 = "https://forge.example/glide/glide/merge_requests/30"
+		pr40 = "https://forge.example/glide/glide/pulls/40"
+		pr50 = "https://forge.example/glide/glide/pulls/50"
+	)
+
+	fromRun := ingest("pr-from-run")
+	fromRunShift := shift(fromRun, "agent/vik-1391-run")
+	checkpoint(fromRun, "https://forge.example/webgrip/ploeg/pulls/99", "now() - interval '1 day'")
+	run(fromRun, fromRunShift, "tok-run-old", "builder", true, "pr_opened", "", 0, []string{pr11}, "now() - interval '90 minutes'")
+	run(fromRun, fromRunShift, "tok-run-new", "builder", true, "pr_updated", "", 0, []string{pr12}, "now() - interval '30 minutes'")
+
+	fromCheckpoint := ingest("pr-from-checkpoint")
+	checkpoint(fromCheckpoint, pr30, "now()")
+
+	noPR := ingest("no-pr")
+	noPRShift := shift(noPR, "agent/vik-1391-none")
+	run(noPR, noPRShift, "tok-none", "builder", true, "pr_opened", "", 0, []string{"https://forge.example/webgrip/ploeg/compare/main...x"}, "now() - interval '5 minutes'")
+
+	verdict := ingest("pr-verdict")
+	verdictShift := shift(verdict, "agent/vik-1391-verdict")
+	run(verdict, verdictShift, "tok-writer", "builder", true, "pr_opened", "", 0, []string{pr20}, "now() - interval '40 minutes'")
+	run(verdict, verdictShift, "tok-review-old", "reviewer", false, "no_change_needed", "approve", 1, nil, "now() - interval '35 minutes'")
+	run(verdict, verdictShift, "tok-review-new", "reviewer", false, "no_change_needed", "request_changes", 2, nil, "now() - interval '10 minutes'")
+
+	changes := ingest("pr-changes")
+	changesShift := shift(changes, "agent/vik-1391-changes")
+	run(changes, changesShift, "tok-changes", "builder", true, "pr_opened", "", 0, []string{pr40}, "now() - interval '20 minutes'")
+	review(changes)
+
+	repair := ingest("pr-repair")
+	repairShift := shift(repair, "agent/vik-1391-repair")
+	repairRun := run(repair, repairShift, "tok-repair", "builder", true, "pr_opened", "", 0, []string{pr50}, "now() - interval '20 minutes'")
+	linkChild(ingest("pr-repair-child"), repair, nil)
+	linkChild(ingest("pr-created-child"), repair, repairRun)
+
+	badURL := ingest("pr-bad-url")
+	checkpoint(badURL, "ftp://forge.example/webgrip/ploeg/pulls/9", "now()")
+
+	round2 := 2
+	type expectation struct {
+		url        string
+		verdict    string
+		round      *int
+		human      bool
+		repairs    int64
+		wantAbsent bool
+	}
+	want := map[string]expectation{
+		"pr-from-run":        {url: pr12},
+		"pr-from-checkpoint": {url: pr30},
+		"no-pr":              {wantAbsent: true},
+		"pr-verdict":         {url: pr20, verdict: "request_changes", round: &round2},
+		"pr-changes":         {url: pr40, human: true},
+		"pr-repair":          {url: pr50, repairs: 1},
+		"pr-bad-url":         {},
+	}
+	check := func(label string, got *OperatorPullRequest) {
+		t.Helper()
+		e, ok := want[label]
+		if !ok {
+			t.Fatalf("no expectation for %s", label)
+		}
+		if e.wantAbsent {
+			if got != nil {
+				t.Fatalf("%s: want null pullRequest, got %+v", label, got)
+			}
+			return
+		}
+		if got == nil {
+			t.Fatalf("%s: want pullRequest object, got null", label)
+		}
+		if got.URL != e.url || got.AgentVerdict != e.verdict || got.HumanChangesRequested != e.human || got.RepairFollowUps != e.repairs {
+			t.Fatalf("%s: got %+v, want url=%q verdict=%q human=%v repairs=%d", label, got, e.url, e.verdict, e.human, e.repairs)
+		}
+		switch {
+		case e.round == nil && got.AgentVerdictRound != nil:
+			t.Fatalf("%s: want null round, got %d", label, *got.AgentVerdictRound)
+		case e.round != nil && got.AgentVerdictRound == nil:
+			t.Fatalf("%s: want round %d, got null", label, *e.round)
+		case e.round != nil && *got.AgentVerdictRound != *e.round:
+			t.Fatalf("%s: want round %d, got %d", label, *e.round, *got.AgentVerdictRound)
+		}
+	}
+
+	items, _, err := testStore.OperatorItems(ctx, OperatorFilter{Limit: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, item := range items {
+		if _, ok := want[item.ExternalID]; !ok {
+			continue
+		}
+		seen[item.ExternalID] = true
+		check(item.ExternalID, item.PullRequest)
+	}
+	for external := range want {
+		if !seen[external] {
+			t.Fatalf("item %s missing from list", external)
+		}
+	}
+
+	detail, err := testStore.OperatorItem(ctx, verdict, []string{"silver"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	check("pr-verdict", detail.Item.PullRequest)
+}
