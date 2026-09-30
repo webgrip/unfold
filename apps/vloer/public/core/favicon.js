@@ -1,18 +1,22 @@
 /**
  * The favicon mark on its 64-unit grid, exactly as public/favicon.svg draws it: the Peil vee (a round-capped
- * stroke through three points) above the ground slab. `dot` is the attention dot drawn over the top-right
- * corner, with a transparent `gap` around it so it reads on light and dark tab strips.
+ * stroke through three points) above the ground slab. `dot` is the attention dot over the top-right corner,
+ * nearly half the icon wide so it still reads at 16 pixels, with a transparent `gap` around it so it stands
+ * apart on light and dark tab strips.
  */
 export const faviconShape = Object.freeze({
   size: 64,
   vee: Object.freeze([[15.5, 11.5], [32, 51.5], [48.5, 11.5]]),
   stroke: 15,
   ground: Object.freeze([8, 44, 48, 8]),
-  dot: Object.freeze({ x: 50, y: 14, radius: 12, gap: 4 }),
+  dot: Object.freeze({ x: 48, y: 16, radius: 15, gap: 3 }),
 });
 
-/** The design tokens the favicon is painted with: the vee, the ground slab on a light and on a dark tab strip, and the dot. */
-export const faviconTokens = Object.freeze({ vee: '--peil', groundLight: '--vlak', groundDark: '--krijt', dot: '--attention-solid' });
+/**
+ * The design tokens the favicon is painted with: the vee, the ground slab on a light and on a dark tab strip, and
+ * the dot, in the high-chroma attention signal (or the solid attention tone where that token is missing).
+ */
+export const faviconTokens = Object.freeze({ vee: '--peil', groundLight: '--vlak', groundDark: '--krijt', dot: '--attention-signal', dotFallback: '--attention-solid' });
 
 /**
  * Paints the mark on a 2D canvas context, and the attention dot when `dot` is true. `colors` holds resolved CSS
@@ -51,8 +55,9 @@ export function drawFavicon(context, colors, dot) {
 
 /**
  * Creates the favicon switch. `env` supplies `links()` (the `<link rel="icon">` elements), `dark()` (whether the
- * browser prefers a dark scheme, which is what the SVG favicon follows), `color(token)` (a resolved colour for a
- * custom property) and `canvas()` (a new canvas element). `show(true)` points every icon link at a PNG data URL
+ * browser prefers a dark scheme, which is what the SVG favicon follows), `color(token, fallback)` (a resolved
+ * colour for a custom property, or for the fallback property when the first is not set) and `canvas()` (a new
+ * canvas element). `show(true)` points every icon link at a PNG data URL
  * of the mark with the dot; `show(false)` puts the original links back. Nothing is touched while the state is unchanged.
  */
 export function createFavicon(env) {
@@ -62,7 +67,7 @@ export function createFavicon(env) {
 
   function image() {
     const dark = env.dark();
-    const colors = { vee: env.color(faviconTokens.vee), ground: env.color(dark ? faviconTokens.groundDark : faviconTokens.groundLight), dot: env.color(faviconTokens.dot) };
+    const colors = { vee: env.color(faviconTokens.vee), ground: env.color(dark ? faviconTokens.groundDark : faviconTokens.groundLight), dot: env.color(faviconTokens.dot, faviconTokens.dotFallback) };
     const key = `${colors.vee}|${colors.ground}|${colors.dot}`;
     if (drawn?.key === key) return drawn.url;
     const canvas = env.canvas();
@@ -107,10 +112,10 @@ export function createFavicon(env) {
   };
 }
 
-function resolveColor(token) {
+function resolveColor(token, fallback) {
   const probe = document.createElement('span');
   probe.hidden = true;
-  probe.style.color = `var(${token})`;
+  probe.style.color = fallback ? `var(${token}, var(${fallback}))` : `var(${token})`;
   document.body.append(probe);
   const value = getComputedStyle(probe).color;
   probe.remove();

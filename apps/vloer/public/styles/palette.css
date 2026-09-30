@@ -1,3 +1,7 @@
+:root {
+  --attention-signal: oklch(68% 0.18 50);
+}
+
 .palette {
   width: min(40rem, 100vw - var(--space-8));
   max-width: none;

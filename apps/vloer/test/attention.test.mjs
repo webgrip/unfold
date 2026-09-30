@@ -141,10 +141,11 @@ test('the favicon is the mark from favicon.svg, with a dot cut out of its corner
   const dotted = recordingContext();
   drawFavicon(dotted.context, colors, true);
   const arcs = dotted.calls.filter(([name]) => name === 'arc').map(([, x, y, radius]) => [x, y, radius]);
-  assert.deepEqual(arcs, [[50, 14, 16], [50, 14, 12]]);
+  assert.deepEqual(arcs, [[48, 16, 18], [48, 16, 15]]);
+  assert(faviconShape.dot.radius * 2 >= faviconShape.size * 0.45, 'the dot is nearly half the icon wide, so it reads at 16 pixels');
   assert.deepEqual(dotted.calls.filter(([name]) => name === '=globalCompositeOperation').map(([, value]) => value), ['source-over', 'destination-out', 'source-over']);
   assert(dotted.calls.some(([name, value]) => name === '=fillStyle' && value === colors.dot));
-  assert.deepEqual(faviconTokens, { vee: '--peil', groundLight: '--vlak', groundDark: '--krijt', dot: '--attention-solid' });
+  assert.deepEqual(faviconTokens, { vee: '--peil', groundLight: '--vlak', groundDark: '--krijt', dot: '--attention-signal', dotFallback: '--attention-solid' });
 });
 
 test('the favicon switch points the icon links at a PNG with the dot and puts the originals back', () => {
@@ -153,11 +154,12 @@ test('the favicon switch points the icon links at a PNG with the dot and puts th
   let dark = false;
   let canvases = 0;
   const grounds = [];
+  const dots = [];
   const favicon = createFavicon({
     links: () => links,
     dark: () => dark,
-    color: token => `color(${token})`,
-    canvas: () => { canvases++; const { context, calls } = recordingContext(); return { getContext: () => context, toDataURL: type => { grounds.push(calls.find(([name, value]) => name === '=fillStyle' && value.includes('--vlak') || name === '=fillStyle' && value.includes('--krijt'))[1]); return `data:${type};base64,${canvases}`; } }; },
+    color: (token, fallback) => `color(${token}${fallback ? `, ${fallback}` : ''})`,
+    canvas: () => { canvases++; const { context, calls } = recordingContext(); return { getContext: () => context, toDataURL: type => { grounds.push(calls.find(([name, value]) => name === '=fillStyle' && value.includes('--vlak') || name === '=fillStyle' && value.includes('--krijt'))[1]); dots.push(calls.filter(([name]) => name === '=fillStyle').at(-1)[1]); return `data:${type};base64,${canvases}`; } }; },
   });
   favicon.show(false);
   assert.equal(links[0].writes, 0, 'nothing changes while the dot stays hidden');
@@ -170,6 +172,7 @@ test('the favicon switch points the icon links at a PNG with the dot and puts th
   favicon.refresh();
   assert.equal(canvases, 2);
   assert.deepEqual(grounds, ['color(--vlak)', 'color(--krijt)'], 'the ground follows the browser scheme like the SVG favicon');
+  assert.deepEqual(dots, ['color(--attention-signal, --attention-solid)', 'color(--attention-signal, --attention-solid)'], 'the dot is the high-chroma signal, with the solid attention tone as fallback');
   favicon.show(false);
   assert.deepEqual(links.map(item => item.attrs), [{ href: '/favicon.svg', type: 'image/svg+xml' }, { href: '/favicon.ico', sizes: '48x48' }]);
   assert.equal(favicon.visible, false);
