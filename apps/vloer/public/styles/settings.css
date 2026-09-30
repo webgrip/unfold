@@ -132,11 +132,6 @@
   vertical-align: 0.0625rem;
 }
 
-.settings-row-hint .kbd,
-.account-token .field-hint {
-  margin: 0;
-}
-
 .settings-row-controls {
   display: flex;
   flex: none;

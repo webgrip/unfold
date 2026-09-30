@@ -88,7 +88,7 @@ export function openNew() {
 export function confirmAction(title, description, label, callback, { tone = 'primary', dismiss = 'Cancel', details = [] } = {}) {
   const dialog = prepare($('#confirm-dialog'), 'sm');
   const danger = tone === 'danger';
-  dialog.innerHTML = `<form method="dialog">${header('confirm-title', title, false)}<div class="dialog-body"><p>${escape(description)}</p>${details.length ? `<ul class="session-dialog-list">${details.map(item => `<li>${escape(item)}</li>`).join('')}</ul>` : ''}</div><footer class="dialog-footer"><button type="submit" class="button secondary" value="cancel"${danger ? ' autofocus' : ''}><span class="button-label">${escape(dismiss)}</span></button><button type="submit" class="button ${danger ? 'danger' : 'primary'}" value="confirm"${danger ? '' : ' autofocus'}><span class="button-label">${escape(label)}</span></button></footer></form>`;
+  dialog.innerHTML = `<form method="dialog">${header('confirm-title', title, false)}<div class="dialog-body"><p>${escape(description)}</p>${details.length ? `<ul class="session-dialog-list">${details.map(item => `<li>${escape(item)}</li>`).join('')}</ul>` : ''}</div><footer class="dialog-footer">${button({ label: dismiss, type: 'submit', value: 'cancel', autofocus: danger })}${button({ label, variant: danger ? 'danger' : 'primary', type: 'submit', value: 'confirm', autofocus: !danger })}</footer></form>`;
   dialog.addEventListener('close', () => { if (dialog.returnValue === 'confirm') void callback(); }, { once: true });
   dialog.returnValue = '';
   dialog.showModal();
@@ -115,14 +115,6 @@ export function openBudgetDialog() {
   const amount = room > 0 ? field({ id: 'budget-amount', label: 'Additional amount · USD', control: attrs => `<input ${attrs} name="amountUsd" type="number" inputmode="decimal" min="0.01" max="${room}" step="0.01" required data-current="${current}" data-ceiling="${ceiling}">`, hint: `Up to ${escape(money(room))} more before this session reaches the ceiling.` }) : `<p class="session-dialog-note">This session already has the highest authorization a session can have.</p>`;
   dialog.innerHTML = `<form data-form="budget" novalidate>${header('confirm-title', 'Authorize more budget')}<div class="dialog-body"><p>This raises what the session may spend. Earlier spend stays recorded.</p>${facts}${amount}</div><footer class="dialog-footer">${button({ label: 'Cancel', action: 'close-dialog' })}${button({ label: 'Authorize', icon: 'coins', variant: 'primary', type: 'submit', disabled: room <= 0 })}</footer></form>`;
   open(dialog, room > 0 ? '#budget-amount' : '.dialog-footer .button:not([disabled])');
-}
-
-/** Opens the dialog that rejects the proposed Ploeg Work Item `id` with a required reason. */
-export function openWorkItemRejectDialog(id) {
-  const dialog = prepare($('#confirm-dialog'));
-  const reason = field({ id: 'reject-reason', label: 'Reason', control: attrs => `<textarea ${attrs} name="reason" rows="4" maxlength="4096" required placeholder="Why this work should not run"></textarea>`, hint: 'Recorded with your decision on the Work Item.', error: false });
-  dialog.innerHTML = `<form data-form="ploeg-reject" data-id="${escape(id)}">${header('confirm-title', 'Reject this Work Item?')}<div class="dialog-body"><p>Ploeg closes the proposal without running it and records your reason. Nothing runs and nothing is spent.</p>${reason}</div><footer class="dialog-footer">${button({ label: 'Cancel', action: 'close-dialog' })}${button({ label: 'Reject', icon: 'x', variant: 'danger', type: 'submit' })}</footer></form>`;
-  open(dialog, '#reject-reason');
 }
 
 async function createSession(data, form) {
@@ -167,7 +159,7 @@ function openNewFromKeyboard(event) {
   return false;
 }
 
-/** The new-session, confirmation, review, budget and Work Item rejection dialogs. `n` opens a new session on the Sessions pages. */
+/** The new-session, confirmation, review and budget dialogs. `n` opens a new session on the Sessions pages. */
 export default {
   id: 'dialogs',
   actions: {

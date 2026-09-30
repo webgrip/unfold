@@ -61,7 +61,10 @@ test('a writer killed by the cluster is explained as not the Work Item’s fault
 test('a free-text reason asks for a decision; a missing or still-open one says stopped and points at the details', () => {
   const recorded = listReason(item('Illustrative escalation to a human reviewer.'));
   assert.deepEqual([recorded.code, recorded.chip], ['unknown', 'Needs a decision'], 'the code stays unknown for callers that branch on it');
-  assert.equal(recorded.sentence, 'Ploeg recorded: “Illustrative escalation to a human reviewer.”.');
+  assert.equal(recorded.sentence, 'Ploeg recorded: “Illustrative escalation to a human reviewer.”', 'a quote that ends a sentence is not followed by a second full stop');
+  assert.equal(listReason(item('operator asked for help')).sentence, 'Ploeg recorded: “operator asked for help”.');
+  assert.equal(recorded.glyph, 'help-circle', 'every reason carries its own glyph');
+  assert.equal(listReason(item('budget exhausted: pool 3.00, spent 2.50, reserved 0.40')).glyph, 'coins');
   assert.match(recorded.fix, /decide in the tracker/);
   assert.equal(listReason(item('', { latestShift: null })).chip, 'Stopped; open for details');
   assert.equal(listReason(item('', { latestShift: null })).sentence, 'Ploeg stopped this Work Item without a reason Vloer recognises.');

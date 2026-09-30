@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { ago, clock, configureFormat, count, date, dateTime, dayKey, dayLabel, duration, formatLocale, money, moneyExact, moneyHtml, notReported, percent, plural, relative, time, timeHtml } from '../public/core/format.js';
+import { ago, clock, configureFormat, count, date, dateTime, dayKey, dayLabel, duration, formatLocale, money, moneyExact, moneyHtml, notReported, percent, plural, relative, seconds, time, timeHtml } from '../public/core/format.js';
 
 const space = ' ';
 const local = new Date(2026, 8, 30, 21, 30, 5);
@@ -104,6 +104,13 @@ test('durations read as seconds, minutes, hours and days with a padded minor uni
   assert.equal(duration(-3), '0 s');
   assert.equal(duration(null), '');
   assert.equal(duration(undefined), '');
+});
+
+test('a latency in milliseconds reads as seconds with one decimal in the chosen locale', () => {
+  assert.equal(seconds(1250), '1,3 s');
+  assert.equal(seconds(400), '0,4 s');
+  assert.equal(seconds(null), '');
+  assert.equal(seconds(Number.NaN), '');
 });
 
 test('a moment renders inside <time> with its ISO value and the absolute date as title', () => {

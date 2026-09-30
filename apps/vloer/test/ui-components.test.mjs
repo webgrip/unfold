@@ -257,7 +257,36 @@ test('times render inside <time> with the ISO value and an absolute title', () =
 
 test('icons keep every existing name and add the redesign glyphs', () => {
   const existing = ['grid', 'layers', 'link', 'activity', 'plus', 'play', 'pause', 'stop', 'check', 'x', 'code', 'terminal', 'arrow', 'back', 'chevron', 'download', 'branch', 'shield', 'search', 'external', 'logout', 'circle', 'folder', 'send', 'clock', 'info'];
-  const added = ['inbox', 'work', 'proposed', 'runs', 'insights', 'tasks', 'sessions', 'settings', 'sun', 'moon', 'monitor', 'command', 'keyboard', 'bell', 'filter', 'copy', 'refresh', 'more', 'menu', 'chevron-down', 'chevron-up', 'chevron-left', 'alert', 'check-circle', 'x-circle', 'pause-circle', 'pull-request', 'user', 'bot', 'coins', 'calendar', 'eye', 'lock', 'zap', 'arrow-up-right', 'spark', 'list', 'panel', 'hash', 'globe', 'tag'];
+  const added = ['eye-off', 'inbox', 'work', 'proposed', 'runs', 'insights', 'tasks', 'sessions', 'settings', 'sun', 'moon', 'monitor', 'command', 'keyboard', 'bell', 'filter', 'copy', 'refresh', 'more', 'menu', 'chevron-down', 'chevron-up', 'chevron-left', 'alert', 'check-circle', 'x-circle', 'pause-circle', 'pull-request', 'user', 'bot', 'coins', 'calendar', 'eye', 'lock', 'zap', 'arrow-up-right', 'spark', 'list', 'panel', 'hash', 'globe', 'tag'];
   for (const name of [...existing, ...added]) assert(icons[name], `missing icon ${name}`);
   for (const [name, paths] of Object.entries(icons)) assert(!/<script|on[a-z]+=|href=|<use/i.test(paths), `${name} carries only path data`);
+});
+
+test('the builders the screens shared carry their options: tiles, meters, external icon links, submit values, table row headers and unread rows', () => {
+  const linked = ui.stat({ label: 'Running', value: '2', detailHtml: '<span>1 waiting</span>', href: '#runs', tone: 'live', icon: 'activity', className: 'now-stat' });
+  assert.match(linked, /^<a class="stat now-stat" href="#runs" data-tone="live">/);
+  assert.match(linked, /<span class="stat-detail"><span>1 waiting<\/span><\/span><span class="stat-go" aria-hidden="true"><svg/);
+  const quiet = ui.stat({ label: 'Spend', value: '—', detail: '<b>', quiet: true, text: true });
+  assert.match(quiet, /<strong class="stat-value is-text" data-quiet>—<\/strong><span class="stat-detail">&lt;b&gt;<\/span>/);
+  assert.doesNotMatch(quiet, /stat-go/, 'a summary tile has no chevron');
+  const drawn = [];
+  ui.stat({ label: 'Queued', value: '1', href: '#work', icon: 'circle-dashed' }, { icon: name => { drawn.push(name); return `<i>${name}</i>`; } });
+  ui.emptyState({ icon: 'runs', title: 'No Runs' }, { icon: name => { drawn.push(name); return ''; } });
+  assert.deepEqual(drawn, ['circle-dashed', 'chevron', 'runs'], 'a caller can draw the glyphs itself');
+  const observed = ui.meter({ settled: 0.42, authorized: 1.5, observed: true, size: 'sm', label: '' });
+  assert(observed.includes(`aria-valuetext="${money(0.42)} observed so far of ${money(1.5)} authorized"`));
+  assert.doesNotMatch(observed, /meter-end/, 'a small meter keeps the percentage out of sight');
+  assert.match(ui.meter({ settled: 2, authorized: 1.5, size: 'sm' }), /<span class="meter-end">[^<]+ over<\/span>/, 'but still says it went over budget');
+  assert.match(ui.meter({ settled: null, authorized: null, size: 'sm', label: '' }), /<span class="meter-text"><span class="meter-value">Not reported<\/span><\/span><\/div>/, 'unknown spend without a budget reads Not reported alone');
+  const tracker = ui.iconButton({ icon: 'external', label: 'Open in the tracker', href: 'https://tracker.example/1', external: true, size: 'sm' });
+  assert.match(tracker, /aria-label="Open in the tracker \(opens in a new tab\)" title="Open in the tracker"/);
+  assert.equal(count(tracker, /<svg/g), 1, 'an icon-only link draws one glyph');
+  assert.match(ui.button({ label: 'Keep it', type: 'submit', value: 'keep', autofocus: true }), /^<button type="submit" class="button secondary" value="keep" autofocus>/);
+  const table = ui.table({ caption: 'Per Team', columns: [{ key: 'team', label: 'Team' }, { key: 'runs', label: 'Runs', numeric: true }], rows: [{ team: 'delivery', runs: '3' }], rowHeader: true, region: false, className: 'insights-table' });
+  assert.match(table, /^<div class="table-wrap insights-table"><table/);
+  assert.match(table, /<tr><th scope="row">delivery<\/th><td class="num">3<\/td><\/tr>/);
+  assert.doesNotMatch(table, /role="region"|tabindex/);
+  const unread = ui.listRow({ href: '#work/1', title: 'Row', data: { unread: true } });
+  assert.match(unread, /data-unread[\s\S]*<span class="list-row-meta"><span class="sr-only">New since your last visit\.<\/span><\/span>/);
+  assert.doesNotMatch(ui.listRow({ href: '#work/1', title: 'Row' }), /New since/);
 });

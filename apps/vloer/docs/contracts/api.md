@@ -207,7 +207,7 @@ Every Work Item in the overview lanes, the work-item pages, the detail and the p
 
 ### Now
 
-`GET /api/ploeg/now` answers `{demo, teams, waiting, running, recent, errors, fetchedAt}`. `running` and `recent` are Run rows, the same shape as `/api/ploeg/runs`. A group that fails is empty and names its failure in `errors.waiting`, `errors.running` or `errors.recent`; the other groups still answer.
+`GET /api/ploeg/now` answers `{demo, teams, waiting, running, recent, runningTruncated, recentTruncated, errors, fetchedAt}`. `running` and `recent` are Run rows, the same shape as `/api/ploeg/runs`: the first page of each. `runningTruncated` and `recentTruncated` are true when Ploeg holds more Runs than that page. A group that fails is empty and names its failure in `errors.waiting`, `errors.running` or `errors.recent`; the other groups still answer.
 
 `waiting` lists `awaiting_review`, then `needs_human`, then `proposed` Work Items, oldest first within each. A row carries no description. Its fields:
 

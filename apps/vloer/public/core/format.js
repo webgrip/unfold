@@ -157,6 +157,12 @@ export function duration(seconds) {
   return `${Math.floor(hours / 24)} d ${String(hours % 24).padStart(2, '0')} h`;
 }
 
+/** Formats a sub-minute latency in milliseconds as seconds with one decimal: `1250` is "1,3 s" in nl-NL. Empty for a missing value. */
+export function seconds(ms) {
+  if (!isAmount(ms)) return '';
+  return `${formatter('number', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(ms / 1000)} s`;
+}
+
 /**
  * Renders a moment as `<time datetime="ISO" title="30-09-2026 21:30">`. `display` picks the visible text:
  * `'relative'` (the default), `'time'` or `'absolute'`. An invalid or missing value renders nothing.

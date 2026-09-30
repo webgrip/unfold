@@ -281,8 +281,8 @@ export function proposalCreator(item) {
   return match ? `An agent in Run ${match[1]}` : `An agent of the ${item?.team || 'unknown'} Team`;
 }
 
-function empty({ glyph = 'inbox', title, body = '', actions = '', tone, compact = true }, { escape, icon }) {
-  return `<div class="empty-state${compact ? ' compact' : ''}"${tone ? ` data-tone="${tone}"` : ''}><span class="empty-state-icon" aria-hidden="true">${icon(glyph)}</span><p class="empty-state-title">${escape(title)}</p>${body ? `<div class="empty-state-body">${body}</div>` : ''}${actions ? `<div class="empty-state-actions">${actions}</div>` : ''}</div>`;
+function empty({ glyph = 'inbox', title, body = '', actions = '', tone, compact = true }, { icon }) {
+  return ui.emptyState({ icon: glyph, title, body, actions, compact, tone }, { icon });
 }
 
 function retryButton({ icon }, label = 'Try again') {
@@ -320,16 +320,14 @@ function selectField(id, label, options, selected, all, { disabled = false, hint
   return `<div class="field inline feeds-field${described ? ' has-hint' : ''}"><label class="field-label" for="${id}">${label}</label><select id="${id}"${disabled ? ' disabled' : ''}${described ? ` aria-describedby="${id}-hint"` : ''}><option value="">${all}</option>${options.map(([value, text]) => `<option value="${value}"${value === selected ? ' selected' : ''}>${text}</option>`).join('')}</select>${described ? `<span class="field-hint feeds-hint" id="${id}-hint">${hint}</span>` : ''}</div>`;
 }
 
-function tile({ label, value, detail, href, tone, glyph, text = false }, { escape, icon }) {
-  const inner = `<span class="stat-label">${glyph ? icon(glyph) : ''}${escape(label)}</span><strong class="stat-value${text ? ' is-text' : ''}">${escape(value)}</strong>${detail ? `<span class="stat-detail">${escape(detail)}</span>` : ''}`;
-  const toned = tone ? ` data-tone="${tone}"` : '';
-  return href ? `<a class="stat" href="${escape(href)}"${toned}>${inner}</a>` : `<div class="stat"${toned}>${inner}</div>`;
+function tile({ label, value, detail, href, tone, glyph, text = false }, { icon }) {
+  return ui.stat({ label, value, detail, href, tone, icon: glyph, text }, { icon });
 }
 
 function teamTable({ caption, columns, rows }, { escape }) {
-  const head = columns.map(([label, numeric]) => `<th scope="col"${numeric ? ' class="num"' : ''}>${escape(label)}</th>`).join('');
-  const row = (name, cells) => `<tr><th scope="row">${escape(name)}</th>${cells.map((cell, index) => `<td${columns[index + 1][1] ? ' class="num"' : ''}>${cell}</td>`).join('')}</tr>`;
-  return `<div class="table-wrap insights-table"><table class="table"><caption class="sr-only">${escape(caption)}</caption><thead><tr>${head}</tr></thead><tbody>${rows.map(([name, cells]) => row(name, cells)).join('')}</tbody></table></div>`;
+  const keyed = columns.map(([label, numeric], index) => ({ key: String(index), label, numeric }));
+  const cells = rows.map(([name, values]) => Object.fromEntries([escape(name), ...values].map((value, index) => [String(index), value])));
+  return ui.table({ caption, columns: keyed, rows: cells, rowHeader: true, region: false, className: 'insights-table' });
 }
 
 function insightsSection(id, title, description, body, { escape }, actions = '') {
@@ -461,30 +459,21 @@ function runTiming(run, now, escape) {
   return { started: timeHtml(start, { now }), took: isNumber(run.durationSeconds) ? `Took ${span(run.durationSeconds)}` : '' };
 }
 
-function spendMeter(run, escape) {
+function spendMeter(run) {
   const authorized = isNumber(run.authorizedUsd) && run.authorizedUsd > 0 ? run.authorizedUsd : null;
   const settled = isNumber(run.settledUsd);
   const observed = !settled && isNumber(run.observedUsd);
   const spent = settled ? run.settledUsd : observed ? run.observedUsd : null;
-  const bar = rects => `<svg class="meter-bar" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true" focusable="false"><rect class="meter-track" width="100" height="6"/>${rects}</svg>`;
-  const label = (value, of) => `<div class="meter-label"><span class="meter-text">${value}${of ? ` <span class="meter-of">${escape(of)}</span>` : ''}</span></div>`;
-  const observedNote = observed ? { note: 'Observed, not settled', tone: '' } : { note: '', tone: '' };
-  if (spent === null) return { meter: `<div class="meter sm" data-unknown>${label('<span class="meter-value">Not reported</span>', authorized ? `of ${money(authorized)}` : '')}${bar('')}</div>`, note: run.state === 'running' ? 'Nothing observed yet' : '', tone: '' };
-  if (!authorized) return { meter: `<div class="meter sm" data-unknown="budget">${label(`<strong class="meter-value">${escape(money(spent))}</strong>`, 'no budget reported')}${bar('')}</div>`, ...observedNote };
-  const width = Math.round(Math.min(100, spent / authorized * 100) * 100) / 100;
-  const over = spent > authorized;
-  const excess = money(Math.round((spent - authorized) * 100) / 100);
-  const level = over ? 'over' : spent / authorized >= 0.8 ? 'warn' : '';
-  const text = `${money(spent)} ${observed ? 'observed so far' : 'settled'} of ${money(authorized)} authorized${over ? `, ${excess} over budget` : ''}`;
-  const meter = `<div class="meter sm"${level ? ` data-level="${level}"` : ''} role="meter" aria-label="Spend" aria-valuemin="0" aria-valuemax="${authorized}" aria-valuenow="${Math.min(spent, authorized)}" aria-valuetext="${escape(text)}">${label(`<strong class="meter-value">${escape(money(spent))}</strong>`, `of ${money(authorized)}`)}${bar(width > 0 ? `<rect class="meter-settled" width="${width}" height="6"/>` : '')}</div>`;
-  if (over) return { meter, note: `${excess} over budget${observed ? ', not settled' : ''}`, tone: 'danger' };
-  return { meter, ...observedNote };
+  const meter = ui.meter({ settled: spent, authorized, observed, label: '', size: 'sm' });
+  if (spent === null) return { meter, note: run.state === 'running' ? 'Nothing observed yet' : '', tone: '' };
+  if (authorized && spent > authorized && observed) return { meter, note: 'Not settled', tone: '' };
+  return { meter, note: observed ? 'Observed, not settled' : '', tone: '' };
 }
 
 function runSpendCell(run, demo, { escape }) {
   if (demo) return demoDash;
   if (run.state === 'pending') return `<span class="subtle">${isNumber(run.authorizedUsd) && run.authorizedUsd > 0 ? `Up to ${escape(money(run.authorizedUsd))}` : 'Not authorized yet'}</span>`;
-  const { meter, note, tone } = spendMeter(run, escape);
+  const { meter, note, tone } = spendMeter(run);
   return `${meter}${note ? `<span class="runs-spend-note"${tone ? ` data-tone="${tone}"` : ''}>${escape(note)}</span>` : ''}`;
 }
 

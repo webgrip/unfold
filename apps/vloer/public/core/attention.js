@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { prefs, prefsKey, prefDefaults } from './prefs.js';
+import { createPrefs } from './prefs.js';
 import { onCountsChange } from './counts.js';
 import { live } from './live.js';
 import { listReason } from './reasons.js';
@@ -60,22 +60,9 @@ export function createAttention(env) {
   let previous = null;
   const seen = new Set();
   let broken = false;
-  let memoryNotify = false;
-
-  const saved = () => { try { const value = JSON.parse(env.storage()?.getItem(prefsKey) || '{}'); return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; } catch { return null; } };
-  const known = () => Object.hasOwn(prefDefaults, 'notify');
-
-  function wanted() {
-    if (known()) return prefs.get('notify') === true;
-    const stored = saved();
-    return stored && typeof stored.notify === 'boolean' ? stored.notify : memoryNotify;
-  }
-
-  function want(value) {
-    memoryNotify = value;
-    if (known()) { prefs.set('notify', value); return; }
-    try { const stored = saved() ?? {}; stored.notify = value; env.storage()?.setItem(prefsKey, JSON.stringify(stored)); } catch {}
-  }
+  const store = createPrefs(() => env.storage());
+  const wanted = () => store.get('notify') === true;
+  const want = value => { store.set('notify', value); };
 
   function claim(items, now) {
     let list = [];

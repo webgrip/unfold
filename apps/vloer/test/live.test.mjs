@@ -58,6 +58,31 @@ test('one timer runs a view’s refresh on its interval while that view is curre
   assert(env.timers.length <= 1);
 });
 
+test('a hidden job keeps a global refresh going in a background tab, and a refresh that read nothing neither backs off nor claims an update', async () => {
+  const env = fakeEnvironment();
+  const scheduler = createLive(env);
+  const calls = [];
+  scheduler.register('counts', { interval: 60000, scope: 'global', hidden: true, refresh: async () => { calls.push(`counts@${env.clock}`); } });
+  scheduler.register('activity', { interval: 15000, refresh: async () => { calls.push(`activity@${env.clock}`); return false; } });
+  scheduler.start();
+  env.visibleNow = false;
+  scheduler.wake();
+  await env.advance(61000);
+  assert.deepEqual(calls, ['counts@60000'], 'only the hidden job runs while the tab is hidden');
+  env.visibleNow = true;
+  scheduler.wake();
+  await env.advance(heartbeat);
+  assert.deepEqual(calls.slice(1), ['activity@61000']);
+  assert.equal(scheduler.lastUpdated, null, 'a refresh that resolved false is not an update');
+  await env.advance(15000);
+  assert.deepEqual(calls.slice(2), ['activity@76000'], 'nor a failure: the next run keeps the plain interval');
+  scheduler.toggle();
+  env.visibleNow = false;
+  scheduler.wake();
+  await env.advance(120000);
+  assert.equal(calls.length, 3, 'pausing live updates also stops the hidden job');
+});
+
 test('nothing refreshes while the tab is hidden, a dialog is open, nobody is signed in or live updates are paused', async () => {
   for (const block of ['hidden', 'dialog', 'signedOut', 'paused']) {
     const env = fakeEnvironment();

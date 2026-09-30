@@ -165,18 +165,9 @@
   color: var(--text-subtle);
 }
 
-.sessions-list .list-row:focus-visible,
-.sessions-filter .segmented > :focus-visible {
-  outline-offset: var(--focus-ring-inset);
-}
-
 .sessions-list-empty {
   border-style: dashed;
   background: transparent;
-}
-
-.sessions-page .empty-state-body > p {
-  margin: 0;
 }
 
 .sessions-aside {
@@ -308,10 +299,6 @@
     content: none;
   }
 
-  .app-shell[data-area="sessions"] .app-page-actions .kbd-group {
-    display: none;
-  }
-
   .sessions-filter .segmented > .segment {
     padding-inline: var(--space-2);
   }
@@ -386,11 +373,6 @@
 
 .session-choice .field-hint {
   margin: var(--space-0-5) 0 0;
-}
-
-.session-dialog .field-hint,
-.session-dialog .field-error {
-  margin: 0;
 }
 
 .session-dialog-list {

@@ -74,7 +74,7 @@ export const failureReasons = table({
   infra_llm: ['The model gateway failed', 'severe', 'zap', { infra: true, owner: 'the model gateway', action: 'Check the gateway keys, quotas and provider status.', cause: 'The model gateway, not the agent', retries: true, next: 'Check the gateway keys, quotas and provider status.' }],
   agent_error: ['The agent harness failed', 'danger', 'x-circle', { infra: false, owner: 'the agent configuration', action: 'Read the log tail in the Run’s stuck reason.', cause: 'The agent harness exited with an error', retries: false, next: 'Read its log tail. Fix the brief, the model or the harness.' }],
   budget: ['The agent reached its token ceiling', 'danger', 'coins', { infra: false, owner: 'the ticket size or the Role’s cap', action: 'Split the ticket or raise the Role’s cap.', cause: 'The ticket is too big for the Role’s token ceiling', retries: false, next: 'Split the ticket or raise the Role’s cap.' }],
-  lease_lost: ['The worker lost its lease', 'severe', 'zap', { infra: true, owner: 'the cluster', action: 'It retries automatically.', cause: 'Infrastructure, not the agent', retries: true, next: 'If it keeps happening, check the nodes and the network.' }],
+  lease_lost: ['The worker stopped responding', 'severe', 'zap', { infra: true, owner: 'the cluster', action: 'It retries automatically.', cause: 'Infrastructure, not the agent', retries: true, next: 'If it keeps happening, check the nodes and the network.' }],
   timeout: ['The Run timed out', 'danger', 'clock', { infra: false, owner: 'the harness configuration', action: 'Split the ticket or raise the timeout.', cause: 'The harness time limit', retries: false, next: 'Split the ticket or raise the timeout.' }],
 });
 

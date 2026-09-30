@@ -39,21 +39,28 @@ export function ploegStatusFrom(data, error = null) {
   return failed === 0 ? 'connected' : failed >= 3 ? 'unavailable' : 'partial';
 }
 
-/** Calls `listener()` whenever the counts or the Ploeg status change. Returns an unsubscribe function. */
+/**
+ * Calls `listener(data, error)` whenever the counts or the Ploeg status change; `data` is the Now response, null when
+ * it failed, and `error` the failure. Returns an unsubscribe function.
+ */
 export function onCountsChange(listener) { listeners.add(listener); return () => listeners.delete(listener); }
 
 /** Stores the counts and Ploeg status from a Now response (or its error) in `state.counts` and `state.ploegStatus`. */
 export function applyNowCounts(data, error = null) {
   state.counts = { ...(data ? countsFromNow(data) : unknownCounts), sessions: sessionsNeedingYou(state.sessions) };
   state.ploegStatus = ploegStatusFrom(data, error);
-  for (const listener of listeners) { try { listener(); } catch {} }
+  for (const listener of listeners) { try { listener(data, error); } catch {} }
 }
 
-/** Reads `GET /api/ploeg/now` and updates the counts. Errors leave the counts unknown and are rethrown for the scheduler's backoff. */
+/**
+ * Reads `GET /api/ploeg/now` and updates the counts. Errors leave the counts unknown and are rethrown for the
+ * scheduler's backoff. It skips the read while the Now page is on screen, because Now reads the same data itself.
+ */
 export async function refreshCounts() {
   if (!state.bootstrap) return;
+  if (state.view === 'now' && globalThis.document?.visibilityState === 'visible') return;
   try { applyNowCounts(await api('/api/ploeg/now')); }
   catch (error) { if (state.bootstrap) applyNowCounts(null, error); throw error; }
 }
 
-live.register('counts', { interval: 60000, scope: 'global', refresh: refreshCounts });
+live.register('counts', { interval: 60000, scope: 'global', hidden: true, refresh: refreshCounts });

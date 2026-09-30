@@ -124,16 +124,30 @@ async function rejectProposal(data, form) {
   await track('proposed', decide(form.dataset.id, 'reject', reason));
 }
 
-async function enterProposed() {
+function revealProposal(id) {
+  if (!id || !ploegVisible('proposed')) return;
+  const card = document.getElementById(`proposal-${id}-title`)?.closest('.proposal');
+  if (!card) return;
+  const target = document.getElementById(`proposal-approve-${id}`) || card.querySelector('.proposal-title a');
+  card.scrollIntoView({ block: 'center' });
+  target?.focus({ preventScroll: true });
+}
+
+async function enterProposed({ query = {} } = {}) {
   enterPloegView('proposed');
   if (state.ploegTeams === null) void loadPloegTeams();
-  return await loadProposed('reset');
+  await loadProposed('reset');
+  revealProposal(query.id);
 }
 
 onPloegReload('proposed', () => loadProposed(state.ploegProposed.items ? 'refresh' : 'reset'));
 live.register('proposed', { interval: 30000, refresh: liveRefresh('proposed', poll, () => state.ploegProposed.error) });
 
-/** Proposed: Work Items that agents proposed across your Teams, with Approve and Reject for operators and administrators. Refreshes every 30 seconds. */
+/**
+ * Proposed: Work Items that agents proposed across your Teams, with Approve and Reject for operators and
+ * administrators. `#proposed?id=<id>` scrolls to that proposal and focuses its Approve button (or its title for
+ * viewers). Refreshes every 30 seconds.
+ */
 export default {
   id: 'proposed',
   match: hash => hash === 'proposed' ? {} : null,

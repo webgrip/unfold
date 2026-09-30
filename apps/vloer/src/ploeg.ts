@@ -29,7 +29,7 @@ export type PloegProposedPage = { demo: boolean; items: PloegProposedItem[]; tru
 export type PloegNowShift = Pick<PloegShift, 'round' | 'closeReason' | 'budgetUsd' | 'spentUsd' | 'reservedUsd' | 'closedAt'>;
 export type PloegNowItem = Pick<PloegItem, 'id' | 'team' | 'state' | 'title' | 'url' | 'createdAt' | 'updatedAt' | 'provider' | 'externalId' | 'priority' | 'attempts' | 'infraFailures' | 'target'> & { closeReason: string | null; latestShift: PloegNowShift | null; spentUsd: number | null; pullRequestUrl: string } & Partial<Pick<PloegProposedItem, 'sourceWorkItemId' | 'sourceTitle' | 'createdKind' | 'ready'>>;
 export type PloegNowGroup = 'waiting' | 'running' | 'recent';
-export type PloegNow = { demo: boolean; teams: string[]; waiting: PloegNowItem[]; running: PloegRunRow[]; recent: PloegRunRow[]; errors: Partial<Record<PloegNowGroup, string>>; fetchedAt: string };
+export type PloegNow = { demo: boolean; teams: string[]; waiting: PloegNowItem[]; running: PloegRunRow[]; recent: PloegRunRow[]; runningTruncated: boolean; recentTruncated: boolean; errors: Partial<Record<PloegNowGroup, string>>; fetchedAt: string };
 export type PloegDecision = 'approve' | 'reject' | 'cancel';
 export type PloegDecisionResult = { workItemId: string; team: string; state: string; demo: boolean };
 export type PloegCancellation = PloegDecisionResult & { withdrawn: boolean | null; shiftId: string | null; cancelledRuns: number | null; stoppedRuns: number | null; keysBlocked: boolean | null; message: string };
@@ -329,7 +329,10 @@ export class PloegClient {
     }));
     return { demo: this.demo, items: enriched, truncated: pages.some(entry => entry.nextCursor !== null) || enriched.length === 50, fetchedAt: new Date().toISOString() };
   }
-  /** Everything the caller can read, for the Now page: what waits on them, what runs now and what finished recently. */
+  /**
+   * Everything the caller can read, for the Now page: what waits on them, what runs now and what finished recently.
+   * `runningTruncated` and `recentTruncated` say whether Ploeg holds more Runs than the first page lists.
+   */
   async now(user: User, fresh = false): Promise<PloegNow> {
     this.connected(user);
     const teams = await this.teams(user, fresh);
@@ -339,9 +342,10 @@ export class PloegClient {
       catch (error) { errors[group] = error instanceof PloegError ? error.message : 'Ploeg could not be reached.'; return empty; }
     };
     const waiting = await capture('waiting', () => this.waitingItems(user, teams, fresh), [] as PloegNowItem[]);
-    const running = await capture('running', async () => (await this.runs(user, { state: 'running' }, fresh)).runs, [] as PloegRunRow[]);
-    const recent = await capture('recent', async () => (await this.runs(user, { state: 'finished' }, fresh)).runs, [] as PloegRunRow[]);
-    return { demo: this.demo, teams: teams.map(entry => entry.id), waiting, running, recent, errors, fetchedAt: new Date().toISOString() };
+    const page = async (state: 'running' | 'finished') => { const found = await this.runs(user, { state }, fresh); return { runs: found.runs, more: found.nextBefore !== null }; };
+    const running = await capture('running', () => page('running'), { runs: [] as PloegRunRow[], more: false });
+    const recent = await capture('recent', () => page('finished'), { runs: [] as PloegRunRow[], more: false });
+    return { demo: this.demo, teams: teams.map(entry => entry.id), waiting, running: running.runs, recent: recent.runs, runningTruncated: running.more, recentTruncated: recent.more, errors, fetchedAt: new Date().toISOString() };
   }
   private async waitingItems(user: User, teams: PloegTeam[], fresh: boolean): Promise<PloegNowItem[]> {
     const calls: Promise<PloegPresentedPage>[] = [];

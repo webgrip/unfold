@@ -6,6 +6,7 @@
 @import url('/styles/shell.css') layer(shell);
 @import url('/styles/now.css') layer(views);
 @import url('/styles/work.css') layer(views);
+@import url('/styles/feeds.css') layer(views);
 @import url('/styles/proposed.css') layer(views);
 @import url('/styles/runs.css') layer(views);
 @import url('/styles/activity.css') layer(views);

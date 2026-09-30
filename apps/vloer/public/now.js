@@ -2,8 +2,8 @@ import { escape, safeUrl } from './core/dom.js';
 import { icon } from './core/icons.js';
 import * as format from './core/format.js';
 import { runOutcome, verdict as verdictMeta, failureReason, workItemState } from './core/states.js';
-import { listReason, routingWarning } from './core/reasons.js';
-import { badge, button, callout, count, emptyState, kbd, listRow, meter, skeleton, demoNote } from './core/ui.js';
+import { listReason, reasonGlyph, routingWarning } from './core/reasons.js';
+import { badge, button, callout, count, emptyState, iconButton, kbd, listRow, meter, skeleton, stat, demoNote } from './core/ui.js';
 
 /** How long the Now page must be out of sight before the digest starts a new "since" period. */
 export const awayAfter = 30 * 60 * 1000;
@@ -42,27 +42,11 @@ const groups = [
   { id: 'needs', state: 'needs_human', title: 'Needs you', hint: 'Ploeg stopped. Fix the cause, then assign the task to the Team again.', empty: 'Ploeg is not stuck on anything.', tone: 'attention', glyph: 'alert', more: '#work?lane=needs_human', place: 'Work' },
   { id: 'proposed', state: 'proposed', title: 'Proposed', hint: 'Agents found this work. Nothing runs until you approve it.', empty: 'No proposal waits for a decision.', tone: 'neutral', glyph: 'proposed', more: '#proposed', place: 'Proposed' },
 ];
-const reasonGlyphs = {
-  plan_exhausted: 'pull-request',
-  fix_round_cap_reached: 'eye',
-  budget_exhausted: 'coins',
-  budget_exhausted_before_fix_round: 'coins',
-  writing_run_failed_repeatedly: 'x-circle',
-  writing_run_killed_repeatedly: 'zap',
-  run_stuck: 'pause-circle',
-  plan_removed: 'settings',
-  pull_request_closed: 'circle-slash',
-  operator_failed: 'sessions',
-  stale_infrastructure: 'zap',
-  stale_attempts: 'clock',
-  unknown: 'help-circle',
-};
 const origins = { split: 'Split from', clarify: 'Clarifies', discovered: 'Found while working on' };
 const kinds = { split: 'Split from other work.', clarify: 'Asks to clarify other work.', discovered: 'Found along the way.' };
 const infrastructure = new Set(['writing_run_killed_repeatedly', 'stale_infrastructure']);
 const amount = value => typeof value === 'number' && Number.isFinite(value);
 const moment = value => { const time = typeof value === 'number' ? value : Date.parse(value ?? ''); return Number.isFinite(time) ? time : null; };
-const tidy = text => String(text ?? '').replace(/([.!?])”\.$/, '$1”');
 const after = (value, since) => since !== null && moment(value) !== null && moment(value) > since;
 const retryButton = id => `<button type="button" class="button secondary sm" id="now-retry-${id}" data-action="now-retry">${icon('refresh')}<span class="button-label">Try again</span></button>`;
 const showNew = (group, text) => `<button type="button" class="now-new" id="now-show-new-${group}" data-action="now-show-new">${icon('refresh')}<span>${escape(text)} · Show</span></button>`;
@@ -89,10 +73,7 @@ function elapsedTag(started, now) {
   return `<time class="num" datetime="${iso}" title="${escape(`Started ${format.dateTime(started)}`)}">${escape(format.duration(seconds))}</time>`;
 }
 
-/** The glyph that tells one Needs-you reason from another at a glance; stale reasons keep the stopped-retrying clock. */
-export function reasonGlyph(reason) {
-  return reasonGlyphs[reason?.code] || reason?.glyph || 'alert';
-}
+export { reasonGlyph };
 
 /**
  * The baseline of the "Since you were away" digest. The first arrival in a browser tab starts from the last
@@ -254,9 +235,9 @@ function whyLine(entry, reason, warning, grouped) {
   let fix = '';
   let full = '';
   if (reason) {
-    sentence = grouped === 'shared' ? '' : tidy(reason.sentence);
+    sentence = grouped === 'shared' ? '' : reason.sentence;
     fix = grouped ? '' : reason.fix;
-    full = [tidy(reason.sentence), reason.action, warning?.sentence].filter(Boolean).join(' ');
+    full = [reason.sentence, reason.action, warning?.sentence].filter(Boolean).join(' ');
   } else if (entry.state === 'proposed') {
     sentence = [origin(entry), warning?.sentence].filter(Boolean).join(' ');
     full = sentence;
@@ -268,9 +249,9 @@ function whyLine(entry, reason, warning, grouped) {
   return `<span class="now-why" title="${escape(full)}">${escape(sentence)}${fix ? ` <span class="now-why-fix">${escape(fix)}</span>` : ''}</span>`;
 }
 
-function waitingMeta(entry, context, { reason, warning, grouped, unread }) {
+function waitingMeta(entry, context, { reason, warning, grouped }) {
   const chips = [];
-  if (reason && !grouped) chips.push(chipMarkup({ label: reason.chip, tone: reason.tone, title: `${tidy(reason.sentence)} ${reason.action}` }));
+  if (reason && !grouped) chips.push(chipMarkup({ label: reason.chip, tone: reason.tone, title: `${reason.sentence} ${reason.action}` }));
   if (entry.state === 'proposed' && entry.ready === false) chips.push(chipMarkup({ label: 'Needs refinement', tone: 'attention', title: 'Not Ready yet: the brief needs refining before an agent can pick it up.' }));
   if (warning) chips.push(chipMarkup({ label: warning.chip, tone: warning.tone, glyph: warning.glyph, title: warning.sentence, secondary: true }));
   const review = entry.state === 'awaiting_review' ? latestVerdict(entry, context.runs) : null;
@@ -278,12 +259,11 @@ function waitingMeta(entry, context, { reason, warning, grouped, unread }) {
   const round = entry.state !== 'proposed' && entry.latestShift?.round ? { class: 'now-round', html: `Round ${escape(entry.latestShift.round)}` } : null;
   const spend = entry.state === 'awaiting_review' ? shiftSpend(entry, context.demo) : '';
   const facts = joinDots([escape(entry.team), reference(entry), entry.state === 'proposed' ? null : repository(entry.target), round, spend]);
-  const fresh = unread ? '<span class="sr-only">New since your last visit.</span>' : '';
-  return `${verdict}${chips.join('')}${facts}${whyLine(entry, reason, warning, grouped)}${fresh}`;
+  return `${verdict}${chips.join('')}${facts}${whyLine(entry, reason, warning, grouped)}`;
 }
 
 function linkIcon(id, href, glyph, label) {
-  return `<a class="button ghost sm icon-only" id="${escape(id)}" href="${escape(href)}" target="_blank" rel="noopener noreferrer" aria-label="${escape(`${label} (opens in a new tab)`)}" title="${escape(label)}">${icon(glyph)}</a>`;
+  return iconButton({ id, icon: glyph, label, href, external: true, size: 'sm' });
 }
 
 function waitingActions(entry, context, reason) {
@@ -301,7 +281,7 @@ function waitingActions(entry, context, reason) {
 }
 
 function waitingRow(entry, context, grouped = false) {
-  const reason = listReason(entry);
+  const reason = listReason(entry, { demo: context.demo });
   const warning = routingWarning(entry);
   const meta = workItemState(entry.state);
   const target = openTarget(entry);
@@ -314,7 +294,7 @@ function waitingRow(entry, context, grouped = false) {
     tone: reason?.tone || meta.tone,
     lead: grouped ? '<span class="now-lead-blank"></span>' : icon(reason ? reasonGlyph(reason) : meta.glyph),
     title: entry.title || `Work Item ${entry.id}`,
-    meta: waitingMeta(entry, context, { reason, warning, grouped, unread }),
+    meta: waitingMeta(entry, context, { reason, warning, grouped }),
     trail: when ? `<span class="now-when"><span class="now-when-label">${created ? 'Created' : 'Updated'} </span>${format.timeHtml(when, { now: context.now })}</span>` : '',
     data: { nowRow: true, openUrl: target?.href, openLabel: target?.label, unread: unread || null },
   });
@@ -366,9 +346,10 @@ function subgroupsMarkup(buckets, group, context) {
     const id = `now-reason-${reason ? reason.code : 'other'}`;
     const shown = rows.slice(0, subgroupLimit);
     const hidden = rows.length - shown.length;
-    const shared = reason && rows.every(entry => listReason(entry)?.sentence === listReason(rows[0])?.sentence);
+    const sentenceOf = entry => listReason(entry, { demo: context.demo })?.sentence;
+    const shared = reason && rows.every(entry => sentenceOf(entry) === sentenceOf(rows[0]));
     const label = reason ? chipMarkup({ label: reason.chip, tone: reason.tone }) : '<span class="now-subgroup-name">Other reasons</span>';
-    const note = reason ? `<p class="now-subgroup-note">${shared ? `${escape(tidy(listReason(rows[0]).sentence))} ` : ''}<span class="now-why-fix">${escape(reason.fix)}</span></p>` : '';
+    const note = reason ? `<p class="now-subgroup-note">${shared ? `${escape(sentenceOf(rows[0]))} ` : ''}<span class="now-why-fix">${escape(reason.fix)}</span></p>` : '';
     const more = hidden > 0 ? `<a class="now-subgroup-more" href="${escape(group.more)}">${escape(`${format.count(hidden)} more in ${group.place}`)}${icon('chevron')}</a>` : '';
     const header = `<header class="now-subgroup-header" data-tone="${reason ? reason.tone : group.tone}"><h4 class="now-subgroup-title" id="${id}"><span class="now-subgroup-glyph" aria-hidden="true">${icon(reason ? reasonGlyph(reason) : 'more')}</span>${label}${count(rows.length)}</h4>${note}${more}</header>`;
     return `<section class="now-subgroup" aria-labelledby="${id}">${header}<ul class="list now-list" aria-labelledby="${id}">${shown.map(entry => waitingRow(entry, context, reason ? (shared ? 'shared' : 'grouped') : false)).join('')}</ul></section>`;
@@ -408,7 +389,7 @@ function runningRow(run, context) {
   const models = run.reservedModels?.length ? run.reservedModels : run.usage?.models || [];
   const started = moment(run.startedAt);
   const facts = joinDots([escape(run.team), run.role ? escape(run.role) : '', run.round ? `Round ${escape(run.round)}` : '', models.length ? escape(models.join(', ')) : '']);
-  const spend = meter({ settled: run.observedUsd, authorized: run.authorizedUsd, demo: context.demo, label: '', size: 'sm' });
+  const spend = meter({ settled: run.observedUsd, authorized: run.authorizedUsd, demo: context.demo, label: '', size: 'sm', observed: true });
   const elapsed = started === null ? '<span class="now-when">Not started</span>' : elapsedTag(started, context.now);
   return `<li><a class="list-row now-run" href="#work/${escape(run.workItemId)}" id="now-row-r-${escape(run.id)}" data-tone="live" data-now-row><span class="list-row-lead"><span class="live-dot" aria-hidden="true"></span></span><div class="list-row-main"><span class="list-row-title">${escape(run.workItemTitle || `Work Item ${run.workItemId}`)}</span><span class="list-row-meta">${facts}</span><div class="now-run-meter">${spend}</div></div><span class="list-row-trail num">${elapsed}</span></a></li>`;
 }
@@ -442,8 +423,7 @@ function recentRow(run, context) {
     run.round ? `Round ${escape(run.round)}` : '',
   ]);
   const agentReview = verdict ? badge({ tone: verdict.tone, glyph: verdict.glyph, label: verdict.label, size: 'sm' }) : '';
-  const fresh = unread ? '<span class="sr-only">New since your last visit.</span>' : '';
-  return `<li>${listRow({ href: `#work/${run.workItemId}`, id: `now-row-f-${run.id}`, tone, lead: icon(outcome?.glyph || 'circle-slash'), title: run.workItemTitle || `Work Item ${run.workItemId}`, meta: `${agentReview}${facts}${fresh}`, trail: format.timeHtml(run.finishedAt, { now: context.now }), data: { nowRow: true, unread: unread || null } })}</li>`;
+  return `<li>${listRow({ href: `#work/${run.workItemId}`, id: `now-row-f-${run.id}`, tone, lead: icon(outcome?.glyph || 'circle-slash'), title: run.workItemTitle || `Work Item ${run.workItemId}`, meta: `${agentReview}${facts}`, trail: format.timeHtml(run.finishedAt, { now: context.now }), data: { nowRow: true, unread: unread || null } })}</li>`;
 }
 
 function recentCard(view, visible, held, context) {
@@ -494,8 +474,7 @@ function digestMarkup(view, since, now) {
 }
 
 function tile({ label, glyph, tone, value, detail, href, quiet = false }) {
-  const inner = `<span class="stat-label">${icon(glyph)}${escape(label)}</span><strong class="stat-value"${quiet ? ' data-quiet' : ''}>${escape(value)}</strong><span class="stat-detail">${detail}</span>`;
-  return href ? `<a class="stat now-stat" href="${escape(href)}" data-tone="${tone}">${inner}<span class="now-stat-go" aria-hidden="true">${icon('chevron')}</span></a>` : `<div class="stat now-stat" data-tone="${tone}">${inner}</div>`;
+  return stat({ label, icon: glyph, tone, value, detailHtml: detail, href, quiet, className: 'now-stat' });
 }
 
 function statsMarkup(view) {

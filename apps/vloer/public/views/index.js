@@ -2,7 +2,6 @@ import login from './login.js';
 import session from './session.js';
 import now from './now.js';
 import sessions from './sessions.js';
-import compare from './compare.js';
 import tasks from './tasks.js';
 import work from './work.js';
 import proposed from './proposed.js';
@@ -19,4 +18,4 @@ import design from './design.js';
 import { chrome } from '../shell.js';
 
 /** Every view descriptor. The order is the dispatch order for key bindings and page loaders. */
-export const views = [login, session, now, sessions, compare, tasks, work, proposed, runs, activity, insights, ploegFeeds, account, system, preferences, palette, chrome, dialogs, design];
+export const views = [login, session, now, sessions, tasks, work, proposed, runs, activity, insights, ploegFeeds, account, system, preferences, palette, chrome, dialogs, design];

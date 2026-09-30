@@ -54,7 +54,7 @@ export async function run({ page, app, assert, screenshot }) {
   assert.equal(imported.budgetUsd, 3.25);
   assert.equal(imported.sourceTask.sourceId, 'demo-tasks');
   assert.equal(imported.sourceTask.id, '1');
-  await page.getByRole('link', { name: 'Open original task', exact: true }).waitFor();
+  await page.getByRole('link', { name: 'Open original task (opens in a new tab)', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Start crew', exact: true }).click();
   await page.getByText('Your review is next.', { exact: true }).waitFor({ timeout: 25000 });
   await page.getByText('Repository snapshot saved', { exact: true }).waitFor();

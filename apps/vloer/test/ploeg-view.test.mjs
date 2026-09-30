@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activePloegLane, appendPage, cancelDialogMarkup, cancelSummary, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runGroups, runOrder, runResult, teamOverview, usd2, workItemRef, workMarkup } from '../public/ploeg.js';
+import { activePloegLane, appendPage, cancelDialogMarkup, cancelSummary, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runGroups, runOrder, runResult, teamOverview, workItemRef, workMarkup } from '../public/ploeg.js';
 import { detailReason } from '../public/core/reasons.js';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 
@@ -218,7 +218,6 @@ test('a ready-for-review item gets an evidence receipt, a checklist that is neve
   assert.match(html, /<dt>Merge<\/dt><dd>Ploeg marks the Work Item Done\.<\/dd>[^]*<dt>Request changes<\/dt>[^]*<dt>Close without merging<\/dt><dd>The Work Item comes back to you as Needs you\.<\/dd>/);
   assert.match(html, new RegExp(`<strong class="meter-value">US\\$${space}1,23</strong>`), 'money in nl-NL with two decimals');
   assert.doesNotMatch(html, /<form|style=/);
-  assert.equal(usd2(0), '$0.00');
 });
 
 test('a needs-you item explains why with Ploeg’s own words, the evidence Runs and what to do in the tracker', () => {

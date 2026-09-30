@@ -500,6 +500,7 @@ test('the Now projection lists waiting work, running Runs and recent Runs across
   assert.equal(now.running[0].observedUsd, null, 'an unobserved Run reports null, never zero');
   assert.deepEqual(now.running[0].reservedModels, []);
   assert.deepEqual(now.recent.map(run => run.id), ['31', '30']);
+  assert.deepEqual([now.runningTruncated, now.recentTruncated], [false, false], 'a page without a cursor is the whole list');
   assert.deepEqual(now.errors, {});
 });
 
@@ -549,6 +550,7 @@ test('a Ploeg group that fails reports an error and never masquerades as an empt
   assert.deepEqual(now.recent, []);
   assert.match(now.errors.running ?? '', /Ploeg could not provide/);
   assert.match(now.errors.recent ?? '', /Ploeg could not provide/);
+  assert.deepEqual([now.runningTruncated, now.recentTruncated], [false, false], 'a failed group never claims more Runs');
   assert.equal(now.errors.waiting, undefined, 'a healthy group carries no error');
   assert.deepEqual(now.waiting.map(entry => entry.id), ['105', '111', '101', '112', '109', '108', '110', '107', '106'], 'the healthy groups still return their work');
 });
@@ -583,5 +585,7 @@ test('the demo Now projection names its limitation and never invents model calls
   assert(now.body.waiting.every((entry: { latestShift: { spentUsd: number; reservedUsd: number } | null }) => !entry.latestShift || (entry.latestShift.spentUsd === 0 && entry.latestShift.reservedUsd === 0)));
   assert(now.body.running.every((run: { observedUsd: number | null; reservedModels: string[]; usage: unknown }) => run.observedUsd === null && run.reservedModels.length === 0 && run.usage === null));
   assert(now.body.recent.every((run: { settledUsd: number | null; startedAt: string | null }) => run.settledUsd === 0 || (run.settledUsd === null && run.startedAt === null)), 'a finished demo Run settles zero; one that never started reports no settlement');
+  assert.equal(now.body.recentTruncated, true, 'the demo holds more finished Runs than its first page');
+  assert.equal(now.body.runningTruncated, false);
   assert.deepEqual(now.body.errors, {});
 });

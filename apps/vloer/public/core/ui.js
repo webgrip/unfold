@@ -106,26 +106,31 @@ function timeElement(iso, display) {
  * @param {string} [options.id]
  * @param {string} [options.ariaLabel]
  * @param {string} [options.title]
+ * @param {string} [options.value] The `value` of a submit button, for example inside `<form method="dialog">`.
+ * @param {boolean} [options.autofocus] Takes the focus when its dialog opens.
  * @returns {string}
  */
-export function button({ label = '', icon: glyph, variant = 'secondary', size = 'md', action, data = {}, href, external = false, disabled = false, busy = false, kbd: keys, type = 'button', id, ariaLabel, title } = {}) {
-  const classes = ['button', variants.has(variant) ? variant : 'secondary', sizes.has(size) && size !== 'md' ? size : '', !present(label) && glyph ? 'icon-only' : ''].filter(Boolean).join(' ');
+export function button({ label = '', icon: glyph, variant = 'secondary', size = 'md', action, data = {}, href, external = false, disabled = false, busy = false, kbd: keys, type = 'button', id, ariaLabel, title, value, autofocus = false } = {}) {
+  const labelled = present(label);
+  const classes = ['button', variants.has(variant) ? variant : 'secondary', sizes.has(size) && size !== 'md' ? size : '', !labelled && glyph ? 'icon-only' : ''].filter(Boolean).join(' ');
   const lead = busy ? '<span class="spinner" aria-hidden="true"></span>' : glyph ? icon(glyph) : '';
   const hint = present(keys) ? kbd(keys).replace('<span class="kbd-group"', '<span class="kbd-group" aria-hidden="true"') : '';
-  const common = `${idAttr(id)}${attr('aria-label', ariaLabel)}${attr('title', title)}${actionAttrs(action, data)}`;
+  const opensTab = present(href) && external && !labelled && present(ariaLabel);
+  const common = `${idAttr(id)}${attr('aria-label', opensTab ? `${ariaLabel} (opens in a new tab)` : ariaLabel)}${attr('title', title)}${actionAttrs(action, data)}`;
   if (present(href)) {
     const target = linkTarget(href, external);
-    const inner = `${lead}${present(label) ? `<span class="button-label">${escape(label)}</span>` : ''}${hint}${external && target ? `${icon('external', 'button-external')}${newTab}` : ''}`;
+    const inner = `${lead}${labelled ? `<span class="button-label">${escape(label)}</span>` : ''}${hint}${external && target && labelled ? `${icon('external', 'button-external')}${newTab}` : ''}`;
     if (!target || disabled) return `<a class="${classes}" role="link" aria-disabled="true"${common}>${inner}</a>`;
     return `<a class="${classes}" href="${escape(target)}"${externalAttrs(external)}${common}>${inner}</a>`;
   }
-  const inner = `${lead}${present(label) ? `<span class="button-label">${escape(label)}</span>` : ''}${hint}`;
+  const inner = `${lead}${labelled ? `<span class="button-label">${escape(label)}</span>` : ''}${hint}`;
   const safeType = ['button', 'submit', 'reset'].includes(type) ? type : 'button';
-  return `<button type="${safeType}" class="${classes}"${common}${disabled || busy ? ' disabled' : ''}${busy ? ' aria-busy="true"' : ''}>${inner}</button>`;
+  return `<button type="${safeType}" class="${classes}"${common}${attr('value', value)}${autofocus ? ' autofocus' : ''}${disabled || busy ? ' disabled' : ''}${busy ? ' aria-busy="true"' : ''}>${inner}</button>`;
 }
 
 /**
- * A square button that shows only a glyph; `label` becomes its accessible name and tooltip.
+ * A square button that shows only a glyph; `label` becomes its accessible name and tooltip. With `external`, the
+ * accessible name also says that the link opens in a new tab.
  * @param {object} options
  * @param {string} options.icon Glyph name.
  * @param {string} options.label Accessible name (escaped).
@@ -277,10 +282,11 @@ export function pageHeader({ overline, title = '', subtitle, actions, meta } = {
  * @param {string|string[]} [options.actions] HTML.
  * @param {boolean} [options.compact]
  * @param {'neutral'|'live'|'attention'|'review'|'success'|'danger'|'severe'|'accent'} [options.tone] `success` for all-clear, `danger` for errors.
+ * @param {{ icon?: (name: string) => string }} [render] Glyph renderer; defaults to core/icons.js.
  * @returns {string}
  */
-export function emptyState({ icon: glyph = 'inbox', title = '', body, actions, compact = false, tone } = {}) {
-  return `<div class="empty-state${compact ? ' compact' : ''}"${toneAttr(tone)}><span class="empty-state-icon" aria-hidden="true">${icon(glyph)}</span><p class="empty-state-title">${escape(title)}</p>${present(html(body)) ? `<div class="empty-state-body">${html(body)}</div>` : ''}${present(html(actions)) ? `<div class="empty-state-actions">${html(actions)}</div>` : ''}</div>`;
+export function emptyState({ icon: glyph = 'inbox', title = '', body, actions, compact = false, tone } = {}, { icon: draw = icon } = {}) {
+  return `<div class="empty-state${compact ? ' compact' : ''}"${toneAttr(tone)}><span class="empty-state-icon" aria-hidden="true">${draw(glyph)}</span><p class="empty-state-title">${escape(title)}</p>${present(html(body)) ? `<div class="empty-state-body">${html(body)}</div>` : ''}${present(html(actions)) ? `<div class="empty-state-actions">${html(actions)}</div>` : ''}</div>`;
 }
 
 /**
@@ -329,10 +335,12 @@ export function callout({ tone = 'neutral', icon: glyph, title, body, actions } 
  * @param {number|null} [options.authorized] US dollars authorized.
  * @param {boolean} [options.demo]
  * @param {string} [options.label] Caption before the amount; defaults to "Spend". Pass '' for none.
- * @param {'sm'|'md'|'lg'} [options.size]
+ * @param {'sm'|'md'|'lg'} [options.size] `sm` leaves the percentage out of sight (it stays in the accessible
+ *   value) and keeps only an over-budget amount at the end.
+ * @param {boolean} [options.observed] The amount is observed so far rather than settled, for a running Run.
  * @returns {string}
  */
-export function meter({ settled, reserved, authorized, demo = false, label = 'Spend', size } = {}) {
+export function meter({ settled, reserved, authorized, demo = false, label = 'Spend', size, observed = false } = {}) {
   const spent = amount(settled);
   const held = amount(reserved) ?? 0;
   const budget = amount(authorized);
@@ -340,11 +348,12 @@ export function meter({ settled, reserved, authorized, demo = false, label = 'Sp
   const caption = present(label) ? `<span class="meter-caption">${escape(label)}</span> ` : '';
   const bar = rects => `<svg class="meter-bar" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true" focusable="false"><rect class="meter-track" width="100" height="6"/>${rects}</svg>`;
   const budgetText = budget ? `of ${escape(moneyText(budget))}` : 'no budget reported';
+  const small = size === 'sm';
   if (demo) {
     return `<div class="${classes}" data-demo><div class="meter-label"><span class="meter-text">${caption}<span class="meter-value">Demo · no model calls</span></span>${budget ? `<span class="meter-end">${escape(moneyText(budget))} authorized</span>` : ''}</div>${bar('')}</div>`;
   }
   if (spent === null) {
-    return `<div class="${classes}" data-unknown><div class="meter-label"><span class="meter-text">${caption}<span class="meter-value">Not reported</span></span><span class="meter-end">${budgetText}</span></div>${bar('')}</div>`;
+    return `<div class="${classes}" data-unknown><div class="meter-label"><span class="meter-text">${caption}<span class="meter-value">Not reported</span>${budget ? ` <span class="meter-of">${budgetText}</span>` : ''}</span></div>${bar('')}</div>`;
   }
   if (!budget) {
     return `<div class="${classes}" data-unknown="budget"><div class="meter-label"><span class="meter-text">${caption}<strong class="meter-value">${escape(moneyText(spent))}</strong></span><span class="meter-end">${budgetText}</span></div>${bar('')}</div>`;
@@ -354,27 +363,35 @@ export function meter({ settled, reserved, authorized, demo = false, label = 'Sp
   const over = spent > budget;
   const level = over ? 'over' : (spent + held) / budget >= 0.8 - 1e-9 ? 'warn' : '';
   const reservedText = held > 0 ? `, ${moneyText(held)} reserved` : '';
-  const valueText = `${moneyText(spent)} settled of ${moneyText(budget)} authorized${reservedText}${over ? `, ${moneyText(round2(spent - budget))} over budget` : ''}`;
-  const end = over ? `${escape(moneyText(round2(spent - budget)))} over` : `${Math.round(spent / budget * 100)}%`;
+  const valueText = `${moneyText(spent)} ${observed ? 'observed so far' : 'settled'} of ${moneyText(budget)} authorized${reservedText}${over ? `, ${moneyText(round2(spent - budget))} over budget` : ''}`;
+  const end = over ? `${escape(moneyText(round2(spent - budget)))} over` : small ? '' : `${Math.round(spent / budget * 100)}%`;
   const rects = `${settledWidth > 0 ? `<rect class="meter-settled" width="${settledWidth}" height="6"/>` : ''}${reservedWidth > 0 ? `<rect class="meter-reserved" x="${settledWidth}" width="${reservedWidth}" height="6"/>` : ''}`;
-  return `<div class="${classes}"${level ? ` data-level="${level}"` : ''} role="meter" aria-label="${escape(present(label) ? label : 'Spend')}" aria-valuemin="0" aria-valuemax="${budget}" aria-valuenow="${Math.min(spent, budget)}" aria-valuetext="${escape(valueText)}"><div class="meter-label"><span class="meter-text">${caption}<strong class="meter-value">${escape(moneyText(spent))}</strong> <span class="meter-of">of ${escape(moneyText(budget))}${held > 0 ? ` · ${escape(moneyText(held))} reserved` : ''}</span></span><span class="meter-end">${end}</span></div>${bar(rects)}</div>`;
+  return `<div class="${classes}"${level ? ` data-level="${level}"` : ''} role="meter" aria-label="${escape(present(label) ? label : 'Spend')}" aria-valuemin="0" aria-valuemax="${budget}" aria-valuenow="${Math.min(spent, budget)}" aria-valuetext="${escape(valueText)}"><div class="meter-label"><span class="meter-text">${caption}<strong class="meter-value">${escape(moneyText(spent))}</strong> <span class="meter-of">of ${escape(moneyText(budget))}${held > 0 ? ` · ${escape(moneyText(held))} reserved` : ''}</span></span>${end ? `<span class="meter-end">${end}</span>` : ''}</div>${bar(rects)}</div>`;
 }
 
 /**
- * A stat tile that summarises one number and, with `href`, links to the list behind it. Text params are escaped.
+ * A stat tile that summarises one number and, with `href`, links to the list behind it; a linked tile shows a
+ * chevron so it reads differently from a summary tile. Text params are escaped.
  * @param {object} options
  * @param {string} options.label
  * @param {string|number} options.value Already formatted, for example `money(12.4)`.
  * @param {string} [options.detail]
+ * @param {string} [options.detailHtml] Markup instead of `detail`; the caller escapes it.
  * @param {string} [options.href] In-app link.
  * @param {'neutral'|'live'|'attention'|'review'|'success'|'danger'|'severe'|'accent'} [options.tone] Colours the label glyph.
  * @param {string} [options.icon] Glyph before the label.
+ * @param {boolean} [options.quiet] Mutes the value, for a dash or a placeholder rather than a number.
+ * @param {boolean} [options.text] Sets a word value (for example "Not reported") smaller than a number.
+ * @param {string} [options.className] Extra classes on the tile.
+ * @param {{ icon?: (name: string) => string }} [render] Glyph renderer; defaults to core/icons.js.
  * @returns {string}
  */
-export function stat({ label = '', value = '', detail, href, tone, icon: glyph } = {}) {
-  const inner = `<span class="stat-label">${glyph ? icon(glyph) : ''}${escape(label)}</span><strong class="stat-value">${escape(value)}</strong>${present(detail) ? `<span class="stat-detail">${escape(detail)}</span>` : ''}`;
+export function stat({ label = '', value = '', detail, detailHtml, href, tone, icon: glyph, quiet = false, text = false, className } = {}, { icon: draw = icon } = {}) {
+  const extra = present(detailHtml) ? html(detailHtml) : present(detail) ? escape(detail) : '';
+  const inner = `<span class="stat-label">${glyph ? draw(glyph) : ''}${escape(label)}</span><strong class="stat-value${text ? ' is-text' : ''}"${quiet ? ' data-quiet' : ''}>${escape(value)}</strong>${extra ? `<span class="stat-detail">${extra}</span>` : ''}`;
   const target = linkTarget(href, false);
-  return target ? `<a class="stat" href="${escape(target)}"${toneAttr(tone)}>${inner}</a>` : `<div class="stat"${toneAttr(tone)}>${inner}</div>`;
+  const classes = `stat${present(className) ? ` ${escape(className)}` : ''}`;
+  return target ? `<a class="${classes}" href="${escape(target)}"${toneAttr(tone)}>${inner}<span class="stat-go" aria-hidden="true">${draw('chevron')}</span></a>` : `<div class="${classes}"${toneAttr(tone)}>${inner}</div>`;
 }
 
 /**
@@ -484,15 +501,20 @@ export function dl(pairs = [], { rows = false } = {}) {
  * @param {string} [options.empty] HTML.
  * @param {boolean} [options.compact]
  * @param {boolean} [options.contained] Scrolls vertically inside the region so the header stays in view.
+ * @param {boolean} [options.rowHeader] Renders the first column as row headers (`<th scope="row">`).
+ * @param {boolean} [options.region] Makes a captioned table a focusable scroll region; defaults to true. Pass false
+ *   when the table never scrolls sideways, so it adds no tab stop.
+ * @param {string} [options.className] Extra classes on the wrapper.
  * @returns {string}
  */
-export function table({ caption = '', columns = [], rows = [], empty, compact = false, contained = false } = {}) {
+export function table({ caption = '', columns = [], rows = [], empty, compact = false, contained = false, rowHeader = false, region: scrolls = true, className } = {}) {
   const head = columns.map(column => `<th scope="col"${column.numeric ? ' class="num"' : ''}>${escape(column.label)}</th>`).join('');
+  const cell = (column, index, value) => rowHeader && index === 0 ? `<th scope="row"${column.numeric ? ' class="num"' : ''}>${value}</th>` : `<td${column.numeric ? ' class="num"' : ''}>${value}</td>`;
   const body = rows.length
-    ? rows.map(row => `<tr>${columns.map(column => `<td${column.numeric ? ' class="num"' : ''}>${html(row?.[column.key])}</td>`).join('')}</tr>`).join('')
+    ? rows.map(row => `<tr>${columns.map((column, index) => cell(column, index, html(row?.[column.key]))).join('')}</tr>`).join('')
     : `<tr><td class="table-empty" colspan="${Math.max(1, columns.length)}">${present(html(empty)) ? html(empty) : 'Nothing to show.'}</td></tr>`;
-  const region = present(caption) ? ` role="region" tabindex="0" aria-label="${escape(caption)}"` : '';
-  return `<div class="table-wrap${contained ? ' contained' : ''}"${region}><table class="table${compact ? ' compact' : ''}">${present(caption) ? `<caption class="sr-only">${escape(caption)}</caption>` : ''}<thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  const region = present(caption) && scrolls ? ` role="region" tabindex="0" aria-label="${escape(caption)}"` : '';
+  return `<div class="table-wrap${contained ? ' contained' : ''}${present(className) ? ` ${escape(className)}` : ''}"${region}><table class="table${compact ? ' compact' : ''}">${present(caption) ? `<caption class="sr-only">${escape(caption)}</caption>` : ''}<thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 /**
@@ -536,7 +558,7 @@ export function toolbar(markup) {
 /**
  * A list row: a link with `href`, a button with `action`, otherwise a plain row. `title` is text; `lead`
  * (status glyph), `meta` (second line) and `trail` (time, chips) are HTML. `selected` sets `aria-current="true"`.
- * Pass `data: { unread: true }` for the unread dot.
+ * Pass `data: { unread: true }` for the unread dot; the row then also says "New since your last visit." to screen readers.
  * @param {object} options
  * @param {string} [options.href]
  * @param {string} [options.action]
@@ -551,7 +573,9 @@ export function toolbar(markup) {
  * @returns {string}
  */
 export function listRow({ href, action, data, selected = false, lead, title = '', meta, trail, id, tone } = {}) {
-  const inner = `<span class="list-row-lead">${html(lead)}</span><span class="list-row-main"><span class="list-row-title">${escape(title)}</span>${present(html(meta)) ? `<span class="list-row-meta">${html(meta)}</span>` : ''}</span><span class="list-row-trail">${html(trail)}</span>`;
+  const note = data?.unread ? '<span class="sr-only">New since your last visit.</span>' : '';
+  const facts = `${html(meta)}${note}`;
+  const inner = `<span class="list-row-lead">${html(lead)}</span><span class="list-row-main"><span class="list-row-title">${escape(title)}</span>${present(facts) ? `<span class="list-row-meta">${facts}</span>` : ''}</span><span class="list-row-trail">${html(trail)}</span>`;
   const common = `${idAttr(id)}${selected ? ' aria-current="true"' : ''}${toneAttr(tone)}`;
   const target = linkTarget(href, false);
   if (target) return `<a class="list-row" href="${escape(target)}"${common}${actionAttrs(action, data)}>${inner}</a>`;

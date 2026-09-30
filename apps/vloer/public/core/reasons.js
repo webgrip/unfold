@@ -157,8 +157,29 @@ function sentenceFor(code, text, item, demo) {
     if (role) return `The ${role} reported that it cannot finish${round ? ` in Round ${round}` : ''} without a person.`;
   }
   if (code === 'writing_run_killed_repeatedly' && number(item.infraFailures) && item.infraFailures > 0) return `Not the Work Item’s fault: the cluster stopped the writer ${item.infraFailures} ${item.infraFailures === 1 ? 'time' : 'times'} before it could finish, so the work was never really tried.`;
-  if (code === 'unknown' && text) return `Ploeg recorded: “${text}”.`;
+  if (code === 'unknown' && text) return /[.!?]$/.test(text) ? `Ploeg recorded: “${text}”` : `Ploeg recorded: “${text}”.`;
   return copy[code].sentence;
+}
+
+const reasonGlyphs = Object.freeze({
+  plan_exhausted: 'pull-request',
+  fix_round_cap_reached: 'eye',
+  budget_exhausted: 'coins',
+  budget_exhausted_before_fix_round: 'coins',
+  writing_run_failed_repeatedly: 'x-circle',
+  writing_run_killed_repeatedly: 'zap',
+  run_stuck: 'pause-circle',
+  plan_removed: 'settings',
+  pull_request_closed: 'circle-slash',
+  operator_failed: 'sessions',
+  stale_infrastructure: 'zap',
+  stale_attempts: 'clock',
+  unknown: 'help-circle',
+});
+
+/** The glyph that tells one reason from another at a glance: by `code`, else the reason's own glyph, else `alert`. */
+export function reasonGlyph(reason) {
+  return reasonGlyphs[reason?.code] || reason?.glyph || 'alert';
 }
 
 function build(code, item, text = '', demo = false) {
@@ -173,7 +194,7 @@ function build(code, item, text = '', demo = false) {
     action: `${entry.fix} ${requeue}`,
     trackerUrl: typeof item.url === 'string' ? item.url : '',
     tone: code.startsWith('stale_') ? 'severe' : 'attention',
-    glyph: code.startsWith('stale_') ? 'clock' : 'alert',
+    glyph: reasonGlyphs[code] || 'alert',
   };
 }
 

@@ -26,10 +26,6 @@
   height: auto;
 }
 
-.signin-mark-v {
-  stroke: var(--peil);
-}
-
 .signin-brand-copy {
   display: grid;
   align-content: center;

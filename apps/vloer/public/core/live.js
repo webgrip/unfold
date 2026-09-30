@@ -9,8 +9,8 @@ export const maxBackoff = 5 * 60 * 1000;
 /**
  * Creates the one live-update scheduler. `env` supplies the clock and timers (`now`, `setTimeout`,
  * `clearTimeout`) and the conditions (`visible`, `signedIn`, `blocked` for an open dialog, `currentView`,
- * `paused`, `setPaused`). A job runs only while the tab is visible, someone is signed in, no dialog is open,
- * live updates are on, and its view is current (or it is `scope: 'global'`). A failing job backs off
+ * `paused`, `setPaused`). A job runs only while the tab is visible (or the job is `hidden`), someone is signed in,
+ * no dialog is open, live updates are on, and its view is current (or it is `scope: 'global'`). A failing job backs off
  * exponentially, from its interval up to five minutes. One timer serves every job.
  */
 export function createLive(env) {
@@ -22,12 +22,12 @@ export function createLive(env) {
   let updatedView = null;
   const record = view => { lastUpdated = env.now(); updatedView = view; };
   const notify = () => { for (const listener of listeners) { try { listener(); } catch {} } };
-  const eligible = job => !job.running && env.visible() && env.signedIn() && !env.paused() && !env.blocked() && (job.scope === 'global' || env.currentView() === job.id);
+  const eligible = job => !job.running && (env.visible() || job.hidden) && env.signedIn() && !env.paused() && !env.blocked() && (job.scope === 'global' || env.currentView() === job.id);
   const backoff = job => Math.min(job.interval * 2 ** job.failures, Math.max(maxBackoff, job.interval));
 
   function schedule() {
     if (timer !== null) { env.clearTimeout(timer); timer = null; }
-    if (!started || !env.visible()) return;
+    if (!started || (!env.visible() && ![...jobs.values()].some(job => job.hidden))) return;
     const now = env.now();
     let next = now + heartbeat;
     for (const job of jobs.values()) if (eligible(job)) next = Math.min(next, job.due);
@@ -36,7 +36,7 @@ export function createLive(env) {
 
   async function run(job) {
     job.running = true;
-    try { await job.refresh(); job.failures = 0; job.due = env.now() + job.interval; if (job.scope !== 'global') record(job.id); }
+    try { const read = await job.refresh(); job.failures = 0; job.due = env.now() + job.interval; if (read !== false && job.scope !== 'global') record(job.id); }
     catch { job.failures += 1; job.due = env.now() + backoff(job); }
     finally { job.running = false; notify(); schedule(); }
   }
@@ -51,12 +51,14 @@ export function createLive(env) {
 
   return {
     /**
-     * Registers `refresh` for the view `id` every `interval` ms. `scope: 'global'` runs it on every view.
+     * Registers `refresh` for the view `id` every `interval` ms. `scope: 'global'` runs it on every view; `hidden`
+     * lets it run while the tab is hidden too (browsers throttle hidden timers to about once a minute). A refresh
+     * that resolves to `false` read nothing, without failing: it neither backs off nor counts as an update.
      * Registering the same id again replaces the job.
      */
-    register(id, { interval, refresh, scope = 'view' }) {
+    register(id, { interval, refresh, scope = 'view', hidden = false }) {
       if (typeof refresh !== 'function' || !(interval > 0)) throw new Error(`The live job "${id}" needs a refresh function and a positive interval.`);
-      jobs.set(id, { id, interval, refresh, scope, due: env.now() + interval, failures: 0, running: false });
+      jobs.set(id, { id, interval, refresh, scope, hidden, due: env.now() + interval, failures: 0, running: false });
       schedule();
     },
     /** Removes the job `id`. */

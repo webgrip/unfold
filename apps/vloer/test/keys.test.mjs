@@ -22,7 +22,9 @@ test('the shortcut table is unique, routes every g chord to a registered page an
     assert.equal(entry.single === true, entry.keys.every(part => part.length === 1), `${entry.id}: character-only shortcuts are marked single`);
     assert.doesNotMatch(entry.label, /approve|reject|cancel/i, `${entry.id} must not decide anything`);
   }
-  assert.deepEqual(shortcuts.filter(entry => entry.proposed).map(entry => entry.id), ['open-link']);
+  assert.deepEqual(shortcuts.filter(entry => entry.proposed).map(entry => entry.id), []);
+  const palette = shortcuts.find(entry => entry.id === 'palette');
+  assert.deepEqual([palette.keys, palette.also], [['/'], ['Mod', 'K']], 'the palette row names both ways to open it');
 });
 
 test('? opens the help, / and Mod K open the palette, and g then a letter navigates', () => {
@@ -75,16 +77,20 @@ test('text fields keep their characters, while checkboxes and buttons do not cou
   assert.equal(isTyping(null), false);
 });
 
-test('the help dialog lists every shortcut, labels the proposed one and names Mod per platform', () => {
+test('the help dialog lists every shortcut once, with the component keycaps and button, and names Mod per platform', () => {
   const mac = shortcutsMarkup({ mac: true, singleKeys: true });
   const other = shortcutsMarkup({ mac: false, singleKeys: false });
-  assert.match(mac, /<kbd>⌘<\/kbd><kbd>K<\/kbd>/);
-  assert.match(other, /<kbd>Ctrl<\/kbd><kbd>K<\/kbd>/);
-  assert.match(mac, /<kbd>g<\/kbd><span class="shortcut-then">then<\/span><kbd>w<\/kbd>/);
+  assert.match(mac, /<kbd class="kbd">\/<\/kbd><\/span><span class="shortcut-then">or<\/span><span class="kbd-group"><kbd class="kbd">⌘<\/kbd><kbd class="kbd">K<\/kbd><\/span>/);
+  assert.match(other, /<kbd class="kbd">Ctrl<\/kbd><kbd class="kbd">K<\/kbd>/);
+  assert.match(mac, /<kbd class="kbd">g<\/kbd><\/span><span class="shortcut-then">then<\/span><span class="kbd-group"><kbd class="kbd">w<\/kbd>/);
+  assert.equal(mac.match(/Search and commands/g).length, 1, 'the palette is listed once');
+  assert.match(mac, /<button type="submit" class="button secondary sm" aria-label="Close keyboard shortcuts"><span class="button-label">Close<\/span><\/button>/);
+  assert.match(mac, /autofocus data-pref="singleKeyShortcuts"/);
   assert.match(mac, /id="shortcuts-title">Keyboard shortcuts</);
   assert.match(mac, /data-pref="singleKeyShortcuts" checked/);
   assert.doesNotMatch(other, /data-pref="singleKeyShortcuts" checked/);
-  assert.match(mac, /Open the pull request or tracker item of the focused row <span class="shortcut-proposed">Proposed<\/span>/);
+  assert.match(mac, /Open the pull request or tracker item of the focused row or open Work Item<span class="shortcut-where"> · on Now and Work<\/span>/);
+  assert.doesNotMatch(mac, /shortcut-proposed/);
   for (const entry of shortcuts) assert(mac.includes(entry.label.replaceAll('’', '’')), entry.id);
   assert.equal(keyLabel('Mod', true), '⌘');
   assert.equal(keyLabel('Mod', false), 'Ctrl');

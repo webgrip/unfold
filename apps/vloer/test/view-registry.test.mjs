@@ -15,7 +15,7 @@ const noop = () => {};
 test('the registered views build one registry with unique view ids', () => {
   const registry = createRegistry(views);
   assert.equal(registry.views.size, views.length);
-  for (const id of ['login', 'now', 'sessions', 'session', 'compare', 'tasks', 'work', 'proposed', 'runs', 'activity', 'insights', 'ploeg-feeds', 'account', 'system', 'preferences', 'palette', 'chrome', 'dialogs']) assert(registry.views.has(id), `no view ${id}`);
+  for (const id of ['login', 'now', 'sessions', 'session', 'tasks', 'work', 'proposed', 'runs', 'activity', 'insights', 'ploeg-feeds', 'account', 'system', 'preferences', 'palette', 'chrome', 'dialogs']) assert(registry.views.has(id), `no view ${id}`);
   assert.deepEqual(registry.pages.map(view => view.id), ['now', 'sessions', 'tasks', 'account', 'system', 'preferences']);
 });
 
@@ -29,14 +29,12 @@ test('every data-action and data-form in the browser markup has exactly one hand
   assert.deepEqual([...registry.forms.keys()].filter(name => !forms.has(name)), [], 'form handlers without markup');
 });
 
-test('the removed compare view only sends old compare links to Sessions', () => {
-  const compare = createRegistry(views).views.get('compare');
-  assert.equal(typeof compare.enter, 'function');
-  assert.equal(compare.render, undefined);
-  assert.equal(compare.actions, undefined);
-  assert.equal(compare.forms, undefined);
+test('Compare is gone: no view, action or form serves it, and core/route.js sends old links to Sessions', () => {
+  const registry = createRegistry(views);
+  assert.equal(registry.views.has('compare'), false);
   assert(!named('data-action').has('compare'));
   assert(!named('data-form').has('compare'));
+  assert.equal(findRoute(registry, 'compare/a/b'), null);
 });
 
 test('two views cannot register the same action, form, field selector or id', () => {
@@ -63,7 +61,7 @@ test('every hash routes to at most one view with the params that view expects', 
   const cases = [
     ['now', 'now', {}], ['sessions', 'sessions', {}], ['tasks', 'tasks', {}], ['settings/accounts', 'account', {}], ['settings/environment', 'system', {}], ['settings/preferences', 'preferences', {}],
     ['work', 'work', {}], ['work/105', 'work', { id: '105' }], ['proposed', 'proposed', {}], ['runs', 'runs', {}], ['activity', 'activity', {}], ['insights', 'insights', {}],
-    ['session/0f1e', 'session', { id: '0f1e' }], ['compare/a/b', 'compare', {}],
+    ['session/0f1e', 'session', { id: '0f1e' }], ['compare/a/b', null],
     ['nowhere', null], ['sessionsx', null], ['ploeg', null], ['ploeg/105', null], ['account', null], ['system', null], ['work/abc', null], ['work/0', null], ['workx', null], ['', null], ['login', null], ['dialogs', null], ['ploeg-feeds', null], ['palette', null], ['chrome', null], ['settings', null],
   ];
   for (const [hash, id, params] of cases) {

@@ -15,7 +15,7 @@ export function renderHtml(markup) {
   const active = document.activeElement;
   const focusId = active?.id;
   const selection = active && 'selectionStart' in active ? [active.selectionStart, active.selectionEnd] : null;
-  const oldPanel = $('.tab-content:not([hidden])');
+  const oldPanel = $('[role="tabpanel"][data-session-id]:not([hidden])');
   if (oldPanel && oldPanel.dataset.sessionId === state.session?.id) {
     state.evidenceScroll[oldPanel.dataset.tab] = { top: oldPanel.scrollTop, atBottom: oldPanel.scrollHeight - oldPanel.scrollTop - oldPanel.clientHeight < 90 };
   }
@@ -25,7 +25,7 @@ export function renderHtml(markup) {
     replacement?.focus({ preventScroll: true });
     if (selection && replacement?.setSelectionRange) try { replacement.setSelectionRange(...selection); } catch {}
   }
-  const panel = $('.tab-content:not([hidden])');
+  const panel = $('[role="tabpanel"][data-session-id]:not([hidden])');
   if (panel) {
     const previous = state.evidenceScroll[panel.dataset.tab];
     panel.scrollTop = panel.dataset.tab === 'stream' && (!previous || previous.atBottom) ? panel.scrollHeight : previous?.top || 0;

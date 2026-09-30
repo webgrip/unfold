@@ -79,6 +79,13 @@ h6 {
   font-weight: var(--weight-semibold);
 }
 
+p,
+h1,
+h2,
+h3 {
+  margin: 0;
+}
+
 p {
   text-wrap: pretty;
 }
@@ -308,16 +315,18 @@ input[type="radio"]::before {
   border-radius: var(--radius-full);
 }
 
-input:is([type="checkbox"], [type="radio"]):is(:checked, :indeterminate) {
+input:is([type="checkbox"], [type="radio"]):checked,
+input[type="checkbox"]:indeterminate {
   background: var(--accent-solid);
   border-color: var(--accent-solid);
 }
 
-input:is([type="checkbox"], [type="radio"]):is(:checked, :indeterminate)::before {
+input:is([type="checkbox"], [type="radio"]):checked::before,
+input[type="checkbox"]:indeterminate::before {
   transform: scale(1);
 }
 
-input:is([type="checkbox"], [type="radio"]):hover:not(:disabled, :checked, :indeterminate) {
+input:is([type="checkbox"], [type="radio"]):hover:not(:disabled, :checked, [type="checkbox"]:indeterminate) {
   border-color: var(--text-muted);
 }
 
@@ -582,7 +591,8 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     color: HighlightText;
   }
 
-  input:is([type="checkbox"], [type="radio"]):is(:checked, :indeterminate),
+  input:is([type="checkbox"], [type="radio"]):checked,
+  input[type="checkbox"]:indeterminate,
   input[type="checkbox"][role="switch"]:checked {
     background: Highlight;
     border-color: Highlight;

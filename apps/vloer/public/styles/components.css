@@ -173,6 +173,41 @@
   margin-block: var(--space-5);
 }
 
+.prose li.md-task {
+  position: relative;
+  list-style: none;
+}
+
+.prose .md-check {
+  position: absolute;
+  inset-inline-start: calc(var(--space-5) * -1);
+  top: 0.3125rem;
+  display: inline-grid;
+  place-content: center;
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 1px solid var(--border-control-strong);
+  border-radius: var(--radius-xs);
+  background: var(--bg-surface);
+}
+
+.prose .md-check.done {
+  border-color: var(--neutral-solid);
+  background: var(--neutral-solid);
+}
+
+.prose .md-check.done::before {
+  content: "";
+  width: 0.5625rem;
+  height: 0.5625rem;
+  background: var(--text-on-solid);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+
+.prose del {
+  color: var(--text-muted);
+}
+
 .button {
   --button-h: var(--control-md);
   --button-px: var(--space-3);
@@ -787,6 +822,14 @@
   font-size: var(--text-sm);
 }
 
+.empty-state-body > * {
+  margin-block: 0;
+}
+
+.empty-state-body > * + * {
+  margin-top: var(--space-2);
+}
+
 .empty-state-actions {
   display: flex;
   flex-wrap: wrap;
@@ -960,6 +1003,28 @@
   margin-inline-start: auto;
 }
 
+@media (max-width: 40rem) {
+  .callout:has(> .callout-actions) {
+    flex-wrap: wrap;
+  }
+
+  .callout:has(> .callout-actions) > .callout-content {
+    flex-basis: calc(100% - var(--icon-md) - var(--space-2-5));
+  }
+
+  .callout:has(> .callout-actions) > .callout-content:first-child {
+    flex-basis: 100%;
+  }
+
+  .callout > .callout-actions {
+    margin-inline-start: 0;
+  }
+
+  .callout > .callout-icon ~ .callout-actions {
+    margin-inline-start: calc(var(--icon-md) + var(--space-2-5));
+  }
+}
+
 .meter {
   display: grid;
   gap: var(--space-1);
@@ -1054,7 +1119,7 @@
 }
 
 .meter[data-demo] .meter-bar {
-  background: repeating-linear-gradient(135deg, var(--attention-bg-hover) 0 3px, var(--attention-bg) 3px 6px);
+  background: repeating-linear-gradient(135deg, var(--neutral-bg-hover) 0 3px, var(--neutral-bg) 3px 6px);
 }
 
 .meter:is([data-unknown], [data-demo]) .meter-value {
@@ -1082,8 +1147,32 @@
 }
 
 a.stat {
+  position: relative;
   cursor: pointer;
   transition: border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+a.stat > .stat-label {
+  padding-inline-end: var(--space-5);
+}
+
+.stat-go {
+  position: absolute;
+  top: var(--space-3);
+  inset-inline-end: var(--space-3);
+  display: grid;
+  color: var(--text-subtle);
+  transition: color var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+}
+
+.stat-go > svg.icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+a.stat:hover > .stat-go {
+  color: var(--text);
+  transform: translateX(calc(var(--motion-distance) * var(--space-0-5)));
 }
 
 a.stat:hover {
@@ -1130,6 +1219,16 @@ a.stat:hover {
   color: var(--text);
 }
 
+.stat-value.is-text {
+  font-size: var(--text-xl);
+  letter-spacing: var(--tracking-snug);
+}
+
+.stat .stat-value[data-quiet] {
+  color: var(--text-subtle);
+  font-weight: var(--weight-medium);
+}
+
 .kbd-group {
   display: inline-flex;
   align-items: center;
@@ -1142,6 +1241,7 @@ a.stat:hover {
   place-items: center;
   min-width: 1.125rem;
   height: 1.125rem;
+  margin: 0;
   padding: 0 var(--space-1);
   border: 1px solid var(--border-strong);
   border-bottom-width: 2px;
@@ -1153,6 +1253,7 @@ a.stat:hover {
   font-size: var(--text-2xs);
   line-height: 1;
   font-weight: var(--weight-medium);
+  text-align: center;
   white-space: nowrap;
 }
 
@@ -1666,7 +1767,7 @@ a.stat:hover {
   content: "";
   position: absolute;
   inset-inline-start: var(--space-1-5);
-  top: 50%;
+  top: calc(var(--density-pad-y) + var(--leading-sm) / 2);
   width: 0.375rem;
   height: 0.375rem;
   margin-top: -0.1875rem;
@@ -1738,7 +1839,7 @@ a.stat:hover {
 .toast-region {
   position: fixed;
   inset-inline-end: var(--space-4);
-  bottom: calc(var(--space-4) + env(safe-area-inset-bottom) + var(--bottombar-height, 0px));
+  bottom: calc(var(--space-4) + env(safe-area-inset-bottom) + var(--bottombar-height));
   z-index: var(--z-toast);
   display: grid;
   gap: var(--space-2);
@@ -2315,6 +2416,11 @@ a.round-cell:hover {
   color: var(--text);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
+}
+
+.field-hint,
+.field-error {
+  margin: 0;
 }
 
 .field-hint {

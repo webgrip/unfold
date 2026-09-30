@@ -44,9 +44,6 @@ const normalized = text => String(text ?? '').toLowerCase().replace(/^\s*illustr
 const overlaps = (a, b) => { const x = normalized(a); const y = normalized(b); if (x.length < 12 || y.length < 12) return false; return x.includes(y.slice(0, 40)) || y.includes(x.slice(0, 40)); };
 const newTab = '<span class="sr-only"> (opens in a new tab)</span>';
 
-/** The earlier en-US two-decimal dollar formatter, kept for callers that have not moved to `format.money` yet. */
-export const usd2 = value => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0);
-
 /** The lane on screen: the chosen one, or Ready for review while it holds work, otherwise Needs you. */
 export function activePloegLane(state) {
   if (state.ploegLane) return state.ploegLane;

@@ -1,4 +1,4 @@
-import { state, disconnect } from './core/state.js';
+import { state, disconnect, forgetUserData } from './core/state.js';
 import { api, onUnauthorized } from './core/api.js';
 import { $, notify } from './core/dom.js';
 import { configureFormat } from './core/format.js';
@@ -39,7 +39,7 @@ async function route() {
     if (found?.view.enter) return await found.view.enter({ ...found.params, query });
     await openPage(found ? found.view.id : landing);
     for (const page of registry.pages) if (page.load && state.view === page.id) await page.load();
-  } catch (error) { notify(error.message, true); if (state.bootstrap) { state.view = landing; registry.views.get(landing).render(); } }
+  } catch (error) { if (error.status !== 401) notify(error.message, true); if (state.bootstrap) { state.view = landing; registry.views.get(landing).render(); } }
 }
 
 function dispatchField(table, event) {
@@ -61,7 +61,7 @@ async function boot() {
 
 onUnauthorized(() => {
   const expired = Boolean(state.bootstrap);
-  disconnect(); state.bootstrap = null; state.sessionExpired = expired;
+  disconnect(); state.bootstrap = null; state.sessionExpired = state.sessionExpired || expired; forgetUserData();
   for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close();
   renderLogin();
 });

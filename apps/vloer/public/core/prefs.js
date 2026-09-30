@@ -2,7 +2,7 @@
 export const prefsKey = 'vloer.prefs';
 
 /** Each preference and its default. */
-export const prefDefaults = Object.freeze({ theme: 'system', density: 'comfortable', singleKeyShortcuts: true, live: true, format: 'nl', lastVisit: null, team: null });
+export const prefDefaults = Object.freeze({ theme: 'system', density: 'comfortable', singleKeyShortcuts: true, live: true, notify: false, format: 'nl', lastVisit: null, team: null });
 
 const choices = { theme: ['system', 'light', 'dark'], density: ['comfortable', 'compact'], format: ['nl', 'browser'] };
 
@@ -13,7 +13,7 @@ export const themeColors = Object.freeze({ light: '#FFFFFF', dark: '#15191C' });
 export function validPref(key, value) {
   if (!Object.hasOwn(prefDefaults, key)) return false;
   if (Object.hasOwn(choices, key)) return choices[key].includes(value);
-  if (key === 'singleKeyShortcuts' || key === 'live') return typeof value === 'boolean';
+  if (key === 'singleKeyShortcuts' || key === 'live' || key === 'notify') return typeof value === 'boolean';
   if (key === 'lastVisit') return value === null || (typeof value === 'string' && !Number.isNaN(Date.parse(value)));
   return value === null || (typeof value === 'string' && value.length > 0 && value.length <= 200);
 }

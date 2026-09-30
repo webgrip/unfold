@@ -8,15 +8,15 @@ import { createApplication } from '../src/main.ts';
 import { loadConfig } from '../src/config.ts';
 
 const flows = [
-  ['now', 'the Now page at mobile width and its keyboard row navigation'],
-  ['tasks', 'task connections for five providers, fixture import with explicit start, duplicate import, binary candidate downloads, changed-revision draft preservation and inert source text, task desktop/mobile layout'],
-  ['sessions', 'demo, diff, checks, export, reload, create, pause, evidence keyboard navigation at desktop/mobile widths, draft preservation, stream reading-position and tail-follow preservation, instruction, resume, cancel, actionable ambiguous-failure guidance and escaped error text'],
-  ['shell', 'redirects from old links, heading focus, title and announcement on route changes, the shortcut help, g chords, opening the command palette, mobile navigation'],
+  ['now', 'the Now page: waiting groups with reason chips, the digest and Mark as caught up, stat links, the running meter, keyboard row navigation and o at desktop/mobile widths'],
+  ['tasks', 'task connections for five providers, fixture import with explicit start, duplicate import, binary candidate downloads, changed-revision draft preservation and inert source text, task desktop/mobile layout, task selection in the address, j/k, wide auto-open, the sticky Create session and the phone master-detail'],
+  ['sessions', 'demo, diff, checks, export, reload, create, pause, evidence keyboard navigation at desktop/mobile widths, draft preservation, stream reading-position and tail-follow preservation, instruction, resume, cancel, actionable ambiguous-failure guidance and escaped error text, the review decision at phone width and its contrast, reviewed labels and list search'],
+  ['shell', 'redirects from old links, heading focus, title and announcement on route changes, the status strip, the account menu, live updates, the shortcut help, g chords, opening the command palette, the skip link, mobile navigation'],
   ['palette', 'the command palette (fuzzy search, keyboard from any focus, recent Work Items kept per user, number jumps, commands that keep Preferences in sync, the Work Item failure notice and retry, the no-match next step) at desktop/mobile widths, the favicon dot and opt-in desktop notifications'],
-  ['settings', 'the Environment page, theme, density and single-key preferences kept across a reload'],
-  ['feeds', 'Ploeg overview, activity paging, Runs filters and proposed-work rejection at desktop/mobile widths'],
-  ['work', 'Ploeg awaiting-review lane and review screen'],
-  ['login', 'live login/logout and an expired session that keeps its deep link'],
+  ['settings', 'the Environment health checks, one content width on every Settings page, theme, density, single-key and live-update preferences kept across a reload and in step with the top bar and account menu'],
+  ['feeds', 'Insights tiles, tables and phone cards, activity days and paging, Runs filters with phone cards, and proposed-work approval and rejection at desktop/mobile widths'],
+  ['work', 'Work lanes, reason groups and master-detail, the Work Item decision box and review receipt, the demo cancel dialog, j/k and Esc, and the phone sticky bar'],
+  ['login', 'live login with a failed attempt that keeps the account name, the password reveal, logout, and an expired session that keeps its deep link'],
 ];
 
 const root = await mkdtemp(join(tmpdir(), 'vloer-browser-'));

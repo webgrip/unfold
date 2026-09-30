@@ -180,7 +180,8 @@ test('Insights shows tiles and per-Team tables for the window and for right now,
   const data = summary('30d');
   const html = overviewMarkup({ window: '30d', data, loading: false, error: null }, helpers, now);
   for (const label of ['Runs finished', 'Failed', 'Stuck', 'Settled spend', 'Ready for review', 'Needs you', 'Running', 'Queued', 'Proposed']) assert.match(html, new RegExp(`<span class="stat-label"><i data-icon="[a-z-]+"></i>${label}</span>`), label);
-  for (const href of ['#runs?state=finished"', '#runs?state=finished&#38;outcome=failed"', '#work?lane=awaiting_review"', '#work?lane=needs_human"', '#work?lane=leased"', '#work?lane=queued"', '#proposed"']) assert(html.includes(`href="${href}`), href);
+  assert.equal((html.match(/<span class="stat-go" aria-hidden="true"><i data-icon="chevron"><\/i><\/span>/g) || []).length, 8, 'linked tiles show where they go, drawn through helpers.icon');
+  for (const href of ['#runs?state=finished"', '#runs?state=finished&amp;outcome=failed"', '#work?lane=awaiting_review"', '#work?lane=needs_human"', '#work?lane=leased"', '#work?lane=queued"', '#proposed"']) assert(html.includes(`href="${href}`), href);
   assert.match(html, /<strong class="stat-value">32<\/strong><span class="stat-detail">Failed and stuck Runs included/);
   assert.match(html, /50% of finished Runs/);
   assert.match(html, /<th scope="row">delivery<\/th>/);
@@ -284,7 +285,7 @@ test('a Run row shows state and outcome, verdict, failure, Work Item, Role, timi
   assert.doesNotMatch(html.match(/<tr data-run-id="64"[\s\S]*?<\/tr>/)[0], /settled of/);
   assert.doesNotMatch(html, /class="meter-end"/);
   assert.match(html, /Agent review: changes requested/);
-  assert.match(html, /The worker lost its lease/);
+  assert.match(html, /The worker stopped responding/);
   assert.match(html, /<span class="runs-next">Not the agent’s fault\. It retries automatically\.<\/span>/);
   assert.doesNotMatch(html, /title="[^"]*retries automatically/);
   assert.match(html, /Opened a pull request/);
@@ -298,7 +299,8 @@ test('a Run row shows state and outcome, verdict, failure, Work Item, Role, timi
   assert.match(html, /<p class="meta runs-card-line">VIK-642 · delivery · Implementer · Round 1 · writer<\/p>/);
   const edges = runsMarkup({ runs: [run({ id: '70', state: 'pending', startedAt: null, settledUsd: null, authorizedUsd: null, usage: null }), run({ id: '69', settledUsd: 1.92, authorizedUsd: 1.5 }), run({ id: '68', startedAt: null, settledUsd: null, authorizedUsd: 0, usage: null, outcome: '' })], filter: {}, demo: false }, [], helpers, now);
   assert.match(edges, /<td class="runs-started"><span class="subtle">Waiting for a worker<\/span><\/td><td class="runs-spend"><span class="subtle">Not authorized yet<\/span><\/td>/);
-  assert.match(edges, /<span class="runs-spend-note" data-tone="danger">US\$\s0,42 over budget<\/span>/);
+  assert.match(edges, /data-level="over"[\s\S]*?<span class="meter-end">US\$\s0,42 over<\/span>/, 'the meter itself names the overspend');
+  assert.doesNotMatch(edges, /runs-spend-note" data-tone="danger"/, 'the overspend is not repeated under the meter');
   assert.match(edges, /data-level="over"[^>]*aria-valuetext="US\$\s1,92 settled of US\$\s1,50 authorized, US\$\s0,42 over budget"/);
   assert.match(edges, /<div class="meter sm" data-unknown><div class="meter-label"><span class="meter-text"><span class="meter-value">Not reported<\/span><\/span><\/div>/);
   assert.match(html, /data-unknown[^>]*><div class="meter-label"><span class="meter-text"><span class="meter-value">Not reported/);
@@ -308,7 +310,7 @@ test('a Run row shows state and outcome, verdict, failure, Work Item, Role, timi
   assert.doesNotMatch(demo.replace('spend is US$ 0,00.', ''), /US\$\s0,00/);
   assert.match(demo, /<td class="runs-spend"><span class="subtle" title="Demo · no model calls"><span aria-hidden="true">—<\/span><span class="sr-only">Demo · no model calls<\/span><\/span><\/td>/);
   assert.doesNotMatch(demo, />None<|>No model calls<|runs-card-line">Demo|runs-card-spend/);
-  assert.match(demo, /The worker lost its lease/);
+  assert.match(demo, /The worker stopped responding/);
   assert.match(demo, /No outcome reported/);
   assert.match(demo, /Illustrative Ploeg records/);
 });
@@ -413,6 +415,6 @@ test('a live refresh reports an update only for data read without error while it
   assert.deepEqual(polls, ['poll', 'poll'], 'A refresh during a load a person started waits for that load instead of polling');
   view.error = null;
   state.view = 'activity';
-  await assert.rejects(refresh(), /Left runs/);
+  assert.equal(await refresh(), false, 'leaving the page reads nothing without counting as a failure');
   Object.assign(state, { bootstrap: null, view: 'now' });
 });

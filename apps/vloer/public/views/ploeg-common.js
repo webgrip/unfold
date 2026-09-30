@@ -51,14 +51,15 @@ export async function settle(id) {
 
 /**
  * Wraps the quiet refresh `poll` of the Ploeg view `id` for the live scheduler. A load a person started runs to its
- * end instead of racing the refresh. The result resolves only when the view is still on screen and `failure()`
- * reports no error, so the status strip never says "Updated" for data Vloer did not read.
+ * end instead of racing the refresh. It resolves to `false` (nothing read, nothing failed) when the view left the
+ * screen meanwhile, and rejects when `failure()` reports an error, so the status strip never says "Updated" for data
+ * Vloer did not read.
  */
 export function liveRefresh(id, poll, failure) {
   return async () => {
     if (flights.has(id)) await settle(id);
     else await poll();
-    if (!ploegVisible(id)) throw new Error(`Left ${id} before the refresh finished.`);
+    if (!ploegVisible(id)) return false;
     const error = failure();
     if (error) throw new Error(error.message || 'Ploeg did not answer.');
   };
@@ -70,7 +71,7 @@ export function liveRefresh(id, poll, failure) {
  */
 export function refreshButton({ busy = false, shown = true } = {}) {
   if (!shown) return '';
-  return `<button type="button" class="button secondary" id="ploeg-refresh" data-action="ploeg-reload" title="Refresh"${busy ? ' disabled aria-busy="true"' : ''}>${busy ? '<span class="spinner" aria-hidden="true"></span>' : icon('refresh')}<span class="button-label">Refresh</span></button>`;
+  return `<button type="button" class="button secondary" id="ploeg-refresh" data-action="ploeg-reload" data-compact title="Refresh"${busy ? ' disabled aria-busy="true"' : ''}>${busy ? '<span class="spinner" aria-hidden="true"></span>' : icon('refresh')}<span class="button-label">Refresh</span></button>`;
 }
 
 /** Fills and opens the shared `#confirm-dialog` with `markup` as a component dialog, and restores its classes when it closes. */

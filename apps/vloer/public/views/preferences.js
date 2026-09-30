@@ -1,8 +1,9 @@
 import { state } from '../core/state.js';
 import { escape, renderHtml, announce } from '../core/dom.js';
 import { configureFormat, dateTime, money } from '../core/format.js';
-import { prefs, prefDefaults, applyAppearance } from '../core/prefs.js';
+import { prefs, applyAppearance } from '../core/prefs.js';
 import { live } from '../core/live.js';
+import { attention } from '../core/attention.js';
 import { keyLabel } from '../core/keys.js';
 import { icon } from '../core/icons.js';
 import { button, kbd } from '../core/ui.js';
@@ -15,7 +16,13 @@ const spoken = { theme: { system: 'System theme', light: 'Light theme', dark: 'D
 let watching = false;
 
 const act = (attribute, options) => button(options).replace('<button ', `<button ${attribute} `);
-const notificationsOffered = () => Object.hasOwn(prefDefaults, 'notifications') && typeof globalThis.Notification === 'function';
+const notifyHelp = {
+  on: 'You hear about each new item that waits on you while a De Vloer tab is open.',
+  off: 'Off by default. A notification when something new starts waiting on you, only while a De Vloer tab is open. Your browser asks for permission first.',
+  denied: 'Blocked in this browser’s site settings. Allow notifications for this site, then come back.',
+  insecure: 'Browsers allow them only over a secure (HTTPS) connection.',
+  unsupported: 'This browser cannot show desktop notifications here.',
+};
 
 function example(locale) {
   const previous = prefs.get('format');
@@ -53,6 +60,12 @@ function switchRow(name, label, hint, extra = '') {
   return `<div class="settings-row"><div class="settings-row-text"><label class="settings-row-label" for="${id}">${escape(label)}</label><p class="settings-row-hint" id="${id}-hint">${hint}</p>${extra ? `<div class="settings-row-extra">${extra}</div>` : ''}</div><div class="settings-row-controls"><input type="checkbox" role="switch" id="${id}" data-pref="${name}" data-pref-label="${escape(label)}" aria-describedby="${id}-hint"${prefs.get(name) ? ' checked' : ''}></div></div>`;
 }
 
+function notificationsRow() {
+  const status = attention.status();
+  const usable = status === 'on' || status === 'off';
+  return `<div class="settings-row"><div class="settings-row-text"><label class="settings-row-label" for="pref-notify">Desktop notifications</label><p class="settings-row-hint" id="pref-notify-hint">${escape(notifyHelp[status])} The tab title and the favicon dot always show what waits on you.</p></div><div class="settings-row-controls"><input type="checkbox" role="switch" id="pref-notify" data-notify aria-describedby="pref-notify-hint"${status === 'on' ? ' checked' : ''}${usable ? '' : ' disabled'}></div></div>`;
+}
+
 function group(id, legend, hint, body, layout) {
   return `<fieldset class="settings-row settings-choice" aria-describedby="pref-${id}-hint"><legend class="settings-row-label">${escape(legend)}</legend><p class="settings-row-hint" id="pref-${id}-hint">${escape(hint)}</p><div class="${layout}">${body}</div></fieldset>`;
 }
@@ -81,26 +94,22 @@ function renderPreferences() {
   const appearance = card('appearance', 'Appearance', `${themes}${density}${numbers}`);
   const shortcuts = switchRow('singleKeyShortcuts', 'Single-key shortcuts', `${kbd('j')} and ${kbd('k')} move through lists, ${kbd('g')} then ${kbd('n')} opens Now, ${kbd('?')} shows help. Turn them off if you use speech input; ${kbd([mod, 'K'])} keeps working.`, act('data-action="shortcuts-open"', { label: 'Show shortcuts', icon: 'keyboard', size: 'sm', variant: 'ghost' }));
   const updates = switchRow('live', 'Refresh automatically', 'Open pages check for news every 15 to 60 seconds while this tab is visible and no dialog is open. The Live button in the top bar switches the same setting.');
-  const notifications = notificationsOffered() ? switchRow('notifications', 'Desktop notifications', 'A notification when something new starts waiting on you, only while a De Vloer tab is open. Your browser asks for permission the first time.') : '';
+  const notifications = notificationsRow();
   const behaviour = card('behaviour', 'Behaviour', `${shortcuts}${updates}${notifications}`);
   const guide = `<p class="settings-footnote">${icon('spark')}<span>Building De Vloer? The <a href="#design">living style guide</a> shows every component and token in the current theme.</span></p>`;
   renderHtml(shell(`<div class="settings-page">${appearance}${behaviour}${guide}</div>`, { title: 'Preferences', subtitle: 'How De Vloer looks and behaves in this browser. Stored here only.' }));
 }
 
-async function permitNotifications(element) {
-  if (!element.checked || globalThis.Notification.permission === 'granted') return true;
-  const answer = await globalThis.Notification.requestPermission();
-  if (answer === 'granted') return true;
-  element.checked = false;
-  announce('Your browser blocked notifications for this site');
-  return false;
+async function changeNotifications(element) {
+  const status = element.checked ? await attention.enable() : attention.disable();
+  announce(status === 'on' ? 'Desktop notifications on' : element.checked ? 'Your browser did not allow notifications for this site' : 'Desktop notifications off');
+  render();
 }
 
 /** Stores a changed preference control (`[data-pref]`, on this page or in the shortcuts dialog) and applies it at once. */
-export async function changePreference(element) {
+export function changePreference(element) {
   const key = element.dataset.pref;
   const value = element.type === 'checkbox' ? element.checked : element.value;
-  if (key === 'notifications' && !(await permitNotifications(element))) return;
   if (!prefs.set(key, value)) return;
   if (key === 'theme' || key === 'density') applyAppearance();
   if (key === 'format') configureFormat({ locale: value });
@@ -110,10 +119,10 @@ export async function changePreference(element) {
   if (state.bootstrap && element.closest('#app')) render();
 }
 
-/** Preferences (`#settings/preferences`): theme, density, single-key shortcuts, live updates and the number and date format, stored per browser, and a link to the style guide. */
+/** Preferences (`#settings/preferences`): theme, density, single-key shortcuts, live updates, desktop notifications and the number and date format, stored per browser, and a link to the style guide. */
 export default {
   id: 'preferences',
   match: hash => hash === 'settings/preferences' ? {} : null,
   render: renderPreferences,
-  changes: { '[data-pref]': changePreference },
+  changes: { '[data-pref]': changePreference, '[data-notify]': changeNotifications },
 };

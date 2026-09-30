@@ -186,42 +186,14 @@
   padding: var(--space-3) var(--space-4);
 }
 
-a.now-stat .stat-label {
-  padding-inline-end: var(--space-5);
-}
-
 .now-stat .stat-value {
   font-size: var(--text-xl);
   line-height: var(--leading-xl);
   letter-spacing: var(--tracking-snug);
 }
 
-.now-stat .stat-value[data-quiet] {
-  color: var(--text-subtle);
-  font-weight: var(--weight-medium);
-}
-
 .now-stat .stat-detail {
   min-width: 0;
-}
-
-.now-stat-go {
-  position: absolute;
-  top: var(--space-3);
-  inset-inline-end: var(--space-3);
-  display: grid;
-  color: var(--text-subtle);
-  transition: color var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
-}
-
-.now-stat-go > svg.icon {
-  width: var(--icon-sm);
-  height: var(--icon-sm);
-}
-
-a.now-stat:hover .now-stat-go {
-  color: var(--text);
-  transform: translateX(calc(var(--motion-distance) * var(--space-0-5)));
 }
 
 .now-stat-skeleton {
@@ -284,11 +256,6 @@ a.now-stat:hover .now-stat-go {
 
 .now-keys > span + .kbd-group {
   margin-inline-start: var(--space-2);
-}
-
-.now-keys .kbd {
-  margin: 0;
-  text-align: center;
 }
 
 .now-new {
@@ -482,14 +449,6 @@ a.now-stat:hover .now-stat-go {
 
 .now-item > .list-row:hover {
   background: transparent;
-}
-
-.now .list-row:focus-visible {
-  outline-offset: var(--focus-ring-inset);
-}
-
-.now .list-row[data-unread]::before {
-  top: calc(var(--density-pad-y) + var(--leading-sm) / 2);
 }
 
 .now [data-now-row] {

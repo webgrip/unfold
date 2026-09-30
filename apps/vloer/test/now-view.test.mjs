@@ -85,8 +85,8 @@ test('each reason has its own glyph so rows do not repeat one icon', () => {
 test('row actions put the primary action first, name it fully and go where the decision is made', () => {
   const html = nowMarkup(view(), options, nowAt);
   assert.match(html, /href="https:\/\/forge\.test\/acme\/shop\/pulls\/9"[^>]*aria-label="Open the pull request for “Round half-cent totals” \(opens in a new tab\)"/);
-  assert.match(html, /<span class="now-action-primary"><a class="button secondary sm" href="https:\/\/forge\.test[\s\S]*?<\/a><\/span><span class="now-action-links"><a class="button ghost sm icon-only" id="now-tracker-105"/, 'the pull request comes before the tracker link');
-  assert.match(html, /href="https:\/\/tracker\.test\/tasks\/108" target="_blank" rel="noopener noreferrer" aria-label="Open “Show VAT per line” in the tracker \(opens in a new tab\)"/);
+  assert.match(html, /<span class="now-action-primary"><a class="button secondary sm" href="https:\/\/forge\.test[\s\S]*?<\/a><\/span><span class="now-action-links"><a class="button ghost sm icon-only" href="https:\/\/tracker\.test\/tasks\/105" target="_blank" rel="noopener noreferrer" id="now-tracker-105"/, 'the pull request comes before the tracker link');
+  assert.match(html, /href="https:\/\/tracker\.test\/tasks\/108" target="_blank" rel="noopener noreferrer"[^>]*aria-label="Open “Show VAT per line” in the tracker \(opens in a new tab\)"/);
   assert.match(html, /href="https:\/\/grafana\.example\.test\/d\/glide-loop\?var-team=delivery"/, 'infrastructure trouble links the Team dashboard');
   assert.equal(html.match(/grafana\.example\.test/g).length, 1, 'Grafana only for infrastructure reasons');
   assert.match(html, /href="#proposed\?id=107"[^>]*aria-label="Approve or reject “Clarify the research markets” on Proposed"[^>]*>[\s\S]*?Approve or reject/);
@@ -123,7 +123,7 @@ test('finished Runs show outcome, agent verdict and failure in plain words, newe
   const html = nowMarkup(view(), options, nowAt);
   assert.match(html, /Opened a pull request/);
   assert.match(html, /Agent review: approve/, 'an agent verdict is never presented as a human review');
-  assert.match(html, /Failed<\/span><\/span><span>The worker lost its lease/);
+  assert.match(html, /Failed<\/span><\/span><span>The worker stopped responding/);
   assert(html.indexOf('id="now-row-f-30"') < html.indexOf('id="now-row-f-31"'), 'the Run that finished last comes first');
   assert.deepEqual(byFinish([{ id: 'a', finishedAt: '2026-09-20T08:00:00Z' }, { id: 'b', finishedAt: null }, { id: 'c', finishedAt: '2026-09-20T09:00:00Z' }]).map(run => run.id), ['c', 'a', 'b']);
 });
@@ -371,7 +371,7 @@ test('the stat row links into Work, Runs and Insights with honest partial labels
   assert.match(html, /href="#runs\?state=running"[^>]*>[\s\S]*?Running[\s\S]*?\+1 waiting for a worker/, 'pending Runs read as an addition, not as the running one');
   assert.match(html, /href="#work\?lane=queued"[^>]*>[\s\S]*?Queued[\s\S]*?>2</);
   assert.match(html, /href="#insights\?window=24h"/);
-  assert.equal((html.match(/<span class="now-stat-go" aria-hidden="true">/g) || []).length, 3, 'linked tiles show where they go; Waiting stays a summary');
+  assert.equal((html.match(/<span class="stat-go" aria-hidden="true">/g) || []).length, 3, 'linked tiles show where they go; Waiting stays a summary');
   const unsupported = nowMarkup(view({ summary: { data: null, error: { message: 'no', code: 'ploeg_unsupported' } } }), options, nowAt);
   assert.match(unsupported, /Queued<\/span><strong class="stat-value" data-quiet>—<\/strong><span class="stat-detail">Not reported by this Ploeg/);
   assert.doesNotMatch(unsupported, /stopped retrying/);

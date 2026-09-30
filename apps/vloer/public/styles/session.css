@@ -136,15 +136,6 @@
   margin-top: 0.125rem;
 }
 
-.session-option > input[type="radio"]:indeterminate:not(:checked) {
-  background: var(--bg-surface);
-  border-color: var(--border-control-strong);
-}
-
-.session-option > input[type="radio"]:indeterminate:not(:checked)::before {
-  transform: scale(0);
-}
-
 .session-option-label {
   display: block;
   font-weight: var(--weight-medium);
@@ -391,10 +382,6 @@
   padding-inline: var(--space-2);
 }
 
-.session-evidence > .tabs > :focus-visible {
-  outline-offset: var(--focus-ring-inset);
-}
-
 .session-panel {
   position: relative;
   min-height: 12rem;
@@ -416,10 +403,6 @@
 
 .session-panel > .empty-state {
   padding-block: var(--space-10);
-}
-
-.session-page .empty-state-body > p {
-  margin: 0;
 }
 
 .session-page .button.icon-only {
@@ -452,10 +435,6 @@
   flex: 1;
   min-width: 0;
   min-height: 2.75rem;
-}
-
-.session-composer .field-hint {
-  margin: 0;
 }
 
 .session-stream {
@@ -1320,40 +1299,6 @@
   display: none;
 }
 
-.app-shell[data-area="sessions"] .app-breadcrumbs li:not(:last-child) {
-  flex: none;
-}
-
-.app-shell[data-area="sessions"] .app-breadcrumbs {
-  overflow: clip;
-  overflow-clip-margin: var(--space-1);
-}
-
-.app-shell:has(.session-page[data-pending]) .app-stream {
-  display: none;
-}
-
-@media (min-width: 720px) {
-  .app-shell[data-area="sessions"] .app-stream {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1-5);
-    color: var(--shell-muted);
-    font-size: inherit;
-  }
-
-  .app-shell[data-area="sessions"] .app-stream > i {
-    width: 0.5rem;
-    height: 0.5rem;
-    border-radius: var(--radius-full);
-    background: var(--success-solid);
-  }
-
-  .app-shell[data-area="sessions"] .app-stream.offline > i {
-    background: var(--attention-solid);
-  }
-}
-
 @container (min-width: 52rem) {
   .session-layout {
     grid-template-columns: minmax(0, 1fr) var(--detail-aside);
@@ -1368,34 +1313,6 @@
 }
 
 @media (max-width: 719.98px) {
-  .app-shell:has(.session-page) .app-breadcrumbs li:last-child {
-    display: none;
-  }
-
-  .app-shell:has(.session-page) .app-breadcrumbs li:has(> a[href="#sessions"]) {
-    display: flex;
-  }
-
-  .app-shell:has(.session-page) .app-breadcrumbs a[href="#sessions"] {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    min-height: 2.25rem;
-    padding-inline: var(--space-1);
-    color: var(--shell-text);
-    font-weight: var(--weight-semibold);
-  }
-
-  .app-shell:has(.session-page) .app-breadcrumbs a[href="#sessions"]::before {
-    content: "";
-    width: 0.5rem;
-    height: 0.5rem;
-    margin-inline-start: 0.1875rem;
-    border-bottom: 2px solid currentColor;
-    border-inline-start: 2px solid currentColor;
-    rotate: 45deg;
-  }
-
   .session-context {
     gap: var(--space-1-5) var(--space-3);
     margin-top: calc(var(--space-2) * -1);
@@ -1484,7 +1401,7 @@
 
   .session-review-bar {
     position: sticky;
-    bottom: calc(var(--tabbar-height, 3.5625rem) + var(--space-2) + env(safe-area-inset-bottom));
+    bottom: calc(var(--tabbar-height) + var(--space-2) + env(safe-area-inset-bottom));
     z-index: var(--z-sticky);
     display: flex;
     align-items: center;

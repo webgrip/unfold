@@ -70,6 +70,7 @@
   --attention-fg: light-dark(oklch(49.1% 0.104 75), oklch(81.6% 0.101 75));
   --attention-solid: light-dark(oklch(64.5% 0.136 75), oklch(66.1% 0.119 75));
   --attention-emphasis: oklch(56.7% 0.120 75);
+  --attention-signal: oklch(68% 0.18 50);
 
   --severe-bg: light-dark(oklch(96.2% 0.020 45), oklch(27% 0.045 45));
   --severe-bg-hover: light-dark(oklch(94.5% 0.030 45), oklch(30% 0.054 45));
@@ -176,6 +177,8 @@
   --sidebar-width: 15rem;
   --sidebar-rail: 3.5rem;
   --topbar-height: 3rem;
+  --tabbar-height: 3.5625rem;
+  --bottombar-height: 0px;
   --list-width: clamp(20rem, 30%, 27.5rem);
   --detail-aside: 18.75rem;
   --prose-max: 72ch;

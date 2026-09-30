@@ -100,10 +100,6 @@
   padding-block: calc(var(--density-pad-y) - var(--space-0-5));
 }
 
-.tasks-row:focus-visible {
-  outline-offset: var(--focus-ring-inset);
-}
-
 .tasks-row .list-row-meta {
   flex-wrap: nowrap;
   gap: var(--space-1-5);
@@ -273,10 +269,6 @@
 
 .tasks-import-fields :is(select, input:not([type="hidden"])) {
   width: 100%;
-}
-
-.tasks-import-fields .field-hint {
-  margin: 0;
 }
 
 .tasks-readonly {
@@ -455,7 +447,7 @@
 
 @media (max-width: 719.98px) {
   .tasks-decision {
-    bottom: calc(3.5625rem + env(safe-area-inset-bottom) + var(--space-2));
+    bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom) + var(--space-2));
   }
 
   .app-main:has(.tasks-layout[data-focus="detail"]) > .app-page-header {
@@ -598,39 +590,4 @@
   border-radius: var(--radius-xs);
   background: var(--bg-sunken);
   color: var(--text);
-}
-
-.prose li.md-task {
-  position: relative;
-  list-style: none;
-}
-
-.prose .md-check {
-  position: absolute;
-  inset-inline-start: calc(var(--space-5) * -1);
-  top: 0.3125rem;
-  display: inline-grid;
-  place-content: center;
-  width: 0.875rem;
-  height: 0.875rem;
-  border: 1px solid var(--border-control-strong);
-  border-radius: var(--radius-xs);
-  background: var(--bg-surface);
-}
-
-.prose .md-check.done {
-  border-color: var(--neutral-solid);
-  background: var(--neutral-solid);
-}
-
-.prose .md-check.done::before {
-  content: "";
-  width: 0.5625rem;
-  height: 0.5625rem;
-  background: var(--text-on-solid);
-  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
-}
-
-.prose del {
-  color: var(--text-muted);
 }

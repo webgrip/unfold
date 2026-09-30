@@ -2,7 +2,7 @@ import { deliveryMarkup, deliveryGated, deliveryStatus } from '../delivery.js';
 import { state, disconnect } from '../core/state.js';
 import { api, unauthorized } from '../core/api.js';
 import { $, escape, safeUrl, renderHtml, download, notify, announce } from '../core/dom.js';
-import { money, moneyHtml, plural, duration, time, dateTime, timeHtml, formatLocale, count as formatCount } from '../core/format.js';
+import { money, moneyHtml, plural, duration, time, dateTime, timeHtml, seconds, count as formatCount } from '../core/format.js';
 import { icon } from '../core/icons.js';
 import { markdown } from '../core/markdown.js';
 import { avatar, badge, button, card, chip, disclosure, dl, emptyState, iconButton, meter, skeleton, stateBadge, tabs, timeAgo, timeAt } from '../core/ui.js';
@@ -43,7 +43,6 @@ const canOperate = () => state.bootstrap.user.role !== 'viewer';
 const isFinished = session => ['completed', 'failed', 'cancelled'].includes(session.status);
 const humanize = value => { const words = String(value ?? '').replaceAll('_', ' ').replaceAll('.', ' ').trim(); return words ? words[0].toUpperCase() + words.slice(1) : ''; };
 const shortSha = value => String(value || '').slice(0, 12);
-const seconds = ms => Number.isFinite(ms) ? `${new Intl.NumberFormat(formatLocale() === 'nl' ? 'nl-NL' : undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(ms / 1000)} s` : '';
 const notStarted = session => session.status === 'queued' && session.runs.every(run => !run.startedAt && ['queued', 'pending'].includes(run.status)) && !session.artifacts.length && !(session.requests || []).length;
 
 /**
@@ -154,9 +153,7 @@ function plainTaskText(task) {
 }
 
 function externalLink(label, url, variant = 'ghost') {
-  const target = safeUrl(url);
-  if (!target) return '';
-  return `<a class="button ${variant} sm" href="${escape(target)}" target="_blank" rel="noopener noreferrer" title="Opens in a new tab"><span class="button-label">${escape(label)}</span>${icon('external', 'button-external')}</a>`;
+  return safeUrl(url) ? button({ label, variant, size: 'sm', href: url, external: true }) : '';
 }
 
 function streamTime(at, className = 'stream-time') {
@@ -395,7 +392,7 @@ function evidenceMarkup(session) {
   if (notStarted(session)) return `<section class="card flush session-evidence" aria-labelledby="session-evidence-title"><header class="card-header"><h2 class="card-title" id="session-evidence-title">Evidence</h2></header><div class="session-evidence-empty">${emptyState({ icon: 'activity', compact: true, title: 'Evidence appears once the crew starts', body: '<p>Activity, gateway calls, changes, checks and the handoff show up here as each role works.</p>' })}</div>${composerMarkup(session)}</section>`;
   const counts = { diff: session.artifacts.filter(artifact => artifact.kind === 'diff').length, test: session.artifacts.filter(artifact => artifact.kind === 'test').length };
   const list = tabs({ id: 'evidence', label: 'Session evidence', action: 'tab', items: evidenceTabs.map(tab => ({ ...tab, selected: state.tab === tab.id, count: counts[tab.id] || null })) });
-  const panels = evidenceTabs.map(({ id }) => `<div class="tab-content session-panel" role="tabpanel" id="evidence-panel-${id}" aria-labelledby="evidence-tab-${id}" tabindex="0" data-tab="${id}" data-session-id="${escape(session.id)}"${state.tab === id ? '' : ' hidden'}>${state.tab === id ? panelMarkup(session, id) : ''}</div>`).join('');
+  const panels = evidenceTabs.map(({ id }) => `<div class="session-panel" role="tabpanel" id="evidence-panel-${id}" aria-labelledby="evidence-tab-${id}" tabindex="0" data-tab="${id}" data-session-id="${escape(session.id)}"${state.tab === id ? '' : ' hidden'}>${state.tab === id ? panelMarkup(session, id) : ''}</div>`).join('');
   return `<section class="card flush session-evidence" aria-label="Evidence">${list}${panels}${composerMarkup(session)}</section>`;
 }
 
@@ -654,13 +651,13 @@ function renderSession() {
   if (!session) {
     if (!load.id) return;
     const { content, title } = pendingMarkup();
-    renderHtml(shell(content, { title, overline: load.error?.status === 404 ? undefined : 'Session' }));
+    renderHtml(shell(content, { title, overline: load.error?.status === 404 ? undefined : 'Session', back: { label: 'Sessions', href: '#sessions' } }));
     restoreFocus(target);
     return;
   }
   const open = renderedId === session.id ? [...document.querySelectorAll('#main details[id]')].map(element => [element.id, element.open]) : [];
   const content = `<div class="session-page">${contextMarkup(session)}${decisionMarkup(session)}<div class="session-layout"><div class="session-primary">${briefMarkup(session)}${crewMarkup(session)}${evidenceMarkup(session)}</div><aside class="session-secondary" aria-label="Session details">${budgetMarkup(session)}${candidateMarkup(session)}${executionMarkup(session)}${approvalMarkup(session)}${detailsMarkup(session)}</aside></div>${reviewBarMarkup(session)}</div>`;
-  renderHtml(shell(content, { title: session.title, overline: 'Session', actions: headerActions(session) }));
+  renderHtml(shell(content, { title: session.title, overline: 'Session', actions: headerActions(session), back: { label: 'Sessions', href: '#sessions' } }));
   for (const [id, expanded] of open) { const element = document.getElementById(id); if (element) element.open = expanded; }
   renderedId = session.id;
   restoreFocus(target);

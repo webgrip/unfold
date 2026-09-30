@@ -1,7 +1,3 @@
-:root {
-  --attention-signal: oklch(68% 0.18 50);
-}
-
 .palette {
   --palette-inset: var(--space-5);
   --palette-icon-offset: calc((var(--icon-lg) - var(--icon-md)) / 2);
@@ -159,10 +155,6 @@
 
 .palette-empty .empty-state {
   padding-bottom: var(--space-4);
-}
-
-.palette-empty .empty-state-body > p {
-  margin: 0;
 }
 
 .palette-results {
@@ -368,10 +360,6 @@
 
 .palette .kbd-group {
   gap: var(--space-1);
-}
-
-.palette .kbd {
-  margin: 0;
 }
 
 .palette-option-keys {
