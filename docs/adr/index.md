@@ -24,3 +24,4 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0008](adr-0008-every-pull-request-gets-a-preview-environment.md) | Every pull request gets a preview environment; production stays with the agency | accepted | 2026-09-29 |
 | [ADR-0009](adr-0009-one-tenant-per-agency.md) | One tenant per agency, isolated by namespace, network, runtime and credentials | accepted | 2026-09-29 |
 | [ADR-0010](adr-0010-pull-requests-are-small-whole-and-explained.md) | Glide pull requests are small, whole and explained, and CI asks the reviewer questions | accepted | 2026-09-29 |
+| [ADR-0011](adr-0011-glide-is-reachable-over-mcp-through-a-read-first-server.md) | Glide is reachable over MCP through a separate, read-first server on Ploeg's operator API | accepted | 2026-09-30 |
