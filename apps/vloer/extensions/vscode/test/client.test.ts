@@ -151,7 +151,9 @@ test('linked demo task import preserves its revision, deduplicates commands and 
   assert.equal(first.id, repeated.id);
   assert.equal(first.status, 'queued');
   assert(first.runs.every(run => run.status === 'queued'));
-  assert.deepEqual(first.sourceTask, task);
+  const { descriptionMarkdown, ...snapshot } = task;
+  assert.equal(typeof descriptionMarkdown, 'string', 'the preview carries the description as Markdown');
+  assert.deepEqual(first.sourceTask, snapshot, 'the stored snapshot is the preview without its Markdown');
   assert.equal((await client.sessions()).length, 1);
   assert.equal((await client.history(first.id)).filter(event => event.type === 'session.created').length, 1);
   await client.action(first.id, 'start');

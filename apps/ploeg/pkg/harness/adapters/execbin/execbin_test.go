@@ -119,6 +119,22 @@ func TestParseOutcome_InvalidEnumIsAnError(t *testing.T) {
 	}
 }
 
+func TestParseOutcome_OutcomelessWriterReportKeepsItsAccount(t *testing.T) {
+	a, _ := New([]string{"true"}, "")
+	env := testEnv(t)
+	outcome := filepath.Join(env.ScratchDir, "outcome.json")
+	if err := os.WriteFile(outcome, []byte(`{"problem":"Refunds fail.","solution":"Check the limit."}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	report, err := a.ParseOutcome(testSpec(), harness.ExecResult{OutcomeFile: outcome})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Outcome != "" || report.Problem != "Refunds fail." || report.Solution != "Check the limit." {
+		t.Fatalf("report = %+v", report)
+	}
+}
+
 func TestParseOutcome_NoFileNoSignal(t *testing.T) {
 	a, _ := New([]string{"/bin/agent"}, "")
 	report, err := a.ParseOutcome(testSpec(), harness.ExecResult{})

@@ -164,13 +164,25 @@ func (c *Client) SpendLogTotal(ctx context.Context, token string) (float64, int,
 }
 
 // SpendLogSummary is what one key's spend log entries add up to. Token
-// counts absent from an entry count as zero; Models is sorted and unique.
+// counts absent from an entry count as zero; Models is sorted and unique, and
+// ByModel splits the same totals per model in the same order.
 type SpendLogSummary struct {
 	USD              float64
 	Entries          int
 	PromptTokens     int64
 	CompletionTokens int64
 	Models           []string
+	ByModel          []ModelUsage
+}
+
+// ModelUsage is the share of a key's spend log entries that name one model.
+// Entries without a model are counted in the summary's totals only.
+type ModelUsage struct {
+	Model            string
+	USD              float64
+	Entries          int
+	PromptTokens     int64
+	CompletionTokens int64
 }
 
 // SpendLogs reads the same entries as SpendLogTotal and also aggregates their
@@ -195,7 +207,7 @@ func (c *Client) SpendLogs(ctx context.Context, token string) (SpendLogSummary, 
 		return SpendLogSummary{}, fmt.Errorf("litellm: invalid spend logs response")
 	}
 	var summary SpendLogSummary
-	models := map[string]struct{}{}
+	models := map[string]*ModelUsage{}
 	for decoder.More() {
 		var entry struct {
 			APIKey           string   `json:"api_key"`
@@ -210,12 +222,21 @@ func (c *Client) SpendLogs(ctx context.Context, token string) (SpendLogSummary, 
 		if entry.APIKey != token || entry.Spend == nil || *entry.Spend < 0 || math.IsNaN(*entry.Spend) || math.IsInf(*entry.Spend, 0) {
 			return SpendLogSummary{}, fmt.Errorf("litellm: spend log entry is unavailable or invalid")
 		}
+		prompt, completion := tokenCount(entry.PromptTokens), tokenCount(entry.CompletionTokens)
 		summary.USD += *entry.Spend
 		summary.Entries++
-		summary.PromptTokens += tokenCount(entry.PromptTokens)
-		summary.CompletionTokens += tokenCount(entry.CompletionTokens)
+		summary.PromptTokens += prompt
+		summary.CompletionTokens += completion
 		if model := strings.TrimSpace(entry.Model); model != "" {
-			models[model] = struct{}{}
+			m := models[model]
+			if m == nil {
+				m = &ModelUsage{Model: model}
+				models[model] = m
+			}
+			m.USD += *entry.Spend
+			m.Entries++
+			m.PromptTokens += prompt
+			m.CompletionTokens += completion
 		}
 	}
 	if closing, err := decoder.Token(); err != nil || closing != json.Delim(']') {
@@ -226,6 +247,10 @@ func (c *Client) SpendLogs(ctx context.Context, token string) (SpendLogSummary, 
 		summary.Models = append(summary.Models, model)
 	}
 	sort.Strings(summary.Models)
+	summary.ByModel = make([]ModelUsage, 0, len(models))
+	for _, model := range summary.Models {
+		summary.ByModel = append(summary.ByModel, *models[model])
+	}
 	return summary, nil
 }
 

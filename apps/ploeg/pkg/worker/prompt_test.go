@@ -165,6 +165,29 @@ func TestComposePrompt_WriterIsNotAskedForAVerdict(t *testing.T) {
 	}
 }
 
+// The person who merges reads the writer's problem and solution in Vloer
+// (ADR-0042), and the pull request a writer opens starts with the same text.
+func TestComposePrompt_WriterReportsItsProblemAndSolution(t *testing.T) {
+	opening := ComposePrompt(roleSpec("builder", nil), true, "", true)
+	for _, want := range []string{"PLOEG_OUTCOME_FILE", `"problem"`, `"solution"`, `"Problem" and a "Solution" section`} {
+		if !strings.Contains(opening, want) {
+			t.Errorf("writer prompt missing %q:\n%s", want, opening)
+		}
+	}
+	if strings.Contains(opening, `"outcome"`) {
+		t.Errorf("writer prompt asks for an outcome; the forge poll decides that:\n%s", opening)
+	}
+	fixing := ComposePrompt(roleSpec("builder", nil), true, "https://forgejo.example/webgrip/ploeg/pulls/7", true)
+	if !strings.Contains(fixing, `"problem"`) || strings.Contains(fixing, `"Problem" and a "Solution" section`) {
+		t.Errorf("a fix Round reports its account but opens no pull request description:\n%s", fixing)
+	}
+	for _, reader := range []string{ComposePrompt(roleSpec("reviewer", nil), false, "", true), ComposePlannerPrompt(roleSpec("planner", nil))} {
+		if strings.Contains(reader, `"problem"`) {
+			t.Errorf("a reading Run is asked for a problem and solution:\n%s", reader)
+		}
+	}
+}
+
 // A plan may open with a reading Round — silver's analyst recons the ticket
 // before the builder writes anything — so there is no branch to review yet.
 // The contract must say that rather than claim a checkout that does not exist.

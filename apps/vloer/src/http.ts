@@ -1,11 +1,9 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import type { AppConfig, User, RuntimeKind, Session } from './types.ts';
 import { Auth } from './auth.ts';
 import type { Engine } from './engine.ts';
 import { publicSession, type Store } from './store.ts';
-import { getTask, listTasks, publicTaskSource, TaskError } from './tasks.ts';
+import { getTask, listTasks, presentTask, publicTaskSource, TaskError } from './tasks.ts';
 import { readCandidate, unavailableCandidate } from './candidates.ts';
 import { placements } from './config.ts';
 import type { WorkerRelay } from './runtime/relay.ts';
@@ -16,8 +14,11 @@ import type { Oidc } from './oidc.ts';
 import { readFileSync } from 'node:fs';
 import { PloegClient, PloegError, type PloegDecision, type PloegState } from './ploeg.ts';
 import { DeliveryService } from './delivery.ts';
+import { StaticFiles } from './static.ts';
 
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
+
+const browserModule = /^\/(core|views|styles)\/[a-z0-9][a-z0-9-]*\.(js|css)$/;
 
 function fault(status: number, code: string, message: string): never { throw Object.assign(new Error(message), { status, code }); }
 
@@ -71,6 +72,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const ploeg = new PloegClient(config);
   const delivery = new DeliveryService(config, store);
   const streams = new Set<ServerResponse>();
+  const staticFiles = new StaticFiles(config.publicDir);
   const knownSecrets = [config.delivery?.verifierTokenEnv ? process.env[config.delivery.verifierTokenEnv] : undefined, config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword, config.ploeg?.tokenEnv ? process.env[config.ploeg.tokenEnv] : undefined, ...(config.taskSources ?? []).map(source => source.token)].filter((value): value is string => Boolean(value));
   function sanitize<T>(value: T): T {
     if (typeof value === 'string') {
@@ -222,7 +224,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const source = config.taskSources?.find(item => item.id === taskRoute[1]);
           if (!source) fault(404, 'source_not_found', 'Task connection not found.');
           const resolved = await withUserToken(source!);
-          if (taskRoute[2]) return json(res, 200, sanitize(await engine.previewTask(await getTask(resolved, taskRoute[2]), user)));
+          if (taskRoute[2]) return json(res, 200, sanitize(presentTask(resolved, await engine.previewTask(await getTask(resolved, taskRoute[2]), user))));
           const page = Number(url.searchParams.get('page') ?? 1);
           if (!Number.isSafeInteger(page) || page < 1 || page > 1000) fault(400, 'page', 'Choose a page between 1 and 1000.');
           return json(res, 200, sanitize(await listTasks(resolved, page)));
@@ -280,6 +282,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             if (path === '/api/ploeg/runs') return json(res, 200, sanitize(await ploeg.runs(user, { team: optional('team'), state: optional('state'), outcome: optional('outcome'), before: optional('before') }, fresh)));
             if (path === '/api/ploeg/events') return json(res, 200, sanitize(await ploeg.events(user, { team: optional('team'), before: optional('before') }, fresh)));
             if (path === '/api/ploeg/proposed') return json(res, 200, sanitize(await ploeg.proposed(user, fresh)));
+            if (path === '/api/ploeg/now') return json(res, 200, sanitize(await ploeg.now(user, fresh)));
             if (path === '/api/ploeg/work-items') return json(res, 200, sanitize(await ploeg.items(user, text(url.searchParams.get('team'), 'Team', 100), (url.searchParams.get('state') ?? 'all') as PloegState | 'all', url.searchParams.get('after') ?? '0', fresh)));
             const match = /^\/api\/ploeg\/work-items\/([^/]+)$/.exec(path);
             if (match) return json(res, 200, sanitize(await ploeg.detail(user, match[1], fresh)));
@@ -364,14 +367,10 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         }
         return fault(404, 'not_found', 'API route not found.');
       }
-      const assets: Record<string, string> = { '/': 'index.html', '/app.js': 'app.js', '/ploeg.js': 'ploeg.js', '/ploeg-activity.js': 'ploeg-activity.js', '/delivery.js': 'delivery.js', '/styles.css': 'styles.css', '/favicon.svg': 'favicon.svg', '/favicon.ico': 'favicon.ico', '/favicon-16x16.png': 'favicon-16x16.png', '/favicon-32x32.png': 'favicon-32x32.png', '/apple-touch-icon.png': 'apple-touch-icon.png', '/android-chrome-192x192.png': 'android-chrome-192x192.png', '/android-chrome-512x512.png': 'android-chrome-512x512.png', '/site.webmanifest': 'site.webmanifest', '/og-image.png': 'og-image.png', '/fonts/archivo-latin-wght-wdth110.woff2': 'fonts/archivo-latin-wght-wdth110.woff2', '/fonts/archivo-latin-ext-wght-wdth110.woff2': 'fonts/archivo-latin-ext-wght-wdth110.woff2', '/fonts/OFL.txt': 'fonts/OFL.txt' };
-      if (method !== 'GET' || !assets[path]) return fault(404, 'not_found', 'Page not found.');
-      const file = assets[path];
-      const content = await readFile(join(config.publicDir, file));
-      const mediaTypes: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8' };
-      const extension = file.slice(file.lastIndexOf('.'));
-      res.writeHead(200, { 'Content-Type': mediaTypes[extension] ?? 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache' });
-      res.end(content);
+      const assets: Record<string, string> = { '/': 'index.html', '/app.js': 'app.js', '/shell.js': 'shell.js', '/now.js': 'now.js', '/ploeg.js': 'ploeg.js', '/ploeg-activity.js': 'ploeg-activity.js', '/delivery.js': 'delivery.js', '/styles.css': 'styles.css', '/favicon.svg': 'favicon.svg', '/favicon.ico': 'favicon.ico', '/favicon-16x16.png': 'favicon-16x16.png', '/favicon-32x32.png': 'favicon-32x32.png', '/apple-touch-icon.png': 'apple-touch-icon.png', '/android-chrome-192x192.png': 'android-chrome-192x192.png', '/android-chrome-512x512.png': 'android-chrome-512x512.png', '/site.webmanifest': 'site.webmanifest', '/og-image.png': 'og-image.png', '/fonts/archivo-latin-wght-wdth110.woff2': 'fonts/archivo-latin-wght-wdth110.woff2', '/fonts/archivo-latin-ext-wght-wdth110.woff2': 'fonts/archivo-latin-ext-wght-wdth110.woff2', '/fonts/OFL.txt': 'fonts/OFL.txt' };
+      const file = assets[path] ?? (browserModule.test(path) ? path.slice(1) : undefined);
+      if (method !== 'GET' || !file) return fault(404, 'not_found', 'Page not found.');
+      await staticFiles.serve(req, res, file, Boolean(assets[path]));
     } catch (error: any) {
       if (res.headersSent) { res.end(); return; }
       const status = Number(error.status || error.statusCode) || 500;

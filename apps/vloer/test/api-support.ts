@@ -7,9 +7,12 @@ import { setTimeout as delay } from 'node:timers/promises';
 import type { Server } from 'node:http';
 import { deadlineAfter, scaledTimeout } from './timeframes.ts';
 import { createApplication } from '../src/main.ts';
+import { DemoRuntime } from '../src/runtime/demo.ts';
 import type { AgentRuntime, AppConfig, Event, RuntimeKind, Session } from '../src/types.ts';
 
 export const repositoryRoot = fileURLToPath(new URL('../', import.meta.url));
+
+const testDemoStepMs = 100;
 
 export function configuration(dataDir: string, mode: 'demo' | 'live' = 'demo'): AppConfig {
   return {
@@ -35,6 +38,7 @@ export async function application(mode: 'demo' | 'live' = 'demo', configure?: (c
   const dataDir = await mkdtemp(join(tmpdir(), 'vloer-api-'));
   const config = configuration(dataDir, mode);
   configure?.(config);
+  runtimes ??= config.mode === 'demo' ? new Map([['demo', new DemoRuntime({ dataDir: config.dataDir, delayMs: testDemoStepMs })]]) : undefined;
   let app = await createApplication(config, runtimes ? { runtimes } : undefined);
   let url = await listen(app.server);
   return {

@@ -34,7 +34,8 @@ func TestOperatorReadsAreScopedAndCredentialFree(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	report := Report(work.OutcomeNoChangeNeeded, "summary "+claimed.RunToken, "", []string{"https://forge.example/webgrip/ploeg/pulls/1?token=private"}, json.RawMessage(`{"costUsd":0.125,"inputTokens":10,"outputTokens":5,"sessionId":"opaque","apiKey":"private"}`), nil)
+	report := Report(work.OutcomeNoChangeNeeded, "summary "+claimed.RunToken, "", []string{"https://forge.example/webgrip/ploeg/pulls/1?token=private"}, json.RawMessage(`{"costUsd":0.125,"inputTokens":10,"outputTokens":5,"sessionId":"opaque","apiKey":"private"}`), nil).
+		WithProblemAndSolution("a reader's problem", "a reader's solution")
 	report.Findings, report.Verdict = "review findings", "approve"
 	if _, err := testStore.ReportOutcome(ctx, claimed.RunToken, report); err != nil {
 		t.Fatal(err)
@@ -55,6 +56,9 @@ func TestOperatorReadsAreScopedAndCredentialFree(t *testing.T) {
 	}
 	if len(detail.Runs) != 1 || detail.Runs[0].Verdict != "approve" || detail.Runs[0].CostStatus != "observed" || detail.Runs[0].Usage.CostUSD == nil || *detail.Runs[0].Usage.CostUSD != .125 {
 		t.Fatalf("lost run evidence: %+v", detail.Runs)
+	}
+	if detail.Runs[0].Problem != "" || detail.Runs[0].Solution != "" {
+		t.Fatalf("a reading Run's problem and solution were stored (ADR-0042): %+v", detail.Runs[0])
 	}
 	runID, _ := OperatorCursor(detail.Runs[0].ID)
 	run, err := testStore.OperatorRun(ctx, runID, []string{"silver"})

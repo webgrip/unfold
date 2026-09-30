@@ -11,6 +11,7 @@ type ActiveProcess = { child: ChildProcessWithoutNullStreams; stop: () => void; 
 
 const supervisorProgram = `const {spawn}=require('node:child_process');
 const child=spawn(process.argv[1],process.argv.slice(2),{env:process.env,stdio:['pipe','inherit','inherit'],detached:process.platform!=='win32'});
+if(process.send&&child.pid)process.send({type:'bridge.started',pid:child.pid});
 let stopped=false,timer;
 const kill=signal=>{try{if(process.platform!=='win32'&&child.pid)process.kill(-child.pid,signal);else child.kill(signal)}catch{}};
 const stop=()=>{if(stopped)return;stopped=true;kill('SIGTERM');timer=setTimeout(()=>kill('SIGKILL'),1000)};
@@ -51,6 +52,8 @@ export class CommandRuntime implements AgentRuntime {
       let stopped = false;
       let finished = false;
       let killTimer: ReturnType<typeof setTimeout> | undefined;
+      let bridgePid: number | undefined;
+      let releaseTimer: ReturnType<typeof setTimeout> | undefined;
       const stop = (): void => {
         if (stopped || finished) return;
         stopped = true;
@@ -69,6 +72,7 @@ export class CommandRuntime implements AgentRuntime {
         finished = true;
         clearTimeout(timer);
         if (killTimer) clearTimeout(killTimer);
+        if (releaseTimer) clearTimeout(releaseTimer);
         context.signal.removeEventListener('abort', abort);
         this.active.delete(context.workspace.id);
         if (context.signal.aborted || stopped && !failure) reject(new DOMException('Agent turn cancelled', 'AbortError'));
@@ -79,6 +83,12 @@ export class CommandRuntime implements AgentRuntime {
       child.on('error', () => finish(new RuntimeFailure('runtime_failure', 'runtime')));
       child.on('message', record => {
         if (record && typeof record === 'object' && 'type' in record && record.type === 'launch.error') failure = new RuntimeFailure('missing' in record && record.missing === true ? 'missing_executable' : 'runtime_failure', 'runtime');
+        if (record && typeof record === 'object' && 'type' in record && record.type === 'bridge.started' && 'pid' in record && Number.isInteger(record.pid) && (record.pid as number) > 0) bridgePid = record.pid as number;
+      });
+      child.once('exit', () => {
+        if (bridgePid && process.platform !== 'win32') try { process.kill(-bridgePid, 'SIGKILL'); } catch {}
+        releaseTimer = setTimeout(() => { child.stdout.destroy(); child.stderr.destroy(); }, 2000);
+        releaseTimer.unref();
       });
       child.stdin.on('error', () => {});
       child.stderr.on('data', () => {});

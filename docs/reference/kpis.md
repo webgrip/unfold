@@ -189,21 +189,21 @@ SELECT (SELECT sum(cost_usd) FROM run_cost)
 
 `runs_not_settled` counts Runs whose cost is still missing or provisional. When it is not zero, K2 is too low.
 
-Per model, after `8148c1d` lands (`usage.models` is a JSON array; a Run that used two models counts toward both):
+Per model, from `usage.byModel`, which splits a Run's settled tokens and cost across the models it called. A Run that used two models adds its share to each, and nothing is counted twice. Runs settled before `byModel` existed have only `usage.models`, so they drop out of this query:
 
 ```sql
-SELECT m.model, count(*) AS runs,
-       sum((r.usage->>'inputTokens')::bigint)  AS input_tokens,
-       sum((r.usage->>'outputTokens')::bigint) AS output_tokens,
-       sum((r.usage->>'costUsd')::numeric)     AS cost_usd
+SELECT m->>'model' AS model, count(DISTINCT r.id) AS runs,
+       sum((m->>'inputTokens')::bigint)  AS input_tokens,
+       sum((m->>'outputTokens')::bigint) AS output_tokens,
+       sum((m->>'costUsd')::numeric)     AS cost_usd
 FROM agent_runs r
 JOIN work_items w ON w.id = r.work_item_id AND NOT w.operator_owned
-CROSS JOIN LATERAL jsonb_array_elements_text(r.usage->'models') AS m(model)
+CROSS JOIN LATERAL jsonb_array_elements(r.usage->'byModel') AS m
 WHERE r.state = 'finished'
-  AND jsonb_typeof(r.usage->'models') = 'array'
+  AND jsonb_typeof(r.usage->'byModel') = 'array'
   AND r.team IN ($team)
   AND $__timeFilter(r.finished_at)
-GROUP BY m.model
+GROUP BY m->>'model'
 ORDER BY cost_usd DESC NULLS LAST;
 ```
 
