@@ -107,9 +107,9 @@ test('the overview shows totals as tiles and a per-team table, never a chart', (
 });
 
 test('the demo summary counts window-bound Runs and keeps spend at zero', () => {
-  assert.deepEqual(summary('24h').totals.runs, { pending: 1, running: 1, finished: 3, failed: 0, stuck: 1 });
-  assert.deepEqual(summary('7d').totals.runs, { pending: 1, running: 1, finished: 4, failed: 1, stuck: 1 });
-  assert.deepEqual(summary('30d').totals.runs, { pending: 1, running: 1, finished: 5, failed: 2, stuck: 1 });
+  assert.deepEqual(summary('24h').totals.runs, { pending: 1, running: 1, finished: 23, failed: 13, stuck: 1 });
+  assert.deepEqual(summary('7d').totals.runs, { pending: 1, running: 1, finished: 32, failed: 16, stuck: 2 });
+  assert.deepEqual(summary('30d').totals.runs, { pending: 1, running: 1, finished: 32, failed: 16, stuck: 2 });
   assert.deepEqual(summary('30d').totals.spend, { settledUsd: 0, reservedUsd: 0 });
   assert.equal(summary('24h').totals.workItems.proposed, 2);
 });
