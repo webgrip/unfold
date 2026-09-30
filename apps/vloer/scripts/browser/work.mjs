@@ -1,17 +1,158 @@
 import { navigate } from './navigate.mjs';
 
-/** Work: the awaiting-review lane, the review screen at phone width, and the needs-human lane. */
-export async function run({ page, assert, screenshot }) {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await navigate(page, 'Work');
-  await page.locator('.ploeg-lanes').getByRole('button', { name: 'Awaiting review' }).click();
-  await page.locator('[data-action="ploeg-item"][data-id="105"]').click();
-  await page.getByRole('heading', { name: 'Ready for your review' }).waitFor();
-  assert.equal(await page.getByRole('link', { name: 'Open pull request' }).getAttribute('href'), 'https://forge.example.invalid/example/order-service/pulls/5');
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'Ploeg review layout overflows horizontally');
-  await screenshot('ploeg-review-mobile');
-  await page.getByRole('button', { name: 'Close work item details' }).click();
-  await page.locator('.ploeg-lanes').getByRole('button', { name: 'Needs human' }).click();
-  await page.locator('[data-action="ploeg-item"][data-id="101"]').waitFor();
-  await page.setViewportSize({ width: 1440, height: 1040 });
+const pageTwo = {
+  id: '999', team: 'delivery', state: 'needs_human', title: 'Loaded from the second page', provider: 'demo', externalId: 'DEMO-99', url: '', description: '', descriptionMarkdown: '',
+  revision: 'p2', priority: 1, attempts: 1, infraFailures: 0, nextEligibleAt: null, lease: null,
+  target: { forge: 'demo', owner: 'example', repo: 'order-service', baseBranch: 'main' },
+  createdAt: '2026-09-30T08:00:00Z', updatedAt: '2026-09-30T08:30:00Z',
+  latestShift: { id: '99', workItemId: '999', team: 'delivery', branch: 'agent/demo-99', round: 2, budgetUsd: 3, spentUsd: 0, reservedUsd: 0, openedAt: '2026-09-30T08:01:00Z', closedAt: '2026-09-30T08:30:00Z', closeReason: 'fix_round_cap_reached' },
+};
+
+/**
+ * Work: lanes, the review decision and its phone action bar, master-detail at desktop width with the reason groups,
+ * keys, the demo cancel dialog, re-opening a Work Item, the remembered Team changed from the keyboard, Load more
+ * surviving a refresh, and the focus after a live cancel.
+ */
+export async function run({ page, app, assert, screenshot }) {
+  const overviewReads = [];
+  const sessionReads = [];
+  const detailReads = [];
+  const onRequest = request => {
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/ploeg') overviewReads.push(request.url());
+    if (path === '/api/sessions') sessionReads.push(request.url());
+    if (path.startsWith('/api/ploeg/work-items/')) detailReads.push(path);
+  };
+  page.on('request', onRequest);
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await navigate(page, 'Work');
+    const lanes = page.getByRole('group', { name: 'Lane' });
+    await lanes.getByRole('button', { name: /^Ready for review/ }).click();
+    assert.equal(await page.evaluate(() => location.hash), '#work?lane=awaiting_review');
+    await page.getByText('PR #5 · No agent verdict', { exact: true }).waitFor();
+    const listReads = overviewReads.length;
+    await page.locator('[data-work-row][data-id="105"]').click();
+    await page.getByRole('heading', { name: 'Ready for your review' }).waitFor();
+    await page.waitForFunction(() => document.activeElement?.id === 'ploeg-item-title');
+    assert.equal(await page.locator('#ploeg-item-title').textContent(), 'Round half-cent totals consistently');
+    const sticky = page.locator('.work-sticky-actions');
+    assert.equal(await sticky.getByRole('link', { name: /Open pull request #5/ }).getAttribute('href'), 'https://forge.example.invalid/example/order-service/pulls/5');
+    await page.waitForFunction(() => { const bar = document.querySelector('.work-sticky-actions'); return bar && getComputedStyle(bar).visibility === 'visible'; });
+    await page.locator('#work-decision .button.primary').scrollIntoViewIfNeeded();
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('.work-sticky-actions')).visibility === 'hidden');
+    assert.equal(await page.locator('#work-decision').getByRole('link', { name: /Open pull request #5/ }).isVisible(), true, 'phones show the primary action once: in the box while it is on screen');
+    assert.equal(await page.getByText('CI checks: not reported').isVisible(), true);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'the Work Item page overflows horizontally at 390 px');
+    assert.equal(await page.evaluate(() => document.getElementById('page-title').getBoundingClientRect().width <= 1), true, 'the page heading steps aside, for screen readers only, on a phone Work Item page');
+    await screenshot('ploeg-review-mobile');
+    await page.locator('.work-back').click();
+    await page.locator('[data-work-row][data-id="105"]').waitFor();
+    assert.equal(overviewReads.length, listReads, 'opening and closing a Work Item does not reload the lists');
+    await page.waitForFunction(() => document.activeElement?.dataset?.id === '105');
+    await lanes.getByRole('button', { name: /^Needs you/ }).click();
+    await page.locator('[data-work-row][data-id="101"]').waitFor();
+    assert.equal(await page.getByRole('heading', { name: /Reviewer still wants changes/ }).count(), 1, 'Needs you groups its rows under their reason');
+    assert.equal(await page.evaluate(() => { const bar = document.querySelector('.work-lanes'); return [...bar.children].every(segment => { const box = segment.getBoundingClientRect(); const frame = bar.getBoundingClientRect(); return box.left >= frame.left - 1 && box.right <= frame.right + 1; }); }), true, 'every lane is visible at 390 px');
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'the Work list overflows horizontally at 390 px');
+
+    await page.setViewportSize({ width: 1440, height: 1040 });
+    await page.locator('[data-work-row][data-id="109"]').click();
+    await page.getByRole('heading', { name: 'Why this needs you' }).waitFor();
+    assert.equal(await page.locator('.work-list-pane').isVisible(), true, 'the list stays beside the Work Item on wide screens');
+    assert.equal(await page.locator('[data-work-row][data-id="109"]').getAttribute('aria-current'), 'true');
+    assert.equal(await page.locator('.work-sticky-actions').isVisible(), false);
+    assert.equal(await page.locator('#work-decision').getByRole('link', { name: /Open pull request #7/ }).isVisible(), true, 'the decision box carries the action to take');
+    await page.locator('#work-decision [data-action="work-run"][data-id="44"]').first().click();
+    assert.equal(await page.locator('#work-run-44').evaluate(element => element.open), true, 'the evidence link opens its Run');
+    await page.getByRole('button', { name: 'Cancel Work Item' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Cancel this Work Item?' });
+    await dialog.waitFor();
+    assert.equal(await dialog.getByText('Withdraws the Work Item.', { exact: true }).isVisible(), true, 'the dialog leads with the main consequence');
+    assert.equal(await dialog.getByText('Not available in the demo').isVisible(), true);
+    assert.equal(await dialog.getByRole('button', { name: 'Cancel Work Item' }).isDisabled(), true, 'the demo cannot cancel anything');
+    await dialog.getByRole('button', { name: 'Keep it' }).click();
+    await dialog.waitFor({ state: 'hidden' });
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => location.hash === '#work?lane=needs_human');
+    await page.locator('#ploeg-item-title').waitFor({ state: 'detached' });
+    const reads = detailReads.length;
+    await page.locator('[data-work-row][data-id="109"]').click();
+    await page.waitForFunction(() => document.activeElement?.id === 'ploeg-item-title');
+    assert(detailReads.slice(reads).includes('/api/ploeg/work-items/109'), 'opening a Work Item again reads it again');
+    await page.getByRole('button', { name: 'Close work item details' }).click();
+    await page.locator('#ploeg-item-title').waitFor({ state: 'detached' });
+    await page.locator('[data-work-row][data-id="109"]').focus();
+    await page.keyboard.press('j');
+    assert.equal(await page.evaluate(() => document.activeElement?.dataset?.id), '110', 'j moves to the next row');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.activeElement?.id === 'ploeg-item-title');
+    assert.equal(await page.locator('#ploeg-item-title').textContent(), 'Summarise payment-provider fees for the pricing brief');
+    await page.getByRole('button', { name: 'Close work item details' }).click();
+    await page.locator('#ploeg-item-title').waitFor({ state: 'detached' });
+    await page.goto(`http://127.0.0.1:${app.server.address().port}/#work/115?lane=all`);
+    await page.waitForFunction(() => document.activeElement?.id === 'ploeg-item-title');
+    assert.equal(await page.evaluate(() => { const row = document.querySelector('[data-work-row][aria-current="true"]'); const pane = row.closest('.work-list').getBoundingClientRect(); const box = row.getBoundingClientRect(); return box.top >= pane.top && box.bottom <= pane.bottom; }), true, 'a deep link scrolls its row into the list pane');
+    assert.equal(await page.evaluate(() => document.querySelector('.work-list-pane').getBoundingClientRect().bottom <= innerHeight + 1), true, 'the list pane ends inside the window');
+    await page.getByRole('button', { name: 'Close work item details' }).click();
+    await page.locator('#ploeg-item-title').waitFor({ state: 'detached' });
+    assert(sessionReads.length <= 1, `Work reads the sessions at most once, read ${sessionReads.length} times`);
+
+    await page.locator('#ploeg-team').selectOption('research');
+    await page.locator('[data-work-row][data-id="110"]').waitFor();
+    assert.equal(await page.locator('[data-work-row][data-id="109"]').count(), 0);
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('vloer.prefs')).team), 'research', 'the Team choice is remembered');
+    await page.locator('#ploeg-team').selectOption('');
+    await page.locator('[data-work-row][data-id="109"]').waitFor();
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('vloer.prefs')).team), null);
+    await page.locator('#ploeg-team').focus();
+    await page.keyboard.press('ArrowDown');
+    await page.waitForFunction(() => document.querySelector('#ploeg-team')?.value === 'delivery' && !document.querySelector('.work-list-loading'));
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'ploeg-team', 'changing the Team from the keyboard keeps focus on the select');
+    await page.keyboard.press('ArrowUp');
+    await page.waitForFunction(() => document.querySelector('#ploeg-team')?.value === '' && !document.querySelector('.work-list-loading'));
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'ploeg-team');
+    await page.getByRole('button', { name: 'Refresh' }).focus();
+    const before = overviewReads.length;
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => !document.querySelector('.work-refresh[aria-busy="true"]'));
+    assert(overviewReads.length > before, 'Refresh reads the lists again');
+    assert.equal(await page.evaluate(() => document.activeElement?.dataset?.action), 'ploeg-refresh', 'Refresh keeps the keyboard focus');
+
+    await page.route('**/api/ploeg?*', async route => {
+      const response = await route.fetch();
+      const data = await response.json();
+      if (new URL(route.request().url()).searchParams.get('team') === 'delivery' && data.lanes) data.lanes.needs_human.nextCursor = 'page-2';
+      await route.fulfill({ response, json: data });
+    });
+    await page.route('**/api/ploeg/work-items?*', route => route.fulfill({ json: { items: [pageTwo], nextCursor: null } }));
+    await lanes.getByRole('button', { name: /^Needs you/ }).click();
+    await page.getByRole('button', { name: 'Refresh' }).click();
+    await page.getByRole('button', { name: 'Load more' }).click();
+    await page.locator('[data-work-row][data-id="999"]').waitFor();
+    await page.getByRole('button', { name: 'Refresh' }).click();
+    await page.waitForFunction(() => !document.querySelector('.work-refresh[aria-busy="true"]'));
+    assert.equal(await page.locator('[data-work-row][data-id="999"]').count(), 1, 'a refresh keeps the Work Items that Load more added');
+    assert.equal(await page.getByRole('button', { name: 'Load more' }).count(), 0, 'and remembers that the second page was the last');
+    await page.unroute('**/api/ploeg?*');
+    await page.unroute('**/api/ploeg/work-items?*');
+
+    await page.route('**/api/bootstrap', async route => { const response = await route.fetch(); const data = await response.json(); data.mode = 'live'; await route.fulfill({ response, json: data }); });
+    await page.route('**/api/ploeg/work-items/102', async route => { const response = await route.fetch(); const data = await response.json(); data.demo = false; await route.fulfill({ response, json: data }); });
+    await page.route('**/api/ploeg/work-items/102/cancel', route => route.fulfill({ json: { workItemId: '102', team: 'delivery', state: 'withdrawn', demo: false, withdrawn: true, shiftId: '20', cancelledRuns: 0, stoppedRuns: 1, keysBlocked: false, message: '' } }));
+    await page.goto(`http://127.0.0.1:${app.server.address().port}/#work/102?lane=leased`);
+    await page.reload();
+    await page.waitForFunction(() => document.activeElement?.id === 'ploeg-item-title');
+    await page.getByRole('button', { name: 'Cancel Work Item' }).click();
+    const live = page.getByRole('dialog', { name: 'Cancel this Work Item?' });
+    await live.getByRole('button', { name: 'Cancel Work Item' }).click();
+    await page.waitForFunction(() => document.activeElement?.id === 'work-cancel-result');
+    assert.equal(await page.locator('#work-cancel-result').getAttribute('role'), 'status');
+    assert.equal(await page.locator('#work-cancel-result .callout').getAttribute('data-tone'), 'attention', 'model keys that are not yet blocked are not a green result');
+    await page.unroute('**/api/bootstrap');
+    await page.unroute('**/api/ploeg/work-items/102');
+    await page.unroute('**/api/ploeg/work-items/102/cancel');
+  } finally {
+    page.off('request', onRequest);
+  }
 }
