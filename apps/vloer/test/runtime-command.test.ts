@@ -110,14 +110,10 @@ async function pidFrom(directory: string, name: string): Promise<number> {
 
 async function exited(pid: number): Promise<boolean> {
   try { process.kill(pid, 0); } catch { return true; }
-<<<<<<< Updated upstream
   try {
     const stat = await readFile(`/proc/${pid}/stat`, 'utf8');
     return stat.slice(stat.lastIndexOf(')') + 2).startsWith('Z');
   } catch { return false; }
-=======
-  try { return (await readFile(`/proc/${pid}/stat`, 'utf8')).split(') ').at(-1)?.startsWith('Z') ?? false; } catch { return false; }
->>>>>>> Stashed changes
 }
 
 async function gone(pid: number): Promise<boolean> {
