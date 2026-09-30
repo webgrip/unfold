@@ -122,6 +122,19 @@ test('the page-level failure names the cause and offers the one way forward', ()
   assert.match(stale, /Round half-cent totals/, 'the last data stays visible');
 });
 
+test('malformed groups and unexpected states never break the page or vanish', () => {
+  const data = nowData();
+  data.running = undefined;
+  data.recent = null;
+  data.waiting.push({ id: '113', team: 'delivery', state: 'stale', title: 'Migrate the order export', url: '', createdAt: at, updatedAt: at, infraFailures: 10, spentUsd: null, pullRequestUrl: '' });
+  const html = nowMarkup(view({ data }), options, nowAt);
+  assert.match(html, /No Run is working/);
+  assert.match(html, /No Run has finished yet/);
+  assert.match(html, /id="now-group-needs">[\s\S]*Migrate the order export/, 'a stale item lands with the items that need you');
+  assert.match(html, /Infrastructure kept failing/);
+  assert.doesNotMatch(html, /class="now-stale"/, 'the stale note does not repeat an item already listed');
+});
+
 test('the Grafana link stays hidden without a configured dashboard URL', () => {
   const html = nowMarkup(view(), { singleKeys: true }, nowAt);
   assert.doesNotMatch(html, /grafana/, 'no Grafana link is invented without observability');

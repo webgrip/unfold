@@ -219,9 +219,9 @@ function waitingCard(view, visible, held, options, since, now) {
   else if (!data.waiting.length && !held.waiting) body = allClear(view.data, view.summary, now);
   else {
     body = groups.map(group => {
-      const rows = data.waiting.filter(entry => entry.state === group.state);
+      const rows = data.waiting.filter(entry => entry.state === group.state || (group.id === 'needs' && !['awaiting_review', 'proposed'].includes(entry.state)));
       const list = rows.length ? `<ul class="list now-list" aria-labelledby="now-group-${group.id}">${rows.map(entry => waitingRow(entry, options, since)).join('')}</ul>` : `<p class="now-group-empty">${escape(group.empty)}</p>`;
-      const extra = group.id === 'needs' ? staleNote(view.summary?.data?.totals?.workItems?.stale) : '';
+      const extra = group.id === 'needs' && !data.waiting.some(entry => entry.state === 'stale') ? staleNote(view.summary?.data?.totals?.workItems?.stale) : '';
       return `<section class="now-group" data-group="${group.id}" aria-labelledby="now-group-${group.id}"><header class="now-group-header" data-tone="${group.tone}"><h3 class="now-group-title" id="now-group-${group.id}">${icon(group.glyph)}<span>${escape(group.title)}</span>${count(rows.length)}</h3><p class="now-group-hint">${escape(group.hint)}</p></header>${list}${extra}</section>`;
     }).join('');
   }
@@ -283,9 +283,9 @@ function recentCard(view, visible, held, since) {
   return `<section class="card flush now-card now-recent" aria-labelledby="now-recent-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-recent-title">Recently finished</h2></div><div class="card-actions">${pill}${button({ id: 'now-recent-all', label: 'View all', size: 'sm', variant: 'ghost', href: '#runs?state=finished', ariaLabel: 'View all finished Runs' })}</div></header><div class="card-body">${body}</div></section>`;
 }
 
-function digestItem(value, singular, pluralForm, tone) {
+function digestItem(value, singular, pluralForm, tone, more = false) {
   if (!value) return '';
-  return `<li class="now-digest-item"><span class="status-dot" data-tone="${tone}" aria-hidden="true"></span><strong class="num">${escape(format.count(value))}</strong> ${escape(value === 1 ? singular : pluralForm)}</li>`;
+  return `<li class="now-digest-item"><span class="status-dot" data-tone="${tone}" aria-hidden="true"></span><strong class="num">${escape(format.count(value))}${more ? '+' : ''}</strong> ${escape(value === 1 ? singular : pluralForm)}</li>`;
 }
 
 function digestMarkup(view, since, now) {
@@ -299,12 +299,11 @@ function digestMarkup(view, since, now) {
   const label = sinceLabel(since, now);
   const ago = format.relative(since, now);
   const heading = `${escape(label)}<span class="now-digest-ago"> · ${escape(ago)}</span>`;
-  const finished = counts.finished ? `${format.count(counts.finished)}${counts.finishedCapped ? '+' : ''}` : 0;
   const items = [
     digestItem(counts.review, 'ready for review', 'ready for review', 'review'),
     digestItem(counts.needsYou, 'needs you', 'need you', 'attention'),
     digestItem(counts.proposed, 'proposed', 'proposed', 'neutral'),
-    finished ? `<li class="now-digest-item"><span class="status-dot" data-tone="success" aria-hidden="true"></span><strong class="num">${escape(finished)}</strong> ${counts.finished === 1 ? 'Run finished' : 'Runs finished'}</li>` : '',
+    digestItem(counts.finished, 'Run finished', 'Runs finished', 'success', counts.finishedCapped),
   ].filter(Boolean);
   const unknown = [counts.review, counts.finished].some(value => value === null) ? '<li class="now-digest-item now-digest-unknown">Some changes could not be read</li>' : '';
   if (!items.length) {
@@ -365,8 +364,10 @@ function staleBanner(view, now) {
  * @param {number} [now]
  * @returns {string}
  */
-export function nowMarkup(view, options = {}, now = Date.now()) {
-  if (!view?.data) return view?.error ? `<div class="now now-failed">${failureMarkup(view.error)}</div>` : loadingMarkup();
+export function nowMarkup(input, options = {}, now = Date.now()) {
+  if (!input?.data) return input?.error ? `<div class="now now-failed">${failureMarkup(input.error)}</div>` : loadingMarkup();
+  const list = value => Array.isArray(value) ? value : [];
+  const view = { ...input, data: { ...input.data, errors: input.data.errors || {}, waiting: list(input.data.waiting), running: list(input.data.running), recent: list(input.data.recent) } };
   const settings = { ...options, demo: Boolean(view.data.demo) };
   const since = view.since === undefined ? null : view.since;
   const { data: visible, held } = visibleNow(view.data, view.shown ?? null);
