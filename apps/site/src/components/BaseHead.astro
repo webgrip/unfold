@@ -1,6 +1,6 @@
 ---
 import brandCss from '../styles/brand.css?raw';
-import { SITE_NAME, SITE_URL } from '../config/site.ts';
+import { SITE_INDEXABLE, SITE_NAME, SITE_URL } from '../config/site.ts';
 import { OG_LOCALES, LOCALES, type Locale } from '../i18n/config.ts';
 import { absoluteUrl, alternatesFor, routePath, type RouteKey } from '../i18n/routes.ts';
 import { brandFontUrls, brandToken } from '../lib/brand.ts';
@@ -43,7 +43,7 @@ const jsonLd = errorPage
 {alternates.map((alternate) => (
   <link rel="alternate" hreflang={alternate.hreflang} href={alternate.href} />
 ))}
-{noindex && <meta name="robots" content="noindex, nofollow" />}
+{(noindex || !SITE_INDEXABLE) && <meta name="robots" content="noindex, nofollow" />}
 
 <meta property="og:type" content="website" />
 <meta property="og:title" content={fullTitle} />

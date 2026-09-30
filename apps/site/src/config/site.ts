@@ -1,4 +1,13 @@
-export const SITE_URL = 'https://glide.webgrip.dev';
+export const SITE_URL = 'https://glide-site.SUBDOMAIN.workers.dev';
+
+const PLATFORM_HOST_SUFFIXES = ['.workers.dev', '.pages.dev'];
+
+export function isIndexable(siteUrl: string): boolean {
+  const { hostname } = new URL(siteUrl);
+  return !PLATFORM_HOST_SUFFIXES.some((suffix) => hostname.endsWith(suffix));
+}
+
+export const SITE_INDEXABLE = isIndexable(SITE_URL);
 export const SITE_NAME = 'Glide';
 
 export const SOURCE_URL = 'https://forgejo.webgrip.dev/webgrip/glide';
