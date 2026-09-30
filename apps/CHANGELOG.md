@@ -1,3 +1,9 @@
+## [glide-v0.4.0-rc.16](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.15...glide-v0.4.0-rc.16) (2026-09-30)
+
+### Fixed
+
+* **vloer:** patch npm's bundled brace-expansion and undici in the workspace image ([e8c8d45](https://forgejo.webgrip.dev/webgrip/glide/commit/e8c8d45a6c3adbc4ccf7ba11bf747b8725d03690))
+
 ## [glide-v0.4.0-rc.15](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.14...glide-v0.4.0-rc.15) (2026-09-30)
 
 ### Added
