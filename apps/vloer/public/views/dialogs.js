@@ -4,6 +4,7 @@ import { $, escape } from '../core/dom.js';
 import { money } from '../core/format.js';
 import { icon } from '../core/icons.js';
 import { placementField } from '../core/lookup.js';
+import { singleKeyAllowed } from '../core/keys.js';
 
 function modelHint(models, id) {
   const first = state.bootstrap.models[0];
@@ -68,11 +69,11 @@ async function createSession(data) {
 function showModelHint(select) { const hint = document.querySelector('[data-model-hint]'); if (hint && state.models) hint.innerHTML = modelHint(state.models, select.value); }
 
 function openNewFromKeyboard(event) {
-  if (event.key.toLowerCase() === 'n' && !event.ctrlKey && !event.metaKey && !event.altKey && !['INPUT','TEXTAREA','SELECT'].includes(event.target.tagName) && state.bootstrap && state.bootstrap.user.role !== 'viewer' && !$('#new-session').open && !$('#confirm-dialog').open && !$('#task-connections').open) { event.preventDefault(); openNew(); return true; }
+  if (event.key.toLowerCase() === 'n' && singleKeyAllowed(event) && state.bootstrap && state.bootstrap.user.role !== 'viewer' && ['sessions', 'session'].includes(state.view)) { event.preventDefault(); openNew(); return true; }
   return false;
 }
 
-/** The new-session, confirmation, review, budget and Work Item rejection dialogs. `n` opens a new session. */
+/** The new-session, confirmation, review, budget and Work Item rejection dialogs. `n` opens a new session on the Sessions pages. */
 export default {
   id: 'dialogs',
   actions: {

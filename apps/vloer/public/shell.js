@@ -2,6 +2,7 @@ import { state } from './core/state.js';
 import { $, escape } from './core/dom.js';
 import { icon } from './core/icons.js';
 import { isActive } from './core/lookup.js';
+import { keyLabel, openShortcuts } from './core/keys.js';
 
 const navigation = [
   ['now', '#now', 'clock', 'Now'],
@@ -14,7 +15,7 @@ const navigation = [
   ['sessions', '#sessions', 'grid', 'Sessions'],
   ['settings', '#settings/accounts', 'shield', 'Settings'],
 ];
-const settingsPages = [['account', '#settings/accounts', 'Linked accounts'], ['system', '#settings/environment', 'Environment']];
+const settingsPages = [['account', '#settings/accounts', 'Linked accounts'], ['system', '#settings/environment', 'Environment'], ['preferences', '#settings/preferences', 'Preferences']];
 const areaOf = view => view === 'session' ? 'sessions' : settingsPages.some(([id]) => id === view) ? 'settings' : view;
 
 /** Whether the Sessions area is offered: in demo mode, with shared execution configured, or when sessions exist. */
@@ -45,7 +46,7 @@ export function shell(content, titleOrOptions, subtitle) {
       <div class="sidebar-note"><span class="tiny-label">THE WORKING AGREEMENT</span><p>You set the direction.<br>Agents bring back evidence.</p><div class="small-rule"></div><span>Human review stays in the loop.</span></div>
       <div class="user-card"><span class="avatar">${escape(user.name.slice(0, 2).toUpperCase())}</span><div><strong>${escape(user.name)}</strong><span>${escape(user.role)}${state.bootstrap.mode === 'demo' ? ' · local demo' : ''}</span></div>${state.bootstrap.mode !== 'demo' ? `<button class="icon-button" data-action="logout" aria-label="Sign out">${icon('logout')}</button>` : ''}</div>
     </aside>
-    <div class="content-wrap"><header class="topbar"><div class="breadcrumb">Workspace ${icon('chevron')} <span>${escape(title)}</span></div><div class="topbar-right"><span class="connection ${state.online ? '' : 'offline'}"><i></i>${state.online ? 'Connected' : 'Reconnecting'}</span><span class="mode-pill">${state.bootstrap.mode === 'demo' ? 'DEMO' : 'LIVE'}</span></div></header>
+    <div class="content-wrap"><header class="topbar"><div class="breadcrumb">Workspace ${icon('chevron')} <span>${escape(title)}</span></div><div class="topbar-right"><button class="icon-button" type="button" data-action="palette-open" aria-label="Search and commands" title="Search and commands (${escape(keyLabel('Mod'))} K)">${icon('search')}</button><span class="connection ${state.online ? '' : 'offline'}"><i></i>${state.online ? 'Connected' : 'Reconnecting'}</span><span class="mode-pill">${state.bootstrap.mode === 'demo' ? 'DEMO' : 'LIVE'}</span></div></header>
       ${state.bootstrap.mode === 'demo' ? `<div class="demo-ribbon">${icon('info')}<span><strong>Demonstration mode.</strong> Real code changes and tests. No AI model calls or charges.</span></div>` : ''}
       <main id="main" class="main"><div class="page-heading"><div><p class="eyebrow">${state.view === 'session' ? 'SESSION WORKSPACE' : 'DE VLOER / WORKSPACE'}</p><h1 id="page-title" tabindex="-1">${escape(title)}</h1>${lead ? `<p class="page-subtitle">${escape(lead)}</p>` : ''}</div>${state.view === 'sessions' && user.role !== 'viewer' ? `<button class="button primary" data-action="new">${icon('plus')} New session <kbd>N</kbd></button>` : state.view === 'tasks' ? `<button class="button secondary" data-action="connections">${icon('layers')} Connections</button>` : ''}</div>${settings}${content}</main>
       <footer><span>DE VLOER <b>0.2</b></span><span>Self-hosted. Your models. Your infrastructure.</span></footer>
@@ -59,3 +60,9 @@ export function showConnection(online) {
   if (online) { connection.classList.remove('offline'); connection.innerHTML = '<i></i>Connected'; }
   else { connection.classList.add('offline'); connection.innerHTML = '<i></i>Reconnecting'; }
 }
+
+/** The workbench chrome's own actions. */
+export const chrome = {
+  id: 'chrome',
+  actions: { 'shortcuts-open': () => openShortcuts() },
+};

@@ -2,6 +2,7 @@ import { proposedMarkup } from '../ploeg-activity.js';
 import { state } from '../core/state.js';
 import { api } from '../core/api.js';
 import { $, renderHtml, notify } from '../core/dom.js';
+import { live } from '../core/live.js';
 import { shell } from '../shell.js';
 import { confirmAction, openWorkItemRejectDialog } from './dialogs.js';
 import { enterPloegView, loadPloegTeams, onPloegReload, ploegFailure, ploegHelpers, ploegVisible } from './ploeg-common.js';
@@ -14,7 +15,7 @@ async function loadProposed(fresh = false) {
   const view = state.ploegProposed;
   const request = ++state.ploegRequest;
   view.loading = true; renderProposed();
-  try { const page = await api(`/api/ploeg/proposed${fresh ? '?refresh=1' : ''}`); if (request !== state.ploegRequest) return; Object.assign(view, { items: page.items, truncated: page.truncated, demo: page.demo, error: null }); }
+  try { const page = await api(`/api/ploeg/proposed${fresh ? '?refresh=1' : ''}`); if (request !== state.ploegRequest) return; Object.assign(view, { items: page.items, truncated: page.truncated, demo: page.demo, error: null }); live.touch(); }
   catch (error) { if (request !== state.ploegRequest) return; view.error = ploegFailure(error); }
   finally { if (request === state.ploegRequest) { view.loading = false; if (ploegVisible('proposed')) renderProposed(); } }
 }

@@ -4,6 +4,7 @@ import { api } from '../core/api.js';
 import { renderHtml } from '../core/dom.js';
 import { buildHash } from '../core/route.js';
 import { runOutcomes, runStates } from '../core/states.js';
+import { live } from '../core/live.js';
 import { shell } from '../shell.js';
 import { enterPloegView, loadPloegTeams, onPloegReload, ploegFailure, ploegHelpers, ploegVisible } from './ploeg-common.js';
 
@@ -27,6 +28,7 @@ async function loadRuns(mode = 'reset', fresh = false) {
     const seen = new Set((view.runs || []).map(run => run.id));
     view.runs = mode === 'older' ? [...view.runs, ...page.runs.filter(run => !seen.has(run.id))] : page.runs;
     Object.assign(view, { nextBefore: page.nextBefore, demo: page.demo, error: null });
+    live.touch();
   } catch (error) { if (request !== state.ploegRequest) return; view.error = ploegFailure(error); }
   finally { if (request === state.ploegRequest) { view.loading = false; if (ploegVisible('runs')) renderRuns(); } }
 }

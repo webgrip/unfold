@@ -1,6 +1,10 @@
 import { state, disconnect } from './core/state.js';
 import { api, onUnauthorized } from './core/api.js';
 import { notify } from './core/dom.js';
+import { configureFormat } from './core/format.js';
+import { prefs, prefsKey, applyAppearance } from './core/prefs.js';
+import { live } from './core/live.js';
+import { createGlobalKeys } from './core/keys.js';
 import { useNavigation, openPage } from './core/navigation.js';
 import { createRegistry, findRoute } from './core/registry.js';
 import { parseHash, redirect } from './core/route.js';
@@ -12,6 +16,9 @@ const registry = createRegistry(views);
 const landing = 'now';
 const signedOut = 'login';
 const unknownView = 'sessions';
+const globalKeys = createGlobalKeys({ dispatch: (name, event) => { const action = registry.actions.get(name); if (action) Promise.resolve(action.handler(null, event)).catch(error => notify(error.message, true)); } });
+
+function applyPreferences() { configureFormat({ locale: prefs.get('format') }); applyAppearance(); }
 
 function render() {
   if (!state.bootstrap) return registry.views.get(signedOut).render();
@@ -52,6 +59,8 @@ async function boot() {
 
 onUnauthorized(() => { disconnect(); state.bootstrap = null; renderLogin(); });
 useNavigation({ render, boot });
+applyPreferences();
+live.start();
 
 document.addEventListener('click', async event => {
   const button = event.target.closest('[data-action]');
@@ -72,7 +81,10 @@ document.addEventListener('submit', async event => {
   catch (error) { notify(error.message, true); }
   finally { if (submit) submit.disabled = false; }
 });
-document.addEventListener('keydown', event => { for (const binding of registry.keys) if (binding(event)) return; });
+document.addEventListener('keydown', event => { if (globalKeys(event)) return; for (const binding of registry.keys) if (binding(event)) return; });
+document.addEventListener('visibilitychange', () => live.wake());
+document.addEventListener('close', () => live.wake(), true);
+window.addEventListener('storage', event => { if (event.key !== prefsKey && event.key !== null) return; applyPreferences(); live.wake(); if (state.bootstrap) render(); });
 window.addEventListener('hashchange', () => { state.focusHeading = true; void route(); });
 window.addEventListener('beforeunload', disconnect);
 void boot();

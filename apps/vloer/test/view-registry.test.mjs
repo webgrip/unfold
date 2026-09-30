@@ -15,8 +15,8 @@ const formsOfTheRemovedCompareDialog = new Set(['compare']);
 test('the registered views build one registry with unique view ids', () => {
   const registry = createRegistry(views);
   assert.equal(registry.views.size, views.length);
-  for (const id of ['login', 'now', 'sessions', 'session', 'compare', 'tasks', 'work', 'proposed', 'runs', 'activity', 'insights', 'ploeg-feeds', 'account', 'system', 'dialogs']) assert(registry.views.has(id), `no view ${id}`);
-  assert.deepEqual(registry.pages.map(view => view.id), ['now', 'sessions', 'tasks', 'account', 'system']);
+  for (const id of ['login', 'now', 'sessions', 'session', 'compare', 'tasks', 'work', 'proposed', 'runs', 'activity', 'insights', 'ploeg-feeds', 'account', 'system', 'preferences', 'palette', 'chrome', 'dialogs']) assert(registry.views.has(id), `no view ${id}`);
+  assert.deepEqual(registry.pages.map(view => view.id), ['now', 'sessions', 'tasks', 'account', 'system', 'preferences']);
 });
 
 test('every data-action and data-form in the browser markup has exactly one handler, and every handler has markup', () => {
@@ -58,10 +58,10 @@ test('a registry rejects malformed descriptors', () => {
 test('every hash routes to at most one view with the params that view expects', () => {
   const registry = createRegistry(views);
   const cases = [
-    ['now', 'now', {}], ['sessions', 'sessions', {}], ['tasks', 'tasks', {}], ['settings/accounts', 'account', {}], ['settings/environment', 'system', {}],
+    ['now', 'now', {}], ['sessions', 'sessions', {}], ['tasks', 'tasks', {}], ['settings/accounts', 'account', {}], ['settings/environment', 'system', {}], ['settings/preferences', 'preferences', {}],
     ['work', 'work', {}], ['work/105', 'work', { id: '105' }], ['proposed', 'proposed', {}], ['runs', 'runs', {}], ['activity', 'activity', {}], ['insights', 'insights', {}],
     ['session/0f1e', 'session', { id: '0f1e' }], ['compare/a/b', 'compare', { left: 'a', right: 'b' }],
-    ['nowhere', null], ['sessionsx', null], ['ploeg', null], ['ploeg/105', null], ['account', null], ['system', null], ['work/abc', null], ['work/0', null], ['workx', null], ['', null], ['login', null], ['dialogs', null], ['ploeg-feeds', null],
+    ['nowhere', null], ['sessionsx', null], ['ploeg', null], ['ploeg/105', null], ['account', null], ['system', null], ['work/abc', null], ['work/0', null], ['workx', null], ['', null], ['login', null], ['dialogs', null], ['ploeg-feeds', null], ['palette', null], ['chrome', null], ['settings', null],
   ];
   for (const [hash, id, params] of cases) {
     const matches = registry.routes.filter(view => view.match(hash));

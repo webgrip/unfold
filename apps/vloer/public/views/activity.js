@@ -3,6 +3,7 @@ import { state } from '../core/state.js';
 import { api } from '../core/api.js';
 import { renderHtml } from '../core/dom.js';
 import { buildHash } from '../core/route.js';
+import { live } from '../core/live.js';
 import { shell } from '../shell.js';
 import { enterPloegView, loadPloegTeams, onPloegReload, ploegFailure, ploegHelpers, ploegVisible } from './ploeg-common.js';
 
@@ -36,6 +37,7 @@ async function loadFeed(mode = 'reset', fresh = false) {
     if (request !== state.ploegRequest) return;
     const merged = mergeFeed(mode === 'reset' ? null : feed, page, mode === 'older' ? 'older' : 'newer');
     Object.assign(feed, { events: merged.events, nextCursor: merged.nextCursor, demo: page.demo, error: null, refreshedAt: page.fetchedAt });
+    if (mode !== 'newer') live.touch();
   } catch (error) { if (request !== state.ploegRequest) return; feed.error = ploegFailure(error); }
   finally { if (request === state.ploegRequest) { feed.loading = false; if (ploegVisible('activity')) { if (mode === 'newer') keepReadingPosition(renderActivity); else renderActivity(); } } }
 }
@@ -49,11 +51,17 @@ async function enterActivity({ query = {} } = {}) {
   state.ploegFeed.team = query.team || '';
   state.ploegFeed.kind = kinds.includes(query.kind) ? query.kind : '';
   if (state.ploegTeams === null) void loadPloegTeams();
-  state.ploegTimer = setInterval(() => { if (document.visibilityState === 'visible' && ploegVisible('activity') && !state.ploegFeed.loading && !document.querySelector('dialog[open]')) void loadFeed('newer'); }, 15000);
   return await loadFeed('reset');
 }
 
+async function refreshFeed() {
+  if (state.ploegFeed.loading) return;
+  await loadFeed('newer');
+  if (state.ploegFeed.error) throw new Error(state.ploegFeed.error.message);
+}
+
 onPloegReload('activity', () => loadFeed('reset', true));
+live.register('activity', { interval: 15000, refresh: refreshFeed });
 
 /** Activity: Ploeg's audit feed across the Teams you can read, newest first, filtered by Team and kind (`#activity?team=&kind=`). Refreshes every 15 seconds. */
 export default {

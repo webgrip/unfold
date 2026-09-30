@@ -3,6 +3,7 @@ import { state } from '../core/state.js';
 import { api } from '../core/api.js';
 import { $, renderHtml, notify } from '../core/dom.js';
 import { buildHash, parseHash } from '../core/route.js';
+import { live } from '../core/live.js';
 import { shell } from '../shell.js';
 import { enterPloegView, ploegHelpers } from './ploeg-common.js';
 
@@ -41,6 +42,7 @@ async function loadPloeg(team, id, fresh = false) {
     state.ploeg = data;
     state.sessions = sessions;
     state.ploegDetail = data.available ? detail || null : null;
+    if (data.available) live.touch();
   } catch (error) {
     if (request !== state.ploegRequest || state.view !== 'work' || !state.bootstrap) return;
     state.ploeg = { configured: true, available: false, demo: false, teams: [], message: error.message };
