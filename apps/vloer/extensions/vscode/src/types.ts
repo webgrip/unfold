@@ -51,6 +51,8 @@ export type TaskSource = { id: string; name: string; provider: TaskProvider; rep
 export type TaskLabel = { name: string; color?: string };
 export type TaskAssignee = { username: string; name?: string };
 export type TaskSnapshot = { key: string; sourceId: string; provider: TaskProvider; id: string; revision: string; title: string; description: string; url: string; status: 'open' | 'closed' | 'unknown'; updatedAt?: string; repositoryId: string; bindingRevision?: string; nativeRevision?: string; ploeg?: { workItemId: string; expectedTarget: { owner: string; repo: string; baseBranch: string } }; ploegUnavailable?: { code: string; message: string }; labels?: TaskLabel[]; assignees?: TaskAssignee[]; priority?: number; dueAt?: string; identifier?: string; descriptionMarkdown?: string; descriptionTruncated?: true };
+/** A task as the preview endpoint returns it: the snapshot plus its description as Markdown, which an import does not store. */
+export type TaskPreview = TaskSnapshot & { descriptionMarkdown?: string };
 export type TaskPloegTeam = { id: string; assignee: string; queueDepth: number; paused: boolean | null; roles: string[] };
 export type TaskPloegItem = { id: string; team: string; state: string; attempts: number; updatedAt: string; prUrl?: string; branch?: string; spentUsd?: number; budgetUsd?: number };
 export type TaskPloegStatus = { available: boolean; message?: string; demo: boolean; handoff: { allowed: boolean; reason?: string }; teams: TaskPloegTeam[]; assignedTeams: string[]; workItems: TaskPloegItem[]; fetchedAt: string; warnings?: string[] };

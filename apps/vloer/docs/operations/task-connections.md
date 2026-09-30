@@ -163,7 +163,7 @@ The [binding contract](../contracts/ploeg-tracker-binding.md) separates preview 
 
 ## Hand a task to Ploeg
 
-Ploeg takes Vikunja work when a task is assigned to the tracker user that routes to one of its teams. The editor's task view offers **Hand to Ploeg** with a team picker, and **Take back** while Ploeg has not started. The server does the assignment with the connection's token, so nobody needs to know which tracker user belongs to which team. The [API contract](../contracts/api.md#hand-a-task-to-ploeg) lists the routes and refusals, and [ADR 0024](../adrs/0024-hand-tracker-tasks-to-ploeg-by-assignment.md) records why.
+Ploeg takes Vikunja work when a task is assigned to the tracker user that routes to one of its teams. The editor's task view offers **Hand to Ploeg** with a team picker, and **Take back** while Ploeg has not started. The server does the assignment with the connection's token, so nobody needs to know which tracker user belongs to which team. The [API contract](../contracts/api.md#hand-a-task-to-ploeg) lists the routes and refusals, and [ADR 0025](../adrs/0025-hand-tracker-tasks-to-ploeg-by-assignment.md) records why.
 
 A connection can hand off when all of these hold:
 

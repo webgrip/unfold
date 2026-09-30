@@ -167,7 +167,7 @@ func (b *LiteLLM) SettledSpendForRun(ctx context.Context, runToken string, keyID
 		return SettledSpend{}, fmt.Errorf("gateway accounting identity unavailable")
 	}
 	settled := SettledSpend{Keys: len(tokens)}
-	models := map[string]struct{}{}
+	models := map[string]*ModelSpend{}
 	for token := range tokens {
 		logs, err := b.cli.SpendLogs(ctx, token)
 		if err != nil {
@@ -177,8 +177,15 @@ func (b *LiteLLM) SettledSpendForRun(ctx context.Context, runToken string, keyID
 		settled.Entries += logs.Entries
 		settled.InputTokens += logs.PromptTokens
 		settled.OutputTokens += logs.CompletionTokens
-		for _, model := range logs.Models {
-			models[model] = struct{}{}
+		for _, usage := range logs.ByModel {
+			m := models[usage.Model]
+			if m == nil {
+				m = &ModelSpend{Model: usage.Model}
+				models[usage.Model] = m
+			}
+			m.USD += usage.USD
+			m.InputTokens += usage.PromptTokens
+			m.OutputTokens += usage.CompletionTokens
 		}
 	}
 	settled.Models = make([]string, 0, len(models))
@@ -186,6 +193,10 @@ func (b *LiteLLM) SettledSpendForRun(ctx context.Context, runToken string, keyID
 		settled.Models = append(settled.Models, model)
 	}
 	sort.Strings(settled.Models)
+	settled.ByModel = make([]ModelSpend, 0, len(models))
+	for _, model := range settled.Models {
+		settled.ByModel = append(settled.ByModel, *models[model])
+	}
 	return settled, nil
 }
 

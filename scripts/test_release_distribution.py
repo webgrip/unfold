@@ -4,6 +4,7 @@ import os
 import re
 import tempfile
 import unittest
+import urllib.error
 import urllib.request
 from pathlib import Path
 from unittest.mock import patch
@@ -234,6 +235,78 @@ class DistributionTests(unittest.TestCase):
             finally:
                 os.chdir(previous)
 
+
+
+class FlakyOpener:
+    def __init__(self, *outcomes):
+        self.outcomes = list(outcomes)
+        self.calls = 0
+
+    def open(self, req, timeout):
+        self.calls += 1
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
+
+
+class Answer:
+    def __init__(self, body):
+        self.body = body
+        self.headers = {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def read(self):
+        return self.body
+
+
+class RequestRetryTests(unittest.TestCase):
+    def serve(self, *outcomes):
+        opener = FlakyOpener(*outcomes)
+        patchers = [patch.object(release_registry.urllib.request, 'build_opener', return_value=opener), patch.object(release_registry.time, 'sleep')]
+        for patcher in patchers:
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        return opener
+
+    def test_a_read_cut_off_mid_body_is_retried(self):
+        opener = self.serve(release_registry.http.client.IncompleteRead(b'', 4557), Answer(b'{}'))
+        self.assertEqual(release_registry.request('https://ghcr.io/v2/x/blobs/sha256:a')[0], b'{}')
+        self.assertEqual(opener.calls, 2)
+
+    def test_a_dropped_connection_and_a_server_error_are_retried_for_reads(self):
+        server_error = urllib.error.HTTPError('https://ghcr.io/v2/x', 503, 'unavailable', {}, None)
+        opener = self.serve(ConnectionResetError(), server_error, Answer(b'ok'))
+        self.assertEqual(release_registry.request('https://ghcr.io/v2/x', method='HEAD')[0], b'ok')
+        self.assertEqual(opener.calls, 3)
+
+    def test_a_write_is_never_repeated(self):
+        opener = self.serve(ConnectionResetError())
+        with self.assertRaises(ConnectionResetError):
+            release_registry.request('https://ghcr.io/v2/x/blobs/uploads/', method='POST', data=b'')
+        self.assertEqual(opener.calls, 1)
+
+    def test_a_read_that_keeps_failing_gives_up_after_three_attempts(self):
+        cut = release_registry.http.client.IncompleteRead(b'', 1)
+        opener = self.serve(cut, cut, cut)
+        with self.assertRaises(release_registry.http.client.IncompleteRead):
+            release_registry.request('https://ghcr.io/v2/x')
+        self.assertEqual(opener.calls, 3)
+
+    def test_a_missing_manifest_and_a_denied_read_are_answers_not_retries(self):
+        not_found = urllib.error.HTTPError('https://ghcr.io/v2/x', 404, 'missing', {}, None)
+        opener = self.serve(not_found)
+        self.assertIsNone(release_registry.request('https://ghcr.io/v2/x', missing=True)[0])
+        denied = urllib.error.HTTPError('https://ghcr.io/v2/x', 401, 'denied', {}, None)
+        opener = self.serve(denied)
+        with self.assertRaisesRegex(RuntimeError, 'HTTP 401'):
+            release_registry.request('https://ghcr.io/v2/x')
+        self.assertEqual(opener.calls, 1)
 
 if __name__ == '__main__':
     unittest.main()

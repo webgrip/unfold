@@ -43,7 +43,8 @@ type Settler interface {
 }
 
 // SettledSpend is a run's gateway spend, the size of the record behind it,
-// and the token usage and models that record names.
+// and the token usage and models that record names. ByModel splits spend and
+// tokens per model, sorted like Models.
 type SettledSpend struct {
 	USD          float64
 	Keys         int
@@ -51,6 +52,15 @@ type SettledSpend struct {
 	InputTokens  int64
 	OutputTokens int64
 	Models       []string
+	ByModel      []ModelSpend
+}
+
+// ModelSpend is the part of a run's settled spend that one model accounts for.
+type ModelSpend struct {
+	Model        string
+	USD          float64
+	InputTokens  int64
+	OutputTokens int64
 }
 
 // Sweeper is ploegd's reconciliation view: crash cleanup by run token and

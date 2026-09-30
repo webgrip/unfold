@@ -283,7 +283,8 @@ test('Vikunja snapshots carry labels, assignees, priority, due date, identifier 
   const remote = await fixture((request, response) => json(response, request.url?.startsWith('/api/v1/tasks/17') ? current : [current]));
   try {
     const configured = source('vikunja', remote.origin);
-    const task = await getTask(configured, '17');
+    const task = await getTask(configured, '17', true);
+    assert.equal((await getTask(configured, '17')).descriptionMarkdown, undefined, 'an import reads the task without display Markdown');
     assert.deepEqual(task.labels, [{ name: 'backend', color: '#e8e8e8' }, { name: 'leak [redacted]' }]);
     assert.deepEqual(task.assignees, [{ username: 'silver', name: 'Silver team' }, { username: 'plain' }]);
     assert.equal(task.priority, 3);

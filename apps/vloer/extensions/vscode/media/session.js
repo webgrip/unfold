@@ -23,7 +23,7 @@ function remember() { bridge.setState({ sessionId, tab, draft, activityFilter })
 
 const stageNames = { credentials: 'Gateway authorization', workspace: 'Workspace setup', runtime: 'Runtime startup', prompt: 'Prompt submission', execution: 'Agent execution' };
 const submissionText = { not_submitted: 'The prompt was not submitted.', rejected: 'The runtime rejected the prompt.', accepted: 'The runtime acknowledged the prompt; this does not confirm that execution finished.', unknown: 'Prompt submission is unconfirmed. Check remote execution and gateway spend before starting new work.' };
-const statusNames = { queued: 'Ready to start', running: 'Working', exporting: 'Preparing review', waiting_input: 'Needs your decision', paused: 'Paused', interrupted: 'Interrupted', completed: 'Awaiting your review', failed: 'Needs attention', cancelled: 'Cancelled' };
+const statusNames = { queued: 'Ready to start', running: 'Working', exporting: 'Preparing review', waiting_input: 'Needs your input', paused: 'Paused', interrupted: 'Interrupted', completed: 'Ready for your review', failed: 'Failed', cancelled: 'Cancelled' };
 
 function activeRole(session) { return session.runs.find(run => ['running', 'waiting_input', 'paused'].includes(run.status))?.roleName; }
 function isReviewer(session, run) { return run.mode === 'read' && session.runs[session.runs.length - 1]?.id === run.id; }

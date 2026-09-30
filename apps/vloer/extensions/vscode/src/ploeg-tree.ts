@@ -3,6 +3,8 @@ import { ploegLanes as lanes, type PloegItem, type PloegLane, type PloegOverview
 import { plainText, plural, teamDescription } from './status.js';
 
 export type PloegEntry = { kind: 'team'; team: PloegTeam } | { kind: 'lane'; team: PloegTeam; lane: PloegLane; overview: PloegOverview } | { kind: 'item'; item: PloegItem; demo: boolean } | { kind: 'message'; label: string; open?: boolean };
+const stateLabels: Record<string, string> = { proposed: 'Proposed', ingested: 'Received', queued: 'Queued', leased: 'Running', awaiting_review: 'Ready for review', needs_human: 'Needs you', stale: 'Stopped retrying', withdrawn: 'Withdrawn', done: 'Done' };
+const stateLabel = (state: string) => stateLabels[state] ?? state.replaceAll('_', ' ');
 
 export class PloegTree implements vscode.TreeDataProvider<PloegEntry>, vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<PloegEntry | undefined>();
@@ -39,18 +41,18 @@ export class PloegTree implements vscode.TreeDataProvider<PloegEntry>, vscode.Di
       const item = new vscode.TreeItem(lane.label, vscode.TreeItemCollapsibleState.Collapsed);
       item.id = `ploeg:lane:${entry.team.id}:${entry.lane}`;
       item.description = `${page?.items.length ?? 0}${page?.nextCursor ? '+' : ''}`;
-      item.tooltip = entry.lane === 'leased' ? 'Ploeg holds an execution lease for these items. This snapshot does not imply an active model call.' : 'Records in the current operator snapshot.';
+      item.tooltip = entry.lane === 'leased' ? 'An agent is working on these Work Items. This snapshot does not imply an active model call.' : 'Records in the current operator snapshot.';
       item.iconPath = new vscode.ThemeIcon(lane.icon);
       return item;
     }
-    const item = new vscode.TreeItem(entry.item.title || `Work item ${entry.item.id}`);
+    const item = new vscode.TreeItem(entry.item.title || `Work Item ${entry.item.id}`);
     item.id = `ploeg:item:${entry.item.id}`;
     item.description = `${entry.demo ? 'illustration · ' : ''}${entry.item.provider} #${entry.item.externalId || entry.item.id}`;
-    item.tooltip = `${entry.item.title}\n${entry.item.team} · ${entry.item.state.replaceAll('_', ' ')} · ${plural(entry.item.attempts, 'attempt')}\n${plainText(entry.item.description).slice(0, 600)}\nOpen the task, or its shifts, runs, review findings and costs in the web workbench.`;
+    item.tooltip = `${entry.item.title}\n${entry.item.team} · ${stateLabel(entry.item.state)} · ${plural(entry.item.attempts, 'attempt')}\n${plainText(entry.item.description).slice(0, 600)}\nOpen the task, or its shifts, runs, review findings and costs in the web workbench.`;
     item.iconPath = new vscode.ThemeIcon(entry.item.state === 'needs_human' ? 'bell-dot' : entry.item.state === 'leased' ? 'pulse' : entry.item.state === 'awaiting_review' ? 'git-pull-request' : 'issues');
     item.contextValue = 'ploeg:item';
     item.command = { command: 'vloer.openPloegItem', title: 'Open task', arguments: [entry] };
-    item.accessibilityInformation = { label: `${entry.item.title}, ${entry.item.state.replaceAll('_', ' ')}, ${entry.item.team}` };
+    item.accessibilityInformation = { label: `${entry.item.title}, ${stateLabel(entry.item.state)}, ${entry.item.team}` };
     return item;
   }
   async getChildren(entry?: PloegEntry): Promise<PloegEntry[]> {

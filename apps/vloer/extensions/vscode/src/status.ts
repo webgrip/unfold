@@ -4,19 +4,19 @@ import type { PloegTeam } from './ploeg-types.js';
 export type StatusPresentation = { name: string; icon: string; color?: string; group: 'attention' | 'active' | 'ready' | 'history' };
 
 export const statuses: Record<SessionStatus, StatusPresentation> = {
-  waiting_input: { name: 'Needs your decision', icon: 'bell-dot', color: 'list.warningForeground', group: 'attention' },
-  failed: { name: 'Needs attention', icon: 'error', color: 'list.errorForeground', group: 'attention' },
+  waiting_input: { name: 'Needs your input', icon: 'bell-dot', color: 'list.warningForeground', group: 'attention' },
+  failed: { name: 'Failed', icon: 'error', color: 'list.errorForeground', group: 'attention' },
   interrupted: { name: 'Interrupted', icon: 'debug-disconnect', color: 'list.warningForeground', group: 'attention' },
   paused: { name: 'Paused', icon: 'debug-pause', color: 'list.warningForeground', group: 'attention' },
   running: { name: 'Working', icon: 'sync~spin', group: 'active' },
   exporting: { name: 'Preparing review', icon: 'package', group: 'active' },
   queued: { name: 'Ready to start', icon: 'circle-outline', group: 'ready' },
-  completed: { name: 'Awaiting your review', icon: 'eye', color: 'testing.iconPassed', group: 'ready' },
+  completed: { name: 'Ready for your review', icon: 'eye', color: 'testing.iconPassed', group: 'ready' },
   cancelled: { name: 'Cancelled', icon: 'circle-slash', group: 'history' },
 };
 
 export const groups: { id: StatusPresentation['group']; label: string }[] = [
-  { id: 'attention', label: 'Needs attention' }, { id: 'active', label: 'In progress' }, { id: 'ready', label: 'Ready' }, { id: 'history', label: 'History' },
+  { id: 'attention', label: 'Needs you' }, { id: 'active', label: 'In progress' }, { id: 'ready', label: 'Ready' }, { id: 'history', label: 'History' },
 ];
 
 export function presentationFor(session: { status: string; review?: { decision: 'accepted' | 'rejected' } }): StatusPresentation {

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { AppConfig, Repository } from './types.ts';
 import { htmlToMarkdown, looksLikeHtml } from './markdown.ts';
+import { descriptionMarkdown } from './rich-text.ts';
 
 export type TaskProvider = 'forgejo' | 'github' | 'gitlab' | 'clickup' | 'vikunja' | 'demo';
 export type TaskTarget = { forge: string; owner: string; repo: string; baseBranch: string };
@@ -10,6 +11,7 @@ export type TaskSnapshot = { key: string; sourceId: string; provider: TaskProvid
 export type TaskLabel = { name: string; color?: string };
 export type TaskAssignee = { username: string; name?: string };
 export type TaskPage = { tasks: TaskSnapshot[]; nextPage?: number };
+export type PresentedTask = TaskSnapshot & { descriptionMarkdown: string };
 
 export class TaskError extends Error {
   readonly status: number;
@@ -168,6 +170,13 @@ function taskUrl(source: TaskSourceConfig, id: string, value: Record<string, unk
   return `${base}/${project}/${source.provider === 'gitlab' ? '-/issues' : 'issues'}/${id}`;
 }
 
+/** Adds `descriptionMarkdown` for display: a Vikunja HTML description becomes Markdown, any other description is copied unchanged. The snapshot's own fields, and so its revision and import, are untouched. */
+export function presentTask(source: TaskSourceConfig, task: TaskSnapshot): PresentedTask {
+  let markdown = descriptionMarkdown(task.provider, task.description, `${webRoot(source)}/`);
+  if (source.token) markdown = markdown.replaceAll(source.token, '[redacted]');
+  return { ...task, descriptionMarkdown: markdown };
+}
+
 function digest(value: unknown): string { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
 
 function entries(value: unknown): Record<string, unknown>[] { return Array.isArray(value) ? value.slice(0, 50).filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry)) : []; }
@@ -262,7 +271,7 @@ function snapshot(source: TaskSourceConfig, raw: unknown, truncate = false): Tas
   const revision = digest({ key, title, description, status, updatedAt, url });
   const truncated = description.length > maxDescription;
   if (truncated) description = description.slice(0, maxDescription).replace(/[\ud800-\udbff]$/, '');
-  let markdown = source.provider === 'vikunja' && looksLikeHtml(description) ? htmlToMarkdown(description, `${webRoot(source)}/`) : '';
+  let markdown = truncate && source.provider === 'vikunja' && looksLikeHtml(description) ? htmlToMarkdown(description, `${webRoot(source)}/`) : '';
   if (source.token) markdown = markdown.replaceAll(source.token, '[redacted]');
   const result = { key, sourceId: source.id, provider: source.provider, id, revision, title, description, url, status, ...(updatedAt ? { updatedAt } : {}), ...(nativeRevision ? { nativeRevision, scope: project } : {}), repositoryId: source.repositoryId, ...details(source, value), ...(markdown && markdown !== description ? { descriptionMarkdown: markdown } : {}), ...(truncated ? { descriptionTruncated: true as const } : {}) };
   if (source.token && Object.values(result).some(value => typeof value === 'string' && value.includes(source.token!))) throw new TaskError(502, 'task_sensitive_response', 'The task service returned credential material in a task identity, revision or link. This snapshot cannot be imported.');
