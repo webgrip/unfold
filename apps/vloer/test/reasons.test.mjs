@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { detailReason, listReason, parseBudgetReason, parseStuckReason, requeueNote, routingWarning } from '../public/core/reasons.js';
+import { closeReasonLabel, detailReason, listReason, parseBudgetReason, parseStuckReason, requeueNote, routingWarning, withdrawnReason } from '../public/core/reasons.js';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 
 const space = ' ';
@@ -138,4 +138,22 @@ test('the demo’s free-text escalation with a stuck reviewer reads as a stuck a
   assert.equal(reason.run.text, 'The acceptance criteria need a human decision.');
   assert.equal(reason.requeue, 'Then assign the task to the Team again in its tracker.');
   assert.equal(listReason(ploegDemo.details['101'].item).chip, 'Stopped; open for details');
+});
+
+test('a Shift close reason reads in a few plain words, never as a raw code', () => {
+  assert.equal(closeReasonLabel('plan_exhausted'), 'Every planned Round ran');
+  assert.equal(closeReasonLabel('review_approved'), 'An agent reviewer approved');
+  assert.equal(closeReasonLabel('fix_round_cap_reached'), 'The fix Rounds ran out');
+  assert.equal(closeReasonLabel('writing_run_killed_repeatedly'), 'The cluster kept stopping the writer');
+  assert.equal(closeReasonLabel('budget exhausted: pool 0.04, spent 0.00, reserved 0.00'), `The US$${space}0,04 budget ran out`);
+  assert.equal(closeReasonLabel('budget exhausted'), 'The budget ran out');
+  assert.equal(closeReasonLabel('run stuck: builder round 2'), 'The builder got stuck in Round 2');
+  assert.equal(closeReasonLabel('plan removed from configuration'), 'The Team plan was removed');
+  assert.equal(closeReasonLabel(''), 'Still open');
+  assert.equal(closeReasonLabel(null), 'Still open');
+  assert.equal(closeReasonLabel('Illustrative escalation.'), 'Ploeg recorded: “Illustrative escalation.”');
+  assert.equal(withdrawnReason('withdrawn_unassigned'), 'The task was unassigned from the Team.');
+  assert.equal(withdrawnReason('withdrawn_by_operator'), 'An operator cancelled it.');
+  assert.equal(withdrawnReason('plan_exhausted'), null);
+  assert.equal(withdrawnReason(undefined), null);
 });

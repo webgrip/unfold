@@ -221,3 +221,49 @@ export function detailReason(detail) {
     run: run ? { id: run.id, role: run.role, round: run.round, text: run.stuckReason || run.summary || '', failure: failureReason(run.failureReason) } : null,
   };
 }
+
+const closeLabels = {
+  review_approved: 'An agent reviewer approved',
+  plan_exhausted: 'Every planned Round ran',
+  fix_round_cap_reached: 'The fix Rounds ran out',
+  budget_exhausted_before_fix_round: 'The budget ran out before a fix Round',
+  writing_run_failed_repeatedly: 'The writer kept failing',
+  writing_run_killed_repeatedly: 'The cluster kept stopping the writer',
+  withdrawn_unassigned: 'The task was unassigned from the Team',
+  withdrawn_closed: 'The task was closed before any Run started',
+  withdrawn_by_operator: 'An operator cancelled it',
+  operator_adopted: 'A Vloer session took it over',
+  operator_completed: 'The Vloer session completed it',
+  operator_cancelled: 'The Vloer session was cancelled',
+  operator_failed: 'The Vloer session failed',
+  operator_admission_expired: 'The Vloer session never started',
+};
+
+/**
+ * A Shift close reason in a few plain words, for Shift rows and audit lines: `plan_exhausted` reads "Every planned
+ * Round ran", the `budget exhausted: …` and `run stuck: <role> round <n>` prefixes read as sentences, an empty
+ * reason is an open Shift and anything else is quoted as Ploeg wrote it.
+ * @param {string | null | undefined} closeReason
+ * @returns {string}
+ */
+export function closeReasonLabel(closeReason) {
+  const text = String(closeReason ?? '').trim();
+  if (!text) return 'Still open';
+  if (Object.hasOwn(closeLabels, text)) return closeLabels[text];
+  const lower = text.toLowerCase();
+  if (lower.startsWith('budget exhausted')) { const { pool } = parseBudgetReason(text); return pool !== null ? `The ${money(pool)} budget ran out` : 'The budget ran out'; }
+  if (lower.startsWith('run stuck:')) { const { role, round } = parseStuckReason(text); return role ? `The ${role} got stuck${round ? ` in Round ${round}` : ''}` : 'An agent got stuck'; }
+  if (lower === 'plan removed from configuration') return 'The Team plan was removed';
+  return `Ploeg recorded: “${text}”`;
+}
+
+/**
+ * Why a withdrawn Work Item was withdrawn, from its Shift close reason or the `work_item.withdrawn` event reason.
+ * Returns null for a reason Vloer does not recognise.
+ * @param {string | null | undefined} code
+ * @returns {string | null}
+ */
+export function withdrawnReason(code) {
+  const text = String(code ?? '').trim();
+  return text.startsWith('withdrawn_') && Object.hasOwn(closeLabels, text) ? `${closeLabels[text]}.` : null;
+}
