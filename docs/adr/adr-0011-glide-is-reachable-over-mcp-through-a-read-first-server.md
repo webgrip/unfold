@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-09-29
+status: accepted
+date: 2026-09-30
 decision-makers: Ryan Grippeling
 ---
 
@@ -42,6 +42,13 @@ Chosen option: "A separate `ploeg-mcp` command", because it is the only option t
 * **Long-running work** is addressed by Work Item id and polled; the server keeps no session state and does not use the MCP Tasks extension.
 * **South side.** Runs get no Glide MCP server. Third-party MCP servers reach a Run only through LiteLLM's gateway with per-Run keys, and no harness loads MCP configuration from the target repository.
 
+**The owner's answers (2026-09-30):**
+
+* **Remote is in scope** for the self-hosted phase: all three identity phases are planned, and the OAuth phase still needs its own security review before its public route goes live.
+* **Proposals live in Ploeg only**, like Run-created work. Nothing is written to the tracker, and the `provider` is `operator`.
+* **Only the owner holds the steer toolset** (approve, cancel). Every other identity gets read, and propose only when granted.
+* **A client without elicitation** gets a refusal and a link to approve in Vloer. The model never approves on its own.
+
 The evidence, prior art and security requirements are in [the research record](../research/2026-09-29-mcp-access.md).
 
 ### Consequences
@@ -55,7 +62,7 @@ The evidence, prior art and security requirements are in [the research record](.
 
 ### Confirmation
 
-Proposed, not implemented. It is implemented when:
+Accepted, not implemented. It is implemented when:
 
 * `go test ./cmd/ploeg-mcp/...` in `apps/ploeg` drives every tool through `mcp.NewInMemoryTransports()` against a test ploegd, including a propose that stays `proposed`, an approve that is declined and dispatches nothing, and a read-only consumer that cannot list write tools;
 * `npx @modelcontextprotocol/conformance server --url <ploeg-mcp>/mcp --spec-version 2026-07-28` passes in CI;
@@ -101,3 +108,4 @@ Proposed, not implemented. It is implemented when:
 * Research record: [2026-09-29 MCP access](../research/2026-09-29-mcp-access.md).
 * Related: [Ploeg ADR-0007](../../apps/ploeg/docs/adrs/0007-a2a-adopt-nothing-watchlist-a-facade.md) keeps the A2A dispatch facade on its watchlist; this record answers the same need for MCP clients first.
 * 2026-09-29 — Proposed after an eight-agent research sweep. Numbered 0011 because system ADRs 0005–0010 are on the unmerged `docs/agency-offering` branch.
+* 2026-09-30 — Accepted by the owner, remote phase included; the four open questions answered in the Decision Outcome (VIK-1502).

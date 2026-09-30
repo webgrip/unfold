@@ -21,6 +21,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0002](../adr/adr-0002-ploeg-is-the-only-engine.md) | Ploeg is the only execution engine and Vloer is its front end | 2026-09-22 | — |
 | System | [0003](../adr/adr-0003-the-unit-of-work-is-the-work-item.md) | The unit of work is the Work Item, and work can create work | 2026-09-22 | — |
 | System | [0004](../adr/adr-0004-glide-releases-one-version.md) | Glide releases Vloer and Ploeg under one version | 2026-09-27 | — |
+| System | [0011](../adr/adr-0011-glide-is-reachable-over-mcp-through-a-read-first-server.md) | Glide is reachable over MCP through a separate, read-first server on Ploeg's operator API | 2026-09-30 | — |
 | Ploeg | [0001](../../apps/ploeg/docs/adrs/0001-adrs-are-the-decision-ledger.md) | ADRs in docs/adrs/ are the single decision ledger | 2026-07-29 | — |
 | Ploeg | [0002](../../apps/ploeg/docs/adrs/0002-go-as-the-implementation-language.md) | Go is the implementation language | 2026-07-29 | — |
 | Ploeg | [0003](../../apps/ploeg/docs/adrs/0003-apache-2-0-license.md) | Ploeg ships under Apache-2.0 | 2026-07-29 | — |
@@ -60,7 +61,6 @@ An accepted record states why a rule exists. A proposed record is an open questi
 
 | Scope | ADR | Title | Date | Implemented? | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| System | [0011](../adr/adr-0011-glide-is-reachable-over-mcp-through-a-read-first-server.md) | Glide is reachable over MCP through a separate, read-first server on Ploeg's operator API | 2026-09-29 | unknown | — |
 | Ploeg | [0015](../../apps/ploeg/docs/adrs/0015-routing-is-core-policy-over-provider-opaque-scopes.md) | Route work in the core over provider-opaque Scopes | 2026-07-29 | partial | Scope resolver exists; tracker team mapping is still live ([source](../../apps/ploeg/pkg/target/resolver.go)) |
 | Ploeg | [0016](../../apps/ploeg/docs/adrs/0016-forge-registry-and-per-run-repo-scoped-credentials.md) | Resolve forges through a registry and mint forge credentials per Run | 2026-07-29 | partial | Per-run forge tokens exist; the worker still calls the forge API directly ([source](../../apps/ploeg/pkg/forgebroker/broker.go)) |
 | Ploeg | [0017](../../apps/ploeg/docs/adrs/0017-the-review-loop-is-verdict-driven-and-capped.md) | The review loop is verdict-driven and capped | 2026-07-29 | yes | Verdict loop and fix-round cap are tested ([source](../../apps/ploeg/pkg/shiftengine/reviewloop_test.go)) |

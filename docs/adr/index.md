@@ -18,4 +18,4 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0002](adr-0002-ploeg-is-the-only-engine.md) | Ploeg is the only execution engine and Vloer is its front end | accepted | 2026-09-22 |
 | [ADR-0003](adr-0003-the-unit-of-work-is-the-work-item.md) | The unit of work is the Work Item, and work can create work | accepted | 2026-09-22 |
 | [ADR-0004](adr-0004-glide-releases-one-version.md) | Glide releases Vloer and Ploeg under one version | accepted | 2026-09-27 |
-| [ADR-0011](adr-0011-glide-is-reachable-over-mcp-through-a-read-first-server.md) | Glide is reachable over MCP through a separate, read-first server on Ploeg's operator API | proposed | 2026-09-29 |
+| [ADR-0011](adr-0011-glide-is-reachable-over-mcp-through-a-read-first-server.md) | Glide is reachable over MCP through a separate, read-first server on Ploeg's operator API | accepted | 2026-09-30 |
