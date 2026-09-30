@@ -3,10 +3,11 @@ import { ploegDemo } from './ploeg-demo.ts';
 import { descriptionMarkdown } from './rich-text.ts';
 
 export type PloegState = 'ingested' | 'queued' | 'leased' | 'done' | 'needs_human' | 'awaiting_review' | 'stale' | 'withdrawn' | 'proposed';
-export type PloegTeam = { id: string; paused: boolean | null; queueDepth: number; roles: { id: string; queueDepth: number }[] };
+export type PloegTeam = { id: string; paused: boolean | null; queueDepth: number; roles: { id: string; queueDepth: number }[]; assignees: string[]; pinnedScopes: string[] };
+export type PloegTrackerItems = { items: PloegItem[]; supported: boolean; message?: string };
 export type PloegShift = { id: string; workItemId: string; team: string; branch: string; round: number; budgetUsd: number; spentUsd: number; reservedUsd: number; openedAt: string; closedAt: string | null; closeReason: string };
 export type PloegItem = { id: string; provider: string; externalId: string; revision: string; team: string; state: PloegState; title: string; description: string; url: string; priority: number; attempts: number; infraFailures: number; nextEligibleAt: string | null; createdAt: string; updatedAt: string; target: { forge: string; owner: string; repo: string; baseBranch: string } | null; latestShift: PloegShift | null; lease: { expiresAt: string; renewedAt: string } | null; sourceWorkItemId?: string; createdKind?: string; ready?: boolean };
-export type PloegRun = { id: string; workItemId: string; shiftId: string | null; team: string; role: string; round: number; writes: boolean; state: 'pending' | 'running' | 'finished'; startedAt: string | null; finishedAt: string | null; expiresAt: string | null; outcome: string | null; summary: string; stuckReason: string; links: string[]; findings: string; verdict: string; failureReason: string | null; authorizedUsd: number; usage: { inputTokens?: number; outputTokens?: number; costUsd?: number } | null; costStatus: 'observed' | 'unknown'; keyAlias: string | null };
+export type PloegRun = { id: string; workItemId: string; shiftId: string | null; team: string; role: string; round: number; writes: boolean; state: 'pending' | 'running' | 'finished'; startedAt: string | null; finishedAt: string | null; expiresAt: string | null; outcome: string | null; summary: string; stuckReason: string; links: string[]; findings: string; verdict: string; problem: string; solution: string; failureReason: string | null; authorizedUsd: number; usage: { inputTokens?: number; outputTokens?: number; costUsd?: number } | null; costStatus: 'observed' | 'unknown'; keyAlias: string | null };
 export type PloegCheckpoint = { id: string; workItemId: string; phase: string; branch: string; prUrl: string; createdAt: string; nodeName: string; podUid: string };
 export type PloegEvent = { id: string; at: string; actor: string; action: string; workItemId: string; team: string; detail: Record<string, unknown> };
 export type PloegPresentedItem = PloegItem & { descriptionMarkdown: string };
@@ -50,6 +51,7 @@ function field(value: unknown, max = 512): string { if (typeof value !== 'string
 function numeric(value: unknown, integer = false): number { if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || (integer && !Number.isSafeInteger(value))) throw invalid(); return value; }
 function boolean(value: unknown): boolean { if (typeof value !== 'boolean') throw invalid(); return value; }
 function nullable<T>(value: unknown, parse: (value: unknown) => T): T | null { return value === null ? null : parse(value); }
+function optionalText(value: unknown, max: number): string { return value === undefined ? '' : field(value, max); }
 function timestamp(value: unknown): string { const text = field(value, 64); if (!text || !Number.isFinite(Date.parse(text))) throw invalid(); return text; }
 function array<T>(value: unknown, parse: (value: unknown) => T, max = 500): T[] { if (!Array.isArray(value) || value.length > max) throw invalid(); return value.map(parse); }
 function link(value: unknown): string {
@@ -64,7 +66,7 @@ function link(value: unknown): string {
 function envelope(value: unknown): Record<string, unknown> { const data = record(value); if (data.schemaVersion !== '1.0') throw invalid(); return data; }
 function team(value: unknown): PloegTeam {
   const data = record(value);
-  return { id: field(data.id, 100), paused: nullable(data.paused, boolean), queueDepth: numeric(data.queueDepth, true), roles: array(data.roles, value => { const role = record(value); return { id: field(role.id, 100), queueDepth: numeric(role.queueDepth, true) }; }, 100) };
+  return { id: field(data.id, 100), paused: nullable(data.paused, boolean), queueDepth: numeric(data.queueDepth, true), roles: array(data.roles, value => { const role = record(value); return { id: field(role.id, 100), queueDepth: numeric(role.queueDepth, true) }; }, 100), assignees: data.assignees === undefined || data.assignees === null ? [] : array(data.assignees, value => field(value, 256), 100).filter(Boolean), pinnedScopes: data.pinnedScopes === undefined || data.pinnedScopes === null ? [] : array(data.pinnedScopes, value => field(value, 256), 500).filter(Boolean) };
 }
 function shift(value: unknown): PloegShift {
   const data = record(value);
@@ -88,7 +90,7 @@ function run(value: unknown): PloegRun {
   if (!['pending', 'running', 'finished'].includes(data.state as string) || !['observed', 'unknown'].includes(data.costStatus as string)) throw invalid();
   const usage = nullable(data.usage, value => { const usage = record(value); return Object.fromEntries(['inputTokens', 'outputTokens', 'costUsd'].filter(key => usage[key] !== undefined).map(key => [key, numeric(usage[key], key !== 'costUsd')])); });
   if (data.costStatus === 'observed' && usage?.costUsd === undefined) throw invalid();
-  return { id: identifier(data.id), workItemId: identifier(data.workItemId), shiftId: nullable(data.shiftId, identifier), team: field(data.team, 100), role: field(data.role, 100), round: numeric(data.round, true), writes: boolean(data.writes), state: data.state as PloegRun['state'], startedAt: nullable(data.startedAt, timestamp), finishedAt: nullable(data.finishedAt, timestamp), expiresAt: nullable(data.expiresAt, timestamp), outcome: nullable(data.outcome, value => field(value, 100)), summary: field(data.summary, 64000), stuckReason: field(data.stuckReason, 16000), links: array(data.links, link, 100).filter(Boolean), findings: field(data.findings, 64000), verdict: field(data.verdict, 100), failureReason: nullable(data.failureReason, value => field(value, 16000)), authorizedUsd: numeric(data.authorizedUsd), usage, costStatus: data.costStatus as PloegRun['costStatus'], keyAlias: nullable(data.keyAlias, value => field(value, 512)) };
+  return { id: identifier(data.id), workItemId: identifier(data.workItemId), shiftId: nullable(data.shiftId, identifier), team: field(data.team, 100), role: field(data.role, 100), round: numeric(data.round, true), writes: boolean(data.writes), state: data.state as PloegRun['state'], startedAt: nullable(data.startedAt, timestamp), finishedAt: nullable(data.finishedAt, timestamp), expiresAt: nullable(data.expiresAt, timestamp), outcome: nullable(data.outcome, value => field(value, 100)), summary: field(data.summary, 64000), stuckReason: field(data.stuckReason, 16000), links: array(data.links, link, 100).filter(Boolean), findings: field(data.findings, 64000), verdict: field(data.verdict, 100), problem: optionalText(data.problem, 16000), solution: optionalText(data.solution, 16000), failureReason: nullable(data.failureReason, value => field(value, 16000)), authorizedUsd: numeric(data.authorizedUsd), usage, costStatus: data.costStatus as PloegRun['costStatus'], keyAlias: nullable(data.keyAlias, value => field(value, 512)) };
 }
 function checkpoint(value: unknown): PloegCheckpoint { const data = record(value); return { id: identifier(data.id), workItemId: identifier(data.workItemId), phase: field(data.phase, 100), branch: field(data.branch), prUrl: link(data.prUrl), createdAt: timestamp(data.createdAt), nodeName: field(data.nodeName), podUid: field(data.podUid) }; }
 function auditDetail(value: unknown): Record<string, unknown> {
@@ -144,6 +146,7 @@ function cancellation(data: Record<string, unknown>): Omit<PloegCancellation, ke
 }
 const demoCancellation = 'Illustrative demo record. Nothing was cancelled: no Run was stopped, no model key or push token was blocked and the tracker was not told.';
 const unsupported = () => new PloegError(501, 'ploeg_unsupported', 'This Ploeg version does not provide activity data yet.');
+const olderTracker = 'This Ploeg version cannot look up work by tracker task. Update Ploeg to see its work here.';
 const decisionFailures: Record<number, [string, string]> = {
   400: ['ploeg_decision', 'Ploeg refused the request. A rejection needs a reason of at most 4096 characters.'],
   403: ['ploeg_decision_forbidden', 'Vloer’s Ploeg credential cannot record decisions. An administrator must grant it execute permission.'],
@@ -202,7 +205,7 @@ export class PloegClient {
       if (post) this.cache.clear();
       if (!response.ok) {
         await response.body?.cancel();
-        if (options.added && (response.status === 404 || (response.status === 400 && path.startsWith('events?')))) throw unsupported();
+        if (options.added && (response.status === 404 || (response.status === 400 && /^(?:events|work-items)\?/.test(path)))) throw unsupported();
         if (post && decisionFailures[response.status]) { const [code, message] = decisionFailures[response.status]; throw new PloegError(response.status, code, message); }
         throw new PloegError(response.status === 404 ? 404 : 503, 'ploeg_unavailable', response.status === 404 ? 'Ploeg work item not found in your authorized teams.' : 'Ploeg could not provide its operator data. Check the connection and consumer access.');
       }
@@ -219,10 +222,30 @@ export class PloegClient {
       return structuredClone(data);
     } catch (error) { if (error instanceof PloegError) throw error; throw new PloegError(503, 'ploeg_unavailable', 'Ploeg could not be reached or returned incomplete data. Refresh to try again.'); }
   }
-  async teams(user: User, fresh = false): Promise<PloegTeam[]> {
+  async teams(user: User, fresh = false): Promise<PloegTeam[]> { return (await this.routing(user, fresh)).teams; }
+  /** Lists the caller's teams and whether this Ploeg reports the tracker users that route work to each team. */
+  /** Reads Ploeg's team routing: `teams` the caller may use, and `all` teams the consumer sees, for safety checks that must not depend on the caller's scope. */
+  async routing(user: User, fresh = false): Promise<{ teams: PloegTeam[]; all: PloegTeam[]; reported: boolean }> {
     this.authorize(user);
-    const teams = this.demo ? ploegDemo.teams : array(envelope(await this.request('teams', fresh)).teams, team, 500);
-    return teams.filter(team => this.allowed(user, team.id));
+    if (this.demo) return { teams: ploegDemo.teams.filter(team => this.allowed(user, team.id)), all: ploegDemo.teams, reported: false };
+    const data = envelope(await this.request('teams', fresh));
+    const all = array(data.teams, team, 500).filter(entry => !this.config?.teams || this.config.teams.includes(entry.id));
+    return { teams: all.filter(team => this.allowed(user, team.id)), all, reported: (data.teams as unknown[]).some(entry => Array.isArray(record(entry).assignees)) };
+  }
+  allows(user: User, team: string): boolean { return this.allowed(user, team); }
+  /** Lists Work Items for one tracker task across the caller's teams; a Ploeg without that filter yields none and says why. */
+  async trackerItems(user: User, provider: string, externalId: string, fresh = false, scoped = true): Promise<PloegTrackerItems> {
+    this.authorize(user);
+    if (this.demo) return { items: [], supported: false, message: 'Illustrative Ploeg records are not linked to tracker tasks.' };
+    if (!/^[a-z][a-z0-9_-]{0,31}$/.test(provider) || !/^[A-Za-z0-9_-]{1,128}$/.test(externalId)) throw new PloegError(400, 'ploeg_filter', 'Use a valid tracker provider and task identifier.');
+    let result: PloegPage;
+    try { result = page(await this.request(`work-items?${new URLSearchParams({ provider, externalId, limit: '25' })}`, fresh, { added: true })); }
+    catch (error) { if (error instanceof PloegError && error.code === 'ploeg_unsupported') return { items: [], supported: false, message: olderTracker }; throw error; }
+    if (result.items.some(entry => entry.provider !== provider || entry.externalId !== externalId)) return { items: [], supported: false, message: olderTracker };
+    if (!scoped) return { items: result.items, supported: true };
+    const items = result.items.filter(entry => this.allowed(user, entry.team));
+    for (const entry of items) this.remember(entry.id, entry.title);
+    return { items, supported: true };
   }
   async items(user: User, selectedTeam: string, state: PloegState | 'all' = 'all', after = '0', fresh = false): Promise<PloegPresentedPage> {
     this.authorize(user);

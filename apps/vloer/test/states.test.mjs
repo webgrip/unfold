@@ -120,6 +120,7 @@ test('a failure reads as its cause, and only a live Work Item is said to retry',
   assert.equal(failureNote('lease_lost', { live: false }), 'Cause: infrastructure, not the agent. If it keeps happening, check the nodes and the network.');
   assert.equal(failureNote('agent_error', { live: false }), 'Cause: the agent harness exited with an error. Read its log tail. Fix the brief, the model or the harness.');
   assert.equal(failureNote('timeout'), 'Cause: the harness time limit. Split the ticket or raise the timeout.', 'agent-side failures never promise a retry');
+  assert.equal(failureNote('idle'), 'Cause: the harness printed nothing and made no model call for its idle timeout. Read its log tail. A hung command or an unanswered prompt is the usual cause. Raising the idle timeout only delays the stop.', 'silence is not advised as a time limit');
   assert.equal(failureNote(null), '');
   assert.equal(failureReasons.infra_node.action, 'It retries automatically. If it keeps happening, check the nodes and images.', 'owner and action stay for existing callers');
   assert(Object.values(failureReasons).every(meta => meta.cause && typeof meta.retries === 'boolean' && meta.next));

@@ -211,12 +211,27 @@ func managedSettlementSweep(ctx context.Context, log *slog.Logger, server *httpa
 			log.Warn("managed settlement unresolved", "alias", account.Alias, "state", account.State, "err", err)
 		} else {
 			log.Info("managed account settled", "alias", account.Alias)
+			// Only after the numbers are durable: the report now shows settled
+			// figures. A historical Run with no Shift has no report to
+			// refresh, so it is skipped rather than treated as an error.
+			refreshUsageReports(ctx, log, server, account)
 		}
 		if ctx.Err() != nil {
 			break
 		}
 	}
 	return after
+}
+
+// refreshUsageReports re-renders the settled Run's usage report. Best-effort:
+// a failure is logged and never fails the settlement that already succeeded.
+func refreshUsageReports(ctx context.Context, log *slog.Logger, server *httpapi.Server, account store.UnsettledLLMAccount) {
+	if server.Engine == nil || account.ShiftID == nil {
+		return
+	}
+	if err := server.Engine.RefreshUsageReport(ctx, *account.ShiftID); err != nil {
+		log.Error("usage report refresh failed", "shift", *account.ShiftID, "alias", account.Alias, "err", err)
+	}
 }
 
 // forgeIDFromEnv is the forge instance id, and there is exactly one of it.

@@ -5,7 +5,7 @@ The `acp` harness runs any agent that speaks the Agent Client Protocol (wire ver
 Every profile gets the same inputs from the worker:
 
 - The model gateway's base URL and a model key. With `PLOEG_LLM_KEY_ISOLATION=proxy` these are a loopback URL and a placeholder, and the worker adds the real key on the way out ([ADR-0034](../adrs/0034-the-harness-gets-placeholders-the-worker-keeps-credentials.md)). Profiles pass the key only through environment variables and never write it into a config file.
-- `PLOEG_OUTCOME_FILE`, the outcome drop box ([ADR-0018](../adrs/0018-the-outcome-drop-box-is-every-harnesss-return-path.md)). ACP returns a stop reason, not a review, so a reading Run's findings and verdict still come back through this file.
+- `PLOEG_OUTCOME_FILE`, the outcome drop box ([ADR-0018](../adrs/0018-the-outcome-drop-box-is-every-harnesss-return-path.md)). ACP returns a stop reason, not a review, so a reading Run's findings and verdict, and a writing Run's problem and solution ([ADR-0042](../adrs/0042-a-writing-run-reports-the-problem-and-solution-a-reviewer-reads.md)), still come back through this file.
 - The Run's permission mode (`allow_always`, `allow_read_only` or `deny_all`). A profile sets the agent's own approval setting to match it. Under `allow_always` the agent runs without asking. Under the other two modes the agent asks for every tool call, and the adapter answers from the mode.
 
 Config files and agent home directories are written to the scratch directory with the trace id in their names, because concurrent Runs share that directory.

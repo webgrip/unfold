@@ -7,9 +7,9 @@ generated_by: "mise run domain"
 
 # Glide — Domain Overview
 
-Glide turns units of work (Work Items) into pull requests that are ready for human review. Ploeg authorizes, budgets and executes every agent Run; Vloer is its front end (Glide ADR-0002). Without Ploeg, Vloer runs only its deterministic demo, which makes no model calls. Until Vloer's own engine is retired, a managed execution never falls back to it. This model includes intended product rules; it is not a feature inventory. Current behavior is documented in ../index.md and the application architecture guides. Execution terms such as Run, Shift, Lease, Team, Role and Outcome belong to Ploeg's model; this model imports them.
+Glide turns units of work (Work Items) into pull requests that are ready for human review. Ploeg authorizes, budgets and executes every agent Run; Vloer is its front end (Glide ADR-0002). Without Ploeg, Vloer runs only its deterministic demo, which makes no model calls. Until Vloer's own engine is retired, a managed execution never falls back to it. This model includes intended product rules; it is not a feature inventory. Current behavior is documented in ../index.md and the application architecture guides. Execution terms such as Run, Shift, Lease, Team, Role and Outcome belong to Ploeg's model; this model imports them. The agency offering (Glide ADRs 0005 to 0010) is decided and not implemented; its terms are in the Offering and Billing contexts.
 
-*Model version 0.3. Generated from `model.yaml` — do not edit by hand.*
+*Model version 0.4. Generated from `model.yaml` — do not edit by hand.*
 
 ## Bounded contexts
 
@@ -17,7 +17,9 @@ Glide turns units of work (Work Items) into pull requests that are ready for hum
 - **Work** — Requested results, their evidence, and their acceptance.
 - **Participation** — How people take part in AI work through Vloer and inspect what happened.
 - **Execution** — The product view of AI work. Ploeg's model owns the execution vocabulary.
-- **Delivery** — How Glide's own source, releases and documentation are proven and switched over.
+- **Offering** — Who uses Glide and what they see: Agencies, their Clients and the Client Portal. Decided in Glide ADRs 0005 to 0010; not implemented yet.
+- **Billing** — How work is sized, quoted and charged: Sizes, Quotes, Credits and the two parts of a price. Decided in Glide ADR-0006; not implemented yet.
+- **Release** — How Glide's own source, releases and documentation are proven and switched over.
 - **Tooling** — External tools and protocols that Glide builds on or has evaluated.
 
 ## ⚠ Open ambiguities
@@ -36,6 +38,9 @@ These terms are contested or vague. Resolve them before writing specs that depen
 - **which decision records are required** — Visibility into decisions needs a defined record beyond raw model messages and tool logs.
   - Options: Written decision with options and evidence, Transcript and actions alone
   - Recommendation: Capture the decision, responsible person or rule, evidence, and expected consequence.
+- **a Request that arrives through a tracker** — Ploeg mirrors every assigned Tracker Item into a Work Item. A Client's ask that arrives as a ClickUp or Vikunja task is a Request, not yet a Work Item, so either the mirror must wait for Refinement or the Request must live in Glide beside the Tracker Item.
+  - Options: The tracker task is the Request; Refinement's Work Items become new Tracker Items or stay in Ploeg (Ploeg ADR-0031), Ploeg mirrors it as an unready Work Item that Refinement replaces with the real ones, Requests only come through the Client Portal; tracker tasks are always Work Items
+  - Recommendation: The tracker task is the Request. Refinement's Work Items stay in Ploeg as proposed until their Quotes are approved, which reuses Ploeg ADR-0031 and keeps the Agency's tracker as the one place its Clients' asks live.
 
 ## Contents
 

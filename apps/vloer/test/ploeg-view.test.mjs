@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activePloegLane, appendPage, cancelDialogMarkup, cancelSummary, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runGroups, runOrder, runResult, teamOverview, workItemRef, workMarkup } from '../public/ploeg.js';
+import { activePloegLane, appendPage, attemptLabel, cancelDialogMarkup, cancelSummary, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runAttempts, runGroups, runOrder, runResult, teamOverview, workItemRef, workMarkup, writerAccount } from '../public/ploeg.js';
 import { detailReason } from '../public/core/reasons.js';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 
@@ -305,6 +305,24 @@ test('the page says each thing once: checkpoints fold into Activity, an empty st
   assert.match(stuck, /<p class="work-run-reason">The brief asks for 2026 market sizes/, 'a stuck reason in prose keeps the body font');
 });
 
+test('repeated Runs of one job are numbered, so a silent Run after two machine failures reads as the third attempt', () => {
+  const runs = [
+    { id: '196', shiftId: '113', round: 1, role: 'builder', writes: true, state: 'finished', outcome: 'failed', failureReason: 'idle' },
+    { id: '193', shiftId: '113', round: 1, role: 'builder', writes: true, state: 'finished', outcome: 'failed', failureReason: 'infra_node' },
+    { id: '189', shiftId: '113', round: 1, role: 'builder', writes: true, state: 'finished', outcome: 'failed', failureReason: 'infra_node' },
+    { id: '190', shiftId: '113', round: 1, role: 'reviewer', writes: false, state: 'finished', outcome: 'no_change_needed' },
+  ];
+  const attempts = runAttempts(runs);
+  assert.deepEqual(attempts.get('189'), { attempt: 1, total: 3, machineFailures: 0, next: 2 });
+  assert.deepEqual(attempts.get('196'), { attempt: 3, total: 3, machineFailures: 2, next: null });
+  assert.equal(attempts.has('190'), false, 'a job that ran once carries no attempt label');
+  assert.equal(attemptLabel(attempts.get('196')), 'Attempt 3 of 3 · after 2 machine failures');
+  assert.equal(attemptLabel(attempts.get('189')), 'Attempt 1 of 3');
+  const html = detailMarkup(demoDetail('112'), model({ detailId: '112' }));
+  assert.match(html, /implementer<\/strong><span class="meta">[^<]*<span class="work-run-round">Round 1 · <\/span>writer · Attempt 10 of 10 · after 9 machine failures/);
+  assert.match(html, /Ploeg retried it as attempt 2\./, 'a retried machine failure names the attempt that followed it');
+});
+
 test('Runs are grouped by Shift and Round, failures first, newest Round first', () => {
   const runs = [
     { id: '1', shiftId: '6', round: 1, state: 'finished', outcome: 'pr_opened' },
@@ -360,6 +378,43 @@ test('demo spend is never invented and unknown live spend is never zero', () => 
   assert.match(html, /<span class="meter-value">Not reported<\/span>/);
 });
 
+test('the writer’s problem and solution sit under the title, from the newest writing Run of the latest Shift', () => {
+  const current = detail();
+  current.runs[0].problem = 'A reviewer never reports this.';
+  current.runs[1].problem = 'Half-cent totals round differently in the cart and on the invoice.';
+  current.runs[1].solution = '- One rounding rule serves both.\n- A test covers half-cent totals.';
+  current.runs.push({ ...current.runs[2], id: '11', role: 'builder', writes: true, verdict: '', findings: '', problem: 'Older Shift problem.', solution: 'Older Shift solution.' });
+  assert.deepEqual(writerAccount(current), { runId: '13', role: 'builder', round: 1, at: later, problem: 'Half-cent totals round differently in the cart and on the invoice.', solution: '- One rounding rule serves both.\n- A test covers half-cent totals.', earlierShift: false });
+  const html = detailMarkup(current, model({ detailId: '50', lane: 'awaiting_review' }));
+  assert.ok(html.indexOf('id="work-account"') > html.indexOf('id="ploeg-item-title"') && html.indexOf('id="work-account"') < html.indexOf('id="work-decision"'), 'between the title and the decision box');
+  assert.match(html, /<section class="work-account" id="work-account" aria-labelledby="work-account-title"><h3 class="sr-only" id="work-account-title">Problem and solution<\/h3>/);
+  assert.match(html, /data-side="problem"><h4 class="work-account-label"><span class="work-account-index" aria-hidden="true">01<\/span>Problem<\/h4><div class="prose work-account-text"><p>Half-cent totals round differently/);
+  assert.match(html, /data-side="solution"><h4 class="work-account-label"><span class="work-account-index" aria-hidden="true">02<\/span>Solution<\/h4><div class="prose work-account-text"><ul>/);
+  assert.match(html, /Written by<\/span><span>builder<\/span><span>Round 1<\/span><time/);
+  assert.match(html, /The agent’s own account: verify it against pull request #9\./);
+  assert.match(html, /data-action="work-run" data-id="13"/);
+  assert.doesNotMatch(html, /A reviewer never reports this|Older Shift problem/);
+
+  current.runs[1].problem = '';
+  current.runs[1].solution = '';
+  assert.equal(writerAccount(current).runId, '11');
+  assert.equal(writerAccount(current).earlierShift, true, 'a new Shift’s writer has not reported yet, so the earlier account shows and says so');
+  assert.match(detailMarkup(current, model({ detailId: '50' })), /<span>Round 1<\/span><span>earlier Shift<\/span>/);
+  current.runs.at(-1).solution = '';
+  assert.match(detailMarkup(current, model({ detailId: '50' })), /Solution<\/h4><p class="work-account-missing">Not reported\.<\/p>/, 'a missing half says so instead of leaving a hole');
+
+  current.runs.pop();
+  assert.equal(writerAccount(current), null);
+  assert.doesNotMatch(detailMarkup(current, model({ detailId: '50' })), /work-account/, 'no card until a writer reports');
+});
+
+test('the demo’s writer accounts say they are illustrative', () => {
+  const html = detailMarkup(demoDetail('105'), model({ detailId: '105', lane: 'awaiting_review' }));
+  assert.match(html, /id="work-account"/);
+  assert.match(html, /illustrative content, not a result of an executed Run/);
+  assert.equal(writerAccount(demoDetail('114')).runId, '25', 'the fix Round’s account replaces the first one');
+});
+
 test('untrusted text from the tracker, agents and Ploeg stays inert everywhere on the page', () => {
   const hostile = detail();
   const attack = '<img src=x onerror=alert(1)>';
@@ -368,6 +423,8 @@ test('untrusted text from the tracker, agents and Ploeg stays inert everywhere o
   hostile.runs[0].findings = attack;
   hostile.runs[0].summary = attack;
   hostile.runs[0].stuckReason = attack;
+  hostile.runs[1].problem = `${attack}\n\n[x](javascript:alert(1))`;
+  hostile.runs[1].solution = attack;
   hostile.runs[0].links = ['javascript:alert(1)', 'https://forge.test/"onmouseover="x'];
   hostile.events = [{ id: '1', at, actor: attack, action: attack, workItemId: '50', team: 'delivery', detail: { reason: attack } }];
   hostile.item.url = 'javascript:alert(1)';

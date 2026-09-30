@@ -137,3 +137,9 @@ carries the watchlisted scope and its prerequisites.
   write-backs and a ploegd single-item read endpoint).
 * Naming hazard: Zed's Agent **Client** Protocol (backlog #64) is unrelated to
   IBM's former Agent **Communication** Protocol, which merged into A2A.
+* 2026-09-29 — Re-confirmed, unchanged. The "no standard programmatic dispatch
+  API" consequence is now addressed for MCP clients by the proposed
+  [Glide ADR-0011](../../../../docs/adr/adr-0011-glide-is-reachable-over-mcp-through-a-read-first-server.md):
+  a separate read-first server on the operator API, which creates `proposed`
+  Work Items that a person approves. The A2A facade stays watchlisted; its
+  triggers are unchanged.

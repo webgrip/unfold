@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"log/slog"
 	"testing"
 
@@ -57,7 +58,7 @@ func TestPinTeam_RunsBeforeTargetResolution(t *testing.T) {
 	}
 	item := work.WorkItem{Team: "docs", ExternalScope: "900000000077"}
 	s.pinTeam(&item)
-	s.resolveTarget(&item, provider.TrackerEvent{ExternalID: "9001"})
+	s.resolveTarget(context.Background(), &item, true, provider.TrackerEvent{ExternalID: "9001"})
 	if item.Target == nil || item.Target.Repo != "internal/widgets" {
 		t.Fatalf("target = %+v, want the team-qualified rule matched via the pinned team", item.Target)
 	}

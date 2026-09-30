@@ -2,7 +2,7 @@
   "name": "de-vloer",
   "displayName": "De Vloer — Remote Agent Workbench",
   "description": "Steer agent work from VS Code: review evidence and control sessions on your machine or a remote workbench.",
-  "version": "0.4.0-rc.18",
+  "version": "0.4.0-rc.20",
   "publisher": "webgrip",
   "license": "Apache-2.0",
   "homepage": "https://forgejo.webgrip.dev/webgrip/de-vloer",
@@ -231,8 +231,20 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "vloer.openTask",
+        "title": "Open Task",
+        "category": "Vloer",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "vloer.openPloegItem",
+        "title": "Open Work Item Task",
+        "category": "Vloer",
+        "icon": "$(preview)"
+      },
+      {
         "command": "vloer.importTask",
-        "title": "Import Linked Task into Session",
+        "title": "Start a Supervised Session from Task",
         "category": "Vloer",
         "icon": "$(cloud-upload)"
       },
@@ -256,7 +268,7 @@
       },
       {
         "command": "vloer.openPloeg",
-        "title": "Open Ploeg Workbench",
+        "title": "Open in Ploeg Workbench",
         "category": "Vloer",
         "icon": "$(link-external)"
       },
@@ -349,7 +361,7 @@
       },
       {
         "view": "vloer.tasks",
-        "contents": "Pick work from your team’s connected task systems.\n[Browse linked tasks](command:vloer.browseTasks)\n\nForgejo · GitHub · GitLab · ClickUp · Vikunja\nSources and repository routing are configured on the workbench server."
+        "contents": "Pick work from your team’s connected task systems. Open a task to read it, see whether Ploeg has it, and hand it to a Ploeg team.\n[Browse linked tasks](command:vloer.browseTasks)\n\nForgejo · GitHub · GitLab · ClickUp · Vikunja\nSources and repository routing are configured on the workbench server."
       }
     ],
     "menus": {
@@ -377,6 +389,14 @@
         {
           "command": "vloer.linkedAccounts",
           "when": "vloer.connected"
+        },
+        {
+          "command": "vloer.openTask",
+          "when": "false"
+        },
+        {
+          "command": "vloer.openPloegItem",
+          "when": "false"
         }
       ],
       "view/title": [
@@ -561,6 +581,11 @@
           "command": "vloer.openTaskLink",
           "when": "view == vloer.tasks && viewItem =~ /^task:.*:linked$/",
           "group": "inline@2"
+        },
+        {
+          "command": "vloer.openPloeg",
+          "when": "view == vloer.ploeg && viewItem == ploeg:item",
+          "group": "inline@1"
         }
       ],
       "editor/context": [
@@ -591,11 +616,12 @@
           {
             "id": "task",
             "title": "Start from a linked task",
-            "description": "Browse Forgejo, GitHub, GitLab, ClickUp or Vikunja sources configured on the server, preview the snapshot, and create a queued session.\n[Browse linked tasks](command:vloer.browseTasks)",
+            "description": "Browse Forgejo, GitHub, GitLab, ClickUp or Vikunja sources configured on the server. Open a task to read it, hand it to a Ploeg team, or start a supervised session from it.\n[Browse linked tasks](command:vloer.browseTasks)",
             "media": {
               "markdown": "media/walkthrough/tasks.md"
             },
             "completionEvents": [
+              "onCommand:vloer.openTask",
               "onCommand:vloer.importTask",
               "onCommand:vloer.create"
             ]
@@ -633,7 +659,7 @@
     "test": "node --test ${VLOER_TEST_CONCURRENCY:+--test-concurrency=$VLOER_TEST_CONCURRENCY} --test-timeout=120000 --test-force-exit test/*.test.ts",
     "vscode:prepublish": "npm run compile",
     "package": "vsce package --no-dependencies",
-    "test:webview": "node test/webview.mjs"
+    "test:webview": "node test/webview.mjs && node test/task-webview.mjs"
   },
   "devDependencies": {
     "@types/node": "24.19.0",

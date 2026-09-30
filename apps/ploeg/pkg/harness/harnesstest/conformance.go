@@ -51,6 +51,7 @@ func Run(t *testing.T, fx Fixture) {
 	t.Run("SurvivesGarbageOnStdout", fx.survivesGarbageOnStdout)
 	t.Run("CancelKillsTheHarness", fx.cancelKillsTheHarness)
 	t.Run("ReadingRunFindingsSurviveTheAdapter", fx.readingRunFindingsSurviveTheAdapter)
+	t.Run("WritingRunProblemAndSolutionSurviveTheAdapter", fx.writingRunProblemAndSolutionSurviveTheAdapter)
 }
 
 // adapter lifts whichever constructor the fixture supplied to harness.Adapter,
@@ -255,6 +256,37 @@ exit 0`)
 		t.Errorf("verdict did not survive the adapter: got %q, want %q — "+
 			"request_changes is the one bit an agent may use to influence what runs next (ADR-0017)",
 			got.Verdict, wantVerdict)
+	}
+}
+
+// writingRunProblemAndSolutionSurviveTheAdapter pins the writer's half of the
+// drop box (ADR-0042): a file with no outcome, only the account a person reads
+// before merging.
+func (fx Fixture) writingRunProblemAndSolutionSurviveTheAdapter(t *testing.T) {
+	const (
+		wantProblem  = "Refunds over **€500** fail with a 500."
+		wantSolution = "- `refund.go` checks the limit before the call.\n- A test covers €500.01.\n"
+	)
+	body, err := json.Marshal(map[string]string{"problem": wantProblem, "solution": wantSolution})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bin := script(t, `[ -n "$PLOEG_OUTCOME_FILE" ] || { echo "PLOEG_OUTCOME_FILE unset" >&2; exit 3; }
+cat >"$PLOEG_OUTCOME_FILE" <<'JSON'
+`+string(body)+`
+JSON
+exit 0`)
+
+	got, err := fx.adapter(t, bin).Run(context.Background(), spec(), env(t))
+	if err != nil {
+		t.Logf("run returned %v (a session adapter may reject a non-protocol binary; the account must survive anyway)", err)
+	}
+	if got.Problem != wantProblem || got.Solution != wantSolution {
+		t.Errorf("the writer's account did not survive the adapter:\n got problem %q solution %q\nwant problem %q solution %q",
+			got.Problem, got.Solution, wantProblem, wantSolution)
+	}
+	if got.Outcome == work.OutcomePROpened || got.Outcome == work.OutcomePRUpdated {
+		t.Errorf("an outcome-less drop box was read as %q — adapters never assert forge state", got.Outcome)
 	}
 }
 

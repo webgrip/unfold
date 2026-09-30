@@ -36,6 +36,8 @@ Terms: a **Work Item** is Ploeg's copy of your ticket. A **Team** is a named ros
            - roles: [{name: reviewer, writes: false, cap: "0.75"}]
    ```
 
+   To let one board send tickets to several repositories, register the repositories under `targets:` and give the board a `default:` and an `allow:` list; a ticket then picks one with a `repo/<target>` label ([route a board that serves several repositories](../../apps/ploeg/docs/how-to/route-a-multi-repo-board.md)).
+
    ploegd refuses to start if a name matches no project ([resolve.go](../../apps/ploeg/pkg/config/resolve.go)). ClickUp entries need `id:` (the List id), because ClickUp name lookup is not implemented ([config.go](../../apps/ploeg/pkg/config/config.go)). A project's `team:` pin only applies to entries with an `id:` ([resolve.go](../../apps/ploeg/pkg/config/resolve.go)).
 2. To choose the Team, list the tracker username under `teams.<name>.assignees`. One username belongs to one Team. An unlisted assignee goes to `PLOEG_DEFAULT_TEAM`, which defaults to `default` ([main.go](../../apps/ploeg/cmd/ploegd/main.go)).
 3. To give the Team workers, add an `executor.teams` entry with the same name, a `model` and a `budget`. The chart renders one worker workload per Team and Role.

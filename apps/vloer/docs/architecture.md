@@ -59,8 +59,9 @@ Every module in `src/`:
 | [`src/execution-authority.ts`](../src/execution-authority.ts) | Shared-mode client for Ploeg's operator execution API: admission, commands, credential, spend and block |
 | [`src/ploeg.ts`](../src/ploeg.ts) | Read-only, validated Ploeg operator client for teams and Work Items |
 | [`src/ploeg-demo.ts`](../src/ploeg-demo.ts) | Illustrative Ploeg records served in demo mode |
-| [`src/tasks.ts`](../src/tasks.ts) | Read-only tracker connectors for Forgejo, GitHub, GitLab, ClickUp, Vikunja and a demo source |
-| [`src/rich-text.ts`](../src/rich-text.ts) | Adds `descriptionMarkdown` for display: Vikunja HTML becomes Markdown the browser renders; other text passes through |
+| [`src/tasks.ts`](../src/tasks.ts) | Tracker connectors for Forgejo, GitHub, GitLab, ClickUp, Vikunja and a demo source; reads everywhere, and Vikunja assignee and comment writes for hand-off |
+| [`src/task-handoff.ts`](../src/task-handoff.ts) | Hands a Vikunja task to a Ploeg team by assigning its tracker user, takes it back, and reports the Ploeg work for a task |
+| [`src/rich-text.ts`](../src/rich-text.ts) | Adds `descriptionMarkdown` for display: Vikunja HTML becomes Markdown the browser and the editor's task view render; other text passes through |
 | [`src/markdown.ts`](../src/markdown.ts) | Dependency-free, size-capped HTML-to-Markdown converter, in CommonMark or the subset the browser's renderer reads |
 | [`src/task-binding.ts`](../src/task-binding.ts) | Looks up and compares the Ploeg Work Item bound to an imported Vikunja or ClickUp task |
 | [`src/candidates.ts`](../src/candidates.ts) | Captures a workspace change as a Git bundle, binary patch and manifest |

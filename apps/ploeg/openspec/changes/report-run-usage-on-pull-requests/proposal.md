@@ -37,15 +37,17 @@ no Work Item state.
   is marked unavailable rather than guessed at.
 - **Evidence, not a copy of it.** The report names the writing Run's
   verification result and commit — or says plainly that none was recorded — and
-  links to the pull request's checks; the full verification output stays in the
-  writing Run's findings comment.
+  points to the writing Run's findings comment for the full output; it never
+  re-posts the verification prose.
 - **Best-effort, never in the lifecycle.** A failed accounting read or forge
   call is logged and skipped: no Outcome changes, no Shift closes differently,
   no state transition blocks (R2, R3). The report makes no gateway call, mints
   nothing and settles nothing.
-- **One chart value.** `PLOEG_USAGE_REPORT` in the chart's existing `env` map
+- **Three chart values.** `PLOEG_USAGE_REPORT` in the chart's existing `env` map
   decides whether the publish path runs; it is the kill switch and nothing else
-  in the chart moves.
+  in the chart moves. `PLOEG_REPORT_GRAFANA_URL` and `PLOEG_REPORT_VLOER_URL`
+  carry the two dashboard bases the report links from; unset omits those links
+  (and both unset omits the links section).
 
 ## Capabilities
 
@@ -84,16 +86,18 @@ conflicts.
 
 ## Impact
 
-- **Code:** `pkg/shiftengine/publish.go` (pure renderer and `publishUsageReport`)
-  and `engine.go` (the close-path call) · `pkg/provider` (`Comment` type plus
-  `Comments`/`EditComment` on the SPI) · `pkg/provider/forgejo` and
+- **Code:** `pkg/shiftengine/usage.go` (the pure renderer and evidence parser),
+  `pkg/shiftengine/publish.go` (`publishUsageReport`, `RefreshUsageReport`) and
+  `engine.go` (the round and close call sites) · `pkg/provider` (`Comment` type
+  plus `Comments`/`EditComment` on the SPI) · `pkg/provider/forgejo` and
   `pkg/provider/gitlab` (the comment endpoints) · `pkg/store` (a read-only usage
   query; `UnsettledLLMAccount` carries `shift_id`) · `cmd/ploegd/sweep.go`
-  (refresh after a settlement) · `cmd/ploegd/main.go` (the flag).
+  (refresh after a settlement) · `cmd/ploegd/main.go` (the flag and the URLs).
 - **Contracts:** `provider` is the internal SPI; the methods are additive and no
   published `docs/contracts/` schema changes.
-- **Chart:** `ops/helm/ploeg/values.yaml` adds `PLOEG_USAGE_REPORT` to the
-  existing generic `env` map; `templates/deployment.yaml` renders it. No
+- **Chart:** `ops/helm/ploeg/values.yaml` adds `PLOEG_USAGE_REPORT`,
+  `PLOEG_REPORT_GRAFANA_URL` and `PLOEG_REPORT_VLOER_URL` to the existing
+  generic `env` map; `templates/deployment.yaml` renders them. No
   `values.schema.json` change.
 - **Money:** no new spend path and no new hold; the report only reads. It prints
   no key value, only the alias `ploeg-<12hex>` (ADR-0008).

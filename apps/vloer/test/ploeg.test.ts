@@ -226,6 +226,18 @@ const summaryTeam = (team: string, awaitingReview: number) => ({ team, workItems
 const listRun = (id: string, workItemId: string, team: string) => ({ id, workItemId, workItemTitle: `Work ${workItemId}`, externalRef: '', team, role: 'builder', round: 1, writes: true, state: 'finished', outcome: 'failed', verdict: '', failureReason: 'timeout', startedAt: '2026-09-10T08:00:00Z', finishedAt: '2026-09-10T08:10:00Z', durationSeconds: 600, authorizedUsd: 2, settledUsd: null, usage: { inputTokens: 0, outputTokens: 0, models: [] } });
 const reply = (res: ServerResponse, status: number, data: object) => { res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify({ schemaVersion: '1.0', ...data })); return true; };
 
+test('a writer’s problem and solution pass through, and a Ploeg that predates them reads as empty rather than failing', async t => {
+  const upstreamApi = await upstream(t);
+  const ploeg = client(upstreamApi.config);
+  const writer = upstreamApi.details['105'].runs.find(run => run.writes)!;
+  assert.match((await ploeg.detail(admin, '105')).runs.find(run => run.id === writer.id)!.problem, /half cent/);
+  for (const run of upstreamApi.details['109'].runs) { delete (run as Partial<typeof run>).problem; delete (run as Partial<typeof run>).solution; }
+  const older = await ploeg.detail(admin, '109');
+  assert(older.runs.length > 0 && older.runs.every(run => run.problem === '' && run.solution === ''));
+  (upstreamApi.details['114'].runs[0] as { problem: unknown }).problem = 42;
+  await assert.rejects(ploeg.detail(admin, '114'), /unsupported operator response/, 'a present value must still be text');
+});
+
 test('an older Ploeg without the activity routes reports unsupported instead of failing', async t => {
   const upstreamApi = await upstream(t);
   const server = await application('live', config => { config.ploeg = upstreamApi.config; });
