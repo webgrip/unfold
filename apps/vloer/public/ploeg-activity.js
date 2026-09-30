@@ -245,6 +245,7 @@ export function mergeRuns(runs, page) {
   return [...byId.values()];
 }
 
+
 const bigId = id => { try { return BigInt(id); } catch { return null; } };
 
 /**
@@ -300,24 +301,27 @@ export function problemMarkup(error, subject, helpers) {
   return `<div class="feeds-problem card" role="alert">${empty({ glyph: 'x-circle', tone: 'danger', title: `Could not load ${subject}`, body: `<p>${escape(error?.message || 'Ploeg did not answer.')}</p>`, actions: retryButton(helpers), compact: false }, helpers)}</div>`;
 }
 
-function staleNotice(error, subject, helpers) {
+function staleNotice(view, helpers) {
   const { escape, icon } = helpers;
-  return `<div class="callout feeds-stale" data-tone="danger" role="alert"><span class="callout-icon" aria-hidden="true">${icon('x-circle')}</span><div class="callout-content"><p class="callout-title">Could not refresh ${escape(subject)}</p><div class="callout-body"><p>${escape(error.message || 'Ploeg did not answer.')} What you see is the last data Vloer read.</p></div></div><div class="callout-actions">${retryButton(helpers)}</div></div>`;
+  const since = timeHtml(view.loadedAt ?? view.refreshedAt, { display: 'time' });
+  return `<div class="callout feeds-stale" data-tone="attention" role="status"><span class="callout-icon" aria-hidden="true">${icon('alert')}</span><div class="callout-content"><p class="callout-title">Could not refresh. ${since ? `Showing data from ${since}.` : 'Showing the last data Vloer read.'}</p><div class="callout-body"><p>${escape(view.error.message || 'Ploeg did not answer.')}</p></div></div><div class="callout-actions">${retryButton(helpers)}</div></div>`;
 }
 
 const demoNote = demo => demo ? ui.demoNote(demoText) : '';
 const page = (name, ...parts) => `<div class="feeds feeds-${name}">${parts.join('')}</div>`;
+const demoDash = '<span class="subtle" title="Demo · no model calls"><span aria-hidden="true">—</span><span class="sr-only">Demo · no model calls</span></span>';
 
 function teamField(id, teams, selected, escape) {
   return `<div class="field inline feeds-field"><label class="field-label" for="${id}">Team</label><select id="${id}"><option value="">All Teams</option>${teams.map(team => `<option value="${escape(team)}"${team === selected ? ' selected' : ''}>${escape(team)}</option>`).join('')}</select></div>`;
 }
 
 function selectField(id, label, options, selected, all, { disabled = false, hint = '' } = {}) {
-  return `<div class="field inline feeds-field"><label class="field-label" for="${id}">${label}</label><select id="${id}"${disabled ? ` disabled title="${hint}"` : ''}><option value="">${all}</option>${options.map(([value, text]) => `<option value="${value}"${value === selected ? ' selected' : ''}>${text}</option>`).join('')}</select></div>`;
+  const described = disabled && hint;
+  return `<div class="field inline feeds-field${described ? ' has-hint' : ''}"><label class="field-label" for="${id}">${label}</label><select id="${id}"${disabled ? ' disabled' : ''}${described ? ` aria-describedby="${id}-hint"` : ''}><option value="">${all}</option>${options.map(([value, text]) => `<option value="${value}"${value === selected ? ' selected' : ''}>${text}</option>`).join('')}</select>${described ? `<span class="field-hint feeds-hint" id="${id}-hint">${hint}</span>` : ''}</div>`;
 }
 
-function tile({ label, value, detail, href, tone, glyph }, { escape, icon }) {
-  const inner = `<span class="stat-label">${glyph ? icon(glyph) : ''}${escape(label)}</span><strong class="stat-value">${escape(value)}</strong>${detail ? `<span class="stat-detail">${escape(detail)}</span>` : ''}`;
+function tile({ label, value, detail, href, tone, glyph, text = false }, { escape, icon }) {
+  const inner = `<span class="stat-label">${glyph ? icon(glyph) : ''}${escape(label)}</span><strong class="stat-value${text ? ' is-text' : ''}">${escape(value)}</strong>${detail ? `<span class="stat-detail">${escape(detail)}</span>` : ''}`;
   const toned = tone ? ` data-tone="${tone}"` : '';
   return href ? `<a class="stat" href="${escape(href)}"${toned}>${inner}</a>` : `<div class="stat"${toned}>${inner}</div>`;
 }
@@ -325,11 +329,17 @@ function tile({ label, value, detail, href, tone, glyph }, { escape, icon }) {
 function teamTable({ caption, columns, rows }, { escape }) {
   const head = columns.map(([label, numeric]) => `<th scope="col"${numeric ? ' class="num"' : ''}>${escape(label)}</th>`).join('');
   const row = (name, cells) => `<tr><th scope="row">${escape(name)}</th>${cells.map((cell, index) => `<td${columns[index + 1][1] ? ' class="num"' : ''}>${cell}</td>`).join('')}</tr>`;
-  return `<div class="table-wrap insights-table" role="region" tabindex="0" aria-label="${escape(caption)}"><table class="table"><caption class="sr-only">${escape(caption)}</caption><thead><tr>${head}</tr></thead><tbody>${rows.map(([name, cells]) => row(name, cells)).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap insights-table"><table class="table"><caption class="sr-only">${escape(caption)}</caption><thead><tr>${head}</tr></thead><tbody>${rows.map(([name, cells]) => row(name, cells)).join('')}</tbody></table></div>`;
 }
 
 function insightsSection(id, title, description, body, { escape }, actions = '') {
   return `<section class="section insights-section" aria-labelledby="${id}-title"><header class="section-header"><div class="section-heading"><h2 class="section-title" id="${id}-title">${escape(title)}</h2><p class="section-description">${escape(description)}</p></div>${actions ? `<div class="section-actions">${actions}</div>` : ''}</header><div class="section-body stack gap-md">${body}</div></section>`;
+}
+
+function insightsSkeleton(windowName, switcher, helpers) {
+  const tiles = (total, work) => `<div class="stat-row insights-stats${work ? ' insights-stats-work' : ''}" aria-hidden="true">${'<div class="stat insights-tile-skeleton"><span class="skeleton insights-skeleton-label"></span><span class="skeleton insights-skeleton-value"></span><span class="skeleton insights-skeleton-detail"></span></div>'.repeat(total)}</div>`;
+  const table = rows => `<div class="card insights-table-skeleton" aria-hidden="true">${'<div class="insights-skeleton-row"><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span></div>'.repeat(rows)}</div>`;
+  return `<div class="insights" aria-busy="true"><span class="sr-only">Loading…</span>${insightsSection('insights-runs', 'Runs and spend', `Last ${windowName}`, `${tiles(4)}${table(3)}`, helpers, switcher)}${insightsSection('insights-work', 'Work Items', 'Right now, whatever the window', `${tiles(5, true)}${table(3)}`, helpers)}</div>`;
 }
 
 /**
@@ -339,19 +349,22 @@ function insightsSection(id, title, description, body, { escape }, actions = '')
 export function overviewMarkup(view, helpers, now = Date.now()) {
   const { escape } = helpers;
   const data = view.data;
-  const windowName = ploegWindows.find(([id]) => id === (data?.window || view.window))?.[1] || words(data?.window || view.window);
+  const windowId = data?.window || view.window;
+  const windowName = ploegWindows.find(([id]) => id === windowId)?.[1] || words(windowId);
   const switcher = `<div class="segmented" role="group" aria-label="Time window">${ploegWindows.map(([id, label]) => `<button type="button" class="segment" id="insights-window-${id}" data-action="ploeg-window" data-id="${id}" aria-pressed="${view.window === id}">${label}</button>`).join('')}</div>`;
   if (!data && view.error) return page('insights', problemMarkup(view.error, 'Insights', helpers));
-  if (!data) return page('insights', `<div class="insights" aria-busy="true">${insightsSection('insights-runs', 'Runs and spend', `Loading the last ${windowName}…`, `${ui.skeleton({ rows: 4, variant: 'cards' })}<div class="card"><div class="card-body">${ui.skeleton({ rows: 3, variant: 'table' })}</div></div>`, helpers, switcher)}</div>`);
-  const totals = data.totals;
-  const runs = totals.runs;
-  const items = totals.workItems;
-  const spendDetail = data.demo ? 'Demo · no model calls' : `${money(totals.spend.reservedUsd)} reserved by running Runs`;
+  if (!data) return page('insights', insightsSkeleton(windowName, switcher, helpers));
+  const stale = view.error ? staleNotice(view, helpers) : '';
+  if (!data.teams.length) return page('insights', demoNote(data.demo), stale, `<div class="card">${empty({ glyph: 'lock', title: 'No Teams are visible to your account', body: '<p>Ask an administrator to check your Team access in Vloer and in Ploeg.</p>', compact: false }, helpers)}</div>`);
+  const { runs, workItems: items, spend } = data.totals;
+  const settledTile = data.demo
+    ? tile({ label: 'Settled spend', value: 'No model calls', detail: 'Demo', glyph: 'coins', text: true }, helpers)
+    : tile({ label: 'Settled spend', value: money(spend.settledUsd), detail: isNumber(spend.reservedUsd) ? `${money(spend.reservedUsd)} reserved by running Runs` : 'Reservations not reported', glyph: 'coins', text: !isNumber(spend.settledUsd) }, helpers);
   const runTiles = [
     tile({ label: 'Runs finished', value: count(runs.finished), detail: 'Failed and stuck Runs included', href: '#runs?state=finished', glyph: 'runs' }, helpers),
     tile({ label: 'Failed', value: count(runs.failed), detail: runs.finished ? `${percent(runs.failed / runs.finished)} of finished Runs` : 'No finished Runs', href: '#runs?state=finished&outcome=failed', tone: 'danger', glyph: 'x-circle' }, helpers),
     tile({ label: 'Stuck', value: count(runs.stuck), detail: 'An agent asked for a person', href: '#runs?state=finished&outcome=stuck', tone: 'attention', glyph: 'alert' }, helpers),
-    tile({ label: 'Settled spend', value: money(totals.spend.settledUsd), detail: spendDetail, glyph: 'coins' }, helpers),
+    settledTile,
   ].join('');
   const workTiles = [
     tile({ label: 'Ready for review', value: count(items.awaitingReview), detail: 'Pull requests to read', href: '#work?lane=awaiting_review', tone: 'review', glyph: 'pull-request' }, helpers),
@@ -361,19 +374,21 @@ export function overviewMarkup(view, helpers, now = Date.now()) {
     tile({ label: 'Proposed', value: count(items.proposed), detail: 'Waiting for approval', href: '#proposed', glyph: 'proposed' }, helpers),
   ].join('');
   const when = value => value ? timeHtml(value, { now }) : '<span class="subtle">None</span>';
+  const settled = entry => data.demo ? '<span class="subtle">No model calls</span>' : escape(money(entry.spend.settledUsd));
+  const reserved = entry => data.demo ? '<span class="subtle">—</span>' : escape(money(entry.spend.reservedUsd));
   const runColumns = [['Team'], ['Finished', true], ['Failed', true], ['Stuck', true], ['Settled', true], ['Reserved now', true], ['Last activity']];
-  const runCells = entry => [count(entry.runs.finished), count(entry.runs.failed), count(entry.runs.stuck), data.demo ? '<span class="subtle">No model calls</span>' : escape(money(entry.spend.settledUsd)), data.demo ? '<span class="subtle">—</span>' : escape(money(entry.spend.reservedUsd)), when(entry.lastActivityAt)];
-  const workColumns = [['Team'], ['Ready for review', true], ['Needs you', true], ['Running', true], ['Queued', true], ['Proposed', true], ['Stopped retrying', true], ['Done', true], ['Withdrawn', true]];
-  const workCells = entry => ['awaitingReview', 'needsHuman', 'leased', 'queued', 'proposed', 'stale', 'done', 'withdrawn'].map(key => count(entry.workItems[key]));
-  const teamCard = entry => `<article class="card insights-team" aria-labelledby="insights-team-${escape(entry.team)}"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="insights-team-${escape(entry.team)}">${escape(entry.team)}</h3><p class="card-subtitle">Last activity ${entry.lastActivityAt ? timeHtml(entry.lastActivityAt, { now }) : 'none'}</p></div></header><div class="card-body stack gap-md"><div class="stack gap-sm"><p class="overline">Runs and spend · ${escape(windowName)}</p>${ui.dl([['Finished', count(entry.runs.finished)], ['Failed', count(entry.runs.failed)], ['Stuck', count(entry.runs.stuck)], ['Settled', data.demo ? '<span class="subtle">No model calls</span>' : escape(money(entry.spend.settledUsd))], ['Reserved now', data.demo ? '<span class="subtle">—</span>' : escape(money(entry.spend.reservedUsd))]])}</div><div class="stack gap-sm"><p class="overline">Work Items now</p>${ui.dl([['Ready for review', count(entry.workItems.awaitingReview)], ['Needs you', count(entry.workItems.needsHuman)], ['Running', count(entry.workItems.leased)], ['Queued', count(entry.workItems.queued)], ['Proposed', count(entry.workItems.proposed)], ['Stopped retrying', count(entry.workItems.stale)], ['Done', count(entry.workItems.done)], ['Withdrawn', count(entry.workItems.withdrawn)]])}</div></div></article>`;
-  const noTeams = `<div class="card">${empty({ glyph: 'lock', title: 'No Teams are visible to your account', body: '<p>Ask an administrator to check your Team access in Vloer and in Ploeg.</p>' }, helpers)}</div>`;
+  const runCells = entry => [count(entry.runs.finished), count(entry.runs.failed), count(entry.runs.stuck), settled(entry), reserved(entry), when(entry.lastActivityAt)];
+  const workKeys = [['awaitingReview', 'Ready for review'], ['needsHuman', 'Needs you'], ['leased', 'Running'], ['queued', 'Queued'], ['proposed', 'Proposed'], ['stale', 'Stopped retrying'], ['done', 'Done'], ['withdrawn', 'Withdrawn']];
+  const workColumns = [['Team'], ...workKeys.map(([, label]) => [label, true])];
+  const workCells = entry => workKeys.map(([key]) => count(entry.workItems[key]));
+  const teamCard = entry => `<article class="card insights-team" aria-labelledby="insights-team-${escape(entry.team)}"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="insights-team-${escape(entry.team)}">${escape(entry.team)}</h3><p class="card-subtitle">Last activity ${entry.lastActivityAt ? timeHtml(entry.lastActivityAt, { now }) : 'none'}</p></div></header><div class="card-body stack gap-md"><div class="stack gap-sm"><p class="overline">Runs and spend · ${escape(windowName)}</p>${ui.dl([['Finished', count(entry.runs.finished)], ['Failed', count(entry.runs.failed)], ['Stuck', count(entry.runs.stuck)], ['Settled', settled(entry)], ['Reserved', reserved(entry)]])}</div><div class="stack gap-sm"><p class="overline">Work Items now</p>${ui.dl(workKeys.map(([key, label]) => [label, count(entry.workItems[key])]))}</div></div></article>`;
   const runTable = teamTable({ caption: `Runs and spend per Team, last ${windowName}`, columns: runColumns, rows: data.teams.map(entry => [entry.team, runCells(entry)]) }, helpers);
   const workTable = teamTable({ caption: 'Work Items per Team, right now', columns: workColumns, rows: data.teams.map(entry => [entry.team, workCells(entry)]) }, helpers);
-  const perTeam = data.teams.length ? `<div class="card flush insights-tables">${runTable}</div>` : noTeams;
-  const perTeamWork = data.teams.length ? `<div class="card flush insights-tables">${workTable}</div>` : '';
-  const cards = data.teams.length ? `<div class="insights-teams">${data.teams.map(teamCard).join('')}</div>` : '';
-  const scope = `the ${plural(data.teams.length, 'Team')} your account can see`;
-  return page('insights', demoNote(data.demo), view.error ? staleNotice(view.error, 'Insights', helpers) : '', `<div class="insights"${view.loading ? ' aria-busy="true"' : ''}>${insightsSection('insights-runs', 'Runs and spend', `The last ${windowName}, across ${scope}. Spend counts what Ploeg settled with the model gateway; a running Run holds a reservation until it settles.`, `<div class="stat-row insights-stats">${runTiles}</div>${perTeam}`, helpers, switcher)}${insightsSection('insights-work', 'Work Items', 'Right now, whatever the window. Each tile opens the matching list.', `<div class="stat-row insights-stats insights-stats-work">${workTiles}</div>${perTeamWork}`, helpers)}${cards ? `<section class="section insights-cards" aria-label="Per Team">${cards}</section>` : ''}</div>`);
+  const footnote = data.demo ? '' : '<p class="meta insights-footnote">Settled spend is what Ploeg settled with the model gateway. A running Run holds a reservation until it settles.</p>';
+  const runsBody = `<div class="stat-row insights-stats">${runTiles}</div><div class="card flush insights-tables">${runTable}</div>${footnote}`;
+  const workBody = `<div class="stat-row insights-stats insights-stats-work">${workTiles}</div><div class="card flush insights-tables">${workTable}</div>`;
+  const cards = `<section class="section insights-cards" aria-label="Per Team"><div class="insights-teams">${data.teams.map(teamCard).join('')}</div></section>`;
+  return page('insights', demoNote(data.demo), stale, `<div class="insights"${view.loading ? ' aria-busy="true"' : ''}>${insightsSection('insights-runs', 'Runs and spend', `Last ${windowName} · ${plural(data.teams.length, 'Team')}`, runsBody, helpers, switcher)}${insightsSection('insights-work', 'Work Items', 'Right now, whatever the window', workBody, helpers)}${cards}</div>`);
 }
 
 function eventItem(entry, helpers, now, user) {
@@ -382,7 +397,13 @@ function eventItem(entry, helpers, now, user) {
   const actor = actorOf(entry.actor, user);
   const title = entry.workItemTitle || `Work Item ${entry.workItemId}`;
   const link = entry.workItemId ? `<a class="activity-event-item" href="#work/${escape(entry.workItemId)}">${escape(title)}</a>` : '';
-  return `<li class="timeline-item activity-event" data-tone="${story.tone}" id="activity-event-${escape(entry.id)}" data-event-id="${escape(entry.id)}"><span class="activity-event-time">${timeHtml(entry.at, { display: 'time', now }) || '<span class="subtle">—</span>'}</span><span class="timeline-marker" aria-hidden="true">${icon(story.glyph)}</span><div class="timeline-content"><p class="activity-event-line"><span class="timeline-title">${escape(story.label)}</span>${link}</p>${story.detail ? `<p class="activity-event-detail">${escape(story.detail)}</p>` : ''}</div><p class="timeline-meta activity-event-meta"><span class="activity-actor" data-kind="${actor.kind}" title="${escape(actor.title)}">${icon(actor.glyph)}${escape(actor.name)}</span><span class="activity-event-team">${escape(entry.team)}</span></p></li>`;
+  const team = entry.team ? `<span class="activity-event-team" title="${escape(entry.team)}">${escape(entry.team)}</span>` : '';
+  return `<li class="timeline-item activity-event" data-tone="${story.tone}" id="activity-event-${escape(entry.id)}" data-event-id="${escape(entry.id)}"><span class="activity-event-time">${timeHtml(entry.at, { display: 'time', now }) || '<span class="subtle">—</span>'}</span><span class="timeline-marker" aria-hidden="true">${icon(story.glyph)}</span><div class="timeline-content"><p class="activity-event-line"><span class="timeline-title">${escape(story.label)}</span>${link}</p>${story.detail ? `<p class="activity-event-detail">${escape(story.detail)}</p>` : ''}</div><p class="timeline-meta activity-event-meta"><span class="activity-actor" data-kind="${actor.kind}" title="${escape(actor.title)}">${icon(actor.glyph)}${escape(actor.name)}</span>${team}</p></li>`;
+}
+
+function activitySkeleton() {
+  const row = '<li class="timeline-item activity-event"><span class="activity-event-time"><span class="skeleton activity-skeleton-time"></span></span><span class="timeline-marker"></span><div class="timeline-content"><span class="skeleton activity-skeleton-line"></span></div><p class="timeline-meta activity-event-meta"><span class="skeleton activity-skeleton-meta"></span></p></li>';
+  return `<div class="card flush activity-feed" aria-busy="true"><span class="sr-only">Loading…</span><div aria-hidden="true"><header class="activity-day-header"><span class="skeleton activity-skeleton-day"></span></header><ol class="timeline activity-events">${row.repeat(8)}</ol></div></div>`;
 }
 
 /**
@@ -393,25 +414,25 @@ export function activityMarkup(view, teams, helpers, now = Date.now(), user = nu
   const { escape, icon } = helpers;
   const toolbar = `<div class="toolbar feeds-toolbar">${teamField('ploeg-feed-team', teams, view.team, escape)}${selectField('ploeg-feed-kind', 'Kind', eventGroups, view.kind, 'All kinds')}</div>`;
   if (!view.events && view.error) return page('activity', toolbar, problemMarkup(view.error, 'Activity', helpers));
-  if (!view.events) return page('activity', toolbar, `<div class="card activity-feed" aria-busy="true"><div class="card-body">${ui.skeleton({ rows: 8, variant: 'list' })}</div></div>`);
+  if (!view.events) return page('activity', toolbar, activitySkeleton());
   const matches = entry => !view.kind || eventKind(entry.action).group === view.kind;
   const shown = view.events.filter(matches);
   const fresh = view.latest ? newerEvents(view, view.latest) : { events: [], gap: false };
   const waiting = fresh.events.filter(matches).length;
   const pill = waiting ? `<div class="activity-new"><button type="button" class="button primary sm activity-new-button" id="activity-show-new" data-action="activity-show-new">${icon('chevron-up')}<span class="button-label">${fresh.gap ? `${count(waiting)}+ new events` : plural(waiting, 'new event')}</span></button></div>` : '';
   const loaded = `<span class="meta">${plural(view.events.length, 'event')} loaded${view.kind ? `, ${count(shown.length)} of this kind` : ''}</span>`;
-  const older = view.nextCursor ? `<button type="button" class="button secondary" id="ploeg-feed-older" data-action="ploeg-feed-older"${view.loading ? ' disabled aria-busy="true"' : ''}>${view.loading ? '<span class="spinner" aria-hidden="true"></span>' : icon('chevron-down')}<span class="button-label">Load older</span></button>` : '<span class="meta">This is where the history starts.</span>';
+  const older = view.nextCursor ? `<button type="button" class="button secondary" id="ploeg-feed-older" data-action="ploeg-feed-older"${view.mode === 'older' ? ' disabled aria-busy="true"' : ''}>${view.mode === 'older' ? '<span class="spinner" aria-hidden="true"></span>' : icon('chevron-down')}<span class="button-label">Load older</span></button>` : '<span class="meta">This is where the history starts.</span>';
   const footer = `<footer class="activity-footer">${older}${loaded}</footer>`;
   let body;
   if (!view.events.length) body = empty({ glyph: 'activity', title: 'No activity yet', body: '<p>Events appear here as Ploeg queues, runs and reviews work for your Teams.</p>' }, helpers);
   else if (!shown.length) body = empty({ glyph: 'filter', title: `No ${groupNouns[view.kind] || 'matching'} events loaded`, body: `<p>${view.nextCursor ? 'Load older events, or show every kind.' : 'Show every kind to see the rest of the history.'}</p>`, actions: `<a class="button secondary sm" href="#activity${view.team ? `?team=${escape(encodeURIComponent(view.team))}` : ''}">${icon('x')}<span class="button-label">Show all kinds</span></a>` }, helpers);
   else body = eventDays(shown, now).map(day => `<section class="activity-day" aria-labelledby="activity-day-${day.key}"><header class="activity-day-header"><h2 class="activity-day-title" id="activity-day-${day.key}">${escape(day.label)}</h2><span class="meta">${plural(day.events.length, 'event')}</span></header><ol class="timeline activity-events">${day.events.map(entry => eventItem(entry, helpers, now, user)).join('')}</ol></section>`).join('');
-  return page('activity', demoNote(view.demo), toolbar, view.error ? staleNotice(view.error, 'Activity', helpers) : '', `<div class="card flush activity-feed" id="activity-feed" tabindex="-1" aria-label="Ploeg events, newest first">${pill}${body}${footer}</div>`);
+  return page('activity', demoNote(view.demo), toolbar, view.error ? staleNotice(view, helpers) : '', `<div class="card flush activity-feed" id="activity-feed" tabindex="-1" aria-label="Ploeg events, newest first">${pill}${body}${footer}</div>`);
 }
 
 function runBadge(run) {
   if (run.state === 'running') return ui.stateBadge({ key: 'running', label: 'Running', tone: 'live', live: true });
-  if (run.state === 'pending') { const meta = runState('pending'); return `<span title="${meta.description}">${ui.badge({ tone: meta.tone, glyph: meta.glyph, label: meta.label })}</span>`; }
+  if (run.state === 'pending') { const meta = runState('pending'); return ui.badge({ tone: meta.tone, glyph: meta.glyph, label: meta.label }); }
   const outcome = runOutcome(run.outcome);
   if (outcome) return ui.badge({ tone: outcome.tone, glyph: outcome.glyph, label: outcome.label });
   return ui.badge({ tone: 'neutral', glyph: 'circle', label: 'No outcome reported' });
@@ -421,58 +442,88 @@ function runNotes(run, escape) {
   const notes = [];
   if (run.verdict) { const meta = verdictMeta(run.verdict); notes.push(`<span class="runs-note" data-tone="${meta.tone}">${escape(meta.label)}</span>`); }
   const failure = failureReason(run.failureReason);
-  if (failure) notes.push(`<span class="runs-note" data-tone="${failure.tone}" title="${escape(`${failure.infra ? 'Infrastructure, not the agent. ' : ''}${failure.action}`)}">${escape(failure.label)}</span>`);
-  return notes.join('');
+  if (failure) notes.push(`<span class="runs-note" data-tone="${failure.tone}">${escape(failure.label)}</span>`);
+  else if (run.failureReason) notes.push(`<span class="runs-note" data-tone="danger">${escape(capital(run.failureReason))}</span>`);
+  const next = failure ? `${failure.infra ? 'Not the agent’s fault. ' : ''}${failure.action}` : '';
+  return { notes: notes.join(''), next: next ? `<span class="runs-next">${escape(next)}</span>` : '' };
 }
 
-function runRole(run, escape) {
-  const role = run.role ? escape(capital(run.role)) : '<span class="subtle">Role not reported</span>';
-  const parts = [run.round > 0 ? `Round ${run.round}` : 'Before Shifts', run.writes ? 'writer' : 'reader'];
-  return { role, meta: parts.join(' · ') };
+function runRole(run) {
+  const role = run.role ? capital(run.role) : 'Role not reported';
+  return [role, run.round > 0 ? `Round ${run.round}` : 'Before Shifts', run.writes ? 'writer' : 'reader'].join(' · ');
 }
 
-function runTiming(run, now) {
-  const started = run.startedAt ? timeHtml(run.startedAt, { now }) : `<span class="subtle">${run.state === 'pending' ? 'Not started' : 'Never started'}</span>`;
-  if (run.state === 'running' && run.startedAt) return { started, length: `Running for ${span((now - Date.parse(run.startedAt)) / 1000)}` };
-  if (isNumber(run.durationSeconds)) return { started, length: `Took ${span(run.durationSeconds)}` };
-  return { started, length: '' };
+function runTiming(run, now, escape) {
+  if (run.state === 'pending') return { started: '<span class="subtle">Waiting for a worker</span>', took: '' };
+  const start = run.startedAt ? new Date(run.startedAt) : null;
+  if (!start || Number.isNaN(start.getTime())) return { started: '<span class="subtle">Never started</span>', took: '' };
+  if (run.state === 'running') return { started: `<time class="num" datetime="${start.toISOString()}" title="Started ${escape(dateTime(start))}">Running for ${escape(span((now - start.getTime()) / 1000))}</time>`, took: '' };
+  return { started: timeHtml(start, { now }), took: isNumber(run.durationSeconds) ? `Took ${span(run.durationSeconds)}` : '' };
 }
 
-function runSpendCell(run, demo) {
-  if (demo) return '<span class="subtle">No model calls</span>';
-  if (run.state === 'pending') return `<span class="subtle">${isNumber(run.authorizedUsd) && run.authorizedUsd > 0 ? `Up to ${money(run.authorizedUsd)}` : 'Not started'}</span>`;
-  const observed = !isNumber(run.settledUsd) && isNumber(run.observedUsd);
-  const spent = isNumber(run.settledUsd) ? run.settledUsd : observed ? run.observedUsd : null;
-  const note = observed ? 'Observed so far, not settled' : run.state === 'running' && spent === null ? 'Nothing observed yet' : '';
-  return `${ui.meter({ settled: spent, authorized: isNumber(run.authorizedUsd) ? run.authorizedUsd : null, label: '', size: 'sm' })}${note ? `<span class="meta runs-spend-note">${note}</span>` : ''}`;
+function spendMeter(run, escape) {
+  const authorized = isNumber(run.authorizedUsd) && run.authorizedUsd > 0 ? run.authorizedUsd : null;
+  const settled = isNumber(run.settledUsd);
+  const observed = !settled && isNumber(run.observedUsd);
+  const spent = settled ? run.settledUsd : observed ? run.observedUsd : null;
+  const bar = rects => `<svg class="meter-bar" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true" focusable="false"><rect class="meter-track" width="100" height="6"/>${rects}</svg>`;
+  const label = (value, of) => `<div class="meter-label"><span class="meter-text">${value}${of ? ` <span class="meter-of">${escape(of)}</span>` : ''}</span></div>`;
+  const observedNote = observed ? { note: 'Observed, not settled', tone: '' } : { note: '', tone: '' };
+  if (spent === null) return { meter: `<div class="meter sm" data-unknown>${label('<span class="meter-value">Not reported</span>', authorized ? `of ${money(authorized)}` : '')}${bar('')}</div>`, note: run.state === 'running' ? 'Nothing observed yet' : '', tone: '' };
+  if (!authorized) return { meter: `<div class="meter sm" data-unknown="budget">${label(`<strong class="meter-value">${escape(money(spent))}</strong>`, 'no budget reported')}${bar('')}</div>`, ...observedNote };
+  const width = Math.round(Math.min(100, spent / authorized * 100) * 100) / 100;
+  const over = spent > authorized;
+  const excess = money(Math.round((spent - authorized) * 100) / 100);
+  const level = over ? 'over' : spent / authorized >= 0.8 ? 'warn' : '';
+  const text = `${money(spent)} ${observed ? 'observed so far' : 'settled'} of ${money(authorized)} authorized${over ? `, ${excess} over budget` : ''}`;
+  const meter = `<div class="meter sm"${level ? ` data-level="${level}"` : ''} role="meter" aria-label="Spend" aria-valuemin="0" aria-valuemax="${authorized}" aria-valuenow="${Math.min(spent, authorized)}" aria-valuetext="${escape(text)}">${label(`<strong class="meter-value">${escape(money(spent))}</strong>`, `of ${money(authorized)}`)}${bar(width > 0 ? `<rect class="meter-settled" width="${width}" height="6"/>` : '')}</div>`;
+  if (over) return { meter, note: `${excess} over budget${observed ? ', not settled' : ''}`, tone: 'danger' };
+  return { meter, ...observedNote };
 }
 
-function runModel(run, escape, demo) {
+function runSpendCell(run, demo, { escape }) {
+  if (demo) return demoDash;
+  if (run.state === 'pending') return `<span class="subtle">${isNumber(run.authorizedUsd) && run.authorizedUsd > 0 ? `Up to ${escape(money(run.authorizedUsd))}` : 'Not authorized yet'}</span>`;
+  const { meter, note, tone } = spendMeter(run, escape);
+  return `${meter}${note ? `<span class="runs-spend-note"${tone ? ` data-tone="${tone}"` : ''}>${escape(note)}</span>` : ''}`;
+}
+
+function runModel(run, escape) {
   const models = run.usage?.models?.length ? run.usage.models : run.reservedModels?.length ? run.reservedModels : [];
   const tokens = run.usage && (isNumber(run.usage.inputTokens) || isNumber(run.usage.outputTokens)) ? `${count(run.usage.inputTokens)} in · ${count(run.usage.outputTokens)} out` : '';
-  if (models.length) return { model: models.map(model => `<span class="nowrap">${escape(model)}</span>`).join(', '), tokens };
-  return { model: demo ? '<span class="subtle" title="The demo calls no model">None</span>' : '<span class="subtle nowrap">Not reported</span>', tokens };
+  return { models: models.map(model => escape(model)), tokens };
 }
 
 function runRow(run, demo, helpers, now) {
   const { escape } = helpers;
   const title = run.workItemTitle || `Work Item ${run.workItemId}`;
-  const { role, meta } = runRole(run, escape);
-  const { started, length } = runTiming(run, now);
-  const { model, tokens } = runModel(run, escape, demo);
+  const { notes, next } = runNotes(run, escape);
+  const { started, took } = runTiming(run, now, escape);
+  const { models, tokens } = runModel(run, escape);
   const ref = [run.externalRef, run.team, `Run ${run.id}`].filter(Boolean).map(escape).join(' · ');
-  return `<tr data-run-id="${escape(run.id)}" data-state="${escape(run.state)}"><td class="runs-status"><span class="runs-cell">${runBadge(run)}${runNotes(run, escape)}</span></td><td class="runs-item"><span class="runs-cell"><a href="#work/${escape(run.workItemId)}">${escape(title)}</a><span class="meta">${ref}</span></span></td><td><span class="runs-cell"><span>${role}</span><span class="meta">${escape(meta)}</span></span></td><td><span class="runs-cell"><span>${started}</span>${length ? `<span class="meta num">${escape(length)}</span>` : ''}</span></td><td class="runs-spend">${runSpendCell(run, demo)}</td><td class="runs-model"><span class="runs-cell"><span>${model}</span>${tokens ? `<span class="meta num">${escape(tokens)}</span>` : ''}</span></td></tr>`;
+  const model = models.length ? `<span class="runs-models">${models.map(name => `<span class="runs-model-name">${name}</span>`).join('')}</span>` : demo ? demoDash : '<span class="subtle">Not reported</span>';
+  return `<tr data-run-id="${escape(run.id)}" data-state="${escape(run.state)}"><td class="runs-status"><span class="runs-badge">${runBadge(run)}</span>${notes}${next}</td><td class="runs-item"><a class="runs-title" href="#work/${escape(run.workItemId)}">${escape(title)}</a><span class="meta">${escape(runRole(run))}</span><span class="meta">${ref}</span></td><td class="runs-started">${started}${took ? `<span class="meta num">${escape(took)}</span>` : ''}</td><td class="runs-spend">${runSpendCell(run, demo, helpers)}</td><td class="runs-model">${model}${tokens ? `<span class="meta num">${escape(tokens)}</span>` : ''}</td></tr>`;
 }
 
 function runCard(run, demo, helpers, now) {
   const { escape } = helpers;
   const title = run.workItemTitle || `Work Item ${run.workItemId}`;
-  const { role, meta } = runRole(run, escape);
-  const { started, length } = runTiming(run, now);
-  const { model, tokens } = runModel(run, escape, demo);
-  const notes = runNotes(run, escape);
-  const facts = ui.dl([['Role', `${role}<span class="runs-card-sub">${escape(meta)}</span>`], ['Started', `${started}${length ? `<span class="runs-card-sub num">${escape(length)}</span>` : ''}`], ['Model', `${model}${tokens ? `<span class="runs-card-sub num">${escape(tokens)}</span>` : ''}`], ['Spend', runSpendCell(run, demo)]]);
-  return `<li class="runs-card" data-run-id="${escape(run.id)}" data-state="${escape(run.state)}"><div class="runs-card-head">${runBadge(run)}<span class="meta">Run ${escape(run.id)}</span></div>${notes ? `<div class="runs-card-notes">${notes}</div>` : ''}<a class="runs-card-title" href="#work/${escape(run.workItemId)}">${escape(title)}</a><p class="meta">${[run.externalRef, run.team].filter(Boolean).map(escape).join(' · ')}</p>${facts}</li>`;
+  const { notes, next } = runNotes(run, escape);
+  const { started, took } = runTiming(run, now, escape);
+  const { models, tokens } = runModel(run, escape);
+  const ref = [run.externalRef, run.team, runRole(run)].filter(Boolean).map(escape).join(' · ');
+  const model = `${models.length ? `<span class="runs-model-name">${models.join(', ')}</span>` : '<span class="subtle">Model not reported</span>'}${tokens ? ` · <span class="num">${escape(tokens)}</span>` : ''}`;
+  const usage = demo ? '' : `<p class="meta runs-card-line">${model}</p><div class="runs-card-spend">${runSpendCell(run, demo, helpers)}</div>`;
+  return `<li class="runs-card" data-run-id="${escape(run.id)}" data-state="${escape(run.state)}"><div class="runs-card-head">${runBadge(run)}<span class="meta">Run ${escape(run.id)}</span></div>${notes || next ? `<div class="runs-card-notes">${notes}${next}</div>` : ''}<a class="runs-card-title" href="#work/${escape(run.workItemId)}">${escape(title)}</a><p class="meta runs-card-line">${ref}</p><p class="meta runs-card-line">${started}${took ? ` · ${escape(took)}` : ''}</p>${usage}</li>`;
+}
+
+const runColumns = [['status', 'Status'], ['item', 'Work Item'], ['started', 'Started'], ['spend', 'Spend'], ['model', 'Model']];
+const runHead = `<colgroup>${runColumns.map(([key]) => `<col class="runs-col-${key}">`).join('')}</colgroup><thead><tr>${runColumns.map(([, label]) => `<th scope="col">${label}</th>`).join('')}</tr></thead>`;
+
+function runsSkeleton() {
+  const row = '<tr><td><span class="skeleton pill"></span></td><td><span class="skeleton runs-skeleton-title"></span><span class="skeleton runs-skeleton-meta"></span></td><td><span class="skeleton runs-skeleton-short"></span></td><td><span class="skeleton runs-skeleton-short"></span><span class="skeleton runs-skeleton-bar"></span></td><td><span class="skeleton runs-skeleton-short"></span></td></tr>';
+  const card = '<li class="runs-card"><span class="skeleton pill"></span><span class="skeleton runs-skeleton-title"></span><span class="skeleton runs-skeleton-meta"></span><span class="skeleton runs-skeleton-short"></span><span class="skeleton runs-skeleton-bar"></span></li>';
+  return `<div class="card flush runs-list" aria-busy="true"><span class="sr-only">Loading…</span><div class="table-wrap runs-table" aria-hidden="true"><table class="table runs-skeleton">${runHead}<tbody>${row.repeat(6)}</tbody></table></div><ul class="runs-cards" aria-hidden="true">${card.repeat(4)}</ul></div>`;
 }
 
 /**
@@ -483,26 +534,26 @@ export function runsMarkup(view, teams, helpers, now = Date.now()) {
   const { escape, icon } = helpers;
   const filter = view.filter || {};
   const outcomeOff = ['pending', 'running'].includes(filter.state);
-  const toolbar = `<div class="toolbar feeds-toolbar">${teamField('ploeg-runs-team', teams, filter.team, escape)}${selectField('ploeg-runs-state', 'State', runStateOptions, filter.state, 'All states')}${selectField('ploeg-runs-outcome', 'Outcome', runOutcomeOptions.map(value => [value, runOutcome(value).label]), filter.outcome, 'All outcomes', { disabled: outcomeOff, hint: 'Only finished Runs have an outcome' })}</div>`;
+  const toolbar = `<div class="toolbar feeds-toolbar runs-toolbar">${teamField('ploeg-runs-team', teams, filter.team, escape)}${selectField('ploeg-runs-state', 'State', runStateOptions, filter.state, 'All states')}${selectField('ploeg-runs-outcome', 'Outcome', runOutcomeOptions.map(value => [value, runOutcome(value).label]), filter.outcome, 'All outcomes', { disabled: outcomeOff, hint: 'Only finished Runs have an outcome.' })}</div>`;
   if (!view.runs && view.error) return page('runs', toolbar, problemMarkup(view.error, 'Runs', helpers));
-  if (!view.runs) return page('runs', toolbar, `<div class="card runs-list" aria-busy="true"><div class="card-body">${ui.skeleton({ rows: 8, variant: 'table' })}</div></div>`);
+  if (!view.runs) return page('runs', toolbar, runsSkeleton());
   const filtered = Boolean(filter.team || filter.state || filter.outcome);
-  if (!view.runs.length) return page('runs', demoNote(view.demo), toolbar, view.error ? staleNotice(view.error, 'Runs', helpers) : '', `<div class="card">${empty({ glyph: 'runs', title: filtered ? 'No Runs match these filters' : 'No Runs yet', body: `<p>${filtered ? 'Choose another Team, state or outcome.' : 'Runs appear here once a Team’s worker picks up a Work Item.'}</p>`, actions: filtered ? linkButton('Clear filters', '#runs', helpers, 'x') : '' }, helpers)}</div>`);
+  const stale = view.error ? staleNotice(view, helpers) : '';
+  if (!view.runs.length) return page('runs', demoNote(view.demo), toolbar, stale, `<div class="card">${empty({ glyph: 'runs', title: filtered ? 'No Runs match these filters' : 'No Runs yet', body: `<p>${filtered ? 'Choose another Team, state or outcome.' : 'Runs appear here once a Team’s worker picks up a Work Item.'}</p>`, actions: filtered ? linkButton('Clear filters', '#runs', helpers, 'x') : '' }, helpers)}</div>`);
   const runs = sortRuns(view.runs);
   const active = runs.filter(run => run.state !== 'finished');
   const done = runs.filter(run => run.state === 'finished');
   const grouped = Boolean(active.length && done.length);
-  const group = (label, list) => list.length ? `<tbody>${grouped ? `<tr class="runs-group"><th scope="rowgroup" colspan="6">${escape(label)} <span class="count">${count(list.length)}</span></th></tr>` : ''}${list.map(run => runRow(run, view.demo, helpers, now)).join('')}</tbody>` : '';
-  const bodies = `${group('Running and waiting', active)}${group('Finished', done)}`;
-  const head = ['Run', 'Work Item', 'Role', 'Started', 'Spend', 'Model'].map(label => `<th scope="col">${label}</th>`).join('');
-  const table = `<div class="table-wrap runs-table"><table class="table"><caption class="sr-only">Runs, running first, then newest first</caption><thead><tr>${head}</tr></thead>${bodies}</table></div>`;
+  const group = (label, list) => list.length ? `<tbody>${grouped ? `<tr class="runs-group"><th scope="rowgroup" colspan="${runColumns.length}">${escape(label)} <span class="count">${count(list.length)}</span></th></tr>` : ''}${list.map(run => runRow(run, view.demo, helpers, now)).join('')}</tbody>` : '';
+  const table = `<div class="table-wrap runs-table"><table class="table"><caption class="sr-only">Runs, running first, then newest first</caption>${runHead}${group('Running and waiting', active)}${group('Finished', done)}</table></div>`;
   const cardGroup = (label, total) => grouped ? `<li class="runs-cards-group">${escape(label)} <span class="count">${count(total)}</span></li>` : '';
   const cards = `<ul class="runs-cards" aria-label="Runs, running first">${cardGroup('Running and waiting', active.length)}${active.map(run => runCard(run, view.demo, helpers, now)).join('')}${cardGroup('Finished', done.length)}${done.map(run => runCard(run, view.demo, helpers, now)).join('')}</ul>`;
-  const older = view.nextBefore ? `<button type="button" class="button secondary" id="ploeg-runs-older" data-action="ploeg-runs-older"${view.loading ? ' disabled aria-busy="true"' : ''}>${view.loading ? '<span class="spinner" aria-hidden="true"></span>' : icon('chevron-down')}<span class="button-label">Load older</span></button>` : '<span class="meta">No older Runs.</span>';
-  return page('runs', demoNote(view.demo), toolbar, view.error ? staleNotice(view.error, 'Runs', helpers) : '', `<div class="card flush runs-list">${table}${cards}<footer class="runs-footer">${older}<span class="meta">${plural(view.runs.length, 'Run')} loaded</span></footer></div>`);
+  const busy = view.mode === 'older';
+  const older = view.nextBefore ? `<button type="button" class="button secondary" id="ploeg-runs-older" data-action="ploeg-runs-older"${busy ? ' disabled aria-busy="true"' : ''}>${busy ? '<span class="spinner" aria-hidden="true"></span>' : icon('chevron-down')}<span class="button-label">Load older</span></button>` : '<span class="meta">No older Runs.</span>';
+  return page('runs', demoNote(view.demo), toolbar, stale, `<div class="card flush runs-list">${table}${cards}<footer class="runs-footer">${older}<span class="meta">${plural(view.runs.length, 'Run')} loaded</span></footer></div>`);
 }
 
-function briefMarkup(text, escape) {
+function briefMarkup(text) {
   const brief = String(text || '').trim();
   if (!brief) return '<p class="subtle proposal-brief-empty">No brief reported.</p>';
   const paragraphs = brief.split(/\n\s*\n/);
@@ -521,7 +572,7 @@ function repositoryMarkup(item, escape) {
 function readyBadge(ready) {
   if (ready === true) return ui.badge({ tone: 'success', glyph: 'check', label: 'Ready' });
   if (ready === false) return ui.badge({ tone: 'attention', glyph: 'alert', label: 'Needs refinement', title: 'It needs refining before a worker can pick it up.' });
-  return ui.badge({ tone: 'neutral', glyph: 'help-circle', label: 'Readiness not reported' });
+  return '';
 }
 
 function proposalCard(entry, { decide, busy }, helpers, now) {
@@ -532,22 +583,32 @@ function proposalCard(entry, { decide, busy }, helpers, now) {
   const meta = `<div class="proposal-meta">${ui.badge({ tone: 'neutral', glyph: 'proposed', label: kind })}${readyBadge(entry.ready)}${ui.chip({ label: entry.team })}<span class="meta">Proposed ${timeHtml(entry.createdAt, { now }) || 'at an unknown time'}</span></div>`;
   const facts = `<dl class="facts proposal-facts"><div class="fact"><dt>Found while working on</dt><dd>${source}</dd></div><div class="fact"><dt>Proposed by</dt><dd><span class="proposal-agent">${icon('bot')}${escape(proposalCreator(entry))}</span></dd></div><div class="fact"><dt>Repository</dt><dd>${repositoryMarkup(entry, escape)}</dd></div></dl>`;
   const pending = busy === entry.id;
-  const buttons = decide ? `<div class="proposal-actions"><button type="button" class="button primary" id="proposal-approve-${id}" data-action="ploeg-approve" data-id="${id}"${busy ? ' disabled' : ''}${pending ? ' aria-busy="true"' : ''}>${pending ? '<span class="spinner" aria-hidden="true"></span>' : icon('check')}<span class="button-label">Approve</span></button><button type="button" class="button secondary" id="proposal-reject-${id}" data-action="ploeg-reject" data-id="${id}"${busy ? ' disabled' : ''}>${icon('x')}<span class="button-label">Reject</span></button></div>` : '<p class="meta proposal-viewer">Your account can read proposed work. An operator or administrator approves or rejects it.</p>';
-  const stake = `<div class="proposal-decision"><p class="overline">If you approve</p><p class="proposal-stake">${icon('coins')}<span>Its Runs spend from the ${escape(entry.team)} Team’s budget.</span></p><p class="meta">Ploeg does not report that budget to Vloer yet, so no amount is shown.</p>${buttons}</div>`;
-  return `<li><article class="card proposal" aria-labelledby="proposal-${id}-title"><div class="proposal-main">${meta}<h2 class="proposal-title" id="proposal-${id}-title"><a href="#work/${id}">${escape(entry.title || `Work Item ${entry.id}`)}</a></h2>${briefMarkup(entry.descriptionMarkdown ?? entry.description, escape)}${facts}</div>${stake}</article></li>`;
+  const buttons = decide ? `<div class="proposal-actions"><button type="button" class="button secondary" id="proposal-reject-${id}" data-action="ploeg-reject" data-id="${id}"${busy ? ' disabled' : ''}>${icon('x')}<span class="button-label">Reject</span></button><button type="button" class="button primary" id="proposal-approve-${id}" data-action="ploeg-approve" data-id="${id}"${busy ? ' disabled' : ''}${pending ? ' aria-busy="true"' : ''}>${pending ? '<span class="spinner" aria-hidden="true"></span>' : icon('check')}<span class="button-label">Approve</span></button></div>` : '';
+  const footer = `<footer class="proposal-footer"><p class="proposal-stake">${icon('coins')}<span>Spends from the ${escape(entry.team)} Team’s budget</span></p>${buttons}</footer>`;
+  return `<li><article class="card proposal" aria-labelledby="proposal-${id}-title"><div class="proposal-body">${meta}<h2 class="proposal-title" id="proposal-${id}-title"><a href="#work/${id}">${escape(entry.title || `Work Item ${entry.id}`)}</a></h2>${briefMarkup(entry.descriptionMarkdown ?? entry.description)}${facts}</div>${footer}</article></li>`;
+}
+
+function proposedSkeleton() {
+  const fact = '<div class="fact"><span class="skeleton proposal-skeleton-term"></span><span class="skeleton proposal-skeleton-value"></span></div>';
+  const card = `<li class="card proposal"><div class="proposal-body"><div class="proposal-meta"><span class="skeleton pill"></span><span class="skeleton pill"></span><span class="skeleton proposal-skeleton-age"></span></div><span class="skeleton proposal-skeleton-title"></span><span class="skeleton-lines"><span class="skeleton text"></span><span class="skeleton text"></span></span><div class="facts proposal-facts">${fact.repeat(3)}</div></div><div class="proposal-footer"><span class="skeleton proposal-skeleton-stake"></span><span class="proposal-actions"><span class="skeleton proposal-skeleton-button"></span><span class="skeleton proposal-skeleton-button"></span></span></div></li>`;
+  return `<div class="proposals-list proposals-loading" aria-busy="true"><span class="sr-only">Loading…</span><div class="proposals-header" aria-hidden="true"><span class="skeleton proposal-skeleton-count"></span></div><ul class="proposals" aria-hidden="true">${card.repeat(2)}</ul></div>`;
 }
 
 /**
- * Proposed: Work Items agents proposed, oldest decision first as Ploeg lists them, each with its source, kind,
- * brief, what approving costs, and Approve and Reject for operators and administrators.
+ * Proposed: Work Items agents proposed, as Ploeg lists them, each with its source, kind, brief, whose budget it
+ * spends, and Approve and Reject for operators and administrators. Viewers read the list once told who decides.
  */
 export function proposedMarkup(view, user, helpers, now = Date.now()) {
+  const { icon } = helpers;
   if (!view.items && view.error) return page('proposed', problemMarkup(view.error, 'proposed work', helpers));
-  if (!view.items) return page('proposed', `<div class="proposals-loading" aria-busy="true">${ui.skeleton({ rows: 2, variant: 'cards' })}</div>`);
+  if (!view.items) return page('proposed', proposedSkeleton());
   const decide = canDecide(user);
-  const list = view.items.length ? `<ul class="proposals">${view.items.map(entry => proposalCard(entry, { decide, busy: view.busy }, helpers, now)).join('')}</ul>` : `<div class="card">${empty({ glyph: 'check-circle', tone: 'success', title: 'No proposed work waits for you', body: '<p>When an agent proposes a Work Item while it works, it waits here until someone approves it.</p>' }, helpers)}</div>`;
-  const summary = view.items.length ? `<p class="meta proposals-count">${plural(view.items.length, 'proposal')}${view.truncated ? ' shown; Ploeg has more' : ''} · in the order Ploeg lists them</p>` : '';
-  return page('proposed', demoNote(view.demo), view.error ? staleNotice(view.error, 'proposed work', helpers) : '', summary, list);
+  const stale = view.error ? staleNotice(view, helpers) : '';
+  if (!view.items.length) return page('proposed', demoNote(view.demo), stale, `<div class="card">${empty({ glyph: 'check-circle', tone: 'success', title: 'No proposed work waits for you', body: '<p>When an agent proposes a Work Item while it works, it waits here until someone approves it.</p>', compact: false }, helpers)}</div>`);
+  const viewer = decide ? '' : ui.callout({ tone: 'neutral', icon: 'eye', body: '<p>Your account can read proposed work. An operator or administrator approves or rejects it.</p>' });
+  const header = `<div class="proposals-header"><p class="proposals-count">${plural(view.items.length, 'proposal')}${view.truncated ? ' shown; Ploeg has more' : ''}</p><p class="meta proposals-budget">${icon('coins')}<span>Ploeg does not report Team budgets to Vloer yet, so no amounts are shown.</span></p></div>`;
+  const list = `<ul class="proposals">${view.items.map(entry => proposalCard(entry, { decide, busy: view.busy }, helpers, now)).join('')}</ul>`;
+  return page('proposed', demoNote(view.demo), stale, viewer, `<section class="proposals-list" aria-label="Proposals">${header}${list}</section>`);
 }
 
 function dialogHeader(title, { icon }) {
@@ -566,5 +627,5 @@ export function approveDialogMarkup(entry, demo, helpers) {
 export function rejectDialogMarkup(entry, demo, helpers) {
   const { escape } = helpers;
   const effect = demo ? 'In this demo the proposal is withdrawn from the sample data. Nothing is dispatched.' : 'Ploeg marks it Done without running it and keeps your reason in its history. The Work Item it came from does not change.';
-  return `<form data-form="ploeg-reject" data-id="${escape(entry.id)}" class="proposal-dialog" novalidate>${dialogHeader('Reject this proposal?', helpers)}<div class="dialog-body"><p class="proposal-dialog-title">${escape(entry.title || `Work Item ${entry.id}`)}</p><p>${effect}</p><div class="field"><label class="field-label" for="proposal-reject-reason">Reason</label><textarea id="proposal-reject-reason" name="reason" rows="3" maxlength="4096" required autofocus aria-describedby="proposal-reject-hint proposal-reject-error"></textarea><span class="field-hint" id="proposal-reject-hint">Required. Say why, so the Team can learn from it.</span><span class="field-error" id="proposal-reject-error" hidden>Write a reason before you reject it.</span></div></div><footer class="dialog-footer"><button type="button" class="button secondary" data-action="ploeg-dialog-close">Keep it</button><button type="submit" class="button danger">Reject</button></footer></form>`;
+  return `<form data-form="ploeg-reject" data-id="${escape(entry.id)}" class="proposal-dialog" novalidate>${dialogHeader('Reject this proposal?', helpers)}<div class="dialog-body"><p class="proposal-dialog-title">${escape(entry.title || `Work Item ${entry.id}`)}</p><p>${effect}</p><div class="field"><label class="field-label" for="proposal-reject-reason">Reason</label><textarea id="proposal-reject-reason" name="reason" rows="3" maxlength="4096" required autofocus aria-describedby="proposal-reject-hint"></textarea><span class="field-hint" id="proposal-reject-hint">Required. Say why, so the Team can learn from it.</span><span class="field-error" id="proposal-reject-error" hidden>Write a reason before you reject it.</span></div></div><footer class="dialog-footer"><button type="button" class="button secondary" data-action="ploeg-dialog-close">Keep it proposed</button><button type="submit" class="button danger">Reject</button></footer></form>`;
 }

@@ -146,6 +146,7 @@ test('the activity feed groups by day, labels and links every event, humanises a
   assert.match(html, /data-kind="agent"[^>]*>[^<]*<i data-icon="bot"><\/i>Agent/);
   assert.match(html, /<time class="num" datetime="2026-09-10T08:00:00.000Z" title="[^"]+">\d\d:00<\/time>/);
   assert.match(html, /data-action="ploeg-feed-older"/);
+  assert.match(html, /<span class="activity-event-team" title="delivery">delivery<\/span>/);
   assert.equal(html.match(/data-event-id=/g).length, 3);
   const spend = activityMarkup({ ...view, kind: 'spend' }, ['delivery'], helpers, now);
   assert.match(spend, /Spend settled/);
@@ -169,7 +170,10 @@ test('an empty feed, a kind with no loaded events and a loading feed each say wh
   const filtered = activityMarkup({ events: [event(1)], nextCursor: '1', team: 'delivery', kind: 'spend' }, ['delivery'], helpers, now);
   assert.match(filtered, /No spend events loaded/);
   assert.match(filtered, /href="#activity\?team=delivery"/);
-  assert.match(activityMarkup({ events: null, team: '', kind: '' }, [], helpers, now), /aria-busy="true"[\s\S]*Loading…/);
+  const loading = activityMarkup({ events: null, team: '', kind: '' }, [], helpers, now);
+  assert.match(loading, /aria-busy="true"[\s\S]*Loading…/);
+  assert.match(loading, /<header class="activity-day-header"><span class="skeleton activity-skeleton-day"><\/span><\/header>/);
+  assert.equal(loading.match(/class="timeline-item activity-event"/g).length, 8);
 });
 
 test('Insights shows tiles and per-Team tables for the window and for right now, never a chart', () => {
@@ -182,19 +186,30 @@ test('Insights shows tiles and per-Team tables for the window and for right now,
   assert.match(html, /<th scope="row">delivery<\/th>/);
   assert.match(html, /<th scope="row">research<\/th>/);
   assert.match(html, /<th scope="col" class="num">Stopped retrying<\/th>/);
-  assert.match(html, /The last 30 days, across the 2 Teams your account can see/);
+  assert.match(html, /<p class="section-description">Last 30 days · 2 Teams<\/p>/);
+  assert.match(html, /<p class="meta insights-footnote">Settled spend is what Ploeg settled with the model gateway\. A running Run holds a reservation until it settles\.<\/p>/);
+  assert.doesNotMatch(html, /role="region"|tabindex="0"/);
+  assert.match(html, /<dt>Reserved<\/dt>/);
+  assert.doesNotMatch(html, /<dt>Reserved now<\/dt>/);
   assert.match(html, /data-action="ploeg-window" data-id="30d" aria-pressed="true">30 days<\/button>/);
   assert.match(html, /US\$\s0,00 reserved by running Runs/);
   assert.match(html, /class="insights-teams"/);
   assert.doesNotMatch(html, /<svg|<canvas|polyline/);
   const demo = overviewMarkup({ window: '24h', data: { ...summary('24h'), demo: true }, loading: false, error: null }, helpers, now);
   assert.match(demo, /Illustrative Ploeg records/);
-  assert.match(demo, /Demo · no model calls/);
+  assert.match(demo, /Settled spend<\/span><strong class="stat-value is-text">No model calls<\/strong><span class="stat-detail">Demo<\/span>/);
+  assert.doesNotMatch(demo, /US\$\s0,00<\/strong>|insights-footnote/);
   assert.match(demo, /<td class="num"><span class="subtle">No model calls<\/span><\/td>/);
   assert.doesNotMatch(demo, /<svg|<canvas|polyline/);
   const unknown = overviewMarkup({ window: '24h', data: { ...summary('24h'), totals: { ...summary('24h').totals, spend: { settledUsd: null, reservedUsd: null } } }, loading: false, error: null }, helpers, now);
-  assert.match(unknown, /<strong class="stat-value">Not reported<\/strong>/);
-  assert.doesNotMatch(overviewMarkup({ window: '7d', data: null, loading: true, error: null }, helpers, now), /<svg|<canvas|polyline/);
+  assert.match(unknown, /<strong class="stat-value is-text">Not reported<\/strong><span class="stat-detail">Reservations not reported<\/span>/);
+  const loading = overviewMarkup({ window: '7d', data: null, loading: true, error: null }, helpers, now);
+  assert.doesNotMatch(loading, /<svg|<canvas|polyline/);
+  assert.match(loading, /Runs and spend[\s\S]*Last 7 days[\s\S]*Work Items/);
+  assert.equal(loading.match(/insights-tile-skeleton/g).length, 9);
+  const noTeams = overviewMarkup({ window: '7d', data: { ...summary('7d'), teams: [], totals: summaryTotals([]) }, loading: false, error: null }, helpers, now);
+  assert.match(noTeams, /No Teams are visible to your account/);
+  assert.doesNotMatch(noTeams, /class="stat"|Teams your account|insights-window/);
 });
 
 test('the demo summary counts window-bound Runs and keeps spend at zero', () => {
@@ -216,9 +231,12 @@ test('a setup gap reads as guidance, not an error wall; a real failure offers Tr
   assert.match(problemMarkup({ code: 'ploeg_scope', message: '' }, 'Runs', helpers), /Your account has no Ploeg Teams/);
   const other = overviewMarkup({ window: '24h', data: null, error: { code: 'ploeg_unavailable', message: 'Ploeg could not be reached <now>.' } }, helpers, now);
   assert.match(other, /role="alert"[\s\S]*Could not load Insights[\s\S]*Ploeg could not be reached &#60;now&#62;\.[\s\S]*data-action="ploeg-reload"/);
-  const stale = runsMarkup({ runs: [run()], error: { code: 'ploeg_unavailable', message: 'Timed out.' }, filter: {}, demo: false }, [], helpers, now);
-  assert.match(stale, /Could not refresh Runs[\s\S]*Timed out\. What you see is the last data Vloer read\./);
+  const loadedAt = Date.parse('2026-09-10T08:48:00Z');
+  const stale = runsMarkup({ runs: [run()], error: { code: 'ploeg_unavailable', message: 'Timed out.' }, loadedAt, filter: {}, demo: false }, [], helpers, now);
+  assert.match(stale, /<div class="callout feeds-stale" data-tone="attention" role="status">[\s\S]*<p class="callout-title">Could not refresh\. Showing data from <time class="num" datetime="2026-09-10T08:48:00\.000Z" title="[^"]+">\d\d:48<\/time>\.<\/p>[\s\S]*Timed out\.[\s\S]*data-action="ploeg-reload"/);
+  assert.doesNotMatch(stale, /data-tone="danger" role="alert"/);
   assert.match(stale, /data-run-id="61"/);
+  assert.match(activityMarkup({ events: [event(1)], error: { message: 'Timed out.' }, team: '', kind: '' }, [], helpers, now), /Could not refresh\. Showing the last data Vloer read\./);
 });
 
 test('a Run’s spend is settled, observed or authorized, and never an invented zero', () => {
@@ -253,30 +271,43 @@ test('a fresh first page replaces the Runs in its range, so a Run that left a fi
 test('a Run row shows state and outcome, verdict, failure, Work Item, Role, timing, a spend meter and the model, in the table and the phone cards', () => {
   const runs = [run({ id: '64', state: 'running', outcome: '', settledUsd: null, observedUsd: 0.42, durationSeconds: null, startedAt: '2026-09-10T08:54:00Z', usage: null, reservedModels: ['claude-opus'] }), run({ id: '63', role: 'reviewer', writes: false, outcome: 'no_change_needed', verdict: 'request_changes' }), run({ id: '62', outcome: 'failed', failureReason: 'lease_lost', settledUsd: null, usage: null }), run()];
   const html = runsMarkup({ runs, nextBefore: '25', filter: {}, demo: false }, ['delivery'], helpers, now);
-  assert.match(html, /<tbody><tr class="runs-group"><th scope="rowgroup" colspan="6">Running and waiting <span class="count">1<\/span><\/th><\/tr><tr data-run-id="64"[\s\S]*?<\/tbody><tbody><tr class="runs-group"><th scope="rowgroup" colspan="6">Finished <span class="count">3<\/span>/);
+  assert.match(html, /<tbody><tr class="runs-group"><th scope="rowgroup" colspan="5">Running and waiting <span class="count">1<\/span><\/th><\/tr><tr data-run-id="64"[\s\S]*?<\/tbody><tbody><tr class="runs-group"><th scope="rowgroup" colspan="5">Finished <span class="count">3<\/span>/);
   assert.doesNotMatch(runsMarkup({ runs: [run()], filter: {}, demo: false }, [], helpers, now), /runs-group/);
   assert.deepEqual([...html.matchAll(/<tr data-run-id="(\d+)"/g)].map(match => match[1]), ['64', '63', '62', '61']);
   assert.deepEqual([...html.matchAll(/<li class="runs-card" data-run-id="(\d+)"/g)].map(match => match[1]), ['64', '63', '62', '61']);
   assert.match(html, /<span class="live-dot" aria-hidden="true"><\/span>Running/);
-  assert.match(html, /Running for 6 min/);
-  assert.match(html, /Observed so far, not settled/);
-  assert.match(html, /aria-valuetext="US\$\s0,42 settled of US\$\s1,50 authorized"/);
+  assert.match(html, /<thead><tr><th scope="col">Status<\/th><th scope="col">Work Item<\/th><th scope="col">Started<\/th><th scope="col">Spend<\/th><th scope="col">Model<\/th><\/tr><\/thead>/);
+  assert.match(html, /<td class="runs-started"><time class="num" datetime="2026-09-10T08:54:00\.000Z" title="Started [^"]+">Running for 6 min<\/time><\/td>/);
+  assert.doesNotMatch(html, /6 min ago/);
+  assert.match(html, /Observed, not settled/);
+  assert.match(html, /aria-valuetext="US\$\s0,42 observed so far of US\$\s1,50 authorized"/);
+  assert.doesNotMatch(html.match(/<tr data-run-id="64"[\s\S]*?<\/tr>/)[0], /settled of/);
+  assert.doesNotMatch(html, /class="meter-end"/);
   assert.match(html, /Agent review: changes requested/);
   assert.match(html, /The worker lost its lease/);
-  assert.match(html, /title="Infrastructure, not the agent\. It retries automatically\."/);
+  assert.match(html, /<span class="runs-next">Not the agent’s fault\. It retries automatically\.<\/span>/);
+  assert.doesNotMatch(html, /title="[^"]*retries automatically/);
   assert.match(html, /Opened a pull request/);
   assert.match(html, /12\.345 in · 678 out/);
-  assert.match(html, /claude-sonnet<\/span>, <span class="nowrap">claude-haiku/);
+  assert.match(html, /<span class="runs-models"><span class="runs-model-name">claude-sonnet<\/span><span class="runs-model-name">claude-haiku<\/span><\/span>/);
+  assert.match(html, /<p class="meta runs-card-line"><span class="runs-model-name">claude-sonnet, claude-haiku<\/span> · <span class="num">12\.345 in · 678 out<\/span><\/p>/);
   assert.match(html, /Took 20 min/);
   assert.match(html, /href="#work\/205"/);
   assert.match(html, /VIK-642 · delivery · Run 61/);
-  assert.match(html, /Implementer[\s\S]*Round 1 · writer/);
+  assert.match(html, /<span class="meta">Implementer · Round 1 · writer<\/span><span class="meta">VIK-642 · delivery · Run 61<\/span>/);
+  assert.match(html, /<p class="meta runs-card-line">VIK-642 · delivery · Implementer · Round 1 · writer<\/p>/);
+  const edges = runsMarkup({ runs: [run({ id: '70', state: 'pending', startedAt: null, settledUsd: null, authorizedUsd: null, usage: null }), run({ id: '69', settledUsd: 1.92, authorizedUsd: 1.5 }), run({ id: '68', startedAt: null, settledUsd: null, authorizedUsd: 0, usage: null, outcome: '' })], filter: {}, demo: false }, [], helpers, now);
+  assert.match(edges, /<td class="runs-started"><span class="subtle">Waiting for a worker<\/span><\/td><td class="runs-spend"><span class="subtle">Not authorized yet<\/span><\/td>/);
+  assert.match(edges, /<span class="runs-spend-note" data-tone="danger">US\$\s0,42 over budget<\/span>/);
+  assert.match(edges, /data-level="over"[^>]*aria-valuetext="US\$\s1,92 settled of US\$\s1,50 authorized, US\$\s0,42 over budget"/);
+  assert.match(edges, /<div class="meter sm" data-unknown><div class="meter-label"><span class="meter-text"><span class="meter-value">Not reported<\/span><\/span><\/div>/);
   assert.match(html, /data-unknown[^>]*><div class="meter-label"><span class="meter-text"><span class="meter-value">Not reported/);
   assert.match(html, /data-action="ploeg-runs-older"/);
   assert.match(html, /4 Runs loaded/);
   const demo = runsMarkup({ runs: ploegDemo.runs, nextBefore: null, filter: {}, demo: true }, ['delivery'], helpers, now);
   assert.doesNotMatch(demo.replace('spend is US$ 0,00.', ''), /US\$\s0,00/);
-  assert.match(demo, /No model calls/);
+  assert.match(demo, /<td class="runs-spend"><span class="subtle" title="Demo · no model calls"><span aria-hidden="true">—<\/span><span class="sr-only">Demo · no model calls<\/span><\/span><\/td>/);
+  assert.doesNotMatch(demo, />None<|>No model calls<|runs-card-line">Demo|runs-card-spend/);
   assert.match(demo, /The worker lost its lease/);
   assert.match(demo, /No outcome reported/);
   assert.match(demo, /Illustrative Ploeg records/);
@@ -287,7 +318,9 @@ test('an outcome filter only applies to finished Runs, and an empty filtered lis
   assert.deepEqual(runFilter({ state: 'finished', outcome: 'failed' }), { team: '', state: 'finished', outcome: 'failed' });
   assert.deepEqual(runFilter({ outcome: 'stuck' }), { team: '', state: '', outcome: 'stuck' });
   const html = runsMarkup({ runs: [], filter: { state: 'pending' } }, [], helpers, now);
-  assert.match(html, /<select id="ploeg-runs-outcome" disabled title="Only finished Runs have an outcome">/);
+  assert.match(html, /<select id="ploeg-runs-outcome" disabled aria-describedby="ploeg-runs-outcome-hint">/);
+  assert.match(html, /<span class="field-hint feeds-hint" id="ploeg-runs-outcome-hint">Only finished Runs have an outcome\.<\/span>/);
+  assert.doesNotMatch(runsMarkup({ runs: [], filter: { state: 'finished' } }, [], helpers, now), /ploeg-runs-outcome-hint|<select id="ploeg-runs-outcome" disabled/);
   assert.match(html, /No Runs match these filters[\s\S]*href="#runs"/);
   assert.match(runsMarkup({ runs: [], filter: {} }, [], helpers, now), /No Runs yet/);
 });
@@ -304,21 +337,24 @@ test('only operators and administrators see Approve and Reject; viewers never do
   }
   const viewer = proposedMarkup(view, { role: 'viewer' }, helpers, now);
   assert.doesNotMatch(viewer, /data-action="ploeg-(approve|reject)"/);
-  assert.match(viewer, /An operator or administrator approves or rejects it/);
+  assert.equal(viewer.match(/An operator or administrator approves or rejects it/g).length, 1);
+  assert.doesNotMatch(proposedMarkup(view, { role: 'operator' }, helpers, now), /An operator or administrator approves/);
+  assert.match(viewer, /<p class="proposals-count">2 proposals<\/p>/);
+  assert.doesNotMatch(viewer, /in the order Ploeg lists them|If you approve|proposal-decision/);
   assert.match(viewer, /Discovered work/);
   assert.match(viewer, /Clarification/);
   assert.match(viewer, /data-tone="success">[^<]*<svg[^]*?Ready</);
   assert.match(viewer, /Needs refinement/);
   assert.match(viewer, /Found while working on<\/dt><dd><a href="#work\/105">Round half-cent totals consistently<\/a>/);
   assert.match(viewer, /An agent in Run 53/);
-  assert.match(viewer, /Its Runs spend from the delivery Team’s budget\./);
-  assert.match(viewer, /Ploeg does not report that budget to Vloer yet, so no amount is shown\./);
+  assert.match(viewer, /<footer class="proposal-footer"><p class="proposal-stake"><i data-icon="coins"><\/i><span>Spends from the delivery Team’s budget<\/span><\/p><\/footer>/);
+  assert.equal(viewer.match(/Ploeg does not report Team budgets to Vloer yet, so no amounts are shown\./g).length, 1);
   assert.match(viewer, /example\/order-service/);
   assert.match(viewer, /Not routed/);
   const unknown = proposedMarkup({ ...view, items: [{ ...items[0], sourceWorkItemId: undefined, createdKind: undefined, ready: undefined, sourceTitle: '', externalId: 'VIK-9' }] }, { role: 'operator' }, helpers, now);
   assert.match(unknown, /Source Work Item not reported/);
   assert.match(unknown, /Kind not reported/);
-  assert.match(unknown, /Readiness not reported/);
+  assert.doesNotMatch(unknown, /Readiness not reported/);
   assert.match(unknown, /An agent of the delivery Team/);
   assert.equal(proposalCreator({ externalId: 'run-46-1', team: 'research' }), 'An agent in Run 46');
 });
@@ -352,6 +388,8 @@ test('the approve confirmation names the money at stake and the reject form says
   assert.doesNotMatch(reject, /withdraw/i);
   assert.match(reject, /<label class="field-label" for="proposal-reject-reason">Reason<\/label><textarea id="proposal-reject-reason" name="reason"[^>]* required/);
   assert.match(reject, /class="button danger">Reject<\/button>/);
+  assert.match(reject, /required autofocus aria-describedby="proposal-reject-hint"><\/textarea>/);
+  assert.match(reject, /data-action="ploeg-dialog-close">Keep it proposed<\/button>/);
   assert.match(rejectDialogMarkup(entry, true, helpers), /In this demo the proposal is withdrawn from the sample data\. Nothing is dispatched\./);
 });
 

@@ -94,6 +94,7 @@
 
 .activity-event > .activity-event-meta {
   grid-area: meta;
+  max-width: 16rem;
   line-height: var(--leading-sm);
 }
 
@@ -111,6 +112,14 @@
   min-width: 0;
   color: var(--text-muted);
   overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.activity-event-item::before {
+  content: "·";
+  display: inline-block;
+  margin-inline-end: var(--space-2);
+  color: var(--text-disabled);
   text-decoration: none;
 }
 
@@ -132,9 +141,17 @@
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--space-2);
+  min-width: 0;
   margin: 0;
   white-space: nowrap;
+}
+
+.activity-event-team {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .activity-event-team::before {
@@ -145,6 +162,7 @@
 
 .activity-actor {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: var(--space-1);
 }
@@ -167,6 +185,34 @@
 
 .activity-feed > .empty-state {
   padding-block: var(--space-10);
+}
+
+.activity-skeleton-day {
+  width: 4.5rem;
+  height: var(--leading-sm);
+}
+
+.activity-skeleton-time {
+  width: 2.25rem;
+  margin-top: var(--space-1);
+}
+
+.activity-skeleton-line {
+  width: 62%;
+  margin-top: var(--space-1);
+}
+
+.activity-event:nth-child(3n + 2) .activity-skeleton-line {
+  width: 44%;
+}
+
+.activity-event:nth-child(3n) .activity-skeleton-line {
+  width: 78%;
+}
+
+.activity-skeleton-meta {
+  width: 7rem;
+  margin-top: var(--space-1);
 }
 
 @container (max-width: 40rem) {
@@ -193,7 +239,24 @@
   }
 
   .activity-event > .activity-event-meta {
+    flex-wrap: wrap;
+    justify-content: flex-start;
     column-gap: var(--space-2);
+    max-width: none;
+    white-space: normal;
+  }
+
+  .activity-event-team {
+    overflow: visible;
+    overflow-wrap: anywhere;
+  }
+
+  .activity-event-line {
+    display: grid;
+  }
+
+  .activity-event-item::before {
+    display: none;
   }
 
   .activity-event > .activity-event-meta::before {
