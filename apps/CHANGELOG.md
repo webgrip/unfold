@@ -1,3 +1,29 @@
+## [glide-v0.4.0-rc.14](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.13...glide-v0.4.0-rc.14) (2026-09-29)
+
+### Fixed
+
+* **ploeg:** write OpenHands agent settings so its ACP session starts ([964d61e](https://forgejo.webgrip.dev/webgrip/glide/commit/964d61e785eee6f66f95c520f9130012f77953cb))
+
+### Internal
+
+* **ploeg:** commit the mise.lock that lockfile = true expects ([6150dd0](https://forgejo.webgrip.dev/webgrip/glide/commit/6150dd067158bcf10d8a45547e8e585868ce3062))
+
+## [glide-v0.4.0-rc.13](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.12...glide-v0.4.0-rc.13) (2026-09-29)
+
+### Fixed
+
+* **ploeg:** parse YAML with the maintained go.yaml.in/yaml/v3 ([56ff6fb](https://forgejo.webgrip.dev/webgrip/glide/commit/56ff6fb48b84960104e9baf2e9ead5ecb42109e7))
+
+### Docs
+
+* **ploeg:** record the Work Item 138 incident and its non-golden paths ([94a1e51](https://forgejo.webgrip.dev/webgrip/glide/commit/94a1e514b636e3563254c3f87de7517908663a49))
+* **ploeg:** state what each archived OpenSpec capability is for ([a389dfa](https://forgejo.webgrip.dev/webgrip/glide/commit/a389dfade9e9ea229f002f238d865cbf4b6acb6e))
+
+### Tests
+
+* **ploeg:** ignore helm's blank line before document separators in chart goldens ([2dddb70](https://forgejo.webgrip.dev/webgrip/glide/commit/2dddb707b2fd548a8f9e4bcecc16b9a372eee159))
+* **vloer:** scale the VS Code extension test timeouts on a loaded runner ([1dc24df](https://forgejo.webgrip.dev/webgrip/glide/commit/1dc24df149c7e947979ec9876127a5e5003f8cb8))
+
 ## [glide-v0.4.0-rc.12](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.11...glide-v0.4.0-rc.12) (2026-09-29)
 
 ### Added

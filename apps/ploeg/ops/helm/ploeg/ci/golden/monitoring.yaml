@@ -11,7 +11,6 @@ metadata:
     helm.sh/chart: ploeg-CHART-VERSION
     app.kubernetes.io/managed-by: Helm
 automountServiceAccountToken: false
-
 ---
 # Source: ploeg/templates/service.yaml
 apiVersion: v1
@@ -33,7 +32,6 @@ spec:
     - name: http
       port: 8080
       targetPort: http
-
 ---
 # Source: ploeg/templates/deployment.yaml
 apiVersion: apps/v1
@@ -150,7 +148,6 @@ spec:
             requests:
               cpu: 100m
               memory: 256Mi
-
 ---
 # Source: ploeg/templates/prometheusrule.yaml
 apiVersion: monitoring.coreos.com/v1
@@ -213,7 +210,6 @@ spec:
             summary: "Tracker projects have no assignment webhook to Ploeg"
             description: "{{ $value }} configured Vikunja project(s) had no assignment webhook at the last check. Assignments there do not reach Ploeg."
             runbook_url: https://docs.example/ploeg/ops/alerts/#ploegtrackerwebhookmissing
-
 ---
 # Source: ploeg/templates/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1

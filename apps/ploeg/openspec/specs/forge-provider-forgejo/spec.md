@@ -1,7 +1,9 @@
 # forge-provider-forgejo Specification
 
 ## Purpose
-TBD - created by archiving change run-multi-agent-shifts. Update Purpose after archive.
+The first `ForgeProvider` implementation, for Forgejo, and how Forgejo webhooks
+parse into normalized `ForgeEvent`s such as `review_submitted` and
+`check_failed`. Archived from the change `2026-07-29-run-multi-agent-shifts`.
 ## Requirements
 ### Requirement: The first ForgeProvider implementation
 

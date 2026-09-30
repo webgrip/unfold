@@ -40,12 +40,16 @@ escape() { printf '%s' "$1" | sed 's/[.+]/\\&/g'; }
 version_re=$(escape "$chart_version")
 app_version_re=$(escape "$chart_app_version")
 
+drop_blank_lines_before_separators() {
+	awk '/^$/ { blank++; next } $0 != "---" { while (blank > 0) { print ""; blank-- } } { blank = 0; print } END { while (blank > 0) { print ""; blank-- } }'
+}
+
 render() { # <values-file-or-empty>
 	if [ -n "$1" ]; then
 		helm template ploeg ops/helm/ploeg -f "$1"
 	else
 		helm template ploeg ops/helm/ploeg
-	fi | sed -e "s/$version_re/CHART-VERSION/g" -e "s/$app_version_re/CHART-VERSION/g"
+	fi | sed -e "s/$version_re/CHART-VERSION/g" -e "s/$app_version_re/CHART-VERSION/g" | drop_blank_lines_before_separators
 }
 
 status=0
@@ -89,16 +93,8 @@ done
 
 if [ "$mode" = "check" ] && [ "$status" -ne 0 ]; then
 	echo
-	echo "FIRST: is the diff only blank lines around '---' separators, on a"
-	echo "branch that changed nothing under ops/helm? Then this is your helm,"
-	echo "not your change. The goldens are generated with the version CI pins"
-	echo "(see .forgejo/workflows/on_pull_request.yml); helm 3 and helm 4"
-	echo "disagree about the blank line before a document separator. Running"
-	echo "'update' here commits whitespace churn that BREAKS the CI check."
-	echo "  yours: $(helm version --short 2>/dev/null || echo 'helm not on PATH')"
-	echo
-	echo "Otherwise, if the change is intended, run ./scripts/helm-golden.sh"
-	echo "update and commit the result — the diff is the review."
+	echo "If the change is intended, run ./scripts/helm-golden.sh update and"
+	echo "commit the result — the diff is the review."
 	echo
 	echo "Read it carefully when it touches a securityContext, a privileged"
 	echo "container, or the ploeg.webgrip.dev/privileged-dind label: that label"
