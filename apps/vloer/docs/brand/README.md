@@ -334,6 +334,13 @@ each one:
 | `site.webmanifest` | name, icons, `theme_color` Vlak, `background_color` Krijt |
 | `og-image.png` | 1200 × 630 link preview, declared in `index.html` |
 
+While something waits on the signed-in person, the page swaps the favicon for a PNG it draws
+itself on a canvas: the same vee and floor as `favicon.svg`, with an amber dot over the top-right
+corner, cut free by a thin transparent gap so it reads on light and dark tab strips. The dot takes
+`--attention-signal`, an orange-amber more vivid than the attention tone, because the attention
+hue turns muddy at the lightness that shows on both strips. When nothing waits, the original
+icons come back ([`public/core/favicon.js`](../../public/core/favicon.js)).
+
 `index.html` carries the Open Graph and Twitter card tags that point at `og-image.png`. Changing
 the tagline means changing it in `scripts/build-brand.mjs`, re-rendering, and updating the meta
 description to match.
@@ -401,8 +408,8 @@ to stay the accent. Ploeg's Klei does not appear in Vloer.
 | `danger` | red | failed, the failure reasons that are not infrastructure, and destructive actions |
 | `severe` | orange | stopped retrying, interrupted, and infrastructure failures |
 
-[`public/core/states.js`](../../public/core/states.js) assigns each state its tone. Screens that
-still render the legacy markup keep the old stylesheet's colours until they are rebuilt.
+[`public/core/states.js`](../../public/core/states.js) assigns each state its tone, and every screen
+takes it from there.
 
 - **Running is teal**, not Peil and not amber: not Peil because the accent means interaction, not
   amber because running is not a warning. The old interface drew running in orange.
