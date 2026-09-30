@@ -1,5 +1,5 @@
 {
-  "name": "@webgrip/glide-site",
+  "name": "glide-site",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,9 +13,10 @@
   "engines": {
     "node": ">=24.10.0"
   },
+  "packageManager": "pnpm@11.8.0",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build && npm run validate:csp",
+    "build": "astro build && webgrip-validate-csp",
     "preview": "astro preview",
     "astro": "astro",
     "typecheck": "astro check",
@@ -41,7 +42,8 @@
     "eslint": "10.8.0",
     "playwright-core": "1.56.1",
     "prettier": "3.9.6",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "wrangler": "4.118.0"
   },
   "prettier": "@webgrip/prettier-config"
 }

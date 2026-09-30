@@ -4,7 +4,7 @@ The site is a static Astro build. Every page is HTML at build time; the only Jav
 
 ## Package manager
 
-The site uses npm with a committed `package-lock.json`, like Vloer. The root `mise run setup` installs it with `npm ci`, and Renovate's npm manager already covers lockfiles in this repository, so no second package manager enters Glide.
+The site uses pnpm, unlike Vloer, because the shared `cloudflare-deploy` workflow installs with `pnpm install --frozen-lockfile` and runs `pnpm exec wrangler`. The pnpm version is `packageManager` in `package.json`, which corepack reads locally and in CI, so it is pinned in one place. `pnpm-workspace.yaml` allows install scripts only for esbuild (Astro's bundler) and workerd (wrangler's runtime), and holds new releases back for a day. The root `mise run setup` runs `corepack pnpm install --frozen-lockfile`, and verification runs each gate as `corepack pnpm run <gate>`. Renovate's npm manager reads `package.json` and `pnpm-lock.yaml` and updates `packageManager` too.
 
 ## Brand seam
 
@@ -36,6 +36,6 @@ Copy is a typed dictionary per locale. `nl.ts` is typed against `en.ts`, and `sr
 
 Stylesheets are inlined (`inlineStylesheets: 'always'`), and Vite never inlines assets as `data:` URIs (`assetsInlineLimit: 0`), because `font-src 'self'` would block an inlined font. `compressHTML` stays off: the compressor can remove the space between a text node and a following element.
 
-Astro writes a meta CSP with a hash for every inline script and style and no `unsafe-inline`. `npm run build` ends with `webgrip-validate-csp`, which fails the build when an inline script or style below the CSP meta is not authorised by that page's policy. `public/_headers` adds the headers a meta CSP cannot carry, `frame-ancestors 'none'` among them. `lighthouserc.json` lists every indexable page, and `scripts/axe-scan.ts` scans those pages plus both 404 pages with axe.
+Astro writes a meta CSP with a hash for every inline script and style and no `unsafe-inline`. `pnpm build` ends with `webgrip-validate-csp`, which fails the build when an inline script or style below the CSP meta is not authorised by that page's policy. `public/_headers` adds the headers a meta CSP cannot carry, `frame-ancestors 'none'` among them. `lighthouserc.json` lists every indexable page, and `scripts/axe-scan.ts` scans those pages plus both 404 pages with axe.
 
-Nothing on the site loads a third-party resource: fonts are self-hosted, and there is no analytics, telemetry, form or embed.
+Deployment, releases and indexing are in [deploy](deploy.md). Nothing on the site loads a third-party resource: fonts are self-hosted, and there is no analytics, telemetry, form or embed.
