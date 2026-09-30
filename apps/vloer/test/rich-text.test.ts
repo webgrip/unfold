@@ -130,7 +130,10 @@ test('Ploeg Work Items carry descriptionMarkdown beside the untouched descriptio
   assertInertMarkup(render(detail.item.descriptionMarkdown), 'ploeg detail');
   const lane = await ploeg.items(admin, 'delivery', 'needs_human');
   assert.equal(lane.items.find(entry => entry.id === '101')?.descriptionMarkdown, detail.item.descriptionMarkdown);
-  for (const entry of lane.items.filter(entry => entry.id !== '101')) assert.equal(entry.descriptionMarkdown, entry.description, 'non-HTML descriptions are copied as they are');
+  for (const entry of lane.items.filter(entry => entry.id !== '101')) {
+    if (entry.provider === 'vikunja') assert.doesNotMatch(entry.descriptionMarkdown, /<\/?p>/, `${entry.id}: Vikunja HTML is converted`);
+    else assert.equal(entry.descriptionMarkdown, entry.description, `${entry.id}: non-HTML descriptions are copied as they are`);
+  }
   const overview = await ploeg.overview(admin, 'delivery');
   assert(overview.lanes!.all.items.every(entry => typeof entry.descriptionMarkdown === 'string'));
   assert((await ploeg.proposed(admin)).items.every(entry => entry.descriptionMarkdown === entry.description));

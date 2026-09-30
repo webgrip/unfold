@@ -77,8 +77,8 @@ test('live operator projection reads all lanes, complete evidence and honest unk
   assert.equal(detail.demo, false);
   assert.equal(detail.runs[0].costStatus, 'unknown');
   assert.equal(detail.runs[0].usage, null);
-  assert.equal(detail.checkpoints.length, 1);
-  assert.equal(detail.events.length, 1);
+  assert.equal(detail.checkpoints.length, 3);
+  assert.equal(detail.events.length, 12);
   assert.equal(detail.shifts.length, 1);
   assert(upstreamApi.seen.every(call => call.authorized && call.method === 'GET'));
 });
@@ -291,10 +291,10 @@ test('summary, Runs and events are scoped to the caller’s teams, and events ga
 test('proposed work lists every team’s proposals with the Work Item whose Run proposed them', async t => {
   const upstreamApi = await upstream(t);
   for (const id of ['106', '107']) { const entry = upstreamApi.details[id].item as Partial<PloegDetail['item']>; delete entry.sourceWorkItemId; delete entry.createdKind; delete entry.ready; }
-  upstreamApi.intercept((req, res) => req.url!.endsWith('/runs/25') ? reply(res, 200, { run: { id: '25', workItemId: '105' } }) : false);
+  upstreamApi.intercept((req, res) => req.url!.endsWith('/runs/53') ? reply(res, 200, { run: { id: '53', workItemId: '105' } }) : false);
   const page = await client(upstreamApi.config).proposed(admin);
-  assert.deepEqual(page.items.map(entry => entry.id), ['107', '106']);
-  const [research, delivery] = page.items;
+  assert.deepEqual(page.items.map(entry => entry.id), ['106', '107'], 'newest proposal first');
+  const [delivery, research] = page.items;
   assert.equal(delivery.sourceWorkItemId, '105');
   assert.equal(delivery.sourceTitle, 'Round half-cent totals consistently');
   assert.equal(research.sourceWorkItemId, undefined, 'a Run lookup that fails leaves the source unreported');
@@ -379,16 +379,28 @@ test('the demo serves illustrative activity with zero spend, pages events and ke
   const summary = await request(demo.url, '/api/ploeg/summary?window=7d');
   assert.equal(summary.body.demo, true);
   assert.deepEqual(summary.body.totals.spend, { settledUsd: 0, reservedUsd: 0 });
-  const runs = await request(demo.url, '/api/ploeg/runs');
-  assert(runs.body.runs.every((run: { settledUsd: number | null; usage: unknown }) => (run.settledUsd === 0 || run.settledUsd === null) && run.usage === null));
-  assert.deepEqual([...new Set(runs.body.runs.map((run: { outcome: string }) => run.outcome))].sort(), ['', 'failed', 'no_change_needed', 'pr_opened', 'stuck']);
-  const first = await request(demo.url, '/api/ploeg/events');
-  assert.equal(first.body.events.length, 10);
-  const second = await request(demo.url, `/api/ploeg/events?before=${first.body.nextCursor}`);
-  assert.equal(second.body.nextCursor, null);
-  assert.equal(new Set([...first.body.events, ...second.body.events].map((entry: { id: string }) => entry.id)).size, 15);
+  const pages = async <T>(path: string, key: 'runs' | 'events', cursor: 'nextBefore' | 'nextCursor'): Promise<T[][]> => {
+    const all: T[][] = [];
+    for (let next: string | null = ''; next !== null;) {
+      const page = await request(demo.url, `${path}${next ? `?before=${next}` : ''}`);
+      assert.equal(page.status, 200, page.text);
+      all.push(page.body[key]);
+      next = page.body[cursor];
+    }
+    return all;
+  };
+  const runPages = await pages<{ id: string; settledUsd: number | null; observedUsd: number | null; usage: unknown; outcome: string }>('/api/ploeg/runs', 'runs', 'nextBefore');
+  const runs = runPages.flat();
+  assert.equal(runPages[0].length, ploegDemo.pageSize);
+  assert.equal(runs.length, ploegDemo.runs.length);
+  assert(runs.every(run => (run.settledUsd === 0 || run.settledUsd === null) && run.observedUsd === null && run.usage === null), 'the demo settles nothing and observes nothing');
+  assert.deepEqual([...new Set(runs.map(run => run.outcome))].sort(), ['', 'failed', 'no_change_needed', 'pr_opened', 'pr_updated', 'stuck']);
+  const eventPages = await pages<{ id: string }>('/api/ploeg/events', 'events', 'nextCursor');
+  assert.equal(eventPages[0].length, ploegDemo.pageSize);
+  assert(eventPages.length > 2, 'the feed pages more than once');
+  assert.equal(new Set(eventPages.flat().map(entry => entry.id)).size, ploegDemo.events.length, 'paging repeats and drops nothing');
   assert.equal((await request(demo.url, '/api/ploeg/events?team=research')).body.events.every((entry: { team: string }) => entry.team === 'research'), true);
-  assert.deepEqual((await request(demo.url, '/api/ploeg/proposed')).body.items.map((entry: { id: string }) => entry.id), ['107', '106']);
+  assert.deepEqual((await request(demo.url, '/api/ploeg/proposed')).body.items.map((entry: { id: string }) => entry.id), ['106', '107']);
   const approved = await request(demo.url, '/api/ploeg/work-items/106/approve', { method: 'POST' });
   assert.deepEqual(approved.body, { workItemId: '106', team: 'delivery', state: 'queued', demo: true });
   assert.deepEqual((await request(demo.url, '/api/ploeg/proposed')).body.items.map((entry: { id: string }) => entry.id), ['107']);
@@ -398,6 +410,61 @@ test('the demo serves illustrative activity with zero spend, pages events and ke
   assert.match(cancelled.body.message, /Illustrative demo record\. Nothing was cancelled/);
   assert.equal((await request(demo.url, '/api/ploeg/work-items/105')).body.item.state, 'awaiting_review', 'a demo cancel changes nothing');
   assert.equal(demo.app.store.listSessions().length, 0);
+});
+
+test('the demo exercises every needs-you reason with Ploeg’s own sentences and the Runs behind them', async t => {
+  const demo = await application(); t.after(() => demo.close());
+  const parked = ploegDemo.items.filter(item => item.state === 'needs_human');
+  assert.deepEqual(parked.map(item => item.latestShift?.closeReason).sort(), ['budget exhausted: pool 3.00, spent 2.96, reserved 0.10', 'fix_round_cap_reached', 'plan_exhausted', 'run stuck: builder round 2', 'run stuck: reviewer round 2', 'writing_run_killed_repeatedly']);
+  assert.deepEqual([...new Set(parked.map(item => item.team))], ['delivery', 'research']);
+  for (const item of parked) {
+    const detail = await request(demo.url, `/api/ploeg/work-items/${item.id}`);
+    assert.equal(detail.status, 200, detail.text);
+    const reason = detail.body.events.find((entry: { action: string }) => entry.action === 'work_item.needs_human')?.detail.reason;
+    assert.match(reason ?? '', /^(shift stopped: |the |plan complete; )/, `${item.id} carries Ploeg’s needs-human sentence`);
+    const closeReason = item.latestShift!.closeReason;
+    const stuck = /^run stuck: (\w+) round (\d+)$/.exec(closeReason);
+    if (stuck) assert(detail.body.runs.some((run: { role: string; round: number; outcome: string; stuckReason: string }) => run.role === stuck[1] && run.round === Number(stuck[2]) && run.outcome === 'stuck' && run.stuckReason), `${item.id} has the stuck Run the close reason names`);
+    if (closeReason === 'writing_run_killed_repeatedly') {
+      const writers = detail.body.runs.filter((run: { writes: boolean; failureReason: string | null }) => run.writes && ['infra_node', 'lease_lost'].includes(run.failureReason ?? ''));
+      assert.equal(writers.length, 10, 'ten infrastructure kills');
+      assert.match(reason, /killed 10 times in round 1/);
+    }
+    if (closeReason === 'fix_round_cap_reached') assert.deepEqual(detail.body.runs.map((run: { round: number; verdict: string }) => [run.round, run.verdict]).reverse(), [[1, ''], [2, 'request_changes'], [3, ''], [4, 'request_changes']]);
+    assert.equal(detail.body.events[0].action, 'work_item.needs_human', `${item.id}: the newest event is the park`);
+  }
+  const unrouted = parked.find(item => item.target === null)!;
+  assert.equal(unrouted.provider, 'vikunja');
+  for (const markup of ['<p>', '<ul><li>', '<strong>', '<a href="https://']) assert(unrouted.description.includes(markup), `the unrouted brief is Vikunja HTML with ${markup}`);
+  const brief = await request(demo.url, `/api/ploeg/work-items/${unrouted.id}`);
+  assert.match(brief.body.item.descriptionMarkdown, /^Customers ask for the VAT amount[\s\S]*\*\*Acceptance criteria\*\*[\s\S]*- Each order line[\s\S]*\[VAT per line proposal\]\(https:\/\/docs\.example\.invalid\/vat-per-line\)/);
+  assert.deepEqual(['stale', 'done', 'withdrawn'].map(state => ploegDemo.items.some(item => item.state === state)), [true, true, true]);
+  const approved = ploegDemo.items.find(item => item.state === 'done' && item.latestShift?.closeReason === 'review_approved')!;
+  assert.deepEqual(ploegDemo.details[approved.id].runs.map(run => [run.round, run.verdict]).reverse(), [[1, ''], [2, 'request_changes'], [3, ''], [4, 'approve']], 'a Round ladder with both verdicts');
+  assert.equal(ploegDemo.details[approved.id].events[0].action, 'work_item.done');
+  assert(ploegDemo.details[approved.id].events.some(entry => entry.action === 'work_item.awaiting_review'));
+  const rejected = ploegDemo.items.find(item => item.state === 'done' && item.provider === 'ploeg')!;
+  assert.equal(ploegDemo.details[rejected.id].events[0].action, 'work_item.rejected', 'done also covers a rejected proposal');
+});
+
+test('demo records stay illustrative: no spend, no model calls, and every record passes the live parser', async t => {
+  for (const detail of Object.values(ploegDemo.details)) {
+    assert(detail.shifts.every(shift => shift.spentUsd === 0 && shift.reservedUsd === 0), detail.item.id);
+    assert(detail.runs.every(run => run.usage === null && run.costStatus === 'unknown' && run.authorizedUsd === 0 && run.keyAlias === null), detail.item.id);
+    assert(detail.events.every(entry => !entry.action.startsWith('llm.')), 'the demo mints no model keys');
+    const feed = ploegDemo.events.filter(entry => entry.workItemId === detail.item.id).map(({ workItemTitle: _title, ...entry }) => entry);
+    assert.deepEqual(detail.events, feed, `${detail.item.id}: the detail timeline is its slice of the feed`);
+  }
+  assert(ploegDemo.items.every(item => /illustrative|sample data/i.test(item.description)), 'every description says it is illustrative');
+  const ids = ploegDemo.events.map(entry => BigInt(entry.id));
+  assert(ids.every((id, index) => index === 0 || id < ids[index - 1]), 'the feed is newest first by id');
+  assert(ploegDemo.events.every((entry, index) => index === 0 || entry.at <= ploegDemo.events[index - 1].at), 'ids follow time');
+  const newest = Date.parse(ploegDemo.events[0].at);
+  assert(newest <= Date.now() && Date.now() - newest < 30 * 60_000, 'the newest event happened minutes ago, not on a fixed date');
+  const upstreamApi = await upstream(t);
+  const ploeg = client(upstreamApi.config);
+  for (const id of Object.keys(ploegDemo.details)) assert.equal((await ploeg.detail(admin, id)).item.id, id);
+  for (const team of ploegDemo.teams) assert.equal((await ploeg.items(admin, team.id)).items.length, ploegDemo.items.filter(item => item.team === team.id).length);
 });
 
 test('the Now projection lists waiting work, running Runs and recent Runs across the caller’s teams', async (t) => {
@@ -413,7 +480,7 @@ test('the Now projection lists waiting work, running Runs and recent Runs across
   const now = await client(upstreamApi.config).now(admin);
   assert.equal(now.demo, false);
   assert.deepEqual(now.teams, ['delivery', 'research']);
-  assert.deepEqual(now.waiting.map(entry => entry.id), ['105', '101', '106', '107'], 'awaiting review sorts before needs human, proposed before queued work');
+  assert.deepEqual(now.waiting.map(entry => entry.id), ['105', '111', '101', '112', '109', '108', '110', '107', '106'], 'awaiting review, then needs human, then proposed, each oldest first');
   assert.equal(now.waiting[0].team, 'delivery');
   assert.equal(now.waiting[0].spentUsd, 0, 'the latest Shift spend travels with the row');
   assert.equal(now.waiting[0].pullRequestUrl, 'https://forge.example.invalid/example/order-service/pulls/5');
@@ -472,7 +539,7 @@ test('a Ploeg group that fails reports an error and never masquerades as an empt
   assert.match(now.errors.running ?? '', /Ploeg could not provide/);
   assert.match(now.errors.recent ?? '', /Ploeg could not provide/);
   assert.equal(now.errors.waiting, undefined, 'a healthy group carries no error');
-  assert.deepEqual(now.waiting.map(entry => entry.id), ['105', '101', '106', '107'], 'the healthy groups still return their work');
+  assert.deepEqual(now.waiting.map(entry => entry.id), ['105', '111', '101', '112', '109', '108', '110', '107', '106'], 'the healthy groups still return their work');
 });
 
 test('the Now page is scoped to the caller’s teams and refuses a user without team access', async (t) => {
@@ -489,7 +556,7 @@ test('the Now page is scoped to the caller’s teams and refuses a user without 
   const view = await request(server.url, '/api/ploeg/now', reader);
   assert.equal(view.status, 200, JSON.stringify(view.body));
   assert.deepEqual(view.body.teams, ['delivery']);
-  assert.deepEqual(view.body.waiting.map((entry: { id: string }) => entry.id), ['105', '101', '106']);
+  assert.deepEqual(view.body.waiting.map((entry: { id: string }) => entry.id), ['105', '101', '112', '109', '108', '106']);
   assert(view.body.waiting.every((entry: { team: string }) => entry.team === 'delivery'));
 });
 
@@ -500,7 +567,9 @@ test('the demo Now projection names its limitation and never invents model calls
   assert.equal(now.status, 200);
   assert.equal(now.body.demo, true);
   assert.deepEqual(now.body.teams, ['delivery', 'research']);
-  assert.deepEqual(now.body.waiting.map((entry: { id: string }) => entry.id), ['105', '101', '106', '107']);
+  assert.deepEqual(now.body.waiting.map((entry: { id: string }) => entry.id), ['105', '111', '101', '112', '109', '108', '110', '107', '106']);
+  assert.deepEqual([...new Set(now.body.waiting.map((entry: { team: string }) => entry.team))], ['delivery', 'research'], 'waiting work spans both teams');
+  assert(now.body.waiting.every((entry: { latestShift: { spentUsd: number; reservedUsd: number } | null }) => !entry.latestShift || (entry.latestShift.spentUsd === 0 && entry.latestShift.reservedUsd === 0)));
   assert(now.body.running.every((run: { observedUsd: number | null; reservedModels: string[]; usage: unknown }) => run.observedUsd === null && run.reservedModels.length === 0 && run.usage === null));
   assert(now.body.recent.every((run: { settledUsd: number | null }) => run.settledUsd === 0));
   assert.deepEqual(now.body.errors, {});
