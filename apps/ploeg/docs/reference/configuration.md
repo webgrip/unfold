@@ -69,7 +69,7 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_HARNESS` | ploeg-worker | `openhands` | Harness adapter: `openhands`, `exec`, `claude-code` or `acp` (chart `executor.harness.name`). | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_HARNESS_ARGS` | ploeg-worker |  | `exec` harness only: JSON argv template with `{taskspec}` and `{taskfile}` (chart `executor.harness.args`). | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_HARNESS_ENTRYPOINT` | ploeg-worker |  | Harness binary override (chart `executor.harness.entrypoint`). Empty means the adapter default. | [main.go](../../cmd/ploeg-worker/main.go) |
-| `PLOEG_HARNESS_IDLE_TIMEOUT` | ploeg-worker | `15m` | Stops a harness that is silent for this long, with failure reason `timeout`. | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_HARNESS_IDLE_TIMEOUT` | ploeg-worker | `15m` | Stops a harness that prints nothing and makes no model call for this long, with failure reason `idle`. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_HARNESS_TIMEOUT` | ploeg-worker | `100m` | Stops a harness that runs longer than this, with failure reason `timeout`. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_LEASE_TTL` | ploegd | `60s` |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_LISTEN` | ploegd | `:8080` |  | [main.go](../../cmd/ploegd/main.go) |
@@ -177,7 +177,7 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `executor.harness.args` |  | `[]` | exec harness only: argv template with {taskspec}/{taskfile} | values.yaml |
 | `executor.harness.dind` |  | `true` | privileged DinD sidecar + DOCKER_* wiring (OpenHands + gates need it) | values.yaml |
 | `executor.harness.entrypoint` |  | `""` | binary override (PLOEG_HARNESS_ENTRYPOINT); "" = adapter default | values.yaml |
-| `executor.harness.idleTimeout` |  | `15m` | Stops a harness that is silent for this long (`PLOEG_HARNESS_IDLE_TIMEOUT`). | values.yaml |
+| `executor.harness.idleTimeout` |  | `15m` | Stops a harness that prints nothing and makes no model call for this long (`PLOEG_HARNESS_IDLE_TIMEOUT`). | values.yaml |
 | `executor.harness.image` |  | `""` | agent image; "" = runnerImage below | values.yaml |
 | `executor.harness.name` |  | `openhands` | openhands \| exec \| claude-code \| acp (PLOEG_HARNESS) | values.yaml |
 | `executor.harness.outcomeFile` |  | `""` | exec harness only: OutcomeReport JSON path override | values.yaml |

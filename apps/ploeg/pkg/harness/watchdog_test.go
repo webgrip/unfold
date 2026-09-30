@@ -32,6 +32,27 @@ func TestRunCommand_IdleWatchdogSparesAHarnessThatKeepsTalking(t *testing.T) {
 	}
 }
 
+func TestRunCommand_IdleWatchdogSparesASilentHarnessWhoseActivityIsTouched(t *testing.T) {
+	env := testEnv(t)
+	env.IdleTimeout = 300 * time.Millisecond
+	env.Activity = NewActivity()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(50 * time.Millisecond):
+				env.Activity.Touch()
+			}
+		}
+	}()
+	if _, err := RunCommand(scriptAdapter{argv: []string{"/bin/sh", "-c", "sleep 1"}}).Run(context.Background(), TaskSpec{}, env); err != nil {
+		t.Fatalf("a harness with model traffic but no output was stopped: %v", err)
+	}
+}
+
 func TestRunCommand_CancelKillsTheWholeProcessGroup(t *testing.T) {
 	bin := writeScript(t, "sleep 60 & sleep 60")
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)

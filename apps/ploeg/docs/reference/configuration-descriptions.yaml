@@ -67,7 +67,7 @@ env:
   PLOEG_HARNESS_ARGS: "`exec` harness only: JSON argv template with `{taskspec}` and `{taskfile}` (chart `executor.harness.args`)."
   PLOEG_OUTCOME_FILE: "`exec` harness only: OutcomeReport JSON path override (chart `executor.harness.outcomeFile`)."
   PLOEG_HARNESS_TIMEOUT: Stops a harness that runs longer than this, with failure reason `timeout`.
-  PLOEG_HARNESS_IDLE_TIMEOUT: Stops a harness that is silent for this long, with failure reason `timeout`.
+  PLOEG_HARNESS_IDLE_TIMEOUT: Stops a harness that prints nothing and makes no model call for this long, with failure reason `idle`.
   PLOEG_TOOLCHAINS: "JSON array of mounted toolchains, each `{name, path, env}`: `path` directories go in front of the harness's `PATH` and `env` is added. The worker refuses to claim when a directory is missing (chart `executor.harness.toolchains`)."
   PLOEG_VERIFY_COMMANDS: "JSON array of shell command lines. The harness gets them as the script `$PLOEG_VERIFY_SCRIPT`; after a writing Run opens or updates a pull request the worker runs them itself and posts the result (chart `executor.harness.verify`)."
   PLOEG_VERIFY_TIMEOUT: "Bounds the worker's own run of `PLOEG_VERIFY_COMMANDS`. Empty means 15m (chart `executor.harness.verifyTimeout`)."
@@ -93,7 +93,7 @@ helm:
   operator.deliveryPolicies: Trusted delivery policies, forwarded as `PLOEG_OPERATOR_DELIVERY_POLICIES`.
   tracker.tokenSecret: Vikunja API token Secret. Unset keeps write-backs a logged no-op; ingest needs no token.
   executor.harness.timeout: Stops a harness that runs longer than this (`PLOEG_HARNESS_TIMEOUT`).
-  executor.harness.idleTimeout: Stops a harness that is silent for this long (`PLOEG_HARNESS_IDLE_TIMEOUT`).
+  executor.harness.idleTimeout: Stops a harness that prints nothing and makes no model call for this long (`PLOEG_HARNESS_IDLE_TIMEOUT`).
   executor.harness.toolchains: Toolchain images mounted read-only at `/opt/ploeg/toolchains/<name>` as image volumes (Kubernetes 1.35 or later) and put on the harness's `PATH` (`PLOEG_TOOLCHAINS`).
   executor.harness.verify: Checks a Run is told to run and the worker runs after a writing Run (`PLOEG_VERIFY_COMMANDS`). Write a formatter check so output fails it, for example `test -z "$(gofmt -l .)"`.
   executor.harness.verifyTimeout: Bounds the worker's own verification run (`PLOEG_VERIFY_TIMEOUT`).
