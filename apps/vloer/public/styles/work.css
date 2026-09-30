@@ -18,7 +18,7 @@
 }
 
 .work-team select {
-  min-width: 9.5rem;
+  min-width: 8.5rem;
   font-weight: var(--weight-medium);
 }
 
@@ -249,8 +249,10 @@
   min-height: var(--control-sm);
 }
 
-.work-back {
-  margin-inline-start: calc(var(--space-2) * -1);
+.work-back,
+.work-brief-toggle,
+.work-actions-tools:first-child > .button:first-child {
+  margin-inline-start: calc(-1px - var(--button-px));
 }
 
 .work-close {
@@ -599,7 +601,6 @@
 
 .work-brief-toggle {
   margin-top: var(--space-2);
-  margin-inline-start: calc(var(--space-2) * -1);
 }
 
 .work-rounds-body {
@@ -1013,6 +1014,10 @@
 
   .work-actions-tools {
     margin-inline-start: 0;
+  }
+
+  .work-actions-tools > .button:first-child {
+    margin-inline-start: calc(-1px - var(--button-px));
   }
 
   .work-sticky-actions {

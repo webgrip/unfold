@@ -366,7 +366,8 @@ function headerMarkup(detail, model, reason) {
   if (amount(item.attempts) && item.attempts > 0) facts.push(`<span class="work-fact">${escape(plural(item.attempts, 'attempt'))}</span>`);
   if (shift) facts.push(`<span class="work-fact">Round ${escape(shift.round)}</span>`);
   if (item.updatedAt) facts.push(`<span class="work-fact">Updated ${ui.timeAgo(item.updatedAt)}</span>`);
-  const back = `<a class="button ghost sm work-back" href="${escape(model.listHref)}">${icon('chevron-left')}<span class="button-label">${escape(ploegLanes.find(lane => lane.id === model.lane)?.label || 'Work')}</span></a>`;
+  const backLabel = model.lane === 'all' ? 'All Work Items' : ploegLanes.find(lane => lane.id === model.lane)?.label || 'Work';
+  const back = `<a class="button ghost sm work-back" href="${escape(model.listHref)}">${icon('chevron-left')}<span class="button-label">${escape(backLabel)}</span></a>`;
   const close = `<button type="button" class="button ghost icon-only sm work-close" data-action="ploeg-close" aria-label="Close work item details" title="Close">${icon('x')}</button>`;
   return `<header class="work-detail-header"><div class="work-detail-nav">${back}<p class="meta work-detail-ref">${escape(item.team)} · ${escape(workItemRef(item))}</p>${close}</div><h2 class="work-detail-title" id="ploeg-item-title" tabindex="-1">${escape(item.title || `Work Item ${item.id}`)}</h2><div class="work-detail-status">${ui.stateBadge(meta, reason ? { reason: reason.chip, reasonTone: reason.tone } : {})}${warning ? ui.chip({ label: warning.chip, tone: warning.tone, icon: warning.glyph, title: warning.sentence }) : ''}</div>${facts.length ? `<p class="work-detail-facts">${facts.join('')}</p>` : ''}${actionButtons(detail, model)}</header>`;
 }
@@ -564,7 +565,7 @@ function roundsMarkup(detail, model) {
   }
   const [current, ...earlier] = shifts;
   const currentRuns = detail.runs.filter(run => run.shiftId === current.id);
-  const ladder = ladderMarkup(currentRuns, { demo, now: model.now, label: `Rounds of Shift ${current.id}` }) || `<p class="subtle">${escape('No Run has started in this Shift yet.')}</p>`;
+  const ladder = ladderMarkup(currentRuns, { demo, now: model.now, label: `Rounds of Shift ${current.id}` }) || `<p class="subtle">${escape(current.closedAt ? 'No Run ran in this Shift.' : 'No Run has started in this Shift yet.')}</p>`;
   const older = earlier.length ? `<div class="work-shifts"><h4 class="overline">Earlier Shifts</h4><ul class="work-shift-list">${earlier.map(shift => `<li class="work-shift"><p class="work-shift-line">${shiftLine(shift)}</p>${shiftMeter(shift, demo, '')}${ui.disclosure({ summary: 'Show its Rounds', plain: true, id: `work-shift-${shift.id}`, body: ladderMarkup(detail.runs.filter(run => run.shiftId === shift.id), { demo, now: model.now, label: `Rounds of Shift ${shift.id}` }) || '<p class="subtle">No Runs.</p>' })}</li>`).join('')}</ul></div>` : '';
   const truncated = detail.truncated?.shifts ? `<p class="meta">${escape('Ploeg capped the Shift history. Earlier Shifts may be missing.')}</p>` : '';
   return `<section class="card" id="work-rounds" aria-labelledby="work-rounds-title"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="work-rounds-title">Rounds</h3><p class="card-subtitle">${shiftLine(current)}</p></div></header><div class="card-body work-rounds-body">${ladder}<div class="work-shift-budget">${shiftMeter(current, demo)}</div>${older}${truncated}</div></section>`;
