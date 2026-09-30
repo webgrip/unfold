@@ -1,0 +1,34 @@
+.prose li.md-task {
+  position: relative;
+  list-style: none;
+}
+
+.prose .md-check {
+  position: absolute;
+  inset-inline-start: calc(var(--space-5) * -1);
+  top: 0.3125rem;
+  display: inline-grid;
+  place-content: center;
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 1px solid var(--border-control-strong);
+  border-radius: var(--radius-xs);
+  background: var(--bg-surface);
+}
+
+.prose .md-check.done {
+  border-color: var(--neutral-solid);
+  background: var(--neutral-solid);
+}
+
+.prose .md-check.done::before {
+  content: "";
+  width: 0.5625rem;
+  height: 0.5625rem;
+  background: var(--text-on-solid);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+
+.prose del {
+  color: var(--text-muted);
+}
