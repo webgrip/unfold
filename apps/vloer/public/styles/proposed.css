@@ -163,6 +163,11 @@
   grid-template-columns: minmax(7rem, 1fr) minmax(0, 2.5fr);
 }
 
+.proposal-routing {
+  display: block;
+  margin-top: var(--space-1);
+}
+
 .proposal-dialog .callout-body > p {
   margin: 0;
 }

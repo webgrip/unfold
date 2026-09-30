@@ -377,7 +377,7 @@ test('the approve confirmation names the money at stake and the reject form says
   assert.match(approve, /Approve this proposal\?/);
   assert.match(approve, /Clarify &#60;markets&#62;/);
   assert.match(approve, /Money at stake<\/dt><dd>Its Runs spend from the research Team’s budget\. Ploeg does not report that budget to Vloer yet, so Vloer cannot show the amount\./);
-  assert.match(approve, /Not routed/);
+  assert.match(approve, /Not routed<\/span><\/span><span class="meta proposal-routing">No routing rule matched a repository/);
   assert.match(approve, /Needs refinement/);
   assert.match(approve, /value="cancel" autofocus>Keep it proposed<\/button><button type="submit" class="button primary" value="confirm">/);
   assert.doesNotMatch(approve, /Demo:/);

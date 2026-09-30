@@ -561,11 +561,11 @@ function briefMarkup(text) {
   return `<div class="prose proposal-brief">${markdown(paragraphs[0])}</div>${ui.disclosure({ summary: 'Read the full brief', body: `<div class="prose">${markdown(paragraphs.slice(1).join('\n\n'))}</div>`, plain: true })}`;
 }
 
-function repositoryMarkup(item, escape) {
+function repositoryMarkup(item, escape, { explain = false } = {}) {
   const target = item.target;
   if (target && target.owner && target.repo) return ui.chip({ label: `${target.owner}/${target.repo}`, icon: 'branch', title: target.baseBranch ? `Base branch ${target.baseBranch}` : undefined });
   const warning = routingWarning({ ...item, target: target ?? null });
-  if (warning) return ui.chip({ label: warning.chip, tone: warning.tone, icon: warning.glyph, title: warning.sentence });
+  if (warning) return `${ui.chip({ label: warning.chip, tone: warning.tone, icon: warning.glyph, title: warning.sentence })}${explain ? `<span class="meta proposal-routing">${escape(warning.sentence)}</span>` : ''}`;
   return `<span class="subtle">${escape('Not reported')}</span>`;
 }
 
@@ -618,7 +618,7 @@ function dialogHeader(title, { icon }) {
 /** The approval confirmation: what approving queues, whose budget it spends and where it runs. Confirming closes with `confirm`. */
 export function approveDialogMarkup(entry, demo, helpers) {
   const { escape, icon } = helpers;
-  const facts = ui.dl([['Queued for', `The ${escape(entry.team)} Team`], ['Money at stake', `Its Runs spend from the ${escape(entry.team)} Team’s budget. Ploeg does not report that budget to Vloer yet, so Vloer cannot show the amount.`], ['Repository', repositoryMarkup(entry, escape)], ...(entry.ready === false ? [['Readiness', 'Needs refinement. It may wait in the queue until someone refines it.']] : [])], { rows: true });
+  const facts = ui.dl([['Queued for', `The ${escape(entry.team)} Team`], ['Money at stake', `Its Runs spend from the ${escape(entry.team)} Team’s budget. Ploeg does not report that budget to Vloer yet, so Vloer cannot show the amount.`], ['Repository', repositoryMarkup(entry, escape, { explain: true })], ...(entry.ready === false ? [['Readiness', 'Needs refinement. It may wait in the queue until someone refines it.']] : [])], { rows: true });
   const demoLine = demo ? ui.callout({ tone: 'neutral', icon: 'info', body: '<p>Demo: approving changes only this demo’s sample data. Nothing is dispatched and nothing is spent.</p>' }) : '';
   return `<form method="dialog" class="proposal-dialog">${dialogHeader('Approve this proposal?', helpers)}<div class="dialog-body"><p class="proposal-dialog-title">${escape(entry.title || `Work Item ${entry.id}`)}</p><p>Ploeg queues it for its Team. A worker picks it up and its Runs start spending.</p>${facts}${demoLine}</div><footer class="dialog-footer"><button type="submit" class="button secondary" value="cancel" autofocus>Keep it proposed</button><button type="submit" class="button primary" value="confirm">${icon('check')}<span class="button-label">Approve and queue</span></button></footer></form>`;
 }
