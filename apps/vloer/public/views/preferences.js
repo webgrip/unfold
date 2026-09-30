@@ -28,16 +28,16 @@ function example(locale) {
 }
 
 function section(id, title, description, body) {
-  return `<section class="panel pref-section" aria-labelledby="pref-${id}-title"><div class="panel-heading"><div><h2 id="pref-${id}-title">${escape(title)}</h2><p>${escape(description)}</p></div></div><div class="pref-body">${body}</div></section>`;
+  return `<section class="pref-section" aria-labelledby="pref-${id}-title"><div class="pref-heading"><h2 id="pref-${id}-title">${escape(title)}</h2><p>${escape(description)}</p></div><div class="pref-body">${body}</div></section>`;
 }
 
 function renderPreferences() {
   const content = [
     section('appearance', 'Appearance', 'Stored in this browser only.', `<fieldset class="pref-group"><legend>Theme</legend>${choice('theme', 'system', 'System', 'Follow the operating system')}${choice('theme', 'light', 'Light')}${choice('theme', 'dark', 'Dark')}</fieldset><fieldset class="pref-group"><legend>Density</legend>${choice('density', 'comfortable', 'Comfortable', 'Roomier rows')}${choice('density', 'compact', 'Compact', 'More rows on screen')}</fieldset>`),
-    section('keyboard', 'Keyboard', 'Shortcuts help you move without the mouse.', `${toggle('singleKeyShortcuts', 'Single-key shortcuts', `Keys such as j, k, g then n, / and ?. Turn them off if you use speech input; ${keyLabel('Mod')} K keeps working.`)}<button class="button secondary" type="button" data-action="shortcuts-open">Show all shortcuts</button>`),
+    section('keyboard', 'Keyboard', 'Shortcuts help you move without the mouse.', `${toggle('singleKeyShortcuts', 'Single-key shortcuts', `Keys such as j, k, g then n, / and ?. Turn them off if you use speech input; ${keyLabel('Mod')} K keeps working.`)}<button class="pref-button" type="button" data-action="shortcuts-open">Show all shortcuts</button>`),
     section('live', 'Live updates', 'Open pages refresh themselves while this tab is visible and no dialog is open.', toggle('live', 'Refresh automatically', 'Activity every 15 seconds; the counts in the navigation every minute. Refresh by hand when this is off.')),
     section('format', 'Numbers and dates', 'Amounts stay in US dollars; this only changes how they are written.', `<fieldset class="pref-group"><legend>Format</legend>${choice('format', 'nl', 'Dutch', example('nl'))}${choice('format', 'browser', 'Your browser’s language', example('browser'))}</fieldset>`),
-    section('design', 'Style guide', 'The living style guide shows every component in both themes.', '<a class="button secondary" href="#design">Open the style guide</a>'),
+    section('design', 'Style guide', 'The living style guide shows every component in both themes.', '<a class="pref-button" href="#design">Open the style guide</a>'),
   ].join('');
   renderHtml(shell(`<div class="pref-sections">${content}</div>`, { title: 'Preferences', subtitle: 'How De Vloer looks and behaves in this browser.' }));
 }

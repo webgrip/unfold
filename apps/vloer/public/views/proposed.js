@@ -3,6 +3,7 @@ import { state } from '../core/state.js';
 import { api } from '../core/api.js';
 import { $, renderHtml, notify } from '../core/dom.js';
 import { live } from '../core/live.js';
+import { refreshCounts } from '../core/counts.js';
 import { shell } from '../shell.js';
 import { confirmAction, openWorkItemRejectDialog } from './dialogs.js';
 import { enterPloegView, loadPloegTeams, onPloegReload, ploegFailure, ploegHelpers, ploegVisible } from './ploeg-common.js';
@@ -28,7 +29,7 @@ async function decidePloeg(id, decision, reason = '') {
     const result = await api(`/api/ploeg/work-items/${encodeURIComponent(id)}/${decision}`, { method: 'POST', body: JSON.stringify(reason ? { reason } : {}) });
     notify(result.demo ? 'Recorded in this demo only. Nothing was dispatched.' : decision === 'approve' ? 'Approved. Ploeg queued the Work Item for its Team.' : 'Rejected. Ploeg recorded your reason.');
   } catch (error) { notify(error.message, true); }
-  finally { view.busy = false; if (ploegVisible('proposed')) await loadProposed(true); }
+  finally { view.busy = false; refreshCounts().catch(() => {}); if (ploegVisible('proposed')) await loadProposed(true); }
 }
 
 async function enterProposed() {

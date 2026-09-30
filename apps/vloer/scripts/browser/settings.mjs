@@ -1,7 +1,9 @@
+import { navigate } from './navigate.mjs';
+
 /** Settings: the Environment page, and Preferences for theme, density and single-key shortcuts, kept across a reload. */
 export async function run({ page, assert, screenshot }) {
   const root = name => page.evaluate(attribute => document.documentElement.getAttribute(attribute), name);
-  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await navigate(page, 'Settings');
   await page.getByRole('link', { name: 'Environment', exact: true }).click();
   await page.getByRole('heading', { name: 'Execution environment', exact: true }).waitFor();
   await page.getByRole('link', { name: 'Preferences', exact: true }).click();

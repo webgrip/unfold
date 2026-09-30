@@ -1,4 +1,4 @@
-/** The workbench chrome: redirects from old links, focus and title on route changes, keyboard shortcuts, the palette placeholder and the home link at phone width. */
+/** The workbench chrome: redirects from old links, focus, title and announcement on route changes, the status strip, the account menu with the theme switch, live updates, keyboard shortcuts, the palette placeholder, the skip link, and the drawer, bottom bar and home link at phone width. */
 export async function run({ page, app, assert, screenshot }) {
   const base = `http://127.0.0.1:${app.server.address().port}`;
   const hash = () => page.evaluate(() => location.hash);
@@ -14,8 +14,29 @@ export async function run({ page, app, assert, screenshot }) {
   assert.equal(await page.evaluate(() => history.length), historyLength + 1, 'a redirect replaces the old entry instead of adding one');
   await page.getByRole('heading', { level: 1, name: 'Activity', exact: true }).waitFor();
   await page.waitForFunction(() => document.activeElement?.id === 'page-title');
-  assert.equal(await page.title(), 'Activity · De Vloer');
+  assert.match(await page.title(), /^\(\d+\) Activity · De Vloer$/, 'the title leads with what waits on you');
   assert.equal(await page.locator('#announcement').textContent(), 'Activity');
+  const status = page.locator('.app-topbar').getByRole('group', { name: 'Status' });
+  await status.getByText('Ploeg: demo data', { exact: true }).waitFor();
+  await status.getByText('Demo', { exact: true }).waitFor();
+  await status.getByText(/^Updated /).waitFor();
+  const liveToggle = status.getByRole('button', { name: 'Updates: Live' });
+  await liveToggle.click();
+  await status.getByRole('button', { name: 'Updates: Paused' }).waitFor();
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('vloer.prefs')).live), false, 'pausing is remembered');
+  await status.getByRole('button', { name: 'Updates: Paused' }).click();
+  await liveToggle.waitFor();
+  const account = page.getByRole('button', { name: /^Account and theme/ });
+  await account.click();
+  assert.equal(await account.getAttribute('aria-expanded'), 'true');
+  await page.getByRole('group', { name: 'Theme' }).getByRole('button', { name: 'Dark' }).click();
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'dark');
+  assert.equal(await page.getByRole('group', { name: 'Theme' }).getByRole('button', { name: 'Dark' }).getAttribute('aria-pressed'), 'true');
+  await page.getByRole('group', { name: 'Theme' }).getByRole('button', { name: 'System' }).click();
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), undefined);
+  await page.keyboard.press('Escape');
+  assert.equal(await account.getAttribute('aria-expanded'), 'false');
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')?.startsWith('Account and theme')), true, 'Escape returns focus to the account button');
   await page.keyboard.press('?');
   const help = page.getByRole('dialog', { name: 'Keyboard shortcuts' });
   await help.getByText('Search and commands').first().waitFor();
@@ -34,7 +55,24 @@ export async function run({ page, app, assert, screenshot }) {
   await palette.waitFor();
   await palette.getByRole('button', { name: 'Close search' }).click();
   await palette.waitFor({ state: 'hidden' });
+  const before = await hash();
+  await page.locator('.skip-link').focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'main', 'the skip link moves focus to the main content');
+  assert.equal(await hash(), before, 'the skip link must not change the route');
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'Open navigation' }).first().click();
+  const drawer = page.getByRole('dialog', { name: 'Navigation' });
+  await drawer.getByRole('navigation', { name: 'Primary navigation' }).getByRole('link', { name: 'Insights', exact: true }).waitFor();
+  await drawer.getByRole('group', { name: 'Theme' }).waitFor();
+  await screenshot('navigation-drawer-390');
+  await page.keyboard.press('Escape');
+  await drawer.waitFor({ state: 'hidden' });
+  await page.getByRole('navigation', { name: 'Quick navigation' }).getByRole('button', { name: 'More' }).click();
+  await drawer.getByRole('link', { name: 'Runs', exact: true }).click();
+  await drawer.waitFor({ state: 'hidden' });
+  await page.getByRole('heading', { level: 1, name: 'Runs', exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'Mobile Runs layout overflows horizontally');
   await page.getByRole('link', { name: 'De Vloer home' }).click();
   await page.locator('.now-group').first().waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'Mobile Now layout overflows horizontally');

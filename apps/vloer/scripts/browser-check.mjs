@@ -15,7 +15,7 @@ const flows = [
   ['settings', 'the Environment page, theme, density and single-key preferences kept across a reload'],
   ['feeds', 'Ploeg overview, activity paging, Runs filters and proposed-work rejection at desktop/mobile widths'],
   ['work', 'Ploeg awaiting-review lane and review screen'],
-  ['login', 'live login/logout'],
+  ['login', 'live login/logout and an expired session that keeps its deep link'],
 ];
 
 const root = await mkdtemp(join(tmpdir(), 'vloer-browser-'));

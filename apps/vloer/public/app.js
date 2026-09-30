@@ -1,6 +1,6 @@
 import { state, disconnect } from './core/state.js';
 import { api, onUnauthorized } from './core/api.js';
-import { notify } from './core/dom.js';
+import { $, notify } from './core/dom.js';
 import { configureFormat } from './core/format.js';
 import { prefs, prefsKey, applyAppearance } from './core/prefs.js';
 import { live } from './core/live.js';
@@ -9,7 +9,9 @@ import { useNavigation, openPage } from './core/navigation.js';
 import { createRegistry, findRoute } from './core/registry.js';
 import { parseHash, redirect } from './core/route.js';
 import { views } from './views/index.js';
-import { renderLogin } from './views/login.js';
+import { renderLogin, takeReturnHash } from './views/login.js';
+import { updateChrome, updateLiveState, closeTransientChrome, handleChromeClick } from './shell.js';
+import { refreshCounts, onCountsChange } from './core/counts.js';
 import { linkFailure } from './views/account.js';
 
 const registry = createRegistry(views);
@@ -53,16 +55,25 @@ async function boot() {
   if (linkNotice) history.replaceState(null, '', `${location.pathname}#settings/accounts`);
   const editorDone = params.get('editor') === 'done';
   if (editorDone) history.replaceState(null, '', location.pathname);
-  try { state.bootstrap = await api('/api/bootstrap'); state.sessions = await api('/api/sessions'); await route(); if (linkNotice) notify(linkNotice, Boolean(params.get('link_error'))); if (editorDone) notify('Signed in for your editor. You can return to it now.'); }
+  try { state.bootstrap = await api('/api/bootstrap'); state.sessions = await api('/api/sessions'); const returnTo = takeReturnHash(); if (returnTo && (!location.hash || location.hash === '#now')) history.replaceState(null, '', `${location.pathname}${returnTo}`); await route(); if (state.view !== 'now') refreshCounts().catch(() => {}); if (linkNotice) notify(linkNotice, Boolean(params.get('link_error'))); if (editorDone) notify('Signed in for your editor. You can return to it now.'); }
   catch (error) { if (!state.bootstrap) renderLogin(error.message.includes('Sign in') ? '' : error.message); else notify(error.message, true); }
 }
 
-onUnauthorized(() => { disconnect(); state.bootstrap = null; renderLogin(); });
+onUnauthorized(() => {
+  const expired = Boolean(state.bootstrap);
+  disconnect(); state.bootstrap = null; state.sessionExpired = expired;
+  for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close();
+  renderLogin();
+});
+onCountsChange(updateChrome);
+live.subscribe(updateLiveState);
 useNavigation({ render, boot });
 applyPreferences();
 live.start();
 
 document.addEventListener('click', async event => {
+  handleChromeClick(event);
+  if (event.target.closest('.skip-link')) { event.preventDefault(); $('#main')?.focus(); return; }
   const button = event.target.closest('[data-action]');
   if (!button || button.disabled) return;
   const action = registry.actions.get(button.dataset.action);
@@ -85,6 +96,6 @@ document.addEventListener('keydown', event => { if (globalKeys(event)) return; f
 document.addEventListener('visibilitychange', () => live.wake());
 document.addEventListener('close', () => live.wake(), true);
 window.addEventListener('storage', event => { if (event.key !== prefsKey && event.key !== null) return; applyPreferences(); live.wake(); if (state.bootstrap) render(); });
-window.addEventListener('hashchange', () => { state.focusHeading = true; void route(); });
+window.addEventListener('hashchange', () => { closeTransientChrome(); state.focusHeading = true; void route(); });
 window.addEventListener('beforeunload', disconnect);
 void boot();

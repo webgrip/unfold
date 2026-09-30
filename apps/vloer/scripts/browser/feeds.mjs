@@ -1,12 +1,13 @@
+import { navigate } from './navigate.mjs';
+
 /** Ploeg feeds: Insights tiles and table, activity paging and kinds, Runs filters and proposed-work rejection, at desktop and phone widths. */
 export async function run({ page, assert, screenshot }) {
-  const ploegTab = name => page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('link', { name, exact: true });
-  await ploegTab('Insights').click();
+  await navigate(page, 'Insights');
   const noOverflow = async label => assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${label} overflows horizontally`);
   await page.getByRole('heading', { name: 'Teams', exact: true }).waitFor();
   for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(viewport);
-    await ploegTab('Insights').click();
+    await navigate(page, 'Insights');
     await page.getByRole('heading', { name: 'Teams', exact: true }).waitFor();
     await page.getByRole('button', { name: '7 days', exact: true }).click();
     await page.getByText('Settled · 7d', { exact: true }).waitFor();
@@ -18,7 +19,7 @@ export async function run({ page, assert, screenshot }) {
     assert.equal(await page.locator('main svg polyline, main canvas').count(), 0, 'The overview must not draw a line chart');
     await noOverflow(`Ploeg overview at ${viewport.width}px`);
     await screenshot(`ploeg-overview-${viewport.width}`);
-    await ploegTab('Activity').click();
+    await navigate(page, 'Activity');
     await page.locator('.ploeg-feed-item').first().waitFor();
     assert.equal(await page.locator('.ploeg-feed-item').count(), 10);
     await page.getByRole('button', { name: 'Load older', exact: true }).click();
@@ -29,7 +30,7 @@ export async function run({ page, assert, screenshot }) {
     await page.getByLabel('Event kind', { exact: true }).selectOption('');
     await noOverflow(`Ploeg activity at ${viewport.width}px`);
     await screenshot(`ploeg-activity-${viewport.width}`);
-    await ploegTab('Runs').click();
+    await navigate(page, 'Runs');
     await page.locator('.ploeg-runs-table tbody tr').first().waitFor();
     assert.equal(await page.locator('.ploeg-runs-table tbody tr').count(), 7);
     await page.getByLabel('Run state', { exact: true }).selectOption('running');
@@ -39,7 +40,7 @@ export async function run({ page, assert, screenshot }) {
     await page.waitForFunction(() => document.querySelectorAll('.ploeg-runs-table tbody tr').length === 7);
     await noOverflow(`Ploeg runs at ${viewport.width}px`);
     await screenshot(`ploeg-runs-${viewport.width}`);
-    await ploegTab('Proposed').click();
+    await navigate(page, 'Proposed');
     await page.getByRole('heading', { name: 'Proposed work', exact: true }).waitFor();
     await page.getByRole('heading', { name: 'Add a regression test for negative half-cent totals', exact: true }).waitFor();
     await noOverflow(`Ploeg proposed work at ${viewport.width}px`);
