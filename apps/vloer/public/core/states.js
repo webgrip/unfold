@@ -42,15 +42,15 @@ export const runStates = table({
   finished: ['Finished', 'neutral', 'check', { description: 'The Run reported an outcome.' }],
 });
 
-/** Run outcomes (`work.Outcome`). */
+/** Run outcomes (`work.Outcome`). `short` is the label inside a Round ladder cell or a Run row, where space is tight. */
 export const runOutcomes = table({
-  pr_opened: ['Opened a pull request', 'success', 'pull-request'],
-  pr_updated: ['Updated the pull request', 'success', 'pull-request'],
-  no_change_needed: ['No change needed', 'neutral', 'check'],
-  follow_up_created: ['Created follow-up work', 'neutral', 'plus'],
-  issue_updated: ['Updated the tracker item', 'neutral', 'tag'],
-  stuck: ['Stuck', 'attention', 'alert'],
-  failed: ['Failed', 'danger', 'x-circle'],
+  pr_opened: ['Opened a pull request', 'success', 'pull-request', { short: 'PR opened' }],
+  pr_updated: ['Updated the pull request', 'success', 'pull-request', { short: 'PR updated' }],
+  no_change_needed: ['No change needed', 'neutral', 'check', { short: 'No change' }],
+  follow_up_created: ['Created follow-up work', 'neutral', 'plus', { short: 'Follow-up created' }],
+  issue_updated: ['Updated the tracker item', 'neutral', 'tag', { short: 'Tracker updated' }],
+  stuck: ['Stuck', 'attention', 'alert', { short: 'Stuck' }],
+  failed: ['Failed', 'danger', 'x-circle', { short: 'Failed' }],
 });
 
 /**
@@ -58,21 +58,39 @@ export const runOutcomes = table({
  * `short` is the label inside a reviewer's own cell or row, where the Role already says it is an agent.
  */
 export const verdicts = table({
-  approve: ['Agent review: approve', 'success', 'check-circle', { short: 'Approved' }],
+  approve: ['Agent review: approve', 'success', 'check-circle', { short: 'Agent approved' }],
   request_changes: ['Agent review: changes requested', 'attention', 'alert', { short: 'Changes requested' }],
   inconclusive: ['Agent review: inconclusive', 'neutral', 'circle', { short: 'Inconclusive' }],
   none: ['No agent verdict', 'neutral', 'circle', { short: 'No verdict' }],
 });
 
-/** Run failure reasons (`work.FailureReason`) with who to call and what to do next. `infra` failures do not use up agent attempts. */
+/**
+ * Run failure reasons (`work.FailureReason`). `owner` and `action` say who to call and what to do; `cause` names what
+ * failed in a few words, `retries` marks the failures Ploeg retries by itself while the Work Item is still live, and
+ * `next` is the step for a person once it has stopped retrying. `infra` failures do not use up agent attempts.
+ */
 export const failureReasons = table({
-  infra_node: ['The machine ended the Run', 'severe', 'zap', { infra: true, owner: 'the cluster', action: 'It retries automatically. If it keeps happening, check the nodes and images.' }],
-  infra_llm: ['The model gateway failed', 'severe', 'zap', { infra: true, owner: 'the model gateway', action: 'Check the gateway keys, quotas and provider status.' }],
-  agent_error: ['The agent harness failed', 'danger', 'x-circle', { infra: false, owner: 'the agent configuration', action: 'Read the log tail in the Run’s stuck reason.' }],
-  budget: ['The agent reached its token ceiling', 'danger', 'coins', { infra: false, owner: 'the ticket size or the Role’s cap', action: 'Split the ticket or raise the Role’s cap.' }],
-  lease_lost: ['The worker lost its lease', 'severe', 'zap', { infra: true, owner: 'the cluster', action: 'It retries automatically.' }],
-  timeout: ['The Run timed out', 'danger', 'clock', { infra: false, owner: 'the harness configuration', action: 'Split the ticket or raise the timeout.' }],
+  infra_node: ['The machine ended the Run', 'severe', 'zap', { infra: true, owner: 'the cluster', action: 'It retries automatically. If it keeps happening, check the nodes and images.', cause: 'Infrastructure, not the agent', retries: true, next: 'If it keeps happening, check the nodes and images.' }],
+  infra_llm: ['The model gateway failed', 'severe', 'zap', { infra: true, owner: 'the model gateway', action: 'Check the gateway keys, quotas and provider status.', cause: 'The model gateway, not the agent', retries: true, next: 'Check the gateway keys, quotas and provider status.' }],
+  agent_error: ['The agent harness failed', 'danger', 'x-circle', { infra: false, owner: 'the agent configuration', action: 'Read the log tail in the Run’s stuck reason.', cause: 'The agent harness exited with an error', retries: false, next: 'Read its log tail. Fix the brief, the model or the harness.' }],
+  budget: ['The agent reached its token ceiling', 'danger', 'coins', { infra: false, owner: 'the ticket size or the Role’s cap', action: 'Split the ticket or raise the Role’s cap.', cause: 'The ticket is too big for the Role’s token ceiling', retries: false, next: 'Split the ticket or raise the Role’s cap.' }],
+  lease_lost: ['The worker lost its lease', 'severe', 'zap', { infra: true, owner: 'the cluster', action: 'It retries automatically.', cause: 'Infrastructure, not the agent', retries: true, next: 'If it keeps happening, check the nodes and the network.' }],
+  timeout: ['The Run timed out', 'danger', 'clock', { infra: false, owner: 'the harness configuration', action: 'Split the ticket or raise the timeout.', cause: 'The harness time limit', retries: false, next: 'Split the ticket or raise the timeout.' }],
 });
+
+/**
+ * One plain sentence about a failed Run: its cause, whether Ploeg still retries it (only while `live`, that is while
+ * the Work Item is not stopped), and the next step. Returns '' when the Run did not fail.
+ * @param {string | null | undefined} key
+ * @param {{ live?: boolean }} [options]
+ * @returns {string}
+ */
+export function failureNote(key, { live = true } = {}) {
+  const meta = failureReason(key);
+  if (!meta) return '';
+  const cause = meta.cause || meta.label;
+  return [`Cause: ${cause[0].toLowerCase()}${cause.slice(1)}.`, meta.retries && live ? 'Ploeg retries it automatically.' : '', meta.next || ''].filter(Boolean).join(' ');
+}
 
 /** Checkpoint phases a Run writes while it works (`checkpoints[].phase`). The demo writes `review`. */
 export const checkpointPhases = table({

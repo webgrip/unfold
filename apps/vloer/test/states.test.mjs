@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { actorName, auditEvent, checkpointPhase, checkpointPhases, failureReason, failureReasons, runOutcome, runOutcomes, runState, runStates, sessionNeedsYou, sessionStatus, sessionStatuses, stateMeta, tones, verdict, verdicts, workItemState, workItemStates } from '../public/core/states.js';
+import { actorName, auditEvent, checkpointPhase, checkpointPhases, failureNote, failureReason, failureReasons, runOutcome, runOutcomes, runState, runStates, sessionNeedsYou, sessionStatus, sessionStatuses, stateMeta, tones, verdict, verdicts, workItemState, workItemStates } from '../public/core/states.js';
 import { stateBadge } from '../public/core/ui.js';
 import { labels, statusLabel } from '../public/core/lookup.js';
 import { icons } from '../public/core/icons.js';
@@ -103,8 +103,26 @@ test('Work Item state glyphs match the state badge, so a list glyph and its badg
 });
 
 test('verdicts have a short form for a reviewer’s own cell that still never says human', () => {
-  assert.deepEqual(Object.values(verdicts).map(meta => meta.short), ['Approved', 'Changes requested', 'Inconclusive', 'No verdict']);
+  assert.deepEqual(Object.values(verdicts).map(meta => meta.short), ['Agent approved', 'Changes requested', 'Inconclusive', 'No verdict']);
   assert(Object.values(verdicts).every(meta => !/human/i.test(meta.short)));
+});
+
+test('outcomes have a short form that fits one line of a Round ladder cell', () => {
+  assert.deepEqual(Object.fromEntries(Object.entries(runOutcomes).map(([key, meta]) => [key, meta.short])), {
+    pr_opened: 'PR opened', pr_updated: 'PR updated', no_change_needed: 'No change', follow_up_created: 'Follow-up created', issue_updated: 'Tracker updated', stuck: 'Stuck', failed: 'Failed',
+  });
+  assert(Object.values(runOutcomes).every(meta => meta.short.length <= 17));
+});
+
+test('a failure reads as its cause, and only a live Work Item is said to retry', () => {
+  assert.equal(failureNote('lease_lost'), 'Cause: infrastructure, not the agent. Ploeg retries it automatically. If it keeps happening, check the nodes and the network.');
+  assert.equal(failureNote('lease_lost', { live: false }), 'Cause: infrastructure, not the agent. If it keeps happening, check the nodes and the network.');
+  assert.equal(failureNote('agent_error', { live: false }), 'Cause: the agent harness exited with an error. Read its log tail. Fix the brief, the model or the harness.');
+  assert.equal(failureNote('timeout'), 'Cause: the harness time limit. Split the ticket or raise the timeout.', 'agent-side failures never promise a retry');
+  assert.equal(failureNote(null), '');
+  assert.equal(failureReasons.infra_node.action, 'It retries automatically. If it keeps happening, check the nodes and images.', 'owner and action stay for existing callers');
+  assert(Object.values(failureReasons).every(meta => meta.cause && typeof meta.retries === 'boolean' && meta.next));
+  assert(Object.values(failureReasons).every(meta => meta.retries === meta.infra), 'only infrastructure failures are retried by Ploeg');
 });
 
 test('checkpoint phases read as what the Run did', () => {

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activePloegLane, appendPage, cancelDialogMarkup, cancelSummary, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, roundLadder, runOrder, runResult, teamOverview, usd2, workItemRef, workMarkup } from '../public/ploeg.js';
+import { activePloegLane, appendPage, cancelDialogMarkup, cancelSummary, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runGroups, runOrder, runResult, teamOverview, usd2, workItemRef, workMarkup } from '../public/ploeg.js';
+import { detailReason } from '../public/core/reasons.js';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 
 const space = '\u00a0';
@@ -52,23 +53,30 @@ test('the Work list has one lane control with counts and rows that link to the W
   assert.match(html, /data-action="ploeg-lane" data-id="needs_human" aria-pressed="false">Needs you<span class="count">4<\/span>/);
   assert.match(html, /<a class="list-row" href="#work\/105\?lane=awaiting_review&amp;team=delivery"[^>]*data-work-row data-id="105"/);
   assert.doesNotMatch(html, /data-id="101"/);
-  assert.match(html, /Every Round ran/);
+  assert.match(html, /<span class="chip" title="Every planned Round ran and no reviewer asked for more changes\.">[^]*?<span>No changes requested<\/span>/, 'a review row says what the reviewer did, not a close-reason code');
+  assert.doesNotMatch(html, /Every Round ran/);
+  const facts = workMarkup(model({ data, lane: 'awaiting_review', team: 'delivery', reviewFacts: { 105: reviewFacts(demoDetail('105')) } }));
+  assert.match(facts, /<span>PR #5 · No agent verdict<\/span>/, 'once the detail is known the row names the pull request and the agent verdict');
+  const stale = { 105: { ...reviewFacts(demoDetail('105')), updatedAt: '2000-01-01T00:00:00Z' } };
+  assert.doesNotMatch(workMarkup(model({ data, lane: 'awaiting_review', team: 'delivery', reviewFacts: stale })), /PR #5/, 'facts from an older version of the Work Item are not shown');
   assert.doesNotMatch(html, /ploeg-metric|panel|ploeg-work-row/, 'no legacy classes');
   const empty = workMarkup(model({ data: { ...data, lanes: { ...data.lanes, awaiting_review: { items: [], nextCursor: null, cursors: {}, partial: false } } }, lane: 'awaiting_review' }));
   assert.match(empty, /No pull requests wait for your review/);
 });
 
-test('a needs-you row leads with its reason chip, warns when it is not routed and shows attempts, Round, spend of budget and age', () => {
+test('the Needs you lane groups rows by reason and routing, with the fix once per group and no repeated chips', () => {
   const items = ploegDemo.items.filter(item => item.team === 'delivery');
   const html = workMarkup(model({ data: teamOverview(overview('delivery', items)), lane: 'needs_human' }));
-  assert.match(html, /<span class="chip" data-tone="attention" title="Every planned Round ran[^"]*"><span>No pull request or changes unresolved<\/span><\/span><span class="chip" data-tone="attention" title="No routing rule[^"]*">[^]*?<span>Not routed<\/span>/);
-  assert.match(html, /Reviewer still wants changes/);
-  assert.match(html, /Cluster kept stopping the writer/);
+  assert.match(html, /<ul class="work-groups">/);
+  assert.match(html, /<h3 class="work-group-title" id="work-group-2"><span class="work-group-label">No pull request or changes unresolved<\/span><span class="chip" data-tone="attention" title="No routing rule[^"]*">[^]*?<span>Not routed<\/span><\/span><span class="count" aria-label="1 Work Item">1<\/span><\/h3><p class="work-group-fix">Add a repository label or a routing rule to the task\.<\/p>/, 'a group names its reason, its routing warning, its size and the one fix');
+  assert.match(html, /<span class="work-group-label">Reviewer still wants changes<\/span>/);
+  assert.match(html, /<span class="work-group-label">Cluster kept stopping the writer<\/span>/);
+  assert.match(html, /<span class="work-group-label">Needs a decision<\/span>/, 'a free-text close reason reads as a decision, not as a stop');
+  assert.doesNotMatch(html, /work-row-chips/, 'rows repeat neither the reason nor the routing chip of their group');
   assert.match(html, /4 attempts<\/span><span>Round 4<\/span>/);
-  assert.match(html, new RegExp(`<span class="num">US\\$${space}3,00</span> budget`), 'demo rows show the budget, never invented spend');
-  assert.doesNotMatch(html, new RegExp(`US\\$${space}0,00 of`));
+  assert.doesNotMatch(html, /work-row-spend/, 'demo rows show no budget meter: nothing was spent');
+  assert.doesNotMatch(html, new RegExp(`US\\$${space}0,00`));
   assert.match(html, /<span class="sr-only">Updated <\/span><time class="num" datetime=/);
-  assert.doesNotMatch(html, /Needs you<\/span><span class="chip"/, 'no repeated lane badge in a single-state lane');
   const all = workMarkup(model({ data: teamOverview(overview('delivery', items)), lane: 'all' }));
   assert.match(all, /<span class="state-badge"><span class="badge" data-tone="attention" data-state="needs_human">[^]*?Needs you<\/span><span class="state-reason" data-tone="attention">Reviewer still wants changes<\/span>/, 'the All lane shows each state with its reason');
 });
@@ -86,15 +94,58 @@ test('All teams merges one overview per Team in id order, keeps each Team’s cu
   assert.deepEqual(merged.errors, []);
   const html = workMarkup(model({ data: merged, lane: 'needs_human' }));
   assert.match(html, /<span class="count">6\+<\/span>/);
-  assert.match(html, /Showing the first page of each Team\./);
+  assert.match(html, /Showing the loaded pages of each Team\./);
   assert.match(html, /data-action="ploeg-more"/);
   assert.match(html, /research · DEMO-10/, 'rows name their Team when all Teams show');
   const failed = mergeOverviews([{ team: 'delivery', data: delivery }, { team: 'research', error: { message: 'Ploeg did not answer.' } }]);
   assert.deepEqual(failed.errors, [{ team: 'research', message: 'Ploeg did not answer.' }]);
-  assert.match(workMarkup(model({ data: failed })), /Could not read Team research/);
+  const partial = workMarkup(model({ data: failed }));
+  assert.match(partial, /Could not read Team research/);
+  assert.match(partial, /The list and its counts leave out Team research\./);
+  assert.match(partial, /data-action="ploeg-lane" data-id="needs_human" aria-pressed="true">Needs you<span class="count">4\+<\/span>/, 'counts say they are a lower bound while a Team is missing');
+  assert.match(partial, /data-action="ploeg-refresh" data-id="partial">Try again/, 'Try again is told apart from the toolbar Refresh');
   const none = mergeOverviews([{ team: 'delivery', error: { message: 'down' } }, { team: 'research', error: { message: 'down' } }]);
   assert.equal(none.available, false);
-  assert.match(workMarkup(model({ data: none })), /Could not load Work[^]*down[^]*data-action="ploeg-refresh"/);
+  const unavailable = workMarkup(model({ data: none }));
+  assert.match(unavailable, /Could not load Work[^]*down[^]*data-action="ploeg-refresh" data-id="unavailable"/);
+  assert.doesNotMatch(unavailable, /work-toolbar/, 'no toolbar Refresh beside the card that has its own Try again');
+});
+
+test('grouping keeps the tracker order inside a group and orders groups by their first item', () => {
+  const base = ploegDemo.items.find(item => item.id === '108');
+  const items = ['7', '3', '9', '5'].map((id, index) => ({ ...base, id, target: index % 2 ? base.target : { forge: 'forgejo', owner: 'a', repo: 'b', baseBranch: 'main' } }));
+  const groups = reasonGroups(items);
+  assert.deepEqual(groups.map(group => [group.reason.chip, group.warning?.chip ?? null, group.items.map(item => item.id)]), [['No pull request or changes unresolved', null, ['7', '9']], ['No pull request or changes unresolved', 'Not routed', ['3', '5']]]);
+  assert.equal(groups[0].fix, 'Open the Work Item to see whether the writer changed nothing or the reviewer still wants changes.');
+  assert.equal(groups[1].fix, 'Add a repository label or a routing rule to the task.');
+});
+
+test('rows show spend only when there is some, or while a Work Item runs, and never in the demo', () => {
+  const running = { ...ploegDemo.items.find(item => item.id === '102'), latestShift: { round: 1, budgetUsd: 3, spentUsd: null, reservedUsd: 0.2, closeReason: '' } };
+  const spent = { ...ploegDemo.items.find(item => item.id === '109'), latestShift: { round: 4, budgetUsd: 3, spentUsd: 1.25, reservedUsd: 0, closeReason: 'fix_round_cap_reached', closedAt: at } };
+  const idle = { ...ploegDemo.items.find(item => item.id === '110'), latestShift: { round: 1, budgetUsd: 3, spentUsd: 0, reservedUsd: 0, closeReason: 'budget exhausted', closedAt: at } };
+  const live = { ...teamOverview(overview('delivery', [running, spent, idle])), demo: false };
+  const all = workMarkup(model({ data: live, lane: 'all' }));
+  assert.match(all, /Not reported of <span class="num">US\$\u00a03,00<\/span>/, 'a running Work Item without a settlement reads Not reported');
+  assert.match(all, /<span class="num">US\$\u00a01,25<\/span> of <span class="num">US\$\u00a03,00<\/span>/);
+  assert.equal((all.match(/work-row-spend"/g) || []).length, 2, 'the Work Item that spent nothing shows no meter');
+});
+
+test('a live refresh keeps the pages Load more added and their deeper cursors', () => {
+  const first = teamOverview(overview('delivery', ploegDemo.items.filter(item => item.team === 'delivery'), 'c1'));
+  const extended = structuredClone(first);
+  extended.lanes.needs_human = appendPage(extended.lanes.needs_human, 'delivery', { items: [{ id: '999', state: 'needs_human', title: 'From page two' }], nextCursor: 'c2' });
+  const fresh = teamOverview(overview('delivery', ploegDemo.items.filter(item => item.team === 'delivery' && item.id !== '101'), 'c1'));
+  const merged = refreshOverview(extended, fresh);
+  assert.deepEqual(merged.lanes.needs_human.items.map(item => item.id), ['108', '109', '112', '999'], 'page one is fresh (101 left the lane) and the Load more item stays');
+  assert.deepEqual(merged.lanes.needs_human.cursors, { delivery: 'c2' }, 'the next page continues after the deeper page');
+  assert.equal(merged.lanes.queued, fresh.lanes.queued, 'lanes that never loaded more take the fresh page as it is');
+  const exhausted = structuredClone(first);
+  exhausted.lanes.needs_human = appendPage(exhausted.lanes.needs_human, 'delivery', { items: [{ id: '999', state: 'needs_human' }], nextCursor: null });
+  const done = refreshOverview(exhausted, fresh).lanes.needs_human;
+  assert.deepEqual([done.partial, done.cursors], [false, {}], 'a Team whose pages ran out stays complete after a refresh');
+  assert.equal(refreshOverview(null, fresh), fresh);
+  assert.equal(refreshOverview(extended, { available: false }).available, false);
 });
 
 test('loading more appends only new items and forgets a Team whose pages ran out', () => {
@@ -103,6 +154,7 @@ test('loading more appends only new items and forgets a Team whose pages ran out
   assert.deepEqual(next.items.map(item => item.id), ['2', '4', '10']);
   assert.deepEqual(next.cursors, { research: 'b' });
   assert.equal(next.partial, true);
+  assert.deepEqual(next.more, { delivery: ['4'] }, 'the lane remembers what each Team added');
   assert.equal(appendPage(next, 'research', { items: [], nextCursor: null }).partial, false);
   const single = teamOverview(overview('delivery', [], 'c1'));
   assert.deepEqual(single.lanes.needs_human.cursors, { delivery: 'c1' });
@@ -149,15 +201,20 @@ test('a checkpoint pull request link wins over Run links, and a missing link is 
 test('a ready-for-review item gets an evidence receipt, a checklist that is never green for unknowns, and what the forge actions do', () => {
   const html = detailMarkup(detail(), model({ detailId: '50', lane: 'awaiting_review' }));
   assert.match(html, /<h3 class="card-title" id="work-decision-title">[^]*Ready for your review<\/h3>/);
-  assert.match(html, /<a class="button primary" href="https:\/\/forge.test\/acme\/shop\/pulls\/9" target="_blank" rel="noopener noreferrer">[^]*Open pull request/);
-  assert.equal((html.match(/>Open pull request</g) || []).length, 2, 'the header link and the phone action bar; CSS shows one');
-  assert.match(html, /Agent review[^]*Approved/);
+  assert.match(html, /<a class="button primary" href="https:\/\/forge.test\/acme\/shop\/pulls\/9" target="_blank" rel="noopener noreferrer" data-link-out="pr">[^]*Open pull request #9/);
+  assert.equal((html.match(/>Open pull request #9</g) || []).length, 2, 'the primary action in the review box and in the phone action bar');
+  assert.match(html, /<div class="work-sticky-actions" role="group" aria-label="Next step"><a class="button primary"[^>]*>[^]*Open pull request #9/);
+  assert.match(html, /<button type="button" class="button ghost work-jump" data-action="work-run" data-id="14">Read the findings/);
+  assert.match(html, /Agent review[^]*Agent approved/);
   assert.match(html, /<dt>Time<\/dt><dd><span class="num">14 min<\/span>/);
   assert.match(html, /Pull request #9 reported by the writer/);
   assert.match(html, /The agent reviewer approved[^]*Agent review is evidence, not a human review\./);
   assert.match(html, new RegExp(`Within its US\\$${space}2,50 budget`));
   assert.match(html, /data-tone="neutral"><span class="work-check-icon" aria-hidden="true">[^]*CI checks: not reported/, 'CI is never shown green');
-  assert.match(html, /Findings name instruction files[^]*<code>CLAUDE\.md<\/code> <code>\.claude\/<\/code>/);
+  assert.match(html, /Findings name instruction files[^]*<code>CLAUDE\.md<\/code> <code>\.claude\/<\/code> are named in the findings\. Check them in the diff before you merge\./);
+  const titles = [...html.matchAll(/<li class="work-check" data-tone="(\w+)">[^]*?<p class="work-check-title">([^<]*)/g)].map(match => [match[1], match[2]]);
+  assert.deepEqual(titles.map(([tone]) => tone), ['attention', 'neutral', 'success', 'success', 'success', 'success'], 'what needs attention comes first, then unknowns, then passes');
+  assert.equal(titles[0][1], 'Findings name instruction files');
   assert.match(html, /<dt>Merge<\/dt><dd>Ploeg marks the Work Item Done\.<\/dd>[^]*<dt>Request changes<\/dt>[^]*<dt>Close without merging<\/dt><dd>The Work Item comes back to you as Needs you\.<\/dd>/);
   assert.match(html, new RegExp(`<strong class="meter-value">US\\$${space}1,23</strong>`), 'money in nl-NL with two decimals');
   assert.doesNotMatch(html, /<form|style=/);
@@ -167,21 +224,91 @@ test('a ready-for-review item gets an evidence receipt, a checklist that is neve
 test('a needs-you item explains why with Ploeg’s own words, the evidence Runs and what to do in the tracker', () => {
   const html = detailMarkup(demoDetail('109'), model({ detailId: '109' }));
   assert.match(html, /Why this needs you/);
-  assert.match(html, /<p class="work-decision-headline">Reviewer still wants changes<\/p>/);
+  assert.doesNotMatch(html, /work-decision-headline/, 'the reason is said once, in the status line, not again as a box headline');
+  assert.equal((html.match(/Reviewer still wants changes/g) || []).length, 1);
   assert.match(html, /“the reviewer kept asking for changes and the fix-round cap was reached; a person is asked to take over”/);
   assert.match(html, /data-action="work-run" data-id="44"/);
-  assert.match(html, /Read the findings\. Finish the branch by hand, or sharpen the ticket\.[^]*Then assign the task to the Team again in Vikunja\./);
+  assert.match(html, /Read the findings\. Finish the branch by hand, or sharpen the ticket\.<\/p><div class="work-step-actions"><a class="button primary" href="https:\/\/forge\.example\.invalid\/example\/order-service\/pulls\/7"[^>]*data-link-out="pr">[^]*Open pull request #7[^]*<button type="button" class="button ghost work-jump" data-action="work-run" data-id="44">Read the reviewer’s findings/, 'the step says which button to press: the pull request first, then the findings');
+  assert.match(html, /Then assign the task to the Team again in Vikunja\./);
   assert.match(html, /Starting again from Vloer is proposed Ploeg work\./);
+  assert.match(html, /<div class="work-sticky-actions" role="group" aria-label="Next step"><a class="button primary"[^>]*>[^]*Open pull request #7/, 'phones carry the same primary action');
   assert.doesNotMatch(html, /Open the task in|>Open Vikunja</, 'no tracker link when Ploeg reported none');
   const linked = demoDetail('109');
   linked.item.url = 'https://tracker.test/tasks/9';
-  assert.match(detailMarkup(linked, model({ detailId: '109' })), /<a class="work-inline-link" href="https:\/\/tracker.test\/tasks\/9" target="_blank" rel="noopener noreferrer">Open the task in Vikunja/);
+  assert.match(detailMarkup(linked, model({ detailId: '109' })), /<a class="button secondary" href="https:\/\/tracker.test\/tasks\/9" target="_blank" rel="noopener noreferrer" data-link-out="tracker">[^]*Open the task in Vikunja/);
   assert.match(detailMarkup(demoDetail('109'), model({ detailId: '109', trackerUrl: 'https://tracker.test/' })), />Open Vikunja</, 'only the tracker root is known, so the link says so');
-  const unrouted = detailMarkup(demoDetail('108'), model({ detailId: '108' }));
-  assert.match(unrouted, /<div class="work-warning" data-tone="attention">[^]*<strong>Not routed\.<\/strong>/);
   const stuck = detailMarkup(demoDetail('111'), model({ detailId: '111' }));
   assert.match(stuck, /Agent is stuck[^]*The builder reported that it cannot finish in Round 2 without a person\./);
-  assert.match(stuck, /<details class="work-run" id="work-run-28" data-tone="attention" open>/, 'the stuck Run opens by default');
+  assert.doesNotMatch(stuck, /work-quote/, 'Ploeg’s sentence repeats the stuck reason the evidence already shows, so it is left out');
+  assert.equal((stuck.match(/every source in the repository stops at 2023/g) || []).length, 4, 'once in the evidence, once in the Run body, and in Activity’s quote and raw JSON');
+  assert.doesNotMatch(stuck, /<p class="work-run-summary">Illustrative: the brief asks/, 'the Run summary is dropped when the stuck reason already says it');
+  assert.match(stuck, /<details class="work-run" id="work-run-28" data-tone="attention">/, 'the Run stays closed: the box already shows why it is stuck');
+});
+
+test('plan_exhausted tells no pull request apart from unresolved changes and never quotes Ploeg’s plan-complete sentence', () => {
+  const unrouted = demoDetail('108');
+  const reason = detailReason(unrouted);
+  assert.deepEqual([reason.variant, reason.chip, reason.headline], ['no_pull_request', 'No pull request', null]);
+  assert.equal(reason.sentence, 'Every planned Round ran, but the writer changed nothing, so there is no pull request to review.');
+  const html = detailMarkup(unrouted, model({ detailId: '108' }));
+  const box = html.slice(html.indexOf('id="work-decision"'), html.indexOf('id="work-brief"'));
+  assert.doesNotMatch(box, /plan complete/, 'the misleading sentence stays in Activity only');
+  assert.match(html, /“plan complete; a person is asked to review and merge”/);
+  assert.match(box, /<div class="work-warning" data-tone="attention">[^]*<strong>Not routed\.<\/strong>/);
+  assert.match(box, /Add a repository label or a routing rule to the task\.<\/p><div class="work-step-actions"><button type="button" class="button primary" title="Ploeg reported no link to this task" disabled>[^]*Open the task in Vikunja/, 'without a link the primary action is shown, disabled, where it belongs');
+  assert.match(box, /Ploeg reported no link to this task\. Find Vikunja DEMO-8 in Vikunja\./);
+  assert.doesNotMatch(html, /work-sticky-actions/, 'no phone action bar for a disabled action');
+  unrouted.item.url = 'https://tracker.test/tasks/8';
+  const plan = decisionPlan(unrouted, model(), detailReason(unrouted));
+  assert.match(plan.entries[0].actions[0], /class="button primary" href="https:\/\/tracker\.test\/tasks\/8"[^]*Open the task in Vikunja/, 'the routing fix opens the task');
+  assert.deepEqual(plan.entries.slice(1).map(entry => entry.actions.length), [0, 0], 'the task link is offered once');
+  assert.match(plan.primary, /Open the task in Vikunja/);
+  const changes = demoDetail('108');
+  changes.runs[0].verdict = 'request_changes';
+  const unresolved = detailReason(changes);
+  assert.deepEqual([unresolved.variant, unresolved.chip], ['changes_unresolved', 'Changes unresolved']);
+  assert.match(unresolved.sentence, /the last reviewer still asked for changes/);
+});
+
+test('a budget stop shows its meter in the decision box and never zero money in the demo', () => {
+  const html = detailMarkup(demoDetail('110'), model({ detailId: '110' }));
+  const box = html.slice(html.indexOf('id="work-decision"'), html.indexOf('id="work-brief"'));
+  assert.match(box, new RegExp(`The Shift’s budget of US\\$${space}0,04 could not pay for the next Round\\.<`));
+  assert.match(box, /<div class="work-decision-meter"><div class="meter" data-demo>[^]*Demo · no model calls/);
+  assert.doesNotMatch(html, new RegExp(`US\\$${space}0,00`));
+  assert.match(box, /Then assign the task to the Team again in its tracker\.<\/p><div class="work-step-actions"><button type="button" class="button primary"[^>]*disabled>/, 'the tracker is the next step');
+});
+
+test('the page says each thing once: checkpoints fold into Activity, an empty story is one line and failures read as a cause', () => {
+  const html = detailMarkup(demoDetail('109'), model({ detailId: '109' }));
+  assert.doesNotMatch(html, /work-checkpoints|work-ladder-list/);
+  assert.match(html, /<p class="work-detail-facts">[^]*data-link-out="pr">[^]*Pull request #7/, 'the pull request is one fact in the header');
+  assert.match(html, /Updated <a class="work-inline-link" href="https:\/\/forge\.example\.invalid\/example\/order-service\/pulls\/7"[^>]*>pull request #7/, 'Activity names the pull request once, as a link');
+  assert.doesNotMatch(html, /Updated the pull request Pull request/);
+  assert.match(html, /<p class="work-run-group">Round 4<\/p>/, 'Runs are grouped by Round for phones');
+  assert.match(html, /<span class="work-run-round">Round 4 · <\/span>reader/, 'and name their Round in the row on wide screens');
+  const withdrawn = detailMarkup(demoDetail('115'), model({ detailId: '115' }));
+  assert.match(withdrawn, /<p class="work-note" id="work-rounds">[^]*Shift 17 closed <time[^]*before any Run started: the task was unassigned from the Team\./);
+  assert.doesNotMatch(withdrawn, /class="card flush" id="work-rounds"/);
+  const legacy = detailMarkup(demoDetail('113'), model({ detailId: '113' }));
+  assert.match(legacy, /3 Runs, all failed or stuck\. These Runs ran before Shifts existed/);
+  assert.match(legacy, /<p class="work-log">Illustrative log tail/, 'a log tail keeps the mono font');
+  const killed = detailMarkup(demoDetail('112'), model({ detailId: '112' }));
+  assert.match(killed, /Cause: infrastructure, not the agent\. If it keeps happening, check the nodes and the network\./);
+  assert.doesNotMatch(killed, /Who to call|retries automatically/, 'Ploeg stopped retrying this Work Item, so the page does not say it retries');
+  const stuck = detailMarkup(demoDetail('111'), model({ detailId: '111' }));
+  assert.match(stuck, /<p class="work-run-reason">The brief asks for 2026 market sizes/, 'a stuck reason in prose keeps the body font');
+});
+
+test('Runs are grouped by Shift and Round, failures first, newest Round first', () => {
+  const runs = [
+    { id: '1', shiftId: '6', round: 1, state: 'finished', outcome: 'pr_opened' },
+    { id: '2', shiftId: '7', round: 1, state: 'finished', outcome: 'pr_opened' },
+    { id: '3', shiftId: '7', round: 2, state: 'finished', outcome: 'no_change_needed' },
+    { id: '4', shiftId: '7', round: 1, state: 'finished', outcome: 'failed', failureReason: 'infra_node' },
+  ];
+  assert.deepEqual(runGroups(runs, '7').map(group => [group.label, group.runs.map(run => run.id)]), [['Round 1', ['4', '2']], ['Round 2', ['3']], ['Shift 6 · Round 1', ['1']]]);
+  assert.deepEqual(runGroups([{ id: '9', round: 0, state: 'finished', outcome: 'failed' }]).map(group => group.label), ['']);
 });
 
 test('the Round ladder is Roles by Rounds with retries counted, and Runs list failures first', () => {
@@ -202,7 +329,9 @@ test('the Round ladder is Roles by Rounds with retries counted, and Runs list fa
 test('a Run reads as its verdict when it reviewed and as its outcome when it wrote; a Run cancelled before it started says so', () => {
   assert.equal(runResult({ state: 'finished', writes: false, verdict: 'request_changes', outcome: 'no_change_needed' }).label, 'Changes requested');
   assert.equal(runResult({ state: 'finished', writes: false, verdict: 'request_changes' }).title, 'Agent review: changes requested');
-  assert.equal(runResult({ state: 'finished', writes: true, outcome: 'pr_opened' }).label, 'Opened a pull request');
+  assert.equal(runResult({ state: 'finished', writes: true, outcome: 'pr_opened' }).label, 'PR opened');
+  assert.equal(runResult({ state: 'finished', writes: true, outcome: 'pr_opened' }).title, 'Opened a pull request');
+  assert.equal(runResult({ state: 'finished', writes: false, verdict: 'approve' }).label, 'Agent approved', 'agent review never reads as a human approval');
   assert.equal(runResult({ state: 'running' }).label, 'Running');
   assert.equal(runResult(ploegDemo.details['110'].runs[0]).label, 'Cancelled before it started');
   assert.equal(linkLabel('https://forge.test/acme/shop/pulls/9'), 'Pull request #9');
@@ -216,8 +345,9 @@ test('demo spend is never invented and unknown live spend is never zero', () => 
   const demo = detailMarkup(demoDetail('105'), model({ detailId: '105', lane: 'awaiting_review' }));
   assert.match(demo, /Demo · no model calls/);
   assert.doesNotMatch(demo, new RegExp(`US\\$${space}0,00`));
-  assert.match(demo, /<code>AGENTS\.md<\/code>/);
+  assert.match(demo, /Findings name an instruction file[^]*<code>AGENTS\.md<\/code> is named in the findings\. Check it in the diff before you merge\./);
   assert.match(demo, /No verdict/);
+  assert.match(demo, /The reviewer reported no change needed but gave no verdict\./);
   const unknown = detail();
   unknown.shifts[0].spentUsd = null;
   const html = detailMarkup(unknown, model({ detailId: '50' }));
@@ -262,12 +392,16 @@ test('Cancel is offered to operators on live work only, and its dialog lists wha
   assert.doesNotMatch(detailMarkup(demoDetail('114'), model({ detailId: '114' })), /work-cancel/, 'done work cannot be cancelled');
   const dialog = cancelDialogMarkup(live);
   assert.match(dialog, /<h2 id="confirm-title">Cancel this Work Item\?<\/h2>/);
-  assert.match(dialog, /Stops 1 running Run\./);
+  assert.match(dialog, /<ul class="work-consequences"><li><svg[^]*?<\/svg><span>Withdraws the Work Item\.<\/span><\/li><li><svg[^]*?<\/svg><span>Stops 1 running Run\./, 'the main consequence comes first');
   assert.match(dialog, /Blocks the model keys of those Runs/);
   assert.match(dialog, /Revokes the forge tokens/);
   assert.match(dialog, /Comments on the task in Vikunja/);
   assert.match(dialog, /This cannot be undone/);
   assert.match(dialog, /<button type="submit" class="button secondary" value="keep" autofocus>Keep it<\/button><button type="submit" class="button danger" value="cancel">Cancel Work Item<\/button>/);
+  const stopped = cancelDialogMarkup(demoDetail('109'));
+  assert.match(stopped, /<ul class="work-consequences"><li><svg[^]*?<\/svg><span>Withdraws the Work Item\.<\/span><\/li><li><svg[^]*?<\/svg><span>Comments on the task in Vikunja/, 'nothing runs, so the dialog promises no stopped Runs');
+  assert.doesNotMatch(stopped, /Stops any Run/);
+  assert.match(cancelDialogMarkup(demoDetail('102')), /Withdraws the Work Item and closes its open Shift\./);
   const demo = cancelDialogMarkup(demoDetail('109'), { demo: true });
   assert.match(demo, /Not available in the demo/);
   assert.match(demo, /value="cancel" disabled>Cancel Work Item/);
@@ -277,6 +411,9 @@ test('the cancel result reads Ploeg’s fields and never turns a missing one int
   const done = cancelSummary({ state: 'withdrawn', demo: false, withdrawn: true, cancelledRuns: 1, stoppedRuns: 2, keysBlocked: false, message: '' });
   assert.equal(done.title, 'Cancelled. Ploeg withdrew the Work Item.');
   assert.deepEqual(done.lines, ['Runs stopped: 2', 'Runs cancelled before they started: 1', 'Ploeg has not confirmed the model key block yet. Its sweep retries it.']);
+  assert.equal(done.tone, 'attention', 'unblocked model keys can still spend, so the result is not green');
+  assert.deepEqual(done.items.map(entry => entry.tone), ['success', 'success', 'attention']);
+  assert.equal(cancelSummary({ state: 'withdrawn', demo: false, withdrawn: true, cancelledRuns: 0, stoppedRuns: 1, keysBlocked: true, message: '' }).tone, 'success');
   const older = cancelSummary({ state: 'needs_human', demo: false, withdrawn: null, cancelledRuns: null, stoppedRuns: null, keysBlocked: null, message: '' });
   assert.deepEqual(older.lines, ['Runs stopped: not reported', 'Runs cancelled before they started: not reported', 'Model key block: not reported.']);
   assert.match(cancelSummary({ state: 'queued', demo: false, withdrawn: false, cancelledRuns: 0, stoppedRuns: 0, keysBlocked: true, message: '' }).title, /Nothing was running\. The Work Item stays Queued\./);
@@ -291,5 +428,9 @@ test('the detail shows a skeleton while loading and says so when the Work Item i
   assert.match(missing, /href="#work\?lane=needs_human"/);
   assert.doesNotMatch(missing, /work-detail-retry/);
   assert.match(workMarkup(model({ data, detailId: '9', detailError: { message: 'Ploeg did not answer.', code: 'ploeg_unavailable' } })), /data-action="work-detail-retry"/);
-  assert.match(workMarkup(model({ data: null })), /aria-busy="true" aria-label="Loading Work Items"/);
+  const loading = workMarkup(model({ data: null, demoMode: true, teams: ['delivery', 'research'], team: 'research' }));
+  assert.match(loading, /aria-busy="true" aria-label="Loading Work Items"/);
+  assert.match(loading, /<select id="ploeg-team"><option value="">All teams<\/option><option value="delivery">delivery<\/option><option value="research" selected>research<\/option><\/select>/, 'the Team select stays, enabled, while a Team loads, so keyboard focus survives');
+  assert.match(loading, /class="demo-note"/, 'the demo note does not jump in after loading');
+  assert.match(workMarkup(model({ data: null })), /<select id="ploeg-team-loading" disabled><option>All teams<\/option><\/select>/, 'before the Teams are known a placeholder holds their place');
 });

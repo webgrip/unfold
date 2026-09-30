@@ -1,8 +1,8 @@
-import { workMarkup, ploegLanes, activePloegLane, mergeOverviews, teamOverview, appendPage, cancelDialogMarkup, workItemRef } from '../ploeg.js';
+import { workMarkup, ploegLanes, activePloegLane, mergeOverviews, teamOverview, appendPage, refreshOverview, reviewFacts, cancelDialogMarkup, workItemRef } from '../ploeg.js';
 import { state } from '../core/state.js';
 import { api } from '../core/api.js';
 import { $, renderHtml, notify, announce, safeUrl } from '../core/dom.js';
-import { buildHash, parseHash } from '../core/route.js';
+import { buildHash } from '../core/route.js';
 import { live } from '../core/live.js';
 import { prefs } from '../core/prefs.js';
 import { singleKeyAllowed, isTyping } from '../core/keys.js';
@@ -12,7 +12,8 @@ import { enterPloegView } from './ploeg-common.js';
 const lanes = ploegLanes.map(lane => lane.id);
 const itemPath = /^work\/([1-9][0-9]{0,19})$/;
 const liveInterval = 30000;
-const work = { team: '', loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false };
+const reviewFactLimit = 12;
+const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null };
 
 const canCancel = () => ['operator', 'admin'].includes(state.bootstrap?.user?.role);
 const visible = () => Boolean(state.bootstrap) && state.view === 'work';
@@ -28,6 +29,7 @@ function model() {
     data: state.ploeg,
     lane: activePloegLane(state),
     team: work.team,
+    teams: work.teams,
     loading: state.ploegLoading,
     refreshing: work.refreshing,
     loadingMore: work.loadingMore,
@@ -43,6 +45,8 @@ function model() {
     sessions: state.sessions,
     userId: state.bootstrap?.user?.id,
     trackerUrl: state.ploeg?.trackerUrl,
+    reviewFacts: Object.fromEntries(work.reviewFacts),
+    demoMode: state.bootstrap?.mode === 'demo',
     now: Date.now(),
   };
 }
@@ -75,8 +79,11 @@ function renderWork() {
   for (const element of document.querySelectorAll('#app details[id]')) if (open.has(element.id)) element.open = open.get(element.id);
   const list = $('.work-list-pane .work-list');
   if (list && listTop) list.scrollTop = listTop;
-  if (target && (!document.activeElement || document.activeElement === document.body)) document.querySelector(target)?.focus({ preventScroll: true });
+  if (target && (!document.activeElement || document.activeElement === document.body)) (document.querySelector(target) || (target.includes('ploeg-refresh') ? $('[data-action="ploeg-refresh"][data-id="toolbar"]') : null))?.focus({ preventScroll: true });
   revealLane();
+  syncPane();
+  revealSelected();
+  observeActions();
 }
 
 function revealLane() {
@@ -85,6 +92,55 @@ function revealLane() {
   if (!pressed || lanes.scrollWidth <= lanes.clientWidth) return;
   const start = pressed.offsetLeft - lanes.offsetLeft;
   if (start < lanes.scrollLeft || start + pressed.offsetWidth > lanes.scrollLeft + lanes.clientWidth) lanes.scrollLeft = Math.max(0, start - (lanes.clientWidth - pressed.offsetWidth) / 2);
+}
+
+function syncPane() {
+  const pane = $('.work[data-detail] .work-list-pane');
+  if (!pane) return;
+  if (getComputedStyle(pane).position !== 'sticky') { pane.style.removeProperty('--work-pane-max'); return; }
+  const stick = parseFloat(getComputedStyle(pane).top) || 0;
+  const top = Math.max(stick, pane.getBoundingClientRect().top);
+  pane.style.setProperty('--work-pane-max', `${Math.max(240, Math.floor(innerHeight - top - 16))}px`);
+}
+
+function schedulePane() {
+  if (work.paneFrame || !visible()) return;
+  work.paneFrame = requestAnimationFrame(() => { work.paneFrame = 0; if (visible()) syncPane(); });
+}
+
+function revealSelected() {
+  if (!work.detailId || work.revealedId === work.detailId) return;
+  const scroller = $('.work[data-detail] .work-list-pane > .work-list');
+  const row = scroller?.querySelector('[data-work-row][aria-current="true"]');
+  if (!row || !scroller.offsetParent) return;
+  const id = work.detailId;
+  work.revealedId = id;
+  if (document.fonts && document.fonts.status !== 'loaded') document.fonts.ready.then(() => { if (visible() && work.detailId === id && work.revealedId === id) { work.revealedId = null; revealSelected(); } });
+  if (scroller.scrollHeight <= scroller.clientHeight) return;
+  const header = row.closest('.work-group')?.querySelector('.work-group-header');
+  const offset = header ? header.offsetHeight : 0;
+  const top = row.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+  const bottom = top + row.offsetHeight;
+  if (top - offset < scroller.scrollTop) scroller.scrollTop = Math.max(0, top - offset - 8);
+  else if (bottom > scroller.scrollTop + scroller.clientHeight) scroller.scrollTop = bottom - scroller.clientHeight + 8;
+}
+
+function observeActions() {
+  work.stickyObserver?.disconnect();
+  work.stickyObserver = null;
+  const bar = $('.work-sticky-actions');
+  const primary = $('#work-decision .button.primary');
+  if (!bar || !primary || typeof IntersectionObserver !== 'function') return;
+  work.stickyObserver = new IntersectionObserver(entries => { for (const entry of entries) bar.toggleAttribute('data-covered', entry.isIntersecting); }, { rootMargin: '0px 0px -96px 0px' });
+  work.stickyObserver.observe(primary);
+}
+
+function focusTitle() {
+  const title = $('#ploeg-item-title');
+  if (!title || !state.ploegDetail) return;
+  title.focus({ preventScroll: true });
+  if (title.getBoundingClientRect().top < 0) window.scrollTo({ top: 0 });
+  announce(`${state.ploegDetail.item.title || `Work Item ${state.ploegDetail.item.id}`}, ${workItemRef(state.ploegDetail.item)}`);
 }
 
 function keepFiltersInHash() {
@@ -99,9 +155,8 @@ async function readTeam(team, refresh) {
 async function readOverview(team, fresh) {
   const refresh = fresh ? { refresh: '1' } : {};
   if (team) return teamOverview(await api(`/api/ploeg?${new URLSearchParams({ team, ...refresh })}`));
-  const known = state.ploeg?.available && state.ploeg.allTeams ? state.ploeg.teams.map(entry => entry.id) : [];
-  if (known.length > 1) {
-    const results = await Promise.all(known.map(id => readTeam(id, refresh)));
+  if (work.teams.length > 1) {
+    const results = await Promise.all(work.teams.map(id => readTeam(id, refresh)));
     if (results.every(result => result.error)) throw results[0].error;
     return mergeOverviews(results);
   }
@@ -120,12 +175,17 @@ async function loadOverview({ fresh = false, quiet = false, spinner = false } = 
   if (!quiet) { state.ploegLoading = true; if (work.loadedTeam !== team) state.ploeg = null; }
   if (changed) renderWork();
   try {
-    const data = await readOverview(team, fresh);
+    let data = await readOverview(team, fresh);
     if (request !== work.listRequest || !visible()) return;
+    if (work.loadedTeam === team) data = refreshOverview(state.ploeg, data);
     if (signature(data) !== signature(state.ploeg)) changed = true;
     state.ploeg = data;
     work.loadedTeam = team;
-    if (data.available) live.touch('work');
+    if (data.available) {
+      if (data.teams?.length) work.teams = data.teams.map(entry => entry.id);
+      live.touch('work');
+      void loadReviewFacts();
+    }
   } catch (error) {
     if (request !== work.listRequest || !state.bootstrap) return;
     if (error.code === 'ploeg_not_found' && team) {
@@ -146,6 +206,17 @@ async function loadOverview({ fresh = false, quiet = false, spinner = false } = 
   }
 }
 
+async function loadReviewFacts() {
+  const page = state.ploeg?.available ? state.ploeg.lanes?.awaiting_review : null;
+  if (!page || activePloegLane(state) !== 'awaiting_review') return;
+  const wanted = page.items.slice(0, reviewFactLimit).filter(item => work.reviewFacts.get(item.id)?.updatedAt !== item.updatedAt && !work.reviewPending.has(item.id));
+  if (!wanted.length) return;
+  for (const item of wanted) work.reviewPending.add(item.id);
+  const results = await Promise.all(wanted.map(item => api(`/api/ploeg/work-items/${encodeURIComponent(item.id)}`).then(detail => [item.id, reviewFacts(detail)], () => [item.id, null])));
+  for (const [id, facts] of results) { work.reviewPending.delete(id); if (facts) work.reviewFacts.set(id, facts); }
+  if (visible() && results.some(([, facts]) => facts)) renderWork();
+}
+
 async function ensureSessions() {
   if (work.sessionsLoaded) return;
   work.sessionsLoaded = true;
@@ -164,8 +235,10 @@ async function loadDetail(id, { fresh = false, quiet = false } = {}) {
     const detail = await api(`/api/ploeg/work-items/${encodeURIComponent(id)}${fresh ? '?refresh=1' : ''}`);
     if (request !== work.detailRequest || !visible() || work.detailId !== id) return;
     if (signature(detail) !== signature(state.ploegDetail)) changed = true;
+    if (!quiet) work.revealedId = null;
     state.ploegDetail = detail;
     state.ploegDetailError = '';
+    if (detail.item.state === 'awaiting_review') work.reviewFacts.set(id, reviewFacts(detail));
   } catch (error) {
     if (request !== work.detailRequest || !visible() || work.detailId !== id) return;
     if (quiet && state.ploegDetail?.item.id === id) throw error;
@@ -178,10 +251,7 @@ async function loadDetail(id, { fresh = false, quiet = false } = {}) {
       state.ploegDetailLoading = false;
       if (changed) renderWork();
       if (!quiet && state.ploegDetail) {
-        const title = $('#ploeg-item-title');
-        title?.focus({ preventScroll: true });
-        if (title && title.getBoundingClientRect().top < 0) window.scrollTo({ top: 0 });
-        announce(`${state.ploegDetail.item.title || `Work Item ${id}`}, ${workItemRef(state.ploegDetail.item)}`);
+        focusTitle();
         void ensureSessions();
       }
     }
@@ -197,6 +267,8 @@ function registerLive() {
   if (work.registered) return;
   work.registered = true;
   live.register('work', { interval: liveInterval, refresh: refreshQuietly });
+  addEventListener('scroll', schedulePane, { passive: true });
+  addEventListener('resize', schedulePane, { passive: true });
 }
 
 function teamFromQuery(query) {
@@ -216,15 +288,17 @@ async function enterWork({ id, query = {} } = {}) {
   work.team = team;
   if (!previous && id) work.listScroll = window.scrollY;
   work.detailId = id || null;
-  if (!id) { state.ploegDetailLoading = false; state.ploegDetailError = ''; }
+  if (!id) { state.ploegDetailLoading = false; state.ploegDetailError = ''; work.revealedId = null; }
   const listReady = within && !teamChanged && state.ploeg && work.loadedTeam === team;
-  const detailReady = id && state.ploegDetail?.item.id === id && !state.ploegDetailError;
+  const detailReady = id && previous === id && state.ploegDetail?.item.id === id && !state.ploegDetailError;
   const loads = [];
   if (!listReady) loads.push(loadOverview());
   if (id && !detailReady) loads.push(loadDetail(id));
   if (!loads.length) {
     renderWork();
-    if (!id && previous) restoreListPosition(previous);
+    if (id) focusTitle();
+    else if (previous) restoreListPosition(previous);
+    void loadReviewFacts();
     return;
   }
   await Promise.all(loads);
@@ -243,6 +317,7 @@ function selectLane(button) {
   keepFiltersInHash();
   renderWork();
   announce(`${ploegLanes.find(lane => lane.id === button.dataset.id).label}`);
+  void loadReviewFacts();
 }
 
 function changeTeam(select) {
@@ -255,18 +330,18 @@ function changeTeam(select) {
 
 async function loadMore() {
   const lane = activePloegLane(state);
-  const data = state.ploeg;
-  const page = data?.lanes?.[lane];
+  const team = work.team;
+  const page = state.ploeg?.lanes?.[lane];
   if (work.loadingMore || !page?.partial) return;
-  const request = work.listRequest;
   work.loadingMore = true;
   renderWork();
   try {
-    let next = page;
-    const pages = await Promise.all(Object.entries(page.cursors).map(([team, after]) => api(`/api/ploeg/work-items?${new URLSearchParams({ team, state: lane, after })}`).then(result => [team, result])));
-    if (request !== work.listRequest || !visible()) return;
-    for (const [team, result] of pages) next = appendPage(next, team, result);
-    data.lanes[lane] = next;
+    const pages = await Promise.all(Object.entries(page.cursors).map(([owner, after]) => api(`/api/ploeg/work-items?${new URLSearchParams({ team: owner, state: lane, after })}`).then(result => [owner, result])));
+    const current = state.ploeg;
+    if (!visible() || work.loadedTeam !== team || !current?.lanes?.[lane]) return;
+    let next = current.lanes[lane];
+    for (const [owner, result] of pages) next = appendPage(next, owner, result);
+    current.lanes[lane] = next;
   } catch (error) { if (state.bootstrap) notify(error.message, true); }
   finally { work.loadingMore = false; renderWork(); }
 }
@@ -314,6 +389,7 @@ async function submitCancel(id) {
     if (visible() && work.detailId === id) {
       await Promise.all([loadOverview({ fresh: true, quiet: true }).catch(() => {}), loadDetail(id, { fresh: true, quiet: true }).catch(() => {})]);
       renderWork();
+      $('#work-cancel-result')?.focus();
     }
   }
 }
@@ -326,20 +402,32 @@ function toggleBrief() {
   $('[data-action="work-brief"]')?.focus();
 }
 
+function motion() {
+  return matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+}
+
 function jumpToRun(button) {
   const run = document.getElementById(`work-run-${button.dataset.id}`);
   if (!run) return;
   const more = run.closest('details:not(.work-run)');
   if (more) more.open = true;
   run.open = true;
-  run.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  run.scrollIntoView({ block: 'start', behavior: motion() });
   run.querySelector('summary')?.focus({ preventScroll: true });
+}
+
+function jumpToSection(button) {
+  const section = document.getElementById(button.dataset.id);
+  if (!section) return;
+  section.setAttribute('tabindex', '-1');
+  section.scrollIntoView({ block: 'start', behavior: motion() });
+  section.focus({ preventScroll: true });
 }
 
 function openLinkOut() {
   const detail = state.ploegDetail;
   if (!detail || detail.item.id !== work.detailId) return false;
-  const link = document.querySelector('.work-actions a[href^="http"], .work-sticky-actions a[href^="http"]');
+  const link = document.querySelector('.work-detail [data-link-out="pr"][href]') || document.querySelector('.work-detail [data-link-out="tracker"][href]');
   const url = link && safeUrl(link.href);
   if (!url) return false;
   window.open(url, '_blank', 'noopener,noreferrer');
@@ -376,7 +464,8 @@ function workKeys(event) {
 /**
  * Work: the Work Items of one Team or all Teams by lane (`#work?lane=&team=`, the Team remembered per browser),
  * and one Work Item's decision, evidence and history (`#work/<id>`), beside the list on wide screens. Refreshes
- * every 30 s while on screen. `j`/`k` move between rows, `o` opens the pull request or tracker task, Esc closes.
+ * every 30 s while on screen without dropping pages loaded with Load more. `j`/`k` move between rows, `o` opens
+ * the pull request or tracker task, Esc closes.
  */
 export default {
   id: 'work',
@@ -393,10 +482,10 @@ export default {
     'work-cancel': () => work.cancelBusy ? null : openCancel(),
     'work-brief': () => toggleBrief(),
     'work-run': jumpToRun,
+    'work-section': jumpToSection,
   },
   changes: {
     '#ploeg-team': changeTeam,
   },
   keys: [workKeys],
 };
-
