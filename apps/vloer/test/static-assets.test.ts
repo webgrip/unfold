@@ -90,7 +90,7 @@ test('the workbench entry, shell and its core and view modules are served from t
 test('the card runtime and its skin packs are served by a strict path pattern', { timeout: testTimeout(15_000) }, async t => {
   const server = await application('demo');
   t.after(() => server.close());
-  for (const [path, type] of [['/cards/glide-card.js', 'text/javascript; charset=utf-8'], ['/cards/card-model.js', 'text/javascript; charset=utf-8'], ['/cards/registry.js', 'text/javascript; charset=utf-8'], ['/cards/glide-card.css', 'text/css; charset=utf-8'], ['/cards/skins/vloer-native/manifest.json', 'application/json; charset=utf-8'], ['/cards/skins/vloer-native/skin.css', 'text/css; charset=utf-8'], ['/cards/skins/vloer-native/skin.js', 'text/javascript; charset=utf-8']]) {
+  for (const [path, type] of [['/cards/unfold-card.js', 'text/javascript; charset=utf-8'], ['/cards/card-model.js', 'text/javascript; charset=utf-8'], ['/cards/registry.js', 'text/javascript; charset=utf-8'], ['/cards/unfold-card.css', 'text/css; charset=utf-8'], ['/cards/skins/vloer-native/manifest.json', 'application/json; charset=utf-8'], ['/cards/skins/vloer-native/skin.css', 'text/css; charset=utf-8'], ['/cards/skins/vloer-native/skin.js', 'text/javascript; charset=utf-8']]) {
     const response = await get(server.url, path);
     assert.equal(response.status, 200, `${path}: ${response.body}`);
     assert.equal(response.type, type, path);

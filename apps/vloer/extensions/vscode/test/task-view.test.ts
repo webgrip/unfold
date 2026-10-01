@@ -16,7 +16,7 @@ async function serve(handler: (request: IncomingMessage, response: ServerRespons
 }
 
 function task(overrides: Partial<TaskSnapshot> = {}): TaskSnapshot {
-  return { key: 'task:k', sourceId: 'glide', provider: 'vikunja', id: '1505', revision: 'r'.repeat(64), title: 'Explain the flow', description: '<p>Body</p>', url: 'https://vikunja.example/tasks/1505', status: 'open', repositoryId: 'ploeg', updatedAt: new Date(Date.now() - 2 * 86_400_000).toISOString(), ...overrides };
+  return { key: 'task:k', sourceId: 'unfold', provider: 'vikunja', id: '1505', revision: 'r'.repeat(64), title: 'Explain the flow', description: '<p>Body</p>', url: 'https://vikunja.example/tasks/1505', status: 'open', repositoryId: 'ploeg', updatedAt: new Date(Date.now() - 2 * 86_400_000).toISOString(), ...overrides };
 }
 
 function status(overrides: Partial<TaskPloegStatus> = {}): TaskPloegStatus {
@@ -24,7 +24,7 @@ function status(overrides: Partial<TaskPloegStatus> = {}): TaskPloegStatus {
 }
 
 const bootstrap = (role: 'admin' | 'operator' | 'viewer', sharedExecution = false) => ({ user: { id: 'u', name: 'Ryan', role }, sharedExecution } as unknown as Bootstrap);
-const ploegSource: TaskSource = { id: 'glide', name: 'Glide', provider: 'vikunja', repositoryId: 'ploeg', executionOwner: 'ploeg', handoff: true };
+const ploegSource: TaskSource = { id: 'unfold', name: 'Unfold', provider: 'vikunja', repositoryId: 'ploeg', executionOwner: 'ploeg', handoff: true };
 const interactiveSource: TaskSource = { id: 'mine', name: 'Mine', provider: 'forgejo', repositoryId: 'app', executionOwner: 'interactive' };
 
 test('tree labels count in words people read: one role, several roles, and a paused team says so first', () => {
@@ -113,17 +113,17 @@ test('task hand-off calls use the contracted routes, and a missing lookup reads 
   });
   t.after(() => server.close());
   const client = new VloerClient(server.url, secrets, 2000, 1);
-  await client.taskPloeg('glide', '1505');
-  await client.handoff('glide', '1505', 'silver', 'rev1');
-  await client.takeBack('glide', '1505', 'silver');
+  await client.taskPloeg('unfold', '1505');
+  await client.handoff('unfold', '1505', 'silver', 'rev1');
+  await client.takeBack('unfold', '1505', 'silver');
   assert.equal(await client.lookupTask('vikunja', '1505'), undefined);
   assert.deepEqual(seen, [
-    'GET /api/task-sources/glide/tasks/1505/ploeg ',
-    'POST /api/task-sources/glide/tasks/1505/handoff {"team":"silver","revision":"rev1"}',
-    'DELETE /api/task-sources/glide/tasks/1505/handoff?team=silver ',
+    'GET /api/task-sources/unfold/tasks/1505/ploeg ',
+    'POST /api/task-sources/unfold/tasks/1505/handoff {"team":"silver","revision":"rev1"}',
+    'DELETE /api/task-sources/unfold/tasks/1505/handoff?team=silver ',
     'GET /api/tasks/lookup?provider=vikunja&id=1505 ',
   ]);
-  assert.throws(() => client.handoff('glide', '1505', '../admin', 'rev1'));
+  assert.throws(() => client.handoff('unfold', '1505', '../admin', 'rev1'));
 });
 
 test('tooltips drop Markdown escapes too', () => {

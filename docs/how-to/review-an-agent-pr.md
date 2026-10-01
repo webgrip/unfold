@@ -1,7 +1,7 @@
 ---
 type: how-to
 audience: [owner]
-owner: glide
+owner: unfold
 last_verified: 2026-09-29
 verified_by: "Read apps/ploeg pkg/worker/{task,worker}.go, pkg/shiftengine/{engine,reviewloop,publish,review}.go, pkg/store/{store,review}.go, pkg/httpapi/server.go, cmd/ploegd/{main,sweep}.go and apps/vloer/public/ploeg.js on 2026-09-23. On 2026-09-30 the Vloer sections were re-read against apps/vloer at 68c90cf on feat/vloer-redesign, after the screen rebuild (public/shell.js, core/route.js, core/counts.js, now.js, ploeg.js, views/now.js, views/work.js; src/ploeg.ts) Read apps/ploeg pkg/shiftengine/{usage,publish,engine}.go, pkg/store/{usage,llm_settlement}.go, pkg/provider/provider.go, cmd/ploegd/{main,sweep}.go and ops/helm/ploeg/values.yaml on 2026-09-29"
 ---
@@ -61,7 +61,7 @@ It answers three questions in one place:
 - **What it cost.** Each Run's settled cost in US dollars to two decimals (`US$ 0,06`). A Run whose account has not been reconciled yet is marked **(provisional)**; the header says so too. A Run whose gateway spend Ploeg could not read shows **unavailable** rather than a guess — Ploeg never prints the authorization as if it were the cost.
 - **Did it check its work.** The **Evidence** section names the writing Run's verification result (`passed`, `failed (<command>)` or `incomplete (<reason>)`) and the commit it verified, and points you at the writing Run's findings comment for the full output. When Ploeg recorded no verification — a reading Role, no configured checks, or a Shift older than worker verification — it says **verification: not recorded**; it never leaves a blank that could read as a pass.
 
-When the deployment sets `PLOEG_REPORT_GRAFANA_URL` and `PLOEG_REPORT_VLOER_URL`, a **Where to dig deeper** section links the Glide — Loop dashboard for the Team, the Run Explorer for this Run (filtered by the trace alias), Spend & Attribution, and the Work Item's page in Vloer. Unset base URLs simply omit those links ([values.yaml](../../apps/ploeg/ops/helm/ploeg/values.yaml)).
+When the deployment sets `PLOEG_REPORT_GRAFANA_URL` and `PLOEG_REPORT_VLOER_URL`, a **Where to dig deeper** section links the Unfold — Loop dashboard for the Team, the Run Explorer for this Run (filtered by the trace alias), Spend & Attribution, and the Work Item's page in Vloer. Unset base URLs simply omit those links ([values.yaml](../../apps/ploeg/ops/helm/ploeg/values.yaml)).
 
 The report is accounting Ploeg reads from what it already stored; it makes no gateway call and is not a billing statement. Turn it off with `PLOEG_USAGE_REPORT=false` if a deployment finds it noisy.
 

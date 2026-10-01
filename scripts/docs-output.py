@@ -47,7 +47,7 @@ def validate(site, staging):
     if redirects.exists():
         for redirect in json.loads(redirects.read_text())['redirects']:
             target = redirect['to'].removeprefix('/glide/')
-            assert target != redirect['to'], f'Legacy redirect leaves Glide: {redirect}'
+            assert target != redirect['to'], f'Legacy redirect leaves the docs site: {redirect}'
             target += 'index.html' if target.endswith('/') else ''
             assert (site / target).is_file(), f'Missing legacy redirect target: {redirect}'
     return sources
@@ -64,7 +64,7 @@ def finalize(site, staging):
             shutil.copyfile(source, target)
     index = absolute_links((staging / 'llms.txt').read_text(), base)
     (site / 'llms.txt').write_text(index)
-    bundle = [f'# Glide current reading path\n\nSource revision: {sources["revision"]}\n\nThis bundle contains the pages selected by llms.txt. Decision history and research remain available through explicit links.\n']
+    bundle = [f'# Unfold current reading path\n\nSource revision: {sources["revision"]}\n\nThis bundle contains the pages selected by llms.txt. Decision history and research remain available through explicit links.\n']
     for target in dict.fromkeys(re.findall(r'\]\(([^\s)]+\.md)(?:#[^)]*)?\)', index)):
         assert target.startswith(base), target
         source = staging / target.removeprefix(base)

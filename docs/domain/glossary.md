@@ -1,15 +1,15 @@
 ---
 type: reference
 audience: [owner, integrator, contributor, agent]
-owner: glide
+owner: unfold
 generated_by: "mise run domain"
 ---
 
-# Glossary — Glide
+# Glossary — Unfold
 
 *Generated from `model.yaml` — do not edit by hand.*
 
-The [combined Glide glossary](../reference/glossary.md) lists every term of every model once, with its owner and the words it must not be confused with.
+The [combined Unfold glossary](../reference/glossary.md) lists every term of every model once, with its owner and the words it must not be confused with.
 
 ## Acceptance
 *Context: Work*
@@ -31,10 +31,10 @@ The observable conditions a Result must satisfy to answer the requested work. Th
 ## Agency
 *Context: Offering*
 
-A business that uses Glide to build software for its Clients and pays for it. A freelancer, or an in-house team that is its own only Client, is an Agency too. An Agency reviews and merges every pull request and owns production. It uses Glide hosted, in its own Tenant, or self-hosted.
+A business that uses Unfold to build software for its Clients and pays for it. A freelancer, or an in-house team that is its own only Client, is an Agency too. An Agency reviews and merges every pull request and owns production. It uses Unfold hosted, in its own Tenant, or self-hosted.
 
 **Do not use:** customer, operator, reseller  
-**Not to be confused with** [Tenant](#tenant): The isolated space that holds one Agency's work in hosted Glide.  
+**Not to be confused with** [Tenant](#tenant): The isolated space that holds one Agency's work in hosted Unfold.  
 **Not to be confused with** [Client](#client): The Agency's own customer.  
 **See also:** [Tenant](#tenant), [Client](#client), [Acceptance](#acceptance)  
 
@@ -56,7 +56,7 @@ Agent Host Protocol: Microsoft's JSON-RPC protocol that lets VS Code's Agent Hos
 ## Attention Path
 *Context: Work*
 
-A repository path whose changes need careful review, listed as a glob in .glide/attention or covered by CODEOWNERS. Agents may change it; a pull request that does is labelled and lists those files first.
+A repository path whose changes need careful review, listed as a glob in .unfold/attention or covered by CODEOWNERS. Agents may change it; a pull request that does is labelled and lists those files first.
 
 **See also:** [Review](#review), [Diff Limit](#diff-limit)  
 
@@ -80,7 +80,7 @@ The reviewable change Vloer captures from a Session's Workspace when its Crew st
 ## Client
 *Context: Offering*
 
-An Agency's customer. A Client submits Requests, answers Refinement questions, approves Quotes and gives feedback on Preview Environments in the Client Portal. Glide never contacts a Client directly.
+An Agency's customer. A Client submits Requests, answers Refinement questions, approves Quotes and gives feedback on Preview Environments in the Client Portal. Unfold never contacts a Client directly.
 
 **Do not use:** customer, end client, end customer  
 **See also:** [Agency](#agency), [Client Portal](#client-portal), [Client Profile](#client-profile), [Quote](#quote), [Request](#request)  
@@ -88,7 +88,7 @@ An Agency's customer. A Client submits Requests, answers Refinement questions, a
 ## Client Portal
 *Context: Offering · Owner: Vloer*
 
-The part of Vloer where Clients submit Requests, talk to the refinement agent, approve Quotes and open Preview Environments through signed links. It shows the Agency's price; Glide's own charge is hidden unless the Agency shows it.
+The part of Vloer where Clients submit Requests, talk to the refinement agent, approve Quotes and open Preview Environments through signed links. It shows the Agency's price; Unfold's own charge is hidden unless the Agency shows it.
 
 **Also known as:** Portal  
 **See also:** [Client](#client), [Quote](#quote), [Vloer](#vloer)  
@@ -119,7 +119,7 @@ Vloer's registered, reusable list of one to eight Roles that a Session runs in o
 ## Cutover
 *Context: Release*
 
-The switch from the old per-application repositories to Glide for releases and published documentation, including a first live pilot. Documentation publishing has moved to Glide; release cutover waits for its own Qualification.
+The switch from the old per-application repositories to Unfold for releases and published documentation, including a first live pilot. Documentation publishing has moved to Unfold; release cutover waits for its own Qualification.
 
 **See also:** [Qualification](#qualification)  
 
@@ -150,7 +150,7 @@ The most changed lines and files a Size allows in one pull request, counted with
 ## Dispute
 *Context: Billing*
 
-A disagreement between Glide and an Agency about a charge, such as a change resembling a closed pull request that landed on the base branch on a weak match. It opens with ten working days' notice before any charge. A Client objecting to a Preview Environment is feedback that the Agency decides against the Acceptance Conditions, not a Dispute.
+A disagreement between Unfold and an Agency about a charge, such as a change resembling a closed pull request that landed on the base branch on a weak match. It opens with ten working days' notice before any charge. A Client objecting to a Preview Environment is feedback that the Agency decides against the Acceptance Conditions, not a Dispute.
 
 **Do not use:** preview dispute, client dispute  
 **See also:** [Reversal](#reversal), [Acceptance](#acceptance), [Delivery Fee](#delivery-fee)  
@@ -169,17 +169,10 @@ Inspectable material supporting a claim about a Result or a Run, such as cited r
 
 **See also:** [Result](#result), [Review](#review)  
 
-## Glide
-*Context: System*
-
-The product and the monorepo that holds Vloer and Ploeg. A person creates a work item and assigns it to agents; the agents do the code work until a pull request is ready for a person to review and merge. Vloer and Ploeg remain separately deployable applications.
-
-**See also:** [Vloer](#vloer), [Ploeg](#ploeg)  
-
 ## Markup
 *Context: Billing*
 
-The published percentage Glide adds to token and compute cost when billing an Agency. It is the same for every Agency. The price an Agency charges its Client is the Agency's own and is not a Markup.
+The published percentage Unfold adds to token and compute cost when billing an Agency. It is the same for every Agency. The price an Agency charges its Client is the Agency's own and is not a Markup.
 
 **Do not use:** markup tier  
 **See also:** [Token Charge](#token-charge), [Agency](#agency)  
@@ -215,14 +208,14 @@ Where a Session's Workspace runs, chosen per Session from the backends a deploym
 ## Ploeg
 *Context: System · Owner: Ploeg*
 
-Glide's execution engine and its only Authority. It takes work from trackers and from Vloer, admits it, sets its budget, controls who may write each branch and runs the agents. Dutch for a crew or shift team.
+Unfold's execution engine and its only Authority. It takes work from trackers and from Vloer, admits it, sets its budget, controls who may write each branch and runs the agents. Dutch for a crew or shift team.
 
 **See also:** [Vloer](#vloer), [Admission](../reference/glossary.md#admission), [Authority](../reference/glossary.md#authority), [Run](../reference/glossary.md#run), [Shift](../reference/glossary.md#shift)  
 
 ## Preview Environment
 *Context: Work*
 
-A running copy of one pull request's change, deployed with generated test data by a CI step in the Agency's own pipeline, to the Agency's infrastructure or to Glide's preview hosting in the Agency's Tenant. Its address is posted to the pull request and the Client Portal. It is deleted when the pull request merges or closes, or after an idle limit, and never receives production secrets.
+A running copy of one pull request's change, deployed with generated test data by a CI step in the Agency's own pipeline, to the Agency's infrastructure or to Unfold's preview hosting in the Agency's Tenant. Its address is posted to the pull request and the Client Portal. It is deleted when the pull request merges or closes, or after an idle limit, and never receives production secrets.
 
 **Also known as:** Preview  
 **Do not use:** staging, review app  
@@ -325,14 +318,14 @@ Whether a person is watching a Ploeg-authorized Session live (human) or has hand
 ## TechDocs
 *Context: Tooling*
 
-Backstage's documentation format: a static site built from Markdown by MkDocs with the techdocs-core plugin. `mise run docs-check` builds Glide's TechDocs output in strict mode.
+Backstage's documentation format: a static site built from Markdown by MkDocs with the techdocs-core plugin. `mise run docs-check` builds Unfold's TechDocs output in strict mode.
 
 **See also:** [Zensical](#zensical)  
 
 ## Tenant
 *Context: Offering*
 
-The isolated space in hosted Glide that holds one Agency's Work Items, Shifts, credentials, Preview Environments and Budgets: its own namespaces, default-deny network, sandboxed runtime and model budget. Ploeg records it on every Team, Work Item, Shift and credential. Clients are users inside a Tenant, never Tenants. Self-hosted Glide has no Tenants.
+The isolated space in hosted Unfold that holds one Agency's Work Items, Shifts, credentials, Preview Environments and Budgets: its own namespaces, default-deny network, sandboxed runtime and model budget. Ploeg records it on every Team, Work Item, Shift and credential. Clients are users inside a Tenant, never Tenants. Self-hosted Unfold has no Tenants.
 
 **See also:** [Agency](#agency), [Client](#client), [Preview Environment](#preview-environment)  
 
@@ -346,17 +339,24 @@ The word Agencies and Clients use for a Work Item with a Quote. Use it only in t
 ## Token Charge
 *Context: Billing*
 
-The part of a Work Item's price charged for every attempt: model tokens and compute at cost plus the Agency's Markup, up to the Shift Budget. Rejected work still pays it; attempts that fail through Glide's own fault do not.
+The part of a Work Item's price charged for every attempt: model tokens and compute at cost plus the Agency's Markup, up to the Shift Budget. Rejected work still pays it; attempts that fail through Unfold's own fault do not.
 
 **See also:** [Delivery Fee](#delivery-fee), [Markup](#markup), [Budget](#budget)  
+
+## Unfold
+*Context: System*
+
+The product and the monorepo that holds Vloer and Ploeg. A person creates a work item and assigns it to agents; the agents do the code work until a pull request is ready for a person to review and merge. Vloer and Ploeg remain separately deployable applications.
+
+**See also:** [Vloer](#vloer), [Ploeg](#ploeg)  
 
 ## Vloer
 *Context: System · Owner: Vloer*
 
-Glide's front end: the web workbench and VS Code extension where people start work, steer agents live and review evidence. It asks Ploeg to admit and run every Run. Without Ploeg it runs only a deterministic demo that makes no model calls. Dutch for "floor", as in shop floor.
+Unfold's front end: the web workbench and VS Code extension where people start work, steer agents live and review evidence. It asks Ploeg to admit and run every Run. Without Ploeg it runs only a deterministic demo that makes no model calls. Dutch for "floor", as in shop floor.
 
 **Also known as:** De Vloer  
-**Examples:** Current state: Vloer's own engine still executes delegated Steps until the Glide ADR-0002 migration is complete.  
+**Examples:** Current state: Vloer's own engine still executes delegated Steps until the Unfold ADR-0002 migration is complete.  
 **See also:** [Ploeg](#ploeg), [Session](#session), [Step](#step)  
 
 ## Workspace
@@ -369,7 +369,7 @@ The working environment containing the files and tools available to a Run. Its c
 ## Zensical
 *Context: Tooling*
 
-The static site generator that renders Glide's published human pages from the same mkdocs.yml and Markdown sources. The builder image pins its version.
+The static site generator that renders Unfold's published human pages from the same mkdocs.yml and Markdown sources. The builder image pins its version.
 
 **See also:** [TechDocs](#techdocs)  
 
@@ -397,7 +397,7 @@ The attempt it named is a Shift, and one Role's part of it is a Run. A second na
 ### Agency Edition
 *Use instead: [Edition](#edition)*
 
-Agency names the business that uses Glide, so "the Agency edition" would mean two things in one sentence. The middle Edition is Studio.
+Agency names the business that uses Unfold, so "the Agency edition" would mean two things in one sentence. The middle Edition is Studio.
 
 ## Terms owned by other models
 
@@ -405,9 +405,9 @@ This model uses these terms with their owners' meaning: [Admission](../reference
 
 ## Decisions cited
 
-- [Glide ADR-0002](../adr/adr-0002-ploeg-is-the-only-engine.md): Ploeg is the only execution engine and Vloer is its front end.
-- [Glide ADR-0005](../adr/adr-0005-glide-is-offered-to-agencies.md): Glide is offered to agencies; delivery ends at a reviewed pull request with a preview.
-- [Glide ADR-0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md): A Work Item with a Quote is the billing unit; the Delivery Fee is charged on Acceptance.
+- [Unfold ADR-0002](../adr/adr-0002-ploeg-is-the-only-engine.md): Ploeg is the only execution engine and Vloer is its front end.
+- [Unfold ADR-0005](../adr/adr-0005-unfold-is-offered-to-agencies.md): Unfold is offered to agencies; delivery ends at a reviewed pull request with a preview.
+- [Unfold ADR-0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md): A Work Item with a Quote is the billing unit; the Delivery Fee is charged on Acceptance.
 
 ---
 
@@ -433,7 +433,7 @@ Short exchanges showing the terms used precisely at concept boundaries.
 *Context: Participation*
 
 > **Developer:** My Vloer session ran a planner, an implementer and a reviewer. Is that three Runs?
-> **Platform engineer:** Today it is one delegated Run with three Steps inside Vloer. After the Glide ADR-0002 migration each Role executes as its own Ploeg Run.
+> **Platform engineer:** Today it is one delegated Run with three Steps inside Vloer. After the Unfold ADR-0002 migration each Role executes as its own Ploeg Run.
 > **Developer:** And the whole attempt, with its branch and budget?
 > **Platform engineer:** That is the Shift. Only the writing Run holds the Lease on its branch.
 
@@ -479,7 +479,7 @@ Visibility into decisions needs a defined record beyond raw model messages and t
 
 ### a Request that arrives through a tracker
 
-Ploeg mirrors every assigned Tracker Item into a Work Item. A Client's ask that arrives as a ClickUp or Vikunja task is a Request, not yet a Work Item, so either the mirror must wait for Refinement or the Request must live in Glide beside the Tracker Item.
+Ploeg mirrors every assigned Tracker Item into a Work Item. A Client's ask that arrives as a ClickUp or Vikunja task is a Request, not yet a Work Item, so either the mirror must wait for Refinement or the Request must live in Unfold beside the Tracker Item.
 
 **Options:** The tracker task is the Request; Refinement's Work Items become new Tracker Items or stay in Ploeg (Ploeg ADR-0031), Ploeg mirrors it as an unready Work Item that Refinement replaces with the real ones, Requests only come through the Client Portal; tracker tasks are always Work Items  
 **Recommendation:** The tracker task is the Request. Refinement's Work Items stay in Ploeg as proposed until their Quotes are approved, which reuses Ploeg ADR-0031 and keeps the Agency's tracker as the one place its Clients' asks live.  

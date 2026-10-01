@@ -1,11 +1,11 @@
 ---
 type: reference
 audience: [owner, integrator, contributor, agent]
-owner: glide
+owner: unfold
 generated_by: "mise run domain"
 ---
 
-# Entities — Glide
+# Entities — Unfold
 
 *Generated from `model.yaml` — do not edit by hand.*
 

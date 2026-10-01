@@ -61,8 +61,8 @@ test('the command writes the report as a step output and treats a missing captur
   writeFileSync(output, '');
   const script = new URL('./ci-warnings.mjs', import.meta.url).pathname;
   execFileSync(process.execPath, [script, directory, join(directory, 'absent')], { env: { ...process.env, GITHUB_OUTPUT: output } });
-  assert.match(readFileSync(output, 'utf8'), /^report<<(GLIDE_WARNINGS_\d+)\nnpm: npm warn deprecated a@1\.0\.0: gone\n\1\n$/);
+  assert.match(readFileSync(output, 'utf8'), /^report<<(UNFOLD_WARNINGS_\d+)\nnpm: npm warn deprecated a@1\.0\.0: gone\n\1\n$/);
   writeFileSync(output, '');
   execFileSync(process.execPath, [script, join(directory, 'absent')], { env: { ...process.env, GITHUB_OUTPUT: output } });
-  assert.match(readFileSync(output, 'utf8'), /^report<<(GLIDE_WARNINGS_\d+)\n\n\1\n$/);
+  assert.match(readFileSync(output, 'utf8'), /^report<<(UNFOLD_WARNINGS_\d+)\n\n\1\n$/);
 });

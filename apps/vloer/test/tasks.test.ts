@@ -279,7 +279,7 @@ test('demo tasks are labeled fixtures, bound to the demo repository and unavaila
 });
 
 test('Vikunja snapshots carry labels, assignees, priority, due date and identifier without changing the revision, and the preview adds Markdown', async () => {
-  let current = issue('vikunja', { description: '<p>Use <strong>decimal</strong> totals.</p><ul data-type="taskList"><li data-checked="true"><p>Round</p></li></ul>', index: 7, identifier: 'GLIDE-7', priority: 3, due_date: '2026-10-01T12:00:00Z', labels: [{ id: 1, title: 'backend', hex_color: 'E8E8E8' }, { id: 2, title: `leak ${token}`, hex_color: 'not-a-color' }, 'junk', { title: '' }], assignees: [{ id: 11, username: 'silver', name: 'Silver team' }, { id: 12, username: 'plain' }, { id: 13 }] });
+  let current = issue('vikunja', { description: '<p>Use <strong>decimal</strong> totals.</p><ul data-type="taskList"><li data-checked="true"><p>Round</p></li></ul>', index: 7, identifier: 'UNFOLD-7', priority: 3, due_date: '2026-10-01T12:00:00Z', labels: [{ id: 1, title: 'backend', hex_color: 'E8E8E8' }, { id: 2, title: `leak ${token}`, hex_color: 'not-a-color' }, 'junk', { title: '' }], assignees: [{ id: 11, username: 'silver', name: 'Silver team' }, { id: 12, username: 'plain' }, { id: 13 }] });
   const remote = await fixture((request, response) => json(response, request.url?.startsWith('/api/v1/tasks/17') ? current : [current]));
   try {
     const configured = source('vikunja', remote.origin);
@@ -288,7 +288,7 @@ test('Vikunja snapshots carry labels, assignees, priority, due date and identifi
     assert.deepEqual(task.assignees, [{ username: 'silver', name: 'Silver team' }, { username: 'plain' }]);
     assert.equal(task.priority, 3);
     assert.equal(task.dueAt, '2026-10-01T12:00:00.000Z');
-    assert.equal(task.identifier, 'GLIDE-7');
+    assert.equal(task.identifier, 'UNFOLD-7');
     assert.equal('descriptionMarkdown' in task, false, 'the snapshot never carries the display copy');
     assert.equal(presentTask(configured, task).descriptionMarkdown, 'Use **decimal** totals.\n\n- [x] Round');
     assert.equal(task.description, current.description, 'the stored description stays the tracker text');

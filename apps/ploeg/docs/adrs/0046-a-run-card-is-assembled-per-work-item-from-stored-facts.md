@@ -10,7 +10,7 @@ review-by: 2027-01-31
 
 ## Context and Problem Statement
 
-The proposed Run cards show what Glide did for one ticket: who worked it, what it cost, which pull requests it opened and how they ended. [ADR-0045](0045-keep-run-usage-and-merge-facts.md) made Ploeg keep the usage, merge and review facts a card needs. Three questions remain open:
+The proposed Run cards show what Unfold did for one ticket: who worked it, what it cost, which pull requests it opened and how they ended. [ADR-0045](0045-keep-run-usage-and-merge-facts.md) made Ploeg keep the usage, merge and review facts a card needs. Three questions remain open:
 
 * What is one card? A Run, a Shift and a Work Item are all candidates. A ticket that bounced (pull request closed, reworked, opened again) has two pull requests and often two Shifts.
 * Who draws it? Vloer renders, but it has no forge access and no database. Ploeg holds every fact.

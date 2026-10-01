@@ -21,7 +21,7 @@ def ref_exists(ref):
 expected_notes = [note['destination'] for app in manifest['applications'] for note in app.get('notes', [])]
 check_notes = any(ref_exists(ref) for ref in expected_notes)
 if not check_notes:
-    if os.environ.get('GLIDE_REQUIRE_IMPORT_NOTES') == 'true':
+    if os.environ.get('UNFOLD_REQUIRE_IMPORT_NOTES') == 'true':
         raise SystemExit('Imported release notes are absent; fetch them with: git fetch origin "+refs/notes/*:refs/notes/*"')
     print('Imported release notes are absent locally; skipping their check. Run `mise run setup` with the origin remote to fetch them.')
 

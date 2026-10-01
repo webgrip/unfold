@@ -31,16 +31,16 @@ def git(*args, env=None, input=None):
 
 def release_tag(application, version):
     if application not in {'vloer', 'ploeg'} or not re.fullmatch(r'0\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-rc\.([1-9][0-9]*)', version):
-        raise ValueError('The cutover publishes only 0.x.y-rc.N Glide releases for a named application')
-    return f'glide-v{version}'
+        raise ValueError('The cutover publishes only 0.x.y-rc.N Unfold releases for a named application')
+    return f'unfold-v{version}'
 
 
 def export_commit(tag, parent):
     tree = git('rev-parse', f'{tag}:apps/ploeg')
     revision = git('rev-parse', f'{tag}^{{commit}}')
     date = git('show', '-s', '--format=%cI', revision)
-    env = {**os.environ, 'GIT_AUTHOR_NAME': 'Glide release', 'GIT_AUTHOR_EMAIL': 'ci@webgrip.dev', 'GIT_COMMITTER_NAME': 'Glide release', 'GIT_COMMITTER_EMAIL': 'ci@webgrip.dev', 'GIT_AUTHOR_DATE': date, 'GIT_COMMITTER_DATE': date}
-    commit = git('commit-tree', tree, '-p', parent, env=env, input=f'Export {tag}\n\nGlide-Source: {revision}\nGlide-Tree: {tree}\n')
+    env = {**os.environ, 'GIT_AUTHOR_NAME': 'Unfold release', 'GIT_AUTHOR_EMAIL': 'ci@webgrip.dev', 'GIT_COMMITTER_NAME': 'Unfold release', 'GIT_COMMITTER_EMAIL': 'ci@webgrip.dev', 'GIT_AUTHOR_DATE': date, 'GIT_COMMITTER_DATE': date}
+    commit = git('commit-tree', tree, '-p', parent, env=env, input=f'Export {tag}\n\nUnfold-Source: {revision}\nUnfold-Tree: {tree}\n')
     return commit, tree
 
 
@@ -81,7 +81,7 @@ def link_package(name, token):
     try:
         if linked - {None}:
             api(f'{path}/unlink', token, 'POST')
-        api(f'{path}/link/glide', token, 'POST')
+        api(f'{path}/link/unfold', token, 'POST')
     except RuntimeError as error:
         print(f'::warning::package {name} stays linked to {", ".join(sorted(r for r in linked if r)) or "no repository"}: {error}', file=sys.stderr)
 
@@ -100,7 +100,7 @@ def attach_forgejo(release, name, content, token):
     if existing:
         require_same(digest(fetch_asset(existing, token)), digest(content), name)
         return
-    boundary = 'glide-release-' + hashlib.sha256(content).hexdigest()
+    boundary = 'unfold-release-' + hashlib.sha256(content).hexdigest()
     body = f'--{boundary}\r\nContent-Disposition: form-data; name="attachment"; filename="{name}"\r\nContent-Type: application/octet-stream\r\n\r\n'.encode() + content + f'\r\n--{boundary}--\r\n'.encode()
     request(f'{FORGEJO}/releases/{release["id"]}/assets?name={urllib.parse.quote(name)}', method='POST', data=body, headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'multipart/form-data; boundary=' + boundary})
 
@@ -126,7 +126,7 @@ def mirror_release(tag, source, forge_token, github_token, publish=True):
     remote = git('ls-remote', 'https://github.com/webgrip/glide.git', f'refs/tags/{tag}', f'refs/tags/{tag}^{{}}')
     refs = dict((line.split()[1], line.split()[0]) for line in remote.splitlines())
     actual = refs.get(f'refs/tags/{tag}^{{}}', refs.get(f'refs/tags/{tag}'))
-    require_same(actual, git('rev-parse', f'{tag}^{{commit}}'), 'GitHub Glide release source')
+    require_same(actual, git('rev-parse', f'{tag}^{{commit}}'), 'GitHub Unfold release source')
     target = github_release(tag, github_token)
     expected = {'tag_name': tag, 'name': source['name'], 'body': source['body'], 'prerelease': True}
     if target is None:

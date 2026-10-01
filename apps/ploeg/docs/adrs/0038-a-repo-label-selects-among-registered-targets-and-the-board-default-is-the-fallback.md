@@ -56,7 +56,7 @@ operator, and it is the only variant that can ship before homelab work lands. Th
 who can set a label is the person who can already assign the bot, so the hint adds a
 choice within the operator's allowlist and no new principal. G's registry derivation
 (G1) and planner-proposed splits (G3) change who writes the registry and who drafts the
-split, not how Glide reads a hint, so they build on B rather than replace it. G's
+split, not how Unfold reads a hint, so they build on B rather than replace it. G's
 component labels (G2) are rejected for routing for now.
 
 The proposed shape:
@@ -95,9 +95,9 @@ The proposed shape:
    homelab-cluster fills `targets:` from the repo-config entries that carry the
    `agent-target` flag. The flag is separate from the `agent-driven` protection profile,
    so becoming a target and getting agent-review branch protection are two decisions.
-   The entry also carries the agent base branch, which Glide reads. It starts as a Lint
+   The entry also carries the agent base branch, which Unfold reads. It starts as a Lint
    check that the two sets are equal and becomes a renderer when the hand-kept list is
-   the friction. Glide reads a generic registry and never a homelab file format.
+   the friction. Unfold reads a generic registry and never a homelab file format.
 9. **A readiness gate.** A registry entry whose repository is archived, is a mirror, or
    has no `AGENTS.md` on its base branch is loaded as not ready, and an item that
    resolves to it is refused with that reason. The gate runs at config load and again
@@ -113,7 +113,7 @@ The owner answered four of the five questions this record first asked:
 * **`allow:` default.** A board that omits `allow:` may select only its own `default`.
   Reaching any other target takes an explicit `allow:` entry.
 * **Label convention.** Hints are `repo/<registry key>`. The label cleanup is board work,
-  tracked as tickets and not done by Glide: retire `repo/ploeg` (the repository is
+  tracked as tickets and not done by Unfold: retire `repo/ploeg` (the repository is
   archived) and retag its tickets `repo/glide`, merge the duplicate
   `repo/frontend-toolkit`, and create `repo/glide` and `repo/omnigraph-explorer`.
 * **Cross-repository work** is an epic with one child per repository.
@@ -129,7 +129,7 @@ The owner answered the questions left after G was evaluated, and this record mov
 * **Direction.** B now, with strict routing (VIK-1354) first, then G1 and G3. No G2.
 * **G1 selector.** A separate `agent-target` flag on the repo-config entry selects
   routing targets. It is decoupled from the `agent-driven` protection profile.
-* **Base branch.** The agent base branch lives on the repo-config entry, and Glide reads
+* **Base branch.** The agent base branch lives on the repo-config entry, and Unfold reads
   it from there.
 * **Readiness.** A target that fails the readiness check is refused both at config load
   and again at claim, each time with a recorded reason.
@@ -165,7 +165,7 @@ splinters the per-board pick-up queue.
   backlog #34 a compatibility entry.
 * Good, because G1 makes "the bot may write here" and "work may route here" one
   reviewed act in homelab git, so they cannot drift apart.
-* Bad, because G1 depends on homelab work Glide does not control (VIK-1310, VIK-1327),
+* Bad, because G1 depends on homelab work Unfold does not control (VIK-1310, VIK-1327),
   and until then the registry is a hand-kept list beside a bot that can write every
   org repository.
 * Bad, because strict routing will refuse items that dispatch today. That is intended,

@@ -43,7 +43,7 @@ work, and what bounds it.
 
 ## Decision Drivers
 
-* Glide ADR-0002, and Ploeg ADR-0024 and ADR-0025: Ploeg holds every state
+* Unfold ADR-0002, and Ploeg ADR-0024 and ADR-0025: Ploeg holds every state
   transition and authorizes every Run. Vloer asks, and it never executes.
 * R2 and ADR-0017: no agent may restart work. A restart is a person's act,
   audited as theirs.
@@ -233,7 +233,7 @@ each button sends. `go test ./internal/ledger/` gates this record.
 
 ## More Information
 
-* Technical story: VIK-606 (`glide: re-queue a needs_human Work Item from
+* Technical story: VIK-606 (`unfold: re-queue a needs_human Work Item from
   Vloer`) is the first slice. Starting at a chosen Round and the Vloer buttons
   are tracked beside it.
 * 2026-10-01 — accepted by the owner, with the options as written: restart
@@ -241,7 +241,7 @@ each button sends. `go test ./internal/ledger/` gates this record.
   attempt counts and authorizes a pool the operator confirms. Build order:
   after ADR-0043's VIK-1304, then VIK-606, VIK-1596, VIK-1597.
 * Evidence: `docs/research/2026-09-29-incident-work-item-138.md`; Shift 118 /
-  glide PR #45 (reviewer Run 209, "acp agent stopped responding").
+  unfold PR #45 (reviewer Run 209, "acp agent stopped responding").
 * [ADR-0019](0019-a-failed-writing-run-reopens-its-round.md): why a Shift's
   round is its plan index, and why restarts must not skip a planned Round.
 * [ADR-0043](0043-a-failed-reading-run-is-retried-and-a-missing-review-closes-review-failed.md):

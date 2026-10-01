@@ -1,7 +1,7 @@
 ---
 type: explanation
 audience: [owner, contributor, operator, agent]
-owner: glide
+owner: unfold
 last_verified: 2026-09-29
 verified_by: "source read of apps/ploeg (pkg/sandboxlaunch, pkg/worker, pkg/harness/adapters, ops/helm/ploeg) at 050fa3b; homelab-cluster main at 432fc0d4; read-only kubectl in namespace ploeg on 2026-09-29"
 ---
@@ -64,7 +64,7 @@ flowchart TB
 
 A Team without `executorType: sandbox` skips the launcher: the ScaledJob's pod is the worker pod, under the node's default runtime (runc). The rest of this page is the same for both.
 
-The [executor contract](../../apps/ploeg/docs/contracts/executor.md) calls the sandbox executor experimental. It depends on [kubernetes-sigs/agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) v1.0.x, installed outside Glide.
+The [executor contract](../../apps/ploeg/docs/contracts/executor.md) calls the sandbox executor experimental. It depends on [kubernetes-sigs/agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) v1.0.x, installed outside Unfold.
 
 ## One Run, start to finish
 
@@ -164,7 +164,7 @@ It has no route to the internet, the LAN or a container registry. A toolchain th
 
 ## What production runs today
 
-Checked on 2026-09-29 against [homelab-cluster](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/ploeg/app/helmrelease.yaml) `main` and the live `ploeg` namespace. Glide `0.4.0-rc.11` is deployed.
+Checked on 2026-09-29 against [homelab-cluster](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/ploeg/app/helmrelease.yaml) `main` and the live `ploeg` namespace. Unfold `0.4.0-rc.11` is deployed.
 
 | Team | Executor | Harness | Model | State on 2026-09-29 |
 | --- | --- | --- | --- | --- |

@@ -1,26 +1,26 @@
-project: Glide
-owner: glide
+project: Unfold
+owner: unfold
 description: >
-  Glide turns units of work (Work Items) into pull requests that are ready for human review.
+  Unfold turns units of work (Work Items) into pull requests that are ready for human review.
   Ploeg authorizes, budgets and executes every agent Run; Vloer is its front end
-  (Glide ADR-0002). Without Ploeg, Vloer runs only its deterministic demo, which
+  (Unfold ADR-0002). Without Ploeg, Vloer runs only its deterministic demo, which
   makes no model calls. Until Vloer's own engine is retired, a managed execution
   never falls back to it. This model includes intended product rules; it is not a
   feature inventory. Current behavior is documented in ../index.md and the
   application architecture guides. Execution terms such as Run, Shift, Lease,
   Team, Role and Outcome belong to Ploeg's model; this model imports them.
-  The agency offering (Glide ADRs 0005 to 0010) is decided and not implemented;
+  The agency offering (Unfold ADRs 0005 to 0010) is decided and not implemented;
   its terms are in the Offering and Billing contexts.
 version: "0.4"
 combined_glossary: ../reference/glossary.md
 references:
-  - label: Glide ADR-0002
+  - label: Unfold ADR-0002
     path: ../adr/adr-0002-ploeg-is-the-only-engine.md
     note: Ploeg is the only execution engine and Vloer is its front end.
-  - label: Glide ADR-0005
-    path: ../adr/adr-0005-glide-is-offered-to-agencies.md
-    note: Glide is offered to agencies; delivery ends at a reviewed pull request with a preview.
-  - label: Glide ADR-0006
+  - label: Unfold ADR-0005
+    path: ../adr/adr-0005-unfold-is-offered-to-agencies.md
+    note: Unfold is offered to agencies; delivery ends at a reviewed pull request with a preview.
+  - label: Unfold ADR-0006
     path: ../adr/adr-0006-the-ticket-is-the-billing-unit.md
     note: A Work Item with a Quote is the billing unit; the Delivery Fee is charged on Acceptance.
 imports:
@@ -28,7 +28,7 @@ imports:
     terms: [Run, Shift, Lease, Team, Role, Outcome, Verdict, Harness, Work Item, Tracker Item, Follow-Up, Admission, Authority]
 contexts:
   - name: System
-    description: The applications that make up Glide and how they divide the work.
+    description: The applications that make up Unfold and how they divide the work.
   - name: Work
     description: Requested results, their evidence, and their acceptance.
   - name: Participation
@@ -37,18 +37,18 @@ contexts:
     description: The product view of AI work. Ploeg's model owns the execution vocabulary.
   - name: Offering
     description: >
-      Who uses Glide and what they see: Agencies, their Clients and the Client
-      Portal. Decided in Glide ADRs 0005 to 0010; not implemented yet.
+      Who uses Unfold and what they see: Agencies, their Clients and the Client
+      Portal. Decided in Unfold ADRs 0005 to 0010; not implemented yet.
   - name: Billing
     description: >
       How work is sized, quoted and charged: Sizes, Quotes, Credits and the two
-      parts of a price. Decided in Glide ADR-0006; not implemented yet.
+      parts of a price. Decided in Unfold ADR-0006; not implemented yet.
   - name: Release
-    description: How Glide's own source, releases and documentation are proven and switched over.
+    description: How Unfold's own source, releases and documentation are proven and switched over.
   - name: Tooling
-    description: External tools and protocols that Glide builds on or has evaluated.
+    description: External tools and protocols that Unfold builds on or has evaluated.
 terms:
-  - name: Glide
+  - name: Unfold
     context: System
     definition: >
       The product and the monorepo that holds Vloer and Ploeg. A person creates a
@@ -60,18 +60,18 @@ terms:
     context: System
     owner: vloer
     definition: >
-      Glide's front end: the web workbench and VS Code extension where people
+      Unfold's front end: the web workbench and VS Code extension where people
       start work, steer agents live and review evidence. It asks Ploeg to admit
       and run every Run. Without Ploeg it runs only a deterministic demo that makes
       no model calls. Dutch for "floor", as in shop floor.
     synonyms: [De Vloer]
-    examples: ["Current state: Vloer's own engine still executes delegated Steps until the Glide ADR-0002 migration is complete."]
+    examples: ["Current state: Vloer's own engine still executes delegated Steps until the Unfold ADR-0002 migration is complete."]
     see_also: [Ploeg, Session, Step]
   - name: Ploeg
     context: System
     owner: ploeg
     definition: >
-      Glide's execution engine and its only Authority. It takes work from trackers
+      Unfold's execution engine and its only Authority. It takes work from trackers
       and from Vloer, admits it, sets its budget, controls who may write each
       branch and runs the agents. Dutch for a crew or shift team.
     see_also: [Vloer, Admission, Authority, Run, Shift]
@@ -235,22 +235,22 @@ terms:
   - name: Cutover
     context: Release
     definition: >
-      The switch from the old per-application repositories to Glide for releases
+      The switch from the old per-application repositories to Unfold for releases
       and published documentation, including a first live pilot. Documentation
-      publishing has moved to Glide; release cutover waits for its own
+      publishing has moved to Unfold; release cutover waits for its own
       Qualification.
     see_also: [Qualification]
   - name: TechDocs
     context: Tooling
     definition: >
       Backstage's documentation format: a static site built from Markdown by
-      MkDocs with the techdocs-core plugin. `mise run docs-check` builds Glide's
+      MkDocs with the techdocs-core plugin. `mise run docs-check` builds Unfold's
       TechDocs output in strict mode.
     see_also: [Zensical]
   - name: Zensical
     context: Tooling
     definition: >
-      The static site generator that renders Glide's published human pages from
+      The static site generator that renders Unfold's published human pages from
       the same mkdocs.yml and Markdown sources. The builder image pins its version.
     see_also: [TechDocs]
   - name: OpenSpec
@@ -292,7 +292,7 @@ terms:
     definition: >
       A running copy of one pull request's change, deployed with generated test
       data by a CI step in the Agency's own pipeline, to the Agency's
-      infrastructure or to Glide's preview hosting in the Agency's Tenant. Its
+      infrastructure or to Unfold's preview hosting in the Agency's Tenant. Its
       address is posted to the pull request and the Client Portal. It is deleted
       when the pull request merges or closes, or after an idle limit, and never
       receives production secrets.
@@ -313,7 +313,7 @@ terms:
     context: Work
     definition: >
       A repository path whose changes need careful review, listed as a glob in
-      .glide/attention or covered by CODEOWNERS. Agents may change it; a pull
+      .unfold/attention or covered by CODEOWNERS. Agents may change it; a pull
       request that does is labelled and lists those files first.
     see_also: [Review, Diff Limit]
   - name: Diff Limit
@@ -328,32 +328,32 @@ terms:
   - name: Agency
     context: Offering
     definition: >
-      A business that uses Glide to build software for its Clients and pays for
+      A business that uses Unfold to build software for its Clients and pays for
       it. A freelancer, or an in-house team that is its own only Client, is an
       Agency too. An Agency reviews and merges every pull request and owns
-      production. It uses Glide hosted, in its own Tenant, or self-hosted.
+      production. It uses Unfold hosted, in its own Tenant, or self-hosted.
     avoid: [customer, operator, reseller]
     not_to_be_confused_with:
       - term: Tenant
-        note: The isolated space that holds one Agency's work in hosted Glide.
+        note: The isolated space that holds one Agency's work in hosted Unfold.
       - term: Client
         note: The Agency's own customer.
     see_also: [Tenant, Client, Acceptance]
   - name: Tenant
     context: Offering
     definition: >
-      The isolated space in hosted Glide that holds one Agency's Work Items,
+      The isolated space in hosted Unfold that holds one Agency's Work Items,
       Shifts, credentials, Preview Environments and Budgets: its own namespaces,
       default-deny network, sandboxed runtime and model budget. Ploeg records it
       on every Team, Work Item, Shift and credential. Clients are users inside a
-      Tenant, never Tenants. Self-hosted Glide has no Tenants.
+      Tenant, never Tenants. Self-hosted Unfold has no Tenants.
     see_also: [Agency, Client, Preview Environment]
   - name: Client
     context: Offering
     definition: >
       An Agency's customer. A Client submits Requests, answers Refinement
       questions, approves Quotes and gives feedback on Preview Environments in
-      the Client Portal. Glide never contacts a Client directly.
+      the Client Portal. Unfold never contacts a Client directly.
     avoid: [customer, end client, end customer]
     see_also: [Agency, Client Portal, Client Profile, Quote, Request]
   - name: Client Portal
@@ -362,7 +362,7 @@ terms:
     definition: >
       The part of Vloer where Clients submit Requests, talk to the refinement
       agent, approve Quotes and open Preview Environments through signed links.
-      It shows the Agency's price; Glide's own charge is hidden unless the
+      It shows the Agency's price; Unfold's own charge is hidden unless the
       Agency shows it.
     synonyms: [Portal]
     see_also: [Client, Quote, Vloer]
@@ -420,13 +420,13 @@ terms:
     definition: >
       The part of a Work Item's price charged for every attempt: model tokens
       and compute at cost plus the Agency's Markup, up to the Shift Budget.
-      Rejected work still pays it; attempts that fail through Glide's own fault
+      Rejected work still pays it; attempts that fail through Unfold's own fault
       do not.
     see_also: [Delivery Fee, Markup, Budget]
   - name: Markup
     context: Billing
     definition: >
-      The published percentage Glide adds to token and compute cost when
+      The published percentage Unfold adds to token and compute cost when
       billing an Agency. It is the same for every Agency. The price an Agency
       charges its Client is the Agency's own and is not a Markup.
     avoid: [markup tier]
@@ -464,7 +464,7 @@ terms:
   - name: Dispute
     context: Billing
     definition: >
-      A disagreement between Glide and an Agency about a charge, such as a
+      A disagreement between Unfold and an Agency about a charge, such as a
       change resembling a closed pull request that landed on the base branch on
       a weak match. It opens with ten working days' notice before any charge. A
       Client objecting to a Preview Environment is feedback that the Agency
@@ -499,7 +499,7 @@ retired_terms:
     context: Offering
     use: [Edition]
     because: >
-      Agency names the business that uses Glide, so "the Agency edition" would
+      Agency names the business that uses Unfold, so "the Agency edition" would
       mean two things in one sentence. The middle Edition is Studio.
 rules:
   - id: R1
@@ -532,7 +532,7 @@ rules:
     applies_to: [Work Item, Session]
   - id: R8
     statement: >
-      Ploeg is the Authority for every Run (Glide ADR-0002). Vloer requests Admission through Ploeg's API and never
+      Ploeg is the Authority for every Run (Unfold ADR-0002). Vloer requests Admission through Ploeg's API and never
       falls back to its own execution when Ploeg is unavailable, whatever the cause. Without Ploeg, Vloer runs only
       its deterministic demo, which makes no model calls. Current state — Vloer's standalone mode and its own engine
       remain until the migration to ploeg-worker is complete; no new execution features are added to that engine.
@@ -563,7 +563,7 @@ rules:
   - id: R13
     statement: >
       Intended behavior — the Delivery Fee is charged only on Acceptance. The Token Charge is charged for every
-      attempt up to the Shift Budget, except attempts that fail through Glide's own fault.
+      attempt up to the Shift Budget, except attempts that fail through Unfold's own fault.
     rationale: The Agency pays for delivered work, and rejecting work is never free, so neither side profits from the other's mistakes.
     applies_to: [Delivery Fee, Token Charge, Acceptance]
   - id: R14
@@ -573,14 +573,14 @@ rules:
     rationale: A guaranteed ceiling on spend is what Agencies buy.
     applies_to: [Budget, Shift, Size]
   - id: R15
-    statement: Intended behavior — Glide never contacts a Client directly; questions for a Client go through its Agency.
+    statement: Intended behavior — Unfold never contacts a Client directly; questions for a Client go through its Agency.
     rationale: The Agency owns the Client relationship.
     applies_to: [Client, Agency, Refinement]
   - id: R16
     statement: >
-      Intended behavior — Glide never merges a pull request or deploys to production. A Preview Environment never
+      Intended behavior — Unfold never merges a pull request or deploys to production. A Preview Environment never
       receives production secrets.
-    rationale: Glide's responsibility ends at a reviewed pull request and its preview; production stays with the Agency.
+    rationale: Unfold's responsibility ends at a reviewed pull request and its preview; production stays with the Agency.
     applies_to: [Agency, Preview Environment, Acceptance]
 ambiguities:
   - phrase: a CI failure with no original ticket
@@ -604,7 +604,7 @@ ambiguities:
       Ploeg mirrors every assigned Tracker Item into a Work Item. A Client's ask
       that arrives as a ClickUp or Vikunja task is a Request, not yet a Work Item,
       so either the mirror must wait for Refinement or the Request must live in
-      Glide beside the Tracker Item.
+      Unfold beside the Tracker Item.
     options:
       - The tracker task is the Request; Refinement's Work Items become new Tracker Items or stay in Ploeg (Ploeg ADR-0031)
       - Ploeg mirrors it as an unready Work Item that Refinement replaces with the real ones
@@ -638,7 +638,7 @@ dialogues:
       - speaker: Developer
         text: My Vloer session ran a planner, an implementer and a reviewer. Is that three Runs?
       - speaker: Platform engineer
-        text: Today it is one delegated Run with three Steps inside Vloer. After the Glide ADR-0002 migration each Role executes as its own Ploeg Run.
+        text: Today it is one delegated Run with three Steps inside Vloer. After the Unfold ADR-0002 migration each Role executes as its own Ploeg Run.
       - speaker: Developer
         text: And the whole attempt, with its branch and budget?
       - speaker: Platform engineer

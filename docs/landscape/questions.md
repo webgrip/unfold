@@ -1,8 +1,8 @@
 ---
 type: explanation
 audience: [owner, contributor]
-owner: glide
-unverified: "Predates Glide ADR-0002 and ADR-0003: it still says local work must run without Ploeg and that separate engines are retained, and it uses the retired terms ticket and repair subticket. Reconcile it with the accepted ADRs and the product model, then verify it."
+owner: unfold
+unverified: "Predates Unfold ADR-0002 and ADR-0003: it still says local work must run without Ploeg and that separate engines are retained, and it uses the retired terms ticket and repair subticket. Reconcile it with the accepted ADRs and the product model, then verify it."
 ---
 
 # Questions that change the architecture
@@ -24,7 +24,7 @@ This is a discussion guide, not an implementation backlog. Open language choices
 
 **A developer starts local work.** The product direction requires this to work without Ploeg. Current standalone Vloer supports that path, with a registered repository and crew. Repository-free conversation and fully offline model inference are separate capabilities; neither follows from independence from Ploeg.
 
-**Both applications need execution machinery.** Separate three choices: who authorizes work, where the runner executes, and which code is reused. A common runner could implement workspace setup, harness invocation, interruption and evidence capture while Ploeg retains scheduling and budgets and Vloer retains interaction. Glide retains separate engines after the [fixture comparison](../research/2026-09-12-execution-boundary.md). Reopen extraction when a concrete behavior needs the same fix in both engines. Go and TypeScript do not become a shared library merely by moving into one repository; a process or wire contract may be the useful boundary.
+**Both applications need execution machinery.** Separate three choices: who authorizes work, where the runner executes, and which code is reused. A common runner could implement workspace setup, harness invocation, interruption and evidence capture while Ploeg retains scheduling and budgets and Vloer retains interaction. Unfold retains separate engines after the [fixture comparison](../research/2026-09-12-execution-boundary.md). Reopen extraction when a concrete behavior needs the same fix in both engines. Go and TypeScript do not become a shared library merely by moving into one repository; a process or wire contract may be the useful boundary.
 
 **A Ploeg-managed runner loses its connection.** It retains Ploeg's authority; it cannot turn itself into standalone work. The current workbench interrupts on failed authority reconciliation and preserves unresolved state. Any future policy allowing continuation within an unexpired grant must qualify expiry, revocation, duplicate-start prevention and evidence reconciliation. A deliberately standalone run has no Ploeg connection to lose. The [migration record](../migration.md) links the executed comparison.
 

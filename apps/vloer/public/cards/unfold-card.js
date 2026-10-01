@@ -2,7 +2,7 @@ import { icon } from '../core/icons.js';
 import { cardView, cardTabs, finishLadder } from './card-model.js';
 import { defaultSkin, loadSkin, requiredSlots, resolveSkin } from './registry.js';
 
-const runtimeStylesheet = '/cards/glide-card.css';
+const runtimeStylesheet = '/cards/unfold-card.css';
 const tabIds = cardTabs.map(tab => tab.id);
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const safeLink = value => { try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password ? url.href : ''; } catch { return ''; } };
@@ -28,14 +28,14 @@ function parse(markup) {
 }
 
 /**
- * `<glide-card>`: renders one Run card in a shadow root with the skin its Work Target chose, falling back to Vloer
+ * `<unfold-card>`: renders one Run card in a shadow root with the skin its Work Target chose, falling back to Vloer
  * Native. Set the card object (`GET /api/ploeg/work-items/:id/card` → `card`) on the `card` property. The `face`
- * (`front` or `back`) and `tab` attributes hold the view and are reflected; every change fires `glide-card-change`
+ * (`front` or `back`) and `tab` attributes hold the view and are reflected; every change fires `unfold-card-change`
  * with `{ face, tab }`. "More info" turns the card, Escape turns it back, and the back's tabs follow the ARIA tabs
  * pattern. The turn is a 3D flip that becomes a crossfade when the reader prefers reduced motion. Whatever a skin
  * draws, the front always carries the title, state, cost, steward and ids.
  */
-export class GlideCard extends Base {
+export class UnfoldCard extends Base {
   static get observedAttributes() { return ['face', 'tab']; }
 
   #card = null;
@@ -204,7 +204,7 @@ export class GlideCard extends Base {
     for (const panel of stage.querySelectorAll('[data-card-panel]')) panel.hidden = panel.dataset.cardPanel !== tab;
   }
 
-  #changed() { this.dispatchEvent(new CustomEvent('glide-card-change', { bubbles: true, detail: { face: this.face, tab: this.tab } })); }
+  #changed() { this.dispatchEvent(new CustomEvent('unfold-card-change', { bubbles: true, detail: { face: this.face, tab: this.tab } })); }
 
   #click(event) {
     const control = event.target instanceof Element ? event.target.closest('[data-card-action="flip"], [data-card-tab]') : null;
@@ -234,4 +234,4 @@ export class GlideCard extends Base {
   }
 }
 
-if (globalThis.customElements && !customElements.get('glide-card')) customElements.define('glide-card', GlideCard);
+if (globalThis.customElements && !customElements.get('unfold-card')) customElements.define('unfold-card', UnfoldCard);

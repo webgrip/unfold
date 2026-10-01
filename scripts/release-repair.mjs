@@ -6,7 +6,7 @@ const git = (cwd, args) => execFileSync('git', args, { cwd, encoding: 'utf8', st
 
 /**
  * Builds the Forgejo release that semantic-release would have created for a release commit.
- * @param {string} tag The release tag, for example glide-v0.4.0-rc.26.
+ * @param {string} tag The release tag, for example unfold-v0.4.0-rc.26.
  * @param {string} notes The release commit's body, which holds the generated release notes.
  */
 export function releaseFor(tag, notes) {

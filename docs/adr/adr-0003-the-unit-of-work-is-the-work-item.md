@@ -8,7 +8,7 @@ decision-makers: Ryan Grippeling
 
 ## Context and Problem Statement
 
-Glide's documentation described its input as "tracker tickets", and the product model had three names for the thing being worked on: Ticket, Workload and Work Item. The owner's goal is not about tickets. It is about units of work: things we have decided to do, or problems described in enough detail that a solution can be formulated or at least conceived. A tracker is only one place such a unit is written down. What is the unit Glide works on, and where can it come from?
+Unfold's documentation described its input as "tracker tickets", and the product model had three names for the thing being worked on: Ticket, Workload and Work Item. The owner's goal is not about tickets. It is about units of work: things we have decided to do, or problems described in enough detail that a solution can be formulated or at least conceived. A tracker is only one place such a unit is written down. What is the unit Unfold works on, and where can it come from?
 
 ## Decision Drivers
 
@@ -43,4 +43,4 @@ Accepted, and partly implemented. The vocabulary and rules are in both domain mo
 
 ## More Information
 
-* 2026-09-22 — The owner stated that Glide is about units of work rather than tickets, and that work can be to create work.
+* 2026-09-22 — The owner stated that Unfold is about units of work rather than tickets, and that work can be to create work.

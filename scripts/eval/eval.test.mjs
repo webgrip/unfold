@@ -9,7 +9,7 @@ const here = import.meta.dirname;
 const fixturesDirectory = join(here, 'fixtures');
 
 async function scratch(t) {
-  const directory = await mkdtemp(join(tmpdir(), 'glide-eval-test-'));
+  const directory = await mkdtemp(join(tmpdir(), 'unfold-eval-test-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   return directory;
 }
@@ -41,7 +41,7 @@ test('refuses a harness that can call models unless the live switch is set', asy
   const fixtures = await loadFixtures(fixturesDirectory, ['order-rounding']);
   const variants = await loadVariants(join(here, 'variants/live.example.json'));
   await assert.rejects(runEvaluation({ fixtures, variants }), new RegExp(`Set ${LIVE_ENV}=1`));
-  await assert.rejects(runEvaluation({ fixtures, variants, live: true, env: {} }), /GLIDE_EVAL_LITELLM_URL/);
+  await assert.rejects(runEvaluation({ fixtures, variants, live: true, env: {} }), /UNFOLD_EVAL_LITELLM_URL/);
 });
 
 test('a command harness gets the prompt, a capped trial key and an outcome file, never the master key', async t => {
@@ -49,12 +49,12 @@ test('a command harness gets the prompt, a capped trial key and an outcome file,
   const agent = join(directory, 'agent.mjs');
   await writeFile(agent, [
     "import { readFileSync, writeFileSync } from 'node:fs';",
-    "const prompt = readFileSync(process.env.GLIDE_EVAL_PROMPT_FILE, 'utf8');",
+    "const prompt = readFileSync(process.env.UNFOLD_EVAL_PROMPT_FILE, 'utf8');",
     "if (!prompt.includes('Split a bill') || !prompt.includes('node --test test/split.test.js')) process.exit(3);",
     "if (!process.env.AGENT_KEY?.startsWith('sk-fake-') || JSON.stringify(process.env).includes('sk-fake-master')) process.exit(4);",
     "const path = 'src/split.js';",
     "writeFileSync(path, readFileSync(path, 'utf8').replace('  return Array.from({ length: people }, () => share);', '  const remainder = totalCents % people;\\n  return Array.from({ length: people }, (_, index) => share + (index < remainder ? 1 : 0));'));",
-    "writeFileSync(process.env.GLIDE_EVAL_OUTCOME_FILE, JSON.stringify({ steps: 7 }));",
+    "writeFileSync(process.env.UNFOLD_EVAL_OUTCOME_FILE, JSON.stringify({ steps: 7 }));",
   ].join('\n'));
   const variantsFile = join(directory, 'variants.json');
   await writeFile(variantsFile, JSON.stringify({ variants: [{ id: 'local-agent', harness: { kind: 'command', command: ['node', agent, '{model}'], env: { AGENT_KEY: '{gatewayKey}' } }, prompt: join(here, 'prompts/baseline.md'), model: 'test-model' }] }));

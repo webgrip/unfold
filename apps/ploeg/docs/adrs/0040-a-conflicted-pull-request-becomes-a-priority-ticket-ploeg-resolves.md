@@ -12,7 +12,7 @@ review-by: 2026-12-31
 
 On 2026-09-30 pull request #48 stopped being mergeable, and the owner asked:
 when a pull request gets merge conflicts, a ticket should be filed with
-priority, and Glide should pick it up by itself. That day 5 of 17 open pull
+priority, and Unfold should pick it up by itself. That day 5 of 17 open pull
 requests on webgrip/glide conflicted: three AGit pull requests from the owner's
 sessions, one on a person's branch, and one agent branch that collided with
 another agent branch ([evidence](../research/2026-09-30-merge-conflict-signals.md)).
@@ -63,7 +63,7 @@ binding between ticket and pull request in Ploeg's hands.
 2. The ticket has priority and is picked up without a person assigning it.
 3. For an AGit pull request, Ploeg opens a superseding pull request, and the
    owner closes the original.
-4. Glide builds this itself, from tickets on the Glide board.
+4. Unfold builds this itself, from tickets on the Unfold board.
 5. (2026-10-01, after agent pull request #45 conflicted and Vloer showed it as
    ready for review) A conflict must be clear inside Vloer. This holds on every
    route, whether or not it opts in to conflict tickets.
@@ -79,7 +79,7 @@ A route opts in with a `conflicts` block. A route without one does nothing new.
 trackers:
   vikunja:
     projects:
-      - name: Glide
+      - name: Unfold
         id: "10"
         repo: webgrip/glide
         branch: development
@@ -212,7 +212,7 @@ other open pull requests on routes that opt in.
   per pull request and per route, and its result is still a pull request a
   person reviews. That is why it may skip the approval step.
 * [ADR-0036](0036-stuck-work-reaches-the-owner-as-a-cited-proposal-not-an-agent-decision.md):
-  Ploeg now creates tracker items. Until Glide has its own Vikunja user (owner
+  Ploeg now creates tracker items. Until Unfold has its own Vikunja user (owner
   decision 5 there), the tickets are written by the account whose token ploegd
   holds, which is the owner's. Conflict tickets carry no decisions, so they are
   never grounds.
@@ -279,7 +279,7 @@ This record is proposed, and nothing has been built yet. When the tickets land,
 * Good, because it runs exactly when conflicts appear, and is quick to write.
 * Bad, because mergeability is computed after the push, so the job would have
   to poll anyway.
-* Bad, because it is configuration in one repository, not a Glide capability
+* Bad, because it is configuration in one repository, not an Unfold capability
   for every repository Ploeg routes, and it puts a tracker token in CI.
 * Bad, because Ploeg would still need the binding, so it saves nothing inside
   Ploeg.
@@ -305,13 +305,13 @@ This record is proposed, and nothing has been built yet. When the tickets land,
 * More than 10 conflict tickets in a week on one route. Fix the hot spots
   (generated files merged by hand, sequence numbers in file names) or serialize
   writers (VIK-571), rather than paying to resolve them.
-* Glide gets its own Vikunja user, so tickets can be authored as Glide.
+* Unfold gets its own Vikunja user, so tickets can be authored as Unfold.
 * A second tracker provider needs task creation.
 
 ## More Information
 
 * Evidence: [2026-09-30 merge conflict signals](../research/2026-09-30-merge-conflict-signals.md).
-* Board: epic VIK-1584 on the Glide board, slices VIK-1585 to VIK-1588, Show
+* Board: epic VIK-1584 on the Unfold board, slices VIK-1585 to VIK-1588, Show
   as VIK-1598 (Ploeg) and VIK-1599 (Vloer), and the rollout VIK-1589 on
   Homelab Roadmap.
 * VIK-1280 polls pull request head checks in the same reconcile, for the same

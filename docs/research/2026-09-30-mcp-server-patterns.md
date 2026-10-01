@@ -1,6 +1,6 @@
 # Building ploeg-mcp: patterns and traps
 
-Date: 30 September 2026, against `docs/mcp-access` at `dd00f38`. This is a record and a build guide for [ADR-0011](../adr/adr-0011-glide-is-reachable-over-mcp-through-a-read-first-server.md) (accepted). It refines that decision; it does not reopen it. Nothing here is implemented.
+Date: 30 September 2026, against `docs/mcp-access` at `dd00f38`. This is a record and a build guide for [ADR-0011](../adr/adr-0011-unfold-is-reachable-over-mcp-through-a-read-first-server.md) (accepted). It refines that decision; it does not reopen it. Nothing here is implemented.
 
 > **Method.** Six research agents, one per area: tool and result design, the Go SDK's source at v1.8.0, client compatibility (twelve clients, with opencode, Goose and Codex read in source), security engineering (with Authentik read in source), testing and operations, and advanced protocol patterns. Their raw reports are in [evidence/2026-09-30-mcp-server-patterns/](evidence/2026-09-30-mcp-server-patterns/), with a [verified skeleton](evidence/2026-09-30-mcp-server-patterns/skeleton.md).
 >
@@ -344,7 +344,7 @@ Phase 1 (stdio with a token) and phase 2 (a static bearer on the internal gatewa
 
 ## 11. What this changes
 
-- **[ADR-0011](../adr/adr-0011-glide-is-reachable-over-mcp-through-a-read-first-server.md)** gets a dated refinement: both eras are served, both result channels are full, approval is described as consent backed by grants and single use, the OAuth phase uses Authentik with pre-registered clients, and the Confirmation uses the fixture build.
+- **[ADR-0011](../adr/adr-0011-unfold-is-reachable-over-mcp-through-a-read-first-server.md)** gets a dated refinement: both eras are served, both result channels are full, approval is described as consent backed by grants and single use, the OAuth phase uses Authentik with pre-registered clients, and the Confirmation uses the fixture build.
 - **Tickets on the Glide board:**
   - VIK-1507, 1508 and 1509 gain these rules as comments.
   - New tickets cover the OAuth resource server, the per-consumer actor allowlist in Ploeg, and the eval harness.

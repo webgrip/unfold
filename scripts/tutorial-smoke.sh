@@ -2,13 +2,13 @@
 # Usage: scripts/tutorial-smoke.sh [--check]
 #   --check  report only whether the prerequisites are present; writes ready=true|false to GITHUB_OUTPUT.
 # Runs the two commands in docs/workflows/local-demo.md: the interactive launcher (until ready, then SIGTERM) and --smoke.
-# Environment: GLIDE_TUTORIAL_COMMAND, GLIDE_TUTORIAL_SMOKE_COMMAND, GLIDE_TUTORIAL_TIMEOUT (seconds, default 600).
+# Environment: UNFOLD_TUTORIAL_COMMAND, UNFOLD_TUTORIAL_SMOKE_COMMAND, UNFOLD_TUTORIAL_TIMEOUT (seconds, default 600).
 set -uo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-command="${GLIDE_TUTORIAL_COMMAND:-mise run demo-unified}"
-smoke_command="${GLIDE_TUTORIAL_SMOKE_COMMAND:-mise exec -- node apps/vloer/scripts/unified-demo.ts --smoke}"
-ready_timeout="${GLIDE_TUTORIAL_TIMEOUT:-600}"
+command="${UNFOLD_TUTORIAL_COMMAND:-mise run demo-unified}"
+smoke_command="${UNFOLD_TUTORIAL_SMOKE_COMMAND:-mise exec -- node apps/vloer/scripts/unified-demo.ts --smoke}"
+ready_timeout="${UNFOLD_TUTORIAL_TIMEOUT:-600}"
 stop_timeout=60
 
 missing=()
@@ -30,7 +30,7 @@ for binary in initdb postgres; do
   fi
 done
 command -v git >/dev/null 2>&1 || missing+=("git")
-if [ -z "${GLIDE_TUTORIAL_COMMAND:-}" ]; then
+if [ -z "${UNFOLD_TUTORIAL_COMMAND:-}" ]; then
   command -v mise >/dev/null 2>&1 || missing+=("mise")
 fi
 

@@ -49,5 +49,5 @@ jobs:
           github_token: ''
       - name: Fail when Forgejo no longer holds every imported release note
         env:
-          GLIDE_REQUIRE_IMPORT_NOTES: 'true'
+          UNFOLD_REQUIRE_IMPORT_NOTES: 'true'
         run: mise exec -- uv run --frozen python scripts/verify-import.py

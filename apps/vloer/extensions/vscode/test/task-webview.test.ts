@@ -2,23 +2,23 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadModuleWebview, type StubElement } from './webview-dom.ts';
 
-const view = await loadModuleWebview('task.js', { taskKey: 'glide:1505' });
+const view = await loadModuleWebview('task.js', { taskKey: 'unfold:1505' });
 const now = new Date().toISOString();
 const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
 
 function current(status: Record<string, unknown> = {}, task: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) {
   return {
     kind: 'task',
-    task: { key: 'task:k', sourceId: 'glide', provider: 'vikunja', id: '1505', identifier: '#1505', revision: 'a'.repeat(64), title: 'Explain the flow', description: '<p>raw</p>', descriptionMarkdown: 'Body', url: 'https://vikunja.example/tasks/1505', status: 'open', repositoryId: 'ploeg', updatedAt: now, labels: [{ name: 'ploeg', color: '1973ff' }], assignees: [], ...task },
-    source: { id: 'glide', name: 'Glide', provider: 'vikunja', handoff: true, executionOwner: 'ploeg' },
-    repositoryName: 'Glide', host: 'vloer.example', loadedAt: now, session: { allowed: false }, preferredTeam: 'silver',
+    task: { key: 'task:k', sourceId: 'unfold', provider: 'vikunja', id: '1505', identifier: '#1505', revision: 'a'.repeat(64), title: 'Explain the flow', description: '<p>raw</p>', descriptionMarkdown: 'Body', url: 'https://vikunja.example/tasks/1505', status: 'open', repositoryId: 'ploeg', updatedAt: now, labels: [{ name: 'ploeg', color: '1973ff' }], assignees: [], ...task },
+    source: { id: 'unfold', name: 'Unfold', provider: 'vikunja', handoff: true, executionOwner: 'ploeg' },
+    repositoryName: 'Unfold', host: 'vloer.example', loadedAt: now, session: { allowed: false }, preferredTeam: 'silver',
     status: { available: true, demo: false, handoff: { allowed: true }, teams: [{ id: 'bronze', assignee: 'bronze', queueDepth: 2, paused: false, roles: ['engineer'] }, { id: 'silver', assignee: 'silver', queueDepth: 0, paused: false, roles: ['engineer', 'reviewer'] }], assignedTeams: [], workItems: [], fetchedAt: now, ...status },
     ...extra,
   };
 }
 
 const item = (state: string, extra: Record<string, unknown> = {}) => ({ id: '42', team: 'silver', state, attempts: 1, updatedAt: now, ...extra });
-const shift = (extra: Record<string, unknown> = {}) => ({ id: '7', branch: 'glide/42-explain', round: 2, budgetUsd: 5, spentUsd: 0.4, reservedUsd: 0, openedAt: ago(30), closedAt: null, closeReason: '', ...extra });
+const shift = (extra: Record<string, unknown> = {}) => ({ id: '7', branch: 'unfold/42-explain', round: 2, budgetUsd: 5, spentUsd: 0.4, reservedUsd: 0, openedAt: ago(30), closedAt: null, closeReason: '', ...extra });
 const run = (id: string, extra: Record<string, unknown> = {}) => ({ id, shiftId: '7', role: 'builder', round: 1, writes: true, state: 'finished', startedAt: ago(20), finishedAt: ago(15), outcome: 'pr_opened', summary: '', stuckReason: '', links: [], findings: '', verdict: '', problem: '', solution: '', failureReason: null, authorizedUsd: 1, usage: { inputTokens: 1200, outputTokens: 300, costUsd: 0.12 }, costStatus: 'observed', ...extra });
 const detail = (state: string, extra: Record<string, unknown> = {}) => ({
   item: { id: '42', title: 'Explain the flow', provider: 'vikunja', externalId: '1505', team: 'silver', state, description: '', descriptionMarkdown: 'Brief from Ploeg', attempts: 1, target: { owner: 'webgrip', repo: 'glide' }, url: 'https://vikunja.example/tasks/1505', priority: 3, infraFailures: 0, createdAt: ago(60), updatedAt: ago(1), latestShift: null },
@@ -169,7 +169,7 @@ test('Runs are grouped by Round with outcome, agent verdict, failure cause, cost
 });
 
 test('pull requests show their state, CI and human reviews apart from agent verdicts', () => {
-  const plays = [{ number: 77, url: 'https://forgejo.example/webgrip/glide/pulls/77', state: 'open', branch: 'glide/42', mergedAt: null, additions: 120, deletions: 8, changedFiles: 4, ci: { state: 'failure', checks: [{ context: 'lint', state: 'failure' }, { context: 'test', state: 'success' }] }, reviews: [{ reviewer: 'ryan', state: 'approved' }] }];
+  const plays = [{ number: 77, url: 'https://forgejo.example/webgrip/glide/pulls/77', state: 'open', branch: 'unfold/42', mergedAt: null, additions: 120, deletions: 8, changedFiles: 4, ci: { state: 'failure', checks: [{ context: 'lint', state: 'failure' }, { context: 'test', state: 'success' }] }, reviews: [{ reviewer: 'ryan', state: 'approved' }] }];
   const section: StubElement = view.pullRequestsSection(current({ workItems: [item('awaiting_review')] }, {}, { card: card({ plays }) }));
   assert.match(section.textContent, /Pull request #77 ↗OpenCI failed\+120−84 files/);
   assert.match(section.textContent, /Failing checks: lint/);

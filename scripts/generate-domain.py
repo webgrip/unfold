@@ -230,7 +230,7 @@ def gen_glossary(model):
              "*Generated from `model.yaml` — do not edit by hand.*", ""]
     combined = model.get("combined_glossary")
     if combined:
-        lines += [f"The [combined Glide glossary]({combined}) lists every term of every model once, "
+        lines += [f"The [combined Unfold glossary]({combined}) lists every term of every model once, "
                   "with its owner and the words it must not be confused with.", ""]
     terms = sorted(model.get("terms", []), key=lambda t: str(t.get("name", "")).lower())
     retired = model.get("retired_terms", []) or []
@@ -515,7 +515,7 @@ def main():
     args = ap.parse_args()
 
     if args.glossary:
-        content = front_matter("glide") + gen_combined([load(p) for p in args.model], args.glossary)
+        content = front_matter("unfold") + gen_combined([load(p) for p in args.model], args.glossary)
         if args.stdout:
             sys.stdout.write(content)
         else:
@@ -542,7 +542,7 @@ def main():
     }
     if model.get("events"):
         files["events.md"] = gen_events(model)
-    owner = str(model.get("owner") or model.get("project", "glide")).lower()
+    owner = str(model.get("owner") or model.get("project", "unfold")).lower()
     for name, content in files.items():
         (out / name).write_text(front_matter(owner) + content)
         print(f"wrote {out / name}")

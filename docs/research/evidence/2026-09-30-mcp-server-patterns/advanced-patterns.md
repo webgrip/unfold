@@ -4,7 +4,7 @@
 
 # Advanced MCP server patterns: research report for `ploeg-mcp` (as of 2026-09-30)
 
-Sources are primary unless marked otherwise. "Not documented" means I looked in the vendor's own docs and found nothing. I read Glide's accepted ADR (`docs/adr/adr-0011-glide-is-reachable-over-mcp-through-a-read-first-server.md`, 2026-09-30) so the verdicts can be checked against it. It defines 9 tools across read, propose and steer toolsets, stateless 2026-07-28 on go-sdk, elicitation-gated approve/cancel, polling, and no Tasks.
+Sources are primary unless marked otherwise. "Not documented" means I looked in the vendor's own docs and found nothing. I read Glide's accepted ADR (`docs/adr/adr-0011-unfold-is-reachable-over-mcp-through-a-read-first-server.md`, 2026-09-30) so the verdicts can be checked against it. It defines 9 tools across read, propose and steer toolsets, stateless 2026-07-28 on go-sdk, elicitation-gated approve/cancel, polling, and no Tasks.
 
 ## 0. Client facts that decide most verdicts
 

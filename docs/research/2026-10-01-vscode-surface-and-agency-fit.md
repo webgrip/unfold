@@ -117,7 +117,7 @@ Each surface comes with its status and what Glide puts on it. "Stable" means usa
 | Surface | Status | Glide on it | Rule it must keep |
 | --- | --- | --- | --- |
 | AHP host (`chat.remoteAgentHosts`) | Undocumented but open; on by default | Vloer sessions today. Ploeg Work Items as sessions once ADR 0023 decides the host's role. Archive and read state; peer chats | Steering reaches the next Round, not the running Run. Archiving is not cancelling |
-| `_meta["vscode.remoteSessions"]` and `create_remote_session` | Experimental, off by default | A VS Code agent can delegate a ticket to Glide. The delegated session becomes a **proposed** Work Item waiting for a person | Never dispatches. Ploeg authorizes, a person approves ([ADR-0011](../adr/adr-0011-glide-is-reachable-over-mcp-through-a-read-first-server.md)) |
+| `_meta["vscode.remoteSessions"]` and `create_remote_session` | Experimental, off by default | A VS Code agent can delegate a ticket to Glide. The delegated session becomes a **proposed** Work Item waiting for a person | Never dispatches. Ploeg authorizes, a person approves ([ADR-0011](../adr/adr-0011-unfold-is-reachable-over-mcp-through-a-read-first-server.md)) |
 | `vscode://agents/new?prompt=&workspace=` | Stable | The fallback "Continue in VS Code" on a Work Item that needs you | Says Glide does not meter work done locally |
 | `vscode://agents/agent-host-session/<provider>/<id>` | Source only | Browser link from a Vloer session to the same session in VS Code | Verify it resolves for a remote host first |
 | `window.registerUriHandler` (`vscode://webgrip.de-vloer/…`) | Stable | Take over a Work Item, open a session, the sign-in callback | Validate every parameter. A link never mutates without confirmation |

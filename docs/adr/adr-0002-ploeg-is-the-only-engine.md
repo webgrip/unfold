@@ -8,7 +8,7 @@ decision-makers: Ryan Grippeling
 
 ## Context and Problem Statement
 
-Glide exists to close one loop: a person creates a work item and assigns it to agents, and the agents do all of the code work until a pull request is ready for human review and merge. The 2026-09-22 [inventory](../research/2026-09-22-glide-inventory.md) found two engines that each run agents: Vloer's `apps/vloer/src/engine.ts` and Ploeg's worker. Both implement harness driving, LiteLLM key brokering, spend holds, crew and review orchestration, workspace credentials and liveness. In shared mode Vloer still executes the whole crew, and Ploeg only admits it and records it. Which application executes agent work, and who authorizes it?
+Unfold exists to close one loop: a person creates a work item and assigns it to agents, and the agents do all of the code work until a pull request is ready for human review and merge. The 2026-09-22 [inventory](../research/2026-09-22-glide-inventory.md) found two engines that each run agents: Vloer's `apps/vloer/src/engine.ts` and Ploeg's worker. Both implement harness driving, LiteLLM key brokering, spend holds, crew and review orchestration, workspace credentials and liveness. In shared mode Vloer still executes the whole crew, and Ploeg only admits it and records it. Which application executes agent work, and who authorizes it?
 
 ## Decision Drivers
 
@@ -31,7 +31,7 @@ Chosen option: "Ploeg authorizes and executes all agent work; Vloer is the front
 * Vloer presents, steers and reviews work through Ploeg's API. Without Ploeg, Vloer runs only its deterministic demo fixture, which makes no model calls.
 * Vloer adopts Ploeg's execution vocabulary. A **Run** is one Role executing against a Work Item, a **Shift** is the whole attempt on a Work Item, and a **Lease** is the exclusive right to write the Shift's branch. A Vloer-internal part of one Run is a **Step**.
 
-This record supersedes the parts of [ADR-0001](adr-0001-glide-contains-independent-applications.md) that keep standalone Vloer authority and both engines. Glide still contains two independently deployable applications.
+This record supersedes the parts of [ADR-0001](adr-0001-unfold-contains-independent-applications.md) that keep standalone Vloer authority and both engines. Unfold still contains two independently deployable applications.
 
 It also resolves [Vloer ADR-0005](../../apps/vloer/docs/adrs/0005-one-work-authority.md), [Vloer ADR-0017](../../apps/vloer/docs/adrs/0017-delegate-interactive-execution-to-ploeg.md) and [Ploeg ADR-0024](../../apps/ploeg/docs/adrs/0024-operator-work-uses-one-execution-authority.md) towards Ploeg authority. Those three records keep their own status until the owner updates each ledger.
 
@@ -64,4 +64,4 @@ This record is accepted but not yet implemented. Implementation is complete when
 
 ## More Information
 
-* 2026-09-22 — The owner chose Ploeg as the only engine, Vloer as its front end, and Ploeg authority for every run. The same day the owner stated Glide's goal as an internal tool: work items to review-ready pull requests.
+* 2026-09-22 — The owner chose Ploeg as the only engine, Vloer as its front end, and Ploeg authority for every run. The same day the owner stated Unfold's goal as an internal tool: work items to review-ready pull requests.

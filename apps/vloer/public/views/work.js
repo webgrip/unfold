@@ -9,7 +9,7 @@ import { plural } from '../core/format.js';
 import { singleKeyAllowed, isTyping } from '../core/keys.js';
 import { shell } from '../shell.js';
 import { enterPloegView } from './ploeg-common.js';
-import '../cards/glide-card.js';
+import '../cards/unfold-card.js';
 
 const lanes = ploegLanes.map(lane => lane.id);
 const itemPath = /^work\/([1-9][0-9]{0,19})$/;
@@ -96,7 +96,7 @@ function renderWork() {
   const listTop = scroller ? scroller.scrollTop : 0;
   const target = focusTarget();
   const current = model();
-  const previousCard = document.querySelector('glide-card.work-run-card');
+  const previousCard = document.querySelector('unfold-card.work-run-card');
   const cardFocus = previousCard && document.activeElement === previousCard ? previousCard.focusKey : null;
   renderHtml(shell(workMarkup(current), shellOptions(current)));
   hydrateCard(previousCard, cardFocus);
@@ -111,7 +111,7 @@ function renderWork() {
 }
 
 function hydrateCard(previous, focusKey) {
-  const slot = document.querySelector('glide-card.work-run-card');
+  const slot = document.querySelector('unfold-card.work-run-card');
   const data = work.card?.id === work.detailId ? work.card.data : null;
   if (!slot || !data) return;
   let element = slot;

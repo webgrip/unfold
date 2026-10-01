@@ -28,7 +28,7 @@ const typeScale = [
   ['2xl', '22 / 28', 'Page titles', 'Work', 'title'],
   ['3xl', '28 / 34', 'Stat values', 'US$ 12,40', 'semibold'],
   ['4xl', '36 / 40', 'Sign-in and first run only', 'Welcome back.', 'title'],
-  ['mono', '12 / 18', 'Ids, branches, SHAs', 'glide/work-item-101 · 7f3c2a1', 'mono'],
+  ['mono', '12 / 18', 'Ids, branches, SHAs', 'unfold/work-item-101 · 7f3c2a1', 'mono'],
 ];
 const spaces = ['space-0-5', 'space-1', 'space-1-5', 'space-2', 'space-2-5', 'space-3', 'space-4', 'space-5', 'space-6', 'space-8', 'space-10', 'space-12', 'space-16'];
 const radii = ['radius-xs', 'radius-sm', 'radius-md', 'radius-lg', 'radius-xl', 'radius-full'];
@@ -210,7 +210,7 @@ function navigationBlock() {
 
 function dataBlock() {
   const facts = ui.dl([['Team', 'delivery'], ['Repository', ui.chip({ label: 'webgrip/ploeg', icon: 'branch' })], ['Attempts', '2 of 3'], ['Updated', ui.timeAgo(new Date(Date.now() - 5 * 60000).toISOString())], ['Spend', `<span class="num">${escape(money(1.2))}</span>`], ['Pull request', null]]);
-  const factRows = ui.dl([['Branch', '<span class="mono">glide/work-item-101</span>'], ['Lease', 'Held by worker-3 until 21:40'], ['Created', ui.timeAt('2026-09-28T08:12:00Z')]], { rows: true });
+  const factRows = ui.dl([['Branch', '<span class="mono">unfold/work-item-101</span>'], ['Lease', 'Held by worker-3 until 21:40'], ['Created', ui.timeAt('2026-09-28T08:12:00Z')]], { rows: true });
   const columns = [{ key: 'run', label: 'Run' }, { key: 'role', label: 'Role' }, { key: 'state', label: 'State' }, { key: 'spend', label: 'Spend', numeric: true }, { key: 'duration', label: 'Duration', numeric: true }];
   const runs = [
     { run: '<span class="mono">run-41</span>', role: 'writer', state: ui.stateBadge('run:running'), spend: escape(money(0.42)), duration: '4 min' },

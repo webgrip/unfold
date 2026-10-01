@@ -31,7 +31,7 @@ Proposed 0015–0019, 0021 and 0023–0028 were also reviewed as context; their 
 
 ## Repository-Level ADRs Created
 
-- [0029](../../../docs/adrs/0029-qualify-glide-before-changing-distribution.md) records the distribution qualification boundary.
+- [0029](../../../docs/adrs/0029-qualify-unfold-before-changing-distribution.md) records the distribution qualification boundary.
 - Glide's root ADR 0001 records the owner-approved repository layout before import. It does not accept Ploeg's proposed records.
 
 ## Supersessions

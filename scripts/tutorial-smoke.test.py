@@ -35,7 +35,7 @@ class TutorialSmoke(unittest.TestCase):
             tools.mkdir()
             (tools / 'curl').write_text(f'#!/bin/sh\nexit {curl}\n')
             (tools / 'curl').chmod(0o755)
-            env = {**os.environ, 'PG_BIN': str(pg_bin), 'GLIDE_TUTORIAL_COMMAND': f'bash {base}/launcher.sh {base}/data', 'GLIDE_TUTORIAL_SMOKE_COMMAND': f'bash {base}/smoke.sh', 'GLIDE_TUTORIAL_TIMEOUT': '20', 'PATH': f'{tools}:/usr/bin:/bin', 'GITHUB_OUTPUT': str(base / 'output')}
+            env = {**os.environ, 'PG_BIN': str(pg_bin), 'UNFOLD_TUTORIAL_COMMAND': f'bash {base}/launcher.sh {base}/data', 'UNFOLD_TUTORIAL_SMOKE_COMMAND': f'bash {base}/smoke.sh', 'UNFOLD_TUTORIAL_TIMEOUT': '20', 'PATH': f'{tools}:/usr/bin:/bin', 'GITHUB_OUTPUT': str(base / 'output')}
             result = subprocess.run(['bash', str(script), *args], env=env, capture_output=True, text=True, timeout=120)
             output = (base / 'output').read_text() if (base / 'output').exists() else ''
             return result, output, (base / 'data').exists()

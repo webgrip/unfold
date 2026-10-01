@@ -103,7 +103,7 @@ export async function run({ page, app, assert, screenshot }) {
     await page.waitForFunction(() => location.hash === '#work/109?lane=needs_human');
     assert.equal(await page.locator('[data-work-row][data-id="109"]').getAttribute('aria-current'), 'true', 'a link without a lane opens beside the lane the Work Item is in');
     assert.match(await page.title(), /DEMO-9 Reject negative quantities in the cart API · Work · De Vloer$/, 'the tab names the open Work Item');
-    const card = page.locator('glide-card.work-run-card');
+    const card = page.locator('unfold-card.work-run-card');
     await card.locator('.gc:not([hidden])').waitFor();
     assert(await page.evaluate(() => { const card = document.getElementById('work-card'); const rounds = document.getElementById('work-rounds'); return card && rounds && (card.compareDocumentPosition(rounds) & Node.DOCUMENT_POSITION_FOLLOWING); }), 'the Run card sits above Rounds, which stay');
     assert.equal(await card.locator('[data-slot="title"]').textContent(), 'Reject negative quantities in the cart API');
@@ -112,7 +112,7 @@ export async function run({ page, app, assert, screenshot }) {
     assert.equal(await card.locator('[data-slot="steward"] .sr-only').textContent(), 'Unsigned');
     const more = card.getByRole('button', { name: 'More info' });
     await more.click();
-    await page.waitForFunction(() => document.querySelector('glide-card.work-run-card')?.shadowRoot?.activeElement?.matches('[data-card-focus]'));
+    await page.waitForFunction(() => document.querySelector('unfold-card.work-run-card')?.shadowRoot?.activeElement?.matches('[data-card-focus]'));
     assert.equal(await card.locator('.gc-front [data-card-action="flip"]').getAttribute('aria-expanded'), 'true');
     await card.getByRole('tab', { name: 'Economics' }).focus();
     await page.keyboard.press('ArrowRight');
@@ -122,9 +122,9 @@ export async function run({ page, app, assert, screenshot }) {
     assert.match(await card.getByRole('tabpanel', { name: 'Life' }).innerText(), /Days live\s+Not released/, 'an unmerged card is not released');
     assert.equal(await card.locator('.gc-front .day').count(), 0, 'an unreleased card has no day chip');
     await page.keyboard.press('Escape');
-    await page.waitForFunction(() => document.querySelector('glide-card.work-run-card')?.getAttribute('face') === 'front');
+    await page.waitForFunction(() => document.querySelector('unfold-card.work-run-card')?.getAttribute('face') === 'front');
     assert.equal(await page.evaluate(() => location.hash), '#work/109?lane=needs_human', 'Escape on the back turns the card over and keeps the Work Item open');
-    await page.waitForFunction(() => document.querySelector('glide-card.work-run-card')?.shadowRoot?.activeElement?.dataset?.cardAction === 'flip');
+    await page.waitForFunction(() => document.querySelector('unfold-card.work-run-card')?.shadowRoot?.activeElement?.dataset?.cardAction === 'flip');
     await page.getByRole('button', { name: 'Close work item details' }).click();
     await page.locator('#ploeg-item-title').waitFor({ state: 'detached' });
     assert(sessionReads.length <= 1, `Work reads the sessions at most once, read ${sessionReads.length} times`);
@@ -132,19 +132,19 @@ export async function run({ page, app, assert, screenshot }) {
     const openCard = async (id, title) => {
       await page.goto(`http://127.0.0.1:${app.server.address().port}/#work/${id}?lane=all`);
       await page.waitForFunction(() => document.activeElement?.id === 'ploeg-item-title');
-      await page.waitForFunction(text => { const root = document.querySelector('glide-card.work-run-card')?.shadowRoot; return root?.querySelector('.gc:not([hidden]) [data-slot="title"]')?.textContent === text; }, title);
-      return page.locator('glide-card.work-run-card');
+      await page.waitForFunction(text => { const root = document.querySelector('unfold-card.work-run-card')?.shadowRoot; return root?.querySelector('.gc:not([hidden]) [data-slot="title"]')?.textContent === text; }, title);
+      return page.locator('unfold-card.work-run-card');
     };
     const holo = await openCard('118', 'Validate postcodes on the shipping address form');
     assert.equal(await holo.locator('.gc-front .day b').textContent(), 'Day 41', 'a released card shows its day');
     assert.equal(await holo.locator('.gc-front .day .fin').textContent(), 'Holo', 'and its finish name');
     assert.equal(await holo.locator('.gc-front .card').getAttribute('data-finish'), 'holo');
     assert.equal(await holo.locator('.gc-front .fx').count(), 2, 'holo draws the lit hairline and the spotlight');
-    await page.waitForFunction(() => document.querySelector('glide-card.work-run-card')?.shadowRoot?.querySelector('.gc-front .card')?.hasAttribute('data-gc-animate'));
+    await page.waitForFunction(() => document.querySelector('unfold-card.work-run-card')?.shadowRoot?.querySelector('.gc-front .card')?.hasAttribute('data-gc-animate'));
     const face = await holo.locator('.gc-front .card').boundingBox();
     await page.mouse.move(face.x + 30, face.y + 40);
     await page.mouse.move(face.x + 40, face.y + 60);
-    await page.waitForFunction(() => { const node = document.querySelector('glide-card.work-run-card')?.shadowRoot?.querySelector('.gc-front .card'); return Number(node?.style.getPropertyValue('--gc-po')) > 0.5 && Number(node.style.getPropertyValue('--gc-px')) < 0.5; });
+    await page.waitForFunction(() => { const node = document.querySelector('unfold-card.work-run-card')?.shadowRoot?.querySelector('.gc-front .card'); return Number(node?.style.getPropertyValue('--gc-po')) > 0.5 && Number(node.style.getPropertyValue('--gc-px')) < 0.5; });
     await page.mouse.move(face.x + face.width + 200, face.y);
     await screenshot('work-card-holo');
     await holo.getByRole('button', { name: 'More info' }).click();

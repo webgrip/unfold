@@ -4,11 +4,11 @@ date: 2026-09-12
 decision-makers: Ryan Grippeling
 ---
 
-# Glide contains independently deployable Vloer and Ploeg
+# Unfold contains independently deployable Vloer and Ploeg
 
 ## Context and Problem Statement
 
-The owner chose Glide and instructed execution of the reviewed monorepo plan. Cross-application changes need one reviewable source tree while standalone work and independent deployments remain useful.
+The owner chose Unfold and instructed execution of the reviewed monorepo plan. Cross-application changes need one reviewable source tree while standalone work and independent deployments remain useful.
 
 ## Decision Drivers
 
@@ -18,13 +18,13 @@ The owner chose Glide and instructed execution of the reviewed monorepo plan. Cr
 
 ## Considered Options
 
-* Glide with separate applications and shared system documentation
+* Unfold with separate applications and shared system documentation
 * Continue coordinating two repositories
 * Merge the execution engines during the repository move
 
 ## Decision Outcome
 
-Chosen option: "Glide with separate applications and shared system documentation", because it makes joint changes atomic without requiring a shared runtime or release version.
+Chosen option: "Unfold with separate applications and shared system documentation", because it makes joint changes atomic without requiring a shared runtime or release version.
 
 Use `apps/vloer`, `apps/ploeg` and root `docs` on the `development` trunk. Preserve original commits and namespace imported tags by application. Existing package, Go module, image and chart names remain unchanged. Application records retain their scope and acceptance status. Shared product concepts and workflows have one source in root documentation.
 
@@ -57,7 +57,7 @@ Run `mise run verify`, `mise run integration` and `mise run docs-check`. The imp
 ## More Information
 
 * Technical story: [migration plan](../migration.md).
-* 2026-09-12 — The owner selected Glide and explicitly instructed execution of the reviewed plan. This record captures that approval before assembling the source trees.
+* 2026-09-12 — The owner selected Unfold and explicitly instructed execution of the reviewed plan. This record captures that approval before assembling the source trees.
 * The [application decision ledgers](../index.md) remain scoped to their respective applications.
 * 2026-09-22 — [ADR-0002](adr-0002-ploeg-is-the-only-engine.md) supersedes the standalone Vloer authority and the retention of both engines. Two independently deployable applications remain.
-* 2026-09-27 — [ADR-0004](adr-0004-glide-releases-one-version.md) supersedes the separate release versions: both applications now release under one `glide-v…` version.
+* 2026-09-27 — [ADR-0004](adr-0004-unfold-releases-one-version.md) supersedes the separate release versions: both applications now release under one `unfold-v…` version.

@@ -53,7 +53,7 @@ different ids, or a change the worker cannot find in the clone stops the Run
 as `stuck` before the harness starts.
 
 The worker looks for `openspec/changes/<change-id>` at the repository root and
-in nested directories (Glide keeps Ploeg's at `apps/ploeg/openspec`), without
+in nested directories (Unfold keeps Ploeg's at `apps/ploeg/openspec`), without
 following symbolic links. It fills the Task Spec's `openSpec` field with a
 brief: from `openspec instructions apply --change <id> --json` when an
 `openspec` executable is on the worker's PATH, otherwise from the change's

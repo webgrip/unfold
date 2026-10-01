@@ -20,7 +20,7 @@ INFO    -  Cleaning site directory
 INFO    -  Building documentation to directory: /Users/ryangrippeling/projects/webgrip/glide/.build/site
 INFO    -  The following pages exist in the docs directory, but are not included in the "nav" configuration:
   - migration-proposal.md
-  - adr/adr-0001-glide-contains-independent-applications.md
+  - adr/adr-0001-unfold-contains-independent-applications.md
   - domain/entities.md
   - domain/glossary.md
   - domain/rules.md
@@ -57,7 +57,7 @@ INFO    -  The following pages exist in the docs directory, but are not included
   - ploeg/adrs/0026-tracker-selections-bind-the-canonical-work-item.md
   - ploeg/adrs/0027-candidate-delivery-uses-trusted-evidence-and-a-publication-barrier.md
   - ploeg/adrs/0028-automatic-releases-stay-zero-major-candidates.md
-  - ploeg/adrs/0029-qualify-glide-before-changing-distribution.md
+  - ploeg/adrs/0029-qualify-unfold-before-changing-distribution.md
   - ploeg/adrs/adr-template.md
   - ploeg/brand/README.md
   - ploeg/brand/TRADEMARK.md

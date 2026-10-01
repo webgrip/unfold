@@ -1,20 +1,20 @@
-# glide-repository Specification
+# unfold-repository Specification
 
 ## Purpose
-How Ploeg and Vloer live in one Glide repository: both source histories and
+How Ploeg and Vloer live in one Unfold repository: both source histories and
 application identities are preserved, root commands and CI validate both
 applications and their shared contract, and shared documentation sits at the
 root while contracts and decisions stay with their application. Archived from
-the change `2026-09-23-assemble-glide-monorepo`.
+the change `2026-09-23-assemble-unfold-monorepo`.
 ## Requirements
 ### Requirement: Preserve source histories and reviewed content
 
-Glide SHALL retain both source histories, the audited working-tree changes, and separate application directories. Imported tags MUST have collision-free application namespaces.
+Unfold SHALL retain both source histories, the audited working-tree changes, and separate application directories. Imported tags MUST have collision-free application namespaces.
 
 #### Scenario: Verify an imported application
 
 - **WHEN** the migration completes
-- **THEN** each recorded source HEAD is an ancestor of Glide and the import manifest accounts for every input path
+- **THEN** each recorded source HEAD is an ancestor of Unfold and the import manifest accounts for every input path
 
 ### Requirement: Preserve independent application operation
 

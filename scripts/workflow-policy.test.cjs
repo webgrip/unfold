@@ -36,7 +36,7 @@ test('event entry points preserve validation and keep application publication ou
   assert.equal(workflows['on_docs_change.yml'].jobs['generate-documentation'].with['prepare-command'], 'python3 scripts/docs.py --check --stage-only');
 });
 
-test('only an enabled development push can version Glide, after the checks and the release policy', () => {
+test('only an enabled development push can version Unfold, after the checks and the release policy', () => {
   assert.equal(source.concurrency['cancel-in-progress'], false);
   assert.deepEqual(Object.keys(source.jobs).sort(), ['checks', 'release', 'site-release', 'warnings']);
   const job = source.jobs.release;
@@ -45,9 +45,9 @@ test('only an enabled development push can version Glide, after the checks and t
   assert.ok(policy > 0 && policy < job.steps.findIndex(step => step.id === 'release'), 'the release policy runs in the release job before versioning');
   const release = job.steps.find(step => step.id === 'release');
   assert.equal(release.with['package-path'], 'apps');
-  assert.equal(release.with['package-name'], 'glide');
+  assert.equal(release.with['package-name'], 'unfold');
   for (const event_name of ['push', 'pull_request', 'workflow_dispatch', 'release']) {
-    for (const ref of ['refs/heads/development', 'refs/heads/main', 'refs/heads/topic', 'refs/tags/glide-v0.4.0-rc.1']) {
+    for (const ref of ['refs/heads/development', 'refs/heads/main', 'refs/heads/topic', 'refs/tags/unfold-v0.4.0-rc.1']) {
       for (const gate of ['', 'false', 'true']) {
         const enabled = evaluate(job.if, { github: { event_name, ref }, vars: { GLIDE_RELEASES_ENABLED: gate } });
         assert.equal(enabled, event_name === 'push' && ref === 'refs/heads/development' && gate === 'true');
@@ -58,7 +58,7 @@ test('only an enabled development push can version Glide, after the checks and t
 
 test('warnings from setup and verification turn their own job red without gating a release', () => {
   const verification = read('.forgejo/actions/verify/action.yml');
-  const captured = verification.runs.steps.filter(step => / 2>&1 \| tee (-a )?"\$\{RUNNER_TEMP:-\/tmp\}\/glide-output\//.test(step.run ?? ''));
+  const captured = verification.runs.steps.filter(step => / 2>&1 \| tee (-a )?"\$\{RUNNER_TEMP:-\/tmp\}\/unfold-output\//.test(step.run ?? ''));
   assert.deepEqual(captured.map(step => step.run.match(/mise (.+?) 2>&1/)[1]), ['-C apps/vloer install', '-C apps/ploeg install', '-C apps/site install', 'run setup', 'run verify']);
   for (const step of captured) assert.match(step.run, /^set -o pipefail; /, 'a captured step still fails when its command fails');
   const collect = verification.runs.steps.at(-1);
@@ -76,7 +76,7 @@ test('warnings from setup and verification turn their own job red without gating
 });
 
 test('a release that Forgejo lost to the tag race is created by the job that cut it', () => {
-  for (const [name, prefix] of [['release', 'glide-v'], ['site-release', 'glide-site-v']]) {
+  for (const [name, prefix] of [['release', 'unfold-v'], ['site-release', 'unfold-site-v']]) {
     const steps = source.jobs[name].steps;
     const release = steps.findIndex(step => step.id === 'release');
     const repair = steps[release + 1];
@@ -89,7 +89,7 @@ test('a release that Forgejo lost to the tag race is created by the job that cut
 test('the CI verify gate requires the imported release notes', () => {
   const verification = read('.forgejo/actions/verify/action.yml');
   const step = verification.runs.steps.find(verifyStep);
-  assert.equal(step.env.GLIDE_REQUIRE_IMPORT_NOTES, 'true');
+  assert.equal(step.env.UNFOLD_REQUIRE_IMPORT_NOTES, 'true');
 });
 
 test('only a pull request reuses verified gate results; a development push runs every gate', () => {
@@ -97,10 +97,10 @@ test('only a pull request reuses verified gate results; a development push runs 
   const step = verification.runs.steps.find(verifyStep);
   assert.equal(step.env.GOFLAGS, '-count=1');
   for (const event_name of ['push', 'pull_request', 'workflow_dispatch', 'release', 'schedule']) {
-    assert.equal(evaluate(step.env.GLIDE_VERIFY_REUSE, { github: { event_name } }), event_name === 'pull_request');
+    assert.equal(evaluate(step.env.UNFOLD_VERIFY_REUSE, { github: { event_name } }), event_name === 'pull_request');
   }
   const restore = verification.runs.steps.find(step => step.name === 'Restore verified gate results');
-  assert.equal(restore.with.path, step.env.GLIDE_VERIFY_RESULTS);
+  assert.equal(restore.with.path, step.env.UNFOLD_VERIFY_RESULTS);
 });
 
 test('every published image passes its application CVE budget before signing', () => {
@@ -117,7 +117,7 @@ test('every published image passes its application CVE budget before signing', (
   assert.equal(ploegGate.with['image-ref'], '${{ steps.digest.outputs.ref }}');
   assert.equal(ploegGate.with['image-name'], 'ploegd');
   assert.ok(publisher.jobs['ploeg-release-sign-harbor'].needs.includes('ploeg-release-distribute-harbor'));
-  assert.ok(publisher.jobs['ploeg-release-distribute'].needs.includes('vloer-release-distribute'), 'one Glide release mirrors to GitHub one application at a time');
+  assert.ok(publisher.jobs['ploeg-release-distribute'].needs.includes('vloer-release-distribute'), 'one Unfold release mirrors to GitHub one application at a time');
   assert.match(publisher.jobs['ploeg-release-distribute'].if, /^always\(\) && /, 'a failed Vloer publication must not block Ploeg');
   for (const app of ['vloer', 'ploeg']) {
     const image = app === 'vloer' ? 'de-vloer' : 'ploegd';
@@ -137,25 +137,25 @@ test('preview uses the release toolchain and remains a manual dry run', () => {
   const step = job.steps.find(step => step.with?.['dry-run']);
   assert.equal(step.with['dry-run'], 'true');
   assert.equal(step.with['package-path'], 'apps');
-  assert.equal(step.with['package-name'], 'glide');
+  assert.equal(step.with['package-name'], 'unfold');
   assert.equal(step.uses, source.jobs.release.steps.find(step => step.id === 'release').uses);
   assert.equal(evaluate(job.if, { github: { ref: 'refs/heads/development' } }), true);
   assert.equal(evaluate(job.if, { github: { ref: 'refs/heads/main' } }), false);
 });
 
-test('release routing publishes both applications for a Glide tag and nothing for a closed gate or another tag', () => {
+test('release routing publishes both applications for an Unfold tag and nothing for a closed gate or another tag', () => {
   assert.deepEqual(Object.keys(publisher.on).sort(), ['release', 'workflow_dispatch']);
   assert.deepEqual(publisher.on.release.types, ['published']);
   assert.equal(publisher.concurrency['cancel-in-progress'], false);
   const jobs = Object.entries(publisher.jobs).filter(([name]) => name !== 'parse-release-tag' && !name.startsWith('site-'));
   for (const app of ['vloer', 'ploeg']) assert.ok(jobs.some(([name]) => name.startsWith(`${app}-`)), app);
-  for (const selected of ['glide', 'glide-site', 'vloer', 'ploeg', 'unrelated']) {
+  for (const selected of ['unfold', 'unfold-site', 'vloer', 'ploeg', 'unrelated']) {
     for (const event_name of ['release', 'workflow_dispatch']) {
       for (const gate of ['', 'false', 'true']) {
         const tag = `${selected}-v0.4.0-rc.5`;
         const context = { github: { event_name, event: { release: { tag_name: event_name === 'release' ? tag : '' } } }, inputs: { tag: event_name === 'workflow_dispatch' ? tag : '' }, vars: { GLIDE_RELEASES_ENABLED: gate }, needs: {} };
         const parsed = evaluate(publisher.jobs['parse-release-tag'].if, context);
-        assert.equal(parsed, selected === 'glide' && gate === 'true');
+        assert.equal(parsed, selected === 'unfold' && gate === 'true');
         context.needs['parse-release-tag'] = { outputs: { version: parsed ? '0.4.0-rc.5' : '' } };
         context.needs['ploeg-release-sign-harbor'] = { outputs: { signed: 'true' } };
         for (const [name, job] of jobs) {
@@ -167,7 +167,7 @@ test('release routing publishes both applications for a Glide tag and nothing fo
   }
 });
 
-test('the site versions on its own train, after Glide, behind the same gate', () => {
+test('the site versions on its own train, after Unfold, behind the same gate', () => {
   const job = source.jobs['site-release'];
   assert.deepEqual(job.needs, ['checks', 'release']);
   assert.equal(job.if, source.jobs.release.if);
@@ -175,7 +175,7 @@ test('the site versions on its own train, after Glide, behind the same gate', ()
   const release = job.steps.find(step => step.id === 'release');
   assert.equal(release.uses, source.jobs.release.steps.find(step => step.id === 'release').uses);
   assert.equal(release.with['package-path'], 'apps/site');
-  assert.equal(release.with['package-name'], 'glide-site');
+  assert.equal(release.with['package-name'], 'unfold-site');
 });
 
 test('only a site tag deploys the site, to the workers.dev origin Cloudflare reports', () => {
@@ -195,26 +195,26 @@ test('only a site tag deploys the site, to the workers.dev origin Cloudflare rep
     } });
     return { status: result.status, outputs: Object.fromEntries(fs.readFileSync(output, 'utf8').trim().split('\n').filter(Boolean).map(line => line.split('='))) };
   };
-  for (const tag of ['glide-site-v0.1.0', 'glide-site-v0.1.0-rc.1', 'glide-site-v1.12.3-rc.40']) {
+  for (const tag of ['unfold-site-v0.1.0', 'unfold-site-v0.1.0-rc.1', 'unfold-site-v1.12.3-rc.40']) {
     const { status, outputs } = run(tag);
     assert.equal(status, 0, tag);
-    assert.deepEqual(outputs, { deploy: 'true', 'site-url': 'https://glide-site.example.workers.dev' }, tag);
+    assert.deepEqual(outputs, { deploy: 'true', 'site-url': 'https://unfold-site.example.workers.dev' }, tag);
   }
-  for (const selected of ['glide', 'glide-site', 'vloer', 'ploeg', 'unrelated']) {
+  for (const selected of ['unfold', 'unfold-site', 'vloer', 'ploeg', 'unrelated']) {
     for (const open of ['', 'false', 'true']) {
-      if (selected === 'glide-site' && open === 'true') continue;
+      if (selected === 'unfold-site' && open === 'true') continue;
       const tag = `${selected}-v0.1.0-rc.1`;
       const { status, outputs } = run(tag, 'example', { RELEASES_ENABLED: open, WORKFLOW_EVENT: 'workflow_dispatch', SELECTED_REF: 'refs/heads/development', CLOUDFLARE_API_TOKEN: '' });
       assert.equal(status, 0, `${selected} ${open}`);
       assert.deepEqual(outputs, { deploy: 'false', 'site-url': '' }, `${selected} ${open}`);
     }
   }
-  for (const tag of ['glide-site-v01.0.0', 'glide-site-v0.1.0-rc.0', 'glide-site-v0.1', 'glide-site-v0.1.0-beta.1']) {
+  for (const tag of ['unfold-site-v01.0.0', 'unfold-site-v0.1.0-rc.0', 'unfold-site-v0.1', 'unfold-site-v0.1.0-beta.1']) {
     assert.notEqual(run(tag).status, 0, tag);
   }
-  assert.notEqual(run('glide-site-v0.1.0', 'Bad_Name').status, 0);
-  assert.notEqual(run('glide-site-v0.1.0', 'example', { CLOUDFLARE_API_TOKEN: '' }).status, 0);
-  assert.notEqual(run('glide-site-v0.1.0', 'example', { WORKFLOW_EVENT: 'workflow_dispatch', SELECTED_REF: 'refs/heads/development' }).status, 0);
+  assert.notEqual(run('unfold-site-v0.1.0', 'Bad_Name').status, 0);
+  assert.notEqual(run('unfold-site-v0.1.0', 'example', { CLOUDFLARE_API_TOKEN: '' }).status, 0);
+  assert.notEqual(run('unfold-site-v0.1.0', 'example', { WORKFLOW_EVENT: 'workflow_dispatch', SELECTED_REF: 'refs/heads/development' }).status, 0);
 
   const deploy = publisher.jobs['site-deploy'];
   assert.deepEqual(deploy.needs, ['site-release-tag']);
@@ -224,7 +224,7 @@ test('only a site tag deploys the site, to the workers.dev origin Cloudflare rep
   assert.equal(deploy.with['release-channel'], 'prerelease');
   assert.equal(deploy.with['working-directory'], 'apps/site');
   assert.equal(deploy.with['apex-url'], '${{ needs.site-release-tag.outputs.site-url }}');
-  assert.equal(deploy.with['build-command'], `GLIDE_SITE_URL=${deploy.with['apex-url']} pnpm build`);
+  assert.equal(deploy.with['build-command'], `UNFOLD_SITE_URL=${deploy.with['apex-url']} pnpm build`);
   assert.deepEqual(deploy.with['smoke-paths'].trim().split('\n'), ['/', '/nl', '/robots.txt', '/sitemap-index.xml', '/favicon.svg']);
   assert.deepEqual(Object.keys(deploy.secrets).sort(), ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN']);
   for (const [name, job] of Object.entries(publisher.jobs)) {
@@ -338,7 +338,7 @@ test('the weekly external link check is scheduled, pinned and reports without bl
   assert.deepEqual(Object.keys(schedule.jobs), ['external-links', 'tutorial-smoke', 'release-notes']);
   const step = schedule.jobs['external-links'].steps.find(step => step.run === 'mise run docs-links-external');
   assert.equal(step['continue-on-error'], true);
-  assert.doesNotMatch(JSON.stringify(schedule), /secrets\.|permissions|GLIDE_(RELEASES|DOCS_PUBLISH)_ENABLED/);
+  assert.doesNotMatch(JSON.stringify(schedule), /secrets\.|permissions|UNFOLD_(RELEASES|DOCS_PUBLISH)_ENABLED/);
   const mise = fs.readFileSync(path.join(root, 'mise.toml'), 'utf8');
   assert.match(mise, /\[tasks\.docs-links-external\]\ntools = \{ lychee = "\d+\.\d+\.\d+" \}/);
 });
@@ -349,7 +349,7 @@ test('the weekly schedule fails loudly when Forgejo loses imported release notes
   assert.equal(checkout.with['fetch-depth'], 0);
   assert.ok(job.steps.some(step => step.run === "git fetch origin '+refs/notes/*:refs/notes/*'"));
   const verify = job.steps.find(step => String(step.run).includes('scripts/verify-import.py'));
-  assert.equal(verify.env.GLIDE_REQUIRE_IMPORT_NOTES, 'true');
+  assert.equal(verify.env.UNFOLD_REQUIRE_IMPORT_NOTES, 'true');
   assert.equal(verify['continue-on-error'], undefined);
   assert.doesNotMatch(JSON.stringify(job), /git push|secrets\./);
 });

@@ -1,5 +1,5 @@
 {
-  "name": "glide-eval-split-bill-fixture",
+  "name": "unfold-eval-split-bill-fixture",
   "private": true,
   "type": "module",
   "scripts": { "test": "node --test test/split.test.js" }

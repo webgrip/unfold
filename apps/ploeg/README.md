@@ -1,6 +1,6 @@
 # Ploeg
 
-Developed in [Glide](../../README.md). Run repository-wide checks from the Glide root.
+Developed in [Unfold](../../README.md). Run repository-wide checks from the Unfold root.
 
 Ploeg is a self-hosted service for authorizing and coordinating agent work. Tracker assignments can start unattended workers; De Vloer can run interactive sessions under the same execution authority. PostgreSQL retains the work, leases, outcomes, evidence and accounting.
 
