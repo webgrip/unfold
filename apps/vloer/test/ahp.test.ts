@@ -186,3 +186,42 @@ test('signing out or the end of the issuing sign-in revokes agent host tokens an
   assert.equal(store.getSecret(`ahp-token:${sha256(keptToken)}`), undefined);
   await assert.rejects(connect(address(keptToken)).open);
 });
+
+test('the agent host keeps each user to their own sessions, summaries and rejections', { timeout: testTimeout(60_000) }, async t => {
+  const server = await application('live');
+  t.after(() => server.close());
+  const { hashPassword } = await import('../src/auth.ts');
+  for (const name of ['alice-ahp', 'bob-ahp']) server.app.store.addUser({ id: name, name, role: 'operator', passwordHash: await hashPassword('operator-password-314159') });
+  const address = server.url.replace(/^http/, 'ws');
+  const attach = async (name: string) => {
+    const auth = await login(server.url, name, 'operator-password-314159');
+    assert.ok(auth.cookie, `${name} signs in`);
+    const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', cookie: auth.cookie, body: { label: name } });
+    assert.equal(issued.status, 201, issued.text);
+    const client = connect(`${address}/?tkn=${issued.body.token}`);
+    t.after(() => client.close());
+    await client.open;
+    await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: name, initialSubscriptions: ['ahp-root://'] });
+    return client;
+  };
+  const alice = await attach('alice-ahp');
+  const bob = await attach('bob-ahp');
+
+  const sessionUri = `ahp-session:/${randomUUID()}`;
+  await alice.rpc('createSession', { channel: sessionUri, provider: 'de-vloer', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Alice private work' } });
+  await alice.until(message => message.method === 'root/sessionAdded' && message.params.summary.resource === sessionUri);
+  await assert.rejects(bob.rpc('subscribe', { channel: sessionUri }), (error: any) => error.code === -32001, 'another user cannot subscribe to a pending session');
+  await assert.rejects(bob.rpc('disposeSession', { channel: sessionUri }), (error: any) => error.code === -32001, 'another user cannot dispose a pending session');
+
+  alice.notify('dispatchAction', { channel: 'ahp-root://', clientSeq: 7, action: { type: 'root/configChanged', config: { secret: 'alice-only' } } });
+  const rejected = await alice.until(message => message.method === 'action' && message.params.origin?.clientId === 'alice-ahp' && message.params.origin?.clientSeq === 7);
+  assert.ok(rejected.params.rejectionReason, 'the sender is told its action was rejected');
+
+  await alice.rpc('disposeSession', { channel: sessionUri });
+  await alice.until(message => message.method === 'root/sessionRemoved' && message.params.session === sessionUri);
+  await settle(500);
+  const leaked = bob.inbox.filter(message => JSON.stringify(message).includes(sessionUri) || JSON.stringify(message).includes('alice-only') || JSON.stringify(message).includes('Alice private work'));
+  assert.deepEqual(leaked, [], 'nothing about Alice reaches Bob');
+  assert.equal((await bob.rpc('subscribe', { channel: 'ahp-root://' })).snapshot.state.activeSessions, 0);
+  assert.deepEqual((await bob.rpc('listSessions', { channel: 'ahp-root://' })).items, []);
+});
