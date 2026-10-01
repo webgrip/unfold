@@ -7,8 +7,8 @@ const source = join(root, 'node_modules', 'three');
 const target = join(root, 'public', 'vendor', 'three');
 const check = process.argv.includes('--check');
 
-/** The three.js version the forge skin is written against; package.json pins the same devDependency. */
-export const threeVersion = '0.165.0';
+/** The three.js version the forge skin is written against: the exact devDependency package.json pins. */
+export const threeVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).devDependencies.three;
 /**
  * The files copied into public/vendor/three/, so the browser imports them from Vloer's own origin under
  * `script-src 'self'` and without an import map. Each gets a flat kebab-case name that the static route accepts, and
@@ -16,7 +16,8 @@ export const threeVersion = '0.165.0';
  * compare the committed copy with a fresh one.
  */
 export const vendoredFiles = Object.freeze({
-  'build/three.module.min.js': 'three-module.js',
+  'build/three.module.js': 'three-module.js',
+  'build/three.core.js': 'three-core.js',
   'examples/jsm/environments/RoomEnvironment.js': 'room-environment.js',
   'examples/jsm/geometries/RoundedBoxGeometry.js': 'rounded-box-geometry.js',
   'examples/jsm/postprocessing/EffectComposer.js': 'effect-composer.js',
@@ -34,8 +35,9 @@ export const vendoredFiles = Object.freeze({
 function rewrite(from, code) {
   return code.replace(/(\bfrom\s*|\bimport\s*)(['"])([^'"\n]+)\2/g, (match, keyword, quote, specifier) => {
     if (specifier === 'three') return `${keyword}${quote}./three-module.js${quote}`;
-    if (!specifier.startsWith('.')) throw new Error(`${from} imports ${specifier}, which is not vendored`);
-    const resolved = posix.join(posix.dirname(from), specifier);
+    const addon = specifier.startsWith('three/addons/');
+    if (!addon && !specifier.startsWith('.')) throw new Error(`${from} imports ${specifier}, which is not vendored`);
+    const resolved = addon ? `examples/jsm/${specifier.slice('three/addons/'.length)}` : posix.join(posix.dirname(from), specifier);
     const flat = vendoredFiles[resolved];
     if (!flat) throw new Error(`${from} imports ${resolved}, which is not in the vendored list`);
     return `${keyword}${quote}./${flat}${quote}`;
@@ -49,7 +51,7 @@ function build() {
   for (const [from, to] of Object.entries(vendoredFiles)) {
     const header = `// three.js ${threeVersion} (MIT, see LICENSE in this folder): ${from}, vendored by scripts/vendor-three.mjs. Do not edit.\n`;
     const code = readFileSync(join(source, from), 'utf8');
-    files.set(to, header + (from.startsWith('build/') ? code : rewrite(from, code)));
+    files.set(to, header + rewrite(from, code));
   }
   files.set('LICENSE', readFileSync(join(source, 'LICENSE'), 'utf8'));
   files.set('VERSION', `${threeVersion}\n`);

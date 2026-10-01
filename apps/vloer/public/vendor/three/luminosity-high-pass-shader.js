@@ -1,18 +1,22 @@
-// three.js 0.165.0 (MIT, see LICENSE in this folder): examples/jsm/shaders/LuminosityHighPassShader.js, vendored by scripts/vendor-three.mjs. Do not edit.
+// three.js 0.186.1 (MIT, see LICENSE in this folder): examples/jsm/shaders/LuminosityHighPassShader.js, vendored by scripts/vendor-three.mjs. Do not edit.
 import {
 	Color
 } from './three-module.js';
 
 /**
- * Luminosity
- * http://en.wikipedia.org/wiki/Luminosity
+ * @module LuminosityHighPassShader
+ * @three_import import { LuminosityHighPassShader } from './luminosity-high-pass-shader.js';
  */
 
+/**
+ * Luminosity high pass shader.
+ *
+ * @constant
+ * @type {ShaderMaterial~Shader}
+ */
 const LuminosityHighPassShader = {
 
 	name: 'LuminosityHighPassShader',
-
-	shaderID: 'luminosityHighPass',
 
 	uniforms: {
 
@@ -50,9 +54,7 @@ const LuminosityHighPassShader = {
 
 			vec4 texel = texture2D( tDiffuse, vUv );
 
-			vec3 luma = vec3( 0.299, 0.587, 0.114 );
-
-			float v = dot( texel.xyz, luma );
+			float v = luminance( texel.xyz );
 
 			vec4 outputColor = vec4( defaultColor.rgb, defaultOpacity );
 
