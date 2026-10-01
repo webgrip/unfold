@@ -108,8 +108,13 @@ test('a demo card says so and shows no spend or usage', () => {
     assert.equal(card.totals.costStatus, 'not_reported');
     for (const key of ['costUsd', 'inputTokens', 'outputTokens', 'cacheReadInputTokens', 'cacheCreationInputTokens', 'turns', 'toolCalls']) assert.equal(card.totals[key], undefined, `${card.workItemId} ${key}`);
     assert(card.crew.every(member => member.costUsd === undefined && member.inputTokens === undefined));
-    assert.deepEqual([card.rarity, card.grade, card.condition, card.finish], [null, null, null, 'matte']);
+    assert.deepEqual([card.rarity, card.finish], [null, 'matte']);
+    if (card.grade || card.condition) assert.match(ploegDemo.items.find(item => item.id === card.workItemId).description, /grade and cracks are sample data/, `${card.workItemId} labels its grade and cracks as sample data`);
   }
+  assert.deepEqual(Object.values(ploegDemo.cards).filter(card => card.grade).map(card => card.workItemId), ['119', '120', '122', '123']);
+  assert.deepEqual(Object.values(ploegDemo.cards).filter(card => card.condition).map(card => [card.workItemId, card.condition.state]), [['119', 'cracked'], ['120', 'mended']]);
+  assert.deepEqual(Object.values(ploegDemo.cards).filter(card => card.style.skin === 'forge').map(card => card.workItemId), ['105', '117', '119', '120', '122', '123']);
+  assert(Object.values(ploegDemo.cards).filter(card => card.style.skin !== 'forge').every(card => card.style.skin === 'vloer-native'), 'every other demo card keeps Vloer Native');
   assert.equal(ploegDemo.cards['115'].state, 'withdrawn');
   assert.equal(ploegDemo.cards['103'].state, 'drafting');
   assert.equal(ploegDemo.cards['105'].state, 'in_review');
@@ -122,6 +127,8 @@ test('skin packs resolve to shipped skins and their manifests are checked', () =
   assert.equal(resolveSkin({ skin: '../../core/x' }), defaultSkin);
   assert.equal(resolveSkin(null), defaultSkin);
   assert.throws(() => skinBase('../x'));
+  assert.deepEqual(firstPartySkins, ['vloer-native', 'forge']);
+  assert.equal(resolveSkin({ skin: 'forge' }), 'forge');
   for (const id of firstPartySkins) {
     const folder = new URL(`../public/cards/skins/${id}/`, import.meta.url);
     const manifest = validateManifest(JSON.parse(readFileSync(new URL('manifest.json', folder), 'utf8')), id);
@@ -132,7 +139,9 @@ test('skin packs resolve to shipped skins and their manifests are checked', () =
   }
   const good = { id: 'x', name: 'X', version: '1.0.0', runtime: 1, stylesheet: 'skin.css', script: null, finishes: ['matte'] };
   assert.equal(validateManifest(good, 'x').script, null);
-  for (const bad of [{ ...good, id: 'y' }, { ...good, runtime: 2 }, { ...good, stylesheet: '../core.css' }, { ...good, script: 'https://evil.test/x.js' }, { ...good, finishes: ['holo'] }, { ...good, finishes: ['matte', 'sparkle'] }, { ...good, version: 'one' }]) assert.throws(() => validateManifest(bad, 'x'));
+  assert.deepEqual([validateManifest(good, 'x').renderer, validateManifest(good, 'x').fallback, validateManifest(good, 'x').extends], ['dom', null, null]);
+  assert.deepEqual(validateManifest({ ...good, renderer: 'webgl2', fallback: 'vloer-native', extends: 'vloer-native' }, 'x').renderer, 'webgl2');
+  for (const bad of [{ ...good, id: 'y' }, { ...good, runtime: 2 }, { ...good, stylesheet: '../core.css' }, { ...good, script: 'https://evil.test/x.js' }, { ...good, finishes: ['holo'] }, { ...good, finishes: ['matte', 'sparkle'] }, { ...good, version: 'one' }, { ...good, renderer: 'canvas' }, { ...good, renderer: 'webgl2' }, { ...good, renderer: 'webgl2', fallback: 'holo-rarity' }, { ...good, extends: '../vloer-native' }, { ...good, fallback: 'x' }]) assert.throws(() => validateManifest(bad, 'x'));
 });
 
 test('Vloer Native fills the required slots, escapes every value and draws without inline styles', () => {
@@ -331,4 +340,26 @@ test('a running Run shows the live usage so far, and a figure the gateway did no
   const settled = cardView({ ...contractCard(), live: null });
   assert.deepEqual([settled.cost.value, settled.runTime.value, settled.runTime.live], [usd('0,58'), '35 min', undefined], 'without a running Run the stored totals stand');
   assert.equal(cardView({ ...running, demo: true, live: { runningRuns: 1, runSeconds: 60, costUsd: 1, usageComplete: true } }).cost.value, 'Demo', 'a demo never shows live spend');
+});
+
+test('a grade and a condition from Ploeg reach the view; anything unreadable stays null', () => {
+  const graded = cardView({ ...contractCard(), grade: { formula: '2026.1', overall: 8.5, provisional: true, subgrades: { reliability: 10, durability: 8.5, delivery: 9, review: 8 }, label: null, qualifiers: ['HF', 'XX'] }, condition: { state: 'mended', cracks: [{ id: 'c1', bug: { ref: 'VIK-1642', title: 'Lease renewal raced the watcher' }, severity: 'S2', discovery: 'discovered', mended: { at: '2026-09-30T10:00:00Z', by: 'ryan', pr: 68, bySteward: true } }] } });
+  assert.deepEqual([graded.grade.text, graded.grade.provisional, graded.grade.summary], ['8,5', true, '8,5 · provisional · HF']);
+  assert.deepEqual(graded.grade.subgrades.map(entry => `${entry.short} ${entry.text}`), ['REL 10', 'DUR 8,5', 'DEL 9', 'REV 8']);
+  assert.match(graded.grade.description, /^Grade 8,5 of 10, provisional until 180 days live, hotfixed, formula 2026\.1$/);
+  assert.equal(value(graded, 'review', 'Grade').value, '8,5 · provisional · HF');
+  assert.equal(value(graded, 'review', 'Grade formula').value, '2026.1');
+  assert.equal(graded.condition.text, 'Mended · VIK-1642, S2 · mended by its steward in #68');
+  assert.equal(value(graded, 'life', 'Condition').value, graded.condition.text);
+  assert.equal(tab(graded, 'life').lists.at(-1).items[0].meta, 'Lease renewal raced the watcher · mended in #68 by its steward');
+  assert.equal(cardView({ ...contractCard(), grade: { formula: '2026.1', overall: 8.4, provisional: false } }).grade, null, 'a grade off the half-step scale is not shown');
+  assert.equal(cardView({ ...contractCard(), grade: 9 }).grade, null);
+  assert.equal(cardView({ ...contractCard(), condition: 'cracked' }).condition, null);
+  assert.equal(cardView({ ...contractCard(), condition: { state: 'shattered', cracks: [] } }).condition, null);
+  const plain = cardView(contractCard());
+  assert.deepEqual([plain.grade, plain.condition, plain.foilPattern], [null, null, null]);
+  assert.equal(value(plain, 'life', 'Reverts and linked bugs').value, notCollected);
+  assert.equal(value(plain, 'review', 'Grade'), undefined, 'no grade row without a grade');
+  assert.deepEqual(plain.style, { skin: 'vloer-native', theme: '' });
+  assert.equal(plain.rounds, 1);
 });

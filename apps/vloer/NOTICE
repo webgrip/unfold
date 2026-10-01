@@ -10,3 +10,8 @@ asking, and the two things that need permission, are in docs/brand/TRADEMARK.md.
 This product bundles the Archivo typeface (public/fonts/), Copyright 2020 The
 Archivo Project Authors, licensed under the SIL Open Font License 1.1. Its
 licence text is public/fonts/OFL.txt and is served at /fonts/OFL.txt.
+
+This product bundles three.js 0.165.0 (public/vendor/three/), Copyright 2010-2024
+three.js authors, licensed under the MIT License. Its licence text is
+public/vendor/three/LICENSE and travels with the copy. scripts/vendor-three.mjs
+copies it from the pinned npm package.

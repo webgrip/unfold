@@ -1,0 +1,14 @@
+{
+  "id": "forge",
+  "name": "Forge",
+  "version": "1.0.0",
+  "runtime": 1,
+  "renderer": "webgl2",
+  "fallback": "vloer-native",
+  "extends": "vloer-native",
+  "stylesheet": "skin.css",
+  "script": "skin.js",
+  "finishes": ["matte", "foil", "holo", "prism", "gilded", "infinity"],
+  "moments": ["reveal", "crack", "mend"],
+  "themeTokens": ["--gc-accent", "--gc-surface", "--gc-radius"]
+}

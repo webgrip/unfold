@@ -19,7 +19,7 @@ import { StaticFiles } from './static.ts';
 
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
 
-const browserModule = /^\/(?:(?:core|views|styles)\/[a-z0-9][a-z0-9-]*\.(?:js|css)|cards\/(?:skins\/[a-z0-9][a-z0-9-]*\/)?[a-z0-9][a-z0-9-]*\.(?:js|css|json))$/;
+const browserModule = /^\/(?:(?:core|views|styles)\/[a-z0-9][a-z0-9-]*\.(?:js|css)|cards\/(?:skins\/[a-z0-9][a-z0-9-]*\/)?[a-z0-9][a-z0-9-]*\.(?:js|css|json)|vendor\/three\/[a-z0-9][a-z0-9-]*\.js)$/;
 
 function fault(status: number, code: string, message: string): never { throw Object.assign(new Error(message), { status, code }); }
 

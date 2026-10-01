@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { PloegActivityEvent, PloegCard, PloegCardDeployment, PloegCardPlay, PloegCheckpoint, PloegDetail, PloegEvent, PloegItem, PloegRun, PloegRunRow, PloegShift, PloegTeam, PloegTeamSummary, PloegWindow } from './ploeg.ts';
+import type { PloegActivityEvent, PloegCard, PloegCardCondition, PloegCardDeployment, PloegCardGrade, PloegCardPlay, PloegCheckpoint, PloegDetail, PloegEvent, PloegItem, PloegRun, PloegRunRow, PloegShift, PloegTeam, PloegTeamSummary, PloegWindow } from './ploeg.ts';
 
 const anchor = Math.floor(Date.now() / 60_000) * 60_000;
 const ago = (minutes: number) => new Date(anchor - minutes * 60_000).toISOString().replace('.000Z', 'Z');
@@ -33,11 +33,11 @@ type ItemSpec = Partial<PloegItem> & Pick<PloegItem, 'id' | 'externalId' | 'titl
 const day = 1440;
 type ShowcaseSpec = { item: string; days: number; number: number };
 const showcases: ShowcaseSpec[] = [];
-function showcase(id: string, title: string, days: number): ItemSpec[] {
+function showcase(id: string, title: string, days: number, graded = false): ItemSpec[] {
   const number = 10 + showcases.length;
   showcases.push({ item: id, days, number });
   const merged = (days + 2) * day + 300;
-  return [{ id, externalId: `DEMO-${Number(id) - 100}`, title, state: 'done', attempts: 1, created: merged + 2 * day, updated: merged, description: `Illustrative merged Work Item that shows a Run card after ${days} days live. Its Runs predate the demo's history and its deploys are sample data. No dispatch or model calls occurred.` }];
+  return [{ id, externalId: `DEMO-${Number(id) - 100}`, title, state: 'done', attempts: 1, created: merged + 2 * day, updated: merged, description: `Illustrative merged Work Item that shows a Run card after ${days} days live. Its Runs predate the demo's history and its deploys${graded ? ', grade and cracks' : ''} are sample data. No dispatch or model calls occurred.` }];
 }
 const itemSpecs: ItemSpec[] = [
   { id: '101', externalId: 'DEMO-1', title: 'Review the rounding acceptance criteria', state: 'needs_human', priority: 2, attempts: 1, created: 1400, updated: 1330 },
@@ -58,10 +58,24 @@ const itemSpecs: ItemSpec[] = [
   { id: '116', provider: 'ploeg', externalId: 'run-27-1', team: 'research', target: studies, title: 'Split the competitor table into its own brief', state: 'done', created: 1800, updated: 1500, description: 'Illustrative proposal an agent could make while drafting DEMO-11. A person rejected it. It is sample data.', sourceWorkItemId: '111', createdKind: 'split', ready: true },
   ...showcase('117', 'Show the order number in the confirmation email subject', 9),
   ...showcase('118', 'Validate postcodes on the shipping address form', 41),
-  ...showcase('119', 'Cache the product price lookup for the cart', 118),
-  ...showcase('120', 'Add an audit log entry when an order is refunded', 205),
+  ...showcase('119', 'Cache the product price lookup for the cart', 118, true),
+  ...showcase('120', 'Add an audit log entry when an order is refunded', 205, true),
   ...showcase('121', 'Return 404 instead of 500 for unknown order ids', 412),
+  ...showcase('122', 'Rate-limit the order webhook per merchant', 400, true),
+  ...showcase('123', 'Attach the invoice PDF to the shipping confirmation', 63, true),
 ];
+
+const forgeCards = new Set(['105', '117', '119', '120', '122', '123']);
+const demoGrades: Record<string, PloegCardGrade> = {
+  '119': { formula: '2026.1', overall: 8.5, provisional: true, subgrades: { reliability: 8, durability: 9, delivery: 8.5, review: 8 }, label: null, qualifiers: [] },
+  '120': { formula: '2026.1', overall: 9.5, provisional: false, subgrades: { reliability: 9.5, durability: 10, delivery: 9, review: 9 }, label: null, qualifiers: [] },
+  '122': { formula: '2026.1', overall: 10, provisional: false, subgrades: { reliability: 10, durability: 10, delivery: 10, review: 10 }, label: 'black', qualifiers: [] },
+  '123': { formula: '2026.1', overall: 8.5, provisional: true, subgrades: { reliability: 10, durability: 8, delivery: 7.5, review: 8.5 }, label: null, qualifiers: ['RT'] },
+};
+const demoConditions: Record<string, PloegCardCondition> = {
+  '119': { state: 'cracked', cracks: [{ id: 'demo-crack-119', bug: { workItemId: null, ref: 'DEMO-31', title: 'Cart total keeps the cached price after a currency switch' }, severity: 'S2', share: 'primary', discovery: 'discovered', proposedAt: ago(9 * day), confirmedAt: ago(8 * day), confirmedBy: ['demo-operator', 'demo-reviewer'], disputed: false, mended: null }] },
+  '120': { state: 'mended', cracks: [{ id: 'demo-crack-120', bug: { workItemId: null, ref: 'DEMO-32', title: 'Refund audit entry missed partial refunds' }, severity: 'S3', share: 'primary', discovery: 'self', proposedAt: ago(60 * day), confirmedAt: ago(59 * day), confirmedBy: ['demo-operator', 'demo-reviewer'], disputed: false, mended: { at: ago(55 * day), by: 'demo-operator', pr: 68, bySteward: true } }] },
+};
 
 const shifts = new Map(shiftSpecs.map(spec => {
   const item = itemSpecs.find(entry => entry.id === spec.item)!;
@@ -254,7 +268,7 @@ function demoCard(item: PloegItem): PloegCard {
   return {
     workItemId: item.id, title: item.title, externalRef: item.externalId, url: item.url, team: item.team,
     target: item.target ? { forge: item.target.forge, owner: item.target.owner, repo: item.target.repo } : null,
-    style: { skin: 'vloer-native', theme: null }, state, rarity: null, finish: 'matte', grade: null, condition: null,
+    style: { skin: forgeCards.has(item.id) ? 'forge' : 'vloer-native', theme: null }, state, rarity: null, finish: 'matte', grade: demoGrades[item.id] ?? null, condition: demoConditions[item.id] ?? null,
     steward: merged ? { name: merged.mergedBy, source: 'merged_by' } : null,
     roster: merged ? [{ name: merged.mergedBy, roles: ['merger', 'reviewer'] }] : [],
     crew: roles.map(role => ({ role, writes: started.find(entry => roleOf(entry) === role)!.writes, runs: started.filter(entry => roleOf(entry) === role).length })),
