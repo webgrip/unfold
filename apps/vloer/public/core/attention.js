@@ -12,7 +12,7 @@ const workItemId = /^[1-9][0-9]{0,19}$/;
 const summaryAbove = 3;
 const keepNotified = 7 * 24 * 60 * 60 * 1000;
 const maxNotified = 200;
-const notificationIcon = '/android-chrome-192x192.png';
+const notificationIcon = new URL('../android-chrome-192x192.png', import.meta.url).href;
 const clip = (text, length) => { const value = String(text ?? '').replace(/\s+/g, ' ').trim(); return value.length > length ? `${value.slice(0, length - 1)}…` : value; };
 
 /** One waiting spell of a Work Item: its id, state and last change. The same item waiting again later is a new spell. */

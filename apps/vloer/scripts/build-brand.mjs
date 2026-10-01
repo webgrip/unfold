@@ -523,13 +523,13 @@ const webmanifest = JSON.stringify({
   short_name: 'De Vloer',
   description: tagline,
   icons: [
-    { src: '/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
-    { src: '/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' }
+    { src: 'android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
+    { src: 'android-chrome-512x512.png', sizes: '512x512', type: 'image/png' }
   ],
   theme_color: palette.vlak,
   background_color: palette.krijt,
   display: 'standalone',
-  start_url: '/'
+  start_url: './'
 }, null, 2) + '\n';
 
 const editorIcon = `${open('0 0 64 64', 24, 24, 'De Vloer')}
