@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "kind": "glide-cutover-execution-record",
+  "kind": "unfold-cutover-execution-record",
   "status": "not_run",
   "operator": null,
   "started_at": null,
@@ -15,7 +15,7 @@
     "unattended_dispatch_enabled": false
   },
   "source": {
-    "glide_candidate_sha": null,
+    "unfold_candidate_sha": null,
     "checks_run_url": null,
     "preview_run_url": null,
     "old_vloer_tip": null,

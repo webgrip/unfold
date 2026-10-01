@@ -16,7 +16,7 @@ under both dispatch shapes (`pkg/shiftengine/engine.go`).
 
 **Goals:**
 
-- Work on Glide itself: the change lives in `apps/ploeg/openspec`, not at the
+- Work on Unfold itself: the change lives in `apps/ploeg/openspec`, not at the
   root.
 - Deterministic gate: Ploeg runs validation, not the agent, so an agent cannot
   claim it passed.

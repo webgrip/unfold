@@ -1,6 +1,9 @@
 import * as vscode from 'vscode';
 import { plainText, providerNames, taskDescription, groups, presentation, situation, relativeTime, spendLabel, activeRole, safeHttpsUrl, runLabel, approvalLabel, observedSpend, isolatedPlacement, presentationFor } from './status.js';
 import type { Session, Run, Artifact, Permission, TaskSource, TaskSnapshot, TaskPage } from './types.js';
+import type { Core } from './core.js';
+import type { PloegNowItem } from './ploeg-types.js';
+import { icon } from './now-tree.js';
 
 export type SessionEntry =
   | { kind: 'group'; id: string; label: string; sessions: Session[] }
@@ -173,7 +176,18 @@ export class TaskTree implements vscode.TreeDataProvider<TaskEntry>, vscode.Disp
   private cache = new Map<string, TaskPage>();
   private message = 'Connect to browse linked tasks';
   private readonly load: (sourceId: string, page: number) => Promise<TaskPage>;
-  constructor(load: (sourceId: string, page: number) => Promise<TaskPage>) { this.load = load; }
+  private readonly core: Core;
+  private ploeg = new Map<string, PloegNowItem>();
+  constructor(core: Core, load: (sourceId: string, page: number) => Promise<TaskPage>) { this.core = core; this.load = load; }
+
+  /** Marks the tasks Ploeg holds (queued, running, ready for review, needs you, proposed), keyed by tracker identity. */
+  ploegItems(items: PloegNowItem[]) {
+    const next = new Map(items.filter(item => item.provider && item.externalId).map(item => [`${item.provider}:${item.externalId}`, item]));
+    const key = (map: Map<string, PloegNowItem>) => JSON.stringify([...map].map(([id, item]) => [id, item.state, item.closeReason, item.team]));
+    if (key(next) === key(this.ploeg)) return;
+    this.ploeg = next;
+    this.changed.fire(undefined);
+  }
 
   update(sources: TaskSource[], message = '', repositories: { id: string; name: string }[] = []) {
     const names = new Map(repositories.map(repository => [repository.id, repository.name]));
@@ -208,14 +222,18 @@ export class TaskTree implements vscode.TreeDataProvider<TaskEntry>, vscode.Disp
     }
     const item = new vscode.TreeItem(entry.task.title);
     item.id = `task:${entry.source.id}:${entry.task.id}`;
-    item.description = taskDescription(entry.task);
+    const held = this.ploeg.get(`${entry.task.provider}:${entry.task.id}`);
+    const meta = held ? this.core.workItemState(held.state) : undefined;
+    const reason = held ? this.core.listReason(held) : null;
+    item.description = [meta ? `${meta.label}${reason ? ` · ${reason.chip}` : ''}` : '', taskDescription(entry.task)].filter(Boolean).join(' · ');
     const tooltip = new vscode.MarkdownString();
     tooltip.appendText(entry.task.title);
     tooltip.appendMarkdown(`\n\n${entry.task.identifier ?? `#${entry.task.id}`} · ${entry.task.status}${entry.task.updatedAt ? ` · updated ${relativeTime(entry.task.updatedAt)}` : ''}\n\n`);
     const facts = [entry.task.assignees?.length ? `Assigned: ${entry.task.assignees.map(person => person.username).join(', ')}` : 'Unassigned', entry.task.labels?.length ? `Labels: ${entry.task.labels.map(label => label.name).join(', ')}` : ''].filter(Boolean);
+    if (held && meta) tooltip.appendText(`Ploeg: ${meta.label} for team ${held.team}${reason ? `. ${reason.sentence}` : ''}\n\n`);
     tooltip.appendText(`${facts.join(' · ')}\n\n${plainText(entry.task.description).slice(0, 400)}`);
     item.tooltip = tooltip;
-    item.iconPath = new vscode.ThemeIcon(entry.task.assignees?.length ? 'person' : 'circle-large-outline');
+    item.iconPath = meta ? icon(meta) : new vscode.ThemeIcon(entry.task.assignees?.length ? 'person' : 'circle-large-outline');
     item.contextValue = `task:${entry.source.executionOwner}${safeHttpsUrl(entry.task.url) ? ':linked' : ''}`;
     item.command = { command: 'vloer.openTask', title: 'Open task', arguments: [entry] };
     item.accessibilityInformation = { label: `${entry.task.title}, ${entry.task.status}, ${entry.source.name}` };

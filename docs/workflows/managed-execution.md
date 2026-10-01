@@ -1,14 +1,14 @@
 ---
 type: how-to
 audience: [operator, integrator]
-owner: glide
+owner: unfold
 last_verified: 2026-09-23
 verified_by: "Checked each named command, setting, environment variable, UI label and qualification test against apps/ploeg (ops/helm/ploeg values and templates, cmd/ploegd/operator.go, pkg/httpapi qualification tests) and apps/vloer (package.json, config/unified.example.json, src/delivery-config.ts, public/app.js, public/delivery.js, scripts/qualify-*.ts); the external Renovate rule was not re-read. On 2026-09-30 the browser pages and lane names in Use it were re-read against apps/vloer at 68c90cf on feat/vloer-redesign (public/shell.js, public/ploeg.js) and the editor view name in extensions/vscode/package.json"
 ---
 
 # Run the unified workbench
 
-For a local browser test with real Ploeg authority and PostgreSQL, run `mise run demo-unified` from Glide. The [local demonstration guide](local-demo.md) covers prerequisites, supervision, pause/resume and cleanup. It uses the actual code from both applications, a deterministic fixture and zero model calls; no cluster deployment is required.
+For a local browser test with real Ploeg authority and PostgreSQL, run `mise run demo-unified` from Unfold. The [local demonstration guide](local-demo.md) covers prerequisites, supervision, pause/resume and cleanup. It uses the actual code from both applications, a deterministic fixture and zero model calls; no cluster deployment is required.
 
 De Vloer now combines Ploeg's work overview with an opt-in path for Ploeg-owned interactive execution. Start with the read connection, then enable shared execution for one registered repository and team. The [execution contract](../../apps/vloer/docs/contracts/ploeg-execution.md) describes ownership, recovery and remaining limits.
 
@@ -72,7 +72,7 @@ Keep both stores and the workbench encryption key backed up. Restoring session J
 
 ## Reproduce qualification
 
-From the Glide root, the ordinary suites need no provider credentials:
+From the Unfold root, the ordinary suites need no provider credentials:
 
 ```sh
 mise run verify
@@ -110,7 +110,7 @@ Once a shared session has completed and confirmed stop, **Run independent checks
 From `apps/ploeg`, the optional delivery qualification is:
 
 ```sh
-PLOEG_WORKBENCH_PATH=/absolute/path/to/glide/apps/vloer \
+PLOEG_WORKBENCH_PATH=/absolute/path/to/unfold/apps/vloer \
 VLOER_VERIFIER_IMAGE='<existing immutable image ID or digest>' \
 VLOER_DOCKER_SOCKET='<Docker Engine socket>' \
 mise exec -- go test ./pkg/httpapi -run TestOperatorDeliveryWorkbenchQualification -v -count=1
@@ -118,4 +118,4 @@ mise exec -- go test ./pkg/httpapi -run TestOperatorDeliveryWorkbenchQualificati
 
 The [recorded authority qualification](../../apps/vloer/docs/research/evidence/delivery-2026-09-11/authority-qualification.json) used real PostgreSQL, both HTTP services, Git objects, fixed checks in fresh containers, restart, receipt replay and candidate-bound approval. The [separate verifier qualification](../../apps/vloer/docs/research/evidence/delivery-2026-09-11/docker-verification.json) proves failure before the fix, success after it, and rejection of fake success output with a failing process exit. Neither submitted model inference or published to a forge.
 
-The [tracker admission qualification](../../apps/vloer/docs/research/evidence/delivery-2026-09-11/tracker-authority-qualification.json) is independently reproducible from Ploeg with `PLOEG_WORKBENCH_PATH=/absolute/path/to/glide/apps/vloer mise exec -- go test ./pkg/httpapi -run TestOperatorTrackerWorkbenchQualification -v -count=1`. It uses a local Vikunja HTTP fixture and controlled runtime, and records the committed-admission response loss plus one retained canonical Work Item.
+The [tracker admission qualification](../../apps/vloer/docs/research/evidence/delivery-2026-09-11/tracker-authority-qualification.json) is independently reproducible from Ploeg with `PLOEG_WORKBENCH_PATH=/absolute/path/to/unfold/apps/vloer mise exec -- go test ./pkg/httpapi -run TestOperatorTrackerWorkbenchQualification -v -count=1`. It uses a local Vikunja HTTP fixture and controlled runtime, and records the committed-admission response loss plus one retained canonical Work Item.

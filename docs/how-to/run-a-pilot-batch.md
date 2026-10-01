@@ -1,14 +1,14 @@
 ---
 type: how-to
 audience: [owner]
-owner: glide
+owner: unfold
 last_verified: 2026-09-23
 verified_by: "node --test scripts/eval/eval.test.mjs; mise run evaluate; read apps/vloer/public/ploeg.js, apps/ploeg/pkg/shiftengine/{engine,reviewloop}.go and the assign and review how-tos on 2026-09-23. On 2026-09-30 the Vloer page names and where each recorded value appears were re-read against apps/vloer at 68c90cf on feat/vloer-redesign (public/shell.js, public/ploeg.js)"
 ---
 
 # Run a pilot batch
 
-Use this to put ten real Work Items through Glide and write down what happened. Result: a dated research record with one row per Work Item (outcome, Rounds, settled spend, your review minutes, merged or not, rework) and a short summary. That record is the evidence for deciding whether a Team and plan can run unattended.
+Use this to put ten real Work Items through Unfold and write down what happened. Result: a dated research record with one row per Work Item (outcome, Rounds, settled spend, your review minutes, merged or not, rework) and a short summary. That record is the evidence for deciding whether a Team and plan can run unattended.
 
 Terms: a **Work Item** is Ploeg's copy of a ticket. A **Shift** is one Team's whole attempt at it, run in **Rounds**, and a **Run** is one Role working once. **Ready** means the ticket states something you have decided to do, or describes a problem well enough that a solution can be conceived. See the [glossary](../reference/glossary.md#ready).
 
@@ -135,7 +135,7 @@ Each trial:
 5. restores the fixture's protected test files, so editing the tests cannot pass, and records which protected files the harness changed;
 6. runs the fixture's check command. Exit code 0 is a pass.
 
-Results go to `.build/eval/<timestamp>/`: `results.json` with every trial and a summary per variant and per variant and fixture, and `trials.csv` with one row per trial. The columns are `passed`, `steps`, `tamperedPaths`, `changedFiles`, `spendUsd` and `modelCalls`. `steps` is the number of scripted actions, or what a command harness writes as `{"steps": n}` to the file named by `GLIDE_EVAL_OUTCOME_FILE`; it stays empty otherwise. The summary gives a Wilson 95% interval for each pass rate, so overlapping intervals read as "not separated".
+Results go to `.build/eval/<timestamp>/`: `results.json` with every trial and a summary per variant and per variant and fixture, and `trials.csv` with one row per trial. The columns are `passed`, `steps`, `tamperedPaths`, `changedFiles`, `spendUsd` and `modelCalls`. `steps` is the number of scripted actions, or what a command harness writes as `{"steps": n}` to the file named by `UNFOLD_EVAL_OUTCOME_FILE`; it stays empty otherwise. The summary gives a Wilson 95% interval for each pass rate, so overlapping intervals read as "not separated".
 
 ### Add a fixture
 
@@ -156,9 +156,9 @@ A variant file lists variants with an `id`, a `harness`, a `prompt` template and
 A `command` variant can call models and spend money, so the harness refuses it unless you opt in:
 
 ```sh
-GLIDE_EVAL_LIVE=1 \
-GLIDE_EVAL_LITELLM_URL=https://litellm.example.internal \
-GLIDE_EVAL_LITELLM_MASTER_KEY=... \
+UNFOLD_EVAL_LIVE=1 \
+UNFOLD_EVAL_LITELLM_URL=https://litellm.example.internal \
+UNFOLD_EVAL_LITELLM_MASTER_KEY=... \
 mise run evaluate -- --variants scripts/eval/variants/my-pair.json --trials 5
 ```
 

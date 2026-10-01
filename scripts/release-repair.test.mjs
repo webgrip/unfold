@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { releaseFor, repairRelease } from './release-repair.mjs';
 
-const notes = '## [glide-v0.4.0-rc.26](https://forgejo.example/compare/glide-v0.4.0-rc.25...glide-v0.4.0-rc.26) (2026-10-01)\n\n### Added\n\n* **vloer:** show a run card';
+const notes = '## [unfold-v0.4.0-rc.26](https://forgejo.example/compare/unfold-v0.4.0-rc.25...unfold-v0.4.0-rc.26) (2026-10-01)\n\n### Added\n\n* **vloer:** show a run card';
 
 function repository(t, tags) {
   const root = mkdtempSync(join(tmpdir(), 'release-repair-'));
@@ -16,7 +16,7 @@ function repository(t, tags) {
   run('init', '-q');
   writeFileSync(join(root, 'CHANGELOG.md'), notes);
   run('add', 'CHANGELOG.md');
-  run('commit', '-q', '-m', 'chore(release): glide-v0.4.0-rc.26 [skip ci]', '-m', notes);
+  run('commit', '-q', '-m', 'chore(release): unfold-v0.4.0-rc.26 [skip ci]', '-m', notes);
   for (const tag of tags) run('tag', tag);
   return root;
 }
@@ -38,25 +38,25 @@ async function forgejo(t, existing) {
 }
 
 test('a release tag without its release gets the release semantic-release would have created', async t => {
-  const root = repository(t, ['glide-v0.4.0-rc.26', 'glide-site-v0.1.0-rc.5']);
+  const root = repository(t, ['unfold-v0.4.0-rc.26', 'unfold-site-v0.1.0-rc.5']);
   const { api, requests } = await forgejo(t, []);
-  assert.match(await repairRelease({ root, prefix: 'glide-v', api, token: 'secret' }), /Created the missing glide-v0\.4\.0-rc\.26 release/);
-  assert.deepEqual(requests.map(request => `${request.method} ${request.url}`), ['GET /api/v1/repos/webgrip/glide/releases/tags/glide-v0.4.0-rc.26', 'POST /api/v1/repos/webgrip/glide/releases']);
+  assert.match(await repairRelease({ root, prefix: 'unfold-v', api, token: 'secret' }), /Created the missing unfold-v0\.4\.0-rc\.26 release/);
+  assert.deepEqual(requests.map(request => `${request.method} ${request.url}`), ['GET /api/v1/repos/webgrip/glide/releases/tags/unfold-v0.4.0-rc.26', 'POST /api/v1/repos/webgrip/glide/releases']);
   assert.equal(requests[1].authorization, 'token secret');
-  assert.deepEqual(requests[1].body, releaseFor('glide-v0.4.0-rc.26', notes));
+  assert.deepEqual(requests[1].body, releaseFor('unfold-v0.4.0-rc.26', notes));
 });
 
 test('nothing is created when HEAD has no release tag or its release already exists', async t => {
   const untagged = repository(t, []);
-  const tagged = repository(t, ['glide-v0.4.0-rc.26']);
-  const { api, requests } = await forgejo(t, ['glide-v0.4.0-rc.26']);
-  await assert.rejects(repairRelease({ root: untagged, prefix: 'glide-v', api, token: 'secret' }), /failed before tagging/);
-  await assert.rejects(repairRelease({ root: tagged, prefix: 'glide-site-v', api, token: 'secret' }), /No glide-site-v tag/);
-  await assert.rejects(repairRelease({ root: tagged, prefix: 'glide-v', api, token: 'secret' }), /already has a release/);
+  const tagged = repository(t, ['unfold-v0.4.0-rc.26']);
+  const { api, requests } = await forgejo(t, ['unfold-v0.4.0-rc.26']);
+  await assert.rejects(repairRelease({ root: untagged, prefix: 'unfold-v', api, token: 'secret' }), /failed before tagging/);
+  await assert.rejects(repairRelease({ root: tagged, prefix: 'unfold-site-v', api, token: 'secret' }), /No unfold-site-v tag/);
+  await assert.rejects(repairRelease({ root: tagged, prefix: 'unfold-v', api, token: 'secret' }), /already has a release/);
   assert.ok(!requests.some(request => request.method === 'POST'));
 });
 
 test('a pre-release is marked as one and a stable release is not', () => {
-  assert.equal(releaseFor('glide-v0.4.0-rc.26', notes).prerelease, true);
-  assert.equal(releaseFor('glide-v0.4.0', notes).prerelease, false);
+  assert.equal(releaseFor('unfold-v0.4.0-rc.26', notes).prerelease, true);
+  assert.equal(releaseFor('unfold-v0.4.0', notes).prerelease, false);
 });

@@ -67,7 +67,7 @@ Which tiers of the proposed ladder should Ploeg build, and with what authority?
   Vikunja account, so a comment's author does not prove that the owner wrote
   it (comments 874 and 892 on VIK-573 have the same author).
 * Most of Ploeg's ADRs are `proposed` ("do not design against it yet"). Only
-  0001 to 0014, 0020 and 0022, Glide's 0001 to 0004 and the homelab records
+  0001 to 0014, 0020 and 0022, Unfold's 0001 to 0004 and the homelab records
   marked accepted are in force. Anything bounded by recorded decisions is
   bounded by a small corpus.
 * Every tier needs a budget and a way to stop, and must not create a new way
@@ -101,19 +101,19 @@ will be ratified on.
 1. **The lead stays proposal-only** until E1 reaches at least 90 % over at
    least 20 briefs with E3 at zero (no wrong decision). Only then may a new
    record reopen autonomy, as the first re-evaluation trigger says.
-2. **Decision sources.** The first slice lists Glide's own accepted ADRs in
+2. **Decision sources.** The first slice lists Unfold's own accepted ADRs in
    `escalation.decisionSources`. homelab-cluster's accepted ADRs are added in
    the second slice, once ploegd fetches listed sources into the briefing.
 3. **T0 defaults.** The premise check is on by default for Team `bronze`, and
    opt-in for every other Team.
 4. **Budgets.** Pre-flight US$0.10 per Run, the lead US$1.00 per brief, and
    `maxBriefs` 1 per stuck Work Item.
-5. **Authenticated owner decisions.** Glide (ploegd) gets its own Vikunja user,
+5. **Authenticated owner decisions.** Unfold (ploegd) gets its own Vikunja user,
    and the owner mints its token. Once Ploeg's tracker comments are written as
    that user, a comment headed `**Owner decision YYYY-MM-DD:**` whose author
    is the owner's account is authentic, and may become a ground. The same user
    gives the outcome observation loop (homelab-cluster
-   `rfc-outcome-observation-loop.md`, decision 6) an attributable Glide writer.
+   `rfc-outcome-observation-loop.md`, decision 6) an attributable Unfold writer.
    The work is tracked under epic VIK-1276.
 
 ### The ladder

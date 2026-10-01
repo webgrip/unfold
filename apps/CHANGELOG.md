@@ -1,3 +1,73 @@
+## [unfold-v0.4.0-rc.30](https://forgejo.webgrip.dev/webgrip/glide/compare/unfold-v0.4.0-rc.29...unfold-v0.4.0-rc.30) (2026-10-01)
+
+### Added
+
+* **vloer:** check out a Work Item's branch from the browser or VS Code ([1575f8a](https://forgejo.webgrip.dev/webgrip/glide/commit/1575f8a9c9e67f2cb6efe408d8072a23ccc7b250))
+
+### Fixed
+
+* **vloer:** show queued and running Ploeg work in Linked Tasks ([b0515f0](https://forgejo.webgrip.dev/webgrip/glide/commit/b0515f0afc886d4c3e4159f91338f38b9d0c5882))
+
+### Changed
+
+* rename the product from Glide to Unfold ([dc45dac](https://forgejo.webgrip.dev/webgrip/glide/commit/dc45dacb00b52de6d16b4379776d0bb077a9563e))
+
+### Tests
+
+* **vloer:** match the checkout title to the renamed fixture branch ([23c4b4f](https://forgejo.webgrip.dev/webgrip/glide/commit/23c4b4fba54488cacb5a797303bee512ba472bc3)), references [#100](https://forgejo.webgrip.dev/webgrip/glide/issues/100)
+
+### Internal
+
+* **release:** restore the rc.29 release metadata that the rename reverted ([ab001d0](https://forgejo.webgrip.dev/webgrip/glide/commit/ab001d0d2e17de07a4ec93089650068cedc1ad30))
+
+## [glide-v0.4.0-rc.29](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.28...glide-v0.4.0-rc.29) (2026-10-01)
+
+### Added
+
+* **ploeg:** report a running Run's usage so far on its card ([7d6fc6c](https://forgejo.webgrip.dev/webgrip/glide/commit/7d6fc6c17cc84a0a373a7239a2ec60b7d64983e4))
+* **vloer:** give the editor the browser's vocabulary, formatter and status tones ([c7a5e83](https://forgejo.webgrip.dev/webgrip/glide/commit/c7a5e83ba939aac82fa7e984c188bf645c34f454)), references [#work](https://forgejo.webgrip.dev/webgrip/glide/issues/work) [#ploeg](https://forgejo.webgrip.dev/webgrip/glide/issues/ploeg)
+* **vloer:** lead the editor's Work Item panel with state, reason and next action ([fba59c1](https://forgejo.webgrip.dev/webgrip/glide/commit/fba59c13b0cf1d191c1aac7a7abc9ae510a84812))
+* **vloer:** name a tracker token without write access when a hand-off fails ([5c685bb](https://forgejo.webgrip.dev/webgrip/glide/commit/5c685bb69d54f4888068de1a9f63cc0ea12a3a78))
+* **vloer:** open the editor sidebar on Now ([4ff6278](https://forgejo.webgrip.dev/webgrip/glide/commit/4ff6278b2004a32104eec6835fe972bb94583484))
+* **vloer:** show cost, tokens and run time so far on a running Run's card ([ab3affd](https://forgejo.webgrip.dev/webgrip/glide/commit/ab3affd10a5da98c216b9d5730f1f1a1ef3b0d31))
+
+### Docs
+
+* **ploeg:** regenerate the configuration reference for the new runner and dind images ([e8837f7](https://forgejo.webgrip.dev/webgrip/glide/commit/e8837f7e597852c94332a3b6516bd66030599757))
+* **vloer:** list the editor redesign's follow-ups in ADR-0027 ([a03d51d](https://forgejo.webgrip.dev/webgrip/glide/commit/a03d51dbee0b9aea60cd6cddba4689da61c7d936))
+
+### Build
+
+* **site:** move the Worker compatibility date to 2026-09-26 ([8881e1c](https://forgejo.webgrip.dev/webgrip/glide/commit/8881e1cad4856d6fbdfb734b45ccd792200dc0fa))
+
+### Internal
+
+* **renovate:** extend the shared preset at v1.12.2 and regenerate Ploeg's configuration reference on chart bumps ([ac432c1](https://forgejo.webgrip.dev/webgrip/glide/commit/ac432c1f62b90ad6a3f85915d3e8fdfa1e30ff3d))
+
+## [glide-v0.4.0-rc.28](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.27...glide-v0.4.0-rc.28) (2026-10-01)
+
+### Added
+
+* **deps:** update all non-major dependencies ([cda2a96](https://forgejo.webgrip.dev/webgrip/glide/commit/cda2a9687efe688120c4ef246ee82614d8f5edad))
+
+### Fixed
+
+* **build:** lock openspec once so mise stops reinstalling it ([8887e6a](https://forgejo.webgrip.dev/webgrip/glide/commit/8887e6af82811a8d6c17eaf9e49e142c9de0d338))
+* **vloer:** run the extension tests without Node's module-type notice ([7e55761](https://forgejo.webgrip.dev/webgrip/glide/commit/7e55761dd0cc4c211a4db8704a1dd65b3ea5625b))
+
+### Build
+
+* **ploeg:** name the Go toolchain and move images to Debian 13 ([2f0f7be](https://forgejo.webgrip.dev/webgrip/glide/commit/2f0f7be48114a3b5b8a3dc79d1fac628ea90e50f))
+* **release:** keep the released agent image references on the release version ([917c2b3](https://forgejo.webgrip.dev/webgrip/glide/commit/917c2b378eb77be1c557b7238e2068fbfd0d2251))
+* **site:** clear the wrangler advisories and move to TypeScript 6 and pnpm 12 ([504e2f4](https://forgejo.webgrip.dev/webgrip/glide/commit/504e2f4ca40e0efd69ef9774a3ee5564ec05c767))
+* **vloer:** build both images on Node 24.21.0 ([40076c1](https://forgejo.webgrip.dev/webgrip/glide/commit/40076c13de20fe0d5624dc27d76016fb4d922932))
+* **vloer:** package the extension with vsce 4 ([3c611b6](https://forgejo.webgrip.dev/webgrip/glide/commit/3c611b62e8b57a789ec4c9feb584ff869734d16c))
+
+### Internal
+
+* load marked 18 in the landscape build and point the domain generator at uv ([074227c](https://forgejo.webgrip.dev/webgrip/glide/commit/074227c1535af652f0f35dd66a1b26d2ee8a07fe))
+* **release:** glide-site-v0.1.0-rc.5 [skip ci] ([214690e](https://forgejo.webgrip.dev/webgrip/glide/commit/214690e28fb79285ac6b5f099fb79046b763385f))
+
 ## [glide-v0.4.0-rc.27](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.26...glide-v0.4.0-rc.27) (2026-10-01)
 
 ### Added

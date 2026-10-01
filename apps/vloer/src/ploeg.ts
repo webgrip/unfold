@@ -29,8 +29,8 @@ export type PloegProposedItem = PloegPresentedItem & { sourceTitle: string };
 export type PloegProposedPage = { demo: boolean; items: PloegProposedItem[]; truncated: boolean; fetchedAt: string };
 export type PloegNowShift = Pick<PloegShift, 'round' | 'closeReason' | 'budgetUsd' | 'spentUsd' | 'reservedUsd' | 'closedAt'>;
 export type PloegNowItem = Pick<PloegItem, 'id' | 'team' | 'state' | 'title' | 'url' | 'createdAt' | 'updatedAt' | 'provider' | 'externalId' | 'priority' | 'attempts' | 'infraFailures' | 'target'> & { closeReason: string | null; latestShift: PloegNowShift | null; spentUsd: number | null; pullRequestUrl: string } & Partial<Pick<PloegProposedItem, 'sourceWorkItemId' | 'sourceTitle' | 'createdKind' | 'ready'>>;
-export type PloegNowGroup = 'waiting' | 'running' | 'recent';
-export type PloegNow = { demo: boolean; teams: string[]; waiting: PloegNowItem[]; running: PloegRunRow[]; recent: PloegRunRow[]; runningTruncated: boolean; recentTruncated: boolean; errors: Partial<Record<PloegNowGroup, string>>; fetchedAt: string };
+export type PloegNowGroup = 'waiting' | 'active' | 'running' | 'recent';
+export type PloegNow = { demo: boolean; teams: string[]; waiting: PloegNowItem[]; active: PloegNowItem[]; running: PloegRunRow[]; recent: PloegRunRow[]; runningTruncated: boolean; recentTruncated: boolean; errors: Partial<Record<PloegNowGroup, string>>; fetchedAt: string };
 export type PloegDecision = 'approve' | 'reject' | 'cancel';
 export type PloegDecisionResult = { workItemId: string; team: string; state: string; demo: boolean };
 export type PloegCancellation = PloegDecisionResult & { withdrawn: boolean | null; shiftId: string | null; cancelledRuns: number | null; stoppedRuns: number | null; keysBlocked: boolean | null; message: string };
@@ -46,8 +46,10 @@ export type PloegCardEvent = { at: string; kind: string; actor: string; detail: 
 export type PloegCardDeployment = { environment: string; firstDeployedAt: string | null; sha: string; url: string };
 /** When the latest merged play reached production (`deploy`), or its merge when the project reports no deploys (`merge`). */
 export type PloegCardRelease = { at: string; source: string; environment: string };
-/** A Run card: one per Work Item, its pull requests as plays. Facts only; an unknown value is absent or null, never zero. The proxy always carries `rarity`, `grade` and `condition` as null and `finish` as `matte`; Vloer derives the finish from `release`. An older Ploeg sends no `deployments` or `release`, and they stay absent. */
-export type PloegCard = { workItemId: string; title: string; externalRef: string; url: string; team: string; target: { forge: string; owner: string; repo: string } | null; style: PloegCardStyle; state: string; rarity: null; finish: 'matte'; grade: null; condition: null; steward: { name: string; source: string } | null; roster: { name: string; roles: string[] }[]; crew: PloegCardCrew[]; plays: PloegCardPlay[]; totals: PloegCardTotals; events: PloegCardEvent[]; deployments?: PloegCardDeployment[]; release?: PloegCardRelease | null; demo: boolean };
+/** The Work Item's usage so far while a Run is running (Ploeg ADR-0049): what finished Runs recorded plus the gateway's running total. A cost or token figure Ploeg could not read is absent. */
+export type PloegCardLive = { runningRuns: number; observedAt: string | null; runSeconds: number; usageComplete: boolean } & Partial<Record<'costUsd' | 'inputTokens' | 'outputTokens', number>>;
+/** A Run card: one per Work Item, its pull requests as plays. Facts only; an unknown value is absent or null, never zero. The proxy always carries `rarity`, `grade` and `condition` as null and `finish` as `matte`; Vloer derives the finish from `release`. An older Ploeg sends no `deployments`, `release` or `live`, and they stay absent. */
+export type PloegCard = { workItemId: string; title: string; externalRef: string; url: string; team: string; target: { forge: string; owner: string; repo: string } | null; style: PloegCardStyle; state: string; rarity: null; finish: 'matte'; grade: null; condition: null; steward: { name: string; source: string } | null; roster: { name: string; roles: string[] }[]; crew: PloegCardCrew[]; plays: PloegCardPlay[]; totals: PloegCardTotals; events: PloegCardEvent[]; deployments?: PloegCardDeployment[]; release?: PloegCardRelease | null; live?: PloegCardLive | null; demo: boolean };
 export type PloegCardView = { card: PloegCard; demo: boolean; fetchedAt: string };
 export type PloegOverview ={ configured: boolean; available: boolean; demo: boolean; teams: PloegTeam[]; selectedTeam?: string; lanes?: Record<PloegLane, PloegPresentedPage>; fetchedAt?: string; trackerUrl?: string; message: string };
 
@@ -238,6 +240,13 @@ function cardRelease(value: unknown): PloegCardRelease | null {
   const data = record(value);
   return { at: timestamp(data.at), source: cardToken(data.source, 'deploy'), environment: absent(data.environment) || data.environment === '' ? 'production' : field(data.environment, 64).toLowerCase() };
 }
+function cardLive(value: unknown): PloegCardLive | null {
+  if (value === null) return null;
+  const data = record(value);
+  const { runningRuns, runSeconds, ...usage } = optionalNumbers(data, ['runningRuns', 'runSeconds', 'costUsd', 'inputTokens', 'outputTokens'] as const, ['runningRuns', 'runSeconds', 'inputTokens', 'outputTokens']);
+  if (runningRuns === undefined || runSeconds === undefined) throw invalid();
+  return { runningRuns, runSeconds, observedAt: cardTime(data.observedAt), usageComplete: boolean(data.usageComplete), ...usage };
+}
 /** Validates a Run card from Ploeg: known fields only, safe links, bounded lists, absent values kept absent. It drops any rarity, grade, condition or finish. */
 export function parseCard(value: unknown): PloegCard {
   const data = record(value);
@@ -265,6 +274,7 @@ export function parseCard(value: unknown): PloegCard {
     events: cardList(data.events, cardEvent, 500),
     ...cardDeployments(data.deployments),
     ...(data.release === undefined ? {} : { release: cardRelease(data.release) }),
+    ...(data.live === undefined ? {} : { live: cardLive(data.live) }),
     demo: data.demo === true,
   };
 }
@@ -467,7 +477,7 @@ export class PloegClient {
     return { demo: this.demo, items: enriched, truncated: pages.some(entry => entry.nextCursor !== null) || enriched.length === 50, fetchedAt: new Date().toISOString() };
   }
   /**
-   * Everything the caller can read, for the Now page: what waits on them, what runs now and what finished recently.
+   * Everything the caller can read, for the Now page: what waits on them, what Ploeg holds queued or leased, what runs now and what finished recently.
    * `runningTruncated` and `recentTruncated` say whether Ploeg holds more Runs than the first page lists.
    */
   async now(user: User, fresh = false): Promise<PloegNow> {
@@ -479,11 +489,18 @@ export class PloegClient {
       catch (error) { errors[group] = error instanceof PloegError ? error.message : 'Ploeg could not be reached.'; return empty; }
     };
     const waiting = await capture('waiting', () => this.waitingItems(user, teams, fresh), [] as PloegNowItem[]);
+    const active = await capture('active', () => this.activeItems(user, teams, fresh), [] as PloegNowItem[]);
     const page = async (state: 'running' | 'finished') => { const found = await this.runs(user, { state }, fresh); return { runs: found.runs, more: found.nextBefore !== null }; };
     const running = await capture('running', () => page('running'), { runs: [] as PloegRunRow[], more: false });
     const recent = await capture('recent', () => page('finished'), { runs: [] as PloegRunRow[], more: false });
-    return { demo: this.demo, teams: teams.map(entry => entry.id), waiting, running: running.runs, recent: recent.runs, runningTruncated: running.more, recentTruncated: recent.more, errors, fetchedAt: new Date().toISOString() };
+    return { demo: this.demo, teams: teams.map(entry => entry.id), waiting, active, running: running.runs, recent: recent.runs, runningTruncated: running.more, recentTruncated: recent.more, errors, fetchedAt: new Date().toISOString() };
   }
+  private async activeItems(user: User, teams: PloegTeam[], fresh: boolean): Promise<PloegNowItem[]> {
+    const pages = await Promise.all(teams.flatMap(entry => (['leased', 'queued'] as const).map(state => this.items(user, entry.id, state, '0', fresh))));
+    const order: Record<string, number> = { leased: 0, queued: 1 };
+    return pages.flatMap(page => page.items).map(nowItem).sort((a, b) => (order[a.state] ?? 9) - (order[b.state] ?? 9) || a.createdAt.localeCompare(b.createdAt) || (BigInt(a.id) < BigInt(b.id) ? -1 : 1));
+  }
+
   private async waitingItems(user: User, teams: PloegTeam[], fresh: boolean): Promise<PloegNowItem[]> {
     const calls: Promise<PloegPresentedPage>[] = [];
     for (const entry of teams) for (const state of ['awaiting_review', 'needs_human'] as const) calls.push(this.items(user, entry.id, state, '0', fresh));

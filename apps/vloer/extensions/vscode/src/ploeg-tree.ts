@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
 import { ploegLanes as lanes, type PloegItem, type PloegLane, type PloegOverview, type PloegTeam } from './ploeg-types.js';
 import { plainText, plural, teamDescription } from './status.js';
+import type { Core } from './core.js';
+import { icon } from './now-tree.js';
 
 export type PloegEntry = { kind: 'team'; team: PloegTeam } | { kind: 'lane'; team: PloegTeam; lane: PloegLane; overview: PloegOverview } | { kind: 'item'; item: PloegItem; demo: boolean } | { kind: 'message'; label: string; open?: boolean };
-const stateLabels: Record<string, string> = { proposed: 'Proposed', ingested: 'Received', queued: 'Queued', leased: 'Running', awaiting_review: 'Ready for review', needs_human: 'Needs you', stale: 'Stopped retrying', withdrawn: 'Withdrawn', done: 'Done' };
-const stateLabel = (state: string) => stateLabels[state] ?? state.replaceAll('_', ' ');
 
 export class PloegTree implements vscode.TreeDataProvider<PloegEntry>, vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<PloegEntry | undefined>();
@@ -15,7 +15,8 @@ export class PloegTree implements vscode.TreeDataProvider<PloegEntry>, vscode.Di
   private message = 'Connect to inspect Ploeg work';
   private generation = 0;
   private fresh = true;
-  constructor(load: (team?: string, fresh?: boolean) => Promise<PloegOverview>, loaded: (at: Date) => void = () => undefined) { this.load = load; this.loaded = loaded; }
+  private readonly core: Core;
+  constructor(core: Core, load: (team?: string, fresh?: boolean) => Promise<PloegOverview>, loaded: (at: Date) => void = () => undefined) { this.core = core; this.load = load; this.loaded = loaded; }
   reset(message = '') { this.generation++; this.message = message; this.fresh = true; this.cache.clear(); this.changed.fire(undefined); }
   connected() { if (this.message) this.reset(); }
   /** Re-reads the snapshot through the workbench's short cache instead of forcing Ploeg queries. */
@@ -38,21 +39,24 @@ export class PloegTree implements vscode.TreeDataProvider<PloegEntry>, vscode.Di
     if (entry.kind === 'lane') {
       const lane = lanes.find(lane => lane.id === entry.lane)!;
       const page = entry.overview.lanes?.[entry.lane];
-      const item = new vscode.TreeItem(lane.label, vscode.TreeItemCollapsibleState.Collapsed);
+      const meta = entry.lane === 'all' ? undefined : this.core.workItemState(entry.lane);
+      const item = new vscode.TreeItem(meta?.heading ?? meta?.label ?? lane.label, entry.lane === 'needs_human' || entry.lane === 'awaiting_review' ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed);
       item.id = `ploeg:lane:${entry.team.id}:${entry.lane}`;
       item.description = `${page?.items.length ?? 0}${page?.nextCursor ? '+' : ''}`;
-      item.tooltip = entry.lane === 'leased' ? 'An agent is working on these Work Items. This snapshot does not imply an active model call.' : 'Records in the current operator snapshot.';
-      item.iconPath = new vscode.ThemeIcon(lane.icon);
+      item.tooltip = meta?.description ?? 'Every Work Item of this Team in the snapshot, newest first.';
+      item.iconPath = meta ? icon(meta) : new vscode.ThemeIcon(lane.icon);
       return item;
     }
+    const meta = this.core.workItemState(entry.item.state);
+    const reason = this.core.listReason(entry.item, { demo: entry.demo });
     const item = new vscode.TreeItem(entry.item.title || `Work Item ${entry.item.id}`);
     item.id = `ploeg:item:${entry.item.id}`;
-    item.description = `${entry.demo ? 'illustration · ' : ''}${entry.item.provider} #${entry.item.externalId || entry.item.id}`;
-    item.tooltip = `${entry.item.title}\n${entry.item.team} · ${stateLabel(entry.item.state)} · ${plural(entry.item.attempts, 'attempt')}\n${plainText(entry.item.description).slice(0, 600)}\nOpen the task, or its shifts, runs, review findings and costs in the web workbench.`;
-    item.iconPath = new vscode.ThemeIcon(entry.item.state === 'needs_human' ? 'bell-dot' : entry.item.state === 'leased' ? 'pulse' : entry.item.state === 'awaiting_review' ? 'git-pull-request' : 'issues');
+    item.description = [reason?.chip, `${entry.item.provider} #${entry.item.externalId || entry.item.id}`, entry.demo ? 'illustration' : ''].filter(Boolean).join(' · ');
+    item.tooltip = `${entry.item.title}\n${entry.item.team} · ${meta.label}${reason ? ` · ${reason.chip}` : ''} · ${plural(entry.item.attempts, 'attempt')}\n${reason ? `${reason.sentence}\n${reason.action}\n` : ''}${plainText(entry.item.description).slice(0, 600)}`;
+    item.iconPath = icon(meta);
     item.contextValue = 'ploeg:item';
-    item.command = { command: 'vloer.openPloegItem', title: 'Open task', arguments: [entry] };
-    item.accessibilityInformation = { label: `${entry.item.title}, ${stateLabel(entry.item.state)}, ${entry.item.team}` };
+    item.command = { command: 'vloer.openPloegItem', title: 'Open Work Item', arguments: [entry] };
+    item.accessibilityInformation = { label: `${entry.item.title}, ${meta.label}, ${entry.item.team}` };
     return item;
   }
   async getChildren(entry?: PloegEntry): Promise<PloegEntry[]> {
@@ -64,7 +68,7 @@ export class PloegTree implements vscode.TreeDataProvider<PloegEntry>, vscode.Di
         let overview = this.cache.get(key);
         if (!overview) { overview = await this.load(entry?.team.id, this.fresh); if (generation !== this.generation) return []; this.cache.set(key, overview); this.loaded(new Date()); }
         if (!overview.available) return [{ kind: 'message', label: overview.message, open: true }];
-        if (entry) return lanes.map(lane => ({ kind: 'lane', team: entry.team, lane: lane.id, overview }));
+        if (entry) return lanes.filter(lane => lane.id === 'all' || overview!.lanes?.[lane.id]?.items.length).map(lane => ({ kind: 'lane', team: entry.team, lane: lane.id, overview: overview! }));
         return [...(overview.demo ? [{ kind: 'message' as const, label: 'Illustrative records · no model calls or spend' }] : []), ...overview.teams.map(team => ({ kind: 'team' as const, team })), ...(!overview.teams.length ? [{ kind: 'message' as const, label: 'No teams available to your account' }] : [])];
       }
       if (entry.kind !== 'lane') return [];

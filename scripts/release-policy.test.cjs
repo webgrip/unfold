@@ -20,14 +20,14 @@ const shared = makeConfig({});
 const pluginOptions = (source, name) => source.plugins.find((entry) => Array.isArray(entry) && entry[0] === name)[1];
 const logger = { log() {}, success() {}, warn() {}, error() {}, scope() { return this; } };
 const historicalCommit = fs.readFileSync(path.join(__dirname, 'fixtures/release-breaking-commit.txt'), 'utf8');
-const baseline = { version: '0.3.0', gitTag: 'glide-v0.3.0', channels: [null] };
+const baseline = { version: '0.3.0', gitTag: 'unfold-v0.3.0', channels: [null] };
 const branch = {
   name: 'development', type: 'prerelease', prerelease: 'rc', channel: 'development',
   tags: [baseline],
 };
 const context = (version = '0.4.0-rc.1') => ({
   branch, options: { tagFormat: config.tagFormat },
-  nextRelease: { version, gitTag: `glide-v${version}`, channel: 'development' },
+  nextRelease: { version, gitTag: `unfold-v${version}`, channel: 'development' },
 });
 const loadCore = (name) => import(pathToFileURL(path.join(semanticReleaseRoot, 'lib', name)).href);
 const analyze = async (options, message = historicalCommit) => {
@@ -55,7 +55,7 @@ test('the actual historical breaking commit reproduces major before the policy a
   assert.equal(await analyze(pluginOptions(config, '@semantic-release/commit-analyzer')), 'minor');
 });
 
-test('the baseline starts Glide at 0.4.0-rc.1, above every imported application candidate', async () => {
+test('the baseline starts Unfold at 0.4.0-rc.1, above every imported application candidate', async () => {
   const type = await analyze(pluginOptions(config, '@semantic-release/commit-analyzer'));
   const version = await nextVersion([baseline], type);
   assert.equal(version, '0.4.0-rc.1');
@@ -65,7 +65,7 @@ test('the baseline starts Glide at 0.4.0-rc.1, above every imported application 
 });
 
 test('later candidates advance the release candidate number, even for a breaking change', async () => {
-  const tags = [baseline, { version: '0.4.0-rc.1', gitTag: 'glide-v0.4.0-rc.1', channels: ['development'] }];
+  const tags = [baseline, { version: '0.4.0-rc.1', gitTag: 'unfold-v0.4.0-rc.1', channels: ['development'] }];
   const type = await analyze(pluginOptions(config, '@semantic-release/commit-analyzer'), 'feat!: change API');
   const version = await nextVersion(tags, type);
   assert.equal(version, '0.4.0-rc.2');
@@ -73,7 +73,7 @@ test('later candidates advance the release candidate number, even for a breaking
 });
 
 test('a mistaken 1.x tag is rejected instead of producing another 1.x release', async () => {
-  const version = await nextVersion([baseline, { version: '1.0.0-rc.1', gitTag: 'glide-v1.0.0-rc.1', channels: ['development'] }], 'minor');
+  const version = await nextVersion([baseline, { version: '1.0.0-rc.1', gitTag: 'unfold-v1.0.0-rc.1', channels: ['development'] }], 'minor');
   assert.match(version, /^1\./);
   assert.throws(() => policy.verifyRelease({}, context(version)), /only 0.x.y-rc.N/);
 });
@@ -92,8 +92,8 @@ test('the actual release notes retain a breaking-change compatibility warning', 
   const { generateNotes } = await import(pathToFileURL(require.resolve('@semantic-release/release-notes-generator')).href);
   const notes = await generateNotes(pluginOptions(config, '@semantic-release/release-notes-generator'), {
     commits: [{ hash: '7714cd5eb3268fd8291075a13fcb3736ddc88c76', message: historicalCommit }],
-    lastRelease: { version: '0.3.0', gitTag: 'glide-v0.3.0' },
-    nextRelease: { version: '0.4.0-rc.1', gitTag: 'glide-v0.4.0-rc.1' },
+    lastRelease: { version: '0.3.0', gitTag: 'unfold-v0.3.0' },
+    nextRelease: { version: '0.4.0-rc.1', gitTag: 'unfold-v0.4.0-rc.1' },
     options: { repositoryUrl: 'https://forgejo.webgrip.dev/webgrip/glide.git' }, cwd: root, env: {}, logger,
   });
   assert.match(notes, /BREAKING CHANGES/);
@@ -157,8 +157,8 @@ test('one release prepares and commits both applications at the same version', (
   }
 });
 
-test('effective configuration uses glide-v tags and CI tests it before invoking release', () => {
-  assert.equal(config.tagFormat, 'glide-v${version}');
+test('effective configuration uses unfold-v tags and CI tests it before invoking release', () => {
+  assert.equal(config.tagFormat, 'unfold-v${version}');
   assert.equal(config.plugins[0], path.join(__dirname, 'release-policy.cjs'));
   const workflow = parse(fs.readFileSync(path.join(root, '.forgejo/workflows/on_source_change.yml'), 'utf8'));
   const steps = workflow.jobs.release.steps;
@@ -174,16 +174,16 @@ test('the actual artifact-publisher shell rejects application, major and stable 
   const parseStep = publisher().jobs['parse-release-tag'].steps.find(step => step.id === 'parse');
   const shell = parseStep.run;
   assert.match(parseStep.env.RELEASE_TAG, /\$\{\{/);
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'glide-release-policy-'));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'unfold-release-policy-'));
   const output = path.join(directory, 'output');
   try {
-    for (const tag of ['glide-v1.0.0-rc.1', 'glide-v0.4.0', 'glide-v1.0.0', 'glide-v0.4.0-beta.1', 'vloer-v0.4.0-rc.1', 'ploeg-v0.4.0-rc.1', 'glide-v0.04.0-rc.1', "glide-v0.4.0-rc.1'\nexit 0\n'", '']) {
+    for (const tag of ['unfold-v1.0.0-rc.1', 'unfold-v0.4.0', 'unfold-v1.0.0', 'unfold-v0.4.0-beta.1', 'vloer-v0.4.0-rc.1', 'ploeg-v0.4.0-rc.1', 'unfold-v0.04.0-rc.1', "unfold-v0.4.0-rc.1'\nexit 0\n'", '']) {
       fs.writeFileSync(output, '');
       const result = spawnSync('bash', ['-c', shell], { env: { ...process.env, RELEASE_TAG: tag, GITHUB_OUTPUT: output }, encoding: 'utf8' });
       assert.equal(result.status, 1, `${tag}: ${result.stderr}`);
       assert.equal(fs.readFileSync(output, 'utf8'), '');
     }
-    const result = spawnSync('bash', ['-c', shell], { env: { ...process.env, RELEASE_TAG: 'glide-v0.4.0-rc.1', GITHUB_OUTPUT: output }, encoding: 'utf8' });
+    const result = spawnSync('bash', ['-c', shell], { env: { ...process.env, RELEASE_TAG: 'unfold-v0.4.0-rc.1', GITHUB_OUTPUT: output }, encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
     assert.match(fs.readFileSync(output, 'utf8'), /^version=0\.4\.0-rc\.1\ncreated=\d{4}-/);
   } finally {
@@ -194,10 +194,10 @@ test('the actual artifact-publisher shell rejects application, major and stable 
 test('artifact jobs accept validated parse output without unavailable job results', () => {
   const workflow = publisher();
   const shell = workflow.jobs['parse-release-tag'].steps.find(step => step.id === 'parse').run;
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'glide-publish-input-'));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'unfold-publish-input-'));
   const output = path.join(directory, 'output');
   try {
-    for (const tag of ['glide-v0.4.0-rc.1', 'glide-v1.0.0-rc.1', 'glide-v0.4.0', '']) {
+    for (const tag of ['unfold-v0.4.0-rc.1', 'unfold-v1.0.0-rc.1', 'unfold-v0.4.0', '']) {
       fs.writeFileSync(output, '');
       const result = spawnSync('bash', ['-c', shell], { env: { ...process.env, RELEASE_TAG: tag, GITHUB_OUTPUT: output }, encoding: 'utf8' });
       const version = fs.readFileSync(output, 'utf8').match(/^version=(.*)$/m)?.[1] || '';
@@ -222,7 +222,7 @@ test('artifact jobs accept validated parse output without unavailable job result
   }
 });
 
-test('the actual Git history calculates the first Glide candidate without publishing', { skip: process.env.GLIDE_RELEASE_HISTORY !== 'true' }, async () => {
+test('the actual Git history calculates the first Unfold candidate without publishing', { skip: process.env.UNFOLD_RELEASE_HISTORY !== 'true' }, async () => {
   const { default: getTags } = await loadCore('branches/get-tags.js');
   const { default: getLastRelease } = await loadCore('get-last-release.js');
   const { default: getCommits } = await loadCore('get-commits.js');
@@ -235,8 +235,8 @@ test('the actual Git history calculates the first Glide candidate without publis
   const { analyzeCommits } = await import(pathToFileURL(require.resolve('@semantic-release/commit-analyzer')).href);
   const type = await analyzeCommits(pluginOptions(config, '@semantic-release/commit-analyzer'), { ...input, commits });
   const version = getNextVersion({ branch: actualBranch, lastRelease, nextRelease: { type, channel: actualBranch.channel }, logger });
-  assert.equal(lastRelease.gitTag, 'glide-v0.3.0');
+  assert.equal(lastRelease.gitTag, 'unfold-v0.3.0');
   assert.equal(version, '0.4.0-rc.1');
   policy.verifyRelease({}, context(version));
-  console.log(JSON.stringify({ lastRelease: lastRelease.gitTag, analyzedCommits: commits.length, type, nextRelease: `glide-v${version}`, publication: false }));
+  console.log(JSON.stringify({ lastRelease: lastRelease.gitTag, analyzedCommits: commits.length, type, nextRelease: `unfold-v${version}`, publication: false }));
 });

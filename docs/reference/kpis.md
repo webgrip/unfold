@@ -1,16 +1,16 @@
 ---
 type: reference
 audience: [owner, operator, contributor]
-owner: glide
+owner: unfold
 last_verified: 2026-09-27
 verified_by: "source read of docs/reference/kpis.md and apps/ploeg/docs/backlog.md on development; KPI tickets VIK-1214/VIK-1215 and the landed cfd6ec4 merge per VIK-1289"
 ---
 
-# Glide KPIs
+# Unfold KPIs
 
 **Status: proposal.** Nothing on this page is measured yet. The KPIs, thresholds and dashboard below are a proposal for [VIK-1214](https://vikunja.webgrip.dev/tasks/1214) (the KPI set) and [VIK-1215](https://vikunja.webgrip.dev/tasks/1215) (the dashboard). Targets stay provisional until a baseline exists.
 
-Glide's goal is one loop: Work Items go to agents, the agents do all the code work until a pull request is ready for your review, and the throughput limit becomes cluster size rather than your time ([Architecture](../concepts/architecture.md#goals)). These six KPIs tell you whether that loop is working and what to change when it is not. Each one names the decision it changes. A KPI that stops changing a decision comes off the list at the next review.
+Unfold's goal is one loop: Work Items go to agents, the agents do all the code work until a pull request is ready for your review, and the throughput limit becomes cluster size rather than your time ([Architecture](../concepts/architecture.md#goals)). These six KPIs tell you whether that loop is working and what to change when it is not. Each one names the decision it changes. A KPI that stops changing a decision comes off the list at the next review.
 
 ## The set
 
@@ -326,7 +326,7 @@ WHERE state = 'awaiting_review' AND NOT operator_owned AND team IN ($team);
 
 This is a spec only. The dashboard is provisioned in `homelab-cluster`, not in this repository.
 
-**Dashboard:** "Glide KPIs". Default range: last 28 days. No auto-refresh; 5 minutes if one is wanted.
+**Dashboard:** "Unfold KPIs". Default range: last 28 days. No auto-refresh; 5 minutes if one is wanted.
 
 **Data sources:** `ploeg-postgres`, a PostgreSQL data source with a read-only role on Ploeg's database. `litellm-postgres`, for the K2 cross-check only.
 

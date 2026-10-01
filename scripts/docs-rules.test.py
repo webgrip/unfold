@@ -16,7 +16,7 @@ class HistoryClassification(unittest.TestCase):
             'vloer/research/evidence/delivery-2026-09-11/README.md',
             'vloer/adrs/0001-the-human-workbench-beside-ploeg.md',
             'vloer/adrs/0001-the-human-workbench-beside-ploeg/',
-            'adr/adr-0001-glide-contains-independent-applications.md',
+            'adr/adr-0001-unfold-contains-independent-applications.md',
             'vloer/design/gap-register.md',
             'ploeg/design/',
             'ploeg/backlog.md',
@@ -89,7 +89,7 @@ class Orphans(unittest.TestCase):
 
 
 TODAY = datetime.date(2026, 9, 23)
-VALID = '---\ntype: how-to\naudience: [owner, operator]\nowner: glide\nlast_verified: 2026-09-22\nverified_by: "mise run docs-check"\n---\n\n# Page\n'
+VALID = '---\ntype: how-to\naudience: [owner, operator]\nowner: unfold\nlast_verified: 2026-09-22\nverified_by: "mise run docs-check"\n---\n\n# Page\n'
 GENERATED = '---\ntype: reference\naudience: [owner, agent]\nowner: ploeg\ngenerated_by: "mise run domain"\n---\n\n# Glossary\n'
 
 
@@ -111,7 +111,7 @@ class FrontMatter(unittest.TestCase):
         cases = {
             'type: how-to': ('type: record', 'type must be'),
             'audience: [owner, operator]': ('audience: owner', 'audience must be'),
-            'owner: glide': ('owner: webgrip', 'owner must be'),
+            'owner: unfold': ('owner: webgrip', 'owner must be'),
             'last_verified: 2026-09-22': ('last_verified: 2026-12-01', 'in the future'),
             'verified_by: "mise run docs-check"\n': ('', 'verified_by must'),
         }
@@ -132,7 +132,7 @@ class FrontMatter(unittest.TestCase):
         marked = VALID.replace('last_verified: 2026-09-22\nverified_by: "mise run docs-check"\n', 'unverified: "contradicts ADR-0002"\n')
         self.assertEqual(rules.front_matter_problems(marked, TODAY), [])
         self.assertEqual(rules.front_matter_problems(marked.replace('"contradicts ADR-0002"', '""'), TODAY)[0][:24], 'last_verified is require')
-        self.assertEqual(rules.front_matter_problems(VALID.replace('owner: glide\n', 'owner: glide\nunverified: "x"\n'), TODAY), ['unverified excludes last_verified and generated_by'])
+        self.assertEqual(rules.front_matter_problems(VALID.replace('owner: unfold\n', 'owner: unfold\nunverified: "x"\n'), TODAY), ['unverified excludes last_verified and generated_by'])
         self.assertEqual(rules.unverified({'a.md': marked, 'b.md': VALID}), [('a.md', 'contradicts ADR-0002')])
 
 

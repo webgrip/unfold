@@ -17,14 +17,14 @@ const detail = { session: await client.session(session.id), events: await client
 assert.equal(detail.session.status, 'completed', 'the demo fixture must complete before the panel is validated');
 const theme = `:root{--vscode-font-family:Inter,Arial,sans-serif;--vscode-font-size:13px;--vscode-foreground:#d8dee9;--vscode-editor-background:#171c24;--vscode-descriptionForeground:#98a6b8;--vscode-widget-border:#343e4e;--vscode-button-secondaryForeground:#d8dee9;--vscode-button-secondaryBackground:#303b4e;--vscode-button-secondaryHoverBackground:#3c4c63;--vscode-button-background:#d37145;--vscode-button-foreground:#fff;--vscode-button-hoverBackground:#bc6039;--vscode-focusBorder:#dd9565;--vscode-textLink-foreground:#e4a177;--vscode-errorForeground:#ef9393;--vscode-badge-background:#354252;--vscode-badge-foreground:#d8dee9;--vscode-testing-iconPassed:#82bd9c;--vscode-list-warningForeground:#e5b26c;--vscode-textBlockQuote-background:#202731;--vscode-textCodeBlock-background:#111620;--vscode-list-hoverBackground:#26313e;--vscode-input-foreground:#d8dee9;--vscode-input-background:#202733;--vscode-input-border:#394558;--vscode-input-placeholderForeground:#8390a5;--vscode-scrollbarSlider-background:#303c4b;--vscode-progressBar-background:#d37145;--vscode-editor-font-family:monospace;}`;
 const surface = createServer(async (request, response) => {
-  if (['/session.js', '/session.css', '/common.js'].includes(request.url ?? '')) {
+  if (['/session.js', '/tokens.css', '/session.css', '/common.js'].includes(request.url ?? '')) {
     response.setHeader('Content-Type', request.url.endsWith('.js') ? 'text/javascript' : 'text/css');
     response.end(await readFile(new URL(`../media${request.url}`, import.meta.url)));
   } else if (request.url === '/theme.css') {
     response.setHeader('Content-Type', 'text/css'); response.end(theme);
   } else {
     response.setHeader('Content-Type', 'text/html');
-    response.end(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'nonce-vloer-browser-test'; connect-src 'none'; base-uri 'none'; form-action 'none'"><link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/session.css"></head><body data-session-id="${session.id}"><main id="app"></main><div id="announcement" class="sr-only" role="status" aria-live="polite"></div><script nonce="vloer-browser-test" src="/common.js"></script><script nonce="vloer-browser-test" src="/session.js"></script></body></html>`);
+    response.end(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'nonce-vloer-browser-test'; connect-src 'none'; base-uri 'none'; form-action 'none'"><link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/tokens.css"><link rel="stylesheet" href="/session.css"></head><body data-session-id="${session.id}"><main id="app"></main><div id="announcement" class="sr-only" role="status" aria-live="polite"></div><script nonce="vloer-browser-test" src="/common.js"></script><script nonce="vloer-browser-test" src="/session.js"></script></body></html>`);
   }
 });
 await new Promise(resolve => surface.listen(0, '127.0.0.1', resolve));

@@ -2,18 +2,18 @@
 
 Forgejo coordinates one version for the workbench image, workspace image, Helm chart and editor extension. Source checks run before a release tag is created; publication jobs consume that tag. A tag or green source job alone does not prove that every artifact was published.
 
-Vloer releases together with Ploeg under one Glide version and a `glide-v<version>` tag ([Glide ADR-0004](../../../../docs/adr/adr-0004-glide-releases-one-version.md)). Publication remains disabled until the [distribution cutover](../../../../docs/migration.md#distribution-cutover-remains-separate) is qualified.
+Vloer releases together with Ploeg under one Unfold version and a `unfold-v<version>` tag ([Unfold ADR-0004](../../../../docs/adr/adr-0004-unfold-releases-one-version.md)). Publication remains disabled until the [distribution cutover](../../../../docs/migration.md#distribution-cutover-remains-separate) is qualified.
 
 ## Follow the release
 
 | Stage | Source | Expected result |
 | --- | --- | --- |
 | Validate | [Source workflow](../../../../.forgejo/workflows/on_source_change.yml), [pull-request workflow](../../../../.forgejo/workflows/on_pull_request.yml) | Application, extension, generated-document and chart checks; cache-only image builds |
-| Version | [Release configuration](../../../.releaserc.cjs), [Glide prepare script](../../../../scripts/release-prepare.mjs), [Vloer prepare script](../../scripts/release-prepare.mjs) | Updated manifests and changelog, version tag and Forgejo release |
+| Version | [Release configuration](../../../.releaserc.cjs), [Unfold prepare script](../../../../scripts/release-prepare.mjs), [Vloer prepare script](../../scripts/release-prepare.mjs) | Updated manifests and changelog, version tag and Forgejo release |
 | Publish | [Publication workflow](../../../../.forgejo/workflows/on_release_published.yml) | Chart, both images, signatures and attestations, VSIX and checksum; configured registry copies |
-| Build documentation | [Documentation workflow](../../../../.forgejo/workflows/on_docs_change.yml) and [source checks](../../../../.forgejo/workflows/on_source_change.yml) | Combined site built from [Glide MkDocs](../../../../mkdocs.yml); remote documentation deployment is a cutover step |
+| Build documentation | [Documentation workflow](../../../../.forgejo/workflows/on_docs_change.yml) and [source checks](../../../../.forgejo/workflows/on_source_change.yml) | Combined site built from [Unfold MkDocs](../../../../mkdocs.yml); remote documentation deployment is a cutover step |
 
-Glide checks pushes to `development` and pull requests. The shared semantic-release configuration determines release eligibility from conventional commits. The prepare script synchronizes chart and package versions; do not hand-bump them to repair a failed publication.
+Unfold checks pushes to `development` and pull requests. The shared semantic-release configuration determines release eligibility from conventional commits. The prepare script synchronizes chart and package versions; do not hand-bump them to repair a failed publication.
 
 Inspect the matching run in [Forgejo Actions](https://forgejo.webgrip.dev/webgrip/de-vloer/actions) and its [release assets](https://forgejo.webgrip.dev/webgrip/de-vloer/releases). Record missing artifacts and the failing job. The publication workflow supports a manual dispatch with the existing tag selected as both the workflow ref and tag input; examine which stages completed before rerunning it. Several stages skip an existing artifact, so a retry is not a blanket rebuild or replacement.
 
@@ -23,7 +23,7 @@ The publication workflow builds the [workbench image](../../Dockerfile) and [wor
 
 When a vulnerability sits in a dependency that npm bundles and npm has not yet shipped a fix, the workspace image pins the fixed release as an annotated `NPM_<NAME>_VERSION` build argument, and [the patch script](../../ops/agent/patch-bundled-npm.mjs) swaps it in during the build. The script replaces only a copy that is older and in the same major version, fails the build if npm then cannot expand a brace pattern, and logs when npm itself has caught up, which is the signal to remove the pin. The first pins, `brace-expansion` 5.0.12 and `undici` 6.28.1, followed the advisories of 2026-09-29 that failed the budget in [release run 358](https://forgejo.webgrip.dev/webgrip/glide/actions/runs/358).
 
-The [chart](../../ops/helm/de-vloer/) defaults image versions from its `appVersion`. Explicit image overrides can create version skew and need their own qualification. Registry destinations and mirror enablement belong to the publication workflow; consult it rather than a copied deployment inventory. Its prepared GitHub distribution jobs and workspace-image copy remain behind the Glide publication gate. Successful publication and public pull access must be checked from the actual run and destination.
+The [chart](../../ops/helm/de-vloer/) defaults image versions from its `appVersion`. Explicit image overrides can create version skew and need their own qualification. Registry destinations and mirror enablement belong to the publication workflow; consult it rather than a copied deployment inventory. Its prepared GitHub distribution jobs and workspace-image copy remain behind the Unfold publication gate. Successful publication and public pull access must be checked from the actual run and destination.
 
 Deploy through the target environment's desired-state repository. [Live operation](live.md) covers workspace and runtime configuration. Publishing an image or chart does not deploy the workbench.
 

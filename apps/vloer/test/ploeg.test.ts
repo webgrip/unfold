@@ -511,6 +511,8 @@ test('the Now projection lists waiting work, running Runs and recent Runs across
   assert.equal(now.waiting[0].spentUsd, 0, 'the latest Shift spend travels with the row');
   assert.equal(now.waiting[0].pullRequestUrl, 'https://forge.example.invalid/example/order-service/pulls/5');
   assert.equal(now.waiting[1].pullRequestUrl, '', 'only awaiting-review rows carry a pull request link');
+  assert.deepEqual(now.active.map(entry => [entry.id, entry.state]), [['102', 'leased'], ['104', 'queued'], ['103', 'queued']], 'leased, then queued, each oldest first');
+  assert(now.active.every(entry => entry.provider && entry.externalId), 'active rows carry the tracker identity the task tree keys on');
   assert.deepEqual(now.running.map(run => run.id), ['40']);
   assert.equal(now.running[0].observedUsd, null, 'an unobserved Run reports null, never zero');
   assert.deepEqual(now.running[0].reservedModels, []);
@@ -585,6 +587,7 @@ test('the Now page is scoped to the caller’s teams and refuses a user without 
   assert.equal(view.status, 200, JSON.stringify(view.body));
   assert.deepEqual(view.body.teams, ['delivery']);
   assert.deepEqual(view.body.waiting.map((entry: { id: string }) => entry.id), ['105', '101', '112', '109', '108', '106']);
+  assert.deepEqual(view.body.active.map((entry: { id: string }) => entry.id), ['102', '103'], 'queued and leased work is scoped too');
   assert(view.body.waiting.every((entry: { team: string }) => entry.team === 'delivery'));
 });
 
@@ -638,6 +641,15 @@ test('the card proxy reads Ploeg card facts, keeps unknowns absent and shows no 
   assert(upstreamApi.seen.some(call => call.path === '/api/v1/operator/work-items/101/card' && call.method === 'GET'));
   assert.equal('release' in view.card, false, 'an older Ploeg without releases keeps release absent');
   assert.equal('deployments' in view.card, false);
+  assert.equal('live' in view.card, false, 'an older Ploeg without live usage keeps live absent');
+  upstreamApi.cards['101'] = { ...liveCard('101'), live: { runningRuns: 1, observedAt: '2026-10-01T13:32:00Z', runSeconds: 2040, costUsd: 0.27, inputTokens: 10418740, outputTokens: 127480, usageComplete: true, extra: 'x' } };
+  assert.deepEqual((await ploeg.card(admin, '101', true)).card.live, { runningRuns: 1, observedAt: '2026-10-01T13:32:00Z', runSeconds: 2040, costUsd: 0.27, inputTokens: 10418740, outputTokens: 127480, usageComplete: true }, 'live usage passes through validated, unknown keys stripped');
+  upstreamApi.cards['101'] = { ...liveCard('101'), live: { runningRuns: 1, observedAt: '2026-10-01T13:32:00Z', runSeconds: 60, usageComplete: false } };
+  assert.equal('costUsd' in (await ploeg.card(admin, '101', true)).card.live!, false, 'an unread gateway keeps live cost absent, never zero');
+  upstreamApi.cards['101'] = { ...liveCard('101'), live: null };
+  assert.equal((await ploeg.card(admin, '101', true)).card.live, null);
+  upstreamApi.cards['101'] = { ...liveCard('101'), live: { runningRuns: 1, usageComplete: true } };
+  await assert.rejects(ploeg.card(admin, '101', true), /unsupported operator response/, 'live usage needs its run time');
   upstreamApi.cards['101'] = { ...liveCard('101'), finish: 'infinity', release: { at: '2026-09-01T10:00:00Z', source: 'deploy', environment: 'Production' }, deployments: [{ environment: 'Production', firstDeployedAt: '2026-09-01T10:00:00Z', sha: 'abc123', url: `https://ci.example.test/run/9?token=${upstreamApi.token}` }, { environment: 'test', firstDeployedAt: '2026-08-31T10:00:00Z', sha: 'abc123', url: 'https://ci.example.test/run/8', extra: 'x' }, { environment: '', sha: 'abc' }] };
   const deployed = await ploeg.card(admin, '101', true);
   assert.equal(deployed.card.finish, 'matte', 'Vloer computes the finish and ignores Ploeg\'s');

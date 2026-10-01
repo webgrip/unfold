@@ -167,6 +167,25 @@ func (c *LLMControl) Spend(ctx context.Context, runToken string) (float64, error
 	return spend, nil
 }
 
+// Live reads what the gateway has recorded so far for a Run's keys, from the
+// spend logs settlement reads. It records nothing, so a reading never moves
+// the Run's budget or settlement.
+func (c *LLMControl) Live(ctx context.Context, runToken string) (store.LiveUsage, error) {
+	a, err := c.Store.LLMAccount(ctx, runToken)
+	if err != nil {
+		return store.LiveUsage{}, err
+	}
+	settler, ok := c.Broker.(llmbroker.Settler)
+	if !ok {
+		return store.LiveUsage{}, fmt.Errorf("gateway has no durable spend source")
+	}
+	spend, err := settler.SettledSpendForRun(ctx, runToken, []string{a.GatewayKeyID})
+	if err != nil {
+		return store.LiveUsage{}, err
+	}
+	return store.LiveUsage{CostUSD: spend.USD, InputTokens: spend.InputTokens, OutputTokens: spend.OutputTokens}, nil
+}
+
 // Settle reconciles a finished Run's account as the trusted controller-side
 // caller. An account with no durable sign of a mint settles at zero on that
 // evidence; a blocked account settles at the gateway's spend-log total for

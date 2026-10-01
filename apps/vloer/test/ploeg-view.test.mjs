@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activePloegLane, appendPage, attemptLabel, cancelDialogMarkup, cancelSummary, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runAttempts, runGroups, runOrder, runResult, teamOverview, workItemRef, workMarkup, writerAccount } from '../public/ploeg.js';
+import { activePloegLane, appendPage, attemptLabel, cancelDialogMarkup, cancelSummary, checkoutDialogMarkup, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runAttempts, runGroups, runOrder, runResult, teamOverview, workItemRef, workMarkup, writerAccount } from '../public/ploeg.js';
 import { detailReason } from '../public/core/reasons.js';
 import { grafanaTeam, runExplorer } from '../public/core/observability.js';
 import { ploegDemo } from '../src/ploeg-demo.ts';
@@ -468,6 +468,22 @@ test('Cancel is offered to operators on live work only, and its dialog lists wha
   const demo = cancelDialogMarkup(demoDetail('109'), { demo: true });
   assert.match(demo, /Not available in the demo/);
   assert.match(demo, /value="cancel" disabled>Cancel Work Item/);
+});
+
+test('the Work Item page offers its branch for checkout, in VS Code or as a git command, and never in the demo', () => {
+  const live = detail();
+  assert.match(detailMarkup(live, model({ detailId: '50' })), /data-action="work-checkout" title="Check out agent\/vik-50">/);
+  assert.doesNotMatch(detailMarkup(demoDetail('114'), model({ detailId: '114' })), /work-checkout/, 'demo branches exist only in the demo');
+  const unrouted = detail();
+  unrouted.item.target = null;
+  assert.doesNotMatch(detailMarkup(unrouted, model({ detailId: '50' })), /work-checkout/);
+  const dialog = checkoutDialogMarkup(live, null, { origin: 'https://vloer.example' });
+  assert.match(dialog, /<h2 id="confirm-title">Check out this branch<\/h2>/);
+  assert.match(dialog, /href="vscode:\/\/webgrip\.de-vloer\/checkout\?workItem=50&amp;origin=https%3A%2F%2Fvloer\.example"/);
+  assert.match(dialog, /<pre class="work-checkout-command mono">git fetch origin agent\/vik-50 &amp;&amp; git switch agent\/vik-50 &amp;&amp; git merge --ff-only origin\/agent\/vik-50<\/pre>/);
+  assert.match(dialog, /data-action="work-copy-command"/);
+  assert.match(dialog, /a clone of acme\/shop open in VS Code/);
+  assert.equal(checkoutDialogMarkup(demoDetail('114'), null), '');
 });
 
 test('the cancel result reads Ploeg’s fields and never turns a missing one into zero', () => {

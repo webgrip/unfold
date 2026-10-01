@@ -103,7 +103,7 @@ fails otherwise.
 | [0027](0027-candidate-delivery-uses-trusted-evidence-and-a-publication-barrier.md) | Candidate delivery uses trusted evidence and a publication barrier | proposed | 2026-09-11 |
 | [0028](0028-automatic-releases-stay-zero-major-candidates.md) | Automatic releases stay zero-major candidates | proposed | 2026-09-11 |
 
-| [0029](0029-qualify-glide-before-changing-distribution.md) | Qualify Glide before changing Ploeg distribution | proposed | 2026-09-12 |
+| [0029](0029-qualify-unfold-before-changing-distribution.md) | Qualify Unfold before changing Ploeg distribution | proposed | 2026-09-12 |
 | [0030](0030-target-repository-instructions-rank-below-the-delivery-contract.md) | Target repository instructions rank below the delivery contract | proposed | 2026-09-22 |
 | [0031](0031-runs-create-work-items-held-for-approval-within-limits.md) | Runs create Work Items that wait for approval, within per-Team limits | proposed | 2026-09-23 |
 | [0032](0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md) | Keep the dedicated dispatch plane, and compete on authorized spend over a self-hosted stack | proposed | 2026-09-30 |
@@ -115,13 +115,14 @@ fails otherwise.
 | [0038](0038-a-repo-label-selects-among-registered-targets-and-the-board-default-is-the-fallback.md) | A repo label selects among registered targets, and the board default is the fallback | accepted | 2026-09-28 |
 | [0039](0039-a-run-calls-only-its-roles-model-and-the-advisor-waits-for-metering.md) | A Run calls only its Role's model, and the advisor waits for metering that prices it | proposed | 2026-09-30 |
 | [0040](0040-a-conflicted-pull-request-becomes-a-priority-ticket-ploeg-resolves.md) | A conflicted pull request becomes a priority ticket that Ploeg resolves | proposed | 2026-09-30 |
-| [0041](0041-the-openai-agents-api-stays-outside-the-run-until-it-takes-an-authorized-budget.md) | The OpenAI Agents API stays outside the Run until it can take an authorized budget; Glide meets it over MCP and runs Codex itself | proposed | 2026-09-30 |
+| [0041](0041-the-openai-agents-api-stays-outside-the-run-until-it-takes-an-authorized-budget.md) | The OpenAI Agents API stays outside the Run until it can take an authorized budget; Unfold meets it over MCP and runs Codex itself | proposed | 2026-09-30 |
 | [0042](0042-a-writing-run-reports-the-problem-and-solution-a-reviewer-reads.md) | A writing Run reports the problem and solution a reviewer reads | proposed | 2026-09-30 |
 | [0043](0043-a-failed-reading-run-is-retried-and-a-missing-review-closes-review-failed.md) | A failed reading Run is retried in its Round, and a review that never came closes `review_failed` | accepted | 2026-10-01 |
 | [0044](0044-an-operator-restarts-stopped-work-from-a-round-they-choose.md) | An operator restarts stopped work by requeueing it from a Round they choose | accepted | 2026-10-01 |
 | [0045](0045-keep-run-usage-and-merge-facts.md) | Ploeg keeps every usage figure a harness reports and every merge and review fact a forge reports | proposed | 2026-10-01 |
 | [0046](0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md) | A Run card is assembled per Work Item from stored facts | proposed | 2026-10-01 |
 | [0047](0047-ploeg-learns-where-a-merged-change-is-deployed-from-a-generic-deploy-endpoint.md) | Ploeg learns where a merged change is deployed from a generic deploy endpoint | proposed | 2026-10-01 |
+| [0049](0049-a-run-card-reads-the-gateway-for-usage-so-far-while-a-run-is-running.md) | A Run card reads the gateway for usage so far while a Run is running | proposed | 2026-10-01 |
 
 ## Review calendar
 
@@ -147,4 +148,5 @@ triggers.
 | 2027-01-31 | [0045](0045-keep-run-usage-and-merge-facts.md) — or sooner, when a third forge provider is added, a harness changes its usage shape, or the first card or KPI query is built on these facts |
 | 2027-01-31 | [0046](0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md) — or sooner, when the owner decides rarity, grade or finish, tracker assignees are ingested, or a card read passes 200 ms at p95 |
 | 2027-01-31 | [0047](0047-ploeg-learns-where-a-merged-change-is-deployed-from-a-generic-deploy-endpoint.md) — or sooner, when a GitOps controller should report deploys directly, deploys keep filling the 50-pull-request batch, or a third forge provider is added |
+| 2027-01-31 | [0049](0049-a-run-card-reads-the-gateway-for-usage-so-far-while-a-run-is-running.md) — or sooner, when a card read during a Run passes 1 s at p95, LiteLLM offers a per-key token total, or the worker reports usage during a Run |
 | 2027-04-01 | [0005](0005-build-a-dedicated-dispatch-plane.md), [0032](0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md) — the project review gate (`design.md` §10) |

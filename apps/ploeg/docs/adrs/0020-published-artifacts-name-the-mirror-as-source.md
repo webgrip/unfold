@@ -168,8 +168,8 @@ helm show chart oci://ghcr.io/webgrip/charts/ploeg --version <v>
   them and this record's identical-digest property is untouched. Annotating at
   copy time would have diverged GHCR's index digest from Harbor's.
 * 2026-09-22 — **the decision stands; the repositories moved.** Ploeg is now
-  built from the Glide monorepo, and the `ploegd` image already names
-  `github.com/webgrip/glide` as its source and the Forgejo Glide repository as
+  built from the Unfold monorepo, and the `ploegd` image already names
+  `github.com/webgrip/glide` as its source and the Forgejo Unfold repository as
   its URL. The chart's `sources` and `home` now name the same two repositories,
   so image and chart link to the repository their bytes are built from.
   `github.com/webgrip/ploeg` remains the Go module export, not the chart's

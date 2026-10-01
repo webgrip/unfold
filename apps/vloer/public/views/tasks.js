@@ -21,7 +21,7 @@ let listErrorCode = '';
 let briefExpanded = false;
 let ploegStatus = null;
 let ploegLoading = false;
-let ploegError = '';
+let ploegError = null;
 let ploegBusy = '';
 let ploegTeam = '';
 let ploegRequest = 0;
@@ -56,6 +56,12 @@ export function canTakeBack(status) {
   return status.available && status.handoff.allowed && status.assignedTeams.length > 0 && (!item || item.state === 'queued' || settledStates.includes(item.state));
 }
 
+/** How a refused hand-off or take-back reads: a tracker token without write access is named as the cause, with its fix, and nothing claims the change was made. */
+export function ploegChangeFailure(error) {
+  if (error.code === 'task_write_forbidden') return { title: 'The Vloer token cannot change this task’s assignees', body: `Nothing changed on the task. ${error.message}` };
+  return { title: 'Ploeg did not take that change', body: error.message };
+}
+
 /** Where a task stands with Ploeg: a headline, the next step and the tone of the state it reports. */
 export function ploegSituation(status, task) {
   if (!status.available) return { tone: 'neutral', headline: status.message || 'Ploeg status is unavailable.', next: '' };
@@ -64,10 +70,10 @@ export function ploegSituation(status, task) {
     const team = item.team;
     switch (item.state) {
       case 'queued': return { tone: 'neutral', headline: `Queued for team ${team}.`, next: `Ploeg starts it when a ${team} worker is free. You can take it back until then.` };
-      case 'ingested': return { tone: 'neutral', headline: `Team ${team} received it.`, next: 'Ploeg is preparing it for the queue.' };
-      case 'leased': return { tone: 'live', headline: `Team ${team} is working on it.`, next: 'Follow its Runs on the Work Item page.' };
-      case 'awaiting_review': return { tone: 'review', headline: 'A pull request is ready for your review.', next: 'Review and merge it on the forge, or request changes there.' };
-      case 'needs_human': return { tone: 'attention', headline: `Team ${team} stopped and needs you.`, next: 'Open the Work Item to read why, then decide how to continue.' };
+      case 'ingested': return { tone: 'neutral', headline: `Received by team ${team}.`, next: 'Ploeg is preparing it for the queue.' };
+      case 'leased': return { tone: 'live', headline: `Running in team ${team}.`, next: 'Follow its Runs on the Work Item page.' };
+      case 'awaiting_review': return { tone: 'review', headline: 'Ready for your review.', next: 'Review and merge it on the forge, or request changes there.' };
+      case 'needs_human': return { tone: 'attention', headline: `Needs you: team ${team} stopped.`, next: 'Open the Work Item to read why, then decide how to continue.' };
       case 'proposed': return { tone: 'neutral', headline: 'An agent proposed this as follow-up work.', next: 'Approve or reject it under Proposed.' };
       default: return { tone: workItemState(item.state).tone, headline: `${workItemState(item.state).label} in team ${team}.`, next: '' };
     }
@@ -75,8 +81,8 @@ export function ploegSituation(status, task) {
   if (status.assignedTeams.length) return { tone: 'neutral', headline: `Assigned to ${status.assignedTeams.join(', ')}. Waiting for Ploeg to queue it.`, next: 'Ploeg normally queues an assigned task within seconds. If this stays, check the board’s webhook and routing in Ploeg.' };
   const again = canHandOff(status, task);
   if (item?.state === 'done') return { tone: 'success', headline: `Done by team ${item.team}.`, next: task.status === 'open' && again ? 'The task is still open in the tracker. Hand it over again if more work is needed.' : '' };
-  if (item?.state === 'withdrawn') return { tone: 'neutral', headline: `Taken back from team ${item.team}.`, next: again ? 'Hand it over again when it is ready.' : '' };
-  if (item?.state === 'stale') return { tone: 'severe', headline: `Team ${item.team} stopped retrying.`, next: 'Open the Work Item to read why. Hand it over again once the cause is fixed.' };
+  if (item?.state === 'withdrawn') return { tone: 'neutral', headline: `Withdrawn from team ${item.team}.`, next: again ? 'Hand it over again when it is ready.' : '' };
+  if (item?.state === 'stale') return { tone: 'severe', headline: `Stopped retrying in team ${item.team}.`, next: 'Open the Work Item to read why. Hand it over again once the cause is fixed.' };
   if (task.status !== 'open') return { tone: 'neutral', headline: 'This task is closed in the tracker.', next: 'Reopen it there before you hand it to Ploeg.' };
   return { tone: 'neutral', headline: 'Not with Ploeg yet.', next: again ? 'Choose a team to hand it over. Ploeg works on a branch and opens a pull request for your review; nothing merges without you.' : '' };
 }
@@ -220,13 +226,13 @@ function teamPicker(status) {
 
 function ploegBody(task) {
   if (ploegLoading && !ploegStatus) return skeleton({ rows: 2, variant: 'text' });
-  if (ploegError && !ploegStatus) return `<div role="alert">${callout({ tone: 'danger', title: 'Could not read this task’s Ploeg status', body: `<p>${escape(ploegError)}</p>`, actions: act('data-action="task-ploeg-refresh"', { label: 'Try again', icon: 'refresh', size: 'sm' }) })}</div>`;
+  if (ploegError && !ploegStatus) return `<div role="alert">${callout({ tone: 'danger', title: 'Could not read this task’s Ploeg status', body: `<p>${escape(ploegError.message)}</p>`, actions: act('data-action="task-ploeg-refresh"', { label: 'Try again', icon: 'refresh', size: 'sm' }) })}</div>`;
   if (!ploegStatus) return '';
   const status = ploegStatus;
   const situation = ploegSituation(status, task);
   const item = currentWorkItem(status);
   const parts = [`<div role="status">${callout({ tone: situation.tone, title: situation.headline, body: situation.next ? `<p>${escape(situation.next)}</p>` : '' })}</div>`];
-  if (ploegError) parts.push(`<div role="alert">${callout({ tone: 'danger', title: 'Ploeg did not take that change', body: `<p>${escape(ploegError)}</p>` })}</div>`);
+  if (ploegError) { const failure = ploegChangeFailure(ploegError); parts.push(`<div role="alert">${callout({ tone: 'danger', title: failure.title, body: `<p>${escape(failure.body)}</p>` })}</div>`); }
   if (status.workItems.length) parts.push(`<ul class="tasks-work-items" aria-label="Ploeg Work Items for this task">${status.workItems.map(workItemRow).join('')}</ul>`);
   if (canHandOff(status, task)) parts.push(teamPicker(status));
   else if (status.available && !status.handoff.allowed && status.handoff.reason && (!item || settledStates.includes(item.state))) parts.push(`<p class="tasks-ploeg-reason">${escape(status.handoff.reason)}</p>`);
@@ -388,7 +394,7 @@ function closeTask() {
 
 function resetPloeg() {
   ++ploegRequest;
-  ploegStatus = null; ploegLoading = false; ploegError = ''; ploegBusy = '';
+  ploegStatus = null; ploegLoading = false; ploegError = null; ploegBusy = '';
 }
 
 const ploegPath = (sourceId, id, tail) => `/api/task-sources/${encodeURIComponent(sourceId)}/tasks/${encodeURIComponent(id)}/${tail}`;
@@ -399,8 +405,8 @@ async function loadPloeg(sourceId, id, fresh = false) {
   try {
     const status = await api(ploegPath(sourceId, id, `ploeg${fresh ? '?refresh=1' : ''}`));
     if (request !== ploegRequest) return;
-    ploegStatus = status; ploegError = '';
-  } catch (error) { if (request === ploegRequest) ploegError = error.message; }
+    ploegStatus = status; ploegError = null;
+  } catch (error) { if (request === ploegRequest) ploegError = { code: error.code, message: error.message }; }
   finally { if (request === ploegRequest) { ploegLoading = false; if (onTasks()) renderTasks(); } }
 }
 
@@ -419,7 +425,7 @@ async function changePloeg(kind, team) {
   const sourceId = state.taskSourceId;
   const id = String(task.id);
   const request = ++ploegRequest;
-  ploegBusy = kind; ploegError = '';
+  ploegBusy = kind; ploegError = null;
   if (onTasks()) renderTasks();
   try {
     const status = kind === 'handoff'
@@ -427,13 +433,13 @@ async function changePloeg(kind, team) {
       : await api(`${ploegPath(sourceId, id, 'handoff')}?team=${encodeURIComponent(team)}`, { method: 'DELETE' });
     if (request !== ploegRequest) return;
     ploegStatus = status;
-    notify(kind === 'handoff' ? `Handed to team ${team}. Ploeg queues it within seconds.` : `Taken back from team ${team}.`);
+    notify(kind === 'handoff' ? `Handed to team ${team}. Ploeg queues it within seconds.` : `Withdrawn from team ${team}.`);
     for (const warning of status.warnings || []) notify(warning, true);
     await refreshTask(sourceId, id);
     if (kind === 'handoff') setTimeout(() => { if (requestedId === id && sourceId === state.taskSourceId && !ploegBusy) loadPloeg(sourceId, id, true); }, 5000);
   } catch (error) {
     if (request !== ploegRequest) return;
-    ploegError = error.message;
+    ploegError = { code: error.code, message: error.message };
     if (error.status === 409 && error.code === 'task_changed') await refreshTask(sourceId, id);
   } finally { if (request === ploegRequest) { ploegBusy = ''; if (onTasks()) renderTasks(); } }
 }

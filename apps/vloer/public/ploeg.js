@@ -6,6 +6,7 @@ import * as ui from './core/ui.js';
 import { workItemState, runOutcome, runState, verdict as verdictMeta, failureReason, failureNote, auditEvent, actorName, displayState, unreportedOutcome, closeReasonLabel, withdrawnReason } from './core/states.js';
 import { listReason, routingWarning, detailReason, requeueNote, needsYouBlocks, reasonGlyph } from './core/reasons.js';
 import { grafanaTeam, runExplorer } from './core/observability.js';
+import { checkoutTarget, checkoutCommand, checkoutLink } from './core/checkout.js';
 
 /** The Work lanes in the order the lane control shows them: closest to shipping first. */
 export const ploegLanes = Object.freeze([
@@ -519,6 +520,8 @@ function headerMarkup(detail, model, reason) {
   const tools = [`<button type="button" class="button ghost sm work-copy" data-action="work-copy-link" data-id="${escape(item.id)}">${icon('copy')}<span class="button-label">Copy link</span></button>`];
   const grafana = grafanaTeam(item.team, model.grafanaUrl);
   if (grafana) tools.push(ui.button({ label: 'Grafana', icon: 'activity', variant: 'ghost', size: 'sm', href: grafana, external: true, data: { linkOut: 'grafana' } }));
+  const checkout = checkoutTarget(detail, model.card);
+  if (checkout) tools.push(`<button type="button" class="button ghost sm work-checkout" data-action="work-checkout" title="${escape(`Check out ${checkout.branch}`)}">${icon('branch')}<span class="button-label">Check out branch</span></button>`);
   if (model.canCancel && cancellable.has(item.state)) tools.push(`<button type="button" class="button ghost sm work-cancel" data-action="work-cancel" data-id="${escape(item.id)}"${model.cancelBusy ? ' aria-disabled="true" aria-busy="true"' : ''}>${model.cancelBusy ? '<span class="spinner" aria-hidden="true"></span>' : icon('x-circle')}<span class="button-label">Cancel Work Item</span></button>`);
   return `<header class="work-detail-header"><div class="work-detail-bar"><p class="work-detail-ref overline"><span class="work-detail-kind">Work Item · </span>${escape(item.team)} · ${ref(item)}</p><div class="work-detail-tools">${tools.join('')}</div>${close}</div><h2 class="work-detail-title" id="ploeg-item-title" tabindex="-1">${escape(item.title || `Work Item ${item.id}`)}</h2><div class="work-detail-status">${ui.stateBadge(meta, reason ? { reason: reason.chip, reasonTone: reason.tone } : {})}${warning ? ui.chip({ label: warning.chip, tone: warning.tone, icon: warning.glyph, title: warning.sentence }) : ''}</div>${facts.length ? `<p class="work-detail-facts dots">${facts.join('')}</p>` : ''}</header>`;
 }
@@ -978,13 +981,13 @@ function cancelResultMarkup(model) {
 }
 
 /**
- * The Run card's place above Rounds: a `<glide-card>` that `views/work.js` gives the card object once Ploeg sent one
+ * The Run card's place above Rounds: a `<unfold-card>` that `views/work.js` gives the card object once Ploeg sent one
  * (`model.card`). Empty without a card, so an older Ploeg or a failed read leaves no trace.
  */
 export function cardSectionMarkup(detail, model) {
   const card = model.card;
   if (!card || String(card.workItemId) !== detail.item.id) return '';
-  return `<section class="work-card" id="work-card" aria-labelledby="work-card-title"><div class="work-card-heading"><h3 class="overline" id="work-card-title">Run card</h3><p class="meta">What Ploeg recorded for this Work Item. More info turns the card over.</p></div><glide-card class="work-run-card" data-work-item="${escape(detail.item.id)}"></glide-card></section>`;
+  return `<section class="work-card" id="work-card" aria-labelledby="work-card-title"><div class="work-card-heading"><h3 class="overline" id="work-card-title">Run card</h3><p class="meta">What Ploeg recorded for this Work Item. More info turns the card over.</p></div><unfold-card class="work-run-card" data-work-item="${escape(detail.item.id)}"></unfold-card></section>`;
 }
 
 /** The Work Item detail: header, the writer's problem and solution, the decision box for its state, the brief, the Run card, Rounds and Runs, activity, technical details and, on phones, the action bar. */
@@ -1062,6 +1065,22 @@ export function workMarkup(model) {
  * so far, and that only the tracker can start it again. In the demo it explains that nothing runs and the confirm
  * button is disabled.
  */
+/**
+ * The dialog that checks out a Work Item's branch: open it in VS Code through the De Vloer extension, or copy the
+ * git command. `origin` is this workbench, so the extension can refuse a link meant for another one. '' without a branch.
+ */
+export function checkoutDialogMarkup(detail, card, { origin = '' } = {}) {
+  const target = checkoutTarget(detail, card);
+  if (!target) return '';
+  const repo = `${target.owner}/${target.repo}`;
+  const command = checkoutCommand(target.branch);
+  const link = checkoutLink(detail.item.id, origin);
+  const facts = ui.dl([['Branch', `<span class="mono">${escape(target.branch)}</span>`], ['Repository', `${escape(repo)}${target.baseBranch ? ` <span class="subtle">→ ${escape(target.baseBranch)}</span>` : ''}`]], { rows: true });
+  const editor = `<div class="work-checkout-part"><a class="button primary" href="${escape(link)}">${icon('external')}<span class="button-label">Open in VS Code</span></a><p class="meta">${escape(`Needs the De Vloer extension, connected to this workbench, and a clone of ${repo} open in VS Code. It asks before it switches branches.`)}</p></div>`;
+  const terminal = `<div class="work-checkout-part"><p>${escape(`Or, in a terminal in your clone of ${repo}:`)}</p><pre class="work-checkout-command mono">${escape(command)}</pre>${ui.button({ label: 'Copy command', icon: 'copy', variant: 'secondary', action: 'work-copy-command', data: { value: command } })}</div>`;
+  return `<form method="dialog" class="work-checkout-form"><header class="dialog-header"><h2 id="confirm-title">Check out this branch</h2><button type="submit" class="button ghost icon-only sm" value="close" aria-label="Close" title="Close">${icon('x')}</button></header><div class="dialog-body"><p><strong>${escape(detail.item.title || `Work Item ${detail.item.id}`)}</strong> <span class="subtle">${escape(workItemRef(detail.item))}</span></p>${facts}${editor}${terminal}</div><footer class="dialog-footer"><button type="submit" class="button secondary" value="close" autofocus>Close</button></footer></form>`;
+}
+
 export function cancelDialogMarkup(detail, { demo = false } = {}) {
   const item = detail.item;
   const shift = latestShift(detail);

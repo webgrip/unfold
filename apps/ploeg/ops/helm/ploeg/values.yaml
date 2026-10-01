@@ -194,8 +194,8 @@ executor:
   # DEPRECATED in favor of harness.image (kept as the fallback so existing
   # value overrides keep working).
   # agent-runner >=1.0.1 only: 1.0.0 mints LiteLLM keys without key_alias (400).
-  runnerImage: harbor.webgrip.dev/webgrip/agent-runner:1.0.2@sha256:086b4bc0d3fda0e3c179f9501bb46a612f5f33e60d96405a5d94471a26279596
-  dindImage: harbor.webgrip.dev/dockerhub/library/docker:29.6.2-dind
+  runnerImage: harbor.webgrip.dev/webgrip/agent-runner:1.3.0@sha256:ab0a56f12a33b2af542663e0f2079261f5b9aca5596a5d497583f211a284684f
+  dindImage: harbor.webgrip.dev/dockerhub/library/docker:29.8.2-dind@sha256:7dcdfc4a20246236f558175182ccace1eb15a41bd3eb119dd2284f393498b7c1
   workerImage: "" # empty = image.repository:tag (carries /usr/local/bin/ploeg-worker)
   # ServiceAccount for the WORKER pods (not ploegd). Workers mount no token
   # either way; this is an identity/audit fix, and what
@@ -436,7 +436,7 @@ executor:
 # work to the wrong repository the day the project is rebuilt.
 config: {}
 #   targets:                          # ADR-0038: repositories a `repo/<key>` label may select
-#     glide:
+#     unfold:
 #       repo: webgrip/glide
 #       branch: development
 #       forge: forgejo
@@ -455,11 +455,11 @@ config: {}
 #           repo: webgrip/ploeg
 #           branch: development       # unset = the repo default, may be a stub
 #           team: bronze              # unset = the assignee decides
-#         - name: "Glide"             # a board serving several repositories
-#           default: glide            # a targets key, instead of repo/branch/forge
+#         - name: "Unfold"             # a board serving several repositories
+#           default: unfold            # a targets key, instead of repo/branch/forge
 #           allow: [homelab-cluster]  # what a repo/<key> label may select here
 #         - name: "Forgejo Migration" # no default: every ticket needs a repo/<key> label
-#           allow: [glide, homelab-cluster]
+#           allow: [unfold, homelab-cluster]
 #   teams:
 #     bronze:
 #       assignees: [jake, bronze]     # replaces PLOEG_TEAM_MAP

@@ -1,9 +1,9 @@
 {
-  "name": "glide-site",
+  "name": "unfold-site",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "The static marketing site for Glide.",
+  "description": "The static marketing site for Unfold.",
   "repository": {
     "type": "git",
     "url": "https://forgejo.webgrip.dev/webgrip/glide.git",

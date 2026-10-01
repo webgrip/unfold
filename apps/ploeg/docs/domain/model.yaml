@@ -2,8 +2,8 @@ project: Ploeg
 owner: ploeg
 description: >
   Ploeg schedules and runs work handed to agents, tracks progress and cost,
-  and supports cooperation between agents. It is Glide's only execution engine
-  and the Authority for every Run (Glide ADR-0002). De Vloer is its front end,
+  and supports cooperation between agents. It is Unfold's only execution engine
+  and the Authority for every Run (Unfold ADR-0002). De Vloer is its front end,
   where people work on tickets, give work to agents and review the results.
   Vloer Start requests Ploeg admission; a manual-origin request need not have a
   tracker ticket. Until Vloer's own engine is retired, Vloer still performs
@@ -14,7 +14,7 @@ description: >
 version: 0.6.0
 combined_glossary: ../../../../docs/reference/glossary.md
 references:
-  - label: Glide ADR-0002
+  - label: Unfold ADR-0002
     path: ../../../../docs/adr/adr-0002-ploeg-is-the-only-engine.md
     note: Ploeg is the only execution engine and Vloer is its front end.
 imports:
@@ -217,7 +217,7 @@ terms:
       retries, resumes). The runner reports its outcome; controller expiry and
       reconciliation recover missing reports while preserving operator stop intent. "Job" is reserved for the Kubernetes
       object and is never a domain term. A delegated Run may contain several
-      Vloer Steps until Vloer's engine is retired (Glide ADR-0002).
+      Vloer Steps until Vloer's engine is retired (Unfold ADR-0002).
     context: Execution
     avoid: [job (as a domain term), role run]
     not_to_be_confused_with:
@@ -363,7 +363,7 @@ terms:
     definition: >
       The component that performs admitted Runs and reports progress and outcomes.
       Current unattended execution uses Kubernetes workers; Vloer performs delegated
-      operator execution until Glide ADR-0002 moves it to ploeg-worker. The
+      operator execution until Unfold ADR-0002 moves it to ploeg-worker. The
       controller recovers missing reports through expiry and reconciliation,
       without a Kubernetes Job watcher.
     context: Execution
@@ -436,7 +436,7 @@ terms:
   - name: Authority
     definition: >
       The one party entitled to approve a Run, set its budget and grant or revoke
-      its credentials. Ploeg is the Authority for every Run (Glide ADR-0002). A
+      its credentials. Ploeg is the Authority for every Run (Unfold ADR-0002). A
       Run never switches to another authority because a connection fails.
     context: Dispatch
     see_also: [Admission, Inference Account, Push Credential, Run]
@@ -482,7 +482,7 @@ entities:
     relationships:
       - {to: Work Item, kind: has_one, description: One manual item or atomically adopted pristine tracker item outside unattended queue claims.}
       - {to: Shift, kind: has_one, description: One retained authorization pool.}
-      - {to: Run, kind: has_one, description: One operator Role whose delegated Steps Vloer performs until Glide ADR-0002 is implemented.}
+      - {to: Run, kind: has_one, description: One operator Role whose delegated Steps Vloer performs until Unfold ADR-0002 is implemented.}
 
   - name: Work Item
     description: Ploeg's execution record for tracker, follow-up or operator work.
@@ -913,7 +913,7 @@ entities:
 
 rules:
   - id: R18
-    statement: An Operator Execution requires authenticated admission. Creating a queued Vloer session alone does not admit it; Start does, including hands-on work. Vloer's deterministic demo, and its standalone mode until Glide ADR-0002 retires it, do not create these Ploeg records.
+    statement: An Operator Execution requires authenticated admission. Creating a queued Vloer session alone does not admit it; Start does, including hands-on work. Vloer's deterministic demo, and its standalone mode until Unfold ADR-0002 retires it, do not create these Ploeg records.
     rationale: Admission follows the configured execution mode and explicit start, not whether a person is currently watching the work.
     applies_to: [Work Item, Operator Execution]
     context: Dispatch

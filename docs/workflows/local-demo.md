@@ -1,7 +1,7 @@
 ---
 type: tutorial
 audience: [owner, operator, integrator, contributor]
-owner: glide
+owner: unfold
 last_verified: 2026-09-23
 verified_by: "Read apps/vloer/scripts/unified-demo.ts (prerequisite commands, ready/stopped/smoke-passed events, environment settings, cleanup), apps/vloer/package.json, root mise.toml and apps/ploeg/go.mod"
 ---
@@ -12,9 +12,9 @@ verified_by: "Read apps/vloer/scripts/unified-demo.ts (prerequisite commands, re
 
 ## Start
 
-Glide contains both applications at one revision, including the [shared execution contract](../../apps/vloer/docs/contracts/ploeg-execution.md). Use a regular macOS or Linux user with Node 24 through mise, Go 1.26 or later, Git and PostgreSQL 17 or later (`initdb` and `postgres`) on PATH. Go may fetch the dependencies already declared by Ploeg when its cache is cold. The launcher does not install software or start a system PostgreSQL service.
+Unfold contains both applications at one revision, including the [shared execution contract](../../apps/vloer/docs/contracts/ploeg-execution.md). Use a regular macOS or Linux user with Node 24 through mise, Go 1.26 or later, Git and PostgreSQL 17 or later (`initdb` and `postgres`) on PATH. Go may fetch the dependencies already declared by Ploeg when its cache is cold. The launcher does not install software or start a system PostgreSQL service.
 
-From the Glide root:
+From the Unfold root:
 
 ```sh
 mise run demo-unified
@@ -26,7 +26,7 @@ Optional environment settings:
 
 | Setting | Purpose |
 | --- | --- |
-| `PLOEG_PATH` | Absolute path to the matching Ploeg checkout; defaults to Glide’s `apps/ploeg`. |
+| `PLOEG_PATH` | Absolute path to the matching Ploeg checkout; defaults to Unfold’s `apps/ploeg`. |
 | `PG_BIN` | Directory containing PostgreSQL binaries, if they are not on PATH. |
 | `VLOER_DEMO_PORT` | A fixed workbench port; otherwise an available port is chosen. |
 

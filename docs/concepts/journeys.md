@@ -1,19 +1,19 @@
 ---
 type: explanation
 audience: [owner, contributor, operator, agent]
-owner: glide
+owner: unfold
 last_verified: 2026-09-29
 verified_by: "source read of apps/ploeg (pkg/httpapi, pkg/shiftengine, pkg/store, cmd/ploegd), apps/vloer/src and .forgejo/workflows at 050fa3b; homelab-cluster main at 432fc0d4; read-only kubectl in namespace ploeg on 2026-09-29. On 2026-09-30 the Vloer navigation and Cancel Work Item were re-read in apps/vloer/public/shell.js, public/ploeg.js, public/views/work.js, src/http.ts and src/ploeg.ts at 68c90cf on feat/vloer-redesign"
 ---
 
 # Journeys
 
-Five end-to-end paths through Glide, each from the point of view of the person who starts it. [Inside a Run](inside-a-run.md) zooms into the Run box that appears in several of them. The [glossary](../reference/glossary.md) defines Work Item, Shift, Round, Role, Run, Team and Lease.
+Five end-to-end paths through Unfold, each from the point of view of the person who starts it. [Inside a Run](inside-a-run.md) zooms into the Run box that appears in several of them. The [glossary](../reference/glossary.md) defines Work Item, Shift, Round, Role, Run, Team and Lease.
 
 | Journey | Starts with | Ends with |
 | --- | --- | --- |
 | [A. Ticket to merged pull request](#a-ticket-to-merged-pull-request) | You assign a Vikunja ticket to a Team | You merge the pull request |
-| [B. Merge to production](#b-merge-to-production) | A commit lands on Glide's `development` | Flux runs the new release |
+| [B. Merge to production](#b-merge-to-production) | A commit lands on Unfold's `development` | Flux runs the new release |
 | [C. Starting work from Vloer](#c-starting-work-from-vloer) | You press Start in Vloer | The session completes or is cancelled |
 | [D. Stopping work](#d-stopping-work) | You change your mind | Runs stop and credentials die |
 | [E. When infrastructure fails](#e-when-infrastructure-fails) | A pod never starts or dies | A retry, or `needs_human` |
@@ -65,12 +65,12 @@ sequenceDiagram
 
 ## B. Merge to production
 
-A change to Glide itself becomes a signed release in CI. It reaches the cluster only when a commit in `webgrip/homelab-cluster` pins it. Glide never changes production itself.
+A change to Unfold itself becomes a signed release in CI. It reaches the cluster only when a commit in `webgrip/homelab-cluster` pins it. Unfold never changes production itself.
 
 ```mermaid
 sequenceDiagram
     actor Dev as You or an agent
-    participant FJ as Forgejo (glide)
+    participant FJ as Forgejo (unfold)
     participant CI as Forgejo Actions
     participant H as Harbor
     participant GH as GitHub / GHCR
@@ -79,7 +79,7 @@ sequenceDiagram
     Dev->>FJ: merge to development
     FJ->>CI: on_source_change.yml
     CI->>CI: verify, release policy, demo smoke
-    CI->>FJ: semantic-release: tag glide-v0.x.y-rc.N, Forgejo release
+    CI->>FJ: semantic-release: tag unfold-v0.x.y-rc.N, Forgejo release
     FJ->>CI: on_release_published.yml
     CI->>H: build images, CVE gate (grype + VEX), cosign sign, charts
     CI->>GH: copy images and charts, draft release, attach assets, publish
@@ -89,10 +89,10 @@ sequenceDiagram
 ```
 
 1. **Validate.** A push to `development` runs [`on_source_change.yml`](../../.forgejo/workflows/on_source_change.yml): both applications' gates, the release policy and the demo smoke test.
-2. **Version.** When `GLIDE_RELEASES_ENABLED` is `true`, semantic-release reads the commits under `apps/`, tags `glide-v0.x.y-rc.N` and creates the Forgejo release. `fix:` and `feat:` commits cut a release; `docs:` and `chore:` do not. Only zero-major release candidates are allowed ([ADR-0028](../../apps/ploeg/docs/adrs/0028-automatic-releases-stay-zero-major-candidates.md)).
+2. **Version.** When `GLIDE_RELEASES_ENABLED` is `true`, semantic-release reads the commits under `apps/`, tags `unfold-v0.x.y-rc.N` and creates the Forgejo release. `fix:` and `feat:` commits cut a release; `docs:` and `chore:` do not. Only zero-major release candidates are allowed ([ADR-0028](../../apps/ploeg/docs/adrs/0028-automatic-releases-stay-zero-major-candidates.md)).
 3. **Build, gate, sign.** The published release triggers [`on_release_published.yml`](../../.forgejo/workflows/on_release_published.yml). Each image is built once in Harbor, held to its application's CVE budget with grype and OpenVEX statements, then signed and attested with cosign. Both Helm charts are published to Harbor.
 4. **Distribute.** [`publish_release.py`](../../scripts/publish_release.py) copies the signed images and charts to Forgejo and GHCR, verifies digests, creates a draft GitHub release, attaches the assets and then publishes it without marking it latest. GitHub receives the source through a push mirror ([Source and artifacts](../operations/artifacts.md)).
-5. **Pin.** Production state lives in `homelab-cluster`. The Ploeg chart is pinned by tag and digest in its [OCIRepository](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/ploeg/app/ocirepository.yaml), and the `ploegd` image by digest in the HelmRelease. A Renovate rule groups one Glide release, both charts and three images, into one pull request, without automerge. The pins from `0.4.0-rc.2` to `0.4.0-rc.11` were committed by hand.
+5. **Pin.** Production state lives in `homelab-cluster`. The Ploeg chart is pinned by tag and digest in its [OCIRepository](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/ploeg/app/ocirepository.yaml), and the `ploegd` image by digest in the HelmRelease. A Renovate rule groups one Unfold release, both charts and three images, into one pull request, without automerge. The pins from `0.4.0-rc.2` to `0.4.0-rc.11` were committed by hand.
 6. **Apply.** Flux reconciles the change and Helm upgrades the release. On 2026-09-29 the cluster ran `0.4.0-rc.11`.
 
 [CI and releases](../operations/ci.md) covers the workflows and gates in detail.

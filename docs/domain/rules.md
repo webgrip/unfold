@@ -1,11 +1,11 @@
 ---
 type: reference
 audience: [owner, integrator, contributor, agent]
-owner: glide
+owner: unfold
 generated_by: "mise run domain"
 ---
 
-# Business Rules — Glide
+# Business Rules — Unfold
 
 *Generated from `model.yaml` — do not edit by hand. Cite rules by id in specs.*
 
@@ -13,9 +13,9 @@ generated_by: "mise run domain"
 
 ### R16
 
-Intended behavior — Glide never merges a pull request or deploys to production. A Preview Environment never receives production secrets.
+Intended behavior — Unfold never merges a pull request or deploys to production. A Preview Environment never receives production secrets.
 
-**Why:** Glide's responsibility ends at a reviewed pull request and its preview; production stays with the Agency.
+**Why:** Unfold's responsibility ends at a reviewed pull request and its preview; production stays with the Agency.
 
 **Also applies to:** Preview Environment, Acceptance
 
@@ -41,7 +41,7 @@ Intended behavior — Ploeg refuses a Shift it cannot fund and never raises a Bu
 
 ### R15
 
-Intended behavior — Glide never contacts a Client directly; questions for a Client go through its Agency.
+Intended behavior — Unfold never contacts a Client directly; questions for a Client go through its Agency.
 
 **Why:** The Agency owns the Client relationship.
 
@@ -51,7 +51,7 @@ Intended behavior — Glide never contacts a Client directly; questions for a Cl
 
 ### R13
 
-Intended behavior — the Delivery Fee is charged only on Acceptance. The Token Charge is charged for every attempt up to the Shift Budget, except attempts that fail through Glide's own fault.
+Intended behavior — the Delivery Fee is charged only on Acceptance. The Token Charge is charged for every attempt up to the Shift Budget, except attempts that fail through Unfold's own fault.
 
 **Why:** The Agency pays for delivered work, and rejecting work is never free, so neither side profits from the other's mistakes.
 
@@ -99,7 +99,7 @@ A person initially accepts Results; automatic acceptance requires a separately a
 
 ### R8
 
-Ploeg is the Authority for every Run (Glide ADR-0002). Vloer requests Admission through Ploeg's API and never falls back to its own execution when Ploeg is unavailable, whatever the cause. Without Ploeg, Vloer runs only its deterministic demo, which makes no model calls. Current state — Vloer's standalone mode and its own engine remain until the migration to ploeg-worker is complete; no new execution features are added to that engine.
+Ploeg is the Authority for every Run (Unfold ADR-0002). Vloer requests Admission through Ploeg's API and never falls back to its own execution when Ploeg is unavailable, whatever the cause. Without Ploeg, Vloer runs only its deterministic demo, which makes no model calls. Current state — Vloer's standalone mode and its own engine remain until the migration to ploeg-worker is complete; no new execution features are added to that engine.
 
 **Why:** One authority, one budget path and one revocable credential per Run; runner location does not decide who authorizes work.
 

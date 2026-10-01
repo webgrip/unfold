@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Glide release tag, e.g. glide-v0.4.0-rc.1'
+        description: 'Unfold release tag, e.g. unfold-v0.4.0-rc.1'
         required: true
         type: string
 
@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   parse-release-tag:
-    if: vars.GLIDE_RELEASES_ENABLED == 'true' && startsWith(github.event.release.tag_name || inputs.tag, 'glide-v')
+    if: vars.GLIDE_RELEASES_ENABLED == 'true' && startsWith(github.event.release.tag_name || inputs.tag, 'unfold-v')
     runs-on: docker
     outputs:
       version: ${{ steps.parse.outputs.version }}
@@ -36,7 +36,7 @@ jobs:
           if [[ "${WORKFLOW_EVENT:-}" == workflow_dispatch ]]; then
             [[ "${SELECTED_REF:-}" == "refs/tags/$tag" ]] || { echo "Select the same tag as the workflow ref before publishing." >&2; exit 1; }
           fi
-          [[ "$tag" =~ ^glide-v0\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-rc\.[1-9][0-9]*$ ]] || { echo "Glide publishes only glide-v0.x.y-rc.N tags; stable and 1.x releases require an explicit policy change." >&2; exit 1; }
+          [[ "$tag" =~ ^unfold-v0\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-rc\.[1-9][0-9]*$ ]] || { echo "Unfold publishes only unfold-v0.x.y-rc.N tags; stable and 1.x releases require an explicit policy change." >&2; exit 1; }
           plausible() { local v="${1:-}"; [[ -n "$v" ]] || return 1; [[ "$v" =~ ^([0-9]{4})-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2} ]] || return 1; (( BASH_REMATCH[1] >= 2020 )); }
           created=""
           for cand in "${RELEASE_PUBLISHED_AT:-}" "${RELEASE_CREATED_AT:-}"; do
@@ -46,7 +46,7 @@ jobs:
           done
           [[ -n "$created" ]] || created="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           plausible "$created" || { echo "ERROR: IMAGE_CREATED is not a plausible instant: '$created'" >&2; exit 1; }
-          echo "version=${tag#glide-v}" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#unfold-v}" >> "$GITHUB_OUTPUT"
           echo "created=$created" >> "$GITHUB_OUTPUT"
 
   vloer-release-publish-chart:
@@ -57,7 +57,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: glide-v${{ needs.parse-release-tag.outputs.version }}
+          ref: unfold-v${{ needs.parse-release-tag.outputs.version }}
       - name: Publish the canonical chart
         shell: bash
         env:
@@ -69,7 +69,7 @@ jobs:
           export DOCKER_CONFIG="$(mktemp -d)" PATH="$PWD/scripts:$PATH"
           export HELM_REGISTRY_CONFIG="$DOCKER_CONFIG/config.json"
           trap 'rm -rf "$DOCKER_CONFIG"' EXIT
-          printf '%s' '{"credHelpers":{"harbor.webgrip.dev":"glide"}}' > "$DOCKER_CONFIG/config.json"
+          printf '%s' '{"credHelpers":{"harbor.webgrip.dev":"unfold"}}' > "$DOCKER_CONFIG/config.json"
           python3 scripts/publish_chart.py vloer "$VERSION"
 
   vloer-release-distribute-harbor:
@@ -99,7 +99,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: glide-v${{ needs.parse-release-tag.outputs.version }}
+          ref: unfold-v${{ needs.parse-release-tag.outputs.version }}
 
       - name: Probe Harbor for an existing image
         id: probe
@@ -185,10 +185,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: glide-v${{ needs.parse-release-tag.outputs.version }}
+          ref: unfold-v${{ needs.parse-release-tag.outputs.version }}
       - uses: https://github.com/jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
         with:
-          version: 2026.9.17
+          version: 2026.9.18
           install_args: node
           cache: false
           github_token: ''
@@ -220,7 +220,7 @@ jobs:
           cd apps/vloer/extensions/vscode
           vsix="de-vloer-${VERSION}.vsix"
           sha256sum "$vsix" > "${vsix}.sha256"
-          release="$(curl -sS --fail --max-time 30 -H "Authorization: token ${TOKEN}" "${API}/releases/tags/glide-v${VERSION}")"
+          release="$(curl -sS --fail --max-time 30 -H "Authorization: token ${TOKEN}" "${API}/releases/tags/unfold-v${VERSION}")"
           release_id="$(printf '%s' "$release" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
           for asset in "$vsix" "${vsix}.sha256"; do
             if printf '%s' "$release" | python3 -c 'import json,sys; a=sys.argv[1]; sys.exit(0 if any(x.get("name")==a for x in json.load(sys.stdin).get("assets",[])) else 1)' "$asset"; then
@@ -284,7 +284,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: glide-v${{ needs.parse-release-tag.outputs.version }}
+          ref: unfold-v${{ needs.parse-release-tag.outputs.version }}
       - name: Publish the canonical chart
         shell: bash
         env:
@@ -296,7 +296,7 @@ jobs:
           export DOCKER_CONFIG="$(mktemp -d)" PATH="$PWD/scripts:$PATH"
           export HELM_REGISTRY_CONFIG="$DOCKER_CONFIG/config.json"
           trap 'rm -rf "$DOCKER_CONFIG"' EXIT
-          printf '%s' '{"credHelpers":{"harbor.webgrip.dev":"glide"}}' > "$DOCKER_CONFIG/config.json"
+          printf '%s' '{"credHelpers":{"harbor.webgrip.dev":"unfold"}}' > "$DOCKER_CONFIG/config.json"
           python3 scripts/publish_chart.py ploeg "$VERSION"
 
   ploeg-release-distribute-harbor:
@@ -310,7 +310,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: glide-v${{ needs.parse-release-tag.outputs.version }}
+          ref: unfold-v${{ needs.parse-release-tag.outputs.version }}
 
       - name: Probe Harbor for an existing image
         id: probe
@@ -464,38 +464,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          ref: glide-v${{ needs.parse-release-tag.outputs.version }}
-      - name: Copy and verify release artifacts
-        shell: bash
-        env:
-          VERSION: ${{ needs.parse-release-tag.outputs.version }}
-          HARBOR_ROBOT_USER: ${{ secrets.HARBOR_ROBOT_USER }}
-          HARBOR_ROBOT_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
-          WEBGRIP_CI_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
-          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-        run: |
-          set -euo pipefail
-          export DOCKER_CONFIG="$(mktemp -d)" PATH="$PWD/scripts:$PATH"
-          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
-          printf '%s' '{"credHelpers":{"harbor.webgrip.dev":"glide","forgejo.webgrip.dev":"glide","ghcr.io":"glide"}}' > "$DOCKER_CONFIG/config.json"
-          python3 scripts/publish_release.py vloer "$VERSION"
-
-  ploeg-release-distribute:
-    name: Ploeg - Verify and publish all destinations
-    needs: [parse-release-tag, ploeg-release-distribute-harbor, ploeg-release-publish-chart, ploeg-release-sign-harbor, vloer-release-distribute]
-    if: always() && needs.parse-release-tag.outputs.version != '' && needs.ploeg-release-sign-harbor.outputs.signed == 'true'
-    runs-on: docker
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          ref: glide-v${{ needs.parse-release-tag.outputs.version }}
+          ref: unfold-v${{ needs.parse-release-tag.outputs.version }}
       - uses: https://github.com/jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
         with:
-          version: 2026.9.17
-          install_args: go
+          version: 2026.9.18
+          install_args: regctl
           cache: false
           github_token: ''
       - name: Copy and verify release artifacts
@@ -511,7 +484,40 @@ jobs:
           set -euo pipefail
           export DOCKER_CONFIG="$(mktemp -d)" PATH="$PWD/scripts:$PATH"
           trap 'rm -rf "$DOCKER_CONFIG"' EXIT
-          printf '%s' '{"credHelpers":{"harbor.webgrip.dev":"glide","forgejo.webgrip.dev":"glide","ghcr.io":"glide"}}' > "$DOCKER_CONFIG/config.json"
+          printf '%s' '{"credHelpers":{"harbor.webgrip.dev":"unfold","forgejo.webgrip.dev":"unfold","ghcr.io":"unfold"}}' > "$DOCKER_CONFIG/config.json"
+          python3 scripts/publish_release.py vloer "$VERSION"
+
+  ploeg-release-distribute:
+    name: Ploeg - Verify and publish all destinations
+    needs: [parse-release-tag, ploeg-release-distribute-harbor, ploeg-release-publish-chart, ploeg-release-sign-harbor, vloer-release-distribute]
+    if: always() && needs.parse-release-tag.outputs.version != '' && needs.ploeg-release-sign-harbor.outputs.signed == 'true'
+    runs-on: docker
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: unfold-v${{ needs.parse-release-tag.outputs.version }}
+      - uses: https://github.com/jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+        with:
+          version: 2026.9.18
+          install_args: go regctl
+          cache: false
+          github_token: ''
+      - name: Copy and verify release artifacts
+        shell: bash
+        env:
+          VERSION: ${{ needs.parse-release-tag.outputs.version }}
+          HARBOR_ROBOT_USER: ${{ secrets.HARBOR_ROBOT_USER }}
+          HARBOR_ROBOT_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
+          WEBGRIP_CI_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          set -euo pipefail
+          export DOCKER_CONFIG="$(mktemp -d)" PATH="$PWD/scripts:$PATH"
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          printf '%s' '{"credHelpers":{"harbor.webgrip.dev":"unfold","forgejo.webgrip.dev":"unfold","ghcr.io":"unfold"}}' > "$DOCKER_CONFIG/config.json"
           python3 scripts/publish_release.py ploeg "$VERSION"
 
   site-release-tag:
@@ -532,7 +538,7 @@ jobs:
         run: |
           set -euo pipefail
           tag="${RELEASE_TAG:-}"
-          if [[ "${RELEASES_ENABLED:-}" != true || "$tag" != glide-site-v* ]]; then
+          if [[ "${RELEASES_ENABLED:-}" != true || "$tag" != unfold-site-v* ]]; then
             echo "deploy=false" >> "$GITHUB_OUTPUT"
             echo "site-url=" >> "$GITHUB_OUTPUT"
             echo "${tag:-This release} is not a site release; the site is not deployed."
@@ -541,7 +547,7 @@ jobs:
           if [[ "${WORKFLOW_EVENT:-}" == workflow_dispatch ]]; then
             [[ "${SELECTED_REF:-}" == "refs/tags/$tag" ]] || { echo "Select the same tag as the workflow ref before deploying." >&2; exit 1; }
           fi
-          [[ "$tag" =~ ^glide-site-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc\.[1-9][0-9]*)?$ ]] || { echo "The site deploys only glide-site-vX.Y.Z or glide-site-vX.Y.Z-rc.N tags." >&2; exit 1; }
+          [[ "$tag" =~ ^unfold-site-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc\.[1-9][0-9]*)?$ ]] || { echo "The site deploys only unfold-site-vX.Y.Z or unfold-site-vX.Y.Z-rc.N tags." >&2; exit 1; }
           [[ -n "${CLOUDFLARE_API_TOKEN:-}" && -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]] || { echo "The Cloudflare deploy credential is missing; the forgejo-actions-secrets bridge publishes it from OpenBao cloudflare/deploy." >&2; exit 1; }
           response="$(curl -fsS --max-time 30 -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
             "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain")" \
@@ -549,8 +555,8 @@ jobs:
           subdomain="$(printf '%s' "$response" | grep -o '"subdomain" *: *"[^"]*"' | head -n 1 | sed 's/.*"\([^"]*\)"$/\1/' || true)"
           [[ "$subdomain" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]] || { echo "Cloudflare returned an unexpected workers.dev subdomain." >&2; exit 1; }
           echo "deploy=true" >> "$GITHUB_OUTPUT"
-          echo "site-url=https://glide-site.${subdomain}.workers.dev" >> "$GITHUB_OUTPUT"
-          echo "Deploying ${tag} to https://glide-site.${subdomain}.workers.dev"
+          echo "site-url=https://unfold-site.${subdomain}.workers.dev" >> "$GITHUB_OUTPUT"
+          echo "Deploying ${tag} to https://unfold-site.${subdomain}.workers.dev"
 
   site-deploy:
     needs: [site-release-tag]
@@ -560,7 +566,7 @@ jobs:
       environment: production
       release-channel: prerelease
       working-directory: apps/site
-      build-command: GLIDE_SITE_URL=${{ needs.site-release-tag.outputs.site-url }} pnpm build
+      build-command: UNFOLD_SITE_URL=${{ needs.site-release-tag.outputs.site-url }} pnpm build
       apex-url: ${{ needs.site-release-tag.outputs.site-url }}
       smoke-paths: |
         /

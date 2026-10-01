@@ -1,6 +1,6 @@
 ![De Vloer](docs/brand/png/banner-512.png)
 
-Developed in [Glide](../../README.md). Run repository-wide checks from the Glide root.
+Developed in [Unfold](../../README.md). Run repository-wide checks from the Unfold root.
 
 A self-hosted workbench for people steering remote agent crews. Bring a task from **Vikunja, ClickUp, Forgejo, GitHub or GitLab**, choose a reusable crew and budget, and supervise the work from a browser or VS Code. Your configured server runs the agents; your workstation remains the place you steer and review them.
 

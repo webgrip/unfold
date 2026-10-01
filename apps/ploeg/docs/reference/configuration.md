@@ -81,7 +81,7 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_OPERATOR_CONSUMERS` | ploegd |  | JSON array of operator read consumers. Each entry names a `tokenEnv`, a further variable that holds that consumer's bearer token (chart `operator.consumers`). No consumers refuses every operator request. | [operator.go](../../cmd/ploegd/operator.go) |
 | `PLOEG_OPERATOR_DELIVERY_POLICIES` | ploegd |  | JSON array of trusted delivery policies with `repositoryId`, `policySha256`, `verifierId`, `minTests` and optional `publicationEnabled` (chart `operator.deliveryPolicies`). | [operator.go](../../cmd/ploegd/operator.go) |
 | `PLOEG_OUTCOME_FILE` | ploeg-worker |  | `exec` harness only: OutcomeReport JSON path override (chart `executor.harness.outcomeFile`). | [main.go](../../cmd/ploeg-worker/main.go) |
-| `PLOEG_REPORT_GRAFANA_URL` | ploegd |  | Grafana base URL the report links from — the Glide — Loop dashboard (`/d/glide-loop`) filtered by the Team, the Run Explorer (`/d/dark-factory-run-explorer`) for the Run's trace alias and Spend & Attribution (`/d/dark-factory-spend-attribution`) (chart `env.PLOEG_REPORT_GRAFANA_URL`). Empty omits the Grafana links. | [main.go](../../cmd/ploegd/main.go) |
+| `PLOEG_REPORT_GRAFANA_URL` | ploegd |  | Grafana base URL the report links from — the Unfold — Loop dashboard (`/d/unfold-loop`) filtered by the Team, the Run Explorer (`/d/dark-factory-run-explorer`) for the Run's trace alias and Spend & Attribution (`/d/dark-factory-spend-attribution`) (chart `env.PLOEG_REPORT_GRAFANA_URL`). Empty omits the Grafana links. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_REPORT_VLOER_URL` | ploegd |  | Vloer base URL; the report links the Work Item page, `<base>/#work/<id>` (chart `env.PLOEG_REPORT_VLOER_URL`). Empty omits it; with both unset the links section is omitted and the report still renders. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_REVIEW_RECONCILE_INTERVAL` | ploegd | `10m` |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_ROLE` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go), [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
@@ -145,7 +145,7 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `env` |  |  | Plain PLOEG_* env rendered onto the deployment. | values.yaml |
 | `env.PLOEG_DEFAULT_TEAM` |  | `default` | Team that receives work from an assignee no Team lists. | values.yaml |
 | `env.PLOEG_LEASE_TTL` |  | `5m` |  | values.yaml |
-| `env.PLOEG_REPORT_GRAFANA_URL` |  | `""` | Grafana base URL the report links from — the Glide — Loop dashboard (`/d/glide-loop`) filtered by the Team, the Run Explorer (`/d/dark-factory-run-explorer`) for the Run's trace alias and Spend & Attribution (`/d/dark-factory-spend-attribution`) (chart `env.PLOEG_REPORT_GRAFANA_URL`). Empty omits the Grafana links. | values.yaml |
+| `env.PLOEG_REPORT_GRAFANA_URL` |  | `""` | Grafana base URL the report links from — the Unfold — Loop dashboard (`/d/unfold-loop`) filtered by the Team, the Run Explorer (`/d/dark-factory-run-explorer`) for the Run's trace alias and Spend & Attribution (`/d/dark-factory-spend-attribution`) (chart `env.PLOEG_REPORT_GRAFANA_URL`). Empty omits the Grafana links. | values.yaml |
 | `env.PLOEG_REPORT_VLOER_URL` |  | `""` | Vloer's base URL; the report links the Work Item page. | values.yaml |
 | `env.PLOEG_SWEEP_INTERVAL` |  | `15s` |  | values.yaml |
 | `env.PLOEG_TEAM_MAP` |  | `""` | Legacy assignee roster, replaced by `teams.<name>.assignees` in the `PLOEG_CONFIG` file. | values.yaml |
@@ -157,7 +157,7 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `executor.defaultTarget.baseBranch` | string | `""` |  | values.yaml, values.schema.json |
 | `executor.defaultTarget.name` | string | `""` |  | values.yaml, values.schema.json |
 | `executor.defaultTarget.owner` | string | `""` |  | values.yaml, values.schema.json |
-| `executor.dindImage` | string | `harbor.webgrip.dev/dockerhub/library/docker:29.6.2-dind` |  | values.yaml, values.schema.json |
+| `executor.dindImage` | string | `harbor.webgrip.dev/dockerhub/library/docker:29.8.2-dind@sha256:7dcdfc4a20246236f558175182ccace1eb15a41bd3eb119dd2284f393498b7c1` |  | values.yaml, values.schema.json |
 | `executor.dindResources.limits.cpu` |  | `1` |  | values.yaml |
 | `executor.dindResources.limits.memory` |  | `1536Mi` |  | values.yaml |
 | `executor.dindResources.requests.cpu` |  | `1` |  | values.yaml |
@@ -206,7 +206,7 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `executor.nodeSelector` | object or null |  | Node selector for WORKER pods, not ploegd (that is the top-level nodeSelector). Keeps agent Jobs off control-plane nodes (ADR-0002: no DinD beside etcd). The default label exists in the homelab and on no other cluster, so a different estate must override it with its own label or clear it with null — Helm deep-merges maps, so {} leaves the default in place and only null removes the block. | values.yaml, values.schema.json |
 | `executor.nodeSelector.node.webgrip.io/pool` |  | `worker` |  | values.yaml |
 | `executor.pollingInterval` |  | `30` |  | values.yaml |
-| `executor.runnerImage` | string | `harbor.webgrip.dev/webgrip/agent-runner:1.0.2@sha256:086b4bc0d3fda0e3c179f9501bb46a612f5f33e60d96405a5d94471a26279596` | DEPRECATED in favor of harness.image (kept as the fallback so existing value overrides keep working). agent-runner >=1.0.1 only: 1.0.0 mints LiteLLM keys without key_alias (400). | values.yaml, values.schema.json |
+| `executor.runnerImage` | string | `harbor.webgrip.dev/webgrip/agent-runner:1.3.0@sha256:ab0a56f12a33b2af542663e0f2079261f5b9aca5596a5d497583f211a284684f` | DEPRECATED in favor of harness.image (kept as the fallback so existing value overrides keep working). agent-runner >=1.0.1 only: 1.0.0 mints LiteLLM keys without key_alias (400). | values.yaml, values.schema.json |
 | `executor.sandbox` | object |  | type=sandbox only: runs each Run in a kubernetes-sigs/agent-sandbox v1beta1 Sandbox created by a launcher pod. | values.yaml, values.schema.json |
 | `executor.sandbox.launcherResources.limits.cpu` |  | `50m` |  | values.yaml |
 | `executor.sandbox.launcherResources.limits.memory` |  | `32Mi` |  | values.yaml |

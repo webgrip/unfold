@@ -1,14 +1,14 @@
 ---
 type: how-to
 audience: [owner, operator]
-owner: glide
+owner: unfold
 last_verified: 2026-09-27
 verified_by: "Repository claims checked: outcome values in cutover-record.example.json, scripts/release_preflight.py, the dry-run in on_release_preview.yml, the Vloer /healthz route and the order-service test path; external registries, GitOps and cluster state were not re-checked"
 ---
 
-# First Glide release and live test
+# First Unfold release and live test
 
-Use this playbook to transfer release authority to Glide, publish the first qualified application versions, and test them in a controlled environment. The source migration is complete. Release cutover is not yet qualified: keep `GLIDE_RELEASES_ENABLED` unset or `false` until the preparation gates below pass.
+Use this playbook to transfer release authority to Unfold, publish the first qualified application versions, and test them in a controlled environment. The source migration is complete. Release cutover is not yet qualified: keep `GLIDE_RELEASES_ENABLED` unset or `false` until the preparation gates below pass.
 
 The [12 September readiness record](../research/2026-09-12-cutover-readiness.json) separates observed results from missing evidence. The [23 September readiness record](../research/2026-09-23-cutover-readiness.json) and its [summary](../research/2026-09-23-cutover-readiness.md) show which blockers are fixed and which owner actions remain. The [CI guide](ci.md) maps the current event entry points and publication guards. Copy the [execution record](cutover-record.example.json) for your test and replace its empty fields as each stage completes. Keep credentials, cookies, model prompts containing private data and database contents out of that record. A stage passes only when its evidence is attached; a skipped job is not a pass.
 
@@ -20,7 +20,7 @@ Use one operator, one registered test repository, one concurrent session and an 
 
 Choose either an isolated pilot with a separate database and Vloer volume, or an upgrade of the existing installation. An isolated pilot can qualify the new application pair without proving an upgrade of existing data. Record which claim the test is meant to establish. The existing Vloer contract requires a registered repository and crew; use a disposable repository or an approved fixture branch and review the resulting change without publishing it.
 
-From Glide, record the source revision and check that the checkout is clean:
+From Unfold, record the source revision and check that the checkout is clean:
 
 ```sh
 git status --short
@@ -32,7 +32,7 @@ mise run verify
 mise run release-check
 ```
 
-Record the matching successful run in [Glide Actions](https://forgejo.webgrip.dev/webgrip/glide/actions). Local verification includes deterministic standalone and managed execution; it does not exercise a paid model or qualify ARM64 publication.
+Record the matching successful run in [Unfold Actions](https://forgejo.webgrip.dev/webgrip/glide/actions). Local verification includes deterministic standalone and managed execution; it does not exercise a paid model or qualify ARM64 publication.
 
 From an up-to-date [homelab-cluster checkout](https://forgejo.webgrip.dev/webgrip/homelab-cluster), confirm the intended context before these read-only checks:
 
@@ -53,25 +53,25 @@ Complete this table before opening the gate. These are preparation tasks, not cl
 
 | Gate | Required change or check | Evidence that closes it |
 | --- | --- | --- |
-| One release authority | Freeze source changes and release-producing automation in the [old Vloer](https://forgejo.webgrip.dev/webgrip/de-vloer/actions) and [old Ploeg](https://forgejo.webgrip.dev/webgrip/ploeg/actions) repositories. Check for newer commits and tags before freezing. Preserve the repositories and their existing tags. | Recorded old tips and highest published versions; no release job still running or able to race Glide. Import any approved intervening changes and rerun qualification. |
+| One release authority | Freeze source changes and release-producing automation in the [old Vloer](https://forgejo.webgrip.dev/webgrip/de-vloer/actions) and [old Ploeg](https://forgejo.webgrip.dev/webgrip/ploeg/actions) repositories. Check for newer commits and tags before freezing. Preserve the repositories and their existing tags. | Recorded old tips and highest published versions; no release job still running or able to race Unfold. Import any approved intervening changes and rerun qualification. |
 | Release baseline | Keep the remote `main` baseline required by the shared semantic-release branch configuration. Work stays on `development`; the current workflows do not release from `main`. | The [release-policy job](../../.forgejo/workflows/on_source_change.yml) verifies the remote branch exists, and the preview resolves both branch types. Do not promote or remove the baseline as part of the pilot. |
-| Correct GitHub source | Verify the [Glide GitHub mirror](https://github.com/webgrip/glide) holds the same branches and tags as Forgejo. Release-channel notes stay on Forgejo. The [artifact publisher](artifacts.md) reads source and release notes from the selected Glide tag. | A rehearsal proves the exported source is from the selected Glide tag, and the release notes come from Glide. No blanket monorepo mirror into an application package repository. |
-| Ploeg module compatibility | Qualify a package export that retains `github.com/webgrip/ploeg`, a root `go.mod`, ordinary `v<version>` tags and all required files. Keep the Glide-to-export commit mapping. | Download the new module version in a fresh Go module/cache and compare its files with `apps/ploeg` at the release revision. Existing published Go versions still resolve. See [distribution scope](../../apps/ploeg/docs/adrs/0029-qualify-glide-before-changing-distribution.md). |
-| Artifact source metadata | Update both applications' source labels, index annotations and matching verification expectations to a source URL that contains the built revision. A subtree export has a different commit ID from Glide. | Every platform's labels and index metadata resolve to the recorded source revision. An export, if used, has an explicit mapping rather than a false revision claim. |
-| Signing authorization | Add `webgrip/glide` to the appropriate OpenBao Forgejo signing role through the [bootstrap configuration](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/security/openbao/bootstrap/config.sh), retaining the event/ref restrictions. | Reconciliation is confirmed and an OIDC check from a Glide workflow can use the intended signing role. A manifest edit alone does not prove that the role was updated. |
-| CI credentials | Verify `WEBGRIP_CI_TOKEN`, Harbor push/pull credentials and GitHub distribution credentials. Extend the repo-scoped Open VSX bridge to Glide in the [secret reconciler](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/forgejo/forgejo-actions-secrets/app/forgejo-actions-secrets.cronjob.yaml). | Bridge success for Glide plus actual identity/access checks at each required destination. `ExternalSecret` readiness alone does not prove a Forgejo repo secret exists or can publish. |
-| Dependency maintenance | Add Glide to the [Renovate repository list](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/renovate/renovate-operator/jobs/webgrip-forgejo.yaml), retiring old repository updates when their write freeze begins. | A Renovate run discovers Glide. The [deployment rules](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/.renovaterc.json5) still require review for application chart and image updates. |
+| Correct GitHub source | Verify the [Unfold GitHub mirror](https://github.com/webgrip/glide) holds the same branches and tags as Forgejo. Release-channel notes stay on Forgejo. The [artifact publisher](artifacts.md) reads source and release notes from the selected Unfold tag. | A rehearsal proves the exported source is from the selected Unfold tag, and the release notes come from Unfold. No blanket monorepo mirror into an application package repository. |
+| Ploeg module compatibility | Qualify a package export that retains `github.com/webgrip/ploeg`, a root `go.mod`, ordinary `v<version>` tags and all required files. Keep the Unfold-to-export commit mapping. | Download the new module version in a fresh Go module/cache and compare its files with `apps/ploeg` at the release revision. Existing published Go versions still resolve. See [distribution scope](../../apps/ploeg/docs/adrs/0029-qualify-unfold-before-changing-distribution.md). |
+| Artifact source metadata | Update both applications' source labels, index annotations and matching verification expectations to a source URL that contains the built revision. A subtree export has a different commit ID from Unfold. | Every platform's labels and index metadata resolve to the recorded source revision. An export, if used, has an explicit mapping rather than a false revision claim. |
+| Signing authorization | Add `webgrip/glide` to the appropriate OpenBao Forgejo signing role through the [bootstrap configuration](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/security/openbao/bootstrap/config.sh), retaining the event/ref restrictions. | Reconciliation is confirmed and an OIDC check from an Unfold workflow can use the intended signing role. A manifest edit alone does not prove that the role was updated. |
+| CI credentials | Verify `WEBGRIP_CI_TOKEN`, Harbor push/pull credentials and GitHub distribution credentials. Extend the repo-scoped Open VSX bridge to Unfold in the [secret reconciler](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/forgejo/forgejo-actions-secrets/app/forgejo-actions-secrets.cronjob.yaml). | Bridge success for Unfold plus actual identity/access checks at each required destination. `ExternalSecret` readiness alone does not prove a Forgejo repo secret exists or can publish. |
+| Dependency maintenance | Add Unfold to the [Renovate repository list](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/renovate/renovate-operator/jobs/webgrip-forgejo.yaml), retiring old repository updates when their write freeze begins. | A Renovate run discovers Unfold. The [deployment rules](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/.renovaterc.json5) still require review for application chart and image updates. |
 | Signature propagation | Ploeg's mirror jobs now wait for an explicit signing-completion output in the [release workflow](../../.forgejo/workflows/on_release_published.yml). Qualify that path and both Vloer images at every destination through the [distribution verifier](../../scripts/release_registry.py). | Each required image destination verifies signatures and attestations after copying. Missing or invalid signatures and attestations must fail the publication job. |
 | Retry behavior | Rehearse recovery from an existing image/chart and a failed mirror or extension upload. | Retrying the same tag finishes missing artifacts without replacing an existing version, changing its digest or creating another application release. |
-| Release preview | Run the preview in the next section after all source changes are present. | The preview reports the intended Glide version, channel and notes, or an explained no-release result, for the recorded source revision. |
+| Release preview | Run the preview in the next section after all source changes are present. | The preview reports the intended Unfold version, channel and notes, or an explained no-release result, for the recorded source revision. |
 
 Credential values remain in OpenBao and the existing bridges. The [secrets model](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/docs/techdocs/docs/adr/adr-0055-one-secrets-model-six-levels.md) defines the provisioning path. If a new provided value is needed, a person seeds the vault through the approved login procedure; record the secret reference and verification result, never the value. Marketplace publishing is optional for this prerelease test and must be recorded as intentionally excluded.
 
 ## 3. Preview the versions while publishing is disabled
 
-Open [Glide Actions](https://forgejo.webgrip.dev/webgrip/glide/actions), select **[Workflow] On Release Preview**, choose `development`, and dispatch it. The [preview workflow](../../.forgejo/workflows/on_release_preview.yml) invokes the same pinned toolchain and application configs as the release jobs with `dry-run: 'true'`. It has no artifact publisher or deployment step and does not require opening `GLIDE_RELEASES_ENABLED`.
+Open [Unfold Actions](https://forgejo.webgrip.dev/webgrip/glide/actions), select **[Workflow] On Release Preview**, choose `development`, and dispatch it. The [preview workflow](../../.forgejo/workflows/on_release_preview.yml) invokes the same pinned toolchain and application configs as the release jobs with `dry-run: 'true'`. It has no artifact publisher or deployment step and does not require opening `GLIDE_RELEASES_ENABLED`.
 
-Record the source SHA, last recognized Glide tag, predicted next version, channel and release notes. The first preview must recognize the `glide-v0.3.0` baseline and predict `0.4.0-rc.1` (or `0.3.1-rc.1` if only fixes follow the baseline); anything lower means the baseline tag is missing from Forgejo. Check the proposed versions against every existing registry and extension destination; do not reuse a version already published with different contents.
+Record the source SHA, last recognized Unfold tag, predicted next version, channel and release notes. The first preview must recognize the `glide-v0.3.0` baseline and predict `0.4.0-rc.1` (or `0.3.1-rc.1` if only fixes follow the baseline); anything lower means the baseline tag is missing from Forgejo. Check the proposed versions against every existing registry and extension destination; do not reuse a version already published with different contents.
 
 The [first successful preview](https://forgejo.webgrip.dev/webgrip/glide/actions/runs/7), under the earlier per-application versions, recognized Vloer `rc.16` and Ploeg `rc.7` at source `d39a180`, with no release-worthy changes for either application. It proves configuration, branch/history resolution and push permission for that revision; it does not predict a release for a later change.
 
@@ -87,15 +87,15 @@ Verify a recent PostgreSQL backup and restore it into an isolated database. Veri
 
 The 12 September audit saw completed Ploeg backups but an unhealthy `cnpg-disaster-recovery` cluster. That observation does not establish a tested restore, and does not mean the healthy primary database has failed. An upgrade of existing data remains blocked until a fresh restore exercise succeeds or an independently verified recovery path is recorded. An isolated pilot must use separate state and must not claim to have closed this upgrade gate.
 
-## 5. Publish the first Glide release
+## 5. Publish the first Unfold release
 
-With preparation evidence complete and the old release authorities frozen, set the repository variable `GLIDE_RELEASES_ENABLED=true` in [Glide repository settings](https://forgejo.webgrip.dev/webgrip/glide/settings). Record who changed it and when. Coordinate a quiet `development` window so the source cannot advance unnoticed.
+With preparation evidence complete and the old release authorities frozen, set the repository variable `GLIDE_RELEASES_ENABLED=true` in [Unfold repository settings](https://forgejo.webgrip.dev/webgrip/glide/settings). Record who changed it and when. Coordinate a quiet `development` window so the source cannot advance unnoticed.
 
-The [release jobs](../../.forgejo/workflows/on_source_change.yml) run only for a **push to `development`**. Enabling the variable does not start them; manually dispatching the source-change workflow also does not start them. Push the reviewed release-worthy change, or, if the exact qualified tip already contains eligible changes, use one documented `chore: start qualified Glide release cutover` empty commit to trigger a fresh push. An empty commit triggers evaluation but does not itself earn a version bump. Fetch the resulting tip, wait for its checks and retain its run link.
+The [release jobs](../../.forgejo/workflows/on_source_change.yml) run only for a **push to `development`**. Enabling the variable does not start them; manually dispatching the source-change workflow also does not start them. Push the reviewed release-worthy change, or, if the exact qualified tip already contains eligible changes, use one documented `chore: start qualified Unfold release cutover` empty commit to trigger a fresh push. An empty commit triggers evaluation but does not itself earn a version bump. Fetch the resulting tip, wait for its checks and retain its run link.
 
-One release job versions both applications under a `glide-v…` tag. The release triggers one run of **[Workflow] On Release Published**, which publishes Vloer's and Ploeg's artifacts; Ploeg's final distribution waits for Vloer's. Follow that run through completion; source checks, tag creation and the release page are not the completion criterion.
+One release job versions both applications under a `unfold-v…` tag. The release triggers one run of **[Workflow] On Release Published**, which publishes Vloer's and Ploeg's artifacts; Ploeg's final distribution waits for Vloer's. Follow that run through completion; source checks, tag creation and the release page are not the completion criterion.
 
-Inspect [Glide releases](https://forgejo.webgrip.dev/webgrip/glide/releases). Record the full tag and its resolved commit after manifest preparation. That release commit differs from the tested source tip. The version must be a zero-major release candidate, and prereleases must not move `latest`.
+Inspect [Unfold releases](https://forgejo.webgrip.dev/webgrip/glide/releases). Record the full tag and its resolved commit after manifest preparation. That release commit differs from the tested source tip. The version must be a zero-major release candidate, and prereleases must not move `latest`.
 
 Do not open the gate if the preparation table remains incomplete. Publishing into real registries is the first irreversible distribution step; the procedure below recovers partial publication without deleting or recycling a version.
 
@@ -107,9 +107,9 @@ The [release publication workflow](../../.forgejo/workflows/on_release_published
 | --- | --- |
 | Vloer workbench image | Harbor, Forgejo and GHCR: matching OCI index digests, AMD64 and ARM64 manifests, correct version/source labels, signature and attested SBOM verification. |
 | Vloer agent image | Harbor, Forgejo and GHCR: the same checks. |
-| Ploeg daemon image | Harbor, Forgejo and GHCR: the same checks. Its separate unattended `agent-runner` dependency is not built by Glide. |
+| Ploeg daemon image | Harbor, Forgejo and GHCR: the same checks. Its separate unattended `agent-runner` dependency is not built by Unfold. |
 | Both Helm charts | Harbor, Forgejo and GHCR: pull the selected version, check `version`/`appVersion`, dependencies and rendered image references. Require identical OCI digests: the publisher copies Harbor's original package and manifest. Forgejo chart paths now include `webgrip/charts/`; see [artifact identities](artifacts.md#published-identities). |
-| Vloer extension | VSIX and matching checksum attached to the Glide release; package verification succeeds; install that exact VSIX in the editor. Require the Open VSX download to match the attached VSIX byte for byte. Marketplace is intentionally excluded for these prerelease versions. |
+| Vloer extension | VSIX and matching checksum attached to the Unfold release; package verification succeeds; install that exact VSIX in the editor. Require the Open VSX download to match the attached VSIX byte for byte. Marketplace is intentionally excluded for these prerelease versions. |
 | Ploeg Go module | The compatibility export at the new ordinary version tag installs through `github.com/webgrip/ploeg` in a fresh consumer. Record the export revision and file comparison. |
 | npm and Composer | No publishable package is currently configured. Both application npm manifests are private; no Composer manifest was found. Record these as out of scope. Adding an SDK or PHP package requires its own package identity, version policy, publisher and install test. |
 | Documentation | Follow the [documentation publishing guide](docs-publishing.md). Check the Zensical home page, both applications, raw Markdown, LLM indexes and source revision. Documentation publication has a separate gate; a successful docs deployment does not authorize application releases. |
@@ -139,7 +139,7 @@ Prepare and review the desired-state change in [homelab-cluster](https://forgejo
 
 Use the [published artifact paths](artifacts.md#published-identities). Harbor and GHCR identities are retained; Forgejo charts move under `charts/` to avoid colliding with image tags. Run that repository's render/validation gate and inspect the rendered deployment before committing. Let Flux reconcile; do not use an imperative Helm upgrade or overwrite the deployment with `kubectl`.
 
-Also review application work targets. Existing Vloer repository URLs and Ploeg tracker routes still point at the old repositories. For a pilot targeting Glide, register the Glide URL and `development` branch explicitly, update the matching Ploeg target, and run verification from the correct application directory or Glide root. The old Vloer command `node --test examples/order-service/test/order.test.js` needs the `apps/vloer/` path when run from Glide. Do not silently retarget existing queued work or assume changing the image changes its work repository.
+Also review application work targets. Existing Vloer repository URLs and Ploeg tracker routes still point at the old repositories. For a pilot targeting Unfold, register the Unfold URL and `development` branch explicitly, update the matching Ploeg target, and run verification from the correct application directory or Unfold root. The old Vloer command `node --test examples/order-service/test/order.test.js` needs the `apps/vloer/` path when run from Unfold. Do not silently retarget existing queued work or assume changing the image changes its work repository.
 
 For an existing-installation upgrade, qualify the intermediate pair before sequencing one application ahead of the other. If compatibility with the old peer is not demonstrated, keep admission closed while upgrading the pair and open it only after both are ready. Unattended executors and tracker-driven dispatch stay paused for the interactive pilot.
 
@@ -164,7 +164,7 @@ Follow [managed setup and recovery](../workflows/managed-execution.md) and the [
 | Identity and readiness | The intended user signs in through the real login flow. Registered repository, model, crew and spending limit are correct. Authenticated health passes; public `/healthz` alone does not prove provider access. |
 | Standalone independence | In a separate standalone configuration with no Ploeg connection or execution binding, Vloer completes the bounded fixture with its configured live harness/provider. Never test this by removing authority from a managed session. |
 | Managed authority | Starting the managed session creates exactly one corresponding Ploeg Work Item/Shift/Run. The repository, actor, team and budget match. |
-| Actual execution | The workspace clones the intended Glide or fixture revision, the configured model is called, and the recorded verification command really runs. Evidence identifies the candidate and the test output. |
+| Actual execution | The workspace clones the intended Unfold or fixture revision, the configured model is called, and the recorded verification command really runs. Evidence identifies the candidate and the test output. |
 | Disconnect and resume | Close and reopen the browser while the session runs; the same session and durable events remain. There is no second start or duplicate paid execution. |
 | Pause and cancel | Exercise pause/resume and cancellation in separately budgeted small sessions. Verify acknowledged stop intent, remote state and settlement; a button changing state is not proof that an in-flight request ended. |
 | Authority loss | In the isolated pilot, test a temporary Ploeg connectivity failure through the approved environment controls. Managed execution must not silently become standalone or retry uncertain paid work. |
@@ -178,17 +178,17 @@ Give each paid session its own approved limit and record the total allowance bef
 
 | Failure | Response |
 | --- | --- |
-| Preview, source checks or prerequisite fails | Keep Glide publishing disabled. Correct the issue, rerun the affected qualification and capture a fresh preview. |
+| Preview, source checks or prerequisite fails | Keep Unfold publishing disabled. Correct the issue, rerun the affected qualification and capture a fresh preview. |
 | One application publishes and the other fails | Leave the successful artifacts intact. Keep admission closed and complete the failed application or return to the baseline pair. Do not assume the pair was released atomically. |
 | An image exists but a mirror, signature or extension upload fails | Use the corresponding publication workflow's manual dispatch with the existing full tag selected as both workflow ref and `tag` input. Inspect existing artifacts first; verify their contents before any skip-existing path. Rerun the same version only. |
 | A published version has wrong contents | Stop deployment, close release automation and document the defective version. Fix forward with a new version; do not move the tag or overwrite immutable packages. |
 | Pilot rollout or work fails | Stop new admission, explicitly stop active work and settle or retain uncertain authorizations. Revert the scoped GitOps rollout to the recorded chart/image/configuration pins and let Flux reconcile. Verify observed digests and health. |
 | Old binaries cannot read migrated state | Use the tested coordinated database/volume restore procedure with admission closed, or fix forward. A Git revert is not a database rollback. Do not restore one service's state while leaving inconsistent peer state active. |
 
-Setting `GLIDE_RELEASES_ENABLED=false` prevents future eligible jobs; it does not cancel an already running job, retract artifacts, roll back a deployment or stop a paid session. Inspect [Actions](https://forgejo.webgrip.dev/webgrip/glide/actions) and stop the relevant active publication runs if needed. Do not re-enable the old release authorities after a Glide publication without reconciling versions, source and channel history first.
+Setting `GLIDE_RELEASES_ENABLED=false` prevents future eligible jobs; it does not cancel an already running job, retract artifacts, roll back a deployment or stop a paid session. Inspect [Actions](https://forgejo.webgrip.dev/webgrip/glide/actions) and stop the relevant active publication runs if needed. Do not re-enable the old release authorities after an Unfold publication without reconciling versions, source and channel history first.
 
 ## 10. Close the test
 
 The execution record must contain the exact source/release/export revisions, workflow links, required artifact outcomes and digests, GitOps before/after commits, recovery evidence, session IDs, actual spend and the operator's result. Use `passed`, `failed`, `not_run` or `excluded` with a reason; never translate a missing observation into a pass.
 
-Keep unattended work disabled until its separate admission, worker, accounting and delivery tests pass. Keep compatibility mirrors as distribution outputs and direct new source changes to Glide. Update the [migration record](../migration.md) only when the release authority has actually changed. Record any follow-up work in the tracker rather than leaving an undocumented exception in this playbook.
+Keep unattended work disabled until its separate admission, worker, accounting and delivery tests pass. Keep compatibility mirrors as distribution outputs and direct new source changes to Unfold. Update the [migration record](../migration.md) only when the release authority has actually changed. Record any follow-up work in the tracker rather than leaving an undocumented exception in this playbook.

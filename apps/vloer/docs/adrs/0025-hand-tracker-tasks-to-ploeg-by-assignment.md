@@ -9,7 +9,7 @@ review-by: 2026-10-30
 
 ## Context and Problem Statement
 
-A person reading a Vikunja task in the editor or on the browser's Tasks page wants to see whether Glide is already working on it, and to hand it to a Ploeg team in one step. Ploeg's only intake for tracker work is the Vikunja `task.assignee.created` webhook: assigning the tracker user that routes to a team queues the task for that team, and removing that assignee withdraws it while it is still queued. How should Vloer start Ploeg work on a tracker task without creating a second intake path or a second source of truth?
+A person reading a Vikunja task in the editor or on the browser's Tasks page wants to see whether Unfold is already working on it, and to hand it to a Ploeg team in one step. Ploeg's only intake for tracker work is the Vikunja `task.assignee.created` webhook: assigning the tracker user that routes to a team queues the task for that team, and removing that assignee withdraws it while it is still queued. How should Vloer start Ploeg work on a tracker task without creating a second intake path or a second source of truth?
 
 ## Decision Drivers
 
@@ -39,7 +39,7 @@ Chosen option: "Vloer assigns the team's tracker user on the task, as the workbe
 ### Consequences
 
 * Good, because Ploeg needs only additive read changes (`assignees`, `pinnedScopes`, the tracker-identity filter) and no new write route.
-* Good, because the tracker shows the hand-off and its author, so nobody has to open Glide to know who holds a task.
+* Good, because the tracker shows the hand-off and its author, so nobody has to open Unfold to know who holds a task.
 * Bad, because the workbench's Vikunja token needs permission to add and remove assignees and to add comments, not just to read.
 * Bad, because the comment is posted by the workbench's account and only names the person in its text. Vikunja cannot attribute it to them.
 * Bad, because a hand-off is not confirmed until Ploeg's webhook runs. Status can show an assignment before Ploeg lists the Work Item.
@@ -67,4 +67,4 @@ Re-evaluate if Ploeg gains a second tracker provider, or an operator route that 
 * [Task connections](../operations/task-connections.md#hand-a-task-to-ploeg) describes setup and token permissions; the [API contract](../contracts/api.md#hand-a-task-to-ploeg) lists the routes and refusals.
 * [ADR 0018](0018-bind-tracker-imports-to-existing-ploeg-work.md) binds an interactive import to an existing Work Item; this decision creates that Work Item through the tracker.
 * 2026-09-30 — Proposed with the Vloer implementation and Ploeg's additive `assignees` and tracker-identity filter.
-* 2026-09-30 — Renumbered from 0024, which the redesign took. The browser's Tasks page gains the same status and hand-off, replacing the binding warning that every task on the Glide board showed.
+* 2026-09-30 — Renumbered from 0024, which the redesign took. The browser's Tasks page gains the same status and hand-off, replacing the binding warning that every task on the Unfold board showed.

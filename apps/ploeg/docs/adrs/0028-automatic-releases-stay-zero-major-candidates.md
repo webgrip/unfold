@@ -28,7 +28,7 @@ An accurate breaking-change footer caused the shared release analyzer to publish
 
 Chosen option: "Override the breaking rule locally and guard both release entry and computed version", because it separates compatibility information from permission to publish a stable or major release.
 
-The repository maps breaking changes to minor increases and automatically publishes only `0.x.y-rc.N` versions from `development`, with `ploeg-v${version}` tags (renamed from `v${version}` by [0029](0029-qualify-glide-before-changing-distribution.md) when Ploeg moved into Glide). A local `verifyConditions` guard blocks promotion from other branches before semantic-release can add an existing release to a channel. A `verifyRelease` guard rejects invalid versions and tags before preparation, tagging and publishing. There is no environment bypass. A future human-approved policy change must explicitly update the code, tests and decision record.
+The repository maps breaking changes to minor increases and automatically publishes only `0.x.y-rc.N` versions from `development`, with `ploeg-v${version}` tags (renamed from `v${version}` by [0029](0029-qualify-unfold-before-changing-distribution.md) when Ploeg moved into Unfold). A local `verifyConditions` guard blocks promotion from other branches before semantic-release can add an existing release to a channel. A `verifyRelease` guard rejects invalid versions and tags before preparation, tagging and publishing. There is no environment bypass. A future human-approved policy change must explicitly update the code, tests and decision record.
 
 The artifact-publishing workflow independently rejects stable and major tags for release events and manual dispatch, before downstream jobs receive a version. Candidate publication never moves a `latest` image alias.
 
@@ -57,4 +57,4 @@ The [source-change workflow](../../../../.forgejo/workflows/on_source_change.yml
 * Technical story: [guard-zero-major-prereleases](../../openspec/changes/archive/2026-09-23-guard-zero-major-prereleases/proposal.md).
 * Evidence: [2026-09-11 release-policy verification](../research/2026-09-11-release-policy-verification.md).
 * 2026-09-11 — Recorded before implementation; proposed for human ratification.
-* 2026-09-27 — [Glide ADR-0004](../../../../docs/adr/adr-0004-glide-releases-one-version.md) applies this policy to the single Glide release train. The guard is now [scripts/release-policy.cjs](../../../../scripts/release-policy.cjs) with `glide-v${version}` tags, and the suite runs from the repository root.
+* 2026-09-27 — [Unfold ADR-0004](../../../../docs/adr/adr-0004-unfold-releases-one-version.md) applies this policy to the single Unfold release train. The guard is now [scripts/release-policy.cjs](../../../../scripts/release-policy.cjs) with `unfold-v${version}` tags, and the suite runs from the repository root.

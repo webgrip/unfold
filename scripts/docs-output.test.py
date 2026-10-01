@@ -18,11 +18,11 @@ class PublishedDocumentation(unittest.TestCase):
         self.site = root / '.build/site'
         self.staging.mkdir(parents=True)
         self.site.mkdir(parents=True)
-        (root / 'mkdocs.yml').write_text('site_url: https://example.test/glide/\n')
+        (root / 'mkdocs.yml').write_text('site_url: https://example.test/unfold/\n')
         (self.staging / 'index.md').write_text('# Current\n\n[Page](vloer/index.md)\n')
         (self.staging / 'vloer').mkdir()
         (self.staging / 'vloer/index.md').write_text('# Vloer\n')
-        (self.staging / 'llms.txt').write_text('# Glide\n\n- [Start](index.md)\n')
+        (self.staging / 'llms.txt').write_text('# Unfold\n\n- [Start](index.md)\n')
         (self.staging / 'docs-sources.json').write_text(json.dumps({'revision': 'a' * 40, 'sources': []}))
         for name in ['index.html', 'vloer/index.html', 'ploeg/index.html', 'research/old/index.html', '404.html']:
             page = self.site / name
@@ -35,7 +35,7 @@ class PublishedDocumentation(unittest.TestCase):
 
     def test_publishable_site_and_curated_bundle(self):
         output.validate(self.site, self.staging)
-        self.assertIn('https://example.test/glide/vloer/index.md', (self.site / 'llms-full.txt').read_text())
+        self.assertIn('https://example.test/unfold/vloer/index.md', (self.site / 'llms-full.txt').read_text())
         self.assertIn('data-pagefind-ignore', (self.site / 'research/old/index.html').read_text())
         self.assertNotIn('data-pagefind-body', (self.site / 'research/old/index.html').read_text())
         self.assertIn('data-pagefind-body', (self.site / 'index.html').read_text())
@@ -56,7 +56,7 @@ class PublishedDocumentation(unittest.TestCase):
             output.validate(self.site, self.staging)
 
     def test_broken_or_external_machine_link_blocks_publish(self):
-        for target, reason in [('https://example.test/glide/missing.md', 'Broken machine index'), ('https://other.test/', 'escapes site')]:
+        for target, reason in [('https://example.test/unfold/missing.md', 'Broken machine index'), ('https://other.test/', 'escapes site')]:
             (self.site / 'llms.txt').write_text(f'[Bad]({target})')
             with self.assertRaisesRegex(AssertionError, reason):
                 output.validate(self.site, self.staging)

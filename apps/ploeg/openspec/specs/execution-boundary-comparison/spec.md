@@ -1,11 +1,11 @@
 # execution-boundary-comparison Specification
 
 ## Purpose
-How Glide decides whether standalone and Ploeg-admitted execution share an
+How Unfold decides whether standalone and Ploeg-admitted execution share an
 engine: both paths run through real application code and are compared against
 the existing contracts, and a shared runner is extracted only when that evidence
 shows a common responsibility. Archived from the change
-`2026-09-23-assemble-glide-monorepo`.
+`2026-09-23-assemble-unfold-monorepo`.
 ## Requirements
 ### Requirement: Compare explicit execution authority
 

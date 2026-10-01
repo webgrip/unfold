@@ -21,7 +21,7 @@ Add a `targets:` map to the chart's `config:` value, next to `trackers:`. The ke
 ```yaml
 config:
   targets:
-    glide:
+    unfold:
       repo: webgrip/glide
       branch: development
       forge: forgejo
@@ -50,9 +50,9 @@ config:
   trackers:
     vikunja:
       projects:
-        - name: "Glide"
+        - name: "Unfold"
           id: "10"
-          default: glide
+          default: unfold
           allow: [homelab-cluster]
 ```
 

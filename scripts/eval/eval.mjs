@@ -7,9 +7,9 @@ import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { startFakeLiteLLM } from '../fake-litellm.mjs';
 
-export const LIVE_ENV = 'GLIDE_EVAL_LIVE';
-export const LIVE_URL_ENV = 'GLIDE_EVAL_LITELLM_URL';
-export const LIVE_MASTER_KEY_ENV = 'GLIDE_EVAL_LITELLM_MASTER_KEY';
+export const LIVE_ENV = 'UNFOLD_EVAL_LIVE';
+export const LIVE_URL_ENV = 'UNFOLD_EVAL_LITELLM_URL';
+export const LIVE_MASTER_KEY_ENV = 'UNFOLD_EVAL_LITELLM_MASTER_KEY';
 
 const here = import.meta.dirname;
 const root = resolve(here, '../..');
@@ -190,7 +190,7 @@ async function runScripted(variant, fixture, workdir, home) {
 async function runCommand(variant, fixture, workdir, home, context) {
   const values = { '{model}': variant.model, '{prompt}': context.prompt, '{promptFile}': context.promptFile, '{workdir}': workdir, '{gatewayUrl}': context.gatewayUrl, '{gatewayKey}': context.gatewayKey, '{outcomeFile}': context.outcomeFile };
   const fill = text => Object.entries(values).reduce((result, [name, value]) => result.replaceAll(name, value), text);
-  const env = { ...baseEnvironment(home), GLIDE_EVAL_MODEL: variant.model, GLIDE_EVAL_PROMPT_FILE: context.promptFile, GLIDE_EVAL_OUTCOME_FILE: context.outcomeFile };
+  const env = { ...baseEnvironment(home), UNFOLD_EVAL_MODEL: variant.model, UNFOLD_EVAL_PROMPT_FILE: context.promptFile, UNFOLD_EVAL_OUTCOME_FILE: context.outcomeFile };
   for (const [name, value] of Object.entries(variant.harness.env ?? {})) env[name] = fill(value);
   const [command, ...args] = variant.harness.command.map(fill);
   const result = await run(command, args, { cwd: workdir, env, timeoutSeconds: variant.timeoutSeconds });
@@ -243,12 +243,12 @@ export async function openGateway({ live, env = process.env }) {
  */
 export async function runTrial({ fixture, variant, trial, gateway, keep = false }) {
   const started = Date.now();
-  const workroot = await mkdtemp(join(tmpdir(), `glide-eval-${fixture.id}-`));
+  const workroot = await mkdtemp(join(tmpdir(), `unfold-eval-${fixture.id}-`));
   const workdir = join(workroot, 'repo');
   const home = join(workroot, 'home');
   const promptFile = join(workroot, 'prompt.md');
   const outcomeFile = join(workroot, 'outcome.json');
-  const alias = `glide-eval-${randomBytes(6).toString('hex')}`;
+  const alias = `unfold-eval-${randomBytes(6).toString('hex')}`;
   let key;
   try {
     await cp(fixture.repo, workdir, { recursive: true, filter: source => !SKIPPED_DIRECTORIES.has(source.split(sep).pop()) });

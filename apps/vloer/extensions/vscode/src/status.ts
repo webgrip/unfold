@@ -16,7 +16,7 @@ export const statuses: Record<SessionStatus, StatusPresentation> = {
 };
 
 export const groups: { id: StatusPresentation['group']; label: string }[] = [
-  { id: 'attention', label: 'Needs you' }, { id: 'active', label: 'In progress' }, { id: 'ready', label: 'Ready' }, { id: 'history', label: 'History' },
+  { id: 'attention', label: 'Waiting on you' }, { id: 'active', label: 'In progress' }, { id: 'ready', label: 'Ready' }, { id: 'history', label: 'History' },
 ];
 
 export function presentationFor(session: { status: string; review?: { decision: 'accepted' | 'rejected' } }): StatusPresentation {

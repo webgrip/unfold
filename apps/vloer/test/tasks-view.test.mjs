@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { canHandOff, canTakeBack, currentWorkItem, ploegSituation } from '../public/views/tasks.js';
+import { canHandOff, canTakeBack, currentWorkItem, ploegChangeFailure, ploegSituation } from '../public/views/tasks.js';
 
 const open = { status: 'open' };
 const teams = [{ id: 'bronze', assignee: 'bronze', queueDepth: 0, paused: null, roles: ['builder', 'reviewer'] }];
@@ -35,11 +35,11 @@ test('live work reads in the shared vocabulary, and take-back stops once Ploeg h
   assert.equal(ploegSituation(queued, open).headline, 'Queued for team bronze.');
   assert.equal(canTakeBack(queued), true);
   const running = status({ assignedTeams: ['bronze'], workItems: [item('leased')] });
-  assert.deepEqual(ploegSituation(running, open), { tone: 'live', headline: 'Team bronze is working on it.', next: 'Follow its Runs on the Work Item page.' });
+  assert.deepEqual(ploegSituation(running, open), { tone: 'live', headline: 'Running in team bronze.', next: 'Follow its Runs on the Work Item page.' });
   assert.equal(canTakeBack(running), false);
   assert.equal(canHandOff(running, open), false);
   assert.equal(ploegSituation(status({ workItems: [item('awaiting_review')] }), open).tone, 'review');
-  assert.equal(ploegSituation(status({ workItems: [item('needs_human')] }), open).headline, 'Team bronze stopped and needs you.');
+  assert.equal(ploegSituation(status({ workItems: [item('needs_human')] }), open).headline, 'Needs you: team bronze stopped.');
 });
 
 test('the current Work Item is the one still in progress, and settled work can be handed over again', () => {
@@ -48,7 +48,7 @@ test('the current Work Item is the one still in progress, and settled work can b
   const done = status({ workItems: [item('done')] });
   assert.equal(ploegSituation(done, open).headline, 'Done by team bronze.');
   assert.equal(canHandOff(done, open), true);
-  assert.equal(ploegSituation(status({ workItems: [item('withdrawn')] }), open).headline, 'Taken back from team bronze.');
+  assert.equal(ploegSituation(status({ workItems: [item('withdrawn')] }), open).headline, 'Withdrawn from team bronze.');
   assert.equal(ploegSituation(status({ workItems: [item('stale')] }), open).tone, 'severe');
 });
 
@@ -57,4 +57,22 @@ test('an unavailable Ploeg says so and offers nothing', () => {
   assert.deepEqual(ploegSituation(down, open), { tone: 'neutral', headline: 'Ploeg could not be reached.', next: '' });
   assert.equal(canHandOff(down, open), false);
   assert.equal(canTakeBack(down), false);
+});
+
+test('headlines lead with the shared Work Item state words', () => {
+  assert.equal(ploegSituation(status({ workItems: [item('ingested')] }), open).headline, 'Received by team bronze.');
+  assert.equal(ploegSituation(status({ workItems: [item('awaiting_review')] }), open).headline, 'Ready for your review.');
+  assert.equal(ploegSituation(status({ workItems: [item('stale')] }), open).headline, 'Stopped retrying in team bronze.');
+});
+
+test('a tracker token that may not write names itself and the fix, and never reads as a hand-off', () => {
+  const message = 'The workbench’s Vikunja token may not change this task. Give it permission to add and remove task assignees and to add task comments, then try again.';
+  const failure = ploegChangeFailure({ code: 'task_write_forbidden', message });
+  assert.equal(failure.title, 'The Vloer token cannot change this task’s assignees');
+  assert.match(failure.body, /^Nothing changed on the task\./);
+  assert.match(failure.body, /permission to add and remove task assignees/);
+  assert.doesNotMatch(`${failure.title} ${failure.body}`, /handed to|queued|done/i);
+  const idle = status();
+  assert.equal(ploegSituation(idle, open).headline, 'Not with Ploeg yet.', 'the card keeps the status Ploeg last reported');
+  assert.deepEqual(ploegChangeFailure({ code: 'task_changed', message: 'The task changed.' }), { title: 'Ploeg did not take that change', body: 'The task changed.' });
 });

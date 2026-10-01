@@ -1,16 +1,16 @@
 export const en = {
   meta: {
-    homeTitle: 'Glide: from Work Item to a pull request you review',
+    homeTitle: 'Unfold: from Work Item to a pull request you review',
     homeDescription:
-      'Glide runs AI agents on your Work Items with a budget and short-lived credentials, and stops at a pull request for a person to review. Self-hosted, open source, experimental.',
+      'Unfold runs AI agents on your Work Items with a budget and short-lived credentials, and stops at a pull request for a person to review. Self-hosted, open source, experimental.',
     notFoundTitle: 'Page not found',
     notFoundDescription: 'This page does not exist.',
-    ogImageAlt: 'Glide',
+    ogImageAlt: 'Unfold',
   },
   a11y: {
     skipLink: 'Skip to content',
     mainNav: 'Main',
-    homeLink: 'Glide home',
+    homeLink: 'Unfold home',
     themeToggle: 'Dark theme',
     switchLocale: 'Lees deze pagina in het Nederlands',
   },
@@ -23,7 +23,7 @@ export const en = {
   hero: {
     eyebrow: 'Open source · self-hosted · experimental',
     title: 'Turn Work Items into pull requests that are ready for review.',
-    lede: 'You give Glide a unit of work. It runs AI agents on it with a budget and credentials that expire, and stops when a pull request is ready for a person to read. Merging stays with you.',
+    lede: 'You give Unfold a unit of work. It runs AI agents on it with a budget and credentials that expire, and stops when a pull request is ready for a person to read. Merging stays with you.',
     primary: 'View the source',
     secondary: 'Run the demo',
     demoNote:
@@ -48,7 +48,7 @@ export const en = {
       },
       {
         term: 'Human review',
-        text: 'A person reads the pull request and decides. Glide never merges, and it never deploys to production.',
+        text: 'A person reads the pull request and decides. Unfold never merges, and it never deploys to production.',
       },
     ],
     planned:
@@ -69,10 +69,10 @@ export const en = {
       },
     ],
     version:
-      'Both live in one repository and are released together under one Glide version number.',
+      'Both live in one repository and are released together under one Unfold version number.',
   },
   guards: {
-    title: 'What Glide guards',
+    title: 'What Unfold guards',
     items: [
       {
         title: 'Budgets',
@@ -94,7 +94,7 @@ export const en = {
   },
   open: {
     title: 'Self-hosted and open source',
-    text: 'Glide runs on your own Kubernetes cluster. It does not host models; it reaches your providers through your LiteLLM gateway. The code is Apache-2.0 licensed.',
+    text: 'Unfold runs on your own Kubernetes cluster. It does not host models; it reaches your providers through your LiteLLM gateway. The code is Apache-2.0 licensed.',
     license: 'Read the licence',
     docs: 'Read the documentation',
   },
@@ -107,11 +107,11 @@ export const en = {
       },
       {
         label: 'In use',
-        text: 'Glide runs self-hosted for its owner, on the owner’s own backlog.',
+        text: 'Unfold runs self-hosted for its owner, on the owner’s own backlog.',
       },
       {
         label: 'Planned',
-        text: 'A hosted Glide for agencies, with the cost of each Work Item agreed before work starts. None of it exists yet.',
+        text: 'A hosted Unfold for agencies, with the cost of each Work Item agreed before work starts. None of it exists yet.',
       },
     ],
   },
@@ -120,7 +120,7 @@ export const en = {
     text: 'The demo starts Ploeg, Vloer and PostgreSQL on your machine and repairs a small fixture repository. It is deterministic: it makes no model calls and needs no credentials, so it costs nothing.',
   },
   footer: {
-    summary: 'Glide turns Work Items into pull requests that are ready for human review.',
+    summary: 'Unfold turns Work Items into pull requests that are ready for human review.',
     source: 'Source',
     docs: 'Documentation',
     license: 'Apache-2.0 licence',

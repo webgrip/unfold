@@ -2,17 +2,17 @@ import type { Dictionary } from './en.ts';
 
 export const nl: Dictionary = {
   meta: {
-    homeTitle: 'Glide: van Work Item naar een pull request dat je zelf beoordeelt',
+    homeTitle: 'Unfold: van Work Item naar een pull request dat je zelf beoordeelt',
     homeDescription:
-      'Glide laat AI-agents aan je Work Items werken, met een budget en kortlevende toegang, en stopt bij een pull request dat een mens beoordeelt. Zelf te hosten, open source, experimenteel.',
+      'Unfold laat AI-agents aan je Work Items werken, met een budget en kortlevende toegang, en stopt bij een pull request dat een mens beoordeelt. Zelf te hosten, open source, experimenteel.',
     notFoundTitle: 'Pagina niet gevonden',
     notFoundDescription: 'Deze pagina bestaat niet.',
-    ogImageAlt: 'Glide',
+    ogImageAlt: 'Unfold',
   },
   a11y: {
     skipLink: 'Direct naar de inhoud',
     mainNav: 'Hoofdnavigatie',
-    homeLink: 'Glide, startpagina',
+    homeLink: 'Unfold, startpagina',
     themeToggle: 'Donker thema',
     switchLocale: 'Read this page in English',
   },
@@ -25,7 +25,7 @@ export const nl: Dictionary = {
   hero: {
     eyebrow: 'Open source · zelf te hosten · experimenteel',
     title: 'Van Work Item naar een pull request dat klaarligt voor review.',
-    lede: 'Je geeft Glide een stuk werk. Glide zet er AI-agents op, met een budget en toegangsgegevens die verlopen, en stopt zodra er een pull request ligt dat een mens kan lezen. Mergen doe je zelf.',
+    lede: 'Je geeft Unfold een stuk werk. Unfold zet er AI-agents op, met een budget en toegangsgegevens die verlopen, en stopt zodra er een pull request ligt dat een mens kan lezen. Mergen doe je zelf.',
     primary: 'Bekijk de broncode',
     secondary: 'Draai de demo',
     demoNote:
@@ -50,7 +50,7 @@ export const nl: Dictionary = {
       },
       {
         term: 'Review door een mens',
-        text: 'Iemand leest het pull request en beslist. Glide merget nooit en zet nooit iets in productie.',
+        text: 'Iemand leest het pull request en beslist. Unfold merget nooit en zet nooit iets in productie.',
       },
     ],
     planned:
@@ -70,10 +70,10 @@ export const nl: Dictionary = {
         text: 'Vloer is de voorkant, in de browser of in VS Code. Daar start je werk, stuur je agents bij terwijl ze bezig zijn en bekijk je wat ze hebben gemaakt. Elke Run die Vloer start, loopt via Ploeg.',
       },
     ],
-    version: 'Beide staan in één repository en krijgen samen één Glide-versienummer.',
+    version: 'Beide staan in één repository en krijgen samen één Unfold-versienummer.',
   },
   guards: {
-    title: 'Waar Glide op let',
+    title: 'Waar Unfold op let',
     items: [
       {
         title: 'Budgetten',
@@ -95,7 +95,7 @@ export const nl: Dictionary = {
   },
   open: {
     title: 'Zelf te hosten en open source',
-    text: 'Glide draait op je eigen Kubernetes-cluster. Het host zelf geen modellen, maar bereikt je providers via je eigen LiteLLM-gateway. De code valt onder de Apache-2.0-licentie.',
+    text: 'Unfold draait op je eigen Kubernetes-cluster. Het host zelf geen modellen, maar bereikt je providers via je eigen LiteLLM-gateway. De code valt onder de Apache-2.0-licentie.',
     license: 'Lees de licentie',
     docs: 'Lees de documentatie',
   },
@@ -108,11 +108,11 @@ export const nl: Dictionary = {
       },
       {
         label: 'In gebruik',
-        text: 'De maker draait Glide op eigen infrastructuur, voor de eigen backlog.',
+        text: 'De maker draait Unfold op eigen infrastructuur, voor de eigen backlog.',
       },
       {
         label: 'Gepland',
-        text: 'Een gehoste Glide voor bureaus, waarbij de kosten van elk Work Item vastliggen voordat het werk begint. Daarvan bestaat nog niets.',
+        text: 'Een gehoste Unfold voor bureaus, waarbij de kosten van elk Work Item vastliggen voordat het werk begint. Daarvan bestaat nog niets.',
       },
     ],
   },
@@ -121,7 +121,7 @@ export const nl: Dictionary = {
     text: 'De demo start Ploeg, Vloer en PostgreSQL op je eigen machine en repareert een kleine testrepository. Hij is deterministisch: hij roept geen model aan en heeft geen toegangsgegevens nodig, dus hij kost niets.',
   },
   footer: {
-    summary: 'Glide maakt van Work Items pull requests die klaarliggen voor review door een mens.',
+    summary: 'Unfold maakt van Work Items pull requests die klaarliggen voor review door een mens.',
     source: 'Broncode',
     docs: 'Documentatie',
     license: 'Apache-2.0-licentie',

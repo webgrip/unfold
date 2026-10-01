@@ -11,7 +11,7 @@ review-by: 2026-12-31
 ## Context and Problem Statement
 
 A writing Run could not run the target repository's checks. The
-`agent-runner` image, maintained in `webgrip/infrastructure` and not in Glide,
+`agent-runner` image, maintained in `webgrip/infrastructure` and not in Unfold,
 bakes the agent tooling but deliberately no language toolchain and no
 container runtime (homelab-cluster ADR-0053: language gates run in CI). The
 `ploeg` namespace has default-deny egress: a Run's worker pod reaches DNS, the
@@ -107,7 +107,7 @@ small, and produces evidence the author of the change cannot edit.
   worker pods, or the toolchain image carries the module cache, only
   dependency-free checks such as `gofmt` run in the sandbox; the rest are
   reported as failed or left to CI. That fix lives in `webgrip/homelab-cluster`,
-  not in Glide.
+  not in Unfold.
 * Bad, because image volumes need Kubernetes 1.35 or later and a container
   runtime that supports them.
 * Bad, because the checks are per team or Role, not per repository. A team
@@ -144,7 +144,7 @@ small, and produces evidence the author of the change cannot edit.
 * Good, because it needs no chart change.
 * Bad, because every language multiplies the image. The Rust toolchain alone
   added about 1.4 GB, which is why ADR-0053 removed toolchains.
-* Bad, because the image is maintained outside Glide and serves every
+* Bad, because the image is maintained outside Unfold and serves every
   repository with one set of versions.
 
 ### Run gates in containers through DinD

@@ -12,7 +12,7 @@ The business hypothesis is that adding execution capacity lets us complete more 
 
 **Vloer is where people steer AI work and review results. Ploeg coordinates authorized work and records its execution and spending. In shared mode, Vloer runs its crew under Ploeg's authority.**
 
-An external ticket is optional today, but a registered repository and crew are required. Repository-free conversation is intended product work. Vloer also supports standalone execution. Local work must remain usable without Ploeg. The engines remain separate; see the [transition plan](../migration-proposal.md). Glide contains `apps/vloer` and `apps/ploeg`, with shared documentation at the root.
+An external ticket is optional today, but a registered repository and crew are required. Repository-free conversation is intended product work. Vloer also supports standalone execution. Local work must remain usable without Ploeg. The engines remain separate; see the [transition plan](../migration-proposal.md). Unfold contains `apps/vloer` and `apps/ploeg`, with shared documentation at the root.
 
 ## Choose a starting point
 

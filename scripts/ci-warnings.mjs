@@ -59,7 +59,7 @@ if (import.meta.url === pathToFileURL(resolve(process.argv[1] ?? '')).href) {
   const text = report(findWarnings(capturedText(paths), allowed));
   console.log(text ? `Warnings in setup and verification output:\n${text}` : 'No warnings in setup and verification output.');
   if (process.env.GITHUB_OUTPUT) {
-    const delimiter = `GLIDE_WARNINGS_${Date.now()}`;
+    const delimiter = `UNFOLD_WARNINGS_${Date.now()}`;
     appendFileSync(process.env.GITHUB_OUTPUT, `report<<${delimiter}\n${text}\n${delimiter}\n`);
   }
 }

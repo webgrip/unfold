@@ -9,7 +9,7 @@ review-by: 2026-10-23
 
 ## Context and Problem Statement
 
-[Glide ADR-0002](../../../../docs/adr/adr-0002-ploeg-is-the-only-engine.md) made Ploeg the only execution engine and Vloer its front end. Today a "managed" Vloer session still runs its whole Crew inside Vloer, under an Operator Execution. Ploeg only admits it, keeps its records and issues one key. To support this, Ploeg writes placeholder Work Item, Shift, Run and Lease rows, and ten scheduler queries have to skip them. How should Vloer hand work to Ploeg, show it live and steer it, so that Vloer's engine can be deleted in small, safe steps? The [design proposal](../ploeg-front-end.md) holds the details and the increment plan.
+[Unfold ADR-0002](../../../../docs/adr/adr-0002-ploeg-is-the-only-engine.md) made Ploeg the only execution engine and Vloer its front end. Today a "managed" Vloer session still runs its whole Crew inside Vloer, under an Operator Execution. Ploeg only admits it, keeps its records and issues one key. To support this, Ploeg writes placeholder Work Item, Shift, Run and Lease rows, and ten scheduler queries have to skip them. How should Vloer hand work to Ploeg, show it live and steer it, so that Vloer's engine can be deleted in small, safe steps? The [design proposal](../ploeg-front-end.md) holds the details and the increment plan.
 
 ## Decision Drivers
 
