@@ -119,6 +119,7 @@ fails otherwise.
 | [0042](0042-a-writing-run-reports-the-problem-and-solution-a-reviewer-reads.md) | A writing Run reports the problem and solution a reviewer reads | proposed | 2026-09-30 |
 | [0043](0043-a-failed-reading-run-is-retried-and-a-missing-review-closes-review-failed.md) | A failed reading Run is retried in its Round, and a review that never came closes `review_failed` | accepted | 2026-10-01 |
 | [0044](0044-an-operator-restarts-stopped-work-from-a-round-they-choose.md) | An operator restarts stopped work by requeueing it from a Round they choose | accepted | 2026-10-01 |
+| [0045](0045-keep-run-usage-and-merge-facts.md) | Ploeg keeps every usage figure a harness reports and every merge and review fact a forge reports | proposed | 2026-10-01 |
 
 ## Review calendar
 
@@ -141,4 +142,5 @@ triggers.
 | 2027-01-31 | [0036](0036-stuck-work-reaches-the-owner-as-a-cited-proposal-not-an-agent-decision.md) — or sooner, after 20 escalation briefs, or when Ploeg writes to the tracker as its own user |
 | 2027-01-31 | [0042](0042-a-writing-run-reports-the-problem-and-solution-a-reviewer-reads.md) — or sooner, after the first 20 writer accounts, or when Vloer gains read access to the forge |
 | 2027-01-31 | [0043](0043-a-failed-reading-run-is-retried-and-a-missing-review-closes-review-failed.md), [0044](0044-an-operator-restarts-stopped-work-from-a-round-they-choose.md) — or sooner, when a reading Role reaches `MaxRunAttempts` twice in a month, or restarts from one close reason pass five in a month |
+| 2027-01-31 | [0045](0045-keep-run-usage-and-merge-facts.md) — or sooner, when a third forge provider is added, a harness changes its usage shape, or the first card or KPI query is built on these facts |
 | 2027-04-01 | [0005](0005-build-a-dedicated-dispatch-plane.md), [0032](0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md) — the project review gate (`design.md` §10) |

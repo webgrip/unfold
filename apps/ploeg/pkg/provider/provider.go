@@ -7,6 +7,8 @@ package provider
 import (
 	"context"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/webgrip/ploeg/pkg/work"
 )
@@ -105,6 +107,38 @@ type ForgeEvent struct {
 	// Review is the verdict of a ForgeReviewSubmitted event. Empty when the
 	// provider cannot classify it.
 	Review ForgeReviewState
+	// PullRequest is what the payload said about the pull request itself:
+	// its head for every event, and the merge or close facts for
+	// ForgePRMerged and ForgePRClosed (ADR-0045).
+	PullRequest PullRequestFacts
+}
+
+// PullRequestFacts is what a forge reports about one pull request. A zero
+// field is a fact the forge did not report.
+type PullRequestFacts struct {
+	State          PullRequestState
+	HeadSHA        string
+	MergeCommitSHA string
+	MergedAt       *time.Time
+	MergedBy       string
+	ClosedAt       *time.Time
+}
+
+// ParseForgeTime reads a forge timestamp in RFC 3339 or GitLab's older
+// "2006-01-02 15:04:05 UTC" form. It returns nil for an empty or unreadable
+// value, so a timestamp the forge did not give stays unknown.
+func ParseForgeTime(s string) *time.Time {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	for _, layout := range []string{time.RFC3339Nano, "2006-01-02 15:04:05 MST", "2006-01-02 15:04:05 -0700"} {
+		if t, err := time.Parse(layout, s); err == nil {
+			utc := t.UTC()
+			return &utc
+		}
+	}
+	return nil
 }
 
 // Comment is one conversation comment on a pull request, as the forge reports
@@ -130,4 +164,7 @@ type ForgeProvider interface {
 	// without merging. repo is the forge's project path; pr is the number a
 	// human sees in the forge's UI.
 	PullRequestState(ctx context.Context, repo string, pr int) (PullRequestState, error)
+	// PullRequestFacts reads the same pull request with its head and, once
+	// it left the open state, its merge or close facts (ADR-0045).
+	PullRequestFacts(ctx context.Context, repo string, pr int) (PullRequestFacts, error)
 }

@@ -566,7 +566,7 @@ func observeSpend(ctx context.Context, m llmbroker.Metered, cred llmbroker.Crede
 // keying VIK-586 on cost alone would relabel a genuine agent error as an
 // infra failure. nil usage means "unknown", never "none".
 func noLLMTraffic(u *harness.Usage) bool {
-	return u != nil && u.CostUSD == 0 && u.InputTokens == 0 && u.OutputTokens == 0
+	return u != nil && u.CostUSD == 0 && u.InputTokens == 0 && u.OutputTokens == 0 && !u.HasActivity()
 }
 
 // resolveOutcome is the orchestrator's outcome precedence (design §5):

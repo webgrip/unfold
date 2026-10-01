@@ -202,6 +202,53 @@ func TestReviewWatch_ReconcileSettlesFromForgeState(t *testing.T) {
 	}
 }
 
+// ADR-0045: when the poll, not a webhook, finds the merge, the merge facts
+// are kept all the same.
+func TestReviewWatch_ReconcileRecordsMergeFacts(t *testing.T) {
+	ctx := context.Background()
+	resetTables(t)
+	merged := awaitingReview(t, "640", "70")
+	closed := awaitingReview(t, "641", "71")
+	mergedAt := time.Date(2026, 10, 1, 9, 30, 0, 0, time.UTC)
+	closedAt := time.Date(2026, 10, 1, 10, 0, 0, 0, time.UTC)
+	forge := &fakeForge{
+		prStates: map[int]provider.PullRequestState{70: provider.PullRequestMerged, 71: provider.PullRequestClosed},
+		prFacts: map[int]provider.PullRequestFacts{
+			70: {HeadSHA: "aaa111", MergeCommitSHA: "bbb222", MergedAt: &mergedAt, MergedBy: "ryan"},
+			71: {HeadSHA: "ccc333", ClosedAt: &closedAt},
+		},
+	}
+	newReviewWatch(forge, &fakeTracker{}).Reconcile(ctx)
+
+	type row struct {
+		forge, owner, name, state, head string
+		mergeCommit, mergedBy           *string
+		mergedAt, closedAt              *time.Time
+		shift                           *int64
+	}
+	read := func(item int64) row {
+		t.Helper()
+		var r row
+		if err := testPool.QueryRow(ctx, `SELECT forge, repo_owner, repo_name, state, head_sha, merge_commit_sha, merged_by,
+			merged_at, closed_at, shift_id FROM pull_requests WHERE work_item_id = $1`, item).
+			Scan(&r.forge, &r.owner, &r.name, &r.state, &r.head, &r.mergeCommit, &r.mergedBy, &r.mergedAt, &r.closedAt, &r.shift); err != nil {
+			t.Fatalf("pull request facts for item %d: %v", item, err)
+		}
+		return r
+	}
+	m := read(merged)
+	if m.forge != "webgrip" || m.owner != "webgrip" || m.name != "ploeg" || m.state != "merged" || m.head != "aaa111" ||
+		m.mergeCommit == nil || *m.mergeCommit != "bbb222" || m.mergedBy == nil || *m.mergedBy != "ryan" ||
+		m.mergedAt == nil || !m.mergedAt.Equal(mergedAt) || m.shift == nil {
+		t.Errorf("merged facts = %+v", m)
+	}
+	c := read(closed)
+	if c.state != "closed" || c.head != "ccc333" || c.closedAt == nil || !c.closedAt.Equal(closedAt) ||
+		c.mergedAt != nil || c.mergedBy != nil || c.mergeCommit != nil {
+		t.Errorf("closed facts = %+v; a closed pull request has no merge facts", c)
+	}
+}
+
 func TestReviewWatch_ReconcileSurvivesAForgeOutage(t *testing.T) {
 	ctx := context.Background()
 	resetTables(t)

@@ -250,6 +250,18 @@ func TestResolveOutcome_Precedence(t *testing.T) {
 			wantOutcome: work.OutcomeFailed,
 			wantFailure: "agent_error",
 		},
+		// ADR-0045: an ACP agent that reports tool calls but no tokens did
+		// reach its model. Keeping the tally must not relabel it infra_llm.
+		{
+			name: "tool calls without tokens or cost is NOT infra_llm",
+			report: harness.OutcomeReport{
+				Outcome: work.OutcomeFailed,
+				Usage:   &harness.Usage{ToolCalls: new(int64(12))},
+			},
+			expectsLLM:  true,
+			wantOutcome: work.OutcomeFailed,
+			wantFailure: "",
+		},
 		{
 			name:        "exit 0 with tokens but no cost = no_change_needed",
 			report:      harness.OutcomeReport{Usage: &harness.Usage{InputTokens: 1200, CostUSD: 0}},

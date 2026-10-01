@@ -75,14 +75,14 @@ func (w *ReviewWatch) Reconcile(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
-		state, err := t.forge.PullRequestState(ctx, t.repo, t.pr)
+		facts, err := t.forge.PullRequestFacts(ctx, t.repo, t.pr)
 		if err != nil {
 			w.log().Warn("review reconcile: pull request state unavailable",
 				"work_item", t.item.WorkItemID, "repo", t.repo, "pr", t.pr, "err", err)
 			continue
 		}
 		var kind provider.ForgeEventKind
-		switch state {
+		switch facts.State {
 		case provider.PullRequestMerged:
 			kind = provider.ForgePRMerged
 		case provider.PullRequestClosed:
@@ -90,6 +90,7 @@ func (w *ReviewWatch) Reconcile(ctx context.Context) {
 		default:
 			continue
 		}
+		w.recordFacts(ctx, t, facts)
 		next, reason, _ := reviewTransition(kind)
 		if err := w.settle(ctx, t, next, reason); err != nil {
 			w.log().Error("review reconcile: settle failed", "work_item", t.item.WorkItemID, "err", err)
@@ -139,6 +140,17 @@ func (w *ReviewWatch) targets(ctx context.Context) ([]reviewTarget, error) {
 			repo: it.Target.Owner + "/" + it.Target.Repo, pr: pr, link: link})
 	}
 	return out, nil
+}
+
+func (w *ReviewWatch) recordFacts(ctx context.Context, t reviewTarget, facts provider.PullRequestFacts) {
+	if _, err := w.Store.RecordPullRequestFacts(ctx, store.PullRequestFacts{
+		Forge: t.forge.Name(), Repo: t.repo, Number: t.pr, WorkItemID: t.item.WorkItemID,
+		State: string(facts.State), HeadSHA: facts.HeadSHA, MergeCommitSHA: facts.MergeCommitSHA,
+		MergedAt: facts.MergedAt, MergedBy: facts.MergedBy, ClosedAt: facts.ClosedAt,
+	}); err != nil {
+		w.log().Error("review reconcile: pull request facts not recorded",
+			"work_item", t.item.WorkItemID, "repo", t.repo, "pr", t.pr, "err", err)
+	}
 }
 
 func (w *ReviewWatch) settle(ctx context.Context, t reviewTarget, next work.State, reason string) error {

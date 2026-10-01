@@ -3,6 +3,7 @@ package claudecode
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -207,6 +208,82 @@ func TestParseOutcome_MapsEnvelopeToUsage(t *testing.T) {
 	u := report.Usage
 	if u == nil || u.CostUSD != 1.23 || u.SessionID != "sess-42" || u.InputTokens != 1000 || u.OutputTokens != 250 {
 		t.Errorf("usage = %+v", u)
+	}
+	// ADR-0045: what the envelope did not say stays unknown, never zero.
+	if u.CacheReadInputTokens != nil || u.CacheCreationInputTokens != nil || u.Turns != nil ||
+		u.DurationMs != nil || u.APIDurationMs != nil || u.ModelUsage != nil ||
+		u.ToolCalls != nil || u.PeakContextTokens != nil {
+		t.Errorf("absent envelope fields were filled in: %+v", u)
+	}
+	raw, err := json.Marshal(u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var keys map[string]any
+	if err := json.Unmarshal(raw, &keys); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"cacheReadInputTokens", "cacheCreationInputTokens", "turns", "durationMs", "apiDurationMs", "modelUsage"} {
+		if _, ok := keys[k]; ok {
+			t.Errorf("usage JSON carries %q although the envelope had none: %s", k, raw)
+		}
+	}
+}
+
+func TestParseOutcome_KeepsEveryEnvelopeFigure(t *testing.T) {
+	envelope, err := os.ReadFile(filepath.Join("testdata", "result_full.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := New("", "").ParseOutcome(harness.TaskSpec{}, harness.ExecResult{Stdout: envelope})
+	if err != nil {
+		t.Fatal(err)
+	}
+	u := report.Usage
+	if u == nil {
+		t.Fatal("usage = nil")
+	}
+	if u.InputTokens != 1200 || u.OutputTokens != 9876 || u.CostUSD != 0.5812 || u.SessionID != "4f1c2a9e-sess" {
+		t.Errorf("base usage = %+v", u)
+	}
+	for name, got := range map[string]*int64{
+		"cacheReadInputTokens": u.CacheReadInputTokens, "cacheCreationInputTokens": u.CacheCreationInputTokens,
+		"turns": u.Turns, "durationMs": u.DurationMs, "apiDurationMs": u.APIDurationMs,
+	} {
+		want := map[string]int64{"cacheReadInputTokens": 812004, "cacheCreationInputTokens": 45210,
+			"turns": 37, "durationMs": 412345, "apiDurationMs": 301200}[name]
+		if got == nil || *got != want {
+			t.Errorf("%s = %v, want %d", name, got, want)
+		}
+	}
+	if len(u.ModelUsage) != 2 {
+		t.Fatalf("modelUsage = %+v, want two models", u.ModelUsage)
+	}
+	sonnet := u.ModelUsage["claude-sonnet-5"]
+	if sonnet.InputTokens == nil || *sonnet.InputTokens != 1100 || sonnet.OutputTokens == nil || *sonnet.OutputTokens != 9500 ||
+		sonnet.CacheReadInputTokens == nil || *sonnet.CacheReadInputTokens != 800000 ||
+		sonnet.CacheCreationInputTokens == nil || *sonnet.CacheCreationInputTokens != 45000 ||
+		sonnet.CostUSD == nil || *sonnet.CostUSD != 0.5501 ||
+		sonnet.ContextWindowTokens == nil || *sonnet.ContextWindowTokens != 200000 {
+		t.Errorf("modelUsage[claude-sonnet-5] = %+v", sonnet)
+	}
+	if u.ToolCalls != nil || u.PeakContextTokens != nil {
+		t.Errorf("the envelope reports no tool calls or context fill, got %+v", u)
+	}
+}
+
+func TestParseOutcome_ZeroReportedStaysZero(t *testing.T) {
+	envelope := `{"type":"result","session_id":"s","num_turns":0,"usage":{"input_tokens":5,"cache_read_input_tokens":0}}`
+	report, err := New("", "").ParseOutcome(harness.TaskSpec{}, harness.ExecResult{Stdout: []byte(envelope)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	u := report.Usage
+	if u.CacheReadInputTokens == nil || *u.CacheReadInputTokens != 0 || u.Turns == nil || *u.Turns != 0 {
+		t.Errorf("a reported zero was lost: %+v", u)
+	}
+	if u.CacheCreationInputTokens != nil {
+		t.Errorf("cacheCreationInputTokens = %d, want absent", *u.CacheCreationInputTokens)
 	}
 }
 

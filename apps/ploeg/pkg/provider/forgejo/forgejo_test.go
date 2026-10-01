@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/webgrip/ploeg/pkg/provider"
 )
@@ -254,6 +255,103 @@ func TestParseWebhook_ClosedPullRequest(t *testing.T) {
 				t.Fatalf("events = %+v, want one %s", events, tc.want)
 			}
 		})
+	}
+}
+
+// ADR-0045: the merge facts in the payload reach the event.
+func TestParseWebhook_MergedPullRequestCarriesItsFacts(t *testing.T) {
+	events, err := post(t, &Provider{Secret: "shh"}, "pull_request", map[string]any{
+		"action":     "closed",
+		"number":     12,
+		"repository": map[string]any{"full_name": "webgrip/ploeg"},
+		"sender":     map[string]any{"login": "ryan"},
+		"pull_request": map[string]any{
+			"number": 12, "merged": true,
+			"head":             map[string]any{"ref": "agent/vik-585", "sha": "1111aaaa"},
+			"merge_commit_sha": "2222bbbb",
+			"merged_at":        "2026-10-01T09:30:00+02:00",
+			"closed_at":        "2026-10-01T09:30:00+02:00",
+			"merged_by":        map[string]any{"login": "anna"},
+		},
+	})
+	if err != nil || len(events) != 1 {
+		t.Fatalf("events = %+v, %v", events, err)
+	}
+	f := events[0].PullRequest
+	want := time.Date(2026, 10, 1, 7, 30, 0, 0, time.UTC)
+	if f.State != provider.PullRequestMerged || f.HeadSHA != "1111aaaa" || f.MergeCommitSHA != "2222bbbb" ||
+		f.MergedBy != "anna" || f.MergedAt == nil || !f.MergedAt.Equal(want) || events[0].Actor != "ryan" {
+		t.Errorf("facts = %+v actor %q", f, events[0].Actor)
+	}
+}
+
+func TestParseWebhook_ClosedPullRequestHasNoMergeFacts(t *testing.T) {
+	events, err := post(t, &Provider{Secret: "shh"}, "pull_request", map[string]any{
+		"action":     "closed",
+		"repository": map[string]any{"full_name": "webgrip/ploeg"},
+		"sender":     map[string]any{"login": "ryan"},
+		"pull_request": map[string]any{
+			"number": 12, "merged": false, "closed_at": "2026-10-01T10:00:00Z",
+			"head": map[string]any{"ref": "agent/vik-585", "sha": "1111aaaa"},
+		},
+	})
+	if err != nil || len(events) != 1 {
+		t.Fatalf("events = %+v, %v", events, err)
+	}
+	f := events[0].PullRequest
+	if f.State != provider.PullRequestClosed || f.ClosedAt == nil || f.MergedAt != nil || f.MergedBy != "" || f.MergeCommitSHA != "" {
+		t.Errorf("facts = %+v", f)
+	}
+}
+
+func TestParseWebhook_ReviewCarriesVerdictReviewerAndHead(t *testing.T) {
+	for reviewType, want := range map[string]provider.ForgeReviewState{
+		"pull_request_review_approved": provider.ForgeReviewApproved,
+		"pull_request_review_rejected": provider.ForgeReviewChangesRequested,
+		"pull_request_review_comment":  provider.ForgeReviewCommented,
+	} {
+		events, err := post(t, &Provider{Secret: "shh"}, "pull_request_review", map[string]any{
+			"repository":   map[string]any{"full_name": "webgrip/ploeg"},
+			"sender":       map[string]any{"login": "anna"},
+			"pull_request": map[string]any{"number": 12, "head": map[string]any{"ref": "agent/vik-585", "sha": "3333cccc"}},
+			"review":       map[string]any{"type": reviewType, "content": "ok"},
+		})
+		if err != nil || len(events) != 1 {
+			t.Fatalf("%s: events = %+v, %v", reviewType, events, err)
+		}
+		e := events[0]
+		if e.Review != want || e.Actor != "anna" || e.PullRequest.HeadSHA != "3333cccc" || e.PullRequest.State != "" {
+			t.Errorf("%s: event = %+v", reviewType, e)
+		}
+	}
+}
+
+func TestPullRequestFacts(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"state":"closed","merged":true,"merge_commit_sha":"2222bbbb",
+			"merged_at":"2026-10-01T09:30:00Z","closed_at":"2026-10-01T09:30:00Z",
+			"merged_by":{"login":"anna"},"head":{"sha":"1111aaaa"}}`))
+	}))
+	defer srv.Close()
+	f, err := (&Provider{BaseURL: srv.URL, Token: "s3cret"}).PullRequestFacts(context.Background(), "webgrip/ploeg", 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.State != provider.PullRequestMerged || f.HeadSHA != "1111aaaa" || f.MergeCommitSHA != "2222bbbb" ||
+		f.MergedBy != "anna" || f.MergedAt == nil || f.MergedAt.Format(time.RFC3339) != "2026-10-01T09:30:00Z" {
+		t.Errorf("facts = %+v", f)
+	}
+
+	open := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"state":"open","merged":false,"merged_at":null,"merged_by":null,"head":{"sha":"9999"}}`))
+	}))
+	defer open.Close()
+	f, err = (&Provider{BaseURL: open.URL}).PullRequestFacts(context.Background(), "webgrip/ploeg", 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.State != provider.PullRequestOpen || f.HeadSHA != "9999" || f.MergedAt != nil || f.ClosedAt != nil || f.MergedBy != "" {
+		t.Errorf("open facts = %+v", f)
 	}
 }
 

@@ -208,8 +208,21 @@ func TestBuild_UsageOnlyWhenVolunteered(t *testing.T) {
 	t.Run("silent agent yields nil usage", func(t *testing.T) {
 		// A zero-valued Usage would trip pkg/worker's VIK-586 heuristic and
 		// relabel a real agent error as an LLM infra failure.
-		if got := Build(feed(t, readDone), result{phase: phaseCompleted, stop: StopEndTurn}); got.Usage != nil {
+		if got := Build(feed(t, `{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"done"}}`), result{phase: phaseCompleted, stop: StopEndTurn}); got.Usage != nil {
 			t.Errorf("usage = %+v, want nil (unknown, not zero)", got.Usage)
+		}
+	})
+
+	t.Run("tool calls alone are kept, and are not a zero usage", func(t *testing.T) {
+		u := Build(feed(t, readDone), result{phase: phaseCompleted, stop: StopEndTurn}).Usage
+		if u == nil || u.ToolCalls == nil || *u.ToolCalls != 1 || u.ToolCallsByKind["read"] != 1 {
+			t.Fatalf("usage = %+v, want one read tool call", u)
+		}
+		if !u.HasActivity() {
+			t.Error("a Run with tool calls must count as model traffic for pkg/worker")
+		}
+		if u.PeakContextTokens != nil || u.ContextWindowTokens != nil {
+			t.Errorf("context figures = %v/%v, want absent", u.PeakContextTokens, u.ContextWindowTokens)
 		}
 	})
 
@@ -285,6 +298,62 @@ func TestState_ToolCallFolding(t *testing.T) {
 	}
 	if files := s.changedFiles(); len(files) != 2 || files[0] != "a.go" || files[1] != "b.go" {
 		t.Errorf("changedFiles = %v, want [a.go b.go]", files)
+	}
+}
+
+func TestBuild_KeepsToolTallyAndPeakContext(t *testing.T) {
+	s := feed(t,
+		editDone,
+		`{"sessionUpdate":"tool_call_update","toolCallId":"t1","status":"completed"}`,
+		readDone,
+		`{"sessionUpdate":"tool_call","toolCallId":"t3","title":"go test","kind":"execute","status":"pending"}`,
+		`{"sessionUpdate":"tool_call","toolCallId":"t4","title":"mystery"}`,
+		`{"sessionUpdate":"usage_update","used":150000,"size":200000}`,
+		`{"sessionUpdate":"usage_update","used":90000,"size":200000}`)
+	u := Build(s, result{phase: phaseCompleted, stop: StopEndTurn}).Usage
+	if u == nil {
+		t.Fatal("usage = nil")
+	}
+	if u.ToolCalls == nil || *u.ToolCalls != 4 {
+		t.Errorf("toolCalls = %v, want 4 (an update folds into its call)", u.ToolCalls)
+	}
+	want := map[string]int64{"edit": 1, "read": 1, "execute": 1, "other": 1}
+	if len(u.ToolCallsByKind) != len(want) {
+		t.Errorf("toolCallsByKind = %v, want %v", u.ToolCallsByKind, want)
+	}
+	for k, n := range want {
+		if u.ToolCallsByKind[k] != n {
+			t.Errorf("toolCallsByKind[%s] = %d, want %d", k, u.ToolCallsByKind[k], n)
+		}
+	}
+	if u.PeakContextTokens == nil || *u.PeakContextTokens != 150000 {
+		t.Errorf("peakContextTokens = %v, want 150000 (the peak, not the last fill)", u.PeakContextTokens)
+	}
+	if u.ContextWindowTokens == nil || *u.ContextWindowTokens != 200000 {
+		t.Errorf("contextWindowTokens = %v, want 200000", u.ContextWindowTokens)
+	}
+}
+
+func TestBuild_UsageWithoutToolCallsReportsZeroCalls(t *testing.T) {
+	u := Build(feed(t, `{"sessionUpdate":"usage_update","input":{"tokens":10},"output":{"tokens":2}}`),
+		result{phase: phaseCompleted, stop: StopEndTurn}).Usage
+	if u == nil || u.ToolCalls == nil || *u.ToolCalls != 0 || u.ToolCallsByKind != nil {
+		t.Errorf("usage = %+v, want toolCalls 0 and no split", u)
+	}
+}
+
+func TestBuild_CountsToolCallsPastTheTrackingCap(t *testing.T) {
+	var payloads []string
+	for i := 0; i < maxTrackedTools+3; i++ {
+		payloads = append(payloads, `{"sessionUpdate":"tool_call","toolCallId":"c`+itoa(i)+`","kind":"read","status":"pending"}`)
+	}
+	payloads = append(payloads, `{"sessionUpdate":"tool_call_update","toolCallId":"c`+itoa(maxTrackedTools+1)+`","status":"completed"}`)
+	u := Build(feed(t, payloads...), result{phase: phaseCompleted, stop: StopEndTurn}).Usage
+	if u == nil || u.ToolCalls == nil || *u.ToolCalls != int64(maxTrackedTools+3) {
+		t.Fatalf("toolCalls = %v, want %d", u.ToolCalls, maxTrackedTools+3)
+	}
+	if u.ToolCallsByKind["read"] != int64(maxTrackedTools+3) {
+		t.Errorf("toolCallsByKind = %v", u.ToolCallsByKind)
 	}
 }
 
