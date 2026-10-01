@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { WorkspaceManager } from '../src/runtime/workspace.ts';
 import { OpenCodeRuntime } from '../src/runtime/opencode.ts';
+import { pinnedOpenCodeVersion } from './opencode-version.mjs';
 
 const directory = await mkdtemp(join(tmpdir(), 'vloer-native-probe-'));
 const repositoryPath = join(directory, 'source');
@@ -39,7 +40,7 @@ try {
     return text ? JSON.parse(text) : undefined;
   };
   const health = await request('/global/health');
-  assert.equal(health.version, '1.18.30');
+  assert.equal(health.version, pinnedOpenCodeVersion);
   assert.equal((await fetch(workspace.endpoint + '/global/health')).status, 401);
   const nativeConfig = await request('/config');
   assert.equal(nativeConfig.model, 'litellm/probe-coding');

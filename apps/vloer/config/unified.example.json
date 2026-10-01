@@ -40,7 +40,7 @@
     "baseUrl": "https://gateway.internal.example/v1"
   },
   "docker": {
-    "image": "de-vloer-agent:1.18.30",
+    "image": "de-vloer-agent:1.18.33",
     "cpus": 2,
     "memoryMb": 4096,
     "pidsLimit": 512
