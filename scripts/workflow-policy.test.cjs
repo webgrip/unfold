@@ -224,8 +224,8 @@ test('only a site tag deploys the site, to the workers.dev origin Cloudflare rep
   assert.equal(deploy.with['release-channel'], 'prerelease');
   assert.equal(deploy.with['working-directory'], 'apps/site');
   assert.equal(deploy.with['apex-url'], '${{ needs.site-release-tag.outputs.site-url }}');
-  assert.equal(deploy.with['build-command'], `UNFOLD_SITE_URL=${deploy.with['apex-url']} pnpm build`);
-  assert.deepEqual(deploy.with['smoke-paths'].trim().split('\n'), ['/', '/nl', '/robots.txt', '/sitemap-index.xml', '/favicon.svg']);
+  assert.equal(deploy.with['build-command'], `UNFOLD_SITE_URL=${deploy.with['apex-url']} pnpm run build:release`);
+  assert.deepEqual(deploy.with['smoke-paths'].trim().split('\n'), ['/', '/nl', '/robots.txt', '/sitemap-index.xml', '/favicon.svg', '/privacy', '/nl/privacy']);
   assert.deepEqual(Object.keys(deploy.secrets).sort(), ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN']);
   for (const [name, job] of Object.entries(publisher.jobs)) {
     if (!name.startsWith('site-')) assert.doesNotMatch(JSON.stringify(job), /CLOUDFLARE_/, name);
