@@ -29,21 +29,21 @@
     "validate:a11y": "node --experimental-strip-types scripts/axe-scan.ts"
   },
   "dependencies": {
-    "@astrojs/sitemap": "3.7.3",
+    "@astrojs/sitemap": "3.7.4",
     "astro": "7.1.6"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.10",
-    "@axe-core/playwright": "4.10.2",
-    "@webgrip/astro-site-toolkit": "0.5.0",
+    "@axe-core/playwright": "4.13.0",
+    "@webgrip/astro-site-toolkit": "0.6.0",
     "@webgrip/eslint-config-astro": "0.2.0",
     "@webgrip/prettier-config": "0.3.0",
     "@webgrip/tsconfig": "0.2.0",
-    "eslint": "10.8.0",
-    "playwright-core": "1.56.1",
-    "prettier": "3.9.6",
+    "eslint": "10.11.0",
+    "playwright-core": "1.63.0",
+    "prettier": "3.9.9",
     "typescript": "5.9.3",
-    "wrangler": "4.118.0"
+    "wrangler": "4.142.0"
   },
   "prettier": "@webgrip/prettier-config"
 }

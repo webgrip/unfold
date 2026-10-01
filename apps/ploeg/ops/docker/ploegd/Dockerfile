@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1@sha256:87999aa3d42bdc6bea60565083ee17e86d1f3339802f543c0d03998580f9cb89
+# syntax=docker/dockerfile:1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e
 # Base registries ARG-overridable so in-cluster builds route Docker Hub pulls through the
 # Harbor pull-through proxy. distroless lives on gcr.io — no Harbor proxy project yet
 # (see homelab-cluster harbor-proxy-config) — pulled direct until then.
@@ -20,7 +20,7 @@ RUN GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -trimpath -ldflags "-s -w -X main.version=${IMAGE_VERSION}" \
     -o /out/ploeg-worker ./cmd/ploeg-worker
 
-FROM ${REGISTRY_GCR}/distroless/static-debian12:nonroot@sha256:f5b485ea962d9bd1186b2f6b3a061191539b905b82ec395de78cbfae51f20e35
+FROM ${REGISTRY_GCR}/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
 ARG IMAGE_CREATED=1970-01-01T00:00:00Z
 ARG IMAGE_VERSION=0.0.0-dev
 ARG IMAGE_REVISION=unknown
