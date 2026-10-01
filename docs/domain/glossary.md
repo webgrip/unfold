@@ -179,17 +179,10 @@ The product and the monorepo that holds Vloer and Ploeg. A person creates a work
 ## Markup
 *Context: Billing*
 
-The published percentage Glide adds to token and compute cost when billing an Agency. The Agency's Markup Tier sets it. The price an Agency charges its Client is the Agency's own and is not a Markup.
+The published percentage Glide adds to token and compute cost when billing an Agency. It is the same for every Agency. The price an Agency charges its Client is the Agency's own and is not a Markup.
 
-**See also:** [Token Charge](#token-charge), [Markup Tier](#markup-tier), [Agency](#agency)  
-
-## Markup Tier
-*Context: Billing*
-
-An Agency's pricing level, which sets its Markup. It is recalculated each quarter from the Agency's acceptance rate against published thresholds, and an Agency drops at most one Markup Tier per quarter, with a month's notice. "Tier" names nothing else: a Size maps to a Team, not to a tier.
-
-**Do not use:** team tier  
-**See also:** [Markup](#markup), [Acceptance](#acceptance)  
+**Do not use:** markup tier  
+**See also:** [Token Charge](#token-charge), [Agency](#agency)  
 
 ## Model
 *Context: Execution*
