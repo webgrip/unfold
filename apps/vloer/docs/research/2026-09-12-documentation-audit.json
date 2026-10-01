@@ -1715,7 +1715,7 @@
         "6. Provider-specific implementation notes",
         "ClickUp",
         "Forgejo issues and pull requests",
-        "GitLab for Acme",
+        "GitLab",
         "7. Eligibility, priority and status",
         "8. One execution owner, observable human control",
         "Attempt ownership",
@@ -6553,7 +6553,7 @@
         "2. The dialect on the contract",
         "3. The two places that name a forge",
         "4. The chart",
-        "5. The downstream consumer — acme staging cluster",
+        "5. The downstream consumer",
         "6. Gates and closure"
       ],
       "disposition": "retain",

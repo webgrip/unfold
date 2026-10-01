@@ -151,14 +151,14 @@ test('the report drops the verdict block, the transcript keeps every part, and t
   assert.equal(withoutVerdictBlock('Found it in a.ts:12.\n\n```json\n{"verdict":"approve","summary":"ok"}\n```'), 'Found it in a.ts:12.');
   assert.equal(withoutVerdictBlock('{"verdict":"inconclusive","summary":"Nothing to review."}'), 'Nothing to review.');
   assert.equal(withoutVerdictBlock('plain text'), 'plain text');
-  const text = transcript('Analyst', [{ info: { id: 'm1', role: 'assistant', sessionID: 's', time: { created: 0 }, modelID: 'claude-sonnet-5', providerID: 'acme' }, parts: [
+  const text = transcript('Analyst', [{ info: { id: 'm1', role: 'assistant', sessionID: 's', time: { created: 0 }, modelID: 'claude-sonnet-5', providerID: 'gateway' }, parts: [
     { type: 'reasoning', text: 'think first' },
     { type: 'tool', tool: 'grep', state: { status: 'error', input: { pattern: 'litellm' }, error: 'ripgrep failed with code 127' } },
     { type: 'tool', tool: 'read', state: { status: 'completed', input: { filePath: 'a.yaml' }, output: 'tag: v1.100.0', title: 'a.yaml' } },
     { type: 'text', text: 'The tag is v1.100.0.' },
   ] }] as any);
   assert.ok(text.includes('# Analyst transcript'));
-  assert.ok(text.includes('acme/claude-sonnet-5'));
+  assert.ok(text.includes('gateway/claude-sonnet-5'));
   assert.ok(text.includes('> think first'));
   assert.ok(text.includes('### tool grep · error'));
   assert.ok(text.includes('Error: ripgrep failed with code 127'));
