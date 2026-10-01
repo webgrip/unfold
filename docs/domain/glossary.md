@@ -399,7 +399,7 @@ The class S, M or L that Refinement proposes for a Work Item and the Client appr
 ## Skin
 *Context: Cards · Owner: Vloer*
 
-The look a Run Card is drawn in, chosen per Work Target in Ploeg's cardStyle. A Skin changes appearance and motion, never the facts or where they sit. Built: Vloer Native. Proposed: five more Skins, with per-Client themes on top.
+The look a Run Card is drawn in, chosen per Work Target in Ploeg's cardStyle. A Skin changes appearance and motion, never the facts or where they sit. Built: Vloer Native, the 3D forge Skin, and Holo Rarity, Loot Drop, Arcade Cabinet, Ticker Terminal and Mission Patch. Proposed: per-Client themes on top.
 
 **See also:** [Run Card](#run-card), [Work Target](../reference/glossary.md#work-target), [Finish](#finish)  
 

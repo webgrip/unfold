@@ -39,6 +39,9 @@ function showcase(id: string, title: string, days: number, samples: string[] = [
   const merged = (days + 2) * day + 300;
   return [{ id, externalId: `DEMO-${Number(id) - 100}`, title, state: 'done', attempts: 1, created: merged + 2 * day, updated: merged, description: `Illustrative merged Work Item that shows a Run card after ${days} days live. Its Runs predate the demo's history and its ${['deploys', 'roster', 'gates', ...samples].join(', ').replace(/, ([^,]*)$/, ' and $1')} are sample data. No dispatch or model calls occurred.` }];
 }
+function epic(id: string, title: string, created: number): ItemSpec {
+  return { id, externalId: `DEMO-${Number(id) - 100}`, title, state: 'done', attempts: 0, created, updated: created - day, description: 'Illustrative epic: its card lists the set of Work Items the tracker named as its children, drawn in a DOM skin pack. An epic carries no pull request of its own. The set is sample data; no dispatch or model calls occurred.' };
+}
 const itemSpecs: ItemSpec[] = [
   { id: '101', externalId: 'DEMO-1', title: 'Review the rounding acceptance criteria', state: 'needs_human', priority: 2, attempts: 1, created: 1400, updated: 1330 },
   { id: '102', externalId: 'DEMO-2', title: 'Prepare a regression investigation', state: 'leased', attempts: 1, created: 70, updated: 18, lease: { renewedAt: ago(1), expiresAt: ago(-9) } },
@@ -65,9 +68,26 @@ const itemSpecs: ItemSpec[] = [
   ...showcase('123', 'Attach the invoice PDF to the shipping confirmation', 63, ['grade', 'cracks']),
   { id: '124', externalId: 'DEMO-24', title: 'A postcode with a space makes the shipping form answer 500', state: 'done', attempts: 0, created: 6 * day, updated: 2 * day, description: 'Illustrative bug Work Item: a person fixed it in pull request #24. Its fix, the candidate causes Ploeg would list and the attributions on it are sample data, so the Trace this bug panel has something to show. No dispatch or model calls occurred.' },
   { id: '125', externalId: 'DEMO-25', title: 'Checkout and confirmation hardening', state: 'done', attempts: 0, created: 420 * day, updated: 3 * day, description: 'Illustrative epic: its card lists the set of Work Items the tracker named as its children before their first Shift. An epic carries no pull request of its own. The set is sample data; no dispatch or model calls occurred.' },
+  ...showcase('134', 'Store the chosen payment method on the checkout session', 190, ['set membership', 'grade', 'cracks']),
+  epic('135', 'Checkout overhaul', 260 * day),
+  ...showcase('136', 'Recalculate shipping costs when the address changes', 95, ['set membership', 'grade', 'cracks']),
+  ...showcase('137', 'Retry failed stock reservations with backoff', 370, ['set membership', 'grade', 'cracks']),
+  ...showcase('138', 'Show an order summary step before payment', 12, ['set membership', 'grade', 'cracks']),
+  epic('139', 'Order service reliability', 420 * day),
+  ...showcase('140', 'Send the order confirmation in the customer language', 33, ['set membership', 'grade', 'cracks']),
+  ...showcase('141', 'Validate discount codes before the payment step', 205, ['set membership', 'grade', 'cracks']),
+  ...showcase('142', 'Remember the last used delivery address', 400, ['set membership', 'grade', 'cracks']),
+  epic('143', 'Order flow polish', 40 * day),
 ];
 
-const forgeCards = new Set(['105', '117', '119', '120', '122', '123']);
+const demoSkins: Record<string, string> = {
+  '105': 'forge', '117': 'forge', '119': 'forge', '120': 'forge', '122': 'forge', '123': 'forge',
+  '111': 'holo', '134': 'holo', '135': 'holo',
+  '108': 'loot', '136': 'loot', '137': 'loot',
+  '102': 'arcade', '138': 'arcade', '139': 'arcade',
+  '113': 'ticker', '140': 'ticker', '141': 'ticker',
+  '101': 'patch', '142': 'patch', '143': 'patch',
+};
 const notCollectedInputs = ['durability.survival', 'review.ciFirstGreen', 'review.findings'];
 type InputSpec = { weight: number; reverted?: boolean; days: number; reverts?: number; hotfixes?: number; budget?: number | null; defects: number; plays?: number; failed?: number; changes?: number; rounds: number };
 const gradeInputs = (spec: InputSpec): NonNullable<PloegCardGrade['inputs']> => ({
@@ -82,6 +102,13 @@ const demoGrades: Record<string, PloegCardGrade> = {
   '120': { formula: '2026.2', overall: 9.5, provisional: false, subgrades: { reliability: 9.5, durability: 10, delivery: 9, review: 9 }, label: null, qualifiers: [], inputs: gradeInputs({ weight: 0.25, days: 205, defects: 0, failed: 1, changes: 1, rounds: 2 }) },
   '122': { formula: '2026.2', overall: 10, provisional: false, subgrades: { reliability: 10, durability: 10, delivery: 10, review: 10 }, label: 'black', qualifiers: [], inputs: gradeInputs({ weight: 0, days: 400, defects: 0, rounds: 1 }) },
   '123': { formula: '2026.2', overall: 8.5, provisional: true, subgrades: { reliability: 10, durability: 8, delivery: 7.5, review: 8.5 }, label: null, qualifiers: ['RT'], inputs: gradeInputs({ weight: 0, days: 63, defects: 1, failed: 1, changes: 1, rounds: 2 }) },
+  '134': { formula: '2026.2', overall: 9.5, provisional: false, subgrades: { reliability: 9, durability: 10, delivery: 9.5, review: 9.5 }, label: null, qualifiers: [], inputs: gradeInputs({ weight: 0.5, days: 190, defects: 0, rounds: 1 }) },
+  '136': { formula: '2026.2', overall: 7.5, provisional: true, subgrades: { reliability: 6.5, durability: 8, delivery: 8, review: 8.5 }, label: null, qualifiers: ['HF'], inputs: gradeInputs({ weight: 2, days: 95, hotfixes: 1, defects: 1, rounds: 2 }) },
+  '137': { formula: '2026.2', overall: 10, provisional: false, subgrades: { reliability: 10, durability: 10, delivery: 10, review: 10 }, label: 'black', qualifiers: [], inputs: gradeInputs({ weight: 0, days: 370, defects: 0, rounds: 1 }) },
+  '138': { formula: '2026.2', overall: 8.5, provisional: true, subgrades: { reliability: 9, durability: 8, delivery: 8.5, review: 8 }, label: null, qualifiers: [], inputs: gradeInputs({ weight: 0, days: 12, defects: 0, changes: 1, rounds: 2 }) },
+  '140': { formula: '2026.2', overall: 8, provisional: true, subgrades: { reliability: 7.5, durability: 8, delivery: 8.5, review: 8 }, label: null, qualifiers: ['RT'], inputs: gradeInputs({ weight: 0.25, days: 33, defects: 0, failed: 1, rounds: 2 }) },
+  '141': { formula: '2026.2', overall: 9, provisional: false, subgrades: { reliability: 8.5, durability: 9.5, delivery: 9, review: 9 }, label: null, qualifiers: [], inputs: gradeInputs({ weight: 1, days: 205, defects: 1, rounds: 1 }) },
+  '142': { formula: '2026.2', overall: 10, provisional: false, subgrades: { reliability: 10, durability: 10, delivery: 10, review: 9.5 }, label: 'gold', qualifiers: [], inputs: gradeInputs({ weight: 0, days: 400, defects: 0, rounds: 1 }) },
 };
 const workdaysLater = (minutes: number, workdays: number) => { let at = anchor - minutes * 60_000; for (let left = workdays; left > 0;) { at += 86_400_000; const weekday = new Date(at).getUTCDay(); if (weekday !== 0 && weekday !== 6) left--; } return new Date(at).toISOString().replace('.000Z', 'Z'); };
 const bugRef = { workItemId: '124', ref: 'DEMO-24', title: 'A postcode with a space makes the shipping form answer 500' };
@@ -90,6 +117,10 @@ const demoConditions: Record<string, PloegCardCondition> = {
   '118': { state: 'cracked', cracks: [{ id: '7101', bug: bugRef, severity: 'S3', share: 'primary', discovery: 'discovered', proposedAt: ago(2 * day), confirmedAt: ago(day), confirmedBy: ['demo-dev', 'demo-tester'], disputed: false, weight: 1, warranty: 'full', mended: bugMend }] },
   '119': { state: 'cracked', cracks: [{ id: 'demo-crack-119', bug: { workItemId: null, ref: 'DEMO-31', title: 'Cart total keeps the cached price after a currency switch' }, severity: 'S2', share: 'primary', discovery: 'discovered', proposedAt: ago(9 * day), confirmedAt: ago(8 * day), confirmedBy: ['demo-operator', 'demo-reviewer'], disputed: false, weight: 2, warranty: 'full', mended: null }] },
   '120': { state: 'mended', cracks: [{ id: 'demo-crack-120', bug: { workItemId: null, ref: 'DEMO-32', title: 'Refund audit entry missed partial refunds' }, severity: 'S3', share: 'primary', discovery: 'self', proposedAt: ago(60 * day), confirmedAt: ago(59 * day), confirmedBy: ['demo-operator', 'demo-reviewer'], disputed: false, weight: 0.25, warranty: 'full', mended: { at: ago(55 * day), by: 'demo-operator', pr: 68, bySteward: true, confirmedAt: ago(25 * day) } }] },
+  '134': { state: 'mended', cracks: [{ id: 'demo-crack-134', bug: { workItemId: null, ref: 'DEMO-51', title: 'Saved payment method kept after the customer removed it' }, severity: 'S2', share: 'primary', discovery: 'discovered', proposedAt: ago(80 * day), confirmedAt: ago(79 * day), confirmedBy: ['demo-operator', 'demo-reviewer'], disputed: false, weight: 0.5, warranty: 'full', mended: { at: ago(74 * day), by: 'demo-operator', pr: 71, bySteward: true, confirmedAt: ago(44 * day) } }] },
+  '136': { state: 'cracked', cracks: [{ id: 'demo-crack-136', bug: { workItemId: null, ref: 'DEMO-52', title: 'Shipping cost stays at the old rate after a postcode change' }, severity: 'S2', share: 'primary', discovery: 'discovered', proposedAt: ago(6 * day), confirmedAt: ago(5 * day), confirmedBy: ['demo-operator', 'demo-reviewer'], disputed: false, weight: 2, warranty: 'full', mended: null }] },
+  '140': { state: 'mended', cracks: [{ id: 'demo-crack-140', bug: { workItemId: null, ref: 'DEMO-53', title: 'Confirmation fell back to English for Frisian' }, severity: 'S4', share: 'primary', discovery: 'self', proposedAt: ago(20 * day), confirmedAt: ago(20 * day), confirmedBy: ['demo-operator', 'demo-reviewer'], disputed: false, weight: 0.25, warranty: 'full', mended: { at: ago(18 * day), by: 'demo-reviewer', pr: 74, bySteward: false, confirmedAt: ago(1 * day) } }] },
+  '141': { state: 'cracked', cracks: [{ id: 'demo-crack-141', bug: { workItemId: null, ref: 'DEMO-54', title: 'Expired discount codes pass when the clock crosses midnight' }, severity: 'S3', share: 'primary', discovery: 'discovered', proposedAt: ago(3 * day), confirmedAt: ago(2 * day), confirmedBy: ['demo-operator', 'demo-reviewer'], disputed: false, weight: 1, warranty: 'half', mended: null }] },
 };
 const mergers: Record<string, string> = { '121': 'demo-lead' };
 type GateVisit = [gate: PloegGate, minutes: number];
@@ -109,6 +140,15 @@ const demoGateSpecs: Record<string, GateSpec> = {
   '122': { visits: flow(showcaseMerged('122')) },
   '123': { visits: (() => { const merged = showcaseMerged('123'); return [['development', merged + 5 * day], ['test', merged + 3 * day], ['development', merged + 2.6 * day], ['test', merged + day], ['acceptance', merged], ['test', merged - 0.2 * day], ['acceptance', merged - day / 2], ['done', merged - day]] as GateVisit[]; })(), bounces: [{ reason: 'defect', actor: qa }, { reason: 'environment', actor: acceptor }] },
   '124': { visits: [['development', 5 * day], ['test', 2 * day + 60], ['acceptance', 1.5 * day], ['done', day]] },
+  '101': { visits: [['development', 1400], ['test', 1390]] },
+  '102': { visits: [['development', 70]] },
+  '134': { visits: flow(showcaseMerged('134')) },
+  '136': { visits: (() => { const merged = showcaseMerged('136'); return [['development', merged + 4 * day], ['test', merged + 2 * day], ['acceptance', merged + day], ['development', merged + 0.8 * day], ['test', merged], ['acceptance', merged - day / 2], ['done', merged - day]] as GateVisit[]; })(), bounces: [{ reason: 'defect', actor: acceptor }] },
+  '137': { visits: flow(showcaseMerged('137')) },
+  '138': { visits: flow(showcaseMerged('138')) },
+  '140': { visits: (() => { const merged = showcaseMerged('140'); return [['development', merged + 4 * day], ['test', merged + 2 * day], ['development', merged + 1.5 * day], ['test', merged], ['acceptance', merged - day / 2], ['done', merged - day]] as GateVisit[]; })(), bounces: [{ reason: 'requirement', actor: qa }] },
+  '141': { visits: (() => { const merged = showcaseMerged('141'); return [['development', merged + 4 * day], ['test', merged + 2 * day], ['development', merged + 1.5 * day], ['test', merged], ['acceptance', merged - day / 2], ['done', merged - day]] as GateVisit[]; })() },
+  '142': { visits: flow(showcaseMerged('142')) },
 };
 const gateOrder: PloegGate[] = ['development', 'test', 'acceptance', 'done'];
 function demoGates(id: string): PloegCardGates | undefined {
@@ -121,8 +161,13 @@ function demoGates(id: string): PloegCardGates | undefined {
   const rightFirstTime = Object.fromEntries((['test', 'acceptance', 'done'] as const).filter(gate => entered.has(gate)).map(gate => [gate, bounces.filter(bounce => bounce.from === gate && (bounce.reason === 'defect' || bounce.reason === 'unknown')).length]));
   return { current: spec.visits.at(-1)![0], history, bounces, rightFirstTime };
 }
-const setEpic = '125';
-const setChildren = ['121', '118', '123', '117', '105'];
+const demoEpics: Record<string, string[]> = {
+  '125': ['121', '118', '123', '117', '105'],
+  '135': ['138', '134', '136', '141', '142'],
+  '139': ['122', '120', '137', '140'],
+  '143': ['114', '109', '103'],
+};
+const inDemoSet = (id: string) => Object.hasOwn(demoEpics, id) || Object.values(demoEpics).some(children => children.includes(id));
 
 const demoCopies: Record<string, string[]> = { '105': ['developer'], '117': ['developer'], '119': ['developer'], '120': ['qa'], '121': ['developer'], '122': ['po'], '123': ['developer'] };
 
@@ -318,7 +363,7 @@ function demoCard(item: PloegItem): PloegCard {
   return {
     workItemId: item.id, title: item.title, externalRef: item.externalId, url: item.url, team: item.team,
     target: item.target ? { forge: item.target.forge, owner: item.target.owner, repo: item.target.repo } : null,
-    style: { skin: forgeCards.has(item.id) ? 'forge' : 'vloer-native', theme: null }, state, rarity: null, finish: 'matte', grade: demoGrades[item.id] ?? null, condition: demoConditions[item.id] ?? null,
+    style: { skin: demoSkins[item.id] ?? 'vloer-native', theme: null }, state, rarity: null, finish: 'matte', grade: demoGrades[item.id] ?? null, condition: demoConditions[item.id] ?? null,
     steward: merged ? { name: merged.mergedBy, source: 'merged_by' } : null,
     roster: demoRoster(item.id, merged ?? null, plays),
     crew: roles.map(role => ({ role, writes: started.find(entry => roleOf(entry) === role)!.writes, runs: started.filter(entry => roleOf(entry) === role).length })),
@@ -334,7 +379,7 @@ function demoCard(item: PloegItem): PloegCard {
     ...demoRelease(ownPlays),
     ...(demoGates(item.id) ? { gates: demoGates(item.id) } : {}),
     ...(demoGateSpecs[item.id]?.bounces?.some(bounce => bounce.reason === 'requirement') ? { evolved: true as const } : {}),
-    ...(item.id === setEpic || setChildren.includes(item.id) ? { set: null } : {}),
+    ...(inDemoSet(item.id) ? { set: null } : {}),
     demo: true,
   };
 }
@@ -352,12 +397,15 @@ function demoRoster(id: string, merged: PloegCardPlay | null, plays: PloegCardPl
   return [...roles].map(([name, held]) => ({ name, roles: order.filter(role => held.has(role)) }));
 }
 function demoSets(cards: Record<string, PloegCard>): void {
-  const epic = cards[setEpic];
-  const children = setChildren.map(id => cards[id]);
+  for (const [epicId, childIds] of Object.entries(demoEpics)) demoSet(cards, epicId, childIds);
+}
+function demoSet(cards: Record<string, PloegCard>, epicId: string, childIds: string[]): void {
+  const epic = cards[epicId];
+  const children = childIds.map(id => cards[id]);
   const settled = (card: PloegCard) => card.state === 'merged' && Boolean(card.release) && Date.parse(card.release!.at) <= anchor - 30 * 86_400_000;
   const cracked = (card: PloegCard) => card.condition?.cracks.some(crack => !crack.mended?.confirmedAt) ?? false;
   const complete = children.every(card => settled(card) && !cracked(card));
-  const epicRef = { workItemId: setEpic, ref: epic.externalRef, title: epic.title };
+  const epicRef = { workItemId: epicId, ref: epic.externalRef, title: epic.title };
   epic.set = { role: 'epic', epic: epicRef, position: null, size: children.length, children: children.map(card => ({ workItemId: card.workItemId, title: card.title, state: card.state, settled: settled(card), cracked: cracked(card) })), complete };
   children.forEach((card, index) => { card.set = { role: 'child', epic: epicRef, position: index + 1, size: children.length, children: [], complete }; });
 }

@@ -113,10 +113,15 @@ test('a demo card says so and shows no spend or usage', () => {
     if (card.condition || card.gates) assert.match(ploegDemo.items.find(item => item.id === card.workItemId).description, /^Illustrative/, `${card.workItemId} says it is illustrative`);
     if (card.condition) assert.match(ploegDemo.items.find(item => item.id === card.workItemId).description, /cracks are sample data/, `${card.workItemId} labels its cracks as sample data`);
   }
-  assert.deepEqual(Object.values(ploegDemo.cards).filter(card => card.grade).map(card => card.workItemId), ['119', '120', '122', '123']);
-  assert.deepEqual(Object.values(ploegDemo.cards).filter(card => card.condition).map(card => [card.workItemId, card.condition.state]), [['118', 'cracked'], ['119', 'cracked'], ['120', 'mended']]);
-  assert.deepEqual(Object.values(ploegDemo.cards).filter(card => card.style.skin === 'forge').map(card => card.workItemId), ['105', '117', '119', '120', '122', '123']);
-  assert(Object.values(ploegDemo.cards).filter(card => card.style.skin !== 'forge').every(card => card.style.skin === 'vloer-native'), 'every other demo card keeps Vloer Native');
+  assert.deepEqual(Object.values(ploegDemo.cards).filter(card => card.grade).map(card => card.workItemId), ['119', '120', '122', '123', '134', '136', '137', '138', '140', '141', '142']);
+  assert.deepEqual(Object.values(ploegDemo.cards).filter(card => card.condition).map(card => [card.workItemId, card.condition.state]), [['118', 'cracked'], ['119', 'cracked'], ['120', 'mended'], ['134', 'mended'], ['136', 'cracked'], ['140', 'mended'], ['141', 'cracked']]);
+  const skins = {};
+  for (const card of Object.values(ploegDemo.cards)) (skins[card.style.skin] ??= []).push(card.workItemId);
+  assert.deepEqual(skins.forge, ['105', '117', '119', '120', '122', '123']);
+  assert.deepEqual([skins.holo, skins.loot, skins.arcade, skins.ticker, skins.patch], [['111', '134', '135'], ['108', '136', '137'], ['102', '138', '139'], ['113', '140', '141'], ['101', '142', '143']], 'each DOM skin pack has three demo cards');
+  assert.deepEqual(Object.keys(skins).sort(), [...firstPartySkins].sort(), 'every shipped skin appears in the demo');
+  assert(['109', '114', '118', '121', '124', '125'].every(id => skins['vloer-native'].includes(id)), 'Vloer Native keeps the cards the Work and trace pages check');
+  assert.deepEqual(Object.values(ploegDemo.cards).filter(card => card.set?.role === 'epic').map(card => [card.workItemId, card.style.skin, card.set.complete]), [['125', 'vloer-native', false], ['135', 'holo', false], ['139', 'arcade', true], ['143', 'patch', false]], 'four epics, one complete set');
   assert.equal(ploegDemo.cards['115'].state, 'withdrawn');
   assert.equal(ploegDemo.cards['103'].state, 'drafting');
   assert.equal(ploegDemo.cards['105'].state, 'in_review');
@@ -129,7 +134,7 @@ test('skin packs resolve to shipped skins and their manifests are checked', () =
   assert.equal(resolveSkin({ skin: '../../core/x' }), defaultSkin);
   assert.equal(resolveSkin(null), defaultSkin);
   assert.throws(() => skinBase('../x'));
-  assert.deepEqual(firstPartySkins, ['vloer-native', 'forge']);
+  assert.deepEqual(firstPartySkins, ['vloer-native', 'forge', 'holo', 'loot', 'arcade', 'ticker', 'patch']);
   assert.equal(resolveSkin({ skin: 'forge' }), 'forge');
   for (const id of firstPartySkins) {
     const folder = new URL(`../public/cards/skins/${id}/`, import.meta.url);
@@ -137,7 +142,7 @@ test('skin packs resolve to shipped skins and their manifests are checked', () =
     assert.deepEqual(manifest.finishes, finishLadder.map(step => step.key));
     assert(existsSync(new URL(manifest.stylesheet, folder)));
     if (manifest.script) assert(existsSync(new URL(manifest.script, folder)));
-    assert.doesNotMatch(readFileSync(new URL(manifest.stylesheet, folder), 'utf8'), /@import|url\(\s*["']?https?:/, 'a skin loads nothing from elsewhere');
+    assert.doesNotMatch(readFileSync(new URL(manifest.stylesheet, folder), 'utf8').replace(/^@import url\("\.\.\/\.\.\/skin-kit\.css"\);\n/, ''), /@import|url\(\s*["']?(?:https?:|\/\/)/, 'a skin loads nothing from elsewhere; it may import only the shared skin kit');
   }
   const good = { id: 'x', name: 'X', version: '1.0.0', runtime: 1, stylesheet: 'skin.css', script: null, finishes: ['matte'] };
   assert.equal(validateManifest(good, 'x').script, null);

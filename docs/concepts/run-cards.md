@@ -28,19 +28,19 @@ So every number on a card describes the change. The person appears only as its *
 
 ## What is built and what is proposed
 
-The first three build phases are merged on `development`: P0 keeps the facts a card needs, P1 puts the card on the Work Item page, and P2 adds life in production. Their ADRs still have the status `proposed`. Later phases (cracks and mends, epics, all skins and full ceremony) are not started. The Vloer side of Binders, Packs and seasons is built against fixtures, waiting for Ploeg's card list.
+The first three build phases are merged on `development`: P0 keeps the facts a card needs, P1 puts the card on the Work Item page, and P2 adds life in production. Their ADRs still have the status `proposed`. Later phases (cracks and mends, epics and full ceremony) are not started; the skins are built and draw grades, cracks and sets when a card carries them. The Vloer side of Binders, Packs and seasons is built against fixtures, waiting for Ploeg's card list.
 
 | Part | State | Where it is recorded |
 | --- | --- | --- |
 | Ploeg keeps every usage figure a harness reports, and every merge and review fact a forge reports | Built; its ADR is still proposed | [Ploeg ADR-0045](../../apps/ploeg/docs/adrs/0045-keep-run-usage-and-merge-facts.md) |
 | One card per Work Item, assembled from stored facts: state, Plays, Steward (fallback rule), Roster (merger and reviewer), agent crew, totals, events, diff size and CI | Built; ADR proposed | [Ploeg ADR-0046](../../apps/ploeg/docs/adrs/0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md) |
-| Card style chosen per Work Target (`cardStyle`) | Built; only the Vloer Native skin exists | Ploeg ADR-0046, Vloer ADR 0026 |
+| Card style chosen per Work Target (`cardStyle`) | Built; seven skins: Vloer Native, the 3D forge skin and five DOM skin packs | Ploeg ADR-0046, Vloer ADR 0026 and 0028 |
 | A generic deploy endpoint, deployments per environment and the release time | Built; ADR proposed | [Ploeg ADR-0047](../../apps/ploeg/docs/adrs/0047-ploeg-learns-where-a-merged-change-is-deployed-from-a-generic-deploy-endpoint.md) |
 | Usage so far while a Run is running | Built; ADR proposed | [Ploeg ADR-0049](../../apps/ploeg/docs/adrs/0049-a-run-card-reads-the-gateway-for-usage-so-far-while-a-run-is-running.md) |
 | The `<unfold-card>` runtime, the Vloer Native skin, the card on the Work Item page, days live, the finish ladder and a demo card | Built; ADR proposed | [Vloer ADR 0026](../../apps/vloer/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md) |
 | Rarity | **Open**; Ploeg sends `null` | |
 | Binders, Packs with published odds and stored cosmetic pulls, the pack ceremony and team season pages | Vloer side built against the card contract and fixtures; ADR proposed; Ploeg's card list built in parallel | [Vloer ADR 0029](../../apps/vloer/docs/adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md) |
-| Grade, condition (Cracks and Mends), level, Gates and Bounces, Roster roles and copies, the Steward rule, Set Cards, themes, more skins, the effects director, retention | **Proposed** | This page |
+| Grade, condition (Cracks and Mends), level, Gates and Bounces, Roster roles and copies, the Steward rule, Set Cards, themes, the effects director, retention | **Proposed** | This page |
 
 To make a project count days live from real deploys, see [Send deploys from a pipeline to Ploeg](../../apps/ploeg/docs/how-to/send-deploys-from-a-pipeline.md). Until a project reports deploys, the release counts from the merge, and the card says so.
 
@@ -194,7 +194,7 @@ The [works council and DPIA pack](../reference/run-cards-works-council-pack.md) 
 
 ## Looks and motion
 
-A **Skin** changes how a card looks and moves, never its numbers or where they sit, so any card reads the same anywhere. A Work Target picks its skin in Ploeg's `cardStyle`. Vloer Native is the only skin built; Holo Rarity, Loot Drop, Arcade Cabinet, Ticker Terminal and Mission Patch are proposed, with per-client themes on top. Proposed ceremony rules scale effects inversely to how often an event happens. They cap full-screen moments at one per 10 minutes and never interrupt typing. Every effect can be skipped, and flashes stay within WCAG limits, with no red flashes ([holo and game feel](../../apps/vloer/docs/research/2026-10-01-run-card-holo-and-game-feel.md)).
+A **Skin** changes how a card looks and moves, never its numbers or where they sit, so any card reads the same anywhere. A Work Target picks its skin in Ploeg's `cardStyle`. Seven skins are built: Vloer Native, the 3D forge skin ([Vloer ADR 0028](../../apps/vloer/docs/adrs/0028-the-forge-skin-renders-run-cards-in-3d-with-vendored-three-js.md)), and Holo Rarity, Loot Drop, Arcade Cabinet, Ticker Terminal and Mission Patch ([Vloer ADR 0026](../../apps/vloer/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md)). None of them shows rarity. Each plays small moments inside the card when its facts change, such as a signature, a merge, a new finish, a crack or a mend, and holds still when the reader asks for reduced motion. Per-client themes on top are proposed. Proposed ceremony rules scale effects inversely to how often an event happens. They cap full-screen moments at one per 10 minutes and never interrupt typing. Every effect can be skipped, and flashes stay within WCAG limits, with no red flashes ([holo and game feel](../../apps/vloer/docs/research/2026-10-01-run-card-holo-and-game-feel.md)).
 
 ## Decisions
 
