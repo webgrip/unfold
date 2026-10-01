@@ -1,6 +1,6 @@
 [tools]
 node = "24.19.0"
-go = "1.25.0"
+go = "1.27.1"
 helm = "4.2.4"
 uv = "0.12.12"
 "npm:@fission-ai/openspec" = "1.6.0"
