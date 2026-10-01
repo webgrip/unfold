@@ -43,3 +43,12 @@ test('every redirect lands on a registered view', () => {
     assert(findRoute(registry, parseHash(target).path), `${old} → ${target} has no view`);
   }
 });
+
+test('a Run link carries the Work Item and the Run id, and an old Ploeg Work Item link keeps both', () => {
+  assert.deepEqual(parseHash('#work/105?run=14'), { path: 'work/105', query: { run: '14' } });
+  assert.equal(buildHash('work/105', { run: '14' }), 'work/105?run=14');
+  assert.deepEqual(parseHash(buildHash('work/105', { run: '14' })).query, { run: '14' });
+  assert.equal(redirect('#ploeg/105?run=14'), 'work/105?run=14', 'an old Work Item link keeps its Run');
+  assert.equal(redirect('#work/105?run=14'), null, 'a Run link needs no redirect');
+});
+

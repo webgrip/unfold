@@ -13,11 +13,12 @@ import '../cards/glide-card.js';
 
 const lanes = ploegLanes.map(lane => lane.id);
 const itemPath = /^work\/([1-9][0-9]{0,19})$/;
+const runPath = /^[1-9][0-9]{0,19}$/;
 const liveInterval = 30000;
 const reviewFactLimit = 12;
-const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0 };
+const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0 };
 
-onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1 }));
+onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1 }));
 
 const laneOfState = { needs_human: 'needs_human', awaiting_review: 'awaiting_review', leased: 'leased', queued: 'queued' };
 const laneFor = item => laneOfState[item?.state] || 'all';
@@ -60,6 +61,8 @@ function model() {
     trackerUrl: state.ploeg?.trackerUrl,
     reviewFacts: Object.fromEntries(work.reviewFacts),
     demoMode: state.bootstrap?.mode === 'demo',
+    grafanaUrl: state.bootstrap?.observability?.grafanaUrl,
+    runNotice: work.runNotice,
     now: Date.now(),
     card: work.card?.id === work.detailId ? work.card.data : null,
   };
@@ -108,6 +111,24 @@ function renderWork() {
   syncPane();
   revealSelected();
   observeActions();
+}
+
+function revealPendingRun() {
+  const runId = work.pendingRun;
+  if (!runId || !work.detailId || state.ploegDetail?.item.id !== work.detailId) return;
+  work.pendingRun = null;
+  if (!(state.ploegDetail.runs || []).some(run => String(run.id) === runId)) {
+    work.runNotice = `Run ${runId} is not on this Work Item.`;
+    renderWork();
+    return;
+  }
+  const run = document.getElementById(`work-run-${runId}`);
+  if (!run) return;
+  const more = run.closest('details:not(.work-run)');
+  if (more) more.open = true;
+  run.open = true;
+  run.scrollIntoView({ block: 'start', behavior: motion() });
+  run.querySelector('summary')?.focus({ preventScroll: true });
 }
 
 function hydrateCard(previous, focusKey) {
@@ -340,6 +361,9 @@ async function enterWork({ id, query = {} } = {}) {
   work.team = team;
   if (!previous && id) work.listScroll = window.scrollY;
   work.detailId = id || null;
+  const sameDetail = id === previous && state.ploegDetail?.item.id === id && !state.ploegDetailError;
+  work.pendingRun = id && runPath.test(String(query.run ?? '')) ? String(query.run) : null;
+  if (!work.pendingRun || !sameDetail) work.runNotice = '';
   if (chosen) keepFiltersInHash();
   if (!id) { state.ploegDetailLoading = false; state.ploegDetailError = ''; work.revealedId = null; }
   const listReady = within && !teamChanged && state.ploeg && work.loadedTeam === team;
@@ -351,11 +375,13 @@ async function enterWork({ id, query = {} } = {}) {
     renderWork();
     if (id) focusTitle();
     else if (previous) restoreListPosition(previous);
+    revealPendingRun();
     void loadReviewFacts();
     return;
   }
   await Promise.all(loads);
   if (!id && previous) restoreListPosition(previous);
+  else if (id) revealPendingRun();
 }
 
 function restoreListPosition(id) {
@@ -408,6 +434,15 @@ function closeDetail() {
 
 async function copyLink(button) {
   const url = `${location.origin}${location.pathname}#work/${button.dataset.id}`;
+  try { await navigator.clipboard.writeText(url); notify('Link copied'); }
+  catch { notify(`Copy did not work. The link is ${url}`, true); }
+}
+
+async function copyRunLink(button) {
+  const workItem = button.dataset.workItem || work.detailId;
+  const runId = button.dataset.id;
+  if (!workItem || !runId) return;
+  const url = `${location.origin}${location.pathname}#work/${workItem}?run=${encodeURIComponent(runId)}`;
   try { await navigator.clipboard.writeText(url); notify('Link copied'); }
   catch { notify(`Copy did not work. The link is ${url}`, true); }
 }
@@ -542,6 +577,7 @@ export default {
     'ploeg-more': () => loadMore(),
     'work-detail-retry': () => work.detailId && loadDetail(work.detailId, { fresh: true }),
     'work-copy-link': copyLink,
+    'work-copy-run': copyRunLink,
     'work-copy-ref': copyRef,
     'work-cancel': () => work.cancelBusy ? null : openCancel(),
     'work-brief': () => toggleBrief(),

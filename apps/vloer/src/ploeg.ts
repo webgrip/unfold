@@ -524,6 +524,38 @@ export class PloegClient {
     const decided = { workItemId, team: typeof result.team === 'string' ? result.team : current.item.team, state: token(result.state), demo: false };
     return decision === 'cancel' ? { ...decided, ...cancellation(result) } : decided;
   }
+  /**
+   * Tells Ploeg where this Vloer is, with `PUT /api/v1/operator/consumer {"vloerUrl"}`. It runs only in live
+   * mode with Ploeg configured and an https `baseUrl`, and retries with backoff from one minute up to one hour
+   * until Ploeg answers 204. A 404 means Ploeg predates the endpoint: it is logged once and the retries stop.
+   * A demo announces nothing.
+   * @param baseUrl
+   */
+  announce(baseUrl: string | undefined): void {
+    if (this.demo || !this.config || !baseUrl || !baseUrl.startsWith('https://')) return;
+    let url: URL;
+    try { url = new URL(baseUrl); } catch { return; }
+    const vloerUrl = url.href.replace(/\/+$/, '');
+    if (!vloerUrl || vloerUrl.length > 2048) return;
+    void this.announceLoop(vloerUrl);
+  }
+  private async announceLoop(vloerUrl: string): Promise<void> {
+    let wait = 60_000;
+    for (;;) {
+      let status = 0;
+      try {
+        const token = this.config!.tokenEnv ? process.env[this.config!.tokenEnv] : undefined;
+        if (!token || token.length > 4096 || /[^\x21-\x7e]/.test(token)) throw new PloegError(503, 'ploeg_credential', 'The Ploeg operator credential is unavailable. An administrator must check the connection.');
+        const response = await fetch(`${this.config!.url}/api/v1/operator/consumer`, { method: 'PUT', headers: { accept: 'application/json', authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ vloerUrl }), signal: AbortSignal.timeout(5000), redirect: 'manual' });
+        status = response.status;
+        await response.body?.cancel().catch(() => undefined);
+      } catch { status = 0; }
+      if (status === 204) return;
+      if (status === 404) { console.error(JSON.stringify({ level: 'warn', event: 'ploeg.consumer_unsupported', message: 'This Ploeg version does not accept a Vloer URL. Update Ploeg to link back to this workbench.' })); return; }
+      await new Promise(resolve => setTimeout(resolve, wait));
+      wait = Math.min(wait * 2, 3_600_000);
+    }
+  }
   private remember(id: string, title: string): void {
     if (!title) return;
     if (this.titles.size >= 2000) this.titles.delete(this.titles.keys().next().value!);

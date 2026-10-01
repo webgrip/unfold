@@ -19,6 +19,33 @@ export function observabilityLinks(session, request) {
   return links.filter(Boolean).join(' ');
 }
 
+const loopDashboard = 'glide-loop';
+const runDashboard = 'dark-factory-run-explorer';
+
+/**
+ * A Grafana link to the loop dashboard for one Team, or null without a configured Grafana URL. The dashboard
+ * uid is a constant here, so no setting beyond `observability.grafanaUrl` is needed.
+ * @param {string} team
+ * @param {string} [grafanaUrl] Defaults to the configured `observability.grafanaUrl`.
+ * @returns {string | null}
+ */
+export function grafanaTeam(team, grafanaUrl = state.bootstrap?.observability?.grafanaUrl) {
+  const base = safeUrl(grafanaUrl);
+  return base && team ? `${base.replace(/\/$/, '')}/d/${loopDashboard}?var-team=${encodeURIComponent(team)}` : null;
+}
+
+/**
+ * A Grafana link to the run explorer for one Run's key alias, or null without a configured Grafana URL or an
+ * alias.
+ * @param {string} alias
+ * @param {string} [grafanaUrl] Defaults to the configured `observability.grafanaUrl`.
+ * @returns {string | null}
+ */
+export function runExplorer(alias, grafanaUrl = state.bootstrap?.observability?.grafanaUrl) {
+  const base = safeUrl(grafanaUrl);
+  return base && alias ? `${base.replace(/\/$/, '')}/d/${runDashboard}?var-run=${encodeURIComponent(alias)}` : null;
+}
+
 /** Renders links to the configured Grafana dashboards. */
 export function dashboardLinks() {
   const o = state.bootstrap.observability;

@@ -4,6 +4,7 @@ import * as format from './core/format.js';
 import { runOutcome, verdict as verdictMeta, failureReason, workItemState, tileDetail, unreportedOutcome } from './core/states.js';
 import { listReason, reasonGlyph, routingWarning, needsYouBlocks } from './core/reasons.js';
 import { workItemRef, reasonBand } from './ploeg.js';
+import { grafanaTeam } from './core/observability.js';
 import { badge, button, callout, count, emptyState, iconButton, kbd, listRow, meter, skeleton, stat, demoNote, ploegUnconfigured } from './core/ui.js';
 
 /** How long the Now page must be out of sight before the digest starts a new "since" period. */
@@ -165,11 +166,6 @@ export function byFinish(runs) {
   return (runs || []).map((run, index) => ({ run, index, at: moment(run.finishedAt) })).sort((a, b) => (b.at ?? -Infinity) - (a.at ?? -Infinity) || a.index - b.index).map(entry => entry.run);
 }
 
-function grafanaTeam(grafanaUrl, team) {
-  const base = safeUrl(grafanaUrl);
-  return base ? `${base.replace(/\/$/, '')}/d/glide-loop?var-team=${encodeURIComponent(team)}` : null;
-}
-
 function repository(target) {
   if (!target?.repo) return null;
   const full = target.owner ? `${target.owner}/${target.repo}` : target.repo;
@@ -247,7 +243,7 @@ function waitingActions(entry, context, reason) {
   const links = [];
   const tracker = safeUrl(entry.url);
   if (tracker) links.push(linkIcon(`now-tracker-${entry.id}`, tracker, 'external', `Open “${title}” in the tracker`));
-  const grafana = reason && infrastructure.has(reason.code) ? grafanaTeam(context.grafanaUrl, entry.team) : null;
+  const grafana = reason && infrastructure.has(reason.code) ? grafanaTeam(entry.team, context.grafanaUrl) : null;
   if (grafana) links.push(linkIcon(`now-grafana-${entry.id}`, grafana, 'activity', `Open Grafana for the ${entry.team} Team`));
   return `<div class="now-item-actions"${primary ? ' data-primary' : ''}><span class="now-action-primary">${primary}</span><span class="now-action-links">${links.join('')}</span></div>`;
 }
