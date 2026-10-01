@@ -118,6 +118,8 @@ export const en = {
   cta: {
     title: 'Read the code, or see it work',
     text: 'The demo starts Ploeg, Vloer and PostgreSQL on your machine and repairs a small fixture repository. It is deterministic: it makes no model calls and needs no credentials, so it costs nothing.',
+    replay:
+      'Or click through a recorded replay of Vloer’s deterministic demo in your browser. Nothing runs there: no model calls, no spend.',
   },
   footer: {
     summary: 'Unfold turns Work Items into pull requests that are ready for human review.',

@@ -119,6 +119,8 @@ export const nl: Dictionary = {
   cta: {
     title: 'Lees de code, of kijk hoe het werkt',
     text: 'De demo start Ploeg, Vloer en PostgreSQL op je eigen machine en repareert een kleine testrepository. Hij is deterministisch: hij roept geen model aan en heeft geen toegangsgegevens nodig, dus hij kost niets.',
+    replay:
+      'Of klik in je browser door een opname van de deterministische demo van Vloer. Daar draait niets: geen modelaanroepen, geen kosten.',
   },
   footer: {
     summary: 'Unfold maakt van Work Items pull requests die klaarliggen voor review door een mens.',

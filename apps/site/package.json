@@ -16,7 +16,8 @@
   "packageManager": "pnpm@12.8.1",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build && webgrip-validate-csp",
+    "build": "node scripts/build-demo.mjs && astro build && webgrip-validate-csp",
+    "demo:build": "node scripts/build-demo.mjs",
     "preview": "astro preview",
     "astro": "astro",
     "typecheck": "astro check",
