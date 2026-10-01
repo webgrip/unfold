@@ -283,12 +283,16 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         }
         if (path === '/api/ploeg' || path.startsWith('/api/ploeg/')) {
           const decision = /^\/api\/ploeg\/work-items\/([^/]+)\/(approve|reject|cancel)$/.exec(path);
-          if (method !== 'GET' && !(method === 'POST' && decision)) fault(405, 'method', 'Ploeg operator views are read-only except Work Item decisions.');
+          const attribution = /^\/api\/ploeg\/work-items\/([^/]+)\/(cracks|evolved)$/.exec(path);
+          const crackStep = /^\/api\/ploeg\/work-items\/([^/]+)\/cracks\/([^/]+)\/(confirm|dispute|resolve)$/.exec(path);
+          if (method !== 'GET' && !(method === 'POST' && (decision || attribution || crackStep))) fault(405, 'method', 'Ploeg operator views are read-only except Work Item decisions and crack attributions.');
           try {
-            if (decision) {
+            if (method === 'POST' && (decision || attribution || crackStep)) {
               if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot change Ploeg work.');
               const data = await body(req);
-              return json(res, 200, sanitize(await ploeg.decide(user, decision[1], decision[2] as PloegDecision, typeof data.reason === 'string' ? data.reason : '')));
+              if (decision) return json(res, 200, sanitize(await ploeg.decide(user, decision[1], decision[2] as PloegDecision, typeof data.reason === 'string' ? data.reason : '')));
+              if (attribution) return json(res, attribution[2] === 'cracks' ? 201 : 200, sanitize(await ploeg.attribute(user, attribution[1], attribution[2] === 'cracks' ? 'propose' : 'evolved', data)));
+              return json(res, 200, sanitize(await ploeg.decideCrack(user, crackStep![1], crackStep![2], crackStep![3] as 'confirm' | 'dispute' | 'resolve', data)));
             }
             const fresh = url.searchParams.get('refresh') === '1';
             const optional = (name: string) => url.searchParams.get(name) || undefined;
@@ -302,6 +306,10 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             if (path === '/api/ploeg/work-items') return json(res, 200, sanitize(await ploeg.items(user, text(url.searchParams.get('team'), 'Team', 100), (url.searchParams.get('state') ?? 'all') as PloegState | 'all', url.searchParams.get('after') ?? '0', fresh)));
             const card = /^\/api\/ploeg\/work-items\/([^/]+)\/card$/.exec(path);
             if (card) return json(res, 200, sanitize(await ploeg.card(user, card[1], fresh)));
+            const candidates = /^\/api\/ploeg\/work-items\/([^/]+)\/crack-candidates$/.exec(path);
+            if (candidates) return json(res, 200, sanitize(await ploeg.crackCandidates(user, candidates[1], fresh)));
+            const cracks = /^\/api\/ploeg\/work-items\/([^/]+)\/cracks$/.exec(path);
+            if (cracks) return json(res, 200, sanitize(await ploeg.cracks(user, cracks[1], fresh)));
             const match = /^\/api\/ploeg\/work-items\/([^/]+)$/.exec(path);
             if (match) return json(res, 200, sanitize(await ploeg.detail(user, match[1], fresh)));
             fault(404, 'not_found', 'Ploeg operator view not found.');

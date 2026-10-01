@@ -100,6 +100,14 @@ function releaseLine(view) {
   return release.reported ? 'Not released' : 'Releases not reported';
 }
 
+function gatesLine(gates, evolved) {
+  if (!gates) return '';
+  const counted = gates.bounces.filter(entry => entry.counts).length;
+  const back = gates.bounces.length ? `${gates.bounces.length} back${counted < gates.bounces.length ? ` (${[...new Set(gates.bounces.map(entry => entry.reasonText.toLowerCase()))].join(', ')})` : ''}` : '';
+  const first = gates.rightFirstTime?.state === 'yes' ? 'right first time' : '';
+  return [gates.current.label, first, back, evolved ? 'evolved' : ''].filter(Boolean).join(' · ');
+}
+
 function gradeWord(grade) {
   if (!grade) return '';
   if (grade.labelKey === 'black') return 'BLACK LABEL';
@@ -133,7 +141,9 @@ export function faceFacts(view) {
       ['Diff', view.diff?.value ?? 'Not reported'],
       ['Run time', view.runTime?.value ?? 'Not reported'],
       ['Live', releaseLine(view)],
+      ...(view.gates ? [['Gates', gatesLine(view.gates, view.evolved)]] : []),
     ],
+    set: view.set ? { symbol: view.set.symbol, text: view.set.text, complete: view.set.complete } : null,
     grade: grade ? { text: grade.text, word: gradeWord(grade), qualifiers: grade.qualifiers.map(entry => entry.code).join(' '), subgrades: grade.subgrades.map(entry => `${entry.short} ${entry.text}`).join(' · '), formula: grade.formula, label: grade.labelKey } : null,
     steward: { signed: Boolean(view.steward?.signed), name: view.steward?.name ?? '', detail: view.steward?.detail ?? '' },
     ids: (view.ids ?? []).join(' · '),
@@ -149,5 +159,5 @@ export function faceFacts(view) {
 
 /** A string that changes whenever anything the forge paints changes, so a refresh with the same facts repaints nothing. */
 export function factsSignature(facts) {
-  return JSON.stringify([facts.title, facts.sub, facts.coin, facts.state, facts.condition, facts.finishLine, facts.rows, facts.grade, facts.steward, facts.ids, facts.demoLine, facts.coverage.key, facts.pattern.key, facts.art.key]);
+  return JSON.stringify([facts.title, facts.sub, facts.coin, facts.state, facts.condition, facts.finishLine, facts.rows, facts.set, facts.grade, facts.steward, facts.ids, facts.demoLine, facts.coverage.key, facts.pattern.key, facts.art.key]);
 }

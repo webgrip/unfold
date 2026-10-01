@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { PloegActivityEvent, PloegCard, PloegCardCondition, PloegCardDeployment, PloegCardGrade, PloegCardPlay, PloegCheckpoint, PloegDetail, PloegEvent, PloegItem, PloegRun, PloegRunRow, PloegShift, PloegTeam, PloegTeamSummary, PloegWindow } from './ploeg.ts';
+import type { PloegActivityEvent, PloegCard, PloegCardCondition, PloegCardGates, PloegCrack, PloegCrackCandidates, PloegGate, PloegCardDeployment, PloegCardGrade, PloegCardPlay, PloegCheckpoint, PloegDetail, PloegEvent, PloegItem, PloegRun, PloegRunRow, PloegShift, PloegTeam, PloegTeamSummary, PloegWindow } from './ploeg.ts';
 
 const anchor = Math.floor(Date.now() / 60_000) * 60_000;
 const ago = (minutes: number) => new Date(anchor - minutes * 60_000).toISOString().replace('.000Z', 'Z');
@@ -33,11 +33,11 @@ type ItemSpec = Partial<PloegItem> & Pick<PloegItem, 'id' | 'externalId' | 'titl
 const day = 1440;
 type ShowcaseSpec = { item: string; days: number; number: number };
 const showcases: ShowcaseSpec[] = [];
-function showcase(id: string, title: string, days: number, graded = false): ItemSpec[] {
+function showcase(id: string, title: string, days: number, samples: string[] = []): ItemSpec[] {
   const number = 10 + showcases.length;
   showcases.push({ item: id, days, number });
   const merged = (days + 2) * day + 300;
-  return [{ id, externalId: `DEMO-${Number(id) - 100}`, title, state: 'done', attempts: 1, created: merged + 2 * day, updated: merged, description: `Illustrative merged Work Item that shows a Run card after ${days} days live. Its Runs predate the demo's history and its deploys${graded ? ', grade and cracks' : ''} are sample data. No dispatch or model calls occurred.` }];
+  return [{ id, externalId: `DEMO-${Number(id) - 100}`, title, state: 'done', attempts: 1, created: merged + 2 * day, updated: merged, description: `Illustrative merged Work Item that shows a Run card after ${days} days live. Its Runs predate the demo's history and its ${['deploys', 'gates', ...samples].join(', ').replace(/, ([^,]*)$/, ' and $1')} are sample data. No dispatch or model calls occurred.` }];
 }
 const itemSpecs: ItemSpec[] = [
   { id: '101', externalId: 'DEMO-1', title: 'Review the rounding acceptance criteria', state: 'needs_human', priority: 2, attempts: 1, created: 1400, updated: 1330 },
@@ -57,25 +57,72 @@ const itemSpecs: ItemSpec[] = [
   { id: '115', provider: 'vikunja', externalId: 'DEMO-15', title: 'Rename the Buy now button to Place order', state: 'withdrawn', attempts: 0, created: 250, updated: 240, description: '<p>Rename the <strong>Buy now</strong> button to <strong>Place order</strong> on the checkout page.</p><p><em>Illustrative Vikunja-style task. It was unassigned before any Run started.</em></p>' },
   { id: '116', provider: 'ploeg', externalId: 'run-27-1', team: 'research', target: studies, title: 'Split the competitor table into its own brief', state: 'done', created: 1800, updated: 1500, description: 'Illustrative proposal an agent could make while drafting DEMO-11. A person rejected it. It is sample data.', sourceWorkItemId: '111', createdKind: 'split', ready: true },
   ...showcase('117', 'Show the order number in the confirmation email subject', 9),
-  ...showcase('118', 'Validate postcodes on the shipping address form', 41),
-  ...showcase('119', 'Cache the product price lookup for the cart', 118, true),
-  ...showcase('120', 'Add an audit log entry when an order is refunded', 205, true),
+  ...showcase('118', 'Validate postcodes on the shipping address form', 41, ['cracks']),
+  ...showcase('119', 'Cache the product price lookup for the cart', 118, ['grade', 'cracks']),
+  ...showcase('120', 'Add an audit log entry when an order is refunded', 205, ['grade', 'cracks']),
   ...showcase('121', 'Return 404 instead of 500 for unknown order ids', 412),
-  ...showcase('122', 'Rate-limit the order webhook per merchant', 400, true),
-  ...showcase('123', 'Attach the invoice PDF to the shipping confirmation', 63, true),
+  ...showcase('122', 'Rate-limit the order webhook per merchant', 400, ['grade', 'cracks']),
+  ...showcase('123', 'Attach the invoice PDF to the shipping confirmation', 63, ['grade', 'cracks']),
+  { id: '124', externalId: 'DEMO-24', title: 'A postcode with a space makes the shipping form answer 500', state: 'done', attempts: 0, created: 6 * day, updated: 2 * day, description: 'Illustrative bug Work Item: a person fixed it in pull request #24. Its fix, the candidate causes Ploeg would list and the attributions on it are sample data, so the Trace this bug panel has something to show. No dispatch or model calls occurred.' },
+  { id: '125', externalId: 'DEMO-25', title: 'Checkout and confirmation hardening', state: 'done', attempts: 0, created: 420 * day, updated: 3 * day, description: 'Illustrative epic: its card lists the set of Work Items the tracker named as its children before their first Shift. An epic carries no pull request of its own. The set is sample data; no dispatch or model calls occurred.' },
 ];
 
 const forgeCards = new Set(['105', '117', '119', '120', '122', '123']);
+const notCollectedInputs = ['durability.survival', 'review.ciFirstGreen', 'review.findings'];
+type InputSpec = { weight: number; reverted?: boolean; days: number; reverts?: number; hotfixes?: number; budget?: number | null; defects: number; plays?: number; failed?: number; changes?: number; rounds: number };
+const gradeInputs = (spec: InputSpec): NonNullable<PloegCardGrade['inputs']> => ({
+  reliability: { crackWeight: spec.weight, reverted: spec.reverted ?? false },
+  durability: { daysLive: spec.days, liveSince: ago(spec.days * day + 300), reverts: spec.reverts ?? 0, hotfixes: spec.hotfixes ?? 0, survival: null },
+  delivery: { budgetShare: spec.budget ?? null, defectBounces: spec.defects, extraPlays: spec.plays ?? 0, failedRuns: spec.failed ?? 0 },
+  review: { ciFirstGreen: null, findings: null, changeRequests: spec.changes ?? 0, reviewRounds: spec.rounds },
+  notCollected: notCollectedInputs,
+});
 const demoGrades: Record<string, PloegCardGrade> = {
-  '119': { formula: '2026.1', overall: 8.5, provisional: true, subgrades: { reliability: 8, durability: 9, delivery: 8.5, review: 8 }, label: null, qualifiers: [] },
-  '120': { formula: '2026.1', overall: 9.5, provisional: false, subgrades: { reliability: 9.5, durability: 10, delivery: 9, review: 9 }, label: null, qualifiers: [] },
-  '122': { formula: '2026.1', overall: 10, provisional: false, subgrades: { reliability: 10, durability: 10, delivery: 10, review: 10 }, label: 'black', qualifiers: [] },
-  '123': { formula: '2026.1', overall: 8.5, provisional: true, subgrades: { reliability: 10, durability: 8, delivery: 7.5, review: 8.5 }, label: null, qualifiers: ['RT'] },
+  '119': { formula: '2026.2', overall: 8.5, provisional: true, subgrades: { reliability: 8, durability: 9, delivery: 8.5, review: 8 }, label: null, qualifiers: [], inputs: gradeInputs({ weight: 2, days: 118, defects: 0, plays: 1, changes: 2, rounds: 2 }) },
+  '120': { formula: '2026.2', overall: 9.5, provisional: false, subgrades: { reliability: 9.5, durability: 10, delivery: 9, review: 9 }, label: null, qualifiers: [], inputs: gradeInputs({ weight: 0.25, days: 205, defects: 0, failed: 1, changes: 1, rounds: 2 }) },
+  '122': { formula: '2026.2', overall: 10, provisional: false, subgrades: { reliability: 10, durability: 10, delivery: 10, review: 10 }, label: 'black', qualifiers: [], inputs: gradeInputs({ weight: 0, days: 400, defects: 0, rounds: 1 }) },
+  '123': { formula: '2026.2', overall: 8.5, provisional: true, subgrades: { reliability: 10, durability: 8, delivery: 7.5, review: 8.5 }, label: null, qualifiers: ['RT'], inputs: gradeInputs({ weight: 0, days: 63, defects: 1, failed: 1, changes: 1, rounds: 2 }) },
 };
+const workdaysLater = (minutes: number, workdays: number) => { let at = anchor - minutes * 60_000; for (let left = workdays; left > 0;) { at += 86_400_000; const weekday = new Date(at).getUTCDay(); if (weekday !== 0 && weekday !== 6) left--; } return new Date(at).toISOString().replace('.000Z', 'Z'); };
+const bugRef = { workItemId: '124', ref: 'DEMO-24', title: 'A postcode with a space makes the shipping form answer 500' };
+const bugMend = { at: ago(2 * day + 60), by: 'demo-dev', pr: 24, bySteward: false, confirmedAt: null };
 const demoConditions: Record<string, PloegCardCondition> = {
-  '119': { state: 'cracked', cracks: [{ id: 'demo-crack-119', bug: { workItemId: null, ref: 'DEMO-31', title: 'Cart total keeps the cached price after a currency switch' }, severity: 'S2', share: 'primary', discovery: 'discovered', proposedAt: ago(9 * day), confirmedAt: ago(8 * day), confirmedBy: ['demo-operator', 'demo-reviewer'], disputed: false, mended: null }] },
-  '120': { state: 'mended', cracks: [{ id: 'demo-crack-120', bug: { workItemId: null, ref: 'DEMO-32', title: 'Refund audit entry missed partial refunds' }, severity: 'S3', share: 'primary', discovery: 'self', proposedAt: ago(60 * day), confirmedAt: ago(59 * day), confirmedBy: ['demo-operator', 'demo-reviewer'], disputed: false, mended: { at: ago(55 * day), by: 'demo-operator', pr: 68, bySteward: true } }] },
+  '118': { state: 'cracked', cracks: [{ id: '7101', bug: bugRef, severity: 'S3', share: 'primary', discovery: 'discovered', proposedAt: ago(2 * day), confirmedAt: ago(day), confirmedBy: ['demo-dev', 'demo-tester'], disputed: false, weight: 1, warranty: 'full', mended: bugMend }] },
+  '119': { state: 'cracked', cracks: [{ id: 'demo-crack-119', bug: { workItemId: null, ref: 'DEMO-31', title: 'Cart total keeps the cached price after a currency switch' }, severity: 'S2', share: 'primary', discovery: 'discovered', proposedAt: ago(9 * day), confirmedAt: ago(8 * day), confirmedBy: ['demo-operator', 'demo-reviewer'], disputed: false, weight: 2, warranty: 'full', mended: null }] },
+  '120': { state: 'mended', cracks: [{ id: 'demo-crack-120', bug: { workItemId: null, ref: 'DEMO-32', title: 'Refund audit entry missed partial refunds' }, severity: 'S3', share: 'primary', discovery: 'self', proposedAt: ago(60 * day), confirmedAt: ago(59 * day), confirmedBy: ['demo-operator', 'demo-reviewer'], disputed: false, weight: 0.25, warranty: 'full', mended: { at: ago(55 * day), by: 'demo-operator', pr: 68, bySteward: true, confirmedAt: ago(25 * day) } }] },
 };
+const mergers: Record<string, string> = { '121': 'demo-lead' };
+type GateVisit = [gate: PloegGate, minutes: number];
+type GateSpec = { visits: GateVisit[]; bounces?: { reason: string; actor: string }[] };
+const qa = 'demo-tester';
+const acceptor = 'demo-po';
+const flow = (merged: number, extra: GateVisit[] = []): GateVisit[] => [['development', merged + 3 * day], ...extra, ['test', merged], ['acceptance', merged - day / 2], ['done', merged - day]];
+const showcaseMerged = (id: string) => { const spec = showcases.find(entry => entry.item === id)!; return (spec.days + 2) * day + 300; };
+const demoGateSpecs: Record<string, GateSpec> = {
+  '105': { visits: [['development', 94], ['test', 50]] },
+  '114': { visits: [['development', 3000], ['test', 2700], ['acceptance', 2600], ['done', 2500]] },
+  '117': { visits: flow(showcaseMerged('117')) },
+  '118': { visits: (() => { const merged = showcaseMerged('118'); return [['development', merged + 5 * day], ['test', merged + 3 * day], ['development', merged + 2.5 * day], ['test', merged], ['acceptance', merged - day / 2], ['done', merged - day]] as GateVisit[]; })(), bounces: [{ reason: 'defect', actor: qa }] },
+  '119': { visits: (() => { const merged = showcaseMerged('119'); return [['development', merged + 4 * day], ['test', merged + 2 * day], ['acceptance', merged + day], ['development', merged + 0.8 * day], ['test', merged], ['acceptance', merged - day / 2], ['done', merged - day]] as GateVisit[]; })(), bounces: [{ reason: 'requirement', actor: acceptor }] },
+  '120': { visits: flow(showcaseMerged('120')) },
+  '121': { visits: flow(showcaseMerged('121')) },
+  '122': { visits: flow(showcaseMerged('122')) },
+  '123': { visits: (() => { const merged = showcaseMerged('123'); return [['development', merged + 5 * day], ['test', merged + 3 * day], ['development', merged + 2.6 * day], ['test', merged + day], ['acceptance', merged], ['test', merged - 0.2 * day], ['acceptance', merged - day / 2], ['done', merged - day]] as GateVisit[]; })(), bounces: [{ reason: 'defect', actor: qa }, { reason: 'environment', actor: acceptor }] },
+  '124': { visits: [['development', 5 * day], ['test', 2 * day + 60], ['acceptance', 1.5 * day], ['done', day]] },
+};
+const gateOrder: PloegGate[] = ['development', 'test', 'acceptance', 'done'];
+function demoGates(id: string): PloegCardGates | undefined {
+  const spec = demoGateSpecs[id];
+  if (!spec) return undefined;
+  const history = spec.visits.map(([gate, minutes], index) => ({ gate, enteredAt: ago(minutes), leftAt: index + 1 < spec.visits.length ? ago(spec.visits[index + 1][1]) : null }));
+  const backs = spec.visits.slice(1).map(([gate, minutes], index) => ({ from: spec.visits[index][0], to: gate, minutes })).filter(move => gateOrder.indexOf(move.to) < gateOrder.indexOf(move.from));
+  const bounces = backs.map((move, index) => ({ from: move.from, to: move.to, at: ago(move.minutes), reason: spec.bounces?.[index]?.reason ?? 'unknown', actor: spec.bounces?.[index]?.actor ?? '' }));
+  const entered = new Set(spec.visits.map(([gate]) => gate));
+  const rightFirstTime = Object.fromEntries((['test', 'acceptance', 'done'] as const).filter(gate => entered.has(gate)).map(gate => [gate, bounces.filter(bounce => bounce.from === gate && (bounce.reason === 'defect' || bounce.reason === 'unknown')).length]));
+  return { current: spec.visits.at(-1)![0], history, bounces, rightFirstTime };
+}
+const setEpic = '125';
+const setChildren = ['121', '118', '123', '117', '105'];
 
 const shifts = new Map(shiftSpecs.map(spec => {
   const item = itemSpecs.find(entry => entry.id === spec.item)!;
@@ -214,9 +261,10 @@ const playSpecs: PlaySpec[] = [
   { item: '114', number: 3, additions: 131, deletions: 9, changedFiles: 5, merged: { minutes: 2700, by: 'demo-operator', review: 2705 } },
   { item: '109', number: 7, additions: 36, deletions: 4, changedFiles: 2 },
   { item: '105', number: 5, additions: 48, deletions: 12, changedFiles: 3 },
+  { item: '124', number: 24, additions: 18, deletions: 6, changedFiles: 3, merged: { minutes: 2 * day + 60, by: 'demo-dev', review: 2 * day + 90 }, deploys: [['test', 2 * day], ['acceptance', 1.5 * day], ['production', day]] },
   ...showcases.map(({ item, days, number }, index): PlaySpec => {
     const released = days * day + 300;
-    return { item, number, additions: 24 + index * 37, deletions: 3 + index * 5, changedFiles: 2 + index, merged: { minutes: released + 2 * day, by: 'demo-operator', review: released + 2 * day + 45 }, deploys: [['test', released + 2 * day - 30], ['acceptance', released + day], ['production', released]] };
+    return { item, number, additions: 24 + index * 37, deletions: 3 + index * 5, changedFiles: 2 + index, merged: { minutes: released + 2 * day, by: mergers[item] ?? 'demo-operator', review: released + 2 * day + 45 }, deploys: [['test', released + 2 * day - 30], ['acceptance', released + day], ['production', released]] };
   }),
 ];
 const demoReviewer = 'demo-operator';
@@ -270,7 +318,7 @@ function demoCard(item: PloegItem): PloegCard {
     target: item.target ? { forge: item.target.forge, owner: item.target.owner, repo: item.target.repo } : null,
     style: { skin: forgeCards.has(item.id) ? 'forge' : 'vloer-native', theme: null }, state, rarity: null, finish: 'matte', grade: demoGrades[item.id] ?? null, condition: demoConditions[item.id] ?? null,
     steward: merged ? { name: merged.mergedBy, source: 'merged_by' } : null,
-    roster: merged ? [{ name: merged.mergedBy, roles: ['merger', 'reviewer'] }] : [],
+    roster: demoRoster(item.id, merged ?? null, plays),
     crew: roles.map(role => ({ role, writes: started.find(entry => roleOf(entry) === role)!.writes, runs: started.filter(entry => roleOf(entry) === role).length })),
     plays,
     totals: {
@@ -282,9 +330,53 @@ function demoCard(item: PloegItem): PloegCard {
     },
     events: timeline.sort((a, b) => b.minutes - a.minutes).map(entry => ({ at: ago(entry.minutes), kind: entry.kind, actor: entry.actor, detail: entry.detail })),
     ...demoRelease(ownPlays),
+    ...(demoGates(item.id) ? { gates: demoGates(item.id) } : {}),
+    ...(demoGateSpecs[item.id]?.bounces?.some(bounce => bounce.reason === 'requirement') ? { evolved: true as const } : {}),
+    ...(item.id === setEpic || setChildren.includes(item.id) ? { set: null } : {}),
     demo: true,
   };
 }
+function demoRoster(id: string, merged: PloegCardPlay | null, plays: PloegCardPlay[]): PloegCard['roster'] {
+  const roles = new Map<string, Set<string>>();
+  const mark = (name: string, role: string) => { if (!name) return; if (!roles.has(name)) roles.set(name, new Set()); roles.get(name)!.add(role); };
+  if (merged) mark(merged.mergedBy, 'merger');
+  for (const play of plays) for (const review of play.reviews) mark(review.reviewer, 'reviewer');
+  const visits = demoGateSpecs[id]?.visits ?? [];
+  if (visits.some(([gate], index) => gate === 'test' && visits[index + 1] && visits[index + 1][0] !== 'development')) mark(qa, 'qa');
+  if (visits.some(([gate], index) => gate === 'acceptance' && visits[index + 1]?.[0] === 'done')) mark(acceptor, 'acceptor');
+  for (const crack of demoConditions[id]?.cracks ?? []) if (crack.mended && !crack.mended.bySteward) mark(crack.mended.by, 'cosigner');
+  const order = ['merger', 'reviewer', 'qa', 'acceptor', 'cosigner'];
+  return [...roles].map(([name, held]) => ({ name, roles: order.filter(role => held.has(role)) }));
+}
+function demoSets(cards: Record<string, PloegCard>): void {
+  const epic = cards[setEpic];
+  const children = setChildren.map(id => cards[id]);
+  const settled = (card: PloegCard) => card.state === 'merged' && Boolean(card.release) && Date.parse(card.release!.at) <= anchor - 30 * 86_400_000;
+  const cracked = (card: PloegCard) => card.condition?.cracks.some(crack => !crack.mended?.confirmedAt) ?? false;
+  const complete = children.every(card => settled(card) && !cracked(card));
+  const epicRef = { workItemId: setEpic, ref: epic.externalRef, title: epic.title };
+  epic.set = { role: 'epic', epic: epicRef, position: null, size: children.length, children: children.map(card => ({ workItemId: card.workItemId, title: card.title, state: card.state, settled: settled(card), cracked: cracked(card) })), complete };
+  children.forEach((card, index) => { card.set = { role: 'child', epic: epicRef, position: index + 1, size: children.length, children: [], complete }; });
+}
 const cards: Record<string, PloegCard> = Object.fromEntries(items.map(item => [item.id, demoCard(item)]));
+demoSets(cards);
 
-export const ploegDemo = { teams, items, details, runs, events, summary, cards, pageSize: 10 };
+const crackItem = (id: string) => ({ workItemId: id, title: find(id).title, externalRef: find(id).externalId });
+const mergedPlay = (id: string) => cards[id].plays.find(play => play.state === 'merged')!;
+const cracks: PloegCrack[] = [
+  { id: '7101', team: 'delivery', state: 'confirmed', card: crackItem('118'), bug: crackItem('124'), play: mergedPlay('118').number, severity: 'S3', share: 'primary', discovery: 'discovered', steward: 'demo-operator', note: 'Illustrative: the postcode pattern from #11 rejects "1234 AB" with a space, and the form had no case for it.', proposedBy: 'demo-dev', proposedAt: ago(2 * day), confirmedBy: ['demo-dev', 'demo-tester'], confirmedAt: ago(day), disputeUntil: workdaysLater(day, 5), disputed: false, disputedBy: null, disputedAt: null, disputeReason: null, resolvedBy: null, resolvedAt: null, resolution: null, evolvedBy: null, evolvedAt: null, mended: { ...bugMend, reopenedAt: null } },
+  { id: '7102', team: 'delivery', state: 'proposed', card: crackItem('121'), bug: crackItem('124'), play: mergedPlay('121').number, severity: 'S4', share: 'contributing', discovery: 'discovered', steward: 'demo-lead', note: 'Illustrative: the unknown-id handler from #14 turns a validation error into a 500 instead of a 422.', proposedBy: 'demo-dev', proposedAt: ago(2 * day - 30), confirmedBy: [], confirmedAt: null, disputeUntil: null, disputed: false, disputedBy: null, disputedAt: null, disputeReason: null, resolvedBy: null, resolvedAt: null, resolution: null, evolvedBy: null, evolvedAt: null, mended: { ...bugMend, reopenedAt: null } },
+];
+const candidate = (id: string, sharedFiles: number, files: string[]): PloegCrackCandidates['candidates'][number] => {
+  const play = mergedPlay(id);
+  return { card: crackItem(id), play: play.number, repo: 'example/order-service', mergedAt: play.mergedAt!, mergedBy: play.mergedBy, sharedFiles, share: sharedFiles / 3, files, reverted: false, attribution: cracks.find(entry => entry.card.workItemId === id && entry.bug.workItemId === '124')?.state ?? null };
+};
+const crackCandidates: Record<string, PloegCrackCandidates> = {
+  '124': { bug: crackItem('124'), fixFiles: 3, fixFilesTruncated: false, since: ago(6 * day + 365 * day), until: ago(6 * day), candidates: [
+    candidate('118', 2, ['src/shipping/postcode.js', 'test/shipping/postcode.test.js']),
+    candidate('121', 1, ['src/orders/errors.js']),
+    candidate('120', 1, ['src/orders/errors.js']),
+  ] },
+};
+
+export const ploegDemo = { teams, items, details, runs, events, summary, cards, cracks, crackCandidates, pageSize: 10 };

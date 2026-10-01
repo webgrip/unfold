@@ -8,16 +8,17 @@ import { prefs } from '../core/prefs.js';
 import { plural } from '../core/format.js';
 import { singleKeyAllowed, isTyping } from '../core/keys.js';
 import { shell } from '../shell.js';
-import { enterPloegView } from './ploeg-common.js';
+import { enterPloegView, openPloegDialog } from './ploeg-common.js';
+import { stepDialogMarkup, stepOutcome, stepRequest } from '../core/attribution.js';
 import '../cards/unfold-card.js';
 
 const lanes = ploegLanes.map(lane => lane.id);
 const itemPath = /^work\/([1-9][0-9]{0,19})$/;
 const liveInterval = 30000;
 const reviewFactLimit = 12;
-const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0 };
+const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, trace: null, traceRequest: 0, traceBusy: false, traceResult: null };
 
-onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1 }));
+onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null }));
 
 const laneOfState = { needs_human: 'needs_human', awaiting_review: 'awaiting_review', leased: 'leased', queued: 'queued' };
 const laneFor = item => laneOfState[item?.state] || 'all';
@@ -62,6 +63,9 @@ function model() {
     demoMode: state.bootstrap?.mode === 'demo',
     now: Date.now(),
     card: work.card?.id === work.detailId ? work.card.data : null,
+    trace: work.trace?.id === work.detailId ? work.trace.data : null,
+    traceBusy: work.traceBusy,
+    traceResult: work.traceResult?.id === work.detailId ? work.traceResult : null,
   };
 }
 
@@ -273,8 +277,23 @@ async function loadCard(id, { fresh = false } = {}) {
   if (visible() && !state.ploegDetailLoading) renderWork();
 }
 
+async function loadTrace(id, { fresh = false } = {}) {
+  const request = ++work.traceRequest;
+  const query = fresh ? '?refresh=1' : '';
+  const base = `/api/ploeg/work-items/${encodeURIComponent(id)}`;
+  const [cracks, candidates] = await Promise.all([api(`${base}/cracks${query}`).catch(() => null), api(`${base}/crack-candidates${query}`).catch(() => null)]);
+  if (request !== work.traceRequest || work.detailId !== id) return;
+  const data = cracks ? { workItemId: id, cracks: cracks.cracks, viewer: cracks.viewer, demo: cracks.demo, candidates: candidates?.crackCandidates ?? null } : null;
+  if (!data && work.trace?.id === id && work.trace.data) return;
+  const next = signature(data);
+  if (work.trace?.id === id && work.trace.signature === next) return;
+  work.trace = { id, data, signature: next };
+  if (visible() && !state.ploegDetailLoading) renderWork();
+}
+
 async function loadDetail(id, { fresh = false, quiet = false } = {}) {
   void loadCard(id, { fresh });
+  void loadTrace(id, { fresh });
   const request = ++work.detailRequest;
   let changed = !quiet;
   if (!quiet) { state.ploegDetailLoading = true; state.ploegDetailError = ''; if (state.ploegDetail?.item.id !== id) state.ploegDetail = null; renderWork(); }
@@ -476,6 +495,86 @@ async function submitCancel(id) {
   }
 }
 
+function traceData() {
+  return work.trace?.id === work.detailId ? work.trace.data : null;
+}
+
+function openTraceStep(step, target, bug) {
+  const trace = traceData();
+  if (!trace || !target) return;
+  openPloegDialog(stepDialogMarkup(step, target, { bug, viewer: trace.viewer, demo: trace.demo }));
+}
+
+function traceBug() {
+  const item = state.ploegDetail?.item;
+  return item && item.id === work.detailId ? { workItemId: item.id, title: item.title || `Work Item ${item.id}` } : null;
+}
+
+function openPropose(button) {
+  const candidate = traceData()?.candidates?.candidates.find(entry => entry.card.workItemId === button.dataset.card);
+  openTraceStep('propose', candidate, traceBug());
+}
+
+function openEvolved(button) {
+  const trace = traceData();
+  if (!trace) return;
+  const crack = trace.cracks.find(entry => entry.id === button.dataset.crack);
+  const candidate = trace.candidates?.candidates.find(entry => entry.card.workItemId === button.dataset.card);
+  const bug = crack ? crack.bug : traceBug();
+  const title = crack?.card.title || candidate?.card.title || '';
+  openTraceStep('evolved', { card: button.dataset.card, bug: button.dataset.bug, crack: button.dataset.crack, title }, bug ? { workItemId: bug.workItemId, title: bug.title } : null);
+}
+
+function openCrackStep(step) {
+  return button => {
+    const crack = traceData()?.cracks.find(entry => entry.id === button.dataset.id);
+    openTraceStep(step, crack, crack ? { workItemId: crack.bug.workItemId, title: crack.bug.title } : null);
+  };
+}
+
+async function submitTraceStep(data, form) {
+  const step = form.dataset.step;
+  const { body, errors } = stepRequest(step, data);
+  for (const element of form.querySelectorAll('[data-error-for]')) { element.hidden = true; element.textContent = ''; }
+  for (const element of form.querySelectorAll('[aria-invalid]')) element.removeAttribute('aria-invalid');
+  const invalid = Object.keys(errors);
+  if (invalid.length) {
+    for (const key of invalid) {
+      const element = form.querySelector(`[data-error-for="${CSS.escape(key)}"]`);
+      if (element) { element.textContent = errors[key]; element.hidden = false; }
+      for (const control of form.querySelectorAll(`[name="${CSS.escape(key)}"]`)) control.setAttribute('aria-invalid', 'true');
+    }
+    form.querySelector(`[name="${CSS.escape(invalid[0])}"]`)?.focus();
+    return;
+  }
+  const id = work.detailId;
+  if (!id) return;
+  let path;
+  if (step === 'propose') path = `/api/ploeg/work-items/${encodeURIComponent(form.dataset.bug || id)}/cracks`;
+  else if (step === 'evolved') path = `/api/ploeg/work-items/${encodeURIComponent(form.dataset.bug || id)}/evolved`;
+  else path = `/api/ploeg/work-items/${encodeURIComponent(id)}/cracks/${encodeURIComponent(form.dataset.id)}/${step}`;
+  if (step === 'propose' || step === 'evolved') body.card = form.dataset.id;
+  form.closest('dialog')?.close();
+  work.traceBusy = true;
+  work.traceResult = null;
+  renderWork();
+  try {
+    const result = await api(path, { method: 'POST', body: JSON.stringify(body) });
+    work.traceResult = { id, ...stepOutcome(step, result) };
+    notify(work.traceResult.title);
+  } catch (error) {
+    work.traceResult = { id, tone: 'danger', title: 'Ploeg did not record this step', text: error.message };
+    notify(error.message, true);
+  } finally {
+    work.traceBusy = false;
+    if (visible() && work.detailId === id) {
+      await Promise.all([loadTrace(id, { fresh: true }), loadCard(id, { fresh: true })]);
+      renderWork();
+      $('#work-trace-result')?.focus();
+    }
+  }
+}
+
 function toggleBrief() {
   const id = work.detailId;
   if (!id) return;
@@ -568,7 +667,13 @@ export default {
     'work-brief': () => toggleBrief(),
     'work-run': jumpToRun,
     'work-section': jumpToSection,
+    'trace-propose': openPropose,
+    'trace-evolved': openEvolved,
+    'trace-confirm': openCrackStep('confirm'),
+    'trace-dispute': openCrackStep('dispute'),
+    'trace-resolve': openCrackStep('resolve'),
   },
+  forms: { 'trace-step': submitTraceStep },
   changes: {
     '#ploeg-team': changeTeam,
   },

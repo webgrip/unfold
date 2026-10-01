@@ -6,6 +6,7 @@ import * as ui from './core/ui.js';
 import { workItemState, runOutcome, runState, verdict as verdictMeta, failureReason, failureNote, auditEvent, actorName, displayState, unreportedOutcome, closeReasonLabel, withdrawnReason } from './core/states.js';
 import { listReason, routingWarning, detailReason, requeueNote, needsYouBlocks, reasonGlyph } from './core/reasons.js';
 import { checkoutTarget, checkoutCommand, checkoutLink } from './core/checkout.js';
+import { traceMarkup } from './core/attribution.js';
 
 /** The Work lanes in the order the lane control shows them: closest to shipping first. */
 export const ploegLanes = Object.freeze([
@@ -1020,7 +1021,7 @@ export function cardSectionMarkup(detail, model, { reason = null, plan = null } 
   return `<section class="work-card" id="work-card" aria-labelledby="work-card-headline"><h3 class="work-card-headline" id="work-card-headline">${escape(cardHeadline(detail, model, reason, plan))}</h3><unfold-card class="work-run-card" data-work-item="${escape(detail.item.id)}"></unfold-card>${primary ? `<div class="work-card-actions">${primary}</div>` : ''}</section>`;
 }
 
-/** The Work Item detail: header, the writer's problem and solution, the Run card that states what happened, the decision box, the brief, Rounds and Runs, activity, technical details and, on phones, the action bar. */
+/** The Work Item detail: header, the writer's problem and solution, the Run card that states what happened, the decision box, the Trace this bug panel when Ploeg traced anything, the brief, Rounds and Runs, activity, technical details and, on phones, the action bar. */
 export function detailMarkup(detail, model) {
   const reason = detailReason(detail);
   const item = detail.item;
@@ -1044,6 +1045,7 @@ export function detailMarkup(detail, model) {
     card,
     accountMarkup(detail),
     decision,
+    model.trace && model.trace.workItemId === item.id ? traceMarkup(model.trace, { now: model.now, busy: model.traceBusy, result: model.traceResult }) : '',
     sessionsMarkup(detail, model.sessions),
     briefMarkup(detail, model),
     storyMarkup(detail, model),
@@ -1076,7 +1078,7 @@ function demoMarkup(model) {
  * the list, and the Work Item detail beside it (wide) or instead of it (narrow).
  * `model` = { data, lane, lanePending (the lane waits for the open Work Item's state), team, teams, loading, refreshing,
  * loadingMore, detailId, detail, detailLoading, detailError, listHref, canCancel, cancelBusy, cancelResult, briefOpen,
- * sessions, userId, trackerUrl, reviewFacts, demoMode, now, card }.
+ * sessions, userId, trackerUrl, reviewFacts, demoMode, now, card, trace, traceBusy, traceResult }.
  */
 export function workMarkup(model) {
   const data = model.data;

@@ -46,10 +46,10 @@ test('the front formats every slot in nl-NL from the contract card', () => {
   assert.deepEqual(view.ids, ['#138', 'VIK-1612', 'webgrip/glide']);
 });
 
-test('the back has six tabs and shows what the contract gives, oldest event first', () => {
+test('the back has ten tabs and shows what the contract gives, oldest event first', () => {
   const view = cardView(contractCard());
   assert.deepEqual(view.tabs.map(entry => entry.label), cardTabs.map(entry => entry.label));
-  assert.deepEqual(view.tabs.map(entry => entry.label), ['Economics', 'Agent', 'Change', 'Review & CI', 'Life', 'Context']);
+  assert.deepEqual(view.tabs.map(entry => entry.label), ['Economics', 'Agent', 'Change', 'Review & CI', 'Gates', 'Grade', 'Condition', 'Life', 'Set', 'Context']);
   assert.equal(value(view, 'economics', 'Cache read tokens').value, '9.800.000');
   assert.equal(value(view, 'agent', 'Turns').value, '61');
   assert.equal(value(view, 'agent', 'Tool calls').value, '143');
@@ -109,10 +109,12 @@ test('a demo card says so and shows no spend or usage', () => {
     for (const key of ['costUsd', 'inputTokens', 'outputTokens', 'cacheReadInputTokens', 'cacheCreationInputTokens', 'turns', 'toolCalls']) assert.equal(card.totals[key], undefined, `${card.workItemId} ${key}`);
     assert(card.crew.every(member => member.costUsd === undefined && member.inputTokens === undefined));
     assert.deepEqual([card.rarity, card.finish], [null, 'matte']);
-    if (card.grade || card.condition) assert.match(ploegDemo.items.find(item => item.id === card.workItemId).description, /grade and cracks are sample data/, `${card.workItemId} labels its grade and cracks as sample data`);
+    if (card.grade) assert.match(ploegDemo.items.find(item => item.id === card.workItemId).description, /grade and cracks are sample data/, `${card.workItemId} labels its grade and cracks as sample data`);
+    if (card.condition || card.gates) assert.match(ploegDemo.items.find(item => item.id === card.workItemId).description, /^Illustrative/, `${card.workItemId} says it is illustrative`);
+    if (card.condition) assert.match(ploegDemo.items.find(item => item.id === card.workItemId).description, /cracks are sample data/, `${card.workItemId} labels its cracks as sample data`);
   }
   assert.deepEqual(Object.values(ploegDemo.cards).filter(card => card.grade).map(card => card.workItemId), ['119', '120', '122', '123']);
-  assert.deepEqual(Object.values(ploegDemo.cards).filter(card => card.condition).map(card => [card.workItemId, card.condition.state]), [['119', 'cracked'], ['120', 'mended']]);
+  assert.deepEqual(Object.values(ploegDemo.cards).filter(card => card.condition).map(card => [card.workItemId, card.condition.state]), [['118', 'cracked'], ['119', 'cracked'], ['120', 'mended']]);
   assert.deepEqual(Object.values(ploegDemo.cards).filter(card => card.style.skin === 'forge').map(card => card.workItemId), ['105', '117', '119', '120', '122', '123']);
   assert(Object.values(ploegDemo.cards).filter(card => card.style.skin !== 'forge').every(card => card.style.skin === 'vloer-native'), 'every other demo card keeps Vloer Native');
   assert.equal(ploegDemo.cards['115'].state, 'withdrawn');
@@ -152,8 +154,8 @@ test('Vloer Native fills the required slots, escapes every value and draws witho
   for (const slot of requiredSlots) assert.match(front, new RegExp(`data-slot="${slot}"`), slot);
   assert.match(front, /data-card-action="flip"/);
   assert.match(back, /data-card-action="flip"/);
-  assert.equal((back.match(/role="tab"/g) || []).length, 6);
-  assert.equal((back.match(/role="tabpanel"/g) || []).length, 6);
+  assert.equal((back.match(/role="tab"/g) || []).length, 10);
+  assert.equal((back.match(/role="tabpanel"/g) || []).length, 10);
   for (const markup of [front, back]) {
     assert(!markup.includes('<img'), 'title is escaped');
     assert(!markup.includes('<script'), 'steward is escaped');
@@ -348,10 +350,14 @@ test('a grade and a condition from Ploeg reach the view; anything unreadable sta
   assert.deepEqual(graded.grade.subgrades.map(entry => `${entry.short} ${entry.text}`), ['REL 10', 'DUR 8,5', 'DEL 9', 'REV 8']);
   assert.match(graded.grade.description, /^Grade 8,5 of 10, provisional until 180 days live, hotfixed, formula 2026\.1$/);
   assert.equal(value(graded, 'review', 'Grade').value, '8,5 · provisional · HF');
-  assert.equal(value(graded, 'review', 'Grade formula').value, '2026.1');
+  assert.equal(value(graded, 'grade', 'Formula').value, '2026.1');
+  assert.match(tab(graded, 'grade').note, /^Overall = 0\.40 × reliability/, 'the Grade tab prints the formula it knows');
+  assert.deepEqual(tab(graded, 'grade').groups[0].rows, [{ label: 'Inputs', value: 'This Ploeg did not send them', status: 'unreported' }], 'a grade without inputs says so instead of inventing them');
   assert.equal(graded.condition.text, 'Mended · VIK-1642, S2 · mended by its steward in #68');
   assert.equal(value(graded, 'life', 'Condition').value, graded.condition.text);
-  assert.equal(tab(graded, 'life').lists.at(-1).items[0].meta, 'Lease renewal raced the watcher · mended in #68 by its steward');
+  assert.equal(tab(graded, 'condition').groups[0].title, 'VIK-1642 · Lease renewal raced the watcher');
+  assert.match(tab(graded, 'condition').groups[0].rows.find(entry => entry.label === 'Mend').value, /^#68 by the steward · \d\d-09-2026 \d\d:\d\d$/);
+  assert.deepEqual(tab(graded, 'condition').groups[0].rows.find(entry => entry.label === 'Weight'), { label: 'Weight', value: 'Not reported', status: 'unreported' }, 'a crack weight Ploeg did not send is not invented');
   assert.equal(cardView({ ...contractCard(), grade: { formula: '2026.1', overall: 8.4, provisional: false } }).grade, null, 'a grade off the half-step scale is not shown');
   assert.equal(cardView({ ...contractCard(), grade: 9 }).grade, null);
   assert.equal(cardView({ ...contractCard(), condition: 'cracked' }).condition, null);

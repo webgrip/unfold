@@ -17,18 +17,21 @@ function chip(view, h) {
   const release = view.release;
   const day = release?.released ? `<span class="day" data-finish="${e(release.finish.key)}" data-source="${e(release.source)}"><b>${e(release.dayText)}</b><span class="dot" aria-hidden="true"></span><span class="fin">${e(release.finish.label)}</span></span>` : '';
   const condition = view.condition ? `<span class="forge-condition" data-condition="${e(view.condition.state)}" title="${e(view.condition.text)}">${e(view.condition.label)}</span>` : '';
-  return `<span class="chip" data-slot="state" data-tone="${e(view.state.tone)}" title="${e(view.state.description || '')}">${h.icon(view.state.glyph)}<span>${e(view.state.label)}</span></span>${day}${condition}`;
+  const set = view.set ? `<span class="forge-set" data-slot="set" title="${e(view.set.text)}">${h.icon('grid')}<span>${e(view.set.symbol)}</span></span>` : '';
+  return `<span class="chip" data-slot="state" data-tone="${e(view.state.tone)}" title="${e(view.state.description || '')}">${h.icon(view.state.glyph)}<span>${e(view.state.label)}</span></span>${day}${condition}${set}`;
 }
 
 function facts(view, facts, h) {
   const e = h.escape;
   const rows = facts.rows.map(([label, value]) => `<div><dt>${e(label)}</dt><dd>${e(value)}</dd></div>`).join('');
   const grade = view.grade ? `<div><dt>Grade</dt><dd>${e(view.grade.description)}</dd></div>` : '';
+  const set = view.set ? `<div><dt>Set</dt><dd>${e(`${view.set.text}${view.set.complete ? ' · complete' : ''}`)}</dd></div>` : '';
+  const condition = view.condition ? `<div><dt>Condition</dt><dd>${e(view.condition.text)}</dd></div>` : '';
   const finish = `<div><dt>Finish</dt><dd>${e(`${view.finish.label}: ${facts.coverage.label.toLowerCase()} · ${facts.pattern.label} foil, ${facts.art.label} art`)}</dd></div>`;
   return `<div class="forge-facts">
     <h3 class="title" data-slot="title">${e(view.title)}</h3>
     <dl>
-      ${rows}${grade}${finish}
+      ${rows}${grade}${condition}${set}${finish}
       <div data-slot="steward"><dt>Steward</dt><dd>${e(view.steward.signed ? `${view.steward.name} · ${view.steward.detail || 'signed'}` : `Unsigned · ${view.steward.detail}`)}</dd><span class="sr-only">${e(view.steward.text)}</span></div>
       <div><dt>Ids</dt><dd data-slot="ids">${e(view.ids.join(' · '))}</dd></div>
     </dl>
