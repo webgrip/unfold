@@ -1,5 +1,4 @@
 :host {
-  --gc-width: 24rem;
   --forge-vitrine: radial-gradient(120% 90% at 50% 30%, #1d2a35 0%, #0a0f13 55%, #040506 100%);
 }
 
@@ -13,6 +12,7 @@
   position: relative;
   aspect-ratio: 3 / 4;
   inline-size: 100%;
+  max-block-size: 34rem;
   overflow: hidden;
   border-radius: var(--gc-radius);
   background: var(--forge-vitrine);
@@ -46,7 +46,7 @@
 }
 
 .forge-poster-card {
-  inline-size: 58%;
+  block-size: 78%;
   aspect-ratio: 63 / 88;
   border-radius: 6%;
   background: linear-gradient(160deg, #3a4247, #1a1f23 60%, #2a3034);

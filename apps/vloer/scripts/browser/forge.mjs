@@ -26,8 +26,12 @@ export async function run({ page, app, assert, screenshot }) {
     const canvas = host.shadowRoot.querySelector('.forge canvas');
     const g = canvas.getContext('2d');
     const at = (x, y) => [...g.getImageData(Math.round(canvas.width * x), Math.round(canvas.height * y), 1, 1).data];
-    const brightest = (y, from, to) => { let best = [0, 0, 0, 0]; for (let x = from; x <= to; x += 0.004) { const pixel = at(x, y); if (pixel[0] + pixel[1] + pixel[2] > best[0] + best[1] + best[2]) best = pixel; } return best; };
-    return { corner: at(0.02, 0.02), art: at(0.5, 0.3), frame: brightest(0.5, 0.04, 0.2), size: [canvas.width, canvas.height] };
+    const corner = at(0.02, 0.02);
+    const sum = pixel => pixel[0] + pixel[1] + pixel[2];
+    const row = Array.from({ length: canvas.width }, (_, x) => [...g.getImageData(x, Math.round(canvas.height * 0.5), 1, 1).data]);
+    const edge = row.findIndex(pixel => sum(pixel) > 240);
+    const frame = row.slice(Math.max(0, edge), Math.max(0, edge) + Math.round(canvas.width * 0.04)).reduce((best, pixel) => sum(pixel) > sum(best) ? pixel : best, [0, 0, 0, 0]);
+    return { corner, art: at(0.5, 0.3), frame, size: [canvas.width, canvas.height] };
   });
   assert(pixels.size[0] > 200 && pixels.size[1] > 260, `the still frame fills the stage: ${pixels.size}`);
   const luma = ([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
@@ -76,8 +80,8 @@ export async function run({ page, app, assert, screenshot }) {
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => document.querySelector('unfold-card.work-run-card')?.shadowRoot?.querySelector('.forge')?.dataset.forgeState === 'live');
   await page.setViewportSize({ width: 1440, height: 420 });
-  await page.evaluate(() => { for (let element = document.querySelector('#work-card'); element; element = element.parentElement) element.scrollTop = 0; document.scrollingElement.scrollTop = 0; });
-  assert(await page.evaluate(() => document.querySelector('unfold-card.work-run-card').getBoundingClientRect().top > innerHeight), 'the card is below the fold');
+  await page.evaluate(() => { for (let element = document.querySelector('#work-card'); element; element = element.parentElement) element.scrollTop = element.scrollHeight; document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight; });
+  assert(await page.evaluate(() => { const box = document.querySelector('unfold-card.work-run-card').getBoundingClientRect(); return box.bottom < 0 || box.top > innerHeight; }), 'the card is scrolled out of the window');
   await page.waitForFunction(() => document.querySelector('unfold-card.work-run-card')?.shadowRoot?.querySelector('.forge')?.dataset.forgeState === 'paused');
   const away = (await forgeState()).frames;
   await page.waitForTimeout(600);

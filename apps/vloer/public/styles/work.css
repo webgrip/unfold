@@ -332,10 +332,6 @@
   min-block-size: 0;
 }
 
-.work-run-card[data-skin="forge"] {
-  inline-size: min(24rem, 100%);
-}
-
 .work-card-actions {
   display: flex;
   flex-wrap: wrap;
