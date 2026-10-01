@@ -28,6 +28,21 @@
 .lt[data-level="5"] .sk-card { --lt-q: #ff8a4a; }
 .lt[data-layout="set"][data-complete] .sk-card { --lt-q: #ffb347; }
 
+.lt .uc-frame {
+  border-radius: 5px;
+  padding: 2px;
+}
+
+.lt .lt-q .uc-rarity {
+  align-self: center;
+  color: var(--rarity-ink);
+  text-shadow: 0 0 8px var(--rarity-glow), 0 1px 0 #000;
+}
+
+:host([data-rarity-state="revealed"]) .lt .sk-card {
+  --lt-bronze: var(--rarity-edge);
+}
+
 .lt .lt-tip {
   position: relative;
   display: flex;

@@ -72,6 +72,28 @@ export const subgrades = Object.freeze([
   Object.freeze({ key: 'review', label: 'Review', short: 'REV' }),
 ]);
 
+/**
+ * The rarity tiers (Ploeg ADR-0056, proposed), lowest first: what each is called, the share of its cohort it stands
+ * in (`top`, percent), the fixed score it starts at while the cohort is small, the metal its frame is drawn in and the
+ * colour of its set symbol. Frames climb steel, bronze, silver, gold, prismatic; set symbols follow the trading-card
+ * convention of black, silver, gold and mythic orange, one step ahead of the frame, and legendary turns both iridescent.
+ */
+export const rarityTiers = Object.freeze([
+  Object.freeze({ key: 'common', label: 'Common', rank: 0, top: 100, from: 0, metal: 'steel', metalLabel: 'Steel', symbol: 'black', symbolLabel: 'Black' }),
+  Object.freeze({ key: 'uncommon', label: 'Uncommon', rank: 1, top: 40, from: 35, metal: 'bronze', metalLabel: 'Bronze', symbol: 'silver', symbolLabel: 'Silver' }),
+  Object.freeze({ key: 'rare', label: 'Rare', rank: 2, top: 15, from: 55, metal: 'silver', metalLabel: 'Silver', symbol: 'gold', symbolLabel: 'Gold' }),
+  Object.freeze({ key: 'epic', label: 'Epic', rank: 3, top: 5, from: 70, metal: 'gold', metalLabel: 'Gold', symbol: 'mythic', symbolLabel: 'Mythic orange' }),
+  Object.freeze({ key: 'legendary', label: 'Legendary', rank: 4, top: 1, from: 85, metal: 'prismatic', metalLabel: 'Prismatic', symbol: 'iridescent', symbolLabel: 'Iridescent' }),
+]);
+
+/** The four components of a challenge score under formula 2026.1, in the order Ploeg weighs them. */
+export const rarityParts = Object.freeze([
+  Object.freeze({ key: 'reach', label: 'Reach', weight: 0.3 }),
+  Object.freeze({ key: 'sensitive', label: 'Sensitive paths', weight: 0.25 }),
+  Object.freeze({ key: 'novelty', label: 'Novelty', weight: 0.2 }),
+  Object.freeze({ key: 'size', label: 'Size, damped', weight: 0.25 }),
+]);
+
 /** The back's tabs in order. */
 export const cardTabs = Object.freeze([
   { id: 'economics', label: 'Economics' },
@@ -80,6 +102,7 @@ export const cardTabs = Object.freeze([
   { id: 'review', label: 'Review & CI' },
   { id: 'gates', label: 'Gates' },
   { id: 'grade', label: 'Grade' },
+  { id: 'rarity', label: 'Rarity' },
   { id: 'condition', label: 'Condition' },
   { id: 'life', label: 'Life' },
   { id: 'set', label: 'Set' },
@@ -585,6 +608,153 @@ function setTab(set) {
   };
 }
 
+/** A rarity tier by its key, or null for a key Vloer does not know. */
+export function rarityTier(key) {
+  return rarityTiers.find(entry => entry.key === key) ?? null;
+}
+
+/**
+ * The share of its cohort, in percent from the top, that a card stands in, from Ploeg's percentile (100 × (1 + scores
+ * below) / size): the top card of 200 is in the top 0,5 %. Null when either is unknown.
+ * @param {number | null} percentile
+ * @param {number | null} size
+ */
+export function rarityTop(percentile, size) {
+  if (!known(percentile) || !known(size) || size < 1) return null;
+  return Math.min(100, Math.max(100 / size, 100 - percentile + 100 / size));
+}
+
+const topText = top => top >= 1 ? percent(Math.ceil(top - 1e-9) / 100) : `${decimal(Math.ceil(top * 10 - 1e-9) / 10, 1)}%`;
+const quarterText = quarter => /^\d{4}Q[1-4]$/.test(quarter) ? quarter.replace('Q', '-Q') : quarter;
+const wholeOrNull = value => known(value) && value >= 0 ? value : null;
+
+/**
+ * Each component of a challenge score from 0 to 1 under formula 2026.1 (Ploeg ADR-0056, proposed): reach from the
+ * modules and repositories touched, sensitive from the files on sensitive ground, novelty from the share of files new
+ * to the repository, and size from the counted lines, damped by a logarithm. An unknown input adds nothing. It matches
+ * `rarityComponents` in `src/rarity.ts`.
+ * @param {{ reach?: object, sensitive?: object, novelty?: object, size?: object }} inputs
+ */
+export function rarityComponents(inputs) {
+  const modules = Math.max(1, wholeOrNull(inputs?.reach?.modules) ?? 0);
+  const repos = Math.max(1, wholeOrNull(inputs?.reach?.repos) ?? 1);
+  const files = wholeOrNull(inputs?.novelty?.files) ?? 0;
+  const novel = wholeOrNull(inputs?.novelty?.novel);
+  const share = known(inputs?.novelty?.share) ? inputs.novelty.share : files > 0 && novel !== null ? novel / files : 0;
+  return {
+    reach: Math.min(1, Math.log(modules + 3 * (repos - 1)) / Math.log(12)),
+    sensitive: Math.min(1, Math.log(1 + (wholeOrNull(inputs?.sensitive?.files) ?? 0)) / Math.log(9)),
+    novelty: Math.min(1, Math.max(0, share)),
+    size: Math.min(1, Math.log(1 + (wholeOrNull(inputs?.size?.countedLines) ?? 0)) / Math.log(2001)),
+  };
+}
+
+function rarityInputs(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const files = wholeOrNull(raw.novelty?.files);
+  const novel = wholeOrNull(raw.novelty?.novel);
+  return {
+    modules: wholeOrNull(raw.reach?.modules), repos: wholeOrNull(raw.reach?.repos),
+    sensitiveFiles: wholeOrNull(raw.sensitive?.files), paths: list(raw.sensitive?.paths).map(text).filter(Boolean).slice(0, 20),
+    share: known(raw.novelty?.share) ? raw.novelty.share : files && novel !== null ? novel / files : null, files, novel,
+    lines: wholeOrNull(raw.size?.countedLines),
+    set: typeof raw.set === 'boolean' ? raw.set : null, truncated: raw.truncated === true,
+    notCollected: list(raw.notCollected).map(text).filter(Boolean),
+  };
+}
+
+const rarityFacts = Object.freeze({
+  reach: inputs => inputs.modules === null ? notReported : `${plural(inputs.modules, 'module')}${inputs.repos !== null ? ` in ${plural(inputs.repos, 'repository', 'repositories')}` : ''}`,
+  sensitive: inputs => inputs.sensitiveFiles === null ? notReported : inputs.sensitiveFiles ? `${plural(inputs.sensitiveFiles, 'file')} on sensitive ground` : 'No sensitive files',
+  novelty: inputs => inputs.share === null ? notReported : inputs.files !== null && inputs.novel !== null ? `${count(inputs.novel)} of ${plural(inputs.files, 'file')} new to the repository` : `${percent(inputs.share)} new ground`,
+  size: inputs => inputs.lines === null ? notReported : `${count(inputs.lines)} counted lines`,
+});
+
+const rarityDrivers = Object.freeze({
+  reach: inputs => `reached ${plural(inputs.modules, 'module')}${inputs.repos > 1 ? ` across ${plural(inputs.repos, 'repository', 'repositories')}` : ''}`,
+  sensitive: inputs => `touched ${plural(inputs.sensitiveFiles, 'file')} on sensitive ground`,
+  novelty: inputs => `broke new ground in ${percent(inputs.share)} of its files`,
+  size: inputs => `changed ${count(inputs.lines)} lines`,
+});
+const driverWeight = part => part.key === 'size' ? part.value - 0.25 : part.value;
+
+const notCollectedRarity = Object.freeze({ complexity: 'Complexity of the code touched', estimate: 'Estimate versus actual' });
+
+function rarityParts2026(inputs, state) {
+  const values = rarityComponents({ reach: { modules: inputs.modules, repos: inputs.repos }, sensitive: { files: inputs.sensitiveFiles }, novelty: { share: inputs.share, files: inputs.files, novel: inputs.novel }, size: { countedLines: inputs.lines } });
+  return rarityParts.map(part => ({ ...part, value: values[part.key], points: values[part.key] * part.weight * 100, max: part.weight * 100, fact: rarityFacts[part.key](inputs), known: rarityFacts[part.key](inputs) !== notReported }))
+    .concat(state === 'predicted' && inputs.set === true ? [{ key: 'set', label: 'Epic set', weight: 0, value: 1, points: 10, max: 10, fact: 'In an epic’s set: adds 10 while predicted', known: true }] : []);
+}
+
+function rarityWhy(view) {
+  const { tier, state, fromSet, inputs, parts, points, rank, cohort } = view;
+  const own = view.revealed ?? view.predicted;
+  if (fromSet) return `Legendary while its epic’s set is complete: every Work Item in the set merged, has been live 30 days and has no open crack. It drops back if the set reopens.${own ? ` Its own change is ${own.label.toLowerCase()}.` : ''}`;
+  const scoreLine = points !== null ? `a challenge score of ${score(points)}` : '';
+  const where = rank ? `in the ${rank}` : cohort ? `on the fixed thresholds while ${cohort.target} has fewer than 30 cards in ${cohort.quarterText}` : '';
+  const tail = [scoreLine, where].filter(Boolean).join(', ');
+  const lead = state === 'predicted' ? `Predicted ${tier.label.toLowerCase()}` : tier.label;
+  const after = state === 'predicted' ? ' The merged change reveals its rarity at release.' : '';
+  if (!parts || !inputs) return `${lead}${tail ? `: ${tail}` : ''}.${view.formula ? ` This Vloer cannot break formula ${view.formula} down.` : ''}${after}`;
+  const drivers = parts.filter(part => part.key !== 'set' && part.known && driverWeight(part) >= 0.5).sort((a, b) => driverWeight(b) - driverWeight(a)).slice(0, 2).map(part => rarityDrivers[part.key](inputs));
+  const because = drivers.length && tier.rank > 0 ? ` because it ${drivers.join(' and ')}` : ', a contained change';
+  return `${lead}${because}${tail ? `: ${tail}` : ''}.${after}`;
+}
+
+function rarityView(card) {
+  const raw = card.rarity;
+  if (!raw || typeof raw !== 'object') return null;
+  const tier = rarityTier(raw.tier);
+  if (!tier) return null;
+  const predicted = rarityTier(raw.predicted);
+  const revealed = rarityTier(raw.revealed);
+  const own = revealed ?? predicted;
+  const fromSet = tier.key === 'legendary' && own?.key !== 'legendary' && card.set?.role === 'epic' && card.set?.complete === true;
+  const state = revealed || fromSet ? 'revealed' : 'predicted';
+  const points = known(raw.score) ? raw.score : null;
+  const percentile = known(raw.percentile) ? raw.percentile : null;
+  const cohort = raw.cohort && typeof raw.cohort === 'object' && text(raw.cohort.target) ? { target: text(raw.cohort.target), quarter: text(raw.cohort.quarter), quarterText: quarterText(text(raw.cohort.quarter)), size: known(raw.cohort.size) ? raw.cohort.size : null } : null;
+  const top = rarityTop(percentile, cohort?.size ?? null);
+  const rank = top !== null && cohort ? `top ${topText(top)} of ${cohort.target} in ${cohort.quarterText}` : '';
+  const formula = text(raw.formula);
+  const inputs = rarityInputs(raw.inputs);
+  const parts = formula === '2026.1' && inputs && !(fromSet && points === null) ? rarityParts2026(inputs, state) : null;
+  const change = revealed && predicted ? (revealed.rank > predicted.rank ? 'up' : revealed.rank < predicted.rank ? 'down' : 'same') : null;
+  const chip = state === 'predicted' ? `Predicted ${tier.label.toLowerCase()}` : tier.label;
+  const view = { tier, key: tier.key, label: tier.label, state, predicted, revealed, fromSet, change, points, scoreText: points === null ? '' : `${score(points)} of 100`, percentile, top, topText: top === null ? '' : topText(top), cohort, rank, formula, inputs, parts, revealedAt: text(raw.revealedAt), chip };
+  const description = state === 'predicted'
+    ? `Rarity: predicted ${tier.label.toLowerCase()} from what was known before the merge, revealed at release. Rarity is how challenging the change was, not how well it was done.`
+    : `Rarity: ${tier.label}${rank ? `, ${rank}` : fromSet ? ', while its set is complete' : ''}. Rarity is how challenging the change was, not how well it was done.`;
+  return { ...view, text: [chip, rank].filter(Boolean).join(' · '), description, why: rarityWhy(view) };
+}
+
+const rarityNote = 'Rarity is how exceptional the work was: a challenge score from how far the change reached, whether it touched sensitive ground, how new that ground was, and its size, damped. It is not the grade (how well it was done) or the finish (how long it has lived), and cost, time, tokens, bounces and the grade never count. It is predicted before the merge, revealed at release from the merged change, ranked against the same repository’s cards that quarter, and frozen once revealed; an epic’s own card is legendary only while its set is complete. Cosmetic only: it never changes what Ploeg authorizes, budgets or merges, or a pack’s odds.';
+
+function rarityTab(card, rarity) {
+  if (!rarity) return { rows: [row('Rarity', 'Not rated', 'unreported')], lists: [], groups: [], note: `${Object.hasOwn(card, 'rarity') ? 'Ploeg rates a card once it has a play: predicted before the merge and revealed at release. An older Ploeg sends no rarity.' : 'This Ploeg does not send rarity.'} ${rarityNote}` };
+  const { tier, state, predicted, revealed, fromSet, cohort, rank, parts, inputs } = rarity;
+  const rows = [
+    row('Rarity', state === 'predicted' ? `${tier.label}, predicted` : tier.label),
+    predicted ? row('Predicted', `${predicted.label}, before the merge`) : row('Predicted', fromSet ? 'Not predicted: an epic’s own card' : notReported, 'unreported'),
+    revealed ? row('Revealed', `${revealed.label}${rarity.revealedAt ? ` · ${dateTime(rarity.revealedAt)}` : ''}`) : row('Revealed', fromSet ? 'Legendary while the set is complete' : 'At release, from the merged change', fromSet ? 'ok' : 'unreported'),
+    rarity.points !== null ? row('Challenge score', rarity.scoreText) : row('Challenge score', fromSet ? 'None: an epic’s card is rated by its set' : notReported, 'unreported'),
+    rank ? row('Rank', `${rank[0].toUpperCase()}${rank.slice(1)}${cohort.size ? ` · ${plural(cohort.size, 'card')}` : ''}`) : cohort ? row('Rank', `Fixed thresholds: ${cohort.size ? plural(cohort.size, 'card') : 'a few cards'} in ${cohort.target} for ${cohort.quarterText}, fewer than 30`) : row('Rank', 'No cohort yet', 'unreported'),
+    row('Formula', rarity.formula || notReported, rarity.formula ? 'ok' : 'unreported'),
+    row('On the card', state === 'predicted' ? `A ${tier.metalLabel.toLowerCase()} glow until release` : `${tier.metalLabel} frame, ${tier.symbolLabel.toLowerCase()} set symbol`),
+    ...(card.demo ? [row('Source', 'Demo · illustrative inputs, not rated by Ploeg', 'demo')] : []),
+  ];
+  const groups = [];
+  if (parts) groups.push({ title: 'Score components', rows: [
+    ...parts.map(part => part.key === 'set' ? row(part.label, `+10 points · ${part.fact}`) : part.known ? row(`${part.label} · ${Math.round(part.weight * 100)}%`, `${score(Math.round(part.points * 10) / 10)} of ${part.max} points · ${part.fact}`) : row(`${part.label} · ${Math.round(part.weight * 100)}%`, `${notReported} · adds nothing`, 'unreported')),
+    ...(inputs?.truncated ? [row('File facts', 'A lower bound: a play touched more files than Ploeg keeps', 'unreported')] : []),
+    ...inputs.notCollected.filter(key => Object.hasOwn(notCollectedRarity, key)).map(key => uncollected(notCollectedRarity[key])),
+  ] });
+  else if (inputs === null && !fromSet) groups.push({ title: 'Score components', rows: [row('Inputs', 'This Ploeg did not send them', 'unreported')] });
+  else if (!fromSet) groups.push({ title: 'Score components', rows: [row('Inputs', `Formula ${rarity.formula} is newer than this Vloer`, 'unreported')] });
+  const lists = inputs?.paths.length ? [{ title: `Sensitive paths · ${plural(inputs.paths.length, 'file')}`, items: inputs.paths.map(path => ({ title: path, meta: 'On the Work Target’s sensitive ground', tone: 'attention', glyph: 'shield' })) }] : [];
+  return { lead: rarity.why, rows, groups, lists, note: rarityNote };
+}
+
 /** The role that names a person's copy of a card, as the binder shows it. */
 export const copyRoleLabels = Object.freeze({ developer: 'Developer', reviewer: 'Reviewer', qa: 'QA', po: 'PO', acceptor: 'Acceptor', merger: 'Merger', steward: 'Steward' });
 
@@ -600,7 +770,9 @@ function copyView(card) {
  * The view model of a Run card: every slot formatted (nl-NL money with two decimals, compact counts, durations),
  * and every value Ploeg left out marked "Not reported", never zero. While a Run is running, cost, tokens and run time
  * are Ploeg's `live` reading so far, and a figure missing from it reads "Not reported yet". Values Ploeg does not collect yet read
- * "Not collected yet". A demo card reads "Demo · no model calls" for cost and usage. Rarity is not shown. `grade` and
+ * "Not collected yet". A demo card reads "Demo · no model calls" for cost and usage. `rarity` is null until Ploeg sends a
+ * readable rarity (Ploeg ADR-0056, proposed): its tier, whether it is still `predicted` or `revealed`, the challenge
+ * score, the rank in its cohort, the components and a plain "why" line. `grade` and
  * `condition` are null until Ploeg sends a readable grade (P2b) or a confirmed crack (P3). The finish comes from the
  * whole days since `release.at` on the finish ladder; Ploeg's own `finish` is ignored, and a card without a release is
  * matte. A card in a binder carries `copy`, the person's copy: its role and its first pull from a pack (ADR 0029).
@@ -621,7 +793,8 @@ export function cardView(card, { now = Date.now() } = {}) {
   const condition = conditionView(data);
   const gates = gatesView(data);
   const set = setView(data);
-  const tabs = { economics: economics(data, cost), agent: agent(data), change: change(data, all, diff), review: review(data, all, grade), gates: gatesTab(data, gates), grade: gradeTab(data, grade), condition: conditionTab(data, condition), life: life(data, all, release, condition), set: setTab(set), context: context({ ...data, workItemId: id }, set) };
+  const rarity = rarityView(data);
+  const tabs = { economics: economics(data, cost), agent: agent(data), change: change(data, all, diff), review: review(data, all, grade), gates: gatesTab(data, gates), grade: gradeTab(data, grade), rarity: rarityTab(data, rarity), condition: conditionTab(data, condition), life: life(data, all, release, condition), set: setTab(set), context: context({ ...data, workItemId: id }, set) };
   const style = data.style && typeof data.style === 'object' ? data.style : {};
   return {
     id,
@@ -644,6 +817,7 @@ export function cardView(card, { now = Date.now() } = {}) {
     finish: release.finish,
     rounds: known(data.totals?.rounds) ? data.totals.rounds : null,
     grade,
+    rarity,
     condition,
     gates,
     set,

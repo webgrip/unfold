@@ -81,7 +81,7 @@ export const finishSteps = Object.freeze([
   Object.freeze({ key: 'infinity', days: 365 }),
 ]);
 
-export type MomentKind = 'minted' | 'merged' | 'released' | 'finish' | 'cracked' | 'mended';
+export type MomentKind = 'minted' | 'merged' | 'released' | 'rarity' | 'finish' | 'cracked' | 'mended';
 export type Moment = { workItemId: string; kind: MomentKind; at: string; detail: Record<string, string | number> };
 
 const time = (value: unknown): number | null => { if (typeof value !== 'string' || !value) return null; const parsed = Date.parse(value); return Number.isFinite(parsed) ? parsed : null; };
@@ -89,8 +89,8 @@ const iso = (ms: number) => new Date(ms).toISOString().replace('.000Z', 'Z');
 
 /**
  * The moments of a card up to `now`, oldest first, derived from its facts only: minted (the first Run), each merged
- * play, released (the release time), each finish step crossed (release time plus the step's days), each confirmed
- * crack and each mend.
+ * play, released (the release time), the rarity revealed (its `revealedAt`, Ploeg ADR-0056, proposed), each finish step
+ * crossed (release time plus the step's days), each confirmed crack and each mend. Rarity never changes a pull's odds.
  */
 export function cardMoments(card: PloegCard, now = Date.now()): Moment[] {
   const id = card.workItemId;
@@ -104,6 +104,7 @@ export function cardMoments(card: PloegCard, now = Date.now()): Moment[] {
     add('released', released, { source: card.release!.source, environment: card.release!.environment });
     for (let index = 1; index < finishSteps.length; index++) add('finish', released + finishSteps[index].days * day, { from: finishSteps[index - 1].key, to: finishSteps[index].key });
   }
+  if (card.rarity?.revealed) add('rarity', time(card.rarity.revealedAt), { tier: card.rarity.revealed, ...(card.rarity.predicted ? { predicted: card.rarity.predicted } : {}) });
   for (const crack of card.condition?.cracks ?? []) {
     add('cracked', time(crack.confirmedAt), { severity: crack.severity, ...(crack.bug?.ref ? { ref: crack.bug.ref } : {}) });
     if (crack.mended) add('mended', time(crack.mended.at), { ...(crack.bug?.ref ? { ref: crack.bug.ref } : {}), ...(crack.mended.pr !== null ? { pr: crack.mended.pr } : {}) });

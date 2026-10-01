@@ -96,6 +96,28 @@ export function framePalette(facts) {
   return { stops: [mix(tint, '#ffffff', 0.45), mix(tint, '#000000', 0.1), mix(tint, '#ffffff', 0.62), mix(tint, '#000000', 0.45), mix(tint, '#ffffff', 0.45)], accent: accent ?? mix(tint, '#ffffff', 0.62), line: accent ?? mix(tint, '#ffffff', 0.5) };
 }
 
+function rarityPaint(g, rarity, x0, y0, x1, y1) {
+  if (rarity.symbol === 'spectrum') {
+    const paint = g.createLinearGradient(x0, y0, x1, y1);
+    ['#ff6a3d', '#ffd24a', '#5ce1a0', '#5cb8ff', '#b48cff', '#ff6ad0'].forEach((stop, index, all) => paint.addColorStop(index / (all.length - 1), stop));
+    return paint;
+  }
+  const paint = g.createLinearGradient(x0, y0, x1, y1);
+  paint.addColorStop(0, rarity.symbol[0]);
+  paint.addColorStop(1, rarity.symbol[1]);
+  return paint;
+}
+
+function gemPath(c, cx, cy, r) {
+  c.beginPath();
+  c.moveTo(cx, cy - r);
+  c.lineTo(cx + r, cy - r * 0.28);
+  c.lineTo(cx + r * 0.62, cy + r);
+  c.lineTo(cx - r * 0.62, cy + r);
+  c.lineTo(cx - r, cy - r * 0.28);
+  c.closePath();
+}
+
 function cover(g, image, x, y, w, h) {
   const iw = image.naturalWidth || image.videoWidth || image.width;
   const ih = image.naturalHeight || image.videoHeight || image.height;
@@ -117,7 +139,9 @@ function contain(g, image, x, y, w, h) {
  * Paints the front of a card into three canvases of `faceSize`: `face` (colour; the art window is transparent),
  * `mask` (red marks the art window, green the frame metal, blue the text panels) and `height` (the relief: raised
  * frame and title, engraved border lines, a domed cost coin, a recessed art window, a debossed set symbol and slightly
- * raised panels; mid grey is the card's surface).
+ * raised panels; mid grey is the card's surface). A card's rarity colours the set symbol in its tier's colour once
+ * revealed (dashed in the tier's ink while predicted) and prints the tier's word with its gem on the type line; the
+ * frame metal itself is the front shader's.
  * @param {{ face: HTMLCanvasElement, mask: HTMLCanvasElement, height: HTMLCanvasElement }} target
  * @param {ReturnType<import('./forge-model.js').faceFacts>} facts
  */
@@ -290,6 +314,32 @@ export function paintFace(target, facts) {
   }
   g.font = `600 21px ${mono}`;
   text(facts.finishLine.toUpperCase(), W - 90, typeY + 42, g.font, palette.accent, relief.text, 'right');
+  if (facts.rarity) {
+    const rarity = facts.rarity;
+    const predicted = rarity.state === 'predicted';
+    const end = W - 90 - g.measureText(facts.finishLine.toUpperCase()).width - 28;
+    g.font = `800 21px ${mono}`;
+    const word = fit(g, rarity.word.toUpperCase(), 250);
+    const width = g.measureText(word).width;
+    text(word, end, typeY + 42, g.font, rarity.ink, relief.text, 'right');
+    const gx = end - width - 20;
+    const gy = typeY + 34;
+    g.save();
+    g.globalAlpha = predicted ? 0.55 : 1;
+    gemPath(g, gx, gy, 12);
+    g.fillStyle = rarityPaint(g, rarity, gx - 12, gy - 12, gx + 12, gy + 12);
+    g.fill();
+    g.restore();
+    g.strokeStyle = predicted ? rarity.ink : rarity.rim;
+    g.lineWidth = 2;
+    if (predicted) g.setLineDash([3, 3]);
+    gemPath(g, gx, gy, 12);
+    g.stroke();
+    g.setLineDash([]);
+    h.fillStyle = height(relief.numeral);
+    gemPath(h, gx, gy, 12);
+    h.fill();
+  }
 
   const boxY = typeY + 84;
   const dense = facts.rows.length > 5;
@@ -366,7 +416,7 @@ export function paintFace(target, facts) {
     const plate = c => rr(c, sx - 30, sy - 30, 60, 60, 12);
     g.fillStyle = full ? 'rgba(5,8,11,0.78)' : '#05080b';
     plate(g); g.fill();
-    g.strokeStyle = palette.line;
+    g.strokeStyle = facts.rarity?.state === 'revealed' ? facts.rarity.ink : palette.line;
     g.lineWidth = 2;
     plate(g); g.stroke();
     contain(g, facts.images.symbol, sx - 24, sy - 24, 48, 48);
@@ -374,11 +424,14 @@ export function paintFace(target, facts) {
     plate(h); h.fill();
   } else {
     const symbol = c => { c.beginPath(); c.moveTo(sx - 24, sy - 24); c.lineTo(sx + 24, sy - 24); c.lineTo(sx + 24, sy + 4); c.lineTo(sx + 4, sy + 24); c.lineTo(sx - 24, sy + 24); c.closePath(); };
-    g.fillStyle = '#05080b';
+    const revealedRarity = facts.rarity?.state === 'revealed' ? facts.rarity : null;
+    g.fillStyle = revealedRarity ? rarityPaint(g, revealedRarity, sx - 24, sy - 24, sx + 24, sy + 24) : '#05080b';
     symbol(g); g.fill();
-    g.strokeStyle = palette.line;
+    g.strokeStyle = revealedRarity ? revealedRarity.rim : facts.rarity ? facts.rarity.ink : palette.line;
     g.lineWidth = 3;
+    if (facts.rarity && !revealedRarity) g.setLineDash([6, 5]);
     symbol(g); g.stroke();
+    g.setLineDash([]);
     g.beginPath(); g.moveTo(sx + 24, sy + 4); g.lineTo(sx + 4, sy + 4); g.lineTo(sx + 4, sy + 24); g.stroke();
     h.fillStyle = height(relief.debossed);
     symbol(h); h.fill();

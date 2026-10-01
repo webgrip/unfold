@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import type { PloegActivityEvent, PloegCard, PloegCardCondition, PloegCardGates, PloegCrack, PloegCrackCandidates, PloegGate, PloegCardDeployment, PloegCardGrade, PloegCardPlay, PloegCheckpoint, PloegDetail, PloegEvent, PloegItem, PloegRun, PloegRunRow, PloegShift, PloegTeam, PloegTeamSummary, PloegWindow } from './ploeg.ts';
+import { fixedRarityTier, percentileRarityTier, rarityCohortMinimum, rarityFormula, rarityPercentile, rarityQuarter, rarityScore } from './rarity.ts';
+import type { PloegActivityEvent, PloegCard, PloegCardCondition, PloegCardGates, PloegCrack, PloegCrackCandidates, PloegGate, PloegCardDeployment, PloegCardGrade, PloegCardPlay, PloegCardRarityInputs, PloegCheckpoint, PloegDetail, PloegEvent, PloegItem, PloegRun, PloegRunRow, PloegShift, PloegTeam, PloegTeamSummary, PloegWindow } from './ploeg.ts';
 
 const anchor = Math.floor(Date.now() / 60_000) * 60_000;
 /** The minute, in epoch milliseconds, that every illustrative Ploeg timestamp is relative to: the clock when this module loaded. */
@@ -170,6 +171,30 @@ const demoEpics: Record<string, string[]> = {
   '143': ['114', '109', '103'],
 };
 const inDemoSet = (id: string) => Object.hasOwn(demoEpics, id) || Object.values(demoEpics).some(children => children.includes(id));
+
+type RaritySpec = { modules: number; repos?: number; sensitive: string[]; novel: number; predicted?: { modules?: number; sensitive?: string[]; novel?: number } };
+const sensitiveGround = ['src/payments/webhook.ts', 'src/payments/refunds.ts', 'migrations/2026_orders_audit.sql', 'src/auth/session.ts', 'src/payments/provider.ts', 'ops/secrets.sops.yaml', 'migrations/2026_stock_reservations.sql', 'src/auth/merchant-keys.ts'];
+const sensitiveFiles = (count: number) => sensitiveGround.slice(0, count);
+const demoRaritySpecs: Record<string, RaritySpec> = {
+  '105': { modules: 4, sensitive: sensitiveFiles(2), novel: 2 },
+  '109': { modules: 3, sensitive: [], novel: 1 },
+  '114': { modules: 3, sensitive: sensitiveFiles(1), novel: 2 },
+  '117': { modules: 1, sensitive: [], novel: 1 },
+  '118': { modules: 2, sensitive: [], novel: 1 },
+  '119': { modules: 2, sensitive: sensitiveFiles(1), novel: 2 },
+  '120': { modules: 4, sensitive: sensitiveFiles(2), novel: 3, predicted: { modules: 6, sensitive: sensitiveFiles(3) } },
+  '121': { modules: 5, sensitive: sensitiveFiles(2), novel: 3 },
+  '122': { modules: 9, repos: 2, sensitive: sensitiveFiles(8), novel: 5 },
+  '123': { modules: 8, sensitive: sensitiveFiles(3), novel: 5 },
+  '124': { modules: 1, sensitive: sensitiveFiles(1), novel: 0 },
+  '134': { modules: 6, sensitive: sensitiveFiles(5), novel: 5, predicted: { modules: 3, sensitive: sensitiveFiles(2) } },
+  '136': { modules: 4, sensitive: sensitiveFiles(2), novel: 4 },
+  '137': { modules: 10, sensitive: sensitiveFiles(6), novel: 9 },
+  '138': { modules: 2, sensitive: [], novel: 6 },
+  '140': { modules: 1, sensitive: [], novel: 1 },
+  '141': { modules: 6, sensitive: sensitiveFiles(5), novel: 8 },
+  '142': { modules: 3, sensitive: sensitiveFiles(3), novel: 5 },
+};
 
 const demoCopies: Record<string, string[]> = { '105': ['developer'], '117': ['developer'], '119': ['developer'], '120': ['qa'], '121': ['developer'], '122': ['po'], '123': ['developer'] };
 
@@ -411,8 +436,55 @@ function demoSet(cards: Record<string, PloegCard>, epicId: string, childIds: str
   epic.set = { role: 'epic', epic: epicRef, position: null, size: children.length, children: children.map(card => ({ workItemId: card.workItemId, title: card.title, state: card.state, settled: settled(card), cracked: cracked(card) })), complete };
   children.forEach((card, index) => { card.set = { role: 'child', epic: epicRef, position: index + 1, size: children.length, children: [], complete }; });
 }
+function rarityInputs(card: PloegCard, spec: RaritySpec, predicted: boolean): PloegCardRarityInputs {
+  const plays = predicted ? card.plays : card.plays.filter(play => play.state === 'merged');
+  const files = plays.reduce((total, play) => total + (play.changedFiles ?? 0), 0);
+  const novel = Math.min(files, predicted ? spec.predicted?.novel ?? spec.novel : spec.novel);
+  const sensitive = predicted ? spec.predicted?.sensitive ?? spec.sensitive : spec.sensitive;
+  return {
+    reach: { modules: predicted ? spec.predicted?.modules ?? spec.modules : spec.modules, repos: spec.repos ?? 1 },
+    sensitive: { files: sensitive.length, paths: sensitive },
+    novelty: { share: files ? Math.round((novel / files) * 1000) / 1000 : null, files, novel },
+    size: { countedLines: plays.reduce((total, play) => total + (play.additions ?? 0) + (play.deletions ?? 0), 0) },
+    set: predicted ? card.set?.role === 'child' : null,
+    truncated: false,
+    notCollected: ['complexity', 'estimate'],
+  };
+}
+function demoRarities(cards: Record<string, PloegCard>): void {
+  const scored = Object.entries(demoRaritySpecs).map(([id, spec]) => {
+    const card = cards[id];
+    const released = card.state === 'merged' && card.release ? card.release.at : null;
+    const before = rarityInputs(card, spec, true);
+    const after = released ? rarityInputs(card, spec, false) : null;
+    return { card, released, before, after, predictedScore: rarityScore(before, true), revealedScore: after ? rarityScore(after, false) : null };
+  });
+  const cohortKey = (card: PloegCard, at: string | number) => `${card.target?.owner}/${card.target?.repo}|${rarityQuarter(at)}`.toLowerCase();
+  const revealedScores = new Map<string, number[]>();
+  for (const entry of scored) if (entry.released && entry.revealedScore !== null) revealedScores.set(cohortKey(entry.card, entry.released), [...(revealedScores.get(cohortKey(entry.card, entry.released)) ?? []), entry.revealedScore]);
+  const rank = (card: PloegCard, at: string | number, score: number, own: boolean) => {
+    const cohort = [...(revealedScores.get(cohortKey(card, at)) ?? []), ...(own ? [] : [score])];
+    const percentile = cohort.length >= rarityCohortMinimum ? rarityPercentile(score, cohort) : null;
+    return { tier: percentile === null ? fixedRarityTier(score) : percentileRarityTier(percentile), percentile, cohort: { target: `${card.target?.owner}/${card.target?.repo}`.toLowerCase(), quarter: rarityQuarter(at), size: cohort.length } };
+  };
+  for (const entry of scored) {
+    const predicted = rank(entry.card, entry.released ?? anchor, entry.predictedScore, false);
+    const revealed = entry.released && entry.revealedScore !== null ? rank(entry.card, entry.released, entry.revealedScore, true) : null;
+    const shown = revealed ?? predicted;
+    entry.card.rarity = {
+      formula: rarityFormula, predicted: predicted.tier, revealed: revealed?.tier ?? null, tier: shown.tier,
+      score: revealed ? entry.revealedScore : entry.predictedScore, percentile: shown.percentile, cohort: shown.cohort,
+      inputs: revealed ? entry.after : entry.before, revealedAt: revealed ? entry.released : null,
+    };
+  }
+  for (const card of Object.values(cards)) {
+    if (card.set?.role !== 'epic' || !card.set.complete) continue;
+    card.rarity = { formula: rarityFormula, predicted: null, revealed: null, tier: 'legendary', score: null, percentile: null, cohort: null, inputs: { reach: { modules: null, repos: null }, sensitive: { files: null, paths: [] }, novelty: { share: null, files: null, novel: null }, size: { countedLines: null }, set: null, truncated: false, notCollected: ['complexity', 'estimate'] }, revealedAt: null };
+  }
+}
 const cards: Record<string, PloegCard> = Object.fromEntries(items.map(item => [item.id, demoCard(item)]));
 demoSets(cards);
+demoRarities(cards);
 
 const crackItem = (id: string) => ({ workItemId: id, title: find(id).title, externalRef: find(id).externalId });
 const mergedPlay = (id: string) => cards[id].plays.find(play => play.state === 'merged')!;

@@ -635,7 +635,7 @@ test('the card proxy passes a contract grade and condition through validated, an
   const condition = { state: 'mended', cracks: [{ id: 'c1', bug: { workItemId: 140, ref: 'VIK-1642', title: 'Lease renewal raced the watcher', note: 'x' }, severity: 'S2', share: 'primary', discovery: 'discovered', proposedAt: '2026-09-20T10:00:00Z', confirmedAt: '2026-09-21T10:00:00Z', confirmedBy: ['iris', 'sam'], disputed: false, mended: { at: '2026-09-25T10:00:00Z', by: 'ryan', pr: 68, bySteward: true } }] };
   upstreamApi.cards['101'] = { ...liveCard('101'), rarity: 'legendary', grade, condition };
   const view = await ploeg.card(admin, '101');
-  assert.equal(view.card.rarity, null, 'rarity stays open');
+  assert.equal(view.card.rarity, null, 'a rarity that is a bare word is dropped');
   assert.deepEqual(view.card.grade, { formula: '2026.1', overall: 8.5, provisional: true, subgrades: { reliability: 10, durability: 8.5, delivery: 9, review: 8 }, label: null, qualifiers: ['HF'] }, 'known subgrades and qualifiers only; inputs are not passed on');
   assert.deepEqual(view.card.condition, { state: 'mended', cracks: [{ id: 'c1', bug: { workItemId: '140', ref: 'VIK-1642', title: 'Lease renewal raced the watcher' }, severity: 'S2', share: 'primary', discovery: 'discovered', proposedAt: '2026-09-20T10:00:00Z', confirmedAt: '2026-09-21T10:00:00Z', confirmedBy: ['iris', 'sam'], disputed: false, mended: { at: '2026-09-25T10:00:00Z', by: 'ryan', pr: 68, bySteward: true } }] });
   assert.equal(JSON.stringify(view).includes(upstreamApi.token), false);
@@ -655,7 +655,26 @@ test('the card proxy passes a contract grade and condition through validated, an
   assert.deepEqual((await ploeg.card(admin, '101', true)).card.style, { skin: 'arcade', theme: null }, 'a Work Target can choose a DOM skin pack');
 });
 
-test('the card proxy reads Ploeg card facts, keeps unknowns absent, drops rarity and Ploeg\'s finish, and drops a grade or condition it cannot read', async t => {
+test('the card proxy passes a contract rarity through (Ploeg ADR-0056, proposed), drops fields it does not know, and nulls a rarity it cannot read', async t => {
+  const upstreamApi = await upstream(t);
+  const ploeg = client(upstreamApi.config);
+  const rarity = { formula: '2026.1', predicted: 'epic', revealed: 'rare', tier: 'rare', score: 61.4, percentile: 91.2, cohort: { target: 'webgrip/glide', quarter: '2026Q4', size: 57, region: 'eu' }, inputs: { reach: { modules: 4, repos: 1 }, sensitive: { files: 2, paths: ['src/auth/session.ts', 'migrations/0042.sql'] }, novelty: { share: 0.5, files: 6, novel: 3 }, size: { countedLines: 252 }, set: null, truncated: false, notCollected: ['complexity', 'estimate'], secret: upstreamApi.token }, revealedAt: '2026-10-01T12:00:00Z', mood: 'shiny' };
+  upstreamApi.cards['101'] = { ...liveCard('101'), rarity };
+  const view = await ploeg.card(admin, '101');
+  assert.deepEqual(view.card.rarity, { formula: '2026.1', predicted: 'epic', revealed: 'rare', tier: 'rare', score: 61.4, percentile: 91.2, cohort: { target: 'webgrip/glide', quarter: '2026Q4', size: 57 }, inputs: { reach: { modules: 4, repos: 1 }, sensitive: { files: 2, paths: ['src/auth/session.ts', 'migrations/0042.sql'] }, novelty: { share: 0.5, files: 6, novel: 3 }, size: { countedLines: 252 }, set: null, truncated: false, notCollected: ['complexity', 'estimate'] }, revealedAt: '2026-10-01T12:00:00Z' });
+  assert.equal(JSON.stringify(view).includes(upstreamApi.token), false, 'an unknown input is not passed on');
+  for (const [bad, why] of [[{ ...rarity, tier: 'mythic' }, 'an unknown tier'], [{ ...rarity, score: 140 }, 'a score above 100'], [{ ...rarity, percentile: 0 }, 'a percentile of zero'], [{ ...rarity, cohort: { ...rarity.cohort, quarter: '2026-Q4' } }, 'a quarter in another form'], [{ ...rarity, revealedAt: 'at release' }, 'a time that is not a time'], [{ ...rarity, inputs: { ...rarity.inputs, novelty: { share: 1.5, files: 6, novel: 3 } } }, 'a share above one'], ['legendary', 'a bare word']] as const) {
+    upstreamApi.cards['101'] = { ...liveCard('101'), rarity: bad };
+    assert.equal((await ploeg.card(admin, '101', true)).card.rarity, null, `a rarity with ${why} is dropped`);
+  }
+  upstreamApi.cards['101'] = { ...liveCard('101'), rarity: null };
+  assert.equal((await ploeg.card(admin, '101', true)).card.rarity, null, 'an older Ploeg sends null');
+  const { rarity: _absent, ...older } = liveCard('101');
+  upstreamApi.cards['101'] = older;
+  assert.equal((await ploeg.card(admin, '101', true)).card.rarity, null, 'an absent rarity reads null');
+});
+
+test('the card proxy reads Ploeg card facts, keeps unknowns absent, drops a rarity it cannot read and Ploeg\'s finish, and drops a grade or condition it cannot read', async t => {
   const upstreamApi = await upstream(t);
   upstreamApi.cards['101'] = liveCard('101');
   const ploeg = client(upstreamApi.config);

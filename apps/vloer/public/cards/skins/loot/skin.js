@@ -1,5 +1,5 @@
 import { render as nativeRender } from '../vloer-native/skin.js';
-import { attachSkin, coin, crackPaths, figures, gradeName, honours, markSeed, skinView } from '../../skin-kit.js';
+import { attachSkin, coin, crackPaths, figures, gradeName, honours, markSeed, rarityFrame, rarityMark, skinView } from '../../skin-kit.js';
 
 /** The skin's name, matching its folder and manifest. */
 export const id = 'loot';
@@ -187,7 +187,7 @@ function qualityRow(view, h) {
   const e = h.escape;
   const release = view.release;
   const condition = view.condition ? `<span class="lt-cond" data-condition="${e(view.condition.state)}" title="${e(view.condition.text)}">(${e(view.condition.label)})</span>` : '';
-  return `<div class="lt-q"><span class="lt-fin">${e(view.finish.label)}</span><span class="lt-dim">${release.released ? e(release.dayText) : 'not live yet'}</span>${condition}${view.demo ? '<b class="lt-demo" title="Illustrative record: no model calls, no spend">Demo</b>' : ''}</div>`;
+  return `<div class="lt-q">${rarityMark(view, h)}<span class="lt-fin">${e(view.finish.label)}</span><span class="lt-dim">${release.released ? e(release.dayText) : 'not live yet'}</span>${condition}${view.demo ? '<b class="lt-demo" title="Illustrative record: no model calls, no spend">Demo</b>' : ''}</div>`;
 }
 
 function madeBy(view, h) {
@@ -239,7 +239,7 @@ function standard(view, h) {
     : `<span><b class="lt-lines lt-unk">—</b> ${e(view.pr ? diff.value : 'No diff yet')}</span>`;
   const sub = `Tokens: ${view.tokens.value}${view.demo ? ' · demo' : ''}`;
   return `<article ${rootAttributes(view, 'standard', h)} aria-label="Run card: ${e(view.title)}">
-    <div class="sk-card">${rim(view)}
+    <div class="sk-card">${rarityFrame(view)}${rim(view)}
       <div class="lt-tip">${frame(view)}
         <header class="lt-hd"><div class="lt-icon">${pageIcon(view)}</div><div class="lt-hx"><h3 class="lt-title" data-slot="title"><span>${e(view.title)}</span></h3><div class="lt-type"><span>${e(roleLine(view))}</span>${stateChip(view, h)}</div></div></header>
         ${qualityRow(view, h)}
@@ -283,7 +283,7 @@ function setCard(view, h) {
   const hidden = set.size - Math.min(set.size, pieceCap);
   const goal = set.complete ? 'Set complete. Every Work Item settled: 30 days live.' : `Completes when all ${set.size} Work Items have settled: 30 days live.`;
   return `<article ${rootAttributes(view, 'set', h)} aria-label="Set Card: ${e(view.title)}">
-    <div class="sk-card">${rim(view)}
+    <div class="sk-card">${rarityFrame(view)}${rim(view)}
       <div class="lt-tip">${frame(view)}${embers(view)}
         <header class="lt-banner"><div class="lt-bt"><span class="lt-kind">${set.complete ? 'Set complete' : 'Set Card'} · Set of ${e(set.size)}${set.ref ? ` · ${e(set.ref)}` : ''}</span><h3 class="lt-title" data-slot="title"><span>${e(view.title)}</span></h3><div class="lt-type"><span>${e(set.size)} Work Items · ${e(set.progress)}</span>${stateChip(view, h)}</div></div><div class="lt-icon lt-big">${set.complete ? '<i class="lt-pillar" aria-hidden="true"></i>' : ''}${pendantIcon()}</div></header>
         ${qualityRow(view, h)}

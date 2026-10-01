@@ -17,12 +17,17 @@ export const tierSpecs = Object.freeze({
 export const momentCapsMs = Object.freeze({ cracked: 1500, mended: 2500 });
 
 /** The moment kinds a card's news can carry, with what each one is called. */
-export const momentLabels = Object.freeze({ minted: 'Minted', merged: 'Merged', released: 'Released', finish: 'Finish', cracked: 'Cracked', mended: 'Mended', graded: 'Graded', set: 'Set complete' });
+export const momentLabels = Object.freeze({ minted: 'Minted', merged: 'Merged', released: 'Released', rarity: 'Rarity revealed', finish: 'Finish', cracked: 'Cracked', mended: 'Mended', graded: 'Graded', set: 'Set complete' });
 
 const finishRank = Object.freeze({ matte: 0, foil: 1, holo: 2, prism: 3, gilded: 4, infinity: 5 });
 
+/** The ceremony tier of a rarity reveal by the revealed tier: common and uncommon are minor, rare major, epic epic and legendary legendary. Only a reveal's own size follows rarity (Vloer ADR 0034). */
+export const rarityRevealTiers = Object.freeze({ common: 'minor', uncommon: 'minor', rare: 'major', epic: 'epic', legendary: 'legendary' });
+
 /**
- * The tier a moment plays at, from its kind and its facts only, never from rarity (which is open) or from who did it.
+ * The tier a moment plays at, from its kind and its facts only, never from who did it, and never from a card's rarity
+ * except for the rarity reveal itself, which plays at the size of the revealed tier (`rarityRevealTiers`); a reveal
+ * below its prediction plays at the revealed tier like any other, with no loss cue.
  * Intensity is inverse to frequency: a merge or a release happens several times a week and is major; a finish step is
  * a level-up and epic, and the year-long infinity step is legendary; a crack informs at major, and its mend is epic so
  * the arc ends on the repair; a first or higher grade is major and a lower one minor; a completed set is legendary.
@@ -34,6 +39,7 @@ export function momentTier(moment) {
   switch (moment?.kind) {
     case 'merged': return 'major';
     case 'released': return 'major';
+    case 'rarity': return rarityRevealTiers[detail.tier] ?? 'minor';
     case 'finish': return (finishRank[detail.to] ?? 0) >= 5 ? 'legendary' : 'epic';
     case 'cracked': return 'major';
     case 'mended': return 'epic';

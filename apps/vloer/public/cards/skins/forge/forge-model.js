@@ -114,6 +114,27 @@ export function seedFor(view) {
   return (stableHash(`seed|${view?.id ?? ''}`) % 100_000) / 100_000;
 }
 
+/**
+ * How the forge paints each rarity tier (Vloer ADR 0034): the frame metal's dark and light stops (sRGB, 0 to 1)
+ * the front shader blends through, whether it turns iridescent, the hint colour a predicted rarity glows in, the ink of
+ * the tier's word and the set symbol's fill (two stops, or `spectrum` for iridescent).
+ */
+export const rarityMetals = Object.freeze({
+  common: Object.freeze({ lo: Object.freeze([0.2, 0.22, 0.24]), hi: Object.freeze([0.62, 0.66, 0.7]), irid: 0, hint: Object.freeze([0.66, 0.72, 0.78]), ink: '#c4ccd2', symbol: Object.freeze(['#2a2f33', '#121518']), rim: '#cfd8da' }),
+  uncommon: Object.freeze({ lo: Object.freeze([0.3, 0.16, 0.06]), hi: Object.freeze([0.86, 0.56, 0.3]), irid: 0, hint: Object.freeze([0.9, 0.6, 0.34]), ink: '#e2ae76', symbol: Object.freeze(['#f4f7fa', '#8e99a5']), rim: '#1a1d20' }),
+  rare: Object.freeze({ lo: Object.freeze([0.42, 0.46, 0.52]), hi: Object.freeze([0.96, 0.98, 1]), irid: 0, hint: Object.freeze([0.82, 0.9, 1]), ink: '#e8eef4', symbol: Object.freeze(['#fff1b8', '#c98f22']), rim: '#2a1a05' }),
+  epic: Object.freeze({ lo: Object.freeze([0.42, 0.26, 0.03]), hi: Object.freeze([1, 0.8, 0.36]), irid: 0, hint: Object.freeze([1, 0.8, 0.36]), ink: '#ffd36b', symbol: Object.freeze(['#ffb27a', '#c8400f']), rim: '#fff0c8' }),
+  legendary: Object.freeze({ lo: Object.freeze([0.42, 0.36, 0.6]), hi: Object.freeze([0.98, 0.94, 1]), irid: 0.85, hint: Object.freeze([0.8, 0.68, 1]), ink: '#e9dcff', symbol: 'spectrum', rim: '#ffffff' }),
+});
+
+/** What the forge paints for a card's rarity: its tier, whether it is predicted or revealed, the word on the type line and the tier's metal; null without a rarity. */
+export function rarityLook(view) {
+  const rarity = view?.rarity;
+  const metal = rarity ? rarityMetals[rarity.key] : null;
+  if (!metal) return null;
+  return { key: rarity.key, state: rarity.state, label: rarity.label, word: rarity.state === 'predicted' ? `Predicted ${rarity.label}` : rarity.label, ...metal };
+}
+
 const money = /^US\$\s*/u;
 
 function coin(view) {
@@ -189,11 +210,12 @@ export function faceFacts(view) {
     images: { symbol: null, back: null },
     seed: seedFor(view),
     edge: coverage.gilded ? 'gold' : coverage.level > 0 ? 'chrome' : 'steel',
+    rarity: rarityLook(view),
   };
 }
 
 /** A string that changes whenever anything the forge paints changes, so a refresh with the same facts repaints nothing. */
 export function factsSignature(facts) {
   const art = facts.art.key === 'custom' ? `custom:${facts.art.code}` : facts.art.key === 'media' ? `media:${facts.art.url}` : facts.art.key;
-  return JSON.stringify([facts.title, facts.sub, facts.coin, facts.state, facts.condition, facts.finishLine, facts.rows, facts.set, facts.grade, facts.steward, facts.ids, facts.demoLine, facts.coverage.key, facts.pattern.key, art, facts.frame, facts.theme, Boolean(facts.images?.symbol), Boolean(facts.images?.back), facts.variant]);
+  return JSON.stringify([facts.title, facts.sub, facts.coin, facts.state, facts.condition, facts.finishLine, facts.rows, facts.set, facts.grade, facts.steward, facts.ids, facts.demoLine, facts.coverage.key, facts.pattern.key, art, facts.frame, facts.theme, Boolean(facts.images?.symbol), Boolean(facts.images?.back), facts.variant, facts.rarity ? `${facts.rarity.key}|${facts.rarity.state}` : '']);
 }

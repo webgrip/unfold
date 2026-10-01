@@ -175,6 +175,13 @@
   overflow: hidden;
 }
 
+.tk-r > .uc-rarity {
+  flex: none;
+  overflow: visible;
+  color: var(--rarity-ink);
+  text-shadow: 0 0 6px var(--rarity-glow);
+}
+
 .tk-r > span {
   overflow: hidden;
   text-overflow: ellipsis;

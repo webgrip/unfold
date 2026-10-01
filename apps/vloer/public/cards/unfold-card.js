@@ -41,7 +41,9 @@ function parse(markup) {
  * A card whose `style.theme` names a theme loads it from Vloer; a theme picks the skin it `extends`, sets its tokens
  * on the element through the CSSOM and reaches the skin as `view.theme`. Setting the `theme` property to a theme
  * object (the designer's draft) or to null overrides that lookup; the element reflects the theme it drew as
- * `data-theme`. Setting `asOf` shows the card as it was at
+ * `data-theme`. A card with a rarity reflects its tier as `data-rarity` and whether it is `predicted` or `revealed` as
+ * `data-rarity-state`, which the runtime's stylesheet turns into the tier's metal and symbol tokens for every skin.
+ * Setting `asOf` shows the card as it was at
  * that moment, which the binder uses to replay what changed while its owner was away. Every skin's `attach` fires
  * `unfold-card-moment` on the element through `skin-kit.js`'s `emitMoments`, and `playMoment(moment, api)` hands the
  * effects director's ceremony to the skin's `onMoment`.
@@ -168,6 +170,8 @@ export class UnfoldCard extends Base {
     const view = cardView(card, this.#asOf === null ? {} : { now: this.#asOf });
     if (!(skin?.manifest?.finishes ?? []).includes(view.finish.key)) view.finish = finishLadder[0];
     view.theme = themed;
+    if (view.rarity) { this.dataset.rarity = view.rarity.key; this.dataset.rarityState = view.rarity.state; }
+    else { delete this.dataset.rarity; delete this.dataset.rarityState; }
     this.#view = view;
     await this.#paint(skin, ticket);
   }

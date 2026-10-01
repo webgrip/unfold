@@ -9,7 +9,7 @@
   "stylesheet": "skin.css",
   "script": "skin.js",
   "finishes": ["matte", "foil", "holo", "prism", "gilded", "infinity"],
-  "moments": ["reveal", "crack", "mend"],
+  "moments": ["reveal", "rarity", "crack", "mend"],
   "themeTokens": ["--gc-accent", "--gc-surface", "--gc-radius", "--forge-frame", "--forge-accent", "--forge-back"],
   "theme": {
     "frames": ["classic", "fullart", "slab"],

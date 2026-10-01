@@ -1,5 +1,5 @@
 import { render as nativeRender } from '../vloer-native/skin.js';
-import { attachSkin, coin, crackPaths, figures, gradeName, honours, initials, markSeed, skinView } from '../../skin-kit.js';
+import { attachSkin, coin, crackPaths, figures, gradeName, honours, initials, markSeed, rarityFrame, rarityMark, skinView } from '../../skin-kit.js';
 import { pixelText, sprite } from './pixel-font.js';
 
 /** The skin's name, matching its folder and manifest. */
@@ -61,7 +61,7 @@ function hud(view, h, blink) {
   const grade = view.grade;
   return `<div class="ac-hud">
     <div class="ac-score"><span class="ac-lbl ac-oneup${blink === 'oneup' ? ' ac-blink' : ''}">${px('1UP', e, 'ac-red', false)}</span><span class="ac-digits${release?.released || view.set?.setCard ? '' : ' ac-off'}">${px(score, e, 'ac-big', false)}</span>${px(caption, e, 'ac-cap', false)}<span class="sr-only">${e(spoken)}</span></div>
-    <div class="ac-mid">${stateChip(view, h)}</div>
+    <div class="ac-mid">${stateChip(view, h)}${view.rarity ? `<span class="ac-rar" data-state="${e(view.rarity.state)}">${rarityMark(view, h, { compact: true })}${px(view.rarity.state === 'predicted' ? `PRED ${view.rarity.label}` : view.rarity.label, e, 'ac-rw', false)}</span>` : ''}</div>
     <div class="ac-hi"><span class="ac-lbl">${px('HI-RANK', e, 'ac-amber', false)}</span><span class="ac-digits ac-amber${grade ? '' : ' ac-off'}">${px(grade ? grade.text : '--', e, 'ac-big', false)}</span>${grade?.provisional ? px('PROV.', e, 'ac-cap', false) : px(grade ? 'FINAL' : 'UNRANKED', e, 'ac-cap', false)}<span class="sr-only">${e(grade ? grade.description : 'Not graded yet')}</span></div>
   </div>`;
 }
@@ -208,7 +208,7 @@ function cabinet(view, h, layout, label, marqueeMarkup, screen) {
   const e = h.escape;
   const level = view.finish.level;
   return `<article ${rootAttributes(view, layout, h)} aria-label="${label}: ${e(view.title)}">
-    <div class="sk-card">
+    <div class="sk-card">${rarityFrame(view)}
       ${level >= 1 ? '<i class="ac-trim" aria-hidden="true"></i>' : ''}
       <div class="ac-cab">
         ${level >= 2 ? '<i class="ac-sideart" aria-hidden="true"></i>' : ''}
@@ -290,7 +290,8 @@ function setCard(view, h) {
  * Draws one face of a card as markup. The front is an arcade cabinet: a lit marquee, a CRT screen with scanlines and
  * phosphor glow, the days live as the score, the grade as the HI-RANK and a slab box, a 1ST–5TH table of cost, run
  * time, tokens, lines and pull request, honours as bonus chips, the Steward's initials as the HI-SCORE, and a control
- * panel with the ids. Fixed strings and numbers are drawn in the skin's own bitmap font. The finish ladder adds chrome
+ * panel with the ids, and the rarity under the state in the tier's colour with its frame ring. Fixed strings and
+ * numbers are drawn in the skin's own bitmap font. The finish ladder adds chrome
  * trim, holographic side art, an RGB phosphor mask, a gilded control panel and chasing marquee bulbs. A crack runs
  * across the CRT glass and mends in gold. A Set Card is a boss rush with the members as stages. The back is Vloer
  * Native's tabs in the cabinet's colours.

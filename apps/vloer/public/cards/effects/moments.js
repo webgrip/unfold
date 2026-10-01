@@ -1,4 +1,4 @@
-import { finishLadder } from '../card-model.js';
+import { finishLadder, rarityTier } from '../card-model.js';
 import { plural, score } from '../../core/format.js';
 
 const dayMs = 86_400_000;
@@ -7,12 +7,13 @@ const iso = ms => new Date(ms).toISOString().replace('.000Z', 'Z');
 const halfStep = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 10 && Number.isInteger(value * 2);
 
 /** The moment kinds the Work Item page plays a ceremony for. Minted is history, not news. */
-export const ceremonyKinds = Object.freeze(['merged', 'released', 'finish', 'cracked', 'mended', 'graded', 'set']);
+export const ceremonyKinds = Object.freeze(['merged', 'released', 'rarity', 'finish', 'cracked', 'mended', 'graded', 'set']);
 
 /**
  * A card's moments up to `now`, oldest first, from its facts only. It mirrors `cardMoments` in `src/packs.ts`, which
- * the binder and packs use: minted (the first Run), each merged play, released, each finish step crossed (the release
- * plus the step's days), each confirmed crack and each mend.
+ * the binder and packs use: minted (the first Run), each merged play, released, the rarity revealed (at its
+ * `revealedAt`, Ploeg ADR-0056, proposed), each finish step crossed (the release plus the step's days), each confirmed
+ * crack and each mend.
  * @param {object} card The card from `GET /api/ploeg/work-items/:id/card`.
  * @param {number} [now] Milliseconds.
  * @returns {{ workItemId: string, kind: string, at: string, detail: Record<string, string | number> }[]}
@@ -30,6 +31,7 @@ export function cardMoments(card, now = Date.now()) {
     add('released', released, { source: card.release.source, environment: card.release.environment });
     for (let index = 1; index < finishLadder.length; index++) add('finish', released + finishLadder[index].days * dayMs, { from: finishLadder[index - 1].key, to: finishLadder[index].key });
   }
+  if (card.rarity?.revealed) add('rarity', time(card.rarity.revealedAt), { tier: card.rarity.revealed, ...(card.rarity.predicted ? { predicted: card.rarity.predicted } : {}) });
   for (const crack of card.condition?.cracks ?? []) {
     add('cracked', time(crack.confirmedAt), { severity: crack.severity, ...(crack.bug?.ref ? { ref: crack.bug.ref } : {}) });
     if (crack.mended) add('mended', time(crack.mended.at), { ...(crack.bug?.ref ? { ref: crack.bug.ref } : {}), ...(crack.mended.pr !== null && crack.mended.pr !== undefined ? { pr: crack.mended.pr } : {}) });
@@ -77,6 +79,13 @@ export function cardBefore(card, moment, asOf) {
 }
 
 const finishLabel = key => finishLadder.find(step => step.key === key)?.label ?? key;
+const rarityLine = detail => {
+  const revealed = rarityTier(detail.tier);
+  const predicted = rarityTier(detail.predicted);
+  if (revealed && predicted && revealed.rank > predicted.rank) return `beat its prediction of ${predicted.label.toLowerCase()}`;
+  if (revealed && predicted && revealed.rank === predicted.rank) return 'revealed at release, as predicted';
+  return 'revealed at release';
+};
 
 /**
  * The words a ceremony's title shows for a moment: a short headline and a line under it.
@@ -88,6 +97,7 @@ export function momentHeadline(moment) {
   switch (moment?.kind) {
     case 'merged': return { main: 'Merged', sub: detail.number ? `#${detail.number} is in` : 'into the trunk' };
     case 'released': return { main: 'Released', sub: detail.source === 'merge' ? 'counted from the merge' : `to ${detail.environment || 'production'}` };
+    case 'rarity': return { main: rarityTier(detail.tier)?.label ?? 'Rarity', sub: rarityLine(detail) };
     case 'finish': return { main: finishLabel(detail.to), sub: `${plural(finishLadder.find(step => step.key === detail.to)?.days ?? 0, 'day')} live` };
     case 'cracked': return { main: 'Cracked', sub: [detail.severity, detail.ref].filter(Boolean).join(' · ') || 'a bug was traced here' };
     case 'mended': return { main: 'Mended', sub: [detail.ref, detail.pr ? `in #${detail.pr}` : ''].filter(Boolean).join(' ') || 'the crack is fixed' };

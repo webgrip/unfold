@@ -51,7 +51,7 @@ export async function run({ page, app, assert, screenshot }) {
 
   await foil.getByRole('button', { name: 'More info' }).click();
   await page.waitForFunction(() => document.querySelector('unfold-card.work-run-card')?.shadowRoot?.activeElement?.matches('[data-card-focus]'));
-  assert.equal(await foil.getByRole('tab').count(), 10, 'the back keeps the ten tabs');
+  assert.equal(await foil.getByRole('tab').count(), 11, 'the back keeps the eleven tabs');
   assert.equal(await foil.locator('.forge-set').innerText(), '4/5', 'the forge bar names the card’s place in its set');
   assert.match(await foil.locator('.forge-facts').textContent(), /Gates\s*Done · right first time/, 'the gates are in the text for screen readers');
   await foil.getByRole('tab', { name: 'Life' }).click();

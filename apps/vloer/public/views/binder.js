@@ -5,23 +5,29 @@ import { count, dateTime, plural, relative } from '../core/format.js';
 import { button, callout, chip, demoNote, emptyState, skeleton, stat } from '../core/ui.js';
 import { buildHash } from '../core/route.js';
 import { shell } from '../shell.js';
-import { cardView } from '../cards/card-model.js';
+import { cardView, rarityTiers } from '../cards/card-model.js';
 import { cardAsOf, copyCard, momentText, oddsPercent, patternBasisPoints, periodLabel, pullText, roleLabel } from '../cards/collection-model.js';
 import { drawThumbnail, thumbnailsSupported } from '../cards/thumbs.js';
 import '../cards/unfold-card.js';
 import { cardMotion, clearEffects, effects } from '../cards/effects/vloer.js';
 import { cardBefore } from '../cards/effects/moments.js';
 
-const view = { data: null, odds: null, error: '', loading: false, focus: null, team: '', role: '', away: null, awayIndex: 0, awayTimer: 0, played: false, request: 0 };
-onForget(() => { stopAway(); Object.assign(view, { data: null, odds: null, error: '', loading: false, focus: null, team: '', role: '', away: null, awayIndex: 0, played: false, request: view.request + 1 }); });
+const view = { data: null, odds: null, error: '', loading: false, focus: null, team: '', role: '', rarity: '', sort: 'recent', away: null, awayIndex: 0, awayTimer: 0, played: false, request: 0 };
+onForget(() => { stopAway(); Object.assign(view, { data: null, odds: null, error: '', loading: false, focus: null, team: '', role: '', rarity: '', sort: 'recent', away: null, awayIndex: 0, played: false, request: view.request + 1 }); });
 
 const sleeveMark = '<svg class="binder-sleeve-mark" viewBox="0 0 64 64" focusable="false"><path class="sheet" d="M52.625 9.758L11.079 27.437A1.8 1.8 0 0 0 10.949 30.688L28.354 39.805A1.5 1.5 0 0 0 30.199 39.44L53.782 11.321A1 1 0 0 0 52.625 9.758Z"/><path class="fold" d="M53.371 19.067L43.778 53.011A1.8 1.8 0 0 1 40.773 53.795L31.398 44.42A1.5 1.5 0 0 1 31.309 42.395L51.642 18.152A1 1 0 0 1 53.371 19.067Z"/></svg>';
 const reducedMotion = () => cardMotion() !== 'full';
 const readMs = 1200;
 const wait = ms => new Promise(done => { view.awayTimer = setTimeout(done, ms); });
 
+const rarities = new WeakMap();
+const rarityOf = entry => { if (!rarities.has(entry.card)) rarities.set(entry.card, cardView(entry.card).rarity); return rarities.get(entry.card); };
+const rarityRank = rarity => rarity ? rarity.tier.rank * 2 + (rarity.state === 'revealed' ? 1 : 0) : -1;
+
 function visibleCopies() {
-  return (view.data?.copies ?? []).filter(entry => (!view.team || entry.card.team === view.team) && (!view.role || entry.copy.role === view.role));
+  const copies = (view.data?.copies ?? []).filter(entry => (!view.team || entry.card.team === view.team) && (!view.role || entry.copy.role === view.role) && (!view.rarity || (view.rarity === 'none' ? !rarityOf(entry) : rarityOf(entry)?.key === view.rarity)));
+  if (view.sort !== 'rarity') return copies;
+  return copies.map((entry, index) => ({ entry, index, rarity: rarityOf(entry) })).sort((a, b) => rarityRank(b.rarity) - rarityRank(a.rarity) || (b.rarity?.points ?? -1) - (a.rarity?.points ?? -1) || a.index - b.index).map(item => item.entry);
 }
 
 function focused() {
@@ -51,18 +57,24 @@ function filters(data) {
   const roles = data.filters.roles;
   const teamSelect = teams.length > 1 ? `<label class="binder-filter"><span>Team</span><select id="binder-team" aria-label="Team">${['', ...teams].map(team => `<option value="${escape(team)}"${team === view.team ? ' selected' : ''}>${team ? escape(team) : 'All teams'}</option>`).join('')}</select></label>` : '';
   const roleButtons = roles.length > 1 ? `<div class="segmented binder-roles" role="group" aria-label="Role">${['', ...roles].map(role => `<button type="button" class="segment" data-action="binder-role" data-role="${escape(role)}" aria-pressed="${role === view.role}">${role ? escape(roleLabel(role)) : 'All roles'}</button>`).join('')}</div>` : '';
-  return teamSelect || roleButtons ? `<div class="binder-filters">${teamSelect}${roleButtons}</div>` : '';
+  const rated = data.copies.some(entry => rarityOf(entry));
+  const tiers = rated ? [...rarityTiers].reverse().filter(tier => data.copies.some(entry => rarityOf(entry)?.key === tier.key)) : [];
+  const unrated = rated && data.copies.some(entry => !rarityOf(entry));
+  const raritySelect = rated ? `<label class="binder-filter"><span>Rarity</span><select id="binder-rarity" aria-label="Rarity"><option value=""${view.rarity ? '' : ' selected'}>Every rarity</option>${tiers.map(tier => `<option value="${escape(tier.key)}"${view.rarity === tier.key ? ' selected' : ''}>${escape(tier.label)}</option>`).join('')}${unrated ? `<option value="none"${view.rarity === 'none' ? ' selected' : ''}>Not rated</option>` : ''}</select></label>` : '';
+  const sortSelect = rated ? `<label class="binder-filter"><span>Sort</span><select id="binder-sort" aria-label="Sort"><option value="recent"${view.sort === 'rarity' ? '' : ' selected'}>Newest moment</option><option value="rarity"${view.sort === 'rarity' ? ' selected' : ''}>Rarest first</option></select></label>` : '';
+  return teamSelect || roleButtons || raritySelect ? `<div class="binder-filters">${teamSelect}${raritySelect}${sortSelect}${roleButtons}</div>` : '';
 }
 
 function slot(entry) {
   const id = entry.card.workItemId;
   const v = cardView(copyCard(entry.card, entry.copy));
   const waiting = entry.copy.waitingIn && !entry.copy.pull;
-  const caption = `<span class="binder-slot-title">${escape(v.title)}</span><span class="binder-slot-meta">${escape(roleLabel(entry.copy.role))} · ${escape(v.finish.label)}${entry.copy.pull ? ` · ${escape(pullText(entry.copy.pull))}` : ''}</span>`;
+  const rarity = v.rarity ? `<span class="binder-rarity" data-rarity="${escape(v.rarity.key)}" data-state="${escape(v.rarity.state)}"><i aria-hidden="true"></i>${escape(v.rarity.chip)}</span>` : '';
+  const caption = `<span class="binder-slot-title">${escape(v.title)}</span><span class="binder-slot-meta">${rarity}${escape(roleLabel(entry.copy.role))} · ${escape(v.finish.label)}${entry.copy.pull ? ` · ${escape(pullText(entry.copy.pull))}` : ''}</span>`;
   const picture = waiting
     ? `<span class="binder-sleeve" aria-hidden="true">${sleeveMark}<span class="binder-sleeve-text">Pull waiting<br>${escape(packOf(entry))} pack</span></span>`
     : thumbnailsSupported() ? `<canvas class="binder-thumb" data-thumb="${escape(id)}" aria-hidden="true"></canvas>` : `<span class="binder-mini" aria-hidden="true" data-finish="${escape(v.finish.key)}"><span class="binder-mini-state">${escape(v.state.label)}</span><span class="binder-mini-title">${escape(v.title)}</span><span class="binder-mini-finish">${escape(v.finish.label)}</span></span>`;
-  return `<li><button type="button" class="binder-slot" data-action="binder-focus" data-id="${escape(id)}" aria-pressed="${focused()?.card.workItemId === id}" aria-label="${escape(`${v.title}, ${roleLabel(entry.copy.role)} copy, ${v.finish.label}${waiting ? `, waiting in your ${packOf(entry)} pack` : ''}`)}">${picture}${caption}</button></li>`;
+  return `<li><button type="button" class="binder-slot" data-action="binder-focus" data-id="${escape(id)}" aria-pressed="${focused()?.card.workItemId === id}" aria-label="${escape(`${v.title}, ${roleLabel(entry.copy.role)} copy, ${v.rarity ? `${v.rarity.chip}, ` : ''}${v.finish.label}${waiting ? `, waiting in your ${packOf(entry)} pack` : ''}`)}">${picture}${caption}</button></li>`;
 }
 
 function spotlightDetails(entry) {
@@ -118,7 +130,7 @@ function renderBinder() {
   else if (!data.copies.length) content = `${notices(data)}${emptyState({ icon: 'cards', title: 'No cards yet', body: data.identity.logins.length ? 'No card in your Teams lists your logins on its roster yet. Cards appear here when you carry, review, test or accept a Work Item.' : 'Add your logins and your copies appear here.' })}`;
   else {
     const copies = visibleCopies();
-    content = `${notices(data)}${readouts(data)}<div class="binder-layout">${spotlight()}<section class="binder-collection" aria-labelledby="binder-grid-title"><div class="binder-collection-head"><h2 class="binder-section-title" id="binder-grid-title">${plural(copies.length, 'card')} <span>newest moment first</span></h2>${filters(data)}</div>${copies.length ? `<ul class="binder-grid">${copies.map(slot).join('')}</ul>` : '<p class="binder-empty-filter">No card matches these filters.</p>'}</section></div>`;
+    content = `${notices(data)}${readouts(data)}<div class="binder-layout">${spotlight()}<section class="binder-collection" aria-labelledby="binder-grid-title"><div class="binder-collection-head"><h2 class="binder-section-title" id="binder-grid-title">${plural(copies.length, 'card')} <span>${view.sort === 'rarity' ? 'rarest first' : 'newest moment first'}</span></h2>${filters(data)}</div>${copies.length ? `<ul class="binder-grid">${copies.map(slot).join('')}</ul>` : '<p class="binder-empty-filter">No card matches these filters.</p>'}</section></div>`;
   }
   renderHtml(shell(content, { title: 'Binder', subtitle: 'Your copies of Run cards. Private: only you can see this page.', actions, wide: true }));
   if (data?.copies.length) { mountFocus(); drawThumbs(); }
@@ -223,7 +235,7 @@ async function enterBinder({ query = {} } = {}) {
   await load();
 }
 
-/** The binder (`#binder`): the signed-in person's own copies of Run cards, newest moment first, a focused card in 3D, personal readouts and, once per visit, what changed while they were away. */
+/** The binder (`#binder`): the signed-in person's own copies of Run cards, newest moment first or rarest first, filtered by Team, rarity and role, a focused card in 3D, personal readouts and, once per visit, what changed while they were away. */
 export default {
   id: 'binder',
   match: hash => hash === 'binder' ? {} : null,
@@ -234,5 +246,9 @@ export default {
     'binder-role': element => { view.role = element.dataset.role; renderBinder(); },
     'binder-away-skip': () => { finishAway(); announce('Caught up'); },
   },
-  changes: { '#binder-team': element => { view.team = element.value; renderBinder(); } },
+  changes: {
+    '#binder-team': element => { view.team = element.value; renderBinder(); },
+    '#binder-rarity': element => { view.rarity = element.value; renderBinder(); },
+    '#binder-sort': element => { view.sort = element.value === 'rarity' ? 'rarity' : 'recent'; renderBinder(); },
+  },
 };

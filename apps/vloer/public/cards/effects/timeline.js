@@ -14,6 +14,7 @@ export const palettes = Object.freeze({
   prism: Object.freeze([[1, 0.62, 0.45], [1, 0.88, 0.35], [0.45, 1, 0.65], [0.4, 0.72, 1], [0.8, 0.5, 1]]),
   ink: Object.freeze([[0.32, 0.35, 0.38], [0.5, 0.53, 0.56], [0.18, 0.2, 0.22]]),
   silver: Object.freeze([[0.86, 0.9, 0.95], [0.7, 0.76, 0.84], [1, 1, 1]]),
+  bronze: Object.freeze([[0.86, 0.56, 0.3], [1, 0.76, 0.5], [0.62, 0.4, 0.2]]),
 });
 
 /** How each moment looks and sounds: its palette, particle shape, flash tone, sound cue and title tone. */
@@ -27,6 +28,25 @@ export const momentLooks = Object.freeze({
   graded: Object.freeze({ palette: 'silver', shape: 'sparks', flash: 'cool', sound: 'grade', tone: 'silver' }),
   set: Object.freeze({ palette: 'gold', shape: 'confetti', flash: 'warm', sound: 'set', tone: 'gold' }),
 });
+
+/**
+ * How a rarity reveal looks and sounds, by the revealed tier: steel sparks, bronze sparks, silver light rising, a gold
+ * confetti burst and, for legendary, the prism. Every tier rises in pitch; none has a falling or minor cue, so a reveal
+ * below its prediction never sounds like a loss.
+ */
+export const rarityLooks = Object.freeze({
+  common: Object.freeze({ palette: 'silver', shape: 'sparks', flash: null, sound: 'rarity', tone: 'silver', level: 0 }),
+  uncommon: Object.freeze({ palette: 'bronze', shape: 'sparks', flash: null, sound: 'rarity', tone: 'bronze', level: 1 }),
+  rare: Object.freeze({ palette: 'silver', shape: 'rise', flash: 'cool', sound: 'rarity', tone: 'silver', level: 2 }),
+  epic: Object.freeze({ palette: 'gold', shape: 'confetti', flash: 'gold', sound: 'rarity', tone: 'gold', level: 3 }),
+  legendary: Object.freeze({ palette: 'prism', shape: 'prism', flash: 'white', sound: 'rarity', tone: 'prism', level: 4 }),
+});
+
+/** The look of a moment: a rarity reveal's by its revealed tier, every other moment's by its kind. */
+export function momentLook(moment) {
+  if (moment?.kind === 'rarity') return rarityLooks[moment.detail?.tier] ?? rarityLooks.common;
+  return momentLooks[moment?.kind] ?? momentLooks.minted;
+}
 
 /** Whether an RGB colour (0 to 1) is a saturated red, which WCAG holds to a stricter flash threshold and a ceremony never flashes. */
 export function saturatedRed([r, g, b]) {
@@ -50,7 +70,7 @@ export function saturatedRed([r, g, b]) {
  */
 export function ceremonyTimeline(moment, tier, mode, { count = 1, takeover = true } = {}) {
   const spec = tierSpecs[tier] ?? tierSpecs.minor;
-  const look = momentLooks[moment?.kind] ?? momentLooks.minted;
+  const look = momentLook(moment);
   const full = ceremonyCapMs(moment?.kind, tier);
   const cues = [];
   if (mode !== 'full') {
@@ -58,7 +78,7 @@ export function ceremonyTimeline(moment, tier, mode, { count = 1, takeover = tru
     cues.push({ at: 0, type: 'skin', mode: 'calm', durationMs });
     cues.push({ at: 0, type: 'pulse', ms: 150 });
     if (spec.title) cues.push({ at: 0, type: 'title', hold: durationMs, mode: 'calm', tone: look.tone, count });
-    cues.push({ at: 0, type: 'sound', cue: look.sound, level: spec.rank });
+    cues.push({ at: 0, type: 'sound', cue: look.sound, level: look.level ?? spec.rank });
     cues.push({ at: durationMs, type: 'settle' });
     return { durationMs, tier, mode: 'calm', cues };
   }
@@ -67,7 +87,7 @@ export function ceremonyTimeline(moment, tier, mode, { count = 1, takeover = tru
   if (spec.takeover && takeover) cues.push({ at: 0, type: 'takeover', ms: full });
   if (spec.rank > 0) cues.push({ at: 0, type: 'anticipate', ms: impact });
   cues.push({ at: impact, type: 'impact', juice: spec.juice });
-  cues.push({ at: impact, type: 'sound', cue: look.sound, level: spec.rank });
+  cues.push({ at: impact, type: 'sound', cue: look.sound, level: look.level ?? spec.rank });
   if (spec.hitStopMs) cues.push({ at: impact, type: 'hitstop', ms: spec.hitStopMs });
   if (spec.flashes && look.flash) cues.push({ at: impact, type: 'flash', opacity: Math.min(flashLimit.opacity, 0.22 + spec.rank * 0.07), tone: look.flash, ms: 180 });
   if (spec.trauma) cues.push({ at: impact, type: 'shake', trauma: spec.trauma });

@@ -1,6 +1,6 @@
 import { render as nativeRender } from '../vloer-native/skin.js';
 import { finishLadder } from '../../card-model.js';
-import { attachSkin, coin, crackPaths, figures, gradeName, honours, markSeed, skinView } from '../../skin-kit.js';
+import { attachSkin, coin, crackPaths, figures, gradeName, honours, markSeed, rarityFrame, rarityMark, skinView } from '../../skin-kit.js';
 
 /** The skin's name, matching its folder and manifest. */
 export const id = 'ticker';
@@ -52,7 +52,7 @@ function keyStrip(view, h, setCard) {
 function statusBar(view, h, right) {
   const e = h.escape;
   const condition = view.condition?.state === 'cracked' ? '<b class="tk-halt">■ HALTED</b>' : view.condition?.state === 'mended' ? '<b class="tk-resume">▲ RESUMED</b>' : '';
-  return `<div class="tk-hdr"><span class="tk-st" data-slot="state" data-tone="${e(view.state.tone)}" title="${e(view.state.description || '')}"><i aria-hidden="true"></i><span>${e(view.state.label)}</span></span><span class="tk-r">${condition}<span>${e(right)}</span></span></div>`;
+  return `<div class="tk-hdr"><span class="tk-st" data-slot="state" data-tone="${e(view.state.tone)}" title="${e(view.state.description || '')}"><i aria-hidden="true"></i><span>${e(view.state.label)}</span></span><span class="tk-r">${condition}${rarityMark(view, h)}<span>${e(right)}</span></span></div>`;
 }
 
 function quote(view, h) {
@@ -286,7 +286,7 @@ function roleLine(view) {
 function standard(view, h) {
   const e = h.escape;
   return `<article ${rootAttributes(view, 'standard', h)} aria-label="Run card: ${e(view.title)}">
-    <div class="sk-card">${layers(view)}
+    <div class="sk-card">${rarityFrame(view)}${layers(view)}
       <div class="tk-scr">
         ${keyStrip(view, h, false)}
         ${statusBar(view, h, roleLine(view))}
@@ -355,7 +355,7 @@ function setCard(view, h) {
   const e = h.escape;
   const set = view.set;
   return `<article ${rootAttributes(view, 'set', h)} aria-label="Set Card: ${e(view.title)}">
-    <div class="sk-card">${layers(view)}
+    <div class="sk-card">${rarityFrame(view)}${layers(view)}
       <div class="tk-scr">
         ${keyStrip(view, h, true)}
         ${statusBar(view, h, `Set of ${set.size}${set.ref ? ` · ${set.ref}` : ''}`)}

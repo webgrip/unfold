@@ -364,6 +364,28 @@
   max-inline-size: 100%;
 }
 
+.ac .ac-rar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-block-start: 3px;
+  color: var(--rarity-ink);
+  filter: drop-shadow(0 0 3px var(--rarity-glow));
+}
+
+.ac .ac-rar .uc-rarity {
+  font-size: 0.6rem;
+}
+
+.ac .ac-rar[data-state="predicted"] {
+  opacity: 0.75;
+}
+
+.ac .uc-frame {
+  inset: -2px;
+}
+
 .ac .ac-state {
   display: inline-flex;
   align-items: center;

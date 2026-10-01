@@ -103,6 +103,185 @@
   overflow-wrap: anywhere;
 }
 
+/* Rarity (Ploeg ADR-0056, proposed; Vloer ADR 0034): tier tokens, the shared mark and the frame ring. */
+:host([data-rarity="common"]),
+[data-rarity="common"] {
+  --rarity-edge: #8d969e;
+  --rarity-metal: linear-gradient(135deg, #565e65 0%, #a3acb3 30%, #687178 52%, #b3bbc1 76%, #4f565c 100%);
+  --rarity-symbol: #15181b;
+  --rarity-symbol-rim: rgb(255 255 255 / 0.85);
+  --rarity-glow: rgb(170 182 192 / 0.5);
+  --rarity-ink: #b8c1c8;
+}
+
+:host([data-rarity="uncommon"]),
+[data-rarity="uncommon"] {
+  --rarity-edge: #b47c45;
+  --rarity-metal: linear-gradient(135deg, #5e3a17 0%, #c88d52 28%, #8a5a2b 50%, #e2ae76 74%, #5a3614 100%);
+  --rarity-symbol: linear-gradient(160deg, #f4f7fa 0%, #b9c3cd 55%, #7f8a96 100%);
+  --rarity-symbol-rim: rgb(20 24 28 / 0.75);
+  --rarity-glow: rgb(214 150 92 / 0.55);
+  --rarity-ink: #e2ae76;
+}
+
+:host([data-rarity="rare"]),
+[data-rarity="rare"] {
+  --rarity-edge: #cfd7df;
+  --rarity-metal: linear-gradient(135deg, #7d8894 0%, #f4f7fa 26%, #a9b4bf 48%, #ffffff 70%, #6f7a86 100%);
+  --rarity-symbol: linear-gradient(160deg, #fff1b8 0%, #e8b84a 50%, #9c6c12 100%);
+  --rarity-symbol-rim: rgb(40 26 4 / 0.75);
+  --rarity-glow: rgb(222 232 242 / 0.6);
+  --rarity-ink: #e4eaf0;
+}
+
+:host([data-rarity="epic"]),
+[data-rarity="epic"] {
+  --rarity-edge: #e2b552;
+  --rarity-metal: linear-gradient(135deg, #8a6212 0%, #ffe39a 26%, #c9952e 48%, #fff2c0 70%, #7a540e 100%);
+  --rarity-symbol: linear-gradient(160deg, #ffb27a 0%, #f0642a 52%, #b8360f 100%);
+  --rarity-symbol-rim: rgb(255 240 200 / 0.8);
+  --rarity-glow: rgb(255 200 90 / 0.6);
+  --rarity-ink: #ffd36b;
+}
+
+:host([data-rarity="legendary"]),
+[data-rarity="legendary"] {
+  --rarity-edge: #d8c6ff;
+  --rarity-metal: conic-gradient(from 210deg at 50% 50%, #ff8a6a, #ffd36b, #7dffb0, #6ad3ff, #b48cff, #ff8ad8, #ff8a6a);
+  --rarity-symbol: conic-gradient(from 200deg at 50% 55%, #ff6a3d, #ffd24a, #5ce1a0, #5cb8ff, #b48cff, #ff6a3d);
+  --rarity-symbol-rim: rgb(255 255 255 / 0.9);
+  --rarity-glow: rgb(200 170 255 / 0.65);
+  --rarity-ink: #e9dcff;
+}
+
+.uc-rarity {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  min-inline-size: 0;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: inherit;
+}
+
+.uc-rarity-gem {
+  display: inline-block;
+  flex: none;
+  inline-size: 1.05em;
+  block-size: 1.05em;
+  filter: drop-shadow(0 0 0.6px var(--rarity-symbol-rim)) drop-shadow(0 0 0.6px var(--rarity-symbol-rim));
+}
+
+.uc-rarity-gem i {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  clip-path: polygon(50% 0, 100% 36%, 81% 100%, 19% 100%, 0 36%);
+  background: var(--rarity-symbol);
+}
+
+.uc-rarity-word small {
+  font-size: 0.85em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  opacity: 0.75;
+}
+
+.uc-rarity[data-state="predicted"] .uc-rarity-gem {
+  filter: drop-shadow(0 0 2px var(--rarity-glow)) drop-shadow(0 0 0.6px var(--rarity-symbol-rim));
+}
+
+.uc-rarity[data-state="predicted"] .uc-rarity-gem i {
+  opacity: 0.55;
+}
+
+.uc-rarity[data-compact] .uc-rarity-word {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.uc-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+  padding: 3px;
+  background: var(--rarity-metal);
+  pointer-events: none;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.35);
+}
+
+.uc-frame[data-rarity="common"] {
+  opacity: 0.8;
+}
+
+.uc-frame[data-state="predicted"] {
+  padding: 2px;
+  background: none;
+  -webkit-mask: none;
+  mask: none;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--rarity-edge) 70%, transparent), inset 0 0 14px var(--rarity-glow), 0 0 16px -2px var(--rarity-glow);
+  opacity: 0.6;
+}
+
+.uc-frame[data-reveal] {
+  animation: uc-frame-reveal var(--uc-reveal-ms, 900ms) var(--ease-standard, ease) both;
+}
+
+@keyframes uc-frame-reveal {
+  0% { opacity: 0; filter: brightness(2.4); }
+  35% { opacity: 1; filter: brightness(1.8); }
+  100% { opacity: 1; filter: none; }
+}
+
+@keyframes uc-mark-pop {
+  0% { transform: scale(1); filter: none; }
+  30% { transform: scale(1.35); filter: brightness(1.8) drop-shadow(0 0 6px var(--rarity-glow)); }
+  100% { transform: scale(1); filter: none; }
+}
+
+@keyframes uc-glow {
+  50% { opacity: 0.25; }
+}
+
+@keyframes uc-hue {
+  to { filter: hue-rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .uc-frame[data-state="predicted"] {
+    animation: uc-glow 2.6s ease-in-out infinite;
+  }
+
+  .uc-rarity[data-rarity="legendary"][data-state="revealed"] .uc-rarity-gem i {
+    animation: uc-hue 7s linear infinite;
+  }
+
+  [data-moment~="rarity"] .uc-frame {
+    animation: uc-frame-reveal 1200ms var(--ease-standard, ease) both;
+  }
+
+  [data-moment~="rarity"] .uc-rarity {
+    animation: uc-mark-pop 900ms var(--ease-standard, ease) both;
+  }
+
+  [data-idle] .uc-frame[data-rarity="legendary"][data-state="revealed"],
+  [data-gc-animate] .uc-frame[data-rarity="legendary"][data-state="revealed"] {
+    animation: uc-hue 9s linear infinite;
+  }
+}
+
 .sr-only {
   position: absolute;
   inline-size: 1px;
@@ -132,5 +311,10 @@
 
   .gc-face[inert] {
     opacity: 0;
+  }
+
+  .uc-frame,
+  .uc-rarity * {
+    animation: none !important;
   }
 }

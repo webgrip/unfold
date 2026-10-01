@@ -11,7 +11,9 @@ function artCall(look, uv) {
 /**
  * The front's fragment shader for one art and one foil pattern. A theme's shader art (`look.code`, compiled in the
  * browser before it was stored) is placed after the preset library and called as `art_custom`; uploaded art samples
- * `uArtTex`.
+ * `uArtTex`. A card's rarity colours only the frame band (the mask's green outside the art window): `uRarity.x`
+ * blends it through the tier's metal (`uMetalLo` to `uMetalHi`), `.y` adds iridescence, `.z` is the predicted glow
+ * at the edge in `uHint`, and `.w` the reveal's light sweeping along the frame.
  * @param {{ key: string, code?: string }} look
  * @param {string} patternKey
  */
@@ -21,6 +23,7 @@ export function frontShader(look, patternKey) {
 uniform sampler2D uFace, uMask, uHeight, uArtTex;
 uniform vec4 uArtRect; uniform float uTime; uniform vec2 uP; uniform vec3 uV; uniform float uIntensity; uniform vec3 uCover; uniform float uBorder;
 uniform float uSeed; uniform float uCrack, uMend, uCrackSeed; uniform vec2 uImpact; uniform float uFlash, uDesat; uniform float uRelief; uniform vec2 uTexel; uniform float uArtDepth; uniform float uWipe; uniform float uGlint;
+uniform vec3 uMetalLo, uMetalHi, uHint; uniform vec4 uRarity;
 in vec2 vUv; out vec4 outColor;
 ${prelude}
 ${foils}
@@ -83,6 +86,20 @@ void main(){
   ff.intensity = uIntensity * cover;
   vec3 foiled = foil_${patternKey}(ff);
   vec3 col = mix(matte, foiled, step(0.001, cover));
+  float frameBand = m.g * (1.0 - m.r);
+  if (uRarity.x > 0.001) {
+    float fl = dot(col, vec3(0.2126, 0.7152, 0.0722));
+    float ramp = clamp(fl * 1.6 + 0.25 * (vUv.x - vUv.y) + 0.35 * dot(Vd.xy, vec2(0.6, 0.4)), 0.0, 1.0);
+    vec3 metal = mix(uMetalLo, uMetalHi, ramp);
+    metal = mix(metal, spectrum(vUv.x * 0.9 + vUv.y * 0.7 + dot(Vd.xy, vec2(0.8, 0.5)) + uTime * 0.02) * (0.55 + 0.6 * ramp), uRarity.y);
+    col = mix(col, metal * (0.5 + 0.7 * fl), frameBand * uRarity.x * (1.0 - 0.25 * cover));
+  }
+  if (uRarity.z > 0.001) {
+    vec2 rimUv = min(vUv, 1.0 - vUv) * vec2(1.0, 1.397);
+    float rimGlow = smoothstep(0.035, 0.0, min(rimUv.x, rimUv.y));
+    col += uHint * rimGlow * frameBand * uRarity.z * (0.45 + 0.35 * sin(uTime * 2.4));
+  }
+  if (uRarity.w < 1.3) col += mix(uHint, vec3(1.0), 0.4) * exp(-pow((vUv.x * 0.6 + (1.0 - vUv.y) * 0.4 - uRarity.w) * 30.0, 2.0)) * frameBand * 0.7;
   if (uBorder > 0.5) {
     vec2 q = (vUv - 0.5) * vec2(0.716, 1.0);
     float ang = atan(q.y, q.x) / TAU + 0.5;
