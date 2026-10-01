@@ -250,7 +250,7 @@ test('a Work Item with a branch and a target repository offers to check it out; 
   const offered = button(view.headCard(work()), 'Check out branch');
   assert.ok(offered, 'the branch of the latest Shift is offered');
   assert.equal(offered.dataset.action, 'checkout');
-  assert.match(offered.getAttribute('title') ?? '', /glide\/42-explain from webgrip\/glide/);
+  assert.match(offered.getAttribute('title') ?? '', /unfold\/42-explain from webgrip\/glide/);
   assert.ok(!button(view.headCard(work({}, true)), 'Check out branch'), 'demo branches exist only in the demo');
   assert.ok(!button(view.headCard(work({ shifts: [] })), 'Check out branch'), 'no Shift, no branch');
   const unrouted = work();
