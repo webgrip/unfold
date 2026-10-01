@@ -75,6 +75,11 @@ for case in ":default" \
 	fi
 done
 
+if [ "$mode" = "update" ]; then
+	(cd ../.. && uv run --frozen python scripts/docs-configuration.py)
+	echo "updated docs/reference/configuration.md"
+fi
+
 for case in "ops/helm/ploeg/ci/reject-reader-without-read-token-values.yaml:readTokenSecret is not set" \
 	"ops/helm/ploeg/ci/reject-team-executor-type-under-cronjob-values.yaml:executorType is only honoured" \
 	"ops/helm/ploeg/ci/reject-forge-admin-token-values.yaml:adminTokenSecret is not supported" \
