@@ -410,7 +410,7 @@ func parseTeamMap(s string) map[string]string {
 func cardRules(teams map[string]config.TeamCards) map[string]httpapi.CardRules {
 	out := make(map[string]httpapi.CardRules, len(teams))
 	for team, cards := range teams {
-		out[team] = httpapi.CardRules{Referees: cards.Referees, HotfixLabels: cards.HotfixLabels}
+		out[team] = httpapi.CardRules{Referees: cards.Referees, HotfixLabels: cards.HotfixLabels, PRComment: cards.PRComment}
 	}
 	return out
 }

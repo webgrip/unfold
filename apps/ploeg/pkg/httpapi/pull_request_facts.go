@@ -41,6 +41,7 @@ func (s *Server) recordPullRequestFacts(ctx context.Context, fp provider.ForgePr
 	s.capturePullRequestFacts(ctx, fp, pr, ev.PullRequest)
 	if ev.Kind == provider.ForgePRMerged {
 		s.captureMergedChange(ctx, fp, ev, true)
+		s.publishMergedCard(ctx, fp, ev)
 	}
 }
 
