@@ -1,3 +1,14 @@
+## [glide-site-v0.1.0-rc.2](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-site-v0.1.0-rc.1...glide-site-v0.1.0-rc.2) (2026-10-01)
+
+### Added
+
+* **deps:** update all non-major dependencies ([2631513](https://forgejo.webgrip.dev/webgrip/glide/commit/263151325d068621fd671658880d0267f01c6ba4))
+* **deps:** update dependency astro ( 7.1.6 ➔ 7.2.8 ) [security] ([943f0a6](https://forgejo.webgrip.dev/webgrip/glide/commit/943f0a6a6caa1155a4b10b8bf665faddbf3f395c))
+
+### Fixed
+
+* **ci:** never skip the site gate job so Glide releases publish ([4059721](https://forgejo.webgrip.dev/webgrip/glide/commit/405972179bd3e8b3cb852e0943aff5986008bd11))
+
 ## [glide-site-v0.1.0-rc.1](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-site-v0.0.0...glide-site-v0.1.0-rc.1) (2026-10-01)
 
 ### Added
