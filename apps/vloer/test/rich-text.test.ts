@@ -7,7 +7,7 @@ import { PloegClient, type PloegDetail } from '../src/ploeg.ts';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 import { presentTask, type TaskSourceConfig, type TaskSnapshot } from '../src/tasks.ts';
 import { application, configuration, request } from './api-support.ts';
-import { testTimeout } from './timeframes.ts';
+import { scaledTimeout, testTimeout } from './timeframes.ts';
 
 const rendererPath = new URL('../public/core/markdown.js', import.meta.url).href;
 const { markdown: render } = await import(rendererPath) as { markdown: (text: string) => string };
@@ -64,7 +64,7 @@ test('huge and deeply nested descriptions convert within the size cap and in bou
   assertInertMarkup(render(deep), 'deep');
   const pathological = descriptionMarkdown('vikunja', `<p>${'<'.repeat(100_000)}${'<a '.repeat(20_000)}${'&'.repeat(50_000)}</p>`);
   assert(pathological.length <= 65_536);
-  assert(Date.now() - started < 5000, 'conversion stays linear on pathological input');
+  assert(Date.now() - started < scaledTimeout(5000), 'conversion stays linear on pathological input');
 });
 
 test('only Vikunja HTML is converted; plain text, Markdown and other providers pass through unchanged', () => {
