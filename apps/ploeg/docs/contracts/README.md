@@ -79,6 +79,19 @@ change either side and the test tells you.
   figure is `null`, never `0`, and spans that have not ended say
   `running: true` and grow on every read. These figures describe the card
   and the team's process; they never name a person.
+- Since [ADR-0058](../adrs/0058-a-run-cards-pull-request-ci-and-change-shape-figures-are-read-from-the-forge-and-kept-per-play.md)
+  each play may carry `timeline` (`cardPlayTimeline`: opened, ready, first
+  feedback, approvals and merge, review rounds, comments, commits and force
+  pushes), `ciTiming` (`cardPlayCITiming`: runs, failures, reruns, queue,
+  last green, time to green, job minutes and the slowest jobs) and, once
+  merged, `shape` (`cardPlayShape`: indentation complexity, counted lines,
+  test ratio, documentation files and languages), and the card may carry
+  `pipeline` (`cardPipeline`) and `shape` (`cardShape`) summing them up. All
+  five are optional and absent until their facts were captured. The existing
+  `ci` keeps its meaning, the combined commit status of ADR-0046. Durations
+  are integer seconds named `…Seconds`; inside the objects an unknown figure
+  is `null`, never `0`. None of them is an input to the grade or the rarity,
+  and waiting for a review describes the team, not a person.
 - `deploy-api.v1` is the body of a pipeline's deploy report. It refuses
   unknown fields, unlike the response contracts, so a misspelled field fails
   the pipeline step instead of being dropped.

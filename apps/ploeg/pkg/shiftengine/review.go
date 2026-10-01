@@ -26,7 +26,10 @@ type ReviewWatch struct {
 	// MarkTrackerDone lets a merge set the tracker item to done, for providers
 	// that map done to a status.
 	MarkTrackerDone bool
-	Log             *slog.Logger
+	// Bots are the forge logins Ploeg acts as; recomputing a play's review
+	// figures never counts them as feedback (ADR-0058).
+	Bots []string
+	Log  *slog.Logger
 }
 
 type reviewTarget struct {
@@ -153,6 +156,12 @@ func (w *ReviewWatch) recordFacts(ctx context.Context, t reviewTarget, facts pro
 	pr := forgefacts.PullRequest{Forge: t.forge.Name(), Repo: t.repo, Number: t.pr, WorkItemID: t.item.WorkItemID}
 	if _, err := w.Store.RecordPullRequestFacts(ctx, forgefacts.Facts(pr, facts, ci, time.Now())); err != nil {
 		w.log().Error("review reconcile: pull request facts not recorded",
+			"work_item", t.item.WorkItemID, "repo", t.repo, "pr", t.pr, "err", err)
+		return
+	}
+	key := store.PullRequestKey{Forge: t.forge.Name(), Repo: t.repo, Number: t.pr}
+	if _, err := w.Store.RefreshPullRequestKPIs(ctx, key, time.Now(), w.Bots); err != nil {
+		w.log().Error("review reconcile: pull request figures not recomputed",
 			"work_item", t.item.WorkItemID, "repo", t.repo, "pr", t.pr, "err", err)
 	}
 }

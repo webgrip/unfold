@@ -249,3 +249,46 @@ func Module(file string) string {
 	}
 	return parts[0]
 }
+
+// FileLines is one changed file and the lines it added and removed. A nil
+// count is one the forge did not report.
+type FileLines struct {
+	Path      string
+	Additions *int
+	Deletions *int
+}
+
+// CountedLines adds the lines files added and removed without the files m
+// leaves out of size (ADR-0056). total is the whole diff size of the pull
+// request, or nil. When files is truncated, the excluded lines are taken off
+// total; when a file was not counted, total stands in only if no file is
+// excluded. It returns nil when the count is unknown.
+func (m Matcher) CountedLines(files []FileLines, total *int64, truncated bool) *int64 {
+	var counted, excluded int64
+	complete, anyExcluded := true, false
+	for _, f := range files {
+		skip := m.Excluded(f.Path)
+		anyExcluded = anyExcluded || skip
+		if f.Additions == nil || f.Deletions == nil {
+			complete = false
+			continue
+		}
+		if skip {
+			excluded += int64(*f.Additions + *f.Deletions)
+		} else {
+			counted += int64(*f.Additions + *f.Deletions)
+		}
+	}
+	switch {
+	case truncated && total != nil:
+		n := max(0, *total-excluded)
+		return &n
+	case complete && !truncated:
+		return &counted
+	case !anyExcluded && !truncated && total != nil:
+		n := *total
+		return &n
+	default:
+		return nil
+	}
+}

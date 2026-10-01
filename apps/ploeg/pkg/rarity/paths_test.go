@@ -126,3 +126,33 @@ func TestModule(t *testing.T) {
 		}
 	}
 }
+
+func TestCountedLines(t *testing.T) {
+	m, err := Rules{}.Compile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := func(v int) *int { return &v }
+	total := func(v int64) *int64 { return &v }
+	lock := FileLines{Path: "go.sum", Additions: n(40), Deletions: n(10)}
+	code := FileLines{Path: "a.go", Additions: n(12), Deletions: n(3)}
+	uncounted := FileLines{Path: "b.go"}
+	for _, tc := range []struct {
+		name      string
+		files     []FileLines
+		total     *int64
+		truncated bool
+		want      *int64
+	}{
+		{"excluded files count nothing", []FileLines{lock, code}, total(65), false, total(15)},
+		{"a truncated list takes the excluded lines off the total", []FileLines{lock}, total(100), true, total(50)},
+		{"an uncounted file falls back to the total without exclusions", []FileLines{code, uncounted}, total(30), false, total(30)},
+		{"an uncounted file next to an excluded one is unknown", []FileLines{lock, uncounted}, total(30), false, nil},
+		{"a truncated list without a total is unknown", []FileLines{code}, nil, true, nil},
+	} {
+		got := m.CountedLines(tc.files, tc.total, tc.truncated)
+		if (got == nil) != (tc.want == nil) || (got != nil && *got != *tc.want) {
+			t.Errorf("%s: got %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}

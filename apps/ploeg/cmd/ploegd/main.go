@@ -350,6 +350,7 @@ func run(log *slog.Logger) error {
 			DefaultForge:    forgeID,
 			Trackers:        trackers,
 			MarkTrackerDone: envOr("PLOEG_TRACKER_DONE_ON_MERGE", "false") == "true",
+			Bots:            forgeBots(),
 			Log:             log,
 		}
 		srv.Reviews = reviews

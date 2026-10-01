@@ -3,7 +3,7 @@ type: reference
 audience: [owner, operator]
 owner: unfold
 last_verified: 2026-10-02
-verified_by: "built data items read against Ploeg ADR-0045, ADR-0046, ADR-0047 and ADR-0057 and apps/ploeg/pkg/store/{card,card_flow,statuses}.go on feat/ploeg-card-flow; legal references taken from the 2026-10-01 gamification evidence record, not checked by a lawyer; nothing was run"
+verified_by: "built data items read against Ploeg ADR-0045, ADR-0046, ADR-0047, ADR-0057 and ADR-0058 and apps/ploeg/pkg/store/{card,card_flow,statuses,play_pipeline}.go on feat/ploeg-card-pipeline; legal references taken from the 2026-10-01 gamification evidence record, not checked by a lawyer; nothing was run"
 ---
 
 # Run Cards: works council and DPIA pack
@@ -37,6 +37,11 @@ A Run Card is the record of one Work Item's change: which pull requests it took,
 | Cost, tokens, diff size, CI result | US$ 0,58, +214/−38, CI passed | Ploeg, forge | via the change | Built |
 | Tracker status moves of the ticket, with the time of each and no actor | Doing 09:00, In test 14:00 | tracker | via the change | Built |
 | Flow timings: time per status, lead and cycle time, flow efficiency, blocked time, queue time, merge to production, time to mend | cycle 27 h, efficiency 0,71 | derived from the rows above | via the change | Built |
+| Pull request conversation events: login, kind and time of each comment, inline comment, review, push, force push and draft change, without any text | `a.bakker`, comment, 10:12 | forge read | yes | Built |
+| Pull request opening time, author login, commit count and earliest commit time | opened 09:00 by `ploeg-bot`, 4 commits | forge read | yes | Built |
+| CI run and job timings: job name, status, start, end, queue time and attempt, without logs | `test`, failed, 3 min, attempt 2 | forge read | via the change | Built |
+| Review and CI figures: time to first feedback, approval and merge, review rounds, comments, CI reruns, minutes, time to green | first feedback after 1 h, 2 reruns | derived from the three rows above | via the change | Built |
+| Change shape: indentation complexity, counted lines, test ratio, documentation files, languages, measured from the diff without keeping it | complexity +42, test ratio 0,44 | forge diff at the merge | via the change | Built |
 | Tracker assignee as Steward | `j.devries` | tracker | yes | Proposed |
 | Further roles: developer, QA, PO, acceptor | `m.jansen`, QA | tracker transitions, commits | yes | Proposed |
 | Gate moves and Bounces, with actor and reason | test → development, defect | tracker | yes | Proposed |
@@ -46,7 +51,7 @@ A Run Card is the record of one Work Item's change: which pull requests it took,
 | Binder contents, shared cards, events seen | the cards a person holds | Unfold | yes | Proposed |
 | Pack openings and cosmetic pulls | sprint 41, gold signature on card 138 | Unfold | yes | Proposed |
 
-Change data such as cost or diff size is about the change, but on a card that names a Steward it relates to that person too. Treat it as personal data in the DPIA. Flow timings count calendar time and the team's working hours, and Ploeg keeps no name with a status move. Waiting and blocked time say how work moves through the team's process, not how fast a person works. They are never added up per person and never feed a grade or a rarity. Run Cards hold no special categories of personal data. Git history and the forge keep authorship on their own, outside Unfold and outside this inventory.
+Change data such as cost or diff size is about the change, but on a card that names a Steward it relates to that person too. Treat it as personal data in the DPIA. Flow timings count calendar time and the team's working hours, and Ploeg keeps no name with a status move. Waiting and blocked time say how work moves through the team's process, not how fast a person works. They are never added up per person and never feed a grade or a rarity. The pull request and CI figures work the same way: Ploeg keeps who commented or reviewed and when, but no comment or review text, no code and no CI log, and time to first feedback measures the team's response, not the author. Run Cards hold no special categories of personal data. Git history and the forge keep authorship on their own, outside Unfold and outside this inventory.
 
 ## Purposes
 

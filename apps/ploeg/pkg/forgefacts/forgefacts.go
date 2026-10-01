@@ -30,6 +30,7 @@ func Facts(pr PullRequest, f provider.PullRequestFacts, ci *provider.CommitStatu
 		State: string(f.State), HeadSHA: f.HeadSHA, MergeCommitSHA: f.MergeCommitSHA,
 		MergedAt: f.MergedAt, MergedBy: f.MergedBy, ClosedAt: f.ClosedAt,
 		Additions: f.Additions, Deletions: f.Deletions, ChangedFiles: f.ChangedFiles,
+		OpenedAt: f.OpenedAt, Author: f.Author, Draft: f.Draft,
 	}
 	if ci != nil {
 		checks := make([]store.PullRequestCheck, 0, len(ci.Checks))
@@ -69,6 +70,15 @@ func WithMissing(f, read provider.PullRequestFacts) provider.PullRequestFacts {
 	}
 	if f.ChangedFiles == nil {
 		f.ChangedFiles = read.ChangedFiles
+	}
+	if f.OpenedAt == nil {
+		f.OpenedAt = read.OpenedAt
+	}
+	if f.Author == "" {
+		f.Author = read.Author
+	}
+	if f.Draft == nil {
+		f.Draft = read.Draft
 	}
 	return f
 }

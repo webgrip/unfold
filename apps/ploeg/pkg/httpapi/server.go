@@ -111,7 +111,10 @@ type Server struct {
 	// Nil = time.Now.
 	CardClock func() time.Time
 
-	cardWork sync.WaitGroup
+	cardWork      sync.WaitGroup
+	pipelineWork  sync.WaitGroup
+	pipelineOnce  sync.Once
+	pipelineSlots chan struct{}
 }
 
 // ReviewSettler is implemented by shiftengine.ReviewWatch.

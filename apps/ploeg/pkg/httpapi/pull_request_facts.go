@@ -38,9 +38,12 @@ func (s *Server) recordPullRequestFacts(ctx context.Context, fp provider.ForgePr
 		}
 		return
 	}
-	s.capturePullRequestFacts(ctx, fp, pr, ev.PullRequest)
+	head := s.capturePullRequestFacts(ctx, fp, pr, ev.PullRequest)
 	if ev.Kind == provider.ForgePRMerged {
 		s.captureMergedChange(ctx, fp, ev, true)
+	}
+	s.capturePlayPipeline(ctx, fp, pr, head, ev.Kind == provider.ForgePRMerged || ev.Kind == provider.ForgePRClosed)
+	if ev.Kind == provider.ForgePRMerged {
 		s.publishMergedCard(ctx, fp, ev)
 	}
 }
@@ -83,6 +86,8 @@ func (s *Server) recordMergedChange(ctx context.Context, fp provider.ForgeProvid
 		if _, err := s.Store.RecordPullRequestChange(ctx, store.PullRequestChange{Forge: fp.Name(), Repo: ev.Repo, Number: ev.PR,
 			Labels: change.Labels, Files: change.Files, FilesTruncated: change.FilesTruncated, Lines: fileLines(change.Lines)}); err != nil {
 			s.Log.Error("pull request files not recorded", "provider", fp.Name(), "repo", ev.Repo, "pr", ev.PR, "err", err)
+		} else {
+			s.recordPlayShape(ctx, fp, ev.Repo, ev.PR)
 		}
 	}
 	claim := forgefacts.Reverts(ev.Repo, change)
@@ -101,7 +106,7 @@ func (s *Server) recordMergedChange(ctx context.Context, fp provider.ForgeProvid
 	}
 }
 
-func (s *Server) capturePullRequestFacts(ctx context.Context, fp provider.ForgeProvider, pr forgefacts.PullRequest, facts provider.PullRequestFacts) {
+func (s *Server) capturePullRequestFacts(ctx context.Context, fp provider.ForgeProvider, pr forgefacts.PullRequest, facts provider.PullRequestFacts) string {
 	read, err := fp.PullRequestFacts(ctx, pr.Repo, pr.Number)
 	readOK := err == nil
 	if err != nil {
@@ -116,12 +121,13 @@ func (s *Server) capturePullRequestFacts(ctx context.Context, fp provider.ForgeP
 			"repo", pr.Repo, "pr", pr.Number, "head", facts.HeadSHA, "err", err)
 	}
 	if !readOK && ci == nil {
-		return
+		return facts.HeadSHA
 	}
 	if _, err := s.Store.RecordPullRequestFacts(ctx, forgefacts.Facts(pr, facts, ci, time.Now())); err != nil {
 		s.Log.Error("pull request facts not recorded", "provider", fp.Name(),
 			"repo", pr.Repo, "pr", pr.Number, "err", err)
 	}
+	return facts.HeadSHA
 }
 
 func fileLines(lines map[string]provider.FileLines) map[string]store.FileLines {

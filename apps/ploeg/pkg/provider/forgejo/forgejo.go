@@ -249,15 +249,21 @@ func (p *Provider) PullRequestFacts(ctx context.Context, repo string, pr int) (p
 		Head struct {
 			Sha string `json:"sha"`
 		} `json:"head"`
-		Additions    *int `json:"additions"`
-		Deletions    *int `json:"deletions"`
-		ChangedFiles *int `json:"changed_files"`
+		Additions    *int   `json:"additions"`
+		Deletions    *int   `json:"deletions"`
+		ChangedFiles *int   `json:"changed_files"`
+		CreatedAt    string `json:"created_at"`
+		Draft        *bool  `json:"draft"`
+		User         struct {
+			Login string `json:"login"`
+		} `json:"user"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&body); err != nil {
 		return provider.PullRequestFacts{}, fmt.Errorf("forgejo: read %s#%d: %w", repo, pr, err)
 	}
 	facts := provider.PullRequestFacts{HeadSHA: body.Head.Sha,
-		Additions: nonNegative(body.Additions), Deletions: nonNegative(body.Deletions), ChangedFiles: nonNegative(body.ChangedFiles)}
+		Additions: nonNegative(body.Additions), Deletions: nonNegative(body.Deletions), ChangedFiles: nonNegative(body.ChangedFiles),
+		OpenedAt: forgeTime(body.CreatedAt), Author: body.User.Login, Draft: body.Draft}
 	switch {
 	case body.Merged:
 		facts.State = provider.PullRequestMerged

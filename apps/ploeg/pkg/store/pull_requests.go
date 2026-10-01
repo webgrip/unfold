@@ -40,6 +40,12 @@ type PullRequestFacts struct {
 	Additions    *int
 	Deletions    *int
 	ChangedFiles *int
+	// OpenedAt is the forge's creation time, Author the login that opened
+	// the pull request and Draft whether it is a draft now (ADR-0058). Nil
+	// and empty keep the stored value.
+	OpenedAt *time.Time
+	Author   string
+	Draft    *bool
 	// CI is the combined commit status read at CI.HeadSHA. Nil keeps the
 	// stored one; a reading replaces it whole.
 	CI *PullRequestCI
@@ -120,11 +126,14 @@ func (s *Store) RecordPullRequestFacts(ctx context.Context, f PullRequestFacts) 
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO pull_requests (forge, repo_owner, repo_name, number, work_item_id, shift_id, branch,
 			state, head_sha, merge_commit_sha, merged_at, merged_by, closed_at,
-			additions, deletions, changed_files, ci_state, ci_checks, ci_head_sha, ci_captured_at)
+			additions, deletions, changed_files, ci_state, ci_checks, ci_head_sha, ci_captured_at, opened_at, author, draft)
 		VALUES ($1, $2, $3, $4, $5, $6, NULLIF(left($7, 1024), ''), NULLIF($8, ''), NULLIF(left($9, 128), ''),
 			NULLIF(left($10, 128), ''), $11, NULLIF(left($12, 256), ''), $13,
-			$14, $15, $16, $17, $18, NULLIF(left($19, 128), ''), $20)
+			$14, $15, $16, $17, $18, NULLIF(left($19, 128), ''), $20, $21, NULLIF(left($22, 256), ''), $23)
 		ON CONFLICT (forge, repo_owner, repo_name, number) DO UPDATE SET
+			opened_at = COALESCE(EXCLUDED.opened_at, pull_requests.opened_at),
+			author = COALESCE(EXCLUDED.author, pull_requests.author),
+			draft = COALESCE(EXCLUDED.draft, pull_requests.draft),
 			additions = COALESCE(EXCLUDED.additions, pull_requests.additions),
 			deletions = COALESCE(EXCLUDED.deletions, pull_requests.deletions),
 			changed_files = COALESCE(EXCLUDED.changed_files, pull_requests.changed_files),
@@ -147,7 +156,7 @@ func (s *Store) RecordPullRequestFacts(ctx context.Context, f PullRequestFacts) 
 		knownValue(f.State, "open", "merged", "closed"), f.HeadSHA, f.MergeCommitSHA,
 		f.MergedAt, f.MergedBy, f.ClosedAt,
 		nonNegative(f.Additions), nonNegative(f.Deletions), nonNegative(f.ChangedFiles),
-		ci.state, ci.checks, ci.headSHA, ci.capturedAt).Scan(&id); err != nil {
+		ci.state, ci.checks, ci.headSHA, ci.capturedAt, f.OpenedAt, f.Author, f.Draft).Scan(&id); err != nil {
 		return false, err
 	}
 	if f.Review != nil {

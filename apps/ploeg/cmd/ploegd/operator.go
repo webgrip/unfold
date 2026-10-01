@@ -8,6 +8,7 @@ import (
 	"github.com/webgrip/ploeg/pkg/config"
 	"github.com/webgrip/ploeg/pkg/httpapi"
 	"github.com/webgrip/ploeg/pkg/plan"
+	"github.com/webgrip/ploeg/pkg/playkpi"
 	"github.com/webgrip/ploeg/pkg/rarity"
 	"github.com/webgrip/ploeg/pkg/store"
 )
@@ -75,8 +76,29 @@ func operatorConfig(cfg *config.File, plans plan.Plans) (httpapi.OperatorConfig,
 	if err != nil {
 		return httpapi.OperatorConfig{}, err
 	}
+	shapes, err := shapeMatchers(cfg)
+	if err != nil {
+		return httpapi.OperatorConfig{}, err
+	}
 	return httpapi.OperatorConfig{Consumers: consumers, Teams: teams, TeamAssignees: assignees, TeamScopes: scopes,
-		DeliveryPolicies: deliveryPolicies, CardStyles: styles, ReleaseEnvironments: releases, RarityMatchers: matchers}, nil
+		DeliveryPolicies: deliveryPolicies, CardStyles: styles, ReleaseEnvironments: releases, RarityMatchers: matchers,
+		ShapeMatchers: shapes}, nil
+}
+
+func shapeMatchers(cfg *config.File) (map[string]playkpi.Matcher, error) {
+	rules, err := cfg.CardShapeRules()
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]playkpi.Matcher, len(rules))
+	for repo, r := range rules {
+		m, err := r.Compile()
+		if err != nil {
+			return nil, fmt.Errorf("cardShape rules of %s: %w", repo, err)
+		}
+		out[repo] = m
+	}
+	return out, nil
 }
 
 func rarityMatchers(cfg *config.File) (map[string]rarity.Matcher, error) {
