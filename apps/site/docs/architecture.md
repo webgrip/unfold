@@ -6,19 +6,23 @@ The site is a static Astro build. Every page is HTML at build time; the only Jav
 
 The site uses pnpm, unlike Vloer, because the shared `cloudflare-deploy` workflow installs with `pnpm install --frozen-lockfile` and runs `pnpm exec wrangler`. The pnpm version is `packageManager` in `package.json`, which corepack reads locally and in CI, so it is pinned in one place. `pnpm-workspace.yaml` allows install scripts only for esbuild (Astro's bundler) and workerd (wrangler's runtime), and holds new releases back for a day. The root `mise run setup` runs `corepack pnpm install --frozen-lockfile`, and verification runs each gate as `corepack pnpm run <gate>`. Renovate's npm manager reads `package.json` and `pnpm-lock.yaml` and updates `packageManager` too.
 
-## Brand seam
+## Brand
 
-The brand is not decided yet. Everything that would change with it sits in three files:
+The site carries Unfold's brand. The palette, the mark's construction and the rules for using them are in [docs/brand/README.md](../../../docs/brand/README.md); the terms for the name and mark are in [TRADEMARK.md](../../../docs/brand/TRADEMARK.md) (proposed).
 
-| File                            | Holds                                                                                                                                                                            |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/styles/brand.css`          | The colours (ink, paper, dark ground, muted, muted light, accent, accent deep, on-accent, surface), the font family and its `@font-face` rules, the wordmark weight and tracking |
-| `src/components/Wordmark.astro` | The wordmark, currently the name set in the brand font                                                                                                                           |
-| `src/components/Mark.astro`     | The mark, currently a placeholder SVG                                                                                                                                            |
+| File                            | Holds                                                                                                                                                                                                                 |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/styles/brand.css`          | The colours (ink Vouw, paper Vel, dark ground Zwerk, muted Grafiet and Grafiet Licht, accent Baken, accent deep Baken Diep, accent night Baken Nacht, on-accent, surface), the font family and its `@font-face` rules |
+| `src/brand/geometry.json`       | Generated: the master and favicon paths, the outlined wordmark and the horizontal lockup's placement                                                                                                                  |
+| `src/components/Mark.astro`     | The mark, from the generated paths                                                                                                                                                                                    |
+| `src/components/Wordmark.astro` | The wordmark, outlined from the generated path                                                                                                                                                                        |
+| `src/components/Lockup.astro`   | The horizontal lockup: `Mark.astro` and `Wordmark.astro` placed by the generated lockup geometry                                                                                                                      |
 
-`src/styles/tokens.css` maps semantic tokens (`--bg`, `--fg`, `--accent`, …) onto the brand values with `var()` and `color-mix()`, and components use only the semantic tokens. The favicon (`src/pages/favicon.svg.ts`) renders `Mark.astro` with the ink and accent read from `brand.css`, and `BaseHead.astro` reads the `theme-color` values and the preloaded font from the same file. `src/lib/brand.test.ts` fails if any other source file names a colour, and checks that every font `brand.css` loads ships in `public/fonts` with its licence.
+`scripts/build-brand.mjs` at the Unfold root writes `src/brand/geometry.json` along with `docs/brand/`, so the site's mark and the published brand files have one source. Never edit the JSON by hand: `mise run brand` regenerates it, and the `brand` group of `mise run verify` fails when it is stale or when a colour in `brand.css` differs from the palette.
 
-The current values are the estate's neutral family colours and the Archivo face Vloer already ships (width 110, weights 400 to 800). The accent is a placeholder teal. On the light ground, small accent text and filled buttons use the deeper accent; the brighter accent is used for decoration and for everything on the dark ground.
+`src/styles/tokens.css` maps semantic tokens (`--bg`, `--fg`, `--accent`, …) onto the brand values with `var()` and `color-mix()`, and components use only the semantic tokens. The mark's sheet takes `--fg` and its fold `--accent-decor`, so it switches to Vel and Baken Nacht on the dark ground. The favicon (`src/pages/favicon.svg.ts`) draws the favicon cut with colours read from `brand.css`, and switches to the night colours under `prefers-color-scheme: dark`. `BaseHead.astro` reads the `theme-color` values and the preloaded font from the same file. `src/lib/brand.test.ts` fails if any other source file names a colour, and checks that every font `brand.css` loads ships in `public/fonts` with its licence.
+
+On the light ground, accent text, links and filled buttons use Baken Diep, and Baken is for decoration. On the dark ground all of them use Baken Nacht, with Zwerk text on filled buttons. Both accents clear 4.5:1 only on their own ground, so raised surfaces in dark mode stay Zwerk rather than lightening.
 
 ## Light and dark
 

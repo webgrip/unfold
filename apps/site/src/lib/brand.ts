@@ -6,6 +6,7 @@ export type BrandToken =
   | 'muted-light'
   | 'accent'
   | 'accent-deep'
+  | 'accent-night'
   | 'on-accent'
   | 'surface';
 

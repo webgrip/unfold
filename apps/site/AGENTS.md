@@ -9,7 +9,7 @@ The site uses pnpm through corepack. Run `mise exec -- corepack pnpm install --f
 ## Rules
 
 - Scope every commit that touches this directory `site` (`feat(site): …`, `ci(site): …`, `build(site): …`). Unfold's train ignores that scope; an unscoped commit here bumps the Unfold version.
-- Every brand value lives in `src/styles/brand.css`. The wordmark is `src/components/Wordmark.astro` and the mark is `src/components/Mark.astro`; the favicon is rendered from the mark. Nothing else names a colour, font file or logo shape; `src/lib/brand.test.ts` fails on a colour anywhere else.
+- Every brand colour and font lives in `src/styles/brand.css`. The mark, wordmark and lockup are `src/components/Mark.astro`, `Wordmark.astro` and `Lockup.astro`, drawn from `src/brand/geometry.json`, which the root `mise run brand` generates; never edit it by hand. The favicon uses the same geometry. Nothing else names a colour, font file or logo shape; `src/lib/brand.test.ts` fails on a colour anywhere else, and `mise run brand-check` fails when `brand.css` departs from the palette in `docs/brand/README.md`.
 - All copy lives in `src/i18n/en.ts` and `src/i18n/nl.ts`, which must declare the same keys. Use the glossary terms exactly: Work Item, Run, Shift, Role.
 - State only what is true today. Anything decided but not built is labelled planned. Never invent numbers, customers, testimonials, logos, prices or benchmarks. No emoji.
 - The demo is described as deterministic, with no model calls and no spend.

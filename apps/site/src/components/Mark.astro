@@ -1,30 +1,42 @@
 ---
+import geometry from '../brand/geometry.json';
+
 interface Props {
+  cut?: 'master' | 'favicon';
+  crop?: boolean;
   size?: number;
-  colors?: { ground: string; stroke: string };
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  label?: string;
+  colors?: { ink: string; accent: string };
 }
 
-const { size = 32, colors } = Astro.props;
+const { cut = 'master', crop = false, size = 32, x, y, width, height, label, colors } = Astro.props;
+const shape = geometry[cut];
+const viewBox = crop ? shape.bounds : shape.frame;
+const [, , boxWidth = 64, boxHeight = 64] = viewBox.split(' ').map(Number);
+const drawnHeight = height ?? size;
+const drawnWidth = width ?? (drawnHeight * boxWidth) / boxHeight;
+const a11y = label
+  ? { role: 'img' as const, 'aria-label': label }
+  : { 'aria-hidden': 'true' as const };
 ---
 
 <svg
   class="mark"
   xmlns="http://www.w3.org/2000/svg"
-  viewBox="0 0 32 32"
-  width={size}
-  height={size}
-  aria-hidden="true"
+  viewBox={viewBox}
+  x={x}
+  y={y}
+  width={drawnWidth}
+  height={drawnHeight}
   focusable="false"
+  {...a11y}
 >
-  <rect class="mark-ground" x="1" y="1" width="30" height="30" rx="8" fill={colors?.ground}></rect>
-  <path
-    class="mark-stroke"
-    d="M7.5 22.5c5 0 6.5-12 12.5-12h4.5"
-    fill="none"
-    stroke={colors?.stroke}
-    stroke-width="3.4"
-    stroke-linecap="round"
-  ></path>
+  <path class="mark-ink" d={shape.ink} fill={colors?.ink}></path>
+  <path class="mark-accent" d={shape.accent} fill={colors?.accent}></path>
 </svg>
 
 <style>
@@ -32,11 +44,11 @@ const { size = 32, colors } = Astro.props;
     flex: none;
   }
 
-  .mark-ground:not([fill]) {
+  .mark-ink:not([fill]) {
     fill: var(--fg);
   }
 
-  .mark-stroke:not([stroke]) {
-    stroke: var(--accent-decor);
+  .mark-accent:not([fill]) {
+    fill: var(--accent-decor);
   }
 </style>

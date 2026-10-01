@@ -9,7 +9,7 @@ mise exec -- corepack pnpm dev      # http://localhost:4321
 mise exec -- corepack pnpm build    # dist/, with CSP validation
 ```
 
-The gates are `format:check`, `lint`, `typecheck`, `test` and `build`; `mise run verify` from the Unfold root runs them. The [architecture](docs/architecture.md) explains the layout, the brand seam and the security headers. [Deploy](docs/deploy.md) explains the release, the deploy, the temporary hostname and what is still missing.
+The gates are `format:check`, `lint`, `typecheck`, `test` and `build`; `mise run verify` from the Unfold root runs them. The [architecture](docs/architecture.md) explains the layout, the brand and the security headers. [Deploy](docs/deploy.md) explains the release, the deploy, the temporary hostname and what is still missing.
 
 The site is not part of the Unfold version ([ADR-0012](../../docs/adr/adr-0012-the-marketing-site-releases-and-deploys-on-its-own.md)). Scope its commits `site` so they never bump `unfold-v…`.
 

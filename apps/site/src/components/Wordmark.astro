@@ -1,17 +1,39 @@
 ---
-import { SITE_NAME } from '../config/site.ts';
+import geometry from '../brand/geometry.json';
+
+interface Props {
+  height?: number;
+  x?: number;
+  y?: number;
+  width?: number;
+  label?: string;
+}
+
+const { height = 24, x, y, width, label } = Astro.props;
+const [, , boxWidth = 1, boxHeight = 1] = geometry.wordmark.viewBox.split(' ').map(Number);
+const drawnWidth = width ?? (height * boxWidth) / boxHeight;
+const a11y = label
+  ? { role: 'img' as const, 'aria-label': label }
+  : { 'aria-hidden': 'true' as const };
 ---
 
-<span class="wordmark">{SITE_NAME}</span>
+<svg
+  class="wordmark"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox={geometry.wordmark.viewBox}
+  x={x}
+  y={y}
+  width={drawnWidth}
+  height={height}
+  focusable="false"
+  {...a11y}
+>
+  <path d={geometry.wordmark.d}></path>
+</svg>
 
 <style>
   .wordmark {
-    font-family: var(--brand-font);
-    font-stretch: var(--brand-font-stretch);
-    font-weight: var(--brand-wordmark-weight);
-    letter-spacing: var(--brand-wordmark-tracking);
-    font-size: 1.5rem;
-    line-height: 1;
-    color: var(--fg);
+    flex: none;
+    fill: var(--fg);
   }
 </style>
