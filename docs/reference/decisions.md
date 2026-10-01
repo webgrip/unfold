@@ -110,6 +110,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Vloer | [0024](../../apps/vloer/docs/adrs/0024-vloer-opens-on-now-with-one-vocabulary-and-one-token-system.md) | Vloer opens on Now, names every state one way and draws from one token system | 2026-09-30 | yes | Every screen rebuilt on the shared vocabulary, formatter and components, legacy stylesheet deleted, Cancel Work Item on the Work Item page (checked 2026-09-30 on the redesign branch) ([source](../../apps/vloer/test/ploeg-view.test.mjs)) |
 | Vloer | [0025](../../apps/vloer/docs/adrs/0025-hand-tracker-tasks-to-ploeg-by-assignment.md) | Vloer hands a tracker task to Ploeg by assigning the team's tracker user | 2026-09-30 | unknown | — |
 | Vloer | [0026](../../apps/vloer/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md) | Run cards render in a card runtime with skin packs and themes | 2026-10-01 | unknown | — |
+| Vloer | [0027](../../apps/vloer/docs/adrs/0027-the-editor-opens-on-now-and-shares-the-browser-vocabulary.md) | The editor opens on Now and shares the browser's vocabulary | 2026-10-01 | unknown | — |
 
 ## Other statuses
 

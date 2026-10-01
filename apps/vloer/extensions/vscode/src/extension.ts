@@ -1,5 +1,9 @@
 import { PloegTree, type PloegEntry } from './ploeg-tree.js';
 import * as vscode from 'vscode';
+import { pathToFileURL } from 'node:url';
+import { loadCore, type Core } from './core.js';
+import { NowTree, waitingCount, nowGroup, type NowEntry, type WorkItemRef } from './now-tree.js';
+import type { PloegNow, PloegNowItem } from './ploeg-types.js';
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -26,7 +30,12 @@ function settings() { return vscode.workspace.getConfiguration('vloer'); }
 
 class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
   readonly extensionUri: vscode.Uri;
+  readonly core: Core;
   private readonly context: vscode.ExtensionContext;
+  private readonly now: NowTree;
+  private readonly nowView: vscode.TreeView<NowEntry>;
+  private nowReadAt = 0;
+  private seenWaiting?: Set<string>;
   private current: VloerClient;
   private cachedBootstrap?: Bootstrap;
   private readonly tree: SessionTree;
@@ -50,27 +59,31 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
   private failures = 0;
   private lastSuccess?: Date;
 
-  constructor(context: vscode.ExtensionContext) {
+  constructor(context: vscode.ExtensionContext, core: Core) {
     this.context = context;
+    this.core = core;
     this.extensionUri = context.extensionUri;
     try { this.current = new VloerClient(settings().get('serverUrl', 'http://127.0.0.1:4080'), context.secrets); }
     catch (error) { this.current = new VloerClient('http://127.0.0.1:4080', context.secrets); this.configurationError = error as Error; }
+    this.now = new NowTree(core);
+    this.nowView = vscode.window.createTreeView('vloer.now', { treeDataProvider: this.now });
     this.tree = new SessionTree(id => this.current.permissions(id));
     this.view = vscode.window.createTreeView('vloer.sessions', { treeDataProvider: this.tree, showCollapseAll: true });
-    this.tasks = new TaskTree(async (sourceId, page) => { const target = this.current; const generation = this.generation; const result = await target.tasks(sourceId, page); this.assertTarget(target, generation); return result; });
+    this.tasks = new TaskTree(core, async (sourceId, page) => { const target = this.current; const generation = this.generation; const result = await target.tasks(sourceId, page); this.assertTarget(target, generation); return result; });
     this.taskView = vscode.window.createTreeView('vloer.tasks', { treeDataProvider: this.tasks, showCollapseAll: true });
-    this.ploeg = new PloegTree(async (team, fresh) => { const target = this.current; const generation = this.generation; const result = await target.ploeg(team, fresh); this.assertTarget(target, generation); return result; }, at => { this.ploegView.message = `Snapshot ${at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · Ploeg owns dispatch`; });
+    this.ploeg = new PloegTree(core, async (team, fresh) => { const target = this.current; const generation = this.generation; const result = await target.ploeg(team, fresh); this.assertTarget(target, generation); return result; }, at => { this.ploegView.message = `Snapshot ${core.time(at)}`; });
     this.ploegView = vscode.window.createTreeView('vloer.ploeg', { treeDataProvider: this.ploeg, showCollapseAll: true });
     this.documents = new EvidenceDocuments(async (sessionId, artifactId) => (await this.current.session(sessionId)).artifacts.find(artifact => artifact.id === artifactId));
     this.panels = new SessionPanels(this);
     this.taskPanels = new TaskPanels(this);
     this.status.name = 'De Vloer';
     this.status.text = '$(layers) Vloer';
-    this.status.command = 'vloer.sessions.focus';
+    this.status.command = 'vloer.now.focus';
     this.status.show();
-    context.subscriptions.push(this.tree, this.view, this.tasks, this.taskView, this.ploeg, this.ploegView, this.status, this.documents, this.panels, this.taskPanels, vscode.workspace.registerTextDocumentContentProvider('vloer-evidence', this.documents));
+    context.subscriptions.push(this.now, this.nowView, this.tree, this.view, this.tasks, this.taskView, this.ploeg, this.ploegView, this.status, this.documents, this.panels, this.taskPanels, vscode.workspace.registerTextDocumentContentProvider('vloer-evidence', this.documents));
     context.subscriptions.push(vscode.window.registerWebviewPanelSerializer('vloer.session', { deserializeWebviewPanel: async (panel, state: { sessionId?: string } | undefined) => { const id = typeof state?.sessionId === 'string' && /^[a-zA-Z0-9_-]+$/.test(state.sessionId) ? state.sessionId : undefined; if (!id) { panel.dispose(); return; } this.panels.adopt(id, panel); } }));
     context.subscriptions.push(this.view.onDidChangeVisibility(event => { if (event.visible) void this.refresh(); }));
+    context.subscriptions.push(this.nowView.onDidChangeVisibility(event => { if (event.visible) { this.nowReadAt = 0; void this.refresh(); } }));
     context.subscriptions.push(context.secrets.onDidChange(event => { if (event.key === this.current.secretKey) this.connectionChanged(); }));
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
       if (event.affectsConfiguration('vloer.serverUrl')) {
@@ -86,9 +99,12 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     register('connect', () => this.connect());
     register('signOut', () => this.signOut());
     register('connectAgentHost', () => this.connectAgentHost());
-    register('refresh', () => this.refresh(true));
+    register('refresh', () => { this.nowReadAt = 0; return this.refresh(true, true); });
+    register('openWorkItem', (value?: WorkItemRef) => this.openWorkItem(value));
+    register('openPullRequest', (value?: NowEntry) => this.openPullRequest(value));
+    register('openNow', async () => { if (this.configurationError) throw this.configurationError; await vscode.env.openExternal(vscode.Uri.parse(`${this.current.origin}/#now`)); });
     register('create', () => this.create());
-    register('openPloeg', async (value?: string | PloegEntry) => { if (this.configurationError) throw this.configurationError; const id = typeof value === 'string' ? value : value?.kind === 'item' ? value.item.id : undefined; await vscode.env.openExternal(vscode.Uri.parse(this.current.ploegDashboard(id))); });
+    register('openPloeg', async (value?: string | PloegEntry | NowEntry) => { if (this.configurationError) throw this.configurationError; const id = typeof value === 'string' ? value : value?.kind === 'item' ? value.item.id : value?.kind === 'run' ? value.run.workItemId : undefined; await vscode.env.openExternal(vscode.Uri.parse(this.current.ploegDashboard(id))); });
     register('refreshPloeg', async () => { await this.refresh(true); this.ploeg.reset(); });
     register('browseTasks', value => this.browseTasks(value));
     register('refreshTasks', async () => { await this.refresh(true); this.tasks.refresh(); });
@@ -136,6 +152,9 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     this.lastSuccess = undefined;
     this.cachedBootstrap = undefined;
     this.watcher.reset();
+    this.seenWaiting = undefined;
+    this.nowReadAt = 0;
+    this.lastNow = undefined;
     this.drafts.clear();
     this.panels.closeAll();
     this.taskPanels.closeAll();
@@ -151,7 +170,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
   private poll() {
     const seconds = Math.max(2, Math.min(60, settings().get('refreshIntervalSeconds', 5)));
     return setInterval(() => {
-      if (this.view.visible || this.taskView.visible || this.ploegView.visible || this.panels.visible) void this.refresh();
+      if (this.nowView.visible || this.view.visible || this.taskView.visible || this.ploegView.visible || this.panels.visible) void this.refresh();
       if (this.ploegView.visible && ++this.ticks * seconds >= 30) { this.ticks = 0; this.ploeg.soften(); }
     }, seconds * 1000);
   }
@@ -171,6 +190,11 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     this.lastSuccess = undefined;
     const needsLogin = error instanceof ApiError && error.status === 401;
     this.tree.update([], needsLogin ? 'Sign in to your workbench' : 'Workbench unavailable — reconnect', 'vloer.connect');
+    this.now.offline();
+    this.lastNow = undefined;
+    this.nowView.badge = undefined;
+    this.nowView.message = needsLogin ? 'Your session has expired.' : 'Work continues on the workbench. Reconnect to see it.';
+    this.seenWaiting = undefined;
     this.tasks.update([], needsLogin ? 'Sign in to browse linked tasks' : 'Reconnect to browse linked tasks');
     this.ploeg.reset(needsLogin ? 'Sign in to inspect Ploeg work' : 'Reconnect to inspect Ploeg work');
     this.ploegView.message = undefined;
@@ -188,13 +212,14 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
   private reconnecting(error: unknown) {
     const since = this.lastSuccess!.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     this.view.message = `Reconnecting to ${new URL(this.current.origin).host}… showing the state from ${since}`;
+    this.nowView.message = this.view.message;
     this.status.text = '$(sync~spin) Vloer: reconnecting';
     this.status.backgroundColor = undefined;
     this.status.command = 'vloer.refresh';
     this.status.tooltip = `${error instanceof Error ? error.message : 'The last refresh failed.'}\nThe views keep the state from ${since} and retry automatically.`;
   }
 
-  async refresh(raise = false): Promise<void> {
+  async refresh(raise = false, freshNow = false): Promise<void> {
     if (this.refreshBusy || this.disposed) return;
     if (this.configurationError) { this.offline(this.configurationError); if (raise) throw this.configurationError; return; }
     this.refreshBusy = true;
@@ -203,6 +228,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     try {
       const bootstrap = await client.bootstrap();
       const sessions = await client.sessions();
+      const now = await this.readNow(client, freshNow);
       if (client !== this.current || generation !== this.generation || this.disposed) return;
       this.failures = 0;
       this.lastSuccess = new Date();
@@ -211,25 +237,20 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       this.tree.repositories = new Map(bootstrap.repositories.map(repository => [repository.id, repository.name]));
       this.tree.update(sessions);
       this.tasks.update(bootstrap.taskSources ?? [], bootstrap.taskSources?.length ? '' : 'Connect a task source on the workbench server', bootstrap.repositories);
-      this.taskView.message = bootstrap.mode === 'demo' ? 'Demo fixture · No tracker account required' : undefined;
-      this.view.message = `${bootstrap.mode === 'demo' ? 'DEMO · No AI calls · ' : ''}${bootstrap.user.name} · ${new URL(client.origin).host}`;
-      const waiting = sessions.filter(session => session.status === 'waiting_input');
-      const attention = sessions.filter(session => presentationFor(session).group === 'attention');
-      const active = sessions.filter(session => presentationFor(session).group === 'active');
-      this.view.badge = attention.length ? { value: attention.length, tooltip: `${attention.length} session${attention.length === 1 ? '' : 's'} need${attention.length === 1 ? 's' : ''} attention` } : undefined;
-      if (waiting.length) {
-        this.status.text = `$(bell-dot) Vloer: ${waiting.length} decision${waiting.length === 1 ? '' : 's'}`;
-        this.status.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
-        this.status.command = 'vloer.reviewNextDecision';
-        this.status.tooltip = 'Review the oldest pending decision';
-      } else {
-        this.status.text = `$(layers) Vloer${attention.length ? `: ${attention.length} need attention` : active.length ? `: ${active.length} running` : ''}`;
-        this.status.backgroundColor = undefined;
-        this.status.command = attention.length || active.length ? 'vloer.sessions.focus' : 'vloer.findSession';
-        this.status.tooltip = `${client.origin}\n${bootstrap.mode === 'demo' ? 'Demonstration — real fixture checks, no AI calls' : 'Connected to remote workbench'}\nClick to open sessions`;
-      }
+      if (now.value) this.tasks.ploegItems(now.value.waiting);
+      this.now.update(now.value, sessions, now.message);
+      const demo = bootstrap.mode === 'demo';
+      this.taskView.message = demo ? 'Demo fixture · No tracker account required' : undefined;
+      this.view.message = demo ? 'Demo · no AI calls' : undefined;
+      this.nowView.message = `${demo || now.value?.demo ? 'Demo · illustrative records, no model calls or spend · ' : ''}${bootstrap.user.name} · ${new URL(client.origin).host}`;
+      const count = waitingCount(now.value, sessions);
+      this.nowView.badge = count ? { value: count, tooltip: `${count} ${count === 1 ? 'thing waits' : 'things wait'} on you` } : undefined;
+      this.view.badge = undefined;
+      this.statusLine(client, bootstrap.mode, now.value, sessions);
+      await vscode.commands.executeCommand('setContext', 'vloer.sessions', demo || Boolean(bootstrap.sharedExecution) || sessions.length > 0);
       await vscode.commands.executeCommand('setContext', 'vloer.connected', true);
       for (const alert of this.watcher.observe(sessions)) void show(alert);
+      if (now.value) this.announceWaiting(now.value);
       await this.panels.refreshVisible();
     } catch (error) {
       if (client === this.current && generation === this.generation) {
@@ -240,6 +261,68 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       if (raise) throw error;
     }
     finally { this.refreshBusy = false; }
+  }
+
+  private lastNow?: { value?: PloegNow; message?: string };
+
+  private async readNow(client: VloerClient, fresh: boolean): Promise<{ value?: PloegNow; message?: string }> {
+    if (!fresh && this.lastNow && Date.now() - this.nowReadAt < 15_000) return this.lastNow;
+    try { this.lastNow = { value: await client.ploegNow(fresh) }; }
+    catch (error) {
+      if (error instanceof ApiError && error.status === 401) throw error;
+      const message = error instanceof ApiError && error.code === 'ploeg_unconfigured' ? 'Ploeg is not connected to this workbench' : error instanceof ApiError && error.status === 404 ? 'Update the workbench server to see Now' : `Ploeg could not be read: ${error instanceof Error ? error.message : 'unknown error'}`;
+      this.lastNow = { value: this.lastNow?.value, message };
+    }
+    this.nowReadAt = Date.now();
+    return this.lastNow;
+  }
+
+  private statusLine(client: VloerClient, mode: Bootstrap['mode'], now: PloegNow | undefined, sessions: Session[]) {
+    const decisions = sessions.filter(session => session.status === 'waiting_input').length;
+    const review = (now?.waiting ?? []).filter(item => nowGroup(item) === 'review').length;
+    const needs = (now?.waiting ?? []).filter(item => nowGroup(item) === 'needs').length + decisions;
+    const running = now?.running.length ?? 0;
+    const parts = [review ? `$(git-pull-request) ${review}` : '', needs ? `$(bell-dot) ${needs}` : '', running ? `$(sync~spin) ${running}` : ''].filter(Boolean);
+    this.status.text = parts.length ? `$(layers) ${parts.join('  ')}` : '$(layers) Vloer';
+    this.status.backgroundColor = needs ? new vscode.ThemeColor('statusBarItem.warningBackground') : undefined;
+    this.status.command = decisions ? 'vloer.reviewNextDecision' : 'vloer.now.focus';
+    const lines = [review ? `${review} ready for your review` : '', needs ? `${needs} need${needs === 1 ? 's' : ''} you` : '', running ? `${running} running` : ''].filter(Boolean);
+    this.status.tooltip = `${lines.length ? lines.join(' · ') : 'Nothing waits on you'}\n${client.origin}${mode === 'demo' ? ' · demonstration, no AI calls' : ''}\n${decisions ? 'Click to answer the oldest decision' : 'Click to open Now'}`;
+  }
+
+  private announceWaiting(now: PloegNow) {
+    const keyOf = (item: PloegNowItem) => `${item.id}:${item.state}`;
+    const waiting = now.waiting.filter(item => nowGroup(item) === 'review' || nowGroup(item) === 'needs');
+    const previous = this.seenWaiting;
+    this.seenWaiting = new Set(waiting.map(keyOf));
+    const policy = settings().get<NotificationPolicy>('notifications', 'all');
+    if (!previous || policy === 'none' || now.demo) return;
+    const fresh = waiting.filter(item => !previous.has(keyOf(item)) && (policy === 'all' || nowGroup(item) === 'needs'));
+    for (const item of fresh.slice(0, 3)) {
+      const reason = this.core.listReason(item);
+      const open = { label: 'Open Work Item', run: () => this.openWorkItem({ id: item.id, title: item.title, provider: item.provider, externalId: item.externalId }) };
+      const review = safeHttpsUrl(item.pullRequestUrl) ? { label: 'Review pull request', run: async () => { await vscode.env.openExternal(vscode.Uri.parse(safeHttpsUrl(item.pullRequestUrl)!)); } } : undefined;
+      const actions = [review, open].filter(Boolean) as { label: string; run: () => Promise<void> }[];
+      const title = nowGroup(item) === 'review' ? `Ready for your review: ${item.title}` : `Needs you: ${item.title}${reason ? ` (${reason.chip})` : ''}`;
+      const shown = nowGroup(item) === 'review' ? vscode.window.showInformationMessage(title, ...actions.map(action => action.label)) : vscode.window.showWarningMessage(title, ...actions.map(action => action.label));
+      void shown.then(choice => actions.find(action => action.label === choice)?.run()).then(undefined, error => this.report(error));
+    }
+  }
+
+  async openWorkItem(value?: WorkItemRef): Promise<void> {
+    if (!value?.id || !/^[1-9][0-9]{0,19}$/.test(value.id)) return;
+    if (value.provider && value.externalId && value.provider !== 'ploeg' && !this.now.current()?.demo) {
+      const sourceId = await this.current.lookupTask(value.provider, value.externalId).catch(() => undefined);
+      const source = sourceId ? (await this.bootstrap()).taskSources?.find(entry => entry.id === sourceId) : undefined;
+      if (source) { this.taskPanels.open(source, value.externalId, value.title); return; }
+    }
+    this.taskPanels.openWorkItem(value.id, value.title || `Work Item ${value.id}`);
+  }
+
+  private async openPullRequest(value?: NowEntry): Promise<void> {
+    const url = value?.kind === 'item' ? safeHttpsUrl(value.item.pullRequestUrl) : undefined;
+    if (!url) throw new Error('This Work Item has no HTTPS pull request link yet.');
+    await vscode.env.openExternal(vscode.Uri.parse(url));
   }
 
   async connect(): Promise<void> {
@@ -267,7 +350,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
         this.cachedBootstrap = await this.current.bootstrap();
         await this.renewAgentHost();
         await this.refresh(true);
-        await vscode.commands.executeCommand('vloer.sessions.focus');
+        await vscode.commands.executeCommand('vloer.now.focus');
         return;
       }
       const name = await vscode.window.showInputBox({ title: 'Sign in to De Vloer', prompt: `Account name on ${new URL(origin).host}`, ignoreFocusOut: true, validateInput: value => value.trim() ? undefined : 'Enter your account name.' });
@@ -279,7 +362,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       await this.renewAgentHost();
     }
     await this.refresh(true);
-    await vscode.commands.executeCommand('vloer.sessions.focus');
+    await vscode.commands.executeCommand('vloer.now.focus');
   }
 
   async signOut(): Promise<void> {
@@ -479,7 +562,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       const source = sourceId ? (await this.bootstrap()).taskSources?.find(entry => entry.id === sourceId) : undefined;
       if (source) { this.taskPanels.open(source, item.externalId, item.title); return; }
     }
-    await this.openPloeg(item.id);
+    this.taskPanels.openWorkItem(item.id, item.title || `Work Item ${item.id}`);
   }
 
   async openPloeg(id: string): Promise<void> {
@@ -647,7 +730,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
   async reviewNextDecision(): Promise<void> {
     await this.bootstrap();
     const waiting = (await this.current.sessions()).filter(session => session.status === 'waiting_input').sort((a, b) => Date.parse(a.updatedAt) - Date.parse(b.updatedAt));
-    if (!waiting.length) { void vscode.window.showInformationMessage('No decisions are waiting for you.'); await vscode.commands.executeCommand('vloer.sessions.focus'); return; }
+    if (!waiting.length) { void vscode.window.showInformationMessage('No decisions are waiting for you.'); await vscode.commands.executeCommand('vloer.now.focus'); return; }
     let requests: Permission[] = [];
     try { requests = (await this.current.permissions(waiting[0].id)).filter(request => !request.resolved); } catch { requests = []; }
     const panel = await this.open(waiting[0].id);
@@ -790,8 +873,11 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
   dispose() { this.disposed = true; clearInterval(this.timer); this.panels.closeAll(); }
 }
 
-export function activate(context: vscode.ExtensionContext): void {
-  try { context.subscriptions.push(new Workbench(context)); }
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
+  try {
+    const core = await loadCore(pathToFileURL(vscode.Uri.joinPath(context.extensionUri, 'media', 'core').fsPath + '/').href);
+    context.subscriptions.push(new Workbench(context, core));
+  }
   catch (error) { void vscode.window.showErrorMessage((error as Error).message, 'Open settings').then(choice => { if (choice) void vscode.commands.executeCommand('workbench.action.openSettings', 'vloer.serverUrl'); }); }
 }
 

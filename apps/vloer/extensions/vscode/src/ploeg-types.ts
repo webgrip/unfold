@@ -1,4 +1,4 @@
-export type PloegItem = { id: string; title: string; provider: string; externalId: string; team: string; state: string; description: string; attempts: number; target: { owner: string; repo: string } | null };
+export type PloegItem = { id: string; title: string; provider: string; externalId: string; team: string; state: string; description: string; attempts: number; target: { owner: string; repo: string } | null; url?: string; infraFailures?: number; latestShift?: { closeReason?: string; closedAt?: string | null } | null };
 export type PloegPage = { items: PloegItem[]; nextCursor: string | null };
 export type PloegTeam = { id: string; paused: boolean | null; queueDepth: number; roles: { id: string; queueDepth: number }[] };
 export type PloegLane = 'awaiting_review' | 'needs_human' | 'leased' | 'queued' | 'all';
