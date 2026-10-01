@@ -52,12 +52,13 @@ export function validateManifest(manifest, id) {
 }
 
 /**
- * Loads a skin pack once: its manifest, its stylesheet URLs, its `render` and its optional `attach(frontFace, view)`,
- * which lights the drawn front and returns a cleanup function. A pack without a script borrows the default skin's
- * markup and lighting under its own stylesheet. A pack that `extends` another links that pack's stylesheet before its
- * own, so it can borrow its markup.
+ * Loads a skin pack once: its manifest, its stylesheet URLs, its `render`, its optional `attach(frontFace, view)`,
+ * which lights the drawn front and returns a cleanup function, and its optional `onMoment(moment, api)`, which plays
+ * the effects director's reaction on the card. A pack without a script borrows the default skin's markup, lighting
+ * and reactions under its own stylesheet. A pack that `extends` another links that pack's stylesheet before its own,
+ * so it can borrow its markup.
  * @param {string} id
- * @returns {Promise<{ manifest: object, stylesheet: string, stylesheets: string[], render: Function, attach: Function | null }>}
+ * @returns {Promise<{ manifest: object, stylesheet: string, stylesheets: string[], render: Function, attach: Function | null, onMoment: Function | null }>}
  */
 export function loadSkin(id) {
   if (!loaded.has(id)) {
@@ -69,10 +70,11 @@ export function loadSkin(id) {
         const module = manifest.script ? await import(`${base}${manifest.script}`) : id === defaultSkin ? null : await loadSkin(defaultSkin);
         const render = manifest.script ? module.render : module?.render;
         const attach = manifest.script ? module.attach : module?.attach;
+        const onMoment = manifest.script ? module.onMoment : module?.onMoment;
         if (typeof render !== 'function') throw new Error(`Skin ${id} has no render function`);
         const parent = manifest.extends ? await loadSkin(manifest.extends) : null;
         const stylesheet = `${base}${manifest.stylesheet}`;
-        return Object.freeze({ manifest, stylesheet, stylesheets: Object.freeze([...(parent?.stylesheets ?? []), stylesheet]), render, attach: typeof attach === 'function' ? attach : null });
+        return Object.freeze({ manifest, stylesheet, stylesheets: Object.freeze([...(parent?.stylesheets ?? []), stylesheet]), render, attach: typeof attach === 'function' ? attach : null, onMoment: typeof onMoment === 'function' ? onMoment : null });
       });
     pack.catch(() => loaded.delete(id));
     loaded.set(id, pack);

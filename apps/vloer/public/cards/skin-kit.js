@@ -360,20 +360,35 @@ export function attachSkin(face, view, { tilt = 0, duration = momentMs, onMoment
     stops.push(() => { observer.disconnect(); turned.disconnect(); document.removeEventListener('visibilitychange', visibility); release(root); });
   }
 
+  emitMoments(host, view, names => {
+    if (reducedMotion()) return;
+    root.dataset.moment = names.join(' ');
+    const timer = setTimeout(() => { delete root.dataset.moment; }, duration);
+    stops.push(() => { clearTimeout(timer); delete root.dataset.moment; });
+    try { onMoment?.(names, root); } catch { delete root.dataset.moment; }
+  });
+
+  return () => { for (const stop of stops.splice(0)) { try { stop(); } catch { continue; } } };
+}
+
+/**
+ * The moment half of `attachSkin`, for skins that draw without it (Vloer Native, the forge): compares `view` with the
+ * last view this page drew for the same Work Item and, when something changed, runs `before` and then dispatches
+ * `unfold-card-moment` on `host`. Every skin goes through this one function, so the effects director has one source.
+ * Returns the moment names.
+ * @param {Element | null} host The `<unfold-card>` element.
+ * @param {object} view The `cardView` model.
+ * @param {(names: string[]) => void} [before] Runs with the names before the event, as `attachSkin` uses it to set `data-moment`.
+ * @returns {string[]}
+ */
+export function emitMoments(host, view, before) {
   const after = snapshot(view);
   const names = momentsBetween(seen.get(after.id), after);
   seen.set(after.id, after);
-  if (names.length) {
-    if (!reducedMotion()) {
-      root.dataset.moment = names.join(' ');
-      const timer = setTimeout(() => { delete root.dataset.moment; }, duration);
-      stops.push(() => { clearTimeout(timer); delete root.dataset.moment; });
-      try { onMoment?.(names, root); } catch { delete root.dataset.moment; }
-    }
-    host?.dispatchEvent(new CustomEvent(momentEvent, { bubbles: true, composed: true, detail: { moments: names, workItemId: after.id, skin: host.dataset?.skin ?? '' } }));
-  }
-
-  return () => { for (const stop of stops.splice(0)) { try { stop(); } catch { continue; } } };
+  if (!names.length) return names;
+  try { before?.(names); } catch {}
+  host?.dispatchEvent?.(new CustomEvent(momentEvent, { bubbles: true, composed: true, detail: { moments: names, workItemId: after.id, skin: host.dataset?.skin ?? '' } }));
+  return names;
 }
 
 /** Forgets which cards this page drew, so the next draw of each is a reveal. For tests. */

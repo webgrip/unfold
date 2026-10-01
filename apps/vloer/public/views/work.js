@@ -11,11 +11,14 @@ import { shell } from '../shell.js';
 import { enterPloegView, openPloegDialog } from './ploeg-common.js';
 import { stepDialogMarkup, stepOutcome, stepRequest } from '../core/attribution.js';
 import '../cards/unfold-card.js';
+import { cardMotion, clearEffects, watchCardMoments } from '../cards/effects/vloer.js';
 
 const lanes = ploegLanes.map(lane => lane.id);
 const itemPath = /^work\/([1-9][0-9]{0,19})$/;
 const liveInterval = 30000;
 const reviewFactLimit = 12;
+const runCard = 'unfold-card.work-run-card';
+if (globalThis.document) watchCardMoments(runCard);
 const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, trace: null, traceRequest: 0, traceBusy: false, traceResult: null };
 
 onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null }));
@@ -120,6 +123,9 @@ function hydrateCard(previous, focusKey) {
   if (!slot || !data) return;
   let element = slot;
   if (previous && previous !== slot && previous.dataset.workItem === slot.dataset.workItem) { slot.replaceWith(previous); element = previous; }
+  if (previous && previous.dataset.workItem !== slot.dataset.workItem) clearEffects();
+  if (cardMotion() !== 'full') element.setAttribute('motion', 'still');
+  else if (element.getAttribute('motion') === 'still') element.removeAttribute('motion');
   if (element.card !== data) element.card = data;
   if (focusKey) element.restoreFocus(focusKey);
 }

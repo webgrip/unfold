@@ -1,3 +1,6 @@
+import { cardView } from '../../card-model.js';
+import { emitMoments } from '../../skin-kit.js';
+
 /** The skin's name, matching its folder and manifest. */
 export const id = 'vloer-native';
 
@@ -6,7 +9,9 @@ const statusNote = { uncollected: 'Ploeg does not collect this yet', unreported:
 const restingLight = Object.freeze({ x: 0.82, y: 0.12 });
 const idleFinishes = new Set(['foil', 'holo', 'infinity']);
 const movingLimit = 3;
-const lightProperties = [['--gc-dx', 'number', String(restingLight.x)], ['--gc-dy', 'number', String(restingLight.y)], ['--gc-orbit', 'angle', '220deg']];
+const lightProperties = [['--gc-dx', 'number', String(restingLight.x)], ['--gc-dy', 'number', String(restingLight.y)], ['--gc-orbit', 'angle', '220deg'], ['--gc-sweep', 'angle', '0deg']];
+const momentTones = Object.freeze({ merged: 'gold', released: 'live', finish: 'prism', cracked: 'ink', mended: 'gold', graded: 'silver', set: 'gold' });
+const momentTargets = Object.freeze({ merged: '[data-slot="state"]', released: '.day, [data-slot="state"]', finish: '.day', cracked: '[data-slot="condition"]', mended: '[data-slot="condition"]', graded: '[data-slot="state"]', set: '[data-slot="set"]' });
 
 function register() {
   if (typeof CSS === 'undefined' || typeof CSS.registerProperty !== 'function') return false;
@@ -188,11 +193,14 @@ function back(v, h) {
  * Lights a drawn front face. The pointer's position over the card sets `--gc-px`, `--gc-py` and `--gc-po`, eased in
  * one animation frame at a time, and the finish layers in `skin.css` follow it. Foil, holo and infinity cards also run
  * a slow idle animation while they are on screen, and at most three cards on a page run one. With reduced motion the
- * card keeps the still version. Returns the function that stops all of it.
+ * card keeps the still version. It also fires `unfold-card-moment` through `skin-kit.js` when the facts changed since
+ * the page last drew this Work Item. Returns the function that stops all of it.
  * @param {Element} face The front face the runtime drew.
+ * @param {object} [view] The `cardView` model the face was drawn from.
  * @returns {() => void}
  */
-export function attach(face) {
+export function attach(face, view) {
+  if (view) emitMoments(face?.getRootNode?.()?.host ?? null, view);
   const card = face?.querySelector?.('.card[data-finish]');
   if (!card || card.dataset.finish === 'matte') return () => {};
   const reduced = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)');
@@ -244,4 +252,50 @@ export function attach(face) {
  */
 export function render(view, h) {
   return h.face === 'back' ? back(view, h) : front(view, h);
+}
+
+function rollNumber(element, from, to, ms, signal) {
+  const match = /^(\D*)(\d+)(.*)$/.exec(element?.textContent ?? '');
+  if (!match || !Number.isFinite(from) || from === to) return Promise.resolve();
+  const [, prefix, , suffix] = match;
+  const start = performance.now();
+  return new Promise(resolve => {
+    const step = now => {
+      const k = Math.min(1, (now - start) / ms);
+      const eased = 1 - (1 - k) ** 3;
+      element.textContent = `${prefix}${Math.round(from + (to - from) * eased)}${suffix}`;
+      if (k < 1 && !signal?.aborted) requestAnimationFrame(step);
+      else { element.textContent = `${prefix}${to}${suffix}`; resolve(); }
+    };
+    requestAnimationFrame(step);
+  });
+}
+
+/**
+ * Vloer Native's restrained reaction to a moment the effects director plays: a border sweep in the moment's tone, the
+ * chip that changed popping once, and the day count rolling up for a release or a finish step. Calm only lights the
+ * chip and the border in that tone, without movement. It draws inside the card and resolves when it is done.
+ * @param {{ kind: string, at?: string }} moment
+ * @param {{ front: Element, mode: 'full' | 'calm', durationMs: number, before?: object, view?: object, signal?: AbortSignal }} api
+ */
+export function onMoment(moment, api) {
+  const card = api?.front?.querySelector?.('.card[data-finish]');
+  if (!card) return null;
+  const chip = card.querySelector(momentTargets[moment.kind] ?? '[data-slot="state"]');
+  const length = Math.max(300, Math.min(api.durationMs ?? 900, 1400));
+  const calm = api.mode !== 'full';
+  card.dataset.fxSweep = momentTones[moment.kind] ?? 'gold';
+  card.dataset.fxMode = calm ? 'calm' : 'full';
+  if (chip) chip.dataset.fxPop = calm ? 'calm' : 'full';
+  const rolls = [];
+  if (!calm && (moment.kind === 'released' || moment.kind === 'finish') && api.view?.release?.released) {
+    const at = Date.parse(moment.at ?? '');
+    const earlier = moment.kind === 'released' ? 0 : api.before ? cardView(api.before, Number.isFinite(at) ? { now: at - 1000 } : {}).release?.days : null;
+    rolls.push(rollNumber(card.querySelector('.day b'), earlier ?? 0, api.view.release.days, 520, api.signal));
+  }
+  return new Promise(resolve => {
+    const end = () => { delete card.dataset.fxSweep; delete card.dataset.fxMode; if (chip) delete chip.dataset.fxPop; resolve(); };
+    const timer = setTimeout(() => Promise.all(rolls).then(end), length);
+    api.signal?.addEventListener?.('abort', () => { clearTimeout(timer); end(); }, { once: true });
+  });
 }

@@ -6,6 +6,7 @@ import { UnrealBloomPass } from '../vendor/three/unreal-bloom-pass.js';
 import { OutputPass } from '../vendor/three/output-pass.js';
 import { ForgeScene, fontsReady } from './skins/forge/engine.js';
 import { faceFonts } from './skins/forge/face.js';
+import { Particles } from './effects/particles.js';
 
 const pack = Object.freeze({ width: 0.84, height: 1.18, crimp: 0.075, strip: 0.11, bulge: 0.085 });
 const markSheet = 'M52.625 9.758L11.079 27.437A1.8 1.8 0 0 0 10.949 30.688L28.354 39.805A1.5 1.5 0 0 0 30.199 39.44L53.782 11.321A1 1 0 0 0 52.625 9.758Z';
@@ -407,8 +408,7 @@ export class PackCeremony {
     this.glow.position.set(0, 0, -0.2);
     this.scene.add(this.glow);
 
-    const count = 600;
-    this.particles = { positions: new Float32Array(count * 3), velocities: new Float32Array(count * 3), life: new Float32Array(count), colors: new Float32Array(count * 3), next: 0 };
+    this.particles = new Particles(600, { gravity: -0.4, drag: 0.985, hiddenZ: -50 });
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(this.particles.positions, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(this.particles.colors, 3));
@@ -690,34 +690,23 @@ export class PackCeremony {
 
   emit(origin, amount, speed, color) {
     if (this.reduced) return;
-    const p = this.particles;
-    const total = p.life.length;
     for (let n = 0; n < amount; n++) {
-      const i = p.next;
-      p.next = (p.next + 1) % total;
       const theta = this.random() * Math.PI * 2;
       const phi = Math.acos(2 * this.random() - 1);
       const v = speed * (0.35 + this.random() * 0.65);
-      p.positions.set([origin.x, origin.y, origin.z], i * 3);
-      p.velocities.set([Math.sin(phi) * Math.cos(theta) * v, Math.sin(phi) * Math.sin(theta) * v, Math.abs(Math.cos(phi)) * v * 0.5], i * 3);
       const hue = color ?? new THREE.Color().setHSL(this.random(), 0.85, 0.7).toArray();
-      p.colors.set(hue, i * 3);
-      p.life[i] = 0.7 + this.random() * 0.9;
+      this.particles.spawn({ x: origin.x, y: origin.y, z: origin.z, vx: Math.sin(phi) * Math.cos(theta) * v, vy: Math.sin(phi) * Math.sin(theta) * v, vz: Math.abs(Math.cos(phi)) * v * 0.5, color: hue, life: 0.7 + this.random() * 0.9 });
     }
+    this.particles.geometry.attributes.color.needsUpdate = true;
   }
 
   converge(target, level) {
-    const p = this.particles;
-    const i = p.next;
-    p.next = (p.next + 1) % p.life.length;
     const angle = this.random() * Math.PI * 2;
     const radius = 0.9 + this.random() * 0.4;
     const start = new THREE.Vector3(target.x + Math.cos(angle) * radius, target.y + Math.sin(angle) * radius, target.z);
-    p.positions.set(start.toArray(), i * 3);
     const v = new THREE.Vector3().subVectors(target, start).multiplyScalar(1.6);
-    p.velocities.set(v.toArray(), i * 3);
-    p.colors.set(new THREE.Color(glowColors[level]).toArray(), i * 3);
-    p.life[i] = 0.6;
+    this.particles.spawn({ x: start.x, y: start.y, z: start.z, vx: v.x, vy: v.y, vz: v.z, color: new THREE.Color(glowColors[level]).toArray(), life: 0.6 });
+    this.particles.geometry.attributes.color.needsUpdate = true;
   }
 
   tween(duration, step, done, curve = ease.out) { this.tweens.push({ t: 0, duration, step, done, curve }); }
@@ -754,18 +743,8 @@ export class PackCeremony {
     }
     this.key.position.set(1.2 + this.pointer.x * 1.4, 1.6 + this.pointer.y * 1.2, 2.4);
     for (const card of this.cards) this.updateCardUniforms(card, dt);
-    const p = this.particles;
-    for (let i = 0; i < p.life.length; i++) {
-      if (p.life[i] <= 0) { p.positions[i * 3 + 2] = -50; continue; }
-      p.life[i] -= dt;
-      p.positions[i * 3] += p.velocities[i * 3] * dt;
-      p.positions[i * 3 + 1] += p.velocities[i * 3 + 1] * dt;
-      p.positions[i * 3 + 2] += p.velocities[i * 3 + 2] * dt;
-      p.velocities[i * 3 + 1] -= 0.4 * dt;
-      p.velocities[i * 3] *= 0.985;
-      p.velocities[i * 3 + 1] *= 0.985;
-    }
-    p.geometry.attributes.position.needsUpdate = true;
+    this.particles.step(dt);
+    this.particles.geometry.attributes.position.needsUpdate = true;
     try { this.composer.render(); } catch (error) { this.failed = String(error?.message ?? error); }
     this.frames = (this.frames ?? 0) + 1;
     this.host.dataset.packFrames = String(this.frames);

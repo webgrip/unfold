@@ -1,6 +1,8 @@
 import { render as nativeRender } from '../vloer-native/skin.js';
 import { webglSupport } from '../../registry.js';
 import { faceFacts } from './forge-model.js';
+import { cardView } from '../../card-model.js';
+import { emitMoments } from '../../skin-kit.js';
 
 /** The skin's name, matching its folder and manifest. */
 export const id = 'forge';
@@ -107,6 +109,9 @@ class ForgeController {
     this.last = 0;
     this.disposeTimer = 0;
     this.cleanup = [];
+    this.timeScale = null;
+    this.ceremony = 0;
+    this.ready = new Promise(resolve => { this.markReady = resolve; });
   }
 
   mount(article, stage, front, view) {
@@ -149,6 +154,86 @@ class ForgeController {
     } catch {
       this.fail();
     }
+    this.markReady();
+  }
+
+  /**
+   * Plays a moment the effects director asked for. Full motion steps the scene back to the card as it was (`api.before`)
+   * and, at the impact, forward to now with the moment's signature: the merge seal (a stamp, a glint and a ring of
+   * sparks), the release glint, the finish wiping in as its coverage rises, the crack drawing dark, the gold flowing
+   * into a mend, the grade and the completed set swelling. A still card renders frames for the ceremony and returns to
+   * one still frame after. Calm shows the end state at once. Hit-stop and slow motion reach the scene through `api.time`.
+   */
+  async moment(moment, api) {
+    await Promise.race([this.ready, new Promise(resolve => setTimeout(resolve, 4000))]);
+    const scene = this.scene;
+    if (!scene || !this.article) return;
+    const after = this.facts;
+    const settle = () => { if (this.scene !== scene) return; scene.finishTweens(); scene.setFacts(after, { ceremony: false }); this.timeScale = null; this.endCeremony(); };
+    if (api.mode !== 'full' || api.signal?.aborted) { settle(); return; }
+    const at = Date.parse(moment.at);
+    const before = api.before ? faceFacts(cardView(api.before, Number.isFinite(at) ? { now: at - 1000 } : {})) : null;
+    this.timeScale = api.time ?? null;
+    scene.finishTweens();
+    if (before) scene.setFacts(before, { ceremony: false });
+    this.startCeremony(api.durationMs + 600);
+    const aborted = new Promise(resolve => api.signal?.addEventListener?.('abort', resolve, { once: true }));
+    await Promise.race([new Promise(resolve => setTimeout(resolve, api.impactAt ?? 0)), aborted]);
+    if (api.signal?.aborted || this.scene !== scene) { settle(); return; }
+    scene.setFacts(after, { ceremony: true });
+    const flash = strength => { const allowed = api.flash?.(strength, 'warm') ?? 0; if (allowed) scene.flash(allowed, 0.25); };
+    switch (moment.kind) {
+      case 'merged': scene.punch(0.06); scene.glint(0.85); scene.pulse(0.32, 0.9); flash(0.3); api.emit?.('seal', { count: 18, palette: 'gold' }); break;
+      case 'released': scene.punch(0.03); scene.glint(1.1); scene.pulse(0.3, 1.1); api.emit?.('rise', { count: 16, palette: 'blue' }); break;
+      case 'finish': scene.wipeIn(1.2); api.emit?.('prism', { count: 30, palette: 'prism' }); break;
+      case 'cracked': scene.punch(0.04); scene.desaturate(0.55, 1); api.emit?.('debris', { count: 14, palette: 'ink' }); break;
+      case 'mended': scene.pulse(0.45, 2); api.emit?.('flow', { count: 36, palette: 'gold' }); break;
+      default: scene.punch(0.04); scene.glint(0.9); scene.pulse(0.35, 1.2); api.emit?.('sparks', { count: 20, palette: moment.kind === 'graded' ? 'silver' : 'gold' });
+    }
+    const until = performance.now() + Math.max(0, api.durationMs - (api.impactAt ?? 0)) + 400;
+    while (this.scene === scene && !api.signal?.aborted && performance.now() < until && (scene.busy || performance.now() < until - 400)) await new Promise(resolve => setTimeout(resolve, 50));
+    settle();
+  }
+
+  startCeremony(ms) {
+    this.ceremony = performance.now() + ms;
+    if (this.mode === 'live') { this.update(); return; }
+    if (this.ceremonyFrame) return;
+    this.lastCeremony = performance.now();
+    const frame = now => {
+      this.ceremonyFrame = 0;
+      if (!this.scene || !this.stage || !this.stageElement || now > this.ceremony) return;
+      const dt = Math.min(0.05, (now - this.lastCeremony) / 1000) * (this.timeScale?.scale() ?? 1);
+      this.lastCeremony = now;
+      try { this.drawFrame(dt); } catch { this.fail(); return; }
+      this.ceremonyFrame = requestAnimationFrame(frame);
+    };
+    this.ceremonyFrame = requestAnimationFrame(frame);
+  }
+
+  endCeremony() {
+    this.ceremony = 0;
+    if (this.ceremonyFrame) cancelAnimationFrame(this.ceremonyFrame);
+    this.ceremonyFrame = 0;
+    if (this.mode === 'still' && this.article) this.drawStill();
+  }
+
+  drawFrame(dt) {
+    if (!this.article) return;
+    const box = this.stageElement.getBoundingClientRect();
+    if (!box.width || !box.height) return;
+    this.scene.step(dt);
+    this.stage.setSize(box.width, box.height);
+    this.stage.render(this.scene);
+    if (this.stage.failed) throw new Error(this.stage.failed);
+    const ratio = Math.min(2, globalThis.devicePixelRatio || 1);
+    const width = Math.round(box.width * ratio);
+    const height = Math.round(box.height * ratio);
+    if (this.canvas.width !== width || this.canvas.height !== height) { this.canvas.width = width; this.canvas.height = height; }
+    this.canvas.getContext('2d').drawImage(this.stage.canvas, 0, 0, width, height);
+    this.frames++;
+    this.article.dataset.forgeFrames = String(this.frames);
+    this.article.dataset.forgeState = 'ceremony';
   }
 
   show() {
@@ -163,6 +248,7 @@ class ForgeController {
 
   fail() {
     this.stop();
+    this.markReady();
     if (this.article) this.article.dataset.forgeState = 'failed';
     this.canvas?.remove();
   }
@@ -258,7 +344,7 @@ class ForgeController {
   }
 
   tick(now) {
-    const dt = Math.min(0.05, (now - this.last) / 1000);
+    const dt = Math.min(0.05, (now - this.last) / 1000) * (this.timeScale?.scale() ?? 1);
     this.last = now;
     try {
       this.scene.step(dt);
@@ -285,6 +371,8 @@ class ForgeController {
 
   dispose() {
     this.ticket = (this.ticket ?? 0) + 1;
+    if (this.ceremonyFrame) cancelAnimationFrame(this.ceremonyFrame);
+    this.ceremonyFrame = 0;
     this.scene?.dispose();
     if (this.mode === 'live') this.stage?.dispose();
     else if (this.stage) releaseShared();
@@ -302,7 +390,8 @@ class ForgeController {
  * springs tilt it toward the pointer, the light follows, the art and foil animate, and it pauses while off screen,
  * turned to its back, in a hidden tab, or once the reader asks for reduced motion. Every other forge card, a card
  * with `motion="still"`, a reader who prefers reduced motion and a software rasteriser get one still frame from a
- * shared renderer. The scene survives the runtime's redraws for `keepAliveMs`. Returns the function that detaches it.
+ * shared renderer. The scene survives the runtime's redraws for `keepAliveMs`. It fires `unfold-card-moment` through
+ * `skin-kit.js` like every other skin. Returns the function that detaches it.
  * @param {Element} face The front face the runtime drew.
  * @param {object} view The `cardView` model the face was drawn from.
  * @returns {() => void}
@@ -312,8 +401,28 @@ export function attach(face, view) {
   const stage = article?.querySelector('[data-forge-stage]');
   if (!stage || !view) return () => {};
   const host = face.getRootNode?.()?.host ?? face;
+  emitMoments(host === face ? null : host, view);
   let controller = controllers.get(host);
   if (!controller || controller.view?.id !== view.id) { controller?.dispose(); controller = new ForgeController(host); controllers.set(host, controller); }
   controller.mount(article, stage, face, view);
   return () => controller.unmount();
+}
+
+/**
+ * The forge's reaction to a moment the effects director plays on a card: the merge seal, the release glint, the
+ * finish wiping in with its coverage rising, the crack drawing, the gold flowing into a mend, and a swell for a grade
+ * or a completed set. It draws on the card only and asks the director (`api.emit`, `api.flash`) for anything beyond
+ * it. Resolves when the reaction has settled.
+ * @param {{ kind: string, at: string }} moment
+ * @param {{ host: Element, mode: 'full' | 'calm', before?: object, durationMs: number, impactAt?: number, signal?: AbortSignal, time?: object, emit?: Function, flash?: Function }} api
+ */
+export async function onMoment(moment, api) {
+  const wanted = moment?.workItemId ? String(moment.workItemId) : null;
+  const deadline = performance.now() + 3000;
+  let controller = controllers.get(api?.host);
+  while (wanted && controller?.view?.id !== wanted && performance.now() < deadline && !api?.signal?.aborted) {
+    await new Promise(resolve => setTimeout(resolve, 50));
+    controller = controllers.get(api?.host);
+  }
+  return controller ? controller.moment(moment, api) : null;
 }

@@ -147,3 +147,4 @@ Re-evaluate when Ploeg ships the card list, when rarity is decided, when clients
 * Card contract P4 addendum: "Card list for binders and packs", Ploeg's `GET /api/v1/operator/cards`, proposed and built in parallel.
 * [HTTP contract](../contracts/api.md#card-collection): the collection routes.
 * 2026-10-01: proposed with the Vloer side implemented against the card contract and fixtures.
+* 2026-10-01: [ADR 0032](0032-an-effects-director-plays-run-card-moments-once-by-tier-within-accessibility-rules.md) moves the rip ceremony's sound into the shared sound banks (`cards/effects/sound.js`, preference `cardSound` instead of `packSound`) and its particles into the shared store, has the rip hold the effects director and follow the Card motion preference, and has "While you were away" play through the director and move the seen marks of the cards it showed.
