@@ -1,3 +1,14 @@
+## [unfold-site-v0.1.0-rc.6](https://forgejo.webgrip.dev/webgrip/glide/compare/unfold-site-v0.1.0-rc.5...unfold-site-v0.1.0-rc.6) (2026-10-01)
+
+### Changed
+
+* rename the product from Glide to Unfold ([dc45dac](https://forgejo.webgrip.dev/webgrip/glide/commit/dc45dacb00b52de6d16b4379776d0bb077a9563e))
+
+### Build
+
+* **site:** clear the wrangler advisories and move to TypeScript 6 and pnpm 12 ([504e2f4](https://forgejo.webgrip.dev/webgrip/glide/commit/504e2f4ca40e0efd69ef9774a3ee5564ec05c767))
+* **site:** move the Worker compatibility date to 2026-09-26 ([8881e1c](https://forgejo.webgrip.dev/webgrip/glide/commit/8881e1cad4856d6fbdfb734b45ccd792200dc0fa))
+
 ## [glide-site-v0.1.0-rc.5](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-site-v0.1.0-rc.4...glide-site-v0.1.0-rc.5) (2026-10-01)
 
 ### Fixed
