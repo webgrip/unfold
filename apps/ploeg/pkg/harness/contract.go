@@ -169,9 +169,54 @@ func ValidVerdict(v string) bool {
 
 // Usage carries per-run cost/usage a harness can report (backlog #66) and
 // the harness-native resume handle (backlog #70). All fields optional.
+//
+// The pointer and map fields follow ADR-0045: nil means the harness did not
+// report the figure, and a reported zero stays zero. An adapter never fills
+// one in from a default.
 type Usage struct {
 	InputTokens  int64   `json:"inputTokens,omitempty"`
 	OutputTokens int64   `json:"outputTokens,omitempty"`
 	CostUSD      float64 `json:"costUsd,omitempty"`
 	SessionID    string  `json:"sessionId,omitempty"`
+
+	// CacheReadInputTokens and CacheCreationInputTokens are input tokens
+	// served from, and written to, the provider's prompt cache.
+	CacheReadInputTokens     *int64 `json:"cacheReadInputTokens,omitempty"`
+	CacheCreationInputTokens *int64 `json:"cacheCreationInputTokens,omitempty"`
+	// Turns is the number of agent turns the harness counted.
+	Turns *int64 `json:"turns,omitempty"`
+	// DurationMs is the harness's own wall-clock time for the Run, and
+	// APIDurationMs the part of it spent waiting on the model API.
+	DurationMs    *int64 `json:"durationMs,omitempty"`
+	APIDurationMs *int64 `json:"apiDurationMs,omitempty"`
+	// ToolCalls counts tool invocations, and ToolCallsByKind splits them by
+	// the harness's tool kind.
+	ToolCalls       *int64           `json:"toolCalls,omitempty"`
+	ToolCallsByKind map[string]int64 `json:"toolCallsByKind,omitempty"`
+	// PeakContextTokens is the largest context fill the harness reported,
+	// and ContextWindowTokens the size of that window.
+	PeakContextTokens   *int64 `json:"peakContextTokens,omitempty"`
+	ContextWindowTokens *int64 `json:"contextWindowTokens,omitempty"`
+	// ModelUsage is the harness's own split of the Run's usage by model.
+	ModelUsage map[string]ModelUsage `json:"modelUsage,omitempty"`
+}
+
+// ModelUsage is the part of a Run's usage one model accounts for, as the
+// harness reported it.
+type ModelUsage struct {
+	InputTokens              *int64   `json:"inputTokens,omitempty"`
+	OutputTokens             *int64   `json:"outputTokens,omitempty"`
+	CacheReadInputTokens     *int64   `json:"cacheReadInputTokens,omitempty"`
+	CacheCreationInputTokens *int64   `json:"cacheCreationInputTokens,omitempty"`
+	CostUSD                  *float64 `json:"costUsd,omitempty"`
+	ContextWindowTokens      *int64   `json:"contextWindowTokens,omitempty"`
+}
+
+// HasActivity reports whether u records model turns or tool calls, which
+// only a Run that reached its model can have.
+func (u *Usage) HasActivity() bool {
+	if u == nil {
+		return false
+	}
+	return (u.Turns != nil && *u.Turns > 0) || (u.ToolCalls != nil && *u.ToolCalls > 0)
 }

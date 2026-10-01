@@ -23,7 +23,10 @@ change either side and the test tells you.
   negotiation, not an edit.
 - Consumers must ignore unknown fields (Go's default decoding already does).
 - The outcome enum is owned by `pkg/work/types.go`; the schema mirrors it.
-  `usage` (tokens/cost/sessionId) is reserved space for backlog #66/#70.
+  `usage` carries tokens, cost and sessionId (backlog #66/#70), and since
+  [ADR-0045](../adrs/0045-keep-run-usage-and-merge-facts.md) the optional
+  cache, turn, duration, tool-call, context and per-model figures. A harness
+  leaves out any figure it did not measure; it never sends a default zero.
 
 ## OpenSpec Work Items
 

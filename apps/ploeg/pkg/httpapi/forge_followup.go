@@ -84,7 +84,7 @@ func (s *Server) reworkOnChangesRequested(ctx context.Context, providerName stri
 	}
 	action, err := s.Store.RecordChangesRequested(ctx, store.ChangesRequested{
 		WorkItemID: owner.WorkItemID, Provider: providerName, Repo: ev.Repo, PR: ev.PR,
-		Reviewer: ev.Actor, Body: ev.Body,
+		Reviewer: ev.Actor, Body: ev.Body, HeadSHA: ev.PullRequest.HeadSHA,
 	})
 	if err != nil {
 		s.Log.Error("recording requested changes failed", "work_item", owner.WorkItemID, "pr", ev.PR, "err", err)

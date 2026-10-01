@@ -293,6 +293,61 @@ func TestParseWebhookMergeRequestClosed(t *testing.T) {
 	}
 }
 
+// ADR-0045: the merge request's head, merge commit and merger reach the
+// event; a timestamp the payload lacks stays unknown.
+func TestParseWebhookMergeCarriesItsFacts(t *testing.T) {
+	evs, err := post(t, &Provider{Secret: "s3cret"}, "", map[string]any{
+		"object_kind": "merge_request",
+		"project":     map[string]any{"path_with_namespace": "g/p"},
+		"user":        map[string]any{"username": "anna"},
+		"object_attributes": map[string]any{
+			"iid": 9, "action": "merge", "source_branch": "agent/vik-1",
+			"merge_commit_sha": "2222bbbb", "last_commit": map[string]any{"id": "1111aaaa"},
+		},
+	})
+	if err != nil || len(evs) != 1 {
+		t.Fatalf("events = %+v, %v", evs, err)
+	}
+	f := evs[0].PullRequest
+	if f.State != provider.PullRequestMerged || f.HeadSHA != "1111aaaa" || f.MergeCommitSHA != "2222bbbb" ||
+		f.MergedBy != "anna" || f.MergedAt != nil || evs[0].Actor != "anna" {
+		t.Errorf("facts = %+v actor %q", f, evs[0].Actor)
+	}
+}
+
+func TestParseWebhookApprovalCarriesHead(t *testing.T) {
+	evs, err := post(t, &Provider{Secret: "s3cret"}, "", map[string]any{
+		"object_kind": "merge_request",
+		"project":     map[string]any{"path_with_namespace": "g/p"},
+		"user":        map[string]any{"username": "anna"},
+		"object_attributes": map[string]any{
+			"iid": 9, "action": "approved", "source_branch": "agent/vik-1", "last_commit": map[string]any{"id": "1111aaaa"},
+		},
+	})
+	if err != nil || len(evs) != 1 {
+		t.Fatalf("events = %+v, %v", evs, err)
+	}
+	if evs[0].Review != provider.ForgeReviewApproved || evs[0].Actor != "anna" || evs[0].PullRequest.HeadSHA != "1111aaaa" {
+		t.Errorf("event = %+v", evs[0])
+	}
+}
+
+func TestPullRequestFacts(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"state":"merged","sha":"1111aaaa","merge_commit_sha":null,"squash_commit_sha":"3333cccc",
+			"merged_at":"2026-10-01T09:30:00.000Z","merge_user":{"username":"anna"},"merged_by":{"username":"old"}}`))
+	}))
+	defer srv.Close()
+	f, err := (&Provider{BaseURL: srv.URL, Token: "tok", HC: srv.Client()}).PullRequestFacts(context.Background(), "group/sub/proj", 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.State != provider.PullRequestMerged || f.HeadSHA != "1111aaaa" || f.MergeCommitSHA != "3333cccc" ||
+		f.MergedBy != "anna" || f.MergedAt == nil || f.MergedAt.Format("2006-01-02T15:04:05Z07:00") != "2026-10-01T09:30:00Z" {
+		t.Errorf("facts = %+v", f)
+	}
+}
+
 func TestPullRequestState(t *testing.T) {
 	for state, want := range map[string]provider.PullRequestState{
 		"opened": provider.PullRequestOpen,

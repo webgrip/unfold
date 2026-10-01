@@ -283,12 +283,18 @@ func (s *Server) handleForgeWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, ev := range events {
-		if err := s.Store.AuditForgeEvent(r.Context(), name, string(ev.Kind), ev.Repo, ev.Branch, ev.PR); err != nil {
+		if err := s.Store.AuditForgeEvent(r.Context(), name, store.ForgeEventAudit{
+			Kind: string(ev.Kind), Repo: ev.Repo, Branch: ev.Branch, PR: ev.PR,
+			Actor: ev.Actor, Review: string(ev.Review), HeadSHA: ev.PullRequest.HeadSHA,
+			MergeCommitSHA: ev.PullRequest.MergeCommitSHA, MergedBy: ev.PullRequest.MergedBy,
+			MergedAt: ev.PullRequest.MergedAt,
+		}); err != nil {
 			s.Log.Error("forge event audit failed", "provider", name, "kind", ev.Kind, "err", err)
 			continue
 		}
 		s.Log.Info("forge event recorded", "provider", name, "kind", ev.Kind,
 			"repo", ev.Repo, "pr", ev.PR, "branch", ev.Branch)
+		s.recordPullRequestFacts(r.Context(), fp, ev)
 		if s.Reviews != nil && (ev.Kind == provider.ForgePRMerged || ev.Kind == provider.ForgePRClosed) {
 			if err := s.Reviews.HandleForgeEvent(r.Context(), name, ev); err != nil {
 				s.Log.Error("pull request settle failed; reconcile will retry", "provider", name,

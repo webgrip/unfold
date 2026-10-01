@@ -50,7 +50,7 @@ The [pricing units record](../research/2026-09-28-pricing-units.md) compares the
 | Credits per size S / M / L | 1 / 3 / 8; no XL. Refinement must split work it estimates above the L Shift Budget |
 | Custom agents and Teams | Agencies may bring their own model keys (BYOK) and build their own agents and Teams; the Shift Budget applies whatever Team or key is used. Bring-your-own-key agencies pay the configured markup on their measured token use |
 | Delivery rate for financial planning | 55%; 70% is the target after refinement |
-| Shift Budget per size | €4 / €10 / €20 |
+| Shift Budget per size | Per model tier and Size, set from the measured p90 Shift cost ([research drill-down](../research/2026-10-01-economics-drill-down.md)); €4 / €10 / €20 for every tier until it is measured |
 | List price per credit | €15 |
 | Floor price per credit | €12, a margin floor on delivery fees that no discount goes below |
 | Volume steps | €14 / €13 / €12 at 100 / 250 / 500+ credits a month |
@@ -58,18 +58,19 @@ The [pricing units record](../research/2026-09-28-pricing-units.md) compares the
 | What a credit is | One accepted S ticket, worth €15. Credits only measure delivery fees and are always shown with their euro value; tokens and hosting are charged in euros |
 | Credit validity | Paid credits never expire while the account is active and are refunded at purchase price when the account closes; promotional credits can expire and are used first |
 | Purchase forms | Prepaid bundles, and 12-month monthly commitments that unlock the volume steps |
-| Tokens and compute inside a ticket | Charged per attempt at cost plus a published markup, up to the Shift Budget. The markup depends on the agency's Markup Tier: 25% to start; 20% once its acceptance rate is above the platform median; 15% at top-quartile acceptance with at least 100 accepted tickets. Tiers are recalculated quarterly from published thresholds, and an agency drops at most one tier per quarter, with a month's notice |
+| Tokens and compute inside a ticket | Charged per attempt at cost plus a published flat markup of 25%, up to the Shift Budget |
 | Invoices | Show the platform fee split, for example "€249 = 10 credits (€150) + platform €99" |
 | Acceptance review | An agency is reviewed, not penalised, when its acceptance rate falls below half the platform median over at least 20 closed tickets, after 2 or more confirmed copies in 90 days, or when reversals exceed 10% |
 | Metered usage above allowances | €0.10 per GB-month of storage, extra tokens at list price plus the agency's markup. CI is not charged |
 | Agency markup on metered usage | Each agency sets its own multiplier toward its clients; Glide bills the agency at the rates above |
 | Previews | Deploy step free; on Glide hosting each delivery credit includes one preview deploy for 7 days; extra deploys cost €0.50 each and €0.50 per day beyond 7 days, taken from the account balance; ingress free, 100 GB egress a month included, then provider cost plus markup ([ADR-0008](adr-0008-every-pull-request-gets-a-preview-environment.md)) |
-| Incentives | A private per-agency quality score from acceptance rate, over a minimum sample, unlocks a lower markup or higher Budgets; a ready-check gives feedback on a ticket before any spend; quarterly tiers with published thresholds; referral rewards in euro credit that does not expire. No streaks, leaderboards or random bonuses |
+| Incentives | A private per-agency quality score from acceptance rate, over a minimum sample, unlocks higher Budgets; a ready-check gives feedback on a ticket before any spend; referral rewards in euro credit that does not expire. No streaks, leaderboards or random bonuses |
 | Self-hosted | No charge from Glide; the agency pays its own model provider and infrastructure |
 | Default Agency Budget for metered usage | €100 a month, alerts at 50, 75, 90 and 100%; work pauses when it is reached |
 | Billing stack | Mollie for payment, Lago self-hosted for metering; Ploeg enforces every Budget before spend |
 | Design partners | 3 to 5, 50% off the platform fee for 6 months; credits never below the floor |
 | Public price list | Published after the pilot's first gate |
+| Currency | Provider cost is settled in US$ and converted to euro at the ECB reference rate of the settlement day; each charge stores the rate and its date, and the markup absorbs the exchange risk |
 | Model price changes | Flow into token charges only; the credit price changes only by announced decision, and credits already bought keep their price |
 | Public launch gate | 60% of S tickets delivered at €4 or less per delivered S |
 
@@ -128,3 +129,4 @@ Confirmed when every delivered ticket shows its size, quote, Shift Budget and se
 * 2026-09-29 — The owner set the markup tiers at 25%, 20% and 15%, recalculated quarterly with at most one tier dropped per quarter.
 * 2026-09-29 — Wording aligned with the domain model (ticket, Budget, Agency); no decision changed.
 * 2026-09-30 — Wording aligned with the domain model (Markup Tier; a size maps to a Team); no decision changed.
+* 2026-10-01 — The owner replaced the markup tiers with a flat 25% markup, so a quality score unlocks higher Budgets only; set Shift Budgets per model tier from the measured p90 Shift cost, keeping €4 / €10 / €20 until measured; and set the currency rule. The [economics drill-down](../research/2026-10-01-economics-drill-down.md) shows why: at open-weight cost the markup earns about €0,06 per attempt.

@@ -185,10 +185,19 @@ func BuildMutatedWithoutPR(s *sessionState) harness.OutcomeReport {
 func buildUsage(s *sessionState) *harness.Usage {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !s.sawUsage && s.sessionID == "" {
+	tools, toolsByKind := s.toolTallyLocked()
+	if !s.sawUsage && s.sessionID == "" && tools == 0 {
 		return nil
 	}
-	u := &harness.Usage{SessionID: s.sessionID}
+	u := &harness.Usage{SessionID: s.sessionID, ToolCalls: &tools, ToolCallsByKind: toolsByKind}
+	if s.usedTokens != nil {
+		peak := *s.usedTokens
+		u.PeakContextTokens = &peak
+	}
+	if s.sizeTokens != nil {
+		window := *s.sizeTokens
+		u.ContextWindowTokens = &window
+	}
 	if s.inTokens != nil {
 		u.InputTokens = *s.inTokens
 	}

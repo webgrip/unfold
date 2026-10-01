@@ -66,12 +66,31 @@ type OperatorLease struct {
 // that opened or updated a pull request, exactly as AwaitingReview does, and
 // falls back to the newest Checkpoint pr_url; the operator link sanitizer
 // blanks it when it is not a safe http(s) URL.
+//
+// The merge facts and Reviews come from the newest pull request the forge
+// reported for the Work Item (ADR-0045). A fact the forge has not reported is
+// left out, and Reviews is empty when no review was recorded.
 type OperatorPullRequest struct {
-	URL                   string `json:"url"`
-	AgentVerdict          string `json:"agentVerdict"`
-	AgentVerdictRound     *int   `json:"agentVerdictRound"`
-	HumanChangesRequested bool   `json:"humanChangesRequested"`
-	RepairFollowUps       int64  `json:"repairFollowUps"`
+	URL                   string                      `json:"url"`
+	AgentVerdict          string                      `json:"agentVerdict"`
+	AgentVerdictRound     *int                        `json:"agentVerdictRound"`
+	HumanChangesRequested bool                        `json:"humanChangesRequested"`
+	RepairFollowUps       int64                       `json:"repairFollowUps"`
+	MergedAt              *time.Time                  `json:"mergedAt,omitempty"`
+	MergedBy              string                      `json:"mergedBy,omitempty"`
+	HeadSHA               string                      `json:"headSha,omitempty"`
+	MergeCommitSHA        string                      `json:"mergeCommitSha,omitempty"`
+	Reviews               []OperatorPullRequestReview `json:"reviews"`
+}
+
+// OperatorPullRequestReview is one review a forge reported on the pull
+// request. State is approved, changes_requested or commented, and is left
+// out when the forge did not classify the review.
+type OperatorPullRequestReview struct {
+	Reviewer   string    `json:"reviewer"`
+	State      string    `json:"state,omitempty"`
+	HeadSHA    string    `json:"headSha,omitempty"`
+	ReceivedAt time.Time `json:"receivedAt"`
 }
 
 type OperatorItem struct {
@@ -110,10 +129,33 @@ type OperatorShift struct {
 	CloseReason string     `json:"closeReason"`
 }
 
+// OperatorUsage is a Run's usage as the harness reported it, with the cost
+// Ploeg observed. Every field is left out when unknown (ADR-0045).
 type OperatorUsage struct {
-	InputTokens  *int64   `json:"inputTokens,omitempty"`
-	OutputTokens *int64   `json:"outputTokens,omitempty"`
-	CostUSD      *float64 `json:"costUsd,omitempty"`
+	InputTokens              *int64                        `json:"inputTokens,omitempty"`
+	OutputTokens             *int64                        `json:"outputTokens,omitempty"`
+	CostUSD                  *float64                      `json:"costUsd,omitempty"`
+	CacheReadInputTokens     *int64                        `json:"cacheReadInputTokens,omitempty"`
+	CacheCreationInputTokens *int64                        `json:"cacheCreationInputTokens,omitempty"`
+	Turns                    *int64                        `json:"turns,omitempty"`
+	DurationMs               *int64                        `json:"durationMs,omitempty"`
+	APIDurationMs            *int64                        `json:"apiDurationMs,omitempty"`
+	ToolCalls                *int64                        `json:"toolCalls,omitempty"`
+	ToolCallsByKind          map[string]int64              `json:"toolCallsByKind,omitempty"`
+	PeakContextTokens        *int64                        `json:"peakContextTokens,omitempty"`
+	ContextWindowTokens      *int64                        `json:"contextWindowTokens,omitempty"`
+	ModelUsage               map[string]OperatorModelUsage `json:"modelUsage,omitempty"`
+}
+
+// OperatorModelUsage is the part of a Run's usage one model accounts for,
+// as the harness reported it.
+type OperatorModelUsage struct {
+	InputTokens              *int64   `json:"inputTokens,omitempty"`
+	OutputTokens             *int64   `json:"outputTokens,omitempty"`
+	CacheReadInputTokens     *int64   `json:"cacheReadInputTokens,omitempty"`
+	CacheCreationInputTokens *int64   `json:"cacheCreationInputTokens,omitempty"`
+	CostUSD                  *float64 `json:"costUsd,omitempty"`
+	ContextWindowTokens      *int64   `json:"contextWindowTokens,omitempty"`
 }
 
 type OperatorRun struct {
@@ -216,14 +258,59 @@ const operatorItemJSON = `jsonb_build_object(
 		'url', ` + operatorPullRequestURL + `,
 		'agentVerdict', COALESCE((` + operatorAgentVerdictJSON + `)->>'verdict', ''),
 		'agentVerdictRound', (` + operatorAgentVerdictJSON + `)->'round',
-		'humanChangesRequested', EXISTS (SELECT 1 FROM work_item_reviews w WHERE w.work_item_id = i.id),
-		'repairFollowUps', (SELECT count(*) FROM work_items f WHERE f.source_work_item_id = i.id AND f.source_run_id IS NULL)) ELSE NULL END)`
+		'humanChangesRequested', EXISTS (SELECT 1 FROM work_item_reviews w WHERE w.work_item_id = i.id AND w.state = 'changes_requested'),
+		'repairFollowUps', (SELECT count(*) FROM work_items f WHERE f.source_work_item_id = i.id AND f.source_run_id IS NULL))
+		|| COALESCE(` + operatorPullRequestFactsJSON + `, '{"reviews": []}'::jsonb) ELSE NULL END)`
+
+const operatorPullRequestFactsJSON = `(SELECT jsonb_strip_nulls(jsonb_build_object(
+	'mergedAt', p.merged_at, 'mergedBy', left(p.merged_by, 256),
+	'headSha', left(p.head_sha, 128), 'mergeCommitSha', left(p.merge_commit_sha, 128),
+	'reviews', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+			'reviewer', left(v.reviewer, 256), 'state', v.state, 'headSha', left(v.head_sha, 128), 'receivedAt', v.received_at)
+			ORDER BY v.id), '[]'::jsonb)
+		FROM (SELECT * FROM pull_request_reviews WHERE pull_request_id = p.id ORDER BY id DESC LIMIT 50) v)))
+	FROM pull_requests p WHERE p.work_item_id = i.id ORDER BY p.updated_at DESC, p.id DESC LIMIT 1)`
 
 const operatorRunCost = `CASE WHEN EXISTS (SELECT 1 FROM run_llm_accounts WHERE run_token = r.run_token)
 	THEN (SELECT to_jsonb(COALESCE(reconciled_spend, observed_spend)) FROM run_llm_accounts WHERE run_token = r.run_token)
 	ELSE CASE WHEN jsonb_typeof(r.usage->'costUsd') = 'number' THEN r.usage->'costUsd' END END`
 
-const operatorRunJSON = `jsonb_build_object(
+func operatorUsageCount(object, key string) string {
+	number := `(` + object + `->>'` + key + `')::numeric`
+	return `CASE WHEN jsonb_typeof(` + object + `->'` + key + `') = 'number' THEN
+		CASE WHEN ` + number + ` BETWEEN 0 AND 9000000000000000 THEN to_jsonb(floor(` + number + `)::bigint) END END`
+}
+
+func operatorUsageCost(object, key string) string {
+	return `CASE WHEN jsonb_typeof(` + object + `->'` + key + `') = 'number' THEN
+		CASE WHEN (` + object + `->>'` + key + `')::numeric >= 0 THEN ` + object + `->'` + key + `' END END`
+}
+
+var operatorRunUsageFacts = `'cacheReadInputTokens', ` + operatorUsageCount("r.usage", "cacheReadInputTokens") + `,
+		'cacheCreationInputTokens', ` + operatorUsageCount("r.usage", "cacheCreationInputTokens") + `,
+		'turns', ` + operatorUsageCount("r.usage", "turns") + `,
+		'durationMs', ` + operatorUsageCount("r.usage", "durationMs") + `,
+		'apiDurationMs', ` + operatorUsageCount("r.usage", "apiDurationMs") + `,
+		'toolCalls', ` + operatorUsageCount("r.usage", "toolCalls") + `,
+		'peakContextTokens', ` + operatorUsageCount("r.usage", "peakContextTokens") + `,
+		'contextWindowTokens', ` + operatorUsageCount("r.usage", "contextWindowTokens") + `,
+		'toolCallsByKind', CASE WHEN jsonb_typeof(r.usage->'toolCallsByKind') = 'object' THEN (
+			SELECT jsonb_object_agg(left(k.key, 64), floor(k.n)::bigint)
+			FROM (SELECT key, CASE WHEN jsonb_typeof(value) = 'number' THEN value::text::numeric END AS n
+				FROM jsonb_each(r.usage->'toolCallsByKind') ORDER BY key LIMIT 32) k
+			WHERE k.n BETWEEN 0 AND 9000000000000000) END,
+		'modelUsage', CASE WHEN jsonb_typeof(r.usage->'modelUsage') = 'object' THEN (
+			SELECT jsonb_object_agg(left(m.key, 256), jsonb_build_object(
+				'inputTokens', ` + operatorUsageCount("m.value", "inputTokens") + `,
+				'outputTokens', ` + operatorUsageCount("m.value", "outputTokens") + `,
+				'cacheReadInputTokens', ` + operatorUsageCount("m.value", "cacheReadInputTokens") + `,
+				'cacheCreationInputTokens', ` + operatorUsageCount("m.value", "cacheCreationInputTokens") + `,
+				'costUsd', ` + operatorUsageCost("m.value", "costUsd") + `,
+				'contextWindowTokens', ` + operatorUsageCount("m.value", "contextWindowTokens") + `))
+			FROM (SELECT key, value FROM jsonb_each(r.usage->'modelUsage')
+				WHERE jsonb_typeof(value) = 'object' ORDER BY key LIMIT 32) m) END`
+
+var operatorRunJSON = `jsonb_build_object(
 	'id', r.id::text, 'workItemId', r.work_item_id::text, 'shiftId', r.shift_id::text,
 	'team', r.team, 'role', r.role, 'round', r.round, 'writes', r.writes, 'state', r.state,
 	'startedAt', r.started_at, 'finishedAt', r.finished_at, 'expiresAt', r.expires_at,
@@ -234,7 +321,8 @@ const operatorRunJSON = `jsonb_build_object(
 	'usage', CASE WHEN r.usage IS NULL AND (` + operatorRunCost + `) IS NULL THEN NULL ELSE jsonb_strip_nulls(jsonb_build_object(
 		'inputTokens', CASE WHEN jsonb_typeof(r.usage->'inputTokens') = 'number' THEN r.usage->'inputTokens' END,
 		'outputTokens', CASE WHEN jsonb_typeof(r.usage->'outputTokens') = 'number' THEN r.usage->'outputTokens' END,
-		'costUsd', ` + operatorRunCost + `)) END,
+		'costUsd', ` + operatorRunCost + `,
+		` + operatorRunUsageFacts + `)) END,
 	'costStatus', CASE WHEN (` + operatorRunCost + `) IS NOT NULL THEN 'observed' ELSE 'unknown' END,
 	'keyAlias', CASE WHEN r.started_at IS NOT NULL THEN 'ploeg-' || left(r.run_token, 12) ELSE NULL END)`
 

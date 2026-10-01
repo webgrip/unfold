@@ -582,19 +582,46 @@ func (r harnessReport) WithProblemAndSolution(problem, solution string) harnessR
 //
 // The event BODY is deliberately not stored here. It is text written outside
 // the factory (backlog #9), and an audit row is read by humans and by future
-// prompts alike; the metadata is what routing will need.
-func (s *Store) AuditForgeEvent(ctx context.Context, provider, kind, repo, branch string, pr int) error {
+// prompts alike; the metadata is what routing will need. Since ADR-0045 that
+// metadata includes who acted, the review verdict and the merge facts; a
+// field the forge did not report is left out of the row.
+func (s *Store) AuditForgeEvent(ctx context.Context, provider string, ev ForgeEventAudit) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	if err := audit(ctx, tx, "webhook:"+provider, "forge."+kind, nil, map[string]any{
-		"repo": repo, "pr": pr, "branch": branch,
-	}); err != nil {
+	detail := map[string]any{"repo": ev.Repo, "pr": ev.PR, "branch": ev.Branch}
+	for key, value := range map[string]string{
+		"actor": ev.Actor, "review": ev.Review, "head_sha": ev.HeadSHA,
+		"merge_commit_sha": ev.MergeCommitSHA, "merged_by": ev.MergedBy,
+	} {
+		if value != "" {
+			detail[key] = value
+		}
+	}
+	if ev.MergedAt != nil {
+		detail["merged_at"] = ev.MergedAt.UTC().Format(time.RFC3339)
+	}
+	if err := audit(ctx, tx, "webhook:"+provider, "forge."+ev.Kind, nil, detail); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+// ForgeEventAudit is one normalized forge event as the audit log records it.
+// Empty strings and a nil MergedAt are facts the forge did not report.
+type ForgeEventAudit struct {
+	Kind           string
+	Repo           string
+	Branch         string
+	PR             int
+	Actor          string
+	Review         string
+	HeadSHA        string
+	MergeCommitSHA string
+	MergedBy       string
+	MergedAt       *time.Time
 }
 
 // WorkItem reads one item by id — what the shift engine needs to know where
