@@ -33,3 +33,13 @@ Accepting `0.9.x` alone is a defect rather than a conservative choice. Spec mino
 `SessionStatus` carries `IsRead` and `IsArchived` bits the projection never sets, and nothing stands behind them: there is no retention, purge or expiry for sessions, events, candidates or agent-host tokens. That is ticket PV-048, and it is now a conformance gap as well as an operational one.
 
 Terminals and resource writes stay declined. The protocol's server-to-client resource methods would let this host read and write an operator's local files through the editor's consent prompts, and the threat model for that posture is unresolved upstream ([AHP#266](https://github.com/microsoft/agent-host-protocol/issues/266) open, [PR #88](https://github.com/microsoft/agent-host-protocol/pull/88) unmerged since April). The candidate contract's refusal to edit a sandbox from outside is the safer position and is retained deliberately, not by omission.
+
+## Update, 2026-10-01
+
+Evidence: [the VS Code 1.140 sweep](../research/2026-10-01-vscode-1-140-fit.md).
+
+The decision stands, but its premise that VS Code "can attach" has never been exercised and does not hold. VS Code 1.140 completes the handshake and then cannot run a session. The host rejects VS Code's session URI scheme (`<provider>:/<uuid>`), creates no default chat at creation, renames the session on its first turn, and does not echo client actions. Two further defects leak one user's sessions and rejected actions to every other attached user. The 2026-10-01 fit dossier lists fifteen findings, each with its ticket. The VS Code 1.140.0 stable bundle still lists `0.9.0` among its supported versions, and its client still offers `["0.9.0","0.7.0","0.6.0","0.5.2","0.5.1"]`, so the handshake matches. The harness picker is still limited to Copilot, Claude and Codex. `chat.remoteAgentHosts` still accepts a raw address and connection token, and VS Code's documentation now says other applications may implement either side of the protocol.
+
+One new conformance gap: 1.140 archives chats and marks sessions done with `session/isArchivedChanged` and `chat/isArchivedChanged`. The host broadcasts only `session/isReadChanged` and rejects the others, so a Vloer session cannot be filed as Done from the Agents window. The host should broadcast both now and persist them with PV-048. Read from the code; not yet exercised against a desktop client.
+
+The host must not advertise `_meta["vscode.remoteSessions"]` until a delegated session can only become a proposed Work Item that waits for a person. VS Code agents can delegate work to any host that advertises it, and through this host that would otherwise create budgeted work without Ploeg's authorization.
