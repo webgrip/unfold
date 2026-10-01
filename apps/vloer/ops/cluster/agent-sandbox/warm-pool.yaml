@@ -22,7 +22,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: agent
-          image: harbor.webgrip.dev/webgrip/de-vloer-agent:0.4.0-rc.31
+          image: harbor.webgrip.dev/webgrip/de-vloer-agent:0.4.0-rc.32
           command: ["node", "/usr/local/lib/de-vloer/relay-worker.mjs"]
           workingDir: /workspace
           env:
