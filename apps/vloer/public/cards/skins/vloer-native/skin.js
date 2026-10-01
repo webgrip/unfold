@@ -97,6 +97,30 @@ function dayChip(v, h) {
   return `<span class="day" data-finish="${e(release.finish.key)}" data-source="${e(release.source)}" title="${e(`${release.days} ${release.days === 1 ? 'day' : 'days'} live ${since}`)}"><b>${e(release.dayText)}</b><span class="dot" aria-hidden="true"></span><span class="fin">${e(release.finish.label)}</span></span>`;
 }
 
+function gatesStrip(v, h) {
+  const e = h.escape;
+  const gates = v.gates;
+  if (!gates) return '';
+  const steps = gates.steps.map(step => {
+    const counted = step.bounces.filter(entry => entry.counts).length;
+    const why = step.bounces.map(entry => `${entry.reasonText.toLowerCase()}${entry.actor ? ` (${entry.actor})` : ''}`).join(', ');
+    const marker = step.bounces.length ? `<span class="gb" data-counts="${counted ? 'true' : 'false'}" title="${e(`${step.bounces.length} back from ${step.label.toLowerCase()}: ${why}`)}">${h.icon('back')}<span aria-hidden="true">${e(step.bounces.length)}</span><span class="sr-only">${e(`, ${step.bounces.length === 1 ? 'one bounce' : `${step.bounces.length} bounces`} back: ${why}`)}</span></span>` : '';
+    return `<li data-gate="${e(step.key)}" data-state="${e(step.state)}"${step.state === 'current' ? ' aria-current="step"' : ''}><span class="gd" aria-hidden="true"></span><span class="gl">${e(step.short)}<span class="sr-only">${e(` (${step.label}${step.state === 'current' ? ', now' : step.state === 'passed' ? ', passed' : ', ahead'})`)}</span></span>${marker}</li>`;
+  }).join('');
+  const rft = gates.rightFirstTime;
+  const chip = rft ? `<span class="chip rft" data-tone="${rft.state === 'yes' ? 'success' : 'attention'}" title="${e(rft.detail)}">${h.icon(rft.state === 'yes' ? 'check' : 'back')}<span>${e(rft.text)}</span></span>` : '';
+  return `<div class="gates" data-slot="gates"><ol class="gs" aria-label="${e(gates.label)}">${steps}</ol>${chip}</div>`;
+}
+
+function badges(v, h) {
+  const e = h.escape;
+  const out = [];
+  if (v.condition) out.push(`<span class="chip" data-slot="condition" data-condition="${e(v.condition.state)}" data-tone="${v.condition.state === 'mended' ? 'success' : 'danger'}" title="${e(v.condition.text)}">${h.icon(v.condition.state === 'mended' ? 'check-circle' : 'x-circle')}<span>${e(v.condition.chip)}</span></span>`);
+  if (v.evolved) out.push(`<span class="chip" data-slot="evolved" data-tone="attention" title="The requirement changed after acceptance, or a bug was traced to a changed requirement">${h.icon('refresh')}<span>Evolved</span></span>`);
+  if (v.set) out.push(`<span class="chip set" data-slot="set" title="${e(`${v.set.text}${v.set.complete ? ' · set complete' : ''}`)}">${h.icon('grid')}<span>${e(v.set.chip)}</span></span>`);
+  return out.join('');
+}
+
 function front(v, h) {
   const e = h.escape;
   const signed = v.steward.signed;
@@ -109,8 +133,9 @@ function front(v, h) {
     </header>
     <div class="tl">
       <h3 class="title" data-slot="title">${e(v.title)}</h3>
-      <div class="row"><span class="chip" data-slot="state" data-tone="${e(v.state.tone)}" title="${e(v.state.description || '')}">${h.icon(v.state.glyph)}<span>${e(v.state.label)}</span></span>${dayChip(v, h)}</div>
+      <div class="row"><span class="chip" data-slot="state" data-tone="${e(v.state.tone)}" title="${e(v.state.description || '')}">${h.icon(v.state.glyph)}<span>${e(v.state.label)}</span></span>${dayChip(v, h)}${badges(v, h)}</div>
     </div>
+    ${gatesStrip(v, h)}
     <div class="main">${ring(v, h)}${tiles(v, h)}</div>
     <p class="crew"><small>Crew</small><span>${e(v.crew)}</span></p>
     <div class="sign${signed ? '' : ' off'}" data-slot="steward">
@@ -131,17 +156,22 @@ function rows(tab, h) {
   return `<dl class="rows">${tab.rows.map(entry => `<div data-status="${e(entry.status)}"><dt>${e(entry.label)}</dt><dd${statusNote[entry.status] ? ` title="${e(statusNote[entry.status])}"` : ''}>${e(entry.value)}</dd></div>`).join('')}</dl>`;
 }
 
+function groups(tab, h) {
+  const e = h.escape;
+  return (tab.groups || []).map(group => `<section class="group"><h4>${e(group.title)}</h4>${rows(group, h)}</section>`).join('');
+}
+
 function lists(tab, h) {
   const e = h.escape;
-  return tab.lists.map(group => `<section class="group"><h4>${e(group.title)}</h4>${group.items.length ? `<ol class="items">${group.items.map(item => `<li data-tone="${e(item.tone)}"><span class="glyph" aria-hidden="true">${h.icon(item.glyph)}</span><span class="it"><b>${item.url ? link(h, item.url, e(item.title)) : e(item.title)}</b>${item.meta ? `<small>${e(item.meta)}</small>` : ''}</span></li>`).join('')}</ol>` : `<p class="empty">${e(group.empty || 'None.')}</p>`}${group.more > 0 ? `<p class="empty">${e(`${group.more} earlier events are not shown.`)}</p>` : ''}</section>`).join('');
+  return tab.lists.map(group => `<section class="group"><h4>${e(group.title)}</h4>${group.items.length ? `<ol class="items${group.layout === 'grid' ? ' grid' : ''}">${group.items.map(item => `<li data-tone="${e(item.tone)}"><span class="glyph" aria-hidden="true">${h.icon(item.glyph)}</span><span class="it"><b>${item.url ? link(h, item.url, e(item.title)) : e(item.title)}</b>${item.meta ? `<small>${e(item.meta)}</small>` : ''}</span></li>`).join('')}</ol>` : `<p class="empty">${e(group.empty || 'None.')}</p>`}${group.more > 0 ? `<p class="empty">${e(`${group.more} earlier events are not shown.`)}</p>` : ''}</section>`).join('');
 }
 
 function back(v, h) {
   const e = h.escape;
   const tabs = v.tabs.map(tab => `<button type="button" role="tab" class="tab" id="gc-tab-${e(tab.id)}" aria-controls="gc-panel-${e(tab.id)}" data-card-tab="${e(tab.id)}">${e(tab.label)}</button>`).join('');
   const panels = v.tabs.map(tab => {
-    const legend = tab.rows.some(entry => entry.status === 'uncollected') ? '<p class="legend"><i class="dot" aria-hidden="true"></i>Not collected yet: Ploeg does not record this yet.</p>' : '';
-    return `<section class="pane" role="tabpanel" id="gc-panel-${e(tab.id)}" aria-labelledby="gc-tab-${e(tab.id)}" data-card-panel="${e(tab.id)}" tabindex="0">${rows(tab, h)}${tab.note ? `<p class="note">${e(tab.note)}</p>` : ''}${lists(tab, h)}${legend}</section>`;
+    const legend = [...tab.rows, ...(tab.groups || []).flatMap(group => group.rows)].some(entry => entry.status === 'uncollected') ? '<p class="legend"><i class="dot" aria-hidden="true"></i>Not collected yet: Ploeg does not record this yet.</p>' : '';
+    return `<section class="pane" role="tabpanel" id="gc-panel-${e(tab.id)}" aria-labelledby="gc-tab-${e(tab.id)}" data-card-panel="${e(tab.id)}" tabindex="0">${rows(tab, h)}${tab.note ? `<p class="note">${e(tab.note)}</p>` : ''}${groups(tab, h)}${lists(tab, h)}${legend}</section>`;
   }).join('');
   return `<article class="card back" aria-label="More info: ${e(v.title)}">
     <header class="bh">

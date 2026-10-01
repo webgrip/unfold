@@ -101,6 +101,20 @@
   color: var(--attention-fg);
 }
 
+.forge-set {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-full);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  border: 1px solid var(--border);
+  background: var(--bg-sunken);
+  color: var(--text-muted);
+}
+
 .forge-actions {
   display: flex;
   flex-wrap: wrap;

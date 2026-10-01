@@ -96,7 +96,7 @@ test('the forge front fills the required slots, escapes every value and draws wi
   assert.match(front, /data-card-action="flip"/);
   assert.match(front, /data-forge-action="turn"/);
   assert.match(front, new RegExp(`data-pattern="${patternFor(view).key}" data-pattern-source="derived" data-art="${artFor(view).key}"`));
-  assert.equal((back.match(/role="tab"/g) || []).length, 6);
+  assert.equal((back.match(/role="tab"/g) || []).length, 10);
   for (const markup of [front, back]) {
     assert(!markup.includes('<img'), 'title is escaped');
     assert(!markup.includes('<script'), 'steward is escaped');

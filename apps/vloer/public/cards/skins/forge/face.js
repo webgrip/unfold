@@ -241,13 +241,14 @@ export function paintFace(target, facts) {
   text(facts.finishLine.toUpperCase(), W - 90, typeY + 42, g.font, palette.accent, relief.text, 'right');
 
   const boxY = typeY + 84;
-  const rowHeight = 50;
+  const dense = facts.rows.length > 5;
+  const rowHeight = dense ? 42 : 50;
   panel(60, boxY, W - 120, facts.rows.length * rowHeight + 30, 16);
   facts.rows.forEach(([label, value], index) => {
-    const y = boxY + 52 + index * rowHeight;
-    g.font = `800 25px ${sans}`;
+    const y = boxY + (dense ? 46 : 52) + index * rowHeight;
+    g.font = `800 ${dense ? 23 : 25}px ${sans}`;
     text(label, 92, y, g.font, '#f3f5f4', relief.text);
-    g.font = `500 24px ${sans}`;
+    g.font = `500 ${dense ? 22 : 24}px ${sans}`;
     text(fit(g, value, W - 100 - 262), 262, y, g.font, '#b4bec0', null);
   });
 
@@ -298,7 +299,7 @@ export function paintFace(target, facts) {
 
   const footY = lowY + 168;
   g.font = `600 20px ${mono}`;
-  text(fit(g, facts.ids.toUpperCase(), W - 330), 72, footY, g.font, '#8a979a', relief.text);
+  text(fit(g, facts.ids.toUpperCase(), W - (facts.set ? 420 : 330)), 72, footY, g.font, '#8a979a', relief.text);
   if (facts.demoLine) { g.font = `800 17px ${mono}`; text(facts.demoLine.toUpperCase(), 72, footY + 30, g.font, '#ffcf6b', relief.text); }
   const sx = W - 108;
   const sy = footY - 22;
@@ -314,6 +315,10 @@ export function paintFace(target, facts) {
   h.strokeStyle = height(relief.engraved);
   h.lineWidth = 3;
   h.beginPath(); h.moveTo(sx + 24, sy + 4); h.lineTo(sx + 4, sy + 4); h.lineTo(sx + 4, sy + 24); h.stroke();
+  if (facts.set) {
+    g.font = `800 20px ${mono}`;
+    text(fit(g, facts.set.symbol, 190), sx - 38, sy + 8, g.font, facts.set.complete ? '#ffe08a' : palette.accent, relief.engraved, 'right');
+  }
   g.textAlign = 'left';
   h.textAlign = 'left';
 }
