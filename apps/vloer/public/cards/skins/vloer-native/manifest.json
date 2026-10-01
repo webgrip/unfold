@@ -1,0 +1,11 @@
+{
+  "id": "vloer-native",
+  "name": "Vloer Native",
+  "version": "1.0.0",
+  "runtime": 1,
+  "stylesheet": "skin.css",
+  "script": "skin.js",
+  "finishes": ["matte"],
+  "moments": [],
+  "themeTokens": ["--gc-accent", "--gc-surface", "--gc-radius"]
+}

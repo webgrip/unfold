@@ -139,7 +139,38 @@ export const sessionStatuses = table({
   cancelled: ['Cancelled', 'neutral', 'stop'],
 });
 
-const kinds = { workItem: workItemStates, run: runStates, outcome: runOutcomes, verdict: verdicts, failure: failureReasons, session: sessionStatuses, checkpoint: checkpointPhases };
+/** Run card states (Ploeg's card `state`). "Merged" here names a merged pull request, which a card state is about; a Work Item stays "Done". */
+export const cardStates = table({
+  drafting: ['Drafting', 'neutral', 'circle-dashed', { description: 'No pull request yet.' }],
+  in_review: ['In review', 'review', 'pull-request', { description: 'A pull request is open.' }],
+  merged: ['Merged', 'success', 'check-circle', { description: 'The latest pull request was merged.' }],
+  closed: ['Closed unmerged', 'neutral', 'x-circle', { description: 'The latest pull request was closed without a merge, and the Work Item is not done.' }],
+  withdrawn: ['Withdrawn', 'neutral', 'circle-slash', { description: 'A person took the mandate back.' }],
+});
+
+/** Pull request states on a Run card's plays. */
+export const playStates = table({
+  open: ['Open', 'review', 'pull-request'],
+  merged: ['Merged', 'success', 'check-circle'],
+  closed: ['Closed unmerged', 'neutral', 'x-circle'],
+});
+
+/** Combined commit status at a pull request's head, and the state of each check. */
+export const ciStates = table({
+  success: ['CI passed', 'success', 'check-circle', { short: 'Passed' }],
+  failure: ['CI failed', 'danger', 'x-circle', { short: 'Failed' }],
+  error: ['CI errored', 'danger', 'alert', { short: 'Error' }],
+  pending: ['CI running', 'live', 'clock', { short: 'Pending' }],
+});
+
+/** A person's review on the forge. Never an agent verdict: those are `verdicts`. */
+export const humanReviews = table({
+  approved: ['Approved', 'success', 'check-circle'],
+  changes_requested: ['Changes requested', 'attention', 'alert'],
+  commented: ['Commented', 'neutral', 'circle'],
+});
+
+const kinds = { workItem: workItemStates, run: runStates, outcome: runOutcomes, verdict: verdicts, failure: failureReasons, session: sessionStatuses, checkpoint: checkpointPhases, card: cardStates, play: playStates, ci: ciStates, review: humanReviews };
 const lookupOrder = ['workItem', 'run', 'outcome', 'verdict', 'session'];
 const humanize = key => { const words = String(key ?? '').replaceAll('_', ' ').trim(); return words ? words[0].toUpperCase() + words.slice(1) : 'Unknown'; };
 
@@ -170,6 +201,15 @@ export function runOutcome(key) { return key ? stateMeta(`outcome:${key}`) : nul
 export function verdict(key) { return stateMeta(`verdict:${key || 'none'}`); }
 /** The meta of a Run failure reason, or null when the Run did not fail. */
 export function failureReason(key) { return key ? stateMeta(`failure:${key}`) : null; }
+
+/** The meta of a Run card state; an unknown state is humanized and neutral. */
+export function cardState(key) { return stateMeta(`card:${key}`); }
+/** The meta of a pull request state on a Run card. */
+export function playState(key) { return stateMeta(`play:${key}`); }
+/** The meta of a CI state, or null when no status was captured. */
+export function ciState(key) { return key ? stateMeta(`ci:${key}`) : null; }
+/** The meta of a person's forge review. */
+export function humanReview(key) { return stateMeta(`review:${key}`); }
 
 /** The meta of a checkpoint phase; an unknown phase is humanized. */
 export function checkpointPhase(key) { return stateMeta(`checkpoint:${key}`); }

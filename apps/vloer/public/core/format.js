@@ -89,6 +89,12 @@ export function count(value) {
   return formatter('number', { maximumFractionDigits: 0 }).format(value);
 }
 
+/** Formats a large count compactly (`12,1 mln.`, `88K` in nl-NL); a missing count reads `—`. */
+export function compactCount(value) {
+  if (!isAmount(value)) return '—';
+  return formatter('number', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+}
+
 /** Formats a share (`0.5`) as a whole percentage (`50%` in nl-NL); a missing or non-finite share reads `—`. */
 export function percent(value) {
   if (!isAmount(value)) return '—';

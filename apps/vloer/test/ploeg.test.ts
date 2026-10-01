@@ -15,6 +15,7 @@ async function upstream(t: TestContext) {
   process.env[env] = bearer;
   const seen: { path: string; authorized: boolean; method: string }[] = [];
   const details = structuredClone(ploegDemo.details);
+  const cards: Record<string, unknown> = {};
   let intercept: ((req: IncomingMessage, res: ServerResponse) => boolean) | undefined;
   const server = createServer((req, res) => {
     seen.push({ path: req.url!, authorized: req.headers.authorization === `Bearer ${bearer}`, method: req.method! });
@@ -28,6 +29,8 @@ async function upstream(t: TestContext) {
       const limit = Number(url.searchParams.get('limit') || 25);
       send({ items: items.slice(0, limit), nextCursor: items.length > limit ? items[limit - 1].id : null }); return;
     }
+    const cardPath = /\/work-items\/([0-9]+)\/card$/.exec(url.pathname);
+    if (cardPath) { if (cards[cardPath[1]]) res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ schemaVersion: 1, card: cards[cardPath[1]] })); else res.writeHead(404).end(); return; }
     const id = url.pathname.split('/').at(-1)!;
     if (details[id]) { send(details[id]); return; }
     res.writeHead(404).end();
@@ -36,7 +39,7 @@ async function upstream(t: TestContext) {
   t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); delete process.env[env]; });
   const address = server.address(); assert(address && typeof address !== 'string');
   const config = { url: `http://127.0.0.1:${address.port}`, tokenEnv: env };
-  return { config, seen, details, get token() { return bearer; }, rotate() { bearer = randomBytes(24).toString('hex'); process.env[env] = bearer; }, intercept(handler: typeof intercept) { intercept = handler; } };
+  return { config, seen, details, cards, get token() { return bearer; }, rotate() { bearer = randomBytes(24).toString('hex'); process.env[env] = bearer; }, intercept(handler: typeof intercept) { intercept = handler; } };
 }
 
 function client(config: NonNullable<ReturnType<typeof validatePloeg>>) { return new PloegClient({ ...configuration('/unused', 'live'), ploeg: config }); }
@@ -600,4 +603,88 @@ test('the demo Now projection names its limitation and never invents model calls
   assert.equal(now.body.recentTruncated, true, 'the demo holds more finished Runs than its first page');
   assert.equal(now.body.runningTruncated, false);
   assert.deepEqual(now.body.errors, {});
+});
+
+function liveCard(id: string, team = 'delivery') {
+  return {
+    workItemId: id, title: 'Retry sandbox claims', externalRef: 'VIK-1612', url: 'https://tracker.example.test/tasks/1612', team,
+    target: { forge: 'forgejo', owner: 'webgrip', repo: 'glide' }, style: { skin: 'vloer-native', theme: null }, state: 'in_review',
+    rarity: 'legendary', finish: 'holo', grade: 9, condition: 'cracked',
+    steward: { name: 'ryan', source: 'approver' }, roster: [{ name: 'ryan', roles: ['reviewer'] }],
+    crew: [{ role: 'builder', writes: true, runs: 3, costUsd: 0.58, inputTokens: 12100000, outputTokens: 88000 }],
+    plays: [{ number: 57, url: 'https://forge.example.test/webgrip/glide/pulls/57', state: 'open', shiftId: 113, branch: 'ploeg/138', headSha: 'abc', mergedAt: null, closedAt: null, additions: 214, deletions: 38, changedFiles: 6, ci: { state: 'success', checks: [{ context: 'verify', state: 'success' }] }, reviews: [{ reviewer: 'ryan', state: 'approved', receivedAt: '2026-10-01T10:30:00Z', headSha: 'abc' }] }],
+    totals: { costUsd: 0.58, authorizedUsd: 2, costStatus: 'observed', inputTokens: 12100000, outputTokens: 88000, usageComplete: false, runs: 3, failedRuns: 1, rounds: 1, shifts: 1, firstRunAt: '2026-10-01T09:00:00Z', lastRunAt: '2026-10-01T09:35:00Z', runSeconds: 2100 },
+    events: [{ at: '2026-10-01T09:00:00Z', kind: 'minted', actor: 'team:delivery', detail: { secret: 'private', number: 57 } }],
+    demo: false,
+    presentation: { glow: true },
+  };
+}
+
+test('the card proxy reads Ploeg card facts, keeps unknowns absent and shows no rarity, grade or condition in P1', async t => {
+  const upstreamApi = await upstream(t);
+  upstreamApi.cards['101'] = liveCard('101');
+  const ploeg = client(upstreamApi.config);
+  const view = await ploeg.card(admin, '101');
+  assert.equal(view.demo, false);
+  assert.equal(view.card.workItemId, '101');
+  assert.deepEqual([view.card.rarity, view.card.finish, view.card.grade, view.card.condition], [null, 'matte', null, null]);
+  assert.equal('presentation' in view.card, false, 'presentation fields are not passed on');
+  assert.equal(view.card.plays[0].shiftId, '113');
+  assert.equal(view.card.plays[0].mergedBy, '');
+  assert.equal(view.card.totals.cacheReadInputTokens, undefined, 'an unreported count stays absent, never zero');
+  assert.equal(view.card.totals.turns, undefined);
+  assert.equal(view.card.totals.usageComplete, false);
+  assert.deepEqual(view.card.events[0].detail, { number: 57 });
+  assert(upstreamApi.seen.some(call => call.path === '/api/v1/operator/work-items/101/card' && call.method === 'GET'));
+  upstreamApi.cards['101'] = { ...liveCard('101'), url: `https://tracker.example.test/task?token=${upstreamApi.token}`, style: { skin: '../../evil', theme: 'acme-blue' } };
+  const sanitized = await ploeg.card(admin, '101', true);
+  assert.equal(sanitized.card.url, '');
+  assert.deepEqual(sanitized.card.style, { skin: 'vloer-native', theme: 'acme-blue' });
+  assert.equal(JSON.stringify(sanitized).includes(upstreamApi.token), false);
+  const manual = { ...liveCard('101'), target: null, plays: [{ number: 58, reviews: [{ reviewer: 'ryan', state: 'commented' }], ci: { state: 'pending', checks: [], headSha: 'def', capturedAt: '2026-10-01T11:00:00Z' } }], events: [{ at: '2026-10-01T09:00:00Z', kind: 'review', actor: 'ryan', detail: { number: 58, source: 'forge' } }] } as Record<string, unknown>;
+  delete manual.url; delete manual.externalRef;
+  upstreamApi.cards['101'] = manual;
+  const omitted = await ploeg.card(admin, '101', true);
+  assert.deepEqual([omitted.card.target, omitted.card.url, omitted.card.externalRef], [null, '', '']);
+  assert.equal(omitted.card.plays[0].state, '', 'a play the forge did not describe has no state');
+  assert.deepEqual(omitted.card.plays[0].ci, { state: 'pending', checks: [], headSha: 'def', capturedAt: '2026-10-01T11:00:00Z' });
+  assert.deepEqual(omitted.card.events[0].detail, { number: 58, source: 'forge' });
+  upstreamApi.cards['101'] = { ...liveCard('101'), plays: [{ number: '57' }] };
+  await assert.rejects(ploeg.card(admin, '101', true), /unsupported operator response/);
+  upstreamApi.cards['101'] = { ...liveCard('101'), totals: { costStatus: 'estimated' } };
+  await assert.rejects(ploeg.card(admin, '101', true), /unsupported operator response/);
+  upstreamApi.cards['101'] = liveCard('102');
+  await assert.rejects(ploeg.card(admin, '101', true), /not found/, 'a card for another Work Item is refused');
+  await assert.rejects(ploeg.card(admin, '105'), /not found/, 'an older Ploeg without the card route answers 404');
+  await assert.rejects(ploeg.card(admin, 'abc'), /valid Ploeg work item/);
+});
+
+test('the card route is scoped to the caller\'s Teams, read-only, and a demo card says so with no spend', async t => {
+  const upstreamApi = await upstream(t);
+  upstreamApi.cards['101'] = liveCard('101');
+  upstreamApi.cards['104'] = liveCard('104', 'research');
+  const server = await application('live', config => { config.ploeg = { ...upstreamApi.config, userTeams: { reader: ['delivery'] } }; });
+  t.after(() => server.close());
+  const password = randomBytes(24).toString('hex');
+  server.app.store.addUser({ id: 'reader', name: 'reader', role: 'viewer', passwordHash: await hashPassword(password) });
+  const reader = await login(server.url, 'reader', password);
+  assert.equal((await request(server.url, '/api/ploeg/work-items/101/card')).status, 401);
+  const card = await request(server.url, '/api/ploeg/work-items/101/card', reader);
+  assert.equal(card.status, 200);
+  assert.equal(card.body.card.title, 'Retry sandbox claims');
+  assert.equal(card.body.demo, false);
+  assert.equal((await request(server.url, '/api/ploeg/work-items/104/card', reader)).status, 404, 'another Team\'s card stays hidden');
+  assert.equal((await request(server.url, '/api/ploeg/work-items/105/card', reader)).status, 404);
+  assert.equal((await request(server.url, '/api/ploeg/work-items/101/card', { ...reader, method: 'POST', body: {} })).status, 405);
+  const demo = await application(); t.after(() => demo.close());
+  const merged = await request(demo.url, '/api/ploeg/work-items/114/card');
+  assert.equal(merged.status, 200);
+  assert.equal(merged.body.demo, true);
+  assert.equal(merged.body.card.demo, true);
+  assert.equal(merged.body.card.state, 'merged');
+  assert.equal(merged.body.card.totals.costStatus, 'not_reported');
+  assert.equal(merged.body.card.totals.costUsd, undefined);
+  assert.equal(merged.body.card.totals.inputTokens, undefined);
+  assert.equal((await request(demo.url, '/api/ploeg/work-items/999/card')).status, 404);
+  assert.equal(demo.app.store.listSessions().length, 0);
 });

@@ -9,14 +9,15 @@ import { plural } from '../core/format.js';
 import { singleKeyAllowed, isTyping } from '../core/keys.js';
 import { shell } from '../shell.js';
 import { enterPloegView } from './ploeg-common.js';
+import '../cards/glide-card.js';
 
 const lanes = ploegLanes.map(lane => lane.id);
 const itemPath = /^work\/([1-9][0-9]{0,19})$/;
 const liveInterval = 30000;
 const reviewFactLimit = 12;
-const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null };
+const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0 };
 
-onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null }));
+onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1 }));
 
 const laneOfState = { needs_human: 'needs_human', awaiting_review: 'awaiting_review', leased: 'leased', queued: 'queued' };
 const laneFor = item => laneOfState[item?.state] || 'all';
@@ -60,6 +61,7 @@ function model() {
     reviewFacts: Object.fromEntries(work.reviewFacts),
     demoMode: state.bootstrap?.mode === 'demo',
     now: Date.now(),
+    card: work.card?.id === work.detailId ? work.card.data : null,
   };
 }
 
@@ -94,7 +96,10 @@ function renderWork() {
   const listTop = scroller ? scroller.scrollTop : 0;
   const target = focusTarget();
   const current = model();
+  const previousCard = document.querySelector('glide-card.work-run-card');
+  const cardFocus = previousCard && document.activeElement === previousCard ? previousCard.focusKey : null;
   renderHtml(shell(workMarkup(current), shellOptions(current)));
+  hydrateCard(previousCard, cardFocus);
   for (const element of document.querySelectorAll('#app details[id]')) if (open.has(element.id)) element.open = open.get(element.id);
   const list = $('.work-list-pane .work-list');
   if (list && listTop) list.scrollTop = listTop;
@@ -103,6 +108,16 @@ function renderWork() {
   syncPane();
   revealSelected();
   observeActions();
+}
+
+function hydrateCard(previous, focusKey) {
+  const slot = document.querySelector('glide-card.work-run-card');
+  const data = work.card?.id === work.detailId ? work.card.data : null;
+  if (!slot || !data) return;
+  let element = slot;
+  if (previous && previous !== slot && previous.dataset.workItem === slot.dataset.workItem) { slot.replaceWith(previous); element = previous; }
+  if (element.card !== data) element.card = data;
+  if (focusKey) element.restoreFocus(focusKey);
 }
 
 function revealLane() {
@@ -246,7 +261,20 @@ async function ensureSessions() {
   } catch { work.sessionsLoaded = false; }
 }
 
+async function loadCard(id, { fresh = false } = {}) {
+  const request = ++work.cardRequest;
+  let card = null;
+  try { card = (await api(`/api/ploeg/work-items/${encodeURIComponent(id)}/card${fresh ? '?refresh=1' : ''}`)).card ?? null; }
+  catch { if (work.card?.id === id && work.card.data) return; }
+  if (request !== work.cardRequest || work.detailId !== id) return;
+  const next = signature(card);
+  if (work.card?.id === id && work.card.signature === next) return;
+  work.card = { id, data: card, signature: next };
+  if (visible() && !state.ploegDetailLoading) renderWork();
+}
+
 async function loadDetail(id, { fresh = false, quiet = false } = {}) {
+  void loadCard(id, { fresh });
   const request = ++work.detailRequest;
   let changed = !quiet;
   if (!quiet) { state.ploegDetailLoading = true; state.ploegDetailError = ''; if (state.ploegDetail?.item.id !== id) state.ploegDetail = null; renderWork(); }

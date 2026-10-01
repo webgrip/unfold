@@ -6,8 +6,8 @@ import { promisify } from 'node:util';
 import { gzip, constants } from 'node:zlib';
 
 const compress = promisify(gzip);
-const mediaTypes: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8' };
-const compressible = new Set(['text/css', 'text/javascript', 'text/html', 'image/svg+xml', 'application/manifest+json']);
+const mediaTypes: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.json': 'application/json; charset=utf-8' };
+const compressible = new Set(['text/css', 'text/javascript', 'text/html', 'image/svg+xml', 'application/manifest+json', 'application/json']);
 const cacheLimit = 512;
 
 type Entry = { mtimeMs: number; size: number; content: Buffer; etag: string; gzipped?: Promise<Buffer | null> };

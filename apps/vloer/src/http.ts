@@ -19,7 +19,7 @@ import { StaticFiles } from './static.ts';
 
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
 
-const browserModule = /^\/(core|views|styles)\/[a-z0-9][a-z0-9-]*\.(js|css)$/;
+const browserModule = /^\/(?:(?:core|views|styles)\/[a-z0-9][a-z0-9-]*\.(?:js|css)|cards\/(?:skins\/[a-z0-9][a-z0-9-]*\/)?[a-z0-9][a-z0-9-]*\.(?:js|css|json))$/;
 
 function fault(status: number, code: string, message: string): never { throw Object.assign(new Error(message), { status, code }); }
 
@@ -300,6 +300,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             if (path === '/api/ploeg/proposed') return json(res, 200, sanitize(await ploeg.proposed(user, fresh)));
             if (path === '/api/ploeg/now') return json(res, 200, sanitize(await ploeg.now(user, fresh)));
             if (path === '/api/ploeg/work-items') return json(res, 200, sanitize(await ploeg.items(user, text(url.searchParams.get('team'), 'Team', 100), (url.searchParams.get('state') ?? 'all') as PloegState | 'all', url.searchParams.get('after') ?? '0', fresh)));
+            const card = /^\/api\/ploeg\/work-items\/([^/]+)\/card$/.exec(path);
+            if (card) return json(res, 200, sanitize(await ploeg.card(user, card[1], fresh)));
             const match = /^\/api\/ploeg\/work-items\/([^/]+)$/.exec(path);
             if (match) return json(res, 200, sanitize(await ploeg.detail(user, match[1], fresh)));
             fault(404, 'not_found', 'Ploeg operator view not found.');
