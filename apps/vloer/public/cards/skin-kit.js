@@ -13,7 +13,8 @@
  *
  * Moment names, in play order (`moments`): `reveal` (first draw of the card on this page, or another Work Item in the
  * same element), `state` (card state changed, other than to merged), `signed` (a steward signed), `merged`, `released`
- * (first release to production), `finish` (a higher step on the finish ladder), `grade` (a new or changed grade),
+ * (first release to production), `rarity` (the rarity was revealed), `finish` (a higher step on the finish ladder),
+ * `grade` (a new or changed grade),
  * `gate` (moved to a later delivery gate), `bounce` (a new bounce back), `crack`, `mend`, `set` (a set member settled
  * or merged, or the set completed). An effects director listens for the event; a skin never draws page-level effects.
  */
@@ -24,7 +25,7 @@ import { gateSteps, stableHash } from './card-model.js';
  * whenever its facts change; `attachSkin` compares the new view with the one it saw last for the same Work Item and
  * names what changed. `reveal` is the first time a page draws a card.
  */
-export const moments = Object.freeze(['reveal', 'state', 'signed', 'merged', 'released', 'finish', 'grade', 'gate', 'bounce', 'crack', 'mend', 'set']);
+export const moments = Object.freeze(['reveal', 'state', 'signed', 'merged', 'released', 'rarity', 'finish', 'grade', 'gate', 'bounce', 'crack', 'mend', 'set']);
 /** How long a moment's attribute stays on the card, in milliseconds, unless a skin asks for another length. */
 export const momentMs = 2600;
 /** At most this many skin cards on a page run their idle animation at once. */
@@ -148,8 +149,37 @@ export function markSeed(view) {
 }
 
 /**
- * Honest honours for a card's front: short tags drawn only from facts the card carries, never from rarity, which is
- * not decided. Each has a key, a label and a tone (`gold`, `success`, `attention`, `danger` or `neutral`).
+ * The rarity mark every skin prints (Ploeg ADR-0056, proposed; Vloer ADR 0034): the set symbol, a gem in the tier's
+ * colour (black, silver, gold, mythic orange, iridescent), and the tier's word. A rarity still predicted reads
+ * "Predicted" before the word and draws the gem ghosted with a glow. The runtime's stylesheet (`unfold-card.css`) styles
+ * it, and the full sentence is read out to screen readers. Empty when the card has no rarity.
+ * @param {object} view The `cardView` model.
+ * @param {{ escape: Function }} h
+ * @param {{ compact?: boolean }} [options] `compact` prints the gem alone and keeps the word for screen readers.
+ */
+export function rarityMark(view, h, { compact = false } = {}) {
+  const rarity = view?.rarity;
+  if (!rarity) return '';
+  const e = h.escape;
+  const word = `${rarity.state === 'predicted' ? '<small>Predicted</small> ' : ''}${e(rarity.label)}`;
+  return `<span class="uc-rarity" data-rarity="${e(rarity.key)}" data-state="${e(rarity.state)}"${compact ? ' data-compact' : ''} title="${e(rarity.description)}"><span class="uc-rarity-gem" aria-hidden="true"><i></i></span><span class="uc-rarity-word" aria-hidden="true">${word}</span><span class="sr-only">${e(rarity.description)}</span></span>`;
+}
+
+/**
+ * The frame ring of a card's rarity: an element a skin places as the first child of its card, which the runtime's
+ * stylesheet draws as a thin ring in the tier's metal (steel, bronze, silver, gold, prismatic) once revealed, and as a
+ * ghosted, pulsing outline in the tier's colour while predicted. Empty when the card has no rarity.
+ * @param {object} view The `cardView` model.
+ */
+export function rarityFrame(view) {
+  const rarity = view?.rarity;
+  if (!rarity) return '';
+  return `<i class="uc-frame" data-rarity="${rarity.key}" data-state="${rarity.state}" aria-hidden="true"></i>`;
+}
+
+/**
+ * Honest honours for a card's front: short tags drawn only from facts the card carries, never from rarity, which has
+ * its own mark (`rarityMark`). Each has a key, a label and a tone (`gold`, `success`, `attention`, `danger` or `neutral`).
  * @param {object} view The `cardView` model.
  */
 export function honours(view) {
@@ -180,6 +210,7 @@ export function snapshot(view) {
     state: view?.state?.key ?? '',
     signed: Boolean(view?.steward?.signed),
     released: Boolean(view?.release?.released),
+    rarity: view?.rarity?.state === 'revealed' ? view.rarity.key : '',
     finish: view?.finish?.level ?? 0,
     grade: view?.grade ? `${view.grade.overall}|${view.grade.labelKey}|${view.grade.provisional}` : '',
     gate: view?.gates ? gateSteps.findIndex(step => step.key === view.gates.current?.key) : -1,
@@ -248,6 +279,7 @@ export function momentsBetween(before, after) {
   if (before.state !== after.state) found.add(after.state === 'merged' ? 'merged' : 'state');
   if (!before.signed && after.signed) found.add('signed');
   if (!before.released && after.released) found.add('released');
+  if (after.rarity && before.rarity !== after.rarity) found.add('rarity');
   if (after.finish > before.finish) found.add('finish');
   if (after.grade && before.grade !== after.grade) found.add('grade');
   if (after.gate > before.gate) found.add('gate');

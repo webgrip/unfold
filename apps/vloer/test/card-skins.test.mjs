@@ -74,7 +74,7 @@ test('the skin kit grades, initials and seeds deterministically', () => {
   }
 });
 
-test('the skin kit prints cost, figures and honours only from facts: demo spends nothing, unknown never reads as zero, rarity never appears', () => {
+test('the skin kit prints cost, figures and honours only from facts: demo spends nothing, unknown never reads as zero, rarity has its own mark', () => {
   assert.deepEqual(coin(cardView(ploegDemo.cards['124'])), { top: 'Cost', main: 'Demo', caption: 'no model calls', status: 'demo' });
   assert.deepEqual(coin(cardView(card(), { now })), { top: 'US$', main: '0,58', caption: 'of US$\u00a02,00', status: 'observed' });
   assert.deepEqual(coin(cardView(card({ totals: { costStatus: 'not_reported' } }), { now })), { top: 'Cost', main: '—', caption: 'not reported', status: 'not_reported' });
@@ -89,7 +89,7 @@ test('the skin kit prints cost, figures and honours only from facts: demo spends
 });
 
 test('a skin plays a moment only for what changed between two draws of the same card', () => {
-  assert.deepEqual(moments, ['reveal', 'state', 'signed', 'merged', 'released', 'finish', 'grade', 'gate', 'bounce', 'crack', 'mend', 'set']);
+  assert.deepEqual(moments, ['reveal', 'state', 'signed', 'merged', 'released', 'rarity', 'finish', 'grade', 'gate', 'bounce', 'crack', 'mend', 'set']);
   const open = snapshot(cardView(card({ state: 'in_review', steward: null, plays: [{ number: 57, state: 'open' }] }), { now }));
   assert.deepEqual(momentsBetween(null, open), ['reveal'], 'the first draw is a reveal');
   assert.deepEqual(momentsBetween(open, open), [], 'a redraw without changes plays nothing');
@@ -108,6 +108,11 @@ test('a skin plays a moment only for what changed between two draws of the same 
   const setAfter = snapshot(cardView(card({ set: epicSet(true) }), { now }));
   assert.deepEqual(momentsBetween(setBefore, setAfter), ['set']);
   assert.deepEqual(momentsBetween(live, snapshot(cardView(card({ ...released(30) }), { now }))), ['finish'], 'a new finish step is a moment');
+  const rarity = (revealed, at = null) => ({ formula: '2026.1', predicted: 'epic', revealed, tier: revealed ?? 'epic', score: 64, percentile: null, cohort: null, inputs: null, revealedAt: at });
+  const predicted = snapshot(cardView(card({ rarity: rarity(null) }), { now }));
+  const revealed = snapshot(cardView(card({ ...released(1), rarity: rarity('rare', '2026-09-30T10:00:00Z') }), { now }));
+  assert.deepEqual(momentsBetween(predicted, revealed), ['released', 'rarity'], 'a revealed rarity is a moment; a prediction is not');
+  assert.deepEqual(momentsBetween(merged, predicted), [], 'a prediction alone plays nothing');
 });
 
 for (const id of domSkins) {
@@ -145,7 +150,11 @@ for (const id of domSkins) {
       assert.match(front, /data-card-action="flip"/, 'More info turns the card');
       assert.match(front, new RegExp(`data-finish="${view.finish.key}"`), 'the root names its finish');
       assert(front.includes(`<span class="sr-only">${escape(view.steward.text)}</span>`), 'the steward is read out');
-      assert.doesNotMatch(front.replace(/<[^>]+>/g, ' '), /\b(?:common|uncommon|rare|epic|legendary|rarity)\b/i, `${id} #${view.id}: no rarity on the card`);
+      if (view.rarity) {
+        assert(front.includes(`class="uc-rarity" data-rarity="${view.rarity.key}" data-state="${view.rarity.state}"`), `${id} #${view.id}: the rarity mark names its tier and state`);
+        assert(front.includes(`class="uc-frame" data-rarity="${view.rarity.key}" data-state="${view.rarity.state}"`), `${id} #${view.id}: the frame ring names its tier and state`);
+        assert(front.includes(`<span class="sr-only">${escape(view.rarity.description)}</span>`), `${id} #${view.id}: the rarity is read out`);
+      } else assert.doesNotMatch(front.replace(/<[^>]+>/g, ' '), /\b(?:common|uncommon|rare|epic|legendary|rarity)\b/i, `${id} #${view.id}: no rarity on a card without one`);
       if (view.demo) {
         assert(!front.includes('US$'), `${id} #${view.id}: a demo card paints no amount`);
         assert.match(front, /no model calls/, `${id} #${view.id}: the demo says so`);

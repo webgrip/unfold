@@ -46,10 +46,10 @@ test('the front formats every slot in nl-NL from the contract card', () => {
   assert.deepEqual(view.ids, ['#138', 'VIK-1612', 'webgrip/glide']);
 });
 
-test('the back has ten tabs and shows what the contract gives, oldest event first', () => {
+test('the back has eleven tabs and shows what the contract gives, oldest event first', () => {
   const view = cardView(contractCard());
   assert.deepEqual(view.tabs.map(entry => entry.label), cardTabs.map(entry => entry.label));
-  assert.deepEqual(view.tabs.map(entry => entry.label), ['Economics', 'Agent', 'Change', 'Review & CI', 'Gates', 'Grade', 'Condition', 'Life', 'Set', 'Context']);
+  assert.deepEqual(view.tabs.map(entry => entry.label), ['Economics', 'Agent', 'Change', 'Review & CI', 'Gates', 'Grade', 'Rarity', 'Condition', 'Life', 'Set', 'Context']);
   assert.equal(value(view, 'economics', 'Cache read tokens').value, '9.800.000');
   assert.equal(value(view, 'agent', 'Turns').value, '61');
   assert.equal(value(view, 'agent', 'Tool calls').value, '143');
@@ -108,7 +108,8 @@ test('a demo card says so and shows no spend or usage', () => {
     assert.equal(card.totals.costStatus, 'not_reported');
     for (const key of ['costUsd', 'inputTokens', 'outputTokens', 'cacheReadInputTokens', 'cacheCreationInputTokens', 'turns', 'toolCalls']) assert.equal(card.totals[key], undefined, `${card.workItemId} ${key}`);
     assert(card.crew.every(member => member.costUsd === undefined && member.inputTokens === undefined));
-    assert.deepEqual([card.rarity, card.finish], [null, 'matte']);
+    assert.equal(card.finish, 'matte');
+    if (card.rarity) assert.equal(cardView(card).tabs.find(entry => entry.id === 'rarity').rows.find(entry => entry.label === 'Source').value, 'Demo · illustrative inputs, not rated by Ploeg', `${card.workItemId} says its rarity is a demo`);
     if (card.grade) assert.match(ploegDemo.items.find(item => item.id === card.workItemId).description, /grade and cracks are sample data/, `${card.workItemId} labels its grade and cracks as sample data`);
     if (card.condition || card.gates) assert.match(ploegDemo.items.find(item => item.id === card.workItemId).description, /^Illustrative/, `${card.workItemId} says it is illustrative`);
     if (card.condition) assert.match(ploegDemo.items.find(item => item.id === card.workItemId).description, /cracks are sample data/, `${card.workItemId} labels its cracks as sample data`);
@@ -159,8 +160,8 @@ test('Vloer Native fills the required slots, escapes every value and draws witho
   for (const slot of requiredSlots) assert.match(front, new RegExp(`data-slot="${slot}"`), slot);
   assert.match(front, /data-card-action="flip"/);
   assert.match(back, /data-card-action="flip"/);
-  assert.equal((back.match(/role="tab"/g) || []).length, 10);
-  assert.equal((back.match(/role="tabpanel"/g) || []).length, 10);
+  assert.equal((back.match(/role="tab"/g) || []).length, 11);
+  assert.equal((back.match(/role="tabpanel"/g) || []).length, 11);
   for (const markup of [front, back]) {
     assert(!markup.includes('<img'), 'title is escaped');
     assert(!markup.includes('<script'), 'steward is escaped');
@@ -170,7 +171,7 @@ test('Vloer Native fills the required slots, escapes every value and draws witho
   }
   assert.match(front, /stroke-dasharray="29.0 100"/, 'the budget ring is drawn with an SVG attribute');
   assert.doesNotMatch(render(cardView({ workItemId: '1', title: 'x', team: 't', totals: {} }), helpers('front')), /stroke-dasharray="[0-9.]+ 100"/, 'unknown cost draws no arc');
-  assert.doesNotMatch(front, /rarity|grade/i, 'P1 shows no rarity or grade');
+  assert.doesNotMatch(front, /rarity|grade/i, 'a card without a rarity or a grade shows neither');
   assert.doesNotMatch(front, /class="day"|class="fx /, 'an unreleased card draws no day chip and no finish layer');
 });
 

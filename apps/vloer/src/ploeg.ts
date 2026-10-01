@@ -62,8 +62,14 @@ export type PloegGate = 'development' | 'test' | 'acceptance' | 'done';
 export type PloegCardGates = { current: PloegGate; history: { gate: PloegGate; enteredAt: string; leftAt: string | null }[]; bounces: { from: PloegGate; to: PloegGate; at: string; reason: string; actor: string }[]; rightFirstTime: Partial<Record<'test' | 'acceptance' | 'done', number>> };
 /** The card's place in its epic's set (Ploeg ADR-0053). `children` is listed on the epic's own card only; `position` is null there. */
 export type PloegCardSet = { role: 'epic' | 'child'; epic: { workItemId: string | null; ref: string; title: string }; position: number | null; size: number; children: { workItemId: string; title: string; state: string; settled: boolean; cracked: boolean }[]; complete: boolean };
-/** A Run card: one per Work Item, its pull requests as plays. Facts only; an unknown value is absent or null, never zero. The proxy always carries `rarity` as null and `finish` as `matte`; Vloer derives the finish from `release`. `grade`, `condition`, `gates` and `set` pass through validated when Ploeg sends them, and a shape Vloer cannot read becomes null. An older Ploeg sends no `deployments`, `release`, `live`, `gates`, `evolved` or `set`, and they stay absent. */
-export type PloegCard = { workItemId: string; title: string; externalRef: string; url: string; team: string; target: { forge: string; owner: string; repo: string } | null; style: PloegCardStyle; state: string; rarity: null; finish: 'matte'; grade: PloegCardGrade | null; condition: PloegCardCondition | null; steward: { name: string; source: string } | null; roster: { name: string; roles: string[] }[]; crew: PloegCardCrew[]; plays: PloegCardPlay[]; totals: PloegCardTotals; events: PloegCardEvent[]; deployments?: PloegCardDeployment[]; release?: PloegCardRelease | null; live?: PloegCardLive | null; gates?: PloegCardGates | null; evolved?: true; set?: PloegCardSet | null; demo: boolean };
+/** A rarity tier (Ploeg ADR-0056, proposed), lowest first. */
+export type PloegRarityTier = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+/** The facts a rarity score used (Ploeg ADR-0056, proposed). null is a fact Ploeg does not know. */
+export type PloegCardRarityInputs = { reach: { modules: number | null; repos: number | null }; sensitive: { files: number | null; paths: string[] }; novelty: { share: number | null; files: number | null; novel: number | null }; size: { countedLines: number | null }; set: boolean | null; truncated: boolean; notCollected: string[] };
+/** A card's rarity (Ploeg ADR-0056, proposed): how exceptional its change was, as a challenge score from 0 to 100, predicted before the merge and revealed at release, tiered by percentile in its repository and quarter. */
+export type PloegCardRarity = { formula: string; predicted: PloegRarityTier | null; revealed: PloegRarityTier | null; tier: PloegRarityTier; score: number | null; percentile: number | null; cohort: { target: string; quarter: string; size: number } | null; inputs: PloegCardRarityInputs | null; revealedAt: string | null };
+/** A Run card: one per Work Item, its pull requests as plays. Facts only; an unknown value is absent or null, never zero. The proxy always carries `finish` as `matte`; Vloer derives the finish from `release`. `rarity`, `grade`, `condition`, `gates` and `set` pass through validated when Ploeg sends them, and a shape Vloer cannot read becomes null; an older Ploeg sends `rarity: null`. An older Ploeg sends no `deployments`, `release`, `live`, `gates`, `evolved` or `set`, and they stay absent. */
+export type PloegCard = { workItemId: string; title: string; externalRef: string; url: string; team: string; target: { forge: string; owner: string; repo: string } | null; style: PloegCardStyle; state: string; rarity: PloegCardRarity | null; finish: 'matte'; grade: PloegCardGrade | null; condition: PloegCardCondition | null; steward: { name: string; source: string } | null; roster: { name: string; roles: string[] }[]; crew: PloegCardCrew[]; plays: PloegCardPlay[]; totals: PloegCardTotals; events: PloegCardEvent[]; deployments?: PloegCardDeployment[]; release?: PloegCardRelease | null; live?: PloegCardLive | null; gates?: PloegCardGates | null; evolved?: true; set?: PloegCardSet | null; demo: boolean };
 export type PloegCardView = { card: PloegCard; demo: boolean; fetchedAt: string };
 /** A Work Item named in an attribution. */
 export type PloegCrackItem = { workItemId: string; title: string; externalRef: string };
@@ -389,7 +395,49 @@ function cardSet(value: unknown): PloegCardSet | null {
     };
   });
 }
-/** Validates a Run card from Ploeg: known fields only, safe links, bounded lists, absent values kept absent. It drops any rarity or finish, and keeps a grade, condition, gates or set only in the shape the card contract defines. */
+const rarityTiers: PloegRarityTier[] = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+function rarityTier(value: unknown): PloegRarityTier { if (!rarityTiers.includes(value as PloegRarityTier)) throw invalid(); return value as PloegRarityTier; }
+function share(value: unknown): number { const number = numeric(value); if (number > 1) throw invalid(); return number; }
+function rarityInputs(value: unknown): PloegCardRarityInputs | null {
+  if (absent(value)) return null;
+  const data = record(value);
+  const part = (key: string) => absent(data[key]) ? {} : record(data[key]);
+  const whole = (entry: unknown) => maybe(entry, item => numeric(item, true));
+  const reach = part('reach');
+  const sensitive = part('sensitive');
+  const novelty = part('novelty');
+  const size = part('size');
+  return {
+    reach: { modules: whole(reach.modules), repos: whole(reach.repos) },
+    sensitive: { files: whole(sensitive.files), paths: cardList(sensitive.paths, entry => field(entry, 1024), 20) },
+    novelty: { share: maybe(novelty.share, share), files: whole(novelty.files), novel: whole(novelty.novel) },
+    size: { countedLines: whole(size.countedLines) },
+    set: maybe(data.set, boolean),
+    truncated: absent(data.truncated) ? false : boolean(data.truncated),
+    notCollected: cardList(data.notCollected, entry => field(entry, 64), 20).filter(entry => /^[a-z][A-Za-z.]{0,63}$/.test(entry)),
+  };
+}
+/** Reads a card's rarity (Ploeg ADR-0056, proposed): strict on every field it knows, blind to fields it does not, and null when absent, null or unreadable, as an older Ploeg sends it. */
+export function cardRarity(value: unknown): PloegCardRarity | null {
+  if (absent(value)) return null;
+  return readable(() => {
+    const data = record(value);
+    const formula = field(data.formula, 32);
+    if (!/^[0-9A-Za-z][0-9A-Za-z.-]{0,31}$/.test(formula)) throw invalid();
+    const score = maybe(data.score, numeric);
+    if (score !== null && score > 100) throw invalid();
+    const percentile = maybe(data.percentile, numeric);
+    if (percentile !== null && (percentile === 0 || percentile > 100)) throw invalid();
+    const cohortData = absent(data.cohort) ? null : record(data.cohort);
+    const cohort = cohortData ? { target: field(cohortData.target, 512), quarter: field(cohortData.quarter, 8), size: numeric(cohortData.size, true) } : null;
+    if (cohort && (cohort.target.length < 3 || !/^[0-9]{4}Q[1-4]$/.test(cohort.quarter) || cohort.size < 1)) throw invalid();
+    return {
+      formula, predicted: maybe(data.predicted, rarityTier), revealed: maybe(data.revealed, rarityTier), tier: rarityTier(data.tier),
+      score, percentile, cohort, inputs: rarityInputs(data.inputs), revealedAt: cardTime(data.revealedAt),
+    };
+  });
+}
+/** Validates a Run card from Ploeg: known fields only, safe links, bounded lists, absent values kept absent. It drops Ploeg's finish, and keeps a rarity, grade, condition, gates or set only in the shape the card contract defines. */
 export function parseCard(value: unknown): PloegCard {
   const data = record(value);
   const style = absent(data.style) ? {} : record(data.style);
@@ -407,7 +455,7 @@ export function parseCard(value: unknown): PloegCard {
     target: targetData ? { forge: field(targetData.forge, 100), owner: field(targetData.owner), repo: field(targetData.repo) } : null,
     style: { skin: styleName(style.skin) ?? defaultSkin, theme: styleName(style.theme) },
     state: cardToken(data.state, 'drafting'),
-    rarity: null, finish: 'matte', grade: cardGrade(data.grade), condition: cardCondition(data.condition),
+    rarity: cardRarity(data.rarity), finish: 'matte', grade: cardGrade(data.grade), condition: cardCondition(data.condition),
     steward,
     roster: cardList(data.roster, entry => { const person = record(entry); return { name: field(person.name, 256), roles: cardList(person.roles, role => cardToken(role), 10) }; }, 50),
     crew: cardList(data.crew, cardCrew, 50),

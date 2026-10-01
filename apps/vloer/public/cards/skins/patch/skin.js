@@ -1,5 +1,5 @@
 import { render as nativeRender } from '../vloer-native/skin.js';
-import { attachSkin, coin, crackPaths, figures, gradeName, honours, initials, markSeed, seeded, skinView } from '../../skin-kit.js';
+import { attachSkin, coin, crackPaths, figures, gradeName, honours, initials, markSeed, rarityFrame, rarityMark, seeded, skinView } from '../../skin-kit.js';
 import { stableHash } from '../../card-model.js';
 
 /** The skin's name, matching its folder and manifest. */
@@ -269,7 +269,7 @@ function rootAttributes(view, layout, h) {
 
 function header(kind, view, h) {
   const e = h.escape;
-  return `<header class="pt-hdr"><span class="pt-kind">${e(kind)}</span><span class="pt-state" data-slot="state" data-tone="${e(view.state.tone)}" title="${e(view.state.description || '')}">${e(view.state.label)}</span></header>`;
+  return `<header class="pt-hdr"><span class="pt-kind">${e(kind)}</span>${rarityMark(view, h)}<span class="pt-state" data-slot="state" data-tone="${e(view.state.tone)}" title="${e(view.state.description || '')}">${e(view.state.label)}</span></header>`;
 }
 
 function standard(view, h) {
@@ -278,7 +278,7 @@ function standard(view, h) {
   const top = role ? role.toUpperCase() : 'WORK ITEM';
   const bottom = role && view.rounds ? `ROUND ${view.rounds} · #${view.id}` : `#${view.id}`;
   return `<article ${rootAttributes(view, 'standard', h)} aria-label="Run card: ${e(view.title)}">
-    <div class="sk-card"><i class="pt-paper" aria-hidden="true"></i>
+    <div class="sk-card">${rarityFrame(view)}<i class="pt-paper" aria-hidden="true"></i>
       ${band(`${view.finish.label} finish`, h)}
       ${header('Mission debrief', view, h)}
       <div class="pt-hero">
@@ -359,7 +359,7 @@ function setCard(view, h) {
     : `<div class="pt-cond"><span><b>Completes when</b> all ${e(set.size)} Work Items have settled: 30 days live.</span><em>${e(set.settled)}/${e(set.size)}</em></div>`;
   const kind = complete ? 'Campaign complete' : 'Campaign order';
   return `<article ${rootAttributes(view, 'set', h)} aria-label="Set Card: ${e(view.title)}">
-    <div class="sk-card"><i class="pt-paper" aria-hidden="true"></i>
+    <div class="sk-card">${rarityFrame(view)}<i class="pt-paper" aria-hidden="true"></i>
       ${band(complete ? 'Campaign complete' : `${view.finish.label} finish`, h)}
       ${header(kind, view, h)}
       <div class="pt-op"><small>Set Card · ${e(set.size)} Work Items${set.ref ? ` · ${e(set.ref)}` : ''}</small><h3 class="pt-title" data-slot="title"><span>${e(view.title)}</span></h3></div>

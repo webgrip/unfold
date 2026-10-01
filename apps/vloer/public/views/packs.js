@@ -90,7 +90,7 @@ function oddsPage() {
       <li>A pull is cosmetic. It never changes a card's facts, grade, finish, rarity or anything Ploeg authorizes, budgets or merges.</li>
       <li>A card is pulled once, in the first pack it appears in, and keeps that pull. Later packs show what changed: a finish rising, a crack, a mend.</li>
       <li>The draw is HMAC-SHA256 of your account, the Work Item and the pack with a key only the server holds, so it is fixed before you open the pack, and Vloer records it. Opening a pack again cannot change it.</li>
-      <li>The odds never depend on rarity, grade, finish, role or who you are.</li>
+      <li>The odds never depend on rarity, grade, finish, role or who you are. A reveal shows the card's rarity; it never changes the pull.</li>
       <li>One pack per period per person. Packs cannot be bought, re-rolled, traded or given away, and they do not expire.</li>
       <li>The earned finish decides how much of a card the pattern covers: none while matte, the frame at foil, more at each step after.</li>
     </ul><p class="odds-version">Odds table version ${escape(odds.version)}.</p></section>
@@ -110,7 +110,9 @@ function summaryPanel(opened, fresh) {
     const title = entry.card ? entry.card.title : `Work Item #${entry.workItemId}`;
     const picture = entry.card && thumbnailsSupported() ? `<canvas class="pack-summary-thumb" data-summary="${escape(entry.workItemId)}" aria-hidden="true"></canvas>` : '<span class="pack-summary-thumb is-empty" aria-hidden="true"></span>';
     const kind = entry.kind === 'new' ? `<span class="pack-summary-kind" data-kind="new">New · ${escape(pullText(pull))}</span>` : `<span class="pack-summary-kind" data-kind="upgrade">Upgrade · ${escape(entry.moments.map(momentText).join(' · '))}</span>`;
-    return `<li class="pack-summary-item">${picture}<span class="pack-summary-title">${escape(title)}</span>${kind}${entry.card ? '' : '<span class="pack-summary-gone">No longer in your Teams</span>'}</li>`;
+    const rarity = entry.card ? cardView(entry.card).rarity : null;
+    const tier = rarity ? `<span class="pack-summary-rarity" data-rarity="${escape(rarity.key)}" data-state="${escape(rarity.state)}">${escape(rarity.chip)}</span>` : '';
+    return `<li class="pack-summary-item">${picture}<span class="pack-summary-title">${escape(title)}</span>${tier}${kind}${entry.card ? '' : '<span class="pack-summary-gone">No longer in your Teams</span>'}</li>`;
   }).join('');
   const actions = fresh ? `${button({ label: 'Add to binder', icon: 'cards', variant: 'primary', action: 'pack-to-binder', id: 'pack-to-binder' })}${button({ label: 'Back to packs', variant: 'secondary', href: '#packs', action: 'pack-back' })}` : button({ label: 'Open your binder', icon: 'cards', href: '#binder' });
   return `<section class="pack-summary" aria-labelledby="pack-summary-title"><p class="pack-overline">${fresh ? 'Pack opened' : `Opened ${escape(dateTime(opened.pack.openedAt))}`}</p><h2 class="pack-heading" id="pack-summary-title" tabindex="-1">${escape(periodLabel(opened.pack.period))}</h2><p class="pack-summary-line">${escape(packSummaryText(entries))}</p><ul class="pack-summary-grid">${items}</ul><div class="pack-buttons">${actions}</div></section>`;
@@ -188,12 +190,17 @@ function prepare(opened) {
       before = faceFacts(cardView(copyCard(cardAsOf(entry.card, at), copy), { now: at }));
     }
     const fresh = entry.kind === 'new' && entry.pull;
-    return { ...entry, facts, before, preview: Boolean(fresh && entry.pull.pattern !== 'none' && facts.coverage.level < 3), intensity: fresh ? pullIntensity(entry.pull, odds) : { level: 0, chargeMs: 450, burst: 30 }, pull: fresh ? entry.pull : null, shownPull: entry.pull, finishLabel: cardView(card).finish.label };
+    const shown = cardView(card);
+    return { ...entry, facts, before, preview: Boolean(fresh && entry.pull.pattern !== 'none' && facts.coverage.level < 3), intensity: fresh ? pullIntensity(entry.pull, odds) : { level: 0, chargeMs: 450, burst: 30 }, pull: fresh ? entry.pull : null, shownPull: entry.pull, finishLabel: shown.finish.label, rarity: shown.rarity };
   }));
 }
 
+function rarityLine(rarity) {
+  return rarity ? `<p class="pack-title-rarity" data-rarity="${escape(rarity.key)}" data-state="${escape(rarity.state)}"><i aria-hidden="true"></i>${escape(rarity.text)}</p>` : '';
+}
+
 function titleMarkup(entry) {
-  const card = `<p class="pack-title-card">${escape(entry.card.title)} · ${escape(roleLabel(entry.copy?.role))} copy</p>`;
+  const card = `${rarityLine(entry.rarity)}<p class="pack-title-card">${escape(entry.card.title)} · ${escape(roleLabel(entry.copy?.role))} copy</p>`;
   if (entry.kind === 'upgrade') return `<p class="pack-title-kind">Upgrade</p><p class="pack-title-main">${escape(entry.moments.map(momentText).join(' · '))}</p>${card}`;
   const pull = entry.pull;
   const bp = patternBasisPoints(view.odds, pull.pattern);
@@ -204,7 +211,7 @@ function titleMarkup(entry) {
 }
 
 function spoken(entry, index, total) {
-  return `Card ${index + 1} of ${total}: ${entry.card.title}. ${entry.kind === 'upgrade' ? `Upgrade: ${entry.moments.map(momentText).join(', ')}` : pullText(entry.pull)}.`;
+  return `Card ${index + 1} of ${total}: ${entry.card.title}. ${entry.kind === 'upgrade' ? `Upgrade: ${entry.moments.map(momentText).join(', ')}` : pullText(entry.pull)}.${entry.rarity ? ` ${entry.rarity.text}.` : ''}`;
 }
 
 async function tearOpen(id) {
@@ -266,7 +273,7 @@ async function revealCurrent() {
   if (title) title.innerHTML = titleMarkup(entry);
   announce(spoken(entry, ceremony.index, ceremony.entries.length));
   const tray = $('#pack-tray');
-  if (tray) tray.insertAdjacentHTML('beforeend', `<li><span class="pack-tray-title">${escape(entry.card.title)}</span><span class="pack-tray-pull">${escape(entry.kind === 'upgrade' ? 'Upgrade' : pullText(entry.pull))}</span></li>`);
+  if (tray) tray.insertAdjacentHTML('beforeend', `<li><span class="pack-tray-title">${escape(entry.card.title)}</span><span class="pack-tray-pull">${escape([entry.rarity?.chip, entry.kind === 'upgrade' ? 'Upgrade' : pullText(entry.pull)].filter(Boolean).join(' · '))}</span></li>`);
   setPhase('revealed');
   const last = ceremony.entries.every(item => item.revealed);
   setPrimary(last ? 'See summary' : 'Next card');
@@ -279,7 +286,8 @@ function fallbackReveal(entry) {
   if (!card) return;
   card.hidden = false;
   card.dataset.finish = entry.facts.coverage.key;
-  card.innerHTML = `<span class="pack-css-card-title">${escape(entry.card.title)}</span><span class="pack-css-card-pull">${escape(pullText(entry.shownPull))}</span>`;
+  if (entry.rarity) card.dataset.rarity = entry.rarity.key;
+  card.innerHTML = `<span class="pack-css-card-title">${escape(entry.card.title)}</span><span class="pack-css-card-pull">${escape([entry.rarity?.chip, pullText(entry.shownPull)].filter(Boolean).join(' · '))}</span>`;
 }
 
 async function advance() {

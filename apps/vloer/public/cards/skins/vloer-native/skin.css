@@ -107,6 +107,21 @@ a:hover {
   text-overflow: ellipsis;
 }
 
+.hd-end {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  min-inline-size: 0;
+}
+
+.hd-end .uc-rarity {
+  color: var(--text-muted);
+}
+
+.card .uc-frame {
+  inset: -1px;
+}
+
 .demo {
   font-size: var(--text-2xs);
   font-weight: var(--weight-bold);
@@ -618,6 +633,13 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 0.35rem;
+}
+
+.lead {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--text);
 }
 
 .note {

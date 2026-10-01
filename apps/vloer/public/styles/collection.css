@@ -295,6 +295,43 @@
   font-size: var(--text-xs);
 }
 
+.binder-rarity {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-inline-end: 0.35rem;
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+}
+
+.binder-rarity::after {
+  content: "·";
+  margin-inline-start: 0.1rem;
+  color: var(--text-muted);
+  font-weight: normal;
+}
+
+.binder-rarity i {
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  clip-path: polygon(50% 0, 100% 36%, 81% 100%, 19% 100%, 0 36%);
+  background: #5b6369;
+}
+
+.binder-rarity[data-rarity="uncommon"] i { background: linear-gradient(160deg, #e9eef3, #8e99a5); }
+.binder-rarity[data-rarity="rare"] i { background: linear-gradient(160deg, #ffe08a, #c98f22); }
+.binder-rarity[data-rarity="epic"] i { background: linear-gradient(160deg, #ffb27a, #d4501c); }
+.binder-rarity[data-rarity="legendary"] i { background: conic-gradient(from 200deg, #ff6a3d, #ffd24a, #5ce1a0, #5cb8ff, #b48cff, #ff6a3d); }
+
+.binder-rarity[data-state="predicted"] {
+  font-weight: normal;
+  color: var(--text-muted);
+}
+
+.binder-rarity[data-state="predicted"] i {
+  opacity: 0.5;
+}
+
 .binder-empty-filter {
   color: var(--text-muted);
 }
@@ -426,6 +463,47 @@
 .pack-title-card {
   color: #c9d2d0;
   font-size: var(--text-sm);
+}
+
+.pack-title-rarity,
+.pack-summary-rarity {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #e8eef4;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.04em;
+}
+
+.pack-summary-rarity {
+  font-size: var(--text-xs);
+}
+
+.pack-title-rarity i {
+  inline-size: 0.85rem;
+  block-size: 0.85rem;
+  clip-path: polygon(50% 0, 100% 36%, 81% 100%, 19% 100%, 0 36%);
+  background: #8a939a;
+}
+
+.pack-title-rarity[data-rarity="uncommon"],
+.pack-summary-rarity[data-rarity="uncommon"] { color: #e2ae76; }
+.pack-title-rarity[data-rarity="rare"],
+.pack-summary-rarity[data-rarity="rare"] { color: #f4f7fa; }
+.pack-title-rarity[data-rarity="epic"],
+.pack-summary-rarity[data-rarity="epic"] { color: #ffd36b; }
+.pack-title-rarity[data-rarity="legendary"],
+.pack-summary-rarity[data-rarity="legendary"] { color: #e9dcff; }
+.pack-title-rarity[data-rarity="uncommon"] i { background: linear-gradient(160deg, #f4f7fa, #8e99a5); }
+.pack-title-rarity[data-rarity="rare"] i { background: linear-gradient(160deg, #fff1b8, #c98f22); }
+.pack-title-rarity[data-rarity="epic"] i { background: linear-gradient(160deg, #ffb27a, #c8400f); }
+.pack-title-rarity[data-rarity="legendary"] i { background: conic-gradient(from 200deg, #ff6a3d, #ffd24a, #5ce1a0, #5cb8ff, #b48cff, #ff6a3d); }
+
+.pack-title-rarity[data-state="predicted"],
+.pack-summary-rarity[data-state="predicted"] {
+  font-weight: normal;
+  opacity: 0.8;
 }
 
 .pack-title-note {

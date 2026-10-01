@@ -124,6 +124,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Vloer | [0030](../../apps/vloer/docs/adrs/0030-vloer-traces-bugs-under-an-administrator-mapped-forge-login.md) | Vloer traces bugs to Run cards under an administrator-mapped forge login | 2026-10-01 | unknown | — |
 | Vloer | [0031](../../apps/vloer/docs/adrs/0031-card-themes-a-card-designer-and-generated-art.md) | Card themes, a card designer and generated art | 2026-10-01 | unknown | — |
 | Vloer | [0032](../../apps/vloer/docs/adrs/0032-an-effects-director-plays-run-card-moments-once-by-tier-within-accessibility-rules.md) | An effects director plays Run card moments once, by tier, within accessibility rules | 2026-10-01 | unknown | — |
+| Vloer | [0034](../../apps/vloer/docs/adrs/0034-run-cards-show-rarity-as-frame-metal-and-a-set-symbol-and-reveal-it-once-at-release.md) | Run cards show rarity as frame metal and a set symbol, and reveal it once at release | 2026-10-02 | unknown | — |
 
 ## Other statuses
 

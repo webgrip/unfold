@@ -1,4 +1,4 @@
-import { copyRoleLabels, finishLadder } from './card-model.js';
+import { copyRoleLabels, finishLadder, rarityTier } from './card-model.js';
 import { count, date, plural, score } from '../core/format.js';
 
 /** The pattern names the odds table and the reveal use, keyed like the forge's foil patterns. */
@@ -49,13 +49,14 @@ export function pullText(pull) {
 
 const finishLabel = key => finishLadder.find(step => step.key === key)?.label ?? key;
 
-/** A card moment in words: "Finish rose to Holo", "Cracked · S2 · VIK-1642", "Merged #57", "Graded 8,5", "Set of 5 complete". */
+/** A card moment in words: "Finish rose to Holo", "Rarity revealed: Epic", "Cracked · S2 · VIK-1642", "Merged #57", "Graded 8,5", "Set of 5 complete". */
 export function momentText(moment) {
   const detail = moment?.detail ?? {};
   switch (moment?.kind) {
     case 'minted': return 'Minted: the first Run started';
     case 'merged': return detail.number ? `Merged #${detail.number}` : 'Merged';
     case 'released': return detail.source === 'merge' ? 'Released (counted from the merge)' : `Released to ${detail.environment || 'production'}`;
+    case 'rarity': return `Rarity revealed: ${rarityTier(detail.tier)?.label ?? 'a new tier'}`;
     case 'finish': return `Finish rose from ${finishLabel(detail.from)} to ${finishLabel(detail.to)}`;
     case 'cracked': return ['Cracked', detail.severity, detail.ref].filter(Boolean).join(' · ');
     case 'mended': return ['Mended', detail.ref, detail.pr ? `in #${detail.pr}` : ''].filter(Boolean).join(' · ');
@@ -103,8 +104,9 @@ export function copyCard(card, copy) {
 const after = (value, at) => { const ms = typeof value === 'string' ? Date.parse(value) : NaN; return Number.isFinite(ms) && ms > at; };
 
 /**
- * The card as it stood at `at` (milliseconds): plays merged later are still open, a later release has not happened,
- * cracks confirmed later are absent and mends made later are undone. With the card element's `asOf` set to the same
+ * The card as it stood at `at` (milliseconds): plays merged later are still open, a later release has not happened, a
+ * rarity revealed later is still its prediction (without the revealed score), cracks confirmed later are absent and
+ * mends made later are undone. With the card element's `asOf` set to the same
  * moment, it replays what changed since.
  */
 export function cardAsOf(card, at) {
@@ -112,6 +114,7 @@ export function cardAsOf(card, at) {
   const copy = structuredClone(card);
   copy.plays = (copy.plays ?? []).map(play => play.state === 'merged' && after(play.mergedAt, at) ? { ...play, state: 'open', mergedAt: null, mergedBy: '' } : play);
   if (copy.release && after(copy.release.at, at)) copy.release = null;
+  if (copy.rarity?.revealed && after(copy.rarity.revealedAt, at)) copy.rarity = copy.rarity.predicted ? { ...copy.rarity, revealed: null, tier: copy.rarity.predicted, score: null, percentile: null, cohort: null, inputs: null, revealedAt: null } : null;
   if (copy.plays.length && !copy.plays.some(play => play.state === 'merged') && copy.state === 'merged') copy.state = 'in_review';
   if (copy.condition) {
     const cracks = copy.condition.cracks.filter(crack => !after(crack.confirmedAt, at)).map(crack => crack.mended && after(crack.mended.at, at) ? { ...crack, mended: null } : crack);

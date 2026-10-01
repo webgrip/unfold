@@ -1,5 +1,5 @@
 import { render as nativeRender } from '../vloer-native/skin.js';
-import { attachSkin, coin, crackPaths, figures, gradeName, honours, markSeed, seeded, skinView } from '../../skin-kit.js';
+import { attachSkin, coin, crackPaths, figures, gradeName, honours, markSeed, rarityFrame, rarityMark, seeded, skinView } from '../../skin-kit.js';
 
 /** The skin's name, matching its folder and manifest. */
 export const id = 'holo';
@@ -130,11 +130,11 @@ function standard(view, h) {
   const e = h.escape;
   const facts = figures(view);
   return `<article ${rootAttributes(view, 'standard', h)} aria-label="Run card: ${e(view.title)}">
-    <div class="sk-card">${layers(view)}
+    <div class="sk-card">${rarityFrame(view)}${layers(view)}
       <div class="face">
         <header class="head"><h3 class="hr-title" data-slot="title"><span>${e(view.title)}</span></h3>${coinMarkup(view, h)}</header>
         <div class="art">${windowLayers(view)}${art(view)}${stateChip(view, h)}${finishTag(view, h)}${signature(view, h)}${seal(view, h)}<i class="scan" aria-hidden="true"></i></div>
-        <div class="typebar"><span>${e(roleLine(view))}</span><span class="hr-plays">${e(view.plays.text)}</span></div>
+        <div class="typebar"><span>${e(roleLine(view))}</span><span class="hr-tb-end"><span class="hr-plays">${e(view.plays.text)}</span>${rarityMark(view, h)}</span></div>
         ${setStrip(view, h)}
         <div class="box">${honourLine(view, h)}</div>
         ${slab(view, h)}
@@ -183,10 +183,10 @@ function setCard(view, h) {
     return `<div class="slot" data-state="${e(state)}" title="${e(member ? `${member.ref ? `${member.ref} · ` : ''}${member.title} · ${member.stateText}` : 'Not in the set yet')}"><b aria-hidden="true">${state === 'open' ? index + 1 : '✓'}</b><small>${index + 1}/${set.size}</small></div>`;
   }).join('');
   return `<article ${rootAttributes(view, 'set', h)} aria-label="Set Card: ${e(view.title)}">
-    <div class="sk-card">${layers(view)}
+    <div class="sk-card">${rarityFrame(view)}${layers(view)}
       <div class="face">
         <div class="art full">${windowLayers(view)}${set.complete ? '<i class="rays" aria-hidden="true"></i>' : ''}</div>
-        <header class="banner"><div class="tl"><span class="kind">${set.complete ? '★ Set complete' : 'Set Card'}</span><small>Set of ${e(set.size)}${set.ref ? ` · ${e(set.ref)}` : ''}</small><h3 class="hr-title" data-slot="title"><span>${e(view.title)}</span></h3></div>${coinMarkup(view, h)}</header>
+        <header class="banner"><div class="tl"><span class="kind">${set.complete ? '★ Set complete' : 'Set Card'}${rarityMark(view, h)}</span><small>Set of ${e(set.size)}${set.ref ? ` · ${e(set.ref)}` : ''}</small><h3 class="hr-title" data-slot="title"><span>${e(view.title)}</span></h3></div>${coinMarkup(view, h)}</header>
         <div class="stage">${stateChip(view, h)}${constellation(view, h)}${signature(view, h)}</div>
         <div class="cond${set.complete ? ' done' : ''}"><span>${set.complete ? '<b>Set complete.</b> Every Work Item settled: 30 days live.' : `<b>Completes</b> when all ${e(set.size)} Work Items have settled: 30 days live.`}</span><em>${e(set.settled)}/${e(set.size)}</em><span class="bar" aria-hidden="true"><i data-step="${e(Math.round((set.settled / set.size) * 20))}"></i></span></div>
         <div class="slots">${slots}</div>
@@ -201,8 +201,8 @@ function setCard(view, h) {
 }
 
 /**
- * Draws one face of a card as markup. The front is a foil trading card: a metal frame whose finish layers stack from
- * the earned finish (a foil frame, sun-pillar holo, a cosmos, gold glitter and a prismatic border), a code-diff art
+ * Draws one face of a card as markup. The front is a foil trading card: a metal frame in its rarity's metal, with
+ * the rarity's set symbol on the type line, whose finish layers stack from the earned finish (a foil frame, sun-pillar holo, a cosmos, gold glitter and a prismatic border), a code-diff art
  * window, the grade as a slab label, honours drawn only from facts, and cracks or gold kintsugi from the condition. An
  * epic's Set Card draws its members as a constellation. The back is Vloer Native's tabs in the skin's colours.
  * @param {object} view The `cardView` model.

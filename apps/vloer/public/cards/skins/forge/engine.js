@@ -178,6 +178,7 @@ export class ForgeScene {
       uTime: { value: stillTime }, uP: { value: this.state.light }, uV: { value: new THREE.Vector3(0, 0, 1) }, uIntensity: { value: 1 }, uCover: { value: new THREE.Vector3() }, uBorder: { value: 0 },
       uSeed: { value: 0 }, uCrack: { value: 0 }, uMend: { value: 0 }, uCrackSeed: { value: 0 }, uImpact: { value: new THREE.Vector2(0.62, 0.58) }, uFlash: { value: 0 }, uDesat: { value: 0 },
       uRelief: { value: 8 }, uTexel: { value: new THREE.Vector2(1.6 / faceSize.width, 1.6 / faceSize.height) }, uArtDepth: { value: 0.05 }, uWipe: { value: 2 }, uGlint: { value: 2 },
+      uMetalLo: { value: new THREE.Vector3() }, uMetalHi: { value: new THREE.Vector3() }, uHint: { value: new THREE.Vector3() }, uRarity: { value: new THREE.Vector4(0, 0, 0, 2) },
     };
     this.faceGeometry = faceGeometry(shape);
     this.disposables.push(this.faceGeometry);
@@ -281,7 +282,31 @@ export class ForgeScene {
     if (ceremony && now === 'cracked' && was !== 'cracked') this.tween(0.5, k => { this.uniforms.uCrack.value = k; this.uniforms.uMend.value = 0; }, null, x => 1 - Math.pow(1 - x, 4));
     else if (ceremony && now === 'mended' && was !== 'mended') { this.uniforms.uCrack.value = 1; this.tween(2.2, k => { this.uniforms.uMend.value = k; }, null, x => x * x * (3 - 2 * x)); }
     else { this.uniforms.uCrack.value = now ? 1 : 0; this.uniforms.uMend.value = now === 'mended' ? 1 : 0; }
+    this.setRarity(facts.rarity, previous?.rarity ?? null, ceremony && Boolean(previous));
     return true;
+  }
+
+  /**
+   * Sets the frame metal and the predicted glow from a card's rarity. A revealed tier blends the frame through its
+   * metal (and iridescence for legendary); a predicted one leaves the frame as it is and glows at its edge in the tier's
+   * colour. A ceremony that reveals the tier fades the glow out, sweeps light along the frame and brings the metal in.
+   */
+  setRarity(rarity, previous, ceremony) {
+    const u = this.uniforms;
+    if (!rarity) { u.uRarity.value.set(0, 0, 0, 2); return; }
+    u.uMetalLo.value.fromArray(rarity.lo);
+    u.uMetalHi.value.fromArray(rarity.hi);
+    u.uHint.value.fromArray(rarity.hint);
+    const revealed = rarity.state === 'revealed';
+    const wasRevealed = previous?.state === 'revealed' && previous.key === rarity.key;
+    if (ceremony && revealed && !wasRevealed) {
+      const glow = previous?.state === 'predicted' ? 1 : 0;
+      u.uRarity.value.set(0, 0, glow, -0.2);
+      this.tween(1.5, k => { u.uRarity.value.set(k, rarity.irid * k, glow * (1 - k), -0.2 + k * 1.5); }, () => { u.uRarity.value.set(1, rarity.irid, 0, 2); }, x => x * x * (3 - 2 * x));
+      this.tween(1.8, k => { this.bloomStrength = 0.32 + (0.18 + rarity.irid * 0.25) * Math.sin(Math.PI * k); }, () => { this.bloomStrength = 0.32; }, x => x);
+      return;
+    }
+    u.uRarity.value.set(revealed ? 1 : 0, revealed ? rarity.irid : 0, revealed ? 0 : 1, 2);
   }
 
   tween(duration, step, done, ease = x => 1 - Math.pow(1 - x, 3)) { this.tweens.push({ t: 0, duration, step, done, ease }); }

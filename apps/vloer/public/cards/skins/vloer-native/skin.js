@@ -1,5 +1,5 @@
 import { cardView } from '../../card-model.js';
-import { emitMoments } from '../../skin-kit.js';
+import { emitMoments, rarityFrame, rarityMark } from '../../skin-kit.js';
 
 /** The skin's name, matching its folder and manifest. */
 export const id = 'vloer-native';
@@ -10,8 +10,9 @@ const restingLight = Object.freeze({ x: 0.82, y: 0.12 });
 const idleFinishes = new Set(['foil', 'holo', 'infinity']);
 const movingLimit = 3;
 const lightProperties = [['--gc-dx', 'number', String(restingLight.x)], ['--gc-dy', 'number', String(restingLight.y)], ['--gc-orbit', 'angle', '220deg'], ['--gc-sweep', 'angle', '0deg']];
+const rarityTones = Object.freeze({ common: 'silver', uncommon: 'gold', rare: 'silver', epic: 'gold', legendary: 'prism' });
 const momentTones = Object.freeze({ merged: 'gold', released: 'live', finish: 'prism', cracked: 'ink', mended: 'gold', graded: 'silver', set: 'gold' });
-const momentTargets = Object.freeze({ merged: '[data-slot="state"]', released: '.day, [data-slot="state"]', finish: '.day', cracked: '[data-slot="condition"]', mended: '[data-slot="condition"]', graded: '[data-slot="state"]', set: '[data-slot="set"]' });
+const momentTargets = Object.freeze({ merged: '[data-slot="state"]', released: '.day, [data-slot="state"]', rarity: '.uc-rarity', finish: '.day', cracked: '[data-slot="condition"]', mended: '[data-slot="condition"]', graded: '[data-slot="state"]', set: '[data-slot="set"]' });
 
 function register() {
   if (typeof CSS === 'undefined' || typeof CSS.registerProperty !== 'function') return false;
@@ -131,10 +132,10 @@ function front(v, h) {
   const signed = v.steward.signed;
   const initials = signed ? v.steward.name.replace(/[^\p{L}\p{N}]+/gu, ' ').trim().split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase() : '';
   return `<article class="card" data-tone="${e(v.state.tone)}" data-finish="${e(v.finish.key)}" data-finish-level="${e(v.finish.level)}" aria-label="Run card: ${e(v.title)}">
-    ${layers(v)}<header class="hd">
+    ${layers(v)}${rarityFrame(v)}<header class="hd">
       <span class="role" aria-hidden="true">${h.icon(v.pr ? 'pull-request' : 'work')}</span>
       <div class="who"><b>Ticket card</b><span>${e(v.repo || v.team || 'No repository')}</span></div>
-      ${v.demo ? '<span class="demo" title="Illustrative record: no model calls, no spend">Demo</span>' : ''}
+      <span class="hd-end">${rarityMark(v, h)}${v.demo ? '<span class="demo" title="Illustrative record: no model calls, no spend">Demo</span>' : ''}</span>
     </header>
     <div class="tl">
       <h3 class="title" data-slot="title">${e(v.title)}</h3>
@@ -176,7 +177,7 @@ function back(v, h) {
   const tabs = v.tabs.map(tab => `<button type="button" role="tab" class="tab" id="gc-tab-${e(tab.id)}" aria-controls="gc-panel-${e(tab.id)}" data-card-tab="${e(tab.id)}">${e(tab.label)}</button>`).join('');
   const panels = v.tabs.map(tab => {
     const legend = [...tab.rows, ...(tab.groups || []).flatMap(group => group.rows)].some(entry => entry.status === 'uncollected') ? '<p class="legend"><i class="dot" aria-hidden="true"></i>Not collected yet: Ploeg does not record this yet.</p>' : '';
-    return `<section class="pane" role="tabpanel" id="gc-panel-${e(tab.id)}" aria-labelledby="gc-tab-${e(tab.id)}" data-card-panel="${e(tab.id)}" tabindex="0">${rows(tab, h)}${tab.note ? `<p class="note">${e(tab.note)}</p>` : ''}${groups(tab, h)}${lists(tab, h)}${legend}</section>`;
+    return `<section class="pane" role="tabpanel" id="gc-panel-${e(tab.id)}" aria-labelledby="gc-tab-${e(tab.id)}" data-card-panel="${e(tab.id)}" tabindex="0">${tab.lead ? `<p class="lead">${e(tab.lead)}</p>` : ''}${rows(tab, h)}${tab.note ? `<p class="note">${e(tab.note)}</p>` : ''}${groups(tab, h)}${lists(tab, h)}${legend}</section>`;
   }).join('');
   return `<article class="card back" aria-label="More info: ${e(v.title)}">
     <header class="bh">
@@ -273,7 +274,8 @@ function rollNumber(element, from, to, ms, signal) {
 
 /**
  * Vloer Native's restrained reaction to a moment the effects director plays: a border sweep in the moment's tone, the
- * chip that changed popping once, and the day count rolling up for a release or a finish step. Calm only lights the
+ * chip that changed popping once, the day count rolling up for a release or a finish step, and for a rarity reveal the
+ * frame ring lighting up in its metal. Calm only lights the
  * chip and the border in that tone, without movement. It draws inside the card and resolves when it is done.
  * @param {{ kind: string, at?: string }} moment
  * @param {{ front: Element, mode: 'full' | 'calm', durationMs: number, before?: object, view?: object, signal?: AbortSignal }} api
@@ -284,7 +286,9 @@ export function onMoment(moment, api) {
   const chip = card.querySelector(momentTargets[moment.kind] ?? '[data-slot="state"]');
   const length = Math.max(300, Math.min(api.durationMs ?? 900, 1400));
   const calm = api.mode !== 'full';
-  card.dataset.fxSweep = momentTones[moment.kind] ?? 'gold';
+  const frame = moment.kind === 'rarity' && !calm ? card.querySelector('.uc-frame') : null;
+  card.dataset.fxSweep = moment.kind === 'rarity' ? rarityTones[moment.detail?.tier] ?? 'gold' : momentTones[moment.kind] ?? 'gold';
+  if (frame) { frame.style.setProperty('--uc-reveal-ms', `${length}ms`); frame.dataset.reveal = ''; }
   card.dataset.fxMode = calm ? 'calm' : 'full';
   if (chip) chip.dataset.fxPop = calm ? 'calm' : 'full';
   const rolls = [];
@@ -294,7 +298,7 @@ export function onMoment(moment, api) {
     rolls.push(rollNumber(card.querySelector('.day b'), earlier ?? 0, api.view.release.days, 520, api.signal));
   }
   return new Promise(resolve => {
-    const end = () => { delete card.dataset.fxSweep; delete card.dataset.fxMode; if (chip) delete chip.dataset.fxPop; resolve(); };
+    const end = () => { delete card.dataset.fxSweep; delete card.dataset.fxMode; if (chip) delete chip.dataset.fxPop; if (frame) delete frame.dataset.reveal; resolve(); };
     const timer = setTimeout(() => Promise.all(rolls).then(end), length);
     api.signal?.addEventListener?.('abort', () => { clearTimeout(timer); end(); }, { once: true });
   });

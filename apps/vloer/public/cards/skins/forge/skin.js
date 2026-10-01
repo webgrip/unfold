@@ -2,7 +2,8 @@ import { render as nativeRender } from '../vloer-native/skin.js';
 import { webglSupport } from '../../registry.js';
 import { faceFacts, fallbackArt } from './forge-model.js';
 import { cardView } from '../../card-model.js';
-import { emitMoments } from '../../skin-kit.js';
+import { emitMoments, rarityMark } from '../../skin-kit.js';
+import { momentLook } from '../../effects/timeline.js';
 
 /** The skin's name, matching its folder and manifest. */
 export const id = 'forge';
@@ -66,7 +67,7 @@ function chip(view, h) {
   const day = release?.released ? `<span class="day" data-finish="${e(release.finish.key)}" data-source="${e(release.source)}"><b>${e(release.dayText)}</b><span class="dot" aria-hidden="true"></span><span class="fin">${e(release.finish.label)}</span></span>` : '';
   const condition = view.condition ? `<span class="forge-condition" data-condition="${e(view.condition.state)}" title="${e(view.condition.text)}">${e(view.condition.label)}</span>` : '';
   const set = view.set ? `<span class="forge-set" data-slot="set" title="${e(view.set.text)}">${h.icon('grid')}<span>${e(view.set.symbol)}</span></span>` : '';
-  return `<span class="chip" data-slot="state" data-tone="${e(view.state.tone)}" title="${e(view.state.description || '')}">${h.icon(view.state.glyph)}<span>${e(view.state.label)}</span></span>${day}${condition}${set}`;
+  return `<span class="chip" data-slot="state" data-tone="${e(view.state.tone)}" title="${e(view.state.description || '')}">${h.icon(view.state.glyph)}<span>${e(view.state.label)}</span></span>${day}${condition}${set}${rarityMark(view, h)}`;
 }
 
 function facts(view, facts, h) {
@@ -75,11 +76,12 @@ function facts(view, facts, h) {
   const grade = view.grade ? `<div><dt>Grade</dt><dd>${e(view.grade.description)}</dd></div>` : '';
   const set = view.set ? `<div><dt>Set</dt><dd>${e(`${view.set.text}${view.set.complete ? ' · complete' : ''}`)}</dd></div>` : '';
   const condition = view.condition ? `<div><dt>Condition</dt><dd>${e(view.condition.text)}</dd></div>` : '';
+  const rarity = view.rarity ? `<div><dt>Rarity</dt><dd>${e(view.rarity.why)}</dd></div>` : '';
   const finish = `<div><dt>Finish</dt><dd>${e(`${view.finish.label}: ${facts.coverage.label.toLowerCase()} · ${facts.pattern.label} foil, ${facts.art.label} art`)}</dd></div>`;
   return `<div class="forge-facts">
     <h3 class="title" data-slot="title">${e(view.title)}</h3>
     <dl>
-      ${rows}${grade}${condition}${set}${finish}
+      ${rows}${grade}${rarity}${condition}${set}${finish}
       <div data-slot="steward"><dt>Steward</dt><dd>${e(view.steward.signed ? `${view.steward.name} · ${view.steward.detail || 'signed'}` : `Unsigned · ${view.steward.detail}`)}</dd><span class="sr-only">${e(view.steward.text)}</span></div>
       <div><dt>Ids</dt><dd data-slot="ids">${e(view.ids.join(' · '))}</dd></div>
     </dl>
@@ -228,7 +230,8 @@ class ForgeController {
   /**
    * Plays a moment the effects director asked for. Full motion steps the scene back to the card as it was (`api.before`)
    * and, at the impact, forward to now with the moment's signature: the merge seal (a stamp, a glint and a ring of
-   * sparks), the release glint, the finish wiping in as its coverage rises, the crack drawing dark, the gold flowing
+   * sparks), the release glint, the rarity's metal sweeping into the frame as its predicted glow fades (larger for a
+   * higher tier), the finish wiping in as its coverage rises, the crack drawing dark, the gold flowing
    * into a mend, the grade and the completed set swelling. A still card renders frames for the ceremony and returns to
    * one still frame after. Calm shows the end state at once. Hit-stop and slow motion reach the scene through `api.time`.
    */
@@ -256,6 +259,7 @@ class ForgeController {
       case 'finish': scene.wipeIn(1.2); api.emit?.('prism', { count: 30, palette: 'prism' }); break;
       case 'cracked': scene.punch(0.04); scene.desaturate(0.55, 1); api.emit?.('debris', { count: 14, palette: 'ink' }); break;
       case 'mended': scene.pulse(0.45, 2); api.emit?.('flow', { count: 36, palette: 'gold' }); break;
+      case 'rarity': { const look = momentLook(moment); scene.punch(0.02 + look.level * 0.012); scene.glint(1 + look.level * 0.15); if (look.flash) flash(0.18 + look.level * 0.05); api.emit?.(look.shape, { count: 14 + look.level * 10, palette: look.palette }); break; }
       default: scene.punch(0.04); scene.glint(0.9); scene.pulse(0.35, 1.2); api.emit?.('sparks', { count: 20, palette: moment.kind === 'graded' ? 'silver' : 'gold' });
     }
     const until = performance.now() + Math.max(0, api.durationMs - (api.impactAt ?? 0)) + 400;

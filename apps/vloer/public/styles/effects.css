@@ -39,6 +39,7 @@ unfold-card[data-fx-pulse] {
 .fx-title[data-tone="prism"] { --fx-tone: oklch(82% 0.12 300); }
 .fx-title[data-tone="ink"] { --fx-tone: oklch(70% 0.02 230); }
 .fx-title[data-tone="silver"] { --fx-tone: oklch(88% 0.02 250); }
+.fx-title[data-tone="bronze"] { --fx-tone: oklch(74% 0.1 60); }
 
 .fx-title-text {
   position: absolute;

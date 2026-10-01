@@ -262,7 +262,8 @@ test('card moments mirror the server’s, and news is what happened since the pe
   assert.deepEqual(cardNews(card, { seenAt: null, snapshot: null }), []);
   const merged = card.plays.find(play => play.state === 'merged').mergedAt;
   const news = cardNews(card, { seenAt: new Date(Date.parse(merged) - 60_000).toISOString(), snapshot: cardSnapshot(card) });
-  assert.deepEqual(news.map(entry => entry.kind), ['merged', 'released']);
+  assert.deepEqual(news.map(entry => entry.kind), ['merged', 'released', 'rarity'], 'the rarity reveals at the release, after it');
+  assert.deepEqual(news[2].detail, { tier: 'uncommon', predicted: 'rare' });
   assert(news.every(entry => ceremonyKinds.includes(entry.kind)), 'minted is history, not news');
   assert.deepEqual(cardNews(card, { seenAt: new Date().toISOString(), snapshot: cardSnapshot(card) }), [], 'nothing after the mark');
   const graded = { ...card, grade: { overall: 8.5 } };
@@ -301,9 +302,9 @@ test('the seen gate plays news once: it marks before it plays, never replays, an
   const other = createSeenGate({ load: async () => ({ seenAt: new Date(merged - 60_000).toISOString(), snapshot: cardSnapshot(card) }), save: async (id, snapshot) => { order.push('save'); return { seenAt: new Date().toISOString(), snapshot }; }, play: news => order.push(`play ${news.length}`) });
   order.length = 0;
   const [a, b] = await Promise.all([other.check(card), other.check(card)]);
-  assert.deepEqual(a.map(entry => entry.kind), ['merged', 'released']);
+  assert.deepEqual(a.map(entry => entry.kind), ['merged', 'released', 'rarity']);
   assert.deepEqual(b, [], 'a second check of the same card, even at once, does not replay');
-  assert.deepEqual(order, ['save', 'play 2'], 'the mark moves before anything plays');
+  assert.deepEqual(order, ['save', 'play 3'], 'the mark moves before anything plays');
   hidden = true;
   const waiting = gate.check(structuredClone(ploegDemo.cards['117']));
   await flush();

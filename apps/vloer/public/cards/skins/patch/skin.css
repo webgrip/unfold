@@ -110,6 +110,23 @@
   color: #2a1d04;
 }
 
+.pt-hdr .uc-rarity {
+  align-self: center;
+  margin-inline-start: auto;
+  font-size: 0.6rem;
+  color: var(--pt-ink);
+}
+
+.pt .sk-card > .uc-frame {
+  position: absolute !important;
+  z-index: 4 !important;
+}
+
+:host([data-rarity-state="revealed"]) .pt-patch .pt-merrow {
+  stroke: var(--rarity-edge);
+  stroke-width: 4;
+}
+
 .pt-hdr {
   display: flex;
   justify-content: space-between;

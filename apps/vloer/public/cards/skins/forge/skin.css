@@ -70,6 +70,18 @@
   min-inline-size: 0;
 }
 
+.forge-bar .uc-rarity {
+  padding: 0.2rem 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--rarity-edge) 55%, transparent);
+  border-radius: var(--radius-sm, 6px);
+  color: var(--text);
+  background: color-mix(in srgb, var(--rarity-edge) 12%, transparent);
+}
+
+.forge-bar .uc-rarity[data-state="predicted"] {
+  border-style: dashed;
+}
+
 .forge-cost {
   font-size: var(--text-xs);
   font-weight: var(--weight-semibold);

@@ -93,7 +93,7 @@ const packCues = Object.freeze({
   },
 });
 
-const pitched = new Set(['seal', 'release', 'rise', 'crack', 'mend', 'grade', 'set', 'tick', 'whoosh']);
+const pitched = new Set(['seal', 'release', 'rarity', 'rise', 'crack', 'mend', 'grade', 'set', 'tick', 'whoosh']);
 
 const banks = new Map();
 
@@ -127,6 +127,7 @@ registerSoundBank('default', {
     crack: s => { s.tone(92, 0, 0.35, 'sine', 0.26, 46); s.filtered(0.28, 'lowpass', 700, 0.1, 0.004, 0.26); },
     mend: (s, { level = 2 } = {}) => { s.shimmer(12, 1100, 3000, 0.022); s.chord([293.66, 369.99, 440, 587.33], 1.8 + level * 0.2, 0.045); },
     grade: s => { s.tone(659.25, 0, 0.8, 'sine', 0.06); s.tone(987.77, 0.09, 1, 'sine', 0.05); },
+    rarity: (s, { level = 0 } = {}) => { [392, 493.88, 587.33, 783.99, 987.77].slice(0, 2 + Math.min(3, level)).forEach((note, i) => s.tone(note, i * 0.08, 0.7 + level * 0.25, 'triangle', 0.05)); if (level >= 3) s.shimmer(6 + level * 3, 1400, 3800, 0.02); if (level >= 4) s.tone(98, 0, 0.9, 'sine', 0.16, 49); },
     set: (s, { level = 3 } = {}) => { s.tone(130, 0, 0.6, 'sine', 0.2, 40); s.shimmer(14, 1200, 3600, 0.022); s.chord([261.63, 329.63, 392, 523.25, 659.25], 2 + level * 0.3, 0.04); },
     tick: s => s.tone(1800, 0, 0.05, 'square', 0.02),
     whoosh: s => s.filtered(0.6, 'bandpass', 300, 0.12, 0.35, 0.25, 3600),
@@ -143,6 +144,7 @@ registerSoundBank('bright', {
     crack: s => { s.tone(140, 0, 0.25, 'sine', 0.18, 70); s.filtered(0.2, 'bandpass', 1400, 0.06, 0.003, 0.18); },
     mend: (s, { level = 2 } = {}) => { s.shimmer(14, 1800, 4800, 0.02); s.chord([587.33, 739.99, 880, 1174.66], 1.4 + level * 0.2, 0.035, 'sine'); },
     grade: s => { s.tone(1318.51, 0, 0.6, 'sine', 0.05); s.tone(1975.53, 0.08, 0.8, 'sine', 0.04); },
+    rarity: (s, { level = 0 } = {}) => { [783.99, 987.77, 1174.66, 1567.98, 1975.53].slice(0, 2 + Math.min(3, level)).forEach((note, i) => s.tone(note, i * 0.07, 0.5 + level * 0.2, 'sine', 0.04)); if (level >= 3) s.shimmer(8 + level * 3, 2200, 5200, 0.018); },
     set: (s, { level = 3 } = {}) => { s.shimmer(16, 2000, 5200, 0.02); s.chord([523.25, 659.25, 783.99, 1046.5, 1318.51], 1.6 + level * 0.3, 0.035, 'sine'); },
     tick: s => s.tone(2600, 0, 0.04, 'sine', 0.02),
   },
