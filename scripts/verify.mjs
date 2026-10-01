@@ -34,6 +34,7 @@ const groups = [
       gate('apps/ploeg', 'openspec', ['validate', '--all', '--strict']),
     ],
   },
+  { name: 'brand', inputs: ['scripts/build-brand.mjs', 'docs/brand', 'apps/site/src/brand', 'apps/site/src/styles/brand.css', 'README.md'], gates: [gate('.', process.execPath, ['scripts/build-brand.mjs', '--check'])] },
   { name: 'site', inputs: ['apps/site'], gates: ['format:check', 'lint', 'typecheck', 'test', 'build'].map(site) },
   { name: 'helm', inputs: ['apps/vloer/ops/helm', 'apps/ploeg'], gates: [...helm, gate('apps/ploeg', 'sh', ['scripts/helm-golden.sh', 'check'])] },
   {

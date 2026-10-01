@@ -25,4 +25,4 @@ Read the [published documentation](https://docs.webgrip.dev/glide/) or start at 
 
 The import preserved both application histories and 70 namespaced tags. Package, Go module, image and chart names are unchanged. The [migration record](docs/migration.md) tracks the release cutover.
 
-Code is [Apache-2.0](LICENSE). Original notices and bundled third-party licenses remain with each application. The [Vloer](apps/vloer/docs/brand/TRADEMARK.md) and [Ploeg](apps/ploeg/docs/brand/TRADEMARK.md) mark policies apply.
+Code is [Apache-2.0](LICENSE). Original notices and bundled third-party licenses remain with each application. The [Unfold](docs/brand/TRADEMARK.md) (proposed), [Vloer](apps/vloer/docs/brand/TRADEMARK.md) and [Ploeg](apps/ploeg/docs/brand/TRADEMARK.md) mark policies apply. Unfold's identity is in [docs/brand](docs/brand/README.md).

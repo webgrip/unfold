@@ -34,6 +34,7 @@ Both applications live in this repository and deploy separately ([ADR-0002](adr/
 | Let agents work in a repository | [Prepare a repository](how-to/prepare-a-repository.md) |
 | Try a Team on ten real Work Items, or compare prompts, models and harnesses | [Run a pilot batch](how-to/run-a-pilot-batch.md) |
 | Operate Ploeg or Vloer | [Ploeg](../apps/ploeg/docs/index.md) · [Vloer](../apps/vloer/docs/index.md) |
+| Use the Unfold name, mark or colours | [Brand](brand/README.md) · [Trademark policy](brand/TRADEMARK.md) (proposed) |
 | Look up a term or a decision | [Glossary](reference/glossary.md) · [Decisions](reference/decisions.md) |
 | Change Unfold | [Repository instructions](../AGENTS.md) · [Documentation policy](documentation.md) · [CI and releases](operations/ci.md) |
 

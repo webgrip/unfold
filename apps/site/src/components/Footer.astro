@@ -1,9 +1,8 @@
 ---
-import { DOCS_URL, LICENSE_URL, SOURCE_URL } from '../config/site.ts';
+import { DOCS_URL, LICENSE_URL, SITE_NAME, SOURCE_URL } from '../config/site.ts';
 import type { Locale } from '../i18n/config.ts';
 import { dictionary } from '../i18n/index.ts';
-import Mark from './Mark.astro';
-import Wordmark from './Wordmark.astro';
+import Lockup from './Lockup.astro';
 
 interface Props {
   locale: Locale;
@@ -21,10 +20,7 @@ const links = [
 <footer class="site-footer">
   <div class="container footer-inner">
     <div class="footer-brand">
-      <div class="footer-lockup">
-        <Mark size={28} />
-        <Wordmark />
-      </div>
+      <Lockup height={24} label={SITE_NAME} />
       <p>{t.footer.summary}</p>
       <p class="footer-meta">{t.footer.origin}</p>
     </div>
@@ -49,12 +45,6 @@ const links = [
     flex-wrap: wrap;
     justify-content: space-between;
     gap: var(--space-6);
-  }
-
-  .footer-lockup {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
   }
 
   .footer-brand p {
