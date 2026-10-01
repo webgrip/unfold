@@ -1,0 +1,12 @@
+{
+  "id": "arcade",
+  "name": "Arcade Cabinet",
+  "version": "1.0.0",
+  "runtime": 1,
+  "extends": "vloer-native",
+  "stylesheet": "skin.css",
+  "script": "skin.js",
+  "finishes": ["matte", "foil", "holo", "prism", "gilded", "infinity"],
+  "moments": ["reveal", "state", "signed", "merged", "released", "finish", "grade", "gate", "bounce", "crack", "mend", "set"],
+  "themeTokens": ["--gc-accent", "--gc-surface", "--gc-radius"]
+}

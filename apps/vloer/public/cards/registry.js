@@ -5,7 +5,7 @@ export const runtimeVersion = 1;
 /** The skin a card gets when its Work Target names none, or one this Vloer does not ship. */
 export const defaultSkin = 'vloer-native';
 /** The skin packs shipped in the image. P1 loads first-party skins only; custom code skins need an administrator's opt-in, which is not built. */
-export const firstPartySkins = Object.freeze(['vloer-native', 'forge']);
+export const firstPartySkins = Object.freeze(['vloer-native', 'forge', 'holo', 'loot', 'arcade', 'ticker', 'patch']);
 /** How a skin draws: `dom` with markup and CSS, or `webgl2` in a canvas, which needs a fallback pack for browsers without WebGL2. */
 export const renderers = Object.freeze(['dom', 'webgl2']);
 /** The slots every skin must fill on the front. The runtime adds what a skin leaves out. */

@@ -1,0 +1,113 @@
+:host {
+  --sk-w: 20rem;
+  --sk-h: 32rem;
+  --sk-pad: clamp(0.75rem, 4cqi, 2.5rem);
+  --sk-vitrine: radial-gradient(120% 90% at 50% 20%, #1f2630 0%, #0c1015 60%, #050608 100%);
+  --sk-vitrine-ink: #e9edf2;
+  --sk-radius: var(--gc-radius, 12px);
+  --sk-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --sk-ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  inline-size: 100%;
+  container-type: inline-size;
+}
+
+.sk {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: var(--space-3, 0.75rem);
+  inline-size: 100%;
+  padding: var(--sk-pad) var(--sk-pad) calc(var(--sk-pad) * 0.75);
+  border-radius: var(--sk-radius);
+  background: var(--sk-vitrine);
+  color: var(--sk-vitrine-ink);
+  box-shadow: var(--shadow-md);
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.sk-card {
+  --lx: calc(var(--px, 0.5) * var(--po, 0) + var(--sk-dx) * (1 - var(--po, 0)));
+  --ly: calc(var(--py, 0.5) * var(--po, 0) + var(--sk-dy) * (1 - var(--po, 0)));
+  --lfar: min(1, hypot(var(--lx) - 0.5, var(--ly) - 0.5) * 2);
+  --langle: calc(atan2(var(--ly) - 0.5, var(--lx) - 0.5) + 90deg);
+  position: relative;
+  inline-size: min(var(--sk-w), 100%);
+  block-size: var(--sk-h);
+  transform: perspective(1100px) rotateY(calc(var(--rx, 0) * 1deg)) rotateX(calc(var(--ry, 0) * 1deg));
+  transform-style: preserve-3d;
+  text-align: start;
+}
+
+.sk-card *,
+.sk-card *::before,
+.sk-card *::after {
+  box-sizing: border-box;
+}
+
+.sk-card svg {
+  overflow: visible;
+}
+
+.sk-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1, 0.25rem);
+  min-block-size: var(--control-sm, 2rem);
+  padding: 0 var(--space-3, 0.75rem);
+  border: 1px solid rgb(255 255 255 / 0.22);
+  border-radius: var(--radius-md, 8px);
+  background: rgb(255 255 255 / 0.06);
+  color: var(--sk-vitrine-ink);
+  font: inherit;
+  font-size: var(--text-sm, 0.875rem);
+  font-weight: var(--weight-semibold, 600);
+  cursor: pointer;
+  transition: background var(--duration-fast, 120ms) var(--ease-standard, ease), border-color var(--duration-fast, 120ms) var(--ease-standard, ease);
+}
+
+.sk-more:hover {
+  background: rgb(255 255 255 / 0.12);
+  border-color: rgb(255 255 255 / 0.4);
+}
+
+.sk-more .icon {
+  inline-size: var(--icon-xs, 0.75rem);
+  block-size: var(--icon-xs, 0.75rem);
+}
+
+.gc-back {
+  display: grid;
+  place-items: start center;
+  padding: var(--sk-pad) var(--sk-pad) calc(var(--sk-pad) * 0.75);
+  border-radius: var(--sk-radius);
+  background: var(--sk-vitrine);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.gc-back .card.back {
+  inline-size: min(var(--sk-w), 100%);
+  block-size: var(--sk-h);
+  min-block-size: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk-card {
+    transform: none;
+  }
+
+  .sk *,
+  .sk *::before,
+  .sk *::after,
+  .sk-card {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .sk-more {
+    transition: none;
+  }
+}

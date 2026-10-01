@@ -624,8 +624,9 @@ terms:
     definition: >
       The look a Run Card is drawn in, chosen per Work Target in Ploeg's
       cardStyle. A Skin changes appearance and motion, never the facts or
-      where they sit. Built: Vloer Native. Proposed: five more Skins, with
-      per-Client themes on top.
+      where they sit. Built: Vloer Native, the 3D forge Skin, and Holo
+      Rarity, Loot Drop, Arcade Cabinet, Ticker Terminal and Mission Patch.
+      Proposed: per-Client themes on top.
     see_also: [Run Card, Work Target, Finish]
 retired_terms:
   - name: Workload

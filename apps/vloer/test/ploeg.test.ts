@@ -490,7 +490,12 @@ test('demo records stay illustrative: no spend, no model calls, and every record
   const upstreamApi = await upstream(t);
   const ploeg = client(upstreamApi.config);
   for (const id of Object.keys(ploegDemo.details)) assert.equal((await ploeg.detail(admin, id)).item.id, id);
-  for (const team of ploegDemo.teams) assert.equal((await ploeg.items(admin, team.id)).items.length, ploegDemo.items.filter(item => item.team === team.id).length);
+  for (const team of ploegDemo.teams) {
+    const listed: string[] = [];
+    let after: string | null = '0';
+    while (after !== null) { const page = await ploeg.items(admin, team.id, 'all', after); listed.push(...page.items.map(item => item.id)); after = page.nextCursor; }
+    assert.deepEqual(listed.sort(), ploegDemo.items.filter(item => item.team === team.id).map(item => item.id).sort(), `${team.id}: every demo Work Item passes the live parser`);
+  }
 });
 
 test('the Now projection lists waiting work, running Runs and recent Runs across the caller’s teams', async (t) => {
@@ -646,6 +651,8 @@ test('the card proxy passes a contract grade and condition through validated, an
   assert.deepEqual([(await ploeg.card(admin, '101', true)).card.grade, (await ploeg.card(admin, '101', true)).card.condition], [null, null]);
   upstreamApi.cards['101'] = { ...liveCard('101'), style: { skin: 'forge', theme: null } };
   assert.deepEqual((await ploeg.card(admin, '101', true)).card.style, { skin: 'forge', theme: null }, 'a Work Target can choose the forge skin');
+  upstreamApi.cards['101'] = { ...liveCard('101'), style: { skin: 'arcade', theme: null } };
+  assert.deepEqual((await ploeg.card(admin, '101', true)).card.style, { skin: 'arcade', theme: null }, 'a Work Target can choose a DOM skin pack');
 });
 
 test('the card proxy reads Ploeg card facts, keeps unknowns absent, drops rarity and Ploeg\'s finish, and drops a grade or condition it cannot read', async t => {
