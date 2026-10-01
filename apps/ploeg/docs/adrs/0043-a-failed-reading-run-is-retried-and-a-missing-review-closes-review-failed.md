@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-01
 decision-makers: Ryan Grippeling
 supersedes: none
@@ -178,6 +178,8 @@ gates this record.
 
 * Technical story: VIK-1304 (`ploeg: close a Shift whose reviewer Run failed as
   review_failed`), which this record decides.
+* 2026-10-01 — accepted by the owner, choosing the writer's budgets over a
+  single retry or no retry. Build order: this record's VIK-1304 goes first.
 * Evidence: `docs/research/2026-09-29-incident-work-item-138.md` (Work Item
   138, Shifts 113 and 118); Shift 90 / glide PR #7 (OOMKilled reviewer).
 * Refines [ADR-0019](0019-a-failed-writing-run-reopens-its-round.md) (readers
