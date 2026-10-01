@@ -17,9 +17,10 @@ const t = dictionary(locale);
 const home = routePath('home', locale);
 const anchor = (id: string) => (routeKey === 'home' ? `#${id}` : `${home}#${id}`);
 const nav = [
-  { href: anchor('loop'), label: t.nav.loop },
-  { href: anchor('parts'), label: t.nav.parts },
+  { href: anchor('how'), label: t.nav.how },
+  { href: anchor('pricing'), label: t.nav.pricing },
   { href: anchor('status'), label: t.nav.status },
+  { href: SOURCE_URL, label: t.nav.source },
 ];
 ---
 
@@ -40,7 +41,7 @@ const nav = [
     <div class="header-actions">
       <LocaleSwitcher locale={locale} routeKey={routeKey} label={t.a11y.switchLocale} />
       <ThemeToggle label={t.a11y.themeToggle} />
-      <a class="button button--secondary header-source" href={SOURCE_URL}>{t.nav.source}</a>
+      <a class="button button--primary header-cta" href={anchor('signup')}>{t.nav.signup}</a>
     </div>
   </div>
 </header>
@@ -94,7 +95,7 @@ const nav = [
     gap: var(--space-2);
   }
 
-  .header-source {
+  .header-cta {
     padding: var(--space-2) var(--space-4);
     font-size: var(--text-sm);
   }
@@ -110,7 +111,7 @@ const nav = [
   }
 
   @media (max-width: 26rem) {
-    .header-source {
+    .header-cta {
       display: none;
     }
   }

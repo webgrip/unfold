@@ -1,0 +1,19 @@
+{
+  "vloerVersion": "0.4.0-rc.32",
+  "recordedAt": "2026-10-01",
+  "seconds": 19.1,
+  "width": 1280,
+  "height": 720,
+  "poster": "/media/vloer-demo-poster.webp",
+  "sources": [
+    {
+      "src": "/media/vloer-demo.webm",
+      "type": "video/webm"
+    },
+    {
+      "src": "/media/vloer-demo.mp4",
+      "type": "video/mp4"
+    }
+  ],
+  "bytes": 1040926
+}

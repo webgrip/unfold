@@ -28,3 +28,14 @@ export const DEMO_GUIDE_URL = `${SOURCE_URL}/src/branch/development/docs/workflo
 export const LICENSE_URL = `${SOURCE_URL}/src/branch/development/LICENSE`;
 export const DOCS_URL = 'https://docs.webgrip.dev/glide/';
 export const LICENSE_ID = 'Apache-2.0';
+
+export const PRIVACY_VERSION = '2026-10-02';
+export const SIGNUP_RETENTION_MONTHS = 24;
+export const CONTROLLER = {
+  name: 'WebGrip',
+  person: 'Ryan Grippeling',
+  city: 'Enschede',
+  kvk: '75281120',
+  email: 'ryan@webgrip.nl',
+} as const;
+export const DEMO_REPLAY_PATH = '/demo';

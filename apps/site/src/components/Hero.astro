@@ -1,0 +1,518 @@
+---
+import { SOURCE_URL } from '../config/site.ts';
+import timeline from '../data/demo-timeline.json';
+import type { Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+import Mark from './Mark.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const t = dictionary(Astro.props.locale);
+const v = t.hero.visual;
+const checkpoints = [v.writer, v.checks, v.reviewer];
+const added = timeline.diff.split('\n').filter((line) => line.startsWith('+')).length;
+const removed = timeline.diff.split('\n').filter((line) => line.startsWith('-')).length;
+---
+
+<section class="hero" aria-labelledby="hero-title">
+  <div class="container hero-grid">
+    <div class="hero-copy">
+      <p class="eyebrow hero-in">{t.hero.eyebrow}</p>
+      <h1 id="hero-title" class="hero-in">{t.hero.title}</h1>
+      <p class="lede hero-lede hero-in">{t.hero.lede}</p>
+      <div class="button-row hero-actions hero-in">
+        <a class="button button--primary" href="#signup">{t.hero.primary}</a>
+        <a class="button button--secondary" href="#how">{t.hero.secondary}</a>
+      </div>
+      <p class="hero-source hero-in"><a href={SOURCE_URL}>{t.hero.source}</a></p>
+      <p class="note hero-in">{t.hero.demoNote}</p>
+    </div>
+
+    <div class="stage" role="img" aria-label={v.label}>
+      <svg class="stage-path" viewBox="0 0 500 500" aria-hidden="true" focusable="false">
+        <path class="trail-guide" d="M105 395 C240 410 285 170 395 110"></path>
+        <path class="trail" pathLength="1" d="M105 395 C240 410 285 170 395 110"></path>
+      </svg>
+
+      <div class="stage-card stage-item">
+        <span class="stage-kicker">{v.workItem}</span>
+        <span class="stage-title">{timeline.workItem.title}</span>
+        <span class="stage-line"></span>
+        <span class="stage-line stage-line--short"></span>
+      </div>
+
+      {checkpoints.map((point, index) => <div class={`checkpoint checkpoint--${index + 1}`}>
+        <span class="checkpoint-dot">
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path d="M4 8.5l2.5 2.5L12 5.5" />
+          </svg>
+        </span>
+        <span class="checkpoint-label">{point}</span>
+      </div>)}
+
+      <div class="stage-pr">
+        <span class="stage-kicker">{v.pullRequest}</span>
+        <span class="stage-title">{timeline.workItem.title}</span>
+        <span class="stage-diff">
+          <span class="diff-add">+{added}</span>
+          <span class="diff-del">−{removed}</span>
+          <span class="stage-files">src/order.js</span>
+        </span>
+        <span class="stage-status">{v.waiting}</span>
+        <span class="stage-merge">{v.merge}</span>
+      </div>
+
+      <div class="flight" aria-hidden="true">
+        <span class="plane"><Mark size={56} /></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .hero {
+    padding-block: var(--space-8) var(--space-8);
+    overflow: clip;
+  }
+
+  .hero-grid {
+    display: grid;
+    gap: var(--space-7);
+    align-items: center;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  }
+
+  @media (max-width: 56rem) {
+    .hero-grid {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-6);
+    }
+  }
+
+  .eyebrow {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: var(--space-4);
+  }
+
+  .hero h1 {
+    max-width: 18ch;
+  }
+
+  .hero-lede {
+    margin-top: var(--space-5);
+    max-width: 52ch;
+  }
+
+  .hero-actions {
+    margin-top: var(--space-6);
+  }
+
+  .hero-source {
+    margin-top: var(--space-4);
+    font-weight: var(--weight-medium);
+  }
+
+  .note {
+    margin-top: var(--space-4);
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+    max-width: 52ch;
+  }
+
+  .stage {
+    position: relative;
+    aspect-ratio: 1;
+    width: 100%;
+    max-width: 36rem;
+    justify-self: center;
+    container-type: inline-size;
+    font-size: clamp(0.7rem, 2.9cqi, 0.95rem);
+    border-radius: var(--radius-lg);
+    background:
+      radial-gradient(circle at 1px 1px, var(--grid-dot) 1px, transparent 1.5px) 0 0 / 20px 20px,
+      var(--bg-band);
+    border: var(--border-width) solid var(--border);
+  }
+
+  .stage-path {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  .trail-guide {
+    fill: none;
+    stroke: var(--border-strong);
+    stroke-width: 2;
+    stroke-dasharray: 2 8;
+    stroke-linecap: round;
+  }
+
+  .trail {
+    fill: none;
+    stroke: var(--accent-decor);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+  }
+
+  .stage-card,
+  .stage-pr {
+    position: absolute;
+    display: grid;
+    gap: 0.35em;
+    padding: 0.9em 1em;
+    background: var(--bg-raised);
+    border: var(--border-width) solid var(--border-strong);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+  }
+
+  .stage-card {
+    left: 4%;
+    top: 75%;
+    width: 34%;
+  }
+
+  .stage-pr {
+    right: 4%;
+    top: 4%;
+    width: 44%;
+    border-color: var(--accent-decor);
+  }
+
+  .stage-kicker {
+    font-size: 0.78em;
+    font-weight: var(--weight-semibold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .stage-title {
+    font-weight: var(--weight-display);
+    line-height: 1.2;
+  }
+
+  .stage-line {
+    height: 0.4em;
+    border-radius: 999px;
+    background: var(--border);
+  }
+
+  .stage-line--short {
+    width: 60%;
+  }
+
+  .stage-diff {
+    display: flex;
+    gap: 0.6em;
+    font-size: 0.85em;
+    font-variant-numeric: tabular-nums;
+    color: var(--fg-muted);
+  }
+
+  .diff-add {
+    color: var(--fg);
+    font-weight: var(--weight-semibold);
+  }
+
+  .diff-del {
+    color: var(--accent);
+    font-weight: var(--weight-semibold);
+  }
+
+  .stage-status {
+    justify-self: start;
+    padding: 0.2em 0.6em;
+    border-radius: 999px;
+    background: var(--accent-fill);
+    color: var(--accent-fg);
+    font-size: 0.8em;
+    font-weight: var(--weight-semibold);
+  }
+
+  .stage-merge {
+    font-size: 0.78em;
+    color: var(--fg-muted);
+  }
+
+  .checkpoint {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    translate: -0.75em -0.75em;
+    white-space: nowrap;
+  }
+
+  .checkpoint--1 {
+    left: 41.3%;
+    top: 70.3%;
+  }
+
+  .checkpoint--2 {
+    left: 52.9%;
+    top: 54.5%;
+  }
+
+  .checkpoint--3 {
+    left: 62.9%;
+    top: 38.6%;
+  }
+
+  .checkpoint-dot {
+    display: grid;
+    place-items: center;
+    width: 1.5em;
+    height: 1.5em;
+    border-radius: 50%;
+    background: var(--accent-fill);
+    box-shadow: 0 0 0 3px var(--bg-band);
+  }
+
+  .checkpoint-dot svg {
+    width: 1em;
+    height: 1em;
+    fill: none;
+    stroke: var(--accent-fg);
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .checkpoint-label {
+    padding: 0.15em 0.5em;
+    border-radius: var(--radius-sm);
+    background: var(--bg-raised);
+    border: var(--border-width) solid var(--border);
+    font-size: 0.82em;
+    font-weight: var(--weight-semibold);
+    margin-top: 2.4em;
+  }
+
+  .flight {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    transform: translate(79%, 22%);
+  }
+
+  .plane {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: block;
+    width: 14cqi;
+    translate: -50% -50%;
+    opacity: 0;
+  }
+
+  .plane :global(svg) {
+    width: 100%;
+    height: auto;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .hero-in {
+      animation: rise 700ms var(--ease-out) both;
+    }
+
+    .hero-copy > :nth-child(2) {
+      animation-delay: 60ms;
+    }
+
+    .hero-copy > :nth-child(3) {
+      animation-delay: 120ms;
+    }
+
+    .hero-copy > :nth-child(n + 4) {
+      animation-delay: 180ms;
+    }
+
+    .stage-card {
+      animation: rise 600ms var(--ease-out) 200ms both;
+    }
+
+    .plane {
+      animation:
+        plane-unfold 700ms var(--ease-out) 700ms both,
+        plane-arrive 400ms ease-in 3500ms forwards;
+    }
+
+    .plane :global(.mark-accent) {
+      transform-box: fill-box;
+      transform-origin: 100% 0;
+      animation: fold-open 700ms var(--ease-out) 700ms both;
+    }
+
+    .flight {
+      animation: fly 2400ms cubic-bezier(0.45, 0, 0.25, 1) 1300ms both;
+    }
+
+    .trail {
+      animation: draw 2400ms cubic-bezier(0.45, 0, 0.25, 1) 1300ms both;
+    }
+
+    .checkpoint-dot {
+      animation: tick 360ms var(--ease-out) both;
+    }
+
+    .checkpoint-label {
+      animation: rise 400ms var(--ease-out) both;
+    }
+
+    .checkpoint--1 > * {
+      animation-delay: 1900ms;
+    }
+
+    .checkpoint--2 > * {
+      animation-delay: 2550ms;
+    }
+
+    .checkpoint--3 > * {
+      animation-delay: 3150ms;
+    }
+
+    .stage-pr {
+      animation: land 600ms var(--ease-out) 3600ms both;
+    }
+
+    .stage-status {
+      animation: pop 500ms var(--ease-out) 4100ms both;
+    }
+  }
+
+  @keyframes rise {
+    from {
+      clip-path: inset(0 0 100% 0);
+      transform: translateY(14px);
+    }
+
+    to {
+      clip-path: inset(0 0 -20% 0);
+    }
+  }
+
+  @keyframes tick {
+    from {
+      opacity: 0;
+      transform: scale(0.4);
+    }
+
+    70% {
+      transform: scale(1.12);
+    }
+  }
+
+  @keyframes land {
+    from {
+      clip-path: inset(100% 0 0 0 round var(--radius-md));
+      transform: translateY(10px) scale(0.94);
+    }
+
+    to {
+      clip-path: inset(-10% -10% -10% -10% round var(--radius-md));
+    }
+  }
+
+  @keyframes pop {
+    from {
+      transform: scale(0);
+    }
+
+    70% {
+      transform: scale(1.1);
+    }
+  }
+
+  @keyframes draw {
+    from {
+      stroke-dashoffset: 1;
+    }
+  }
+
+  @keyframes fold-open {
+    from {
+      transform: scale(0.15, 0.15) rotate(-35deg);
+      opacity: 0;
+    }
+  }
+
+  @keyframes plane-unfold {
+    from {
+      opacity: 0;
+      scale: 0.5;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes plane-arrive {
+    from {
+      opacity: 1;
+    }
+
+    to {
+      opacity: 0;
+      scale: 0.6;
+    }
+  }
+
+  @keyframes fly {
+    0% {
+      transform: translate(21%, 79%);
+    }
+
+    10% {
+      transform: translate(28.59%, 78.46%);
+    }
+
+    20% {
+      transform: translate(35.29%, 75.38%);
+    }
+
+    30% {
+      transform: translate(41.28%, 70.28%);
+    }
+
+    40% {
+      transform: translate(46.74%, 63.69%);
+    }
+
+    50% {
+      transform: translate(51.88%, 56.12%);
+    }
+
+    60% {
+      transform: translate(56.86%, 48.11%);
+    }
+
+    70% {
+      transform: translate(61.87%, 40.17%);
+    }
+
+    80% {
+      transform: translate(67.11%, 32.82%);
+    }
+
+    90% {
+      transform: translate(72.76%, 26.59%);
+    }
+
+    100% {
+      transform: translate(79%, 22%);
+    }
+  }
+</style>

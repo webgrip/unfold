@@ -10,6 +10,10 @@
   margin: 0;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html {
   scroll-behavior: smooth;
   scroll-padding-top: calc(var(--header-height) + var(--space-4));
@@ -179,4 +183,42 @@ a:hover {
 
 .skip-link:focus {
   transform: none;
+}
+
+.button {
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
+}
+
+.button--primary:hover {
+  box-shadow: 0 6px 18px -8px var(--accent-fill);
+}
+
+.button:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .reveal {
+      animation: reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 90%;
+    }
+  }
+}
+
+@keyframes reveal {
+  from {
+    clip-path: inset(0 0 30% 0);
+    transform: translateY(28px);
+  }
+
+  to {
+    clip-path: inset(0 0 -10% 0);
+    transform: none;
+  }
 }

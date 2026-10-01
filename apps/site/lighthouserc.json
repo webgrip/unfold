@@ -3,7 +3,12 @@
     "collect": {
       "startServerCommand": "webgrip-serve-dist",
       "startServerReadyPattern": "serve-dist listening",
-      "url": ["http://localhost:4173/", "http://localhost:4173/nl"],
+      "url": [
+        "http://localhost:4173/",
+        "http://localhost:4173/nl",
+        "http://localhost:4173/privacy",
+        "http://localhost:4173/nl/privacy"
+      ],
       "numberOfRuns": 3,
       "settings": {
         "preset": "desktop",
@@ -12,15 +17,60 @@
     },
     "assert": {
       "assertions": {
-        "categories:performance": ["error", { "minScore": 0.99 }],
-        "categories:accessibility": ["error", { "minScore": 1 }],
-        "categories:best-practices": ["error", { "minScore": 1 }],
-        "categories:seo": ["error", { "minScore": 1 }],
-        "cumulative-layout-shift": ["error", { "maxNumericValue": 0.02 }],
-        "total-blocking-time": ["error", { "maxNumericValue": 100 }],
-        "render-blocking-resources": ["error", { "maxNumericValue": 0 }],
-        "errors-in-console": ["error", { "minScore": 1 }],
-        "total-byte-weight": ["error", { "maxNumericValue": 153600 }]
+        "categories:performance": [
+          "error",
+          {
+            "minScore": 0.99
+          }
+        ],
+        "categories:accessibility": [
+          "error",
+          {
+            "minScore": 1
+          }
+        ],
+        "categories:best-practices": [
+          "error",
+          {
+            "minScore": 1
+          }
+        ],
+        "categories:seo": [
+          "error",
+          {
+            "minScore": 1
+          }
+        ],
+        "cumulative-layout-shift": [
+          "error",
+          {
+            "maxNumericValue": 0.02
+          }
+        ],
+        "total-blocking-time": [
+          "error",
+          {
+            "maxNumericValue": 100
+          }
+        ],
+        "render-blocking-resources": [
+          "error",
+          {
+            "maxNumericValue": 0
+          }
+        ],
+        "errors-in-console": [
+          "error",
+          {
+            "minScore": 1
+          }
+        ],
+        "total-byte-weight": [
+          "error",
+          {
+            "maxNumericValue": 153600
+          }
+        ]
       }
     },
     "upload": {

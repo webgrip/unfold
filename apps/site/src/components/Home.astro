@@ -1,34 +1,38 @@
 ---
-import { DEMO_GUIDE_URL, DOCS_URL, LICENSE_URL, SOURCE_URL } from '../config/site.ts';
-import type { Locale } from '../i18n/config.ts';
+import {
+  DEMO_GUIDE_URL,
+  DEMO_REPLAY_PATH,
+  DOCS_URL,
+  LICENSE_URL,
+  SOURCE_URL,
+} from '../config/site.ts';
+import { DEFAULT_LOCALE, type Locale } from '../i18n/config.ts';
 import { dictionary } from '../i18n/index.ts';
+import DemoVideo from './DemoVideo.astro';
+import Hero from './Hero.astro';
+import Pricing from './Pricing.astro';
+import SignupForm from './SignupForm.astro';
+import Walkthrough from './Walkthrough.astro';
 
 interface Props {
   locale: Locale;
 }
 
-const t = dictionary(Astro.props.locale);
+const { locale } = Astro.props;
+const t = dictionary(locale);
+const replayPages = import.meta.glob('../pages/demo.astro');
+const replayReady = Object.keys(replayPages).length > 0;
+const replayHref = locale === DEFAULT_LOCALE ? DEMO_REPLAY_PATH : `/${locale}${DEMO_REPLAY_PATH}`;
 ---
 
-<section class="hero section" aria-labelledby="hero-title">
-  <div class="container">
-    <p class="eyebrow">{t.hero.eyebrow}</p>
-    <h1 id="hero-title">{t.hero.title}</h1>
-    <p class="lede hero-lede">{t.hero.lede}</p>
-    <div class="button-row hero-actions">
-      <a class="button button--primary" href={SOURCE_URL}>{t.hero.primary}</a>
-      <a class="button button--secondary" href={DEMO_GUIDE_URL}>{t.hero.secondary}</a>
-    </div>
-    <p class="note">{t.hero.demoNote}</p>
-  </div>
-</section>
+<Hero locale={locale} />
 
 <section id="loop" class="section section--band" aria-labelledby="loop-title">
   <div class="container">
-    <h2 id="loop-title" class="section-title">{t.loop.title}</h2>
-    <p class="lede">{t.loop.intro}</p>
+    <h2 id="loop-title" class="section-title reveal">{t.loop.title}</h2>
+    <p class="lede reveal">{t.loop.intro}</p>
     <ol class="loop">
-      {t.loop.steps.map((step, index) => <li class="loop-step card">
+      {t.loop.steps.map((step, index) => <li class="loop-step card reveal">
         <span class="loop-index" aria-hidden="true">
           {String(index + 1).padStart(2, '0')}
         </span>
@@ -40,11 +44,52 @@ const t = dictionary(Astro.props.locale);
   </div>
 </section>
 
-<section id="parts" class="section" aria-labelledby="parts-title">
+<section id="how" class="section" aria-labelledby="how-title">
+  <div class="container how">
+    <div class="how-head">
+      <h2 id="how-title" class="section-title reveal">{t.how.title}</h2>
+      <p class="lede reveal">{t.how.intro}</p>
+    </div>
+    <Walkthrough locale={locale} />
+    <div class="how-more">
+      <DemoVideo locale={locale} />
+      <aside class="replay card" data-slot="demo-replay" aria-labelledby="replay-title">
+        <h3 id="replay-title">{t.how.replay.title}</h3>
+        <p>{t.how.replay.text}</p>
+        {replayReady ? (
+          <a class="button button--secondary" href={replayHref}>
+            {t.how.replay.link}
+          </a>
+        ) : (
+          <p class="replay-soon">{t.how.replay.soon}</p>
+        )}
+        <p class="replay-run">
+          <a href={DEMO_GUIDE_URL}>{t.how.runIt}</a>
+        </p>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<section class="section section--band" aria-labelledby="guards-title">
   <div class="container">
-    <h2 id="parts-title" class="section-title">{t.parts.title}</h2>
+    <h2 id="guards-title" class="section-title reveal">{t.guards.title}</h2>
+    <dl class="grid grid--4 guards">
+      {t.guards.items.map((item) => <div class="guard reveal">
+        <dt>{item.title}</dt>
+        <dd>{item.text}</dd>
+      </div>)}
+    </dl>
+  </div>
+</section>
+
+<Pricing locale={locale} />
+
+<section id="parts" class="section section--band" aria-labelledby="parts-title">
+  <div class="container">
+    <h2 id="parts-title" class="section-title reveal">{t.parts.title}</h2>
     <div class="grid grid--2">
-      {t.parts.items.map((part) => <article class="card part">
+      {t.parts.items.map((part) => <article class="card part reveal">
         <p class="part-role">{part.role}</p>
         <h3>{part.name}</h3>
         <p>{part.text}</p>
@@ -54,29 +99,18 @@ const t = dictionary(Astro.props.locale);
   </div>
 </section>
 
-<section class="section section--band" aria-labelledby="guards-title">
-  <div class="container">
-    <h2 id="guards-title" class="section-title">{t.guards.title}</h2>
-    <dl class="grid grid--4 guards">
-      {t.guards.items.map((item) => <div class="guard">
-        <dt>{item.title}</dt>
-        <dd>{item.text}</dd>
-      </div>)}
-    </dl>
-  </div>
-</section>
-
 <section class="section" aria-labelledby="open-title">
   <div class="container split">
-    <div>
+    <div class="reveal">
       <h2 id="open-title" class="section-title">{t.open.title}</h2>
       <p>{t.open.text}</p>
       <p class="links">
         <a href={LICENSE_URL}>{t.open.license}</a>
         <a href={DOCS_URL}>{t.open.docs}</a>
+        <a href={SOURCE_URL}>{t.open.source}</a>
       </p>
     </div>
-    <div id="status">
+    <div id="status" class="reveal">
       <h2 class="section-title">{t.status.title}</h2>
       <dl class="status">
         {t.status.items.map((item) => <div class="status-item">
@@ -88,44 +122,9 @@ const t = dictionary(Astro.props.locale);
   </div>
 </section>
 
-<section class="section cta" aria-labelledby="cta-title">
-  <div class="container cta-inner">
-    <h2 id="cta-title">{t.cta.title}</h2>
-    <p>{t.cta.text}</p>
-    <div class="button-row">
-      <a class="button button--primary" href={SOURCE_URL}>{t.hero.primary}</a>
-      <a class="button button--secondary" href={DEMO_GUIDE_URL}>{t.hero.secondary}</a>
-    </div>
-  </div>
-</section>
+<SignupForm locale={locale} />
 
 <style>
-  .hero {
-    padding-block: var(--space-9) var(--space-8);
-  }
-
-  .eyebrow {
-    font-size: var(--text-sm);
-    font-weight: var(--weight-semibold);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--accent);
-    margin-bottom: var(--space-4);
-  }
-
-  .hero h1 {
-    max-width: 20ch;
-  }
-
-  .hero-lede {
-    margin-top: var(--space-5);
-    max-width: 60ch;
-  }
-
-  .hero-actions {
-    margin-top: var(--space-6);
-  }
-
   .note {
     margin-top: var(--space-4);
     font-size: var(--text-sm);
@@ -139,7 +138,18 @@ const t = dictionary(Astro.props.locale);
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
     gap: var(--space-4);
-    counter-reset: none;
+  }
+
+  .loop-step {
+    position: relative;
+    transition:
+      transform var(--duration-base) var(--ease-out),
+      border-color var(--duration-base) var(--ease-out);
+  }
+
+  .loop-step:hover {
+    transform: translateY(-3px);
+    border-color: var(--border-strong);
   }
 
   .loop-step h3 {
@@ -162,6 +172,49 @@ const t = dictionary(Astro.props.locale);
     border-left: 3px solid var(--accent-decor);
     padding-left: var(--space-3);
     margin-top: var(--space-5);
+  }
+
+  .how {
+    display: grid;
+    gap: var(--space-6);
+  }
+
+  .how-head .lede {
+    max-width: 62ch;
+  }
+
+  .how-more {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: var(--space-5);
+    align-items: start;
+  }
+
+  @media (max-width: 56rem) {
+    .how-more {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .replay {
+    display: grid;
+    gap: var(--space-3);
+    justify-items: start;
+    padding: var(--space-6);
+    border-style: dashed;
+    border-color: var(--border-strong);
+  }
+
+  .replay p {
+    color: var(--fg-muted);
+  }
+
+  .replay-soon {
+    font-weight: var(--weight-semibold);
+  }
+
+  .replay-run {
+    font-size: var(--text-sm);
   }
 
   .grid {
@@ -237,19 +290,5 @@ const t = dictionary(Astro.props.locale);
       grid-template-columns: 1fr;
       gap: var(--space-1);
     }
-  }
-
-  .cta {
-    border-top: var(--border-width) solid var(--border);
-  }
-
-  .cta-inner {
-    display: grid;
-    gap: var(--space-4);
-    justify-items: start;
-  }
-
-  .cta-inner p {
-    color: var(--fg-muted);
   }
 </style>

@@ -2,6 +2,7 @@
 
 :root {
   --font-sans: var(--brand-font);
+  --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 
   --text-sm: clamp(0.875rem, 0.85rem + 0.12vw, 0.925rem);
   --text-base: clamp(1rem, 0.96rem + 0.2vw, 1.075rem);
@@ -30,6 +31,7 @@
 
   --radius-sm: 4px;
   --radius-md: 8px;
+  --radius-lg: 16px;
   --border-width: 1px;
 
   --width-prose: 68ch;
@@ -38,6 +40,7 @@
 
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --duration-fast: 120ms;
+  --duration-base: 240ms;
 }
 
 :root,
@@ -64,6 +67,12 @@
   --link-hover: var(--brand-ink);
 
   --focus-ring: var(--brand-accent-deep);
+
+  --grid-dot: color-mix(in oklab, var(--brand-ink) 16%, transparent);
+  --shadow-card:
+    0 1px 2px color-mix(in oklab, var(--brand-ink) 8%, transparent),
+    0 8px 24px -12px color-mix(in oklab, var(--brand-ink) 28%, transparent);
+  --code-bg: var(--bg-raised);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -90,6 +99,10 @@
     --link-hover: var(--brand-paper);
 
     --focus-ring: var(--brand-accent-night);
+
+    --grid-dot: color-mix(in oklab, var(--brand-paper) 12%, transparent);
+    --shadow-card: 0 0 0 1px color-mix(in oklab, var(--brand-paper) 6%, transparent);
+    --code-bg: var(--brand-ground-dark);
   }
 }
 
@@ -116,4 +129,8 @@
   --link-hover: var(--brand-paper);
 
   --focus-ring: var(--brand-accent-night);
+
+  --grid-dot: color-mix(in oklab, var(--brand-paper) 12%, transparent);
+  --shadow-card: 0 0 0 1px color-mix(in oklab, var(--brand-paper) 6%, transparent);
+  --code-bg: var(--brand-ground-dark);
 }

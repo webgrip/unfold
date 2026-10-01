@@ -1,6 +1,6 @@
 # Site architecture
 
-The site is a static Astro build. Every page is HTML at build time; the only JavaScript is the theme toggle and a pre-paint theme script. The toolchain comes from the Webgrip estate's shared packages (`@webgrip/tsconfig`, `@webgrip/eslint-config-astro`, `@webgrip/prettier-config` and `@webgrip/astro-site-toolkit`), pinned to the versions webgrip.nl uses, so the three Astro sites keep the same rules.
+The site is a static Astro build with one small Worker for the sign-up form. Every page is HTML at build time and works without JavaScript; the scripts that exist enhance it: the theme toggle and its pre-paint script, the walkthrough player, the video's play-when-visible and the form's inline confirmation. The toolchain comes from the Webgrip estate's shared packages (`@webgrip/tsconfig`, `@webgrip/eslint-config-astro`, `@webgrip/prettier-config` and `@webgrip/astro-site-toolkit`), pinned to the versions webgrip.nl uses, so the three Astro sites keep the same rules.
 
 ## Package manager
 
@@ -36,10 +36,28 @@ Copy is a typed dictionary per locale. `nl.ts` is typed against `en.ts`, and `sr
 
 ## Output and security
 
-`build.format: 'file'` writes `index.html`, `nl.html`, `404.html` and `nl/404.html`; Cloudflare's `html_handling = "auto-trailing-slash"` serves them at clean URLs, and `not_found_handling = "404-page"` serves the nearest `404.html`. `trailingSlash: 'never'` keeps canonical URLs without a trailing slash.
+`build.format: 'file'` writes one HTML file per page and locale (`index.html`, `nl.html`, `privacy.html`, `thanks.html`, `signup-problem.html`, `404.html` and their `nl/` twins); Cloudflare's `html_handling = "auto-trailing-slash"` serves them at clean URLs, and `not_found_handling = "404-page"` serves the nearest `404.html`. `trailingSlash: 'never'` keeps canonical URLs without a trailing slash.
 
 Stylesheets are inlined (`inlineStylesheets: 'always'`), and Vite never inlines assets as `data:` URIs (`assetsInlineLimit: 0`), because `font-src 'self'` would block an inlined font. `compressHTML` stays off: the compressor can remove the space between a text node and a following element.
 
-Astro writes a meta CSP with a hash for every inline script and style and no `unsafe-inline`. `pnpm build` ends with `webgrip-validate-csp`, which fails the build when an inline script or style below the CSP meta is not authorised by that page's policy. `public/_headers` adds the headers a meta CSP cannot carry, `frame-ancestors 'none'` among them. `lighthouserc.json` lists every indexable page, and `scripts/axe-scan.ts` scans those pages plus both 404 pages with axe.
+Astro writes a meta CSP with a hash for every inline script and style and no `unsafe-inline`. `pnpm build` ends with `webgrip-validate-csp`, which fails the build when an inline script or style below the CSP meta is not authorised by that page's policy. `public/_headers` adds the headers a meta CSP cannot carry, `frame-ancestors 'none'` among them. `lighthouserc.json` lists every indexable page, and `scripts/axe-scan.ts` scans those pages plus the 404, thanks and problem pages with axe. The sitemap leaves out the 404, thanks and problem pages, which are `noindex`.
 
-Deployment, releases and indexing are in [deploy](deploy.md). Nothing on the site loads a third-party resource: fonts are self-hosted, and there is no analytics, telemetry, form or embed.
+Deployment, releases and indexing are in [deploy](deploy.md). Nothing on the site loads a third-party resource: fonts and the demo video are self-hosted, and there is no analytics, telemetry or embed. The form posts to the site's own Worker.
+
+## The sign-up Worker
+
+[ADR-0015](../../../docs/adr/adr-0015-site-sign-ups-are-stored-in-cloudflare-d1-in-the-eu.md) records the decision. `wrangler.toml` points `main` at `src/worker/index.ts`, binds the assets as `ASSETS` and limits `run_worker_first` to `/api/*`, so pages never pass through code. The entry module exports only its default handler, because workerd reads every named export as an entrypoint; the routing lives in `src/worker/app.ts` and the form handling in `src/worker/signup.ts`, which the form component imports for its field names and the four interests.
+
+`POST /api/signup` answers a plain form with a 303 to `/thanks` or `/signup-problem` in the form's locale, and a request with `Accept: application/json` with JSON. The handler creates the `signups` table if it is missing and upserts by lowercase email. It stores the email, the interest, the locale, `PRIVACY_VERSION` and the time, and nothing from the request itself; invocation logs are off in `wrangler.toml`. A filled `homepage` field (the honeypot) is answered as a success and stored nowhere. A cron trigger runs the retention job daily and deletes rows older than `SIGNUP_RETENTION_MONTHS`. `src/worker/signup.test.ts` covers the handler with a fake D1; `wrangler dev` runs it against a local D1.
+
+The controller's details, the privacy version and the retention period are constants in `src/config/site.ts`. The privacy copy repeats them in both dictionaries, and `src/config/privacy.test.ts` fails when they drift.
+
+## How it works, on the page
+
+The page shows the deterministic demo two ways, and leaves a slot for a third.
+
+- **The walkthrough** plays `src/data/demo-timeline.json`, which `scripts/demo-timeline.ts` writes from a real run of Vloer's deterministic demo: it starts `createApplication(loadConfig(['--demo']))` in-process, creates the same session Vloer's own Run the demonstration button creates, waits for it and turns its history into events with run ids replaced by `run-1`, `run-2` and times rounded to 100 ms after the Work Item was created. `mise run site-timeline` rewrites it. `scripts/demo-timeline.ts --check` runs the demo again and fails when anything but the event offsets differs; the mask is `VOLATILE_FIELDS` in `src/lib/timeline.ts`. `mise run verify` runs the check in its `site-demo` group, so a change to the demo's shape fails until the timeline is regenerated. Every step is rendered as HTML at build time; the script only reveals the steps at their recorded offsets, once when the walkthrough scrolls into view and again from its button. Without JavaScript or under reduced motion every step is visible at once.
+- **The recording** in `public/media` is written by `mise run site-video` (`scripts/record-demo-video.ts`). It starts the same demo, drives Vloer's UI with Playwright through Run the demonstration, the Changes tab and the Checks tab, and writes a VP9 webm, an H.264 mp4 and a WebP poster, with `src/data/demo-video.json` naming the files, the Vloer version and the date. It needs a local Chromium (`CHROME_PATH`, or the newest one under `~/.cache/ms-playwright`) and uses ffmpeg from `FFMPEG`, `PATH` or `uvx --from imageio-ffmpeg`; without ffmpeg it keeps the raw Playwright webm and a PNG poster. CI has no Chromium, so nothing re-records the video there; the timeline check prints a notice when the recorded Vloer version differs from `apps/vloer/package.json`, and the caption shows the version it was recorded with. The video is muted, loops, plays inline and has controls; it starts only while it is on screen and never by itself under reduced motion. `preload="none"` keeps it out of the first load.
+- **The full replay** is a separate page at `/demo`. The slot in `Home.astro` (`data-slot="demo-replay"`) links to it once `src/pages/demo.astro` exists and says it is coming until then.
+
+The hero animation is CSS only. Motion uses transforms and clip paths rather than opacity on text, so axe measures contrast on final colours at any moment, and every animation sits under `prefers-reduced-motion: no-preference`. Scroll reveals (`.reveal` in `global.css`) use `animation-timeline: view()` where the browser supports it and are static elsewhere.

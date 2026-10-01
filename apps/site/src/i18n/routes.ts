@@ -2,6 +2,9 @@ import { DEFAULT_LOCALE, LOCALES, LOCALE_TAGS, type Locale } from './config.ts';
 
 export const ROUTES = {
   home: '',
+  privacy: '/privacy',
+  thanks: '/thanks',
+  signupProblem: '/signup-problem',
   notFound: '/404',
 } as const;
 

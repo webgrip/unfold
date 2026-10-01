@@ -1,0 +1,115 @@
+---
+import video from '../data/demo-video.json';
+import type { Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+
+interface Props {
+  locale: Locale;
+}
+
+const t = dictionary(Astro.props.locale).how.video;
+const webm = video.sources.find((source) => source.type === 'video/webm');
+---
+
+<figure class="video card">
+  <div class="video-head">
+    <h3 class="video-title">{t.title}</h3>
+    <p class="video-lead">{t.lead}</p>
+  </div>
+  <div class="video-frame">
+    <video
+      class="video-player"
+      data-demo-video
+      width={video.width}
+      height={video.height}
+      poster={video.poster}
+      muted
+      loop
+      playsinline
+      controls
+      preload="none"
+    >
+      {video.sources.map((source) => (
+        <source src={source.src} type={source.type} />
+      ))}
+      <p>
+        {t.fallback}
+        {webm && <a href={webm.src}>{webm.src.split('/').pop()}</a>}
+      </p>
+    </video>
+  </div>
+  <figcaption class="video-caption">{t.caption} {video.vloerVersion}.</figcaption>
+</figure>
+
+<style>
+  .video {
+    display: grid;
+    gap: var(--space-4);
+    padding: var(--space-6);
+    margin: 0;
+  }
+
+  @media (max-width: 44rem) {
+    .video {
+      padding: var(--space-4);
+    }
+  }
+
+  .video-title {
+    font-size: var(--text-xl);
+  }
+
+  .video-lead {
+    margin-top: var(--space-2);
+    color: var(--fg-muted);
+  }
+
+  .video-frame {
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: var(--border-width) solid var(--border-strong);
+    background: var(--code-bg);
+  }
+
+  .video-player {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .video-caption {
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+  }
+</style>
+
+<script>
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+  for (const player of document.querySelectorAll<HTMLVideoElement>('[data-demo-video]')) {
+    if (!('IntersectionObserver' in window)) continue;
+    let userPaused = false;
+    player.addEventListener('pause', () => {
+      if (document.visibilityState === 'visible' && player.dataset['autoPause'] !== '1')
+        userPaused = true;
+      delete player.dataset['autoPause'];
+    });
+    player.addEventListener('play', () => {
+      userPaused = false;
+    });
+    new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (reduced.matches || userPaused) continue;
+          if (entry.isIntersecting) {
+            player.preload = 'auto';
+            void player.play().catch(() => undefined);
+          } else if (!player.paused) {
+            player.dataset['autoPause'] = '1';
+            player.pause();
+          }
+        }
+      },
+      { threshold: 0.5 },
+    ).observe(player);
+  }
+</script>
