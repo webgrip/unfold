@@ -13,7 +13,7 @@ run_worker_first = ["/api/*"]
 [[d1_databases]]
 binding = "SIGNUPS"
 database_name = "unfold-site-signups"
-database_id = "PASTE-THE-EU-D1-DATABASE-ID-HERE"
+database_id = "df25762e-eea2-41be-b772-b74f5e2b187c"
 
 [triggers]
 crons = ["17 3 * * *"]
