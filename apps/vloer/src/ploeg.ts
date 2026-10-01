@@ -38,12 +38,16 @@ export type PloegRunFilter = { team?: string; state?: string; outcome?: string; 
 export type PloegCardStyle = { skin: string; theme: string | null };
 export type PloegCardCheck = { context: string; state: string };
 export type PloegCardReview = { reviewer: string; state: string; receivedAt: string | null; headSha: string };
-export type PloegCardPlay = { number: number; url: string; state: string; shiftId: string | null; branch: string; headSha: string; mergeCommitSha: string; mergedAt: string | null; mergedBy: string; closedAt: string | null; additions?: number; deletions?: number; changedFiles?: number; ci: { state: string; checks: PloegCardCheck[]; headSha: string; capturedAt: string | null } | null; reviews: PloegCardReview[] };
+export type PloegCardPlay = { number: number; url: string; state: string; shiftId: string | null; branch: string; headSha: string; mergeCommitSha: string; mergedAt: string | null; mergedBy: string; closedAt: string | null; additions?: number; deletions?: number; changedFiles?: number; ci: { state: string; checks: PloegCardCheck[]; headSha: string; capturedAt: string | null } | null; reviews: PloegCardReview[]; deployments?: PloegCardDeployment[] };
 export type PloegCardCrew = { role: string; writes: boolean | null; runs?: number; costUsd?: number; inputTokens?: number; outputTokens?: number };
 export type PloegCardTotals = { costStatus: 'observed' | 'reserved' | 'not_reported'; usageComplete: boolean | null; firstRunAt: string | null; lastRunAt: string | null } & Partial<Record<'costUsd' | 'authorizedUsd' | 'inputTokens' | 'outputTokens' | 'cacheReadInputTokens' | 'cacheCreationInputTokens' | 'turns' | 'toolCalls' | 'runs' | 'failedRuns' | 'rounds' | 'shifts' | 'runSeconds', number>>;
 export type PloegCardEvent = { at: string; kind: string; actor: string; detail: Record<string, string | number | boolean> };
-/** A Run card: one per Work Item, its pull requests as plays. Facts only; an unknown value is absent or null, never zero. P1 always carries `rarity`, `grade` and `condition` as null and `finish` as `matte`. */
-export type PloegCard = { workItemId: string; title: string; externalRef: string; url: string; team: string; target: { forge: string; owner: string; repo: string } | null; style: PloegCardStyle; state: string; rarity: null; finish: 'matte'; grade: null; condition: null; steward: { name: string; source: string } | null; roster: { name: string; roles: string[] }[]; crew: PloegCardCrew[]; plays: PloegCardPlay[]; totals: PloegCardTotals; events: PloegCardEvent[]; demo: boolean };
+/** The first deploy of a Work Item's merged plays to one environment. */
+export type PloegCardDeployment = { environment: string; firstDeployedAt: string | null; sha: string; url: string };
+/** When the latest merged play reached production (`deploy`), or its merge when the project reports no deploys (`merge`). */
+export type PloegCardRelease = { at: string; source: string; environment: string };
+/** A Run card: one per Work Item, its pull requests as plays. Facts only; an unknown value is absent or null, never zero. The proxy always carries `rarity`, `grade` and `condition` as null and `finish` as `matte`; Vloer derives the finish from `release`. An older Ploeg sends no `deployments` or `release`, and they stay absent. */
+export type PloegCard = { workItemId: string; title: string; externalRef: string; url: string; team: string; target: { forge: string; owner: string; repo: string } | null; style: PloegCardStyle; state: string; rarity: null; finish: 'matte'; grade: null; condition: null; steward: { name: string; source: string } | null; roster: { name: string; roles: string[] }[]; crew: PloegCardCrew[]; plays: PloegCardPlay[]; totals: PloegCardTotals; events: PloegCardEvent[]; deployments?: PloegCardDeployment[]; release?: PloegCardRelease | null; demo: boolean };
 export type PloegCardView = { card: PloegCard; demo: boolean; fetchedAt: string };
 export type PloegOverview ={ configured: boolean; available: boolean; demo: boolean; teams: PloegTeam[]; selectedTeam?: string; lanes?: Record<PloegLane, PloegPresentedPage>; fetchedAt?: string; trackerUrl?: string; message: string };
 
@@ -197,7 +201,7 @@ function cardPlay(value: unknown): PloegCardPlay {
   const ci = status ? { state: cardToken(status.state, 'unknown'), checks: cardList(status.checks, entry => { const check = record(entry); return { context: field(check.context, 256), state: cardToken(check.state, 'unknown') }; }, 100), headSha: cardText(status.headSha, 64), capturedAt: cardTime(status.capturedAt) } : null;
   const reviews = cardList(data.reviews, entry => { const review = record(entry); return { reviewer: cardText(review.reviewer), state: cardToken(review.state, 'commented'), receivedAt: cardTime(review.receivedAt), headSha: cardText(review.headSha, 64) }; }, 200);
   const counts = ['additions', 'deletions', 'changedFiles'] as const;
-  return { number: data.number, url: absent(data.url) ? '' : link(data.url), state: cardToken(data.state), shiftId: looseId(data.shiftId), branch: cardText(data.branch, 512), headSha: cardText(data.headSha, 64), mergeCommitSha: cardText(data.mergeCommitSha, 64), mergedAt: cardTime(data.mergedAt), mergedBy: cardText(data.mergedBy), closedAt: cardTime(data.closedAt), ...optionalNumbers(data, counts, counts), ci, reviews };
+  return { number: data.number, url: absent(data.url) ? '' : link(data.url), state: cardToken(data.state), shiftId: looseId(data.shiftId), branch: cardText(data.branch, 512), headSha: cardText(data.headSha, 64), mergeCommitSha: cardText(data.mergeCommitSha, 64), mergedAt: cardTime(data.mergedAt), mergedBy: cardText(data.mergedBy), closedAt: cardTime(data.closedAt), ...optionalNumbers(data, counts, counts), ci, reviews, ...cardDeployments(data.deployments) };
 }
 function cardCrew(value: unknown): PloegCardCrew {
   const data = record(value);
@@ -222,7 +226,19 @@ function cardEvent(value: unknown): PloegCardEvent {
   }
   return { at: timestamp(data.at), kind: cardToken(data.kind, 'unknown'), actor: cardText(data.actor), detail };
 }
-/** Validates a Run card from Ploeg: known fields only, safe links, bounded lists, absent values kept absent. P1 drops any rarity, grade or condition. */
+function cardDeployment(value: unknown): PloegCardDeployment {
+  const data = record(value);
+  return { environment: field(data.environment, 64).toLowerCase(), firstDeployedAt: cardTime(data.firstDeployedAt), sha: cardText(data.sha, 64), url: absent(data.url) ? '' : link(data.url) };
+}
+function cardDeployments(value: unknown): { deployments?: PloegCardDeployment[] } {
+  return value === undefined ? {} : { deployments: cardList(value, cardDeployment, 50).filter(entry => entry.environment) };
+}
+function cardRelease(value: unknown): PloegCardRelease | null {
+  if (value === null) return null;
+  const data = record(value);
+  return { at: timestamp(data.at), source: cardToken(data.source, 'deploy'), environment: absent(data.environment) || data.environment === '' ? 'production' : field(data.environment, 64).toLowerCase() };
+}
+/** Validates a Run card from Ploeg: known fields only, safe links, bounded lists, absent values kept absent. It drops any rarity, grade, condition or finish. */
 export function parseCard(value: unknown): PloegCard {
   const data = record(value);
   const style = absent(data.style) ? {} : record(data.style);
@@ -247,6 +263,8 @@ export function parseCard(value: unknown): PloegCard {
     plays: cardList(data.plays, cardPlay, 100),
     totals: cardTotals(data.totals),
     events: cardList(data.events, cardEvent, 500),
+    ...cardDeployments(data.deployments),
+    ...(data.release === undefined ? {} : { release: cardRelease(data.release) }),
     demo: data.demo === true,
   };
 }
