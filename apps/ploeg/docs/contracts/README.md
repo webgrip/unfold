@@ -39,6 +39,13 @@ change either side and the test tells you.
   own `deployments`. They are required because Ploeg always sends them, empty
   or null when no deploy was reported. `release.source` is `merge` while the
   repository has never reported a deploy of its release environment.
+- Since [ADR-0050](../adrs/0050-a-run-cards-grade-is-a-versioned-formula-over-stored-facts.md)
+  the card's `grade` is an object or null, computed under the formula version
+  it names, with the inputs it used. Since
+  [ADR-0051](../adrs/0051-delivery-gates-are-mapped-per-board-from-tracker-statuses.md)
+  the card may carry `gates` (an object or null) and `evolved`, and the roster
+  may name `qa` and `acceptor`. Both new fields are optional, so a consumer
+  of an older Ploeg sees them absent.
 - `deploy-api.v1` is the body of a pipeline's deploy report. It refuses
   unknown fields, unlike the response contracts, so a misspelled field fails
   the pipeline step instead of being dropped.

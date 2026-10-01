@@ -458,6 +458,11 @@ config: {}
 #         - name: "Unfold"             # a board serving several repositories
 #           default: unfold            # a targets key, instead of repo/branch/forge
 #           allow: [homelab-cluster]  # what a repo/<key> label may select here
+#           gates:                    # ADR-0051: bucket titles (Vikunja) or statuses (ClickUp) per delivery gate
+#             development: ["Doing"]
+#             test: ["In test"]
+#             acceptance: ["Acceptance", "UAT"]
+#             done: ["Done"]
 #         - name: "Forgejo Migration" # no default: every ticket needs a repo/<key> label
 #           allow: [unfold, homelab-cluster]
 #   teams:

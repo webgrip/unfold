@@ -32,6 +32,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -87,7 +89,31 @@ type hookPayload struct {
 			Username string `json:"username"`
 			Email    string `json:"email"`
 		} `json:"before"`
+		User struct {
+			Username string `json:"username"`
+			Email    string `json:"email"`
+		} `json:"user"`
+		Date string `json:"date"`
 	} `json:"history_items"`
+}
+
+func (pl hookPayload) changedBy() (string, time.Time) {
+	for pass := 0; pass < 2; pass++ {
+		for _, h := range pl.HistoryItems {
+			if pass == 0 && h.Field != "status" {
+				continue
+			}
+			who := firstNonEmpty(h.User.Username, h.User.Email)
+			var at time.Time
+			if ms, err := strconv.ParseInt(h.Date, 10, 64); err == nil && ms > 0 {
+				at = time.UnixMilli(ms).UTC()
+			}
+			if who != "" || !at.IsZero() {
+				return who, at
+			}
+		}
+	}
+	return "", time.Time{}
 }
 
 // ParseWebhook verifies the signature against the RAW body before JSON
@@ -153,9 +179,11 @@ func (p *Provider) ParseWebhook(r *http.Request) ([]provider.TrackerEvent, error
 				kind = provider.TrackerUnassigned
 			}
 		}
-		return []provider.TrackerEvent{{Kind: kind, ExternalID: pl.TaskID, Team: team, Item: item}}, nil
+		changer, at := pl.changedBy()
+		return []provider.TrackerEvent{{Kind: kind, ExternalID: pl.TaskID, Team: team, Item: item, Actor: changer, At: at}}, nil
 	case "taskUpdated", "taskStatusUpdated", "taskPriorityUpdated":
-		return []provider.TrackerEvent{{Kind: provider.TrackerUpdated, ExternalID: pl.TaskID, Team: team, Item: item}}, nil
+		changer, at := pl.changedBy()
+		return []provider.TrackerEvent{{Kind: provider.TrackerUpdated, ExternalID: pl.TaskID, Team: team, Item: item, Actor: changer, At: at}}, nil
 	default:
 		// Unhandled events are dropped, not errors: providers subscribe wider
 		// than the core consumes.
@@ -416,6 +444,64 @@ func (p *Provider) ListsByName(ctx context.Context, spaceID string) (map[string]
 	out := make(map[string]string, len(folderless.Lists))
 	for _, l := range folderless.Lists {
 		out[l.Name] = l.ID
+	}
+	return out, nil
+}
+
+// BoardStatus reads the task's List, its status and its tags through
+// GET /task/{id} (ADR-0051).
+func (p *Provider) BoardStatus(ctx context.Context, externalID string) (provider.BoardStatus, error) {
+	if !p.configured() {
+		return provider.BoardStatus{}, errors.New("clickup: no API credentials configured; cannot read the board")
+	}
+	var t struct {
+		task
+		Tags []struct {
+			Name string `json:"name"`
+		} `json:"tags"`
+	}
+	if err := p.do(ctx, http.MethodGet, "/task/"+url.PathEscape(externalID), nil, &t); err != nil {
+		return provider.BoardStatus{}, err
+	}
+	if t.ID == "" {
+		return provider.BoardStatus{}, fmt.Errorf("clickup: task %s not found", externalID)
+	}
+	out := provider.BoardStatus{Scope: t.List.ID, Statuses: []string{}, Labels: []string{}}
+	if t.Status.Status != "" {
+		out.Statuses = append(out.Statuses, t.Status.Status)
+	}
+	for _, tag := range t.Tags {
+		out.Labels = append(out.Labels, tag.Name)
+	}
+	return out, nil
+}
+
+// BoardComments reads the task's most recent comments through
+// GET /task/{id}/comment, which returns at most 25, newest first.
+func (p *Provider) BoardComments(ctx context.Context, externalID string) ([]provider.BoardComment, error) {
+	if !p.configured() {
+		return nil, errors.New("clickup: no API credentials configured; cannot read comments")
+	}
+	var body struct {
+		Comments []struct {
+			CommentText string `json:"comment_text"`
+			Date        string `json:"date"`
+			User        struct {
+				Username string `json:"username"`
+				Email    string `json:"email"`
+			} `json:"user"`
+		} `json:"comments"`
+	}
+	if err := p.do(ctx, http.MethodGet, "/task/"+url.PathEscape(externalID)+"/comment", nil, &body); err != nil {
+		return nil, err
+	}
+	out := make([]provider.BoardComment, 0, len(body.Comments))
+	for _, c := range body.Comments {
+		comment := provider.BoardComment{Text: c.CommentText, Author: firstNonEmpty(c.User.Username, c.User.Email)}
+		if ms, err := strconv.ParseInt(c.Date, 10, 64); err == nil && ms > 0 {
+			comment.At = time.UnixMilli(ms).UTC()
+		}
+		out = append(out, comment)
 	}
 	return out, nil
 }

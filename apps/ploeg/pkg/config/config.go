@@ -28,6 +28,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -36,6 +37,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/webgrip/ploeg/pkg/followup"
+	"github.com/webgrip/ploeg/pkg/gate"
 	"github.com/webgrip/ploeg/pkg/plan"
 	"github.com/webgrip/ploeg/pkg/work"
 )
@@ -130,6 +132,9 @@ type Project struct {
 	// Release names Repo's release environment, as on a registered target.
 	// It requires Repo.
 	Release *Release `yaml:"release"`
+	// Gates maps this board's statuses or bucket titles to delivery gates
+	// (ADR-0051). Omitted = Ploeg records no gate for this board's work.
+	Gates *gate.Statuses `yaml:"gates"`
 }
 
 // Team is a roster entry: who works, at what cost, in what order.
@@ -301,6 +306,33 @@ func (f *File) Validate() error {
 	}
 	if _, err := f.ReleaseEnvironments(); err != nil {
 		return err
+	}
+	return f.validateGates()
+}
+
+func (f *File) validateGates() error {
+	for _, tr := range []struct {
+		provider string
+		projects []Project
+	}{
+		{"vikunja", f.Trackers.Vikunja.Projects},
+		{"clickup", f.Trackers.Clickup.Projects},
+	} {
+		where := map[string]string{}
+		mapped := map[string]gate.Statuses{}
+		for i, p := range tr.projects {
+			if p.Gates == nil {
+				continue
+			}
+			at := fmt.Sprintf("trackers.%s.projects[%d]", tr.provider, i)
+			if _, err := gate.NewMap(*p.Gates); err != nil {
+				return fmt.Errorf("%s.gates: %w", at, err)
+			}
+			if prev, dup := mapped[p.label()]; dup && !reflect.DeepEqual(prev, *p.Gates) {
+				return fmt.Errorf("%s.gates: project %q maps its statuses differently at %s", at, p.label(), where[p.label()])
+			}
+			mapped[p.label()], where[p.label()] = *p.Gates, at
+		}
 	}
 	return nil
 }

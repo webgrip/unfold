@@ -1610,7 +1610,7 @@
     "cardPerson": {
       "type": "object",
       "additionalProperties": false,
-      "description": "A human who merged or reviewed a play. Forge logins Ploeg acts as are left out.",
+      "description": "A human who acted on the Work Item: merged or reviewed a play (forge login), or moved the ticket out of the test gate (qa) or the acceptance gate (acceptor) on the tracker (tracker username, ADR-0051). Logins Ploeg acts as are left out.",
       "required": [
         "name",
         "roles"
@@ -1624,7 +1624,9 @@
           "items": {
             "enum": [
               "merger",
-              "reviewer"
+              "reviewer",
+              "qa",
+              "acceptor"
             ]
           },
           "uniqueItems": true
@@ -1959,7 +1961,7 @@
     "card": {
       "type": "object",
       "additionalProperties": false,
-      "description": "A Run card (ADR-0046): one per Work Item, assembled from stored facts when read. Ploeg sends facts only. state: withdrawn when the Work Item was withdrawn; drafting with no play; in_review while a play is open or its state is unknown; merged when the latest play merged, or a play merged and the Work Item is done; closed otherwise. rarity, grade and condition are always null and finish is always matte until those decisions are made. demo is always false from Ploeg. deployments and release come from the deploys pipelines report to POST /api/v1/deploys (ADR-0047). live is the usage so far while a Run is running, read from the gateway when the card is read, and null otherwise (ADR-0049).",
+      "description": "A Run card (ADR-0046): one per Work Item, assembled from stored facts when read. Ploeg sends facts only. state: withdrawn when the Work Item was withdrawn; drafting with no play; in_review while a play is open or its state is unknown; merged when the latest play merged, or a play merged and the Work Item is done; closed otherwise. rarity and condition are always null and finish is always matte until those decisions are made. grade is computed from stored facts under a versioned formula (ADR-0050) and null until a human approved or requested changes on a play, or a play merged. demo is always false from Ploeg. deployments and release come from the deploys pipelines report to POST /api/v1/deploys (ADR-0047). live is the usage so far while a Run is running, read from the gateway when the card is read, and null otherwise (ADR-0049). gates is the Work Item's path through its board's delivery gates, absent or null when no gate move was recorded; evolved is true when a requirement bounce left acceptance (ADR-0051).",
       "required": [
         "workItemId",
         "title",
@@ -2028,7 +2030,14 @@
           "const": "matte"
         },
         "grade": {
-          "type": "null"
+          "oneOf": [
+            {
+              "$ref": "#/$defs/cardGrade"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "condition": {
           "type": "null"
@@ -2097,6 +2106,20 @@
             }
           ]
         },
+        "gates": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/cardGates"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evolved": {
+          "type": "boolean",
+          "description": "Present and true when a requirement bounce left the acceptance or done gate (ADR-0051)."
+        },
         "demo": {
           "const": false
         }
@@ -2151,6 +2174,369 @@
         "environment": {
           "type": "string",
           "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+        }
+      }
+    },
+    "cardGrade": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The card's grade (ADR-0050). formula names the version of the deterministic formula that computed it; a different formula never re-grades silently. overall = 0.40 reliability + 0.25 durability + 0.20 delivery + 0.15 review, each subgrade rounded to the nearest half (ties up), then overall rounded the same way. provisional is true until the card has been live 180 days, and a provisional overall is at most 9. label is null while provisional; after that it is black when all four subgrades are 10, gold when overall is 10, otherwise null. qualifiers: OB when the recorded cost passed the authorized budget, RT when a Run failed. inputs are the facts each subgrade used.",
+      "required": [
+        "formula",
+        "overall",
+        "provisional",
+        "subgrades",
+        "label",
+        "qualifiers",
+        "inputs"
+      ],
+      "properties": {
+        "formula": {
+          "const": "2026.1"
+        },
+        "overall": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 10,
+          "multipleOf": 0.5
+        },
+        "provisional": {
+          "type": "boolean"
+        },
+        "subgrades": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reliability",
+            "durability",
+            "delivery",
+            "review"
+          ],
+          "properties": {
+            "reliability": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 10,
+              "multipleOf": 0.5
+            },
+            "durability": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 10,
+              "multipleOf": 0.5
+            },
+            "delivery": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 10,
+              "multipleOf": 0.5
+            },
+            "review": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 10,
+              "multipleOf": 0.5
+            }
+          }
+        },
+        "label": {
+          "enum": [
+            "black",
+            "gold",
+            null
+          ]
+        },
+        "qualifiers": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "RV",
+              "HF",
+              "OB",
+              "RT",
+              "MN"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "inputs": {
+          "$ref": "#/$defs/cardGradeInputs"
+        }
+      }
+    },
+    "cardGradeInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The facts each subgrade used under formula 2026.1. null is a fact Ploeg does not know. notCollected names, as subgrade.input, every input Ploeg has no source for yet; such an input never moves a grade.",
+      "required": [
+        "reliability",
+        "durability",
+        "delivery",
+        "review",
+        "notCollected"
+      ],
+      "properties": {
+        "reliability": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "crackWeight",
+            "reverted"
+          ],
+          "properties": {
+            "crackWeight": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "reverted": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          }
+        },
+        "durability": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "daysLive",
+            "liveSince",
+            "reverts",
+            "hotfixes",
+            "survival"
+          ],
+          "description": "daysLive counts whole days since liveSince, the card's release; 0 while the card is not live.",
+          "properties": {
+            "daysLive": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "liveSince": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reverts": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "hotfixes": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "survival": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        "delivery": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "budgetShare",
+            "defectBounces",
+            "extraPlays",
+            "failedRuns"
+          ],
+          "description": "budgetShare is the recorded cost over the authorized budget, null when either is unknown. defectBounces counts defect and unknown bounces, null when the board maps no gates. extraPlays counts plays beyond the first.",
+          "properties": {
+            "budgetShare": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "defectBounces": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "extraPlays": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "failedRuns": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "review": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ciFirstGreen",
+            "findings",
+            "changeRequests",
+            "reviewRounds"
+          ],
+          "description": "changeRequests counts human reviews that requested changes; reviewRounds counts the distinct (play, head commit) pairs humans reviewed.",
+          "properties": {
+            "ciFirstGreen": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "findings": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "changeRequests": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "reviewRounds": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "notCollected": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(reliability|durability|delivery|review)\\.[A-Za-z]+$"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "cardGates": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Where the Work Item stands on its board's delivery gates and how it got there (ADR-0051), from the tracker status moves Ploeg recorded. A bounce is a move back to an earlier gate; its reason comes from a bounce:<reason> comment written since the gate it left was entered, else from exactly one bounce:<reason> label, else unknown. rightFirstTime has one entry per gate after development that the Work Item entered: the number of defect and unknown bounces that left it.",
+      "required": [
+        "current",
+        "history",
+        "bounces",
+        "rightFirstTime"
+      ],
+      "properties": {
+        "current": {
+          "enum": [
+            "development",
+            "test",
+            "acceptance",
+            "done"
+          ]
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "gate",
+              "enteredAt"
+            ],
+            "properties": {
+              "gate": {
+                "enum": [
+                  "development",
+                  "test",
+                  "acceptance",
+                  "done"
+                ]
+              },
+              "enteredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "leftAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        },
+        "bounces": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "from",
+              "to",
+              "at",
+              "reason"
+            ],
+            "properties": {
+              "from": {
+                "enum": [
+                  "development",
+                  "test",
+                  "acceptance",
+                  "done"
+                ]
+              },
+              "to": {
+                "enum": [
+                  "development",
+                  "test",
+                  "acceptance",
+                  "done"
+                ]
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "reason": {
+                "enum": [
+                  "defect",
+                  "requirement",
+                  "misunderstood",
+                  "environment",
+                  "unknown"
+                ]
+              },
+              "actor": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "rightFirstTime": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "propertyNames": {
+            "enum": [
+              "test",
+              "acceptance",
+              "done"
+            ]
+          }
         }
       }
     },
