@@ -1,3 +1,23 @@
+## [glide-v0.4.0-rc.23](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.22...glide-v0.4.0-rc.23) (2026-10-01)
+
+### Added
+
+* **deps:** update all non-major dependencies ([2631513](https://forgejo.webgrip.dev/webgrip/glide/commit/263151325d068621fd671658880d0267f01c6ba4))
+* **deps:** update dependency astro ( 7.1.6 ➔ 7.2.8 ) [security] ([943f0a6](https://forgejo.webgrip.dev/webgrip/glide/commit/943f0a6a6caa1155a4b10b8bf665faddbf3f395c))
+
+### Fixed
+
+* **ci:** bound the Markdown fence match and keep the mise cache warm ([f68ecae](https://forgejo.webgrip.dev/webgrip/glide/commit/f68ecae236bd3ac6d886beafa67e3ee7879aecad))
+* **ci:** never skip the site gate job so Glide releases publish ([4059721](https://forgejo.webgrip.dev/webgrip/glide/commit/405972179bd3e8b3cb852e0943aff5986008bd11))
+
+### Docs
+
+* **ploeg:** accept ADR-0043 and ADR-0044 ([2f5c556](https://forgejo.webgrip.dev/webgrip/glide/commit/2f5c556875c03d1946fcde46daf53e7642260d95))
+
+### Internal
+
+* **release:** glide-site-v0.1.0-rc.1 [skip ci] ([4ce533f](https://forgejo.webgrip.dev/webgrip/glide/commit/4ce533f6c647ebadf8f0c4ead6087965b1049e21))
+
 ## [glide-v0.4.0-rc.22](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.21...glide-v0.4.0-rc.22) (2026-10-01)
 
 ### Added

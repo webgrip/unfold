@@ -8,8 +8,9 @@ import { createServer as createTcpServer } from 'node:net';
 import { WorkspaceManager } from '../src/runtime/workspace.ts';
 import { OpenCodeRuntime } from '../src/runtime/opencode.ts';
 import { WorkerRelay } from '../src/runtime/relay.ts';
+import { pinnedOpenCodeVersion } from './opencode-version.mjs';
 
-const image = process.argv[2] ?? 'de-vloer-agent:1.18.30';
+const image = process.argv[2] ?? `de-vloer-agent:${pinnedOpenCodeVersion}`;
 const transport = process.argv.includes('--pull') ? 'pull' : 'publish';
 const relay = new WorkerRelay();
 const relayServer = createServer(async (req, res) => { if (!(await relay.handle(req, res, new URL(req.url ?? '/', 'http://localhost')))) { res.writeHead(404); res.end(); } });
@@ -70,7 +71,7 @@ try {
     return text ? JSON.parse(text) : undefined;
   };
   const health = await request('/global/health');
-  assert.equal(health.version, '1.18.30');
+  assert.equal(health.version, pinnedOpenCodeVersion);
   assert.equal((await transportFetch()((transport === 'pull' ? 'http://workspace' : workspace.endpoint) + '/global/health')).status, 401);
   const nativeConfig = await request('/config');
   assert.equal(nativeConfig.model, 'litellm/probe-coding');
