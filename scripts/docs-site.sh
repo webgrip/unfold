@@ -2,7 +2,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 docker run --rm --platform linux/amd64 --network none -v "$PWD:/repo" -w /repo \
-  --entrypoint sh harbor.webgrip.dev/webgrip/techdocs-builder:1.6.0 -e -o pipefail -c '
+  --entrypoint sh harbor.webgrip.dev/webgrip/techdocs-builder:1.8.0 -e -o pipefail -c '
     python3 scripts/docs.py --check --stage-only
     cp mkdocs.yml .build/mkdocs-original.yml
     trap "cp .build/mkdocs-original.yml mkdocs.yml" EXIT

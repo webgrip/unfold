@@ -299,7 +299,7 @@ spec:
               fieldPath: metadata.uid
         - name: WORK_DIR
           value: /mnt/ci-shared
-        image: harbor.webgrip.dev/webgrip/agent-runner:1.0.2@sha256:086b4bc0d3fda0e3c179f9501bb46a612f5f33e60d96405a5d94471a26279596
+        image: harbor.webgrip.dev/webgrip/agent-runner:1.3.0@sha256:ab0a56f12a33b2af542663e0f2079261f5b9aca5596a5d497583f211a284684f
         name: worker
         resources:
           limits:
@@ -459,7 +459,7 @@ spec:
                 memory: 64Mi
         containers:
           - name: worker
-            image: harbor.webgrip.dev/webgrip/agent-runner:1.0.2@sha256:086b4bc0d3fda0e3c179f9501bb46a612f5f33e60d96405a5d94471a26279596
+            image: harbor.webgrip.dev/webgrip/agent-runner:1.3.0@sha256:ab0a56f12a33b2af542663e0f2079261f5b9aca5596a5d497583f211a284684f
             command: ["/mnt/bin/ploeg-worker"]
             env:
               - name: PLOEG_API_URL
