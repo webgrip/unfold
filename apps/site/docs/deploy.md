@@ -10,6 +10,8 @@ The site is a static build served by an assets-only Cloudflare Worker named `gli
 
 The jobs are `site-release` in `on_source_change.yml`, which runs after Glide's own `release` job so the two never push a version commit at the same time, and `site-release-tag` plus `site-deploy` in `on_release_published.yml`. `scripts/workflow-policy.test.cjs` holds their routing, the tag rule and the deploy inputs.
 
+`site-release-tag` runs on every published release and outputs `deploy=false` for anything but an enabled `glide-site-v…` tag; it is never skipped. Forgejo v15 evaluates `site-deploy`'s `with:` when it flattens the shared workflow, and a skipped `site-release-tag` has no outputs to read, so Forgejo fails the whole run before any job starts. That is how `glide-v0.4.0-rc.22` lost its publication (run 456).
+
 A Glide release (`glide-v…`) never deploys the site, and a site release never publishes Glide's images, charts or extension: Glide's publication jobs only accept `glide-v…` tags.
 
 ## The hostname comes from Cloudflare
@@ -28,7 +30,7 @@ The deploy uses the org-level Forgejo Actions secrets `CLOUDFLARE_API_TOKEN` and
 
 With no route, the token needs Account › Workers Scripts: Edit and Account › Account Settings: Read. Reading the `workers.dev` subdomain is covered by the scripts permission. A route needs Zone › Workers Routes: Edit on its zone as well.
 
-Before the first deploy, check that the account has a `workers.dev` subdomain enabled (Workers & Pages › Subdomain). `site-release-tag` fails with that instruction when Cloudflare returns none.
+Before the first deploy, check that the account has a `workers.dev` subdomain enabled (Workers & Pages › Subdomain). `site-release-tag` fails with that instruction when Cloudflare returns none. When Cloudflare answers 401 the token itself is rejected: fix it in OpenBao, not in this repository.
 
 ## Adding a domain later
 
