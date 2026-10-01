@@ -1,8 +1,15 @@
-// three.js 0.165.0 (MIT, see LICENSE in this folder): examples/jsm/shaders/CopyShader.js, vendored by scripts/vendor-three.mjs. Do not edit.
+// three.js 0.186.1 (MIT, see LICENSE in this folder): examples/jsm/shaders/CopyShader.js, vendored by scripts/vendor-three.mjs. Do not edit.
 /**
- * Full-screen textured quad shader
+ * @module CopyShader
+ * @three_import import { CopyShader } from './copy-shader.js';
  */
 
+/**
+ * Full-screen copy shader pass.
+ *
+ * @constant
+ * @type {ShaderMaterial~Shader}
+ */
 const CopyShader = {
 
 	name: 'CopyShader',
