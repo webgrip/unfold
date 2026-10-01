@@ -1,3 +1,9 @@
+## [glide-site-v0.1.0-rc.5](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-site-v0.1.0-rc.4...glide-site-v0.1.0-rc.5) (2026-10-01)
+
+### Fixed
+
+* **deps:** update pnpm ( 11.28.1 ➔ 11.28.2 ) ([4485b49](https://forgejo.webgrip.dev/webgrip/glide/commit/4485b49837b3bba5c8c4791536fabe35bfa1804e))
+
 ## [glide-site-v0.1.0-rc.4](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-site-v0.1.0-rc.3...glide-site-v0.1.0-rc.4) (2026-10-01)
 
 ### Added
