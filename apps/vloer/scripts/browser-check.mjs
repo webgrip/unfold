@@ -15,7 +15,7 @@ const flows = [
   ['palette', 'the command palette (fuzzy search, keyboard from any focus, recent Work Items kept per user, number jumps, commands that keep Preferences in sync, the Work Item failure notice and retry, the no-match next step) at desktop/mobile widths, the favicon dot and opt-in desktop notifications'],
   ['settings', 'the Environment health checks, one content width on every Settings page, theme, density, single-key and live-update preferences kept across a reload and in step with the top bar and account menu'],
   ['feeds', 'Insights tiles, tables and phone cards, activity days and paging, Runs filters with phone cards, and proposed-work approval and rejection at desktop/mobile widths'],
-  ['work', 'Work lanes, reason groups and master-detail, the Work Item decision box and review receipt, the demo cancel dialog, j/k and Esc, and the phone sticky bar'],
+  ['work', 'Work lanes, reason groups and master-detail, the Work Item decision box and review receipt, the demo Run card above Rounds turned over by More info, its keyboard tabs and Escape, the demo cancel dialog, j/k and Esc, and the phone sticky bar'],
   ['login', 'live login with a failed attempt that keeps the account name, the password reveal, logout, an expired session that keeps its deep link, and a sign-out after which the next person never sees the previous Now page'],
 ];
 

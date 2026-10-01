@@ -218,6 +218,7 @@ These routes are Vloer's scoped proxy for Ploeg's operator API ([`ploeg.ts`](../
 | `GET /api/ploeg/teams` | `{teams}`, the Team ids |
 | `GET /api/ploeg/work-items?team=&state=&after=` | One page of a Team's Work Items, `{items, nextCursor}`; `state` defaults to `all` |
 | `GET /api/ploeg/work-items/:id` | `{item, shifts, runs, checkpoints, events, truncated, demo, fetchedAt}` |
+| `GET /api/ploeg/work-items/:id/card` | The proposed Run card: `{card, demo, fetchedAt}`. `card` is Ploeg's card v1, validated. Unknown values stay absent, `rarity`, `grade` and `condition` are always null and `finish` is `matte` in P1, and a skin that is not a plain name becomes `vloer-native`. A card outside the caller's Teams, a missing Work Item and an older Ploeg without the route all answer 404. The demo derives a card from each demo Work Item with `demo: true`, cost status `not_reported` and no cost or usage figures. See [ADR 0026](../adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md) |
 | `GET /api/ploeg/now` | What waits on the person, what runs and what finished recently, across their Teams; see [Now](#now) |
 | `GET /api/ploeg/proposed` | `{demo, items, truncated, fetchedAt}` across Teams; each item adds `sourceTitle` |
 | `GET /api/ploeg/runs?team=&state=&outcome=&before=` | `{demo, runs, nextBefore, fetchedAt}` |

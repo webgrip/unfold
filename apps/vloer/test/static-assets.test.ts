@@ -87,6 +87,21 @@ test('the workbench entry, shell and its core and view modules are served from t
   }
 });
 
+test('the card runtime and its skin packs are served by a strict path pattern', { timeout: testTimeout(15_000) }, async t => {
+  const server = await application('demo');
+  t.after(() => server.close());
+  for (const [path, type] of [['/cards/glide-card.js', 'text/javascript; charset=utf-8'], ['/cards/card-model.js', 'text/javascript; charset=utf-8'], ['/cards/registry.js', 'text/javascript; charset=utf-8'], ['/cards/glide-card.css', 'text/css; charset=utf-8'], ['/cards/skins/vloer-native/manifest.json', 'application/json; charset=utf-8'], ['/cards/skins/vloer-native/skin.css', 'text/css; charset=utf-8'], ['/cards/skins/vloer-native/skin.js', 'text/javascript; charset=utf-8']]) {
+    const response = await get(server.url, path);
+    assert.equal(response.status, 200, `${path}: ${response.body}`);
+    assert.equal(response.type, type, path);
+    assert.equal(response.body, await readFile(join(server.config.publicDir, path.slice(1)), 'utf8'), path);
+  }
+  for (const path of ['/cards/../package.json', '/cards/skins/../../package.json', '/cards/%2e%2e/package.json', '/cards/skins/a/b/skin.js', '/cards/skins/vloer-native/skin.html', '/cards/skins/Vloer/skin.css', '/cards/missing.js', '/cards/skins/vloer-native/', '/cards/x.json/']) {
+    const response = await get(server.url, path);
+    assert.equal(response.status, 404, `${path}: ${response.status}`);
+  }
+});
+
 test('static files carry a strong content ETag, revalidate with 304 and keep every security header', { timeout: testTimeout(15_000) }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'vloer-etag-'));
   const publicDir = join(root, 'public');

@@ -970,7 +970,17 @@ function cancelResultMarkup(model) {
   return `<div class="work-cancel-result" id="work-cancel-result" tabindex="-1" role="status">${ui.callout({ tone: summary.tone, title: summary.title, body: `<ul class="work-cancel-lines">${summary.items.map(entry => `<li data-tone="${entry.tone}">${icon(entry.glyph)}<span>${escape(entry.text)}</span></li>`).join('')}</ul>` })}</div>`;
 }
 
-/** The Work Item detail: header, the writer's problem and solution, the decision box for its state, the brief, Rounds and Runs, activity, technical details and, on phones, the action bar. */
+/**
+ * The Run card's place above Rounds: a `<glide-card>` that `views/work.js` gives the card object once Ploeg sent one
+ * (`model.card`). Empty without a card, so an older Ploeg or a failed read leaves no trace.
+ */
+export function cardSectionMarkup(detail, model) {
+  const card = model.card;
+  if (!card || String(card.workItemId) !== detail.item.id) return '';
+  return `<section class="work-card" id="work-card" aria-labelledby="work-card-title"><div class="work-card-heading"><h3 class="overline" id="work-card-title">Run card</h3><p class="meta">What Ploeg recorded for this Work Item. More info turns the card over.</p></div><glide-card class="work-run-card" data-work-item="${escape(detail.item.id)}"></glide-card></section>`;
+}
+
+/** The Work Item detail: header, the writer's problem and solution, the decision box for its state, the brief, the Run card, Rounds and Runs, activity, technical details and, on phones, the action bar. */
 export function detailMarkup(detail, model) {
   const reason = detailReason(detail);
   const item = detail.item;
@@ -992,6 +1002,7 @@ export function detailMarkup(detail, model) {
     decision,
     sessionsMarkup(detail, model.sessions),
     briefMarkup(detail, model),
+    cardSectionMarkup(detail, model),
     storyMarkup(detail, model),
     eventsMarkup(detail, model),
     technicalMarkup(detail),
@@ -1022,7 +1033,7 @@ function demoMarkup(model) {
  * the list, and the Work Item detail beside it (wide) or instead of it (narrow).
  * `model` = { data, lane, lanePending (the lane waits for the open Work Item's state), team, teams, loading, refreshing,
  * loadingMore, detailId, detail, detailLoading, detailError, listHref, canCancel, cancelBusy, cancelResult, briefOpen,
- * sessions, userId, trackerUrl, reviewFacts, demoMode, now }.
+ * sessions, userId, trackerUrl, reviewFacts, demoMode, now, card }.
  */
 export function workMarkup(model) {
   const data = model.data;

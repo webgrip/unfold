@@ -35,7 +35,17 @@ export type PloegDecision = 'approve' | 'reject' | 'cancel';
 export type PloegDecisionResult = { workItemId: string; team: string; state: string; demo: boolean };
 export type PloegCancellation = PloegDecisionResult & { withdrawn: boolean | null; shiftId: string | null; cancelledRuns: number | null; stoppedRuns: number | null; keysBlocked: boolean | null; message: string };
 export type PloegRunFilter = { team?: string; state?: string; outcome?: string; before?: string };
-export type PloegOverview = { configured: boolean; available: boolean; demo: boolean; teams: PloegTeam[]; selectedTeam?: string; lanes?: Record<PloegLane, PloegPresentedPage>; fetchedAt?: string; trackerUrl?: string; message: string };
+export type PloegCardStyle = { skin: string; theme: string | null };
+export type PloegCardCheck = { context: string; state: string };
+export type PloegCardReview = { reviewer: string; state: string; receivedAt: string | null; headSha: string };
+export type PloegCardPlay = { number: number; url: string; state: string; shiftId: string | null; branch: string; headSha: string; mergeCommitSha: string; mergedAt: string | null; mergedBy: string; closedAt: string | null; additions?: number; deletions?: number; changedFiles?: number; ci: { state: string; checks: PloegCardCheck[]; headSha: string; capturedAt: string | null } | null; reviews: PloegCardReview[] };
+export type PloegCardCrew = { role: string; writes: boolean | null; runs?: number; costUsd?: number; inputTokens?: number; outputTokens?: number };
+export type PloegCardTotals = { costStatus: 'observed' | 'reserved' | 'not_reported'; usageComplete: boolean | null; firstRunAt: string | null; lastRunAt: string | null } & Partial<Record<'costUsd' | 'authorizedUsd' | 'inputTokens' | 'outputTokens' | 'cacheReadInputTokens' | 'cacheCreationInputTokens' | 'turns' | 'toolCalls' | 'runs' | 'failedRuns' | 'rounds' | 'shifts' | 'runSeconds', number>>;
+export type PloegCardEvent = { at: string; kind: string; actor: string; detail: Record<string, string | number | boolean> };
+/** A Run card: one per Work Item, its pull requests as plays. Facts only; an unknown value is absent or null, never zero. P1 always carries `rarity`, `grade` and `condition` as null and `finish` as `matte`. */
+export type PloegCard = { workItemId: string; title: string; externalRef: string; url: string; team: string; target: { forge: string; owner: string; repo: string } | null; style: PloegCardStyle; state: string; rarity: null; finish: 'matte'; grade: null; condition: null; steward: { name: string; source: string } | null; roster: { name: string; roles: string[] }[]; crew: PloegCardCrew[]; plays: PloegCardPlay[]; totals: PloegCardTotals; events: PloegCardEvent[]; demo: boolean };
+export type PloegCardView = { card: PloegCard; demo: boolean; fetchedAt: string };
+export type PloegOverview ={ configured: boolean; available: boolean; demo: boolean; teams: PloegTeam[]; selectedTeam?: string; lanes?: Record<PloegLane, PloegPresentedPage>; fetchedAt?: string; trackerUrl?: string; message: string };
 
 export class PloegError extends Error {
   readonly status: number;
@@ -63,7 +73,7 @@ function link(value: unknown): string {
     return url.href;
   } catch { return ''; }
 }
-function envelope(value: unknown): Record<string, unknown> { const data = record(value); if (data.schemaVersion !== '1.0') throw invalid(); return data; }
+function envelope(value: unknown, versions: unknown[] = ['1.0']): Record<string, unknown> { const data = record(value); if (!versions.includes(data.schemaVersion)) throw invalid(); return data; }
 function team(value: unknown): PloegTeam {
   const data = record(value);
   return { id: field(data.id, 100), paused: nullable(data.paused, boolean), queueDepth: numeric(data.queueDepth, true), roles: array(data.roles, value => { const role = record(value); return { id: field(role.id, 100), queueDepth: numeric(role.queueDepth, true) }; }, 100), assignees: data.assignees === undefined || data.assignees === null ? [] : array(data.assignees, value => field(value, 256), 100).filter(Boolean), pinnedScopes: data.pinnedScopes === undefined || data.pinnedScopes === null ? [] : array(data.pinnedScopes, value => field(value, 256), 500).filter(Boolean) };
@@ -163,6 +173,84 @@ function detail(value: unknown): PloegDetail {
   return result;
 }
 
+const cardVersions: unknown[] = [1, '1.0'];
+const defaultSkin = 'vloer-native';
+const cardEventKeys: Record<string, 'text' | 'number' | 'flag'> = { number: 'number', state: 'text', role: 'text', round: 'number', outcome: 'text', verdict: 'text', shiftId: 'text', runId: 'text', reviewer: 'text', reason: 'text', source: 'text', writes: 'flag' };
+const absent = (value: unknown) => value === undefined || value === null;
+function optionalNumbers<K extends string>(data: Record<string, unknown>, keys: readonly K[], integers: readonly string[] = []): Partial<Record<K, number>> {
+  return Object.fromEntries(keys.filter(key => !absent(data[key])).map(key => [key, numeric(data[key], integers.includes(key))])) as Partial<Record<K, number>>;
+}
+function looseId(value: unknown): string | null {
+  if (absent(value) || value === '') return null;
+  if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) return String(value);
+  return identifier(value);
+}
+function cardToken(value: unknown, fallback = ''): string { if (absent(value) || value === '') return fallback; const text = field(value, 64); if (!/^[a-z][a-z0-9_]{0,63}$/.test(text)) throw invalid(); return text; }
+function cardText(value: unknown, max = 256): string { return absent(value) ? '' : field(value, max); }
+function cardTime(value: unknown): string | null { return absent(value) || value === '' ? null : timestamp(value); }
+function cardList<T>(value: unknown, parse: (value: unknown) => T, max: number): T[] { return absent(value) ? [] : array(value, parse, max); }
+function styleName(value: unknown): string | null { return typeof value === 'string' && /^[a-z0-9][a-z0-9-]{0,63}$/.test(value) ? value : null; }
+function cardPlay(value: unknown): PloegCardPlay {
+  const data = record(value);
+  if (typeof data.number !== 'number' || !Number.isSafeInteger(data.number) || data.number < 1) throw invalid();
+  const status = absent(data.ci) ? null : record(data.ci);
+  const ci = status ? { state: cardToken(status.state, 'unknown'), checks: cardList(status.checks, entry => { const check = record(entry); return { context: field(check.context, 256), state: cardToken(check.state, 'unknown') }; }, 100), headSha: cardText(status.headSha, 64), capturedAt: cardTime(status.capturedAt) } : null;
+  const reviews = cardList(data.reviews, entry => { const review = record(entry); return { reviewer: cardText(review.reviewer), state: cardToken(review.state, 'commented'), receivedAt: cardTime(review.receivedAt), headSha: cardText(review.headSha, 64) }; }, 200);
+  const counts = ['additions', 'deletions', 'changedFiles'] as const;
+  return { number: data.number, url: absent(data.url) ? '' : link(data.url), state: cardToken(data.state), shiftId: looseId(data.shiftId), branch: cardText(data.branch, 512), headSha: cardText(data.headSha, 64), mergeCommitSha: cardText(data.mergeCommitSha, 64), mergedAt: cardTime(data.mergedAt), mergedBy: cardText(data.mergedBy), closedAt: cardTime(data.closedAt), ...optionalNumbers(data, counts, counts), ci, reviews };
+}
+function cardCrew(value: unknown): PloegCardCrew {
+  const data = record(value);
+  return { role: field(data.role, 100), writes: absent(data.writes) ? null : boolean(data.writes), ...optionalNumbers(data, ['runs', 'costUsd', 'inputTokens', 'outputTokens'] as const, ['runs', 'inputTokens', 'outputTokens']) };
+}
+function cardTotals(value: unknown): PloegCardTotals {
+  const data = absent(value) ? {} : record(value);
+  const status = absent(data.costStatus) ? 'not_reported' : data.costStatus;
+  if (!['observed', 'reserved', 'not_reported'].includes(status as string)) throw invalid();
+  const counts = ['inputTokens', 'outputTokens', 'cacheReadInputTokens', 'cacheCreationInputTokens', 'turns', 'toolCalls', 'runs', 'failedRuns', 'rounds', 'shifts'] as const;
+  return { costStatus: status as PloegCardTotals['costStatus'], usageComplete: absent(data.usageComplete) ? null : boolean(data.usageComplete), firstRunAt: cardTime(data.firstRunAt), lastRunAt: cardTime(data.lastRunAt), ...optionalNumbers(data, ['costUsd', 'authorizedUsd', 'runSeconds', ...counts] as const, counts) };
+}
+function cardEvent(value: unknown): PloegCardEvent {
+  const data = record(value);
+  const raw = absent(data.detail) ? {} : record(data.detail);
+  const detail: Record<string, string | number | boolean> = {};
+  for (const [key, kind] of Object.entries(cardEventKeys)) {
+    const entry = raw[key];
+    if (kind === 'text' && typeof entry === 'string' && entry.length <= 4096 && !entry.includes('\0')) detail[key] = entry;
+    else if (kind === 'number' && typeof entry === 'number' && Number.isFinite(entry)) detail[key] = entry;
+    else if (kind === 'flag' && typeof entry === 'boolean') detail[key] = entry;
+  }
+  return { at: timestamp(data.at), kind: cardToken(data.kind, 'unknown'), actor: cardText(data.actor), detail };
+}
+/** Validates a Run card from Ploeg: known fields only, safe links, bounded lists, absent values kept absent. P1 drops any rarity, grade or condition. */
+export function parseCard(value: unknown): PloegCard {
+  const data = record(value);
+  const style = absent(data.style) ? {} : record(data.style);
+  const stewardData = absent(data.steward) ? null : record(data.steward);
+  const steward = stewardData && cardText(stewardData.name) ? { name: cardText(stewardData.name), source: cardToken(stewardData.source) } : null;
+  const targetData = absent(data.target) ? null : record(data.target);
+  const workItemId = looseId(data.workItemId);
+  if (!workItemId) throw invalid();
+  return {
+    workItemId,
+    title: field(data.title, 4096),
+    externalRef: cardText(data.externalRef, 512),
+    url: absent(data.url) ? '' : link(data.url),
+    team: field(data.team, 100),
+    target: targetData ? { forge: field(targetData.forge, 100), owner: field(targetData.owner), repo: field(targetData.repo) } : null,
+    style: { skin: styleName(style.skin) ?? defaultSkin, theme: styleName(style.theme) },
+    state: cardToken(data.state, 'drafting'),
+    rarity: null, finish: 'matte', grade: null, condition: null,
+    steward,
+    roster: cardList(data.roster, entry => { const person = record(entry); return { name: field(person.name, 256), roles: cardList(person.roles, role => cardToken(role), 10) }; }, 50),
+    crew: cardList(data.crew, cardCrew, 50),
+    plays: cardList(data.plays, cardPlay, 100),
+    totals: cardTotals(data.totals),
+    events: cardList(data.events, cardEvent, 500),
+    demo: data.demo === true,
+  };
+}
+
 export function validatePloeg(raw: unknown, mode: AppConfig['mode']): AppConfig['ploeg'] {
   if (raw === undefined) return undefined;
   const data = record(raw);
@@ -192,7 +280,7 @@ export class PloegClient {
   private allowed(user: User, team: string): boolean { return (!this.config?.teams || this.config.teams.includes(team)) && (user.role === 'admin' || this.config?.userTeams?.[user.id]?.includes(team) === true); }
   private connected(user: User): void { if (!this.config && !this.demo) throw new PloegError(503, 'ploeg_unconfigured', 'Connect the authenticated Ploeg operator API in the server configuration.'); this.authorize(user); }
   private authorize(user: User): void { if (user.role !== 'admin' && !this.config?.userTeams?.[user.id]?.length) throw new PloegError(403, 'ploeg_scope', 'Your account has no Ploeg team access. Ask an administrator to grant it.'); }
-  private async request(path: string, fresh = false, options: { added?: boolean; actor?: string; body?: unknown } = {}): Promise<unknown> {
+  private async request(path: string, fresh = false, options: { added?: boolean; actor?: string; body?: unknown; versions?: unknown[] } = {}): Promise<unknown> {
     const token = this.config?.tokenEnv ? process.env[this.config.tokenEnv] : undefined;
     if (!token || token.length > 4096 || /[^\x21-\x7e]/.test(token)) throw new PloegError(503, 'ploeg_credential', 'The Ploeg operator credential is unavailable. An administrator must check the connection.');
     if (token !== this.cachedToken) { this.cache.clear(); this.cachedToken = token; }
@@ -215,7 +303,7 @@ export class PloegClient {
       let size = 0;
       try { while (true) { const chunk = await reader.read(); if (chunk.done) break; size += chunk.value.byteLength; if (size > 16_777_216) throw new PloegError(502, 'ploeg_response_size', 'Ploeg returned a snapshot larger than the 16 MiB operator limit.'); chunks.push(chunk.value); } } finally { await reader.cancel().catch(() => undefined); }
       const data: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8').split(token).join('[redacted]'));
-      envelope(data);
+      envelope(data, options.versions);
       if (process.env[this.config!.tokenEnv!] !== token) throw new PloegError(503, 'ploeg_credential_changed', 'The Ploeg operator credential changed while reading this snapshot. Refresh to use the current access.');
       if (this.cache.size >= 200) this.cache.delete(this.cache.keys().next().value!);
       if (!post && token === this.cachedToken) this.cache.set(path, { until: Date.now() + 5000, value: data });
@@ -279,6 +367,14 @@ export class PloegClient {
     this.remember(result.item.id, result.item.title);
     const copy = structuredClone(result);
     return { ...copy, item: presented(copy.item), demo: this.demo, fetchedAt: new Date().toISOString() };
+  }
+  /** Reads a Work Item's Run card. An older Ploeg without the card route answers 404, the same as a missing Work Item. */
+  async card(user: User, id: string, fresh = false): Promise<PloegCardView> {
+    this.authorize(user);
+    if (!/^[1-9][0-9]{0,19}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg work item identifier.');
+    const card = this.demo ? ploegDemo.cards[id] : parseCard(envelope(await this.request(`work-items/${id}/card`, fresh, { versions: cardVersions }), cardVersions).card);
+    if (!card || card.workItemId !== id || !this.allowed(user, card.team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
+    return { card: structuredClone(card), demo: this.demo, fetchedAt: new Date().toISOString() };
   }
   /** Reads per-team counts and spend for a window, scoped to the caller's teams. */
   async summary(user: User, window: string, fresh = false): Promise<PloegSummary> {

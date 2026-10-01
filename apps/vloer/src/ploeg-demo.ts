@@ -1,4 +1,4 @@
-import type { PloegActivityEvent, PloegCheckpoint, PloegDetail, PloegEvent, PloegItem, PloegRun, PloegRunRow, PloegShift, PloegTeam, PloegTeamSummary, PloegWindow } from './ploeg.ts';
+import type { PloegActivityEvent, PloegCard, PloegCardPlay, PloegCheckpoint, PloegDetail, PloegEvent, PloegItem, PloegRun, PloegRunRow, PloegShift, PloegTeam, PloegTeamSummary, PloegWindow } from './ploeg.ts';
 
 const anchor = Math.floor(Date.now() / 60_000) * 60_000;
 const ago = (minutes: number) => new Date(anchor - minutes * 60_000).toISOString().replace('.000Z', 'Z');
@@ -180,4 +180,60 @@ function summary(window: PloegWindow, current: PloegItem[]): { generatedAt: stri
   }) };
 }
 
-export const ploegDemo = { teams, items, details, runs, events, summary, pageSize: 10 };
+type PlaySpec = { item: string; number: number; additions: number; deletions: number; changedFiles: number; merged?: { minutes: number; by: string; review: number } };
+const playSpecs: PlaySpec[] = [
+  { item: '114', number: 3, additions: 131, deletions: 9, changedFiles: 5, merged: { minutes: 2700, by: 'demo-operator', review: 2705 } },
+  { item: '109', number: 7, additions: 36, deletions: 4, changedFiles: 2 },
+  { item: '105', number: 5, additions: 48, deletions: 12, changedFiles: 3 },
+];
+const demoReviewer = 'demo-operator';
+
+function demoCard(item: PloegItem): PloegCard {
+  const detail = details[item.id];
+  const shift = shifts.get(item.id) ?? null;
+  const own = runSpecs.filter(spec => spec.item === item.id);
+  const plays: PloegCardPlay[] = playSpecs.filter(spec => spec.item === item.id).map(spec => {
+    return { number: spec.number, url: pull(spec.number), state: spec.merged ? 'merged' : 'open', shiftId: shift?.id ?? null, branch: shift?.branch ?? '', headSha: '', mergeCommitSha: '', mergedAt: spec.merged ? ago(spec.merged.minutes) : null, mergedBy: spec.merged?.by ?? '', closedAt: null, additions: spec.additions, deletions: spec.deletions, changedFiles: spec.changedFiles, ci: null, reviews: spec.merged ? [{ reviewer: demoReviewer, state: 'approved', receivedAt: ago(spec.merged.review), headSha: '' }] : [] };
+  });
+  const latest = plays.at(-1);
+  const state = item.state === 'withdrawn' ? 'withdrawn' : !latest ? 'drafting' : latest.state === 'merged' ? 'merged' : latest.state === 'closed' ? 'closed' : 'in_review';
+  const merged = plays.find(play => play.state === 'merged');
+  const roleOf = (spec: RunSpec) => spec.role || 'agent';
+  const started = own.filter(spec => spec.started !== null);
+  const finished = started.filter(spec => spec.finished !== null);
+  const roles = [...new Set(started.map(roleOf))];
+  const timeline: { minutes: number; kind: string; actor: string; detail: Record<string, string | number | boolean> }[] = [];
+  const first = started.reduce<RunSpec | null>((earliest, spec) => !earliest || spec.started! > earliest.started! ? spec : earliest, null);
+  if (first) timeline.push({ minutes: first.started!, kind: 'minted', actor: `team:${item.team}`, detail: {} });
+  for (const spec of started) {
+    timeline.push({ minutes: spec.started!, kind: 'run_started', actor: `team:${item.team}`, detail: { runId: spec.id, role: roleOf(spec), round: spec.round } });
+    if (spec.finished !== null) timeline.push({ minutes: spec.finished, kind: 'run_finished', actor: `team:${item.team}`, detail: { runId: spec.id, role: roleOf(spec), round: spec.round, ...(spec.outcome ? { outcome: spec.outcome } : {}) } });
+  }
+  for (const [, owner, phase, minutes] of checkpointSpecs) if (owner === item.id && phase === 'pr_opened' && plays[0]) timeline.push({ minutes, kind: 'pr_opened', actor: `team:${item.team}`, detail: { number: plays[0].number } });
+  const spec = playSpecs.find(entry => entry.item === item.id && entry.merged);
+  if (spec?.merged) timeline.push({ minutes: spec.merged.review, kind: 'review', actor: spec.merged.by, detail: { number: spec.number, state: 'approved' } }, { minutes: spec.merged.minutes, kind: 'merged', actor: spec.merged.by, detail: { number: spec.number } });
+  const withdrawn = detail.events.find(entry => entry.action === 'work_item.withdrawn');
+  if (withdrawn) timeline.push({ minutes: (anchor - Date.parse(withdrawn.at)) / 60_000, kind: 'withdrawn', actor: withdrawn.actor, detail: typeof withdrawn.detail.reason === 'string' ? { reason: withdrawn.detail.reason } : {} });
+  const runSeconds = finished.reduce((sum, entry) => sum + (entry.started! - entry.finished!) * 60, 0);
+  return {
+    workItemId: item.id, title: item.title, externalRef: item.externalId, url: item.url, team: item.team,
+    target: item.target ? { forge: item.target.forge, owner: item.target.owner, repo: item.target.repo } : null,
+    style: { skin: 'vloer-native', theme: null }, state, rarity: null, finish: 'matte', grade: null, condition: null,
+    steward: merged ? { name: merged.mergedBy, source: 'merged_by' } : null,
+    roster: merged ? [{ name: merged.mergedBy, roles: ['merger', 'reviewer'] }] : [],
+    crew: roles.map(role => ({ role, writes: started.find(entry => roleOf(entry) === role)!.writes, runs: started.filter(entry => roleOf(entry) === role).length })),
+    plays,
+    totals: {
+      costStatus: 'not_reported', usageComplete: started.length ? false : null,
+      ...(shift ? { shifts: 1, rounds: shift.round } : {}),
+      runs: started.length, failedRuns: finished.filter(entry => entry.outcome === 'failed' || entry.outcome === 'stuck').length,
+      firstRunAt: first ? ago(first.started!) : null, lastRunAt: finished.length ? ago(Math.min(...finished.map(entry => entry.finished!))) : null,
+      ...(finished.length ? { runSeconds } : {}),
+    },
+    events: timeline.sort((a, b) => b.minutes - a.minutes).map(entry => ({ at: ago(entry.minutes), kind: entry.kind, actor: entry.actor, detail: entry.detail })),
+    demo: true,
+  };
+}
+const cards: Record<string, PloegCard> = Object.fromEntries(items.map(item => [item.id, demoCard(item)]));
+
+export const ploegDemo = { teams, items, details, runs, events, summary, cards, pageSize: 10 };
