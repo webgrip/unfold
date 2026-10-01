@@ -41,6 +41,44 @@
       ],
       "datasourceTemplate": "docker",
       "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Composite actions take their BuildKit, SBOM scanner and binfmt images as `with:` strings, which the github-actions manager does not read. Tag and digest are captured so the digest stays managed.",
+      "managerFilePatterns": [
+        "/^\\.forgejo/workflows/[^/]+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "\"(?<depName>docker\\.io/[^:\"\\s]+):(?<currentValue>[^@\"\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})\""
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "The local agent image is tagged with the OpenCode version it carries. The example configurations and the live guide name that tag, so they move with the opencode group.",
+      "managerFilePatterns": [
+        "/^apps/vloer/config/[^/]+\\.example\\.json$/",
+        "/^apps/vloer/docs/operations/live\\.md$/"
+      ],
+      "matchStrings": [
+        "de-vloer-agent:(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+      ],
+      "depNameTemplate": "opencode-ai",
+      "datasourceTemplate": "npm",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "The landscape build loads Mermaid and Marked from jsDelivr inside Playwright.",
+      "managerFilePatterns": [
+        "/^apps/vloer/scripts/build-landscape\\.mjs$/"
+      ],
+      "matchStrings": [
+        "cdn\\.jsdelivr\\.net/npm/(?<depName>[a-z@][^@/]*)@(?<currentValue>\\d+\\.\\d+\\.\\d+)/"
+      ],
+      "datasourceTemplate": "npm",
+      "versioningTemplate": "semver"
     }
   ],
   "packageRules": [
@@ -108,9 +146,10 @@
       "enabled": false
     },
     {
-      "description": "An image bump in Ploeg's chart values changes rendered manifests, and the golden check makes every rendered byte part of the review. The update regenerates the goldens in the same branch so the pull request carries its own render diff and passes the check.",
+      "description": "An image bump in Ploeg's chart values or CI value files changes rendered manifests, and the golden check makes every rendered byte part of the review. The update regenerates the goldens in the same branch so the pull request carries its own render diff and passes the check.",
       "matchFileNames": [
-        "apps/ploeg/ops/helm/ploeg/values.yaml"
+        "apps/ploeg/ops/helm/ploeg/values.yaml",
+        "apps/ploeg/ops/helm/ploeg/ci/*-values.yaml"
       ],
       "postUpgradeTasks": {
         "commands": [
@@ -121,6 +160,60 @@
         ],
         "executionMode": "branch"
       }
+    },
+    {
+      "description": "Renovate 43 holds back any update without a release timestamp while minimumReleaseAge is set, and Docker registries other than Docker Hub publish none. Without this, Harbor-hosted and dhi.io images are detected but never proposed. homelab-cluster carries the same rule.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "/^harbor\\.webgrip\\.dev\\//",
+        "/^dhi\\.io\\//"
+      ],
+      "minimumReleaseAgeBehaviour": "timestamp-optional"
+    },
+    {
+      "description": "These pins replace the copies npm bundles in the agent image, and the patch script accepts only the bundled major. Raise the bound when npm bundles a newer major.",
+      "matchFileNames": [
+        "apps/vloer/ops/agent/Dockerfile"
+      ],
+      "matchPackageNames": [
+        "undici"
+      ],
+      "allowedVersions": "<7"
+    },
+    {
+      "description": "See the undici rule: brace-expansion is pinned to npm's bundled major.",
+      "matchFileNames": [
+        "apps/vloer/ops/agent/Dockerfile"
+      ],
+      "matchPackageNames": [
+        "brace-expansion"
+      ],
+      "allowedVersions": "<6"
+    },
+    {
+      "description": "Node types follow the Node 24 runtime that mise, engines and the images pin.",
+      "matchPackageNames": [
+        "@types/node"
+      ],
+      "allowedVersions": "<25"
+    },
+    {
+      "description": "@astrojs/check and typescript-eslint accept TypeScript up to 6. Lift this when both peer ranges include 7.",
+      "matchFileNames": [
+        "apps/site/package.json"
+      ],
+      "matchPackageNames": [
+        "typescript"
+      ],
+      "allowedVersions": "<7"
     }
-  ]
+  ],
+  "helm-values": {
+    "managerFilePatterns": [
+      "/(^|/)values\\.ya?ml$/",
+      "/^apps/ploeg/ops/helm/ploeg/ci/[^/]+-values\\.ya?ml$/"
+    ]
+  }
 }

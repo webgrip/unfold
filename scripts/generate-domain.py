@@ -2,8 +2,8 @@
 """Generate domain documentation from a domain model YAML file.
 
 Usage:
-    python generate-domain.py docs/domain/model.yaml -o docs/domain/
-    python generate-domain.py --glossary docs/reference/glossary.md MODEL [MODEL ...]
+    mise exec -- uv run --frozen python scripts/generate-domain.py docs/domain/model.yaml -o docs/domain/
+    mise exec -- uv run --frozen python scripts/generate-domain.py --glossary docs/reference/glossary.md MODEL [MODEL ...]
 
 Produces in the output directory:
     overview.md   - project intro, bounded contexts, ER diagram (Mermaid)
@@ -31,7 +31,7 @@ from pathlib import Path
 try:
     import yaml
 except ImportError:
-    sys.exit("PyYAML is required: pip install pyyaml --break-system-packages")
+    sys.exit("PyYAML is required: run this script through the locked environment, mise exec -- uv run --frozen python scripts/generate-domain.py")
 
 
 def warn(msg):

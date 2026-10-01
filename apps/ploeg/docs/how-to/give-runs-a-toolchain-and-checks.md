@@ -31,7 +31,7 @@ executor:
       harness:
         toolchains:
           - name: go
-            image: harbor.webgrip.dev/dockerhub/library/golang:1.26-alpine@sha256:<digest>
+            image: harbor.webgrip.dev/dockerhub/library/golang:1.27-alpine@sha256:<digest>
             path: [/usr/local/go/bin]
             env: {GOTOOLCHAIN: local}
         verify:

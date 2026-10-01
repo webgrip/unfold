@@ -2,6 +2,8 @@ module github.com/webgrip/ploeg
 
 go 1.26.0
 
+toolchain go1.27.1
+
 require (
 	github.com/coder/acp-go-sdk v0.13.5
 	github.com/fergusstrange/embedded-postgres v1.34.0

@@ -55,7 +55,7 @@ jobs:
     if: needs.parse-release-tag.outputs.version != ''
     runs-on: docker
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: glide-v${{ needs.parse-release-tag.outputs.version }}
       - name: Publish the canonical chart
@@ -97,7 +97,7 @@ jobs:
       REGISTRY_USERNAME: ${{ secrets.HARBOR_ROBOT_USER }}
       REGISTRY_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: glide-v${{ needs.parse-release-tag.outputs.version }}
 
@@ -183,12 +183,15 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: glide-v${{ needs.parse-release-tag.outputs.version }}
-      - uses: https://github.com/actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: https://github.com/jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
         with:
-          node-version-file: apps/vloer/package.json
+          version: 2026.9.17
+          install_args: node
+          cache: false
+          github_token: ''
       - name: Package the VSIX from the tagged tree
         shell: bash
         env:
@@ -279,7 +282,7 @@ jobs:
     if: needs.parse-release-tag.outputs.version != ''
     runs-on: docker
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: glide-v${{ needs.parse-release-tag.outputs.version }}
       - name: Publish the canonical chart
@@ -305,7 +308,7 @@ jobs:
       REGISTRY_USERNAME: ${{ secrets.HARBOR_ROBOT_USER }}
       REGISTRY_TOKEN: ${{ secrets.HARBOR_ROBOT_TOKEN }}
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: glide-v${{ needs.parse-release-tag.outputs.version }}
 
@@ -344,8 +347,8 @@ jobs:
           docker-file: "ops/docker/ploegd/Dockerfile"
           platforms: "linux/amd64,linux/arm64"
           binfmt-image: "docker.io/tonistiigi/binfmt:latest@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0"
-          sbom-generator: "docker.io/docker/buildkit-syft-scanner:stable-1@sha256:79e7b013cbec16bbb436f312819a49a4a57752b2270c1a9332ae1a10fcc82a68"
-          buildkit-image: "docker.io/moby/buildkit:buildx-stable-1@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec"
+          sbom-generator: "docker.io/docker/buildkit-syft-scanner:stable-1@sha256:ae4f3b554449e7e25548e7d8ccc029d17357348e30c6e3df01b92bc93654d6a9"
+          buildkit-image: "docker.io/moby/buildkit:buildx-stable-1@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea"
           annotations: |
             index:org.opencontainers.image.source=https://github.com/webgrip/glide
             index:org.opencontainers.image.url=https://forgejo.webgrip.dev/webgrip/glide
@@ -458,7 +461,7 @@ jobs:
     runs-on: docker
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           ref: glide-v${{ needs.parse-release-tag.outputs.version }}
@@ -485,14 +488,16 @@ jobs:
     runs-on: docker
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           ref: glide-v${{ needs.parse-release-tag.outputs.version }}
-      - uses: https://github.com/actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+      - uses: https://github.com/jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
         with:
-          go-version-file: apps/ploeg/go.mod
+          version: 2026.9.17
+          install_args: go
           cache: false
+          github_token: ''
       - name: Copy and verify release artifacts
         shell: bash
         env:

@@ -13,6 +13,8 @@ const config = makeConfig({
     'vloer/extensions/vscode/package.json',
     'vloer/extensions/vscode/package-lock.json',
     'vloer/extensions/vscode/CHANGELOG.md',
+    'vloer/ops/cluster/agent-sandbox/warm-pool.yaml',
+    'vloer/ops/local/config.live.example.json',
   ],
 });
 

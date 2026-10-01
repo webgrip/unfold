@@ -23,6 +23,17 @@ for (const file of ['package-lock.json', 'extensions/vscode/package-lock.json'])
   if (lock.packages && lock.packages['']) lock.packages[''].version = version;
 });
 
+const releasedAgentImage = /(harbor\.webgrip\.dev\/webgrip\/de-vloer-agent:)\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?/g;
+for (const file of ['ops/cluster/agent-sandbox/warm-pool.yaml', 'ops/local/config.live.example.json']) {
+  const path = resolve(root, file);
+  const before = readFileSync(path, 'utf8');
+  if (before.match(releasedAgentImage) === null) {
+    console.error(`${file} must name the released de-vloer-agent image`);
+    process.exit(1);
+  }
+  writeFileSync(path, before.replace(releasedAgentImage, `$1${version}`));
+}
+
 const extension = resolve(root, 'extensions/vscode');
 const output = join(extension, 'dist-release');
 rmSync(output, { recursive: true, force: true });
