@@ -22,7 +22,9 @@ test('event entry points preserve validation and keep application publication ou
   const pr = workflows['on_pull_request.yml'];
   assert.deepEqual(Object.keys(pr.on).sort(), ['pull_request', 'workflow_dispatch']);
   assert.deepEqual(Object.keys(pr.jobs).sort(), ['checks', 'release-policy']);
-  for (const job of Object.keys(pr.jobs)) assert.deepEqual(pr.jobs[job], source.jobs[job]);
+  assert.deepEqual(pr.jobs.checks, source.jobs.checks);
+  assert.deepEqual(pr.jobs['release-policy'].container, source.jobs.release.container);
+  assert.deepEqual(pr.jobs['release-policy'].steps, source.jobs.release.steps.slice(0, 2));
   for (const name of ['on_pull_request.yml', 'on_docs_change.yml']) {
     assert.doesNotMatch(JSON.stringify(workflows[name]), /GLIDE_RELEASES_ENABLED|contents":"write|semantic-release-monorepo@/);
   }
@@ -32,11 +34,13 @@ test('event entry points preserve validation and keep application publication ou
   assert.equal(workflows['on_docs_change.yml'].jobs['generate-documentation'].with['prepare-command'], 'python3 scripts/docs.py --check --stage-only');
 });
 
-test('only an enabled development push can version Glide after both gates', () => {
+test('only an enabled development push can version Glide, after the checks and the release policy', () => {
   assert.equal(source.concurrency['cancel-in-progress'], false);
-  assert.deepEqual(Object.keys(source.jobs).sort(), ['checks', 'release', 'release-policy', 'site-release']);
+  assert.deepEqual(Object.keys(source.jobs).sort(), ['checks', 'release', 'site-release']);
   const job = source.jobs.release;
-  assert.deepEqual(job.needs, ['checks', 'release-policy']);
+  assert.deepEqual(job.needs, ['checks']);
+  const policy = job.steps.findIndex(step => step.uses === './.forgejo/actions/release-policy');
+  assert.ok(policy > 0 && policy < job.steps.findIndex(step => step.id === 'release'), 'the release policy runs in the release job before versioning');
   const release = job.steps.find(step => step.id === 'release');
   assert.equal(release.with['package-path'], 'apps');
   assert.equal(release.with['package-name'], 'glide');
@@ -133,7 +137,7 @@ test('release routing publishes both applications for a Glide tag and nothing fo
 
 test('the site versions on its own train, after Glide, behind the same gate', () => {
   const job = source.jobs['site-release'];
-  assert.deepEqual(job.needs, ['checks', 'release-policy', 'release']);
+  assert.deepEqual(job.needs, ['checks', 'release']);
   assert.equal(job.if, source.jobs.release.if);
   assert.deepEqual(job.container, source.jobs.release.container);
   const release = job.steps.find(step => step.id === 'release');
