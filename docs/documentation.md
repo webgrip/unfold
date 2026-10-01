@@ -34,7 +34,7 @@ verified_by: "the command, test or source read that confirmed it"
 ---
 ```
 
-`audience` draws from `owner`, `operator`, `integrator`, `contributor` and `agent`. Set `last_verified` only when you checked the page, and name what you checked in `verified_by`, including what you did not check. Never invent a date. A generated `reference` page names its command in `generated_by` instead, because its drift check re-verifies it on every run. A page you know is out of date states why in `unverified` instead of a date until someone reconciles it. `mise run docs-stale` lists those pages and every page verified more than 180 days ago. It only reports.
+`audience` draws from `owner`, `operator`, `integrator`, `contributor` and `agent`. Set `last_verified` only when you checked the page, and name what you checked in `verified_by`, including what you did not check. Never invent a date. The check accepts a date up to one day after the current UTC date, because CI runs in UTC while pages are written in Dutch time. A generated `reference` page names its command in `generated_by` instead, because its drift check re-verifies it on every run. A page you know is out of date states why in `unverified` instead of a date until someone reconciles it. `mise run docs-stale` lists those pages and every page verified more than 180 days ago. It only reports.
 
 ## One answer per question
 
