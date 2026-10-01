@@ -128,7 +128,7 @@ function blocks(lines, depth, outline) {
 export function markdown(text, { baseLevel = 3 } = {}) {
   const fences = [];
   const html = escape(String(text ?? '').replace(/[\u0000\u0001]/g, '').replace(/\r\n?/g, '\n'))
-    .replace(/```([a-z0-9_-]*)\n?([\s\S]*?)```/g, (_, lang, code) => { fences.push(`<pre class="md-code"${lang ? ` data-lang="${lang}"` : ''}>${code.replace(/\n[ ]*$/, '')}</pre>`); return `\u0000${fences.length - 1}\u0000`; });
+    .replace(/```(?=([a-z0-9_-]*))\1\n?([\s\S]*?)```/g, (_, lang, code) => { fences.push(`<pre class="md-code"${lang ? ` data-lang="${lang}"` : ''}>${code.replace(/\n[ ]*$/, '')}</pre>`); return `\u0000${fences.length - 1}\u0000`; });
   const outline = { base: Math.max(1, Math.min(6, Math.trunc(Number(baseLevel)) || 3)), first: null, previous: null };
   return blocks(html.split('\n'), 0, outline).replace(/\u0000(\d+)\u0000/g, (_, index) => fences[Number(index)] ?? '');
 }
