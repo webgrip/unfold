@@ -2,8 +2,8 @@
 type: tutorial
 audience: [owner, operator, contributor]
 owner: vloer
-last_verified: 2026-09-23
-verified_by: "Read apps/vloer/package.json (demo, smoke), src/config.ts (demo repository, crew, port 4080, VLOER_DATA_DIR), src/runtime/demo.ts, scripts/smoke.mjs and examples/order-service; on 2026-09-30 the landing page, Demo badge, Sessions item, session start, evidence tabs and demo budget label were re-read in apps/vloer/public/app.js, shell.js, views/sessions.js and views/session.js at 68c90cf on feat/vloer-redesign"
+last_verified: 2026-10-01
+verified_by: "On 2026-10-01 read scripts/record-replay.ts, public/replay/ and the root mise demo-record task for the hosted replay section; Read apps/vloer/package.json (demo, smoke), src/config.ts (demo repository, crew, port 4080, VLOER_DATA_DIR), src/runtime/demo.ts, scripts/smoke.mjs and examples/order-service; on 2026-09-30 the landing page, Demo badge, Sessions item, session start, evidence tabs and demo budget label were re-read in apps/vloer/public/app.js, shell.js, views/sessions.js and views/session.js at 68c90cf on feat/vloer-redesign"
 ---
 
 # A ten-minute coworker walkthrough
@@ -49,6 +49,12 @@ npm run smoke
 ```
 
 The smoke script refuses a non-demo server. It creates and runs a session, checks retained baseline/verification/review evidence, requires a real Git diff and explicit reviewer approval, and checks the durable history. It does not call a model. A second invocation creates a separate isolated session.
+
+## The hosted replay
+
+The marketing site's `/demo/` page replays this demo without a server ([ADR-0015](../../../../docs/adr/adr-0015-the-hosted-demo-is-a-recorded-replay-of-the-deterministic-demo.md)). [The recorder](../../scripts/record-replay.ts) runs the demo in-process on a fixed clock and records every view the interface reads and the demo session above, with one fresh session per review decision. [The replay script](../../public/replay/replay.js) answers the interface's API from that recording on the `/demo` page only; the product never serves `public/replay/`. Its [route table](../../public/replay/routes.js) lists what it refuses, such as pausing or a second session.
+
+Run `mise run demo-record` from the Unfold root after changing this interface, the demo runtime or the illustrative Ploeg data, and commit `apps/site/replay/` with the scope `site`. `npm run replay:check` fails until then, and so does the site build.
 
 ## CTO discussion
 

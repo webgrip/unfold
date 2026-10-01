@@ -47,7 +47,7 @@ function themeSection(value) {
 /** Where a skin pack's files live. */
 export function skinBase(id) {
   if (!skinName.test(id)) throw new Error('Invalid skin name');
-  return `/cards/skins/${id}/`;
+  return new URL(`./skins/${id}/`, import.meta.url).href;
 }
 
 /**

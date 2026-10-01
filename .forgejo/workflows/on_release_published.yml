@@ -574,6 +574,8 @@ jobs:
         /robots.txt
         /sitemap-index.xml
         /favicon.svg
+        /demo/
+        /demo/replay/replay.json
         /privacy
         /nl/privacy
       not-found-path: /this-page-does-not-exist

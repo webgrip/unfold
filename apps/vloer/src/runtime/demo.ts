@@ -7,7 +7,12 @@ import { captureLocalCandidate, pinCandidateBase, type Candidate } from '../cand
 import { setTimeout } from 'node:timers/promises';
 import type { AgentRuntime, AppConfig, Credential, Session, Repository, Workspace, ExecutionContext, ExecutionResult, Artifact } from '../types.ts';
 
-type DemoOptions = { dataDir: string; delayMs?: number; fixtureDir?: string };
+/**
+ * How the deterministic demo runtime is built. `delayMs` is the pause between its steps. `pace`, when given, replaces
+ * that pause: the runtime awaits it at every step boundary, so a recorder or test decides when the next step runs.
+ * Neither changes what the runtime executes.
+ */
+export type DemoOptions = { dataDir: string; delayMs?: number; fixtureDir?: string; pace?: (signal: AbortSignal) => Promise<void> };
 type CommandResult = { exitCode: number; output: string; durationMs: number };
 
 export class DemoRuntime implements AgentRuntime {
@@ -15,12 +20,14 @@ export class DemoRuntime implements AgentRuntime {
   private root: string;
   private fixture: string;
   private delayMs: number;
+  private pace?: (signal: AbortSignal) => Promise<void>;
 
   constructor(options: DemoOptions | AppConfig | string) {
     const value: DemoOptions = typeof options === 'string' ? { dataDir: options } : options;
     this.root = resolve(value.dataDir, 'workspaces');
     this.fixture = value.fixtureDir ?? fileURLToPath(new URL('../../examples/order-service/', import.meta.url));
     this.delayMs = value.delayMs ?? 1000;
+    this.pace = value.pace;
   }
 
   async prepare(session: Session, _repository: Repository, credential: Credential | undefined, signal: AbortSignal): Promise<Workspace> {
@@ -108,7 +115,11 @@ export class DemoRuntime implements AgentRuntime {
     return { id: randomUUID(), name, kind: 'test', content: `Command: node --test test/order.test.js\nExit code: ${result.exitCode}\nDuration: ${result.durationMs} ms\nRuntime: deterministic demo (no model calls)\n\n${result.output}` };
   }
 
-  private delay(signal: AbortSignal): Promise<void> { return setTimeout(this.delayMs, undefined, { signal }); }
+  private async delay(signal: AbortSignal): Promise<void> {
+    if (!this.pace) return setTimeout(this.delayMs, undefined, { signal });
+    await this.pace(signal);
+    signal.throwIfAborted();
+  }
 
   private async prepareGit(args: string[], cwd: string, signal: AbortSignal): Promise<CommandResult> {
     signal.throwIfAborted();

@@ -6,7 +6,7 @@ The site is a static build served by a Cloudflare Worker named `unfold-site` who
 
 1. A commit scoped `site` (`feat(site): …`, `fix(site): …`) lands on `development`. Unfold's release train ignores it.
 2. The site's release job runs semantic-release in `apps/site` with [.releaserc.cjs](../.releaserc.cjs). It counts only commits that touch `apps/site`, writes `apps/site/CHANGELOG.md` and publishes a `unfold-site-v<version>` release. `development` cuts `-rc.N` candidates, starting from a `unfold-site-v0.0.0` seed tag the shared release action creates on its first run.
-3. The published release starts a job that deploys only when the tag starts with `unfold-site-v`. It calls the shared `cloudflare-deploy` workflow with `working-directory: apps/site` and `build-command: pnpm run build:release`, which first checks that `wrangler.toml` has a real D1 database id and then runs `pnpm build`. That workflow installs with `pnpm install --frozen-lockfile`, builds, runs `pnpm exec wrangler deploy`, then checks `/`, `/nl`, `/robots.txt`, `/sitemap-index.xml`, `/favicon.svg`, `/privacy` and `/nl/privacy` for a 200 and a missing path for a real 404. `wrangler deploy` bundles `main` itself, so the shared workflow at `v2.7.5` needs no change for the Worker.
+3. The published release starts a job that deploys only when the tag starts with `unfold-site-v`. It calls the shared `cloudflare-deploy` workflow with `working-directory: apps/site` and `build-command: pnpm run build:release`, which first checks that `wrangler.toml` has a real D1 database id and then runs `pnpm build` (whose first step, `scripts/build-demo.mjs`, assembles the `/demo` replay). That workflow installs with `pnpm install --frozen-lockfile`, builds, runs `pnpm exec wrangler deploy`, then checks `/`, `/nl`, `/robots.txt`, `/sitemap-index.xml`, `/favicon.svg`, `/demo/`, `/demo/replay/replay.json`, `/privacy` and `/nl/privacy` for a 200 and a missing path for a real 404. `wrangler deploy` bundles `main` itself, so the shared workflow at `v2.7.5` needs no change for the Worker.
 
 The jobs are `site-release` in `on_source_change.yml`, which runs after Unfold's own `release` job so the two never push a version commit at the same time, and `site-release-tag` plus `site-deploy` in `on_release_published.yml`. `scripts/workflow-policy.test.cjs` holds their routing, the tag rule and the deploy inputs.
 
@@ -23,6 +23,12 @@ Nobody writes the `workers.dev` subdomain down. `site-release-tag` asks the Clou
 ## No indexing on a platform hostname
 
 `SITE_INDEXABLE` in `src/config/site.ts` is false while `SITE_URL` ends in `.workers.dev` or `.pages.dev`, or is a local host. Then every page carries `noindex, nofollow` and `robots.txt` answers `Disallow: /`; the sitemap still builds. `src/config/site.test.ts` holds the rule. Setting `SITE_URL` to a real domain turns indexing on with no other change.
+
+## The `/demo` replay
+
+`pnpm build` first runs [scripts/build-demo.mjs](../scripts/build-demo.mjs). It copies `apps/vloer/public` from the same checkout and the recording in [replay/](../replay/) into `public/demo/`, which Git ignores, and writes `public/demo/index.html` from Vloer's own `index.html` with a meta CSP, `noindex, nofollow` and the replay banner outside `#app` ([ADR-0015](../../../docs/adr/adr-0015-the-hosted-demo-is-a-recorded-replay-of-the-deterministic-demo.md)). The shared deploy workflow checks out the whole repository, so `../vloer/public` is there. The build fails when a file in `apps/vloer/public` no longer matches the sha256 in `replay/manifest.json`. `/demo` is not an Astro page, so it is never in the sitemap.
+
+The site train counts only commits under `apps/site`, so a Vloer change alone never redeploys `/demo`. A change to Vloer's interface, demo runtime or illustrative data therefore fails `mise run verify` until someone runs `mise run demo-record` and commits the new `apps/site/replay/` files with the scope `site`. That commit releases the site with the new recording. A Vloer release and a site release can still go live at different times: `/demo` shows the Vloer commit it was recorded at.
 
 ## Credentials
 

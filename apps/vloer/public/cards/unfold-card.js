@@ -3,7 +3,7 @@ import { cardView, cardTabs, finishLadder } from './card-model.js';
 import { defaultSkin, loadSkin, requiredSlots, resolveSkin, webglSupport } from './registry.js';
 import { applyTokens, loadTheme, themeView } from './themes.js';
 
-const runtimeStylesheet = '/cards/unfold-card.css';
+const runtimeStylesheet = new URL('./unfold-card.css', import.meta.url).href;
 const tabIds = cardTabs.map(tab => tab.id);
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const safeLink = value => { try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password ? url.href : ''; } catch { return ''; } };

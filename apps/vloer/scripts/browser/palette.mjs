@@ -201,7 +201,7 @@ export async function run({ page, app, live, password, assert, screenshot }) {
     return { shown: window.shownNotifications, plain };
   });
   assert.deepEqual(sent.shown.map(item => [item.title, item.tag]), [['A new item that needs you', 'vloer-waiting-990']], 'one notification for the item that started waiting');
-  assert.equal(sent.plain, '/favicon.svg', 'the plain favicon returns when nothing waits');
+  assert.equal(sent.plain, 'favicon.svg', 'the plain favicon returns when nothing waits');
   assert.match(await favicon(), /^data:image\/png;base64,/);
   await search('notifications', 'Turn off desktop notifications');
   await page.keyboard.press('Enter');
