@@ -1,3 +1,25 @@
+## [unfold-v0.4.0-rc.30](https://forgejo.webgrip.dev/webgrip/glide/compare/unfold-v0.4.0-rc.29...unfold-v0.4.0-rc.30) (2026-10-01)
+
+### Added
+
+* **vloer:** check out a Work Item's branch from the browser or VS Code ([1575f8a](https://forgejo.webgrip.dev/webgrip/glide/commit/1575f8a9c9e67f2cb6efe408d8072a23ccc7b250))
+
+### Fixed
+
+* **vloer:** show queued and running Ploeg work in Linked Tasks ([b0515f0](https://forgejo.webgrip.dev/webgrip/glide/commit/b0515f0afc886d4c3e4159f91338f38b9d0c5882))
+
+### Changed
+
+* rename the product from Glide to Unfold ([dc45dac](https://forgejo.webgrip.dev/webgrip/glide/commit/dc45dacb00b52de6d16b4379776d0bb077a9563e))
+
+### Tests
+
+* **vloer:** match the checkout title to the renamed fixture branch ([23c4b4f](https://forgejo.webgrip.dev/webgrip/glide/commit/23c4b4fba54488cacb5a797303bee512ba472bc3)), references [#100](https://forgejo.webgrip.dev/webgrip/glide/issues/100)
+
+### Internal
+
+* **release:** restore the rc.29 release metadata that the rename reverted ([ab001d0](https://forgejo.webgrip.dev/webgrip/glide/commit/ab001d0d2e17de07a4ec93089650068cedc1ad30))
+
 ## [glide-v0.4.0-rc.29](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.28...glide-v0.4.0-rc.29) (2026-10-01)
 
 ### Added
