@@ -128,6 +128,7 @@ fails otherwise.
 | [0052](0052-a-crack-needs-the-fixer-and-a-second-person-and-ploeg-only-proposes-candidates.md) | A crack needs the fixer and a second person, and Ploeg only proposes candidates | proposed | 2026-10-01 |
 | [0053](0053-an-epic-is-a-set-of-the-work-items-declared-its-children-before-their-first-shift.md) | An epic is a set of the Work Items declared its children before their first Shift | proposed | 2026-10-01 |
 | [0054](0054-a-card-list-finds-cards-by-roster-login-newest-activity-first.md) | A card list finds cards by roster login, newest activity first | proposed | 2026-10-01 |
+| [0055](0055-ploeg-keeps-one-card-comment-with-a-static-card-image-on-the-pull-request.md) | Ploeg keeps one card comment with a static card image on the pull request | proposed | 2026-10-01 |
 
 ## Review calendar
 
@@ -159,4 +160,5 @@ triggers.
 | 2027-01-31 | [0052](0052-a-crack-needs-the-fixer-and-a-second-person-and-ploeg-only-proposes-candidates.md) — or sooner, when operator actors are linked to forge logins, ten disputes are resolved, twenty cracks are confirmed, or a fix outside a Ploeg Work Item must mend a crack |
 | 2027-01-31 | [0053](0053-an-epic-is-a-set-of-the-work-items-declared-its-children-before-their-first-shift.md) — or sooner, when Size points exist, a team wants tracker-only subtasks to count, or Ploeg polls tracker relations |
 | 2027-01-31 | [0054](0054-a-card-list-finds-cards-by-roster-login-newest-activity-first.md) — or sooner, when a card list request passes 1 s at p95, short pages with a cursor become common, or tracker users are linked to forge logins |
+| 2027-01-31 | [0055](0055-ploeg-keeps-one-card-comment-with-a-static-card-image-on-the-pull-request.md) — or sooner, when a forge refuses SVG attachments, the owner wants today's days live in the image, a skin with its own layout is built, or a sweep tick passes 1 s at p95 |
 | 2027-04-01 | [0005](0005-build-a-dedicated-dispatch-plane.md), [0032](0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md) — the project review gate (`design.md` §10) |

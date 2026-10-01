@@ -12,6 +12,7 @@ import (
 	"html"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/webgrip/ploeg/pkg/followup"
@@ -98,6 +99,11 @@ type Server struct {
 	// absent here lets anyone uninvolved referee and marks hotfixes with
 	// store.DefaultHotfixLabel.
 	CardRules map[string]CardRules
+	// CardClock is the clock card comments count days live with (ADR-0055).
+	// Nil = time.Now.
+	CardClock func() time.Time
+
+	cardWork sync.WaitGroup
 }
 
 // ReviewSettler is implemented by shiftengine.ReviewWatch.

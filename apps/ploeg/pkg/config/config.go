@@ -153,13 +153,13 @@ type Team struct {
 	// CreatedWork limits the Work Items this Team's Runs may create
 	// (ADR-0031). Absent fields take followup.Default.
 	CreatedWork *CreatedWork `yaml:"createdWork"`
-	// Cards sets this Team's Run card rules (ADR-0052). Omitted = anyone
-	// uninvolved referees a disputed crack, and the label "hotfix" marks a
-	// hotfix.
+	// Cards sets this Team's Run card rules (ADR-0052, ADR-0055). Omitted =
+	// anyone uninvolved referees a disputed crack, the label "hotfix" marks a
+	// hotfix, and no card comment is posted on pull requests.
 	Cards *TeamCards `yaml:"cards"`
 }
 
-// TeamCards are one Team's crack attribution rules.
+// TeamCards are one Team's Run card rules.
 type TeamCards struct {
 	// Referees are the people, as the operator API names its actor, who
 	// alone may resolve a disputed crack. Empty = anyone uninvolved.
@@ -167,6 +167,10 @@ type TeamCards struct {
 	// HotfixLabels are the pull request labels that mark a fix as a
 	// hotfix. Empty = "hotfix".
 	HotfixLabels []string `yaml:"hotfixLabels"`
+	// PRComment posts and keeps one card comment, with the card as an
+	// image, on the Team's merged pull requests at each card moment
+	// (ADR-0055). Default false.
+	PRComment bool `yaml:"prComment"`
 }
 
 // CreatedWork overrides followup.Default for one Team. Every field is
@@ -347,11 +351,12 @@ func (f *File) validateCards() error {
 	return nil
 }
 
-// TeamCardRules returns every Team's card rules that set any (ADR-0052).
+// TeamCardRules returns every Team's card rules that set any (ADR-0052,
+// ADR-0055).
 func (f *File) TeamCardRules() map[string]TeamCards {
 	out := map[string]TeamCards{}
 	for name, t := range f.Teams {
-		if t.Cards != nil && (len(t.Cards.Referees) > 0 || len(t.Cards.HotfixLabels) > 0) {
+		if t.Cards != nil && (len(t.Cards.Referees) > 0 || len(t.Cards.HotfixLabels) > 0 || t.Cards.PRComment) {
 			out[name] = *t.Cards
 		}
 	}

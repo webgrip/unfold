@@ -20,6 +20,9 @@ import (
 type CardRules struct {
 	Referees     []string
 	HotfixLabels []string
+	// PRComment keeps a card comment on the team's merged pull requests
+	// (ADR-0055).
+	PRComment bool
 }
 
 func (s *Server) registerCracks(mux *http.ServeMux) {
