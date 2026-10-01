@@ -65,8 +65,10 @@ States, reasons, amounts and dates come from the browser's own modules, so both 
 | Checks | Read recorded check output and distinguish passing, failing and expected fixture failures |
 | Activity | Inspect durable events, tool input/output and the brief supplied to each role |
 | Gateway | Inspect attributed model requests, routing, cost and errors; open configured Grafana links |
-| Work Item panel | See a Work Item's state, reason and next action, its pull requests with CI and reviews, cost per role and Runs; read the task, hand it to a Ploeg team or take it back, or start a supervised session |
+| Work Item panel | See a Work Item's state, reason and next action, its pull requests with CI and reviews, cost per role and Runs; read the task, hand it to a Ploeg team or take it back, check out its branch, or start a supervised session |
 | Work tree | Browse each Team's lanes in a bounded snapshot. A Work Item opens its panel; the inline icon opens it in the browser |
+
+**Check Out Branch**, in the Work Item panel and on Now and Work rows, switches an open clone of the Work Item's repository to the branch Ploeg works on. It reads the Work Item from the workbench, finds the open folder with a remote that points at the target `owner/repo`, fetches the branch, creates a local tracking branch or switches to the existing one, and fast-forwards it when it is only behind. It uses VS Code's built-in Git extension, asks first when the folder has uncommitted changes, and leaves a diverged branch as it is. Without a matching clone it offers the git command and, when the forge is known, **Clone repository**. The browser's **Open in VS Code** opens `vscode://webgrip.de-vloer/checkout?workItem=<id>&origin=<workbench>`: the extension refuses a link for another workbench than the one it is connected to, and always asks before it switches. Demo Work Items have nothing to check out.
 
 The crew strip distinguishes implementation, analysis and the final independent review. Earlier read roles supply analysis. Writing crews require an explicit final approval. A completed session awaits the person's review; accept or reject it from the toolbar or **Record Review** command. Rejection requires a reason, and the decision records the person who made it.
 

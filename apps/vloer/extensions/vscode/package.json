@@ -57,7 +57,8 @@
     "onView:vloer.tasks",
     "onView:vloer.ploeg",
     "onWebviewPanel:vloer.session",
-    "onStartupFinished"
+    "onStartupFinished",
+    "onUri"
   ],
   "contributes": {
     "commands": [
@@ -101,6 +102,12 @@
         "title": "Review Pull Request",
         "category": "Vloer",
         "icon": "$(git-pull-request)"
+      },
+      {
+        "command": "vloer.checkoutBranch",
+        "title": "Check Out Branch",
+        "category": "Vloer",
+        "icon": "$(git-branch)"
       },
       {
         "command": "vloer.openNow",
@@ -435,6 +442,10 @@
         {
           "command": "vloer.openNow",
           "when": "vloer.connected"
+        },
+        {
+          "command": "vloer.checkoutBranch",
+          "when": "false"
         }
       ],
       "view/title": [
@@ -654,6 +665,16 @@
           "command": "vloer.openPloeg",
           "when": "view == vloer.now && viewItem =~ /^now:(item|run)/",
           "group": "navigation@2"
+        },
+        {
+          "command": "vloer.checkoutBranch",
+          "when": "view == vloer.now && viewItem =~ /^now:item:/",
+          "group": "navigation@3"
+        },
+        {
+          "command": "vloer.checkoutBranch",
+          "when": "view == vloer.ploeg && viewItem == ploeg:item",
+          "group": "navigation@1"
         }
       ],
       "editor/context": [

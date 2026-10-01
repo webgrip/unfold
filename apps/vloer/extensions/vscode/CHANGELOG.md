@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Check Out Branch** switches the open clone of a Work Item's repository to the branch Ploeg works on: from the Work Item panel, from Now and Work rows, and from the browser's **Open in VS Code** link (`vscode://webgrip.de-vloer/checkout`). It fetches through VS Code's Git extension, asks before switching a folder with uncommitted changes or when a link asked, and offers the git command or a clone when no open folder matches.
 - The sidebar opens on **Now**: Ready for your review (with the pull request number), Needs you (led by its reason), Proposed and Running (Role, Round, elapsed time and cost so far), across every Team you may see. This is the browser's Now page, read from `GET /api/ploeg/now`. Supervised sessions waiting for an answer appear under Needs you. Rows open the Work Item panel; inline icons open the pull request and the browser.
 - The activity-bar badge and status bar count what is ready for your review or needs you, plus running Runs. A failed session no longer keeps the badge lit. New Needs-you items notify, and so do new review items under `vloer.notifications: all`; the demo never notifies.
 - **Linked Tasks** is now **Tasks**: a task Ploeg holds shows its state and reason. **Ploeg** is now **Work**: lanes and items are named as in the browser, Needs-you items carry their reason, and empty lanes are hidden. **Sessions** moves last, starts collapsed, and shows only in the demo, with shared execution or when sessions exist.

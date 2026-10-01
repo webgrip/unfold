@@ -1,6 +1,7 @@
 import { closeReasonLabel, displayState, failureReason, humanReview, ciState, playState, runOutcome, runState, unreportedOutcome, verdict, withdrawnReason, workItemState } from './core/states.js';
 import { compactCount, count, date, duration, money, notReported, plural, relative, time } from './core/format.js';
 import { detailReason, requeueNote } from './core/reasons.js';
+import { checkoutTarget } from './core/checkout.js';
 
 const bridge = acquireVsCodeApi();
 const saved = bridge.getState() || {};
@@ -188,9 +189,11 @@ export function primaryAction(current) {
 }
 
 function secondaryActions(current, primary) {
-  const { item } = subject(current);
+  const { item, detail, card } = subject(current);
   const buttons = [];
   if (canTakeBack(current)) for (const name of current.status.assignedTeams) buttons.push(action(busy === 'take-back' ? 'Taking back…' : `Take back from ${name}`, 'take-back', { 'data-team': name, disabled: Boolean(busy) }));
+  const checkout = checkoutTarget(detail, card);
+  if (checkout) buttons.push(action(busy === 'checkout' ? 'Checking out…' : 'Check out branch', 'checkout', { className: 'quiet', disabled: Boolean(busy), title: `Fetch ${checkout.branch} from ${checkout.owner}/${checkout.repo} and switch the open clone to it` }));
   if (!isWork(current) && current.session?.allowed) buttons.push(action('Start a supervised session', 'start-session', { className: 'quiet', disabled: Boolean(busy), title: 'Set up an operator-led session from this task instead' }));
   if (item?.id && primary?.dataset?.action !== 'open-ploeg') buttons.push(action('Open in browser ↗', 'open-ploeg', { className: 'quiet', 'data-id': item.id, title: 'Open this Work Item in the Vloer workbench in your browser' }));
   return buttons;
@@ -585,7 +588,7 @@ document.addEventListener('click', event => {
   const button = event.target.closest('[data-action]');
   if (!button || button.disabled) return;
   const type = button.dataset.action;
-  if (type === 'take-back' || type === 'start-session') { busy = type; render(); }
+  if (type === 'take-back' || type === 'start-session' || type === 'checkout') { busy = type; render(); }
   bridge.postMessage({ type, id: button.dataset.id, team: button.dataset.team });
 });
 

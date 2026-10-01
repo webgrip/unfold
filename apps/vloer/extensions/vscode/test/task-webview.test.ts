@@ -244,3 +244,17 @@ test('Markdown escapes from the tracker converter render as the plain characters
   assert.equal(root.find('em').length, 0);
   assert.equal(root.find('ol').length + root.find('h3').length, 0);
 });
+
+test('a Work Item with a branch and a target repository offers to check it out; the demo and an unrouted Work Item do not', () => {
+  const work = (extra: Record<string, unknown> = {}, demo = false) => ({ kind: 'work', workItemId: '42', detail: { ...detail('awaiting_review', extra), demo }, host: 'vloer.example', loadedAt: now });
+  const offered = button(view.headCard(work()), 'Check out branch');
+  assert.ok(offered, 'the branch of the latest Shift is offered');
+  assert.equal(offered.dataset.action, 'checkout');
+  assert.match(offered.getAttribute('title') ?? '', /glide\/42-explain from webgrip\/glide/);
+  assert.ok(!button(view.headCard(work({}, true)), 'Check out branch'), 'demo branches exist only in the demo');
+  assert.ok(!button(view.headCard(work({ shifts: [] })), 'Check out branch'), 'no Shift, no branch');
+  const unrouted = work();
+  unrouted.detail.item.target = null as unknown as { owner: string; repo: string };
+  assert.ok(!button(view.headCard(unrouted), 'Check out branch'));
+  assert.ok(button(view.headCard(current({ workItems: [item('awaiting_review')], assignedTeams: ['silver'] }, {}, { workItemId: '42', detail: detail('awaiting_review') })), 'Check out branch'), 'a linked task panel offers it too');
+});
