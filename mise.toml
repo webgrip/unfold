@@ -28,6 +28,14 @@ description = "Install the locked application and documentation dependencies"
 run = "node scripts/verify.mjs"
 description = "Run both application gates, the site gates and cross-application qualification"
 
+[tasks.brand]
+run = "node scripts/build-brand.mjs"
+description = "Regenerate Unfold's mark, lockups and tokens in docs/brand and the site's brand geometry"
+
+[tasks.brand-check]
+run = "node scripts/build-brand.mjs --check"
+description = "Fail when the committed brand files differ from the generator or break the mark's construction"
+
 [tasks.integration]
 run = "node scripts/integration.mjs"
 description = "Qualify standalone and Ploeg-managed execution without paid models"
