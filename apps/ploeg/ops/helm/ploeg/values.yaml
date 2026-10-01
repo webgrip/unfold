@@ -444,6 +444,10 @@ config: {}
 #         theme: acme
 #       release:                      # ADR-0047: the deploy environment that releases a merge; unset = production
 #         environment: production
+#       rarity:                       # ADR-0056: Run card rarity path rules; unset = the defaults
+#         attentionPaths: ["apps/ploeg/pkg/store/**"]  # more sensitive ground, on top of the defaults
+#         # sensitivePaths: [...]       # replaces the default sensitive paths; [] = none
+#         # sizeExclude: [...]          # replaces the default lockfile/generated/vendor list
 #     homelab-cluster:
 #       repo: webgrip/homelab-cluster
 #       branch: main

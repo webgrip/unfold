@@ -62,6 +62,13 @@ change either side and the test tells you.
   card sends, `cards` in the card's own shape, and `nextBefore`, an opaque
   cursor or null. A page can hold fewer cards than its `limit`, or none,
   while `nextBefore` is set.
+- Since [ADR-0056](../adrs/0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md)
+  the card's `rarity` is a `cardRarity` object or null, where it was always
+  null before. A consumer that only knew `rarity: null` must accept the
+  object; the key itself stays required. The object names its `formula`,
+  the `predicted` and `revealed` tiers, the `tier` to show, the `score`,
+  `percentile` and `cohort` it was ranked in, its `inputs` and
+  `revealedAt`. A revealed tier never changes once sent.
 - `deploy-api.v1` is the body of a pipeline's deploy report. It refuses
   unknown fields, unlike the response contracts, so a misspelled field fails
   the pipeline step instead of being dropped.

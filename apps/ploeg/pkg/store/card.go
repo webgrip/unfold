@@ -19,10 +19,12 @@ import (
 
 // OperatorCard is the Run card of one Work Item (ADR-0046): stored facts
 // only, assembled when it is read. A figure nobody reported is left out,
-// never zero. Rarity is always null and Finish is always "matte" until those
-// decisions are made. Grade is computed from the stored facts (ADR-0050) and
-// nil until a human gave a verdict or a play merged. Condition holds the
-// confirmed cracks (ADR-0052) and is nil without one.
+// never zero. Finish is always "matte" until that decision is made. Rarity
+// is the card's challenge tier (ADR-0056), nil before the first Run unless
+// it was revealed or is an epic's complete set, and nil when the caller
+// passed no CardOptions.Rarity. Grade is computed from the stored facts
+// (ADR-0050) and nil until a human gave a verdict or a play merged.
+// Condition holds the confirmed cracks (ADR-0052) and is nil without one.
 type OperatorCard struct {
 	WorkItemID  string              `json:"workItemId"`
 	Title       string              `json:"title"`
@@ -33,7 +35,7 @@ type OperatorCard struct {
 	Style       CardStyle           `json:"style"`
 	// State is drafting, in_review, merged, closed or withdrawn.
 	State     string         `json:"state"`
-	Rarity    *string        `json:"rarity"`
+	Rarity    *CardRarity    `json:"rarity"`
 	Finish    string         `json:"finish"`
 	Grade     *CardGrade     `json:"grade"`
 	Condition *CardCondition `json:"condition"`
@@ -70,6 +72,7 @@ type OperatorCard struct {
 	evolvedByAttribution bool
 	reverts              int
 	hotfixes             int
+	rarityState          *rarityState
 }
 
 // CardGates is where the Work Item stands on its board and how it got there
@@ -138,6 +141,9 @@ type CardOptions struct {
 	// a hotfix, lowercased (ADR-0052). A team absent here uses
 	// DefaultHotfixLabel.
 	HotfixLabels map[string][]string
+	// Rarity computes the card's rarity and freezes it when the card is
+	// revealed (ADR-0056). When it is nil, Rarity is nil.
+	Rarity *RarityOptions
 }
 
 // LiveUsage is what the gateway has recorded so far for one running Run.
@@ -385,6 +391,11 @@ func (s *Store) OperatorCard(ctx context.Context, id int64, teams []string, opts
 	if err := card.loadSet(ctx, tx, id, provider, externalID, opts); err != nil {
 		return OperatorCard{}, err
 	}
+	if opts.Rarity != nil {
+		if err := card.loadRarity(ctx, tx, id, opts.Rarity, cardNow(opts)); err != nil {
+			return OperatorCard{}, err
+		}
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return OperatorCard{}, err
 	}
@@ -401,6 +412,11 @@ func (s *Store) OperatorCard(ctx context.Context, id int64, teams []string, opts
 	condition, weight, cracked := card.condition()
 	card.Condition = condition
 	card.Grade = card.grade(journey, weight, cracked, cardNow(opts))
+	if opts.Rarity != nil {
+		if card.Rarity, err = s.cardRarity(ctx, &card, id, opts); err != nil {
+			return OperatorCard{}, err
+		}
+	}
 
 	var clean OperatorCard
 	raw, err := json.Marshal(card)

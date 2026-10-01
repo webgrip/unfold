@@ -81,7 +81,7 @@ func (s *Server) recordMergedChange(ctx context.Context, fp provider.ForgeProvid
 	}
 	if play {
 		if _, err := s.Store.RecordPullRequestChange(ctx, store.PullRequestChange{Forge: fp.Name(), Repo: ev.Repo, Number: ev.PR,
-			Labels: change.Labels, Files: change.Files, FilesTruncated: change.FilesTruncated}); err != nil {
+			Labels: change.Labels, Files: change.Files, FilesTruncated: change.FilesTruncated, Lines: fileLines(change.Lines)}); err != nil {
 			s.Log.Error("pull request files not recorded", "provider", fp.Name(), "repo", ev.Repo, "pr", ev.PR, "err", err)
 		}
 	}
@@ -122,4 +122,12 @@ func (s *Server) capturePullRequestFacts(ctx context.Context, fp provider.ForgeP
 		s.Log.Error("pull request facts not recorded", "provider", fp.Name(),
 			"repo", pr.Repo, "pr", pr.Number, "err", err)
 	}
+}
+
+func fileLines(lines map[string]provider.FileLines) map[string]store.FileLines {
+	out := make(map[string]store.FileLines, len(lines))
+	for path, l := range lines {
+		out[path] = store.FileLines{Additions: l.Additions, Deletions: l.Deletions}
+	}
+	return out
 }

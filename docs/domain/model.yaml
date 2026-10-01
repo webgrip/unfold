@@ -47,8 +47,8 @@ contexts:
     description: >
       Run Cards: the record of each delivered change and its life in
       production. Ploeg assembles a card per Work Item and Vloer renders it
-      (Ploeg ADR-0046, Vloer ADR 0026); the rest of this context is proposed,
-      and Rarity is an open decision. See ../concepts/run-cards.md.
+      (Ploeg ADR-0046, Vloer ADR 0026); the rest of this context is proposed.
+      See ../concepts/run-cards.md.
   - name: Release
     description: How Unfold's own source, releases and documentation are proven and switched over.
   - name: Tooling
@@ -587,11 +587,13 @@ terms:
   - name: Rarity
     context: Cards
     definition: >
-      How exceptional a Run Card's change is, kept apart from how well it was
-      done (Grade) and how long it has lasted (Finish). Cosmetic only. An open
-      decision: the proposal derives it from the change's challenge, predicted
-      at mint and revealed at release, in percentile tiers per project and
-      season. Not implemented; Ploeg sends null and nothing may depend on it.
+      How exceptional a Run Card's change was, its challenge, kept apart from
+      how well it was done (Grade) and how long it has lasted (Finish).
+      Cosmetic only. Ploeg scores reach, sensitive ground, novelty and damped
+      size under a versioned formula, predicts a tier at mint and reveals one at
+      release, as percentile tiers per project and quarter (common, uncommon,
+      rare, epic, legendary), and freezes the revealed tier (Ploeg ADR-0056,
+      proposed). Nothing Ploeg authorizes, budgets or merges depends on it.
     see_also: [Run Card, Grade, Finish, Pack]
   - name: Set Card
     context: Cards
@@ -790,18 +792,6 @@ ambiguities:
       The tracker task is the Request. Refinement's Work Items stay in Ploeg as
       proposed until their Quotes are approved, which reuses Ploeg ADR-0031 and
       keeps the Agency's tracker as the one place its Clients' asks live.
-  - phrase: what makes a Run Card rare
-    issue: >
-      The owner has not decided what Rarity measures. Until then Ploeg sends
-      null and nothing may depend on it.
-    options:
-      - Challenge alone, predicted at mint and revealed at release
-      - A mix of challenge and quality
-      - Revealed at acceptance instead of release
-      - Compared per Team instead of per project
-    recommendation: >
-      Challenge alone, revealed at release, as percentile tiers per project and
-      season, with fixed thresholds while a project has fewer than about 30 cards.
   - phrase: the period a Pack covers
     issue: >
       A Pack is proposed once per sprint, but Unfold has no sprint concept and

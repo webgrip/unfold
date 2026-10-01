@@ -39,6 +39,7 @@ import (
 	"github.com/webgrip/ploeg/pkg/followup"
 	"github.com/webgrip/ploeg/pkg/gate"
 	"github.com/webgrip/ploeg/pkg/plan"
+	"github.com/webgrip/ploeg/pkg/rarity"
 	"github.com/webgrip/ploeg/pkg/work"
 )
 
@@ -78,6 +79,25 @@ type Target struct {
 	// Release names the environment whose first deploy releases a merged
 	// change of this repository (ADR-0047). Omitted = production.
 	Release *Release `yaml:"release"`
+	// Rarity sets the path rules of this repository's Run card rarity
+	// (ADR-0056). Omitted = the defaults of rarity.Formula.
+	Rarity *Rarity `yaml:"rarity"`
+}
+
+// Rarity is one Work Target's Run card rarity path rules (ADR-0056). Each
+// list holds path patterns: a pattern without a slash matches a file name
+// at any depth, any other is anchored at the repository root, ** spans
+// directories and {a,b} lists alternatives.
+type Rarity struct {
+	// SensitivePaths replaces rarity.DefaultSensitivePaths when set; an
+	// empty list means no default sensitive ground.
+	SensitivePaths []string `yaml:"sensitivePaths"`
+	// AttentionPaths are more paths counted as sensitive ground, on top of
+	// SensitivePaths or the defaults.
+	AttentionPaths []string `yaml:"attentionPaths"`
+	// SizeExclude replaces rarity.DefaultSizeExclude when set: the paths
+	// whose lines a card's size does not count.
+	SizeExclude []string `yaml:"sizeExclude"`
 }
 
 // Release configures when a Work Target's merged change counts as live.
@@ -132,6 +152,9 @@ type Project struct {
 	// Release names Repo's release environment, as on a registered target.
 	// It requires Repo.
 	Release *Release `yaml:"release"`
+	// Rarity sets Repo's Run card rarity path rules, as on a registered
+	// target. It requires Repo.
+	Rarity *Rarity `yaml:"rarity"`
 	// Gates maps this board's statuses or bucket titles to delivery gates
 	// (ADR-0051). Omitted = Ploeg records no gate for this board's work.
 	Gates *gate.Statuses `yaml:"gates"`
@@ -325,6 +348,9 @@ func (f *File) Validate() error {
 	if _, err := f.ReleaseEnvironments(); err != nil {
 		return err
 	}
+	if _, err := f.RarityRules(); err != nil {
+		return err
+	}
 	if err := f.validateCards(); err != nil {
 		return err
 	}
@@ -458,6 +484,53 @@ func (f *File) ReleaseEnvironments() (map[string]string, error) {
 	return out, nil
 }
 
+func (r *Rarity) rules() rarity.Rules {
+	return rarity.Rules{SensitivePaths: r.SensitivePaths, AttentionPaths: r.AttentionPaths, SizeExclude: r.SizeExclude}
+}
+
+// RarityRules returns the rarity path rules of every repository that sets
+// them, keyed by lowercased "owner/name" (ADR-0056). A repository given two
+// different sets of rules, or a pattern that does not compile, is an error.
+// A repository absent from the result uses the defaults.
+func (f *File) RarityRules() (map[string]rarity.Rules, error) {
+	out := map[string]rarity.Rules{}
+	where := map[string]string{}
+	add := func(repo string, r *Rarity, at string) error {
+		if r == nil || repo == "" {
+			return nil
+		}
+		rules := r.rules()
+		if _, err := rules.Compile(); err != nil {
+			return fmt.Errorf("%s.rarity.%w", at, err)
+		}
+		key := strings.ToLower(repo)
+		if prev, dup := out[key]; dup && !reflect.DeepEqual(prev, rules) {
+			return fmt.Errorf("%s: rarity for %s differs from the one at %s", at, repo, where[key])
+		}
+		out[key], where[key] = rules, at
+		return nil
+	}
+	for _, key := range sortedTargetKeys(f.Targets) {
+		if err := add(f.Targets[key].Repo, f.Targets[key].Rarity, "targets."+key); err != nil {
+			return nil, err
+		}
+	}
+	for _, tr := range []struct {
+		provider string
+		projects []Project
+	}{
+		{"vikunja", f.Trackers.Vikunja.Projects},
+		{"clickup", f.Trackers.Clickup.Projects},
+	} {
+		for i, p := range tr.projects {
+			if err := add(p.Repo, p.Rarity, fmt.Sprintf("trackers.%s.projects[%d]", tr.provider, i)); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return out, nil
+}
+
 var cardStyleName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
 
 func (c *CardStyle) validate() error {
@@ -541,6 +614,9 @@ func (f *File) validateRoute(p Project) error {
 	}
 	if err := p.Release.validate(); err != nil {
 		return fmt.Errorf("release: %w", err)
+	}
+	if p.Rarity != nil && p.Repo == "" {
+		return fmt.Errorf("rarity requires repo; set it on a registered target under targets instead")
 	}
 	for _, key := range append([]string{p.Default}, p.Allow...) {
 		if key == "" {

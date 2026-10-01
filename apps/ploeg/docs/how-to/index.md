@@ -21,6 +21,7 @@ These runbooks cover the recurring operator tasks for a cluster deployment of Pl
 | [Route a board that serves several repositories](route-a-multi-repo-board.md) | One board holds tickets for more than one repository, or a ticket was refused with a `repo/*` label reason |
 | [Send deploys from a pipeline to Ploeg](send-deploys-from-a-pipeline.md) | Run cards should count days live from a deploy, or a card says "counted from merge" |
 | [Map tracker statuses to delivery gates](map-tracker-statuses-to-gates.md) | Run cards should show test and acceptance, and bounces with a reason |
+| [Mark sensitive paths for card rarity](mark-sensitive-paths-for-card-rarity.md) | Run card rarity should count your riskiest code, or leave generated files out of size |
 
 For accounts whose final cost is uncertain, [Reconcile uncertainty](../ops/managed-workers.md#reconcile-uncertainty) sets the rules these runbooks follow.
 

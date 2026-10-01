@@ -41,7 +41,8 @@ func (p *Provider) PullRequestChange(ctx context.Context, repo string, pr int) (
 	if status != http.StatusOK {
 		return provider.PullRequestChange{}, fmt.Errorf("forgejo: read %s#%d: HTTP %d", repo, pr, status)
 	}
-	out := provider.PullRequestChange{Title: head.Title, Body: head.Body, Labels: []string{}, Files: []string{}, Commits: []string{}}
+	out := provider.PullRequestChange{Title: head.Title, Body: head.Body, Labels: []string{}, Files: []string{}, Commits: []string{},
+		Lines: map[string]provider.FileLines{}}
 	for _, l := range head.Labels {
 		if l.Name != "" {
 			out.Labels = append(out.Labels, l.Name)
@@ -66,6 +67,8 @@ files:
 		var files []struct {
 			Filename         string `json:"filename"`
 			PreviousFilename string `json:"previous_filename"`
+			Additions        *int   `json:"additions"`
+			Deletions        *int   `json:"deletions"`
 		}
 		status, err := p.get(ctx, fmt.Sprintf("%s/files?page=%d&limit=%d", base, page, changePageSize), &files)
 		if err != nil {
@@ -77,6 +80,12 @@ files:
 		for _, f := range files {
 			if !add(f.Filename) || !add(f.PreviousFilename) {
 				break files
+			}
+			if f.Additions != nil && f.Deletions != nil && *f.Additions >= 0 && *f.Deletions >= 0 {
+				out.Lines[f.Filename] = provider.FileLines{Additions: *f.Additions, Deletions: *f.Deletions}
+				if f.PreviousFilename != "" && f.PreviousFilename != f.Filename {
+					out.Lines[f.PreviousFilename] = provider.FileLines{}
+				}
 			}
 		}
 		if len(files) < changePageSize {

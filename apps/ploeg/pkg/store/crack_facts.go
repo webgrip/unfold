@@ -16,7 +16,8 @@ const maxStoredLabels = 50
 
 // PullRequestChange is what a merged pull request changed, as the forge
 // reported it (ADR-0052). Files holds every path it touched, up to
-// MaxStoredFiles; FilesTruncated says it touched more.
+// MaxStoredFiles; FilesTruncated says it touched more. Lines holds the lines
+// each file added and removed, for the files the forge counted (ADR-0056).
 type PullRequestChange struct {
 	Forge          string
 	Repo           string
@@ -24,6 +25,13 @@ type PullRequestChange struct {
 	Labels         []string
 	Files          []string
 	FilesTruncated bool
+	Lines          map[string]FileLines
+}
+
+// FileLines is how many lines one changed file added and removed.
+type FileLines struct {
+	Additions int
+	Deletions int
 }
 
 // RecordPullRequestChange replaces the stored files and labels of a recorded
@@ -35,6 +43,7 @@ func (s *Store) RecordPullRequestChange(ctx context.Context, c PullRequestChange
 		return false, nil
 	}
 	files := make([]string, 0, len(c.Files))
+	var additions, deletions []*int
 	seen := map[string]bool{}
 	truncated := c.FilesTruncated
 	for _, f := range c.Files {
@@ -47,6 +56,12 @@ func (s *Store) RecordPullRequestChange(ctx context.Context, c PullRequestChange
 		}
 		seen[f] = true
 		files = append(files, f)
+		if l, ok := c.Lines[f]; ok && l.Additions >= 0 && l.Deletions >= 0 {
+			a, d := l.Additions, l.Deletions
+			additions, deletions = append(additions, &a), append(deletions, &d)
+		} else {
+			additions, deletions = append(additions, nil), append(deletions, nil)
+		}
 	}
 	labels := make([]string, 0, len(c.Labels))
 	for _, l := range c.Labels {
@@ -72,8 +87,9 @@ func (s *Store) RecordPullRequestChange(ctx context.Context, c PullRequestChange
 	if _, err := tx.Exec(ctx, `DELETE FROM pull_request_files WHERE pull_request_id = $1`, id); err != nil {
 		return false, err
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO pull_request_files (pull_request_id, path)
-		SELECT $1, f FROM unnest($2::text[]) f ON CONFLICT DO NOTHING`, id, files); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO pull_request_files (pull_request_id, path, additions, deletions)
+		SELECT $1, f.path, f.additions, f.deletions FROM unnest($2::text[], $3::int[], $4::int[]) AS f(path, additions, deletions)
+		ON CONFLICT DO NOTHING`, id, files, additions, deletions); err != nil {
 		return false, err
 	}
 	return true, tx.Commit(ctx)

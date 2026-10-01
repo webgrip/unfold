@@ -1974,7 +1974,7 @@
     "card": {
       "type": "object",
       "additionalProperties": false,
-      "description": "A Run card (ADR-0046): one per Work Item, assembled from stored facts when read. Ploeg sends facts only. state: withdrawn when the Work Item was withdrawn; drafting with no play; in_review while a play is open or its state is unknown; merged when the latest play merged, or a play merged and the Work Item is done; closed otherwise. rarity is always null and finish is always matte until those decisions are made. condition holds the confirmed cracks (ADR-0052) and is null without one. grade is computed from stored facts under a versioned formula (ADR-0050) and null until a human approved or requested changes on a play, or a play merged. demo is always false from Ploeg. deployments and release come from the deploys pipelines report to POST /api/v1/deploys (ADR-0047). live is the usage so far while a Run is running, read from the gateway when the card is read, and null otherwise (ADR-0049). gates is the Work Item's path through its board's delivery gates, absent or null when no gate move was recorded; evolved is true when a requirement bounce left acceptance (ADR-0051) or a bug was attributed to the card as a changed requirement (ADR-0052). set places the card in its epic's set from tracker parent relations, and is absent when the Work Item belongs to no epic that counts (ADR-0053).",
+      "description": "A Run card (ADR-0046): one per Work Item, assembled from stored facts when read. Ploeg sends facts only. state: withdrawn when the Work Item was withdrawn; drafting with no play; in_review while a play is open or its state is unknown; merged when the latest play merged, or a play merged and the Work Item is done; closed otherwise. finish is always matte until that decision is made. rarity is how exceptional the change was (ADR-0056): a cardRarity object once the first Run started, the card was revealed or an epic's set is complete, and null otherwise; older Ploeg versions always sent null. condition holds the confirmed cracks (ADR-0052) and is null without one. grade is computed from stored facts under a versioned formula (ADR-0050) and null until a human approved or requested changes on a play, or a play merged. demo is always false from Ploeg. deployments and release come from the deploys pipelines report to POST /api/v1/deploys (ADR-0047). live is the usage so far while a Run is running, read from the gateway when the card is read, and null otherwise (ADR-0049). gates is the Work Item's path through its board's delivery gates, absent or null when no gate move was recorded; evolved is true when a requirement bounce left acceptance (ADR-0051) or a bug was attributed to the card as a changed requirement (ADR-0052). set places the card in its epic's set from tracker parent relations, and is absent when the Work Item belongs to no epic that counts (ADR-0053).",
       "required": [
         "workItemId",
         "title",
@@ -2037,7 +2037,14 @@
           ]
         },
         "rarity": {
-          "type": "null"
+          "oneOf": [
+            {
+              "$ref": "#/$defs/cardRarity"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "finish": {
           "const": "matte"
@@ -2458,6 +2465,260 @@
           "items": {
             "type": "string",
             "pattern": "^(reliability|durability|delivery|review)\\.[A-Za-z]+$"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "cardRarity": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The card's rarity (ADR-0056): how exceptional its change was, as a challenge score from 0 to 100 under a versioned formula, kept apart from grade (quality), finish (survival), pulls (luck) and sets. Formula 2026.1: score = 100 x (0.30 reach + 0.25 sensitive + 0.20 novelty + 0.25 size), each component from 0 to 1: reach = min(1, ln(max(1, modules) + 3 x (repos - 1)) / ln 12); sensitive = min(1, ln(1 + sensitive files) / ln 9); novelty = novel files / files; size = min(1, ln(1 + counted lines) / ln 2001). A predicted score adds 10 when the card is in an epic's set, capped at 100. Cost, time, tokens, bounces and grade are never inputs. predicted is computed from what was known before the merge (the repositories, the files of earlier merged plays, the current play's diff size and set membership); revealed is computed from the merged plays once the card has a release and every merged play's files are recorded. tier is revealed when present, else predicted, except that an epic's own card is legendary while its set is complete. score, percentile, cohort and inputs describe the revealed moment once revealed and the predicted one before. A tier comes from the score's percentile in its cohort (the same repository and calendar quarter of the reveal, under the same formula): above 99 legendary, above 95 epic, above 85 rare, above 60 uncommon, else common, where percentile = 100 x (1 + cohort scores strictly below) / cohort size. While the cohort holds fewer than 30 cards, fixed thresholds decide instead (85 legendary, 70 epic, 55 rare, 35 uncommon) and percentile is null. A revealed tier, score, percentile and cohort are frozen when revealed and never change after, even as the cohort grows.",
+      "required": [
+        "formula",
+        "predicted",
+        "revealed",
+        "tier",
+        "score",
+        "percentile",
+        "cohort",
+        "inputs",
+        "revealedAt"
+      ],
+      "properties": {
+        "formula": {
+          "enum": [
+            "2026.1"
+          ]
+        },
+        "predicted": {
+          "oneOf": [
+            {
+              "enum": [
+                "common",
+                "uncommon",
+                "rare",
+                "epic",
+                "legendary"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revealed": {
+          "oneOf": [
+            {
+              "enum": [
+                "common",
+                "uncommon",
+                "rare",
+                "epic",
+                "legendary"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tier": {
+          "enum": [
+            "common",
+            "uncommon",
+            "rare",
+            "epic",
+            "legendary"
+          ]
+        },
+        "score": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 100
+        },
+        "percentile": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0,
+          "maximum": 100
+        },
+        "cohort": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "The cards the score is ranked in. target is the card's repository as lowercased owner/name; quarter is the calendar quarter in UTC of the reveal, or of the read while predicted; size counts the revealed cards of the cohort with this card.",
+              "required": [
+                "target",
+                "quarter",
+                "size"
+              ],
+              "properties": {
+                "target": {
+                  "type": "string",
+                  "minLength": 3
+                },
+                "quarter": {
+                  "type": "string",
+                  "pattern": "^[0-9]{4}Q[1-4]$"
+                },
+                "size": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "inputs": {
+          "$ref": "#/$defs/cardRarityInputs"
+        },
+        "revealedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "description": "The release time the card was revealed at, null until revealed."
+        }
+      }
+    },
+    "cardRarityInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The facts the rarity score used. null is a fact Ploeg does not know; it adds nothing to the score. reach.modules counts the distinct modules touched (a top-level directory, or the first two directories under apps, packages, services, libs, modules, crates, components, plugins or projects; a root file is the module .), reach.repos the distinct repositories. sensitive.files counts the touched files on the Work Target's sensitive ground, and sensitive.paths lists up to 20 of them. novelty.novel counts the touched files that no earlier merged play of the same repository, on another card, touched in the 180 days before this card first touched them. size.countedLines adds the lines added and removed without the files the Work Target leaves out of size. A file left out of size counts for none of these facts. set is whether the card is in an epic's set, and is null on a revealed score. truncated is true when a play touched more files than Ploeg keeps, so the file facts are a lower bound. notCollected names the inputs Ploeg has no source for yet.",
+      "required": [
+        "reach",
+        "sensitive",
+        "novelty",
+        "size",
+        "set",
+        "truncated",
+        "notCollected"
+      ],
+      "properties": {
+        "reach": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "modules",
+            "repos"
+          ],
+          "properties": {
+            "modules": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "repos": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            }
+          }
+        },
+        "sensitive": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "files",
+            "paths"
+          ],
+          "properties": {
+            "files": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "paths": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "novelty": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "share",
+            "files",
+            "novel"
+          ],
+          "properties": {
+            "share": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 1
+            },
+            "files": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "novel": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            }
+          }
+        },
+        "size": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "countedLines"
+          ],
+          "properties": {
+            "countedLines": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            }
+          }
+        },
+        "set": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "notCollected": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "complexity",
+              "estimate"
+            ]
           },
           "uniqueItems": true
         }

@@ -25,7 +25,8 @@ func TestPullRequestChange_ReadsTitleLabelsFilesAndCommits(t *testing.T) {
 				fmt.Fprint(w, `[]`)
 				return
 			}
-			fmt.Fprint(w, `[{"filename":"a.go"},{"filename":"new.go","previous_filename":"old.go"},{"filename":"a.go"}]`)
+			fmt.Fprint(w, `[{"filename":"a.go","additions":12,"deletions":3},{"filename":"new.go","previous_filename":"old.go","additions":1,"deletions":0},`+
+				`{"filename":"a.go"},{"filename":"bin.dat"},{"filename":"odd.go","additions":-1,"deletions":2}]`)
 		case "/api/v1/repos/webgrip/ploeg/pulls/7/commits":
 			if r.URL.Query().Get("files") != "false" {
 				t.Errorf("commits read with files: %s", r.URL.RawQuery)
@@ -41,7 +42,8 @@ func TestPullRequestChange_ReadsTitleLabelsFilesAndCommits(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := provider.PullRequestChange{Title: `Revert "Add cards"`, Body: "Reverts webgrip/ploeg#5", Labels: []string{"hotfix"},
-		Files: []string{"a.go", "new.go", "old.go"}, Commits: []string{"Revert \"Add cards\"\n\nThis reverts commit abcdef1234567."}}
+		Files: []string{"a.go", "new.go", "old.go", "bin.dat", "odd.go"}, Commits: []string{"Revert \"Add cards\"\n\nThis reverts commit abcdef1234567."},
+		Lines: map[string]provider.FileLines{"a.go": {Additions: 12, Deletions: 3}, "new.go": {Additions: 1}, "old.go": {}}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("change = %+v; want %+v", got, want)
 	}

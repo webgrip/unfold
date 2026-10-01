@@ -304,7 +304,7 @@ A Work Item's Size and the Agency's price for it, drafted by Refinement and appr
 ## Rarity
 *Context: Cards*
 
-How exceptional a Run Card's change is, kept apart from how well it was done (Grade) and how long it has lasted (Finish). Cosmetic only. An open decision: the proposal derives it from the change's challenge, predicted at mint and revealed at release, in percentile tiers per project and season. Not implemented; Ploeg sends null and nothing may depend on it.
+How exceptional a Run Card's change was, its challenge, kept apart from how well it was done (Grade) and how long it has lasted (Finish). Cosmetic only. Ploeg scores reach, sensitive ground, novelty and damped size under a versioned formula, predicts a tier at mint and reveals one at release, as percentile tiers per project and quarter (common, uncommon, rare, epic, legendary), and freezes the revealed tier (Ploeg ADR-0056, proposed). Nothing Ploeg authorizes, budgets or merges depends on it.
 
 **See also:** [Run Card](#run-card), [Grade](#grade), [Finish](#finish), [Pack](#pack)  
 
@@ -595,13 +595,6 @@ Ploeg mirrors every assigned Tracker Item into a Work Item. A Client's ask that 
 
 **Options:** The tracker task is the Request; Refinement's Work Items become new Tracker Items or stay in Ploeg (Ploeg ADR-0031), Ploeg mirrors it as an unready Work Item that Refinement replaces with the real ones, Requests only come through the Client Portal; tracker tasks are always Work Items  
 **Recommendation:** The tracker task is the Request. Refinement's Work Items stay in Ploeg as proposed until their Quotes are approved, which reuses Ploeg ADR-0031 and keeps the Agency's tracker as the one place its Clients' asks live.  
-
-### what makes a Run Card rare
-
-The owner has not decided what Rarity measures. Until then Ploeg sends null and nothing may depend on it.
-
-**Options:** Challenge alone, predicted at mint and revealed at release, A mix of challenge and quality, Revealed at acceptance instead of release, Compared per Team instead of per project  
-**Recommendation:** Challenge alone, revealed at release, as percentile tiers per project and season, with fixed thresholds while a project has fewer than about 30 cards.  
 
 ### the period a Pack covers
 
