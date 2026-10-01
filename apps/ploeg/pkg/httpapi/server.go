@@ -94,6 +94,10 @@ type Server struct {
 	// Gates maps each configured board's statuses to delivery gates
 	// (ADR-0051). A board absent here records no gate moves.
 	Gates gate.Boards
+	// CardRules are each team's crack attribution rules (ADR-0052). A team
+	// absent here lets anyone uninvolved referee and marks hotfixes with
+	// store.DefaultHotfixLabel.
+	CardRules map[string]CardRules
 }
 
 // ReviewSettler is implemented by shiftengine.ReviewWatch.

@@ -8,9 +8,11 @@ import (
 	"github.com/webgrip/ploeg/pkg/gate"
 )
 
-// GradeFormula is the version of the grade formula Ploeg computes (ADR-0050).
-// Any change to how a grade is computed changes it.
-const GradeFormula = "2026.1"
+// GradeFormula is the version of the grade formula Ploeg computes: 2026.1
+// (ADR-0050) with reliability and durability inputs from cracks, mends,
+// reverts and hotfixes (ADR-0052). Any change to how a grade is computed
+// changes it.
+const GradeFormula = "2026.2"
 
 // ProvisionalDays is how long a card is live before its grade stops being
 // provisional.
@@ -20,8 +22,9 @@ const ProvisionalDays = 180
 // stored facts when the card is read (ADR-0050). Overall and every subgrade
 // run from 1 to 10 in half steps. Label is nil while Provisional; after
 // that it is black when all four subgrades are 10, gold when Overall is 10,
-// and nil otherwise. Qualifiers holds OB when
-// the recorded cost passed the authorized budget and RT when a Run failed.
+// and nil otherwise. Qualifiers holds RV when a play was reverted, HF when a
+// hotfix mended one of its cracks, OB when the recorded cost passed the
+// authorized budget and RT when a Run failed, in that order.
 type CardGrade struct {
 	Formula     string          `json:"formula"`
 	Overall     float64         `json:"overall"`
@@ -51,15 +54,17 @@ type CardGradeInputs struct {
 	NotCollected []string              `json:"notCollected"`
 }
 
-// CardReliabilityInputs: CrackWeight and Reverted are not collected.
+// CardReliabilityInputs: CrackWeight sums the weight of every confirmed
+// crack (ADR-0052); Reverted is true when a play of the card was reverted.
 type CardReliabilityInputs struct {
 	CrackWeight *float64 `json:"crackWeight"`
 	Reverted    *bool    `json:"reverted"`
 }
 
 // CardDurabilityInputs: DaysLive counts whole days since LiveSince, the
-// card's release, and is 0 while the card is not live. Reverts, Hotfixes and
-// Survival are not collected.
+// card's release, and is 0 while the card is not live. Reverts counts the
+// pull requests that reverted a play, Hotfixes the hotfix-labelled fixes of
+// its cracks. Survival is not collected.
 type CardDurabilityInputs struct {
 	DaysLive  int        `json:"daysLive"`
 	LiveSince *time.Time `json:"liveSince"`
@@ -90,8 +95,7 @@ type CardReviewInputs struct {
 }
 
 var gradeNotCollected = []string{
-	"reliability.crackWeight", "reliability.reverted",
-	"durability.reverts", "durability.hotfixes", "durability.survival",
+	"durability.survival",
 	"review.ciFirstGreen", "review.findings",
 }
 
@@ -119,6 +123,10 @@ type gradeFacts struct {
 	failedRuns     int
 	changeRequests int
 	reviewRounds   int
+	crackWeight    float64
+	cracked        bool
+	reverts        int
+	hotfixes       int
 }
 
 func halfStep(x float64) float64 {
@@ -139,6 +147,9 @@ func budgetPenalty(share *float64) float64 {
 
 func computeGrade(f gradeFacts) CardGrade {
 	in := CardGradeInputs{NotCollected: append([]string{}, gradeNotCollected...)}
+	weight, reverted, reverts, hotfixes := f.crackWeight, f.reverts > 0, f.reverts, f.hotfixes
+	in.Reliability.CrackWeight, in.Reliability.Reverted = &weight, &reverted
+	in.Durability.Reverts, in.Durability.Hotfixes = &reverts, &hotfixes
 	in.Durability.LiveSince = f.liveSince
 	if f.liveSince != nil && f.now.After(*f.liveSince) {
 		in.Durability.DaysLive = int(f.now.Sub(*f.liveSince) / (24 * time.Hour))
@@ -161,8 +172,9 @@ func computeGrade(f gradeFacts) CardGrade {
 	}
 	extraRounds := max(0, f.reviewRounds-1)
 	sub := CardSubgrades{
-		Reliability: 10,
-		Durability:  halfStep(6 + 4*math.Sqrt(math.Min(1, float64(in.Durability.DaysLive)/ProvisionalDays))),
+		Reliability: reliability(weight, f.cracked, reverted),
+		Durability: halfStep(6 + 4*math.Sqrt(math.Min(1, float64(in.Durability.DaysLive)/ProvisionalDays)) -
+			penaltyRevert*float64(reverts) - penaltyHotfix*float64(hotfixes)),
 		Delivery: halfStep(10 - budgetPenalty(in.Delivery.BudgetShare) - penaltyDefectBounce*float64(defects) -
 			penaltyExtraPlay*float64(in.Delivery.ExtraPlays) - penaltyFailedRun*float64(f.failedRuns)),
 		Review: halfStep(10 - penaltyChangeRequest*float64(f.changeRequests) - penaltyExtraRound*float64(extraRounds)),
@@ -183,6 +195,12 @@ func computeGrade(f gradeFacts) CardGrade {
 		label := "gold"
 		g.Label = &label
 	}
+	if reverted {
+		g.Qualifiers = append(g.Qualifiers, "RV")
+	}
+	if hotfixes > 0 {
+		g.Qualifiers = append(g.Qualifiers, "HF")
+	}
 	if in.Delivery.BudgetShare != nil && *in.Delivery.BudgetShare > 1+1e-9 {
 		g.Qualifiers = append(g.Qualifiers, "OB")
 	}
@@ -192,7 +210,18 @@ func computeGrade(f gradeFacts) CardGrade {
 	return g
 }
 
-func (c *OperatorCard) grade(journey *gate.Journey, now time.Time) *CardGrade {
+func reliability(weight float64, cracked, reverted bool) float64 {
+	if reverted {
+		weight = math.Max(weight, revertFloorWeight)
+	}
+	r := halfStep(10 - weight)
+	if cracked || reverted {
+		r = math.Min(r, crackedCeiling)
+	}
+	return r
+}
+
+func (c *OperatorCard) grade(journey *gate.Journey, crackWeight float64, cracked bool, now time.Time) *CardGrade {
 	verdict, merged := false, false
 	changeRequests := 0
 	rounds := map[string]bool{}
@@ -218,7 +247,8 @@ func (c *OperatorCard) grade(journey *gate.Journey, now time.Time) *CardGrade {
 		return nil
 	}
 	f := gradeFacts{now: now, costUSD: c.Totals.CostUSD, authorizedUSD: c.Totals.AuthorizedUSD, plays: len(c.Plays),
-		failedRuns: c.Totals.FailedRuns, changeRequests: changeRequests, reviewRounds: len(rounds)}
+		failedRuns: c.Totals.FailedRuns, changeRequests: changeRequests, reviewRounds: len(rounds),
+		crackWeight: crackWeight, cracked: cracked, reverts: c.reverts, hotfixes: c.hotfixes}
 	if c.Release != nil {
 		at := c.Release.At
 		f.liveSince = &at

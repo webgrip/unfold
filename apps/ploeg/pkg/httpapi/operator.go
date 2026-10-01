@@ -189,6 +189,7 @@ func (s *Server) operatorHandler() http.Handler {
 	s.registerOperatorExecution(mux)
 	s.registerOperatorDelivery(mux)
 	s.registerOperatorProposed(mux)
+	s.registerCracks(mux)
 	return s.operatorAuth(mux)
 }
 
