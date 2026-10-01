@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
 ARG REGISTRY_DHI=harbor.webgrip.dev/dhi
 # renovate: datasource=docker depName=dhi.io/node versioning=docker
-ARG NODE_DEV_IMAGE=${REGISTRY_DHI}/node:24.19.0-alpine3.24-dev@sha256:dc2989ad23938772abaf549ed7bde5d61d70377005229bb55bef94bff40f8bbd
+ARG NODE_DEV_IMAGE=${REGISTRY_DHI}/node:24.21.0-alpine3.24-dev@sha256:98fb607a89b8dd24b1e837b7ded2d1367bb40119a54db617651be8ed27c755d7
 # renovate: datasource=docker depName=dhi.io/node versioning=docker
-ARG NODE_RUNTIME_IMAGE=${REGISTRY_DHI}/node:24.19.0-alpine3.24@sha256:17b2b728ef4250c311ee9fb80f3a4a1060db6996750e85c1bf2dec10ccc5b6e6
+ARG NODE_RUNTIME_IMAGE=${REGISTRY_DHI}/node:24.21.0-alpine3.24@sha256:732e532a85421f18219acffc899b0c41b2376d8f9ac47cf2d9e1ad35e014a957
 
 FROM ${NODE_DEV_IMAGE} AS stage
 WORKDIR /app
