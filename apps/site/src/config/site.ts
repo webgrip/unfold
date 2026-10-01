@@ -38,4 +38,4 @@ export const CONTROLLER = {
   kvk: '75281120',
   email: 'ryan@webgrip.nl',
 } as const;
-export const DEMO_REPLAY_PATH = '/demo';
+export const DEMO_REPLAY_PATH = '/demo/';
