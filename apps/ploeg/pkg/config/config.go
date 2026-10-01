@@ -73,6 +73,16 @@ type Target struct {
 	// CardStyle is how Vloer draws this repository's Run cards (ADR-0046).
 	// Omitted = the default skin and no theme.
 	CardStyle *CardStyle `yaml:"cardStyle"`
+	// Release names the environment whose first deploy releases a merged
+	// change of this repository (ADR-0047). Omitted = production.
+	Release *Release `yaml:"release"`
+}
+
+// Release configures when a Work Target's merged change counts as live.
+type Release struct {
+	// Environment is the deploy environment, lowercase, as a pipeline
+	// reports it to POST /api/v1/deploys.
+	Environment string `yaml:"environment"`
 }
 
 // CardStyle names the skin and the optional theme a Run card is drawn with.
@@ -117,6 +127,9 @@ type Project struct {
 	// CardStyle styles the Run cards of Repo, as on a registered target. It
 	// requires Repo.
 	CardStyle *CardStyle `yaml:"cardStyle"`
+	// Release names Repo's release environment, as on a registered target.
+	// It requires Repo.
+	Release *Release `yaml:"release"`
 }
 
 // Team is a roster entry: who works, at what cost, in what order.
@@ -286,6 +299,9 @@ func (f *File) Validate() error {
 	if _, err := f.CardStyles(); err != nil {
 		return err
 	}
+	if _, err := f.ReleaseEnvironments(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -300,8 +316,61 @@ func (f *File) validateTargets() error {
 		if err := f.Targets[key].CardStyle.validate(); err != nil {
 			return fmt.Errorf("targets.%s.cardStyle: %w", key, err)
 		}
+		if err := f.Targets[key].Release.validate(); err != nil {
+			return fmt.Errorf("targets.%s.release: %w", key, err)
+		}
 	}
 	return nil
+}
+
+func (r *Release) validate() error {
+	if r == nil {
+		return nil
+	}
+	normalized, ok := work.NormalizeEnvironment(r.Environment)
+	if !ok || normalized != r.Environment {
+		return fmt.Errorf("environment %q must be 1 to 63 lowercase letters, digits, dots, underscores and dashes", r.Environment)
+	}
+	return nil
+}
+
+// ReleaseEnvironments returns the release environment of every repository
+// that names one, keyed by lowercased "owner/name". A repository given two
+// different environments is an error. A repository absent from the result
+// releases in work.DefaultReleaseEnvironment.
+func (f *File) ReleaseEnvironments() (map[string]string, error) {
+	out := map[string]string{}
+	where := map[string]string{}
+	add := func(repo string, release *Release, at string) error {
+		if release == nil || repo == "" {
+			return nil
+		}
+		key := strings.ToLower(repo)
+		if prev, dup := out[key]; dup && prev != release.Environment {
+			return fmt.Errorf("%s: release environment for %s differs from the one at %s", at, repo, where[key])
+		}
+		out[key], where[key] = release.Environment, at
+		return nil
+	}
+	for _, key := range sortedTargetKeys(f.Targets) {
+		if err := add(f.Targets[key].Repo, f.Targets[key].Release, "targets."+key); err != nil {
+			return nil, err
+		}
+	}
+	for _, tr := range []struct {
+		provider string
+		projects []Project
+	}{
+		{"vikunja", f.Trackers.Vikunja.Projects},
+		{"clickup", f.Trackers.Clickup.Projects},
+	} {
+		for i, p := range tr.projects {
+			if err := add(p.Repo, p.Release, fmt.Sprintf("trackers.%s.projects[%d]", tr.provider, i)); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return out, nil
 }
 
 var cardStyleName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
@@ -381,6 +450,12 @@ func (f *File) validateRoute(p Project) error {
 	}
 	if err := p.CardStyle.validate(); err != nil {
 		return fmt.Errorf("cardStyle: %w", err)
+	}
+	if p.Release != nil && p.Repo == "" {
+		return fmt.Errorf("release requires repo; set it on a registered target under targets instead")
+	}
+	if err := p.Release.validate(); err != nil {
+		return fmt.Errorf("release: %w", err)
 	}
 	for _, key := range append([]string{p.Default}, p.Allow...) {
 		if key == "" {

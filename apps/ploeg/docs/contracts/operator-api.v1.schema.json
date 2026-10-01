@@ -1725,7 +1725,8 @@
       "description": "One pull request for the Work Item, as the forge reported it. Every fact the forge has not reported is absent, including state.",
       "required": [
         "number",
-        "reviews"
+        "reviews",
+        "deployments"
       ],
       "properties": {
         "number": {
@@ -1784,6 +1785,13 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/pullRequestReview"
+          }
+        },
+        "deployments": {
+          "type": "array",
+          "description": "The first deploy of each environment that carried mergeCommitSha, earliest first (ADR-0047). Empty until a deploy is reported.",
+          "items": {
+            "$ref": "#/$defs/cardDeployment"
           }
         }
       }
@@ -1911,7 +1919,7 @@
     "card": {
       "type": "object",
       "additionalProperties": false,
-      "description": "A Run card (ADR-0046): one per Work Item, assembled from stored facts when read. Ploeg sends facts only. state: withdrawn when the Work Item was withdrawn; drafting with no play; in_review while a play is open or its state is unknown; merged when the latest play merged, or a play merged and the Work Item is done; closed otherwise. rarity, grade and condition are always null and finish is always matte until those decisions are made. demo is always false from Ploeg.",
+      "description": "A Run card (ADR-0046): one per Work Item, assembled from stored facts when read. Ploeg sends facts only. state: withdrawn when the Work Item was withdrawn; drafting with no play; in_review while a play is open or its state is unknown; merged when the latest play merged, or a play merged and the Work Item is done; closed otherwise. rarity, grade and condition are always null and finish is always matte until those decisions are made. demo is always false from Ploeg. deployments and release come from the deploys pipelines report to POST /api/v1/deploys (ADR-0047).",
       "required": [
         "workItemId",
         "title",
@@ -1929,6 +1937,8 @@
         "plays",
         "totals",
         "events",
+        "deployments",
+        "release",
         "demo"
       ],
       "properties": {
@@ -2019,8 +2029,77 @@
             "$ref": "#/$defs/cardEvent"
           }
         },
+        "deployments": {
+          "type": "array",
+          "description": "The earliest deploy of each environment across the plays, earliest first (ADR-0047).",
+          "items": {
+            "$ref": "#/$defs/cardDeployment"
+          }
+        },
+        "release": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/cardRelease"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "demo": {
           "const": false
+        }
+      }
+    },
+    "cardDeployment": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The first deploy of one environment that carried a play's merge commit (ADR-0047). sha is the deployed commit, url the pipeline run when the deploy named one.",
+      "required": [
+        "environment",
+        "firstDeployedAt",
+        "sha"
+      ],
+      "properties": {
+        "environment": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+        },
+        "firstDeployedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "sha": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      }
+    },
+    "cardRelease": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "When the latest merged play went live (ADR-0047). source deploy: at is that play's first deploy of the release environment. source merge: the repository has never reported a deploy of the release environment, so at is the play's mergedAt. environment is the Work Target's release.environment, default production.",
+      "required": [
+        "at",
+        "source",
+        "environment"
+      ],
+      "properties": {
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "source": {
+          "enum": [
+            "deploy",
+            "merge"
+          ]
+        },
+        "environment": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
         }
       }
     },

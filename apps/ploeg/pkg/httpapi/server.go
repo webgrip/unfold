@@ -87,6 +87,9 @@ type Server struct {
 	// ForgeBots are the forge logins Ploeg itself acts as. A review from one
 	// of them never sends work back to a Team.
 	ForgeBots []string
+	// Deploys authenticates POST /api/v1/deploys (ADR-0047). Nil disables
+	// the endpoint, which then answers 404.
+	Deploys *DeployAuth
 }
 
 // ReviewSettler is implemented by shiftengine.ReviewWatch.
@@ -158,6 +161,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/runs/{token}/checkpoint", s.handleCheckpoint)
 	mux.HandleFunc("POST /api/v1/runs/{token}/outcome", s.handleOutcome)
 	mux.HandleFunc("GET /api/v1/queue/{team}", s.handleQueue)
+	mux.HandleFunc("/api/v1/deploys", s.handleDeploy)
 	mux.Handle("/api/v1/operator/", s.operatorHandler())
 	s.RegisterLLMControl(mux)
 	return s.WorkerHandler(mux)

@@ -121,6 +121,7 @@ fails otherwise.
 | [0044](0044-an-operator-restarts-stopped-work-from-a-round-they-choose.md) | An operator restarts stopped work by requeueing it from a Round they choose | accepted | 2026-10-01 |
 | [0045](0045-keep-run-usage-and-merge-facts.md) | Ploeg keeps every usage figure a harness reports and every merge and review fact a forge reports | proposed | 2026-10-01 |
 | [0046](0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md) | A Run card is assembled per Work Item from stored facts | proposed | 2026-10-01 |
+| [0047](0047-ploeg-learns-where-a-merged-change-is-deployed-from-a-generic-deploy-endpoint.md) | Ploeg learns where a merged change is deployed from a generic deploy endpoint | proposed | 2026-10-01 |
 
 ## Review calendar
 
@@ -145,4 +146,5 @@ triggers.
 | 2027-01-31 | [0043](0043-a-failed-reading-run-is-retried-and-a-missing-review-closes-review-failed.md), [0044](0044-an-operator-restarts-stopped-work-from-a-round-they-choose.md) — or sooner, when a reading Role reaches `MaxRunAttempts` twice in a month, or restarts from one close reason pass five in a month |
 | 2027-01-31 | [0045](0045-keep-run-usage-and-merge-facts.md) — or sooner, when a third forge provider is added, a harness changes its usage shape, or the first card or KPI query is built on these facts |
 | 2027-01-31 | [0046](0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md) — or sooner, when the owner decides rarity, grade or finish, tracker assignees are ingested, or a card read passes 200 ms at p95 |
+| 2027-01-31 | [0047](0047-ploeg-learns-where-a-merged-change-is-deployed-from-a-generic-deploy-endpoint.md) — or sooner, when a GitOps controller should report deploys directly, deploys keep filling the 50-pull-request batch, or a third forge provider is added |
 | 2027-04-01 | [0005](0005-build-a-dedicated-dispatch-plane.md), [0032](0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md) — the project review gate (`design.md` §10) |

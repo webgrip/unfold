@@ -6,6 +6,10 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -175,6 +179,90 @@ func ReadCommitStatus(ctx context.Context, fp ForgeProvider, repo, sha string) (
 		return CommitStatus{}, false, nil
 	}
 	return reader.CommitStatus(ctx, repo, sha)
+}
+
+// AncestryReader is implemented by a ForgeProvider that can tell, through
+// its compare API, whether one commit is in the history of another
+// (ADR-0047). A forge without it never marks a pull request as deployed.
+type AncestryReader interface {
+	// IsAncestor reports whether ancestor is reachable from descendant in
+	// repo. A commit is its own ancestor.
+	IsAncestor(ctx context.Context, repo, ancestor, descendant string) (bool, error)
+}
+
+// ErrNoAncestry is returned by IsAncestor when the forge cannot compare
+// commits.
+var ErrNoAncestry = errors.New("forge cannot compare commits")
+
+// IsAncestor asks fp whether ancestor is reachable from descendant in repo.
+// Equal commits answer true without a forge read; a forge that cannot
+// compare returns ErrNoAncestry.
+func IsAncestor(ctx context.Context, fp ForgeProvider, repo, ancestor, descendant string) (bool, error) {
+	if ancestor == "" || descendant == "" || repo == "" {
+		return false, errors.New("ancestry needs a repository and two commits")
+	}
+	if strings.EqualFold(ancestor, descendant) {
+		return true, nil
+	}
+	reader, can := fp.(AncestryReader)
+	if !can {
+		return false, ErrNoAncestry
+	}
+	return reader.IsAncestor(ctx, repo, ancestor, descendant)
+}
+
+// CompareListsCommits reads a forge compare response and reports whether it
+// lists any commit. It stops at the first answer, a total_commits count or
+// the first entry of the commits array, so a long comparison is never read
+// whole. A response with neither is an error.
+func CompareListsCommits(body io.Reader) (bool, error) {
+	dec := json.NewDecoder(body)
+	if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
+		return false, errors.New("compare response is not a JSON object")
+	}
+	sawCommits := false
+	for dec.More() {
+		tok, err := dec.Token()
+		if err != nil {
+			return false, fmt.Errorf("compare response: %w", err)
+		}
+		switch key, _ := tok.(string); key {
+		case "total_commits":
+			var total int
+			if err := dec.Decode(&total); err != nil {
+				return false, fmt.Errorf("compare response total_commits: %w", err)
+			}
+			return total > 0, nil
+		case "commits":
+			open, err := dec.Token()
+			if err != nil {
+				return false, fmt.Errorf("compare response commits: %w", err)
+			}
+			if open == nil {
+				sawCommits = true
+				continue
+			}
+			if open != json.Delim('[') {
+				return false, errors.New("compare response commits is not an array")
+			}
+			if dec.More() {
+				return true, nil
+			}
+			if _, err := dec.Token(); err != nil {
+				return false, fmt.Errorf("compare response commits: %w", err)
+			}
+			sawCommits = true
+		default:
+			var skip json.RawMessage
+			if err := dec.Decode(&skip); err != nil {
+				return false, fmt.Errorf("compare response: %w", err)
+			}
+		}
+	}
+	if !sawCommits {
+		return false, errors.New("compare response has neither total_commits nor commits")
+	}
+	return false, nil
 }
 
 // CombineCommitStates folds the states of several checks into one: any

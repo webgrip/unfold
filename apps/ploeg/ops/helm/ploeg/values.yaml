@@ -54,6 +54,15 @@ operator:
   consumers: []
   deliveryPolicies: []
 
+# ADR-0047: POST /api/v1/deploys, where a pipeline reports "commit X is live
+# in environment Y". tokenSecret names an existing Secret key holding the
+# bearer token (32+ bytes) and becomes PLOEG_DEPLOY_TOKEN on ploegd only.
+# Unset = the endpoint answers 404.
+deploys: {}
+#   tokenSecret:
+#     name: ploeg-deploy-token
+#     key: token
+
 # Plain PLOEG_* env rendered onto the deployment.
 env:
   PLOEG_DEFAULT_TEAM: default
@@ -433,6 +442,8 @@ config: {}
 #       forge: forgejo
 #       cardStyle:                    # ADR-0046: Run card skin and theme; unset = vloer-native, no theme
 #         theme: acme
+#       release:                      # ADR-0047: the deploy environment that releases a merge; unset = production
+#         environment: production
 #     homelab-cluster:
 #       repo: webgrip/homelab-cluster
 #       branch: main

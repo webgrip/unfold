@@ -11,6 +11,7 @@ change either side and the test tells you.
 | [checkpoint.v1.schema.json](checkpoint.v1.schema.json) | The durable progress record (shared by TaskSpec, OutcomeReport, and the checkpoint endpoint). |
 | [run-api.v1.schema.json](run-api.v1.schema.json) | All run-API message bodies (claim/renew/checkpoint/outcome). |
 | [operator-api.v1.schema.json](operator-api.v1.schema.json) | Authenticated, team-scoped read projections of teams, activity summaries, work items, shifts, runs, the Run list, checkpoints and snapshot audit pages, and the Run card of a Work Item ([ADR-0046](../adrs/0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md)). |
+| [deploy-api.v1.schema.json](deploy-api.v1.schema.json) | `POST /api/v1/deploys`: a pipeline reports that a commit is live in an environment, with its own bearer token ([ADR-0047](../adrs/0047-ploeg-learns-where-a-merged-change-is-deployed-from-a-generic-deploy-endpoint.md), [how-to](../how-to/send-deploys-from-a-pipeline.md)). |
 | [tracker-execution.md](tracker-execution.md), [v1 schema](tracker-execution.v1.schema.json) | Scoped source lookup and exclusive operator binding of an existing pristine tracker Work Item. |
 | [acp-profiles.md](acp-profiles.md) | The `acp` harness profiles: launch command, gateway wiring, instruction files and approval mapping per agent, and what an image needs to run them. |
 | [executor.md](executor.md) | The executor SPI: what any launcher (KEDA, CronJob, agent-sandbox, a human with curl) must and must not do. |
@@ -32,6 +33,15 @@ change either side and the test tells you.
   number `1`, as the Vloer card contract states, where the older operator
   responses send the string `"1.0"`. It follows the same rule: a fact nobody
   reported is absent, never zero.
+- Since [ADR-0047](../adrs/0047-ploeg-learns-where-a-merged-change-is-deployed-from-a-generic-deploy-endpoint.md)
+  the card always carries `deployments` (earliest first deploy per
+  environment) and `release` (an object or null), and each play carries its
+  own `deployments`. They are required because Ploeg always sends them, empty
+  or null when no deploy was reported. `release.source` is `merge` while the
+  repository has never reported a deploy of its release environment.
+- `deploy-api.v1` is the body of a pipeline's deploy report. It refuses
+  unknown fields, unlike the response contracts, so a misspelled field fails
+  the pipeline step instead of being dropped.
 
 ## OpenSpec Work Items
 

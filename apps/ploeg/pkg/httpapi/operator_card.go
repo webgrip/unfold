@@ -16,7 +16,8 @@ func (s *Server) handleOperatorCard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	principal, _ := OperatorPrincipalFromContext(r.Context())
-	card, err := s.Store.OperatorCard(r.Context(), id, principal.Teams, s.ForgeBots)
+	card, err := s.Store.OperatorCard(r.Context(), id, principal.Teams,
+		store.CardOptions{Bots: s.ForgeBots, ReleaseEnvironments: s.OperatorConfig.ReleaseEnvironments})
 	if err != nil {
 		operatorReadError(w, err)
 		return

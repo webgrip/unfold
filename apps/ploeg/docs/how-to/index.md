@@ -19,6 +19,7 @@ These runbooks cover the recurring operator tasks for a cluster deployment of Pl
 | [Restore after a database outage](restore-after-a-database-outage.md) | PostgreSQL was unavailable or was restored from a backup |
 | [Give Runs a toolchain and checks](give-runs-a-toolchain-and-checks.md) | Agents open pull requests that fail checks they could not run in the sandbox |
 | [Route a board that serves several repositories](route-a-multi-repo-board.md) | One board holds tickets for more than one repository, or a ticket was refused with a `repo/*` label reason |
+| [Send deploys from a pipeline to Ploeg](send-deploys-from-a-pipeline.md) | Run cards should count days live from a deploy, or a card says "counted from merge" |
 
 For accounts whose final cost is uncertain, [Reconcile uncertainty](../ops/managed-workers.md#reconcile-uncertainty) sets the rules these runbooks follow.
 

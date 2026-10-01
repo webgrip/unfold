@@ -40,10 +40,45 @@ type OperatorCard struct {
 	Plays     []CardPlay   `json:"plays"`
 	Totals    CardTotals   `json:"totals"`
 	Events    []CardEvent  `json:"events"`
+	// Deployments holds the earliest deploy of each environment across the
+	// plays, earliest first (ADR-0047).
+	Deployments []CardDeployment `json:"deployments"`
+	// Release is when the latest merged play went live, or nil when no play
+	// merged or the release environment has not received it yet.
+	Release   *CardRelease `json:"release"`
 	Demo      bool         `json:"demo"`
 	itemState string
 	runs      []cardRun
 	bots      map[string]bool
+}
+
+// CardDeployment is the first deploy of one environment that carried a
+// play's merge commit. URL is the pipeline run, when the deploy named one.
+type CardDeployment struct {
+	Environment     string    `json:"environment"`
+	FirstDeployedAt time.Time `json:"firstDeployedAt"`
+	SHA             string    `json:"sha"`
+	URL             string    `json:"url,omitempty"`
+}
+
+// CardRelease is when the card's change went live. Source is deploy when
+// the release environment's first deploy of the latest merged play is
+// recorded, and merge when the repository has never reported a deploy of
+// that environment, so the merge time stands in for it.
+type CardRelease struct {
+	At          time.Time `json:"at"`
+	Source      string    `json:"source"`
+	Environment string    `json:"environment"`
+}
+
+// CardOptions is what assembling a card takes from configuration.
+type CardOptions struct {
+	// Bots are forge logins Ploeg acts as; they never appear as a person.
+	Bots []string
+	// ReleaseEnvironments maps a lowercased "owner/name" to the environment
+	// whose first deploy releases a merged change. A repository absent here
+	// releases in work.DefaultReleaseEnvironment.
+	ReleaseEnvironments map[string]string
 }
 
 // OperatorCardTarget is the repository a Work Item's pull requests go to.
@@ -106,8 +141,13 @@ type CardPlay struct {
 	ChangedFiles   *int         `json:"changedFiles,omitempty"`
 	CI             *CardCI      `json:"ci,omitempty"`
 	Reviews        []CardReview `json:"reviews"`
-	openedAt       time.Time
-	repo           string
+	// Deployments holds the first deploy of each environment that carried
+	// MergeCommitSHA, earliest first (ADR-0047).
+	Deployments []CardDeployment `json:"deployments"`
+	openedAt    time.Time
+	id          int64
+	repo        string
+	forge       string
 }
 
 // CardCI is the combined commit status Ploeg last read at HeadSHA.
@@ -195,10 +235,9 @@ var cardRunQuery = `SELECT r.id, r.shift_id, r.role, r.round, r.writes, r.state,
 	FROM agent_runs r WHERE r.work_item_id = $1 ORDER BY r.id LIMIT $2`
 
 // OperatorCard assembles the Run card of Work Item id from stored facts,
-// within teams (nil means every team). bots are forge logins Ploeg acts as;
-// they never appear as a person on the card. Style is left zero for the
-// caller to fill from configuration.
-func (s *Store) OperatorCard(ctx context.Context, id int64, teams []string, bots []string) (OperatorCard, error) {
+// within teams (nil means every team). Style is left zero for the caller to
+// fill from configuration.
+func (s *Store) OperatorCard(ctx context.Context, id int64, teams []string, opts CardOptions) (OperatorCard, error) {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return OperatorCard{}, err
@@ -206,8 +245,8 @@ func (s *Store) OperatorCard(ctx context.Context, id int64, teams []string, bots
 	defer tx.Rollback(ctx) //nolint:errcheck
 
 	card := OperatorCard{Finish: "matte", Roster: []CardPerson{}, Crew: []CardCrew{}, Plays: []CardPlay{}, Events: []CardEvent{},
-		bots: map[string]bool{}}
-	for _, b := range bots {
+		Deployments: []CardDeployment{}, bots: map[string]bool{}}
+	for _, b := range opts.Bots {
 		card.bots[strings.ToLower(b)] = true
 	}
 	var provider, externalID, forge, owner, repo string
@@ -238,6 +277,12 @@ func (s *Store) OperatorCard(ctx context.Context, id int64, teams []string, bots
 		return OperatorCard{}, err
 	}
 	if err := card.loadPlays(ctx, tx, id, checkpoints); err != nil {
+		return OperatorCard{}, err
+	}
+	if err := card.loadDeployments(ctx, tx); err != nil {
+		return OperatorCard{}, err
+	}
+	if card.Release, err = card.release(ctx, tx, opts.ReleaseEnvironments); err != nil {
 		return OperatorCard{}, err
 	}
 	withdrawals, err := cardWithdrawals(ctx, tx, id)
@@ -330,7 +375,7 @@ func cardWithdrawals(ctx context.Context, tx pgx.Tx, id int64) ([]cardWithdrawal
 }
 
 func (c *OperatorCard) loadPlays(ctx context.Context, tx pgx.Tx, id int64, checkpoints []cardCheckpoint) error {
-	rows, err := tx.Query(ctx, `SELECT p.id, p.repo_owner, p.repo_name, p.number, p.shift_id::text, COALESCE(p.branch, sh.branch, ''),
+	rows, err := tx.Query(ctx, `SELECT p.id, p.forge, p.repo_owner, p.repo_name, p.number, p.shift_id::text, COALESCE(p.branch, sh.branch, ''),
 		COALESCE(p.state, ''), COALESCE(p.head_sha, ''), COALESCE(p.merge_commit_sha, ''), p.merged_at, COALESCE(p.merged_by, ''),
 		p.closed_at, p.additions, p.deletions, p.changed_files,
 		p.ci_state, p.ci_checks, COALESCE(p.ci_head_sha, ''), p.ci_captured_at, p.first_seen_at
@@ -353,7 +398,7 @@ func (c *OperatorCard) loadPlays(ctx context.Context, tx pgx.Tx, id int64, check
 			ciAt        *time.Time
 			play        CardPlay
 		)
-		if err := rows.Scan(&pid, &owner, &name, &play.Number, &shiftID, &play.Branch, &play.State, &play.HeadSHA,
+		if err := rows.Scan(&pid, &play.forge, &owner, &name, &play.Number, &shiftID, &play.Branch, &play.State, &play.HeadSHA,
 			&play.MergeCommitSHA, &play.MergedAt, &play.MergedBy, &play.ClosedAt, &play.Additions, &play.Deletions,
 			&play.ChangedFiles, &ciState, &ciChecks, &ciHead, &ciAt, &play.openedAt); err != nil {
 			return err
@@ -370,8 +415,9 @@ func (c *OperatorCard) loadPlays(ctx context.Context, tx pgx.Tx, id int64, check
 			}
 			play.CI = ci
 		}
-		play.repo = owner + "/" + name
+		play.id, play.repo = pid, owner+"/"+name
 		play.Reviews = []CardReview{}
+		play.Deployments = []CardDeployment{}
 		play.URL, play.openedAt = c.playLink(play, checkpoints)
 		byID[pid] = len(c.Plays)
 		ids = append(ids, pid)
@@ -400,6 +446,92 @@ func (c *OperatorCard) loadPlays(ctx context.Context, tx pgx.Tx, id int64, check
 		p.Reviews = append(p.Reviews, r)
 	}
 	return reviews.Err()
+}
+
+func (c *OperatorCard) loadDeployments(ctx context.Context, tx pgx.Tx) error {
+	if len(c.Plays) == 0 {
+		return nil
+	}
+	byID := make(map[int64]int, len(c.Plays))
+	ids := make([]int64, 0, len(c.Plays))
+	for i, p := range c.Plays {
+		byID[p.id] = i
+		ids = append(ids, p.id)
+	}
+	rows, err := tx.Query(ctx, `SELECT pd.pull_request_id, pd.environment, pd.first_deployed_at, d.sha, COALESCE(left(d.url, 2048), '')
+		FROM pull_request_deployments pd JOIN deployments d ON d.id = pd.deployment_id
+		WHERE pd.pull_request_id = ANY($1) ORDER BY pd.first_deployed_at, pd.environment LIMIT 500`, ids)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	seen := map[string]bool{}
+	for rows.Next() {
+		var pid int64
+		var d CardDeployment
+		if err := rows.Scan(&pid, &d.Environment, &d.FirstDeployedAt, &d.SHA, &d.URL); err != nil {
+			return err
+		}
+		d.FirstDeployedAt = d.FirstDeployedAt.UTC()
+		p := &c.Plays[byID[pid]]
+		p.Deployments = append(p.Deployments, d)
+		if !seen[d.Environment] {
+			seen[d.Environment] = true
+			c.Deployments = append(c.Deployments, d)
+		}
+	}
+	return rows.Err()
+}
+
+func (c *OperatorCard) latestMerged() *CardPlay {
+	var latest *CardPlay
+	for i := range c.Plays {
+		p := &c.Plays[i]
+		if p.State != "merged" {
+			continue
+		}
+		if latest == nil || mergedAt(p).Compare(mergedAt(latest)) >= 0 {
+			latest = p
+		}
+	}
+	return latest
+}
+
+func mergedAt(p *CardPlay) time.Time {
+	if p.MergedAt == nil {
+		return time.Time{}
+	}
+	return *p.MergedAt
+}
+
+func (c *OperatorCard) release(ctx context.Context, tx pgx.Tx, environments map[string]string) (*CardRelease, error) {
+	play := c.latestMerged()
+	if play == nil {
+		return nil, nil
+	}
+	environment := work.DefaultReleaseEnvironment
+	if configured, ok := environments[strings.ToLower(play.repo)]; ok && configured != "" {
+		environment = configured
+	}
+	for _, d := range play.Deployments {
+		if d.Environment == environment {
+			return &CardRelease{At: d.FirstDeployedAt, Source: "deploy", Environment: environment}, nil
+		}
+	}
+	owner, name, ok := splitRepo(play.repo)
+	if !ok {
+		return nil, nil
+	}
+	var reported bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM deployments
+		WHERE forge = $1 AND repo_owner = lower($2) AND repo_name = lower($3) AND environment = $4)`,
+		play.forge, owner, name, environment).Scan(&reported); err != nil {
+		return nil, err
+	}
+	if reported || play.MergedAt == nil {
+		return nil, nil
+	}
+	return &CardRelease{At: play.MergedAt.UTC(), Source: "merge", Environment: environment}, nil
 }
 
 var cardPullLink = regexp.MustCompile(`/(?:pulls?|merge_requests)/([0-9]+)/?$`)

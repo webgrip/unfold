@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"sort"
 
@@ -65,8 +66,20 @@ func operatorConfig(cfg *config.File, plans plan.Plans) (httpapi.OperatorConfig,
 	if err != nil {
 		return httpapi.OperatorConfig{}, err
 	}
+	releases, err := cfg.ReleaseEnvironments()
+	if err != nil {
+		return httpapi.OperatorConfig{}, err
+	}
 	return httpapi.OperatorConfig{Consumers: consumers, Teams: teams, TeamAssignees: assignees, TeamScopes: scopes,
-		DeliveryPolicies: deliveryPolicies, CardStyles: styles}, nil
+		DeliveryPolicies: deliveryPolicies, CardStyles: styles, ReleaseEnvironments: releases}, nil
+}
+
+func deployAuth() (*httpapi.DeployAuth, error) {
+	auth, err := httpapi.NewDeployAuth(os.Getenv("PLOEG_DEPLOY_TOKEN"))
+	if err != nil {
+		return nil, fmt.Errorf("PLOEG_DEPLOY_TOKEN: %w", err)
+	}
+	return auth, nil
 }
 
 func cardStyles(cfg *config.File) (map[string]store.CardStyle, error) {

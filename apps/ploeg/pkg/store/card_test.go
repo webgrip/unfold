@@ -99,11 +99,12 @@ func TestRecordPullRequestFacts_DiffAndCI(t *testing.T) {
 }
 
 type cardFixture struct {
-	t     *testing.T
-	item  int64
-	shift int64
-	base  time.Time
-	runs  int
+	t       *testing.T
+	item    int64
+	shift   int64
+	base    time.Time
+	runs    int
+	release map[string]string
 }
 
 func newCardFixture(t *testing.T, externalID string) *cardFixture {
@@ -182,7 +183,7 @@ func (f *cardFixture) pr(facts PullRequestFacts) {
 
 func (f *cardFixture) card(bots ...string) OperatorCard {
 	f.t.Helper()
-	card, err := testStore.OperatorCard(context.Background(), f.item, []string{"silver"}, bots)
+	card, err := testStore.OperatorCard(context.Background(), f.item, []string{"silver"}, CardOptions{Bots: bots, ReleaseEnvironments: f.release})
 	if err != nil {
 		f.t.Fatal(err)
 	}
@@ -396,10 +397,10 @@ func TestOperatorCard_WithdrawnWorkItem(t *testing.T) {
 
 func TestOperatorCard_OutsideTheScopeIsNotFound(t *testing.T) {
 	f := newCardFixture(t, "1620")
-	if _, err := testStore.OperatorCard(context.Background(), f.item, []string{"gold"}, nil); !errors.Is(err, ErrOperatorNotFound) {
+	if _, err := testStore.OperatorCard(context.Background(), f.item, []string{"gold"}, CardOptions{}); !errors.Is(err, ErrOperatorNotFound) {
 		t.Errorf("other team: err = %v", err)
 	}
-	if _, err := testStore.OperatorCard(context.Background(), f.item+1000, nil, nil); !errors.Is(err, ErrOperatorNotFound) {
+	if _, err := testStore.OperatorCard(context.Background(), f.item+1000, nil, CardOptions{}); !errors.Is(err, ErrOperatorNotFound) {
 		t.Errorf("missing item: err = %v", err)
 	}
 }

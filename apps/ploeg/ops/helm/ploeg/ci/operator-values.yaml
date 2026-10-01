@@ -21,3 +21,7 @@ operator:
       verifierId: de-vloer-docker-v1
       minTests: 2
       publicationEnabled: false
+deploys:
+  tokenSecret:
+    name: ploeg-deploy-token
+    key: token

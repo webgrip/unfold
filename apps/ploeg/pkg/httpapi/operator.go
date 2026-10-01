@@ -54,6 +54,10 @@ type OperatorConfig struct {
 	// lowercased "owner/name". A Work Target absent here gets
 	// store.DefaultCardSkin and no theme.
 	CardStyles map[string]store.CardStyle
+	// ReleaseEnvironments is the release environment of each configured
+	// Work Target that names one, keyed by lowercased "owner/name"
+	// (ADR-0047). A Work Target absent here releases in production.
+	ReleaseEnvironments map[string]string
 }
 
 type operatorPrincipalKey struct{}
