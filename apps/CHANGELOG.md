@@ -1,3 +1,11 @@
+## [glide-v0.4.0-rc.27](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.26...glide-v0.4.0-rc.27) (2026-10-01)
+
+### Added
+
+* **ploeg:** assemble a run card per work item from stored facts ([795c966](https://forgejo.webgrip.dev/webgrip/glide/commit/795c96659905ddcfc77cfcca306963b163478a85))
+* **ploeg:** learn where a merged change is deployed ([4fabedb](https://forgejo.webgrip.dev/webgrip/glide/commit/4fabedb7f3df70ac4282b820eb8906db0b2c1350))
+* **vloer:** show days live and the finish ladder on run cards ([0f22015](https://forgejo.webgrip.dev/webgrip/glide/commit/0f22015c1e35d41adf3a10f6109aef3d415b5a83))
+
 ## [glide-v0.4.0-rc.26](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.25...glide-v0.4.0-rc.26) (2026-10-01)
 
 ### Added
