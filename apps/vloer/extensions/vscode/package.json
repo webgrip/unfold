@@ -664,8 +664,16 @@
   "devDependencies": {
     "@types/node": "24.19.0",
     "@types/vscode": "1.99.1",
-    "@vscode/vsce": "3.9.2",
+    "@vscode/vsce": "4.0.0",
     "ovsx": "1.2.0",
     "typescript": "7.0.2"
+  },
+  "overrides": {
+    "ovsx": {
+      "@vscode/vsce": "$@vscode/vsce"
+    }
+  },
+  "allowScripts": {
+    "@vscode/vsce-sign": false
   }
 }
