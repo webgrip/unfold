@@ -63,26 +63,50 @@ export function coverageFor(finish) {
 
 const salt = view => view?.style?.theme || view?.style?.skin || 'forge';
 
+/** The frames a theme may give the forge: the classic window, full art behind translucent panels, or the card in a grading slab. */
+export const frames = Object.freeze(['classic', 'fullart', 'slab']);
+
+/** The frame a card is drawn in: its theme's, or classic. */
+export function frameFor(view) {
+  return frames.includes(view?.theme?.frame) ? view.theme.frame : 'classic';
+}
+
 /**
- * The foil pattern a card shows: the one a pack pull assigned (`view.foilPattern`) when the forge draws it, otherwise
- * one picked by a stable hash of the Work Item id and the theme (or skin), so it never changes between pages or reloads.
- * @param {{ id: string, foilPattern?: string | null, style?: { skin?: string, theme?: string } }} view
+ * The foil pattern a card shows: the one a pack pull assigned (`view.foilPattern`) when the forge draws it, then its
+ * theme's default pattern, otherwise one picked by a stable hash of the Work Item id and the theme (or skin), so it
+ * never changes between pages or reloads.
+ * @param {{ id: string, foilPattern?: string | null, style?: { skin?: string, theme?: string }, theme?: { foilPattern?: string | null } | null }} view
  */
 export function patternFor(view) {
   const pulled = foilPatterns.find(pattern => pattern.key === view?.foilPattern);
   if (pulled) return { ...pulled, source: 'pull' };
+  const themed = foilPatterns.find(pattern => pattern.key === view?.theme?.foilPattern);
+  if (themed) return { ...themed, source: 'theme' };
   return { ...derivedPatterns[stableHash(`pattern|${view?.id ?? ''}|${salt(view)}`) % derivedPatterns.length], source: 'derived' };
 }
 
 /**
- * The art preset a card shows, picked by a stable hash of the Work Item id and the theme (or skin). An alternate-art
- * pull (`view.copy.altArt`, 0–13) names one of the other presets, counted on from the card's own.
+ * The art a card shows. An alternate-art pull (`view.copy.altArt`, 0–13) names one of the other presets, counted on
+ * from the card's own. Otherwise it is its theme's preset, shader or uploaded image or video, else a preset picked by a
+ * stable hash of the Work Item id and the theme (or skin). A shader carries its GLSL as `code` and draws as `custom`;
+ * an upload draws as `media` from `url`.
  */
 export function artFor(view) {
-  const own = stableHash(`art|${view?.id ?? ''}|${salt(view)}`) % artPresets.length;
+  const art = view?.theme?.art;
+  const tint = view?.theme?.tokens?.['--forge-frame'] ?? null;
+  const themed = art?.kind === 'preset' ? artPresets.findIndex(entry => entry.key === art.preset) : -1;
+  const own = themed >= 0 ? themed : stableHash(`art|${view?.id ?? ''}|${salt(view)}`) % artPresets.length;
   const alternate = view?.copy?.altArt;
   if (Number.isInteger(alternate) && alternate >= 0) return { ...artPresets[(own + 1 + (alternate % (artPresets.length - 1))) % artPresets.length], source: 'alt' };
-  return artPresets[own];
+  if (themed >= 0) return { ...artPresets[themed], source: 'theme' };
+  if (art?.kind === 'shader' && typeof art.code === 'string' && art.code) return { key: 'custom', label: 'Custom shader', tint: tint ?? '#2a3340', code: art.code, source: 'theme' };
+  if (art?.kind === 'media' && typeof art.url === 'string') return { key: 'media', label: art.video ? 'Uploaded video' : 'Uploaded image', tint: tint ?? '#2a3340', url: art.url, video: Boolean(art.video), source: 'theme' };
+  return { ...artPresets[own], source: 'derived' };
+}
+
+/** The art a card falls back to when its theme's shader does not compile on this GPU. */
+export function fallbackArt(view) {
+  return { ...artPresets[stableHash(`art|${view?.id ?? ''}|${salt(view)}`) % artPresets.length], source: 'fallback' };
 }
 
 /** A stable number in [0, 1) for a card, which seeds the shaders' sparkle and crack layout. */
@@ -160,6 +184,9 @@ export function faceFacts(view) {
     pattern,
     art,
     variant: { altArt: art.source === 'alt', fullArt: view.copy?.fullArt === true, goldSignature: view.copy?.goldSignature === true },
+    frame: frameFor(view),
+    theme: view.theme ? { id: view.theme.id, name: view.theme.name, tokens: { ...view.theme.tokens }, setSymbol: view.theme.setSymbol ?? null, cardBack: view.theme.cardBack ?? null } : null,
+    images: { symbol: null, back: null },
     seed: seedFor(view),
     edge: coverage.gilded ? 'gold' : coverage.level > 0 ? 'chrome' : 'steel',
   };
@@ -167,5 +194,6 @@ export function faceFacts(view) {
 
 /** A string that changes whenever anything the forge paints changes, so a refresh with the same facts repaints nothing. */
 export function factsSignature(facts) {
-  return JSON.stringify([facts.title, facts.sub, facts.coin, facts.state, facts.condition, facts.finishLine, facts.rows, facts.set, facts.grade, facts.steward, facts.ids, facts.demoLine, facts.coverage.key, facts.pattern.key, facts.art.key, facts.variant]);
+  const art = facts.art.key === 'custom' ? `custom:${facts.art.code}` : facts.art.key === 'media' ? `media:${facts.art.url}` : facts.art.key;
+  return JSON.stringify([facts.title, facts.sub, facts.coin, facts.state, facts.condition, facts.finishLine, facts.rows, facts.set, facts.grade, facts.steward, facts.ids, facts.demoLine, facts.coverage.key, facts.pattern.key, art, facts.frame, facts.theme, Boolean(facts.images?.symbol), Boolean(facts.images?.back), facts.variant]);
 }

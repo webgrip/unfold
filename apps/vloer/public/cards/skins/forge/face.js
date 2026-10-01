@@ -14,14 +14,14 @@ const tones = { neutral: '#cfd8da', live: '#7fd3ff', attention: '#ffcf6b', revie
 const height = level => { const v = Math.round(Math.max(0, Math.min(1, level)) * 255); return `rgb(${v},${v},${v})`; };
 const relief = Object.freeze({ base: 0.5, frame: 0.76, engraved: 0.64, hatch: 0.72, panel: 0.57, art: 0.3, title: 0.84, text: 0.62, debossed: 0.34, numeral: 0.8 });
 
-/** The art window in face pixels: left, top, right, bottom. The shader reads it as uv to place the art. */
-export const artWindow = Object.freeze({ x0: 66, y0: 196, x1: W - 66, y1: 752 });
-/** The art window of a full-art frame: the whole face inside the frame, under translucent panels. */
-export const fullArtWindow = Object.freeze({ x0: inset, y0: inset, x1: W - inset, y1: H - inset });
+/** The classic art window in face pixels: left, top, right, bottom. The shader reads it as uv to place the art. */
+export const artWindow = Object.freeze({ x0: 66, y0: 196, x1: W - 66, y1: 752, radius: 14 });
+/** The full-art window: the whole face inside the frame, under translucent panels. */
+export const fullArtWindow = Object.freeze({ x0: inset, y0: inset, x1: W - inset, y1: H - inset, radius: 30 });
 
-/** The art window a card's facts call for: the full-art window for a full-art pull, otherwise the standard one. */
+/** The art window a card's facts call for: a full-art frame or a full-art pull fills the face, the classic and slab frames keep the window. */
 export function artWindowFor(facts) {
-  return facts?.variant?.fullArt ? fullArtWindow : artWindow;
+  return facts?.frame === 'fullart' || facts?.variant?.fullArt ? fullArtWindow : artWindow;
 }
 
 function canvas(width, heightPx) {
@@ -79,12 +79,38 @@ function fit(g, text, maxWidth) {
   return `${value}…`;
 }
 
-/** The frame metal for a card's coverage and art: graphite while matte, tinted by the art once it earns foil, gold once gilded. */
+const longHex = color => (/^#[0-9a-fA-F]{3}$/.test(color) ? `#${[...color.slice(1)].map(digit => digit + digit).join('')}` : color);
+
+/**
+ * The frame metal for a card's coverage and art: graphite while matte, tinted by the art once it earns foil, gold once
+ * gilded. A theme's `--forge-frame` replaces the art's tint (a matte card gets a darker, quieter version of it) and its
+ * `--forge-accent` the accent lines; gilded stays gold.
+ */
 export function framePalette(facts) {
-  if (facts.coverage.gilded) return { stops: ['#f2c35b', '#6b4a10', '#ffe08a', '#3d2a08', '#f2c35b'], accent: '#ffe08a', line: '#f2c35b' };
-  if (facts.coverage.level === 0) return { stops: ['#59646a', '#3a4247', '#6d7a80', '#2a3034', '#59646a'], accent: '#cfd8da', line: '#9aa6a8' };
-  const tint = facts.art.tint;
-  return { stops: [mix(tint, '#ffffff', 0.45), mix(tint, '#000000', 0.1), mix(tint, '#ffffff', 0.62), mix(tint, '#000000', 0.45), mix(tint, '#ffffff', 0.45)], accent: mix(tint, '#ffffff', 0.62), line: mix(tint, '#ffffff', 0.5) };
+  const tokens = facts.theme?.tokens ?? {};
+  const themed = tokens['--forge-frame'] ? longHex(tokens['--forge-frame']) : null;
+  const accent = tokens['--forge-accent'] ? longHex(tokens['--forge-accent']) : null;
+  if (facts.coverage.gilded) return { stops: ['#f2c35b', '#6b4a10', '#ffe08a', '#3d2a08', '#f2c35b'], accent: accent ?? '#ffe08a', line: '#f2c35b' };
+  if (facts.coverage.level === 0 && !themed) return { stops: ['#59646a', '#3a4247', '#6d7a80', '#2a3034', '#59646a'], accent: accent ?? '#cfd8da', line: accent ?? '#9aa6a8' };
+  const tint = themed ? (facts.coverage.level === 0 ? mix(themed, '#2a3034', 0.45) : themed) : longHex(facts.art.tint);
+  return { stops: [mix(tint, '#ffffff', 0.45), mix(tint, '#000000', 0.1), mix(tint, '#ffffff', 0.62), mix(tint, '#000000', 0.45), mix(tint, '#ffffff', 0.45)], accent: accent ?? mix(tint, '#ffffff', 0.62), line: accent ?? mix(tint, '#ffffff', 0.5) };
+}
+
+function cover(g, image, x, y, w, h) {
+  const iw = image.naturalWidth || image.videoWidth || image.width;
+  const ih = image.naturalHeight || image.videoHeight || image.height;
+  if (!iw || !ih) return;
+  const scale = Math.max(w / iw, h / ih);
+  const sw = w / scale;
+  const sh = h / scale;
+  g.drawImage(image, (iw - sw) / 2, (ih - sh) / 2, sw, sh, x, y, w, h);
+}
+
+function contain(g, image, x, y, w, h) {
+  const iw = image.naturalWidth || image.width || w;
+  const ih = image.naturalHeight || image.height || h;
+  const scale = Math.min(w / iw, h / ih);
+  g.drawImage(image, x + (w - iw * scale) / 2, y + (h - ih * scale) / 2, iw * scale, ih * scale);
 }
 
 /**
@@ -161,25 +187,24 @@ export function paintFace(target, facts) {
     h.stroke();
   }
 
-  const full = Boolean(facts.variant?.fullArt);
-  const { x0, y0, x1, y1 } = artWindowFor(facts);
-  const corner = full ? 30 : 14;
+  const full = facts.frame === 'fullart' || Boolean(facts.variant?.fullArt);
+  const { x0, y0, x1, y1, radius } = artWindowFor(facts);
   g.save();
   g.globalCompositeOperation = 'destination-out';
-  rr(g, x0, y0, x1 - x0, y1 - y0, corner);
+  rr(g, x0, y0, x1 - x0, y1 - y0, radius);
   g.fill();
   g.restore();
-  both('rgb(255,0,0)', relief.art, c => rr(c, x0, y0, x1 - x0, y1 - y0, corner));
+  both('rgb(255,0,0)', relief.art, c => rr(c, x0, y0, x1 - x0, y1 - y0, radius));
   if (!full) {
     g.strokeStyle = palette.accent;
     g.globalAlpha = 0.7;
     g.lineWidth = 4;
-    rr(g, x0 - 4, y0 - 4, x1 - x0 + 8, y1 - y0 + 8, 17);
+    rr(g, x0 - 4, y0 - 4, x1 - x0 + 8, y1 - y0 + 8, radius + 3);
     g.stroke();
     g.globalAlpha = 1;
     h.strokeStyle = height(relief.frame);
     h.lineWidth = 6;
-    rr(h, x0 - 4, y0 - 4, x1 - x0 + 8, y1 - y0 + 8, 17);
+    rr(h, x0 - 4, y0 - 4, x1 - x0 + 8, y1 - y0 + 8, radius + 3);
     h.stroke();
   }
 
@@ -337,18 +362,30 @@ export function paintFace(target, facts) {
   if (facts.demoLine) { g.font = `800 17px ${mono}`; text(facts.demoLine.toUpperCase(), 72, footY + 30, g.font, '#ffcf6b', relief.text); }
   const sx = W - 108;
   const sy = footY - 22;
-  const symbol = c => { c.beginPath(); c.moveTo(sx - 24, sy - 24); c.lineTo(sx + 24, sy - 24); c.lineTo(sx + 24, sy + 4); c.lineTo(sx + 4, sy + 24); c.lineTo(sx - 24, sy + 24); c.closePath(); };
-  g.fillStyle = '#05080b';
-  symbol(g); g.fill();
-  g.strokeStyle = palette.line;
-  g.lineWidth = 3;
-  symbol(g); g.stroke();
-  g.beginPath(); g.moveTo(sx + 24, sy + 4); g.lineTo(sx + 4, sy + 4); g.lineTo(sx + 4, sy + 24); g.stroke();
-  h.fillStyle = height(relief.debossed);
-  symbol(h); h.fill();
-  h.strokeStyle = height(relief.engraved);
-  h.lineWidth = 3;
-  h.beginPath(); h.moveTo(sx + 24, sy + 4); h.lineTo(sx + 4, sy + 4); h.lineTo(sx + 4, sy + 24); h.stroke();
+  if (facts.images?.symbol) {
+    const plate = c => rr(c, sx - 30, sy - 30, 60, 60, 12);
+    g.fillStyle = full ? 'rgba(5,8,11,0.78)' : '#05080b';
+    plate(g); g.fill();
+    g.strokeStyle = palette.line;
+    g.lineWidth = 2;
+    plate(g); g.stroke();
+    contain(g, facts.images.symbol, sx - 24, sy - 24, 48, 48);
+    h.fillStyle = height(relief.debossed);
+    plate(h); h.fill();
+  } else {
+    const symbol = c => { c.beginPath(); c.moveTo(sx - 24, sy - 24); c.lineTo(sx + 24, sy - 24); c.lineTo(sx + 24, sy + 4); c.lineTo(sx + 4, sy + 24); c.lineTo(sx - 24, sy + 24); c.closePath(); };
+    g.fillStyle = '#05080b';
+    symbol(g); g.fill();
+    g.strokeStyle = palette.line;
+    g.lineWidth = 3;
+    symbol(g); g.stroke();
+    g.beginPath(); g.moveTo(sx + 24, sy + 4); g.lineTo(sx + 4, sy + 4); g.lineTo(sx + 4, sy + 24); g.stroke();
+    h.fillStyle = height(relief.debossed);
+    symbol(h); h.fill();
+    h.strokeStyle = height(relief.engraved);
+    h.lineWidth = 3;
+    h.beginPath(); h.moveTo(sx + 24, sy + 4); h.lineTo(sx + 4, sy + 4); h.lineTo(sx + 4, sy + 24); h.stroke();
+  }
   if (facts.set) {
     g.font = `800 20px ${mono}`;
     text(fit(g, facts.set.symbol, 190), sx - 38, sy + 8, g.font, facts.set.complete ? '#ffe08a' : palette.accent, relief.engraved, 'right');
@@ -366,12 +403,38 @@ export function softenHeight(source, radius = 2) {
   return soft;
 }
 
-/** Paints the card's back: the Unfold mark on deep blue, guilloché rings and the Work Item it belongs to. */
+/**
+ * Paints the card's back: the Unfold mark on deep blue, guilloché rings and the Work Item it belongs to. A theme's card
+ * back image replaces the mark and rings; its `--forge-back` colour replaces the blue glow.
+ */
 export function paintBack(target, facts) {
   const g = target.getContext('2d');
   g.clearRect(0, 0, W, H);
+  if (facts.images?.back) {
+    g.save();
+    rr(g, 0, 0, W, H, 52);
+    g.clip();
+    g.fillStyle = '#04070e';
+    g.fillRect(0, 0, W, H);
+    cover(g, facts.images.back, 0, 0, W, H);
+    g.restore();
+    g.strokeStyle = 'rgba(255,255,255,0.35)';
+    g.lineWidth = 6;
+    rr(g, 40, 40, W - 80, H - 80, 36);
+    g.stroke();
+    g.fillStyle = 'rgba(4,7,14,0.62)';
+    rr(g, 120, H - 160, W - 240, 76, 20);
+    g.fill();
+    g.font = `600 24px ${mono}`;
+    g.fillStyle = 'rgba(230,238,255,0.86)';
+    g.textAlign = 'center';
+    g.fillText(fit(g, facts.ids.toUpperCase(), W - 280), W / 2, H - 112);
+    g.textAlign = 'left';
+    return;
+  }
   const glow = g.createRadialGradient(W / 2, H * 0.45, 40, W / 2, H / 2, H * 0.72);
-  glow.addColorStop(0, '#2f6fd0');
+  const backColor = facts.theme?.tokens?.['--forge-back'] ? longHex(facts.theme.tokens['--forge-back']) : null;
+  glow.addColorStop(0, backColor ?? '#2f6fd0');
   glow.addColorStop(0.58, '#0d1a3a');
   glow.addColorStop(1, '#04070e');
   g.fillStyle = glow;

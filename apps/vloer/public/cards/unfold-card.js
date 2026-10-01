@@ -1,6 +1,7 @@
 import { icon } from '../core/icons.js';
 import { cardView, cardTabs, finishLadder } from './card-model.js';
 import { defaultSkin, loadSkin, requiredSlots, resolveSkin, webglSupport } from './registry.js';
+import { applyTokens, loadTheme, themeView } from './themes.js';
 
 const runtimeStylesheet = '/cards/unfold-card.css';
 const tabIds = cardTabs.map(tab => tab.id);
@@ -36,7 +37,11 @@ function parse(markup) {
  * pattern. The turn is a 3D flip that becomes a crossfade when the reader prefers reduced motion. Whatever a skin
  * draws, the front always carries the title, state, cost, steward and ids. The element reflects the skin it draws as
  * `data-skin`; a WebGL2 skin is replaced by its fallback when the browser has no WebGL2. A skin's `attach(front, view)`
- * receives the drawn front and the view model; the forge skin also reads `motion` (`still` or `live`) on the element. Setting `asOf` shows the card as it was at
+ * receives the drawn front and the view model; the forge skin also reads `motion` (`still` or `live`) on the element.
+ * A card whose `style.theme` names a theme loads it from Vloer; a theme picks the skin it `extends`, sets its tokens
+ * on the element through the CSSOM and reaches the skin as `view.theme`. Setting the `theme` property to a theme
+ * object (the designer's draft) or to null overrides that lookup; the element reflects the theme it drew as
+ * `data-theme`. Setting `asOf` shows the card as it was at
  * that moment, which the binder uses to replay what changed while its owner was away. Every skin's `attach` fires
  * `unfold-card-moment` on the element through `skin-kit.js`'s `emitMoments`, and `playMoment(moment, api)` hands the
  * effects director's ceremony to the skin's `onMoment`.
@@ -54,6 +59,7 @@ export class UnfoldCard extends Base {
   #detach = null;
   #skin = null;
   #asOf = null;
+  #theme = undefined;
 
   constructor() {
     super();
@@ -68,6 +74,9 @@ export class UnfoldCard extends Base {
   /** The moment, in milliseconds, the card is shown as of (days live and finish count to it); null shows it as of now. */
   get asOf() { return this.#asOf; }
   set asOf(value) { this.#asOf = Number.isFinite(value) ? value : null; if (this.#card) void this.#update(); }
+  /** The theme this element draws with instead of the one `card.style.theme` names; undefined follows the card. */
+  get theme() { return this.#theme; }
+  set theme(value) { this.#theme = value === undefined ? undefined : value && typeof value === 'object' ? value : null; void this.#update(); }
 
   get face() { return this.getAttribute('face') === 'back' ? 'back' : 'front'; }
   set face(value) { this.setAttribute('face', value === 'back' ? 'back' : 'front'); }
@@ -139,7 +148,9 @@ export class UnfoldCard extends Base {
     const card = this.#card;
     if (!card) { this.#stopSkin(); this.#view = null; this.#stage = null; this.#root.replaceChildren(); return; }
     let skin = null;
-    const wanted = resolveSkin(card.style);
+    const theme = this.#theme !== undefined ? this.#theme : card.style?.theme ? await loadTheme(card.style.theme) : null;
+    if (ticket !== this.#ticket) return;
+    const wanted = resolveSkin(card.style, theme);
     if (this.dataset.skin !== wanted) this.dataset.skin = wanted;
     try {
       skin = await loadSkin(wanted);
@@ -148,8 +159,15 @@ export class UnfoldCard extends Base {
     if (ticket !== this.#ticket) return;
     const drawn = skin?.manifest?.id ?? defaultSkin;
     if (this.dataset.skin !== drawn) this.dataset.skin = drawn;
+    let themed = null;
+    try { themed = await themeView(theme, skin?.manifest ?? null); } catch { themed = null; }
+    if (ticket !== this.#ticket) return;
+    applyTokens(this, themed ? theme : null, skin?.manifest ?? null);
+    if (themed?.id) this.dataset.theme = themed.id;
+    else delete this.dataset.theme;
     const view = cardView(card, this.#asOf === null ? {} : { now: this.#asOf });
     if (!(skin?.manifest?.finishes ?? []).includes(view.finish.key)) view.finish = finishLadder[0];
+    view.theme = themed;
     this.#view = view;
     await this.#paint(skin, ticket);
   }

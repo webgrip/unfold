@@ -96,6 +96,21 @@ A profile can point the workbench at the estate's Grafana so every session links
 
 **Settings › Environment** lists the dashboards, the budget panel links to the spend board whose "Cost per run" table is keyed by the session's key alias, and the Gateway tab opens Grafana Explore on the trace and log datasources for the session's time window, or for one request's window from its row. The default trace query selects the gateway's service and the default log query its namespace and container; `traceQuery` and `logsQuery` override them and may use `{callId}`, `{alias}` and `{sessionId}` once the estate records the gateway call id as a span attribute or log field. At acme the spend board's per-run rows come from the ledger exporter, which reads the gateway's request log by key alias, so a session's cost survives the revocation of its key.
 
+## Card themes and generated art
+
+Run card themes are proposed ([ADR 0031](../adrs/0031-card-themes-a-card-designer-and-generated-art.md), [contract](../contracts/card-themes.md)). Administrators make them in **Settings › Card designer** and Vloer keeps them in its store. A Work Target picks one in Ploeg's configuration with `cardStyle: { skin, theme }`; Vloer never edits that file. Two optional settings:
+
+```json
+"cardThemes": {
+  "directory": "/etc/vloer/card-themes",
+  "assetQuotaMb": 256,
+  "ai": { "baseUrl": "https://litellm.example/v1", "model": "claude-sonnet", "keyEnv": "VLOER_CARD_ART_KEY", "requestsPerHour": 30 }
+}
+```
+
+* `directory` mounts read-only themes: `<id>.json` files and an `assets/` folder with the files they name. Mount it from a ConfigMap or a Git checkout; Vloer reads it at start-up and lists refused files in the designer.
+* `ai` lets administrators generate shader art. Create a LiteLLM virtual key for Vloer alone, with a small budget and only the model you name, and put it in the environment variable `keyEnv` names (it must start with `VLOER_`, so it can never be passed to an agent workspace). Never use the master key: Vloer refuses to start with it. `maxTokens` (4096) and `timeoutMs` (90 seconds) are optional. The demo ignores `ai`.
+
 ## Seeing what the gateway dropped
 
 The gateway drops request parameters a provider does not accept, and it does not record what it dropped. acme therefore serves strict twins of its Anthropic aliases, `claude-sonnet-5-strict` and `claude-haiku-4-5-strict`, with dropping off: a request that carries an unsupported parameter fails with a 400 the ledger records. Run the same objective once on the plain alias and once on the strict twin, then compare the two sessions; a refusal on the strict side with an otherwise identical brief names the parameter the plain side silently lost.
