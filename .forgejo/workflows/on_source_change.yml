@@ -13,11 +13,32 @@ jobs:
   checks:
     runs-on: docker
     timeout-minutes: 40
+    outputs:
+      warnings: ${{ steps.verify.outputs.warnings }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: ./.forgejo/actions/verify
+      - id: verify
+        uses: ./.forgejo/actions/verify
+
+  warnings:
+    needs: [checks]
+    if: always() && needs.checks.result != 'skipped' && needs.checks.result != 'cancelled'
+    runs-on: docker
+    timeout-minutes: 5
+    steps:
+      - name: Fail when setup or verification printed a warning
+        env:
+          REPORT: ${{ needs.checks.outputs.warnings }}
+        run: |
+          if [ -z "$REPORT" ]; then
+            echo "No warnings in setup and verification output."
+            exit 0
+          fi
+          echo "Setup or verification printed warnings. Fix them, or accept one with a reason in scripts/ci-warnings-allow.json:"
+          printf '%s\n' "$REPORT"
+          exit 1
 
   release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/development' && vars.GLIDE_RELEASES_ENABLED == 'true'
@@ -39,6 +60,12 @@ jobs:
           package-path: apps
           package-name: glide
           token: ${{ secrets.WEBGRIP_CI_TOKEN }}
+      - name: Create the release Forgejo lost to the tag race
+        if: failure() && steps.release.outcome == 'failure'
+        env:
+          RELEASE_API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
+          GITEA_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
+        run: node scripts/release-repair.mjs glide-v
 
   site-release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/development' && vars.GLIDE_RELEASES_ENABLED == 'true'
@@ -59,3 +86,9 @@ jobs:
           package-path: apps/site
           package-name: glide-site
           token: ${{ secrets.WEBGRIP_CI_TOKEN }}
+      - name: Create the release Forgejo lost to the tag race
+        if: failure() && steps.release.outcome == 'failure'
+        env:
+          RELEASE_API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
+          GITEA_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
+        run: node scripts/release-repair.mjs glide-site-v

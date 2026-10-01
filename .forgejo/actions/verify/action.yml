@@ -1,5 +1,9 @@
 name: Verify both applications and their build contexts
 description: Verify both applications and their build contexts
+outputs:
+  warnings:
+    description: Tool warnings in the setup and verification output that scripts/ci-warnings-allow.json does not accept; empty when there are none
+    value: ${{ steps.warnings.outputs.report }}
 runs:
   using: composite
   steps:
@@ -20,11 +24,14 @@ runs:
         github_token: ''
     - run: mise trust apps/vloer/mise.toml && mise trust apps/ploeg/mise.toml && mise trust apps/site/mise.toml
       shell: bash
-    - run: mise -C apps/vloer install
+    - name: Prepare the output capture
       shell: bash
-    - run: mise -C apps/ploeg install
+      run: mkdir -p "${RUNNER_TEMP:-/tmp}/glide-output"
+    - run: set -o pipefail; mise -C apps/vloer install 2>&1 | tee -a "${RUNNER_TEMP:-/tmp}/glide-output/install.log"
       shell: bash
-    - run: mise -C apps/site install
+    - run: set -o pipefail; mise -C apps/ploeg install 2>&1 | tee -a "${RUNNER_TEMP:-/tmp}/glide-output/install.log"
+      shell: bash
+    - run: set -o pipefail; mise -C apps/site install 2>&1 | tee -a "${RUNNER_TEMP:-/tmp}/glide-output/install.log"
       shell: bash
     - name: Save mise tool installs
       if: steps.mise-cache.outputs.cache-hit != 'true'
@@ -73,9 +80,9 @@ runs:
         path: ~/.cache/glide-verify
         key: glide-verify-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
         restore-keys: glide-verify-${{ runner.os }}-
-    - run: mise run setup
+    - run: set -o pipefail; mise run setup 2>&1 | tee "${RUNNER_TEMP:-/tmp}/glide-output/setup.log"
       shell: bash
-    - run: mise run verify
+    - run: set -o pipefail; mise run verify 2>&1 | tee "${RUNNER_TEMP:-/tmp}/glide-output/verify.log"
       shell: bash
       env:
         GLIDE_REQUIRE_IMPORT_NOTES: 'true'
@@ -91,3 +98,8 @@ runs:
         docker build --file apps/vloer/Dockerfile --target app --build-arg REGISTRY_DHI=harbor.webgrip.dev/dhi --output=type=cacheonly apps/vloer
         docker build --file apps/vloer/ops/agent/Dockerfile --build-arg REGISTRY_DHI=harbor.webgrip.dev/dhi --output=type=cacheonly apps/vloer/ops/agent
         docker build --file apps/ploeg/ops/docker/ploegd/Dockerfile --output=type=cacheonly apps/ploeg
+    - name: Collect warnings
+      id: warnings
+      if: always()
+      shell: bash
+      run: node scripts/ci-warnings.mjs "${RUNNER_TEMP:-/tmp}/glide-output"

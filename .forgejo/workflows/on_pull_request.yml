@@ -12,11 +12,32 @@ jobs:
   checks:
     runs-on: docker
     timeout-minutes: 40
+    outputs:
+      warnings: ${{ steps.verify.outputs.warnings }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: ./.forgejo/actions/verify
+      - id: verify
+        uses: ./.forgejo/actions/verify
+
+  warnings:
+    needs: [checks]
+    if: always() && needs.checks.result != 'skipped' && needs.checks.result != 'cancelled'
+    runs-on: docker
+    timeout-minutes: 5
+    steps:
+      - name: Fail when setup or verification printed a warning
+        env:
+          REPORT: ${{ needs.checks.outputs.warnings }}
+        run: |
+          if [ -z "$REPORT" ]; then
+            echo "No warnings in setup and verification output."
+            exit 0
+          fi
+          echo "Setup or verification printed warnings. Fix them, or accept one with a reason in scripts/ci-warnings-allow.json:"
+          printf '%s\n' "$REPORT"
+          exit 1
 
   release-policy:
     runs-on: docker
