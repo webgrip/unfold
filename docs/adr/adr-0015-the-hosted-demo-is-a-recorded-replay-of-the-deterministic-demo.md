@@ -1,6 +1,6 @@
 ---
 status: proposed
-date: 2026-10-02
+date: 2026-10-01
 decision-makers: Ryan Grippeling
 ---
 
@@ -68,4 +68,4 @@ Chosen option: "A recorded replay of the deterministic demo", because it shows t
 
 * Refines [ADR-0012](adr-0012-the-marketing-site-releases-and-deploys-on-its-own.md): the site still releases on its own, and a Vloer UI change reaches `/demo` through a re-recording committed under `apps/site`.
 * [Local demo](../workflows/local-demo.md) and [the site's deploy guide](../../apps/site/docs/deploy.md) describe the workflow.
-* 2026-10-02 — Proposed with the first recording.
+* 2026-10-01 — Proposed with the first recording.

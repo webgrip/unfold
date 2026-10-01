@@ -2,8 +2,8 @@
 type: tutorial
 audience: [owner, operator, contributor]
 owner: vloer
-last_verified: 2026-10-02
-verified_by: "On 2026-10-02 read scripts/record-replay.ts, public/replay/ and the root mise demo-record task for the hosted replay section; Read apps/vloer/package.json (demo, smoke), src/config.ts (demo repository, crew, port 4080, VLOER_DATA_DIR), src/runtime/demo.ts, scripts/smoke.mjs and examples/order-service; on 2026-09-30 the landing page, Demo badge, Sessions item, session start, evidence tabs and demo budget label were re-read in apps/vloer/public/app.js, shell.js, views/sessions.js and views/session.js at 68c90cf on feat/vloer-redesign"
+last_verified: 2026-10-01
+verified_by: "On 2026-10-01 read scripts/record-replay.ts, public/replay/ and the root mise demo-record task for the hosted replay section; Read apps/vloer/package.json (demo, smoke), src/config.ts (demo repository, crew, port 4080, VLOER_DATA_DIR), src/runtime/demo.ts, scripts/smoke.mjs and examples/order-service; on 2026-09-30 the landing page, Demo badge, Sessions item, session start, evidence tabs and demo budget label were re-read in apps/vloer/public/app.js, shell.js, views/sessions.js and views/session.js at 68c90cf on feat/vloer-redesign"
 ---
 
 # A ten-minute coworker walkthrough

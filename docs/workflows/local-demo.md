@@ -2,8 +2,8 @@
 type: tutorial
 audience: [owner, operator, integrator, contributor]
 owner: unfold
-last_verified: 2026-10-02
-verified_by: "Read apps/vloer/scripts/unified-demo.ts (prerequisite commands, ready/stopped/smoke-passed events, environment settings, cleanup), apps/vloer/package.json, root mise.toml and apps/ploeg/go.mod; on 2026-10-02 ran mise run demo-record, npm run replay:check and mise run demo-replay-conformance for the hosted replay section"
+last_verified: 2026-10-01
+verified_by: "Read apps/vloer/scripts/unified-demo.ts (prerequisite commands, ready/stopped/smoke-passed events, environment settings, cleanup), apps/vloer/package.json, root mise.toml and apps/ploeg/go.mod; on 2026-10-01 ran mise run demo-record, npm run replay:check and mise run demo-replay-conformance for the hosted replay section"
 ---
 
 # Local shared execution demonstration
