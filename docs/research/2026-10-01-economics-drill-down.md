@@ -14,13 +14,13 @@ Status: research record, 2026-10-01. It checks the decided pricing model in [ADR
 
 ## Findings
 
-1. **The pricing assumes models Glide does not run.** The research sized Shift Budgets for Sonnet-class models at US$ 2 / 10 per million tokens. Production Teams run Fireworks open-weight models: bronze writes with DeepSeek V4.1 Flash ($8 pool, $2.00 builder cap) and reviews with GLM 5.3 Flash ($0.40 cap); silver writes with `deepseek-chat` ($6 pool). Reported Fireworks prices are US$ 0,22 / 0,007 cached / 0,66 for DeepSeek V4 Flash and 0,15 / 0,03 / 0,50 for GLM 5.3 Flash ([usagepricing.com](https://www.usagepricing.com/ai-token-pricing/fireworks/deepseek-v4-flash-fireworks), [yottalabs](https://www.yottalabs.ai/post/deepseek-v4-1-flash-vs-glm-5-3-flash-2026); not checked on Fireworks' own page). With the research's S token shape, an S Shift costs about US$ 0,15, against US$ 1 to 1,5 assumed.
+1. **The pricing assumes models Glide does not run.** The research sized Shift Budgets for Sonnet-class models at US$ 2 / 10 per million tokens. Production Teams run Fireworks open-weight models: bronze writes with DeepSeek V4.1 Flash ($8 pool, $2.00 builder cap) and reviews with GLM 5.3 Flash ($0.40 cap); silver writes with `deepseek-chat` ($6 pool). Fireworks' [Serverless Pricing](https://docs.fireworks.ai/serverless/pricing) page lists US$ 0,30 / 0,006 cached / 1,20 per million tokens for DeepSeek V4.1 Flash and 0,15 / 0,03 / 0,50 for GLM 5.3 Flash. With the research's S token shape, an S Shift costs about US$ 0,23, against US$ 1 to 1,5 assumed.
 2. **The delivery rate is unmeasured, and open-weight is the low case.** The research's own estimate for open-weight models is 35 to 40 %, below ADR-0006's 55 % planning rate.
 3. **The €12 floor has lost its derivation.** It was worst-case token cost ÷ 0.7, from when Glide absorbed failed-attempt tokens. Under the two-part price the agency pays every attempt's tokens, so the delivery fee is close to pure margin. The floor should follow fixed cost and volume (model below).
-4. **At open-weight cost the markup is not a revenue line.** 25 % of US$ 0,15 is about € 0,04 per attempt. Markup Tiers (VIK-1491) may cost more to build than they ever return.
+4. **At open-weight cost the markup is not a revenue line.** 25 % of US$ 0,23 is about € 0,06 per attempt. Markup Tiers (VIK-1491) may cost more to build than they ever return.
 5. **Review time, not tokens, sets the agency's economics.** See the model.
 6. **Currencies do not meet.** Ploeg settles in US$; every price is in euro. Nothing defines the rate or when it is fixed.
-7. **Spend for the Fireworks models may be unpriced.** The LiteLLM config (`webgrip/homelab-cluster`, `kubernetes/apps/ai/litellm/app/litellm-config.configmap.yaml`) sets `input_cost_per_token` for `deepseek-chat` but not for the two Fireworks aliases. Their spend comes from LiteLLM's built-in price map, which has to be checked against the Fireworks bill before any K2 number is trusted.
+7. **Bronze's builder spend was recorded about a third low.** The Fireworks aliases had no price in the LiteLLM config (`webgrip/homelab-cluster`, `kubernetes/apps/ai/litellm/app/litellm-config.configmap.yaml`), so their spend came from LiteLLM v1.102.1's built-in price map. That map prices `deepseek-v4p1-flash` at the older DeepSeek V4 Flash 0731 rate (US$ 0,22 / 0,007 / 0,66), so a builder Run was recorded at about US$ 0,038 instead of about US$ 0,056. The other Fireworks aliases match Fireworks' page. The homelab-cluster change that adds the new frontier models pins the correct price; K2 and Shift spend before it are low by that factor.
 8. **The 90-day plan in the strategy note does not fit phase 1.** It assumes 5 design-partner agencies and 200 tickets by 29 October 2026. Phase 1 is the owner's backlog and the employer's, at about 28 hours a week.
 9. **Not economics, but found here:** `deepseek-chat` routes to DeepSeek's own API (`deepseek/deepseek-flash`). The legal evidence says never to send client data there. Silver works on `webgrip/glide` only today; no employer code may reach a Team that uses it.
 
@@ -32,8 +32,8 @@ Per Run, an S ticket moves 0.5 M input tokens (80 % cached) and 20 K output; a S
 
 | Tier | US$ per Shift | Delivery | Tokens per accepted ticket | Human hours per accepted ticket | Agency margin | Per senior hour |
 | --- | --- | --- | --- | --- | --- | --- |
-| Open-weight (DeepSeek V4 Flash) | 0,15 | 38 % | € 0,50 | 1,24 | € 72,53 | € 58,51 |
-| Open-weight | 0,15 | 70 % | € 0,27 | 0,88 | € 90,80 | € 103,35 |
+| Open-weight (DeepSeek V4.1 Flash) | 0,23 | 38 % | € 0,74 | 1,24 | € 72,28 | € 58,32 |
+| Open-weight | 0,23 | 70 % | € 0,40 | 0,88 | € 90,67 | € 103,20 |
 | Frontier (Sonnet 5 / GPT-6 Sol, EU +10 %) | 2,11 | 55 % | € 4,80 | 1,00 | € 80,43 | € 80,79 |
 | Frontier | 2,11 | 70 % | € 3,77 | 0,88 | € 87,30 | € 99,37 |
 
@@ -44,6 +44,16 @@ What follows from it:
 * Human review is €44 to €62 of the agency's cost per accepted ticket; tokens are at most €5. The levers are the delivery rate and the share of failures Ploeg stops before a human sees them.
 * At today's estimates a frontier Team earns the agency more per senior hour than an open-weight one, despite 14 times the token cost. The default model tier is a delivery-rate question (VIK-1621), not a token-price question.
 * Glide's revenue is the delivery fee and the platform fee. The floor is the price at which those cover fixed cost: `floor ≥ (fixed cost per month ÷ credits per month + variable cost per credit) ÷ (1 − target margin)`. With €1 variable cost and a 30 % margin, €12 holds from about 1.000 credits a month at €8.000 fixed cost, and from about 200 at €2.000. Which fixed cost applies, including the owner's pay, is the owner's input (VIK-1623).
+
+## Providers
+
+Three evidence notes compare the routes Glide could use: [Fireworks](evidence/2026-10-01-inference-providers/fireworks.md), [open-weight providers](evidence/2026-10-01-inference-providers/open-weight-providers.md) and [frontier models](evidence/2026-10-01-inference-providers/frontier-models.md). What matters for the economics:
+
+* **Fireworks cannot promise EU processing.** Data residency is an Enterprise feature, the only self-serve region is the US, and EU-only serverless is "contact sales". Its data terms are otherwise good: no retention by default, no training, EU SCCs in the DPA. Prices moved without notice in August and September 2026.
+* **EU-resident open-weight inference costs more, but still little.** Per Run: about US$ 0,03 for DeepSeek V4 Flash through OpenRouter's EU endpoint, €0,04 to €0,09 from EU-owned vendors contracting directly (T-Systems, OVHcloud, Scaleway), and US$ 0,28 for GLM 5.3 hosted by Mistral in France. Providers that do not discount cached input cost 3 to 5 times their list price for this workload.
+* **Frontier models cost about US$ 0,50 per Run and 10 % more in the EU.** Sonnet 5.5 costs US$ 0,53 per Run (EU US$ 0,58 through Bedrock or Vertex; the direct Anthropic API has no EU option). GPT-6.1 Sol costs US$ 0,49 (EU US$ 0,54 through OpenAI's EU endpoint). On Vals' independent Terminal-Bench 4.0 run, Sonnet 5.5 solved 64,1 % and GPT-6.1 Sol 55,1 %, but GPT-6.1 Sol spent about a tenth of the tokens per task. Token counts per Run differ by model, so VIK-1621 measures them.
+* **Google's newest model, Gemini 4 Argon (30 September 2026), cannot be called yet.** The newest callable one is Gemini 3.8 Flash at US$ 0,18 per Run, at a promotional price that doubles on 1 January 2027.
+* **Every route that keeps client code in the EU raises Glide's token cost, not its margin.** Under the two-part price the agency pays tokens, so the route is a compliance decision first (VIK-1651).
 
 ## Decisions
 
@@ -71,7 +81,9 @@ Proposed, for the owner to accept or reject:
 | [VIK-1623](https://vikunja.webgrip.dev/tasks/1623) spike: re-derive floor, Shift Budgets and markup | 2 | Proposed ADR-0006 amendment | VIK-1617, VIK-1621, VIK-1486 |
 | [VIK-1624](https://vikunja.webgrip.dev/tasks/1624) spike: agency break-even under the two-part price | 2 | Client price band and an interactive calculator for pilots | VIK-1617, VIK-1621, VIK-1272 |
 | [VIK-1625](https://vikunja.webgrip.dev/tasks/1625) billing: convert US$ to euro at settlement | 2 | Currency rule on every charge | — |
+| [VIK-1651](https://vikunja.webgrip.dev/tasks/1651) spike: choose the EU-resident inference route for client code | 1 | Which Teams may take client code, on which provider | — |
+| [VIK-1652](https://vikunja.webgrip.dev/tasks/1652) litellm: raise the Gemini 3.8 Flash price on 2027-01-01 | — | Spend stays correct after the promotion | due 2026-12-31 |
 
 ## Method
 
-Read on 2026-10-01: ADR-0005 and ADR-0006, the research notes and evidence above, the KPI page and 2026-09-27 baseline, the Glide board tickets VIK-1468 to VIK-1501, the Ploeg and Vloer source for budgets, settlement and spend display, and the Ploeg and LiteLLM desired state in `webgrip/homelab-cluster`. Production data was not read. Fireworks prices come from secondary pages because the Fireworks pricing page does not list serverless inference rates.
+Read on 2026-10-01: ADR-0005 and ADR-0006, the research notes and evidence above, the KPI page and 2026-09-27 baseline, the Glide board tickets VIK-1468 to VIK-1501, the Ploeg and Vloer source for budgets, settlement and spend display, and the Ploeg and LiteLLM desired state in `webgrip/homelab-cluster`. Production data was not read. Provider prices were read on the vendors' pages where they render, and are marked otherwise in the evidence notes.
