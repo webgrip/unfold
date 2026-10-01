@@ -163,7 +163,7 @@ function observeActions() {
   work.stickyObserver?.disconnect();
   work.stickyObserver = null;
   const bar = $('.work-sticky-actions');
-  const primary = $('#work-decision .button.primary');
+  const primary = $('.work-card-actions .button.primary') || $('#work-decision .button.primary');
   if (!bar || !primary || typeof IntersectionObserver !== 'function') return;
   work.stickyObserver = new IntersectionObserver(entries => { for (const entry of entries) bar.toggleAttribute('data-covered', entry.isIntersecting); }, { rootMargin: '0px 0px -96px 0px' });
   work.stickyObserver.observe(primary);

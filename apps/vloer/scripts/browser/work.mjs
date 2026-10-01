@@ -106,6 +106,13 @@ export async function run({ page, app, assert, screenshot }) {
     const card = page.locator('unfold-card.work-run-card');
     await card.locator('.gc:not([hidden])').waitFor();
     assert(await page.evaluate(() => { const card = document.getElementById('work-card'); const rounds = document.getElementById('work-rounds'); return card && rounds && (card.compareDocumentPosition(rounds) & Node.DOCUMENT_POSITION_FOLLOWING); }), 'the Run card sits above Rounds, which stay');
+    assert(await page.evaluate(() => { const card = document.getElementById('work-card'); const title = document.getElementById('ploeg-item-title'); const box = document.getElementById('work-decision'); return card && title && box && (title.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING) && (card.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING); }), 'the Run card heads the detail, above the review box');
+    assert.equal(await page.locator('#work-card-headline').textContent(), 'Ready for your review · No verdict PR #5 after 2 Rounds', 'the card headline states what happened');
+    const cardBox = await card.boundingBox();
+    const detailBox = await page.locator('.work-detail').boundingBox();
+    assert(Math.abs(cardBox.width - detailBox.width) < 4, 'the card spans the content width');
+    assert.match(await page.locator('#work-decision .work-checklist-note').textContent(), /not reported: CI/, 'the neutral checks fold into one muted line');
+    assert.equal(await page.locator('#work-decision details#work-forge-109').evaluate(node => node.open), false, 'the forge outcomes are a closed disclosure');
     assert.equal(await card.locator('[data-slot="title"]').textContent(), 'Reject negative quantities in the cart API');
     assert.equal(await card.locator('[data-slot="state"]').textContent(), 'In review');
     assert.match(await card.locator('[data-slot="cost"]').getAttribute('aria-label'), /Demo · no model calls/, 'the demo card invents no spend');
