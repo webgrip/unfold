@@ -161,8 +161,9 @@ test('effective configuration uses glide-v tags and CI tests it before invoking 
   assert.equal(config.tagFormat, 'glide-v${version}');
   assert.equal(config.plugins[0], path.join(__dirname, 'release-policy.cjs'));
   const workflow = parse(fs.readFileSync(path.join(root, '.forgejo/workflows/on_source_change.yml'), 'utf8'));
-  assert.ok(workflow.jobs.release.needs.includes('release-policy'));
-  assert.ok(workflow.jobs['release-policy'].steps.some(step => step.uses === './.forgejo/actions/release-policy'));
+  const steps = workflow.jobs.release.steps;
+  const policy = steps.findIndex(step => step.uses === './.forgejo/actions/release-policy');
+  assert.ok(policy >= 0 && policy < steps.findIndex(step => step.id === 'release'));
   const action = parse(fs.readFileSync(path.join(root, '.forgejo/actions/release-policy/action.yml'), 'utf8'));
   const gate = action.runs.steps.find(step => step.run?.includes('node --test scripts/release-policy.test.cjs'));
   assert.equal(gate['working-directory'], undefined);
