@@ -6,7 +6,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { application, createInput } from './api-support.ts';
+import { application, createInput, createSession, request } from './api-support.ts';
 import { DemoRuntime } from '../src/runtime/demo.ts';
 import { deadlineAfter } from './timeframes.ts';
 
@@ -111,4 +111,33 @@ test('demo finishes an in-flight Git initialization before acknowledging pause',
   assert.equal((await command('git', ['rev-parse', '--resolve-git-dir', '.git'], { cwd: directory })).stdout.trim(), '.git');
   const workspace = await runtime.prepare(session, server.config.repositories[0], undefined, new AbortController().signal);
   assert.match(workspace.metadata?.baseSha ?? '', /^[a-f0-9]{40}$/);
+});
+
+test('a pace hook decides when each demo step runs and leaves what the demo executes unchanged', async t => {
+  let held: (() => void) | undefined;
+  let paces = 0;
+  const pace = () => new Promise<void>(resolve => { paces++; held = resolve; });
+  const dataDir = await mkdtemp(join(tmpdir(), 'vloer-demo-pace-'));
+  const server = await application('demo', undefined, new Map([['demo', new DemoRuntime({ dataDir, pace })]]));
+  t.after(async () => { await server.close(); await rm(dataDir, { recursive: true, force: true }); });
+  const session = await createSession(server.url);
+  assert.equal((await request(server.url, `/api/sessions/${session.id}/start`, { method: 'POST' })).status, 200);
+  const deadline = deadlineAfter(30_000);
+  let seen = 0;
+  while (true) {
+    if (held && paces > seen) {
+      seen = paces;
+      const before = (await request(server.url, `/api/sessions/${session.id}/history`)).body.length;
+      await delay(150);
+      assert.equal((await request(server.url, `/api/sessions/${session.id}/history`)).body.length, before, 'no event while the pace hook holds the step');
+      const release = held; held = undefined; release();
+    }
+    const current = (await request(server.url, `/api/sessions/${session.id}`)).body;
+    if (['completed', 'failed'].includes(current.status)) { assert.equal(current.status, 'completed'); break; }
+    assert(Date.now() < deadline, 'demo session did not finish');
+    await delay(20);
+  }
+  assert.equal(paces, 6, 'four writer steps and two review steps');
+  const finished = (await request(server.url, `/api/sessions/${session.id}`)).body;
+  assert.match(finished.artifacts.find((artifact: { kind: string }) => artifact.kind === 'diff').content, /Number\.EPSILON/);
 });

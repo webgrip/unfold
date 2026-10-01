@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import type { PloegActivityEvent, PloegCard, PloegCardCondition, PloegCardGates, PloegCrack, PloegCrackCandidates, PloegGate, PloegCardDeployment, PloegCardGrade, PloegCardPlay, PloegCheckpoint, PloegDetail, PloegEvent, PloegItem, PloegRun, PloegRunRow, PloegShift, PloegTeam, PloegTeamSummary, PloegWindow } from './ploeg.ts';
 
 const anchor = Math.floor(Date.now() / 60_000) * 60_000;
+/** The minute, in epoch milliseconds, that every illustrative Ploeg timestamp is relative to: the clock when this module loaded. */
+export const ploegDemoAnchor = anchor;
 const ago = (minutes: number) => new Date(anchor - minutes * 60_000).toISOString().replace('.000Z', 'Z');
 const at = ago(0);
 
