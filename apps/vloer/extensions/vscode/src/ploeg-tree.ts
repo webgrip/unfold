@@ -1,19 +1,25 @@
 import * as vscode from 'vscode';
-import type { PloegItem, PloegLane, PloegOverview, PloegTeam } from './ploeg-types.js';
+import { ploegLanes as lanes, type PloegItem, type PloegLane, type PloegOverview, type PloegTeam } from './ploeg-types.js';
+import { plainText, plural, teamDescription } from './status.js';
 
 export type PloegEntry = { kind: 'team'; team: PloegTeam } | { kind: 'lane'; team: PloegTeam; lane: PloegLane; overview: PloegOverview } | { kind: 'item'; item: PloegItem; demo: boolean } | { kind: 'message'; label: string; open?: boolean };
-const lanes: { id: PloegLane; label: string; icon: string }[] = [{ id: 'needs_human', label: 'Needs human', icon: 'bell-dot' }, { id: 'leased', label: 'In execution', icon: 'pulse' }, { id: 'queued', label: 'Queue', icon: 'layers' }, { id: 'all', label: 'All work', icon: 'list-flat' }];
+const stateLabels: Record<string, string> = { proposed: 'Proposed', ingested: 'Received', queued: 'Queued', leased: 'Running', awaiting_review: 'Ready for review', needs_human: 'Needs you', stale: 'Stopped retrying', withdrawn: 'Withdrawn', done: 'Done' };
+const stateLabel = (state: string) => stateLabels[state] ?? state.replaceAll('_', ' ');
 
 export class PloegTree implements vscode.TreeDataProvider<PloegEntry>, vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<PloegEntry | undefined>();
   readonly onDidChangeTreeData = this.changed.event;
   private readonly load: (team?: string, fresh?: boolean) => Promise<PloegOverview>;
+  private readonly loaded: (at: Date) => void;
   private cache = new Map<string, PloegOverview>();
   private message = 'Connect to inspect Ploeg work';
   private generation = 0;
-  constructor(load: (team?: string, fresh?: boolean) => Promise<PloegOverview>) { this.load = load; }
-  reset(message = '') { this.generation++; this.message = message; this.cache.clear(); this.changed.fire(undefined); }
+  private fresh = true;
+  constructor(load: (team?: string, fresh?: boolean) => Promise<PloegOverview>, loaded: (at: Date) => void = () => undefined) { this.load = load; this.loaded = loaded; }
+  reset(message = '') { this.generation++; this.message = message; this.fresh = true; this.cache.clear(); this.changed.fire(undefined); }
   connected() { if (this.message) this.reset(); }
+  /** Re-reads the snapshot through the workbench's short cache instead of forcing Ploeg queries. */
+  soften() { if (this.message) return; this.generation++; this.fresh = false; this.cache.clear(); this.changed.fire(undefined); }
   getTreeItem(entry: PloegEntry): vscode.TreeItem {
     if (entry.kind === 'message') {
       const item = new vscode.TreeItem(entry.label);
@@ -24,9 +30,9 @@ export class PloegTree implements vscode.TreeDataProvider<PloegEntry>, vscode.Di
     if (entry.kind === 'team') {
       const item = new vscode.TreeItem(entry.team.id, vscode.TreeItemCollapsibleState.Collapsed);
       item.id = `ploeg:team:${entry.team.id}`;
-      item.description = `${entry.team.roles.length} roles · ${entry.team.queueDepth} queued`;
-      item.tooltip = 'Ploeg owns dispatch. Expand to inspect authorized work and open execution evidence.';
-      item.iconPath = new vscode.ThemeIcon('server-process');
+      item.description = teamDescription(entry.team);
+      item.tooltip = `Team ${entry.team.id}${entry.team.paused ? ' · paused' : ''}\nRoles: ${entry.team.roles.map(role => role.id).join(', ') || 'none'}\nPloeg owns dispatch. Expand to inspect authorized work and open execution evidence.`;
+      item.iconPath = new vscode.ThemeIcon(entry.team.paused ? 'debug-pause' : 'server-process');
       return item;
     }
     if (entry.kind === 'lane') {
@@ -35,18 +41,18 @@ export class PloegTree implements vscode.TreeDataProvider<PloegEntry>, vscode.Di
       const item = new vscode.TreeItem(lane.label, vscode.TreeItemCollapsibleState.Collapsed);
       item.id = `ploeg:lane:${entry.team.id}:${entry.lane}`;
       item.description = `${page?.items.length ?? 0}${page?.nextCursor ? '+' : ''}`;
-      item.tooltip = entry.lane === 'leased' ? 'Ploeg holds an execution lease for these items. This snapshot does not imply an active model call.' : 'Records in the current operator snapshot.';
+      item.tooltip = entry.lane === 'leased' ? 'An agent is working on these Work Items. This snapshot does not imply an active model call.' : 'Records in the current operator snapshot.';
       item.iconPath = new vscode.ThemeIcon(lane.icon);
       return item;
     }
-    const item = new vscode.TreeItem(entry.item.title || `Work item ${entry.item.id}`);
+    const item = new vscode.TreeItem(entry.item.title || `Work Item ${entry.item.id}`);
     item.id = `ploeg:item:${entry.item.id}`;
     item.description = `${entry.demo ? 'illustration · ' : ''}${entry.item.provider} #${entry.item.externalId || entry.item.id}`;
-    item.tooltip = `${entry.item.title}\n${entry.item.team} · ${entry.item.state.replaceAll('_', ' ')} · ${entry.item.attempts} attempts\n${entry.item.description.slice(0, 600)}\nOpen shifts, runs, review findings, costs and checkpoints in the web workbench.`;
-    item.iconPath = new vscode.ThemeIcon(entry.item.state === 'needs_human' ? 'bell-dot' : entry.item.state === 'leased' ? 'pulse' : 'issues');
+    item.tooltip = `${entry.item.title}\n${entry.item.team} · ${stateLabel(entry.item.state)} · ${plural(entry.item.attempts, 'attempt')}\n${plainText(entry.item.description).slice(0, 600)}\nOpen the task, or its shifts, runs, review findings and costs in the web workbench.`;
+    item.iconPath = new vscode.ThemeIcon(entry.item.state === 'needs_human' ? 'bell-dot' : entry.item.state === 'leased' ? 'pulse' : entry.item.state === 'awaiting_review' ? 'git-pull-request' : 'issues');
     item.contextValue = 'ploeg:item';
-    item.command = { command: 'vloer.openPloeg', title: 'Open Ploeg execution evidence', arguments: [entry.item.id] };
-    item.accessibilityInformation = { label: `${entry.item.title}, ${entry.item.state.replaceAll('_', ' ')}, ${entry.item.team}` };
+    item.command = { command: 'vloer.openPloegItem', title: 'Open task', arguments: [entry] };
+    item.accessibilityInformation = { label: `${entry.item.title}, ${stateLabel(entry.item.state)}, ${entry.item.team}` };
     return item;
   }
   async getChildren(entry?: PloegEntry): Promise<PloegEntry[]> {
@@ -56,7 +62,7 @@ export class PloegTree implements vscode.TreeDataProvider<PloegEntry>, vscode.Di
       if (!entry || entry.kind === 'team') {
         const key = entry?.team.id ?? '';
         let overview = this.cache.get(key);
-        if (!overview) { overview = await this.load(entry?.team.id, true); if (generation !== this.generation) return []; this.cache.set(key, overview); }
+        if (!overview) { overview = await this.load(entry?.team.id, this.fresh); if (generation !== this.generation) return []; this.cache.set(key, overview); this.loaded(new Date()); }
         if (!overview.available) return [{ kind: 'message', label: overview.message, open: true }];
         if (entry) return lanes.map(lane => ({ kind: 'lane', team: entry.team, lane: lane.id, overview }));
         return [...(overview.demo ? [{ kind: 'message' as const, label: 'Illustrative records · no model calls or spend' }] : []), ...overview.teams.map(team => ({ kind: 'team' as const, team })), ...(!overview.teams.length ? [{ kind: 'message' as const, label: 'No teams available to your account' }] : [])];

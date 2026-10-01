@@ -3,8 +3,8 @@
 The **Linked Tasks** view lists Forgejo, GitHub, GitLab, ClickUp and Vikunja sources that an administrator connected on the server. No tracker token is entered in VS Code.
 
 1. Expand a source and select a task, or run **Vloer: Browse Linked Tasks** to filter, page and open a task by ID.
-2. Read the read-only snapshot. It pins the exact revision that the crew will receive.
-3. Choose **Set up session**, then pick a crew, runtime and spending authorization. Every step has a back button and keeps your draft.
-4. Confirm the destination workbench, repository and revision.
+2. The task opens in its own tab: the description rendered as text, labels, assignees, and a **Glide** card that says whether Ploeg already has it and what happens next.
+3. To hand it to Ploeg, choose a team and select **Hand to _team_**. Vloer assigns that team's tracker user and comments that you handed it over; Ploeg queues it, works on a branch and opens a pull request for your review. You can take it back until Ploeg starts.
+4. To steer the work yourself instead, choose **Start a supervised session** where the board allows it, then pick a crew, runtime and spending authorization. The session is created queued and pins the exact task revision.
 
-The session is created queued. Importing does not assign, close or change the task in its tracker.
+Only **Hand to Ploeg** and **Take back** change the task in its tracker. Opening, reading and starting a session never assign, close or edit it.

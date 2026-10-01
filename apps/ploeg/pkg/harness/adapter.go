@@ -49,13 +49,17 @@ type RunEnv struct {
 	Stderr     io.Writer
 	Checkpoint func(work.Checkpoint) // best-effort progress reporting; may be nil
 	Log        *slog.Logger
-	// IdleTimeout ends a spawned harness that writes nothing to stdout or
-	// stderr for this long, returning ErrIdle. Zero disables the watchdog.
+	// IdleTimeout ends a spawned harness that shows no activity for this
+	// long, returning ErrIdle. Zero disables the watchdog.
 	IdleTimeout time.Duration
+	// Activity is the clock the idle watchdog reads. Output on stdout or
+	// stderr touches it; the orchestrator may touch it for other signs of
+	// life, such as model traffic. Nil means output alone counts.
+	Activity *Activity
 }
 
 // ErrIdle is returned by RunCommand when its idle watchdog ended a harness.
-var ErrIdle = harnessError("harness produced no output within its idle timeout")
+var ErrIdle = harnessError("harness showed no activity (no output, no model traffic) within its idle timeout")
 
 // LLMEnv is the harness-neutral LLM wiring for one run. Adapters translate
 // it into harness-native env names (LLM_* for OpenHands, ANTHROPIC_* for
@@ -141,8 +145,11 @@ func (r commandRunner) Run(ctx context.Context, spec TaskSpec, env RunEnv) (Outc
 	cmd.WaitDelay = processWaitDelay
 
 	var tail TailBuffer
-	activity := &activityClock{}
-	activity.touch()
+	activity := env.Activity
+	if activity == nil {
+		activity = NewActivity()
+	}
+	activity.Touch()
 	stdout := io.MultiWriter(nonNil(env.Stdout), &tail, activity)
 	var captured *limitBuffer
 	if inv.CaptureStdout {
@@ -186,20 +193,34 @@ func (r commandRunner) Run(ctx context.Context, spec TaskSpec, env RunEnv) (Outc
 
 const processWaitDelay = 10 * time.Second
 
-type activityClock struct{ last atomic.Int64 }
+// Activity records when a harness last showed a sign of life. It is safe for
+// concurrent use, and every Write touches it.
+type Activity struct{ last atomic.Int64 }
 
-func (a *activityClock) Write(p []byte) (int, error) {
-	a.touch()
+// NewActivity returns an Activity touched now.
+func NewActivity() *Activity {
+	a := &Activity{}
+	a.Touch()
+	return a
+}
+
+func (a *Activity) Write(p []byte) (int, error) {
+	a.Touch()
 	return len(p), nil
 }
 
-func (a *activityClock) touch() { a.last.Store(time.Now().UnixNano()) }
+// Touch records a sign of life now. A nil Activity ignores it.
+func (a *Activity) Touch() {
+	if a != nil {
+		a.last.Store(time.Now().UnixNano())
+	}
+}
 
-func (a *activityClock) idleFor() time.Duration {
+func (a *Activity) idleFor() time.Duration {
 	return time.Since(time.Unix(0, a.last.Load()))
 }
 
-func watchIdle(ctx context.Context, stop context.CancelCauseFunc, activity *activityClock, limit time.Duration) {
+func watchIdle(ctx context.Context, stop context.CancelCauseFunc, activity *Activity, limit time.Duration) {
 	every := min(limit/4, 5*time.Second)
 	every = max(every, 10*time.Millisecond)
 	t := time.NewTicker(every)

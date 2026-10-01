@@ -107,18 +107,58 @@ A link is the person's own credential. Tokens are encrypted at rest with the wor
 
 ## Linked tasks
 
-Connections are administrator-registered `taskSources`. Forgejo, GitHub, GitLab, ClickUp and Vikunja share the same read-only API. A source maps one tracker project or list to a configured repository. Task content cannot supply a repository URL, model credential, runtime command or execution owner. All authenticated users of this pilot deployment can browse its registered sources; source-level team authorization is a later feature.
+Connections are administrator-registered `taskSources`. Forgejo, GitHub, GitLab, ClickUp and Vikunja share the same read API. Only hand-off to Ploeg writes to a tracker, and only to Vikunja. A source maps one tracker project or list to a configured repository. Task content cannot supply a repository URL, model credential, runtime command or execution owner. All authenticated users of this pilot deployment can browse its registered sources; source-level team authorization is a later feature.
 
 | Method and path | Behavior |
 | --- | --- |
-| `GET /api/task-sources` | Public connection records; never connector credentials |
+| `GET /api/task-sources` | Public connection records with `handoff`; never connector credentials |
 | `GET /api/task-sources/:sourceId/tasks?page=1` | `{tasks,nextPage?}` with bounded pagination |
-| `GET /api/task-sources/:sourceId/tasks/:taskId` | Current task snapshot for explicit preview |
+| `GET /api/task-sources/:sourceId/tasks/:taskId` | Current task snapshot for explicit preview, plus `descriptionMarkdown` for display (see below) |
 | `POST /api/task-imports` | `{sourceId,taskId,revision,crewId,runtime,placement?,budgetUsd}` → queued session, 201 new or 200 existing |
+| `GET /api/task-sources/:sourceId/tasks/:taskId/ploeg` | `TaskPloegStatus`: Ploeg's teams, the task's hand-off and its Work Items; `refresh=1` bypasses the short cache |
+| `POST /api/task-sources/:sourceId/tasks/:taskId/handoff` | `{team,revision}` → `TaskPloegStatus` with optional `warnings` |
+| `DELETE /api/task-sources/:sourceId/tasks/:taskId/handoff?team=` | Takes the task back from that team → `TaskPloegStatus` with optional `warnings` |
+| `GET /api/tasks/lookup?provider=vikunja&id=` | `{sourceId}` of the configured source whose project holds the task, or 404 `task_source_unknown` |
 
-A snapshot includes `key`, `sourceId`, `provider`, `id`, `revision`, `title`, `description`, `url`, `status`, `repositoryId` and optional `updatedAt`. Status is normalized to `open`, `closed` or `unknown`; only open tasks can be imported. The revision hashes the material snapshot. Import refetches the configured source and returns 409 `task_changed` if the preview is stale. The server retains the accepted snapshot in `session.sourceTask`, redacting any known server credentials from its title and description before persistence and prompting and frames its body as untrusted reference material in the objective.
+A snapshot includes `key`, `sourceId`, `provider`, `id`, `revision`, `title`, `description`, `url`, `status`, `repositoryId` and optional `updatedAt`. It may also carry `labels` (`{name,color?}`, at most 50), `assignees` (`{username,name?}`, at most 50), the provider's own `priority` (omitted when unset), `dueAt` and the tracker's display `identifier` such as `GLIDE-12`. None of these change the revision. A list page cuts a description over 16,000 characters and sets `descriptionTruncated: true`; its revision still covers the whole description. A preview with `truncate=1` shortens it the same way, while a plain preview or an import of that task still refuses it. The preview alone adds `descriptionMarkdown`, the description to display. A Vikunja description that looks like HTML is first converted to the Markdown subset the browser renders, with relative links resolved against the tracker's web address; any other description is taken as it is. In every case the source's token is then replaced by `[redacted]` ([`presentTask`](../../src/tasks.ts)). The list, the snapshot's `revision`, the stored `sourceTask` and the import never carry it. Status is normalized to `open`, `closed` or `unknown`; only open tasks can be imported. The revision hashes the material snapshot. Import refetches the configured source and returns 409 `task_changed` if the preview is stale. The server retains the accepted snapshot in `session.sourceTask`, redacting any known server credentials from its title and description before persistence and prompting and frames its body as untrusted reference material in the objective.
 
 Import requires an operator or administrator and passes the same mutation guard as other actions. It does not call a model, assign a tracker task or start execution. Calling import twice for the same canonical task and revision returns the existing session across reconnects and process restarts. Another operator receives a generic conflict, without private session details. A changed revision cannot create competing work while an earlier session is active, stopping or has unresolved reservations. Finished revisions remain inspectable; importing is not a retry command.
+
+### Hand a task to Ploeg
+
+A source has `handoff: true` when it is a Vikunja source with a token, `executionOwner: "ploeg"` and a live Ploeg operator connection. Hand-off assigns the tracker user that routes work to a team, which Ploeg's `task.assignee.created` webhook turns into a queued Work Item ([ADR 0025](../adrs/0025-hand-tracker-tasks-to-ploeg-by-assignment.md)).
+
+```ts
+type TaskPloegStatus = {
+  available: boolean; message?: string; demo: boolean;
+  handoff: { allowed: boolean; reason?: string };
+  teams: { id: string; assignee: string; queueDepth: number; paused: boolean | null; roles: string[] }[];
+  assignedTeams: string[];
+  workItems: { id: string; team: string; state: string; attempts: number; updatedAt: string; prUrl?: string; branch?: string; spentUsd?: number; budgetUsd?: number }[];
+  fetchedAt: string;
+  warnings?: string[];
+};
+```
+
+`teams` are the caller's Ploeg teams that report at least one tracker assignee; `assignee` is the first. `assignedTeams` are those whose assignee is on the task, compared without case because Ploeg lowercases routing names. `workItems` come from Ploeg's `work-items?provider&externalId` filter, limited to the caller's teams, with the latest Shift's branch and spend and, for the three most recent, a pull request link from checkpoints. An unreachable Ploeg gives `available: false`. A Ploeg too old to report assignees or the filter gives empty `teams` or `workItems` with a reason; neither is an error. The demo fixture source answers `available: false` with `Demo fixture tasks are not linked to Ploeg.`
+
+Hand-off and take-back pass the mutation guard and require an operator or administrator.
+
+| Refusal | Meaning |
+| --- | --- |
+| 403 `forbidden` | A viewer |
+| 422 `handoff_unsupported` | The source cannot hand off |
+| 404 `handoff_team` | The team is outside the caller's Ploeg scope, has no tracker user, or Ploeg does not report assignees |
+| 409 `task_closed`, 409 `task_changed` | The re-read task is done, or its revision differs from `revision`; reload it |
+| 502 `task_write_forbidden` | The workbench's Vikunja token cannot add or remove assignees or add comments |
+| 502 `handoff_assignee_unknown` | Vikunja has no user with the team's tracker username that the token can see |
+| 409 `handoff_active` | Hand-off while another team's tracker user is on the task, or while any Work Item for it is in a state other than withdrawn, done or stale; a team outside the caller's scope is not named; nothing is written |
+| 409 `handoff_started` | Take-back while any Work Item for the task, in any team, is in a state other than queued, withdrawn, done or stale |
+
+These safety checks read Ploeg's Work Items for the task across every team the workbench's Ploeg consumer can see, not only the caller's teams, because Ploeg files one Work Item per tracker task and a board pin can place it in another team. A board that Ploeg pins to a team (`pinnedScopes` on that team) offers only that team; if it has no tracker user or is outside the caller's access, the status explains why hand-off is unavailable.
+| 503 `handoff_unverified` | Hand-off or take-back while Ploeg cannot list Work Items by tracker task; nothing is written |
+
+Hand-off resolves the user through `GET /projects/:project/projectusers?s=`, then `GET /users?s=`, and sends `PUT /tasks/:id/assignees` and `PUT /tasks/:id/comments` with `<p>Handed to Ploeg team <code>TEAM</code> by NAME from Vloer.</p>`, NAME HTML-escaped. Take-back sends `DELETE /tasks/:id/assignees/:userId` and a `Taken back from Ploeg team` comment. Both are idempotent: when there is nothing to change, nothing is written. A failed comment leaves the assignment in place and adds a warning. Each action writes a `task.handoff` or `task.take_back` log line with the actor, source, task, team and outcome.
 
 Set `executionOwner: "ploeg"` on repositories assigned to Ploeg execution. Standalone Vloer refuses to execute those repositories. With shared authority configured, supported tracker imports instead require the current registered Ploeg binding and canonical admission checks at Start. See [tracker binding](ploeg-tracker-binding.md) and [connection setup](../operations/task-connections.md).
 
@@ -170,6 +210,78 @@ Candidate access uses the same owner/administrator checks as the session. A succ
 
 ## Ploeg workbench
 
-The scoped overview is `GET /api/ploeg`; paged work is `GET /api/ploeg/work-items`, and detail is `GET /api/ploeg/work-items/:id`. `refresh=1` bypasses the short cache. Any other method under `/api/ploeg` answers 405. Responses are snapshots with explicit bounds and uncertainty.
+These routes are Vloer's scoped proxy for Ploeg's operator API ([`ploeg.ts`](../../src/ploeg.ts)). Each needs a login cookie and reads only the Teams the signed-in person may see. `refresh=1` bypasses the short cache. Reads are `GET`; the only writes are the three Work Item decisions, and any other method under `/api/ploeg` answers 405. Responses are snapshots with explicit bounds and uncertainty, and demo responses carry `demo: true`.
+
+| Method and path | Response |
+| --- | --- |
+| `GET /api/ploeg?team=` | Overview: `{configured, available, demo, teams, selectedTeam?, lanes?, fetchedAt?, trackerUrl?, message}`. Each lane (`awaiting_review`, `needs_human`, `leased`, `queued`, `all`) is `{items, nextCursor}` |
+| `GET /api/ploeg/teams` | `{teams}`, the Team ids |
+| `GET /api/ploeg/work-items?team=&state=&after=` | One page of a Team's Work Items, `{items, nextCursor}`; `state` defaults to `all` |
+| `GET /api/ploeg/work-items/:id` | `{item, shifts, runs, checkpoints, events, truncated, demo, fetchedAt}` |
+| `GET /api/ploeg/now` | What waits on the person, what runs and what finished recently, across their Teams; see [Now](#now) |
+| `GET /api/ploeg/proposed` | `{demo, items, truncated, fetchedAt}` across Teams; each item adds `sourceTitle` |
+| `GET /api/ploeg/runs?team=&state=&outcome=&before=` | `{demo, runs, nextBefore, fetchedAt}` |
+| `GET /api/ploeg/events?team=&before=` | `{demo, events, nextCursor, fetchedAt}`; each event adds `workItemTitle` |
+| `GET /api/ploeg/summary?window=` | Per-Team and total counts and spend for `24h`, `7d` or `30d`: `{demo, window, generatedAt, teams, totals, fetchedAt}` |
+| `POST /api/ploeg/work-items/:id/approve` | `{}` → `{workItemId, team, state, demo}`; only a `proposed` Work Item |
+| `POST /api/ploeg/work-items/:id/reject` | `{reason}`, required, at most 4096 characters → `{workItemId, team, state, demo}`; only a `proposed` Work Item |
+| `POST /api/ploeg/work-items/:id/cancel` | `{}` → the cancellation result; see [Cancel](#cancel) |
+
+A Ploeg that lacks the activity routes answers 501 `ploeg_unsupported` for runs, events and summary. A Team outside the person's scope is 404 `ploeg_not_found`, and a non-administrator with no Ploeg Team is 403 `ploeg_scope`.
+
+A workbench without a `ploeg` block, outside the demo, answers by route. Some routes check the connection first ([`PloegOperator`](../../src/ploeg.ts) `connected`), the others only the person's scope (`authorize`):
+
+| Routes | Non-administrator | Administrator |
+| --- | --- | --- |
+| `GET /api/ploeg` | 403 `ploeg_scope` | 200 with `configured: false` and a message |
+| `GET /api/ploeg/teams`, `/work-items`, `/work-items/:id` | 403 `ploeg_scope` | 503 `ploeg_credential`, because the operator credential is missing |
+| `GET /api/ploeg/now`, `/proposed`, `/runs`, `/events`, `/summary` and the three decisions | 503 `ploeg_unconfigured` | 503 `ploeg_unconfigured` |
+
+A viewer's decision is refused with 403 `forbidden` before any of these checks.
 
 A shared session exposes a credential-free `execution` binding. `POST /api/sessions/:id/supervision` accepts `{"supervision":"human"}` or `{"supervision":"background"}` for an active owned session. Existing start, pause, resume, cancel, message and permission routes delegate through Ploeg when configured. See [the shared execution contract](ploeg-execution.md).
+
+### Descriptions
+
+Every Work Item in the overview lanes, the work-item pages, the detail and the proposed list carries `descriptionMarkdown` beside the untouched `description`. For a Vikunja item whose description looks like HTML it is that HTML converted to the Markdown subset the browser's renderer reads, with relative links resolved against the item's `url`. For every other item it equals `description`. Render it with the escape-first renderer; never insert `description` as HTML. [`rich-text.ts`](../../src/rich-text.ts) and [`markdown.ts`](../../src/markdown.ts) implement it.
+
+### Now
+
+`GET /api/ploeg/now` answers `{demo, teams, waiting, running, recent, runningTruncated, recentTruncated, errors, fetchedAt}`. `running` and `recent` are Run rows, the same shape as `/api/ploeg/runs`: the first page of each. `runningTruncated` and `recentTruncated` are true when Ploeg holds more Runs than that page. A group that fails is empty and names its failure in `errors.waiting`, `errors.running` or `errors.recent`; the other groups still answer.
+
+`waiting` lists `awaiting_review`, then `needs_human`, then `proposed` Work Items, oldest first within each. A row carries no description. Its fields:
+
+| Field | Meaning |
+| --- | --- |
+| `id`, `team`, `state`, `title`, `url`, `createdAt`, `updatedAt` | As on the Work Item |
+| `provider`, `externalId`, `priority` | The tracker, the tracker's id, and the tracker's priority. Vloer never re-ranks |
+| `attempts` | Run claims so far, reader and writer alike. It is not "N of 3" |
+| `infraFailures` | Infrastructure failures counted on the legacy lease path |
+| `target` | `{forge, owner, repo, baseBranch}`, or `null` when no repository was resolved ("not routed") |
+| `closeReason` | The latest Shift's close reason, or `null` while the Shift is open or when there is none |
+| `latestShift` | `{round, closeReason, budgetUsd, spentUsd, reservedUsd, closedAt}`, or `null` |
+| `spentUsd` | The latest Shift's spend, or `null` when unknown |
+| `pullRequestUrl` | For up to ten review rows, the pull request link from the newest checkpoint or Run; otherwise `""` |
+| `sourceWorkItemId`, `sourceTitle`, `createdKind`, `ready` | Proposed rows only, when Ploeg reports them |
+
+### Cancel
+
+Cancel is for operators and administrators; viewers get 403. Live, Vloer asks Ploeg to cancel the Work Item as the signed-in person and answers `{workItemId, team, state, demo: false, withdrawn, shiftId, cancelledRuns, stoppedRuns, keysBlocked, message}` with Ploeg's own figures:
+
+* `withdrawn: false` means nothing was live, and `state` keeps the Work Item's state.
+* `keysBlocked: false` means Ploeg could not yet confirm that the stopped Runs' model keys are blocked; its sweep retries.
+* A field that Ploeg leaves out or sends malformed is `null`, meaning unknown, never `0` or `false`. `message` is `""` unless Ploeg sends one.
+* A Work Item that a workbench session drives answers 409 `ploeg_decision_conflict`: cancel that session instead.
+
+In the demo, cancel answers 200 and changes nothing: `withdrawn: false`, `cancelledRuns: 0`, `stoppedRuns: 0`, `keysBlocked: null` and a `message` that says no Run was stopped, no model key or push token was blocked and the tracker was not told.
+
+What Ploeg does on cancel is [journey D](../../../../docs/concepts/journeys.md#d-stopping-work).
+
+## Static files
+
+The server answers `GET` for the browser workbench from its public directory ([`static.ts`](../../src/static.ts)): the page, the named top-level assets in `src/http.ts`, and any `/core/`, `/views/` or `/styles/` file whose name matches `[a-z0-9][a-z0-9-]*\.(js|css)`. Anything else is 404.
+
+* Every response carries `Cache-Control: no-cache` and a strong `ETag`: 32 base64url characters of the file's SHA-256.
+* `If-None-Match` with that tag, weakly compared, or `*`, answers 304 with no body. The 304 keeps the `ETag`, `Cache-Control`, `Vary` and every security header, the Content Security Policy included.
+* HTML, CSS, JavaScript, SVG and the web manifest are gzipped when `Accept-Encoding` accepts `gzip` or `x-gzip` with a non-zero quality, and only when that is smaller. The gzipped variant's tag ends in `-gzip`. These types carry `Vary: Accept-Encoding`; fonts, images and plain text are never compressed.
+* File bodies and their gzip are cached in memory by path, modification time and size, up to 512 files.

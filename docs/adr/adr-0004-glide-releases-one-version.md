@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-09-27
+date: 2026-10-01
 decision-makers: Ryan Grippeling
 ---
 
@@ -56,3 +56,5 @@ Chosen option: "One Glide version for both applications", because the applicatio
 
 * Supersedes the separate release versions in [ADR-0001](adr-0001-glide-contains-independent-applications.md). Two independently deployable applications remain.
 * 2026-09-27 — The owner chose one Glide version after the [notes loss](../research/2026-09-23-forgejo-notes-loss.md) happened again and before the first Glide release.
+* Refined by [ADR-0012](adr-0012-the-marketing-site-releases-and-deploys-on-its-own.md): the marketing site in `apps/site` has its own `glide-site-v…` train and is not part of the Glide version.
+* 2026-10-01 — Refined by ADR-0012; site-scoped commits no longer release Glide.

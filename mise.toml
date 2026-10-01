@@ -1,26 +1,29 @@
 [tools]
-node = "24.19.0"
-go = "1.25.0"
-helm = "4.2.4"
-uv = "0.12.12"
-"npm:@fission-ai/openspec" = "1.6.0"
+node = "24.21.0"
+go = "1.27.1"
+helm = "4.3.0"
+uv = "0.12.21"
+"npm:@fission-ai/openspec" = "1.13.2"
 
 [tasks.setup]
 run = [
   "mise trust apps/vloer/mise.toml",
   "mise trust apps/ploeg/mise.toml",
+  "mise trust apps/site/mise.toml",
   "if git remote get-url origin >/dev/null 2>&1; then git fetch --no-tags origin '+refs/notes/*:refs/notes/*'; else echo 'setup: no origin remote; imported release notes not fetched'; fi",
   "mise -C apps/vloer install",
   "mise -C apps/ploeg install",
+  "mise -C apps/site install",
   "npm --prefix apps/vloer ci --no-audit --no-fund",
   "npm --prefix apps/vloer/extensions/vscode ci --no-audit --no-fund",
+  "mise -C apps/site exec -- corepack pnpm install --frozen-lockfile",
   "uv sync --frozen",
 ]
 description = "Install the locked application and documentation dependencies"
 
 [tasks.verify]
 run = "node scripts/verify.mjs"
-description = "Run both application gates and cross-application qualification"
+description = "Run both application gates, the site gates and cross-application qualification"
 
 [tasks.integration]
 run = "node scripts/integration.mjs"
@@ -88,7 +91,7 @@ run = "lychee --config lychee.toml README.md llms.txt docs apps/vloer/docs apps/
 description = "Check external links in current docs with lychee; the weekly workflow reports without blocking"
 
 [tasks.docs-vale]
-tools = { vale = "3.22.0" }
+tools = { vale = "3.23.0" }
 run = ["uv run --frozen python scripts/docs-vale.py", "vale --no-exit --glob='!**/{research,evidence,openspec,design,adr,adrs,backlog}/**' README.md docs apps/vloer/docs apps/ploeg/docs"]
 description = "Lint current docs against the generated Glide vocabulary; warnings only"
 

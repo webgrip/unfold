@@ -1,0 +1,120 @@
+---
+import { SOURCE_URL } from '../config/site.ts';
+import type { Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+import { routePath, type RouteKey } from '../i18n/routes.ts';
+import LocaleSwitcher from './LocaleSwitcher.astro';
+import Mark from './Mark.astro';
+import ThemeToggle from './ThemeToggle.astro';
+import Wordmark from './Wordmark.astro';
+
+interface Props {
+  locale: Locale;
+  routeKey: RouteKey;
+}
+
+const { locale, routeKey } = Astro.props;
+const t = dictionary(locale);
+const home = routePath('home', locale);
+const anchor = (id: string) => (routeKey === 'home' ? `#${id}` : `${home}#${id}`);
+const nav = [
+  { href: anchor('loop'), label: t.nav.loop },
+  { href: anchor('parts'), label: t.nav.parts },
+  { href: anchor('status'), label: t.nav.status },
+];
+---
+
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="brand" href={home} aria-label={t.a11y.homeLink}>
+      <Mark size={32} />
+      <Wordmark />
+    </a>
+
+    <nav aria-label={t.a11y.mainNav} class="site-nav">
+      <ul>
+        {nav.map((item) => <li>
+          <a href={item.href}>{item.label}</a>
+        </li>)}
+      </ul>
+    </nav>
+
+    <div class="header-actions">
+      <LocaleSwitcher locale={locale} routeKey={routeKey} label={t.a11y.switchLocale} />
+      <ThemeToggle label={t.a11y.themeToggle} />
+      <a class="button button--secondary header-source" href={SOURCE_URL}>{t.nav.source}</a>
+    </div>
+  </div>
+</header>
+
+<style>
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: var(--bg);
+    border-bottom: var(--border-width) solid var(--border);
+  }
+
+  .header-inner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-5);
+    height: var(--header-height);
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    text-decoration: none;
+  }
+
+  .site-nav {
+    margin-left: auto;
+  }
+
+  .site-nav ul {
+    display: flex;
+    gap: var(--space-5);
+    list-style: none;
+    padding: 0;
+  }
+
+  .site-nav a {
+    color: var(--fg-muted);
+    text-decoration: none;
+    font-weight: var(--weight-medium);
+  }
+
+  .site-nav a:hover {
+    color: var(--fg);
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .header-source {
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--text-sm);
+  }
+
+  @media (max-width: 52rem) {
+    .site-nav {
+      display: none;
+    }
+
+    .header-actions {
+      margin-left: auto;
+    }
+  }
+
+  @media (max-width: 26rem) {
+    .header-source {
+      display: none;
+    }
+  }
+</style>

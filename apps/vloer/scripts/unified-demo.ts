@@ -22,7 +22,7 @@ class EphemeralDemoEngine extends Engine {
 const root = fileURLToPath(new URL('../', import.meta.url));
 const args = process.argv.slice(2);
 if (args.includes('--help')) {
-  console.log('Usage: mise exec -- node scripts/unified-demo.ts [--smoke]\nRequires sibling ../ploeg, Go 1.25+, PostgreSQL 17+ binaries and Git.\nPLOEG_PATH overrides the sibling checkout. PG_BIN overrides the PostgreSQL binary directory.\nVLOER_DEMO_PORT selects the loopback workbench port (default: an available port).\nCtrl+C stops both applications and PostgreSQL, then removes temporary data.');
+  console.log('Usage: mise exec -- node scripts/unified-demo.ts [--smoke]\nRequires sibling ../ploeg, Go 1.26+, PostgreSQL 17+ binaries and Git.\nPLOEG_PATH overrides the sibling checkout. PG_BIN overrides the PostgreSQL binary directory.\nVLOER_DEMO_PORT selects the loopback workbench port (default: an available port).\nCtrl+C stops both applications and PostgreSQL, then removes temporary data.');
 } else {
   if (args.some(arg => arg !== '--smoke')) throw new Error('Unknown option; use --help.');
   await main(args.includes('--smoke'));

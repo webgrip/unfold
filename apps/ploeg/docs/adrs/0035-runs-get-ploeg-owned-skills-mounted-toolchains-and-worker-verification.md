@@ -181,6 +181,11 @@ small, and produces evidence the author of the change cannot edit.
 * 2026-09-28 — Network reach corrected. Worker pods lost the public gateway and
   the LAN in homelab-cluster `ab75cc35`, `92b15206` and `747890d0`;
   `kubernetes/apps/ploeg/ploeg/app/worker-egress-probe.job.yaml` checks it.
+* 2026-09-28 — Amended by
+  [0037](0037-teams-opt-into-registry-egress-through-a-logged-allowlist-proxy.md)
+  (accepted 2026-10-01): a team can opt into a `registries` network profile that reaches
+  package registries through a logged allowlist proxy, which answers the
+  first Bad consequence above for that team. `airgapped` stays the default.
 * Related: [0011](0011-the-pull-request-is-the-blackboard.md),
   [0017](0017-the-review-loop-is-verdict-driven-and-capped.md),
   [0030](0030-target-repository-instructions-rank-below-the-delivery-contract.md),

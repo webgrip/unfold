@@ -39,7 +39,7 @@ func fakeGateway(t *testing.T) (*httptest.Server, *gatewaySeen) {
 
 func TestKeyProxySwapsTheBearerPlaceholderForTheRealKey(t *testing.T) {
 	gw, seen := fakeGateway(t)
-	p, err := startLLMKeyProxy(gw.URL+"/v1", "sk-real-run-key")
+	p, err := startLLMKeyProxy(gw.URL+"/v1", "sk-real-run-key", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestKeyProxySwapsTheBearerPlaceholderForTheRealKey(t *testing.T) {
 
 func TestKeyProxySwapsAnAnthropicStyleKey(t *testing.T) {
 	gw, seen := fakeGateway(t)
-	p, err := startLLMKeyProxy(gw.URL, "sk-real-run-key")
+	p, err := startLLMKeyProxy(gw.URL, "sk-real-run-key", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestKeyProxyStreamsWithoutBuffering(t *testing.T) {
 	}))
 	defer gw.Close()
 	defer close(release)
-	p, err := startLLMKeyProxy(gw.URL, "sk-real-run-key")
+	p, err := startLLMKeyProxy(gw.URL, "sk-real-run-key", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,5 +181,63 @@ func TestUnisolatedRunKeepsHandingTheKeyOver(t *testing.T) {
 		testTaskSpec(), env, llmbroker.MintRequest{RunToken: "abc123def456ff"}, 0, "")
 	if adapter.seen.LLM.APIKey != "sk-real-run-key" {
 		t.Fatalf("without isolation the harness key = %q, want the minted key", adapter.seen.LLM.APIKey)
+	}
+}
+
+type silentModelCaller struct {
+	stop chan struct{}
+	auth chan string
+}
+
+func (silentModelCaller) Name() string     { return "silent" }
+func (silentModelCaller) ExpectsLLM() bool { return true }
+
+func (a silentModelCaller) Prepare(_ harness.TaskSpec, env harness.RunEnv) (harness.Invocation, error) {
+	go func() {
+		for {
+			select {
+			case <-a.stop:
+				return
+			case <-time.After(50 * time.Millisecond):
+			}
+			req, _ := http.NewRequest(http.MethodPost, env.LLM.BaseURL+"/chat/completions", strings.NewReader(`{}`))
+			req.Header.Set("Authorization", "Bearer "+env.LLM.APIKey)
+			if resp, err := http.DefaultClient.Do(req); err == nil {
+				_, _ = io.Copy(io.Discard, resp.Body)
+				resp.Body.Close()
+			}
+			select {
+			case a.auth <- env.LLM.APIKey:
+			default:
+			}
+		}
+	}()
+	return harness.Invocation{Argv: []string{"/bin/sh", "-c", "sleep 1"}}, nil
+}
+
+func (silentModelCaller) ParseOutcome(harness.TaskSpec, harness.ExecResult) (harness.OutcomeReport, error) {
+	return harness.OutcomeReport{}, nil
+}
+
+func TestSilentHarnessThatKeepsCallingTheModelIsNotIdle(t *testing.T) {
+	gw, seen := fakeGateway(t)
+	adapter := silentModelCaller{stop: make(chan struct{}), auth: make(chan string, 1)}
+	defer close(adapter.stop)
+	env := runEnv(t)
+	env.LLM.BaseURL = gw.URL + "/v1"
+	env.IdleTimeout = 300 * time.Millisecond
+	env.Activity = harness.NewActivity()
+	_, mintErr, runErr := runAgent(context.Background(), discardLog(), &recordingBroker{key: "sk-real-run-key"},
+		harness.RunCommand(adapter), testTaskSpec(), env, llmbroker.MintRequest{RunToken: "abc123def456ff"}, 0, "")
+	if mintErr != nil || runErr != nil {
+		t.Fatalf("a harness calling the model without printing was stopped: mint=%v run=%v", mintErr, runErr)
+	}
+	if key := <-adapter.auth; key != "sk-real-run-key" {
+		t.Fatalf("without isolation the harness key = %q, want the minted key", key)
+	}
+	seen.mu.Lock()
+	defer seen.mu.Unlock()
+	if seen.authorization != "Bearer sk-real-run-key" {
+		t.Fatalf("the observing proxy changed the key: %q", seen.authorization)
 	}
 }

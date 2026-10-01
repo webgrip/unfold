@@ -48,6 +48,7 @@ Every module in `src/`:
 | [`src/config.ts`](../src/config.ts) | Parses and validates the configuration file and environment; defines the default crews and workspace placements |
 | [`src/types.ts`](../src/types.ts) | Shared domain and adapter types: session, run, crew, configuration and the runtime interface |
 | [`src/http.ts`](../src/http.ts) | The single router: REST API, server-sent events, static files, mutation guard and secret redaction |
+| [`src/static.ts`](../src/static.ts) | Serves the public directory with a content ETag, 304 revalidation and cached gzip for text types |
 | [`src/auth.ts`](../src/auth.ts) | Local password login, cookie sign-ins and the editor device-code sign-in |
 | [`src/oidc.ts`](../src/oidc.ts) | OpenID Connect sign-in with PKCE; maps groups or a claim to a role |
 | [`src/links.ts`](../src/links.ts) | Per-person linked GitLab and ClickUp accounts, stored encrypted, used for tracker reads and clone access |
@@ -58,7 +59,10 @@ Every module in `src/`:
 | [`src/execution-authority.ts`](../src/execution-authority.ts) | Shared-mode client for Ploeg's operator execution API: admission, commands, credential, spend and block |
 | [`src/ploeg.ts`](../src/ploeg.ts) | Read-only, validated Ploeg operator client for teams and Work Items |
 | [`src/ploeg-demo.ts`](../src/ploeg-demo.ts) | Illustrative Ploeg records served in demo mode |
-| [`src/tasks.ts`](../src/tasks.ts) | Read-only tracker connectors for Forgejo, GitHub, GitLab, ClickUp, Vikunja and a demo source |
+| [`src/tasks.ts`](../src/tasks.ts) | Tracker connectors for Forgejo, GitHub, GitLab, ClickUp, Vikunja and a demo source; reads everywhere, and Vikunja assignee and comment writes for hand-off |
+| [`src/task-handoff.ts`](../src/task-handoff.ts) | Hands a Vikunja task to a Ploeg team by assigning its tracker user, takes it back, and reports the Ploeg work for a task |
+| [`src/rich-text.ts`](../src/rich-text.ts) | Adds `descriptionMarkdown` for display: Vikunja HTML becomes Markdown the browser and the editor's task view render; other text passes through |
+| [`src/markdown.ts`](../src/markdown.ts) | Dependency-free, size-capped HTML-to-Markdown converter, in CommonMark or the subset the browser's renderer reads |
 | [`src/task-binding.ts`](../src/task-binding.ts) | Looks up and compares the Ploeg Work Item bound to an imported Vikunja or ClickUp task |
 | [`src/candidates.ts`](../src/candidates.ts) | Captures a workspace change as a Git bundle, binary patch and manifest |
 | [`src/attestations.ts`](../src/attestations.ts) | Signs candidate provenance and Agent Trace records as Ed25519 DSSE envelopes |
@@ -82,7 +86,14 @@ Outside `src/`:
 
 | Path | Role |
 | --- | --- |
-| [`public/`](../public/) | Browser workbench: native modules, no build step |
+| [`public/`](../public/) | Browser workbench: native modules, no build step. [Browser UI](browser-ui.md) is its contract: routes, view descriptors, core modules, CSS layers, tokens and accessibility rules |
+| [`public/index.html`](../public/index.html) | The page: dialogs, toast and live region, and the classic [`core/theme.js`](../public/core/theme.js) that applies the stored theme before first paint |
+| [`public/app.js`](../public/app.js) | Browser entry: boots, redirects old hashes, routes each hash to a view, moves focus to the page heading and dispatches delegated events to the handlers views register |
+| [`public/shell.js`](../public/shell.js) | Grouped sidebar with counts, top bar with breadcrumbs, search, status strip and account menu, page heading, and on phones a navigation drawer and bottom bar, around every signed-in view |
+| [`public/core/`](../public/core/) | Shared browser state, API client, DOM helpers and the view descriptor contract in [`registry.js`](../public/core/registry.js); hash routes and redirects ([`route.js`](../public/core/route.js)); one formatter for money, dates and durations ([`format.js`](../public/core/format.js)); the state vocabulary ([`states.js`](../public/core/states.js)) and why a Work Item needs a person ([`reasons.js`](../public/core/reasons.js)); per-browser preferences ([`prefs.js`](../public/core/prefs.js)); the live-update scheduler ([`live.js`](../public/core/live.js)), keyboard shortcuts ([`keys.js`](../public/core/keys.js)) and navigation counts ([`counts.js`](../public/core/counts.js)); the component string builders ([`ui.js`](../public/core/ui.js)), icons ([`icons.js`](../public/core/icons.js)), the brand lockup ([`brand.js`](../public/core/brand.js)) and the escape-first Markdown renderer ([`markdown.js`](../public/core/markdown.js)); the favicon dot and opt-in desktop notifications ([`favicon.js`](../public/core/favicon.js), [`attention.js`](../public/core/attention.js)) |
+| [`public/views/`](../public/views/) | One module per screen area, each exporting a view descriptor, including the command palette ([`palette.js`](../public/views/palette.js)); [`index.js`](../public/views/index.js) lists them |
+| [`public/ploeg.js`](../public/ploeg.js), [`ploeg-activity.js`](../public/ploeg-activity.js), [`now.js`](../public/now.js), [`delivery.js`](../public/delivery.js) | Markup modules for the Work, feed, Now and delivery screens, kept DOM-free because Node tests import them |
+| [`public/styles.css`](../public/styles.css), [`public/styles/`](../public/styles/) | The cascade-layer order, the Archivo `@font-face` rules and one stylesheet per layer: tokens, base, components, shell and one per view |
 | [`extensions/vscode/`](../extensions/vscode/) | VS Code extension: sessions, task import, Ploeg view, linked accounts and agent-host setup |
 | [`scripts/`](../scripts/) | Checks, smoke and browser checks, and the `qualify-*` scripts Ploeg's opt-in qualification runs |
 | [`ops/`](../ops/) | Agent image, Helm chart, local Compose and cluster manifests |

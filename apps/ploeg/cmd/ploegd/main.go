@@ -27,7 +27,6 @@ import (
 	"github.com/webgrip/ploeg/pkg/provider/vikunja"
 	"github.com/webgrip/ploeg/pkg/shiftengine"
 	"github.com/webgrip/ploeg/pkg/store"
-	"github.com/webgrip/ploeg/pkg/target"
 )
 
 var version = "0.0.0-dev"
@@ -214,22 +213,10 @@ func run(log *slog.Logger) error {
 	// Routing rules come from the config file when it names projects — which
 	// is where the project IDs get resolved from names, so nothing in cluster
 	// config is a bare number. The env var remains as the fallback.
-	targetSpec := os.Getenv("PLOEG_TARGET_MAP")
-	if spec, err := cfg.TargetSpec(ctx, vik, log); err != nil {
-		return fmt.Errorf("routing config: %w", err)
-	} else if spec != "" {
-		targetSpec = spec
-	}
-	// forgeID, not a second read of the env var. The registry above defaults
-	// PLOEG_TARGET_FORGE to "forgejo"; reading it raw here defaulted it to ""
-	// instead, so every resolved Target carried forge="" while the registry
-	// was keyed "forgejo" and publishRound's lookup missed on every Shift.
-	// One value, one read.
-	targets, err := target.NewMapResolver(targetSpec, forgeID)
+	targets, readiness, err := routing(ctx, log, cfg, vik, forges, forgeID)
 	if err != nil {
-		return fmt.Errorf("routing rules: %w", err)
+		return err
 	}
-	log.Info("target map loaded", "rules", targets.Len())
 
 	// Team plans (run-multi-agent-shifts): config for the shift engine, parsed
 	// and validated at boot so a plan that could open a malformed Round never
@@ -257,6 +244,12 @@ func run(log *slog.Logger) error {
 	// back to the pre-Shift path, and needs only a ploegd restart.
 	uniform := envOr("PLOEG_SHIFTS_UNIFORM", "true") != "false"
 
+	// The usage and evidence report on every agent pull request. Default on;
+	// PLOEG_USAGE_REPORT=false silences it without a rollback (the report is
+	// additive transport and changes no lifecycle state). The two base URLs
+	// are where its links point; unset omits the links section.
+	usageReport := usageReportFromEnv()
+
 	// The engine is nil only when it would have nothing to do: no plans AND
 	// no uniform dispatch. Then dispatch is exactly the pre-Shift path.
 	var engine *shiftengine.Engine
@@ -267,8 +260,11 @@ func run(log *slog.Logger) error {
 			DefaultForge: forgeID,
 			Trackers:     trackers,
 			Uniform:      uniform,
+			UsageReport:  usageReport,
+			GrafanaURL:   trimSlash(os.Getenv("PLOEG_REPORT_GRAFANA_URL")),
+			VloerURL:     trimSlash(os.Getenv("PLOEG_REPORT_VLOER_URL")),
 		}
-		log.Info("shift engine enabled", "planned_teams", len(plans), "uniform", uniform)
+		log.Info("shift engine enabled", "planned_teams", len(plans), "uniform", uniform, "usage_report", usageReport)
 	} else {
 		log.Info("shift engine disabled (no plans, PLOEG_SHIFTS_UNIFORM=false)")
 	}
@@ -303,6 +299,7 @@ func run(log *slog.Logger) error {
 		Store:          st,
 		Trackers:       trackers,
 		Targets:        targets,
+		Readiness:      readiness,
 		ScopeTeams:     cfg.ScopeTeams(),
 		LeaseTTL:       leaseTTL,
 		Log:            log,
@@ -411,6 +408,13 @@ func envOr(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// usageReportFromEnv reads PLOEG_USAGE_REPORT. Default on: the outcome is
+// "every agent pull request", and the value exists so a noisy deployment can
+// silence the report without a rollback.
+func usageReportFromEnv() bool {
+	return envOr("PLOEG_USAGE_REPORT", "true") != "false"
 }
 
 func durationOr(key string, def time.Duration) time.Duration {

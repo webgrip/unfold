@@ -7,7 +7,7 @@ ARG OPENCODE_VERSION=1.18.33
 # renovate: datasource=npm depName=brace-expansion
 ARG NPM_BRACE_EXPANSION_VERSION=5.0.12
 # renovate: datasource=npm depName=undici
-ARG NPM_UNDICI_VERSION=6.28.1
+ARG NPM_UNDICI_VERSION=6.29.0
 
 FROM ${NODE_DEV_IMAGE} AS fetch
 ARG OPENCODE_VERSION

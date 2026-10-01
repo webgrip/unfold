@@ -19,49 +19,11 @@ const openRuns = new Set();
 const decisions = new Map();
 const confirming = new Set();
 
-function brandMark() {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', '0 0 64 64');
-  svg.setAttribute('width', '15');
-  svg.setAttribute('height', '15');
-  svg.setAttribute('aria-hidden', 'true');
-  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  path.setAttribute('d', 'M10.571 17.371L25.071 52.371A7.5 7.5 0 0 0 38.929 52.371L53.429 17.371A7.5 7.5 0 0 0 39.571 11.629L32 29.904L24.429 11.629A7.5 7.5 0 0 0 10.571 17.371ZM10 42V50H54V42Z');
-  path.setAttribute('fill', 'currentColor');
-  svg.append(path);
-  return svg;
-}
-
-function element(tag, attributes = {}, ...children) {
-  const node = document.createElement(tag);
-  for (const [name, value] of Object.entries(attributes)) {
-    if (value === undefined || value === false || value === null) continue;
-    if (name === 'className') node.className = value;
-    else if (name === 'text') node.textContent = value;
-    else if (name === 'disabled') node.disabled = Boolean(value);
-    else if (name === 'checked') node.checked = Boolean(value);
-    else if (name === 'open') node.open = Boolean(value);
-    else if (name === 'value') node.value = value;
-    else node.setAttribute(name, String(value));
-  }
-  for (const child of children.flat(Infinity)) if (child !== undefined && child !== null && child !== false) node.append(typeof child === 'string' ? document.createTextNode(child) : child);
-  return node;
-}
-
-function action(label, type, attributes = {}, ...children) { return element('button', { type: 'button', 'data-action': type, ...attributes }, label, ...children); }
-function currency(value) { const amount = value || 0; const digits = amount > 0 && amount < 0.01 ? 5 : amount > 0 && amount < 1 ? 4 : 2; return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: digits }).format(amount); }
-function readable(value) { return String(value ?? '').replaceAll('_', ' ').replaceAll('.', ' · '); }
-function clock(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
-function ago(value) { const seconds = Math.max(0, Math.round((Date.now() - Date.parse(value)) / 1000)); return !Number.isFinite(seconds) ? '' : seconds < 45 ? 'just now' : seconds < 3600 ? `${Math.round(seconds / 60)}m ago` : seconds < 86400 ? `${Math.round(seconds / 3600)}h ago` : `${Math.round(seconds / 86400)}d ago`; }
-function duration(start, end) { if (!start) return ''; const seconds = Math.max(0, Math.round((Date.parse(end || new Date().toISOString()) - Date.parse(start)) / 1000)); return seconds < 60 ? `${seconds}s` : seconds < 3600 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`; }
 function remember() { bridge.setState({ sessionId, tab, draft, activityFilter }); }
-function announce(text) { const node = document.getElementById('announcement'); if (node) node.textContent = text; }
-function fact(label, value, attributes = {}) { return element('div', { className: 'fact', ...attributes }, element('dt', {}, label), element('dd', {}, value)); }
-function safeHttps(value) { try { const url = new URL(value); return url.protocol === 'https:' && !url.username && !url.password ? url.toString() : ''; } catch { return ''; } }
 
 const stageNames = { credentials: 'Gateway authorization', workspace: 'Workspace setup', runtime: 'Runtime startup', prompt: 'Prompt submission', execution: 'Agent execution' };
 const submissionText = { not_submitted: 'The prompt was not submitted.', rejected: 'The runtime rejected the prompt.', accepted: 'The runtime acknowledged the prompt; this does not confirm that execution finished.', unknown: 'Prompt submission is unconfirmed. Check remote execution and gateway spend before starting new work.' };
-const statusNames = { queued: 'Ready to start', running: 'Working', exporting: 'Preparing review', waiting_input: 'Needs your decision', paused: 'Paused', interrupted: 'Interrupted', completed: 'Awaiting your review', failed: 'Needs attention', cancelled: 'Cancelled' };
+const statusNames = { queued: 'Ready to start', running: 'Working', exporting: 'Preparing review', waiting_input: 'Needs your input', paused: 'Paused', interrupted: 'Interrupted', completed: 'Ready for your review', failed: 'Failed', cancelled: 'Cancelled' };
 
 function activeRole(session) { return session.runs.find(run => ['running', 'waiting_input', 'paused'].includes(run.status))?.roleName; }
 function isReviewer(session, run) { return run.mode === 'read' && session.runs[session.runs.length - 1]?.id === run.id; }
@@ -93,86 +55,6 @@ function situation(session) {
   }
 }
 
-function inline(text) {
-  const fragment = document.createDocumentFragment();
-  const pattern = /(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(__[^_\n]+__)|(\*[^*\n]+\*)|(_[^_\n]+_)|(\[[^\]\n]+\]\([^)\s]+\))/g;
-  let last = 0;
-  for (const match of text.matchAll(pattern)) {
-    if (match.index > last) fragment.append(text.slice(last, match.index));
-    const token = match[0];
-    if (token.startsWith('`')) fragment.append(element('code', {}, token.slice(1, -1)));
-    else if (token.startsWith('**') || token.startsWith('__')) fragment.append(element('strong', {}, inline(token.slice(2, -2))));
-    else if (token.startsWith('[')) { const [, label, url] = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/); fragment.append(element('span', { className: 'link-text' }, inline(label)), element('span', { className: 'link-target' }, ` (${url})`)); }
-    else fragment.append(element('em', {}, inline(token.slice(1, -1))));
-    last = match.index + token.length;
-  }
-  if (last < text.length) fragment.append(text.slice(last));
-  return fragment;
-}
-
-function markdown(text) {
-  const root = element('div', { className: 'markdown' });
-  const lines = String(text ?? '').replace(/\r\n?/g, '\n').split('\n');
-  let index = 0;
-  let paragraph = [];
-  const flush = () => { if (paragraph.length) { root.append(element('p', {}, inline(paragraph.join(' ')))); paragraph = []; } };
-  while (index < lines.length) {
-    const line = lines[index];
-    const fence = line.match(/^\s*(`{3,}|~{3,})\s*(\S*)/);
-    if (fence) {
-      flush();
-      const body = [];
-      index++;
-      while (index < lines.length && !lines[index].startsWith(fence[1])) body.push(lines[index++]);
-      index++;
-      root.append(element('pre', { 'data-language': fence[2] || undefined }, element('code', {}, body.join('\n'))));
-      continue;
-    }
-    const heading = line.match(/^(#{1,6})\s+(.*)$/);
-    if (heading) { flush(); root.append(element(heading[1].length <= 2 ? 'h3' : 'h4', {}, inline(heading[2].trim()))); index++; continue; }
-    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { flush(); root.append(element('hr')); index++; continue; }
-    if (/^\s*>/.test(line)) {
-      flush();
-      const quote = [];
-      while (index < lines.length && /^\s*>/.test(lines[index])) quote.push(lines[index++].replace(/^\s*>\s?/, ''));
-      root.append(element('blockquote', {}, markdown(quote.join('\n'))));
-      continue;
-    }
-    const listItem = line.match(/^(\s*)([-*+]|\d+[.)])\s+(.*)$/);
-    if (listItem) {
-      flush();
-      const ordered = /\d/.test(listItem[2]);
-      const list = element(ordered ? 'ol' : 'ul');
-      while (index < lines.length) {
-        const item = lines[index].match(/^(\s*)([-*+]|\d+[.)])\s+(.*)$/);
-        if (!item || /\d/.test(item[2]) !== ordered) break;
-        const content = [item[3]];
-        index++;
-        while (index < lines.length && /^\s{2,}\S/.test(lines[index]) && !lines[index].match(/^\s*([-*+]|\d+[.)])\s+/)) content.push(lines[index++].trim());
-        list.append(element('li', {}, inline(content.join(' '))));
-      }
-      root.append(list);
-      continue;
-    }
-    if (/^\s*\|.*\|\s*$/.test(line) && index + 1 < lines.length && /^\s*\|?\s*:?-{2,}/.test(lines[index + 1])) {
-      flush();
-      const cells = value => value.trim().replace(/^\||\|$/g, '').split('|').map(cell => cell.trim());
-      const table = element('table');
-      table.append(element('thead', {}, element('tr', {}, ...cells(line).map(cell => element('th', {}, inline(cell))))));
-      const body = element('tbody');
-      index += 2;
-      while (index < lines.length && /^\s*\|.*\|\s*$/.test(lines[index])) body.append(element('tr', {}, ...cells(lines[index++]).map(cell => element('td', {}, inline(cell)))));
-      table.append(body);
-      root.append(element('div', { className: 'table-scroll' }, table));
-      continue;
-    }
-    if (!line.trim()) { flush(); index++; continue; }
-    paragraph.push(line.trim());
-    index++;
-  }
-  flush();
-  return root;
-}
 
 function parsePatch(content) {
   const files = [];
@@ -814,9 +696,10 @@ window.addEventListener('message', event => {
   if (!message || typeof message.type !== 'string') return;
   if (message.type === 'session') {
     const previous = detail;
+    const reconnected = !connected;
     detail = message.detail; connected = true; connectionMessage = '';
     const key = JSON.stringify({ session: detail.session, permissions: detail.permissions, events: detail.events.length, last: detail.events.at(-1)?.id, user: detail.user, origin: detail.origin });
-    if (previous && key === lastRenderKey && !message.focus) { const badge = document.getElementById('freshness'); if (badge) badge.textContent = `${detail.freshness.transport === 'live' ? 'Live' : 'Polling'} · observed ${clock(detail.freshness.observedAt)}`; return; }
+    if (previous && !reconnected && key === lastRenderKey && !message.focus) { const badge = document.getElementById('freshness'); if (badge) badge.textContent = `${detail.freshness.transport === 'live' ? 'Live' : 'Polling'} · observed ${clock(detail.freshness.observedAt)}`; return; }
     lastRenderKey = key;
     if (message.focus) focusTarget = { tab: message.focus.tab, requestId: message.focus.requestId, runId: message.focus.runId, decisions: Boolean(message.focus.requestId) };
     if (message.focus?.tab && tabs.includes(message.focus.tab) && !message.focus.requestId) { tab = message.focus.tab; remember(); }

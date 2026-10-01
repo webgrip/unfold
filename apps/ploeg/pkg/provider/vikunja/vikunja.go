@@ -208,6 +208,9 @@ func (p *Provider) FetchExecutionItem(ctx context.Context, externalID string) (p
 		ProjectID   int64  `json:"project_id"`
 		Updated     string `json:"updated"`
 		Done        *bool  `json:"done"`
+		Labels      []struct {
+			Title string `json:"title"`
+		} `json:"labels"`
 	}
 	if err := p.do(ctx, http.MethodGet, "/tasks/"+externalID, nil, &task); err != nil {
 		return provider.ExecutionItem{}, err
@@ -219,6 +222,10 @@ func (p *Provider) FetchExecutionItem(ctx context.Context, externalID string) (p
 	if task.ProjectID > 0 {
 		scope = fmt.Sprint(task.ProjectID)
 	}
+	labels := make([]string, 0, len(task.Labels))
+	for _, l := range task.Labels {
+		labels = append(labels, l.Title)
+	}
 	return provider.ExecutionItem{Open: task.Done != nil && !*task.Done, Item: work.WorkItem{
 		Provider:      p.Name(),
 		ExternalID:    fmt.Sprint(task.ID),
@@ -228,6 +235,7 @@ func (p *Provider) FetchExecutionItem(ctx context.Context, externalID string) (p
 		Title:         task.Title,
 		Description:   task.Description,
 		ExternalScope: scope,
+		Labels:        labels,
 	}}, nil
 }
 

@@ -69,7 +69,7 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_HARNESS` | ploeg-worker | `openhands` | Harness adapter: `openhands`, `exec`, `claude-code` or `acp` (chart `executor.harness.name`). | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_HARNESS_ARGS` | ploeg-worker |  | `exec` harness only: JSON argv template with `{taskspec}` and `{taskfile}` (chart `executor.harness.args`). | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_HARNESS_ENTRYPOINT` | ploeg-worker |  | Harness binary override (chart `executor.harness.entrypoint`). Empty means the adapter default. | [main.go](../../cmd/ploeg-worker/main.go) |
-| `PLOEG_HARNESS_IDLE_TIMEOUT` | ploeg-worker | `15m` | Stops a harness that is silent for this long, with failure reason `timeout`. | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_HARNESS_IDLE_TIMEOUT` | ploeg-worker | `15m` | Stops a harness that prints nothing and makes no model call for this long, with failure reason `idle`. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_HARNESS_TIMEOUT` | ploeg-worker | `100m` | Stops a harness that runs longer than this, with failure reason `timeout`. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_LEASE_TTL` | ploegd | `60s` |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_LISTEN` | ploegd | `:8080` |  | [main.go](../../cmd/ploegd/main.go) |
@@ -80,6 +80,8 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_OPERATOR_CONSUMERS` | ploegd |  | JSON array of operator read consumers. Each entry names a `tokenEnv`, a further variable that holds that consumer's bearer token (chart `operator.consumers`). No consumers refuses every operator request. | [operator.go](../../cmd/ploegd/operator.go) |
 | `PLOEG_OPERATOR_DELIVERY_POLICIES` | ploegd |  | JSON array of trusted delivery policies with `repositoryId`, `policySha256`, `verifierId`, `minTests` and optional `publicationEnabled` (chart `operator.deliveryPolicies`). | [operator.go](../../cmd/ploegd/operator.go) |
 | `PLOEG_OUTCOME_FILE` | ploeg-worker |  | `exec` harness only: OutcomeReport JSON path override (chart `executor.harness.outcomeFile`). | [main.go](../../cmd/ploeg-worker/main.go) |
+| `PLOEG_REPORT_GRAFANA_URL` | ploegd |  | Grafana base URL the report links from — the Glide — Loop dashboard (`/d/glide-loop`) filtered by the Team, the Run Explorer (`/d/dark-factory-run-explorer`) for the Run's trace alias and Spend & Attribution (`/d/dark-factory-spend-attribution`) (chart `env.PLOEG_REPORT_GRAFANA_URL`). Empty omits the Grafana links. | [main.go](../../cmd/ploegd/main.go) |
+| `PLOEG_REPORT_VLOER_URL` | ploegd |  | Vloer base URL; the report links the Work Item page, `<base>/#work/<id>` (chart `env.PLOEG_REPORT_VLOER_URL`). Empty omits it; with both unset the links section is omitted and the report still renders. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_REVIEW_RECONCILE_INTERVAL` | ploegd | `10m` |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_ROLE` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go), [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_SANDBOX_JOB_NAME` | ploeg-worker |  |  | [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
@@ -93,7 +95,7 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_SWEEP_INTERVAL` | ploegd | `15s` |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_TARGET_FORGE` | ploeg-worker | `forgejo` | Forge dialect the worker acts against (chart `executor.forge`). | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_TARGET_FORGE` | ploegd | `forgejo` | Forge instance id a Work Target carries by default (chart `executor.forge`). Binds to the configured forge of that dialect, or to the only configured forge. | [sweep.go](../../cmd/ploegd/sweep.go) |
-| `PLOEG_TARGET_MAP` | ploegd |  | Legacy routing from tracker scope to repository, rendered from the org.yaml roster manifest. Replaced by `trackers.<tracker>.projects` in the `PLOEG_CONFIG` file. | [main.go](../../cmd/ploegd/main.go) |
+| `PLOEG_TARGET_MAP` | ploegd |  | Legacy routing from tracker scope to repository, rendered from the org.yaml roster manifest. Replaced by `trackers.<tracker>.projects` in the `PLOEG_CONFIG` file. | [routing.go](../../cmd/ploegd/routing.go) |
 | `PLOEG_TARGET_SOURCE` | ploeg-worker |  | `env` ignores the claim's target and uses the fallback repository. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_TEAM` | ploeg-worker | required | Team this worker claims work for. | [main.go](../../cmd/ploeg-worker/main.go), [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
 | `PLOEG_TEAM_MAP` | ploegd |  | Legacy assignee roster, replaced by `teams.<name>.assignees` in the `PLOEG_CONFIG` file. | [main.go](../../cmd/ploegd/main.go), [operator.go](../../cmd/ploegd/operator.go) |
@@ -101,6 +103,7 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_TEAM_PLANS` | ploegd |  | Legacy Shift plans, replaced by `teams.<name>.plan` in the `PLOEG_CONFIG` file. A malformed plan stops ploegd at boot. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_TOOLCHAINS` | ploeg-worker |  | JSON array of mounted toolchains, each `{name, path, env}`: `path` directories go in front of the harness's `PATH` and `env` is added. The worker refuses to claim when a directory is missing (chart `executor.harness.toolchains`). | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_TRACKER_DONE_ON_MERGE` | ploegd | `false` |  | [main.go](../../cmd/ploegd/main.go) |
+| `PLOEG_USAGE_REPORT` | ploegd | `true` | Publish the usage and evidence report on each agent pull request. Default on; "false" is the kill switch (chart `env.PLOEG_USAGE_REPORT`). | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_VERIFY_COMMANDS` | ploeg-worker |  | JSON array of shell command lines. The harness gets them as the script `$PLOEG_VERIFY_SCRIPT`; after a writing Run opens or updates a pull request the worker runs them itself and posts the result (chart `executor.harness.verify`). | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_VERIFY_TIMEOUT` | ploeg-worker | `15m` | Bounds the worker's own run of `PLOEG_VERIFY_COMMANDS`. Empty means 15m (chart `executor.harness.verifyTimeout`). | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_VIKUNJA_SECRET` | ploegd |  | Secret that verifies `X-Vikunja-Signature` on `POST /webhooks/tracker/vikunja`. The chart reads it from `webhook.existingSecret`. | [main.go](../../cmd/ploegd/main.go) |
@@ -130,15 +133,18 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 
 | Key | Type | Default | Description | Source |
 | --- | --- | --- | --- | --- |
-| `config` | object | `{}` | ploegd's routing and roster as a file (mounted at /etc/ploeg/ploeg.yaml). Projects are NAMED and resolved to tracker ids at boot, so no magic numbers live in cluster config. Empty = the legacy PLOEG_TARGET_MAP/PLOEG_TEAM_MAP/PLOEG_TEAM_PLANS env vars still apply. | values.yaml, values.schema.json |
+| `config` | object | `{}` | ploegd's routing and roster as a file (mounted at /etc/ploeg/ploeg.yaml). Projects are NAMED and resolved to tracker ids at boot, so no magic numbers live in cluster config. `targets:` registers repositories a `repo/<key>` label may select, and a project's `default:`/`allow:` name them (ADR-0038). Empty = the legacy PLOEG_TARGET_MAP/PLOEG_TEAM_MAP/PLOEG_TEAM_PLANS env vars still apply. | values.yaml, values.schema.json |
 | `database.existingSecret` |  |  | CNPG auto-creates <cluster>-app with a `uri` key; ploegd consumes it whole. | values.yaml |
 | `database.existingSecret.key` |  | `uri` |  | values.yaml |
 | `database.existingSecret.name` |  | `ploeg-db-app` |  | values.yaml |
 | `env` |  |  | Plain PLOEG_* env rendered onto the deployment. | values.yaml |
 | `env.PLOEG_DEFAULT_TEAM` |  | `default` | Team that receives work from an assignee no Team lists. | values.yaml |
 | `env.PLOEG_LEASE_TTL` |  | `5m` |  | values.yaml |
+| `env.PLOEG_REPORT_GRAFANA_URL` |  | `""` | Grafana base URL the report links from — the Glide — Loop dashboard (`/d/glide-loop`) filtered by the Team, the Run Explorer (`/d/dark-factory-run-explorer`) for the Run's trace alias and Spend & Attribution (`/d/dark-factory-spend-attribution`) (chart `env.PLOEG_REPORT_GRAFANA_URL`). Empty omits the Grafana links. | values.yaml |
+| `env.PLOEG_REPORT_VLOER_URL` |  | `""` | Vloer's base URL; the report links the Work Item page. | values.yaml |
 | `env.PLOEG_SWEEP_INTERVAL` |  | `15s` |  | values.yaml |
 | `env.PLOEG_TEAM_MAP` |  | `""` | Legacy assignee roster, replaced by `teams.<name>.assignees` in the `PLOEG_CONFIG` file. | values.yaml |
+| `env.PLOEG_USAGE_REPORT` |  | `true` | The usage and evidence report Ploeg posts on every agent pull request (PLOEG_USAGE_REPORT). Default on; "false" is the kill switch. The two base URLs are where its links point — set them to the Grafana base and to Vloer. Either one unset omits its links, and both unset omits the links section while the report still renders. | values.yaml |
 | `executor.activeDeadlineSeconds` |  | `7200` | Backstop only: the DB lease always expires first, so Ploeg decides requeue/stale; this just guarantees the pod dies (backlog #52). | values.yaml |
 | `executor.apiUrl` | string | `""` | empty = http://<fullname>:<service.port> | values.yaml, values.schema.json |
 | `executor.cronjob.schedule` | string | `*/2 * * * *` | type=cronjob only: how often each team polls for work. Idle ticks are free (empty-handed claim = exit 0). | values.yaml, values.schema.json |
@@ -177,7 +183,7 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `executor.harness.args` |  | `[]` | exec harness only: argv template with {taskspec}/{taskfile} | values.yaml |
 | `executor.harness.dind` |  | `true` | privileged DinD sidecar + DOCKER_* wiring (OpenHands + gates need it) | values.yaml |
 | `executor.harness.entrypoint` |  | `""` | binary override (PLOEG_HARNESS_ENTRYPOINT); "" = adapter default | values.yaml |
-| `executor.harness.idleTimeout` |  | `15m` | Stops a harness that is silent for this long (`PLOEG_HARNESS_IDLE_TIMEOUT`). | values.yaml |
+| `executor.harness.idleTimeout` |  | `15m` | Stops a harness that prints nothing and makes no model call for this long (`PLOEG_HARNESS_IDLE_TIMEOUT`). | values.yaml |
 | `executor.harness.image` |  | `""` | agent image; "" = runnerImage below | values.yaml |
 | `executor.harness.name` |  | `openhands` | openhands \| exec \| claude-code \| acp (PLOEG_HARNESS) | values.yaml |
 | `executor.harness.outcomeFile` |  | `""` | exec harness only: OutcomeReport JSON path override | values.yaml |

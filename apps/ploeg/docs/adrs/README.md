@@ -106,13 +106,19 @@ fails otherwise.
 | [0029](0029-qualify-glide-before-changing-distribution.md) | Qualify Glide before changing Ploeg distribution | proposed | 2026-09-12 |
 | [0030](0030-target-repository-instructions-rank-below-the-delivery-contract.md) | Target repository instructions rank below the delivery contract | proposed | 2026-09-22 |
 | [0031](0031-runs-create-work-items-held-for-approval-within-limits.md) | Runs create Work Items that wait for approval, within per-Team limits | proposed | 2026-09-23 |
-| [0032](0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md) | Keep the dedicated dispatch plane, and compete on authorized spend over a self-hosted stack | proposed | 2026-09-26 |
+| [0032](0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md) | Keep the dedicated dispatch plane, and compete on authorized spend over a self-hosted stack | proposed | 2026-09-30 |
 | [0033](0033-board-control-planes-are-mined-for-design-never-depended-on.md) | Board control planes (Paperclip, Multica) are mined for design and never depended on | proposed | 2026-09-26 |
 | [0034](0034-the-harness-gets-placeholders-the-worker-keeps-credentials.md) | The harness gets placeholders; the worker keeps the credentials | proposed | 2026-09-26 |
 | [0035](0035-runs-get-ploeg-owned-skills-mounted-toolchains-and-worker-verification.md) | Runs get Ploeg-owned skills, mounted toolchains and a verification the worker runs | proposed | 2026-09-27 |
 | [0036](0036-stuck-work-reaches-the-owner-as-a-cited-proposal-not-an-agent-decision.md) | Stuck work reaches the owner as a cited proposal; no agent applies a decision | proposed | 2026-09-28 |
+| [0037](0037-teams-opt-into-registry-egress-through-a-logged-allowlist-proxy.md) | Teams opt into registry egress through a logged allowlist proxy; airgapped stays the default | accepted | 2026-10-01 |
 | [0038](0038-a-repo-label-selects-among-registered-targets-and-the-board-default-is-the-fallback.md) | A repo label selects among registered targets, and the board default is the fallback | accepted | 2026-09-28 |
 | [0039](0039-a-run-calls-only-its-roles-model-and-the-advisor-waits-for-metering.md) | A Run calls only its Role's model, and the advisor waits for metering that prices it | proposed | 2026-09-30 |
+| [0040](0040-a-conflicted-pull-request-becomes-a-priority-ticket-ploeg-resolves.md) | A conflicted pull request becomes a priority ticket that Ploeg resolves | proposed | 2026-09-30 |
+| [0041](0041-the-openai-agents-api-stays-outside-the-run-until-it-takes-an-authorized-budget.md) | The OpenAI Agents API stays outside the Run until it can take an authorized budget; Glide meets it over MCP and runs Codex itself | proposed | 2026-09-30 |
+| [0042](0042-a-writing-run-reports-the-problem-and-solution-a-reviewer-reads.md) | A writing Run reports the problem and solution a reviewer reads | proposed | 2026-09-30 |
+| [0043](0043-a-failed-reading-run-is-retried-and-a-missing-review-closes-review-failed.md) | A failed reading Run is retried in its Round, and a review that never came closes `review_failed` | proposed | 2026-10-01 |
+| [0044](0044-an-operator-restarts-stopped-work-from-a-round-they-choose.md) | An operator restarts stopped work by requeueing it from a Round they choose | proposed | 2026-10-01 |
 
 ## Review calendar
 
@@ -122,13 +128,17 @@ triggers.
 | Due | ADRs |
 | --- | --- |
 | 2026-10-22 | [0030](0030-target-repository-instructions-rank-below-the-delivery-contract.md) — after the first `claude-code` and reviewing Runs against a repository with its own AGENTS.md |
-| 2026-10-31 | [0006](0006-ahp-is-the-wrong-layer.md), [0007](0007-a2a-adopt-nothing-watchlist-a-facade.md), [0008](0008-litellm-is-the-credential-and-metering-seam.md), [0009](0009-paperclip-mine-for-design-never-integrate.md), [0024](0024-operator-work-uses-one-execution-authority.md), [0025](0025-management-authority-stays-in-the-control-plane.md) — the quarterly market re-scan (`design.md` §10) |
+| 2026-10-31 | [0006](0006-ahp-is-the-wrong-layer.md), [0007](0007-a2a-adopt-nothing-watchlist-a-facade.md), [0008](0008-litellm-is-the-credential-and-metering-seam.md), [0009](0009-paperclip-mine-for-design-never-integrate.md), [0024](0024-operator-work-uses-one-execution-authority.md), [0025](0025-management-authority-stays-in-the-control-plane.md), [0041](0041-the-openai-agents-api-stays-outside-the-run-until-it-takes-an-authorized-budget.md) — the quarterly market re-scan (`design.md` §10) |
 | 2026-11-30 | [0031](0031-runs-create-work-items-held-for-approval-within-limits.md) — or sooner, when the owner answers whether created Work Items are written back to the tracker and whether a person approves them |
 | 2026-12-31 | [0035](0035-runs-get-ploeg-owned-skills-mounted-toolchains-and-worker-verification.md) — or sooner, when worker pods can reach a Go module proxy |
+| 2026-12-31 | [0037](0037-teams-opt-into-registry-egress-through-a-logged-allowlist-proxy.md) — or sooner, when the first `registries` Run's verification passes `go test` or a denial alert fires that no build explains |
 | 2026-12-31 | [0038](0038-a-repo-label-selects-among-registered-targets-and-the-board-default-is-the-fallback.md) — or sooner, when the target registry passes 15 entries or a misroute reaches a merged pull request |
 | 2026-12-31 | [0039](0039-a-run-calls-only-its-roles-model-and-the-advisor-waits-for-metering.md) — or sooner, when LiteLLM prices advisor iterations per model or a Team runs `claude-code` |
+| 2026-12-31 | [0040](0040-a-conflicted-pull-request-becomes-a-priority-ticket-ploeg-resolves.md) — or sooner, when the homelab Forgejo reaches v17 or conflict results start being rejected |
 | 2027-01-31 | [0010](0010-shift-owns-the-item-lease-owns-the-branch.md), [0011](0011-the-pull-request-is-the-blackboard.md), [0012](0012-two-level-budgets-authorized-and-settled.md), [0013](0013-push-rights-are-minted-per-run.md), [0017](0017-the-review-loop-is-verdict-driven-and-capped.md), [0018](0018-the-outcome-drop-box-is-every-harnesss-return-path.md), [0019](0019-a-failed-writing-run-reopens-its-round.md), [0021](0021-infra-failures-and-agent-failures-get-separate-retry-budgets.md), [0023](0023-the-forge-dialect-travels-on-the-work-item.md) — after the first real Shifts have run; all nine rest on assumptions only production can test |
 | 2027-01-31 | [0034](0034-the-harness-gets-placeholders-the-worker-keeps-credentials.md) — or sooner, when a qualified harness needs credentials from inside DinD |
 | 2027-01-31 | [0033](0033-board-control-planes-are-mined-for-design-never-depended-on.md) — or sooner, when Paperclip ships bring-your-own ticket system or Multica publishes a stable daemon protocol |
 | 2027-01-31 | [0036](0036-stuck-work-reaches-the-owner-as-a-cited-proposal-not-an-agent-decision.md) — or sooner, after 20 escalation briefs, or when Ploeg writes to the tracker as its own user |
+| 2027-01-31 | [0042](0042-a-writing-run-reports-the-problem-and-solution-a-reviewer-reads.md) — or sooner, after the first 20 writer accounts, or when Vloer gains read access to the forge |
+| 2027-01-31 | [0043](0043-a-failed-reading-run-is-retried-and-a-missing-review-closes-review-failed.md), [0044](0044-an-operator-restarts-stopped-work-from-a-round-they-choose.md) — or sooner, when a reading Role reaches `MaxRunAttempts` twice in a month, or restarts from one close reason pass five in a month |
 | 2027-04-01 | [0005](0005-build-a-dedicated-dispatch-plane.md), [0032](0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md) — the project review gate (`design.md` §10) |

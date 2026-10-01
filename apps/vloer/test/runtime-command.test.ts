@@ -108,10 +108,19 @@ async function pidFrom(directory: string, name: string): Promise<number> {
   assert.fail(`${name} was never written`);
 }
 
+async function exited(pid: number): Promise<boolean> {
+  try { process.kill(pid, 0); } catch { return true; }
+  try {
+    const stat = await readFile(`/proc/${pid}/stat`, 'utf8');
+    return stat.slice(stat.lastIndexOf(')') + 2).startsWith('Z');
+  } catch { return false; }
+}
+
 async function gone(pid: number): Promise<boolean> {
   const deadline = deadlineAfter(5_000);
   while (Date.now() < deadline) {
-    try { process.kill(pid, 0); await delay(25); } catch { return true; }
+    if (await exited(pid)) return true;
+    await delay(25);
   }
   return false;
 }

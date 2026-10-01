@@ -22,15 +22,25 @@ func operatorConfig(cfg *config.File, plans plan.Plans) (httpapi.OperatorConfig,
 	for name := range cfg.Teams {
 		teams[name] = []string{}
 	}
-	for _, name := range mergeTeamMap(cfg.AssigneeTeams(), parseTeamMap(os.Getenv("PLOEG_TEAM_MAP"))) {
+	assignees := map[string][]string{}
+	for username, name := range mergeTeamMap(cfg.AssigneeTeams(), parseTeamMap(os.Getenv("PLOEG_TEAM_MAP"))) {
 		if _, exists := teams[name]; !exists {
 			teams[name] = []string{}
 		}
+		assignees[name] = append(assignees[name], username)
 	}
-	for _, name := range cfg.ScopeTeams() {
+	for name := range assignees {
+		sort.Strings(assignees[name])
+	}
+	scopes := map[string][]string{}
+	for scope, name := range cfg.ScopeTeams() {
 		if _, exists := teams[name]; !exists {
 			teams[name] = []string{}
 		}
+		scopes[name] = append(scopes[name], scope)
+	}
+	for name := range scopes {
+		sort.Strings(scopes[name])
 	}
 	for name, p := range plans {
 		roles := map[string]bool{}
@@ -50,5 +60,5 @@ func operatorConfig(cfg *config.File, plans plan.Plans) (httpapi.OperatorConfig,
 			teams[name] = []string{}
 		}
 	}
-	return httpapi.OperatorConfig{Consumers: consumers, Teams: teams, DeliveryPolicies: deliveryPolicies}, nil
+	return httpapi.OperatorConfig{Consumers: consumers, Teams: teams, TeamAssignees: assignees, TeamScopes: scopes, DeliveryPolicies: deliveryPolicies}, nil
 }

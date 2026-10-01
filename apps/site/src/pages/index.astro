@@ -1,0 +1,16 @@
+---
+import Home from '../components/Home.astro';
+import { dictionary } from '../i18n/index.ts';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const t = dictionary('en');
+---
+
+<BaseLayout
+  locale="en"
+  routeKey="home"
+  title={t.meta.homeTitle}
+  description={t.meta.homeDescription}
+>
+  <Home locale="en" />
+</BaseLayout>

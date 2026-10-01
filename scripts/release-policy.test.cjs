@@ -200,7 +200,7 @@ test('artifact jobs accept validated parse output without unavailable job result
       fs.writeFileSync(output, '');
       const result = spawnSync('bash', ['-c', shell], { env: { ...process.env, RELEASE_TAG: tag, GITHUB_OUTPUT: output }, encoding: 'utf8' });
       const version = fs.readFileSync(output, 'utf8').match(/^version=(.*)$/m)?.[1] || '';
-      for (const [name, job] of Object.entries(workflow.jobs).filter(([name]) => name !== 'parse-release-tag')) {
+      for (const [name, job] of Object.entries(workflow.jobs).filter(([name]) => name !== 'parse-release-tag' && !name.startsWith('site-'))) {
         assert.ok(job.if, `${name} must have an explicit publication condition`);
         assert.ok(job.needs.includes('parse-release-tag'), name);
         for (const unavailableResult of [undefined, '']) {

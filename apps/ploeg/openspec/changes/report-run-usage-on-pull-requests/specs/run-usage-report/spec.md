@@ -9,21 +9,27 @@ one report comment identified by the marker `<!-- ploeg:usage-report -->`, and
 SHALL update that comment in place rather than post another whenever the figures
 change. The report SHALL render only state Ploeg already records: for each Run
 its Role, Round, whether it wrote, its Outcome and verdict, the models the
-gateway settled it against, its input and output tokens, and its cost; and in
-total the Shift's authorized, reserved, settled and remaining pool. It SHALL name
-the writing Run's trace alias `ploeg-<12hex>` so a dashboard can join on it. It
-SHALL state the evidence Ploeg observed for the writing Run — its verification
-result and the commit — and SHALL link to the pull request's checks rather than
-copy them. When Ploeg did not verify that Run — the operator configured no
-checks, the Run did not write, or the Shift predates worker verification — the
-report SHALL state that the verification was not recorded, and SHALL NOT render a
-blank or a result that could read as a pass.
+gateway settled it against, its input and output tokens, its cost and its
+duration; and in total the Shift's authorized, reserved, settled and remaining
+pool. It SHALL name the writing Run's trace alias `ploeg-<12hex>` so a dashboard
+can join on it. It SHALL state the evidence Ploeg observed for the writing Run —
+its verification result and the commit — rather than copy the full output. When
+Ploeg did not verify that Run — the operator configured no checks, the Run did
+not write, or the Shift predates worker verification — the report SHALL state
+that the verification was not recorded, and SHALL NOT render a blank or a
+result that could read as a pass.
 
-A Run whose gateway account is not reconciled SHALL have its cost and tokens
-marked provisional; a Run whose spend could not be read SHALL have them marked
-unavailable, never guessed from the authorization. The report MUST NOT call the
-model gateway, MUST NOT create, settle or block an account, and MUST NOT print a
-key value.
+The report's links SHALL be rendered from configuration, never hard-coded hosts:
+the Glide — Loop dashboard filtered by the Team, the Run Explorer per Run
+filtered by the trace alias, Spend & Attribution, and the Work Item's page in
+Vloer. When the
+base URL for a link is unset the link SHALL be omitted, and when every base URL
+is unset the links section SHALL be omitted and the rest of the report SHALL
+still render. A Run whose gateway account is not reconciled SHALL have its cost
+and tokens marked provisional; a Run whose spend could not be read SHALL have
+them marked unavailable, never guessed from the authorization. The report MUST
+NOT call the model gateway, MUST NOT create, settle or block an account, and
+MUST NOT print a key value.
 
 Publishing the report is best-effort and outside the lifecycle (R2, R3): a
 failed accounting read or forge call SHALL be logged and skipped, and SHALL NOT
@@ -41,7 +47,7 @@ next refresh reconciles the comment.
 
 - **GIVEN** a Shift with a settled writing Run and a reading Run
 - **WHEN** the report is published
-- **THEN** each Run's models, input and output tokens and cost are listed
+- **THEN** each Run's models, input and output tokens, cost and duration are listed
 - **AND** the total states authorized, reserved, settled and remaining pool
 - **AND** the writing Run's trace alias is shown so a dashboard can join on it
 
@@ -82,7 +88,7 @@ next refresh reconciles the comment.
 
 - **WHEN** a person opens the pull request
 - **THEN** the report states the writing Run's verification result and commit
-- **AND** it links to the pull request's checks and to the detailed verification
+- **AND** it points to the writing Run's findings comment for the detailed verification
 - **AND** it prints no key or token value
 
 #### Scenario: Verification was not recorded

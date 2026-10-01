@@ -1,6 +1,6 @@
 ---
 status: proposed
-date: 2026-09-26
+date: 2026-09-30
 decision-makers: Ryan Grippeling
 supersedes: none
 review-by: 2027-04-01
@@ -181,6 +181,9 @@ Any one of these reopens this record:
   OpenAI, or drops the REQUIRED Codex app-server client.
 * kagent v1.0.0 goes GA with `ScheduledRuns` or adds a tracker trigger; Agent
   Substrate completes its CNCF donation and tags v1.
+* OpenAI documents a settable per-session budget on the Agents API (its
+  `session_budget_exceeded` error already exists without one); see
+  [0041](0041-the-openai-agents-api-stays-outside-the-run-until-it-takes-an-authorized-budget.md).
 * The 2027-04 project review gate (`design.md` §10) arrives.
 
 ## More Information

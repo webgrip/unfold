@@ -1,5 +1,5 @@
 import type { PloegOverview } from './ploeg-types.js';
-import type { AccountLink, Approval, Bootstrap, Session, SessionEvent, SessionInput, Permission, Decision, TaskSource, TaskSnapshot, TaskPage, TaskImportInput, CandidateFormat } from './types.js';
+import type { AccountLink, Approval, Bootstrap, Session, SessionEvent, SessionInput, Permission, Decision, TaskSource, TaskPreview, TaskPage, TaskImportInput, TaskPloegStatus, CandidateFormat } from './types.js';
 
 export type StreamHandlers = { onOpen?: () => void; onEvent: (event: SessionEvent) => void };
 
@@ -29,6 +29,11 @@ export function normalizeServerUrl(value: string): string {
   return url.origin;
 }
 
+/** A failure worth one automatic retry of an idempotent read: no answer, or a gateway that could not reach the workbench. */
+export function transient(error: unknown): boolean {
+  return error instanceof ApiError && (error.code === 'unreachable' || error.code === 'gateway_unavailable');
+}
+
 function identifier(value: string): string {
   if (!/^[a-zA-Z0-9_-]+$/.test(value)) throw new Error('Invalid remote session or request identifier.');
   return value;
@@ -39,14 +44,24 @@ export class VloerClient {
   readonly secretKey: string;
   private readonly secrets: Secrets;
   private readonly requestTimeout: number;
-  constructor(origin: string, secrets: Secrets, requestTimeout = 15_000) {
+  private readonly retryDelay: number;
+  constructor(origin: string, secrets: Secrets, requestTimeout = 15_000, retryDelay = 750) {
     this.origin = normalizeServerUrl(origin);
     this.secretKey = `vloer.session:${this.origin}`;
     this.secrets = secrets;
     this.requestTimeout = requestTimeout;
+    this.retryDelay = retryDelay;
   }
   async request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
     if (!path.startsWith('/api/') || path.includes('://') || path.includes('..')) throw new Error('Invalid API route.');
+    try { return await this.attempt<T>(path, method, body); }
+    catch (error) {
+      if (method !== 'GET' || !transient(error)) throw error;
+      await new Promise(resolve => setTimeout(resolve, this.retryDelay));
+      return this.attempt<T>(path, method, body);
+    }
+  }
+  private async attempt<T>(path: string, method: string, body?: unknown): Promise<T> {
     const cookie = await this.secrets.get(this.secretKey);
     const headers: Record<string, string> = { Accept: 'application/json', Origin: this.origin, 'X-Vloer-Request': '1' };
     if (cookie) headers.Cookie = cookie;
@@ -60,7 +75,11 @@ export class VloerClient {
     if (response.status >= 300 && response.status < 400) throw new ApiError(response.status, 'redirect', 'The API redirected the request. Configure the final workbench origin; credentials are never forwarded.');
     if (response.status === 401) await this.secrets.delete(this.secretKey);
     const contentType = response.headers.get('content-type') ?? '';
-    if (!contentType.includes('application/json')) throw new ApiError(response.status, 'invalid_response', 'The server did not return the Vloer JSON API. Check the server URL or reverse proxy.');
+    if (!contentType.includes('application/json')) {
+      await response.body?.cancel().catch(() => undefined);
+      if (response.status >= 500) throw new ApiError(response.status, 'gateway_unavailable', `The gateway in front of the workbench answered ${response.status} instead of the Vloer API. The workbench may be restarting or unreachable from its gateway.`);
+      throw new ApiError(response.status, 'invalid_response', 'The server did not return the Vloer JSON API. Check the server URL or reverse proxy.');
+    }
     if (Number(response.headers.get('content-length')) > 16_777_216) throw new ApiError(0, 'response_too_large', 'This response is too large for the editor. Open the web dashboard.');
     const reader = response.body?.getReader();
     if (!reader) throw new ApiError(0, 'invalid_response', 'The workbench returned an empty response.');
@@ -184,8 +203,15 @@ export class VloerClient {
     if (!Number.isSafeInteger(page) || page < 1 || page > 1000) throw new Error('Invalid task page.');
     return this.request(`/api/task-sources/${identifier(sourceId)}/tasks?page=${page}`);
   }
-  task(sourceId: string, taskId: string): Promise<TaskSnapshot> { return this.request(`/api/task-sources/${identifier(sourceId)}/tasks/${identifier(taskId)}`); }
+  task(sourceId: string, taskId: string, truncate = false): Promise<TaskPreview> { return this.request(`/api/task-sources/${identifier(sourceId)}/tasks/${identifier(taskId)}${truncate ? '?truncate=1' : ''}`); }
   importTask(input: TaskImportInput): Promise<Session> { return this.request('/api/task-imports', 'POST', input); }
+  taskPloeg(sourceId: string, taskId: string, fresh = false): Promise<TaskPloegStatus> { return this.request(`/api/task-sources/${identifier(sourceId)}/tasks/${identifier(taskId)}/ploeg${fresh ? '?refresh=1' : ''}`); }
+  handoff(sourceId: string, taskId: string, team: string, revision: string): Promise<TaskPloegStatus> { return this.request(`/api/task-sources/${identifier(sourceId)}/tasks/${identifier(taskId)}/handoff`, 'POST', { team: identifier(team), revision }); }
+  takeBack(sourceId: string, taskId: string, team: string): Promise<TaskPloegStatus> { return this.request(`/api/task-sources/${identifier(sourceId)}/tasks/${identifier(taskId)}/handoff?team=${encodeURIComponent(identifier(team))}`, 'DELETE'); }
+  async lookupTask(provider: string, id: string): Promise<string | undefined> {
+    try { return (await this.request<{ sourceId?: string }>(`/api/tasks/lookup?${new URLSearchParams({ provider: identifier(provider), id: identifier(id) })}`)).sourceId; }
+    catch (error) { if (error instanceof ApiError && error.status === 404) return undefined; throw error; }
+  }
   async downloadCandidate(id: string, format: CandidateFormat): Promise<Uint8Array> {
     if (!['bundle', 'patch', 'manifest', 'attestation', 'trace'].includes(format)) throw new Error('Invalid candidate format.');
     const path = `/api/sessions/${identifier(id)}/candidate/download?format=${format}`;

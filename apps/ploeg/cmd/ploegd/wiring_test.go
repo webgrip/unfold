@@ -25,3 +25,20 @@ func TestForgeIDFromEnv_HonoursAnExplicitID(t *testing.T) {
 		t.Errorf("forge id = %q, want webgrip-forgejo", got)
 	}
 }
+
+// The usage report defaults on when unset; PLOEG_USAGE_REPORT=false is the
+// only value that silences it, matching PLOEG_SHIFTS_UNIFORM's convention.
+func TestEngineUsageReportFromEnv(t *testing.T) {
+	t.Setenv("PLOEG_USAGE_REPORT", "")
+	if !usageReportFromEnv() {
+		t.Error("the usage report defaulted off; the outcome is every agent PR")
+	}
+	t.Setenv("PLOEG_USAGE_REPORT", "true")
+	if !usageReportFromEnv() {
+		t.Error("PLOEG_USAGE_REPORT=true disabled the report")
+	}
+	t.Setenv("PLOEG_USAGE_REPORT", "false")
+	if usageReportFromEnv() {
+		t.Error("PLOEG_USAGE_REPORT=false did not disable the report")
+	}
+}

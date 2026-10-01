@@ -52,6 +52,18 @@ type Engine struct {
 	// restores the pre-Shift dispatch path without a rollback or a redeploy
 	// of anything but ploegd.
 	Uniform bool
+	// UsageReport publishes the per-Shift usage and evidence report on the
+	// pull request (PLOEG_USAGE_REPORT). Default on; false is the kill switch
+	// and the report path does nothing else.
+	UsageReport bool
+	// GrafanaURL is the Grafana base the report links from. Empty omits the
+	// Grafana links.
+	GrafanaURL string
+	// VloerURL is Vloer's base for the Work Item link, <VloerURL>/#work/<id>.
+	// Empty omits it.
+	// When both URLs are empty the links section is omitted and the rest of
+	// the report still renders.
+	VloerURL string
 }
 
 // EnsureShift opens a Shift for a queued Work Item of a planned team, then
@@ -157,6 +169,10 @@ func (e *Engine) evaluate(ctx context.Context, si store.ShiftInfo) error {
 	// close: a human watching the thread sees the review while the writer is
 	// still working on it (ADR-0011).
 	e.publishRound(ctx, si, reports, si.Round)
+	// The usage report rides behind the findings: a Round just completed, so
+	// its numbers and evidence moved. It publishes even when this Round
+	// produced no findings.
+	e.publishUsageReport(ctx, si)
 
 	for _, r := range reports {
 		if r.Outcome == string(work.OutcomeStuck) {
@@ -289,6 +305,11 @@ func (e *Engine) close(ctx context.Context, si store.ShiftInfo, closeReason, hum
 		if budget != nil {
 			e.publishBudgetExhausted(ctx, si, *budget)
 		}
+		// The Shift is over, so its totals are final enough to show. The report
+		// loads its own reports: this branch's `reports` may be nil (a floor
+		// close passes nil), and the evidence section degrades to "not
+		// recorded" when there are none.
+		e.publishUsageReport(ctx, si)
 	}
 	return nil
 }

@@ -2,7 +2,7 @@
 lockfile = true
 
 [tools]
-helm = "4.2.3"
-uv = "0.12.12"
-node = "24"  # runtime for the openspec CLI; matches CI's node:24-alpine
-"npm:@fission-ai/openspec" = "1.6.0"  # `openspec` — the /opsx workflow (openspec/config.yaml)
+helm = "4.3.0"
+uv = "0.12.21"
+node = "24.21.0"  # runtime for the openspec CLI; matches CI's node:24-alpine
+"npm:@fission-ai/openspec" = "1.13.2"  # `openspec` — the /opsx workflow (openspec/config.yaml)

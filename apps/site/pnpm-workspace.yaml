@@ -1,0 +1,10 @@
+allowBuilds:
+  esbuild: true
+  workerd: true
+  sharp: false
+
+minimumReleaseAge: 1440
+minimumReleaseAgeStrict: true
+
+minimumReleaseAgeExclude:
+  - "@webgrip/*"

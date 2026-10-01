@@ -101,6 +101,12 @@ type OutcomeReport struct {
 	// influences what runs next, and it can do exactly one thing: re-open the
 	// plan's own writing Round. Ignored from a writing Role.
 	Verdict string `json:"verdict,omitempty"`
+	// Problem and Solution are a writing Run's account of its change
+	// (ADR-0042): what was wrong or missing, and what the Run changed. Markdown
+	// for the person who reviews the pull request. They decide nothing, and
+	// ploegd ignores them from a reading Role.
+	Problem  string `json:"problem,omitempty"`
+	Solution string `json:"solution,omitempty"`
 	// CreatedWorkItems are Work Items this Run proposes (Product R12): a
 	// split, a clarification that makes work Ready, or work it discovered.
 	// Ploeg stores each within the Team's created-work limits and records a
