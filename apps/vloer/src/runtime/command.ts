@@ -80,13 +80,19 @@ export class CommandRuntime implements AgentRuntime {
         else if (!result) reject(new Error('Command bridge exited without a result record'));
         else resolve(result);
       };
+      const killOrphanedBridge = (): void => {
+        if (bridgePid && process.platform !== 'win32') try { process.kill(-bridgePid, 'SIGKILL'); } catch {}
+      };
       child.on('error', () => finish(new RuntimeFailure('runtime_failure', 'runtime')));
       child.on('message', record => {
         if (record && typeof record === 'object' && 'type' in record && record.type === 'launch.error') failure = new RuntimeFailure('missing' in record && record.missing === true ? 'missing_executable' : 'runtime_failure', 'runtime');
-        if (record && typeof record === 'object' && 'type' in record && record.type === 'bridge.started' && 'pid' in record && Number.isInteger(record.pid) && (record.pid as number) > 0) bridgePid = record.pid as number;
+        if (record && typeof record === 'object' && 'type' in record && record.type === 'bridge.started' && 'pid' in record && Number.isInteger(record.pid) && (record.pid as number) > 0) {
+          bridgePid = record.pid as number;
+          if (child.exitCode !== null || child.signalCode !== null) killOrphanedBridge();
+        }
       });
       child.once('exit', () => {
-        if (bridgePid && process.platform !== 'win32') try { process.kill(-bridgePid, 'SIGKILL'); } catch {}
+        killOrphanedBridge();
         releaseTimer = setTimeout(() => { child.stdout.destroy(); child.stderr.destroy(); }, 2000);
         releaseTimer.unref();
       });

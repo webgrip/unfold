@@ -1,0 +1,6 @@
+[tools]
+node = "24.19.0"
+
+[env]
+ASTRO_TELEMETRY_DISABLED = "1"
+COREPACK_ENABLE_DOWNLOAD_PROMPT = "0"

@@ -2,7 +2,7 @@
   "name": "de-vloer",
   "displayName": "De Vloer — Remote Agent Workbench",
   "description": "Steer agent work from VS Code: review evidence and control sessions on your machine or a remote workbench.",
-  "version": "0.4.0-rc.21",
+  "version": "0.4.0-rc.22",
   "publisher": "webgrip",
   "license": "Apache-2.0",
   "homepage": "https://forgejo.webgrip.dev/webgrip/de-vloer",
@@ -662,8 +662,8 @@
     "test:webview": "node test/webview.mjs && node test/task-webview.mjs"
   },
   "devDependencies": {
-    "@types/node": "24.13.3",
-    "@types/vscode": "1.99.0",
+    "@types/node": "24.19.0",
+    "@types/vscode": "1.99.1",
     "@vscode/vsce": "3.9.2",
     "ovsx": "1.2.0",
     "typescript": "7.0.2"

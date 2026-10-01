@@ -27,6 +27,7 @@ if (!rules.some((rule) => rule.breaking === true && rule.release === 'major')) {
 analyzers[0][1].releaseRules = rules.map((rule) => rule.breaking === true && rule.release === 'major'
   ? { ...rule, release: 'minor' }
   : rule);
+analyzers[0][1].releaseRules.push({ scope: 'site', release: false });
 if (analyzers[0][1].releaseRules.some((rule) => rule.release === 'major')) {
   throw new Error('Glide release policy rejects additional major release rules.');
 }

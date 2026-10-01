@@ -508,3 +508,62 @@ jobs:
           trap 'rm -rf "$DOCKER_CONFIG"' EXIT
           printf '%s' '{"credHelpers":{"harbor.webgrip.dev":"glide","forgejo.webgrip.dev":"glide","ghcr.io":"glide"}}' > "$DOCKER_CONFIG/config.json"
           python3 scripts/publish_release.py ploeg "$VERSION"
+
+  site-release-tag:
+    runs-on: docker
+    outputs:
+      deploy: ${{ steps.site.outputs.deploy }}
+      site-url: ${{ steps.site.outputs.site-url }}
+    steps:
+      - id: site
+        shell: bash
+        env:
+          WORKFLOW_EVENT: ${{ github.event_name }}
+          SELECTED_REF: ${{ github.ref }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+          RELEASES_ENABLED: ${{ vars.GLIDE_RELEASES_ENABLED }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          tag="${RELEASE_TAG:-}"
+          if [[ "${RELEASES_ENABLED:-}" != true || "$tag" != glide-site-v* ]]; then
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "site-url=" >> "$GITHUB_OUTPUT"
+            echo "${tag:-This release} is not a site release; the site is not deployed."
+            exit 0
+          fi
+          if [[ "${WORKFLOW_EVENT:-}" == workflow_dispatch ]]; then
+            [[ "${SELECTED_REF:-}" == "refs/tags/$tag" ]] || { echo "Select the same tag as the workflow ref before deploying." >&2; exit 1; }
+          fi
+          [[ "$tag" =~ ^glide-site-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc\.[1-9][0-9]*)?$ ]] || { echo "The site deploys only glide-site-vX.Y.Z or glide-site-vX.Y.Z-rc.N tags." >&2; exit 1; }
+          [[ -n "${CLOUDFLARE_API_TOKEN:-}" && -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]] || { echo "The Cloudflare deploy credential is missing; the forgejo-actions-secrets bridge publishes it from OpenBao cloudflare/deploy." >&2; exit 1; }
+          response="$(curl -fsS --max-time 30 -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain")" \
+            || { echo "Cloudflare did not return the account's workers.dev subdomain. HTTP 401 means the token from OpenBao cloudflare/deploy is invalid or expired, 403 means it lacks Workers Scripts access; otherwise enable the subdomain under Workers & Pages." >&2; exit 1; }
+          subdomain="$(printf '%s' "$response" | grep -o '"subdomain" *: *"[^"]*"' | head -n 1 | sed 's/.*"\([^"]*\)"$/\1/' || true)"
+          [[ "$subdomain" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]] || { echo "Cloudflare returned an unexpected workers.dev subdomain." >&2; exit 1; }
+          echo "deploy=true" >> "$GITHUB_OUTPUT"
+          echo "site-url=https://glide-site.${subdomain}.workers.dev" >> "$GITHUB_OUTPUT"
+          echo "Deploying ${tag} to https://glide-site.${subdomain}.workers.dev"
+
+  site-deploy:
+    needs: [site-release-tag]
+    uses: webgrip/workflows/.forgejo/workflows/cloudflare-deploy.yml@v2.7.5
+    with:
+      enabled: ${{ needs.site-release-tag.outputs.deploy == 'true' }}
+      environment: production
+      release-channel: prerelease
+      working-directory: apps/site
+      build-command: GLIDE_SITE_URL=${{ needs.site-release-tag.outputs.site-url }} pnpm build
+      apex-url: ${{ needs.site-release-tag.outputs.site-url }}
+      smoke-paths: |
+        /
+        /nl
+        /robots.txt
+        /sitemap-index.xml
+        /favicon.svg
+      not-found-path: /this-page-does-not-exist
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

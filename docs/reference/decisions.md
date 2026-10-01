@@ -20,7 +20,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0001](../adr/adr-0001-glide-contains-independent-applications.md) | Glide contains independently deployable Vloer and Ploeg | 2026-09-12 | — |
 | System | [0002](../adr/adr-0002-ploeg-is-the-only-engine.md) | Ploeg is the only execution engine and Vloer is its front end | 2026-09-22 | — |
 | System | [0003](../adr/adr-0003-the-unit-of-work-is-the-work-item.md) | The unit of work is the Work Item, and work can create work | 2026-09-22 | — |
-| System | [0004](../adr/adr-0004-glide-releases-one-version.md) | Glide releases Vloer and Ploeg under one version | 2026-09-27 | — |
+| System | [0004](../adr/adr-0004-glide-releases-one-version.md) | Glide releases Vloer and Ploeg under one version | 2026-10-01 | — |
 | System | [0005](../adr/adr-0005-glide-is-offered-to-agencies.md) | Glide is offered to agencies, and delivery ends at a reviewed pull request with a preview | 2026-09-29 | — |
 | System | [0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md) | The ticket is the billing unit: a quoted, capped Shift budget charged on delivery | 2026-09-29 | — |
 | System | [0007](../adr/adr-0007-clients-approve-ready-work.md) | Clients approve Ready work, and each client sets its own definitions of Ready and Done | 2026-09-29 | — |
@@ -28,6 +28,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0009](../adr/adr-0009-one-tenant-per-agency.md) | One tenant per agency, isolated by namespace, network, runtime and credentials | 2026-09-29 | — |
 | System | [0010](../adr/adr-0010-pull-requests-are-small-whole-and-explained.md) | Glide pull requests are small, whole and explained, and CI asks the reviewer questions | 2026-09-29 | — |
 | System | [0011](../adr/adr-0011-glide-is-reachable-over-mcp-through-a-read-first-server.md) | Glide is reachable over MCP through a separate, read-first server on Ploeg's operator API | 2026-09-30 | — |
+| System | [0012](../adr/adr-0012-the-marketing-site-releases-and-deploys-on-its-own.md) | The marketing site releases and deploys on its own, outside the Glide version | 2026-10-01 | — |
 | Ploeg | [0001](../../apps/ploeg/docs/adrs/0001-adrs-are-the-decision-ledger.md) | ADRs in docs/adrs/ are the single decision ledger | 2026-07-29 | — |
 | Ploeg | [0002](../../apps/ploeg/docs/adrs/0002-go-as-the-implementation-language.md) | Go is the implementation language | 2026-07-29 | — |
 | Ploeg | [0003](../../apps/ploeg/docs/adrs/0003-apache-2-0-license.md) | Ploeg ships under Apache-2.0 | 2026-07-29 | — |

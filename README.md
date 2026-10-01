@@ -20,6 +20,7 @@ Read the [published documentation](https://docs.webgrip.dev/glide/) or start at 
 | --- | --- |
 | [apps/ploeg](apps/ploeg/) | Go controller and worker, schemas, Helm chart |
 | [apps/vloer](apps/vloer/) | TypeScript front end, VS Code extension, Helm chart |
+| [apps/site](apps/site/) | Static marketing site in English and Dutch; not deployed, not released |
 | [docs](docs/index.md) | System explanation, how-to guides, glossary, decisions |
 
 The import preserved both application histories and 70 namespaced tags. Package, Go module, image and chart names are unchanged. The [migration record](docs/migration.md) tracks the release cutover.

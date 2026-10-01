@@ -1,0 +1,6 @@
+dist/
+.astro/
+node_modules/
+.wrangler/
+.lighthouseci/
+lhci-report/

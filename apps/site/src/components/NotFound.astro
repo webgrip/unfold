@@ -1,0 +1,27 @@
+---
+import type { Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+import { routePath } from '../i18n/routes.ts';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = dictionary(locale);
+---
+
+<div class="container section not-found">
+  <h1>{t.notFound.title}</h1>
+  <p class="lede">{t.notFound.text}</p>
+  <p><a class="button button--primary" href={routePath('home', locale)}>{t.notFound.home}</a></p>
+</div>
+
+<style>
+  .not-found {
+    display: grid;
+    gap: var(--space-5);
+    justify-items: start;
+    min-height: 50vh;
+  }
+</style>

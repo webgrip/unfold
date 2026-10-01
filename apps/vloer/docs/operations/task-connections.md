@@ -155,7 +155,7 @@ Enable the [shared execution connection](../../../../docs/workflows/managed-exec
 }
 ```
 
-The forge ID must exist in Ploeg, and the API root must be the same singleton Vikunja or ClickUp instance Ploeg uses. The native project or home List and exact target must match the existing Ploeg mirror. All target fields are required. A missing, unresolved, already claimed or previously executed item stays unavailable for this import path; the browser reports the binding problem without creating a manual duplicate.
+The forge ID must exist in Ploeg, and the API root must be the same singleton Vikunja or ClickUp instance Ploeg uses. The native project or home List and exact target must match the existing Ploeg mirror. All target fields are required. A missing, unresolved, already claimed or previously executed item stays unavailable for this import path and never becomes a manual duplicate. On the Tasks page such a task shows only its Ploeg card, which says where the task stands and offers the hand-off; the import form appears only for a queued Work Item of the execution team.
 
 Open the task preview and review the linked Work Item and target. Import creates one queued session. Start refetches the source as the session's owner and asks Ploeg to atomically claim the existing item. Import itself makes no tracker mutation and starts no model work. If a queued draft becomes stale, cancel it and review a fresh import; an old mandate never silently becomes a new one. An uncertain admission retries its original persisted request.
 
@@ -163,7 +163,7 @@ The [binding contract](../contracts/ploeg-tracker-binding.md) separates preview 
 
 ## Hand a task to Ploeg
 
-Ploeg takes Vikunja work when a task is assigned to the tracker user that routes to one of its teams. The editor's task view offers **Hand to Ploeg** with a team picker, and **Take back** while Ploeg has not started. The server does the assignment with the connection's token, so nobody needs to know which tracker user belongs to which team. The [API contract](../contracts/api.md#hand-a-task-to-ploeg) lists the routes and refusals, and [ADR 0025](../adrs/0025-hand-tracker-tasks-to-ploeg-by-assignment.md) records why.
+Ploeg takes Vikunja work when a task is assigned to the tracker user that routes to one of its teams. The Tasks page and the editor's task view offer **Hand to Ploeg** with a team picker, and **Take back** while Ploeg has not started. The server does the assignment with the connection's token, so nobody needs to know which tracker user belongs to which team. The [API contract](../contracts/api.md#hand-a-task-to-ploeg) lists the routes and refusals, and [ADR 0025](../adrs/0025-hand-tracker-tasks-to-ploeg-by-assignment.md) records why.
 
 A connection can hand off when all of these hold:
 

@@ -30,7 +30,7 @@ jobs:
     runs-on: docker
     timeout-minutes: 15
     container:
-      image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.3
+      image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.3@sha256:2f3f20de1f155cf1d4297cf2daecf33e2ec6b212bb7c58c91f42104ffdea61cb
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:

@@ -34,7 +34,7 @@ test('event entry points preserve validation and keep application publication ou
 
 test('only an enabled development push can version Glide after both gates', () => {
   assert.equal(source.concurrency['cancel-in-progress'], false);
-  assert.deepEqual(Object.keys(source.jobs).sort(), ['checks', 'release', 'release-policy']);
+  assert.deepEqual(Object.keys(source.jobs).sort(), ['checks', 'release', 'release-policy', 'site-release']);
   const job = source.jobs.release;
   assert.deepEqual(job.needs, ['checks', 'release-policy']);
   const release = job.steps.find(step => step.id === 'release');
@@ -111,9 +111,9 @@ test('release routing publishes both applications for a Glide tag and nothing fo
   assert.deepEqual(Object.keys(publisher.on).sort(), ['release', 'workflow_dispatch']);
   assert.deepEqual(publisher.on.release.types, ['published']);
   assert.equal(publisher.concurrency['cancel-in-progress'], false);
-  const jobs = Object.entries(publisher.jobs).filter(([name]) => name !== 'parse-release-tag');
+  const jobs = Object.entries(publisher.jobs).filter(([name]) => name !== 'parse-release-tag' && !name.startsWith('site-'));
   for (const app of ['vloer', 'ploeg']) assert.ok(jobs.some(([name]) => name.startsWith(`${app}-`)), app);
-  for (const selected of ['glide', 'vloer', 'ploeg', 'unrelated']) {
+  for (const selected of ['glide', 'glide-site', 'vloer', 'ploeg', 'unrelated']) {
     for (const event_name of ['release', 'workflow_dispatch']) {
       for (const gate of ['', 'false', 'true']) {
         const tag = `${selected}-v0.4.0-rc.5`;
@@ -128,6 +128,71 @@ test('release routing publishes both applications for a Glide tag and nothing fo
         }
       }
     }
+  }
+});
+
+test('the site versions on its own train, after Glide, behind the same gate', () => {
+  const job = source.jobs['site-release'];
+  assert.deepEqual(job.needs, ['checks', 'release-policy', 'release']);
+  assert.equal(job.if, source.jobs.release.if);
+  assert.deepEqual(job.container, source.jobs.release.container);
+  const release = job.steps.find(step => step.id === 'release');
+  assert.equal(release.uses, source.jobs.release.steps.find(step => step.id === 'release').uses);
+  assert.equal(release.with['package-path'], 'apps/site');
+  assert.equal(release.with['package-name'], 'glide-site');
+});
+
+test('only a site tag deploys the site, to the workers.dev origin Cloudflare reports', () => {
+  const gate = publisher.jobs['site-release-tag'];
+  assert.equal(gate.if, undefined, 'site-deploy reads these outputs while Forgejo flattens it, so the gate job must never be skipped');
+  assert.equal(gate.steps[0].env.RELEASES_ENABLED, '${{ vars.GLIDE_RELEASES_ENABLED }}');
+
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'site-gate-'));
+  fs.writeFileSync(path.join(bin, 'curl'), '#!/bin/sh\nprintf \'%s\' "$FAKE_CLOUDFLARE"\n', { mode: 0o755 });
+  const run = (tag, subdomain = 'example', extra = {}) => {
+    const output = path.join(bin, `output-${Math.random()}`);
+    fs.writeFileSync(output, '');
+    const result = spawnSync('bash', ['-c', gate.steps[0].run], { encoding: 'utf8', env: {
+      PATH: `${bin}:${process.env.PATH}`, GITHUB_OUTPUT: output, WORKFLOW_EVENT: 'release', RELEASE_TAG: tag, RELEASES_ENABLED: 'true',
+      CLOUDFLARE_API_TOKEN: 'token', CLOUDFLARE_ACCOUNT_ID: 'account',
+      FAKE_CLOUDFLARE: JSON.stringify({ result: { subdomain } }), ...extra,
+    } });
+    return { status: result.status, outputs: Object.fromEntries(fs.readFileSync(output, 'utf8').trim().split('\n').filter(Boolean).map(line => line.split('='))) };
+  };
+  for (const tag of ['glide-site-v0.1.0', 'glide-site-v0.1.0-rc.1', 'glide-site-v1.12.3-rc.40']) {
+    const { status, outputs } = run(tag);
+    assert.equal(status, 0, tag);
+    assert.deepEqual(outputs, { deploy: 'true', 'site-url': 'https://glide-site.example.workers.dev' }, tag);
+  }
+  for (const selected of ['glide', 'glide-site', 'vloer', 'ploeg', 'unrelated']) {
+    for (const open of ['', 'false', 'true']) {
+      if (selected === 'glide-site' && open === 'true') continue;
+      const tag = `${selected}-v0.1.0-rc.1`;
+      const { status, outputs } = run(tag, 'example', { RELEASES_ENABLED: open, WORKFLOW_EVENT: 'workflow_dispatch', SELECTED_REF: 'refs/heads/development', CLOUDFLARE_API_TOKEN: '' });
+      assert.equal(status, 0, `${selected} ${open}`);
+      assert.deepEqual(outputs, { deploy: 'false', 'site-url': '' }, `${selected} ${open}`);
+    }
+  }
+  for (const tag of ['glide-site-v01.0.0', 'glide-site-v0.1.0-rc.0', 'glide-site-v0.1', 'glide-site-v0.1.0-beta.1']) {
+    assert.notEqual(run(tag).status, 0, tag);
+  }
+  assert.notEqual(run('glide-site-v0.1.0', 'Bad_Name').status, 0);
+  assert.notEqual(run('glide-site-v0.1.0', 'example', { CLOUDFLARE_API_TOKEN: '' }).status, 0);
+  assert.notEqual(run('glide-site-v0.1.0', 'example', { WORKFLOW_EVENT: 'workflow_dispatch', SELECTED_REF: 'refs/heads/development' }).status, 0);
+
+  const deploy = publisher.jobs['site-deploy'];
+  assert.deepEqual(deploy.needs, ['site-release-tag']);
+  assert.equal(deploy.uses, 'webgrip/workflows/.forgejo/workflows/cloudflare-deploy.yml@v2.7.5');
+  assert.equal(deploy.with.enabled, "${{ needs.site-release-tag.outputs.deploy == 'true' }}");
+  assert.equal(deploy.with.environment, 'production');
+  assert.equal(deploy.with['release-channel'], 'prerelease');
+  assert.equal(deploy.with['working-directory'], 'apps/site');
+  assert.equal(deploy.with['apex-url'], '${{ needs.site-release-tag.outputs.site-url }}');
+  assert.equal(deploy.with['build-command'], `GLIDE_SITE_URL=${deploy.with['apex-url']} pnpm build`);
+  assert.deepEqual(deploy.with['smoke-paths'].trim().split('\n'), ['/', '/nl', '/robots.txt', '/sitemap-index.xml', '/favicon.svg']);
+  assert.deepEqual(Object.keys(deploy.secrets).sort(), ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN']);
+  for (const [name, job] of Object.entries(publisher.jobs)) {
+    if (!name.startsWith('site-')) assert.doesNotMatch(JSON.stringify(job), /CLOUDFLARE_/, name);
   }
 });
 

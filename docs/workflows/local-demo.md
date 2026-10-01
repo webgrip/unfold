@@ -12,7 +12,7 @@ verified_by: "Read apps/vloer/scripts/unified-demo.ts (prerequisite commands, re
 
 ## Start
 
-Glide contains both applications at one revision, including the [shared execution contract](../../apps/vloer/docs/contracts/ploeg-execution.md). Use a regular macOS or Linux user with Node 24 through mise, Go 1.25 or later, Git and PostgreSQL 17 or later (`initdb` and `postgres`) on PATH. Go may fetch the dependencies already declared by Ploeg when its cache is cold. The launcher does not install software or start a system PostgreSQL service.
+Glide contains both applications at one revision, including the [shared execution contract](../../apps/vloer/docs/contracts/ploeg-execution.md). Use a regular macOS or Linux user with Node 24 through mise, Go 1.26 or later, Git and PostgreSQL 17 or later (`initdb` and `postgres`) on PATH. Go may fetch the dependencies already declared by Ploeg when its cache is cold. The launcher does not install software or start a system PostgreSQL service.
 
 From the Glide root:
 
