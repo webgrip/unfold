@@ -198,6 +198,19 @@
         "typescript"
       ],
       "allowedVersions": "<7"
+    },
+    {
+      "description": "Ploeg's release build stays on the 2026-07-15 BuildKit. The 2026-09-30 build gives each attestation manifest a subject, so Harbor lists them as referrers of the platform images, and cosign copy then stores the referrer index under the same sha256-<digest> tag where it already wrote the platform image. Forgejo's registry has no Referrers API, so the copy fails with 'fallback tag manifest is not an OCI image index' (glide-v0.4.0-rc.28). Lift this once scripts/release_registry.py copies the signature tags without walking referrers.",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchFileNames": [
+        ".forgejo/workflows/on_release_published.yml"
+      ],
+      "matchPackageNames": [
+        "docker.io/moby/buildkit"
+      ],
+      "enabled": false
     }
   ],
   "helm-values": {
