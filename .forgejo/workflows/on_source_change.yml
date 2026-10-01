@@ -54,7 +54,7 @@ jobs:
     needs: [checks, release-policy, release]
     runs-on: docker
     container:
-      image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.3
+      image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.3@sha256:2f3f20de1f155cf1d4297cf2daecf33e2ec6b212bb7c58c91f42104ffdea61cb
     permissions:
       contents: write
     steps:
