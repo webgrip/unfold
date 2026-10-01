@@ -1,0 +1,38 @@
+---
+import type { Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+
+interface Props {
+  locale: Locale;
+}
+
+const t = dictionary(Astro.props.locale).privacy;
+---
+
+<article class="container section prose">
+  <h1>{t.title}</h1>
+  <p class="version">{t.version}</p>
+  <p class="lede">{t.intro}</p>
+  {t.sections.map((section) => <section>
+    <h2>{section.title}</h2>
+    <p>{section.text}</p>
+  </section>)}
+</article>
+
+<style>
+  .prose {
+    display: grid;
+    gap: var(--space-5);
+    max-width: 48rem;
+  }
+
+  .prose h2 {
+    font-size: var(--text-xl);
+    margin-bottom: var(--space-2);
+  }
+
+  .version {
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+  }
+</style>

@@ -1,0 +1,156 @@
+{
+  "schema": 1,
+  "source": "apps/vloer createApplication(loadConfig(['--demo']))",
+  "modelCalls": 0,
+  "workItem": {
+    "title": "Fix order total rounding",
+    "objective": "Reproduce the rounding regression. Apply a minimal fix, preserve the tests, and independently verify the patch.",
+    "repository": "Order service"
+  },
+  "budget": {
+    "currency": "USD",
+    "authorized": 5,
+    "spent": 0,
+    "costStatus": "demo"
+  },
+  "roles": [
+    {
+      "run": "run-1",
+      "role": "Implementer",
+      "mode": "write"
+    },
+    {
+      "run": "run-2",
+      "role": "Reviewer",
+      "mode": "read"
+    }
+  ],
+  "outcome": {
+    "status": "completed",
+    "verdict": "approve",
+    "files": 1,
+    "merged": false
+  },
+  "diff": "@@ -1,6 +1,6 @@\n export function moneyToCents(amount) {\n   if (!Number.isFinite(amount) || amount < 0) throw new TypeError('Amount must be a finite non-negative number');\n-  return Math.round(amount * 100);\n+  return Math.round((amount + Number.EPSILON) * 100);\n }\n \n export function orderTotal(items) {",
+  "events": [
+    {
+      "at": 0,
+      "kind": "work-item"
+    },
+    {
+      "at": 0,
+      "kind": "shift-started"
+    },
+    {
+      "at": 100,
+      "kind": "run-started",
+      "run": "run-1",
+      "role": "Implementer",
+      "mode": "write"
+    },
+    {
+      "at": 1100,
+      "kind": "check",
+      "run": "run-1",
+      "phase": "baseline",
+      "command": "node --test test/order.test.js",
+      "exitCode": 1,
+      "expectedFailure": true,
+      "tests": [
+        {
+          "name": "rounds a half cent upward for the reported 1.005 fixture",
+          "ok": false
+        },
+        {
+          "name": "rounds ordinary prices and sums item quantities in integer cents",
+          "ok": false
+        },
+        {
+          "name": "rejects invalid input rather than inventing totals",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "at": 2100,
+      "kind": "edit",
+      "run": "run-1",
+      "command": "edit src/order.js"
+    },
+    {
+      "at": 3200,
+      "kind": "check",
+      "run": "run-1",
+      "phase": "verification",
+      "command": "node --test test/order.test.js",
+      "exitCode": 0,
+      "expectedFailure": false,
+      "tests": [
+        {
+          "name": "rounds a half cent upward for the reported 1.005 fixture",
+          "ok": true
+        },
+        {
+          "name": "rounds ordinary prices and sums item quantities in integer cents",
+          "ok": true
+        },
+        {
+          "name": "rejects invalid input rather than inventing totals",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "at": 4200,
+      "kind": "run-finished",
+      "run": "run-1",
+      "status": "completed"
+    },
+    {
+      "at": 4200,
+      "kind": "run-started",
+      "run": "run-2",
+      "role": "Reviewer",
+      "mode": "read"
+    },
+    {
+      "at": 5300,
+      "kind": "check",
+      "run": "run-2",
+      "phase": "review",
+      "command": "independent node --test",
+      "exitCode": 0,
+      "expectedFailure": false,
+      "tests": [
+        {
+          "name": "rounds a half cent upward for the reported 1.005 fixture",
+          "ok": true
+        },
+        {
+          "name": "rounds ordinary prices and sums item quantities in integer cents",
+          "ok": true
+        },
+        {
+          "name": "rejects invalid input rather than inventing totals",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "at": 6300,
+      "kind": "run-finished",
+      "run": "run-2",
+      "status": "completed",
+      "verdict": "approve"
+    },
+    {
+      "at": 6400,
+      "kind": "change-ready"
+    },
+    {
+      "at": 6400,
+      "kind": "shift-finished",
+      "merged": false
+    }
+  ]
+}

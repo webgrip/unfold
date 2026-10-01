@@ -1,0 +1,47 @@
+---
+import { CONTROLLER } from '../config/site.ts';
+import type { Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+import { routePath } from '../i18n/routes.ts';
+
+interface Props {
+  locale: Locale;
+  outcome: 'thanks' | 'problem';
+}
+
+const { locale, outcome } = Astro.props;
+const dict = dictionary(locale);
+const home = routePath('home', locale);
+const copy =
+  outcome === 'thanks'
+    ? {
+        title: dict.thanks.title,
+        text: dict.thanks.text,
+        mail: dict.thanks.withdraw,
+        action: dict.thanks.home,
+        href: home,
+      }
+    : {
+        title: dict.problem.title,
+        text: dict.problem.text,
+        mail: dict.problem.contact,
+        action: dict.problem.retry,
+        href: `${home}#signup`,
+      };
+---
+
+<div class="container section outcome">
+  <h1>{copy.title}</h1>
+  <p class="lede">{copy.text}</p>
+  <p>{copy.mail} <a href={`mailto:${CONTROLLER.email}`}>{CONTROLLER.email}</a>.</p>
+  <p><a class="button button--primary" href={copy.href}>{copy.action}</a></p>
+</div>
+
+<style>
+  .outcome {
+    display: grid;
+    gap: var(--space-5);
+    justify-items: start;
+    min-height: 50vh;
+  }
+</style>
