@@ -30,6 +30,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0011](../adr/adr-0011-unfold-is-reachable-over-mcp-through-a-read-first-server.md) | Unfold is reachable over MCP through a separate, read-first server on Ploeg's operator API | 2026-09-30 | — |
 | System | [0012](../adr/adr-0012-the-marketing-site-releases-and-deploys-on-its-own.md) | The marketing site releases and deploys on its own, outside the Unfold version | 2026-10-01 | — |
 | System | [0013](../adr/adr-0013-the-product-is-named-unfold.md) | The product is named Unfold, and Ploeg and Vloer are its parts | 2026-10-01 | — |
+| System | [0015](../adr/adr-0015-site-sign-ups-are-stored-in-cloudflare-d1-in-the-eu.md) | Site sign-ups are stored by a small Worker in Cloudflare D1, in the EU jurisdiction | 2026-10-02 | — |
 | Ploeg | [0001](../../apps/ploeg/docs/adrs/0001-adrs-are-the-decision-ledger.md) | ADRs in docs/adrs/ are the single decision ledger | 2026-07-29 | — |
 | Ploeg | [0002](../../apps/ploeg/docs/adrs/0002-go-as-the-implementation-language.md) | Go is the implementation language | 2026-07-29 | — |
 | Ploeg | [0003](../../apps/ploeg/docs/adrs/0003-apache-2-0-license.md) | Ploeg ships under Apache-2.0 | 2026-07-29 | — |
