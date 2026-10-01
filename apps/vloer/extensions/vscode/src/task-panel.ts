@@ -16,6 +16,8 @@ export interface TaskPanelHost {
   checkoutBranch(id: string): Promise<void>;
   lastTeam(): string | undefined;
   rememberTeam(team: string): Promise<void>;
+  /** Re-reads linked tasks and Ploeg's Now so the task tree shows a hand-off or take-back without waiting for the next poll. */
+  taskHandoffChanged(): Promise<void>;
   report(error: unknown): Promise<void>;
 }
 
@@ -192,6 +194,7 @@ export class TaskPanel implements vscode.Disposable {
       await this.panel.webview.postMessage({ type: 'state', view: this.view });
       for (const warning of status.warnings ?? []) void vscode.window.showWarningMessage(warning);
       this.schedule();
+      void this.host.taskHandoffChanged();
     } catch (error) {
       if (error instanceof ApiError && error.status === 409 && error.code === 'task_changed') { await this.load(true, 'The task changed in the tracker since you opened it. Review this version, then hand it over again.'); return; }
       throw error;
@@ -210,6 +213,7 @@ export class TaskPanel implements vscode.Disposable {
     await this.panel.webview.postMessage({ type: 'state', view: this.view });
     for (const warning of status.warnings ?? []) void vscode.window.showWarningMessage(warning);
     this.schedule();
+    void this.host.taskHandoffChanged();
   }
 
   private html(): string {

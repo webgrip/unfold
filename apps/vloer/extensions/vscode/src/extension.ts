@@ -240,7 +240,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       this.tree.repositories = new Map(bootstrap.repositories.map(repository => [repository.id, repository.name]));
       this.tree.update(sessions);
       this.tasks.update(bootstrap.taskSources ?? [], bootstrap.taskSources?.length ? '' : 'Connect a task source on the workbench server', bootstrap.repositories);
-      if (now.value) this.tasks.ploegItems(now.value.waiting);
+      if (now.value) this.tasks.ploegItems([...now.value.waiting, ...(now.value.active ?? [])]);
       this.now.update(now.value, sessions, now.message);
       const demo = bootstrap.mode === 'demo';
       this.taskView.message = demo ? 'Demo fixture · No tracker account required' : undefined;
@@ -600,6 +600,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
 
   lastTeam(): string | undefined { return this.context.globalState.get<string>(`vloer.handoffTeam:${this.current.origin}`); }
   async rememberTeam(team: string): Promise<void> { await this.context.globalState.update(`vloer.handoffTeam:${this.current.origin}`, team); }
+  async taskHandoffChanged(): Promise<void> { this.tasks.refresh(); await this.refresh(false, true); }
 
   async importTask(value?: TaskEntry): Promise<void> {
     if (value?.kind !== 'task') { await this.browseTasks(value); return; }

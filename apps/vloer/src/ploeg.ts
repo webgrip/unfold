@@ -29,8 +29,8 @@ export type PloegProposedItem = PloegPresentedItem & { sourceTitle: string };
 export type PloegProposedPage = { demo: boolean; items: PloegProposedItem[]; truncated: boolean; fetchedAt: string };
 export type PloegNowShift = Pick<PloegShift, 'round' | 'closeReason' | 'budgetUsd' | 'spentUsd' | 'reservedUsd' | 'closedAt'>;
 export type PloegNowItem = Pick<PloegItem, 'id' | 'team' | 'state' | 'title' | 'url' | 'createdAt' | 'updatedAt' | 'provider' | 'externalId' | 'priority' | 'attempts' | 'infraFailures' | 'target'> & { closeReason: string | null; latestShift: PloegNowShift | null; spentUsd: number | null; pullRequestUrl: string } & Partial<Pick<PloegProposedItem, 'sourceWorkItemId' | 'sourceTitle' | 'createdKind' | 'ready'>>;
-export type PloegNowGroup = 'waiting' | 'running' | 'recent';
-export type PloegNow = { demo: boolean; teams: string[]; waiting: PloegNowItem[]; running: PloegRunRow[]; recent: PloegRunRow[]; runningTruncated: boolean; recentTruncated: boolean; errors: Partial<Record<PloegNowGroup, string>>; fetchedAt: string };
+export type PloegNowGroup = 'waiting' | 'active' | 'running' | 'recent';
+export type PloegNow = { demo: boolean; teams: string[]; waiting: PloegNowItem[]; active: PloegNowItem[]; running: PloegRunRow[]; recent: PloegRunRow[]; runningTruncated: boolean; recentTruncated: boolean; errors: Partial<Record<PloegNowGroup, string>>; fetchedAt: string };
 export type PloegDecision = 'approve' | 'reject' | 'cancel';
 export type PloegDecisionResult = { workItemId: string; team: string; state: string; demo: boolean };
 export type PloegCancellation = PloegDecisionResult & { withdrawn: boolean | null; shiftId: string | null; cancelledRuns: number | null; stoppedRuns: number | null; keysBlocked: boolean | null; message: string };
@@ -477,7 +477,7 @@ export class PloegClient {
     return { demo: this.demo, items: enriched, truncated: pages.some(entry => entry.nextCursor !== null) || enriched.length === 50, fetchedAt: new Date().toISOString() };
   }
   /**
-   * Everything the caller can read, for the Now page: what waits on them, what runs now and what finished recently.
+   * Everything the caller can read, for the Now page: what waits on them, what Ploeg holds queued or leased, what runs now and what finished recently.
    * `runningTruncated` and `recentTruncated` say whether Ploeg holds more Runs than the first page lists.
    */
   async now(user: User, fresh = false): Promise<PloegNow> {
@@ -489,11 +489,18 @@ export class PloegClient {
       catch (error) { errors[group] = error instanceof PloegError ? error.message : 'Ploeg could not be reached.'; return empty; }
     };
     const waiting = await capture('waiting', () => this.waitingItems(user, teams, fresh), [] as PloegNowItem[]);
+    const active = await capture('active', () => this.activeItems(user, teams, fresh), [] as PloegNowItem[]);
     const page = async (state: 'running' | 'finished') => { const found = await this.runs(user, { state }, fresh); return { runs: found.runs, more: found.nextBefore !== null }; };
     const running = await capture('running', () => page('running'), { runs: [] as PloegRunRow[], more: false });
     const recent = await capture('recent', () => page('finished'), { runs: [] as PloegRunRow[], more: false });
-    return { demo: this.demo, teams: teams.map(entry => entry.id), waiting, running: running.runs, recent: recent.runs, runningTruncated: running.more, recentTruncated: recent.more, errors, fetchedAt: new Date().toISOString() };
+    return { demo: this.demo, teams: teams.map(entry => entry.id), waiting, active, running: running.runs, recent: recent.runs, runningTruncated: running.more, recentTruncated: recent.more, errors, fetchedAt: new Date().toISOString() };
   }
+  private async activeItems(user: User, teams: PloegTeam[], fresh: boolean): Promise<PloegNowItem[]> {
+    const pages = await Promise.all(teams.flatMap(entry => (['leased', 'queued'] as const).map(state => this.items(user, entry.id, state, '0', fresh))));
+    const order: Record<string, number> = { leased: 0, queued: 1 };
+    return pages.flatMap(page => page.items).map(nowItem).sort((a, b) => (order[a.state] ?? 9) - (order[b.state] ?? 9) || a.createdAt.localeCompare(b.createdAt) || (BigInt(a.id) < BigInt(b.id) ? -1 : 1));
+  }
+
   private async waitingItems(user: User, teams: PloegTeam[], fresh: boolean): Promise<PloegNowItem[]> {
     const calls: Promise<PloegPresentedPage>[] = [];
     for (const entry of teams) for (const state of ['awaiting_review', 'needs_human'] as const) calls.push(this.items(user, entry.id, state, '0', fresh));

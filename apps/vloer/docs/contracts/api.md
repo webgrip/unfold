@@ -248,9 +248,9 @@ Every Work Item in the overview lanes, the work-item pages, the detail and the p
 
 ### Now
 
-`GET /api/ploeg/now` answers `{demo, teams, waiting, running, recent, runningTruncated, recentTruncated, errors, fetchedAt}`. `running` and `recent` are Run rows, the same shape as `/api/ploeg/runs`: the first page of each. `runningTruncated` and `recentTruncated` are true when Ploeg holds more Runs than that page. A group that fails is empty and names its failure in `errors.waiting`, `errors.running` or `errors.recent`; the other groups still answer.
+`GET /api/ploeg/now` answers `{demo, teams, waiting, active, running, recent, runningTruncated, recentTruncated, errors, fetchedAt}`. `running` and `recent` are Run rows, the same shape as `/api/ploeg/runs`: the first page of each. `runningTruncated` and `recentTruncated` are true when Ploeg holds more Runs than that page. A group that fails is empty and names its failure in `errors.waiting`, `errors.active`, `errors.running` or `errors.recent`; the other groups still answer.
 
-`waiting` lists `awaiting_review`, then `needs_human`, then `proposed` Work Items, oldest first within each. A row carries no description. Its fields:
+`waiting` lists `awaiting_review`, then `needs_human`, then `proposed` Work Items, oldest first within each. `active` lists `leased`, then `queued` Work Items the same way, so a client can show that Ploeg holds a task it handed over before that task waits on anyone. Rows in both lists carry no description. Their fields:
 
 | Field | Meaning |
 | --- | --- |

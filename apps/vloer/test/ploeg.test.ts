@@ -511,6 +511,8 @@ test('the Now projection lists waiting work, running Runs and recent Runs across
   assert.equal(now.waiting[0].spentUsd, 0, 'the latest Shift spend travels with the row');
   assert.equal(now.waiting[0].pullRequestUrl, 'https://forge.example.invalid/example/order-service/pulls/5');
   assert.equal(now.waiting[1].pullRequestUrl, '', 'only awaiting-review rows carry a pull request link');
+  assert.deepEqual(now.active.map(entry => [entry.id, entry.state]), [['102', 'leased'], ['104', 'queued'], ['103', 'queued']], 'leased, then queued, each oldest first');
+  assert(now.active.every(entry => entry.provider && entry.externalId), 'active rows carry the tracker identity the task tree keys on');
   assert.deepEqual(now.running.map(run => run.id), ['40']);
   assert.equal(now.running[0].observedUsd, null, 'an unobserved Run reports null, never zero');
   assert.deepEqual(now.running[0].reservedModels, []);
@@ -585,6 +587,7 @@ test('the Now page is scoped to the caller’s teams and refuses a user without 
   assert.equal(view.status, 200, JSON.stringify(view.body));
   assert.deepEqual(view.body.teams, ['delivery']);
   assert.deepEqual(view.body.waiting.map((entry: { id: string }) => entry.id), ['105', '101', '112', '109', '108', '106']);
+  assert.deepEqual(view.body.active.map((entry: { id: string }) => entry.id), ['102', '103'], 'queued and leased work is scoped too');
   assert(view.body.waiting.every((entry: { team: string }) => entry.team === 'delivery'));
 });
 

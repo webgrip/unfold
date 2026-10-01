@@ -180,7 +180,7 @@ export class TaskTree implements vscode.TreeDataProvider<TaskEntry>, vscode.Disp
   private ploeg = new Map<string, PloegNowItem>();
   constructor(core: Core, load: (sourceId: string, page: number) => Promise<TaskPage>) { this.core = core; this.load = load; }
 
-  /** Marks the tasks Ploeg holds in a waiting state (ready for review, needs you, proposed), keyed by tracker identity. */
+  /** Marks the tasks Ploeg holds (queued, running, ready for review, needs you, proposed), keyed by tracker identity. */
   ploegItems(items: PloegNowItem[]) {
     const next = new Map(items.filter(item => item.provider && item.externalId).map(item => [`${item.provider}:${item.externalId}`, item]));
     const key = (map: Map<string, PloegNowItem>) => JSON.stringify([...map].map(([id, item]) => [id, item.state, item.closeReason, item.team]));
