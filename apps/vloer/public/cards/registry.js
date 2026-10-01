@@ -1,3 +1,5 @@
+import { finishLadder } from './card-model.js';
+
 /** The card runtime's contract version. A skin pack's manifest names the one it was written for. */
 export const runtimeVersion = 1;
 /** The skin a card gets when its Work Target names none, or one this Vloer does not ship. */
@@ -25,7 +27,8 @@ export function skinBase(id) {
 
 /**
  * Checks a skin pack's `manifest.json` and returns its normalized form. A pack names itself, its version, the runtime
- * version it targets, its stylesheet, an optional script and the finishes it draws; P1 accepts only `matte`.
+ * version it targets, its stylesheet, an optional script and the finishes it draws. Every pack draws `matte`; a card
+ * whose finish the pack does not list is drawn matte.
  * @param {unknown} manifest
  * @param {string} id The pack's folder name, which the manifest must repeat.
  */
@@ -39,14 +42,16 @@ export function validateManifest(manifest, id) {
   if (typeof stylesheet !== 'string' || !fileName.test(stylesheet) || !stylesheet.endsWith('.css')) throw new Error('Skin manifest needs a stylesheet in its folder');
   if (script !== null && (typeof script !== 'string' || !fileName.test(script) || !script.endsWith('.js'))) throw new Error('Skin script must be a module in its folder');
   if (!Array.isArray(finishes) || !finishes.includes('matte')) throw new Error('Skin must draw the matte finish');
+  if (!finishes.every(finish => finishLadder.some(step => step.key === finish))) throw new Error('Skin names a finish the card runtime does not know');
   return Object.freeze({ id, name: label.trim(), version, runtime, stylesheet, script, finishes: Object.freeze([...finishes]) });
 }
 
 /**
- * Loads a skin pack once: its manifest, its stylesheet URL and its `render`. A pack without a script borrows the
- * default skin's markup under its own stylesheet.
+ * Loads a skin pack once: its manifest, its stylesheet URL, its `render` and its optional `attach(frontFace)`, which
+ * lights the drawn front and returns a cleanup function. A pack without a script borrows the default skin's markup
+ * and lighting under its own stylesheet.
  * @param {string} id
- * @returns {Promise<{ manifest: object, stylesheet: string, render: Function }>}
+ * @returns {Promise<{ manifest: object, stylesheet: string, render: Function, attach: Function | null }>}
  */
 export function loadSkin(id) {
   if (!loaded.has(id)) {
@@ -57,8 +62,9 @@ export function loadSkin(id) {
         const manifest = validateManifest(data, id);
         const module = manifest.script ? await import(`${base}${manifest.script}`) : id === defaultSkin ? null : await loadSkin(defaultSkin);
         const render = manifest.script ? module.render : module?.render;
+        const attach = manifest.script ? module.attach : module?.attach;
         if (typeof render !== 'function') throw new Error(`Skin ${id} has no render function`);
-        return Object.freeze({ manifest, stylesheet: `${base}${manifest.stylesheet}`, render });
+        return Object.freeze({ manifest, stylesheet: `${base}${manifest.stylesheet}`, render, attach: typeof attach === 'function' ? attach : null });
       });
     pack.catch(() => loaded.delete(id));
     loaded.set(id, pack);

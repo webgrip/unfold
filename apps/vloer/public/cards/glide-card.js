@@ -1,5 +1,5 @@
 import { icon } from '../core/icons.js';
-import { cardView, cardTabs } from './card-model.js';
+import { cardView, cardTabs, finishLadder } from './card-model.js';
 import { defaultSkin, loadSkin, requiredSlots, resolveSkin } from './registry.js';
 
 const runtimeStylesheet = '/cards/glide-card.css';
@@ -45,6 +45,8 @@ export class GlideCard extends Base {
   #stage = null;
   #links = null;
   #focus = null;
+  #detach = null;
+  #skin = null;
 
   constructor() {
     super();
@@ -73,7 +75,25 @@ export class GlideCard extends Base {
     else this.#focus = key;
   }
 
-  connectedCallback() { if (this.#card && !this.#view) void this.#update(); }
+  connectedCallback() {
+    if (this.#card && !this.#view) void this.#update();
+    else if (this.#stage && !this.#stage.hidden) this.#startSkin();
+  }
+
+  disconnectedCallback() { this.#stopSkin(); }
+
+  #startSkin() {
+    this.#stopSkin();
+    const front = this.#stage?.querySelector('.gc-front');
+    if (!front || typeof this.#skin?.attach !== 'function') return;
+    try { this.#detach = this.#skin.attach(front) ?? null; } catch { this.#detach = null; }
+  }
+
+  #stopSkin() {
+    const detach = this.#detach;
+    this.#detach = null;
+    try { detach?.(); } catch { this.#detach = null; }
+  }
 
   attributeChangedCallback(name, previous, value) {
     if (previous === value || !this.#stage) return;
@@ -84,12 +104,14 @@ export class GlideCard extends Base {
   async #update() {
     const ticket = ++this.#ticket;
     const card = this.#card;
-    if (!card) { this.#view = null; this.#stage = null; this.#root.replaceChildren(); return; }
+    if (!card) { this.#stopSkin(); this.#view = null; this.#stage = null; this.#root.replaceChildren(); return; }
     let skin = null;
     try { skin = await loadSkin(resolveSkin(card.style)); }
     catch { try { skin = await loadSkin(defaultSkin); } catch { skin = null; } }
     if (ticket !== this.#ticket) return;
-    this.#view = cardView(card);
+    const view = cardView(card);
+    if (!(skin?.manifest?.finishes ?? []).includes(view.finish.key)) view.finish = finishLadder[0];
+    this.#view = view;
     await this.#paint(skin, ticket);
   }
 
@@ -120,6 +142,7 @@ export class GlideCard extends Base {
     this.#requireFlip(faces.back, 'back');
     this.#requireTabs(faces.back);
     stage.append(inner);
+    this.#stopSkin();
     this.#root.replaceChildren(...[links.base, links.skin].filter(Boolean), stage);
     this.#stage = stage;
     this.#applyFace({ focus: false });
@@ -127,6 +150,8 @@ export class GlideCard extends Base {
     await Promise.all([links.base.loaded, links.skin?.loaded]);
     if (ticket !== this.#ticket) return;
     stage.hidden = false;
+    this.#skin = skin;
+    if (this.isConnected) this.#startSkin();
     if (this.#focus) { const key = this.#focus; this.#focus = null; this.restoreFocus(key); }
   }
 

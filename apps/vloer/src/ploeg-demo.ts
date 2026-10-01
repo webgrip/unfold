@@ -1,4 +1,5 @@
-import type { PloegActivityEvent, PloegCard, PloegCardPlay, PloegCheckpoint, PloegDetail, PloegEvent, PloegItem, PloegRun, PloegRunRow, PloegShift, PloegTeam, PloegTeamSummary, PloegWindow } from './ploeg.ts';
+import { createHash } from 'node:crypto';
+import type { PloegActivityEvent, PloegCard, PloegCardDeployment, PloegCardPlay, PloegCheckpoint, PloegDetail, PloegEvent, PloegItem, PloegRun, PloegRunRow, PloegShift, PloegTeam, PloegTeamSummary, PloegWindow } from './ploeg.ts';
 
 const anchor = Math.floor(Date.now() / 60_000) * 60_000;
 const ago = (minutes: number) => new Date(anchor - minutes * 60_000).toISOString().replace('.000Z', 'Z');
@@ -29,6 +30,15 @@ const shiftSpecs: ShiftSpec[] = [
 ];
 
 type ItemSpec = Partial<PloegItem> & Pick<PloegItem, 'id' | 'externalId' | 'title' | 'state'> & { created: number; updated: number };
+const day = 1440;
+type ShowcaseSpec = { item: string; days: number; number: number };
+const showcases: ShowcaseSpec[] = [];
+function showcase(id: string, title: string, days: number): ItemSpec[] {
+  const number = 10 + showcases.length;
+  showcases.push({ item: id, days, number });
+  const merged = (days + 2) * day + 300;
+  return [{ id, externalId: `DEMO-${Number(id) - 100}`, title, state: 'done', attempts: 1, created: merged + 2 * day, updated: merged, description: `Illustrative merged Work Item that shows a Run card after ${days} days live. Its Runs predate the demo's history and its deploys are sample data. No dispatch or model calls occurred.` }];
+}
 const itemSpecs: ItemSpec[] = [
   { id: '101', externalId: 'DEMO-1', title: 'Review the rounding acceptance criteria', state: 'needs_human', priority: 2, attempts: 1, created: 1400, updated: 1330 },
   { id: '102', externalId: 'DEMO-2', title: 'Prepare a regression investigation', state: 'leased', attempts: 1, created: 70, updated: 18, lease: { renewedAt: ago(1), expiresAt: ago(-9) } },
@@ -46,6 +56,11 @@ const itemSpecs: ItemSpec[] = [
   { id: '114', externalId: 'DEMO-14', title: 'Show the delivery window on the order summary', state: 'done', attempts: 4, created: 3000, updated: 2700, description: 'Illustrative Work Item that went through one fix round, was approved by the agent reviewer and was merged by a person. No dispatch or model calls occurred.' },
   { id: '115', provider: 'vikunja', externalId: 'DEMO-15', title: 'Rename the Buy now button to Place order', state: 'withdrawn', attempts: 0, created: 250, updated: 240, description: '<p>Rename the <strong>Buy now</strong> button to <strong>Place order</strong> on the checkout page.</p><p><em>Illustrative Vikunja-style task. It was unassigned before any Run started.</em></p>' },
   { id: '116', provider: 'ploeg', externalId: 'run-27-1', team: 'research', target: studies, title: 'Split the competitor table into its own brief', state: 'done', created: 1800, updated: 1500, description: 'Illustrative proposal an agent could make while drafting DEMO-11. A person rejected it. It is sample data.', sourceWorkItemId: '111', createdKind: 'split', ready: true },
+  ...showcase('117', 'Show the order number in the confirmation email subject', 9),
+  ...showcase('118', 'Validate postcodes on the shipping address form', 41),
+  ...showcase('119', 'Cache the product price lookup for the cart', 118),
+  ...showcase('120', 'Add an audit log entry when an order is refunded', 205),
+  ...showcase('121', 'Return 404 instead of 500 for unknown order ids', 412),
 ];
 
 const shifts = new Map(shiftSpecs.map(spec => {
@@ -180,20 +195,41 @@ function summary(window: PloegWindow, current: PloegItem[]): { generatedAt: stri
   }) };
 }
 
-type PlaySpec = { item: string; number: number; additions: number; deletions: number; changedFiles: number; merged?: { minutes: number; by: string; review: number } };
+type PlaySpec = { item: string; number: number; additions: number; deletions: number; changedFiles: number; merged?: { minutes: number; by: string; review: number }; deploys?: [environment: string, minutes: number][] };
 const playSpecs: PlaySpec[] = [
   { item: '114', number: 3, additions: 131, deletions: 9, changedFiles: 5, merged: { minutes: 2700, by: 'demo-operator', review: 2705 } },
   { item: '109', number: 7, additions: 36, deletions: 4, changedFiles: 2 },
   { item: '105', number: 5, additions: 48, deletions: 12, changedFiles: 3 },
+  ...showcases.map(({ item, days, number }, index): PlaySpec => {
+    const released = days * day + 300;
+    return { item, number, additions: 24 + index * 37, deletions: 3 + index * 5, changedFiles: 2 + index, merged: { minutes: released + 2 * day, by: 'demo-operator', review: released + 2 * day + 45 }, deploys: [['test', released + 2 * day - 30], ['acceptance', released + day], ['production', released]] };
+  }),
 ];
 const demoReviewer = 'demo-operator';
+const demoSha = (item: string, number: number) => createHash('sha1').update(`demo-${item}-${number}`).digest('hex');
+const pipeline = (item: string, environment: string) => `https://forge.example.invalid/example/order-service/actions/runs/${item}-${environment}`;
+
+function demoRelease(specs: PlaySpec[]): Pick<PloegCard, 'deployments' | 'release'> {
+  const firsts = new Map<string, PloegCardDeployment & { minutes: number }>();
+  for (const spec of specs) for (const [environment, minutes] of spec.deploys ?? []) {
+    const earlier = firsts.get(environment);
+    if (!earlier || minutes > earlier.minutes) firsts.set(environment, { environment, firstDeployedAt: ago(minutes), sha: demoSha(spec.item, spec.number), url: pipeline(spec.item, environment), minutes });
+  }
+  const deployments = [...firsts.values()].sort((a, b) => b.minutes - a.minutes).map(({ minutes: _minutes, ...entry }) => entry);
+  const latest = specs.filter(spec => spec.merged).at(-1);
+  if (!latest?.merged) return { deployments, release: null };
+  const production = latest.deploys?.find(([environment]) => environment === 'production');
+  if (production) return { deployments, release: { at: ago(production[1]), source: 'deploy', environment: 'production' } };
+  return { deployments, release: latest.deploys?.length ? null : { at: ago(latest.merged.minutes), source: 'merge', environment: 'production' } };
+}
 
 function demoCard(item: PloegItem): PloegCard {
   const detail = details[item.id];
   const shift = shifts.get(item.id) ?? null;
   const own = runSpecs.filter(spec => spec.item === item.id);
-  const plays: PloegCardPlay[] = playSpecs.filter(spec => spec.item === item.id).map(spec => {
-    return { number: spec.number, url: pull(spec.number), state: spec.merged ? 'merged' : 'open', shiftId: shift?.id ?? null, branch: shift?.branch ?? '', headSha: '', mergeCommitSha: '', mergedAt: spec.merged ? ago(spec.merged.minutes) : null, mergedBy: spec.merged?.by ?? '', closedAt: null, additions: spec.additions, deletions: spec.deletions, changedFiles: spec.changedFiles, ci: null, reviews: spec.merged ? [{ reviewer: demoReviewer, state: 'approved', receivedAt: ago(spec.merged.review), headSha: '' }] : [] };
+  const ownPlays = playSpecs.filter(spec => spec.item === item.id);
+  const plays: PloegCardPlay[] = ownPlays.map(spec => {
+    return { number: spec.number, url: pull(spec.number), state: spec.merged ? 'merged' : 'open', shiftId: shift?.id ?? null, branch: shift?.branch ?? '', headSha: '', mergeCommitSha: spec.merged ? demoSha(spec.item, spec.number) : '', mergedAt: spec.merged ? ago(spec.merged.minutes) : null, mergedBy: spec.merged?.by ?? '', closedAt: null, additions: spec.additions, deletions: spec.deletions, changedFiles: spec.changedFiles, ci: null, reviews: spec.merged ? [{ reviewer: demoReviewer, state: 'approved', receivedAt: ago(spec.merged.review), headSha: '' }] : [], deployments: (spec.deploys ?? []).map(([environment, minutes]) => ({ environment, firstDeployedAt: ago(minutes), sha: demoSha(spec.item, spec.number), url: pipeline(spec.item, environment) })) };
   });
   const latest = plays.at(-1);
   const state = item.state === 'withdrawn' ? 'withdrawn' : !latest ? 'drafting' : latest.state === 'merged' ? 'merged' : latest.state === 'closed' ? 'closed' : 'in_review';
@@ -231,6 +267,7 @@ function demoCard(item: PloegItem): PloegCard {
       ...(finished.length ? { runSeconds } : {}),
     },
     events: timeline.sort((a, b) => b.minutes - a.minutes).map(entry => ({ at: ago(entry.minutes), kind: entry.kind, actor: entry.actor, detail: entry.detail })),
+    ...demoRelease(ownPlays),
     demo: true,
   };
 }

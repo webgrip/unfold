@@ -7,8 +7,49 @@ export const notCollected = 'Not collected yet';
 export const notReported = 'Not reported';
 /** The demo's cost line: a demo makes no model calls and spends nothing. */
 export const demoCost = 'Demo · no model calls';
-/** Days in production need deploy events, which phase 2 adds. */
-export const plannedLife = 'Arrives with deploy events (P2)';
+/** What the Life tab says when a release was counted from the merge because the project reports no deploys. */
+export const mergeFallback = 'counted from merge · no deploy signal';
+
+/** What the Life tab says for a merged card whose project reports deploys, before one carried the change to production. */
+export const notLive = 'Not live in production yet';
+
+/** The finish ladder: the whole days live at which a released card reaches each finish. */
+export const finishLadder = Object.freeze([
+  Object.freeze({ key: 'matte', label: 'Matte', days: 0, level: 0 }),
+  Object.freeze({ key: 'foil', label: 'Foil', days: 7, level: 1 }),
+  Object.freeze({ key: 'holo', label: 'Holo', days: 30, level: 2 }),
+  Object.freeze({ key: 'prism', label: 'Prism', days: 90, level: 3 }),
+  Object.freeze({ key: 'gilded', label: 'Gilded', days: 180, level: 4 }),
+  Object.freeze({ key: 'infinity', label: 'Infinity', days: 365, level: 5 }),
+]);
+
+const dayMs = 86_400_000;
+
+/**
+ * Whole days since `at`, the release time; 0 on the release day and for a release time ahead of the clock, null when
+ * `at` is missing or not a time.
+ * @param {string | null | undefined} at
+ * @param {number} [now] The clock in milliseconds since the epoch.
+ */
+export function daysLive(at, now = Date.now()) {
+  const start = typeof at === 'string' ? Date.parse(at) : NaN;
+  if (!Number.isFinite(start) || !Number.isFinite(now)) return null;
+  return Math.max(0, Math.floor((now - start) / dayMs));
+}
+
+/** The finish a card has after `days` whole days live; matte for an unknown or negative count. */
+export function finishFor(days) {
+  if (!known(days) || days < 0) return finishLadder[0];
+  return finishLadder.findLast(step => days >= step.days);
+}
+
+/** The next finish after `days` whole days live and the days still to go, or null at the top of the ladder. */
+export function nextFinish(days) {
+  const current = finishFor(days);
+  const next = finishLadder[current.level + 1];
+  if (!next) return null;
+  return { finish: next, daysToGo: next.days - (known(days) && days > 0 ? days : 0) };
+}
 
 /** The back's tabs in order. */
 export const cardTabs = Object.freeze([
@@ -34,6 +75,9 @@ const rosterRoles = { merger: 'merger', reviewer: 'reviewer' };
 const inReview = Object.freeze({ key: 'in_review', label: 'In review', tone: 'review', glyph: 'pull-request' });
 const playMeta = state => state ? playState(state) : inReview;
 const costStatuses = { observed: 'Observed', reserved: 'Reserved, not settled', not_reported: notReported };
+const environmentOrder = ['development', 'test', 'acceptance', 'staging', 'production'];
+const environmentRank = name => { const index = environmentOrder.indexOf(name); return index === -1 ? environmentOrder.length : index; };
+const shortSha = sha => text(sha).slice(0, 7);
 
 function plays(card) {
   return list(card.plays).filter(play => play && known(play.number)).slice().sort((a, b) => a.number - b.number);
@@ -221,18 +265,66 @@ function review(card, all) {
   };
 }
 
-function life(card, all) {
-  const merged = all.filter(play => play.mergedAt).at(-1);
+function deployments(card) {
+  return list(card.deployments)
+    .filter(entry => entry && text(entry.environment))
+    .map(entry => ({ environment: text(entry.environment).toLowerCase(), firstDeployedAt: text(entry.firstDeployedAt), sha: text(entry.sha), url: text(entry.url) }))
+    .sort((a, b) => environmentRank(a.environment) - environmentRank(b.environment) || (Date.parse(a.firstDeployedAt) || 0) - (Date.parse(b.firstDeployedAt) || 0) || a.environment.localeCompare(b.environment));
+}
+
+function releaseView(card, now) {
+  const reported = Object.hasOwn(card, 'release');
+  const release = card.release && typeof card.release === 'object' ? card.release : null;
+  const days = release ? daysLive(release.at, now) : null;
+  if (days === null) {
+    const finish = finishLadder[0];
+    return { released: false, reported, days: null, dayText: '', finish, next: null, source: '', environment: '', at: '', note: '' };
+  }
+  const source = text(release.source) === 'merge' ? 'merge' : 'deploy';
+  const environment = text(release.environment).toLowerCase() || 'production';
+  const finish = finishFor(days);
+  const next = nextFinish(days);
   return {
-    rows: [
-      merged ? row('Merged', dateTime(merged.mergedAt)) : row('Merged', 'Not merged', 'unreported'),
-      row('Days in production', plannedLife, 'planned'),
-      uncollected('Lines still alive'),
-      uncollected('Reverts and linked bugs'),
-    ],
-    lists: [],
-    note: 'Days in production arrive with deploy events, planned for phase 2. Until then the card stays matte.',
+    released: true, reported, days, dayText: `Day ${count(days)}`, finish, source, environment, at: text(release.at),
+    next: next ? { ...next, text: `${next.finish.label} in ${plural(next.daysToGo, 'day')}` } : null,
+    note: source === 'merge' ? mergeFallback : '',
+    label: `${plural(days, 'day')} live, ${finish.label.toLowerCase()} finish${source === 'merge' ? `, ${mergeFallback}` : ''}`,
   };
+}
+
+function life(card, all, release) {
+  const merged = all.filter(play => play.mergedAt).at(-1);
+  const deployed = deployments(card);
+  const live = release.environment || 'production';
+  const rows = [merged ? row('Merged', dateTime(merged.mergedAt)) : row('Merged', 'Not merged', 'unreported')];
+  let note = '';
+  if (release.released) {
+    rows.push(
+      row('Days live', plural(release.days, 'day')),
+      ...(release.source === 'merge' ? [] : [row('Released', `${dateTime(release.at)} · ${release.environment}`)]),
+      row('Release source', release.source === 'merge' ? 'Merge · no deploy signal' : `First deploy to ${release.environment}`),
+      row('Finish', release.finish.label),
+      release.next ? row('Next finish', release.next.text) : row('Next finish', 'Top of the ladder'),
+    );
+    if (release.source === 'merge') note = `Days live are ${mergeFallback}. Once a pipeline reports deploys to Ploeg, they count from the first deploy to ${release.environment}.`;
+  } else if (release.reported) {
+    rows.push(row('Days live', merged ? notLive : 'Not released', 'unreported'), row('Finish', `${finishLadder[0].label} until released`, 'unreported'));
+    note = merged
+      ? 'This project reports deploys to production, and none has carried this change yet. Days live start at its first deploy there.'
+      : 'Days live start at the first deploy to production, or at the merge when the project has never reported a deploy there.';
+  } else {
+    rows.push(row('Days live', notReported, 'unreported'), row('Finish', `${finishLadder[0].label} · this Ploeg reports no releases`, 'unreported'));
+    note = 'This Ploeg does not report deploys or releases yet, so the card stays matte.';
+  }
+  rows.push(uncollected('Lines still alive'), uncollected('Reverts and linked bugs'));
+  const lists = deployed.length ? [{ title: `Deployments · ${plural(deployed.length, 'environment')}`, items: deployed.map(entry => ({
+    title: entry.environment,
+    meta: [entry.firstDeployedAt ? `first deployed ${dateTime(entry.firstDeployedAt)}` : 'first deploy time not reported', shortSha(entry.sha)].filter(Boolean).join(' · '),
+    tone: entry.environment === live ? 'success' : 'neutral',
+    glyph: entry.environment === live ? 'check-circle' : 'circle',
+    url: entry.url,
+  })) }] : [];
+  return { rows, lists, note };
 }
 
 function context(card) {
@@ -254,17 +346,20 @@ function context(card) {
  * The view model of a Run card: every slot formatted (nl-NL money with two decimals, compact counts, durations),
  * and every value Ploeg left out marked "Not reported", never zero. Values Ploeg does not collect yet read
  * "Not collected yet". A demo card reads "Demo · no model calls" for cost and usage. Rarity, grade and condition
- * are not shown in P1; every card is matte.
+ * are not shown. The finish comes from the whole days since `release.at` on the finish ladder; Ploeg's own `finish`
+ * is ignored, and a card without a release is matte.
  * @param {object} card A card from `GET /api/ploeg/work-items/:id/card`.
+ * @param {{ now?: number }} [options] `now` is the clock in milliseconds, for tests.
  */
-export function cardView(card) {
+export function cardView(card, { now = Date.now() } = {}) {
   const data = card && typeof card === 'object' ? card : {};
   const all = plays(data);
+  const release = releaseView(data, now);
   const cost = costView(data);
   const diff = diffView(all);
   const id = text(String(data.workItemId ?? ''));
   const repo = repository(data.target);
-  const tabs = { economics: economics(data, cost), agent: agent(data), change: change(data, all, diff), review: review(data, all), life: life(data, all), context: context({ ...data, workItemId: id }) };
+  const tabs = { economics: economics(data, cost), agent: agent(data), change: change(data, all, diff), review: review(data, all), life: life(data, all, release), context: context({ ...data, workItemId: id }) };
   return {
     id,
     title: text(data.title) || (id ? `Work Item #${id}` : 'Untitled Work Item'),
@@ -282,6 +377,8 @@ export function cardView(card) {
     team: text(data.team),
     repo,
     url: text(data.url),
+    release,
+    finish: release.finish,
     tabs: cardTabs.map(tab => ({ ...tab, ...tabs[tab.id] })),
   };
 }
