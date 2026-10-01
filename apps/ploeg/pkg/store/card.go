@@ -57,8 +57,11 @@ type OperatorCard struct {
 	Gates *CardGates `json:"gates"`
 	// Evolved is true when the requirement changed after acceptance, or a
 	// bug was attributed to the card as a changed requirement (ADR-0052).
-	Evolved              bool `json:"evolved,omitempty"`
-	Demo                 bool `json:"demo"`
+	Evolved bool `json:"evolved,omitempty"`
+	// Set places the card in its epic's set, and is nil when the Work Item
+	// belongs to no epic that counts (ADR-0053).
+	Set                  *CardSet `json:"set,omitempty"`
+	Demo                 bool     `json:"demo"`
 	itemState            string
 	runs                 []cardRun
 	bots                 map[string]bool
@@ -377,6 +380,9 @@ func (s *Store) OperatorCard(ctx context.Context, id int64, teams []string, opts
 		return OperatorCard{}, err
 	}
 	if err := card.loadCondition(ctx, tx, id, hotfixLabelsFor(opts, card.Team)); err != nil {
+		return OperatorCard{}, err
+	}
+	if err := card.loadSet(ctx, tx, id, provider, externalID, opts); err != nil {
 		return OperatorCard{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -988,22 +994,30 @@ func (c *OperatorCard) steward() *CardSteward {
 }
 
 func (c *OperatorCard) state() string {
-	if c.itemState == string(work.StateWithdrawn) {
+	states := make([]string, 0, len(c.Plays))
+	for _, p := range c.Plays {
+		states = append(states, p.State)
+	}
+	return cardState(c.itemState, states)
+}
+
+func cardState(itemState string, plays []string) string {
+	if itemState == string(work.StateWithdrawn) {
 		return "withdrawn"
 	}
-	if len(c.Plays) == 0 {
+	if len(plays) == 0 {
 		return "drafting"
 	}
 	merged := false
-	for _, p := range c.Plays {
-		switch p.State {
+	for _, state := range plays {
+		switch state {
 		case "open", "":
 			return "in_review"
 		case "merged":
 			merged = true
 		}
 	}
-	if c.Plays[len(c.Plays)-1].State == "merged" || (merged && c.itemState == string(work.StateDone)) {
+	if plays[len(plays)-1] == "merged" || (merged && itemState == string(work.StateDone)) {
 		return "merged"
 	}
 	return "closed"

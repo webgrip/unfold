@@ -70,6 +70,9 @@ type payload struct {
 		Doer struct {
 			Username string `json:"username"`
 		} `json:"doer"`
+		Relation struct {
+			OtherTaskID int64 `json:"other_task_id"`
+		} `json:"relation"`
 	} `json:"data"`
 }
 
@@ -135,6 +138,14 @@ func (p *Provider) ParseWebhook(r *http.Request) ([]provider.TrackerEvent, error
 			event.Kind = provider.TrackerClosed
 		}
 		return []provider.TrackerEvent{event}, nil
+	case "task.relation.created", "task.relation.deleted":
+		event.Kind = provider.TrackerUpdated
+		events := []provider.TrackerEvent{event}
+		if other := pl.Data.Relation.OtherTaskID; other > 0 && other != pl.Data.Task.ID {
+			events = append(events, provider.TrackerEvent{Kind: provider.TrackerUpdated, ExternalID: fmt.Sprint(other),
+				Actor: event.Actor, At: event.At})
+		}
+		return events, nil
 	default:
 		// Unhandled events are dropped, not errors: providers subscribe wider
 		// than the core consumes.

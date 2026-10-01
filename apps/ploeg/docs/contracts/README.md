@@ -53,6 +53,9 @@ change either side and the test tells you.
   endpoints are new responses: `crackCandidatesResponse`, `cracksResponse`
   and `crackResponse`, all with `schemaVersion` `"1.0"`. Their requests
   refuse unknown fields.
+- Since [ADR-0053](../adrs/0053-an-epic-is-a-set-of-the-work-items-declared-its-children-before-their-first-shift.md)
+  the card may carry `set`, a `cardSet` object. It is optional and absent
+  when the Work Item belongs to no epic that counts.
 - `deploy-api.v1` is the body of a pipeline's deploy report. It refuses
   unknown fields, unlike the response contracts, so a misspelled field fails
   the pipeline step instead of being dropped.

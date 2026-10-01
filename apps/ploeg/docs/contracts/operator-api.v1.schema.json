@@ -1971,7 +1971,7 @@
     "card": {
       "type": "object",
       "additionalProperties": false,
-      "description": "A Run card (ADR-0046): one per Work Item, assembled from stored facts when read. Ploeg sends facts only. state: withdrawn when the Work Item was withdrawn; drafting with no play; in_review while a play is open or its state is unknown; merged when the latest play merged, or a play merged and the Work Item is done; closed otherwise. rarity is always null and finish is always matte until those decisions are made. condition holds the confirmed cracks (ADR-0052) and is null without one. grade is computed from stored facts under a versioned formula (ADR-0050) and null until a human approved or requested changes on a play, or a play merged. demo is always false from Ploeg. deployments and release come from the deploys pipelines report to POST /api/v1/deploys (ADR-0047). live is the usage so far while a Run is running, read from the gateway when the card is read, and null otherwise (ADR-0049). gates is the Work Item's path through its board's delivery gates, absent or null when no gate move was recorded; evolved is true when a requirement bounce left acceptance (ADR-0051) or a bug was attributed to the card as a changed requirement (ADR-0052).",
+      "description": "A Run card (ADR-0046): one per Work Item, assembled from stored facts when read. Ploeg sends facts only. state: withdrawn when the Work Item was withdrawn; drafting with no play; in_review while a play is open or its state is unknown; merged when the latest play merged, or a play merged and the Work Item is done; closed otherwise. rarity is always null and finish is always matte until those decisions are made. condition holds the confirmed cracks (ADR-0052) and is null without one. grade is computed from stored facts under a versioned formula (ADR-0050) and null until a human approved or requested changes on a play, or a play merged. demo is always false from Ploeg. deployments and release come from the deploys pipelines report to POST /api/v1/deploys (ADR-0047). live is the usage so far while a Run is running, read from the gateway when the card is read, and null otherwise (ADR-0049). gates is the Work Item's path through its board's delivery gates, absent or null when no gate move was recorded; evolved is true when a requirement bounce left acceptance (ADR-0051) or a bug was attributed to the card as a changed requirement (ADR-0052). set places the card in its epic's set from tracker parent relations, and is absent when the Work Item belongs to no epic that counts (ADR-0053).",
       "required": [
         "workItemId",
         "title",
@@ -2139,6 +2139,16 @@
         },
         "demo": {
           "const": false
+        },
+        "set": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/cardSet"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -3164,6 +3174,100 @@
         },
         "crack": {
           "$ref": "#/$defs/crack"
+        }
+      }
+    },
+    "cardSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The card's place in its epic's set (ADR-0053). Members are the Work Items of the card's team whose tracker parent is the epic and whose relation Ploeg saw no later than their first Shift. role is epic on the epic's own card (when the epic is a Work Item of the team) and child on a member's. epic.workItemId is null when the epic is not a Work Item of the team. position counts from 1 in the order the members' first Shifts opened, and is null on the epic card. children is listed on the epic card only. complete is true when every member merged, has been live 30 days or more, and has no crack without a confirmed mend.",
+      "required": [
+        "role",
+        "epic",
+        "position",
+        "size",
+        "complete"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "epic",
+            "child"
+          ]
+        },
+        "epic": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "workItemId",
+            "title"
+          ],
+          "properties": {
+            "workItemId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "ref": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          }
+        },
+        "position": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "children": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "workItemId",
+              "title",
+              "state",
+              "settled",
+              "cracked"
+            ],
+            "properties": {
+              "workItemId": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "state": {
+                "enum": [
+                  "drafting",
+                  "in_review",
+                  "merged",
+                  "closed",
+                  "withdrawn"
+                ]
+              },
+              "settled": {
+                "type": "boolean"
+              },
+              "cracked": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "complete": {
+          "type": "boolean"
         }
       }
     }
