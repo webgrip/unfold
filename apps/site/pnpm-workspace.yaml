@@ -10,3 +10,5 @@ minimumReleaseAgeExclude:
   - "@webgrip/*"
   # Renovate security update: astro@7.2.8
   - astro@7.2.8
+  # Renovate security update: pnpm@11.11.0
+  - pnpm@11.11.0
