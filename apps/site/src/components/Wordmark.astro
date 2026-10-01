@@ -1,0 +1,17 @@
+---
+import { SITE_NAME } from '../config/site.ts';
+---
+
+<span class="wordmark">{SITE_NAME}</span>
+
+<style>
+  .wordmark {
+    font-family: var(--brand-font);
+    font-stretch: var(--brand-font-stretch);
+    font-weight: var(--brand-wordmark-weight);
+    letter-spacing: var(--brand-wordmark-tracking);
+    font-size: 1.5rem;
+    line-height: 1;
+    color: var(--fg);
+  }
+</style>

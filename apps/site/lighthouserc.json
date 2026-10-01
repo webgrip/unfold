@@ -1,0 +1,31 @@
+{
+  "ci": {
+    "collect": {
+      "startServerCommand": "webgrip-serve-dist",
+      "startServerReadyPattern": "serve-dist listening",
+      "url": ["http://localhost:4173/", "http://localhost:4173/nl"],
+      "numberOfRuns": 3,
+      "settings": {
+        "preset": "desktop",
+        "chromeFlags": "--no-sandbox --disable-dev-shm-usage"
+      }
+    },
+    "assert": {
+      "assertions": {
+        "categories:performance": ["error", { "minScore": 0.99 }],
+        "categories:accessibility": ["error", { "minScore": 1 }],
+        "categories:best-practices": ["error", { "minScore": 1 }],
+        "categories:seo": ["error", { "minScore": 1 }],
+        "cumulative-layout-shift": ["error", { "maxNumericValue": 0.02 }],
+        "total-blocking-time": ["error", { "maxNumericValue": 100 }],
+        "render-blocking-resources": ["error", { "maxNumericValue": 0 }],
+        "errors-in-console": ["error", { "minScore": 1 }],
+        "total-byte-weight": ["error", { "maxNumericValue": 153600 }]
+      }
+    },
+    "upload": {
+      "target": "filesystem",
+      "outputDir": "./lhci-report"
+    }
+  }
+}

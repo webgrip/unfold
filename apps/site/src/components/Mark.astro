@@ -1,0 +1,42 @@
+---
+interface Props {
+  size?: number;
+  colors?: { ground: string; stroke: string };
+}
+
+const { size = 32, colors } = Astro.props;
+---
+
+<svg
+  class="mark"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 32 32"
+  width={size}
+  height={size}
+  aria-hidden="true"
+  focusable="false"
+>
+  <rect class="mark-ground" x="1" y="1" width="30" height="30" rx="8" fill={colors?.ground}></rect>
+  <path
+    class="mark-stroke"
+    d="M7.5 22.5c5 0 6.5-12 12.5-12h4.5"
+    fill="none"
+    stroke={colors?.stroke}
+    stroke-width="3.4"
+    stroke-linecap="round"
+  ></path>
+</svg>
+
+<style>
+  .mark {
+    flex: none;
+  }
+
+  .mark-ground:not([fill]) {
+    fill: var(--fg);
+  }
+
+  .mark-stroke:not([stroke]) {
+    stroke: var(--accent-decor);
+  }
+</style>
