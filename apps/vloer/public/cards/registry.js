@@ -1,4 +1,5 @@
 import { finishLadder } from './card-model.js';
+import { tokenTypes } from './themes.js';
 
 /** The card runtime's contract version. A skin pack's manifest names the one it was written for. */
 export const runtimeVersion = 1;
@@ -12,13 +13,35 @@ export const renderers = Object.freeze(['dom', 'webgl2']);
 export const requiredSlots = Object.freeze(['title', 'state', 'cost', 'steward', 'ids']);
 
 const skinName = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const themeLists = Object.freeze(['frames', 'foilPatterns', 'artPresets', 'art', 'soundBanks']);
+const artKinds = Object.freeze(['preset', 'shader', 'media']);
+const listItem = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const fileName = /^[a-z0-9][a-z0-9-]*\.(?:css|js)$/;
 const loaded = new Map();
 
-/** The skin to load for a card's `style`: its `skin` when it is a shipped pack, otherwise the default. */
-export function resolveSkin(style) {
-  const id = style && typeof style.skin === 'string' ? style.skin : '';
+/**
+ * The skin to load for a card: the skin its resolved theme `extends` when it has one, otherwise its `style.skin`, and
+ * the default when neither names a shipped pack.
+ * @param {{ skin?: string } | null | undefined} style
+ * @param {{ extends?: string } | null} [theme]
+ */
+export function resolveSkin(style, theme = null) {
+  const id = theme && typeof theme.extends === 'string' ? theme.extends : style && typeof style.skin === 'string' ? style.skin : '';
   return skinName.test(id) && firstPartySkins.includes(id) ? id : defaultSkin;
+}
+
+function themeSection(value) {
+  if (value === undefined || value === null) return Object.freeze({ frames: Object.freeze([]), foilPatterns: Object.freeze([]), artPresets: Object.freeze([]), art: Object.freeze([]), soundBanks: Object.freeze([]), setSymbol: false, cardBack: false });
+  if (typeof value !== 'object' || Array.isArray(value)) throw new Error('Skin theme section must be an object');
+  const lists = {};
+  for (const key of themeLists) {
+    const list = value[key] ?? [];
+    if (!Array.isArray(list) || list.length > 64 || !list.every(item => typeof item === 'string' && listItem.test(item)) || new Set(list).size !== list.length) throw new Error(`Skin theme ${key} must list unique names`);
+    lists[key] = Object.freeze([...list]);
+  }
+  if (!lists.art.every(kind => artKinds.includes(kind))) throw new Error('Skin theme names an art kind the card runtime does not know');
+  for (const key of ['setSymbol', 'cardBack']) if (value[key] !== undefined && typeof value[key] !== 'boolean') throw new Error(`Skin theme ${key} must be true or false`);
+  return Object.freeze({ ...lists, setSymbol: value.setSymbol === true, cardBack: value.cardBack === true });
 }
 
 /** Where a skin pack's files live. */
@@ -30,13 +53,15 @@ export function skinBase(id) {
 /**
  * Checks a skin pack's `manifest.json` and returns its normalized form. A pack names itself, its version, the runtime
  * version it targets, its stylesheet, an optional script and the finishes it draws. Every pack draws `matte`; a card
- * whose finish the pack does not list is drawn matte.
+ * whose finish the pack does not list is drawn matte. `themeTokens` lists the custom properties a theme may set, and
+ * the optional `theme` section lists what else a theme may choose for this skin: frames, foil patterns, art presets,
+ * art kinds, sound banks, and whether it draws a set symbol and a card back.
  * @param {unknown} manifest
  * @param {string} id The pack's folder name, which the manifest must repeat.
  */
 export function validateManifest(manifest, id) {
   if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) throw new Error('Skin manifest must be an object');
-  const { id: name, name: label, version, runtime, stylesheet, script = null, finishes, renderer = 'dom', fallback = null, extends: parent = null } = manifest;
+  const { id: name, name: label, version, runtime, stylesheet, script = null, finishes, renderer = 'dom', fallback = null, extends: parent = null, themeTokens = [], theme } = manifest;
   if (name !== id) throw new Error('Skin manifest names another skin');
   if (typeof label !== 'string' || !label.trim()) throw new Error('Skin manifest needs a name');
   if (typeof version !== 'string' || !/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Skin manifest needs a semantic version');
@@ -48,7 +73,8 @@ export function validateManifest(manifest, id) {
   if (!renderers.includes(renderer)) throw new Error('Skin names a renderer the card runtime does not know');
   for (const other of [fallback, parent]) if (other !== null && (typeof other !== 'string' || !skinName.test(other) || other === id || !firstPartySkins.includes(other))) throw new Error('Skin falls back to or extends a skin this Vloer does not ship');
   if (renderer === 'webgl2' && fallback === null) throw new Error('A WebGL2 skin needs a fallback skin');
-  return Object.freeze({ id, name: label.trim(), version, runtime, stylesheet, script, finishes: Object.freeze([...finishes]), renderer, fallback, extends: parent });
+  if (!Array.isArray(themeTokens) || !themeTokens.every(token => Object.hasOwn(tokenTypes, token))) throw new Error('Skin lists a theme token the card runtime does not know');
+  return Object.freeze({ id, name: label.trim(), version, runtime, stylesheet, script, finishes: Object.freeze([...finishes]), renderer, fallback, extends: parent, themeTokens: Object.freeze([...new Set(themeTokens)]), theme: themeSection(theme) });
 }
 
 /**

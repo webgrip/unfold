@@ -6,6 +6,7 @@ import { randomBytes } from 'node:crypto';
 import { chromium } from 'playwright';
 import { createApplication } from '../src/main.ts';
 import { loadConfig } from '../src/config.ts';
+import { startFakeArtModel } from './browser/fake-art-model.mjs';
 
 const flows = [
   ['now', 'the Now page: waiting groups with reason chips, the digest and Mark as caught up, stat links, the running meter, keyboard row navigation and o at desktop/mobile widths'],
@@ -21,6 +22,7 @@ const flows = [
   ['forge', 'the forge skin: the 3D Run card renders under the CSP with painted pixels and the same facts, turns over, draws a still frame on a software rasteriser, pauses its live loop on its back and off screen, holds one still frame under reduced motion, and falls back to Vloer Native without WebGL2'],
   ['collection', 'the collection side of Run cards: card logins, the private binder with forge thumbnails, a focused card and the once-only While you were away replay, a demo pack ripped by keyboard to its summary, the published odds, the reduced-motion ceremony and the Team season page'],
   ['skins', 'the DOM skin packs (holo, loot, arcade, ticker and patch): each demo card under the CSP with the facts every card shows and no amount, the Set Cards, the back tabs, no horizontal scrolling at desktop and phone widths, the mend moment and its event, idle only while on screen and facing front, and the still end state under reduced motion'],
+  ['designer', 'the card designer: a new theme changes the live forge preview (frame, foil pattern, art preset, colour tokens through the CSSOM, an uploaded set symbol, a pasted shader), a hostile SVG and a broken shader are refused with a reason, the theme saves, versions, reloads and previews on a real Work Item, the page fits 390px, and in live mode generated art retries once with the browser compiler log from a fake model and ends as the card art'],
   ['login', 'live login with a failed attempt that keeps the account name, the password reveal, logout, an expired session that keeps its deep link, and a sign-out after which the next person never sees the previous Now page'],
 ];
 
@@ -31,8 +33,10 @@ const demoConfig = loadConfig(['--demo']);
 if (previousDataDir === undefined) delete process.env.VLOER_DATA_DIR;
 else process.env.VLOER_DATA_DIR = previousDataDir;
 const app = await createApplication(demoConfig);
+const artModel = await startFakeArtModel();
+process.env.VLOER_BROWSER_ART_KEY = randomBytes(12).toString('hex');
 const password = randomBytes(24).toString('hex');
-const live = await createApplication({ ...demoConfig, mode: 'live', dataDir: join(root, 'live'), litellm: undefined, runtime: { ...demoConfig.runtime, kind: 'opencode' }, auth: { ...demoConfig.auth, secureCookies: false, bootstrapName: 'browser-operator', bootstrapPassword: password } });
+const live = await createApplication({ ...demoConfig, mode: 'live', dataDir: join(root, 'live'), litellm: undefined, runtime: { ...demoConfig.runtime, kind: 'opencode' }, cardThemes: { assetQuotaMb: 64, ai: { baseUrl: artModel.url, model: 'fake-art', keyEnv: 'VLOER_BROWSER_ART_KEY', maxTokens: 2048, timeoutMs: 10000, requestsPerHour: 30 } }, auth: { ...demoConfig.auth, secureCookies: false, bootstrapName: 'browser-operator', bootstrapPassword: password } });
 let browser;
 const screenshots = process.env.VLOER_SCREENSHOTS ? resolve(process.env.VLOER_SCREENSHOTS) : undefined;
 try {
@@ -42,17 +46,18 @@ try {
   page.setDefaultTimeout(10000);
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  page.on('console', message => { if (message.type() === 'error' && !/\b(401|409|503)\b/.test(message.text())) errors.push(message.text()); });
+  const refusedOnPurpose = message => /\b400\b/.test(message.text()) && String(message.location()?.url ?? '').includes('/api/card-assets?purpose=symbol');
+  page.on('console', message => { if (message.type() === 'error' && !/\b(401|409|503)\b/.test(message.text()) && !refusedOnPurpose(message)) errors.push(message.text()); });
   const screenshot = async name => { if (screenshots) { await mkdir(screenshots, { recursive: true }); await page.screenshot({ path: join(screenshots, `${name}.png`), fullPage: true }); } };
   for (const [name] of flows) {
     const { run } = await import(`./browser/${name}.mjs`);
-    try { await run({ page, app, live, password, assert, screenshot }); }
+    try { await run({ page, app, live, password, assert, screenshot, artModel }); }
     catch (error) { error.message = `[${name} flow] ${error.message}`; throw error; }
   }
   assert.deepEqual(errors, [], 'Browser script or CSP errors occurred');
-  process.stdout.write(`PASS: Chromium ${browser.version()}; ${flows.map(([, covers]) => covers).join(', ')}, navigation. No inference requests.\n`);
+  process.stdout.write(`PASS: Chromium ${browser.version()}; ${flows.map(([, covers]) => covers).join(', ')}, navigation. No inference requests: generated art comes from a local fake model.\n`);
 } finally {
   await browser?.close();
-  await Promise.all([app.close(), live.close()]);
+  await Promise.all([app.close(), live.close(), artModel.close()]);
   await rm(root, { recursive: true, force: true });
 }

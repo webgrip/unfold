@@ -1,6 +1,6 @@
 import { render as nativeRender } from '../vloer-native/skin.js';
 import { webglSupport } from '../../registry.js';
-import { faceFacts } from './forge-model.js';
+import { faceFacts, fallbackArt } from './forge-model.js';
 import { cardView } from '../../card-model.js';
 import { emitMoments } from '../../skin-kit.js';
 
@@ -11,8 +11,54 @@ export const keepAliveMs = 3000;
 
 const controllers = new WeakMap();
 const revealed = new Set();
+const pictures = new Map();
 let hero = null;
 let shared = null;
+
+function picture(url) {
+  if (!pictures.has(url)) {
+    pictures.set(url, new Promise(resolve => {
+      const image = new Image();
+      image.decoding = 'async';
+      image.addEventListener('load', () => resolve(image), { once: true });
+      image.addEventListener('error', () => { pictures.delete(url); resolve(null); }, { once: true });
+      image.src = url;
+    }));
+  }
+  return pictures.get(url);
+}
+
+function clip(url) {
+  const key = `video|${url}`;
+  if (!pictures.has(key)) {
+    pictures.set(key, new Promise(resolve => {
+      const video = document.createElement('video');
+      video.muted = true;
+      video.defaultMuted = true;
+      video.loop = true;
+      video.playsInline = true;
+      video.preload = 'auto';
+      video.addEventListener('loadeddata', () => resolve(video), { once: true });
+      video.addEventListener('error', () => { pictures.delete(key); resolve(null); }, { once: true });
+      video.src = url;
+      video.load();
+    }));
+  }
+  return pictures.get(key);
+}
+
+/** Loads what a theme paints from files (the set symbol, the card back, uploaded art) into `facts`; uploaded art that does not load falls back to a preset. */
+async function withPictures(facts, view) {
+  const theme = facts.theme;
+  const [symbol, back, media] = await Promise.all([
+    theme?.setSymbol ? picture(theme.setSymbol) : null,
+    theme?.cardBack ? picture(theme.cardBack) : null,
+    facts.art.key === 'media' ? (facts.art.video ? clip(facts.art.url) : picture(facts.art.url)) : null,
+  ]);
+  facts.images = { symbol, back };
+  if (facts.art.key === 'media') { if (media) facts.media = media; else facts.art = fallbackArt(view); }
+  return facts;
+}
 
 function chip(view, h) {
   const e = h.escape;
@@ -43,7 +89,7 @@ function facts(view, facts, h) {
 function front(view, h) {
   const e = h.escape;
   const look = faceFacts(view);
-  return `<article class="forge" data-finish="${e(view.finish.key)}" data-coverage="${e(look.coverage.key)}" data-pattern="${e(look.pattern.key)}" data-pattern-source="${e(look.pattern.source)}" data-art="${e(look.art.key)}" data-forge-state="loading" aria-label="Run card: ${e(view.title)}">
+  return `<article class="forge" data-finish="${e(view.finish.key)}" data-coverage="${e(look.coverage.key)}" data-pattern="${e(look.pattern.key)}" data-pattern-source="${e(look.pattern.source)}" data-art="${e(look.art.key)}" data-art-source="${e(look.art.source)}" data-frame="${e(look.frame)}"${look.theme ? ` data-theme="${e(look.theme.id)}"` : ''} data-forge-state="loading" aria-label="Run card: ${e(view.title)}">
     <div class="forge-stage" data-forge-stage>
       <div class="forge-poster" aria-hidden="true"><span class="forge-poster-card"></span></div>
     </div>
@@ -120,10 +166,32 @@ class ForgeController {
     this.stageElement = stage;
     this.front = front;
     this.view = view;
-    this.facts = faceFacts(view);
+    const facts = faceFacts(view);
     this.watch();
-    if (this.scene) this.show();
-    else void this.build();
+    const ticket = (this.preparing = (this.preparing ?? 0) + 1);
+    void withPictures(facts, view).then(() => {
+      if (ticket !== this.preparing || !this.article) return;
+      this.facts = facts;
+      if (this.scene) this.show();
+      else void this.build();
+    }, () => this.fail());
+  }
+
+  /** Replaces a theme's shader that this GPU refused with a preset, once, and reports whether it did. */
+  recover() {
+    if (!this.stage?.failed || this.facts?.art?.key !== 'custom' || !this.scene) return false;
+    this.facts = { ...this.facts, art: fallbackArt(this.view) };
+    this.stage.failed = null;
+    this.scene.setFacts(this.facts, { ceremony: false });
+    if (this.article) this.article.dataset.artFallback = 'compile';
+    return true;
+  }
+
+  playMedia(go) {
+    const video = this.facts?.media;
+    if (!(video instanceof HTMLVideoElement)) return;
+    if (go) void video.play().catch(() => {});
+    else video.pause();
   }
 
   async build() {
@@ -259,8 +327,10 @@ class ForgeController {
     if (!box.width || !box.height) return;
     try {
       this.scene.settle();
+      this.scene.refreshMedia();
       this.stage.setSize(box.width, box.height);
       this.stage.render(this.scene);
+      if (this.stage.failed && this.recover()) this.stage.render(this.scene);
       if (this.stage.failed) throw new Error(this.stage.failed);
       if (this.mode === 'still') {
         const ratio = Math.min(2, globalThis.devicePixelRatio || 1);
@@ -341,6 +411,7 @@ class ForgeController {
     const go = this.mode === 'live' && this.scene && this.visible && !this.inert && document.visibilityState !== 'hidden' && !(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches);
     if (go && !this.running) { this.last = performance.now(); this.running = requestAnimationFrame(now => this.tick(now)); if (this.article) this.article.dataset.forgeState = 'live'; }
     else if (!go && this.running) { this.stop(); if (this.article && this.mode === 'live' && this.article.dataset.forgeState !== 'failed') this.article.dataset.forgeState = 'paused'; }
+    this.playMedia(Boolean(go));
   }
 
   tick(now) {
@@ -349,6 +420,7 @@ class ForgeController {
     try {
       this.scene.step(dt);
       this.stage.render(this.scene);
+      if (this.stage.failed && this.recover()) this.stage.render(this.scene);
       if (this.stage.failed) throw new Error(this.stage.failed);
     } catch { this.fail(); return; }
     this.frames++;
@@ -359,6 +431,7 @@ class ForgeController {
   stop() {
     if (this.running) cancelAnimationFrame(this.running);
     this.running = 0;
+    this.playMedia(false);
     if (this.article) this.article.dataset.forgeFrames = String(this.frames);
   }
 

@@ -101,6 +101,35 @@ export function validateCards(raw: unknown, mode: AppConfig['mode']): NonNullabl
   return { backfillPeriods, teams };
 }
 
+/**
+ * Checks the `cardThemes` block: an optional read-only themes folder, the asset quota, and optional art generation
+ * through an OpenAI-compatible endpoint with its own key. The key is named by a `VLOER_` environment variable, which
+ * `runtime.agentEnvironment` can never pass to an agent workspace, must be set, and must not be the gateway master
+ * key. The demo ignores art generation, because it never calls a model.
+ */
+export function cardThemeSettings(raw: unknown, mode: AppConfig['mode']): AppConfig['cardThemes'] {
+  if (raw === undefined) return undefined;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('cardThemes must be an object');
+  const value = raw as Record<string, unknown>;
+  for (const key of Object.keys(value)) if (!['directory', 'assetQuotaMb', 'ai'].includes(key)) throw new Error(`cardThemes.${key} is not a setting; custom code skins are not supported`);
+  if (value.directory !== undefined && (typeof value.directory !== 'string' || !value.directory.trim() || value.directory.length > 1024)) throw new Error('cardThemes.directory must be a folder path');
+  const directory = typeof value.directory === 'string' ? resolve(value.directory) : undefined;
+  if (directory && !existsSync(directory)) throw new Error(`cardThemes.directory ${directory} does not exist`);
+  const settings: NonNullable<AppConfig['cardThemes']> = { ...(directory ? { directory } : {}), assetQuotaMb: number(value.assetQuotaMb, 256, 1, 4096, 'cardThemes.assetQuotaMb') };
+  if (value.ai === undefined || mode === 'demo') return settings;
+  const ai = value.ai as Record<string, unknown>;
+  if (!ai || typeof ai !== 'object' || Array.isArray(ai)) throw new Error('cardThemes.ai must be an object');
+  for (const key of Object.keys(ai)) if (!['baseUrl', 'model', 'keyEnv', 'maxTokens', 'timeoutMs', 'requestsPerHour'].includes(key)) throw new Error(`cardThemes.ai.${key} is not a setting; put the key in the environment variable keyEnv names`);
+  if (typeof ai.baseUrl !== 'string') throw new Error('cardThemes.ai.baseUrl must be the OpenAI-compatible base URL, for example https://litellm.example/v1');
+  if (typeof ai.model !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.:/@-]{0,127}$/.test(ai.model)) throw new Error('cardThemes.ai.model must name a model the endpoint serves');
+  if (typeof ai.keyEnv !== 'string' || !/^VLOER_[A-Z0-9_]{1,100}$/.test(ai.keyEnv)) throw new Error('cardThemes.ai.keyEnv must name a VLOER_ environment variable that holds Vloer’s own virtual key');
+  const key = process.env[ai.keyEnv];
+  if (!key || key.length > 4096 || /[^\x21-\x7e]/.test(key)) throw new Error(`cardThemes.ai.keyEnv names ${ai.keyEnv}, which is not set to a valid key`);
+  if (process.env.LITELLM_MASTER_KEY && key === process.env.LITELLM_MASTER_KEY) throw new Error('cardThemes.ai must use its own low-budget virtual key, never the LiteLLM master key');
+  settings.ai = { baseUrl: configuredUrl(ai.baseUrl, 'cardThemes.ai.baseUrl'), model: ai.model, keyEnv: ai.keyEnv, maxTokens: number(ai.maxTokens, 4096, 256, 16000, 'cardThemes.ai.maxTokens'), timeoutMs: number(ai.timeoutMs, 90_000, 5_000, 300_000, 'cardThemes.ai.timeoutMs'), requestsPerHour: number(ai.requestsPerHour, 30, 1, 500, 'cardThemes.ai.requestsPerHour') };
+  return settings;
+}
+
 export function placements(config: AppConfig): Placement[] {
   if (config.mode === 'demo') return [];
   const names: Record<WorkspaceBackend, Placement['name']> = { docker: 'Container on the workbench host', kubernetes: 'Pod in the workspace namespace', local: 'Working directory on the workbench host (trusted only)' };
@@ -237,6 +266,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     gatewayPolicy,
     observability,
     cards,
+    cardThemes: cardThemeSettings(raw.cardThemes, mode),
     litellm: litellmBase && (adminKey || raw.execution) ? { baseUrl: configuredUrl(litellmBase, 'litellm.baseUrl'), adminUrl: configuredUrl(process.env.LITELLM_ADMIN_URL || raw.litellm?.adminUrl || litellmBase.replace(/\/v1\/?$/, ''), 'litellm.adminUrl'), masterKey: adminKey, models: models.map((model: any) => model.modelId), ttl: raw.litellm?.ttl || '4h', settlementDelayMs: number(raw.litellm?.settlementDelayMs, 60000, 0, 3600000, 'litellm.settlementDelayMs') } : undefined
   };
   if (config.execution !== undefined) {

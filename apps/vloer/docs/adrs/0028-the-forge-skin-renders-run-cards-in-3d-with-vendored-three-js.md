@@ -89,3 +89,4 @@ Re-evaluate when packs assign patterns, when rarity is decided, when a second pa
 * Card Forge prototype and its shader contracts: working documents outside the repository.
 * Card contract P2b–P4 addendum (grade, condition, sets): proposed Ploeg work; Ploeg sends `grade` and `condition` as null today.
 * 2026-10-01: proposed with the forge skin, the vendored three.js 0.165.0 and the proxy's grade and condition implemented on the Vloer side.
+* 2026-10-01: [ADR 0031](0031-card-themes-a-card-designer-and-generated-art.md) lets a theme choose the forge's frame (classic, full art, slab), default foil pattern, art (a preset, a shader or an uploaded image or video), set symbol, card back and frame colours. A theme's pattern yields to a pack pull. `frontShader` moved to `front-shader.js` so the designer's compiler can build it.

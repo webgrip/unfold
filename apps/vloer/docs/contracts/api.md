@@ -307,6 +307,22 @@ The binder, packs and season pages ([ADR 0029](../adrs/0029-binders-packs-and-pu
 
 Pack settings live in the configuration file under `cards`: `backfillPeriods` (0 to 12; 1, or 4 in the demo) and `teams`, a sprint per Team as `{lengthDays: 7–42, anchor: "YYYY-MM-DD"}` in place of the ISO week.
 
+## Card themes
+
+Proposed ([ADR 0031](../adrs/0031-card-themes-a-card-designer-and-generated-art.md)). Every route needs a login cookie. Reads are open to every role; writes are for administrators and need the request marker header.
+
+| Method and path | Response |
+| --- | --- |
+| `GET /api/card-themes` | The themes, whether you may edit them, each skin's theme rules, the asset limits and whether art generation is configured |
+| `GET /api/card-themes/:id`, `/versions`, `/versions/:n` | A theme with the metadata of its assets; its saved versions; one version |
+| `PUT /api/card-themes/:id` | `{theme, baseVersion}` → the saved theme. 409 `theme_changed` on a stale `baseVersion`, 409 `theme_managed` for a theme from the mounted folder |
+| `DELETE /api/card-themes/:id` | Deletes a stored theme and its versions |
+| `POST /api/card-assets?purpose=` | A raw `application/octet-stream` upload for `art`, `back`, `symbol` or `shader` → `{id, purpose, mediaType, bytes}` |
+| `GET /api/card-assets/:id` | The asset, with its stored type, `nosniff` and a sandboxing CSP |
+| `POST /api/card-art/generate` | `{prompt, attempt?, compilerLog?}` → `{code, problems, attempt, model}`; live mode with `cardThemes.ai` only |
+
+[Card themes](card-themes.md) holds the format, the validation rules, the asset limits, resolution and generated art.
+
 ## Static files
 
 The server answers `GET` for the browser workbench from its public directory ([`static.ts`](../../src/static.ts)): the page, the named top-level assets in `src/http.ts`, and any `/core/`, `/views/` or `/styles/` file whose name matches `[a-z0-9][a-z0-9-]*\.(js|css)`. Anything else is 404.

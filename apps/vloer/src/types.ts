@@ -42,6 +42,7 @@ export type AppConfig = {
   links?: { gitlab?: { baseUrl: string; clientId?: string; scopes: string[] }; clickup?: { clientId?: string; clientSecret?: string; apiUrl: string; appUrl: string } };
   gatewayPolicy?: { providers?: string[]; regions?: string[] };
   cards?: { backfillPeriods: number; teams: Record<string, { lengthDays: number; anchor: string }> };
+  cardThemes?: { directory?: string; assetQuotaMb: number; ai?: { baseUrl: string; model: string; keyEnv: string; maxTokens: number; timeoutMs: number; requestsPerHour: number } };
   observability?: { grafanaUrl?: string; dashboards?: Record<string, string>; tracesDatasource?: string; logsDatasource?: string; logsUrl?: string; traceQuery?: string; logsQuery?: string };
 };
 export type RuntimeEvent = { type: string; data: Record<string, unknown> };

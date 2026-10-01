@@ -28,6 +28,7 @@ De Vloer provides durable operator sessions, agent workspaces, intervention and 
 - [Ploeg execution](contracts/ploeg-execution.md)
 - [Canonical tracker binding](contracts/ploeg-tracker-binding.md)
 - [Candidate verification and approval](contracts/candidate-delivery.md)
+- [Card themes](contracts/card-themes.md): theme format v1, assets, resolution and generated art (proposed)
 
 ## Understand and change
 
