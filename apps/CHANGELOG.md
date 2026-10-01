@@ -1,3 +1,18 @@
+## [glide-v0.4.0-rc.24](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.23...glide-v0.4.0-rc.24) (2026-10-01)
+
+### Added
+
+* **deps:** update pnpm ( 11.8.0 ➔ 11.11.0 ) [security] ([071f0ac](https://forgejo.webgrip.dev/webgrip/glide/commit/071f0ac2cdffc79ba3686bdab45d4d4e9e1302e5))
+
+### Fixed
+
+* **agent:** update opencode ( 1.18.30 ➔ 1.18.33 ) ([158c672](https://forgejo.webgrip.dev/webgrip/glide/commit/158c6722bc3ef683678abb848e70eb98cb151c53))
+* **vloer:** read the probed OpenCode version from the agent image pin ([d0a70c2](https://forgejo.webgrip.dev/webgrip/glide/commit/d0a70c286770a95af37a8c894d9b4ebb4fd43e10))
+
+### Internal
+
+* **release:** glide-site-v0.1.0-rc.2 [skip ci] ([165bb9a](https://forgejo.webgrip.dev/webgrip/glide/commit/165bb9afbc06f5252a25d1a44d2c5cf7282a6882))
+
 ## [glide-v0.4.0-rc.23](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.22...glide-v0.4.0-rc.23) (2026-10-01)
 
 ### Added
