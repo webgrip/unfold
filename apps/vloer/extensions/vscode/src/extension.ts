@@ -19,6 +19,7 @@ import { linkedAccounts, type AccountChoice } from './accounts.js';
 import { hasAgentHost, withAgentHost, withoutIssuedAgentHost, type AgentHostEntry } from './agent-host.js';
 import { SessionTree, TaskTree, type SessionEntry, type TaskEntry } from './tree.js';
 import { TaskPanels, type TaskPanelHost } from './task-panel.js';
+import { checkOutWorkItemBranch } from './checkout.js';
 import { sessionEligibility } from './task-view.js';
 import * as wizard from './wizard.js';
 import type { Approval, Bootstrap, Session, TaskSnapshot, TaskSource, CandidateFormat, Decision, Permission } from './types.js';
@@ -95,6 +96,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       }
       if (event.affectsConfiguration('vloer.refreshIntervalSeconds')) { clearInterval(this.timer); this.timer = this.poll(); }
     }));
+    context.subscriptions.push(vscode.window.registerUriHandler({ handleUri: uri => this.perform(() => this.handleUri(uri)) }));
     const register = (name: string, action: (...args: any[]) => Promise<unknown>) => context.subscriptions.push(vscode.commands.registerCommand(`vloer.${name}`, (...args: any[]) => this.perform(() => action(...args))));
     register('connect', () => this.connect());
     register('signOut', () => this.signOut());
@@ -111,6 +113,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     register('importTask', value => this.importTask(value));
     register('openTask', value => this.openTask(value));
     register('openPloegItem', value => this.openPloegItem(value));
+    register('checkoutBranch', (value?: string | PloegEntry | NowEntry) => this.checkoutBranch(typeof value === 'string' ? value : value?.kind === 'item' ? value.item.id : value?.kind === 'run' ? value.run.workItemId : undefined));
     register('sourceTask', value => this.sourceTaskCommand(value));
     register('openTaskLink', value => this.openTaskLink(value));
     register('downloadCandidate', (value, format) => this.downloadCandidateCommand(value, format));
@@ -563,6 +566,31 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       if (source) { this.taskPanels.open(source, item.externalId, item.title); return; }
     }
     this.taskPanels.openWorkItem(item.id, item.title || `Work Item ${item.id}`);
+  }
+
+  /** Checks out the branch of Work Item `id` in the open clone of its repository; `confirm` asks first, for a request from a link. */
+  async checkoutBranch(id: string | undefined, { confirm = false } = {}): Promise<void> {
+    if (this.configurationError) throw this.configurationError;
+    if (!id || !/^[1-9][0-9]{0,19}$/.test(id)) throw new Error('Choose a Work Item to check out its branch.');
+    const client = this.current;
+    const [detail, card] = await Promise.all([client.workItem(id, true), client.workItemCard(id).catch(() => undefined)]);
+    await checkOutWorkItemBranch(this.core, { detail, ...(card && String(card.workItemId) === id ? { card } : {}) }, { confirm });
+  }
+
+  private async handleUri(uri: vscode.Uri): Promise<void> {
+    if (uri.path !== '/checkout') throw new Error(`De Vloer does not handle ${uri.path || 'this link'}.`);
+    const query = new URLSearchParams(uri.query);
+    const origin = query.get('origin');
+    if (origin) {
+      let wanted: string;
+      try { wanted = normalizeServerUrl(origin); } catch { throw new Error('This checkout link names an invalid workbench.'); }
+      if (wanted !== this.current.origin) {
+        const choice = await vscode.window.showWarningMessage(`This link is for the workbench at ${wanted}, but VS Code is connected to ${this.current.origin}.`, 'Connect');
+        if (choice === 'Connect') await this.connect();
+        return;
+      }
+    }
+    await this.checkoutBranch(query.get('workItem') ?? undefined, { confirm: true });
   }
 
   async openPloeg(id: string): Promise<void> {

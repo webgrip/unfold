@@ -31,16 +31,23 @@ export type Core = {
   relative(value: unknown, now?: number): string;
   duration(seconds: unknown): string;
   notReported: string;
+  checkoutTarget(detail: unknown, card?: unknown): CheckoutTarget | null;
+  checkoutCommand(branch: string, remote?: string): string;
+  checkoutableBranch(name: unknown): boolean;
 };
 
-/** Loads the shared modules from `base`, a directory URL that holds `states.js`, `format.js` and `reasons.js`. */
+/** The branch a Work Item's change is on and the repository it belongs to, as `public/core/checkout.js` reads them. */
+export type CheckoutTarget = { branch: string; owner: string; repo: string; baseBranch: string };
+
+/** Loads the shared modules from `base`, a directory URL that holds `states.js`, `format.js`, `reasons.js` and `checkout.js`. */
 export async function loadCore(base: string | URL): Promise<Core> {
   const directory = String(base).endsWith('/') ? String(base) : `${base}/`;
-  const [states, format, reasons] = await Promise.all(['states.js', 'format.js', 'reasons.js'].map(name => import(new URL(name, directory).href)));
+  const [states, format, reasons, checkout] = await Promise.all(['states.js', 'format.js', 'reasons.js', 'checkout.js'].map(name => import(new URL(name, directory).href)));
   return {
     workItemState: states.workItemState, displayState: states.displayState, runOutcome: states.runOutcome, verdict: states.verdict, failureReason: states.failureReason,
     playState: states.playState, ciState: states.ciState, humanReview: states.humanReview, sessionStatus: states.sessionStatus,
     listReason: reasons.listReason, detailReason: reasons.detailReason,
     money: format.money, moneyExact: format.moneyExact, count: format.count, dateTime: format.dateTime, time: format.time, relative: format.relative, duration: format.duration, notReported: format.notReported,
+    checkoutTarget: checkout.checkoutTarget, checkoutCommand: checkout.checkoutCommand, checkoutableBranch: checkout.checkoutableBranch,
   };
 }

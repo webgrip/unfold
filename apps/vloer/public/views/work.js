@@ -1,4 +1,4 @@
-import { workMarkup, ploegLanes, activePloegLane, mergeOverviews, teamOverview, appendPage, refreshOverview, reviewFacts, cancelDialogMarkup, workItemRef, workRefreshButton, laneBackLabel } from '../ploeg.js';
+import { workMarkup, ploegLanes, activePloegLane, mergeOverviews, teamOverview, appendPage, refreshOverview, reviewFacts, cancelDialogMarkup, checkoutDialogMarkup, workItemRef, workRefreshButton, laneBackLabel } from '../ploeg.js';
 import { state, onForget } from '../core/state.js';
 import { api } from '../core/api.js';
 import { $, renderHtml, notify, announce, safeUrl } from '../core/dom.js';
@@ -419,6 +419,25 @@ async function copyRef(button) {
   catch { notify(`Copy did not work. The task is ${value}`, true); }
 }
 
+function openCheckout() {
+  const detail = state.ploegDetail;
+  const markup = detail ? checkoutDialogMarkup(detail, work.card?.id === work.detailId ? work.card.data : null, { origin: location.origin }) : '';
+  if (!markup) return;
+  const dialog = $('#confirm-dialog');
+  const previousClass = dialog.className;
+  dialog.className = 'dialog work-checkout-dialog';
+  dialog.innerHTML = markup;
+  dialog.addEventListener('close', () => { dialog.className = previousClass; $('[data-action="work-checkout"]')?.focus(); }, { once: true });
+  dialog.showModal();
+}
+
+async function copyCommand(button) {
+  const value = button.dataset.value || '';
+  if (!value) return;
+  try { await navigator.clipboard.writeText(value); notify('Command copied'); }
+  catch { notify(`Copy did not work. The command is ${value}`, true); }
+}
+
 function openCancel() {
   const detail = state.ploegDetail;
   if (!detail || !canCancel()) return;
@@ -543,6 +562,8 @@ export default {
     'work-detail-retry': () => work.detailId && loadDetail(work.detailId, { fresh: true }),
     'work-copy-link': copyLink,
     'work-copy-ref': copyRef,
+    'work-checkout': () => openCheckout(),
+    'work-copy-command': copyCommand,
     'work-cancel': () => work.cancelBusy ? null : openCancel(),
     'work-brief': () => toggleBrief(),
     'work-run': jumpToRun,

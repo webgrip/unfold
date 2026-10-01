@@ -13,6 +13,7 @@ export interface TaskPanelHost {
   bootstrap(): Promise<Bootstrap>;
   startSession(source: TaskSource, task: TaskSnapshot): Promise<void>;
   openPloeg(id: string): Promise<void>;
+  checkoutBranch(id: string): Promise<void>;
   lastTeam(): string | undefined;
   rememberTeam(team: string): Promise<void>;
   report(error: unknown): Promise<void>;
@@ -158,6 +159,7 @@ export class TaskPanel implements vscode.Disposable {
         case 'refresh': await this.load(true); return;
         case 'open-tracker': { const url = safeHttpsUrl(this.view?.kind === 'task' ? this.view.task.url : this.view?.detail.item.url); if (url) await vscode.env.openExternal(vscode.Uri.parse(url)); return; }
         case 'open-url': { const url = typeof message.url === 'string' ? safeHttpsUrl(message.url) : undefined; if (url) await vscode.env.openExternal(vscode.Uri.parse(url)); return; }
+        case 'checkout': { const id = this.view?.kind === 'work' ? this.view.workItemId : this.view?.workItemId; if (id) await this.host.checkoutBranch(id); await this.panel.webview.postMessage({ type: 'idle' }); return; }
         case 'open-ploeg': if (typeof message.id === 'string' && workItemPattern.test(message.id)) await this.host.openPloeg(message.id); return;
         case 'handoff': { const team = teamName(message.team); if (team) await this.handoff(team); return; }
         case 'take-back': { const team = teamName(message.team); if (team) await this.takeBack(team); return; }

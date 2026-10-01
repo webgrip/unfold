@@ -1339,8 +1339,31 @@
   color: var(--text-muted);
 }
 
-.work-cancel-dialog .dialog-body .facts.rows > .fact {
+.work-cancel-dialog .dialog-body .facts.rows > .fact,
+.work-checkout-dialog .dialog-body .facts.rows > .fact {
   grid-template-columns: minmax(6rem, 1fr) minmax(0, 3fr);
+}
+
+.work-checkout-part {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  margin-top: var(--space-4);
+}
+
+.work-checkout-part > p {
+  margin: 0;
+}
+
+.work-checkout-command {
+  justify-self: stretch;
+  margin: 0;
+  padding: var(--space-3);
+  overflow-x: auto;
+  white-space: pre;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-sunken);
 }
 
 .work-detail-loading-header {
