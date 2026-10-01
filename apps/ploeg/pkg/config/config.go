@@ -153,6 +153,20 @@ type Team struct {
 	// CreatedWork limits the Work Items this Team's Runs may create
 	// (ADR-0031). Absent fields take followup.Default.
 	CreatedWork *CreatedWork `yaml:"createdWork"`
+	// Cards sets this Team's Run card rules (ADR-0052). Omitted = anyone
+	// uninvolved referees a disputed crack, and the label "hotfix" marks a
+	// hotfix.
+	Cards *TeamCards `yaml:"cards"`
+}
+
+// TeamCards are one Team's crack attribution rules.
+type TeamCards struct {
+	// Referees are the people, as the operator API names its actor, who
+	// alone may resolve a disputed crack. Empty = anyone uninvolved.
+	Referees []string `yaml:"referees"`
+	// HotfixLabels are the pull request labels that mark a fix as a
+	// hotfix. Empty = "hotfix".
+	HotfixLabels []string `yaml:"hotfixLabels"`
 }
 
 // CreatedWork overrides followup.Default for one Team. Every field is
@@ -307,7 +321,41 @@ func (f *File) Validate() error {
 	if _, err := f.ReleaseEnvironments(); err != nil {
 		return err
 	}
+	if err := f.validateCards(); err != nil {
+		return err
+	}
 	return f.validateGates()
+}
+
+func (f *File) validateCards() error {
+	for _, name := range sortedTeamNames(f.Teams) {
+		cards := f.Teams[name].Cards
+		if cards == nil {
+			continue
+		}
+		for field, values := range map[string][]string{"referees": cards.Referees, "hotfixLabels": cards.HotfixLabels} {
+			seen := map[string]bool{}
+			for _, v := range values {
+				key := strings.ToLower(strings.TrimSpace(v))
+				if key == "" || len(v) > 128 || seen[key] {
+					return fmt.Errorf("teams.%s.cards.%s: entries are non-empty, at most 128 characters and unique, got %q", name, field, v)
+				}
+				seen[key] = true
+			}
+		}
+	}
+	return nil
+}
+
+// TeamCardRules returns every Team's card rules that set any (ADR-0052).
+func (f *File) TeamCardRules() map[string]TeamCards {
+	out := map[string]TeamCards{}
+	for name, t := range f.Teams {
+		if t.Cards != nil && (len(t.Cards.Referees) > 0 || len(t.Cards.HotfixLabels) > 0) {
+			out[name] = *t.Cards
+		}
+	}
+	return out
 }
 
 func (f *File) validateGates() error {

@@ -46,6 +46,16 @@ change either side and the test tells you.
   the card may carry `gates` (an object or null) and `evolved`, and the roster
   may name `qa` and `acceptor`. Both new fields are optional, so a consumer
   of an older Ploeg sees them absent.
+- Since [ADR-0052](../adrs/0052-a-crack-needs-the-fixer-and-a-second-person-and-ploeg-only-proposes-candidates.md)
+  the card's `condition` is a `cardCondition` object or null, the grade's
+  `formula` may be `2026.2`, and the roster may name `cosigner`. A consumer
+  that only knew `condition: null` must accept the object. The attribution
+  endpoints are new responses: `crackCandidatesResponse`, `cracksResponse`
+  and `crackResponse`, all with `schemaVersion` `"1.0"`. Their requests
+  refuse unknown fields.
+- Since [ADR-0053](../adrs/0053-an-epic-is-a-set-of-the-work-items-declared-its-children-before-their-first-shift.md)
+  the card may carry `set`, a `cardSet` object. It is optional and absent
+  when the Work Item belongs to no epic that counts.
 - `deploy-api.v1` is the body of a pipeline's deploy report. It refuses
   unknown fields, unlike the response contracts, so a misspelled field fails
   the pipeline step instead of being dropped.

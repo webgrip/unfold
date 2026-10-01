@@ -94,6 +94,10 @@ type Server struct {
 	// Gates maps each configured board's statuses to delivery gates
 	// (ADR-0051). A board absent here records no gate moves.
 	Gates gate.Boards
+	// CardRules are each team's crack attribution rules (ADR-0052). A team
+	// absent here lets anyone uninvolved referee and marks hotfixes with
+	// store.DefaultHotfixLabel.
+	CardRules map[string]CardRules
 }
 
 // ReviewSettler is implemented by shiftengine.ReviewWatch.
@@ -202,6 +206,7 @@ func (s *Server) handleTrackerWebhook(w http.ResponseWriter, r *http.Request) {
 	for _, ev := range events {
 		if ev.Kind == provider.TrackerUpdated || ev.Kind == provider.TrackerClosed {
 			s.observeGate(r.Context(), name, tp, ev)
+			s.observeEpics(r.Context(), name, tp, ev.ExternalID)
 		}
 		if ev.Kind == provider.TrackerClosed {
 			if err := s.trackerClosed(r.Context(), name, ev); err != nil {
@@ -238,6 +243,7 @@ func (s *Server) handleTrackerWebhook(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "ingest failed", http.StatusInternalServerError)
 			return
 		}
+		s.observeEpics(r.Context(), name, tp, ev.ExternalID)
 		// Log the actual post-upsert state: a re-assignment of a live
 		// (queued/leased) item refreshes the mirror without re-queuing (VIK-588).
 		if state == work.StateQueued {

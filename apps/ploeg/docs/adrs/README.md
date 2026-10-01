@@ -125,6 +125,8 @@ fails otherwise.
 | [0049](0049-a-run-card-reads-the-gateway-for-usage-so-far-while-a-run-is-running.md) | A Run card reads the gateway for usage so far while a Run is running | proposed | 2026-10-01 |
 | [0050](0050-a-run-cards-grade-is-a-versioned-formula-over-stored-facts.md) | A Run card's grade is a versioned formula over stored facts | proposed | 2026-10-01 |
 | [0051](0051-delivery-gates-are-mapped-per-board-from-tracker-statuses.md) | Delivery gates are mapped per board from tracker statuses | proposed | 2026-10-01 |
+| [0052](0052-a-crack-needs-the-fixer-and-a-second-person-and-ploeg-only-proposes-candidates.md) | A crack needs the fixer and a second person, and Ploeg only proposes candidates | proposed | 2026-10-01 |
+| [0053](0053-an-epic-is-a-set-of-the-work-items-declared-its-children-before-their-first-shift.md) | An epic is a set of the Work Items declared its children before their first Shift | proposed | 2026-10-01 |
 
 ## Review calendar
 
@@ -153,4 +155,6 @@ triggers.
 | 2027-01-31 | [0049](0049-a-run-card-reads-the-gateway-for-usage-so-far-while-a-run-is-running.md) — or sooner, when a card read during a Run passes 1 s at p95, LiteLLM offers a per-key token total, or the worker reports usage during a Run |
 | 2027-01-31 | [0050](0050-a-run-cards-grade-is-a-versioned-formula-over-stored-facts.md) — or sooner, when crack confirmation or revert detection lands, the owner asks for a frozen grade, or twenty cards are graded |
 | 2027-01-31 | [0051](0051-delivery-gates-are-mapped-per-board-from-tracker-statuses.md) — or sooner, when a lost webhook explains a missing gate stay, Ploeg registers ClickUp webhooks, or tracker users are linked to forge logins |
+| 2027-01-31 | [0052](0052-a-crack-needs-the-fixer-and-a-second-person-and-ploeg-only-proposes-candidates.md) — or sooner, when operator actors are linked to forge logins, ten disputes are resolved, twenty cracks are confirmed, or a fix outside a Ploeg Work Item must mend a crack |
+| 2027-01-31 | [0053](0053-an-epic-is-a-set-of-the-work-items-declared-its-children-before-their-first-shift.md) — or sooner, when Size points exist, a team wants tracker-only subtasks to count, or Ploeg polls tracker relations |
 | 2027-04-01 | [0005](0005-build-a-dedicated-dispatch-plane.md), [0032](0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md) — the project review gate (`design.md` §10) |

@@ -33,9 +33,71 @@ func (s *Server) recordPullRequestFacts(ctx context.Context, fp provider.ForgePr
 	if !recorded {
 		s.Log.Debug("pull request facts skipped: not a Ploeg pull request", "provider", fp.Name(),
 			"repo", ev.Repo, "pr", ev.PR, "branch", ev.Branch)
+		if ev.Kind == provider.ForgePRMerged {
+			s.captureMergedChange(ctx, fp, ev, false)
+		}
 		return
 	}
 	s.capturePullRequestFacts(ctx, fp, pr, ev.PullRequest)
+	if ev.Kind == provider.ForgePRMerged {
+		s.captureMergedChange(ctx, fp, ev, true)
+	}
+}
+
+const mergedChangeTimeout = 20 * time.Second
+
+func (s *Server) captureMergedChange(ctx context.Context, fp provider.ForgeProvider, ev provider.ForgeEvent, play bool) {
+	ctx, cancel := context.WithTimeout(ctx, mergedChangeTimeout)
+	defer cancel()
+	if reader, ok := fp.(provider.PullRequestChangeReader); ok {
+		s.recordMergedChange(ctx, fp, reader, ev, play)
+	}
+	if !play {
+		return
+	}
+	mended, err := s.Store.RecordMends(ctx, fp.Name(), ev.Repo, ev.PR)
+	if err != nil {
+		s.Log.Error("crack mends not recorded", "provider", fp.Name(), "repo", ev.Repo, "pr", ev.PR, "err", err)
+		return
+	}
+	if mended > 0 {
+		s.Log.Info("cracks mended by a merged fix", "provider", fp.Name(), "repo", ev.Repo, "pr", ev.PR, "cracks", mended)
+	}
+}
+
+func (s *Server) recordMergedChange(ctx context.Context, fp provider.ForgeProvider, reader provider.PullRequestChangeReader, ev provider.ForgeEvent, play bool) {
+	if !play {
+		worth, err := s.Store.HasMergedPlays(ctx, fp.Name(), ev.Repo)
+		if err != nil || !worth {
+			return
+		}
+	}
+	change, err := reader.PullRequestChange(ctx, ev.Repo, ev.PR)
+	if err != nil {
+		s.Log.Warn("merged pull request change not read; files and reverts not recorded", "provider", fp.Name(),
+			"repo", ev.Repo, "pr", ev.PR, "err", err)
+		return
+	}
+	if play {
+		if _, err := s.Store.RecordPullRequestChange(ctx, store.PullRequestChange{Forge: fp.Name(), Repo: ev.Repo, Number: ev.PR,
+			Labels: change.Labels, Files: change.Files, FilesTruncated: change.FilesTruncated}); err != nil {
+			s.Log.Error("pull request files not recorded", "provider", fp.Name(), "repo", ev.Repo, "pr", ev.PR, "err", err)
+		}
+	}
+	claim := forgefacts.Reverts(ev.Repo, change)
+	if len(claim.Numbers) == 0 && len(claim.SHAs) == 0 {
+		return
+	}
+	reverted, err := s.Store.RecordRevert(ctx, store.Revert{Forge: fp.Name(), Repo: ev.Repo, Number: ev.PR,
+		MergeCommitSHA: ev.PullRequest.MergeCommitSHA, MergedAt: ev.PullRequest.MergedAt, MergedBy: ev.PullRequest.MergedBy,
+		Numbers: claim.Numbers, SHAs: claim.SHAs})
+	if err != nil {
+		s.Log.Error("revert not recorded", "provider", fp.Name(), "repo", ev.Repo, "pr", ev.PR, "err", err)
+		return
+	}
+	if len(reverted) > 0 {
+		s.Log.Info("revert of a Ploeg play recorded", "provider", fp.Name(), "repo", ev.Repo, "pr", ev.PR, "work_items", reverted)
+	}
 }
 
 func (s *Server) capturePullRequestFacts(ctx context.Context, fp provider.ForgeProvider, pr forgefacts.PullRequest, facts provider.PullRequestFacts) {

@@ -19,9 +19,10 @@ import (
 
 // OperatorCard is the Run card of one Work Item (ADR-0046): stored facts
 // only, assembled when it is read. A figure nobody reported is left out,
-// never zero. Rarity and Condition are always null and Finish is always
-// "matte" until those decisions are made. Grade is computed from the stored
-// facts (ADR-0050) and nil until a human gave a verdict or a play merged.
+// never zero. Rarity is always null and Finish is always "matte" until those
+// decisions are made. Grade is computed from the stored facts (ADR-0050) and
+// nil until a human gave a verdict or a play merged. Condition holds the
+// confirmed cracks (ADR-0052) and is nil without one.
 type OperatorCard struct {
 	WorkItemID  string              `json:"workItemId"`
 	Title       string              `json:"title"`
@@ -31,17 +32,17 @@ type OperatorCard struct {
 	Target      *OperatorCardTarget `json:"target"`
 	Style       CardStyle           `json:"style"`
 	// State is drafting, in_review, merged, closed or withdrawn.
-	State     string       `json:"state"`
-	Rarity    *string      `json:"rarity"`
-	Finish    string       `json:"finish"`
-	Grade     *CardGrade   `json:"grade"`
-	Condition *string      `json:"condition"`
-	Steward   *CardSteward `json:"steward"`
-	Roster    []CardPerson `json:"roster"`
-	Crew      []CardCrew   `json:"crew"`
-	Plays     []CardPlay   `json:"plays"`
-	Totals    CardTotals   `json:"totals"`
-	Events    []CardEvent  `json:"events"`
+	State     string         `json:"state"`
+	Rarity    *string        `json:"rarity"`
+	Finish    string         `json:"finish"`
+	Grade     *CardGrade     `json:"grade"`
+	Condition *CardCondition `json:"condition"`
+	Steward   *CardSteward   `json:"steward"`
+	Roster    []CardPerson   `json:"roster"`
+	Crew      []CardCrew     `json:"crew"`
+	Plays     []CardPlay     `json:"plays"`
+	Totals    CardTotals     `json:"totals"`
+	Events    []CardEvent    `json:"events"`
 	// Deployments holds the earliest deploy of each environment across the
 	// plays, earliest first (ADR-0047).
 	Deployments []CardDeployment `json:"deployments"`
@@ -54,13 +55,21 @@ type OperatorCard struct {
 	// Gates is the Work Item's path through its board's delivery gates, or
 	// nil when no gate move was recorded (ADR-0051).
 	Gates *CardGates `json:"gates"`
-	// Evolved is true when the requirement changed after acceptance.
-	Evolved     bool `json:"evolved,omitempty"`
-	Demo        bool `json:"demo"`
-	itemState   string
-	runs        []cardRun
-	bots        map[string]bool
-	transitions []gate.Transition
+	// Evolved is true when the requirement changed after acceptance, or a
+	// bug was attributed to the card as a changed requirement (ADR-0052).
+	Evolved bool `json:"evolved,omitempty"`
+	// Set places the card in its epic's set, and is nil when the Work Item
+	// belongs to no epic that counts (ADR-0053).
+	Set                  *CardSet `json:"set,omitempty"`
+	Demo                 bool     `json:"demo"`
+	itemState            string
+	runs                 []cardRun
+	bots                 map[string]bool
+	transitions          []gate.Transition
+	cracks               []cardCrack
+	evolvedByAttribution bool
+	reverts              int
+	hotfixes             int
 }
 
 // CardGates is where the Work Item stands on its board and how it got there
@@ -125,6 +134,10 @@ type CardOptions struct {
 	// Now is the clock that ends a running Run's run time; zero means
 	// time.Now.
 	Now time.Time
+	// HotfixLabels are, per team, the pull request labels that mark a fix as
+	// a hotfix, lowercased (ADR-0052). A team absent here uses
+	// DefaultHotfixLabel.
+	HotfixLabels map[string][]string
 }
 
 // LiveUsage is what the gateway has recorded so far for one running Run.
@@ -175,8 +188,10 @@ type CardSteward struct {
 }
 
 // CardPerson is a human who acted on the Work Item. Roles holds merger,
-// reviewer, qa and acceptor, in that order: qa moved the ticket out of the
-// test gate and acceptor out of the acceptance gate.
+// reviewer, qa, acceptor and cosigner, in that order: qa moved the ticket
+// out of the test gate, acceptor out of the acceptance gate, and cosigner
+// merged the fix that mended one of the card's cracks without being its
+// steward (ADR-0052).
 type CardPerson struct {
 	Name  string   `json:"name"`
 	Roles []string `json:"roles"`
@@ -364,6 +379,12 @@ func (s *Store) OperatorCard(ctx context.Context, id int64, teams []string, opts
 	if card.transitions, err = cardTransitions(ctx, tx, id); err != nil {
 		return OperatorCard{}, err
 	}
+	if err := card.loadCondition(ctx, tx, id, hotfixLabelsFor(opts, card.Team)); err != nil {
+		return OperatorCard{}, err
+	}
+	if err := card.loadSet(ctx, tx, id, provider, externalID, opts); err != nil {
+		return OperatorCard{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return OperatorCard{}, err
 	}
@@ -376,7 +397,10 @@ func (s *Store) OperatorCard(ctx context.Context, id int64, teams []string, opts
 	card.Events = card.events(withdrawals)
 	card.Live = card.live(ctx, opts)
 	journey := card.gates()
-	card.Grade = card.grade(journey, cardNow(opts))
+	card.Evolved = card.Evolved || card.evolvedByAttribution
+	condition, weight, cracked := card.condition()
+	card.Condition = condition
+	card.Grade = card.grade(journey, weight, cracked, cardNow(opts))
 
 	var clean OperatorCard
 	raw, err := json.Marshal(card)
@@ -912,6 +936,11 @@ func (c *OperatorCard) roster() []CardPerson {
 			mark(r.Reviewer, "reviewer")
 		}
 	}
+	for _, k := range c.cracks {
+		if k.crack.Mended != nil && !k.crack.Mended.BySteward {
+			mark(k.mendBy, "cosigner")
+		}
+	}
 	var current gate.Gate
 	for _, t := range c.transitions {
 		if !t.Gate.Known() || t.Gate == current {
@@ -933,7 +962,7 @@ func (c *OperatorCard) roster() []CardPerson {
 	out := make([]CardPerson, 0, len(names))
 	for _, name := range names {
 		person := CardPerson{Name: name, Roles: []string{}}
-		for _, role := range []string{"merger", "reviewer", "qa", "acceptor"} {
+		for _, role := range []string{"merger", "reviewer", "qa", "acceptor", "cosigner"} {
 			if roles[name][role] {
 				person.Roles = append(person.Roles, role)
 			}
@@ -965,22 +994,30 @@ func (c *OperatorCard) steward() *CardSteward {
 }
 
 func (c *OperatorCard) state() string {
-	if c.itemState == string(work.StateWithdrawn) {
+	states := make([]string, 0, len(c.Plays))
+	for _, p := range c.Plays {
+		states = append(states, p.State)
+	}
+	return cardState(c.itemState, states)
+}
+
+func cardState(itemState string, plays []string) string {
+	if itemState == string(work.StateWithdrawn) {
 		return "withdrawn"
 	}
-	if len(c.Plays) == 0 {
+	if len(plays) == 0 {
 		return "drafting"
 	}
 	merged := false
-	for _, p := range c.Plays {
-		switch p.State {
+	for _, state := range plays {
+		switch state {
 		case "open", "":
 			return "in_review"
 		case "merged":
 			merged = true
 		}
 	}
-	if c.Plays[len(c.Plays)-1].State == "merged" || (merged && c.itemState == string(work.StateDone)) {
+	if plays[len(plays)-1] == "merged" || (merged && itemState == string(work.StateDone)) {
 		return "merged"
 	}
 	return "closed"

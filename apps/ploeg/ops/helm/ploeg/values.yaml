@@ -483,3 +483,6 @@ config: {}
 #         repairFailedChecks: true    # a failed check queues a repair Follow-Up
 #         maxRepairs: 2               # repair Follow-Ups per pull request; 0 = 2
 #         reworkOnChangesRequested: true  # a person's "request changes" sends it back
+#       cards:                        # ADR-0052: Run card crack rules; omit = anyone uninvolved referees, "hotfix" marks a hotfix
+#         referees: [anna, bram]      # the only people who resolve a disputed crack
+#         hotfixLabels: [hotfix]      # pull request labels that mark a fix as a hotfix

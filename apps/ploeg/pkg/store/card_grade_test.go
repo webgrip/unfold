@@ -63,7 +63,7 @@ func TestComputeGradeFormula(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			g := computeGrade(tc.facts)
-			if g.Formula != "2026.1" || g.Subgrades != tc.sub || g.Overall != tc.overall || g.Provisional != tc.provisional {
+			if g.Formula != "2026.2" || g.Subgrades != tc.sub || g.Overall != tc.overall || g.Provisional != tc.provisional {
 				t.Fatalf("grade = %s %v %+v provisional %v; want %v %+v provisional %v", g.Formula, g.Overall, g.Subgrades, g.Provisional,
 					tc.overall, tc.sub, tc.provisional)
 			}
@@ -85,17 +85,135 @@ func TestComputeGradeInputsKeepUnknownsUnknown(t *testing.T) {
 	if in.Delivery.BudgetShare != nil || in.Delivery.DefectBounces != nil || in.Durability.LiveSince != nil || in.Durability.DaysLive != 0 {
 		t.Fatalf("inputs = %+v; an unknown cost or unmapped board must stay null", in)
 	}
-	if in.Reliability.CrackWeight != nil || in.Reliability.Reverted != nil || in.Durability.Reverts != nil ||
-		in.Durability.Hotfixes != nil || in.Durability.Survival != nil || in.Review.CIFirstGreen != nil || in.Review.Findings != nil {
+	if in.Durability.Survival != nil || in.Review.CIFirstGreen != nil || in.Review.Findings != nil {
 		t.Fatalf("inputs = %+v; inputs without a source are null", in)
 	}
-	want := []string{"reliability.crackWeight", "reliability.reverted", "durability.reverts", "durability.hotfixes",
-		"durability.survival", "review.ciFirstGreen", "review.findings"}
+	if in.Reliability.CrackWeight == nil || *in.Reliability.CrackWeight != 0 || in.Reliability.Reverted == nil || *in.Reliability.Reverted ||
+		in.Durability.Reverts == nil || *in.Durability.Reverts != 0 || in.Durability.Hotfixes == nil || *in.Durability.Hotfixes != 0 {
+		t.Fatalf("inputs = %+v; cracks, reverts and hotfixes are collected and zero when none happened", in)
+	}
+	want := []string{"durability.survival", "review.ciFirstGreen", "review.findings"}
 	if !reflect.DeepEqual(in.NotCollected, want) {
 		t.Fatalf("notCollected = %v", in.NotCollected)
 	}
 	share := computeGrade(gradeFacts{now: now, plays: 1, costUSD: f64(0.5), authorizedUSD: 2}).Inputs.Delivery.BudgetShare
 	if share == nil || *share != 0.25 {
 		t.Fatalf("budgetShare = %v", share)
+	}
+}
+
+func TestComputeGradeCracksRevertsAndHotfixes(t *testing.T) {
+	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	ago := func(days int) *time.Time { at := now.Add(-time.Duration(days)*24*time.Hour - time.Hour); return &at }
+	zero := 0
+	for _, tc := range []struct {
+		name       string
+		facts      gradeFacts
+		sub        CardSubgrades
+		overall    float64
+		label      string
+		qualifiers []string
+	}{
+		{"a discovered unmended S2 takes 2 off reliability",
+			gradeFacts{now: now, liveSince: ago(400), plays: 1, reviewRounds: 1, crackWeight: 2, cracked: true},
+			CardSubgrades{8, 10, 10, 10}, 9, "", []string{}},
+		{"a mended crack still ends below a never-cracked card",
+			gradeFacts{now: now, liveSince: ago(400), plays: 1, reviewRounds: 1, crackWeight: 0.0625, cracked: true},
+			CardSubgrades{9.5, 10, 10, 10}, 10, "gold", []string{}},
+		{"a history-only crack weighs nothing and caps nothing",
+			gradeFacts{now: now, liveSince: ago(400), plays: 1, reviewRounds: 1, defectBounces: &zero},
+			CardSubgrades{10, 10, 10, 10}, 10, "black", []string{}},
+		{"a revert counts as at least an S2 and lowers durability by 2; RV",
+			gradeFacts{now: now, liveSince: ago(400), plays: 1, reviewRounds: 1, reverts: 1},
+			CardSubgrades{8, 8, 10, 10}, 8.5, "", []string{"RV"}},
+		{"a revert does not add to a heavier crack",
+			gradeFacts{now: now, liveSince: ago(400), plays: 1, reviewRounds: 1, reverts: 1, crackWeight: 4, cracked: true},
+			CardSubgrades{6, 8, 10, 10}, 8, "", []string{"RV"}},
+		{"a hotfix lowers durability by 1; HF before OB and RT",
+			gradeFacts{now: now, liveSince: ago(400), plays: 1, reviewRounds: 1, hotfixes: 1, crackWeight: 1, cracked: true,
+				costUSD: f64(3), authorizedUSD: 2, failedRuns: 1},
+			CardSubgrades{9, 9, 7.5, 10}, 9, "", []string{"HF", "OB", "RT"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := computeGrade(tc.facts)
+			label := ""
+			if g.Label != nil {
+				label = *g.Label
+			}
+			if g.Subgrades != tc.sub || g.Overall != tc.overall || label != tc.label || !reflect.DeepEqual(g.Qualifiers, tc.qualifiers) {
+				t.Fatalf("grade = %v %+v %q %v; want %v %+v %q %v", g.Overall, g.Subgrades, label, g.Qualifiers,
+					tc.overall, tc.sub, tc.label, tc.qualifiers)
+			}
+			if *g.Inputs.Reliability.CrackWeight != tc.facts.crackWeight || *g.Inputs.Durability.Reverts != tc.facts.reverts ||
+				*g.Inputs.Reliability.Reverted != (tc.facts.reverts > 0) || *g.Inputs.Durability.Hotfixes != tc.facts.hotfixes {
+				t.Fatalf("inputs = %+v %+v", g.Inputs.Reliability, g.Inputs.Durability)
+			}
+		})
+	}
+}
+
+func TestCrackWeightAppliesSeverityShareDiscoveryWarrantyAndMend(t *testing.T) {
+	confirmed := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	steward := &CardCrackMend{BySteward: true, ConfirmedAt: &confirmed}
+	other := &CardCrackMend{ConfirmedAt: &confirmed}
+	pending := &CardCrackMend{BySteward: true}
+	for _, tc := range []struct {
+		name                       string
+		severity, share, discovery string
+		primaries                  int
+		warranty                   float64
+		mend                       *CardCrackMend
+		want                       float64
+	}{
+		{"S1 primary discovered, full warranty, unmended", "S1", "primary", "discovered", 1, 1, nil, 4},
+		{"S2 self-reported", "S2", "primary", "self", 1, 1, nil, 1},
+		{"S3 concealed", "S3", "primary", "concealed", 1, 1, nil, 1.5},
+		{"S4 cosmetic", "S4", "primary", "discovered", 1, 1, nil, 0.25},
+		{"two necessary primary causes split the blame", "S2", "primary", "discovered", 2, 1, nil, 1},
+		{"a contributing cause carries a quarter", "S1", "contributing", "discovered", 3, 1, nil, 1},
+		{"half warranty halves it", "S1", "primary", "discovered", 1, 0.5, nil, 2},
+		{"history weighs nothing", "S1", "primary", "discovered", 1, 0, nil, 0},
+		{"a confirmed mend by the steward halves it", "S2", "primary", "discovered", 1, 1, steward, 1},
+		{"a confirmed mend by someone else restores a quarter", "S2", "primary", "discovered", 1, 1, other, 1.5},
+		{"an unconfirmed mend restores nothing yet", "S2", "primary", "discovered", 1, 1, pending, 2},
+		{"self-reported S3 mended by the steward", "S3", "primary", "self", 1, 1, steward, 0.25},
+	} {
+		if got := crackWeight(tc.severity, tc.share, tc.discovery, tc.primaries, tc.warranty, tc.mend); got != tc.want {
+			t.Errorf("%s: weight = %v; want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestWarrantyByCardAgeWhenTheBugWasRaised(t *testing.T) {
+	live := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	day := func(n int) time.Time { return live.Add(time.Duration(n) * 24 * time.Hour) }
+	for _, tc := range []struct {
+		liveSince *time.Time
+		bug       time.Time
+		label     string
+		factor    float64
+	}{
+		{nil, day(500), "full", 1},
+		{&live, day(-3), "full", 1},
+		{&live, day(180), "full", 1},
+		{&live, day(181), "half", 0.5},
+		{&live, day(365), "half", 0.5},
+		{&live, day(366), "history", 0},
+	} {
+		label, factor := warranty(tc.liveSince, tc.bug)
+		if label != tc.label || factor != tc.factor {
+			t.Errorf("warranty(%v, %v) = %s %v; want %s %v", tc.liveSince, tc.bug, label, factor, tc.label, tc.factor)
+		}
+	}
+}
+
+func TestAddWorkdaysSkipsWeekends(t *testing.T) {
+	friday := time.Date(2026, 10, 2, 15, 0, 0, 0, time.UTC)
+	if got := AddWorkdays(friday, 5); !got.Equal(time.Date(2026, 10, 9, 15, 0, 0, 0, time.UTC)) {
+		t.Fatalf("five working days after Friday = %v; want the next Friday", got)
+	}
+	saturday := time.Date(2026, 10, 3, 9, 0, 0, 0, time.UTC)
+	if got := AddWorkdays(saturday, 1); !got.Equal(time.Date(2026, 10, 5, 9, 0, 0, 0, time.UTC)) {
+		t.Fatalf("one working day after Saturday = %v; want Monday", got)
 	}
 }
