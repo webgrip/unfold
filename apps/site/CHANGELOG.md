@@ -1,3 +1,9 @@
+## [glide-site-v0.1.0-rc.4](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-site-v0.1.0-rc.3...glide-site-v0.1.0-rc.4) (2026-10-01)
+
+### Added
+
+* **deps:** update all non-major dependencies ([fd90985](https://forgejo.webgrip.dev/webgrip/glide/commit/fd909857de6d0162d32a147841d10773ca9907a4))
+
 ## [glide-site-v0.1.0-rc.3](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-site-v0.1.0-rc.2...glide-site-v0.1.0-rc.3) (2026-10-01)
 
 ### Added
