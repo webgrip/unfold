@@ -37,7 +37,7 @@ function showcase(id: string, title: string, days: number, samples: string[] = [
   const number = 10 + showcases.length;
   showcases.push({ item: id, days, number });
   const merged = (days + 2) * day + 300;
-  return [{ id, externalId: `DEMO-${Number(id) - 100}`, title, state: 'done', attempts: 1, created: merged + 2 * day, updated: merged, description: `Illustrative merged Work Item that shows a Run card after ${days} days live. Its Runs predate the demo's history and its ${['deploys', 'gates', ...samples].join(', ').replace(/, ([^,]*)$/, ' and $1')} are sample data. No dispatch or model calls occurred.` }];
+  return [{ id, externalId: `DEMO-${Number(id) - 100}`, title, state: 'done', attempts: 1, created: merged + 2 * day, updated: merged, description: `Illustrative merged Work Item that shows a Run card after ${days} days live. Its Runs predate the demo's history and its ${['deploys', 'roster', 'gates', ...samples].join(', ').replace(/, ([^,]*)$/, ' and $1')} are sample data. No dispatch or model calls occurred.` }];
 }
 const itemSpecs: ItemSpec[] = [
   { id: '101', externalId: 'DEMO-1', title: 'Review the rounding acceptance criteria', state: 'needs_human', priority: 2, attempts: 1, created: 1400, updated: 1330 },
@@ -123,6 +123,8 @@ function demoGates(id: string): PloegCardGates | undefined {
 }
 const setEpic = '125';
 const setChildren = ['121', '118', '123', '117', '105'];
+
+const demoCopies: Record<string, string[]> = { '105': ['developer'], '117': ['developer'], '119': ['developer'], '120': ['qa'], '121': ['developer'], '122': ['po'], '123': ['developer'] };
 
 const shifts = new Map(shiftSpecs.map(spec => {
   const item = itemSpecs.find(entry => entry.id === spec.item)!;
@@ -345,7 +347,8 @@ function demoRoster(id: string, merged: PloegCardPlay | null, plays: PloegCardPl
   if (visits.some(([gate], index) => gate === 'test' && visits[index + 1] && visits[index + 1][0] !== 'development')) mark(qa, 'qa');
   if (visits.some(([gate], index) => gate === 'acceptance' && visits[index + 1]?.[0] === 'done')) mark(acceptor, 'acceptor');
   for (const crack of demoConditions[id]?.cracks ?? []) if (crack.mended && !crack.mended.bySteward) mark(crack.mended.by, 'cosigner');
-  const order = ['merger', 'reviewer', 'qa', 'acceptor', 'cosigner'];
+  for (const role of demoCopies[id] ?? []) mark('demo-operator', role);
+  const order = ['developer', 'merger', 'reviewer', 'qa', 'po', 'acceptor', 'cosigner'];
   return [...roles].map(([name, held]) => ({ name, roles: order.filter(role => held.has(role)) }));
 }
 function demoSets(cards: Record<string, PloegCard>): void {

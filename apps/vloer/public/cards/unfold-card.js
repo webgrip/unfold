@@ -35,7 +35,8 @@ function parse(markup) {
  * pattern. The turn is a 3D flip that becomes a crossfade when the reader prefers reduced motion. Whatever a skin
  * draws, the front always carries the title, state, cost, steward and ids. The element reflects the skin it draws as
  * `data-skin`; a WebGL2 skin is replaced by its fallback when the browser has no WebGL2. A skin's `attach(front, view)`
- * receives the drawn front and the view model; the forge skin also reads `motion` (`still` or `live`) on the element.
+ * receives the drawn front and the view model; the forge skin also reads `motion` (`still` or `live`) on the element. Setting `asOf` shows the card as it was at
+ * that moment, which the binder uses to replay what changed while its owner was away.
  */
 export class UnfoldCard extends Base {
   static get observedAttributes() { return ['face', 'tab']; }
@@ -49,6 +50,7 @@ export class UnfoldCard extends Base {
   #focus = null;
   #detach = null;
   #skin = null;
+  #asOf = null;
 
   constructor() {
     super();
@@ -59,6 +61,10 @@ export class UnfoldCard extends Base {
 
   get card() { return this.#card; }
   set card(value) { this.#card = value && typeof value === 'object' ? value : null; void this.#update(); }
+
+  /** The moment, in milliseconds, the card is shown as of (days live and finish count to it); null shows it as of now. */
+  get asOf() { return this.#asOf; }
+  set asOf(value) { this.#asOf = Number.isFinite(value) ? value : null; if (this.#card) void this.#update(); }
 
   get face() { return this.getAttribute('face') === 'back' ? 'back' : 'front'; }
   set face(value) { this.setAttribute('face', value === 'back' ? 'back' : 'front'); }
@@ -117,7 +123,7 @@ export class UnfoldCard extends Base {
     if (ticket !== this.#ticket) return;
     const drawn = skin?.manifest?.id ?? defaultSkin;
     if (this.dataset.skin !== drawn) this.dataset.skin = drawn;
-    const view = cardView(card);
+    const view = cardView(card, this.#asOf === null ? {} : { now: this.#asOf });
     if (!(skin?.manifest?.finishes ?? []).includes(view.finish.key)) view.finish = finishLadder[0];
     this.#view = view;
     await this.#paint(skin, ticket);

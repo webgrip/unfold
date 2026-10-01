@@ -73,6 +73,34 @@ function dockerSettings(raw: unknown): NonNullable<AppConfig['docker']> {
   };
 }
 
+/**
+ * Validates the binder and pack settings: `backfillPeriods`, how many closed periods before a person's first visit
+ * their packs reach back (0–12; 1 by default, 4 in the demo), and `teams`, a sprint per Team (`lengthDays` 7–42 and
+ * an `anchor` date on which a sprint starts) in place of the ISO week.
+ */
+export function validateCards(raw: unknown, mode: AppConfig['mode']): NonNullable<AppConfig['cards']> {
+  const value = raw === undefined ? {} : raw;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('cards must be an object');
+  const data = value as Record<string, unknown>;
+  if (Object.keys(data).some(key => !['backfillPeriods', 'teams'].includes(key))) throw new Error('cards accepts backfillPeriods and teams');
+  const backfillPeriods = number(data.backfillPeriods, mode === 'demo' ? 4 : 1, 0, 12, 'cards.backfillPeriods');
+  if (!Number.isInteger(backfillPeriods)) throw new Error('cards.backfillPeriods must be a whole number');
+  const teams: Record<string, { lengthDays: number; anchor: string }> = {};
+  if (data.teams !== undefined) {
+    if (!data.teams || typeof data.teams !== 'object' || Array.isArray(data.teams) || Object.keys(data.teams).length > 50) throw new Error('cards.teams must map at most 50 Teams to a sprint');
+    for (const [team, sprint] of Object.entries(data.teams as Record<string, unknown>)) {
+      if (!/^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,99}$/.test(team) || team.includes('~')) throw new Error('cards.teams keys must be Team names');
+      const rule = (sprint && typeof sprint === 'object' && !Array.isArray(sprint) ? sprint : {}) as Record<string, unknown>;
+      const lengthDays = number(rule.lengthDays, Number.NaN, 7, 42, `cards.teams.${team}.lengthDays`);
+      if (!Number.isInteger(lengthDays)) throw new Error(`cards.teams.${team}.lengthDays must be a whole number of days`);
+      const anchor = typeof rule.anchor === 'string' && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(rule.anchor) ? Date.parse(`${rule.anchor}T00:00:00Z`) : Number.NaN;
+      if (!Number.isFinite(anchor) || new Date(anchor).toISOString().slice(0, 10) !== rule.anchor) throw new Error(`cards.teams.${team}.anchor must be a date such as 2026-09-28`);
+      teams[team] = { lengthDays, anchor: rule.anchor as string };
+    }
+  }
+  return { backfillPeriods, teams };
+}
+
 export function placements(config: AppConfig): Placement[] {
   if (config.mode === 'demo') return [];
   const names: Record<WorkspaceBackend, Placement['name']> = { docker: 'Container on the workbench host', kubernetes: 'Pod in the workspace namespace', local: 'Working directory on the workbench host (trusted only)' };
@@ -180,6 +208,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
       gatewayPolicy[key] = [...new Set(list as string[])];
     }
   }
+  const cards = validateCards(raw.cards, mode);
   let observability: AppConfig['observability'];
   if (raw.observability !== undefined) {
     const o = raw.observability;
@@ -207,6 +236,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     links,
     gatewayPolicy,
     observability,
+    cards,
     litellm: litellmBase && (adminKey || raw.execution) ? { baseUrl: configuredUrl(litellmBase, 'litellm.baseUrl'), adminUrl: configuredUrl(process.env.LITELLM_ADMIN_URL || raw.litellm?.adminUrl || litellmBase.replace(/\/v1\/?$/, ''), 'litellm.adminUrl'), masterKey: adminKey, models: models.map((model: any) => model.modelId), ttl: raw.litellm?.ttl || '4h', settlementDelayMs: number(raw.litellm?.settlementDelayMs, 60000, 0, 3600000, 'litellm.settlementDelayMs') } : undefined
   };
   if (config.execution !== undefined) {

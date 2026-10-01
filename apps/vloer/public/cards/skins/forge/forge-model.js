@@ -17,6 +17,7 @@ export const foilPatterns = Object.freeze([
   Object.freeze({ key: 'holo', label: 'Holo', derived: false }),
   Object.freeze({ key: 'reverse', label: 'Reverse holo', derived: false }),
   Object.freeze({ key: 'cosmos', label: 'Cosmos', derived: false }),
+  Object.freeze({ key: 'none', label: 'Plain', derived: false }),
 ]);
 
 /** The patterns a card gets before packs assign one: those that draw on the frame and the art window, so every earned coverage shows. */
@@ -73,9 +74,15 @@ export function patternFor(view) {
   return { ...derivedPatterns[stableHash(`pattern|${view?.id ?? ''}|${salt(view)}`) % derivedPatterns.length], source: 'derived' };
 }
 
-/** The art preset a card shows, picked by a stable hash of the Work Item id and the theme (or skin). */
+/**
+ * The art preset a card shows, picked by a stable hash of the Work Item id and the theme (or skin). An alternate-art
+ * pull (`view.copy.altArt`, 0–13) names one of the other presets, counted on from the card's own.
+ */
 export function artFor(view) {
-  return artPresets[stableHash(`art|${view?.id ?? ''}|${salt(view)}`) % artPresets.length];
+  const own = stableHash(`art|${view?.id ?? ''}|${salt(view)}`) % artPresets.length;
+  const alternate = view?.copy?.altArt;
+  if (Number.isInteger(alternate) && alternate >= 0) return { ...artPresets[(own + 1 + (alternate % (artPresets.length - 1))) % artPresets.length], source: 'alt' };
+  return artPresets[own];
 }
 
 /** A stable number in [0, 1) for a card, which seeds the shaders' sparkle and crack layout. */
@@ -152,6 +159,7 @@ export function faceFacts(view) {
     coverage,
     pattern,
     art,
+    variant: { altArt: art.source === 'alt', fullArt: view.copy?.fullArt === true, goldSignature: view.copy?.goldSignature === true },
     seed: seedFor(view),
     edge: coverage.gilded ? 'gold' : coverage.level > 0 ? 'chrome' : 'steel',
   };
@@ -159,5 +167,5 @@ export function faceFacts(view) {
 
 /** A string that changes whenever anything the forge paints changes, so a refresh with the same facts repaints nothing. */
 export function factsSignature(facts) {
-  return JSON.stringify([facts.title, facts.sub, facts.coin, facts.state, facts.condition, facts.finishLine, facts.rows, facts.set, facts.grade, facts.steward, facts.ids, facts.demoLine, facts.coverage.key, facts.pattern.key, facts.art.key]);
+  return JSON.stringify([facts.title, facts.sub, facts.coin, facts.state, facts.condition, facts.finishLine, facts.rows, facts.set, facts.grade, facts.steward, facts.ids, facts.demoLine, facts.coverage.key, facts.pattern.key, facts.art.key, facts.variant]);
 }

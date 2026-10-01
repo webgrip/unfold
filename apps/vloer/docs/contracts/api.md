@@ -287,6 +287,24 @@ In the demo, cancel answers 200 and changes nothing: `withdrawn: false`, `cancel
 
 What Ploeg does on cancel is [journey D](../../../../docs/concepts/journeys.md#d-stopping-work).
 
+## Card collection
+
+The binder, packs and season pages ([ADR 0029](../adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md), proposed; [`collection.ts`](../../src/collection.ts)). Each route needs a login cookie, and writes pass the request-header and origin checks above. Every route reads and writes the signed-in person's own records only; none takes another person's id, so an administrator reads only their own binder and packs. Cards come from Ploeg's card list (`GET /api/v1/operator/cards?member=`, paged by `nextBefore`), or from a bounded scan of each Team's 60 most recently updated Work Items when Ploeg answers 404, and only cards in the caller's Teams pass. Errors use the codes below, or Ploeg's (`ploeg_scope` 403 for a person with no Team).
+
+| Method and path | Request and response |
+| --- | --- |
+| `GET /api/me/card-identity` | `{logins, mapped, declared, verified, source, updatedAt}`. `mapped` is the forge login an administrator mapped to the person in `ploeg.forgeLogins` (the demo login `demo-operator` in the demo), and the only `verified` one: only it can make the person a card's steward. `declared` are the person's own logins, which only find cards to collect and never attribute anything. `logins` is both, mapped first. `source` is `mapped`, `setting`, `demo` or `none` |
+| `PUT /api/me/card-identity` | `{logins}`, the declared logins, at most 10, each one word of letters, digits and `. _ @ + : -`; folded to lower case and deduplicated → the same shape. Anything else is 400 `card_logins` |
+| `GET /api/binder` | `{demo, identity, source, now, startedAt, seenAt, copies, readouts, away, awayTotal, seenUntil, filters}`. `copies` is newest moment first, each `{card, copy: {role, roles, steward, pull, waitingIn}, lastActivityAt}`; `steward` is true only through the mapped login; `pull` is the stored first pull without its HMAC input, and `waitingIn` the unopened pack it waits in. `readouts` are personal: `cards`, `released`, `daysLive`, `daysLiveThisQuarter`, `quarter`, `mends`, `pulled`. `away` lists the moments since `seenAt`, oldest first, at most 12. `source` is `{kind: list | scan | demo, scanned, truncated}` |
+| `POST /api/binder/seen` | `{until}` → `{startedAt, seenAt}`. Creates the binder mark on the first visit and moves `seenAt` forward to `until`, never back and never past now |
+| `GET /api/packs` | `{demo, identity, source, now, odds: {version}, packs}`, oldest first. Each pack is `{id, period, state: opened | sealed | filling, count, firsts, upgrades, openedAt, next, demo}`; only the one with `next: true` can be opened. Ids are `2026-W40` (ISO week, UTC) or `<team>~<sprint start>` |
+| `POST /api/packs/:id/open` | `{}` → `{demo, odds, pack: {id, period, openedAt, demo, entries}}`; each entry is `{workItemId, kind: new | upgrade, moments, card, copy, pull}`. Draws and stores the first pull of every new card. 409 `pack_opened`, `pack_filling` or `pack_order` (open the older pack first); 404 `pack_not_found` |
+| `GET /api/packs/:id` | An opened pack, the same shape; 404 for a pack this person has not opened |
+| `GET /api/packs/odds` | `{version, scale: 10000, patterns, extras, altArtChoices}`: every probability in basis points |
+| `GET /api/season?team=&quarter=` | `{demo, team, teams, quarters, quarter, justStarted, aggregates, source}` for a Team in the caller's scope (404 `team_not_found` otherwise). `aggregates` holds Team totals only: `cards`, `shipped`, `daysLiveAdded`, `finishes`, `cracks`, `mends`, `rightFirstTime` (`{share, cards}` or null), `bounceReasons` (or null) and `sets` (or null). No person is named. A quarter that has not started is 400 `quarter`; without `quarter`, the first week of a quarter shows the one before and names it in `justStarted` |
+
+Pack settings live in the configuration file under `cards`: `backfillPeriods` (0 to 12; 1, or 4 in the demo) and `teams`, a sprint per Team as `{lengthDays: 7–42, anchor: "YYYY-MM-DD"}` in place of the ISO week.
+
 ## Static files
 
 The server answers `GET` for the browser workbench from its public directory ([`static.ts`](../../src/static.ts)): the page, the named top-level assets in `src/http.ts`, and any `/core/`, `/views/` or `/styles/` file whose name matches `[a-z0-9][a-z0-9-]*\.(js|css)`. Anything else is 404.

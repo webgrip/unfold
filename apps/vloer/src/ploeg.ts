@@ -83,6 +83,8 @@ export type PloegCrackCandidatesView = { workItemId: string; crackCandidates: Pl
 export type PloegAttributionStep = 'propose' | 'evolved' | 'confirm' | 'dispute' | 'resolve';
 /** What an attribution step returns: the attribution as Ploeg recorded it, or in the demo as Ploeg would record it, with nothing kept. */
 export type PloegAttributionResult = { crack: PloegCrack; demo: boolean; message: string };
+/** Cards for a binder or team page, and where they came from: Ploeg's card list, a bounded scan of recent Work Items, or the demo. */
+export type PloegCardList = { cards: PloegCard[]; source: { kind: 'list' | 'scan' | 'demo'; scanned: number; truncated: boolean } };
 export type PloegOverview ={ configured: boolean; available: boolean; demo: boolean; teams: PloegTeam[]; selectedTeam?: string; lanes?: Record<PloegLane, PloegPresentedPage>; fetchedAt?: string; trackerUrl?: string; message: string };
 
 export class PloegError extends Error {
@@ -213,6 +215,9 @@ function detail(value: unknown): PloegDetail {
 }
 
 const cardVersions: unknown[] = [1, '1.0'];
+const cardListPages = 6;
+const scanPages = 4;
+const scanCardLimit = 60;
 const defaultSkin = 'vloer-native';
 const cardEventKeys: Record<string, 'text' | 'number' | 'flag'> = { number: 'number', state: 'text', role: 'text', round: 'number', outcome: 'text', verdict: 'text', shiftId: 'text', runId: 'text', reviewer: 'text', reason: 'text', source: 'text', writes: 'flag' };
 const absent = (value: unknown) => value === undefined || value === null;
@@ -635,6 +640,69 @@ export class PloegClient {
     const card = this.demo ? ploegDemo.cards[id] : parseCard(envelope(await this.request(`work-items/${id}/card`, fresh, { versions: cardVersions }), cardVersions).card);
     if (!card || card.workItemId !== id || !this.allowed(user, card.team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
     return { card: structuredClone(card), demo: this.demo, fetchedAt: new Date().toISOString() };
+  }
+  /**
+   * Lists the cards whose roster holds any of `logins`, newest activity first, across the caller's teams: Ploeg's card
+   * list (`GET cards?member=`, paged by `nextBefore` until it is null, up to six pages of 50) when it has one, otherwise,
+   * for an older Ploeg that answers 404, a bounded scan of each Team's most recently updated Work Items and their cards.
+   * The demo lists the demo cards. `source` says which, and how far a scan looked.
+   */
+  async memberCards(user: User, logins: string[], fresh = false): Promise<PloegCardList> {
+    this.authorize(user);
+    const wanted = new Set(logins.map(login => login.toLowerCase()));
+    const holds = (card: PloegCard) => card.roster.some(person => wanted.has(person.name.toLowerCase())) || Boolean(card.steward && wanted.has(card.steward.name.toLowerCase()));
+    if (!wanted.size) return { cards: [], source: { kind: this.demo ? 'demo' : 'list', scanned: 0, truncated: false } };
+    if (this.demo) return { cards: Object.values(ploegDemo.cards).filter(card => this.allowed(user, card.team) && holds(card)).map(card => structuredClone(card)), source: { kind: 'demo', scanned: 0, truncated: false } };
+    const listed = await this.cardList(user, [...wanted].slice(0, 20).map(login => ['member', login] as [string, string]), fresh);
+    if (listed) return { cards: listed.cards.filter(holds), source: { kind: 'list', scanned: listed.cards.length, truncated: listed.truncated } };
+    const scan = await this.scanCards(user, (await this.teams(user, fresh)).map(team => team.id), fresh);
+    return { cards: scan.cards.filter(holds), source: { kind: 'scan', scanned: scan.scanned, truncated: scan.truncated } };
+  }
+  /** Lists one Team's cards for its team page: Ploeg's card list filtered to the Team when it has one, otherwise the same bounded scan; the demo lists the demo cards. */
+  async teamCards(user: User, team: string, since: string | undefined, fresh = false): Promise<PloegCardList> {
+    this.authorize(user);
+    if (!this.allowed(user, team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg team not found.');
+    if (this.demo) return { cards: Object.values(ploegDemo.cards).filter(card => card.team === team).map(card => structuredClone(card)), source: { kind: 'demo', scanned: 0, truncated: false } };
+    const listed = await this.cardList(user, [['team', team], ...(since ? [['since', since] as [string, string]] : [])], fresh);
+    if (listed) return { cards: listed.cards.filter(card => card.team === team), source: { kind: 'list', scanned: listed.cards.length, truncated: listed.truncated } };
+    const scan = await this.scanCards(user, [team], fresh);
+    return { cards: scan.cards, source: { kind: 'scan', scanned: scan.scanned, truncated: scan.truncated } };
+  }
+  private async cardList(user: User, filters: [string, string][], fresh: boolean): Promise<{ cards: PloegCard[]; truncated: boolean } | null> {
+    const cards: PloegCard[] = [];
+    let before: string | null = null;
+    for (let page = 0; page < cardListPages; page++) {
+      const query = new URLSearchParams([...filters, ['limit', '50'], ...(before ? [['before', before] as [string, string]] : [])]);
+      let data: Record<string, unknown>;
+      try { data = envelope(await this.request(`cards?${query}`, fresh, { added: true, versions: cardVersions }), cardVersions); }
+      catch (error) { if (page === 0 && error instanceof PloegError && error.code === 'ploeg_unsupported') return null; throw error; }
+      cards.push(...array(data.cards, parseCard, 50).filter(card => this.allowed(user, card.team)));
+      before = absent(data.nextBefore) ? null : field(data.nextBefore, 512);
+      if (!before) return { cards, truncated: false };
+    }
+    return { cards, truncated: true };
+  }
+  private async scanCards(user: User, teams: string[], fresh: boolean): Promise<{ cards: PloegCard[]; scanned: number; truncated: boolean }> {
+    const items: PloegItem[] = [];
+    let truncated = false;
+    for (const team of teams) {
+      let after = '0';
+      for (let page = 0; page < scanPages; page++) {
+        const result = await this.items(user, team, 'all', after, fresh);
+        items.push(...result.items);
+        if (!result.nextCursor) break;
+        after = result.nextCursor;
+        if (page === scanPages - 1) truncated = true;
+      }
+    }
+    const recent = items.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, scanCardLimit);
+    if (items.length > recent.length) truncated = true;
+    const cards: PloegCard[] = [];
+    for (let index = 0; index < recent.length; index += 6) {
+      const batch = await Promise.all(recent.slice(index, index + 6).map(entry => this.card(user, entry.id, fresh).then(view => view.card, () => null)));
+      cards.push(...batch.filter((card): card is PloegCard => card !== null));
+    }
+    return { cards, scanned: recent.length, truncated };
   }
   /** Reads per-team counts and spend for a window, scoped to the caller's teams. */
   async summary(user: User, window: string, fresh = false): Promise<PloegSummary> {

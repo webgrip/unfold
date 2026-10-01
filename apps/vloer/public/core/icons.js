@@ -41,6 +41,8 @@ export const icons = {
   'help-circle': '<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.6a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.4M12 16.6v.01"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  cards: '<rect x="8.5" y="3.5" width="11" height="15" rx="1.5" transform="rotate(8 14 11)"/><rect x="4.5" y="5.5" width="11" height="15" rx="1.5"/>',
+  pack: '<path d="M5 4h14M5 20h14M6 4l1 16M18 4l-1 16"/><path d="M7.2 8h9.6"/><path d="m10 12 2-1.5 2 1.5-2 3.5Z"/>',
   calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
   folder: '<path d="M3 5h7l2 3h9v12H3V5Z"/>',
   file: '<path d="M14 3H6.5a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V7.5L14 3Z"/><path d="M14 3v4.5h4.5"/>',

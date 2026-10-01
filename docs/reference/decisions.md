@@ -120,6 +120,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Vloer | [0026](../../apps/vloer/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md) | Run cards render in a card runtime with skin packs and themes | 2026-10-01 | unknown | — |
 | Vloer | [0027](../../apps/vloer/docs/adrs/0027-the-editor-opens-on-now-and-shares-the-browser-vocabulary.md) | The editor opens on Now and shares the browser's vocabulary | 2026-10-01 | unknown | — |
 | Vloer | [0028](../../apps/vloer/docs/adrs/0028-the-forge-skin-renders-run-cards-in-3d-with-vendored-three-js.md) | The forge skin renders Run cards in 3D with vendored three.js | 2026-10-01 | unknown | — |
+| Vloer | [0029](../../apps/vloer/docs/adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md) | Binders, packs and pulls collect Run cards privately and fairly | 2026-10-01 | unknown | — |
 | Vloer | [0030](../../apps/vloer/docs/adrs/0030-vloer-traces-bugs-under-an-administrator-mapped-forge-login.md) | Vloer traces bugs to Run cards under an administrator-mapped forge login | 2026-10-01 | unknown | — |
 
 ## Other statuses

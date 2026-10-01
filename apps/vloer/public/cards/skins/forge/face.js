@@ -16,6 +16,13 @@ const relief = Object.freeze({ base: 0.5, frame: 0.76, engraved: 0.64, hatch: 0.
 
 /** The art window in face pixels: left, top, right, bottom. The shader reads it as uv to place the art. */
 export const artWindow = Object.freeze({ x0: 66, y0: 196, x1: W - 66, y1: 752 });
+/** The art window of a full-art frame: the whole face inside the frame, under translucent panels. */
+export const fullArtWindow = Object.freeze({ x0: inset, y0: inset, x1: W - inset, y1: H - inset });
+
+/** The art window a card's facts call for: the full-art window for a full-art pull, otherwise the standard one. */
+export function artWindowFor(facts) {
+  return facts?.variant?.fullArt ? fullArtWindow : artWindow;
+}
 
 function canvas(width, heightPx) {
   const element = document.createElement('canvas');
@@ -154,26 +161,30 @@ export function paintFace(target, facts) {
     h.stroke();
   }
 
-  const { x0, y0, x1, y1 } = artWindow;
+  const full = Boolean(facts.variant?.fullArt);
+  const { x0, y0, x1, y1 } = artWindowFor(facts);
+  const corner = full ? 30 : 14;
   g.save();
   g.globalCompositeOperation = 'destination-out';
-  rr(g, x0, y0, x1 - x0, y1 - y0, 14);
+  rr(g, x0, y0, x1 - x0, y1 - y0, corner);
   g.fill();
   g.restore();
-  both('rgb(255,0,0)', relief.art, c => rr(c, x0, y0, x1 - x0, y1 - y0, 14));
-  g.strokeStyle = palette.accent;
-  g.globalAlpha = 0.7;
-  g.lineWidth = 4;
-  rr(g, x0 - 4, y0 - 4, x1 - x0 + 8, y1 - y0 + 8, 17);
-  g.stroke();
-  g.globalAlpha = 1;
-  h.strokeStyle = height(relief.frame);
-  h.lineWidth = 6;
-  rr(h, x0 - 4, y0 - 4, x1 - x0 + 8, y1 - y0 + 8, 17);
-  h.stroke();
+  both('rgb(255,0,0)', relief.art, c => rr(c, x0, y0, x1 - x0, y1 - y0, corner));
+  if (!full) {
+    g.strokeStyle = palette.accent;
+    g.globalAlpha = 0.7;
+    g.lineWidth = 4;
+    rr(g, x0 - 4, y0 - 4, x1 - x0 + 8, y1 - y0 + 8, 17);
+    g.stroke();
+    g.globalAlpha = 1;
+    h.strokeStyle = height(relief.frame);
+    h.lineWidth = 6;
+    rr(h, x0 - 4, y0 - 4, x1 - x0 + 8, y1 - y0 + 8, 17);
+    h.stroke();
+  }
 
   const panel = (x, y, w, ph, r = 18) => {
-    g.fillStyle = 'rgba(14,19,24,0.94)';
+    g.fillStyle = full ? 'rgba(10,14,18,0.74)' : 'rgba(14,19,24,0.94)';
     rr(g, x, y, w, ph, r);
     g.fill();
     g.strokeStyle = 'rgba(255,255,255,0.09)';
@@ -187,6 +198,21 @@ export function paintFace(target, facts) {
     g.fillText(value, x, y);
     if (level !== null) { h.fillStyle = height(level); h.fillText(value, x, y); }
   };
+
+  if (facts.variant?.altArt) {
+    const sw = 168;
+    const sx0 = artWindow.x1 - sw - 16;
+    const sy0 = artWindow.y0 + 16;
+    g.fillStyle = 'rgba(10,14,18,0.84)';
+    rr(g, sx0, sy0, sw, 42, 21);
+    g.fill();
+    g.strokeStyle = '#ffe08a';
+    g.lineWidth = 3;
+    rr(g, sx0, sy0, sw, 42, 21);
+    g.stroke();
+    both('rgb(0,0,255)', 0.8, c => rr(c, sx0, sy0, sw, 42, 21));
+    text('ALT ART', sx0 + sw / 2, sy0 + 29, `800 20px ${mono}`, '#ffe08a', relief.numeral, 'center');
+  }
 
   panel(60, 60, W - 120, 118);
   g.font = `800 ${facts.title.length > 34 ? 36 : 44}px ${sans}`;
@@ -278,17 +304,25 @@ export function paintFace(target, facts) {
     g.font = `italic 600 50px ${sans}`;
     g.transform(1, 0, -0.22, 1, 0, 0);
     const signature = fit(g, facts.steward.name, W - 470);
-    g.fillStyle = '#dfe6e5';
+    if (facts.variant?.goldSignature) {
+      const ink = g.createLinearGradient(384, lowY + 50, W - 90, lowY + 100);
+      ink.addColorStop(0, '#fff1b8');
+      ink.addColorStop(0.45, '#e9b949');
+      ink.addColorStop(1, '#a8741c');
+      g.fillStyle = ink;
+      g.shadowColor = 'rgba(255,200,90,0.55)';
+      g.shadowBlur = 10;
+    } else g.fillStyle = '#dfe6e5';
     g.fillText(signature, 384 + (lowY + 92) * 0.22, lowY + 92);
     g.restore();
     h.save();
     h.font = `italic 600 50px ${sans}`;
     h.transform(1, 0, -0.22, 1, 0, 0);
-    h.fillStyle = height(relief.text);
+    h.fillStyle = height(facts.variant?.goldSignature ? relief.numeral : relief.text);
     h.fillText(signature, 384 + (lowY + 92) * 0.22, lowY + 92);
     h.restore();
   } else {
-    g.strokeStyle = '#4a5558';
+    g.strokeStyle = facts.variant?.goldSignature ? '#e9b949' : '#4a5558';
     g.lineWidth = 2;
     g.setLineDash([8, 7]);
     g.beginPath(); g.moveTo(372, lowY + 86); g.lineTo(W - 90, lowY + 86); g.stroke();
