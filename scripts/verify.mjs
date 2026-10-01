@@ -23,6 +23,7 @@ for (const [scope, name, variants] of [
 
 const groups = [
   { name: 'vloer', inputs: ['apps/vloer', 'docs'], gates: ['typecheck', 'test', 'check', 'design:check', 'brand:check', 'license:check', 'backlog -- check'].map(vloer) },
+  { name: 'demo-replay', inputs: ['apps/vloer/public', 'apps/vloer/src', 'apps/vloer/examples', 'apps/vloer/scripts/record-replay.ts', 'apps/vloer/package.json', 'apps/site/replay'], gates: [vloer('replay:check')] },
   { name: 'vloer-extension', inputs: ['apps/vloer'], gates: ['extension:build', 'extension:test', 'extension:package', 'extension:verify'].map(vloer) },
   {
     name: 'ploeg',
@@ -35,7 +36,7 @@ const groups = [
     ],
   },
   { name: 'brand', inputs: ['scripts/build-brand.mjs', 'docs/brand', 'apps/site/src/brand', 'apps/site/src/styles/brand.css', 'README.md'], gates: [gate('.', process.execPath, ['scripts/build-brand.mjs', '--check'])] },
-  { name: 'site', inputs: ['apps/site'], gates: ['format:check', 'lint', 'typecheck', 'test', 'build'].map(site) },
+  { name: 'site', inputs: ['apps/site', 'apps/vloer/public'], gates: ['format:check', 'lint', 'typecheck', 'test', 'build'].map(site) },
   { name: 'helm', inputs: ['apps/vloer/ops/helm', 'apps/ploeg'], gates: [...helm, gate('apps/ploeg', 'sh', ['scripts/helm-golden.sh', 'check'])] },
   {
     name: 'release',
