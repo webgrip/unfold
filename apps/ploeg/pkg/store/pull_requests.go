@@ -2,9 +2,11 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -32,8 +34,32 @@ type PullRequestFacts struct {
 	MergedAt       *time.Time
 	MergedBy       string
 	ClosedAt       *time.Time
+	// Additions, Deletions and ChangedFiles are the diff size (ADR-0046).
+	// Nil keeps the stored figure; a known figure replaces it, since a push
+	// changes the diff.
+	Additions    *int
+	Deletions    *int
+	ChangedFiles *int
+	// CI is the combined commit status read at CI.HeadSHA. Nil keeps the
+	// stored one; a reading replaces it whole.
+	CI *PullRequestCI
 	// Review is set when the event was a submitted review.
 	Review *PullRequestReview
+}
+
+// PullRequestCI is the combined commit status of a pull request's head when
+// Ploeg read it. State is success, failure, pending or error.
+type PullRequestCI struct {
+	State      string
+	Checks     []PullRequestCheck
+	HeadSHA    string
+	CapturedAt time.Time
+}
+
+// PullRequestCheck is one named check in a PullRequestCI.
+type PullRequestCheck struct {
+	Context string `json:"context"`
+	State   string `json:"state"`
 }
 
 // PullRequestReview is one review a forge reported on a pull request. State
@@ -86,13 +112,26 @@ func (s *Store) RecordPullRequestFacts(ctx context.Context, f PullRequestFacts) 
 		}
 	}
 
+	ci, err := ciColumns(f.CI)
+	if err != nil {
+		return false, err
+	}
 	var id int64
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO pull_requests (forge, repo_owner, repo_name, number, work_item_id, shift_id, branch,
-			state, head_sha, merge_commit_sha, merged_at, merged_by, closed_at)
+			state, head_sha, merge_commit_sha, merged_at, merged_by, closed_at,
+			additions, deletions, changed_files, ci_state, ci_checks, ci_head_sha, ci_captured_at)
 		VALUES ($1, $2, $3, $4, $5, $6, NULLIF(left($7, 1024), ''), NULLIF($8, ''), NULLIF(left($9, 128), ''),
-			NULLIF(left($10, 128), ''), $11, NULLIF(left($12, 256), ''), $13)
+			NULLIF(left($10, 128), ''), $11, NULLIF(left($12, 256), ''), $13,
+			$14, $15, $16, $17, $18, NULLIF(left($19, 128), ''), $20)
 		ON CONFLICT (forge, repo_owner, repo_name, number) DO UPDATE SET
+			additions = COALESCE(EXCLUDED.additions, pull_requests.additions),
+			deletions = COALESCE(EXCLUDED.deletions, pull_requests.deletions),
+			changed_files = COALESCE(EXCLUDED.changed_files, pull_requests.changed_files),
+			ci_state = CASE WHEN EXCLUDED.ci_state IS NULL THEN pull_requests.ci_state ELSE EXCLUDED.ci_state END,
+			ci_checks = CASE WHEN EXCLUDED.ci_state IS NULL THEN pull_requests.ci_checks ELSE EXCLUDED.ci_checks END,
+			ci_head_sha = CASE WHEN EXCLUDED.ci_state IS NULL THEN pull_requests.ci_head_sha ELSE EXCLUDED.ci_head_sha END,
+			ci_captured_at = CASE WHEN EXCLUDED.ci_state IS NULL THEN pull_requests.ci_captured_at ELSE EXCLUDED.ci_captured_at END,
 			shift_id = COALESCE(EXCLUDED.shift_id, pull_requests.shift_id),
 			branch = COALESCE(EXCLUDED.branch, pull_requests.branch),
 			state = CASE WHEN pull_requests.state = 'merged' THEN 'merged'
@@ -106,7 +145,9 @@ func (s *Store) RecordPullRequestFacts(ctx context.Context, f PullRequestFacts) 
 		RETURNING id`,
 		f.Forge, owner, name, f.Number, workItemID, shiftID, f.Branch,
 		knownValue(f.State, "open", "merged", "closed"), f.HeadSHA, f.MergeCommitSHA,
-		f.MergedAt, f.MergedBy, f.ClosedAt).Scan(&id); err != nil {
+		f.MergedAt, f.MergedBy, f.ClosedAt,
+		nonNegative(f.Additions), nonNegative(f.Deletions), nonNegative(f.ChangedFiles),
+		ci.state, ci.checks, ci.headSHA, ci.capturedAt).Scan(&id); err != nil {
 		return false, err
 	}
 	if f.Review != nil {
@@ -119,6 +160,64 @@ func (s *Store) RecordPullRequestFacts(ctx context.Context, f PullRequestFacts) 
 		}
 	}
 	return true, tx.Commit(ctx)
+}
+
+type ciRow struct {
+	state      *string
+	checks     []byte
+	headSHA    string
+	capturedAt *time.Time
+}
+
+const maxStoredChecks = 100
+
+func ciColumns(ci *PullRequestCI) (ciRow, error) {
+	if ci == nil {
+		return ciRow{}, nil
+	}
+	state := knownValue(ci.State, "success", "failure", "pending", "error")
+	if state == "" {
+		return ciRow{}, nil
+	}
+	checks := make([]PullRequestCheck, 0, len(ci.Checks))
+	for _, c := range ci.Checks {
+		if len(checks) == maxStoredChecks {
+			break
+		}
+		cs := knownValue(c.State, "success", "failure", "pending", "error")
+		if cs == "" {
+			continue
+		}
+		checks = append(checks, PullRequestCheck{Context: truncate(c.Context, 256), State: cs})
+	}
+	raw, err := json.Marshal(checks)
+	if err != nil {
+		return ciRow{}, err
+	}
+	at := ci.CapturedAt
+	if at.IsZero() {
+		at = time.Now()
+	}
+	at = at.UTC()
+	return ciRow{state: &state, checks: raw, headSHA: ci.HeadSHA, capturedAt: &at}, nil
+}
+
+func nonNegative(n *int) *int {
+	if n == nil || *n < 0 {
+		return nil
+	}
+	return n
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	cut := n
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut]
 }
 
 func splitRepo(repo string) (owner, name string, ok bool) {

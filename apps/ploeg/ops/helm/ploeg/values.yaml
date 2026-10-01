@@ -431,6 +431,8 @@ config: {}
 #       repo: webgrip/glide
 #       branch: development
 #       forge: forgejo
+#       cardStyle:                    # ADR-0046: Run card skin and theme; unset = vloer-native, no theme
+#         theme: acme
 #     homelab-cluster:
 #       repo: webgrip/homelab-cluster
 #       branch: main

@@ -73,6 +73,11 @@ const (
 	ForgePRMerged ForgeEventKind = "pr_merged"
 	// ForgePRClosed reports that a pull request was closed without merging.
 	ForgePRClosed ForgeEventKind = "pr_closed"
+	// ForgePROpened reports that a pull request was opened or reopened.
+	ForgePROpened ForgeEventKind = "pr_opened"
+	// ForgePRSynchronized reports that new commits reached a pull request's
+	// head branch.
+	ForgePRSynchronized ForgeEventKind = "pr_synchronized"
 )
 
 // PullRequestState is a forge's answer to "what happened to this pull request".
@@ -122,6 +127,73 @@ type PullRequestFacts struct {
 	MergedAt       *time.Time
 	MergedBy       string
 	ClosedAt       *time.Time
+	// Additions, Deletions and ChangedFiles are the diff size (ADR-0046).
+	// Nil is a figure the forge did not report; a reported zero is zero.
+	Additions    *int
+	Deletions    *int
+	ChangedFiles *int
+}
+
+// CommitState is the combined result of the checks on one commit.
+type CommitState string
+
+const (
+	CommitSuccess CommitState = "success"
+	CommitFailure CommitState = "failure"
+	CommitPending CommitState = "pending"
+	CommitError   CommitState = "error"
+)
+
+// CommitCheck is one named check on a commit, in the CommitState vocabulary.
+type CommitCheck struct {
+	Context string
+	State   CommitState
+}
+
+// CommitStatus is the combined state of every check a forge reports on one
+// commit, with each check. A commit with no checks has no CommitStatus.
+type CommitStatus struct {
+	SHA    string
+	State  CommitState
+	Checks []CommitCheck
+}
+
+// CommitStatusReader is implemented by a ForgeProvider that can read the
+// combined commit status at a pull request's head (ADR-0046). A forge without
+// it leaves CI unknown.
+type CommitStatusReader interface {
+	// CommitStatus reads the combined status of sha in repo. ok is false
+	// when the forge reports no check on the commit.
+	CommitStatus(ctx context.Context, repo, sha string) (status CommitStatus, ok bool, err error)
+}
+
+// ReadCommitStatus reads the combined status at sha when fp can. ok is false
+// when fp cannot read statuses, sha is empty or the commit has no check.
+func ReadCommitStatus(ctx context.Context, fp ForgeProvider, repo, sha string) (CommitStatus, bool, error) {
+	reader, can := fp.(CommitStatusReader)
+	if !can || sha == "" || repo == "" {
+		return CommitStatus{}, false, nil
+	}
+	return reader.CommitStatus(ctx, repo, sha)
+}
+
+// CombineCommitStates folds the states of several checks into one: any
+// failure fails, then any error errors, then anything pending is pending,
+// and only all-success succeeds. ok is false when states is empty.
+func CombineCommitStates(states []CommitState) (CommitState, bool) {
+	if len(states) == 0 {
+		return "", false
+	}
+	seen := map[CommitState]bool{}
+	for _, s := range states {
+		seen[s] = true
+	}
+	for _, s := range []CommitState{CommitFailure, CommitError, CommitPending} {
+		if seen[s] {
+			return s, true
+		}
+	}
+	return CommitSuccess, true
 }
 
 // ParseForgeTime reads a forge timestamp in RFC 3339 or GitLab's older

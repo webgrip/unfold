@@ -20,6 +20,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -248,11 +249,15 @@ func (p *Provider) PullRequestFacts(ctx context.Context, repo string, pr int) (p
 		Head struct {
 			Sha string `json:"sha"`
 		} `json:"head"`
+		Additions    *int `json:"additions"`
+		Deletions    *int `json:"deletions"`
+		ChangedFiles *int `json:"changed_files"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&body); err != nil {
 		return provider.PullRequestFacts{}, fmt.Errorf("forgejo: read %s#%d: %w", repo, pr, err)
 	}
-	facts := provider.PullRequestFacts{HeadSHA: body.Head.Sha}
+	facts := provider.PullRequestFacts{HeadSHA: body.Head.Sha,
+		Additions: nonNegative(body.Additions), Deletions: nonNegative(body.Deletions), ChangedFiles: nonNegative(body.ChangedFiles)}
 	switch {
 	case body.Merged:
 		facts.State = provider.PullRequestMerged
@@ -269,6 +274,74 @@ func (p *Provider) PullRequestFacts(ctx context.Context, repo string, pr int) (p
 		return provider.PullRequestFacts{}, fmt.Errorf("forgejo: read %s#%d: unknown state %q", repo, pr, body.State)
 	}
 	return facts, nil
+}
+
+// CommitStatus reads the combined status of sha from the commit status
+// endpoint. A check in a state outside provider.CommitState, such as
+// "warning", is left out, and the combined state is then recomputed from the
+// checks that remain.
+func (p *Provider) CommitStatus(ctx context.Context, repo, sha string) (provider.CommitStatus, bool, error) {
+	owner, name, ok := strings.Cut(repo, "/")
+	if !ok || owner == "" || name == "" {
+		return provider.CommitStatus{}, false, fmt.Errorf("forgejo: repo %q must be owner/name", repo)
+	}
+	if sha == "" {
+		return provider.CommitStatus{}, false, errors.New("forgejo: commit status needs a sha")
+	}
+	target := fmt.Sprintf("%s/api/v1/repos/%s/%s/commits/%s/status?limit=%d", strings.TrimRight(p.BaseURL, "/"),
+		url.PathEscape(owner), url.PathEscape(name), url.PathEscape(sha), commitStatusLimit)
+	var body struct {
+		State      string `json:"state"`
+		SHA        string `json:"sha"`
+		TotalCount int    `json:"total_count"`
+		Statuses   []struct {
+			Context string `json:"context"`
+			Status  string `json:"status"`
+		} `json:"statuses"`
+	}
+	status, err := p.get(ctx, target, &body)
+	if err != nil {
+		return provider.CommitStatus{}, false, err
+	}
+	if status != http.StatusOK {
+		return provider.CommitStatus{}, false, fmt.Errorf("forgejo: commit status %s@%s: HTTP %d", repo, sha, status)
+	}
+	out := provider.CommitStatus{SHA: sha, Checks: []provider.CommitCheck{}}
+	var states []provider.CommitState
+	for _, s := range body.Statuses {
+		state, known := commitState(s.Status)
+		if !known {
+			continue
+		}
+		out.Checks = append(out.Checks, provider.CommitCheck{Context: s.Context, State: state})
+		states = append(states, state)
+	}
+	combined, known := commitState(body.State)
+	if !known || len(states) < len(body.Statuses) {
+		combined, known = provider.CombineCommitStates(states)
+	}
+	if !known {
+		return provider.CommitStatus{}, false, nil
+	}
+	out.State = combined
+	return out, true, nil
+}
+
+const commitStatusLimit = 50
+
+func commitState(s string) (provider.CommitState, bool) {
+	switch provider.CommitState(s) {
+	case provider.CommitSuccess, provider.CommitFailure, provider.CommitPending, provider.CommitError:
+		return provider.CommitState(s), true
+	}
+	return "", false
+}
+
+func nonNegative(n *int) *int {
+	if n == nil || *n < 0 {
+		return nil
+	}
+	return n
 }
 
 func firstNonEmpty(values ...string) string {
@@ -304,6 +377,9 @@ type hook struct {
 		MergedBy       struct {
 			Login string `json:"login"`
 		} `json:"merged_by"`
+		Additions    *int `json:"additions"`
+		Deletions    *int `json:"deletions"`
+		ChangedFiles *int `json:"changed_files"`
 	} `json:"pull_request"`
 	Review struct {
 		Type    string `json:"type"`
@@ -462,10 +538,30 @@ func (p *Provider) ParseWebhook(r *http.Request) ([]provider.ForgeEvent, error) 
 			return nil, nil
 		}
 		return []provider.ForgeEvent{{
-			Kind: provider.ForgeMergeStateDirty, Repo: repo, PR: pr, Branch: branch,
+			Kind: provider.ForgeMergeStateDirty, Repo: repo, PR: pr, Branch: branch, Actor: h.Sender.Login,
+			PullRequest: payloadFacts(h, ""),
+		}}, nil
+
+	case h.PullRequest.Number > 0 && (h.Action == "opened" || h.Action == "reopened" || h.Action == "synchronized"):
+		if repo == "" {
+			return nil, nil
+		}
+		kind := provider.ForgePROpened
+		if h.Action == "synchronized" {
+			kind = provider.ForgePRSynchronized
+		}
+		return []provider.ForgeEvent{{
+			Kind: kind, Repo: repo, PR: pr, Branch: branch, Actor: h.Sender.Login,
+			PullRequest: payloadFacts(h, provider.PullRequestOpen),
 		}}, nil
 	}
 	return nil, nil
+}
+
+func payloadFacts(h hook, state provider.PullRequestState) provider.PullRequestFacts {
+	return provider.PullRequestFacts{State: state, HeadSHA: h.PullRequest.Head.Sha,
+		Additions: nonNegative(h.PullRequest.Additions), Deletions: nonNegative(h.PullRequest.Deletions),
+		ChangedFiles: nonNegative(h.PullRequest.ChangedFiles)}
 }
 
 func verify(secret string, body []byte, sigHex string) bool {
