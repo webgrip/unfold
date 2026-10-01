@@ -3,3 +3,4 @@ dist/
 *.vsix
 .screenshots/
 dist-release/
+media/core/

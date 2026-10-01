@@ -4,7 +4,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import type { AddressInfo } from 'node:net';
 import { ApiError, VloerClient, transient, type Secrets } from '../src/client.ts';
 import { plainText, plural, taskDescription, teamDescription } from '../src/status.ts';
-import { awaitingPloeg, sessionEligibility, unsupportedStatus } from '../src/task-view.ts';
+import { awaitingPloeg, currentWorkItemId, ploegFacts, sessionEligibility, unsupportedStatus, workItemMoving } from '../src/task-view.ts';
 import type { Bootstrap, TaskPloegStatus, TaskSnapshot, TaskSource } from '../src/types.ts';
 
 const secrets: Secrets = { get: async () => undefined, store: async () => undefined, delete: async () => undefined };
@@ -128,4 +128,27 @@ test('task hand-off calls use the contracted routes, and a missing lookup reads 
 
 test('tooltips drop Markdown escapes too', () => {
   assert.equal(plainText('snake\\_case \\& a\\[0\\]'), 'snake_case & a[0]');
+});
+
+test('a task panel follows the live Work Item, else the first one, and refreshes sooner while it moves', () => {
+  const at = new Date().toISOString();
+  assert.equal(currentWorkItemId(status({ workItems: [{ id: '8', team: 'silver', state: 'done', attempts: 1, updatedAt: at }, { id: '9', team: 'silver', state: 'leased', attempts: 1, updatedAt: at }] })), '9');
+  assert.equal(currentWorkItemId(status({ workItems: [{ id: '8', team: 'silver', state: 'done', attempts: 1, updatedAt: at }] })), '8');
+  assert.equal(currentWorkItemId(status({ workItems: [{ id: '../8', team: 'silver', state: 'queued', attempts: 0, updatedAt: at }] })), undefined);
+  assert.equal(currentWorkItemId(status()), undefined);
+  assert.equal(workItemMoving('leased'), true);
+  assert.equal(workItemMoving('awaiting_review'), false);
+  assert.equal(workItemMoving(undefined), false);
+});
+
+test('Ploeg facts degrade instead of failing: a missing detail or card stays absent and any other failure becomes a notice', async () => {
+  const detail = { item: { id: '9' } } as never;
+  const card = { workItemId: '9' } as never;
+  assert.deepEqual(await ploegFacts({ workItem: async () => detail, workItemCard: async () => card }, '9', false), { detail, card });
+  assert.deepEqual(await ploegFacts({ workItem: async () => detail, workItemCard: async () => undefined }, '9', false), { detail }, 'an older server without the card route');
+  assert.deepEqual(await ploegFacts({ workItem: async () => detail, workItemCard: async () => ({ workItemId: '10' }) as never }, '9', false), { detail }, 'a card for another Work Item is dropped');
+  assert.deepEqual(await ploegFacts({ workItem: async () => { throw new ApiError(404, 'ploeg_not_found', 'gone'); }, workItemCard: async () => { throw new ApiError(500, 'x', 'boom'); } }, '9', false), {});
+  const failed = await ploegFacts({ workItem: async () => { throw new ApiError(502, 'ploeg_unavailable', 'Ploeg is unavailable.'); }, workItemCard: async () => undefined }, '9', true);
+  assert.equal(failed.detail, undefined);
+  assert.equal(failed.problem, 'Ploeg’s Runs for this Work Item could not be loaded: Ploeg is unavailable. The panel shows the task’s Ploeg status only.');
 });

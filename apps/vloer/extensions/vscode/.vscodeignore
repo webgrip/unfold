@@ -9,3 +9,4 @@ package-lock.json
 dist/**/*.map
 .screenshots/
 **/.DS_Store
+scripts/**

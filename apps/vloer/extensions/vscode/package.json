@@ -52,6 +52,7 @@
     "virtualWorkspaces": true
   },
   "activationEvents": [
+    "onView:vloer.now",
     "onView:vloer.sessions",
     "onView:vloer.tasks",
     "onView:vloer.ploeg",
@@ -85,9 +86,27 @@
       },
       {
         "command": "vloer.refresh",
-        "title": "Refresh Sessions",
+        "title": "Refresh",
         "category": "Vloer",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "vloer.openWorkItem",
+        "title": "Open Work Item",
+        "category": "Vloer",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "vloer.openPullRequest",
+        "title": "Review Pull Request",
+        "category": "Vloer",
+        "icon": "$(git-pull-request)"
+      },
+      {
+        "command": "vloer.openNow",
+        "title": "Open Now in the Browser",
+        "category": "Vloer",
+        "icon": "$(link-external)"
       },
       {
         "command": "vloer.create",
@@ -220,13 +239,13 @@
       },
       {
         "command": "vloer.browseTasks",
-        "title": "Browse Linked Tasks",
+        "title": "Browse Tasks",
         "category": "Vloer",
         "icon": "$(checklist)"
       },
       {
         "command": "vloer.refreshTasks",
-        "title": "Refresh Linked Tasks",
+        "title": "Refresh Tasks",
         "category": "Vloer",
         "icon": "$(refresh)"
       },
@@ -268,13 +287,13 @@
       },
       {
         "command": "vloer.openPloeg",
-        "title": "Open in Ploeg Workbench",
+        "title": "Open in the Browser",
         "category": "Vloer",
         "icon": "$(link-external)"
       },
       {
         "command": "vloer.refreshPloeg",
-        "title": "Refresh Ploeg Snapshot",
+        "title": "Refresh Work",
         "category": "Vloer",
         "icon": "$(refresh)"
       }
@@ -332,27 +351,34 @@
     "views": {
       "vloer": [
         {
-          "id": "vloer.sessions",
-          "name": "Sessions",
+          "id": "vloer.now",
+          "name": "Now",
           "icon": "media/vloer.svg"
         },
         {
           "id": "vloer.tasks",
-          "name": "Linked Tasks",
+          "name": "Tasks",
           "icon": "media/vloer.svg"
         },
         {
           "id": "vloer.ploeg",
-          "name": "Ploeg",
+          "name": "Work",
           "icon": "media/vloer.svg"
+        },
+        {
+          "id": "vloer.sessions",
+          "name": "Sessions",
+          "icon": "media/vloer.svg",
+          "when": "vloer.sessions",
+          "visibility": "collapsed"
         }
       ]
     },
     "viewsWelcome": [
       {
-        "view": "vloer.sessions",
+        "view": "vloer.now",
         "when": "!vloer.connected",
-        "contents": "Direct remote agent crews from your editor. Agents, model calls and repository checkouts stay on your workbench server.\n[Connect to your workbench](command:vloer.connect)\n\nLocal files are sent only when you explicitly choose to share them."
+        "contents": "See what waits on you across every Ploeg team: pull requests ready for your review, work that needs you, and what is running now. Agents, model calls and checkouts stay on your workbench server.\n[Connect to your workbench](command:vloer.connect)\n\nLocal files are sent only when you explicitly choose to share them."
       },
       {
         "view": "vloer.sessions",
@@ -361,7 +387,7 @@
       },
       {
         "view": "vloer.tasks",
-        "contents": "Pick work from your team’s connected task systems. Open a task to read it, see whether Ploeg has it, and hand it to a Ploeg team.\n[Browse linked tasks](command:vloer.browseTasks)\n\nForgejo · GitHub · GitLab · ClickUp · Vikunja\nSources and repository routing are configured on the workbench server."
+        "contents": "Pick work from your team’s task boards. Open a task to read it, see what Ploeg is doing with it, and hand it to a Ploeg team.\n[Browse tasks](command:vloer.browseTasks)\n\nForgejo · GitHub · GitLab · ClickUp · Vikunja\nSources and repository routing are configured on the workbench server."
       }
     ],
     "menus": {
@@ -397,9 +423,31 @@
         {
           "command": "vloer.openPloegItem",
           "when": "false"
+        },
+        {
+          "command": "vloer.openWorkItem",
+          "when": "false"
+        },
+        {
+          "command": "vloer.openPullRequest",
+          "when": "false"
+        },
+        {
+          "command": "vloer.openNow",
+          "when": "vloer.connected"
         }
       ],
       "view/title": [
+        {
+          "command": "vloer.refresh",
+          "when": "view == vloer.now",
+          "group": "navigation@1"
+        },
+        {
+          "command": "vloer.openNow",
+          "when": "view == vloer.now && vloer.connected",
+          "group": "navigation@2"
+        },
         {
           "command": "vloer.create",
           "when": "view == vloer.sessions && vloer.connected",
@@ -417,28 +465,28 @@
         },
         {
           "command": "vloer.reviewNextDecision",
-          "when": "view == vloer.sessions && vloer.connected",
+          "when": "view == vloer.now && vloer.connected",
           "group": "attention@1"
         },
         {
           "command": "vloer.connect",
-          "when": "view == vloer.sessions",
+          "when": "view == vloer.now",
           "group": "connection@1"
         },
         {
           "command": "vloer.signOut",
-          "when": "view == vloer.sessions && vloer.connected",
+          "when": "view == vloer.now && vloer.connected",
           "group": "connection@2"
         },
         {
           "command": "vloer.linkedAccounts",
-          "when": "view == vloer.sessions && vloer.connected",
+          "when": "view == vloer.now && vloer.connected",
           "group": "connection@3"
         },
         {
           "command": "vloer.dashboard",
           "when": "view == vloer.sessions",
-          "group": "connection@4"
+          "group": "connection@1"
         },
         {
           "command": "vloer.browseTasks",
@@ -586,6 +634,26 @@
           "command": "vloer.openPloeg",
           "when": "view == vloer.ploeg && viewItem == ploeg:item",
           "group": "inline@1"
+        },
+        {
+          "command": "vloer.openPullRequest",
+          "when": "view == vloer.now && viewItem =~ /^now:item:.*:pr$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "vloer.openPloeg",
+          "when": "view == vloer.now && viewItem =~ /^now:(item|run)/",
+          "group": "inline@2"
+        },
+        {
+          "command": "vloer.openPullRequest",
+          "when": "view == vloer.now && viewItem =~ /^now:item:.*:pr$/",
+          "group": "navigation@1"
+        },
+        {
+          "command": "vloer.openPloeg",
+          "when": "view == vloer.now && viewItem =~ /^now:(item|run)/",
+          "group": "navigation@2"
         }
       ],
       "editor/context": [
@@ -600,7 +668,7 @@
       {
         "id": "vloer.getStarted",
         "title": "Get started with De Vloer",
-        "description": "Connect to your workbench, pick a task, start a remote crew and review its evidence without running agents on your laptop.",
+        "description": "Connect to your workbench, see what waits on you, hand a task to Ploeg and review its evidence without running agents on your laptop.",
         "steps": [
           {
             "id": "connect",
@@ -615,8 +683,8 @@
           },
           {
             "id": "task",
-            "title": "Start from a linked task",
-            "description": "Browse Forgejo, GitHub, GitLab, ClickUp or Vikunja sources configured on the server. Open a task to read it, hand it to a Ploeg team, or start a supervised session from it.\n[Browse linked tasks](command:vloer.browseTasks)",
+            "title": "Start from a task",
+            "description": "Browse Forgejo, GitHub, GitLab, ClickUp or Vikunja sources configured on the server. Open a task to read it, hand it to a Ploeg team, or start a supervised session from it.\n[Browse tasks](command:vloer.browseTasks)",
             "media": {
               "markdown": "media/walkthrough/tasks.md"
             },
@@ -651,15 +719,77 @@
           }
         ]
       }
+    ],
+    "colors": [
+      {
+        "id": "vloer.live",
+        "description": "De Vloer: running work. Teal, never the accent, because the accent means interaction.",
+        "defaults": {
+          "dark": "terminal.ansiCyan",
+          "light": "terminal.ansiCyan",
+          "highContrast": "terminal.ansiBrightCyan",
+          "highContrastLight": "terminal.ansiCyan"
+        }
+      },
+      {
+        "id": "vloer.attention",
+        "description": "De Vloer: a person must act, such as Needs you. The loudest tone.",
+        "defaults": {
+          "dark": "charts.yellow",
+          "light": "editorWarning.foreground",
+          "highContrast": "charts.yellow",
+          "highContrastLight": "editorWarning.foreground"
+        }
+      },
+      {
+        "id": "vloer.review",
+        "description": "De Vloer: ready for your review. Violet, so it never looks like Done.",
+        "defaults": {
+          "dark": "charts.purple",
+          "light": "charts.purple",
+          "highContrast": "charts.purple",
+          "highContrastLight": "charts.purple"
+        }
+      },
+      {
+        "id": "vloer.success",
+        "description": "De Vloer: done, an approving agent review, accepted.",
+        "defaults": {
+          "dark": "charts.green",
+          "light": "testing.iconPassed",
+          "highContrast": "charts.green",
+          "highContrastLight": "testing.iconPassed"
+        }
+      },
+      {
+        "id": "vloer.danger",
+        "description": "De Vloer: failed, and destructive actions.",
+        "defaults": {
+          "dark": "charts.red",
+          "light": "errorForeground",
+          "highContrast": "errorForeground",
+          "highContrastLight": "errorForeground"
+        }
+      },
+      {
+        "id": "vloer.severe",
+        "description": "De Vloer: stopped retrying, interrupted, infrastructure failures.",
+        "defaults": {
+          "dark": "charts.orange",
+          "light": "charts.orange",
+          "highContrast": "charts.orange",
+          "highContrastLight": "charts.orange"
+        }
+      }
     ]
   },
   "scripts": {
-    "compile": "tsc -p .",
-    "watch": "tsc -p . --watch",
-    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test ${VLOER_TEST_CONCURRENCY:+--test-concurrency=$VLOER_TEST_CONCURRENCY} --test-timeout=120000 --test-force-exit test/*.test.ts",
+    "compile": "node scripts/sync-core.mjs && tsc -p .",
+    "watch": "node scripts/sync-core.mjs && tsc -p . --watch",
+    "test": "node scripts/sync-core.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test ${VLOER_TEST_CONCURRENCY:+--test-concurrency=$VLOER_TEST_CONCURRENCY} --test-timeout=120000 --test-force-exit test/*.test.ts",
     "vscode:prepublish": "npm run compile",
     "package": "vsce package --no-dependencies",
-    "test:webview": "node test/webview.mjs && node test/task-webview.mjs"
+    "test:webview": "node scripts/sync-core.mjs && node test/webview.mjs && node test/task-webview.mjs"
   },
   "devDependencies": {
     "@types/node": "24.19.0",

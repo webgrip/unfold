@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { createContext, runInContext } from 'node:vm';
+import { createContext, runInContext, runInThisContext } from 'node:vm';
 
 class StubNode {
   childNodes: StubNode[] = [];
@@ -58,7 +58,7 @@ export class StubElement extends StubNode {
 
 export type Webview = Record<string, any> & { posted: unknown[]; document: any };
 
-export function loadWebview(script = 'session.js', dataset: Record<string, string> = { sessionId: 'session-under-test' }): Webview {
+function environment(dataset: Record<string, string>) {
   const posted: unknown[] = [];
   const body = new StubElement('body');
   Object.assign(body.dataset, dataset);
@@ -74,16 +74,34 @@ export function loadWebview(script = 'session.js', dataset: Record<string, strin
     querySelectorAll: () => [],
     addEventListener: () => undefined,
   };
-  const context: Record<string, any> = {
+  const globals: Record<string, any> = {
     document,
     window: { addEventListener: () => undefined, scrollY: 0, scrollTo: () => undefined },
     HTMLDetailsElement: class {},
-    URL,
     acquireVsCodeApi: () => ({ getState: () => ({}), setState: () => undefined, postMessage: (message: unknown) => { posted.push(message); } }),
-    console,
   };
+  return { posted, document, globals };
+}
+
+export function loadWebview(script = 'session.js', dataset: Record<string, string> = { sessionId: 'session-under-test' }): Webview {
+  const { posted, globals } = environment(dataset);
+  const context: Record<string, any> = { ...globals, URL, console };
   createContext(context);
   for (const file of ['common.js', script]) runInContext(readFileSync(new URL(`../media/${file}`, import.meta.url), 'utf8'), context, { filename: file });
   context.posted = posted;
   return context as Webview;
+}
+
+let moduleLoads = 0;
+
+/**
+ * Loads a webview that is an ES module (it imports `media/core/*`) into this process: the DOM stub and
+ * `common.js` become globals, and the result reads the module exports, then those globals, plus the messages it posted.
+ */
+export async function loadModuleWebview(script: string, dataset: Record<string, string>): Promise<Webview> {
+  const { posted, document, globals } = environment(dataset);
+  Object.assign(globalThis, globals);
+  runInThisContext(readFileSync(new URL('../media/common.js', import.meta.url), 'utf8'), { filename: 'common.js' });
+  const exports = await import(`${new URL(`../media/${script}`, import.meta.url).href}?load=${++moduleLoads}`);
+  return Object.assign(Object.create(globalThis), exports, { posted, document }) as Webview;
 }

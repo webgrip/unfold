@@ -95,7 +95,7 @@ Outside `src/`:
 | [`public/cards/`](../public/cards/) | The proposed Run card runtime ([ADR 0026](adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md)): the `<glide-card>` element ([`glide-card.js`](../public/cards/glide-card.js)), its DOM-free view model ([`card-model.js`](../public/cards/card-model.js)), the skin registry ([`registry.js`](../public/cards/registry.js)) and the skin packs in `skins/`, starting with Vloer Native |
 | [`public/ploeg.js`](../public/ploeg.js), [`ploeg-activity.js`](../public/ploeg-activity.js), [`now.js`](../public/now.js), [`delivery.js`](../public/delivery.js) | Markup modules for the Work, feed, Now and delivery screens, kept DOM-free because Node tests import them |
 | [`public/styles.css`](../public/styles.css), [`public/styles/`](../public/styles/) | The cascade-layer order, the Archivo `@font-face` rules and one stylesheet per layer: tokens, base, components, shell and one per view |
-| [`extensions/vscode/`](../extensions/vscode/) | VS Code extension: sessions, task import, Ploeg view, linked accounts and agent-host setup |
+| [`extensions/vscode/`](../extensions/vscode/) | VS Code extension: Now, tasks, the Work Item panel, Ploeg work, sessions, linked accounts and agent-host setup |
 | [`scripts/`](../scripts/) | Checks, smoke and browser checks, and the `qualify-*` scripts Ploeg's opt-in qualification runs |
 | [`ops/`](../ops/) | Agent image, Helm chart, local Compose and cluster manifests |
 | [`skills/`](../skills/), [`.agents/contracts/`](../.agents/contracts/) | Portable operator procedure and repository-specific facts |

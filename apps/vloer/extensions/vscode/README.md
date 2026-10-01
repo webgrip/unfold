@@ -23,10 +23,11 @@ mise exec -- npm run demo
 ```
 
 1. Open the **De Vloer** activity bar and run **Vloer: Connect to Workbench**. Enter `http://127.0.0.1:4080`; demo mode supplies its identified demonstration user.
-2. Expand **Linked Tasks → Demo tasks** and open the fixture task. It opens in its own tab with the description and a **Glide** card; the demo fixture is not linked to Ploeg.
-3. Choose **Start a supervised session**, select a crew, runtime and budget, then confirm **Create session**. The wizard supports going back before confirmation.
-4. Choose **Start remote crew** in the queued session. This command name also controls work on a local workbench.
-5. Inspect **Checks**, **Changes** and the final review, then download the Git bundle, patch or manifest from **Brief**.
+2. **Now** lists the demo's illustrative Ploeg work, marked as an illustration: pull requests ready for your review, work that needs you, proposals and running Runs. None of it makes model calls or spends anything.
+3. Expand **Tasks → Demo tasks** and open the fixture task. It opens in its own tab with its description; the demo fixture is not linked to Ploeg.
+4. Choose **Start a supervised session**, select a crew, runtime and budget, then confirm **Create session**. The wizard supports going back before confirmation.
+5. Choose **Start remote crew** in the queued session. This command name also controls work on a local workbench.
+6. Inspect **Checks**, **Changes** and the final review, then download the Git bundle, patch or manifest from **Brief**.
 
 The demo runs a fixed repository fixture and real checks without AI calls or Ploeg. An arbitrary objective in demo mode does not turn the fixture into a live coding agent. **New Remote Session** creates an ad hoc session; live work requires a configured live runtime. See the [demo guide](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/operations/demo.md).
 
@@ -38,18 +39,34 @@ The returned session cookie stays in VS Code SecretStorage, scoped to that origi
 
 The server enforces identity and session ownership. Viewers inspect visible sessions, operators change their own sessions, and administrators can access all sessions. Changing the connection invalidates pending actions so they cannot be submitted to the wrong workbench.
 
+## See what waits on you
+
+The De Vloer sidebar opens on **Now**, the same list as the browser's Now page:
+
+1. **Ready for your review**: Work Items whose pull request waits on a person, with the pull request number. The inline icon opens the pull request.
+2. **Needs you**: Work Items Ploeg stopped on, each led by its reason ("Budget ran out", "Agent is stuck", …), plus supervised sessions waiting for your answer.
+3. **Proposed**: follow-up work an agent proposed, which runs only after a person approves it.
+4. **Running**: each running Run with its Role, Round, elapsed time and the gateway's cost so far, which is not settled spend.
+
+Select a row to open its Work Item panel; the second inline icon opens it in the browser. The activity-bar badge counts what is ready for your review or needs you. The status bar shows the same counts and turns amber only when something needs you. A Work Item that newly needs you raises a notification; with `vloer.notifications` set to `all`, so does one that newly becomes ready for review.
+
+**Tasks** lists your team's tracker boards. A task Ploeg holds shows its state, for example "Ready for review" or "Needs you · Budget ran out". **Work** browses each Team's lanes. **Sessions** holds supervised sessions. It appears in the demo, with shared execution, or when you have sessions, and starts collapsed.
+
+States, reasons, amounts and dates come from the browser's own modules, so both clients word them the same way: `US$ 1.234,50`, 24-hour times, and "Not reported" when spend is unknown, never zero. Each status tone is a theme colour you can change in `workbench.colorCustomizations`: `vloer.live` (running), `vloer.attention` (needs you), `vloer.review` (ready for review), `vloer.success`, `vloer.danger` and `vloer.severe` (stopped retrying, infrastructure failures). By default they follow your theme's own colours.
+
 ## Work and review
 
 | Surface | What to use it for |
 | --- | --- |
+| Now | See what waits on you across every Team, and what is running |
 | Sessions tree | Find active work, pending decisions, queued sessions and history. Expand a session for its crew, evidence and source task |
 | Brief | Read the objective, imported snapshot, retained transcripts, review candidate and handoff |
 | Changes | Inspect captured patches by file |
 | Checks | Read recorded check output and distinguish passing, failing and expected fixture failures |
 | Activity | Inspect durable events, tool input/output and the brief supplied to each role |
 | Gateway | Inspect attributed model requests, routing, cost and errors; open configured Grafana links |
-| Task view | Read a linked task with its labels and assignees, see whether Ploeg has it, hand it to a Ploeg team or take it back, or start a supervised session |
-| Ploeg tree | Browse allowed teams and bounded work snapshots. A Work Item opens its task view when its tracker source is registered; the inline icon opens workbench details for shifts, runs and accounting |
+| Work Item panel | See a Work Item's state, reason and next action, its pull requests with CI and reviews, cost per role and Runs; read the task, hand it to a Ploeg team or take it back, or start a supervised session |
+| Work tree | Browse each Team's lanes in a bounded snapshot. A Work Item opens its panel; the inline icon opens it in the browser |
 
 The crew strip distinguishes implementation, analysis and the final independent review. Earlier read roles supply analysis. Writing crews require an explicit final approval. A completed session awaits the person's review; accept or reject it from the toolbar or **Record Review** command. Rejection requires a reason, and the decision records the person who made it.
 
@@ -61,13 +78,13 @@ No API mutation is retried automatically. A read that meets an unreachable workb
 
 The spending card distinguishes authorization, observations, reservations and settlement. Unknown spend is not zero. Gateway data can arrive late and cannot prove an exact ceiling for requests already in flight.
 
-## Work from a linked task
+## Work from a task
 
 An administrator configures sources on the workbench. Registered Forgejo, GitHub, GitLab, ClickUp and Vikunja sources appear in both clients. Tracker credentials stay on the server. Personal GitLab account linking is available through **Vloer: Linked Accounts**; it does not automatically register a task source. Configuration and scope limits are in the [task connection guide](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/operations/task-connections.md).
 
-Select a task to open its task view. The description is rendered from the tracker as inert text; links open in your browser only when they use HTTPS. The **Glide** card says whether Ploeg already has the task, what state it is in and what happens next, with links to its pull request and Ploeg workbench details.
+Select a task to open its task view. The description is rendered from the tracker as inert text; links open in your browser only when they use HTTPS. The head of the panel says whether Ploeg already has the task, what state it is in, why, and what happens next.
 
-**Hand to Ploeg** is offered on boards that Ploeg owns. Choose a team and confirm: the workbench assigns that team's tracker user and comments that you handed it over, which is how Ploeg receives work. Ploeg queues it, works on a branch and opens a pull request for review. **Take back** removes the assignment while the item is still queued; work that has started is cancelled from the Ploeg view. Viewers can read the task view but cannot hand work over. Older workbench servers show the task without Ploeg status.
+**Hand to Ploeg** is offered on boards that Ploeg owns. Choose a team and confirm: the workbench assigns that team's tracker user and comments that you handed it over, which is how Ploeg receives work. Ploeg queues it, works on a branch and opens a pull request for review. **Take back** removes the assignment while the item is still queued; work that has started is cancelled from the browser's Work Item page. Viewers can read the task view but cannot hand work over. Older workbench servers show the task without Ploeg status.
 
 **Start a supervised session** prepares operator-led work instead: choose the crew and authorization, then confirm the workbench and task revision. A stale revision requires a fresh preview. Repeating the same import reopens its existing session; it does not create another paid attempt. Import prepares queued work; Start begins execution. Standalone import requires an interactive source and repository. In shared mode, registered Vikunja and ClickUp targets can bind to the existing Ploeg Work Item, which is claimed on Start. Import itself does not mutate the tracker. Source text cannot select another repository or change execution authority.
 
@@ -89,7 +106,7 @@ Each attachment is limited to 12,000 characters and becomes a durable instructio
 
 ## Connection and privacy
 
-A failed refresh keeps the last loaded sessions and tasks on screen and says the extension is reconnecting; the views switch to offline after three consecutive failures or an expired sign-in. Open panels consume the server event stream, with polling as a fallback. The footer distinguishes live, polling and disconnected states. Disconnection disables panel mutations; closing the editor does not stop remote work. **Open complete history** fetches retained events beyond the bounded panel buffer. The Ploeg tree uses refreshed snapshots rather than a lossless subscription.
+A failed refresh keeps the last loaded sessions and tasks on screen and says the extension is reconnecting; the views switch to offline after three consecutive failures or an expired sign-in. Open panels consume the server event stream, with polling as a fallback. The footer distinguishes live, polling and disconnected states. Disconnection disables panel mutations; closing the editor does not stop remote work. **Open complete history** fetches retained events beyond the bounded panel buffer. Now refreshes at most every 15 seconds and the Work tree every 30 seconds while visible; both use snapshots rather than a lossless subscription.
 
 Notifications cover decisions, failures and results ready for review. Configure `vloer.notifications`, `vloer.liveUpdates` and the polling interval in settings. No global keyboard shortcuts are registered; the composer supports Ctrl+Enter or Cmd+Enter.
 
