@@ -651,15 +651,77 @@
           }
         ]
       }
+    ],
+    "colors": [
+      {
+        "id": "vloer.live",
+        "description": "De Vloer: running work. Teal, never the accent, because the accent means interaction.",
+        "defaults": {
+          "dark": "terminal.ansiCyan",
+          "light": "terminal.ansiCyan",
+          "highContrast": "terminal.ansiBrightCyan",
+          "highContrastLight": "terminal.ansiCyan"
+        }
+      },
+      {
+        "id": "vloer.attention",
+        "description": "De Vloer: a person must act, such as Needs you. The loudest tone.",
+        "defaults": {
+          "dark": "charts.yellow",
+          "light": "editorWarning.foreground",
+          "highContrast": "charts.yellow",
+          "highContrastLight": "editorWarning.foreground"
+        }
+      },
+      {
+        "id": "vloer.review",
+        "description": "De Vloer: ready for your review. Violet, so it never looks like Done.",
+        "defaults": {
+          "dark": "charts.purple",
+          "light": "charts.purple",
+          "highContrast": "charts.purple",
+          "highContrastLight": "charts.purple"
+        }
+      },
+      {
+        "id": "vloer.success",
+        "description": "De Vloer: done, an approving agent review, accepted.",
+        "defaults": {
+          "dark": "charts.green",
+          "light": "testing.iconPassed",
+          "highContrast": "charts.green",
+          "highContrastLight": "testing.iconPassed"
+        }
+      },
+      {
+        "id": "vloer.danger",
+        "description": "De Vloer: failed, and destructive actions.",
+        "defaults": {
+          "dark": "charts.red",
+          "light": "errorForeground",
+          "highContrast": "errorForeground",
+          "highContrastLight": "errorForeground"
+        }
+      },
+      {
+        "id": "vloer.severe",
+        "description": "De Vloer: stopped retrying, interrupted, infrastructure failures.",
+        "defaults": {
+          "dark": "charts.orange",
+          "light": "charts.orange",
+          "highContrast": "charts.orange",
+          "highContrastLight": "charts.orange"
+        }
+      }
     ]
   },
   "scripts": {
-    "compile": "tsc -p .",
-    "watch": "tsc -p . --watch",
-    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test ${VLOER_TEST_CONCURRENCY:+--test-concurrency=$VLOER_TEST_CONCURRENCY} --test-timeout=120000 --test-force-exit test/*.test.ts",
+    "compile": "node scripts/sync-core.mjs && tsc -p .",
+    "watch": "node scripts/sync-core.mjs && tsc -p . --watch",
+    "test": "node scripts/sync-core.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test ${VLOER_TEST_CONCURRENCY:+--test-concurrency=$VLOER_TEST_CONCURRENCY} --test-timeout=120000 --test-force-exit test/*.test.ts",
     "vscode:prepublish": "npm run compile",
     "package": "vsce package --no-dependencies",
-    "test:webview": "node test/webview.mjs && node test/task-webview.mjs"
+    "test:webview": "node scripts/sync-core.mjs && node test/webview.mjs && node test/task-webview.mjs"
   },
   "devDependencies": {
     "@types/node": "24.19.0",

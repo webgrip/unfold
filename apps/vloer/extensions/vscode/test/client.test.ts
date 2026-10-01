@@ -314,10 +314,27 @@ test('Ploeg inspection shares workbench identity and opens opaque item links wit
   assert.equal(overview.demo, true);
   assert.equal(overview.selectedTeam, 'research');
   assert.equal(overview.lanes?.queued.items[0].id, '104');
-  assert.equal(client.ploegDashboard('9007199254740993'), `${server.url}/#ploeg/9007199254740993`);
-  assert.equal(client.ploegDashboard(), `${server.url}/#ploeg`);
+  assert.equal(client.ploegDashboard('9007199254740993'), `${server.url}/#work/9007199254740993`);
+  assert.equal(client.ploegDashboard(), `${server.url}/#work`);
   assert.throws(() => client.ploegDashboard('../private'));
   assert.throws(() => client.ploegDashboard('1?token=anything'));
   assert.equal(server.app.store.listSessions().length, 0);
   assert.equal(secrets.values.size, 0);
+});
+
+test('Now, a Work Item and its card come from the workbench, scoped to the signed-in identity', async t => {
+  const server = await application();
+  t.after(() => server.close());
+  const client = new VloerClient(server.url, new MemorySecrets());
+  const now = await client.ploegNow(true);
+  assert.equal(now.demo, true);
+  assert.ok(now.waiting.length > 0, 'the demo has work waiting on a person');
+  assert.ok(now.waiting.every(item => ['awaiting_review', 'needs_human', 'proposed', 'stale'].includes(item.state)));
+  const detail = await client.workItem(now.waiting[0].id);
+  assert.equal(detail.item.id, now.waiting[0].id);
+  assert.ok(Array.isArray(detail.runs) && Array.isArray(detail.shifts));
+  const card = await client.workItemCard(now.waiting[0].id);
+  assert.ok(card === undefined || card.workItemId === now.waiting[0].id);
+  assert.throws(() => client.workItem('../private'));
+  assert.equal(server.app.store.listSessions().length, 0);
 });
