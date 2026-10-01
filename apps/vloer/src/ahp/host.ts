@@ -143,8 +143,13 @@ export class AgentHost {
 
   private send(client: Client, message: Json): void { client.connection.send(JSON.stringify(message)); }
 
-  private notify(channelFilter: string, method: string, params: Json): void {
-    for (const client of this.clients) if (client.initialized && client.subscriptions.has(channelFilter)) this.send(client, { jsonrpc: '2.0', method, params });
+  private notify(channelFilter: string, method: string, params: Json, ownerId?: string): void {
+    for (const client of this.clients) if (client.initialized && client.subscriptions.has(channelFilter) && (ownerId === undefined || this.mayView(client.user, ownerId))) this.send(client, { jsonrpc: '2.0', method, params });
+  }
+
+  private reject(sender: Client, channel: string, action: Json, origin: { clientId: string; clientSeq: number }, rejectionReason: string): void {
+    const envelope = { channel, action, serverSeq: ++this.serverSeq, origin, rejectionReason };
+    for (const client of this.clients) if (client === sender || (client.initialized && client.user.id === sender.user.id && client.subscriptions.has(channel))) this.send(client, { jsonrpc: '2.0', method: 'action', params: envelope });
   }
 
   private broadcast(channel: string, action: Json, origin?: { clientId: string; clientSeq: number }, rejectionReason?: string): Json {
@@ -153,23 +158,25 @@ export class AgentHost {
     return envelope;
   }
 
-  private visible(user: User): Session[] { return this.store.listSessions().filter(session => session.ownerId === user.id || user.role === 'admin'); }
+  private mayView(user: User, ownerId: string): boolean { return ownerId === user.id || user.role === 'admin'; }
+
+  private visible(user: User): Session[] { return this.store.listSessions().filter(session => this.mayView(user, session.ownerId)); }
 
   private sessionFor(user: User, uri: string): Session | undefined {
     const id = sessionIdFrom(uri);
     const session = id ? this.store.getSession(id) : undefined;
-    if (!session || (session.ownerId !== user.id && user.role !== 'admin')) return undefined;
+    if (!session || !this.mayView(user, session.ownerId)) return undefined;
     return session;
   }
 
-  rootState(): Json {
+  rootState(user: User): Json {
     return {
       agents: [{
         provider, displayName: 'De Vloer crews', description: 'Operator-led agent crews in isolated workspaces; every session ends in a reviewable candidate.',
         models: this.config.models.map(model => ({ id: model.id, provider, name: model.name })),
         capabilities: { multipleChats: {}, multipleWorkingDirectories: {} },
       }],
-      activeSessions: this.store.listSessions().filter(session => ['running', 'waiting_input', 'exporting'].includes(session.status)).length,
+      activeSessions: this.visible(user).filter(session => ['running', 'waiting_input', 'exporting'].includes(session.status)).length,
     };
   }
 
@@ -458,7 +465,7 @@ export class AgentHost {
             this.broadcast(sessionChannel(id), { type: 'session/changesetsChanged', changesets: state.changesets });
             for (const request of state.inputNeeded) this.broadcast(sessionChannel(id), { type: 'session/inputNeededSet', request });
             for (const request of this.store.permissions(id).filter(item => item.resolved)) this.broadcast(sessionChannel(id), { type: 'session/inputNeededRemoved', id: request.id });
-            this.notify(rootChannel, 'root/sessionSummaryChanged', { channel: rootChannel, session: sessionChannel(id), changes: { status: summary.status, activity: summary.activity, modifiedAt: summary.modifiedAt, changes: summary.changes } });
+            this.notify(rootChannel, 'root/sessionSummaryChanged', { channel: rootChannel, session: sessionChannel(id), changes: { status: summary.status, activity: summary.activity, modifiedAt: summary.modifiedAt, changes: summary.changes } }, session.ownerId);
             if (session.artifacts.some(artifact => artifact.kind === 'diff')) { const changeset = this.changesetState(session); this.broadcast(changesetChannel(id), { type: 'changeset/contentChanged', files: changeset.files, operations: changeset.operations }); }
           }
         }
@@ -491,10 +498,11 @@ export class AgentHost {
   }
 
   private snapshot(client: Client, channel: string): Json {
-    if (channel === rootChannel) return { resource: rootChannel, state: this.rootState(), fromSeq: this.serverSeq };
+    if (channel === rootChannel) return { resource: rootChannel, state: this.rootState(client.user), fromSeq: this.serverSeq };
     const pending = this.pending.get(channel);
+    if (pending && !this.mayView(client.user, pending.user.id)) throw new RpcError(codes.sessionNotFound, 'Session not found');
     if (pending) return { resource: channel, state: { provider, title: pending.config.title ?? 'New session', status: statusBits.idle, lifecycle: 'ready', activeClients: [], chats: pending.chat ? [{ resource: pending.chat, title: pending.config.title ?? 'New session', status: statusBits.idle, modifiedAt: new Date().toISOString(), origin: { kind: 'user' }, interactivity: 'full' }] : [], ...(pending.chat ? { defaultChat: pending.chat } : {}), config: { schema: this.configSchema(), values: pending.config }, inputNeeded: [] }, fromSeq: this.serverSeq };
-    for (const [, item] of this.pending) if (item.chat === channel) return { resource: channel, state: { resource: channel, title: item.config.title ?? 'New session', status: statusBits.idle, modifiedAt: new Date().toISOString(), origin: { kind: 'user' }, interactivity: 'full', turns: [] }, fromSeq: this.serverSeq };
+    for (const [, item] of this.pending) if (item.chat === channel && this.mayView(client.user, item.user.id)) return { resource: channel, state: { resource: channel, title: item.config.title ?? 'New session', status: statusBits.idle, modifiedAt: new Date().toISOString(), origin: { kind: 'user' }, interactivity: 'full', turns: [] }, fromSeq: this.serverSeq };
     const session = this.sessionFor(client.user, channel);
     if (!session) throw new RpcError(codes.sessionNotFound, 'Session not found');
     if (channel.startsWith('ahp-session:')) return { resource: channel, state: this.sessionState(session), fromSeq: this.serverSeq };
@@ -551,7 +559,7 @@ export class AgentHost {
     const pending: PendingSession = { uri: channel, config, user: client.user };
     this.pending.set(channel, pending);
     client.subscriptions.add(channel);
-    queueMicrotask(() => { this.broadcast(channel, { type: 'session/ready' }); this.notify(rootChannel, 'root/sessionAdded', { channel: rootChannel, summary: { resource: channel, provider, title: config.title ?? 'New session', status: statusBits.idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() } }); });
+    queueMicrotask(() => { this.broadcast(channel, { type: 'session/ready' }); this.notify(rootChannel, 'root/sessionAdded', { channel: rootChannel, summary: { resource: channel, provider, title: config.title ?? 'New session', status: statusBits.idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() } }, client.user.id); });
     return {};
   }
 
@@ -575,12 +583,18 @@ export class AgentHost {
 
   private disposeSession(client: Client, params: Json): Json {
     const channel = String(params.channel ?? '');
-    if (this.pending.delete(channel)) { this.notify(rootChannel, 'root/sessionRemoved', { channel: rootChannel, session: channel }); return {}; }
+    const pending = this.pending.get(channel);
+    if (pending) {
+      if (!this.mayView(client.user, pending.user.id)) throw new RpcError(codes.sessionNotFound, 'Session not found');
+      this.pending.delete(channel);
+      this.notify(rootChannel, 'root/sessionRemoved', { channel: rootChannel, session: channel }, pending.user.id);
+      return {};
+    }
     const session = this.sessionFor(client.user, channel);
     if (!session) throw new RpcError(codes.sessionNotFound, 'Session not found');
     if (['running', 'waiting_input', 'queued', 'paused', 'interrupted'].includes(session.status)) void this.engine.cancel(session.id, client.user).catch(() => {});
     for (const item of this.clients) for (const subscription of [...item.subscriptions]) if (sessionIdFrom(subscription) === session.id) item.subscriptions.delete(subscription);
-    this.notify(rootChannel, 'root/sessionRemoved', { channel: rootChannel, session: channel });
+    this.notify(rootChannel, 'root/sessionRemoved', { channel: rootChannel, session: channel }, session.ownerId);
     return {};
   }
 
@@ -596,8 +610,8 @@ export class AgentHost {
         if (item.subscriptions.delete(pending.uri)) item.subscriptions.add(sessionUri);
         if (item.subscriptions.delete(chat)) item.subscriptions.add(chatUri);
       }
-      this.notify(rootChannel, 'root/sessionRemoved', { channel: rootChannel, session: pending.uri });
-      this.notify(rootChannel, 'root/sessionAdded', { channel: rootChannel, summary: this.summary(session) });
+      this.notify(rootChannel, 'root/sessionRemoved', { channel: rootChannel, session: pending.uri }, pending.user.id);
+      this.notify(rootChannel, 'root/sessionAdded', { channel: rootChannel, summary: this.summary(session) }, session.ownerId);
       this.broadcast(sessionUri, { type: 'session/chatAdded', summary: this.chatSummary(session) }, origin);
       this.broadcast(sessionUri, { type: 'session/defaultChatChanged', defaultChat: chatUri });
       const projection = this.projection(session);
@@ -615,7 +629,7 @@ export class AgentHost {
     const channel = String(params.channel ?? '');
     const action = (params.action ?? {}) as Json;
     const origin = { clientId: client.clientId ?? client.id, clientSeq: Number(params.clientSeq) || 0 };
-    const reject = (reason: string) => this.broadcast(channel, action, origin, reason);
+    const reject = (reason: string) => this.reject(client, channel, action, origin, reason);
     try {
       const pending = [...this.pending.values()].find(item => item.chat === channel);
       if (pending && action.type === 'chat/turnStarted') { await this.startFromPending(client, pending, action.message ?? {}, origin); return; }
