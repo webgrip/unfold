@@ -52,7 +52,7 @@
     },
     "usage": {
       "type": "object",
-      "description": "per-run cost/usage (backlog #66) and the harness-native resume handle (backlog #70)",
+      "description": "per-run cost/usage (backlog #66) and the harness-native resume handle (backlog #70). The fields after sessionId (ADR-0045) are present only when the harness reported them; a reported zero is sent as zero and an unknown figure is left out.",
       "properties": {
         "inputTokens": {
           "type": "integer",
@@ -68,6 +68,61 @@
         },
         "sessionId": {
           "type": "string"
+        },
+        "cacheReadInputTokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "input tokens served from the provider's prompt cache"
+        },
+        "cacheCreationInputTokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "input tokens written to the provider's prompt cache"
+        },
+        "turns": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "agent turns the harness counted"
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "the harness's own wall-clock time for the Run"
+        },
+        "apiDurationMs": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "the part of durationMs spent waiting on the model API"
+        },
+        "toolCalls": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "tool invocations the harness reported"
+        },
+        "toolCallsByKind": {
+          "type": "object",
+          "description": "toolCalls split by the harness's tool kind (for ACP: read, edit, delete, move, search, execute, think, fetch, switch_mode, other)",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "peakContextTokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "the largest context-window fill the harness reported"
+        },
+        "contextWindowTokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "the size of the context window peakContextTokens fills"
+        },
+        "modelUsage": {
+          "type": "object",
+          "description": "the harness's own split of the Run's usage by model, keyed by model name",
+          "additionalProperties": {
+            "$ref": "#/$defs/modelUsage"
+          }
         }
       },
       "additionalProperties": false
@@ -98,6 +153,36 @@
     }
   },
   "$defs": {
+    "modelUsage": {
+      "type": "object",
+      "properties": {
+        "inputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cacheReadInputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cacheCreationInputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "costUsd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "contextWindowTokens": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
     "createdWorkItem": {
       "type": "object",
       "properties": {

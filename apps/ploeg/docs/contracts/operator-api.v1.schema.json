@@ -112,6 +112,59 @@
         "repairFollowUps": {
           "type": "integer",
           "minimum": 0
+        },
+        "mergedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the forge merged the pull request (ADR-0045). Absent until a webhook or the review poll reports the merge."
+        },
+        "mergedBy": {
+          "type": "string",
+          "description": "The forge login that merged the pull request. Absent when unknown."
+        },
+        "headSha": {
+          "type": "string",
+          "description": "The newest head commit the forge reported for the pull request. Absent when unknown."
+        },
+        "mergeCommitSha": {
+          "type": "string",
+          "description": "The commit the merge produced on the base branch. Absent when unknown or not merged."
+        },
+        "reviews": {
+          "type": "array",
+          "description": "Every review the forge reported on the pull request, oldest first, at most the newest 50. Empty when none was recorded.",
+          "items": {
+            "$ref": "#/$defs/pullRequestReview"
+          }
+        }
+      }
+    },
+    "pullRequestReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reviewer",
+        "receivedAt"
+      ],
+      "properties": {
+        "reviewer": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "approved",
+            "changes_requested",
+            "commented"
+          ],
+          "description": "Absent when the forge did not classify the review."
+        },
+        "headSha": {
+          "type": "string",
+          "description": "The head commit the review was given on. Absent when the forge did not say."
+        },
+        "receivedAt": {
+          "type": "string",
+          "format": "date-time"
         }
       }
     },
@@ -380,6 +433,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [],
+      "description": "A Run's usage as its harness reported it, with the cost Ploeg observed. Every field is absent when unknown; the fields after costUsd are kept since ADR-0045.",
       "properties": {
         "inputTokens": {
           "type": "integer",
@@ -391,6 +445,81 @@
         },
         "costUsd": {
           "type": "number"
+        },
+        "cacheReadInputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cacheCreationInputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "turns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "apiDurationMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "toolCalls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "toolCallsByKind": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "peakContextTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "contextWindowTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "modelUsage": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/modelUsage"
+          }
+        }
+      }
+    },
+    "modelUsage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "inputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cacheReadInputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cacheCreationInputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "costUsd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "contextWindowTokens": {
+          "type": "integer",
+          "minimum": 0
         }
       }
     },

@@ -206,6 +206,9 @@ type ChangesRequested struct {
 	PR         int
 	Reviewer   string
 	Body       string
+	// HeadSHA is the pull request head the review was given on, empty when
+	// the forge did not say (ADR-0045).
+	HeadSHA string
 }
 
 // RecordChangesRequested stores a request for changes against its Work Item
@@ -227,9 +230,9 @@ func (s *Store) RecordChangesRequested(ctx context.Context, cr ChangesRequested)
 		return "", err
 	}
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO work_item_reviews (work_item_id, provider, repo, pr, reviewer, body)
-		VALUES ($1, $2, $3, $4, $5, $6)`,
-		cr.WorkItemID, cr.Provider, cr.Repo, cr.PR, cr.Reviewer, cr.Body); err != nil {
+		INSERT INTO work_item_reviews (work_item_id, provider, repo, pr, reviewer, body, state, head_sha)
+		VALUES ($1, $2, $3, $4, $5, $6, 'changes_requested', NULLIF(left($7, 128), ''))`,
+		cr.WorkItemID, cr.Provider, cr.Repo, cr.PR, cr.Reviewer, cr.Body, cr.HeadSHA); err != nil {
 		return "", err
 	}
 	action := ReviewRecorded

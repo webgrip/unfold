@@ -40,6 +40,9 @@ func (providerFake) EditComment(context.Context, string, int, int64, string) err
 func (providerFake) PullRequestState(context.Context, string, int) (PullRequestState, error) {
 	return PullRequestOpen, nil
 }
+func (providerFake) PullRequestFacts(context.Context, string, int) (PullRequestFacts, error) {
+	return PullRequestFacts{State: PullRequestOpen}, nil
+}
 
 var _ ForgeProvider = providerFake{}
 

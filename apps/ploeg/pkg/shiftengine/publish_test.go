@@ -35,6 +35,7 @@ type fakeForge struct {
 	listErr  error
 	editErr  error
 	prStates map[int]provider.PullRequestState
+	prFacts  map[int]provider.PullRequestFacts
 	reads    []int
 	// listCalls counts Comments invocations, and edits records the comment ids
 	// edited in order — enough to prove find-then-edit rather than re-post.
@@ -53,6 +54,18 @@ func (f *fakeForge) PullRequestState(_ context.Context, _ string, pr int) (provi
 		return s, nil
 	}
 	return provider.PullRequestOpen, nil
+}
+
+func (f *fakeForge) PullRequestFacts(ctx context.Context, repo string, pr int) (provider.PullRequestFacts, error) {
+	state, err := f.PullRequestState(ctx, repo, pr)
+	if err != nil {
+		return provider.PullRequestFacts{}, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	facts := f.prFacts[pr]
+	facts.State = state
+	return facts, nil
 }
 
 func (f *fakeForge) Name() string                                              { return "webgrip" }

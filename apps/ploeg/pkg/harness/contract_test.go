@@ -119,6 +119,32 @@ func TestOutcomeReport_MatchesSchema(t *testing.T) {
 		t.Errorf("full OutcomeReport does not validate: %v", err)
 	}
 
+	// ADR-0045: every usage figure a harness can report is on the contract.
+	n := func(v int64) *int64 { return &v }
+	cost := 0.41
+	richUsage := OutcomeReport{
+		Outcome: work.OutcomePROpened, Summary: "opened a PR",
+		Usage: &Usage{
+			InputTokens: 1200, OutputTokens: 9876, CostUSD: 0.58, SessionID: "sess-2",
+			CacheReadInputTokens: n(812004), CacheCreationInputTokens: n(45210),
+			Turns: n(37), DurationMs: n(412345), APIDurationMs: n(301200),
+			ToolCalls: n(4), ToolCallsByKind: map[string]int64{"edit": 2, "read": 2},
+			PeakContextTokens: n(150000), ContextWindowTokens: n(200000),
+			ModelUsage: map[string]ModelUsage{"claude-sonnet-5": {
+				InputTokens: n(1100), OutputTokens: n(9500), CacheReadInputTokens: n(800000),
+				CacheCreationInputTokens: n(45000), CostUSD: &cost, ContextWindowTokens: n(200000),
+			}},
+		},
+	}
+	if err := validate(t, sch, richUsage); err != nil {
+		t.Errorf("OutcomeReport with every usage figure does not validate: %v", err)
+	}
+	zeroes := OutcomeReport{Outcome: work.OutcomeNoChangeNeeded, Summary: "x",
+		Usage: &Usage{ToolCalls: n(0), Turns: n(0), ToolCallsByKind: map[string]int64{}}}
+	if err := validate(t, sch, zeroes); err != nil {
+		t.Errorf("reported zero usage figures do not validate: %v", err)
+	}
+
 	minimal := OutcomeReport{Outcome: work.OutcomeNoChangeNeeded, Summary: "nothing to do"}
 	if err := validate(t, sch, minimal); err != nil {
 		t.Errorf("minimal OutcomeReport does not validate: %v", err)
@@ -191,6 +217,17 @@ func TestOutcomeReport_SchemaRejectsInvalid(t *testing.T) {
 		"outcome": "no_change_needed", "summary": "x", "verdict": "ship_it",
 	}); err == nil {
 		t.Error("unknown verdict enum validated")
+	}
+
+	for name, usage := range map[string]map[string]any{
+		"negative turns":         {"turns": -1},
+		"unknown usage key":      {"vibes": 3},
+		"unknown modelUsage key": {"modelUsage": map[string]any{"m": map[string]any{"webSearchRequests": 0}}},
+		"fractional tool calls":  {"toolCalls": 1.5},
+	} {
+		if err := validate(t, sch, map[string]any{"outcome": "no_change_needed", "summary": "x", "usage": usage}); err == nil {
+			t.Errorf("usage with %s validated", name)
+		}
 	}
 
 	// Zero-value report ("no structured signal") is an internal sentinel,

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/webgrip/ploeg/pkg/harness"
@@ -103,16 +104,72 @@ func (a *Adapter) Prepare(spec harness.TaskSpec, env harness.RunEnv) (harness.In
 // resultEnvelope is the subset of Claude Code's --output-format json
 // envelope we consume.
 type resultEnvelope struct {
-	Type         string  `json:"type"`
-	Subtype      string  `json:"subtype"`
-	IsError      bool    `json:"is_error"`
-	Result       string  `json:"result"`
-	SessionID    string  `json:"session_id"`
-	TotalCostUSD float64 `json:"total_cost_usd"`
-	Usage        struct {
-		InputTokens  int64 `json:"input_tokens"`
-		OutputTokens int64 `json:"output_tokens"`
+	Type          string  `json:"type"`
+	Subtype       string  `json:"subtype"`
+	IsError       bool    `json:"is_error"`
+	Result        string  `json:"result"`
+	SessionID     string  `json:"session_id"`
+	TotalCostUSD  float64 `json:"total_cost_usd"`
+	NumTurns      *int64  `json:"num_turns"`
+	DurationMs    *int64  `json:"duration_ms"`
+	DurationAPIMs *int64  `json:"duration_api_ms"`
+	Usage         struct {
+		InputTokens              int64  `json:"input_tokens"`
+		OutputTokens             int64  `json:"output_tokens"`
+		CacheReadInputTokens     *int64 `json:"cache_read_input_tokens"`
+		CacheCreationInputTokens *int64 `json:"cache_creation_input_tokens"`
 	} `json:"usage"`
+	ModelUsage map[string]envelopeModelUsage `json:"modelUsage"`
+}
+
+type envelopeModelUsage struct {
+	InputTokens              *int64   `json:"inputTokens"`
+	OutputTokens             *int64   `json:"outputTokens"`
+	CacheReadInputTokens     *int64   `json:"cacheReadInputTokens"`
+	CacheCreationInputTokens *int64   `json:"cacheCreationInputTokens"`
+	CostUSD                  *float64 `json:"costUSD"`
+	ContextWindow            *int64   `json:"contextWindow"`
+}
+
+const maxModelUsageEntries = 32
+
+func (env resultEnvelope) usage() *harness.Usage {
+	u := &harness.Usage{
+		InputTokens:              env.Usage.InputTokens,
+		OutputTokens:             env.Usage.OutputTokens,
+		CostUSD:                  env.TotalCostUSD,
+		SessionID:                env.SessionID,
+		CacheReadInputTokens:     env.Usage.CacheReadInputTokens,
+		CacheCreationInputTokens: env.Usage.CacheCreationInputTokens,
+		Turns:                    env.NumTurns,
+		DurationMs:               env.DurationMs,
+		APIDurationMs:            env.DurationAPIMs,
+	}
+	models := make([]string, 0, len(env.ModelUsage))
+	for model := range env.ModelUsage {
+		if model != "" {
+			models = append(models, model)
+		}
+	}
+	sort.Strings(models)
+	if len(models) > maxModelUsageEntries {
+		models = models[:maxModelUsageEntries]
+	}
+	for _, model := range models {
+		m := env.ModelUsage[model]
+		if u.ModelUsage == nil {
+			u.ModelUsage = map[string]harness.ModelUsage{}
+		}
+		u.ModelUsage[model] = harness.ModelUsage{
+			InputTokens:              m.InputTokens,
+			OutputTokens:             m.OutputTokens,
+			CacheReadInputTokens:     m.CacheReadInputTokens,
+			CacheCreationInputTokens: m.CacheCreationInputTokens,
+			CostUSD:                  m.CostUSD,
+			ContextWindowTokens:      m.ContextWindow,
+		}
+	}
+	return u
 }
 
 // ParseOutcome combines the two channels Claude Code gives us.
@@ -140,12 +197,5 @@ func (a *Adapter) ParseOutcome(_ harness.TaskSpec, res harness.ExecResult) (harn
 	if env.Type != "result" {
 		return box, nil
 	}
-	return harness.MergeDropBox(harness.OutcomeReport{
-		Usage: &harness.Usage{
-			InputTokens:  env.Usage.InputTokens,
-			OutputTokens: env.Usage.OutputTokens,
-			CostUSD:      env.TotalCostUSD,
-			SessionID:    env.SessionID,
-		},
-	}, box), nil
+	return harness.MergeDropBox(harness.OutcomeReport{Usage: env.usage()}, box), nil
 }

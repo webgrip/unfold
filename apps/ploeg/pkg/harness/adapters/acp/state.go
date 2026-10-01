@@ -48,6 +48,9 @@ type sessionState struct {
 	tools   map[string]*toolCall
 	toolSeq int
 
+	untrackedTools       int64
+	untrackedToolsByKind map[ToolKind]int64
+
 	plan []planEntry
 
 	// usage, accumulated. Pointers stay nil until an agent volunteers a value:
@@ -67,8 +70,9 @@ type sessionState struct {
 
 func newSessionState() *sessionState {
 	return &sessionState{
-		tools:        map[string]*toolCall{},
-		unknownKinds: map[string]bool{},
+		tools:                map[string]*toolCall{},
+		untrackedToolsByKind: map[ToolKind]int64{},
+		unknownKinds:         map[string]bool{},
 	}
 }
 
@@ -144,6 +148,10 @@ func (s *sessionState) foldToolCall(e updateEnvelope, kind UpdateKind) {
 	tc, ok := s.tools[id]
 	if !ok {
 		if len(s.tools) >= maxTrackedTools {
+			if kind == UpdateToolCall {
+				s.untrackedTools++
+				s.untrackedToolsByKind[toolKindOrOther(e.Kind)]++
+			}
 			return // runaway agent; the ones we have are representative
 		}
 		tc = &toolCall{ID: id, seq: s.toolSeq}
@@ -315,7 +323,29 @@ func (s *sessionState) unknownEnumValues() []string {
 	return out
 }
 
+func (s *sessionState) toolTallyLocked() (int64, map[string]int64) {
+	total := int64(len(s.tools)) + s.untrackedTools
+	if total == 0 {
+		return 0, nil
+	}
+	byKind := map[string]int64{}
+	for _, tc := range s.tools {
+		byKind[string(toolKindOrOther(string(tc.Kind)))]++
+	}
+	for k, n := range s.untrackedToolsByKind {
+		byKind[string(k)] += n
+	}
+	return total, byKind
+}
+
 // --- helpers ---
+
+func toolKindOrOther(kind string) ToolKind {
+	if kind == "" {
+		return ToolOther
+	}
+	return ParseToolKind(kind)
+}
 
 func appendBounded(b *strings.Builder, s string, max int) {
 	if s == "" || b.Len() >= max {
