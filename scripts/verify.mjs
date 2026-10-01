@@ -1,6 +1,7 @@
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { gateKey, resultCache } from './verify-cache.mjs';
+import { runGate } from './verify-gate.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 
@@ -40,7 +41,7 @@ const groups = [
     gates: [
       gate('.', 'python3', ['scripts/verify-import.py']),
       gate('.', 'uv', ['run', '--frozen', 'python', '-m', 'unittest', 'discover', '-s', 'scripts', '-p', 'test_release*.py']),
-      gate('.', process.execPath, ['--test', 'scripts/fake-litellm.test.mjs', 'scripts/eval/eval.test.mjs', 'scripts/verify-cache.test.mjs', 'scripts/ci-warnings.test.mjs', 'scripts/release-repair.test.mjs']),
+      gate('.', process.execPath, ['--test', 'scripts/fake-litellm.test.mjs', 'scripts/eval/eval.test.mjs', 'scripts/verify-cache.test.mjs', 'scripts/verify-gate.test.mjs', 'scripts/ci-warnings.test.mjs', 'scripts/release-repair.test.mjs']),
     ],
   },
   { name: 'integration', gates: [gate('.', process.execPath, ['scripts/integration.mjs'])] },
@@ -76,46 +77,31 @@ function execute(step) {
     return Promise.resolve();
   }
   const started = performance.now();
-  return new Promise(done => {
-    const child = spawn('mise', ['exec', '--', step.command, ...step.args], {
-      cwd: resolve(root, step.scope),
-      env: { ...process.env, ...parallelism, ...step.env },
-      stdio: ['ignore', 'pipe', 'pipe'],
-      detached: true,
-    });
-    const chunks = [];
-    let stdout = '';
-    child.stdout.on('data', chunk => {
-      if (step.emptyStdout) stdout += chunk;
-      if (!step.discardStdout) chunks.push(chunk);
-    });
-    child.stderr.on('data', chunk => chunks.push(chunk));
-    running.add(child);
-    const finish = (status, error) => {
-      running.delete(child);
-      step.seconds = (performance.now() - started) / 1000;
-      step.output = Buffer.concat(chunks).toString('utf8');
-      if (error) step.output += `${error.message}\n`;
-      if (step.emptyStdout && stdout.trim()) step.output += `${step.label} reported files that need formatting\n`;
-      if (step.status !== 'cancelled') step.status = status === 0 && !error && !(step.emptyStdout && stdout.trim()) ? 'passed' : 'failed';
-      if (step.status === 'passed' && step.key) results.record(step.key, `${step.scope}: ${step.label}`);
-      if (step.status === 'failed' && !failed) cancel();
-      done();
-    };
-    step.child = child;
-    child.on('error', error => finish(null, error));
-    child.on('close', status => finish(status));
+  const gate = runGate('mise', ['exec', '--', step.command, ...step.args], {
+    cwd: resolve(root, step.scope),
+    env: { ...process.env, ...parallelism, ...step.env },
+    keepStdout: !step.discardStdout,
+    captureStdout: step.emptyStdout,
+  });
+  step.gate = gate;
+  running.add(gate);
+  return gate.done.then(({ status, error, output, stdout, orphaned }) => {
+    running.delete(gate);
+    step.seconds = (performance.now() - started) / 1000;
+    step.output = output;
+    if (step.emptyStdout && stdout.trim()) step.output += `${step.label} reported files that need formatting\n`;
+    if (step.status !== 'cancelled') step.status = status === 0 && !error && !orphaned && !(step.emptyStdout && stdout.trim()) ? 'passed' : 'failed';
+    if (step.status === 'passed' && step.key) results.record(step.key, `${step.scope}: ${step.label}`);
+    if (step.status === 'failed' && !failed) cancel();
   });
 }
 
 function cancel() {
   failed = true;
   for (const group of groups) for (const step of group.gates) {
-    if (step.child && running.has(step.child)) {
+    if (step.gate && running.has(step.gate)) {
       step.status = 'cancelled';
-      try {
-        process.kill(-step.child.pid, 'SIGTERM');
-      } catch {}
+      step.gate.stop();
     }
   }
 }
