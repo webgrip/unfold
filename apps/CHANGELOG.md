@@ -1,3 +1,27 @@
+## [glide-v0.4.0-rc.25](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.24...glide-v0.4.0-rc.25) (2026-10-01)
+
+### Added
+
+* **deps:** update all non-major dependencies ([fd90985](https://forgejo.webgrip.dev/webgrip/glide/commit/fd909857de6d0162d32a147841d10773ca9907a4))
+* **ploeg:** keep every run usage figure and merge and review fact ([1db5084](https://forgejo.webgrip.dev/webgrip/glide/commit/1db50844d60cc2fca93cda19cb976cdea4d697bd))
+
+### Fixed
+
+* **release:** drop the duplicate rc.24 release commit ([d7c3c66](https://forgejo.webgrip.dev/webgrip/glide/commit/d7c3c664ca1bcf2e19a823c69c1adebdb9140d4e)), references [#73](https://forgejo.webgrip.dev/webgrip/glide/issues/73) [73-#75](https://forgejo.webgrip.dev/73-/issues/75)
+* **release:** drop the second duplicate rc.24 release commit ([f194524](https://forgejo.webgrip.dev/webgrip/glide/commit/f194524f2d94d8304abefc3e3af01be2db46abb9))
+* **vloer:** keep each AHP client to its own user's sessions ([d5b708b](https://forgejo.webgrip.dev/webgrip/glide/commit/d5b708b368671ead3a6e2bfc9936358e99d173fd))
+* **vloer:** let VS Code 1.140 create and follow an AHP session ([4228306](https://forgejo.webgrip.dev/webgrip/glide/commit/4228306f3fff241c11ba834d5d4ec46bde73409a))
+
+### Docs
+
+* record the VS Code 1.140 fit and the shared-surface plan ([b561fbf](https://forgejo.webgrip.dev/webgrip/glide/commit/b561fbf2cb99bfb50514b8d9e9d99609e9a09dde))
+
+### Internal
+
+* **release:** glide-site-v0.1.0-rc.3 [skip ci] ([df0cee3](https://forgejo.webgrip.dev/webgrip/glide/commit/df0cee327dc96ca19118cc84a946f0fc9ae350d0))
+* **release:** glide-v0.4.0-rc.24 [skip ci] ([c689ad0](https://forgejo.webgrip.dev/webgrip/glide/commit/c689ad0c9b1141973fdc94d213dd4daef0ada5d4))
+* **release:** glide-v0.4.0-rc.24 [skip ci] ([52ef670](https://forgejo.webgrip.dev/webgrip/glide/commit/52ef670ad82af519bb177903b8ea9b5eee166411))
+
 ## [glide-v0.4.0-rc.24](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.23...glide-v0.4.0-rc.24) (2026-10-01)
 
 ### Added
