@@ -4,13 +4,13 @@
   "docs/landscape/c4.md": "6a25523d5b3f8c3cda07fcc3e8b7cce5fc6ed7249c723cf4b18ec1bb417a3335",
   "apps/vloer/docs/research/2026-09-11-ecosystem-alternatives.md": "ad1b0ff85c4701a92301f7af330ce3d9627948c996c738832ed8e1060358c32a",
   "docs/landscape/bottlenecks.md": "c63108e238010f5f66e563abe26ca9b9bec7faa8d4e113af6aabeb3cfc7e99e4",
-  "docs/reference/glossary.md": "37d73538e6c3587156301b7f44a78f5207df924c493a9c5a2376144b6f790430",
-  "docs/domain/rules.md": "f2eb3c3152655cce234529add02ff9bbd0fd0f708c6e89dd41d48b8f364cd622",
+  "docs/reference/glossary.md": "803a4bb2d8c8d6b5088ae5f129b42fa99a3949595f269c6a7789d563323b3505",
+  "docs/domain/rules.md": "7cd26f811ac164359d78d8849fa1b8617fc2b19f9c5e698c179ecb9de3bf2658",
   "docs/landscape/questions.md": "0682a039a1a8bca7ad647a452db112ff0e5138cec1d250948b0ef73d23fcf094",
   "apps/vloer/docs/research/2026-09-11-ecosystem-implementation.md": "8da59941849e084fb7dd916c8b2a767d523f4692303c77058312d4197b5a4ce6",
   "docs/landscape/explorer.template.html": "c158ccfb71588702d23ca35014b4f1b6ab2217e81438db977f00851219ab871c",
-  "docs/domain/model.yaml": "c9f1c6abb7680cc4069779d89947a790af5d5b887b911d15fdb9e1259aa67c28",
-  "docs/domain/overview.md": "bee0ed9f90611b2b633d1d97ad135baeff46ac636a2c0025a3ea94423b791acc",
+  "docs/domain/model.yaml": "8ade30e49a77df26351539717b407d0fd8abf65c7a2aa9a0fd236b2126d298e2",
+  "docs/domain/overview.md": "bb96c2706835833ae6c5848cbc48b739ab5b132e761130a4e59a3e9c03c87fe8",
   "docs/domain/entities.md": "48e7e96a39b4288aed6c22019448ee0ba6beb709b5ab12839cd0faf1038983cd",
   "apps/vloer/scripts/build-landscape.mjs": "b77a19de5f0689423a7e62535498eaf87b23b9f3ae76969a6cf59ab1e70e8d50"
 }

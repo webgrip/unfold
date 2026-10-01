@@ -60,6 +60,21 @@ A repository path whose changes need careful review, listed as a glob in .unfold
 
 **See also:** [Review](#review), [Diff Limit](#diff-limit)  
 
+## Binder
+*Context: Cards*
+
+A person's private collection of the Run Cards they hold a copy of. Only its owner sees it, and they may share single cards. There is no manager view of a Binder. Not implemented yet.
+
+**See also:** [Run Card](#run-card), [Roster](#roster), [Pack](#pack)  
+
+## Bounce
+*Context: Cards*
+
+A Work Item moving from a later Gate back to an earlier one, with a reason: defect, requirement, misunderstood, environment or unknown. Only defect and unknown Bounces count against the Grade. A requirement change marks the card Evolved and leaves no Crack. Not implemented yet.
+
+**Examples:** A tester moves the ticket from In test back to In progress with the label bounce:defect; the fix becomes the card's next Play.  
+**See also:** [Gate](#gate), [Play](#play), [Grade](#grade), [Crack](#crack)  
+
 ## Budget
 *Context: Execution*
 
@@ -99,6 +114,13 @@ The part of Vloer where Clients submit Requests, talk to the refinement agent, a
 A Client's Definition of Ready, Definition of Done and extra instructions for agents. It ranks below the delivery contract, like repository instructions. The Definition of Done becomes Acceptance Conditions.
 
 **See also:** [Client](#client), [Ready](#ready), [Acceptance Conditions](#acceptance-conditions), [Refinement](#refinement)  
+
+## Crack
+*Context: Cards*
+
+A defect confirmed against a Run Card's change. Ploeg proposes candidate changes, the fixer names the cause, and a second person who is not the Steward confirms it; the Steward may dispute within five working days. A Crack is never applied automatically, carries a severity from S1 to S4, and is never totalled per person. Not implemented yet.
+
+**See also:** [Mend](#mend), [Steward](#steward), [Grade](#grade), [Bounce](#bounce)  
 
 ## Credit
 *Context: Billing*
@@ -169,6 +191,28 @@ Inspectable material supporting a claim about a Result or a Run, such as cited r
 
 **See also:** [Result](#result), [Review](#review)  
 
+## Finish
+*Context: Cards · Owner: Vloer*
+
+The visual layer a Run Card earns by staying live in production: matte, then foil at 7 days, holo at 30, prism at 90, gilded at 180 and infinity at 365. Vloer counts the days from the first production deploy of the latest merged Play, or from the merge when the repository has never reported a production deploy (Ploeg ADR-0047, Vloer ADR 0026).
+
+**See also:** [Run Card](#run-card), [Grade](#grade), [Rarity](#rarity), [Skin](#skin)  
+
+## Gate
+*Context: Cards*
+
+A stage a Work Item passes after review, such as development, test, acceptance and production. Each project maps its tracker statuses and deploy environments to Gates. Not implemented yet.
+
+**See also:** [Bounce](#bounce), [Run Card](#run-card), [Acceptance](#acceptance)  
+
+## Grade
+*Context: Cards*
+
+A Run Card's assessment of its change from 1 to 10 in half steps, from four subgrades: 40 % reliability, 25 % durability, 20 % delivery and 15 % review. The formula is versioned and printed on the card, and a card under 180 days live is capped at 9. It grades the change, never a person. Not implemented yet; Ploeg sends null.
+
+**Not to be confused with** [Verdict](../reference/glossary.md#verdict): A reviewing Run's approve or request_changes answer in one Round. It is one input a Grade could use, not a Grade.  
+**See also:** [Run Card](#run-card), [Crack](#crack), [Bounce](#bounce), [Finish](#finish)  
+
 ## Markup
 *Context: Billing*
 
@@ -176,6 +220,14 @@ The published percentage Unfold adds to token and compute cost when billing an A
 
 **Do not use:** markup tier  
 **See also:** [Token Charge](#token-charge), [Agency](#agency)  
+
+## Mend
+*Context: Cards*
+
+The confirmed fix of a Crack, drawn as gold seams that stay on the card (kintsugi). A mended card looks more distinguished than an untouched one, while its Grade ends slightly lower. Whoever mends another person's card becomes a co-signer. Not implemented yet.
+
+**Also known as:** kintsugi  
+**See also:** [Crack](#crack), [Steward](#steward), [Grade](#grade)  
 
 ## Model
 *Context: Execution*
@@ -198,12 +250,26 @@ The service that runs a model and answers inference requests. A provider can run
 A spec-driven change workflow and CLI. Ploeg keeps its change proposals and specs under apps/ploeg/openspec; mise.toml pins the CLI. A Work Item can name a change with a description line "openspec: <change-id>"; its Run is then briefed from the change and handed off for review only when strict validation of the change passes.
 
 
+## Pack
+*Context: Cards*
+
+The once-per-sprint ceremony that hands a person the Run Cards they earned that sprint. Opening it may add one cosmetic variant to a card, such as a foil pattern, alternative art, full art or a gold signature, drawn from published odds with a recorded seed. A Pack cannot be bought, re-rolled or traded, and a pull never changes a Grade, a Rarity or any metric. Not implemented yet.
+
+**See also:** [Binder](#binder), [Rarity](#rarity), [Grade](#grade)  
+
 ## Placement
 *Context: Participation · Owner: Vloer*
 
 Where a Session's Workspace runs, chosen per Session from the backends a deployment enables: a container on the workbench host (docker), a pod in the cluster (kubernetes) or a working directory shared with the server (local). Omitted, it takes the deployment default. A demonstration lists no placements.
 
 **See also:** [Session](#session), [Workspace](#workspace)  
+
+## Play
+*Context: Cards · Owner: Ploeg*
+
+One pull request of a Work Item as its Run Card shows it, oldest first. A pull request closed after a Bounce and its merged successor are two Plays on one card. Cost and lines are summed across Plays, and each Play's Runs appear as its crew.
+
+**See also:** [Run Card](#run-card), [Bounce](#bounce), [Shift](../reference/glossary.md#shift)  
 
 ## Ploeg
 *Context: System · Owner: Ploeg*
@@ -234,6 +300,13 @@ Recorded, repeatable proof that a component or path works as required before any
 A Work Item's Size and the Agency's price for it, drafted by Refinement and approved by the Client or by the Agency on its behalf. A Work Item with a Client waits as proposed until its Quote is approved.
 
 **See also:** [Size](#size), [Refinement](#refinement), [Client](#client), [Ticket](#ticket)  
+
+## Rarity
+*Context: Cards*
+
+How exceptional a Run Card's change is, kept apart from how well it was done (Grade) and how long it has lasted (Finish). Cosmetic only. An open decision: the proposal derives it from the change's challenge, predicted at mint and revealed at release, in percentile tiers per project and season. Not implemented; Ploeg sends null and nothing may depend on it.
+
+**See also:** [Run Card](#run-card), [Grade](#grade), [Finish](#finish), [Pack](#pack)  
 
 ## Ready
 *Context: Work*
@@ -283,6 +356,23 @@ An assessment of a Result against its Acceptance Conditions and supporting Evide
 **Not to be confused with** [Verdict](../reference/glossary.md#verdict): A reviewing Run's approve or request_changes answer. It is Evidence for a Review, not acceptance.  
 **See also:** [Result](#result), [Acceptance Conditions](#acceptance-conditions), [Evidence](#evidence), [Verdict](../reference/glossary.md#verdict)  
 
+## Roster
+*Context: Cards*
+
+The humans who acted on a Run Card's change, each with their roles. Built roles: merger and reviewer. Proposed: developer, QA, PO and acceptor, each holding a copy of the card that shares its fate, so a Crack shows on every copy and a Mend names the mender on every copy.
+
+**See also:** [Run Card](#run-card), [Steward](#steward), [Binder](#binder)  
+
+## Run Card
+*Context: Cards*
+
+The record of one Work Item's change and its life in production: who carried it, what its Runs cost, its Plays, review, CI and deployments, and, as proposed, its Grade, Rarity, Cracks and Mends. Ploeg assembles it from stored facts and Vloer renders it (Ploeg ADR-0046, Vloer ADR 0026). It describes a change, never a person, and its state never changes what Ploeg authorizes, budgets or merges.
+
+**Also known as:** card  
+**Not to be confused with** [Run](../reference/glossary.md#run): One Role executing against a Work Item. A Run Card covers every Run of its Work Item, across all its Shifts.  
+**Examples:** Work Item 138 has one Run Card with two Plays: #57, closed after a test Bounce, and #61, merged.  
+**See also:** [Work Item](../reference/glossary.md#work-item), [Play](#play), [Steward](#steward), [Roster](#roster), [Finish](#finish), [Grade](#grade), [Rarity](#rarity), [Skin](#skin)  
+
 ## Session
 *Context: Participation · Owner: Vloer*
 
@@ -290,6 +380,13 @@ Vloer's continuing record of a person's interaction around work: instructions, q
 
 **Not to be confused with** [Shift](../reference/glossary.md#shift): Ploeg's whole attempt on a Work Item; Ploeg avoids "session" for it.  
 **See also:** [Work Item](../reference/glossary.md#work-item), [Shift](../reference/glossary.md#shift), [Crew](#crew)  
+
+## Set Card
+*Context: Cards*
+
+The Run Card of an epic Work Item, whose children are Run Cards numbered within the set. Proposed: it completes when every child has been live for 30 days with no unmended Crack. Not implemented yet; Ploeg reads no tracker parent relations.
+
+**See also:** [Run Card](#run-card), [Work Item](../reference/glossary.md#work-item), [Crack](#crack)  
 
 ## Size
 *Context: Billing*
@@ -299,6 +396,13 @@ The class S, M or L that Refinement proposes for a Work Item and the Client appr
 **Examples:** S: 1 Credit, a €4 Shift Budget, at most 150 changed lines in 5 files.  
 **See also:** [Quote](#quote), [Credit](#credit), [Budget](#budget), [Diff Limit](#diff-limit)  
 
+## Skin
+*Context: Cards · Owner: Vloer*
+
+The look a Run Card is drawn in, chosen per Work Target in Ploeg's cardStyle. A Skin changes appearance and motion, never the facts or where they sit. Built: Vloer Native. Proposed: five more Skins, with per-Client themes on top.
+
+**See also:** [Run Card](#run-card), [Work Target](../reference/glossary.md#work-target), [Finish](#finish)  
+
 ## Step
 *Context: Participation · Owner: Vloer*
 
@@ -307,6 +411,14 @@ A part of one Run that Vloer performs internally, such as one Crew role in a del
 **Do not use:** role run  
 **Not to be confused with** [Run](../reference/glossary.md#run): One Role executing against a Work Item, authorized by Ploeg.  
 **See also:** [Run](../reference/glossary.md#run), [Crew](#crew), [Vloer](#vloer)  
+
+## Steward
+*Context: Cards*
+
+The person a Run Card names as answering for its change while it runs, with first right to mend it. Built today: whoever merged the latest merged Play, otherwise the last approver; forge bot logins never count. Proposed: the developer carrying the Work Item, meaning the tracker assignee at release, falling back to the merger and then the approver. The agent is never a Steward. A Steward is a role on a change, not a measure of a person.
+
+**Do not use:** owner (of a card)  
+**See also:** [Run Card](#run-card), [Roster](#roster), [Crack](#crack), [Mend](#mend)  
 
 ## Supervision
 *Context: Participation · Owner: Vloer*
@@ -401,7 +513,7 @@ Agency names the business that uses Unfold, so "the Agency edition" would mean t
 
 ## Terms owned by other models
 
-This model uses these terms with their owners' meaning: [Admission](../reference/glossary.md#admission), [Authority](../reference/glossary.md#authority), [Follow-Up](../reference/glossary.md#follow-up), [Harness](../reference/glossary.md#harness), [Lease](../reference/glossary.md#lease), [Outcome](../reference/glossary.md#outcome), [Role](../reference/glossary.md#role), [Run](../reference/glossary.md#run), [Shift](../reference/glossary.md#shift), [Team](../reference/glossary.md#team), [Tracker Item](../reference/glossary.md#tracker-item), [Verdict](../reference/glossary.md#verdict), [Work Item](../reference/glossary.md#work-item).
+This model uses these terms with their owners' meaning: [Admission](../reference/glossary.md#admission), [Authority](../reference/glossary.md#authority), [Follow-Up](../reference/glossary.md#follow-up), [Harness](../reference/glossary.md#harness), [Lease](../reference/glossary.md#lease), [Outcome](../reference/glossary.md#outcome), [Role](../reference/glossary.md#role), [Run](../reference/glossary.md#run), [Shift](../reference/glossary.md#shift), [Team](../reference/glossary.md#team), [Tracker Item](../reference/glossary.md#tracker-item), [Verdict](../reference/glossary.md#verdict), [Work Item](../reference/glossary.md#work-item), [Work Target](../reference/glossary.md#work-target).
 
 ## Decisions cited
 
@@ -483,3 +595,17 @@ Ploeg mirrors every assigned Tracker Item into a Work Item. A Client's ask that 
 
 **Options:** The tracker task is the Request; Refinement's Work Items become new Tracker Items or stay in Ploeg (Ploeg ADR-0031), Ploeg mirrors it as an unready Work Item that Refinement replaces with the real ones, Requests only come through the Client Portal; tracker tasks are always Work Items  
 **Recommendation:** The tracker task is the Request. Refinement's Work Items stay in Ploeg as proposed until their Quotes are approved, which reuses Ploeg ADR-0031 and keeps the Agency's tracker as the one place its Clients' asks live.  
+
+### what makes a Run Card rare
+
+The owner has not decided what Rarity measures. Until then Ploeg sends null and nothing may depend on it.
+
+**Options:** Challenge alone, predicted at mint and revealed at release, A mix of challenge and quality, Revealed at acceptance instead of release, Compared per Team instead of per project  
+**Recommendation:** Challenge alone, revealed at release, as percentile tiers per project and season, with fixed thresholds while a project has fewer than about 30 cards.  
+
+### the period a Pack covers
+
+A Pack is proposed once per sprint, but Unfold has no sprint concept and some teams do not work in sprints.
+
+**Options:** The tracker's iteration or cycle, where it has one, A fixed calendar period for every team, A period each Team sets in Ploeg's configuration  
+**Recommendation:** Decide before Packs are built; until then the period is the team's sprint as its tracker defines it.  
