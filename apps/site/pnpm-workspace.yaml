@@ -8,3 +8,5 @@ minimumReleaseAgeStrict: true
 
 minimumReleaseAgeExclude:
   - "@webgrip/*"
+  # Renovate security update: pnpm@11.11.0
+  - pnpm@11.11.0
