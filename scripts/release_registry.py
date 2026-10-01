@@ -187,11 +187,9 @@ def copy_image(source, target, repository, version, revision):
     dst = f'{target.host}/{repository}:{version}'
     verify_signature(src)
     existing = target.manifest(repository, version, missing=True)
-    if existing is None:
-        command('docker', 'buildx', 'imagetools', 'create', '--tag', dst, src)
-    else:
+    if existing is not None:
         require_same(digest(existing), expected, dst)
-    command('cosign', 'copy', '--only=sig,att,sbom', src, dst)
+    command('regctl', 'image', 'copy', '--referrers', '--digest-tags', src, dst)
     require_same(verify_image(target, repository, version, revision), expected, dst)
     verify_signature(f'{target.host}/{repository}@{expected}')
     return expected

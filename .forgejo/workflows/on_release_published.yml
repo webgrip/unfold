@@ -348,7 +348,7 @@ jobs:
           platforms: "linux/amd64,linux/arm64"
           binfmt-image: "docker.io/tonistiigi/binfmt:latest@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0"
           sbom-generator: "docker.io/docker/buildkit-syft-scanner:stable-1@sha256:ae4f3b554449e7e25548e7d8ccc029d17357348e30c6e3df01b92bc93654d6a9"
-          buildkit-image: "docker.io/moby/buildkit:buildx-stable-1@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec"
+          buildkit-image: "docker.io/moby/buildkit:buildx-stable-1@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea"
           annotations: |
             index:org.opencontainers.image.source=https://github.com/webgrip/glide
             index:org.opencontainers.image.url=https://forgejo.webgrip.dev/webgrip/glide
@@ -465,6 +465,12 @@ jobs:
         with:
           fetch-depth: 0
           ref: unfold-v${{ needs.parse-release-tag.outputs.version }}
+      - uses: https://github.com/jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+        with:
+          version: 2026.9.18
+          install_args: regctl
+          cache: false
+          github_token: ''
       - name: Copy and verify release artifacts
         shell: bash
         env:
@@ -495,7 +501,7 @@ jobs:
       - uses: https://github.com/jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
         with:
           version: 2026.9.18
-          install_args: go
+          install_args: go regctl
           cache: false
           github_token: ''
       - name: Copy and verify release artifacts

@@ -139,6 +139,45 @@ url = "https://nodejs.org/dist/v24.21.0/node-v24.21.0-win-x64.zip"
 version = "1.13.2"
 backend = "npm:@fission-ai/openspec"
 
+[[tools.regctl]]
+version = "0.11.6"
+backend = "aqua:regclient/regclient/regctl"
+
+[tools.regctl."platforms.linux-arm64"]
+checksum = "sha256:a9b71a3ee79b2d1dbbd7d51fd5e8fa214722c192864235d3d8764463c751a1ff"
+url = "https://github.com/regclient/regclient/releases/download/v0.11.6/regctl-linux-arm64"
+url_api = "https://api.github.com/repos/regclient/regclient/releases/assets/541343835"
+
+[tools.regctl."platforms.linux-arm64-musl"]
+checksum = "sha256:a9b71a3ee79b2d1dbbd7d51fd5e8fa214722c192864235d3d8764463c751a1ff"
+url = "https://github.com/regclient/regclient/releases/download/v0.11.6/regctl-linux-arm64"
+url_api = "https://api.github.com/repos/regclient/regclient/releases/assets/541343835"
+
+[tools.regctl."platforms.linux-x64"]
+checksum = "sha256:8e0e62a497fcdb8048d18aa927a139613176ba0531f412bc541044e28f9856bd"
+url = "https://github.com/regclient/regclient/releases/download/v0.11.6/regctl-linux-amd64"
+url_api = "https://api.github.com/repos/regclient/regclient/releases/assets/541343840"
+
+[tools.regctl."platforms.linux-x64-musl"]
+checksum = "sha256:8e0e62a497fcdb8048d18aa927a139613176ba0531f412bc541044e28f9856bd"
+url = "https://github.com/regclient/regclient/releases/download/v0.11.6/regctl-linux-amd64"
+url_api = "https://api.github.com/repos/regclient/regclient/releases/assets/541343840"
+
+[tools.regctl."platforms.macos-arm64"]
+checksum = "sha256:5b52b71861abc300ab513e87a4c3794cff6508035ac7f6b6bdfa1fa5688c0040"
+url = "https://github.com/regclient/regclient/releases/download/v0.11.6/regctl-darwin-arm64"
+url_api = "https://api.github.com/repos/regclient/regclient/releases/assets/541343870"
+
+[tools.regctl."platforms.macos-x64"]
+checksum = "sha256:d651381c58357e9b9446cec172761c7418b7621da57960d438175d8f4c5b479d"
+url = "https://github.com/regclient/regclient/releases/download/v0.11.6/regctl-darwin-amd64"
+url_api = "https://api.github.com/repos/regclient/regclient/releases/assets/541343858"
+
+[tools.regctl."platforms.windows-x64"]
+checksum = "sha256:02778e22c482d437e14fc06ee1e8504aa8f0f0d2ac266a89ab80c8a5503c8024"
+url = "https://github.com/regclient/regclient/releases/download/v0.11.6/regctl-windows-amd64.exe"
+url_api = "https://api.github.com/repos/regclient/regclient/releases/assets/541343819"
+
 [[tools.uv]]
 version = "0.12.21"
 backend = "aqua:astral-sh/uv"
