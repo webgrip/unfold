@@ -27,3 +27,4 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0011](adr-0011-unfold-is-reachable-over-mcp-through-a-read-first-server.md) | Unfold is reachable over MCP through a separate, read-first server on Ploeg's operator API | accepted | 2026-09-30 |
 | [ADR-0012](adr-0012-the-marketing-site-releases-and-deploys-on-its-own.md) | The marketing site releases and deploys on its own, outside the Unfold version | accepted | 2026-10-01 |
 | [ADR-0013](adr-0013-the-product-is-named-unfold.md) | The product is named Unfold, and Ploeg and Vloer are its parts | accepted | 2026-10-01 |
+| [ADR-0014](adr-0014-the-unfold-name-and-mark-are-trademarks-not-cc-licensed-artwork.md) | The Unfold name and mark are trademarks under a usage policy, not CC-licensed artwork | proposed | 2026-10-01 |
