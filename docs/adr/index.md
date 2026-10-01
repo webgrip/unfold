@@ -29,3 +29,4 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0013](adr-0013-the-product-is-named-unfold.md) | The product is named Unfold, and Ploeg and Vloer are its parts | accepted | 2026-10-01 |
 | [ADR-0014](adr-0014-the-unfold-name-and-mark-are-trademarks-not-cc-licensed-artwork.md) | The Unfold name and mark are trademarks under a usage policy, not CC-licensed artwork | proposed | 2026-10-01 |
 | [ADR-0015](adr-0015-the-hosted-demo-is-a-recorded-replay-of-the-deterministic-demo.md) | The hosted demo is a recorded replay of the deterministic demo | proposed | 2026-10-01 |
+| [ADR-0016](adr-0016-site-sign-ups-are-stored-in-cloudflare-d1-in-the-eu.md) | Site sign-ups are stored by a small Worker in Cloudflare D1, in the EU jurisdiction | accepted | 2026-10-02 |

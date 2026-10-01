@@ -85,6 +85,16 @@ dir = "apps/vloer"
 run = "npm run replay:conformance"
 description = "Replay /demo in Chromium against the real UI: no unmatched request, page error or CSP violation"
 
+[tasks.site-timeline]
+dir = "apps/site"
+run = "node scripts/demo-timeline.ts"
+description = "Rewrite the site's walkthrough timeline from a run of Vloer's deterministic demo"
+
+[tasks.site-video]
+dir = "apps/site"
+run = "node scripts/record-demo-video.ts"
+description = "Record the deterministic demo in Vloer for the site; needs a local Chromium, uses ffmpeg when it can"
+
 [tasks.demo-unified]
 dir = "apps/vloer"
 run = "npm run demo:unified"

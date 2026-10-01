@@ -17,6 +17,7 @@
   "scripts": {
     "dev": "astro dev",
     "build": "node scripts/build-demo.mjs && astro build && webgrip-validate-csp",
+    "build:release": "node scripts/check-release-config.ts && pnpm build",
     "demo:build": "node scripts/build-demo.mjs",
     "preview": "astro preview",
     "astro": "astro",

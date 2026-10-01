@@ -37,6 +37,7 @@ const groups = [
   },
   { name: 'brand', inputs: ['scripts/build-brand.mjs', 'docs/brand', 'apps/site/src/brand', 'apps/site/src/styles/brand.css', 'README.md'], gates: [gate('.', process.execPath, ['scripts/build-brand.mjs', '--check'])] },
   { name: 'site', inputs: ['apps/site', 'apps/vloer/public'], gates: ['format:check', 'lint', 'typecheck', 'test', 'build'].map(site) },
+  { name: 'site-demo', inputs: ['apps/site', 'apps/vloer/src', 'apps/vloer/examples', 'apps/vloer/package.json'], gates: [gate('apps/site', 'node', ['scripts/demo-timeline.ts', '--check'])] },
   { name: 'helm', inputs: ['apps/vloer/ops/helm', 'apps/ploeg'], gates: [...helm, gate('apps/ploeg', 'sh', ['scripts/helm-golden.sh', 'check'])] },
   {
     name: 'release',

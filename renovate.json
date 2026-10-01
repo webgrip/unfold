@@ -198,6 +198,16 @@
         "typescript"
       ],
       "allowedVersions": "<7"
+    },
+    {
+      "description": "three is vendored into apps/vloer/public/vendor/three (Vloer ADR-0028). A version bump alone breaks the vendored copy's checks; upgrade by hand with npm run vendor:three.",
+      "matchFileNames": [
+        "apps/vloer/package.json"
+      ],
+      "matchPackageNames": [
+        "three"
+      ],
+      "enabled": false
     }
   ],
   "helm-values": {

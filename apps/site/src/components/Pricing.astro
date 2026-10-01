@@ -1,0 +1,132 @@
+---
+import type { Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+
+interface Props {
+  locale: Locale;
+}
+
+const t = dictionary(Astro.props.locale).pricing;
+const icons = [
+  'M5 12.5l4.5 4.5L19 7.5',
+  'M12 4v16M4 12h16',
+  'M4 18h16M6 18V9m6 9V5m6 13v-6',
+  'M12 3l8 4v5c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V7z',
+  'M4 11l8-7 8 7v9H4zM10 20v-5h4v5',
+];
+---
+
+<section id="pricing" class="section" aria-labelledby="pricing-title">
+  <div class="container">
+    <div class="pricing-head reveal">
+      <h2 id="pricing-title" class="section-title">{t.title}</h2>
+      <p class="planned-badge">{t.badge}</p>
+    </div>
+    <p class="lede pricing-intro reveal">{t.intro}</p>
+    <ul class="pricing-grid">
+      {t.items.map((item, index) => <li class="pricing-card card reveal">
+        <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" focusable="false">
+          <path d={icons[index]} />
+        </svg>
+        <h3>{item.title}</h3>
+        <p>{item.text}</p>
+      </li>)}
+    </ul>
+    <p class="note pricing-ticket">{t.ticket}</p>
+    <div class="pricing-cta reveal">
+      <p>{t.cta}</p>
+      <a class="button button--primary" href="#signup">{t.button}</a>
+    </div>
+  </div>
+</section>
+
+<style>
+  .pricing-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-3) var(--space-5);
+  }
+
+  .planned-badge {
+    padding: var(--space-1) var(--space-3);
+    border: 2px dashed var(--accent-decor);
+    border-radius: 999px;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .pricing-intro {
+    max-width: 60ch;
+  }
+
+  .pricing-grid {
+    list-style: none;
+    padding: 0;
+    margin-top: var(--space-6);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: var(--space-4);
+  }
+
+  .pricing-card {
+    display: grid;
+    align-content: start;
+    gap: var(--space-2);
+    max-width: none;
+    border-style: dashed;
+    border-color: var(--border-strong);
+    transition:
+      transform var(--duration-base) var(--ease-out),
+      border-color var(--duration-base) var(--ease-out);
+  }
+
+  .pricing-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--accent-decor);
+  }
+
+  .pricing-card svg {
+    fill: none;
+    stroke: var(--accent-decor);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    margin-bottom: var(--space-2);
+  }
+
+  .pricing-card p {
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+  }
+
+  .note {
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+  }
+
+  .pricing-ticket {
+    margin-top: var(--space-4);
+  }
+
+  .pricing-cta {
+    margin-top: var(--space-6);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-4) var(--space-5);
+    padding: var(--space-5);
+    border-radius: var(--radius-md);
+    border: var(--border-width) solid var(--border);
+    background: var(--bg-raised);
+  }
+
+  .pricing-cta p {
+    font-weight: var(--weight-semibold);
+    font-size: var(--text-lg);
+    flex: 1 1 24rem;
+  }
+</style>

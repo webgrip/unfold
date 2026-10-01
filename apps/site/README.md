@@ -1,6 +1,6 @@
 # Unfold site
 
-The public marketing site for [Unfold](../../README.md): one landing page and a 404, in English (`/`) and Dutch (`/nl`). It is a static [Astro](https://astro.build) build for Cloudflare Workers Static Assets, released and deployed on its own `unfold-site-v…` train.
+The public marketing site for [Unfold](../../README.md): a landing page with a demo walkthrough, the planned pricing model and a sign-up form, a privacy page, the form's thanks and problem pages and a 404, in English (`/`) and Dutch (`/nl`). It is a static [Astro](https://astro.build) build for Cloudflare Workers Static Assets with one small Worker that stores sign-ups in D1, released and deployed on its own `unfold-site-v…` train.
 
 ```sh
 mise install

@@ -1,0 +1,17 @@
+---
+import SignupOutcome from '../components/SignupOutcome.astro';
+import { dictionary } from '../i18n/index.ts';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const t = dictionary('en');
+---
+
+<BaseLayout
+  locale="en"
+  routeKey="signupProblem"
+  title={t.meta.problemTitle}
+  description={t.meta.problemDescription}
+  noindex
+>
+  <SignupOutcome locale="en" outcome="problem" />
+</BaseLayout>

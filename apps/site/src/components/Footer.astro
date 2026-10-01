@@ -2,6 +2,7 @@
 import { DOCS_URL, LICENSE_URL, SITE_NAME, SOURCE_URL } from '../config/site.ts';
 import type { Locale } from '../i18n/config.ts';
 import { dictionary } from '../i18n/index.ts';
+import { routePath } from '../i18n/routes.ts';
 import Lockup from './Lockup.astro';
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
 
 const t = dictionary(Astro.props.locale);
 const links = [
+  { href: routePath('privacy', Astro.props.locale), label: t.footer.privacy },
   { href: SOURCE_URL, label: t.footer.source },
   { href: DOCS_URL, label: t.footer.docs },
   { href: LICENSE_URL, label: t.footer.license },

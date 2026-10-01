@@ -566,7 +566,7 @@ jobs:
       environment: production
       release-channel: prerelease
       working-directory: apps/site
-      build-command: UNFOLD_SITE_URL=${{ needs.site-release-tag.outputs.site-url }} pnpm build
+      build-command: UNFOLD_SITE_URL=${{ needs.site-release-tag.outputs.site-url }} pnpm run build:release
       apex-url: ${{ needs.site-release-tag.outputs.site-url }}
       smoke-paths: |
         /
@@ -576,6 +576,8 @@ jobs:
         /favicon.svg
         /demo/
         /demo/replay/replay.json
+        /privacy
+        /nl/privacy
       not-found-path: /this-page-does-not-exist
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

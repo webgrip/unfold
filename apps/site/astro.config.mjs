@@ -32,7 +32,8 @@ export default defineConfig({
   },
   integrations: [
     sitemap({
-      filter: (page) => !new URL(page).pathname.replace(/\/+$/, '').endsWith('/404'),
+      filter: (page) =>
+        !/\/(404|thanks|signup-problem)$/.test(new URL(page).pathname.replace(/\/+$/, '')),
       i18n: {
         defaultLocale: DEFAULT_LOCALE,
         locales: { ...LOCALE_TAGS },
