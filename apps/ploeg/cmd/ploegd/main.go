@@ -297,6 +297,10 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("created work: %w", err)
 	}
+	gates, err := cfg.GateBoards(ctx, vik, log)
+	if err != nil {
+		return fmt.Errorf("gates: %w", err)
+	}
 	srv := &httpapi.Server{
 		OperatorConfig: operator,
 		WorkerSecurity: workerSecurity,
@@ -318,6 +322,8 @@ func run(log *slog.Logger) error {
 		FollowUps:       cfg.ForgeFollowUps(),
 		ForgeBots:       forgeBots(),
 		Deploys:         deploys,
+		Gates:           gates,
+		CardRules:       cardRules(cfg.TeamCardRules()),
 	}
 	log.Info("forge follow-ups loaded", "teams", len(srv.FollowUps))
 	if engine != nil {
@@ -399,6 +405,14 @@ func parseTeamMap(s string) map[string]string {
 		}
 	}
 	return m
+}
+
+func cardRules(teams map[string]config.TeamCards) map[string]httpapi.CardRules {
+	out := make(map[string]httpapi.CardRules, len(teams))
+	for team, cards := range teams {
+		out[team] = httpapi.CardRules{Referees: cards.Referees, HotfixLabels: cards.HotfixLabels, PRComment: cards.PRComment}
+	}
+	return out
 }
 
 func forgeBots() []string {

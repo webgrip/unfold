@@ -5,6 +5,7 @@
 @import url('/styles/shell.css') layer(shell);
 @import url('/styles/now.css') layer(views);
 @import url('/styles/work.css') layer(views);
+@import url('/styles/trace.css') layer(views);
 @import url('/styles/feeds.css') layer(views);
 @import url('/styles/proposed.css') layer(views);
 @import url('/styles/runs.css') layer(views);
@@ -17,6 +18,9 @@
 @import url('/styles/login.css') layer(views);
 @import url('/styles/palette.css') layer(views);
 @import url('/styles/design.css') layer(views);
+@import url('/styles/collection.css') layer(views);
+@import url('/styles/effects.css') layer(views);
+@import url('/styles/designer.css') layer(views);
 @font-face {
   font-family:Archivo;
   font-style:normal;

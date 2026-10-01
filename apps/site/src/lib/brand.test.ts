@@ -27,6 +27,7 @@ describe('brand.css', () => {
       'muted-light',
       'accent',
       'accent-deep',
+      'accent-night',
       'on-accent',
       'surface',
     ];

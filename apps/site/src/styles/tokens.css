@@ -72,7 +72,7 @@
 
     --bg: var(--brand-ground-dark);
     --bg-band: color-mix(in oklab, var(--brand-accent) 6%, var(--brand-ground-dark));
-    --bg-raised: color-mix(in oklab, var(--brand-paper) 5%, var(--brand-ground-dark));
+    --bg-raised: var(--brand-ground-dark);
 
     --fg: var(--brand-paper);
     --fg-muted: var(--brand-muted-light);
@@ -80,16 +80,16 @@
     --border: color-mix(in oklab, var(--brand-paper) 14%, var(--brand-ground-dark));
     --border-strong: color-mix(in oklab, var(--brand-paper) 28%, var(--brand-ground-dark));
 
-    --accent: var(--brand-accent);
-    --accent-decor: var(--brand-accent);
-    --accent-fill: var(--brand-accent);
-    --accent-fill-hover: color-mix(in oklab, var(--brand-accent) 85%, var(--brand-paper));
-    --accent-fg: var(--brand-ink);
+    --accent: var(--brand-accent-night);
+    --accent-decor: var(--brand-accent-night);
+    --accent-fill: var(--brand-accent-night);
+    --accent-fill-hover: color-mix(in oklab, var(--brand-accent-night) 85%, var(--brand-paper));
+    --accent-fg: var(--brand-ground-dark);
 
-    --link: var(--brand-accent);
+    --link: var(--brand-accent-night);
     --link-hover: var(--brand-paper);
 
-    --focus-ring: var(--brand-accent);
+    --focus-ring: var(--brand-accent-night);
   }
 }
 
@@ -98,7 +98,7 @@
 
   --bg: var(--brand-ground-dark);
   --bg-band: color-mix(in oklab, var(--brand-accent) 6%, var(--brand-ground-dark));
-  --bg-raised: color-mix(in oklab, var(--brand-paper) 5%, var(--brand-ground-dark));
+  --bg-raised: var(--brand-ground-dark);
 
   --fg: var(--brand-paper);
   --fg-muted: var(--brand-muted-light);
@@ -106,14 +106,14 @@
   --border: color-mix(in oklab, var(--brand-paper) 14%, var(--brand-ground-dark));
   --border-strong: color-mix(in oklab, var(--brand-paper) 28%, var(--brand-ground-dark));
 
-  --accent: var(--brand-accent);
-  --accent-decor: var(--brand-accent);
-  --accent-fill: var(--brand-accent);
-  --accent-fill-hover: color-mix(in oklab, var(--brand-accent) 85%, var(--brand-paper));
-  --accent-fg: var(--brand-ink);
+  --accent: var(--brand-accent-night);
+  --accent-decor: var(--brand-accent-night);
+  --accent-fill: var(--brand-accent-night);
+  --accent-fill-hover: color-mix(in oklab, var(--brand-accent-night) 85%, var(--brand-paper));
+  --accent-fg: var(--brand-ground-dark);
 
-  --link: var(--brand-accent);
+  --link: var(--brand-accent-night);
   --link-hover: var(--brand-paper);
 
-  --focus-ring: var(--brand-accent);
+  --focus-ring: var(--brand-accent-night);
 }

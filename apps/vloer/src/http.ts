@@ -16,10 +16,14 @@ import { PloegClient, PloegError, type PloegDecision, type PloegState } from './
 import { DeliveryService } from './delivery.ts';
 import { TaskHandoff } from './task-handoff.ts';
 import { StaticFiles } from './static.ts';
+import { Collection, CollectionError } from './collection.ts';
+import { CardThemes, ThemeError } from './card-themes.ts';
+import { AssetError, assetLimits, maxImageSide, maxUploadBytes } from './card-assets.ts';
+import { CardArtError, CardArtGenerator, maxArtAttempts } from './card-art.ts';
 
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
 
-const browserModule = /^\/(?:(?:core|views|styles)\/[a-z0-9][a-z0-9-]*\.(?:js|css)|cards\/(?:skins\/[a-z0-9][a-z0-9-]*\/)?[a-z0-9][a-z0-9-]*\.(?:js|css|json))$/;
+const browserModule = /^\/(?:(?:core|views|styles)\/[a-z0-9][a-z0-9-]*\.(?:js|css)|cards\/(?:(?:skins\/[a-z0-9][a-z0-9-]*|effects)\/)?[a-z0-9][a-z0-9-]*\.(?:js|css|json)|vendor\/three\/[a-z0-9][a-z0-9-]*\.js)$/;
 
 function fault(status: number, code: string, message: string): never { throw Object.assign(new Error(message), { status, code }); }
 
@@ -42,6 +46,37 @@ async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
     if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error();
     return data;
   } catch { return fault(400, 'invalid_json', 'Expected a JSON object.'); }
+}
+
+async function upload(req: IncomingMessage, limit: number): Promise<Buffer> {
+  if (req.headers['content-type'] !== 'application/octet-stream') fault(415, 'content_type', 'Upload the file as application/octet-stream.');
+  const declared = Number(req.headers['content-length'] ?? 0);
+  if (declared > limit) fault(413, 'asset_too_large', `The file is larger than the ${Math.round(limit / 1024 / 1024)} MiB upload limit.`);
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > limit) fault(413, 'asset_too_large', `The file is larger than the ${Math.round(limit / 1024 / 1024)} MiB upload limit.`);
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
+function sendAsset(req: IncomingMessage, res: ServerResponse, asset: { mediaType: string; content: Buffer }): void {
+  const type = asset.mediaType === 'text/x-glsl' ? 'text/plain; charset=utf-8' : asset.mediaType;
+  const headers: Record<string, string | number> = { 'Content-Type': type, 'Cache-Control': 'private, max-age=31536000, immutable', 'Content-Security-Policy': "default-src 'none'; sandbox", 'Content-Disposition': 'inline', 'Accept-Ranges': 'bytes', 'Cross-Origin-Resource-Policy': 'same-origin' };
+  const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ''));
+  const total = asset.content.length;
+  if (range && (range[1] || range[2])) {
+    const start = range[1] ? Number(range[1]) : Math.max(0, total - Number(range[2]));
+    const end = range[1] && range[2] ? Math.min(Number(range[2]), total - 1) : total - 1;
+    if (start >= total || start > end) { res.writeHead(416, { ...headers, 'Content-Range': `bytes */${total}` }); res.end(); return; }
+    res.writeHead(206, { ...headers, 'Content-Range': `bytes ${start}-${end}/${total}`, 'Content-Length': end - start + 1 });
+    res.end(asset.content.subarray(start, end + 1));
+    return;
+  }
+  res.writeHead(200, { ...headers, 'Content-Length': total });
+  res.end(asset.content);
 }
 
 function placementInput(value: unknown): 'local' | 'docker' | 'kubernetes' | undefined {
@@ -76,7 +111,10 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const handoff = new TaskHandoff(config, ploeg);
   const streams = new Set<ServerResponse>();
   const staticFiles = new StaticFiles(config.publicDir);
-  const knownSecrets = [config.delivery?.verifierTokenEnv ? process.env[config.delivery.verifierTokenEnv] : undefined, config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword, config.ploeg?.tokenEnv ? process.env[config.ploeg.tokenEnv] : undefined, ...(config.taskSources ?? []).map(source => source.token)].filter((value): value is string => Boolean(value));
+  const collection = new Collection(config, store, ploeg, config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true));
+  const themes = new CardThemes(store, config);
+  const cardArt = new CardArtGenerator(config);
+  const knownSecrets = [config.cardThemes?.ai ? process.env[config.cardThemes.ai.keyEnv] : undefined, config.delivery?.verifierTokenEnv ? process.env[config.delivery.verifierTokenEnv] : undefined, config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword, config.ploeg?.tokenEnv ? process.env[config.ploeg.tokenEnv] : undefined, ...(config.taskSources ?? []).map(source => source.token)].filter((value): value is string => Boolean(value));
   function sanitize<T>(value: T): T {
     if (typeof value === 'string') {
       let cleaned: string = value;
@@ -282,14 +320,41 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const session = engine.create({ approval: data.approval as 'manual' | 'auto' | undefined, model: text(data.model, 'Model', 64, true) || undefined, title: text(data.title, 'Title', 160), objective: text(data.objective, 'Objective', 16000), repositoryId, crewId, runtime, placement: placementInput(data.placement), budgetUsd: data.budgetUsd as number, trackerUrl: trackerUrl || undefined }, user);
           return json(res, 201, sanitize(publicSession(session)));
         }
+        if (path === '/api/me/card-identity' || path.startsWith('/api/binder') || path.startsWith('/api/packs') || path === '/api/season' || path.startsWith('/api/cards/')) {
+          try {
+            if (path === '/api/me/card-identity') {
+              if (method === 'GET') return json(res, 200, collection.identity(user));
+              if (method === 'PUT') { const data = await body(req); return json(res, 200, collection.setIdentity(user, data.logins)); }
+            }
+            if (path === '/api/binder' && method === 'GET') return json(res, 200, sanitize(await collection.binder(user)));
+            if (path === '/api/binder/seen' && method === 'POST') { const data = await body(req); return json(res, 200, collection.markSeen(user, data.until, data.cards)); }
+            const seen = /^\/api\/cards\/([^/]{1,40})\/seen$/.exec(path);
+            if (seen && method === 'GET') return json(res, 200, await collection.cardSeen(user, seen[1]));
+            if (seen && method === 'POST') { const data = await body(req); return json(res, 200, await collection.markCardSeen(user, seen[1], data.until, data.snapshot)); }
+            if (path === '/api/packs' && method === 'GET') return json(res, 200, sanitize(await collection.packs(user)));
+            if (path === '/api/packs/odds' && method === 'GET') return json(res, 200, collection.odds());
+            const pack = /^\/api\/packs\/([A-Za-z0-9_.:@~-]{1,120})(\/open)?$/.exec(path);
+            if (pack && !pack[2] && method === 'GET') return json(res, 200, sanitize(await collection.pack(user, pack[1])));
+            if (pack && pack[2] && method === 'POST') { await body(req); return json(res, 200, sanitize(await collection.openPack(user, pack[1]))); }
+            if (path === '/api/season' && method === 'GET') return json(res, 200, sanitize(await collection.season(user, url.searchParams.get('team') || undefined, url.searchParams.get('quarter') || undefined)));
+            fault(405, 'method', 'Unsupported method.');
+          } catch (error) {
+            if (error instanceof CollectionError || error instanceof PloegError) return json(res, error.status, { error: { code: error.code, message: error.message } });
+            throw error;
+          }
+        }
         if (path === '/api/ploeg' || path.startsWith('/api/ploeg/')) {
           const decision = /^\/api\/ploeg\/work-items\/([^/]+)\/(approve|reject|cancel)$/.exec(path);
-          if (method !== 'GET' && !(method === 'POST' && decision)) fault(405, 'method', 'Ploeg operator views are read-only except Work Item decisions.');
+          const attribution = /^\/api\/ploeg\/work-items\/([^/]+)\/(cracks|evolved)$/.exec(path);
+          const crackStep = /^\/api\/ploeg\/work-items\/([^/]+)\/cracks\/([^/]+)\/(confirm|dispute|resolve)$/.exec(path);
+          if (method !== 'GET' && !(method === 'POST' && (decision || attribution || crackStep))) fault(405, 'method', 'Ploeg operator views are read-only except Work Item decisions and crack attributions.');
           try {
-            if (decision) {
+            if (method === 'POST' && (decision || attribution || crackStep)) {
               if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot change Ploeg work.');
               const data = await body(req);
-              return json(res, 200, sanitize(await ploeg.decide(user, decision[1], decision[2] as PloegDecision, typeof data.reason === 'string' ? data.reason : '')));
+              if (decision) return json(res, 200, sanitize(await ploeg.decide(user, decision[1], decision[2] as PloegDecision, typeof data.reason === 'string' ? data.reason : '')));
+              if (attribution) return json(res, attribution[2] === 'cracks' ? 201 : 200, sanitize(await ploeg.attribute(user, attribution[1], attribution[2] === 'cracks' ? 'propose' : 'evolved', data)));
+              return json(res, 200, sanitize(await ploeg.decideCrack(user, crackStep![1], crackStep![2], crackStep![3] as 'confirm' | 'dispute' | 'resolve', data)));
             }
             const fresh = url.searchParams.get('refresh') === '1';
             const optional = (name: string) => url.searchParams.get(name) || undefined;
@@ -303,10 +368,65 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             if (path === '/api/ploeg/work-items') return json(res, 200, sanitize(await ploeg.items(user, text(url.searchParams.get('team'), 'Team', 100), (url.searchParams.get('state') ?? 'all') as PloegState | 'all', url.searchParams.get('after') ?? '0', fresh)));
             const card = /^\/api\/ploeg\/work-items\/([^/]+)\/card$/.exec(path);
             if (card) return json(res, 200, sanitize(await ploeg.card(user, card[1], fresh)));
+            const candidates = /^\/api\/ploeg\/work-items\/([^/]+)\/crack-candidates$/.exec(path);
+            if (candidates) return json(res, 200, sanitize(await ploeg.crackCandidates(user, candidates[1], fresh)));
+            const cracks = /^\/api\/ploeg\/work-items\/([^/]+)\/cracks$/.exec(path);
+            if (cracks) return json(res, 200, sanitize(await ploeg.cracks(user, cracks[1], fresh)));
             const match = /^\/api\/ploeg\/work-items\/([^/]+)$/.exec(path);
             if (match) return json(res, 200, sanitize(await ploeg.detail(user, match[1], fresh)));
             fault(404, 'not_found', 'Ploeg operator view not found.');
           } catch (error) { if (error instanceof PloegError) return json(res, error.status, { error: { code: error.code, message: error.message } }); throw error; }
+        }
+        if (path === '/api/card-themes' || path.startsWith('/api/card-themes/') || path === '/api/card-assets' || path.startsWith('/api/card-assets/') || path === '/api/card-art/generate') {
+          const administrator = user.role === 'admin';
+          const onlyAdministrators = (what: string) => { if (!administrator) fault(403, 'forbidden', `Only administrators can ${what}.`); };
+          if (path === '/api/card-themes') {
+            if (method !== 'GET') fault(405, 'method', 'Unsupported method.');
+            return json(res, 200, sanitize({
+              themes: themes.list(), canEdit: administrator, skins: [...themes.skins.values()],
+              limits: { assets: assetLimits, maxImageSide, quotaMb: Math.round(themes.quotaBytes / 1024 / 1024) },
+              art: { configured: cardArt.configured(), model: administrator ? cardArt.model() : null, maxAttempts: maxArtAttempts, demo: config.mode === 'demo' },
+              directory: administrator && themes.directoryPath ? { problems: themes.problems } : null,
+            }));
+          }
+          const themeRoute = /^\/api\/card-themes\/([a-z0-9][a-z0-9-]{0,63})(\/versions(?:\/([1-9]\d{0,8}))?)?$/.exec(path);
+          if (themeRoute) {
+            const [, id, versions, version] = themeRoute;
+            if (versions) {
+              if (method !== 'GET') fault(405, 'method', 'Unsupported method.');
+              if (version) { const found = themes.version(id, Number(version)); if (!found) fault(404, 'not_found', 'Theme version not found.'); return json(res, 200, found); }
+              return json(res, 200, { versions: themes.versions(id) });
+            }
+            if (method === 'GET') { const found = themes.get(id); if (!found) fault(404, 'not_found', 'Theme not found.'); return json(res, 200, found); }
+            if (method === 'PUT') {
+              onlyAdministrators('create or change card themes');
+              const data = await body(req);
+              const existed = Boolean(themes.get(id));
+              return json(res, existed ? 200 : 201, themes.save(id, data.theme, data.baseVersion, user));
+            }
+            if (method === 'DELETE') { onlyAdministrators('delete card themes'); themes.remove(id); return json(res, 200, { ok: true }); }
+            fault(405, 'method', 'Unsupported method.');
+          }
+          if (path === '/api/card-assets') {
+            if (method !== 'POST') fault(405, 'method', 'Unsupported method.');
+            onlyAdministrators('upload theme assets');
+            const purpose = url.searchParams.get('purpose') ?? '';
+            return json(res, 201, themes.putAsset(purpose, await upload(req, maxUploadBytes), user));
+          }
+          const assetRoute = /^\/api\/card-assets\/([a-f0-9]{64})$/.exec(path);
+          if (assetRoute) {
+            if (method !== 'GET') fault(405, 'method', 'Unsupported method.');
+            const asset = themes.asset(assetRoute[1]);
+            if (!asset) fault(404, 'not_found', 'Asset not found.');
+            return sendAsset(req, res, asset!);
+          }
+          if (path === '/api/card-art/generate') {
+            if (method !== 'POST') fault(405, 'method', 'Unsupported method.');
+            onlyAdministrators('generate card art');
+            const data = await body(req);
+            return json(res, 200, await cardArt.generate(user, data));
+          }
+          fault(404, 'not_found', 'API route not found.');
         }
         const match = path.match(/^\/api\/sessions\/([a-zA-Z0-9_-]+)(?:\/(.*))?$/);
         if (match) {
@@ -394,7 +514,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       if (res.headersSent) { res.end(); return; }
       const status = Number(error.status || error.statusCode) || 500;
       const code = error.code || (status === 500 ? 'internal_error' : 'request_failed');
-      const message = status >= 500 && !(error instanceof TaskError) && !(error instanceof PloegError) ? 'The operation could not be completed. Check the server log.' : error.message;
+      const message = status >= 500 && !(error instanceof TaskError) && !(error instanceof PloegError) && !(error instanceof CardArtError) && !(error instanceof AssetError) && !(error instanceof ThemeError) ? 'The operation could not be completed. Check the server log.' : error.message;
       if (status >= 500) console.error(JSON.stringify({ level: 'error', event: 'http.failed', message: String(error.message).slice(0, 200).replace(/sk-[\w-]+/g, '[redacted]') }));
       json(res, status, sanitize({ error: { code, message } }));
     }

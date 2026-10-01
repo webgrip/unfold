@@ -12,10 +12,12 @@ import (
 	"html"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/webgrip/ploeg/pkg/followup"
 	"github.com/webgrip/ploeg/pkg/forgebroker"
+	"github.com/webgrip/ploeg/pkg/gate"
 	"github.com/webgrip/ploeg/pkg/harness"
 	"github.com/webgrip/ploeg/pkg/provider"
 	"github.com/webgrip/ploeg/pkg/store"
@@ -90,6 +92,18 @@ type Server struct {
 	// Deploys authenticates POST /api/v1/deploys (ADR-0047). Nil disables
 	// the endpoint, which then answers 404.
 	Deploys *DeployAuth
+	// Gates maps each configured board's statuses to delivery gates
+	// (ADR-0051). A board absent here records no gate moves.
+	Gates gate.Boards
+	// CardRules are each team's crack attribution rules (ADR-0052). A team
+	// absent here lets anyone uninvolved referee and marks hotfixes with
+	// store.DefaultHotfixLabel.
+	CardRules map[string]CardRules
+	// CardClock is the clock card comments count days live with (ADR-0055).
+	// Nil = time.Now.
+	CardClock func() time.Time
+
+	cardWork sync.WaitGroup
 }
 
 // ReviewSettler is implemented by shiftengine.ReviewWatch.
@@ -196,6 +210,10 @@ func (s *Server) handleTrackerWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, ev := range events {
+		if ev.Kind == provider.TrackerUpdated || ev.Kind == provider.TrackerClosed {
+			s.observeGate(r.Context(), name, tp, ev)
+			s.observeEpics(r.Context(), name, tp, ev.ExternalID)
+		}
 		if ev.Kind == provider.TrackerClosed {
 			if err := s.trackerClosed(r.Context(), name, ev); err != nil {
 				s.Log.Error("withdrawal failed", "provider", name, "external_id", ev.ExternalID, "err", err)
@@ -231,6 +249,7 @@ func (s *Server) handleTrackerWebhook(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "ingest failed", http.StatusInternalServerError)
 			return
 		}
+		s.observeEpics(r.Context(), name, tp, ev.ExternalID)
 		// Log the actual post-upsert state: a re-assignment of a live
 		// (queued/leased) item refreshes the mirror without re-queuing (VIK-588).
 		if state == work.StateQueued {
@@ -245,6 +264,7 @@ func (s *Server) handleTrackerWebhook(w http.ResponseWriter, r *http.Request) {
 		} else {
 			s.Log.Info("work item refreshed, not queued", "id", id, "state", string(state), "team", item.Team, "title", item.Title)
 		}
+		s.observeGate(r.Context(), name, tp, ev)
 	}
 	w.WriteHeader(http.StatusAccepted)
 }

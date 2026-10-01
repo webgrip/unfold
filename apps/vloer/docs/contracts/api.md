@@ -210,7 +210,7 @@ Candidate access uses the same owner/administrator checks as the session. A succ
 
 ## Ploeg workbench
 
-These routes are Vloer's scoped proxy for Ploeg's operator API ([`ploeg.ts`](../../src/ploeg.ts)). Each needs a login cookie and reads only the Teams the signed-in person may see. `refresh=1` bypasses the short cache. Reads are `GET`; the only writes are the three Work Item decisions, and any other method under `/api/ploeg` answers 405. Responses are snapshots with explicit bounds and uncertainty, and demo responses carry `demo: true`.
+These routes are Vloer's scoped proxy for Ploeg's operator API ([`ploeg.ts`](../../src/ploeg.ts)). Each needs a login cookie and reads only the Teams the signed-in person may see. `refresh=1` bypasses the short cache. Reads are `GET`; the only writes are the three Work Item decisions and the five crack attribution steps, and any other method under `/api/ploeg` answers 405. Responses are snapshots with explicit bounds and uncertainty, and demo responses carry `demo: true`.
 
 | Method and path | Response |
 | --- | --- |
@@ -218,7 +218,7 @@ These routes are Vloer's scoped proxy for Ploeg's operator API ([`ploeg.ts`](../
 | `GET /api/ploeg/teams` | `{teams}`, the Team ids |
 | `GET /api/ploeg/work-items?team=&state=&after=` | One page of a Team's Work Items, `{items, nextCursor}`; `state` defaults to `all` |
 | `GET /api/ploeg/work-items/:id` | `{item, shifts, runs, checkpoints, events, truncated, demo, fetchedAt}` |
-| `GET /api/ploeg/work-items/:id/card` | The proposed Run card: `{card, demo, fetchedAt}`. `card` is Ploeg's card v1, validated. Unknown values stay absent, `rarity`, `grade` and `condition` are always null and `finish` is always `matte` (the browser derives the finish from `release`), `deployments` and `release` are validated and stay absent for an older Ploeg, and a skin that is not a plain name becomes `vloer-native`. A card outside the caller's Teams, a missing Work Item and an older Ploeg without the route all answer 404. The demo derives a card from each demo Work Item with `demo: true`, cost status `not_reported` and no cost or usage figures; its merged cards carry illustrative deployments and releases. See [ADR 0026](../adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md) |
+| `GET /api/ploeg/work-items/:id/card` | The proposed Run Card: `{card, demo, fetchedAt}`. `card` is Ploeg's card v1, validated. Unknown values stay absent, `rarity` is always null and `finish` is always `matte` (the browser derives the finish from `release`), `grade` (with its `inputs` under formula 2026.1 or 2026.2), `condition` (with each crack's `weight`, `warranty` and mend `confirmedAt`), `gates` and `set` pass through in the card contract's shapes and any other shape becomes null ([ADR 0028](../adrs/0028-the-forge-skin-renders-run-cards-in-3d-with-vendored-three-js.md), [ADR 0030](../adrs/0030-vloer-traces-bugs-under-an-administrator-mapped-forge-login.md)), `evolved` passes only as `true`, `deployments`, `release`, `gates`, `evolved` and `set` stay absent for an older Ploeg, and a skin that is not a plain name becomes `vloer-native`. A card outside the caller's Teams, a missing Work Item and an older Ploeg without the route all answer 404. The demo derives a card from each demo Work Item with `demo: true`, cost status `not_reported` and no cost or usage figures; its merged cards carry illustrative deployments and releases, eleven of them illustrative grades, seven illustrative cracks and illustrative gates, and four illustrative epics hold sets: DEMO-25, and one each drawn by the holo, arcade and patch skin packs. Every demo card of the five DOM skin packs (three per pack) labels its gates, set membership, grade and cracks as sample data. See [ADR 0026](../adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md) |
 | `GET /api/ploeg/now` | What waits on the person, what runs and what finished recently, across their Teams; see [Now](#now) |
 | `GET /api/ploeg/proposed` | `{demo, items, truncated, fetchedAt}` across Teams; each item adds `sourceTitle` |
 | `GET /api/ploeg/runs?team=&state=&outcome=&before=` | `{demo, runs, nextBefore, fetchedAt}` |
@@ -227,6 +227,15 @@ These routes are Vloer's scoped proxy for Ploeg's operator API ([`ploeg.ts`](../
 | `POST /api/ploeg/work-items/:id/approve` | `{}` → `{workItemId, team, state, demo}`; only a `proposed` Work Item |
 | `POST /api/ploeg/work-items/:id/reject` | `{reason}`, required, at most 4096 characters → `{workItemId, team, state, demo}`; only a `proposed` Work Item |
 | `POST /api/ploeg/work-items/:id/cancel` | `{}` → the cancellation result; see [Cancel](#cancel) |
+| `GET /api/ploeg/work-items/:id/crack-candidates` | `{workItemId, crackCandidates, demo, fetchedAt}`: Ploeg's candidate causes of a bug Work Item, `{bug, fixFiles, fixFilesTruncated, since, until, candidates}`, each candidate `{card, play, repo, mergedAt, mergedBy, sharedFiles, share, files, reverted, attribution}`. Ploeg only proposes them |
+| `GET /api/ploeg/work-items/:id/cracks` | `{workItemId, cracks, viewer, demo, fetchedAt}`: every attribution where the Work Item is the bug or the card, in the caller's Teams, and `viewer` `{login, canAct, reason}`, the forge login Ploeg knows the caller by and whether they may take a step |
+| `POST /api/ploeg/work-items/:bug/cracks` | `{card, play?, severity, share, discovery?, note?}` → 201 `{crack, demo, message}`; the bug and the card in the caller's Teams and the same Team |
+| `POST /api/ploeg/work-items/:bug/evolved` | `{card, note?}` → `{crack, demo, message}`: the bug is a changed requirement, so the card evolves and gets no crack |
+| `POST /api/ploeg/work-items/:id/cracks/:crack/confirm` | `{severity?, share?, note?}` → `{crack, demo, message}`; the attribution must be one of the Work Item's in the caller's Teams |
+| `POST /api/ploeg/work-items/:id/cracks/:crack/dispute` | `{reason}`, required, at most 2000 characters → `{crack, demo, message}` |
+| `POST /api/ploeg/work-items/:id/cracks/:crack/resolve` | `{resolution: upheld or unlinked, note?}` → `{crack, demo, message}` |
+
+The attribution steps act under the caller's forge login from `ploeg.forgeLogins`, never a login the caller sets, and send it as `X-Ploeg-Actor` and `X-Ploeg-Acting-User` ([ADR 0030](../adrs/0030-vloer-traces-bugs-under-an-administrator-mapped-forge-login.md)). Viewers get 403 `forbidden`, an account without a mapped login 403 `ploeg_forge_login`, and invalid input 400 `crack_invalid_request` before anything reaches Ploeg. Ploeg's refusals come back as `crack_<code>` (`crack_forbidden_actor` 403; `crack_invalid_state`, `crack_crack_limit`, `crack_already_attributed`, `crack_not_merged`, `crack_merged_after_bug`, `crack_dispute_closed` and `crack_concealment_unproven` 409) with Ploeg's sentence when it is plain bounded text. The demo applies the same rules to its sample attributions, keeps nothing and answers `demo: true` with a message that Ploeg recorded nothing. An older Ploeg without the crack routes answers 404, and the page shows no panel.
 
 A Ploeg that lacks the activity routes answers 501 `ploeg_unsupported` for runs, events and summary. A Team outside the person's scope is 404 `ploeg_not_found`, and a non-administrator with no Ploeg Team is 403 `ploeg_scope`.
 
@@ -277,6 +286,42 @@ Cancel is for operators and administrators; viewers get 403. Live, Vloer asks Pl
 In the demo, cancel answers 200 and changes nothing: `withdrawn: false`, `cancelledRuns: 0`, `stoppedRuns: 0`, `keysBlocked: null` and a `message` that says no Run was stopped, no model key or push token was blocked and the tracker was not told.
 
 What Ploeg does on cancel is [journey D](../../../../docs/concepts/journeys.md#d-stopping-work).
+
+## Card collection
+
+The binder, packs and season pages ([ADR 0029](../adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md), proposed; [`collection.ts`](../../src/collection.ts)). Each route needs a login cookie, and writes pass the request-header and origin checks above. Every route reads and writes the signed-in person's own records only; none takes another person's id, so an administrator reads only their own binder and packs. Cards come from Ploeg's card list (`GET /api/v1/operator/cards?member=`, paged by `nextBefore`), or from a bounded scan of each Team's 60 most recently updated Work Items when Ploeg answers 404, and only cards in the caller's Teams pass. Errors use the codes below, or Ploeg's (`ploeg_scope` 403 for a person with no Team).
+
+| Method and path | Request and response |
+| --- | --- |
+| `GET /api/me/card-identity` | `{logins, mapped, declared, verified, source, updatedAt}`. `mapped` is the forge login an administrator mapped to the person in `ploeg.forgeLogins` (the demo login `demo-operator` in the demo), and the only `verified` one: only it can make the person a card's steward. `declared` are the person's own logins, which only find cards to collect and never attribute anything. `logins` is both, mapped first. `source` is `mapped`, `setting`, `demo` or `none` |
+| `PUT /api/me/card-identity` | `{logins}`, the declared logins, at most 10, each one word of letters, digits and `. _ @ + : -`; folded to lower case and deduplicated → the same shape. Anything else is 400 `card_logins` |
+| `GET /api/binder` | `{demo, identity, source, now, startedAt, seenAt, copies, readouts, away, awayTotal, seenUntil, filters}`. `copies` is newest moment first, each `{card, copy: {role, roles, steward, pull, waitingIn}, lastActivityAt}`; `steward` is true only through the mapped login; `pull` is the stored first pull without its HMAC input, and `waitingIn` the unopened pack it waits in. `readouts` are personal: `cards`, `released`, `daysLive`, `daysLiveThisQuarter`, `quarter`, `mends`, `pulled`. `away` lists the moments since `seenAt`, oldest first, at most 12. `source` is `{kind: list | scan | demo, scanned, truncated}` |
+| `POST /api/binder/seen` | `{until, cards?}` → `{startedAt, seenAt}`. Creates the binder mark on the first visit and moves `seenAt` forward to `until`, never back and never past now. `cards` names up to 12 Work Items whose news the binder showed; each one's card seen mark (below), when it has one, moves forward to `until` too |
+| `GET /api/cards/:id/seen` | `{workItemId, seenAt, snapshot, now}`: the person's seen mark on one card, for the effects director ([ADR 0032](../adrs/0032-an-effects-director-plays-run-card-moments-once-by-tier-within-accessibility-rules.md), proposed). `seenAt` and `snapshot` are null before their first look. The card must be in the caller's Teams (Ploeg's 404 `ploeg_not_found` otherwise); an id that is not a Work Item id is 400 `card_id` |
+| `POST /api/cards/:id/seen` | `{until?, snapshot}` → the same shape. Moves `seenAt` forward to `until` (now when absent), never back and never past now, and stores `snapshot`, kept to `{grade: half-step 0–10 or null, setComplete: boolean}`. A person keeps marks for at most 2000 cards, dropping the least recently seen |
+| `GET /api/packs` | `{demo, identity, source, now, odds: {version}, packs}`, oldest first. Each pack is `{id, period, state: opened | sealed | filling, count, firsts, upgrades, openedAt, next, demo}`; only the one with `next: true` can be opened. Ids are `2026-W40` (ISO week, UTC) or `<team>~<sprint start>` |
+| `POST /api/packs/:id/open` | `{}` → `{demo, odds, pack: {id, period, openedAt, demo, entries}}`; each entry is `{workItemId, kind: new | upgrade, moments, card, copy, pull}`. Draws and stores the first pull of every new card. 409 `pack_opened`, `pack_filling` or `pack_order` (open the older pack first); 404 `pack_not_found` |
+| `GET /api/packs/:id` | An opened pack, the same shape; 404 for a pack this person has not opened |
+| `GET /api/packs/odds` | `{version, scale: 10000, patterns, extras, altArtChoices}`: every probability in basis points |
+| `GET /api/season?team=&quarter=` | `{demo, team, teams, quarters, quarter, justStarted, aggregates, source}` for a Team in the caller's scope (404 `team_not_found` otherwise). `aggregates` holds Team totals only: `cards`, `shipped`, `daysLiveAdded`, `finishes`, `cracks`, `mends`, `rightFirstTime` (`{share, cards}` or null), `bounceReasons` (or null) and `sets` (or null). No person is named. A quarter that has not started is 400 `quarter`; without `quarter`, the first week of a quarter shows the one before and names it in `justStarted` |
+
+Pack settings live in the configuration file under `cards`: `backfillPeriods` (0 to 12; 1, or 4 in the demo) and `teams`, a sprint per Team as `{lengthDays: 7–42, anchor: "YYYY-MM-DD"}` in place of the ISO week.
+
+## Card themes
+
+Proposed ([ADR 0031](../adrs/0031-card-themes-a-card-designer-and-generated-art.md)). Every route needs a login cookie. Reads are open to every role; writes are for administrators and need the request marker header.
+
+| Method and path | Response |
+| --- | --- |
+| `GET /api/card-themes` | The themes, whether you may edit them, each skin's theme rules, the asset limits and whether art generation is configured |
+| `GET /api/card-themes/:id`, `/versions`, `/versions/:n` | A theme with the metadata of its assets; its saved versions; one version |
+| `PUT /api/card-themes/:id` | `{theme, baseVersion}` → the saved theme. 409 `theme_changed` on a stale `baseVersion`, 409 `theme_managed` for a theme from the mounted folder |
+| `DELETE /api/card-themes/:id` | Deletes a stored theme and its versions |
+| `POST /api/card-assets?purpose=` | A raw `application/octet-stream` upload for `art`, `back`, `symbol` or `shader` → `{id, purpose, mediaType, bytes}` |
+| `GET /api/card-assets/:id` | The asset, with its stored type, `nosniff` and a sandboxing CSP |
+| `POST /api/card-art/generate` | `{prompt, attempt?, compilerLog?}` → `{code, problems, attempt, model}`; live mode with `cardThemes.ai` only |
+
+[Card themes](card-themes.md) holds the format, the validation rules, the asset limits, resolution and generated art.
 
 ## Static files
 

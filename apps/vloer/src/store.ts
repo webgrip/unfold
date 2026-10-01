@@ -34,6 +34,14 @@ export class Store {
       CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE COLLATE NOCASE, role TEXT NOT NULL, password_hash TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS logins (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), expires_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS internal_state (id TEXT PRIMARY KEY, ciphertext TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS card_identities (user_id TEXT PRIMARY KEY, logins TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS card_binders (user_id TEXT PRIMARY KEY, started_at TEXT NOT NULL, seen_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS card_seen (user_id TEXT NOT NULL, work_item_id TEXT NOT NULL, seen_at TEXT NOT NULL, snapshot TEXT NOT NULL, PRIMARY KEY (user_id, work_item_id));
+      CREATE TABLE IF NOT EXISTS card_packs (user_id TEXT NOT NULL, pack_id TEXT NOT NULL, opened_at TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (user_id, pack_id));
+      CREATE TABLE IF NOT EXISTS card_pulls (user_id TEXT NOT NULL, work_item_id TEXT NOT NULL, pack_id TEXT NOT NULL, pattern TEXT NOT NULL, alt_art INTEGER, full_art INTEGER NOT NULL, gold_signature INTEGER NOT NULL, odds_version TEXT NOT NULL, message TEXT NOT NULL, digest TEXT NOT NULL, pulled_at TEXT NOT NULL, PRIMARY KEY (user_id, work_item_id));
+      CREATE TABLE IF NOT EXISTS card_themes (id TEXT PRIMARY KEY, version INTEGER NOT NULL, updated_at TEXT NOT NULL, updated_by TEXT NOT NULL, body TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS card_theme_versions (theme_id TEXT NOT NULL, version INTEGER NOT NULL, saved_at TEXT NOT NULL, saved_by TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(theme_id, version));
+      CREATE TABLE IF NOT EXISTS card_assets (id TEXT PRIMARY KEY, purpose TEXT NOT NULL, media_type TEXT NOT NULL, bytes INTEGER NOT NULL, created_at TEXT NOT NULL, created_by TEXT NOT NULL, content BLOB NOT NULL);
     `);
   }
 
@@ -145,7 +153,86 @@ export class Store {
   }
 
   deleteSecret(id: string): void { this.db.prepare('DELETE FROM internal_state WHERE id=?').run(id); }
+
+  /** The forge and tracker logins a person listed as theirs, used to find their card copies. */
+  cardIdentity(userId: string): { logins: string[]; updatedAt: string } | undefined {
+    const row = this.db.prepare('SELECT logins, updated_at FROM card_identities WHERE user_id=?').get(userId) as { logins: string; updated_at: string } | undefined;
+    return row ? { logins: JSON.parse(row.logins), updatedAt: row.updated_at } : undefined;
+  }
+
+  setCardIdentity(userId: string, logins: string[], at: string): void {
+    this.db.prepare('INSERT INTO card_identities(user_id,logins,updated_at) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET logins=excluded.logins, updated_at=excluded.updated_at').run(userId, JSON.stringify(logins), at);
+  }
+
+  /** When a person first opened their binder or a pack, and the moment up to which they have seen their cards' news. */
+  binderMark(userId: string): CardBinderMark | undefined {
+    const row = this.db.prepare('SELECT started_at, seen_at FROM card_binders WHERE user_id=?').get(userId) as { started_at: string; seen_at: string } | undefined;
+    return row ? { startedAt: row.started_at, seenAt: row.seen_at } : undefined;
+  }
+
+  /** Creates the binder mark at `at`, or moves its seen moment forward to `seenAt`; it never moves back. */
+  markBinder(userId: string, at: string, seenAt: string): CardBinderMark {
+    this.db.prepare('INSERT INTO card_binders(user_id,started_at,seen_at) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET seen_at=MAX(card_binders.seen_at, excluded.seen_at)').run(userId, at, seenAt);
+    return this.binderMark(userId)!;
+  }
+
+  /** The moment up to which a person has seen one card's news, and the grade and set state they last saw on it. */
+  cardSeen(userId: string, workItemId: string): CardSeenMark | undefined {
+    const row = this.db.prepare('SELECT seen_at, snapshot FROM card_seen WHERE user_id=? AND work_item_id=?').get(userId, workItemId) as { seen_at: string; snapshot: string } | undefined;
+    return row ? { seenAt: row.seen_at, snapshot: JSON.parse(row.snapshot) } : undefined;
+  }
+
+  /**
+   * Moves a person's seen moment on one card forward to `seenAt` (it never moves back) and stores the snapshot they
+   * saw. A person keeps marks for at most `cardSeenLimit` cards; the least recently seen ones are dropped first.
+   */
+  markCardSeen(userId: string, workItemId: string, seenAt: string, snapshot: CardSeenSnapshot): CardSeenMark {
+    this.transaction(() => {
+      this.db.prepare('INSERT INTO card_seen(user_id,work_item_id,seen_at,snapshot) VALUES(?,?,?,?) ON CONFLICT(user_id, work_item_id) DO UPDATE SET seen_at=MAX(card_seen.seen_at, excluded.seen_at), snapshot=excluded.snapshot').run(userId, workItemId, seenAt, JSON.stringify(snapshot));
+      this.db.prepare('DELETE FROM card_seen WHERE user_id=? AND work_item_id NOT IN (SELECT work_item_id FROM card_seen WHERE user_id=? ORDER BY seen_at DESC, work_item_id LIMIT ?)').run(userId, userId, cardSeenLimit);
+    });
+    return this.cardSeen(userId, workItemId)!;
+  }
+
+  openedPack(userId: string, packId: string): StoredPack | undefined {
+    const row = this.db.prepare('SELECT pack_id, opened_at, body FROM card_packs WHERE user_id=? AND pack_id=?').get(userId, packId) as { pack_id: string; opened_at: string; body: string } | undefined;
+    return row ? { packId: row.pack_id, openedAt: row.opened_at, ...JSON.parse(row.body) } : undefined;
+  }
+
+  openedPacks(userId: string): StoredPack[] {
+    return (this.db.prepare('SELECT pack_id, opened_at, body FROM card_packs WHERE user_id=? ORDER BY opened_at, pack_id').all(userId) as { pack_id: string; opened_at: string; body: string }[]).map(row => ({ packId: row.pack_id, openedAt: row.opened_at, ...JSON.parse(row.body) }));
+  }
+
+  /**
+   * Records an opened pack and the first pulls it drew, in one transaction. A pack opens once per person, and a card's
+   * first pull is never replaced: a second open, or a pull for a card that already has one, changes nothing and returns false.
+   */
+  recordPack(userId: string, pack: StoredPack, pulls: StoredPull[]): boolean {
+    return this.transaction(() => {
+      const inserted = this.db.prepare('INSERT INTO card_packs(user_id,pack_id,opened_at,body) VALUES(?,?,?,?) ON CONFLICT(user_id, pack_id) DO NOTHING').run(userId, pack.packId, pack.openedAt, JSON.stringify({ period: pack.period, entries: pack.entries, demo: pack.demo }));
+      if (!inserted.changes) return false;
+      const add = this.db.prepare('INSERT INTO card_pulls(user_id,work_item_id,pack_id,pattern,alt_art,full_art,gold_signature,odds_version,message,digest,pulled_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id, work_item_id) DO NOTHING');
+      for (const pull of pulls) add.run(userId, pull.workItemId, pull.packId, pull.pattern, pull.altArt, pull.fullArt ? 1 : 0, pull.goldSignature ? 1 : 0, pull.oddsVersion, pull.message, pull.digest, pull.pulledAt);
+      return true;
+    });
+  }
+
+  /** Every first pull a person holds, by Work Item. */
+  pulls(userId: string): Map<string, StoredPull> {
+    const rows = this.db.prepare('SELECT * FROM card_pulls WHERE user_id=?').all(userId) as Record<string, string | number | null>[];
+    return new Map(rows.map(row => [String(row.work_item_id), { workItemId: String(row.work_item_id), packId: String(row.pack_id), pattern: String(row.pattern), altArt: row.alt_art === null ? null : Number(row.alt_art), fullArt: row.full_art === 1, goldSignature: row.gold_signature === 1, oddsVersion: String(row.odds_version), message: String(row.message), digest: String(row.digest), pulledAt: String(row.pulled_at) }]));
+  }
 }
+
+export type CardBinderMark = { startedAt: string; seenAt: string };
+/** What a person last saw of a card that its moments cannot tell: its overall grade and whether its set was complete. */
+export type CardSeenSnapshot = { grade: number | null; setComplete: boolean };
+export type CardSeenMark = { seenAt: string; snapshot: CardSeenSnapshot };
+/** How many cards' seen marks Vloer keeps per person. */
+export const cardSeenLimit = 2000;
+export type StoredPackEntry = { workItemId: string; kind: 'new' | 'upgrade'; moments: { kind: string; at: string; detail: Record<string, string | number> }[] };
+export type StoredPack = { packId: string; openedAt: string; period: Record<string, unknown>; entries: StoredPackEntry[]; demo: boolean };
+export type StoredPull = { workItemId: string; packId: string; pattern: string; altArt: number | null; fullArt: boolean; goldSignature: boolean; oddsVersion: string; message: string; digest: string; pulledAt: string };
 
 export function publicSession(session: Session): Session {
   const copy = structuredClone(session);

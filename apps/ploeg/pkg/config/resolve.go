@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/webgrip/ploeg/pkg/gate"
 	"github.com/webgrip/ploeg/pkg/target"
 	"github.com/webgrip/ploeg/pkg/work"
 )
@@ -112,4 +113,51 @@ func (f *File) ScopeTeams() map[string]string {
 		}
 	}
 	return out
+}
+
+// GateBoards resolves every project with gates to its tracker id and returns
+// the gate map of each board (ADR-0051). Like RoutingTable, a named Vikunja
+// project is looked up through r, and a name that matches nothing is an
+// error. A ClickUp project always carries its List id.
+func (f *File) GateBoards(ctx context.Context, r ScopeResolver, log *slog.Logger) (gate.Boards, error) {
+	boards := gate.Boards{}
+	var byName map[string]string
+	for _, tr := range []struct {
+		provider string
+		projects []Project
+	}{
+		{"vikunja", f.Trackers.Vikunja.Projects},
+		{"clickup", f.Trackers.Clickup.Projects},
+	} {
+		for _, p := range tr.projects {
+			if p.Gates == nil {
+				continue
+			}
+			m, err := gate.NewMap(*p.Gates)
+			if err != nil {
+				return nil, fmt.Errorf("project %q gates: %w", p.label(), err)
+			}
+			id := p.ID
+			if id == "" {
+				if byName == nil {
+					if r == nil {
+						return nil, fmt.Errorf("gates name project %q but no tracker client is configured to resolve it; set the tracker URL and token, or pin its id", p.Name)
+					}
+					if byName, err = r.ProjectsByName(ctx); err != nil {
+						return nil, fmt.Errorf("resolving project names for gates: %w", err)
+					}
+				}
+				var ok bool
+				if id, ok = byName[p.Name]; !ok {
+					return nil, fmt.Errorf("no tracker project named %q; available: %s", p.Name, strings.Join(sortedKeys(byName), ", "))
+				}
+			}
+			if boards[tr.provider] == nil {
+				boards[tr.provider] = map[string]gate.Map{}
+			}
+			boards[tr.provider][id] = m
+			log.Info("gate map loaded", "provider", tr.provider, "project", p.label(), "id", id)
+		}
+	}
+	return boards, nil
 }

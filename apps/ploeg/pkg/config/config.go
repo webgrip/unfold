@@ -28,6 +28,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -36,6 +37,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/webgrip/ploeg/pkg/followup"
+	"github.com/webgrip/ploeg/pkg/gate"
 	"github.com/webgrip/ploeg/pkg/plan"
 	"github.com/webgrip/ploeg/pkg/work"
 )
@@ -130,6 +132,9 @@ type Project struct {
 	// Release names Repo's release environment, as on a registered target.
 	// It requires Repo.
 	Release *Release `yaml:"release"`
+	// Gates maps this board's statuses or bucket titles to delivery gates
+	// (ADR-0051). Omitted = Ploeg records no gate for this board's work.
+	Gates *gate.Statuses `yaml:"gates"`
 }
 
 // Team is a roster entry: who works, at what cost, in what order.
@@ -148,6 +153,24 @@ type Team struct {
 	// CreatedWork limits the Work Items this Team's Runs may create
 	// (ADR-0031). Absent fields take followup.Default.
 	CreatedWork *CreatedWork `yaml:"createdWork"`
+	// Cards sets this Team's Run card rules (ADR-0052, ADR-0055). Omitted =
+	// anyone uninvolved referees a disputed crack, the label "hotfix" marks a
+	// hotfix, and no card comment is posted on pull requests.
+	Cards *TeamCards `yaml:"cards"`
+}
+
+// TeamCards are one Team's Run card rules.
+type TeamCards struct {
+	// Referees are the people, as the operator API names its actor, who
+	// alone may resolve a disputed crack. Empty = anyone uninvolved.
+	Referees []string `yaml:"referees"`
+	// HotfixLabels are the pull request labels that mark a fix as a
+	// hotfix. Empty = "hotfix".
+	HotfixLabels []string `yaml:"hotfixLabels"`
+	// PRComment posts and keeps one card comment, with the card as an
+	// image, on the Team's merged pull requests at each card moment
+	// (ADR-0055). Default false.
+	PRComment bool `yaml:"prComment"`
 }
 
 // CreatedWork overrides followup.Default for one Team. Every field is
@@ -301,6 +324,68 @@ func (f *File) Validate() error {
 	}
 	if _, err := f.ReleaseEnvironments(); err != nil {
 		return err
+	}
+	if err := f.validateCards(); err != nil {
+		return err
+	}
+	return f.validateGates()
+}
+
+func (f *File) validateCards() error {
+	for _, name := range sortedTeamNames(f.Teams) {
+		cards := f.Teams[name].Cards
+		if cards == nil {
+			continue
+		}
+		for field, values := range map[string][]string{"referees": cards.Referees, "hotfixLabels": cards.HotfixLabels} {
+			seen := map[string]bool{}
+			for _, v := range values {
+				key := strings.ToLower(strings.TrimSpace(v))
+				if key == "" || len(v) > 128 || seen[key] {
+					return fmt.Errorf("teams.%s.cards.%s: entries are non-empty, at most 128 characters and unique, got %q", name, field, v)
+				}
+				seen[key] = true
+			}
+		}
+	}
+	return nil
+}
+
+// TeamCardRules returns every Team's card rules that set any (ADR-0052,
+// ADR-0055).
+func (f *File) TeamCardRules() map[string]TeamCards {
+	out := map[string]TeamCards{}
+	for name, t := range f.Teams {
+		if t.Cards != nil && (len(t.Cards.Referees) > 0 || len(t.Cards.HotfixLabels) > 0 || t.Cards.PRComment) {
+			out[name] = *t.Cards
+		}
+	}
+	return out
+}
+
+func (f *File) validateGates() error {
+	for _, tr := range []struct {
+		provider string
+		projects []Project
+	}{
+		{"vikunja", f.Trackers.Vikunja.Projects},
+		{"clickup", f.Trackers.Clickup.Projects},
+	} {
+		where := map[string]string{}
+		mapped := map[string]gate.Statuses{}
+		for i, p := range tr.projects {
+			if p.Gates == nil {
+				continue
+			}
+			at := fmt.Sprintf("trackers.%s.projects[%d]", tr.provider, i)
+			if _, err := gate.NewMap(*p.Gates); err != nil {
+				return fmt.Errorf("%s.gates: %w", at, err)
+			}
+			if prev, dup := mapped[p.label()]; dup && !reflect.DeepEqual(prev, *p.Gates) {
+				return fmt.Errorf("%s.gates: project %q maps its statuses differently at %s", at, p.label(), where[p.label()])
+			}
+			mapped[p.label()], where[p.label()] = *p.Gates, at
+		}
 	}
 	return nil
 }

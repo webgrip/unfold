@@ -1,0 +1,23 @@
+{
+  "id": "forge",
+  "name": "Forge",
+  "version": "1.1.0",
+  "runtime": 1,
+  "renderer": "webgl2",
+  "fallback": "vloer-native",
+  "extends": "vloer-native",
+  "stylesheet": "skin.css",
+  "script": "skin.js",
+  "finishes": ["matte", "foil", "holo", "prism", "gilded", "infinity"],
+  "moments": ["reveal", "crack", "mend"],
+  "themeTokens": ["--gc-accent", "--gc-surface", "--gc-radius", "--forge-frame", "--forge-accent", "--forge-back"],
+  "theme": {
+    "frames": ["classic", "fullart", "slab"],
+    "foilPatterns": ["galaxy", "crackedice", "rainbow", "gold", "refractor", "superfractor", "etched", "prism", "glitter", "liquid", "lenticular", "blacklabel", "holo", "reverse", "cosmos", "none"],
+    "artPresets": ["nebula", "aurora", "liquid", "crystal", "flow", "synth", "rain", "plasma", "ocean", "fire", "warp", "topo", "gen_koi", "gen_gold", "gen_jelly"],
+    "art": ["preset", "shader", "media"],
+    "setSymbol": true,
+    "cardBack": true,
+    "soundBanks": []
+  }
+}

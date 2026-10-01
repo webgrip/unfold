@@ -1,3 +1,9 @@
+## [unfold-site-v0.1.0-rc.7](https://forgejo.webgrip.dev/webgrip/glide/compare/unfold-site-v0.1.0-rc.6...unfold-site-v0.1.0-rc.7) (2026-10-01)
+
+### Added
+
+* **site:** apply the Unfold brand ([4a356fc](https://forgejo.webgrip.dev/webgrip/glide/commit/4a356fcbb57631db9b0a3f0f7775db7241c86778))
+
 ## [unfold-site-v0.1.0-rc.6](https://forgejo.webgrip.dev/webgrip/glide/compare/unfold-site-v0.1.0-rc.5...unfold-site-v0.1.0-rc.6) (2026-10-01)
 
 ### Changed

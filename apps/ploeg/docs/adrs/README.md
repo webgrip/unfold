@@ -123,6 +123,12 @@ fails otherwise.
 | [0046](0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md) | A Run card is assembled per Work Item from stored facts | proposed | 2026-10-01 |
 | [0047](0047-ploeg-learns-where-a-merged-change-is-deployed-from-a-generic-deploy-endpoint.md) | Ploeg learns where a merged change is deployed from a generic deploy endpoint | proposed | 2026-10-01 |
 | [0049](0049-a-run-card-reads-the-gateway-for-usage-so-far-while-a-run-is-running.md) | A Run card reads the gateway for usage so far while a Run is running | proposed | 2026-10-01 |
+| [0050](0050-a-run-cards-grade-is-a-versioned-formula-over-stored-facts.md) | A Run card's grade is a versioned formula over stored facts | proposed | 2026-10-01 |
+| [0051](0051-delivery-gates-are-mapped-per-board-from-tracker-statuses.md) | Delivery gates are mapped per board from tracker statuses | proposed | 2026-10-01 |
+| [0052](0052-a-crack-needs-the-fixer-and-a-second-person-and-ploeg-only-proposes-candidates.md) | A crack needs the fixer and a second person, and Ploeg only proposes candidates | proposed | 2026-10-01 |
+| [0053](0053-an-epic-is-a-set-of-the-work-items-declared-its-children-before-their-first-shift.md) | An epic is a set of the Work Items declared its children before their first Shift | proposed | 2026-10-01 |
+| [0054](0054-a-card-list-finds-cards-by-roster-login-newest-activity-first.md) | A card list finds cards by roster login, newest activity first | proposed | 2026-10-01 |
+| [0055](0055-ploeg-keeps-one-card-comment-with-a-static-card-image-on-the-pull-request.md) | Ploeg keeps one card comment with a static card image on the pull request | proposed | 2026-10-01 |
 
 ## Review calendar
 
@@ -149,4 +155,10 @@ triggers.
 | 2027-01-31 | [0046](0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md) — or sooner, when the owner decides rarity, grade or finish, tracker assignees are ingested, or a card read passes 200 ms at p95 |
 | 2027-01-31 | [0047](0047-ploeg-learns-where-a-merged-change-is-deployed-from-a-generic-deploy-endpoint.md) — or sooner, when a GitOps controller should report deploys directly, deploys keep filling the 50-pull-request batch, or a third forge provider is added |
 | 2027-01-31 | [0049](0049-a-run-card-reads-the-gateway-for-usage-so-far-while-a-run-is-running.md) — or sooner, when a card read during a Run passes 1 s at p95, LiteLLM offers a per-key token total, or the worker reports usage during a Run |
+| 2027-01-31 | [0050](0050-a-run-cards-grade-is-a-versioned-formula-over-stored-facts.md) — or sooner, when crack confirmation or revert detection lands, the owner asks for a frozen grade, or twenty cards are graded |
+| 2027-01-31 | [0051](0051-delivery-gates-are-mapped-per-board-from-tracker-statuses.md) — or sooner, when a lost webhook explains a missing gate stay, Ploeg registers ClickUp webhooks, or tracker users are linked to forge logins |
+| 2027-01-31 | [0052](0052-a-crack-needs-the-fixer-and-a-second-person-and-ploeg-only-proposes-candidates.md) — or sooner, when operator actors are linked to forge logins, ten disputes are resolved, twenty cracks are confirmed, or a fix outside a Ploeg Work Item must mend a crack |
+| 2027-01-31 | [0053](0053-an-epic-is-a-set-of-the-work-items-declared-its-children-before-their-first-shift.md) — or sooner, when Size points exist, a team wants tracker-only subtasks to count, or Ploeg polls tracker relations |
+| 2027-01-31 | [0054](0054-a-card-list-finds-cards-by-roster-login-newest-activity-first.md) — or sooner, when a card list request passes 1 s at p95, short pages with a cursor become common, or tracker users are linked to forge logins |
+| 2027-01-31 | [0055](0055-ploeg-keeps-one-card-comment-with-a-static-card-image-on-the-pull-request.md) — or sooner, when a forge refuses SVG attachments, the owner wants today's days live in the image, a skin with its own layout is built, or a sweep tick passes 1 s at p95 |
 | 2027-04-01 | [0005](0005-build-a-dedicated-dispatch-plane.md), [0032](0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md) — the project review gate (`design.md` §10) |

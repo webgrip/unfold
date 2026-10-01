@@ -1,6 +1,6 @@
 {
   "name": "@webgrip/de-vloer",
-  "version": "0.4.0-rc.30",
+  "version": "0.4.0-rc.32",
   "private": true,
   "description": "A self-hosted operator workbench for remote agent crews",
   "type": "module",
@@ -29,12 +29,15 @@
     "extension:build": "npm --prefix extensions/vscode run compile",
     "extension:test": "npm --prefix extensions/vscode test",
     "extension:package": "npm --prefix extensions/vscode run package",
-    "extension:verify": "node scripts/extension-verify.mjs"
+    "extension:verify": "node scripts/extension-verify.mjs",
+    "vendor:three": "node scripts/vendor-three.mjs",
+    "vendor:check": "node scripts/vendor-three.mjs --check"
   },
   "license": "Apache-2.0",
   "devDependencies": {
     "@types/node": "24.19.0",
     "playwright": "1.63.0",
+    "three": "0.186.1",
     "typescript": "7.0.2"
   }
 }

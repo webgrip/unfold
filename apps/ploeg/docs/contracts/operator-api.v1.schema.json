@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://webgrip.dev/ploeg/contracts/operator-api.v1.schema.json",
   "title": "Ploeg authenticated operator API v1",
-  "description": "GET /api/v1/operator/{teams,summary,work-items,work-items/{id},work-items/{id}/card,runs,runs/{id},events}, and POST /api/v1/operator/work-items/{id}/cancel, which requires execute permission and X-Ploeg-Actor, takes no body and withdraws tracker-originated work; repeating it on a withdrawn or settled item changes nothing and reports withdrawn false. POST /api/v1/operator/work-items/{id}/approve and /reject decide a proposed Work Item a Run created (ADR-0031); both require execute permission and X-Ploeg-Actor and take a JSON body {\"reason\": string}, required for reject. Approve queues the item; reject closes it as done and releases its allotted budget. Any other state answers 409 not_proposed. Bearer consumers have team scope. Collection after is a decimal bigint cursor; limit defaults 50, maximum 200. Work items filter on team, state, needsHuman=true and the tracker identity provider plus externalId, which must be given together and match across every team in scope unless team narrows it. Detail returns the most recent 200 records per collection, with explicit truncation flags. Audit pagination has snapshot consistency and is not a lossless changefeed: IDs are allocated before commit. Unbound events are omitted. Missing costs and unsupported team pause state remain unknown/null. Text is bounded (16384 characters for descriptions/findings, 4096 for summaries/reasons/URLs), recognizable credentials are redacted, URL queries/fragments are removed. Other credential-bearing structural fields are never selected. A recorded cost is an observation, not proof of final gateway settlement. Summary takes window=24h|7d|30d (default 7d): Work Item counts, pending and running Runs and reservedUsd are current; finished, failed and stuck count Runs finished inside the window by outcome, and settledUsd is spend settled inside the window; lastActivityAt is the Team's latest bound audit event. The Run list is newest first by id with limit 1..200 (default 50), filters team, state and outcome, and pages with before=<runId>, returning nextBefore; teams are scoped by the owning Work Item and externalRef is the tracker reference used in trailers, or empty for manual work. Events take order=asc|desc (default asc); order=desc returns newest first, pages with before=<eventId> and returns that cursor as nextCursor, and lastCursor is the newest event id in the page (0 when empty); after with order=desc, or before without it, is rejected. Timestamps in summary and Run list responses are UTC. The card of a Work Item (ADR-0046) answers schemaVersion 1, a number, and 404 when the Work Item is not in the consumer's scope; a Work Item without a Shift still has a card in state drafting.",
+  "description": "GET /api/v1/operator/{teams,summary,work-items,work-items/{id},work-items/{id}/card,cards,runs,runs/{id},events}, and POST /api/v1/operator/work-items/{id}/cancel, which requires execute permission and X-Ploeg-Actor, takes no body and withdraws tracker-originated work; repeating it on a withdrawn or settled item changes nothing and reports withdrawn false. POST /api/v1/operator/work-items/{id}/approve and /reject decide a proposed Work Item a Run created (ADR-0031); both require execute permission and X-Ploeg-Actor and take a JSON body {\"reason\": string}, required for reject. Approve queues the item; reject closes it as done and releases its allotted budget. Any other state answers 409 not_proposed. Bearer consumers have team scope. Collection after is a decimal bigint cursor; limit defaults 50, maximum 200. Work items filter on team, state, needsHuman=true and the tracker identity provider plus externalId, which must be given together and match across every team in scope unless team narrows it. Detail returns the most recent 200 records per collection, with explicit truncation flags. Audit pagination has snapshot consistency and is not a lossless changefeed: IDs are allocated before commit. Unbound events are omitted. Missing costs and unsupported team pause state remain unknown/null. Text is bounded (16384 characters for descriptions/findings, 4096 for summaries/reasons/URLs), recognizable credentials are redacted, URL queries/fragments are removed. Other credential-bearing structural fields are never selected. A recorded cost is an observation, not proof of final gateway settlement. Summary takes window=24h|7d|30d (default 7d): Work Item counts, pending and running Runs and reservedUsd are current; finished, failed and stuck count Runs finished inside the window by outcome, and settledUsd is spend settled inside the window; lastActivityAt is the Team's latest bound audit event. The Run list is newest first by id with limit 1..200 (default 50), filters team, state and outcome, and pages with before=<runId>, returning nextBefore; teams are scoped by the owning Work Item and externalRef is the tracker reference used in trailers, or empty for manual work. Events take order=asc|desc (default asc); order=desc returns newest first, pages with before=<eventId> and returns that cursor as nextCursor, and lastCursor is the newest event id in the page (0 when empty); after with order=desc, or before without it, is rejected. Timestamps in summary and Run list responses are UTC. The card of a Work Item (ADR-0046) answers schemaVersion 1, a number, and 404 when the Work Item is not in the consumer's scope; a Work Item without a Shift still has a card in state drafting. The card list (ADR-0054) takes member=<login>, repeatable 1..20 times and matched without case, and optional since=<RFC 3339>, team, before=<cursor> and limit 1..50 (default 20). It answers schemaVersion 1, a number, as the card does, with cards in the shape of the card endpoint: the consumer's team-scoped Work Items whose roster or steward names a member, newest activity first. Activity is the latest of the first Run's start, a play first seen or merged, a merged play's first deploy to its release environment, and a confirmed crack's confirmation, mend or mend confirmation, falling back to the Work Item's creation; since keeps cards whose activity is at or after it. nextBefore is an opaque cursor or null; a page examines at most twice its limit, so it can hold fewer cards, or none, while nextBefore is set.",
   "oneOf": [
     {
       "$ref": "#/$defs/teamsResponse"
@@ -33,6 +33,18 @@
     },
     {
       "$ref": "#/$defs/cardResponse"
+    },
+    {
+      "$ref": "#/$defs/cardsResponse"
+    },
+    {
+      "$ref": "#/$defs/crackCandidatesResponse"
+    },
+    {
+      "$ref": "#/$defs/cracksResponse"
+    },
+    {
+      "$ref": "#/$defs/crackResponse"
     },
     {
       "$ref": "#/$defs/errorResponse"
@@ -1610,7 +1622,7 @@
     "cardPerson": {
       "type": "object",
       "additionalProperties": false,
-      "description": "A human who merged or reviewed a play. Forge logins Ploeg acts as are left out.",
+      "description": "A human who acted on the Work Item: merged or reviewed a play (forge login), or moved the ticket out of the test gate (qa) or the acceptance gate (acceptor) on the tracker (tracker username, ADR-0051). A cosigner merged the fix that mended one of the card's cracks without being its steward (ADR-0052). Logins Ploeg acts as are left out.",
       "required": [
         "name",
         "roles"
@@ -1624,7 +1636,10 @@
           "items": {
             "enum": [
               "merger",
-              "reviewer"
+              "reviewer",
+              "qa",
+              "acceptor",
+              "cosigner"
             ]
           },
           "uniqueItems": true
@@ -1959,7 +1974,7 @@
     "card": {
       "type": "object",
       "additionalProperties": false,
-      "description": "A Run card (ADR-0046): one per Work Item, assembled from stored facts when read. Ploeg sends facts only. state: withdrawn when the Work Item was withdrawn; drafting with no play; in_review while a play is open or its state is unknown; merged when the latest play merged, or a play merged and the Work Item is done; closed otherwise. rarity, grade and condition are always null and finish is always matte until those decisions are made. demo is always false from Ploeg. deployments and release come from the deploys pipelines report to POST /api/v1/deploys (ADR-0047). live is the usage so far while a Run is running, read from the gateway when the card is read, and null otherwise (ADR-0049).",
+      "description": "A Run card (ADR-0046): one per Work Item, assembled from stored facts when read. Ploeg sends facts only. state: withdrawn when the Work Item was withdrawn; drafting with no play; in_review while a play is open or its state is unknown; merged when the latest play merged, or a play merged and the Work Item is done; closed otherwise. rarity is always null and finish is always matte until those decisions are made. condition holds the confirmed cracks (ADR-0052) and is null without one. grade is computed from stored facts under a versioned formula (ADR-0050) and null until a human approved or requested changes on a play, or a play merged. demo is always false from Ploeg. deployments and release come from the deploys pipelines report to POST /api/v1/deploys (ADR-0047). live is the usage so far while a Run is running, read from the gateway when the card is read, and null otherwise (ADR-0049). gates is the Work Item's path through its board's delivery gates, absent or null when no gate move was recorded; evolved is true when a requirement bounce left acceptance (ADR-0051) or a bug was attributed to the card as a changed requirement (ADR-0052). set places the card in its epic's set from tracker parent relations, and is absent when the Work Item belongs to no epic that counts (ADR-0053).",
       "required": [
         "workItemId",
         "title",
@@ -2028,10 +2043,24 @@
           "const": "matte"
         },
         "grade": {
-          "type": "null"
+          "oneOf": [
+            {
+              "$ref": "#/$defs/cardGrade"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "condition": {
-          "type": "null"
+          "oneOf": [
+            {
+              "$ref": "#/$defs/cardCondition"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "steward": {
           "oneOf": [
@@ -2097,8 +2126,32 @@
             }
           ]
         },
+        "gates": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/cardGates"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evolved": {
+          "type": "boolean",
+          "description": "Present and true when a requirement bounce left the acceptance or done gate (ADR-0051), or a bug was attributed to the card as a changed requirement (ADR-0052)."
+        },
         "demo": {
           "const": false
+        },
+        "set": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/cardSet"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -2154,6 +2207,373 @@
         }
       }
     },
+    "cardGrade": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The card's grade (ADR-0050). formula names the version of the deterministic formula that computed it; a different formula never re-grades silently. overall = 0.40 reliability + 0.25 durability + 0.20 delivery + 0.15 review, each subgrade rounded to the nearest half (ties up), then overall rounded the same way. provisional is true until the card has been live 180 days, and a provisional overall is at most 9. label is null while provisional; after that it is black when all four subgrades are 10, gold when overall is 10, otherwise null. qualifiers: RV when a play was reverted, HF when a hotfix-labelled fix mended one of its cracks, OB when the recorded cost passed the authorized budget, RT when a Run failed. Formula 2026.2 (ADR-0052) adds crack weight and reverts to reliability and reverts and hotfixes to durability. inputs are the facts each subgrade used.",
+      "required": [
+        "formula",
+        "overall",
+        "provisional",
+        "subgrades",
+        "label",
+        "qualifiers",
+        "inputs"
+      ],
+      "properties": {
+        "formula": {
+          "enum": [
+            "2026.1",
+            "2026.2"
+          ]
+        },
+        "overall": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 10,
+          "multipleOf": 0.5
+        },
+        "provisional": {
+          "type": "boolean"
+        },
+        "subgrades": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reliability",
+            "durability",
+            "delivery",
+            "review"
+          ],
+          "properties": {
+            "reliability": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 10,
+              "multipleOf": 0.5
+            },
+            "durability": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 10,
+              "multipleOf": 0.5
+            },
+            "delivery": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 10,
+              "multipleOf": 0.5
+            },
+            "review": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 10,
+              "multipleOf": 0.5
+            }
+          }
+        },
+        "label": {
+          "enum": [
+            "black",
+            "gold",
+            null
+          ]
+        },
+        "qualifiers": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "RV",
+              "HF",
+              "OB",
+              "RT",
+              "MN"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "inputs": {
+          "$ref": "#/$defs/cardGradeInputs"
+        }
+      }
+    },
+    "cardGradeInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The facts each subgrade used under the grade's formula. null is a fact Ploeg does not know. notCollected names, as subgrade.input, every input Ploeg has no source for yet; such an input never moves a grade.",
+      "required": [
+        "reliability",
+        "durability",
+        "delivery",
+        "review",
+        "notCollected"
+      ],
+      "properties": {
+        "reliability": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "crackWeight",
+            "reverted"
+          ],
+          "properties": {
+            "crackWeight": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "reverted": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "description": "crackWeight sums the weight of the card's confirmed cracks (ADR-0052); reverted is true when a play was reverted."
+        },
+        "durability": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "daysLive",
+            "liveSince",
+            "reverts",
+            "hotfixes",
+            "survival"
+          ],
+          "description": "daysLive counts whole days since liveSince, the card's release; 0 while the card is not live. reverts counts the pull requests that reverted a play; hotfixes counts the hotfix-labelled fixes of its cracks.",
+          "properties": {
+            "daysLive": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "liveSince": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reverts": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "hotfixes": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "survival": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        "delivery": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "budgetShare",
+            "defectBounces",
+            "extraPlays",
+            "failedRuns"
+          ],
+          "description": "budgetShare is the recorded cost over the authorized budget, null when either is unknown. defectBounces counts defect and unknown bounces, null when the board maps no gates. extraPlays counts plays beyond the first.",
+          "properties": {
+            "budgetShare": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "defectBounces": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "extraPlays": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "failedRuns": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "review": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ciFirstGreen",
+            "findings",
+            "changeRequests",
+            "reviewRounds"
+          ],
+          "description": "changeRequests counts human reviews that requested changes; reviewRounds counts the distinct (play, head commit) pairs humans reviewed.",
+          "properties": {
+            "ciFirstGreen": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "findings": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "changeRequests": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "reviewRounds": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "notCollected": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(reliability|durability|delivery|review)\\.[A-Za-z]+$"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "cardGates": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Where the Work Item stands on its board's delivery gates and how it got there (ADR-0051), from the tracker status moves Ploeg recorded. A bounce is a move back to an earlier gate; its reason comes from a bounce:<reason> comment written since the gate it left was entered, else from exactly one bounce:<reason> label, else unknown. rightFirstTime has one entry per gate after development that the Work Item entered: the number of defect and unknown bounces that left it.",
+      "required": [
+        "current",
+        "history",
+        "bounces",
+        "rightFirstTime"
+      ],
+      "properties": {
+        "current": {
+          "enum": [
+            "development",
+            "test",
+            "acceptance",
+            "done"
+          ]
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "gate",
+              "enteredAt"
+            ],
+            "properties": {
+              "gate": {
+                "enum": [
+                  "development",
+                  "test",
+                  "acceptance",
+                  "done"
+                ]
+              },
+              "enteredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "leftAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        },
+        "bounces": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "from",
+              "to",
+              "at",
+              "reason"
+            ],
+            "properties": {
+              "from": {
+                "enum": [
+                  "development",
+                  "test",
+                  "acceptance",
+                  "done"
+                ]
+              },
+              "to": {
+                "enum": [
+                  "development",
+                  "test",
+                  "acceptance",
+                  "done"
+                ]
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "reason": {
+                "enum": [
+                  "defect",
+                  "requirement",
+                  "misunderstood",
+                  "environment",
+                  "unknown"
+                ]
+              },
+              "actor": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "rightFirstTime": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "propertyNames": {
+            "enum": [
+              "test",
+              "acceptance",
+              "done"
+            ]
+          }
+        }
+      }
+    },
     "cardResponse": {
       "type": "object",
       "additionalProperties": false,
@@ -2167,6 +2587,719 @@
         },
         "card": {
           "$ref": "#/$defs/card"
+        }
+      }
+    },
+    "cardsResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "cards",
+        "nextBefore"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "cards": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/card"
+          }
+        },
+        "nextBefore": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 128
+        }
+      }
+    },
+    "cardCondition": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "What confirmed cracks did to the card (ADR-0052). state is cracked while any crack's mend is not confirmed, and mended once every crack has a confirmed mend. Cracks appear only after a person who is neither the steward nor the proposer confirmed them.",
+      "required": [
+        "state",
+        "cracks"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "cracked",
+            "mended"
+          ]
+        },
+        "cracks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/cardCrack"
+          }
+        }
+      }
+    },
+    "cardCrack": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One confirmed attribution of a bug Work Item to the card. weight is what it takes off reliability: severity (S1 4, S2 2, S3 1, S4 0.25) times share (primary 1 split among the bug's primary causes, contributing 0.25) times discovery (self 0.5, discovered 1, concealed 1.5) times warranty (full 1 up to 180 days live when the bug was raised, half 0.5 up to 365, history 0 after) times the mend (0.5 confirmed by the steward, 0.75 confirmed by someone else, 1 otherwise). confirmedBy is the proposer and the confirmer. disputed is true while a referee has not decided the steward's dispute.",
+      "required": [
+        "id",
+        "bug",
+        "severity",
+        "share",
+        "discovery",
+        "proposedAt",
+        "confirmedAt",
+        "confirmedBy",
+        "disputed",
+        "weight",
+        "warranty",
+        "mended"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "bug": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "workItemId",
+            "title"
+          ],
+          "properties": {
+            "workItemId": {
+              "type": "string"
+            },
+            "ref": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          }
+        },
+        "severity": {
+          "enum": [
+            "S1",
+            "S2",
+            "S3",
+            "S4"
+          ]
+        },
+        "share": {
+          "enum": [
+            "primary",
+            "contributing"
+          ]
+        },
+        "discovery": {
+          "enum": [
+            "self",
+            "discovered",
+            "concealed"
+          ]
+        },
+        "proposedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "confirmedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "confirmedBy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "disputed": {
+          "type": "boolean"
+        },
+        "weight": {
+          "type": "number",
+          "minimum": 0
+        },
+        "warranty": {
+          "enum": [
+            "full",
+            "half",
+            "history"
+          ]
+        },
+        "mended": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/cardCrackMend"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "cardCrackMend": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The merged fix of the crack's bug Work Item. by is the login that merged it, left out when it is a login Ploeg acts as. confirmedAt is null until the mend stood 30 days with the bug Work Item done and no new crack on the card.",
+      "required": [
+        "at",
+        "pr",
+        "bySteward",
+        "confirmedAt"
+      ],
+      "properties": {
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "by": {
+          "type": "string"
+        },
+        "pr": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "bySteward": {
+          "type": "boolean"
+        },
+        "confirmedAt": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "crackItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workItemId",
+        "title"
+      ],
+      "properties": {
+        "workItemId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "externalRef": {
+          "type": "string"
+        }
+      }
+    },
+    "crack": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One attribution of a bug Work Item to the card whose play caused it (ADR-0052). state: proposed by the fixer; confirmed by a second person who is neither the card's steward nor the proposer; disputed by the steward within five working days of confirmation (disputeUntil); unlinked by a referee; evolved when the requirement changed, which gives the card evolved and no crack. confirmedBy is the proposer and the confirmer once confirmed. severity, share and discovery are null only for an evolved attribution. mended is the bug Work Item's merged fix.",
+      "required": [
+        "id",
+        "team",
+        "state",
+        "card",
+        "bug",
+        "play",
+        "severity",
+        "share",
+        "discovery",
+        "steward",
+        "note",
+        "proposedBy",
+        "proposedAt",
+        "confirmedBy",
+        "confirmedAt",
+        "disputeUntil",
+        "disputed",
+        "disputedBy",
+        "disputedAt",
+        "disputeReason",
+        "resolvedBy",
+        "resolvedAt",
+        "resolution",
+        "evolvedBy",
+        "evolvedAt",
+        "mended"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "team": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "proposed",
+            "confirmed",
+            "disputed",
+            "unlinked",
+            "evolved"
+          ]
+        },
+        "card": {
+          "$ref": "#/$defs/crackItem"
+        },
+        "bug": {
+          "$ref": "#/$defs/crackItem"
+        },
+        "play": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "severity": {
+          "enum": [
+            "S1",
+            "S2",
+            "S3",
+            "S4",
+            null
+          ]
+        },
+        "share": {
+          "enum": [
+            "primary",
+            "contributing",
+            null
+          ]
+        },
+        "discovery": {
+          "enum": [
+            "self",
+            "discovered",
+            "concealed",
+            null
+          ]
+        },
+        "steward": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "proposedBy": {
+          "type": "string"
+        },
+        "proposedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "confirmedBy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 2
+        },
+        "confirmedAt": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "disputeUntil": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "disputed": {
+          "type": "boolean"
+        },
+        "disputedBy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "disputedAt": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "disputeReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "resolvedBy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "resolvedAt": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resolution": {
+          "enum": [
+            "upheld",
+            "unlinked",
+            null
+          ]
+        },
+        "evolvedBy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evolvedAt": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mended": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "at",
+                "pr",
+                "bySteward",
+                "confirmedAt"
+              ],
+              "properties": {
+                "at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "by": {
+                  "type": "string"
+                },
+                "pr": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "bySteward": {
+                  "type": "boolean"
+                },
+                "confirmedAt": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "reopenedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "crackCandidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "An earlier merged play that touched a path the fix touched. share is sharedFiles over the fix's file count; files lists at most 20 shared paths. attribution is the state of an existing attribution of this card to the bug, or null.",
+      "required": [
+        "card",
+        "play",
+        "repo",
+        "mergedAt",
+        "sharedFiles",
+        "share",
+        "files",
+        "reverted",
+        "attribution"
+      ],
+      "properties": {
+        "card": {
+          "$ref": "#/$defs/crackItem"
+        },
+        "play": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "repo": {
+          "type": "string"
+        },
+        "mergedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "mergedBy": {
+          "type": "string"
+        },
+        "sharedFiles": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "share": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20
+        },
+        "reverted": {
+          "type": "boolean"
+        },
+        "attribution": {
+          "enum": [
+            "proposed",
+            "confirmed",
+            "disputed",
+            "unlinked",
+            "evolved",
+            null
+          ]
+        }
+      }
+    },
+    "crackCandidatesResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The candidates for a bug Work Item's cause (ADR-0052): plays of other Work Items of its team, in a repository the fix touched, merged within 365 days before the bug Work Item was created (since, until), ranked by shared paths, then newest. Ploeg only proposes; a crack needs people.",
+      "required": [
+        "schemaVersion",
+        "crackCandidates"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "crackCandidates": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "bug",
+            "fixFiles",
+            "fixFilesTruncated",
+            "since",
+            "until",
+            "candidates"
+          ],
+          "properties": {
+            "bug": {
+              "$ref": "#/$defs/crackItem"
+            },
+            "fixFiles": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "fixFilesTruncated": {
+              "type": "boolean"
+            },
+            "since": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "until": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "candidates": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "$ref": "#/$defs/crackCandidate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "cracksResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Every attribution in which the Work Item is the bug or the card, oldest first, at most 100.",
+      "required": [
+        "schemaVersion",
+        "cracks"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "cracks": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/crack"
+          }
+        }
+      }
+    },
+    "crackResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The attribution after a proposal, confirmation, dispute, resolution or evolved mark.",
+      "required": [
+        "schemaVersion",
+        "crack"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "crack": {
+          "$ref": "#/$defs/crack"
+        }
+      }
+    },
+    "cardSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The card's place in its epic's set (ADR-0053). Members are the Work Items of the card's team whose tracker parent is the epic and whose relation Ploeg saw no later than their first Shift. role is epic on the epic's own card (when the epic is a Work Item of the team) and child on a member's. epic.workItemId is null when the epic is not a Work Item of the team. position counts from 1 in the order the members' first Shifts opened, and is null on the epic card. children is listed on the epic card only. complete is true when every member merged, has been live 30 days or more, and has no crack without a confirmed mend.",
+      "required": [
+        "role",
+        "epic",
+        "position",
+        "size",
+        "complete"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "epic",
+            "child"
+          ]
+        },
+        "epic": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "workItemId",
+            "title"
+          ],
+          "properties": {
+            "workItemId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "ref": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          }
+        },
+        "position": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "children": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "workItemId",
+              "title",
+              "state",
+              "settled",
+              "cracked"
+            ],
+            "properties": {
+              "workItemId": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "state": {
+                "enum": [
+                  "drafting",
+                  "in_review",
+                  "merged",
+                  "closed",
+                  "withdrawn"
+                ]
+              },
+              "settled": {
+                "type": "boolean"
+              },
+              "cracked": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "complete": {
+          "type": "boolean"
         }
       }
     }

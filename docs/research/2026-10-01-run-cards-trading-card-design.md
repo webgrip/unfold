@@ -1,0 +1,99 @@
+# Run cards: what trading-card design teaches
+
+Status: research record, 2026-10-01. It informs the proposed [Run cards](../concepts/run-cards.md) and is not current guidance.
+
+**Question.** Which trading-card conventions make a card feel meaningful and readable, and which of them fit a card that records one delivered change?
+
+**Method.** Desk research across Magic: The Gathering (MTG), Hearthstone, Legends of Runeterra (LoR), Pokémon TCG and TCG Pocket, Marvel Snap, EA FC Ultimate Team (FUT), NBA Top Shot, Sorare, Counter-Strike 2 skins, sports autographs and PSA/BGS grading, plus the loot-box rulings in Belgium and the Netherlands. Every non-obvious claim links its source.
+
+**Limitations.** Many sources are fan wikis and guide sites; they are marked secondary where no primary source was reachable. The PSA lingo page answered 403, so its content is confirmed through secondary sources. The research brief was written while the product was still called Glide ([ADR-0013](../adr/adr-0013-the-product-is-named-unfold.md)).
+
+## Findings
+
+### Card anatomy: fixed slots and few numbers
+
+* **Each stat keeps its corner and glyph.** Hearthstone puts mana cost top-left, Attack bottom-left on a sword and Health bottom-right on a blood drop; spells show only cost. A card reads without reading text ([HS wiki: Attribute](https://hearthstone.wiki.gg/wiki/Attribute), [HS wiki: Minion](https://hearthstone.fandom.com/wiki/Minion)).
+* **Pokémon** prints HP top-right, a bottom strip for weakness, resistance and retreat, and the illustrator credit, set number (`125/197`) and regulation mark small at the bottom ([MyDex anatomy](https://www.mydextcg.com/blog/how-to-read-pokemon-cards-complete-anatomy-guide), [Misprint: set symbols & numbers](https://www.misprint.com/posts/how-to-read-pokemon-card-set-symbols)).
+* **MTG** prints rarity twice: the colour of the set symbol and a letter next to the collector number ([MTG Wiki: Expansion symbol](https://mtg.fandom.com/wiki/Expansion_symbol), [Wargamer: rarity](https://www.wargamer.com/magic-the-gathering/card-rarity)).
+* **FUT** uses one overall rating plus six three-letter face stats. It is the most copied stat layout in the genre ([EarlyGame: ratings explained](https://earlygame.com/fifa/fifa-ratings-explained-overall-rating-1), [Goal.com](https://www.goal.com/en/news/fifa-player-ratings-explained-how-are-the-card-number--stats-decided/1hszd2fgr7wgf1n2b2yjdpgynu)).
+* **Marvel Snap** shows two numbers and one line of ability, to lower the barrier on mobile ([Kotaku: Brode interview](https://kotaku.com/marvel-snap-ben-brode-galactus-shop-deck-interview-ccg-1849978973), [GDC Vault: Designing Marvel Snap](https://gdcvault.com/play/1029024/Designing-MARVEL-SNAP)).
+* **The lowest tier is the simplest.** MTG's "New World Order" caps how hard a common is to understand and how much it affects the board, and pushes complexity to higher rarities ([SCG: NWO and complexity creep](https://articles.starcitygames.com/articles/new-world-order-and-complexity-creep/), [MTG Wiki: Rosewater FAQ](https://mtg.fandom.com/wiki/Mark_Rosewater/Blogatog_FAQ_(edited))).
+* **History lives off the front.** Top Shot logs every owner and sale from mint ([Gemini Cryptopedia](https://www.gemini.com/cryptopedia/nba-topshot-nft-flow-blockchain-nba-moments)); Sorare keeps XP and level in the card detail ([Sorare help](https://help.sorare.com/hc/en-us/articles/4402897813777-How-does-Card-Level-and-XP-work-)). TCG Pocket reveals an "Immersive" card's depth only when you hold it ([ptcgpocket.gg rarity](https://ptcgpocket.gg/pokemon-tcg-pocket-rarity-explained-every-diamond-star-and-crown/), [Wargamer: Pocket rarity](https://www.wargamer.com/pokemon-tcg-pocket/rarity)).
+
+**Principles:** one headline number and four to six face stats, each in a fixed slot with its own glyph; at most about seven numbers on the front; rarity printed twice; history on the back; depth revealed by a gesture.
+
+### Rarity: four or five tiers, kept apart from finish
+
+| Game | Tiers | Signal |
+| --- | --- | --- |
+| MTG | Common, Uncommon, Rare, Mythic | symbol colour plus letter ([Wargamer](https://www.wargamer.com/magic-the-gathering/card-rarity)) |
+| Hearthstone | Common, Rare, Epic, Legendary | gem colour and a louder reveal ([HS wiki: Rarity](https://hearthstone.fandom.com/wiki/Rarity)) |
+| LoR | Common, Rare, Epic, Champion | coloured gem ([LoR wiki: card styles](https://leagueoflegends.fandom.com/wiki/Card_style_(Legends_of_Runeterra))) |
+| TCG Pocket | ◆ to ◆◆◆◆, ★ to ★★★, crown | counted shapes, not colour alone ([Dexerto](https://www.dexerto.com/pokemon/pokemon-tcg-pocket-card-rarities-explained-2976533/)) |
+| Top Shot | Common to Ultimate | edition size ([Moment Tiers](https://support.nbatopshot.com/hc/en-us/articles/4404373783827-Moment-Tiers), [rarity blog](https://blog.nbatopshot.com/posts/nba-top-shot-rarity-blog)) |
+| Sorare | Limited to Unique | supply per player per season ([Sorare help](https://help.sorare.com/hc/en-us/articles/4406429217053-Understanding-Sorare-Cards-Pro-Set-and-Scarcity-Levels)) |
+
+* **Two axes, not one.** Hearthstone separates rarity (supply and power) from quality (Normal, Golden, Signature, Diamond, purely cosmetic) ([HS wiki: Signature](https://hearthstone.fandom.com/wiki/Signature_card), [HS wiki: Diamond](https://hearthstone.wiki.gg/wiki/Diamond_card)). Gwent splits normal and Premium the same way ([Gwent wiki: Crafting](https://gwent.fandom.com/wiki/Crafting)).
+* **Inflation destroys meaning.** Pokémon Scarlet & Violet kept adding tiers ([pokemon.com S&V revamp](https://www.pokemon.com/us/pokemon-news/pokemon-tcg-scarlet-and-violet-revamps-pokemon-tcg-card-aesthetic), [Mint Vandal](https://mintvandal.com/guides/rarity-guide/)); Special Illustration Rares often sell above the nominally higher Hyper Rares ([poke.rip guide](https://poke.rip/rarity-guide/)), and in Pocket 2★ is rarer than 3★ ([ptcgpocket.gg](https://ptcgpocket.gg/pokemon-tcg-pocket-rarity-explained-every-diamond-star-and-crown/)). MTG "Booster Fun" treatments became an unofficial second rarity scale ([Evo Retro](https://evoretro.ca/blogs/news/mtg-showcase-borderless-rarity-guide), [Misprint: booster types](https://www.misprint.com/posts/magic-booster-types-explained)).
+* **Achievement beats purchase for prestige.** Hearthstone Core golden cards come only from class wins ([HS wiki: Achievement/Progression](https://hearthstone.fandom.com/wiki/Achievement/Progression), [HS wiki: Golden card](https://hearthstone.fandom.com/wiki/Golden_card)); a golden legendary costs twice the dust ([HS wiki: Crafting](https://hearthstone.fandom.com/wiki/Crafting)). Top Shot scored challenge rewards above the same tier bought in a pack ([Collector Score](https://blog.nbatopshot.com/posts/collector-score-explained)).
+* **The top tier is a perfect result, not a lucky draw.** A BGS Black Label needs 10 on all four subgrades; roughly 1 to 3 % of BGS 10s get it ([Pregrade: Black Label](https://pregradecards.com/blog/what-is-bgs-black-label), [CardSense](https://www.cardsense.app/blog/bgs-black-label-explained)).
+
+### Progression: one visual layer per step, earned by use
+
+* **Marvel Snap** upgrades are cosmetic and add exactly one layer per step: frame break, 3D, animated art, shiny logo, animated border, then Infinity ([Marvel Snap Zone](https://marvelsnapzone.com/marvel-snap-card-rarity-guide/), [Marvel Snap help](https://marvelsnap.helpshift.com/hc/en/3-marvel-snap/faq/34-what-does-upgrading-a-card-do/), [GameRant: card levels](https://gamerant.com/marvel-snap-all-card-levels/)). The currency comes from playing that card ([Dexerto progression](https://www.dexerto.com/gaming/marvel-snap-progression-explained-upgrade-cards-collection-level-boosters-more-1976343/), [Marvel Snap help](https://marvelsnap.helpshift.com/hc/en/3-marvel-snap/faq/35-how-do-i-upgrade-a-card/)). Character Mastery later added fixed cosmetic unlocks per level ([marvelsnap.com](https://marvelsnap.com/new-feature-character-mastery/)).
+* **What went wrong in Snap.** Infinity splits roll a random finish ([Marvel Snap Zone: splits](https://marvelsnapzone.com/infinity-splits/), [Forbes](https://www.forbes.com/sites/paultassi/2022/12/08/how-marvel-snaps-infinity-splits-work-to-get-rainbow-gold-and-black-and-white-cards/)) that overwrote carefully designed variant art ([Dexerto backlash](https://www.dexerto.com/marvel-snap/marvel-snaps-infinity-split-feature-faces-backlash-for-ruining-iconic-card-designs-2300940/)). Hidden changes to the odds drew compensation players found too small ([GINX](https://www.ginx.tv/en/marvel-snap/infinity-split-compensation-players-cites-spending-credits-gold-money-split-cards)). Series 3 unlocks come in random order over thousands of levels ([Out of Games](https://outof.games/realms/marvel-snap/guides/256-how-progression-works-in-marvel-snap/)).
+* **LoR champions print their level-up condition on the card**, then change art when it is met ([Riot support: card types](https://support.riotgames.com/en-us/legends-of-runeterra/gameplay/card-types-and-how-they-work), [LoR wiki: Champion](https://leagueoflegends.fandom.com/wiki/Champion_(Legends_of_Runeterra))).
+* **FUT cards move with the real world.** Team of the Week in-forms follow real matches ([FUT Graphics history](https://futgraphics.com/articles/the-evolution-of-fut-cards-a-visual-history-from-fifa-09-to-ea-fc-24), [Sportskeeda TOTW](https://www.sportskeeda.com/esports/news-fifa-23-team-week-18-totw-18-cards-revealed-lionel-messi-earns-first-in-form-item-season)); Road to the Knockouts cards upgrade automatically on club milestones ([Charlie INTEL](https://www.charlieintel.com/fifa-23-rttk-upgrade-tracker-fut/203607/), [EarlyGame](https://earlygame.com/fifa/fifa-22-rttk-tracker-road-to-the-knockouts-ultimate-team-fut)). Evolutions sometimes cost paid points ([Dexerto Evolutions](https://www.dexerto.com/ea-sports-fc/ea-fc-24-evolutions-explained-upgrade-attributes-learn-positions-more-2217676/)).
+* **Sorare** changes its XP rules often (secondary) ([Sorare MLB guide](https://mlbguide.sorare.com/how-to-play/advanced-concepts/card-level-and-bonus), [Sorare on X](https://x.com/Sorare/status/1879201054031520008)). Top Shot challenges reward completing a set ([rarity blog](https://blog.nbatopshot.com/posts/nba-top-shot-rarity-blog)).
+
+**Feels good:** upgrades driven by real use or real outcomes, one layer per step, conditions printed in view. **Feels like grind:** long random ladders, random results that override chosen art, silent rule changes, paid shortcuts.
+
+### Collections
+
+* Top Shot's collector score multiplied completed sets and teams and was later replaced by leaderboards ([Collector Score](https://blog.nbatopshot.com/posts/collector-score-explained), [Yahoo](https://sports.yahoo.com/nba-top-shot-collector-score-202254625.html), [Leaderboards](https://support.nbatopshot.com/hc/en-us/articles/7737154529683-Leaderboards)). Marvel Snap sums every upgrade into one Collection Level ([Dexerto](https://www.dexerto.com/gaming/marvel-snap-progression-explained-upgrade-cards-collection-level-boosters-more-1976343/)).
+* TCG Pocket's Display Board and Binder can each be private, friends-only or public ([Deltia's](https://deltiasgaming.com/what-are-community-showcases-in-pokemon-tcg-pocket/), [TheGamer: display boards](https://www.thegamer.com/pokemon-pocket-display-boards-explained/)).
+* Seasons reset supply (Sorare) or rotate formats through regulation marks without invalidating collections ([MyDex](https://www.mydextcg.com/blog/how-to-read-pokemon-cards-complete-anatomy-guide)). Trading does not apply to Unfold: a card's value is what it attests.
+
+### Special card types
+
+* **Big cards change layout, not only colour:** LoR Champions, Hearthstone Diamond, Pokémon full art ([Riot](https://support.riotgames.com/en-us/legends-of-runeterra/gameplay/card-types-and-how-they-work), [HS wiki](https://hearthstone.wiki.gg/wiki/Diamond_card), [pokemon.com](https://www.pokemon.com/us/pokemon-news/pokemon-tcg-scarlet-and-violet-revamps-pokemon-tcg-card-aesthetic)). **Tokens** have minimal frames and no rarity.
+* **Wear:** CS2 skins carry a float from Factory New to Battle-Scarred, fixed at drop ([ProSettings](https://prosettings.net/blog/cs2-skin-conditions-explained/), [CSGOSkins.gg](https://csgoskins.gg/blog/everything-you-need-to-know-about-csgo-skin-wear)). A Run card's wear would change over its life, deliberately.
+* **Autographs:** collectors pay more for on-card autographs than for stickers applied later ([Topps: On-Card Auto](https://ripped.topps.com/definition/on-card-auto/), [Topps: Sticker Auto](https://ripped.topps.com/definition/sticker-auto/)). Patch cards embed a piece of a used item ([Giant Sports Cards glossary](https://giantsportscards.com/blogs/blog/trading-card-terminology-the-glossary-of-sports-card-terms)).
+* **Numbered parallels and 1/1s** are manufactured scarcity ([Topps: Printing Plate](https://ripped.topps.com/definition/printing-plate/), [Card Shop Finder](https://thecardshopfinder.com/guides/card-brands/parallels-and-refractors-explained/)). **Rookie cards and 1st Edition** mark real firsts ([Wikipedia: Rookie card](https://en.wikipedia.org/wiki/Rookie_card), [Neokyo](https://neokyo.com/blog/how-to-identify-first-edition-pokemon-cards-explaining-the-value-of-initial-print-runs/), [Misprint](https://www.misprint.com/posts/how-to-tell-if-pokemon-card-is-first-edition)).
+* **Error cards** become collectible; collectors keep failure as part of the story ([Giant Sports Cards](https://giantsportscards.com/blogs/blog/5-famous-baseball-card-errors), [Arena Club](https://www.arenaclub.com/blog/the-most-iconic-error-cards-in-sports-history-are-they-worth-investing-in)).
+* **Grading.** PSA grades 1 to 10 on centering, corners, edges and surface ([CardGrader.ai](https://cardgrader.ai/blog/card-grading-scale-explained), [cardpregrading](https://www.cardpregrading.com/learn/psa-grading-scale-explained)). BGS prints four subgrades in half steps; Black Label is all four at 10 and Gold Label an overall 10 ([cardgrade.io](https://cardgrade.io/blog/beckett-bgs-card-grading-guide), [Pregrade](https://pregradecards.com/blog/what-is-bgs-black-label)). PSA qualifiers (OC, ST, MC, PD, MK, OF) name one defect instead of lowering the grade ([PSA lingo: Qualifier](https://www.psacard.com/resources/lingo/q), [Pregrade: qualifiers](https://pregradecards.com/blog/psa-qualifiers-explained-2026)).
+
+### Pitfalls
+
+* **Loot boxes.** Belgium ruled paid loot boxes illegal games of chance in 2018 ([PC Gamer](https://www.pcgamer.com/belgiums-gambling-commission-rules-against-loot-boxes-in-overwatch-fifa-18-and-csgo/), [Game Developer](https://www.gamedeveloper.com/business/ea-amends-i-fifa-i-loot-boxes-in-belgium-after-regulators-increase-pressure)), with weak enforcement since ([Collabra study](https://online.ucpress.edu/collabra/article/9/1/57641/195100/Breaking-Ban-Belgium-s-Ineffective-Gambling-Law)). The Dutch Kansspelautoriteit fined EA over FUT packs; the Raad van State annulled the fine in March 2022 (ECLI:NL:RVS:2022:690) ([Lottery Daily](https://lotterydaily.com/2022/03/11/news/ksa-overruled-on-fifa-loot-box-charges/), [AKD](https://www.akd.eu/insights/loot-boxes-are-legal-in-the-netherlands)). In December 2024 the Dutch minister asked for an EU-wide ban through the planned Digital Fairness Act ([iGaming Express](https://igamingexpress.com/dutch-minister-calls-for-eu-wide-ban-on-loot-boxes-in-video-games/), [Franssen Tolboom](https://www.franssentolboom.nl/en/loot-boxes-an-overview-of-recent-developments/)).
+* **EU CPC key principles on in-game virtual currencies** (21 March 2025) require real-money price transparency and name unfounded scarcity claims and misleading timers as unfair; currencies earned only through play are out of scope ([Linklaters](https://techinsights.linklaters.com/post/102k6t4/game-changer-eu-introduces-consumer-protection-guidance-for-in-game-virtual-curr), [Gaming Tech Law](https://www.gamingtechlaw.com/2025/05/video-games-microtransactions-guidelines-loot-boxes/)).
+* **Pay-to-win.** Snap, Hearthstone, Gwent and LoR keep finishes cosmetic. Unfold's equivalent: card state never affects authorization, budget or merge rights.
+* **Visual noise.** Stacked finishes erased art in Snap; Pocket keeps 3D behind a gesture.
+* **Gamification at work.** When GitHub removed streaks, long streaks, weekend activity and single-contribution days fell ([Moldon et al., arXiv 2006.02371](https://arxiv.org/abs/2006.02371)). Points, badges and leaderboards invite Goodhart's law and the overjustification effect ([ResearchGate: "Gamification is not working"](https://www.researchgate.net/publication/380360600_Gamification_is_not_Working_Why), [arXiv 2305.08346](https://arxiv.org/pdf/2305.08346)). The [gamification evidence record](2026-10-01-run-cards-gamification-evidence-and-law.md) covers this in depth.
+
+## Recommendations for Run cards
+
+1. **Two axes plus a grade.** Rarity says what the work is; finish says what it earned in production; a PSA-style grade is a third readout.
+2. **Fixed front slots.** One headline and about six face stats, the same slot and glyph on every card, project and tier.
+3. **A 1 to 10 grade with four printed subgrades** in half steps, computed deterministically, with formula and inputs on the back. **Black Label** is 10/10/10/10 and the only perfect treatment; **Gold Label** an overall 10.
+4. **Qualifiers for one honest defect:** `RV` reverted, `HF` hotfixed, `OB` over budget, `RT` retried Run, `MN` manual takeover. `RV` and `MN` are mandatory when they apply.
+5. **Five rarity tiers, signalled twice** (colour plus a counted shape that reads in greyscale). Never add a tier without retiring one.
+6. **No random or bought rarity.** No paid packs, no currency, no paid shortcuts. Demo cards carry a visible demo stamp.
+7. **Epics as champion-style cards** with a printed level-up condition and a different layout; their children form a numbered set (`3/7`).
+8. **Tokens for chores:** minimal frame, at most three stats, stacked in the binder.
+9. **A finish ladder earned by staying in production**, one new visual layer per step (7, 30, 90, 180, 365 days live), advancing on its own.
+10. **Finishes layer over project art and never replace it.** Per-project styles work like MTG sets; slots and marks stay invariant.
+11. **Visible deltas** when a deploy, incident or revert lands, with every prior state kept in history.
+12. **Wear that changes over the card's life**, and scars that stay; a long-lived scarred card is a veteran.
+13. **The human signs on the card**; the agent appears as the credit line. A later fixer adds a patch with their signature, and the back keeps the provenance ledger.
+14. **Real firsts only** (a first signed card in a project, a first card from a new Role or harness version); serial numbers are true mint order, never invented print runs.
+15. **Failed attempts are shown honestly** rather than hidden.
+16. **The reveal is a celebration, not a gamble**, with reduced motion respected and depth behind hover or hold.
+17. **Personal binder, no default leaderboard.** A collection score is a personal readout only.
+18. **Seasons as series marks**; thresholds are versioned so nothing is silently re-graded.
+19. **Card state reports outcomes and never gates them.**
+20. **At most three simultaneous effects in grid view.**
+
+## Where the design departed from this record
+
+The owner's later decisions, recorded on the [Run cards](../concepts/run-cards.md) page, changed three points. A ticket, not a pull request, is the unit, with its pull requests as plays. A failed Shift is a scuff on its ticket card instead of a separate error card. And the proposal adds **sprint packs** whose random pulls are cosmetic only, earned, never bought, with published odds; recommendation 6 is kept for everything that carries meaning.

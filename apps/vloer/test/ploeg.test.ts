@@ -490,7 +490,12 @@ test('demo records stay illustrative: no spend, no model calls, and every record
   const upstreamApi = await upstream(t);
   const ploeg = client(upstreamApi.config);
   for (const id of Object.keys(ploegDemo.details)) assert.equal((await ploeg.detail(admin, id)).item.id, id);
-  for (const team of ploegDemo.teams) assert.equal((await ploeg.items(admin, team.id)).items.length, ploegDemo.items.filter(item => item.team === team.id).length);
+  for (const team of ploegDemo.teams) {
+    const listed: string[] = [];
+    let after: string | null = '0';
+    while (after !== null) { const page = await ploeg.items(admin, team.id, 'all', after); listed.push(...page.items.map(item => item.id)); after = page.nextCursor; }
+    assert.deepEqual(listed.sort(), ploegDemo.items.filter(item => item.team === team.id).map(item => item.id).sort(), `${team.id}: every demo Work Item passes the live parser`);
+  }
 });
 
 test('the Now projection lists waiting work, running Runs and recent Runs across the caller’s teams', async (t) => {
@@ -623,7 +628,34 @@ function liveCard(id: string, team = 'delivery') {
   };
 }
 
-test('the card proxy reads Ploeg card facts, keeps unknowns absent and shows no rarity, grade or condition in P1', async t => {
+test('the card proxy passes a contract grade and condition through validated, and nulls any other shape', async t => {
+  const upstreamApi = await upstream(t);
+  const ploeg = client(upstreamApi.config);
+  const grade = { formula: '2026.1', overall: 8.5, provisional: true, subgrades: { reliability: 10, durability: 8.5, delivery: 9, review: 8, extra: 3 }, label: null, qualifiers: ['HF', 'ZZ'], inputs: { secret: upstreamApi.token } };
+  const condition = { state: 'mended', cracks: [{ id: 'c1', bug: { workItemId: 140, ref: 'VIK-1642', title: 'Lease renewal raced the watcher', note: 'x' }, severity: 'S2', share: 'primary', discovery: 'discovered', proposedAt: '2026-09-20T10:00:00Z', confirmedAt: '2026-09-21T10:00:00Z', confirmedBy: ['iris', 'sam'], disputed: false, mended: { at: '2026-09-25T10:00:00Z', by: 'ryan', pr: 68, bySteward: true } }] };
+  upstreamApi.cards['101'] = { ...liveCard('101'), rarity: 'legendary', grade, condition };
+  const view = await ploeg.card(admin, '101');
+  assert.equal(view.card.rarity, null, 'rarity stays open');
+  assert.deepEqual(view.card.grade, { formula: '2026.1', overall: 8.5, provisional: true, subgrades: { reliability: 10, durability: 8.5, delivery: 9, review: 8 }, label: null, qualifiers: ['HF'] }, 'known subgrades and qualifiers only; inputs are not passed on');
+  assert.deepEqual(view.card.condition, { state: 'mended', cracks: [{ id: 'c1', bug: { workItemId: '140', ref: 'VIK-1642', title: 'Lease renewal raced the watcher' }, severity: 'S2', share: 'primary', discovery: 'discovered', proposedAt: '2026-09-20T10:00:00Z', confirmedAt: '2026-09-21T10:00:00Z', confirmedBy: ['iris', 'sam'], disputed: false, mended: { at: '2026-09-25T10:00:00Z', by: 'ryan', pr: 68, bySteward: true } }] });
+  assert.equal(JSON.stringify(view).includes(upstreamApi.token), false);
+  for (const [bad, why] of [[{ ...grade, overall: 8.4 }, 'off the half-step scale'], [{ ...grade, overall: 11 }, 'above 10'], [{ ...grade, label: 'platinum' }, 'an unknown label'], [{ ...grade, formula: '' }, 'no formula'], [{ ...grade, provisional: 'yes' }, 'a provisional flag that is not a boolean'], [9, 'a bare number']] as const) {
+    upstreamApi.cards['101'] = { ...liveCard('101'), grade: bad };
+    assert.equal((await ploeg.card(admin, '101', true)).card.grade, null, `a grade with ${why} is dropped`);
+  }
+  for (const [bad, why] of [[{ ...condition, state: 'shattered' }, 'an unknown state'], [{ ...condition, cracks: [{ ...condition.cracks[0], severity: 'S9' }] }, 'an unknown severity'], [{ ...condition, cracks: [{ ...condition.cracks[0], confirmedAt: 'soon' }] }, 'a time that is not a time'], ['cracked', 'a bare string']] as const) {
+    upstreamApi.cards['101'] = { ...liveCard('101'), condition: bad };
+    assert.equal((await ploeg.card(admin, '101', true)).card.condition, null, `a condition with ${why} is dropped`);
+  }
+  upstreamApi.cards['101'] = { ...liveCard('101'), grade: null, condition: null };
+  assert.deepEqual([(await ploeg.card(admin, '101', true)).card.grade, (await ploeg.card(admin, '101', true)).card.condition], [null, null]);
+  upstreamApi.cards['101'] = { ...liveCard('101'), style: { skin: 'forge', theme: null } };
+  assert.deepEqual((await ploeg.card(admin, '101', true)).card.style, { skin: 'forge', theme: null }, 'a Work Target can choose the forge skin');
+  upstreamApi.cards['101'] = { ...liveCard('101'), style: { skin: 'arcade', theme: null } };
+  assert.deepEqual((await ploeg.card(admin, '101', true)).card.style, { skin: 'arcade', theme: null }, 'a Work Target can choose a DOM skin pack');
+});
+
+test('the card proxy reads Ploeg card facts, keeps unknowns absent, drops rarity and Ploeg\'s finish, and drops a grade or condition it cannot read', async t => {
   const upstreamApi = await upstream(t);
   upstreamApi.cards['101'] = liveCard('101');
   const ploeg = client(upstreamApi.config);

@@ -29,11 +29,13 @@ Both applications live in this repository and deploy separately ([ADR-0002](adr/
 | See what happens inside one agent Run: pods, sandbox, harness, credentials | [Inside a Run](concepts/inside-a-run.md) |
 | Follow a whole path end to end: ticket to merge, release to production, stopping work, failures | [Journeys](concepts/journeys.md) |
 | See who Unfold is for and where it is heading | [Who Unfold is for](concepts/who-unfold-is-for.md) (the agency offering; not built yet) |
+| See how each delivered change is recorded on a card, and what that means for privacy | [Run Cards](concepts/run-cards.md) (mostly proposed) · [Works council and DPIA pack](reference/run-cards-works-council-pack.md) |
 | Give real work to agents | [Assign work to an agent](how-to/assign-work-to-an-agent.md) |
 | Check an agent's pull request before merging | [Review an agent pull request](how-to/review-an-agent-pr.md) |
 | Let agents work in a repository | [Prepare a repository](how-to/prepare-a-repository.md) |
 | Try a Team on ten real Work Items, or compare prompts, models and harnesses | [Run a pilot batch](how-to/run-a-pilot-batch.md) |
 | Operate Ploeg or Vloer | [Ploeg](../apps/ploeg/docs/index.md) · [Vloer](../apps/vloer/docs/index.md) |
+| Use the Unfold name, mark or colours | [Brand](brand/README.md) · [Trademark policy](brand/TRADEMARK.md) (proposed) |
 | Look up a term or a decision | [Glossary](reference/glossary.md) · [Decisions](reference/decisions.md) |
 | Change Unfold | [Repository instructions](../AGENTS.md) · [Documentation policy](documentation.md) · [CI and releases](operations/ci.md) |
 

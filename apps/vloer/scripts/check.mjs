@@ -3,6 +3,7 @@ import { dirname, extname, isAbsolute, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stripTypeScriptTypes } from 'node:module';
 import { spawnSync } from 'node:child_process';
+import { threeVersion, vendoredFiles } from './vendor-three.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const failures = [];
@@ -77,9 +78,25 @@ for (const path of files) {
     }
   }
 }
+const vendorDirectory = resolve(root, 'public/vendor/three');
+let vendored = 0;
+if (existsSync(vendorDirectory)) {
+  const allowed = new Set([...Object.values(vendoredFiles), 'LICENSE', 'VERSION']);
+  for (const name of readdirSync(vendorDirectory)) if (!allowed.has(name)) fail(resolve(vendorDirectory, name), 'is not a vendored three.js file; vendor only through scripts/vendor-three.mjs');
+  for (const name of Object.values(vendoredFiles)) {
+    const path = resolve(vendorDirectory, name);
+    if (!existsSync(path)) fail(path, 'vendored three.js file is missing; run npm run vendor:three');
+    else if (!readFileSync(path, 'utf8').startsWith(`// three.js ${threeVersion} `)) fail(path, `is not the unedited three.js ${threeVersion} copy; run npm run vendor:three`);
+    else vendored++;
+  }
+  if (existsSync(resolve(root, 'node_modules/three/package.json'))) {
+    const drift = spawnSync(process.execPath, [resolve(root, 'scripts/vendor-three.mjs'), '--check'], { encoding: 'utf8', timeout: 30000 });
+    if (drift.status !== 0) failures.push(drift.stderr.trim() || 'public/vendor/three/ drifted from node_modules/three');
+  }
+}
 if (failures.length) {
   process.stderr.write(`${failures.join('\n')}\n`);
   process.exitCode = 1;
 } else {
-  process.stdout.write(`Checked ${sources} source modules and ${jsonFiles} JSON files; no application entrypoint executed.\n`);
+  process.stdout.write(`Checked ${sources} source modules and ${jsonFiles} JSON files; ${vendored} vendored three.js ${threeVersion} files are unedited; no application entrypoint executed.\n`);
 }

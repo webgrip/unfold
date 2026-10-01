@@ -72,6 +72,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 
 | Scope | ADR | Title | Date | Implemented? | Evidence |
 | --- | --- | --- | --- | --- | --- |
+| System | [0014](../adr/adr-0014-the-unfold-name-and-mark-are-trademarks-not-cc-licensed-artwork.md) | The Unfold name and mark are trademarks under a usage policy, not CC-licensed artwork | 2026-10-01 | unknown | — |
 | Ploeg | [0015](../../apps/ploeg/docs/adrs/0015-routing-is-core-policy-over-provider-opaque-scopes.md) | Route work in the core over provider-opaque Scopes | 2026-07-29 | partial | Scope resolver exists; tracker team mapping is still live ([source](../../apps/ploeg/pkg/target/resolver.go)) |
 | Ploeg | [0016](../../apps/ploeg/docs/adrs/0016-forge-registry-and-per-run-repo-scoped-credentials.md) | Resolve forges through a registry and mint forge credentials per Run | 2026-07-29 | partial | Per-run forge tokens exist; the worker still calls the forge API directly ([source](../../apps/ploeg/pkg/forgebroker/broker.go)) |
 | Ploeg | [0017](../../apps/ploeg/docs/adrs/0017-the-review-loop-is-verdict-driven-and-capped.md) | The review loop is verdict-driven and capped | 2026-07-29 | yes | Verdict loop and fix-round cap are tested ([source](../../apps/ploeg/pkg/shiftengine/reviewloop_test.go)) |
@@ -100,6 +101,12 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Ploeg | [0046](../../apps/ploeg/docs/adrs/0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md) | A Run card is assembled per Work Item from stored facts | 2026-10-01 | unknown | — |
 | Ploeg | [0047](../../apps/ploeg/docs/adrs/0047-ploeg-learns-where-a-merged-change-is-deployed-from-a-generic-deploy-endpoint.md) | Ploeg learns where a merged change is deployed from a generic deploy endpoint | 2026-10-01 | unknown | — |
 | Ploeg | [0049](../../apps/ploeg/docs/adrs/0049-a-run-card-reads-the-gateway-for-usage-so-far-while-a-run-is-running.md) | A Run card reads the gateway for usage so far while a Run is running | 2026-10-01 | unknown | — |
+| Ploeg | [0050](../../apps/ploeg/docs/adrs/0050-a-run-cards-grade-is-a-versioned-formula-over-stored-facts.md) | A Run card's grade is a versioned formula over stored facts | 2026-10-01 | unknown | — |
+| Ploeg | [0051](../../apps/ploeg/docs/adrs/0051-delivery-gates-are-mapped-per-board-from-tracker-statuses.md) | Delivery gates are mapped per board from tracker statuses | 2026-10-01 | unknown | — |
+| Ploeg | [0052](../../apps/ploeg/docs/adrs/0052-a-crack-needs-the-fixer-and-a-second-person-and-ploeg-only-proposes-candidates.md) | A crack needs the fixer and a second person, and Ploeg only proposes candidates | 2026-10-01 | unknown | — |
+| Ploeg | [0053](../../apps/ploeg/docs/adrs/0053-an-epic-is-a-set-of-the-work-items-declared-its-children-before-their-first-shift.md) | An epic is a set of the Work Items declared its children before their first Shift | 2026-10-01 | unknown | — |
+| Ploeg | [0054](../../apps/ploeg/docs/adrs/0054-a-card-list-finds-cards-by-roster-login-newest-activity-first.md) | A card list finds cards by roster login, newest activity first | 2026-10-01 | unknown | — |
+| Ploeg | [0055](../../apps/ploeg/docs/adrs/0055-ploeg-keeps-one-card-comment-with-a-static-card-image-on-the-pull-request.md) | Ploeg keeps one card comment with a static card image on the pull request | 2026-10-01 | unknown | — |
 | Vloer | [0005](../../apps/vloer/docs/adrs/0005-one-work-authority.md) | One work authority across unattended and interactive delivery | 2026-09-09 | partial | Guarded commands to Ploeg exist; work orders and fenced takeover do not ([source](../../apps/vloer/src/execution-authority.ts)) |
 | Vloer | [0006](../../apps/vloer/docs/adrs/0006-trusted-verifier-and-publisher.md) | Verify and publish outside the agent workspace | 2026-09-09 | partial | Independent verifier exists; the trusted publisher does not ([source](../../apps/vloer/src/delivery-verifier.ts)) |
 | Vloer | [0008](../../apps/vloer/docs/adrs/0008-task-connections-and-candidate-handoff.md) | Shared task connections and portable candidate handoff | 2026-09-09 | yes | Implemented in the 0.2.0 prototype; team adoption is what remains proposed ([source](../../apps/vloer/src/candidates.ts)) |
@@ -112,6 +119,11 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Vloer | [0025](../../apps/vloer/docs/adrs/0025-hand-tracker-tasks-to-ploeg-by-assignment.md) | Vloer hands a tracker task to Ploeg by assigning the team's tracker user | 2026-09-30 | unknown | — |
 | Vloer | [0026](../../apps/vloer/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md) | Run cards render in a card runtime with skin packs and themes | 2026-10-01 | unknown | — |
 | Vloer | [0027](../../apps/vloer/docs/adrs/0027-the-editor-opens-on-now-and-shares-the-browser-vocabulary.md) | The editor opens on Now and shares the browser's vocabulary | 2026-10-01 | unknown | — |
+| Vloer | [0028](../../apps/vloer/docs/adrs/0028-the-forge-skin-renders-run-cards-in-3d-with-vendored-three-js.md) | The forge skin renders Run cards in 3D with vendored three.js | 2026-10-01 | unknown | — |
+| Vloer | [0029](../../apps/vloer/docs/adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md) | Binders, packs and pulls collect Run cards privately and fairly | 2026-10-01 | unknown | — |
+| Vloer | [0030](../../apps/vloer/docs/adrs/0030-vloer-traces-bugs-under-an-administrator-mapped-forge-login.md) | Vloer traces bugs to Run cards under an administrator-mapped forge login | 2026-10-01 | unknown | — |
+| Vloer | [0031](../../apps/vloer/docs/adrs/0031-card-themes-a-card-designer-and-generated-art.md) | Card themes, a card designer and generated art | 2026-10-01 | unknown | — |
+| Vloer | [0032](../../apps/vloer/docs/adrs/0032-an-effects-director-plays-run-card-moments-once-by-tier-within-accessibility-rules.md) | An effects director plays Run card moments once, by tier, within accessibility rules | 2026-10-01 | unknown | — |
 
 ## Other statuses
 

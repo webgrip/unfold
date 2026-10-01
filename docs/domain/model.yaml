@@ -11,7 +11,7 @@ description: >
   Team, Role and Outcome belong to Ploeg's model; this model imports them.
   The agency offering (Unfold ADRs 0005 to 0010) is decided and not implemented;
   its terms are in the Offering and Billing contexts.
-version: "0.4"
+version: "0.5"
 combined_glossary: ../reference/glossary.md
 references:
   - label: Unfold ADR-0002
@@ -25,7 +25,7 @@ references:
     note: A Work Item with a Quote is the billing unit; the Delivery Fee is charged on Acceptance.
 imports:
   - model: ../../apps/ploeg/docs/domain/model.yaml
-    terms: [Run, Shift, Lease, Team, Role, Outcome, Verdict, Harness, Work Item, Tracker Item, Follow-Up, Admission, Authority]
+    terms: [Run, Shift, Lease, Team, Role, Outcome, Verdict, Harness, Work Item, Work Target, Tracker Item, Follow-Up, Admission, Authority]
 contexts:
   - name: System
     description: The applications that make up Unfold and how they divide the work.
@@ -43,6 +43,12 @@ contexts:
     description: >
       How work is sized, quoted and charged: Sizes, Quotes, Credits and the two
       parts of a price. Decided in Unfold ADR-0006; not implemented yet.
+  - name: Cards
+    description: >
+      Run Cards: the record of each delivered change and its life in
+      production. Ploeg assembles a card per Work Item and Vloer renders it
+      (Ploeg ADR-0046, Vloer ADR 0026); the rest of this context is proposed,
+      and Rarity is an open decision. See ../concepts/run-cards.md.
   - name: Release
     description: How Unfold's own source, releases and documentation are proven and switched over.
   - name: Tooling
@@ -478,6 +484,150 @@ terms:
       14 days for a defect inside its Acceptance Conditions.
     avoid: [chargeback]
     see_also: [Delivery Fee, Acceptance, Dispute]
+  - name: Run Card
+    context: Cards
+    definition: >
+      The record of one Work Item's change and its life in production: who
+      carried it, what its Runs cost, its Plays, review, CI and deployments,
+      and, as proposed, its Grade, Rarity, Cracks and Mends. Ploeg assembles it
+      from stored facts and Vloer renders it (Ploeg ADR-0046, Vloer ADR 0026).
+      It describes a change, never a person, and its state never changes what
+      Ploeg authorizes, budgets or merges.
+    synonyms: [card]
+    not_to_be_confused_with:
+      - term: Run
+        note: One Role executing against a Work Item. A Run Card covers every Run of its Work Item, across all its Shifts.
+    examples: ["Work Item 138 has one Run Card with two Plays: #57, closed after a test Bounce, and #61, merged."]
+    see_also: [Work Item, Play, Steward, Roster, Finish, Grade, Rarity, Skin]
+  - name: Play
+    context: Cards
+    owner: ploeg
+    definition: >
+      One pull request of a Work Item as its Run Card shows it, oldest first.
+      A pull request closed after a Bounce and its merged successor are two
+      Plays on one card. Cost and lines are summed across Plays, and each
+      Play's Runs appear as its crew.
+    see_also: [Run Card, Bounce, Shift]
+  - name: Steward
+    context: Cards
+    definition: >
+      The person a Run Card names as answering for its change while it runs,
+      with first right to mend it. Built today: whoever merged the latest
+      merged Play, otherwise the last approver; forge bot logins never count.
+      Proposed: the developer carrying the Work Item, meaning the tracker
+      assignee at release, falling back to the merger and then the approver.
+      The agent is never a Steward. A Steward is a role on a change, not a
+      measure of a person.
+    avoid: [owner (of a card)]
+    see_also: [Run Card, Roster, Crack, Mend]
+  - name: Roster
+    context: Cards
+    definition: >
+      The humans who acted on a Run Card's change, each with their roles.
+      Built roles: merger and reviewer. Proposed: developer, QA, PO and
+      acceptor, each holding a copy of the card that shares its fate, so a
+      Crack shows on every copy and a Mend names the mender on every copy.
+    see_also: [Run Card, Steward, Binder]
+  - name: Gate
+    context: Cards
+    definition: >
+      A stage a Work Item passes after review, such as development, test,
+      acceptance and production. Each project maps its tracker statuses and
+      deploy environments to Gates. Not implemented yet.
+    see_also: [Bounce, Run Card, Acceptance]
+  - name: Bounce
+    context: Cards
+    definition: >
+      A Work Item moving from a later Gate back to an earlier one, with a
+      reason: defect, requirement, misunderstood, environment or unknown. Only
+      defect and unknown Bounces count against the Grade. A requirement change
+      marks the card Evolved and leaves no Crack. Not implemented yet.
+    examples: ["A tester moves the ticket from In test back to In progress with the label bounce:defect; the fix becomes the card's next Play."]
+    see_also: [Gate, Play, Grade, Crack]
+  - name: Crack
+    context: Cards
+    definition: >
+      A defect confirmed against a Run Card's change. Ploeg proposes candidate
+      changes, the fixer names the cause, and a second person who is not the
+      Steward confirms it; the Steward may dispute within five working days.
+      A Crack is never applied automatically, carries a severity from S1 to
+      S4, and is never totalled per person. Not implemented yet.
+    see_also: [Mend, Steward, Grade, Bounce]
+  - name: Mend
+    context: Cards
+    definition: >
+      The confirmed fix of a Crack, drawn as gold seams that stay on the card
+      (kintsugi). A mended card looks more distinguished than an untouched one,
+      while its Grade ends slightly lower. Whoever mends another person's card
+      becomes a co-signer. Not implemented yet.
+    synonyms: [kintsugi]
+    see_also: [Crack, Steward, Grade]
+  - name: Finish
+    context: Cards
+    owner: vloer
+    definition: >
+      The visual layer a Run Card earns by staying live in production: matte,
+      then foil at 7 days, holo at 30, prism at 90, gilded at 180 and infinity
+      at 365. Vloer counts the days from the first production deploy of the
+      latest merged Play, or from the merge when the repository has never
+      reported a production deploy (Ploeg ADR-0047, Vloer ADR 0026).
+    see_also: [Run Card, Grade, Rarity, Skin]
+  - name: Grade
+    context: Cards
+    definition: >
+      A Run Card's assessment of its change from 1 to 10 in half steps, from
+      four subgrades: 40 % reliability, 25 % durability, 20 % delivery and
+      15 % review. The formula is versioned and printed on the card, and a card
+      under 180 days live is capped at 9. It grades the change, never a person.
+      Not implemented yet; Ploeg sends null.
+    not_to_be_confused_with:
+      - term: Verdict
+        note: A reviewing Run's approve or request_changes answer in one Round. It is one input a Grade could use, not a Grade.
+    see_also: [Run Card, Crack, Bounce, Finish]
+  - name: Rarity
+    context: Cards
+    definition: >
+      How exceptional a Run Card's change is, kept apart from how well it was
+      done (Grade) and how long it has lasted (Finish). Cosmetic only. An open
+      decision: the proposal derives it from the change's challenge, predicted
+      at mint and revealed at release, in percentile tiers per project and
+      season. Not implemented; Ploeg sends null and nothing may depend on it.
+    see_also: [Run Card, Grade, Finish, Pack]
+  - name: Set Card
+    context: Cards
+    definition: >
+      The Run Card of an epic Work Item, whose children are Run Cards numbered
+      within the set. Proposed: it completes when every child has been live
+      for 30 days with no unmended Crack. Not implemented yet; Ploeg reads no
+      tracker parent relations.
+    see_also: [Run Card, Work Item, Crack]
+  - name: Binder
+    context: Cards
+    definition: >
+      A person's private collection of the Run Cards they hold a copy of. Only
+      its owner sees it, and they may share single cards. There is no manager
+      view of a Binder. Not implemented yet.
+    see_also: [Run Card, Roster, Pack]
+  - name: Pack
+    context: Cards
+    definition: >
+      The once-per-sprint ceremony that hands a person the Run Cards they
+      earned that sprint. Opening it may add one cosmetic variant to a card,
+      such as a foil pattern, alternative art, full art or a gold signature,
+      drawn from published odds with a recorded seed. A Pack cannot be bought,
+      re-rolled or traded, and a pull never changes a Grade, a Rarity or any
+      metric. Not implemented yet.
+    see_also: [Binder, Rarity, Grade]
+  - name: Skin
+    context: Cards
+    owner: vloer
+    definition: >
+      The look a Run Card is drawn in, chosen per Work Target in Ploeg's
+      cardStyle. A Skin changes appearance and motion, never the facts or
+      where they sit. Built: Vloer Native, the 3D forge Skin, and Holo
+      Rarity, Loot Drop, Arcade Cabinet, Ticker Terminal and Mission Patch.
+      Proposed: per-Client themes on top.
+    see_also: [Run Card, Work Target, Finish]
 retired_terms:
   - name: Workload
     context: Execution
@@ -582,6 +732,33 @@ rules:
       receives production secrets.
     rationale: Unfold's responsibility ends at a reviewed pull request and its preview; production stays with the Agency.
     applies_to: [Agency, Preview Environment, Acceptance]
+  - id: R17
+    statement: >
+      A Run Card describes a change and never scores a person. Its state never changes what Ploeg authorizes,
+      budgets or merges, and no shared view totals card data per person. Intended behavior — card data is never
+      used in pay or performance reviews; Unfold states this in its terms and its works council pack.
+    rationale: >
+      A record of a change makes people care about it; a score of a person gets gamed, and in the Netherlands
+      it needs works council consent.
+    applies_to: [Run Card, Steward, Grade]
+  - id: R18
+    statement: >
+      Intended behavior — a Binder is visible only to its owner, team pages only to the team, and a Client sees
+      team aggregates only, never a named person's history.
+    rationale: Person-level views invite appraisal use, profiling and client pressure on named staff.
+    applies_to: [Binder, Run Card, Client]
+  - id: R19
+    statement: >
+      Intended behavior — a Crack needs human confirmation by the fixer and one person who is not the Steward,
+      and the Steward may dispute it. Ploeg may propose candidates but never applies a Crack on its own.
+    rationale: Automatic bug-to-change tracing is wrong too often, and a wrong Crack on a signed card is a fairness incident.
+    applies_to: [Crack, Steward]
+  - id: R20
+    statement: >
+      Intended behavior — a Pack is earned, never bought. Its random pulls are cosmetic, drawn from published
+      odds, and cannot be re-rolled or traded; a pull never changes a Grade, a Rarity or any metric.
+    rationale: Randomness bought with money is the loot-box problem; cosmetic, earned and published pulls keep Packs clear of it.
+    applies_to: [Pack, Grade, Rarity]
 ambiguities:
   - phrase: a CI failure with no original ticket
     issue: Repair subtickets require a parent, but a human-written change may not already have an external ticket.
@@ -613,6 +790,27 @@ ambiguities:
       The tracker task is the Request. Refinement's Work Items stay in Ploeg as
       proposed until their Quotes are approved, which reuses Ploeg ADR-0031 and
       keeps the Agency's tracker as the one place its Clients' asks live.
+  - phrase: what makes a Run Card rare
+    issue: >
+      The owner has not decided what Rarity measures. Until then Ploeg sends
+      null and nothing may depend on it.
+    options:
+      - Challenge alone, predicted at mint and revealed at release
+      - A mix of challenge and quality
+      - Revealed at acceptance instead of release
+      - Compared per Team instead of per project
+    recommendation: >
+      Challenge alone, revealed at release, as percentile tiers per project and
+      season, with fixed thresholds while a project has fewer than about 30 cards.
+  - phrase: the period a Pack covers
+    issue: >
+      A Pack is proposed once per sprint, but Unfold has no sprint concept and
+      some teams do not work in sprints.
+    options:
+      - The tracker's iteration or cycle, where it has one
+      - A fixed calendar period for every team
+      - A period each Team sets in Ploeg's configuration
+    recommendation: Decide before Packs are built; until then the period is the team's sprint as its tracker defines it.
 dialogues:
   - title: Research can stop implementation
     context: Work

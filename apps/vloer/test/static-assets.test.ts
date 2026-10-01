@@ -90,13 +90,28 @@ test('the workbench entry, shell and its core and view modules are served from t
 test('the card runtime and its skin packs are served by a strict path pattern', { timeout: testTimeout(15_000) }, async t => {
   const server = await application('demo');
   t.after(() => server.close());
-  for (const [path, type] of [['/cards/unfold-card.js', 'text/javascript; charset=utf-8'], ['/cards/card-model.js', 'text/javascript; charset=utf-8'], ['/cards/registry.js', 'text/javascript; charset=utf-8'], ['/cards/unfold-card.css', 'text/css; charset=utf-8'], ['/cards/skins/vloer-native/manifest.json', 'application/json; charset=utf-8'], ['/cards/skins/vloer-native/skin.css', 'text/css; charset=utf-8'], ['/cards/skins/vloer-native/skin.js', 'text/javascript; charset=utf-8']]) {
+  for (const [path, type] of [['/cards/unfold-card.js', 'text/javascript; charset=utf-8'], ['/cards/card-model.js', 'text/javascript; charset=utf-8'], ['/cards/registry.js', 'text/javascript; charset=utf-8'], ['/cards/unfold-card.css', 'text/css; charset=utf-8'], ['/cards/skins/vloer-native/manifest.json', 'application/json; charset=utf-8'], ['/cards/skins/vloer-native/skin.css', 'text/css; charset=utf-8'], ['/cards/skins/vloer-native/skin.js', 'text/javascript; charset=utf-8'], ['/cards/effects/director.js', 'text/javascript; charset=utf-8'], ['/cards/effects/vloer.js', 'text/javascript; charset=utf-8'], ['/styles/effects.css', 'text/css; charset=utf-8']]) {
     const response = await get(server.url, path);
     assert.equal(response.status, 200, `${path}: ${response.body}`);
     assert.equal(response.type, type, path);
     assert.equal(response.body, await readFile(join(server.config.publicDir, path.slice(1)), 'utf8'), path);
   }
-  for (const path of ['/cards/../package.json', '/cards/skins/../../package.json', '/cards/%2e%2e/package.json', '/cards/skins/a/b/skin.js', '/cards/skins/vloer-native/skin.html', '/cards/skins/Vloer/skin.css', '/cards/missing.js', '/cards/skins/vloer-native/', '/cards/x.json/']) {
+  for (const path of ['/cards/../package.json', '/cards/skins/../../package.json', '/cards/%2e%2e/package.json', '/cards/skins/a/b/skin.js', '/cards/skins/vloer-native/skin.html', '/cards/skins/Vloer/skin.css', '/cards/missing.js', '/cards/skins/vloer-native/', '/cards/x.json/', '/cards/effects/../../package.json', '/cards/effects/a/b.js', '/cards/effect/director.js', '/cards/effects/missing.js']) {
+    const response = await get(server.url, path);
+    assert.equal(response.status, 404, `${path}: ${response.status}`);
+  }
+});
+
+test('the forge skin and the vendored three.js are served as modules; nothing else under /vendor is', { timeout: testTimeout(15_000) }, async t => {
+  const server = await application('demo');
+  t.after(() => server.close());
+  for (const path of ['/cards/skins/forge/manifest.json', '/cards/skins/forge/skin.css', '/cards/skins/forge/skin.js', '/cards/skins/forge/engine.js', '/cards/skins/forge/face.js', '/cards/skins/forge/forge-model.js', '/cards/skins/forge/shader-art.js', '/cards/skins/forge/shader-foils.js', '/cards/skins/forge/shader-prelude.js', '/vendor/three/three-module.js', '/vendor/three/effect-composer.js', '/vendor/three/unreal-bloom-pass.js', '/vendor/three/room-environment.js']) {
+    const response = await get(server.url, path);
+    assert.equal(response.status, 200, `${path}: ${response.body.slice(0, 200)}`);
+    assert.equal(response.type, path.endsWith('.json') ? 'application/json; charset=utf-8' : path.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8', path);
+    assert.equal(response.body, await readFile(join(server.config.publicDir, path.slice(1)), 'utf8'), path);
+  }
+  for (const path of ['/vendor/three/LICENSE', '/vendor/three/VERSION', '/vendor/three/../../package.json', '/vendor/three/%2e%2e/x.js', '/vendor/three/Three.js', '/vendor/three/x.mjs', '/vendor/other/x.js', '/vendor/three/a/b.js', '/vendor/three/missing.js', '/cards/skins/forge/x.glsl']) {
     const response = await get(server.url, path);
     assert.equal(response.status, 404, `${path}: ${response.status}`);
   }

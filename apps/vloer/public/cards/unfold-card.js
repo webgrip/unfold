@@ -1,6 +1,7 @@
 import { icon } from '../core/icons.js';
 import { cardView, cardTabs, finishLadder } from './card-model.js';
-import { defaultSkin, loadSkin, requiredSlots, resolveSkin } from './registry.js';
+import { defaultSkin, loadSkin, requiredSlots, resolveSkin, webglSupport } from './registry.js';
+import { applyTokens, loadTheme, themeView } from './themes.js';
 
 const runtimeStylesheet = '/cards/unfold-card.css';
 const tabIds = cardTabs.map(tab => tab.id);
@@ -9,6 +10,7 @@ const safeLink = value => { try { const url = new URL(value); return ['https:', 
 const slotLabels = { title: 'Work Item', state: 'State', cost: 'Cost', steward: 'Steward', ids: 'Ids' };
 const slotValue = (view, slot) => ({ title: view.title, state: view.state.label, cost: view.cost.text, steward: view.steward.text, ids: view.ids.join(' · ') }[slot]);
 const Base = globalThis.HTMLElement ?? class {};
+const skinMomentNames = Object.freeze({ cracked: 'crack', mended: 'mend', graded: 'grade' });
 
 /** What a skin's `render(view, helpers)` receives besides the view model. Skins escape every value with `escape`. */
 export const skinHelpers = Object.freeze({ escape: escapeHtml, icon, link: safeLink });
@@ -33,7 +35,16 @@ function parse(markup) {
  * (`front` or `back`) and `tab` attributes hold the view and are reflected; every change fires `unfold-card-change`
  * with `{ face, tab }`. "More info" turns the card, Escape turns it back, and the back's tabs follow the ARIA tabs
  * pattern. The turn is a 3D flip that becomes a crossfade when the reader prefers reduced motion. Whatever a skin
- * draws, the front always carries the title, state, cost, steward and ids.
+ * draws, the front always carries the title, state, cost, steward and ids. The element reflects the skin it draws as
+ * `data-skin`; a WebGL2 skin is replaced by its fallback when the browser has no WebGL2. A skin's `attach(front, view)`
+ * receives the drawn front and the view model; the forge skin also reads `motion` (`still` or `live`) on the element.
+ * A card whose `style.theme` names a theme loads it from Vloer; a theme picks the skin it `extends`, sets its tokens
+ * on the element through the CSSOM and reaches the skin as `view.theme`. Setting the `theme` property to a theme
+ * object (the designer's draft) or to null overrides that lookup; the element reflects the theme it drew as
+ * `data-theme`. Setting `asOf` shows the card as it was at
+ * that moment, which the binder uses to replay what changed while its owner was away. Every skin's `attach` fires
+ * `unfold-card-moment` on the element through `skin-kit.js`'s `emitMoments`, and `playMoment(moment, api)` hands the
+ * effects director's ceremony to the skin's `onMoment`.
  */
 export class UnfoldCard extends Base {
   static get observedAttributes() { return ['face', 'tab']; }
@@ -47,6 +58,8 @@ export class UnfoldCard extends Base {
   #focus = null;
   #detach = null;
   #skin = null;
+  #asOf = null;
+  #theme = undefined;
 
   constructor() {
     super();
@@ -57,6 +70,13 @@ export class UnfoldCard extends Base {
 
   get card() { return this.#card; }
   set card(value) { this.#card = value && typeof value === 'object' ? value : null; void this.#update(); }
+
+  /** The moment, in milliseconds, the card is shown as of (days live and finish count to it); null shows it as of now. */
+  get asOf() { return this.#asOf; }
+  set asOf(value) { this.#asOf = Number.isFinite(value) ? value : null; if (this.#card) void this.#update(); }
+  /** The theme this element draws with instead of the one `card.style.theme` names; undefined follows the card. */
+  get theme() { return this.#theme; }
+  set theme(value) { this.#theme = value === undefined ? undefined : value && typeof value === 'object' ? value : null; void this.#update(); }
 
   get face() { return this.getAttribute('face') === 'back' ? 'back' : 'front'; }
   set face(value) { this.setAttribute('face', value === 'back' ? 'back' : 'front'); }
@@ -75,6 +95,28 @@ export class UnfoldCard extends Base {
     else this.#focus = key;
   }
 
+  /**
+   * Plays one moment's reaction on the drawn front: the skin's `onMoment(moment, api)` with `front`, `view` and `host`
+   * added to the director's `api`, or, for a skin without one, the moment's name on the skin root's `data-moment` for
+   * the ceremony's length. Skins react on the card only and leave page-level light to the director. Returns what the
+   * skin returns (a promise it settles when its reaction ends), or null when nothing is drawn.
+   * @param {{ kind: string, at?: string, detail?: object }} moment
+   * @param {{ mode: 'full' | 'calm', durationMs: number, signal?: AbortSignal, [name: string]: unknown }} api
+   */
+  playMoment(moment, api) {
+    const front = this.#stage?.querySelector('.gc-front');
+    if (!front || !moment) return null;
+    if (typeof this.#skin?.onMoment === 'function') return this.#skin.onMoment(moment, { ...api, front, view: this.#view, host: this });
+    const root = front.querySelector('[data-skin-root]') ?? front.firstElementChild;
+    if (!root || api?.mode !== 'full') return null;
+    root.dataset.moment = skinMomentNames[moment.kind] ?? moment.kind;
+    return new Promise(resolve => {
+      const end = () => { delete root.dataset.moment; resolve(); };
+      const timer = setTimeout(end, Math.max(300, api.durationMs ?? 900));
+      api.signal?.addEventListener?.('abort', () => { clearTimeout(timer); end(); }, { once: true });
+    });
+  }
+
   connectedCallback() {
     if (this.#card && !this.#view) void this.#update();
     else if (this.#stage && !this.#stage.hidden) this.#startSkin();
@@ -86,7 +128,7 @@ export class UnfoldCard extends Base {
     this.#stopSkin();
     const front = this.#stage?.querySelector('.gc-front');
     if (!front || typeof this.#skin?.attach !== 'function') return;
-    try { this.#detach = this.#skin.attach(front) ?? null; } catch { this.#detach = null; }
+    try { this.#detach = this.#skin.attach(front, this.#view) ?? null; } catch { this.#detach = null; }
   }
 
   #stopSkin() {
@@ -106,20 +148,35 @@ export class UnfoldCard extends Base {
     const card = this.#card;
     if (!card) { this.#stopSkin(); this.#view = null; this.#stage = null; this.#root.replaceChildren(); return; }
     let skin = null;
-    try { skin = await loadSkin(resolveSkin(card.style)); }
-    catch { try { skin = await loadSkin(defaultSkin); } catch { skin = null; } }
+    const theme = this.#theme !== undefined ? this.#theme : card.style?.theme ? await loadTheme(card.style.theme) : null;
     if (ticket !== this.#ticket) return;
-    const view = cardView(card);
+    const wanted = resolveSkin(card.style, theme);
+    if (this.dataset.skin !== wanted) this.dataset.skin = wanted;
+    try {
+      skin = await loadSkin(wanted);
+      if (skin.manifest.renderer === 'webgl2' && webglSupport() === 'none') skin = await loadSkin(skin.manifest.fallback);
+    } catch { try { skin = await loadSkin(defaultSkin); } catch { skin = null; } }
+    if (ticket !== this.#ticket) return;
+    const drawn = skin?.manifest?.id ?? defaultSkin;
+    if (this.dataset.skin !== drawn) this.dataset.skin = drawn;
+    let themed = null;
+    try { themed = await themeView(theme, skin?.manifest ?? null); } catch { themed = null; }
+    if (ticket !== this.#ticket) return;
+    applyTokens(this, themed ? theme : null, skin?.manifest ?? null);
+    if (themed?.id) this.dataset.theme = themed.id;
+    else delete this.dataset.theme;
+    const view = cardView(card, this.#asOf === null ? {} : { now: this.#asOf });
     if (!(skin?.manifest?.finishes ?? []).includes(view.finish.key)) view.finish = finishLadder[0];
+    view.theme = themed;
     this.#view = view;
     await this.#paint(skin, ticket);
   }
 
   async #paint(skin, ticket) {
     const view = this.#view;
-    const links = this.#links ?? { base: stylesheet(runtimeStylesheet), skin: null };
-    const skinHref = skin?.stylesheet ?? '';
-    if (links.skin?.getAttribute('href') !== skinHref) { links.skin?.remove(); links.skin = skinHref ? stylesheet(skinHref) : null; }
+    const links = this.#links ?? { base: stylesheet(runtimeStylesheet), skins: [] };
+    const hrefs = skin?.stylesheets ?? (skin?.stylesheet ? [skin.stylesheet] : []);
+    if (links.skins.map(link => link.getAttribute('href')).join(' ') !== hrefs.join(' ')) { for (const link of links.skins) link.remove(); links.skins = hrefs.map(stylesheet); }
     this.#links = links;
     const stage = document.createElement('div');
     stage.className = 'gc';
@@ -143,11 +200,11 @@ export class UnfoldCard extends Base {
     this.#requireTabs(faces.back);
     stage.append(inner);
     this.#stopSkin();
-    this.#root.replaceChildren(...[links.base, links.skin].filter(Boolean), stage);
+    this.#root.replaceChildren(links.base, ...links.skins, stage);
     this.#stage = stage;
     this.#applyFace({ focus: false });
     this.#applyTab();
-    await Promise.all([links.base.loaded, links.skin?.loaded]);
+    await Promise.all([links.base.loaded, ...links.skins.map(link => link.loaded)]);
     if (ticket !== this.#ticket) return;
     stage.hidden = false;
     this.#skin = skin;

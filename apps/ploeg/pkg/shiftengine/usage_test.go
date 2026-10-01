@@ -241,7 +241,7 @@ func TestLinksSection(t *testing.T) {
 			usage: store.ShiftUsage{WorkItemID: 7, Team: "bronze"},
 			alias: "ploeg-abcdef012345",
 			want: []string{
-				"- [Glide — Loop dashboard](https://grafana.example/d/glide-loop?var-team=bronze)\n",
+				"- [Unfold — Loop dashboard](https://grafana.example/d/glide-loop?var-team=bronze)\n",
 				"- [Run Explorer](https://grafana.example/d/dark-factory-run-explorer?var-run=ploeg-abcdef012345)\n",
 				"- [Spend & Attribution](https://grafana.example/d/dark-factory-spend-attribution)\n",
 			},

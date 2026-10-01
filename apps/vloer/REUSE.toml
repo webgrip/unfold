@@ -8,3 +8,9 @@ path = "**"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Ryan Grippeling / WebGrip"
 SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = "public/vendor/three/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2010-2024 three.js authors"
+SPDX-License-Identifier = "MIT"

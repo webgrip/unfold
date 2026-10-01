@@ -29,12 +29,11 @@
   --brand-ground-dark: #111619;
   --brand-muted: #5e6b66;
   --brand-muted-light: #8c9a94;
-  --brand-accent: #1f9e8a;
-  --brand-accent-deep: #177a6a;
+  --brand-accent: #d23a4e;
+  --brand-accent-deep: #cc394d;
+  --brand-accent-night: #d65162;
   --brand-on-accent: #ffffff;
   --brand-surface: #ffffff;
   --brand-font: 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   --brand-font-stretch: 110%;
-  --brand-wordmark-weight: 800;
-  --brand-wordmark-tracking: -0.03em;
 }

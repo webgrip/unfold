@@ -48,9 +48,43 @@ export type PloegCardDeployment = { environment: string; firstDeployedAt: string
 export type PloegCardRelease = { at: string; source: string; environment: string };
 /** The Work Item's usage so far while a Run is running (Ploeg ADR-0049): what finished Runs recorded plus the gateway's running total. A cost or token figure Ploeg could not read is absent. */
 export type PloegCardLive = { runningRuns: number; observedAt: string | null; runSeconds: number; usageComplete: boolean } & Partial<Record<'costUsd' | 'inputTokens' | 'outputTokens', number>>;
-/** A Run card: one per Work Item, its pull requests as plays. Facts only; an unknown value is absent or null, never zero. The proxy always carries `rarity`, `grade` and `condition` as null and `finish` as `matte`; Vloer derives the finish from `release`. An older Ploeg sends no `deployments`, `release` or `live`, and they stay absent. */
-export type PloegCard = { workItemId: string; title: string; externalRef: string; url: string; team: string; target: { forge: string; owner: string; repo: string } | null; style: PloegCardStyle; state: string; rarity: null; finish: 'matte'; grade: null; condition: null; steward: { name: string; source: string } | null; roster: { name: string; roles: string[] }[]; crew: PloegCardCrew[]; plays: PloegCardPlay[]; totals: PloegCardTotals; events: PloegCardEvent[]; deployments?: PloegCardDeployment[]; release?: PloegCardRelease | null; live?: PloegCardLive | null; demo: boolean };
+/** The facts a card's grade used, per subgrade (card contract P2b). `null` is a fact Ploeg does not know; `notCollected` names every input Ploeg has no source for yet, as `subgrade.input`. */
+export type PloegCardGradeInputs = { reliability: { crackWeight: number | null; reverted: boolean | null }; durability: { daysLive: number | null; liveSince: string | null; reverts: number | null; hotfixes: number | null; survival: number | null }; delivery: { budgetShare: number | null; defectBounces: number | null; extraPlays: number | null; failedRuns: number | null }; review: { ciFirstGreen: boolean | null; findings: number | null; changeRequests: number | null; reviewRounds: number | null }; notCollected: string[] };
+/** A card's grade (card contract P2b): Ploeg computes it with a versioned formula (2026.1, or 2026.2 with cracks, reverts and hotfixes); Vloer only displays it. `inputs` is absent when Ploeg sent none or a shape Vloer cannot read. */
+export type PloegCardGrade = { formula: string; overall: number; provisional: boolean; subgrades: Partial<Record<'reliability' | 'durability' | 'delivery' | 'review', number>>; label: 'black' | 'gold' | null; qualifiers: string[]; inputs?: PloegCardGradeInputs };
+/** One confirmed crack (card contract P3): a bug traced back to this card, and its mend when someone fixed it. `weight`, `warranty` and the mend's `confirmedAt` stay absent when Ploeg does not send them. */
+export type PloegCardCrack = { id: string; bug: { workItemId: string | null; ref: string; title: string } | null; severity: string; share: string; discovery: string; proposedAt: string | null; confirmedAt: string | null; confirmedBy: string[]; disputed: boolean; weight?: number; warranty?: 'full' | 'half' | 'history'; mended: { at: string | null; by: string; pr: number | null; bySteward: boolean; confirmedAt?: string | null } | null };
+/** A card's condition (card contract P3): cracked while a confirmed crack is open, mended once every crack was fixed. */
+export type PloegCardCondition = { state: 'cracked' | 'mended'; cracks: PloegCardCrack[] };
+/** A delivery gate on the Work Item's board (Ploeg ADR-0051). */
+export type PloegGate = 'development' | 'test' | 'acceptance' | 'done';
+/** Where the Work Item stands on its board's delivery gates and how it got there (Ploeg ADR-0051). `rightFirstTime` counts, per gate after development that the Work Item entered, the defect and unknown bounces that left it. */
+export type PloegCardGates = { current: PloegGate; history: { gate: PloegGate; enteredAt: string; leftAt: string | null }[]; bounces: { from: PloegGate; to: PloegGate; at: string; reason: string; actor: string }[]; rightFirstTime: Partial<Record<'test' | 'acceptance' | 'done', number>> };
+/** The card's place in its epic's set (Ploeg ADR-0053). `children` is listed on the epic's own card only; `position` is null there. */
+export type PloegCardSet = { role: 'epic' | 'child'; epic: { workItemId: string | null; ref: string; title: string }; position: number | null; size: number; children: { workItemId: string; title: string; state: string; settled: boolean; cracked: boolean }[]; complete: boolean };
+/** A Run card: one per Work Item, its pull requests as plays. Facts only; an unknown value is absent or null, never zero. The proxy always carries `rarity` as null and `finish` as `matte`; Vloer derives the finish from `release`. `grade`, `condition`, `gates` and `set` pass through validated when Ploeg sends them, and a shape Vloer cannot read becomes null. An older Ploeg sends no `deployments`, `release`, `live`, `gates`, `evolved` or `set`, and they stay absent. */
+export type PloegCard = { workItemId: string; title: string; externalRef: string; url: string; team: string; target: { forge: string; owner: string; repo: string } | null; style: PloegCardStyle; state: string; rarity: null; finish: 'matte'; grade: PloegCardGrade | null; condition: PloegCardCondition | null; steward: { name: string; source: string } | null; roster: { name: string; roles: string[] }[]; crew: PloegCardCrew[]; plays: PloegCardPlay[]; totals: PloegCardTotals; events: PloegCardEvent[]; deployments?: PloegCardDeployment[]; release?: PloegCardRelease | null; live?: PloegCardLive | null; gates?: PloegCardGates | null; evolved?: true; set?: PloegCardSet | null; demo: boolean };
 export type PloegCardView = { card: PloegCard; demo: boolean; fetchedAt: string };
+/** A Work Item named in an attribution. */
+export type PloegCrackItem = { workItemId: string; title: string; externalRef: string };
+/** The state of an attribution (Ploeg ADR-0052): proposed by the fixer, confirmed by a second person, disputed by the steward, unlinked by a referee, or evolved when the requirement changed. */
+export type PloegCrackState = 'proposed' | 'confirmed' | 'disputed' | 'unlinked' | 'evolved';
+/** One attribution of a bug Work Item to the card whose play caused it (Ploeg ADR-0052), as the crack API shows it. */
+export type PloegCrack = { id: string; team: string; state: PloegCrackState; card: PloegCrackItem; bug: PloegCrackItem; play: number | null; severity: string | null; share: string | null; discovery: string | null; steward: string | null; note: string | null; proposedBy: string; proposedAt: string; confirmedBy: string[]; confirmedAt: string | null; disputeUntil: string | null; disputed: boolean; disputedBy: string | null; disputedAt: string | null; disputeReason: string | null; resolvedBy: string | null; resolvedAt: string | null; resolution: 'upheld' | 'unlinked' | null; evolvedBy: string | null; evolvedAt: string | null; mended: { at: string; by: string; pr: number; bySteward: boolean; confirmedAt: string | null; reopenedAt: string | null } | null };
+/** An earlier merged play that touched a path the bug's fix touched. Ploeg only proposes it; a crack needs people. */
+export type PloegCrackCandidate = { card: PloegCrackItem; play: number; repo: string; mergedAt: string; mergedBy: string; sharedFiles: number; share: number; files: string[]; reverted: boolean; attribution: PloegCrackState | null };
+/** The candidates for a bug Work Item's cause: plays merged between `since` and `until`, the bug's creation. */
+export type PloegCrackCandidates = { bug: PloegCrackItem; fixFiles: number; fixFilesTruncated: boolean; since: string; until: string; candidates: PloegCrackCandidate[] };
+/** The caller in the attribution flow: the forge login Ploeg compares with stewards and proposers, whether they may take a step at all, and why not. */
+export type PloegAttributionViewer = { login: string | null; canAct: boolean; reason: string };
+export type PloegCracksView = { workItemId: string; cracks: PloegCrack[]; viewer: PloegAttributionViewer; demo: boolean; fetchedAt: string };
+export type PloegCrackCandidatesView = { workItemId: string; crackCandidates: PloegCrackCandidates; demo: boolean; fetchedAt: string };
+/** An attribution step: `propose` and `evolved` act on a bug Work Item, `confirm`, `dispute` and `resolve` on one of its cracks. */
+export type PloegAttributionStep = 'propose' | 'evolved' | 'confirm' | 'dispute' | 'resolve';
+/** What an attribution step returns: the attribution as Ploeg recorded it, or in the demo as Ploeg would record it, with nothing kept. */
+export type PloegAttributionResult = { crack: PloegCrack; demo: boolean; message: string };
+/** Cards for a binder or team page, and where they came from: Ploeg's card list, a bounded scan of recent Work Items, or the demo. */
+export type PloegCardList = { cards: PloegCard[]; source: { kind: 'list' | 'scan' | 'demo'; scanned: number; truncated: boolean } };
 export type PloegOverview ={ configured: boolean; available: boolean; demo: boolean; teams: PloegTeam[]; selectedTeam?: string; lanes?: Record<PloegLane, PloegPresentedPage>; fetchedAt?: string; trackerUrl?: string; message: string };
 
 export class PloegError extends Error {
@@ -61,6 +95,7 @@ export class PloegError extends Error {
 
 const states: PloegState[] = ['ingested', 'queued', 'leased', 'done', 'needs_human', 'awaiting_review', 'stale', 'withdrawn', 'proposed'];
 const invalid = () => new PloegError(502, 'ploeg_response', 'Ploeg returned an unsupported operator response.');
+const forgeLogin = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
 const identifier = (value: unknown): string => { if (typeof value !== 'string' || !/^[1-9][0-9]{0,19}$/.test(value)) throw invalid(); return value; };
 function record(value: unknown): Record<string, unknown> { if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalid(); return value as Record<string, unknown>; }
 function field(value: unknown, max = 512): string { if (typeof value !== 'string' || value.length > max || value.includes('\0')) throw invalid(); return value; }
@@ -180,6 +215,9 @@ function detail(value: unknown): PloegDetail {
 }
 
 const cardVersions: unknown[] = [1, '1.0'];
+const cardListPages = 6;
+const scanPages = 4;
+const scanCardLimit = 60;
 const defaultSkin = 'vloer-native';
 const cardEventKeys: Record<string, 'text' | 'number' | 'flag'> = { number: 'number', state: 'text', role: 'text', round: 'number', outcome: 'text', verdict: 'text', shiftId: 'text', runId: 'text', reviewer: 'text', reason: 'text', source: 'text', writes: 'flag' };
 const absent = (value: unknown) => value === undefined || value === null;
@@ -247,7 +285,111 @@ function cardLive(value: unknown): PloegCardLive | null {
   if (runningRuns === undefined || runSeconds === undefined) throw invalid();
   return { runningRuns, runSeconds, observedAt: cardTime(data.observedAt), usageComplete: boolean(data.usageComplete), ...usage };
 }
-/** Validates a Run card from Ploeg: known fields only, safe links, bounded lists, absent values kept absent. It drops any rarity, grade, condition or finish. */
+const gradeKeys = ['reliability', 'durability', 'delivery', 'review'] as const;
+const gradeQualifierCodes = ['RV', 'HF', 'OB', 'RT', 'MN'];
+function halfStep(value: unknown): number { if (typeof value !== 'number' || value < 1 || value > 10 || !Number.isInteger(value * 2)) throw invalid(); return value; }
+function readable<T>(parse: () => T): T | null { try { return parse(); } catch { return null; } }
+const gradeInputKeys = /^(?:reliability|durability|delivery|review)\.[A-Za-z]{1,64}$/;
+function maybe<T>(value: unknown, parse: (value: unknown) => T): T | null { return absent(value) ? null : parse(value); }
+function gradeInputs(value: unknown): PloegCardGradeInputs | undefined {
+  if (absent(value)) return undefined;
+  return readable(() => {
+    const data = record(value);
+    const part = (key: string) => record(data[key]);
+    const count = (entry: unknown) => maybe(entry, item => numeric(item, true));
+    const reliability = part('reliability');
+    const durability = part('durability');
+    const delivery = part('delivery');
+    const review = part('review');
+    const survival = maybe(durability.survival, numeric);
+    if (survival !== null && survival > 1) throw invalid();
+    return {
+      reliability: { crackWeight: maybe(reliability.crackWeight, numeric), reverted: maybe(reliability.reverted, boolean) },
+      durability: { daysLive: count(durability.daysLive), liveSince: cardTime(durability.liveSince), reverts: count(durability.reverts), hotfixes: count(durability.hotfixes), survival },
+      delivery: { budgetShare: maybe(delivery.budgetShare, numeric), defectBounces: count(delivery.defectBounces), extraPlays: count(delivery.extraPlays), failedRuns: count(delivery.failedRuns) },
+      review: { ciFirstGreen: maybe(review.ciFirstGreen, boolean), findings: count(review.findings), changeRequests: count(review.changeRequests), reviewRounds: count(review.reviewRounds) },
+      notCollected: cardList(data.notCollected, entry => field(entry, 80), 40).filter(entry => gradeInputKeys.test(entry)),
+    };
+  }) ?? undefined;
+}
+function cardGrade(value: unknown): PloegCardGrade | null {
+  if (absent(value)) return null;
+  return readable(() => {
+    const data = record(value);
+    const parts = absent(data.subgrades) ? {} : record(data.subgrades);
+    const formula = field(data.formula, 32);
+    if (!/^[0-9A-Za-z][0-9A-Za-z.-]{0,31}$/.test(formula)) throw invalid();
+    const label = absent(data.label) ? null : data.label;
+    if (label !== null && label !== 'black' && label !== 'gold') throw invalid();
+    const inputs = gradeInputs(data.inputs);
+    return {
+      formula, overall: halfStep(data.overall), provisional: boolean(data.provisional),
+      subgrades: Object.fromEntries(gradeKeys.filter(key => !absent(parts[key])).map(key => [key, halfStep(parts[key])])),
+      label, qualifiers: cardList(data.qualifiers, entry => field(entry, 8), 10).filter(code => gradeQualifierCodes.includes(code)),
+      ...(inputs ? { inputs } : {}),
+    };
+  });
+}
+const warranties = ['full', 'half', 'history'] as const;
+function cardCrack(value: unknown): PloegCardCrack {
+  const data = record(value);
+  const bug = absent(data.bug) ? null : record(data.bug);
+  const mended = absent(data.mended) ? null : record(data.mended);
+  const severity = field(data.severity, 4);
+  if (!/^S[1-4]$/.test(severity)) throw invalid();
+  if (data.warranty !== undefined && !warranties.includes(data.warranty as typeof warranties[number])) throw invalid();
+  return {
+    id: field(data.id, 128), bug: bug ? { workItemId: looseId(bug.workItemId), ref: cardText(bug.ref, 512), title: cardText(bug.title, 4096) } : null,
+    severity, share: cardToken(data.share, 'primary'), discovery: cardToken(data.discovery, 'discovered'),
+    proposedAt: cardTime(data.proposedAt), confirmedAt: cardTime(data.confirmedAt), confirmedBy: cardList(data.confirmedBy, entry => field(entry, 256), 10),
+    disputed: absent(data.disputed) ? false : boolean(data.disputed),
+    ...(absent(data.weight) ? {} : { weight: numeric(data.weight) }),
+    ...(data.warranty === undefined ? {} : { warranty: data.warranty as typeof warranties[number] }),
+    mended: mended ? { at: cardTime(mended.at), by: cardText(mended.by), pr: absent(mended.pr) ? null : numeric(mended.pr, true), bySteward: absent(mended.bySteward) ? false : boolean(mended.bySteward), ...(mended.confirmedAt === undefined ? {} : { confirmedAt: cardTime(mended.confirmedAt) }) } : null,
+  };
+}
+function cardCondition(value: unknown): PloegCardCondition | null {
+  if (absent(value)) return null;
+  return readable(() => {
+    const data = record(value);
+    if (data.state !== 'cracked' && data.state !== 'mended') throw invalid();
+    return { state: data.state, cracks: cardList(data.cracks, cardCrack, 20) };
+  });
+}
+const gateNames: PloegGate[] = ['development', 'test', 'acceptance', 'done'];
+const bounceReasons = ['defect', 'requirement', 'misunderstood', 'environment', 'unknown'];
+function gate(value: unknown): PloegGate { if (!gateNames.includes(value as PloegGate)) throw invalid(); return value as PloegGate; }
+function cardGates(value: unknown): PloegCardGates | null {
+  if (absent(value)) return null;
+  return readable(() => {
+    const data = record(value);
+    const rft = absent(data.rightFirstTime) ? {} : record(data.rightFirstTime);
+    return {
+      current: gate(data.current),
+      history: cardList(data.history, entry => { const visit = record(entry); return { gate: gate(visit.gate), enteredAt: timestamp(visit.enteredAt), leftAt: cardTime(visit.leftAt) }; }, 200),
+      bounces: cardList(data.bounces, entry => { const bounce = record(entry); const reason = absent(bounce.reason) ? 'unknown' : field(bounce.reason, 32); if (!bounceReasons.includes(reason)) throw invalid(); return { from: gate(bounce.from), to: gate(bounce.to), at: timestamp(bounce.at), reason, actor: cardText(bounce.actor) }; }, 200),
+      rightFirstTime: Object.fromEntries((['test', 'acceptance', 'done'] as const).filter(key => !absent(rft[key])).map(key => [key, numeric(rft[key], true)])),
+    };
+  });
+}
+const setStates = ['drafting', 'in_review', 'merged', 'closed', 'withdrawn'];
+function cardSet(value: unknown): PloegCardSet | null {
+  if (absent(value)) return null;
+  return readable(() => {
+    const data = record(value);
+    if (data.role !== 'epic' && data.role !== 'child') throw invalid();
+    const epic = record(data.epic);
+    const size = numeric(data.size, true);
+    const position = absent(data.position) ? null : numeric(data.position, true);
+    if (size < 1 || (position !== null && (position < 1 || position > size))) throw invalid();
+    return {
+      role: data.role, epic: { workItemId: looseId(epic.workItemId), ref: cardText(epic.ref, 512), title: field(epic.title, 4096) }, position, size,
+      children: data.role === 'epic' ? cardList(data.children, entry => { const child = record(entry); const state = cardToken(child.state, 'drafting'); if (!setStates.includes(state)) throw invalid(); return { workItemId: identifier(typeof child.workItemId === 'number' ? String(child.workItemId) : child.workItemId), title: field(child.title, 4096), state, settled: boolean(child.settled), cracked: boolean(child.cracked) }; }, 100) : [],
+      complete: boolean(data.complete),
+    };
+  });
+}
+/** Validates a Run card from Ploeg: known fields only, safe links, bounded lists, absent values kept absent. It drops any rarity or finish, and keeps a grade, condition, gates or set only in the shape the card contract defines. */
 export function parseCard(value: unknown): PloegCard {
   const data = record(value);
   const style = absent(data.style) ? {} : record(data.style);
@@ -265,7 +407,7 @@ export function parseCard(value: unknown): PloegCard {
     target: targetData ? { forge: field(targetData.forge, 100), owner: field(targetData.owner), repo: field(targetData.repo) } : null,
     style: { skin: styleName(style.skin) ?? defaultSkin, theme: styleName(style.theme) },
     state: cardToken(data.state, 'drafting'),
-    rarity: null, finish: 'matte', grade: null, condition: null,
+    rarity: null, finish: 'matte', grade: cardGrade(data.grade), condition: cardCondition(data.condition),
     steward,
     roster: cardList(data.roster, entry => { const person = record(entry); return { name: field(person.name, 256), roles: cardList(person.roles, role => cardToken(role), 10) }; }, 50),
     crew: cardList(data.crew, cardCrew, 50),
@@ -275,14 +417,104 @@ export function parseCard(value: unknown): PloegCard {
     ...cardDeployments(data.deployments),
     ...(data.release === undefined ? {} : { release: cardRelease(data.release) }),
     ...(data.live === undefined ? {} : { live: cardLive(data.live) }),
+    ...(data.gates === undefined ? {} : { gates: cardGates(data.gates) }),
+    ...(data.evolved === true ? { evolved: true as const } : {}),
+    ...(data.set === undefined ? {} : { set: cardSet(data.set) }),
     demo: data.demo === true,
   };
 }
 
+const crackStates: PloegCrackState[] = ['proposed', 'confirmed', 'disputed', 'unlinked', 'evolved'];
+function crackItem(value: unknown): PloegCrackItem { const data = record(value); return { workItemId: identifier(typeof data.workItemId === 'number' ? String(data.workItemId) : data.workItemId), title: field(data.title, 4096), externalRef: cardText(data.externalRef, 512) }; }
+function oneOf<T extends string>(value: unknown, allowed: readonly T[]): T | null { if (absent(value)) return null; if (!allowed.includes(value as T)) throw invalid(); return value as T; }
+function person(value: unknown): string | null { return absent(value) || value === '' ? null : field(value, 256); }
+/** Validates one attribution from Ploeg's crack API: known fields only, bounded text, states and enums from the operator contract. */
+export function parseCrack(value: unknown): PloegCrack {
+  const data = record(value);
+  const state = oneOf(data.state, crackStates);
+  if (!state) throw invalid();
+  const mended = absent(data.mended) ? null : record(data.mended);
+  return {
+    id: identifier(typeof data.id === 'number' ? String(data.id) : data.id), team: field(data.team, 100), state, card: crackItem(data.card), bug: crackItem(data.bug),
+    play: absent(data.play) ? null : numeric(data.play, true),
+    severity: oneOf(data.severity, ['S1', 'S2', 'S3', 'S4'] as const), share: oneOf(data.share, ['primary', 'contributing'] as const), discovery: oneOf(data.discovery, ['self', 'discovered', 'concealed'] as const),
+    steward: person(data.steward), note: absent(data.note) ? null : field(data.note, 4096), proposedBy: field(data.proposedBy, 256), proposedAt: timestamp(data.proposedAt),
+    confirmedBy: cardList(data.confirmedBy, entry => field(entry, 256), 2), confirmedAt: cardTime(data.confirmedAt), disputeUntil: cardTime(data.disputeUntil),
+    disputed: absent(data.disputed) ? state === 'disputed' : boolean(data.disputed), disputedBy: person(data.disputedBy), disputedAt: cardTime(data.disputedAt), disputeReason: absent(data.disputeReason) ? null : field(data.disputeReason, 4096),
+    resolvedBy: person(data.resolvedBy), resolvedAt: cardTime(data.resolvedAt), resolution: oneOf(data.resolution, ['upheld', 'unlinked'] as const),
+    evolvedBy: person(data.evolvedBy), evolvedAt: cardTime(data.evolvedAt),
+    mended: mended ? { at: timestamp(mended.at), by: cardText(mended.by), pr: numeric(mended.pr, true), bySteward: boolean(mended.bySteward), confirmedAt: cardTime(mended.confirmedAt), reopenedAt: cardTime(mended.reopenedAt) } : null,
+  };
+}
+/** Validates Ploeg's candidates for a bug Work Item's cause: at most 20, each a merged play with the paths it shares with the fix. */
+export function parseCrackCandidates(value: unknown): PloegCrackCandidates {
+  const data = record(value);
+  return {
+    bug: crackItem(data.bug), fixFiles: numeric(data.fixFiles, true), fixFilesTruncated: boolean(data.fixFilesTruncated), since: timestamp(data.since), until: timestamp(data.until),
+    candidates: array(data.candidates, entry => {
+      const candidate = record(entry);
+      const share = numeric(candidate.share);
+      if (share > 1) throw invalid();
+      return { card: crackItem(candidate.card), play: numeric(candidate.play, true), repo: field(candidate.repo, 512), mergedAt: timestamp(candidate.mergedAt), mergedBy: cardText(candidate.mergedBy), sharedFiles: numeric(candidate.sharedFiles, true), share, files: cardList(candidate.files, file => field(file, 1024), 20), reverted: boolean(candidate.reverted), attribution: oneOf(candidate.attribution, crackStates) };
+    }, 20),
+  };
+}
+
+const attributionRefusals: Record<string, [number, string]> = {
+  invalid_request: [400, 'Ploeg refused the attribution as invalid.'],
+  forbidden_actor: [403, 'Ploeg refused: this step is not yours to take on this crack.'],
+  invalid_state: [409, 'The attribution changed state. Refresh to see where it stands.'],
+  crack_limit: [409, 'A bug cracks at most three cards; more than that is a systemic bug, not a card’s.'],
+  already_attributed: [409, 'This card is already attributed to this bug.'],
+  not_merged: [409, 'The card has no merged play to attribute the bug to.'],
+  merged_after_bug: [409, 'That play merged after the bug was raised, so it cannot have caused it.'],
+  dispute_closed: [409, 'The five working days to dispute this crack have passed.'],
+  concealment_unproven: [409, 'Concealed needs the card’s steward to have merged the bug’s fix.'],
+};
+const attributionFailures: Record<string, [number, string, string]> = {
+  execution_forbidden: [403, 'ploeg_decision_forbidden', 'Vloer’s Ploeg credential cannot record attributions. An administrator must grant it execute permission.'],
+  actor_required: [400, 'ploeg_actor', 'Ploeg did not accept your forge login as an actor. Ask an administrator to check ploeg.forgeLogins.'],
+  invalid_acting_user: [400, 'ploeg_actor', 'Ploeg did not accept your forge login as an actor. Ask an administrator to check ploeg.forgeLogins.'],
+};
+async function attributionRefusal(response: Response, token: string): Promise<PloegError | null> {
+  if (!response.body || Number(response.headers.get('content-length')) > 65_536) return null;
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try { while (size <= 65_536) { const chunk = await reader.read(); if (chunk.done) break; size += chunk.value.byteLength; chunks.push(chunk.value); } } catch { return null; } finally { await reader.cancel().catch(() => undefined); }
+  let code = '';
+  let message = '';
+  try { const data = JSON.parse(Buffer.concat(chunks).toString('utf8')); code = typeof data?.error?.code === 'string' ? data.error.code : ''; message = typeof data?.error?.message === 'string' ? data.error.message : ''; } catch { return null; }
+  const failure = attributionFailures[code];
+  if (failure) return new PloegError(failure[0], failure[1], failure[2]);
+  const refusal = attributionRefusals[code];
+  if (!refusal) return null;
+  const plain = message.length > 0 && message.length <= 500 && !/[\u0000-\u001f\u007f]/.test(message) && !message.includes(token);
+  return new PloegError(refusal[0], `crack_${code}`, plain ? message : refusal[1]);
+}
+const demoAttribution = 'Demo: Ploeg recorded nothing. In a live workbench Ploeg checks the same rules, records this step under your forge login and writes it to its audit log.';
+const samePerson = (a: string | null | undefined, b: string | null | undefined) => Boolean(a) && Boolean(b) && a!.toLowerCase() === b!.toLowerCase();
+const attributionText = (value: unknown, label: string, required = false): string => {
+  if (value !== undefined && value !== null && typeof value !== 'string') throw new PloegError(400, 'crack_invalid_request', `${label} must be text.`);
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (text.length > 2000 || (required && !text)) throw new PloegError(400, 'crack_invalid_request', required ? `${label} is required, at most 2000 characters.` : `${label} is at most 2000 characters.`);
+  return text;
+};
+const attributionChoice = <T extends string>(value: unknown, allowed: readonly T[], label: string, required = false): T | '' => {
+  if ((value === undefined || value === null || value === '') && !required) return '';
+  if (!allowed.includes(value as T)) throw new PloegError(400, 'crack_invalid_request', `${label} must be one of ${allowed.join(', ')}.`);
+  return value as T;
+};
+const attributionId = (value: unknown, label: string): string => {
+  const text = typeof value === 'number' && Number.isSafeInteger(value) ? String(value) : value;
+  if (typeof text !== 'string' || !/^[1-9][0-9]{0,19}$/.test(text)) throw new PloegError(400, 'crack_invalid_request', `${label} must be a Ploeg Work Item identifier.`);
+  return text;
+};
+
 export function validatePloeg(raw: unknown, mode: AppConfig['mode']): AppConfig['ploeg'] {
   if (raw === undefined) return undefined;
   const data = record(raw);
-  if (Object.keys(data).some(key => !['url', 'tokenEnv', 'teams', 'userTeams', 'trackerUrl', 'demo'].includes(key))) throw new Error('Unknown ploeg field; credentials must use tokenEnv');
+  if (Object.keys(data).some(key => !['url', 'tokenEnv', 'teams', 'userTeams', 'forgeLogins', 'trackerUrl', 'demo'].includes(key))) throw new Error('Unknown ploeg field; credentials must use tokenEnv');
   if (data.demo !== undefined && (data.demo !== true || mode !== 'demo')) throw new Error('ploeg.demo requires explicit application demo mode');
   let url: URL;
   try { url = new URL(field(data.url, 2048)); } catch { throw new Error('ploeg.url must be an HTTP(S) origin or base path'); }
@@ -292,9 +524,12 @@ export function validatePloeg(raw: unknown, mode: AppConfig['mode']): AppConfig[
   const parseTeams = (value: unknown) => { if (!Array.isArray(value) || value.length > 50 || value.some(team => typeof team !== 'string' || !team.trim() || team.length > 100 || /[\u0000-\u001f\u007f]/.test(team))) throw new Error('ploeg.teams and userTeams must list at most 50 team names'); return [...new Set(value as string[])]; };
   const userTeams = data.userTeams === undefined ? undefined : record(data.userTeams);
   if (userTeams && (Object.keys(userTeams).length > 1000 || Object.keys(userTeams).some(id => !/^[A-Za-z0-9_-]{1,128}$/.test(id)))) throw new Error('ploeg.userTeams must map user IDs to team names');
+  if (data.forgeLogins !== undefined && (!data.forgeLogins || typeof data.forgeLogins !== 'object' || Array.isArray(data.forgeLogins))) throw new Error('ploeg.forgeLogins must map user IDs to forge logins');
+  const forgeLogins = data.forgeLogins === undefined ? undefined : data.forgeLogins as Record<string, unknown>;
+  if (forgeLogins && (Object.keys(forgeLogins).length > 1000 || Object.entries(forgeLogins).some(([id, login]) => !/^[A-Za-z0-9_-]{1,128}$/.test(id) || typeof login !== 'string' || !forgeLogin.test(login)))) throw new Error('ploeg.forgeLogins must map user IDs to forge logins');
   const trackerUrl = data.trackerUrl === undefined ? undefined : link(data.trackerUrl);
   if (data.trackerUrl !== undefined && !trackerUrl) throw new Error('ploeg.trackerUrl must be an HTTP(S) URL without credentials');
-  return { url: url.href.replace(/\/+$/, ''), ...(data.tokenEnv ? { tokenEnv: data.tokenEnv as string } : {}), ...(data.teams !== undefined ? { teams: parseTeams(data.teams) } : {}), ...(userTeams ? { userTeams: Object.fromEntries(Object.entries(userTeams).map(([id, value]) => [id, parseTeams(value)])) } : {}), ...(trackerUrl ? { trackerUrl } : {}), ...(data.demo ? { demo: true } : {}) };
+  return { url: url.href.replace(/\/+$/, ''), ...(data.tokenEnv ? { tokenEnv: data.tokenEnv as string } : {}), ...(data.teams !== undefined ? { teams: parseTeams(data.teams) } : {}), ...(userTeams ? { userTeams: Object.fromEntries(Object.entries(userTeams).map(([id, value]) => [id, parseTeams(value)])) } : {}), ...(forgeLogins ? { forgeLogins: { ...forgeLogins } as Record<string, string> } : {}), ...(trackerUrl ? { trackerUrl } : {}), ...(data.demo ? { demo: true } : {}) };
 }
 
 export class PloegClient {
@@ -308,7 +543,7 @@ export class PloegClient {
   private allowed(user: User, team: string): boolean { return (!this.config?.teams || this.config.teams.includes(team)) && (user.role === 'admin' || this.config?.userTeams?.[user.id]?.includes(team) === true); }
   private connected(user: User): void { if (!this.config && !this.demo) throw new PloegError(503, 'ploeg_unconfigured', 'Connect the authenticated Ploeg operator API in the server configuration.'); this.authorize(user); }
   private authorize(user: User): void { if (user.role !== 'admin' && !this.config?.userTeams?.[user.id]?.length) throw new PloegError(403, 'ploeg_scope', 'Your account has no Ploeg team access. Ask an administrator to grant it.'); }
-  private async request(path: string, fresh = false, options: { added?: boolean; actor?: string; body?: unknown; versions?: unknown[] } = {}): Promise<unknown> {
+  private async request(path: string, fresh = false, options: { added?: boolean; actor?: string; body?: unknown; versions?: unknown[]; attribution?: boolean } = {}): Promise<unknown> {
     const token = this.config?.tokenEnv ? process.env[this.config.tokenEnv] : undefined;
     if (!token || token.length > 4096 || /[^\x21-\x7e]/.test(token)) throw new PloegError(503, 'ploeg_credential', 'The Ploeg operator credential is unavailable. An administrator must check the connection.');
     if (token !== this.cachedToken) { this.cache.clear(); this.cachedToken = token; }
@@ -320,7 +555,9 @@ export class PloegClient {
       const response = await fetch(`${this.config!.url}/api/v1/operator/${path}`, { method: post ? 'POST' : 'GET', headers, ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}), signal: AbortSignal.timeout(5000), redirect: 'manual' });
       if (post) this.cache.clear();
       if (!response.ok) {
-        await response.body?.cancel();
+        const refusal = options.attribution ? await attributionRefusal(response, token) : null;
+        await response.body?.cancel().catch(() => undefined);
+        if (refusal) throw refusal;
         if (options.added && (response.status === 404 || (response.status === 400 && /^(?:events|work-items)\?/.test(path)))) throw unsupported();
         if (post && decisionFailures[response.status]) { const [code, message] = decisionFailures[response.status]; throw new PloegError(response.status, code, message); }
         throw new PloegError(response.status === 404 ? 404 : 503, 'ploeg_unavailable', response.status === 404 ? 'Ploeg work item not found in your authorized teams.' : 'Ploeg could not provide its operator data. Check the connection and consumer access.');
@@ -403,6 +640,69 @@ export class PloegClient {
     const card = this.demo ? ploegDemo.cards[id] : parseCard(envelope(await this.request(`work-items/${id}/card`, fresh, { versions: cardVersions }), cardVersions).card);
     if (!card || card.workItemId !== id || !this.allowed(user, card.team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
     return { card: structuredClone(card), demo: this.demo, fetchedAt: new Date().toISOString() };
+  }
+  /**
+   * Lists the cards whose roster holds any of `logins`, newest activity first, across the caller's teams: Ploeg's card
+   * list (`GET cards?member=`, paged by `nextBefore` until it is null, up to six pages of 50) when it has one, otherwise,
+   * for an older Ploeg that answers 404, a bounded scan of each Team's most recently updated Work Items and their cards.
+   * The demo lists the demo cards. `source` says which, and how far a scan looked.
+   */
+  async memberCards(user: User, logins: string[], fresh = false): Promise<PloegCardList> {
+    this.authorize(user);
+    const wanted = new Set(logins.map(login => login.toLowerCase()));
+    const holds = (card: PloegCard) => card.roster.some(person => wanted.has(person.name.toLowerCase())) || Boolean(card.steward && wanted.has(card.steward.name.toLowerCase()));
+    if (!wanted.size) return { cards: [], source: { kind: this.demo ? 'demo' : 'list', scanned: 0, truncated: false } };
+    if (this.demo) return { cards: Object.values(ploegDemo.cards).filter(card => this.allowed(user, card.team) && holds(card)).map(card => structuredClone(card)), source: { kind: 'demo', scanned: 0, truncated: false } };
+    const listed = await this.cardList(user, [...wanted].slice(0, 20).map(login => ['member', login] as [string, string]), fresh);
+    if (listed) return { cards: listed.cards.filter(holds), source: { kind: 'list', scanned: listed.cards.length, truncated: listed.truncated } };
+    const scan = await this.scanCards(user, (await this.teams(user, fresh)).map(team => team.id), fresh);
+    return { cards: scan.cards.filter(holds), source: { kind: 'scan', scanned: scan.scanned, truncated: scan.truncated } };
+  }
+  /** Lists one Team's cards for its team page: Ploeg's card list filtered to the Team when it has one, otherwise the same bounded scan; the demo lists the demo cards. */
+  async teamCards(user: User, team: string, since: string | undefined, fresh = false): Promise<PloegCardList> {
+    this.authorize(user);
+    if (!this.allowed(user, team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg team not found.');
+    if (this.demo) return { cards: Object.values(ploegDemo.cards).filter(card => card.team === team).map(card => structuredClone(card)), source: { kind: 'demo', scanned: 0, truncated: false } };
+    const listed = await this.cardList(user, [['team', team], ...(since ? [['since', since] as [string, string]] : [])], fresh);
+    if (listed) return { cards: listed.cards.filter(card => card.team === team), source: { kind: 'list', scanned: listed.cards.length, truncated: listed.truncated } };
+    const scan = await this.scanCards(user, [team], fresh);
+    return { cards: scan.cards, source: { kind: 'scan', scanned: scan.scanned, truncated: scan.truncated } };
+  }
+  private async cardList(user: User, filters: [string, string][], fresh: boolean): Promise<{ cards: PloegCard[]; truncated: boolean } | null> {
+    const cards: PloegCard[] = [];
+    let before: string | null = null;
+    for (let page = 0; page < cardListPages; page++) {
+      const query = new URLSearchParams([...filters, ['limit', '50'], ...(before ? [['before', before] as [string, string]] : [])]);
+      let data: Record<string, unknown>;
+      try { data = envelope(await this.request(`cards?${query}`, fresh, { added: true, versions: cardVersions }), cardVersions); }
+      catch (error) { if (page === 0 && error instanceof PloegError && error.code === 'ploeg_unsupported') return null; throw error; }
+      cards.push(...array(data.cards, parseCard, 50).filter(card => this.allowed(user, card.team)));
+      before = absent(data.nextBefore) ? null : field(data.nextBefore, 512);
+      if (!before) return { cards, truncated: false };
+    }
+    return { cards, truncated: true };
+  }
+  private async scanCards(user: User, teams: string[], fresh: boolean): Promise<{ cards: PloegCard[]; scanned: number; truncated: boolean }> {
+    const items: PloegItem[] = [];
+    let truncated = false;
+    for (const team of teams) {
+      let after = '0';
+      for (let page = 0; page < scanPages; page++) {
+        const result = await this.items(user, team, 'all', after, fresh);
+        items.push(...result.items);
+        if (!result.nextCursor) break;
+        after = result.nextCursor;
+        if (page === scanPages - 1) truncated = true;
+      }
+    }
+    const recent = items.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, scanCardLimit);
+    if (items.length > recent.length) truncated = true;
+    const cards: PloegCard[] = [];
+    for (let index = 0; index < recent.length; index += 6) {
+      const batch = await Promise.all(recent.slice(index, index + 6).map(entry => this.card(user, entry.id, fresh).then(view => view.card, () => null)));
+      cards.push(...batch.filter((card): card is PloegCard => card !== null));
+    }
+    return { cards, scanned: recent.length, truncated };
   }
   /** Reads per-team counts and spend for a window, scoped to the caller's teams. */
   async summary(user: User, window: string, fresh = false): Promise<PloegSummary> {
@@ -572,6 +872,139 @@ export class PloegClient {
       await new Promise(resolve => setTimeout(resolve, wait));
       wait = Math.min(wait * 2, 3_600_000);
     }
+  }
+  /** The forge login Ploeg knows the caller by in the attribution flow: the administrator's `ploeg.forgeLogins` entry, in the demo the account id, otherwise null. Never a value the caller sets, because Ploeg compares it with the card's steward and the proposer. */
+  forgeLogin(user: User): string | null {
+    const login = this.demo ? user.id : this.config?.forgeLogins?.[user.id];
+    return login && forgeLogin.test(login) ? login : null;
+  }
+  /** Who the caller is in the attribution flow and whether they may take a step at all. Ploeg decides each step; this only says why the browser offers none. */
+  attributionViewer(user: User): PloegAttributionViewer {
+    const login = this.forgeLogin(user);
+    if (user.role === 'viewer') return { login, canAct: false, reason: 'Viewers can read attributions but cannot propose, confirm, dispute or resolve one.' };
+    if (!login) return { login: null, canAct: false, reason: 'Your account has no forge login yet. Ploeg compares it with the card’s steward and the proposer, so an administrator must add yours under ploeg.forgeLogins.' };
+    return { login, canAct: true, reason: '' };
+  }
+  private actingLogin(user: User): string {
+    if (user.role === 'viewer') throw new PloegError(403, 'forbidden', 'Viewers cannot change Ploeg work.');
+    this.connected(user);
+    const login = this.forgeLogin(user);
+    if (!login) throw new PloegError(403, 'ploeg_forge_login', this.attributionViewer(user).reason);
+    return login;
+  }
+  /** Lists Ploeg's candidates for a bug Work Item's cause, for a caller who may read the Work Item. Ploeg only proposes them. */
+  async crackCandidates(user: User, id: string, fresh = false): Promise<PloegCrackCandidatesView> {
+    const detail = await this.detail(user, id, fresh);
+    let crackCandidates: PloegCrackCandidates;
+    if (this.demo) crackCandidates = structuredClone(ploegDemo.crackCandidates[id] ?? { bug: { workItemId: id, title: detail.item.title, externalRef: detail.item.externalId }, fixFiles: 0, fixFilesTruncated: false, since: detail.item.createdAt, until: detail.item.createdAt, candidates: [] });
+    else crackCandidates = parseCrackCandidates(envelope(await this.request(`work-items/${id}/crack-candidates`, fresh)).crackCandidates);
+    if (crackCandidates.bug.workItemId !== id) throw invalid();
+    return { workItemId: id, crackCandidates, demo: this.demo, fetchedAt: new Date().toISOString() };
+  }
+  /** Lists every attribution in which the Work Item is the bug or the card, within the caller's Teams, and who the caller is in that flow. */
+  async cracks(user: User, id: string, fresh = false): Promise<PloegCracksView> {
+    await this.detail(user, id, fresh);
+    const list = this.demo ? structuredClone(ploegDemo.cracks.filter(entry => entry.bug.workItemId === id || entry.card.workItemId === id)) : array(envelope(await this.request(`work-items/${id}/cracks`, fresh)).cracks, parseCrack, 100);
+    if (list.some(entry => entry.bug.workItemId !== id && entry.card.workItemId !== id)) throw invalid();
+    return { workItemId: id, cracks: list.filter(entry => this.allowed(user, entry.team)), viewer: this.attributionViewer(user), demo: this.demo, fetchedAt: new Date().toISOString() };
+  }
+  /**
+   * Proposes a crack (`propose`: the bug Work Item `bug` caused by `input.card`'s play) or marks the bug as a changed requirement for that card
+   * (`evolved`), as the caller's forge login. Both Work Items must be in the caller's Teams and the same Team. Ploeg decides the rules; the demo
+   * applies them and keeps nothing.
+   */
+  async attribute(user: User, bug: string, step: 'propose' | 'evolved', input: Record<string, unknown>): Promise<PloegAttributionResult> {
+    const login = this.actingLogin(user);
+    attributionId(bug, 'The bug');
+    const card = attributionId(input.card, 'card');
+    if (card === bug) throw new PloegError(400, 'crack_invalid_request', 'A bug cannot crack its own card.');
+    const note = attributionText(input.note, 'The note');
+    const body: Record<string, unknown> = { card };
+    if (step === 'propose') {
+      const play = input.play === undefined || input.play === null || input.play === 0 || input.play === '' ? 0 : Number(input.play);
+      if (!Number.isSafeInteger(play) || play < 0) throw new PloegError(400, 'crack_invalid_request', 'play must be a pull request number.');
+      if (play) body.play = play;
+      body.severity = attributionChoice(input.severity, ['S1', 'S2', 'S3', 'S4'] as const, 'Severity', true);
+      body.share = attributionChoice(input.share, ['primary', 'contributing'] as const, 'Share', true);
+      const discovery = attributionChoice(input.discovery, ['discovered', 'concealed'] as const, 'Discovery');
+      if (discovery) body.discovery = discovery;
+    }
+    if (note) body.note = note;
+    const [bugDetail, cardDetail] = [await this.detail(user, bug, true), await this.detail(user, card, true)];
+    if (bugDetail.item.team !== cardDetail.item.team) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
+    if (this.demo) return { crack: this.demoAttribute(login, bugDetail.item, cardDetail.item, step, body), demo: true, message: demoAttribution };
+    const data = envelope(await this.request(step === 'propose' ? `work-items/${bug}/cracks` : `work-items/${bug}/evolved`, true, { actor: login, body, attribution: true }));
+    const crack = parseCrack(data.crack);
+    if (crack.bug.workItemId !== bug || crack.card.workItemId !== card || !this.allowed(user, crack.team)) throw invalid();
+    return { crack, demo: false, message: '' };
+  }
+  /**
+   * Confirms, disputes or resolves one attribution of the Work Item `workItem`, as the caller's forge login. Vloer first reads that Work Item's
+   * attributions within the caller's Teams, so a crack elsewhere is not found. Ploeg decides who may take the step; the demo applies its rules and keeps nothing.
+   */
+  async decideCrack(user: User, workItem: string, crackId: string, step: 'confirm' | 'dispute' | 'resolve', input: Record<string, unknown>): Promise<PloegAttributionResult> {
+    const login = this.actingLogin(user);
+    attributionId(workItem, 'The Work Item');
+    attributionId(crackId, 'The attribution');
+    const body: Record<string, unknown> = {};
+    if (step === 'confirm') {
+      const severity = attributionChoice(input.severity, ['S1', 'S2', 'S3', 'S4'] as const, 'Severity');
+      const share = attributionChoice(input.share, ['primary', 'contributing'] as const, 'Share');
+      if (severity) body.severity = severity;
+      if (share) body.share = share;
+    }
+    if (step === 'dispute') body.reason = attributionText(input.reason, 'A reason', true);
+    if (step === 'resolve') body.resolution = attributionChoice(input.resolution, ['upheld', 'unlinked'] as const, 'The resolution', true);
+    if (step !== 'dispute') { const note = attributionText(input.note, 'The note'); if (note) body.note = note; }
+    const current = (await this.cracks(user, workItem, true)).cracks.find(entry => entry.id === crackId);
+    if (!current) throw new PloegError(404, 'ploeg_not_found', 'That attribution is not on this Work Item in your Teams.');
+    if (this.demo) return { crack: this.demoDecide(login, current, step, body), demo: true, message: demoAttribution };
+    const data = envelope(await this.request(`cracks/${crackId}/${step}`, true, { actor: login, body, attribution: true }));
+    const crack = parseCrack(data.crack);
+    if (crack.id !== crackId || !this.allowed(user, crack.team)) throw invalid();
+    return { crack, demo: false, message: '' };
+  }
+  private demoAttribute(login: string, bug: PloegItem, cardItem: PloegItem, step: 'propose' | 'evolved', body: Record<string, unknown>): PloegCrack {
+    const refuse = (status: number, code: string) => new PloegError(status, `crack_${code}`, attributionRefusals[code][1]);
+    const card = ploegDemo.cards[cardItem.id];
+    const steward = card?.steward?.name ?? null;
+    const existing = ploegDemo.cracks.find(entry => entry.bug.workItemId === bug.id && entry.card.workItemId === cardItem.id);
+    const item = (entry: PloegItem): PloegCrackItem => ({ workItemId: entry.id, title: entry.title, externalRef: entry.externalId });
+    const now = new Date().toISOString();
+    const base: PloegCrack = { id: String(9000 + Number(cardItem.id)), team: bug.team, state: 'proposed', card: item(cardItem), bug: item(bug), play: null, severity: null, share: null, discovery: null, steward, note: typeof body.note === 'string' ? body.note : null, proposedBy: login, proposedAt: now, confirmedBy: [], confirmedAt: null, disputeUntil: null, disputed: false, disputedBy: null, disputedAt: null, disputeReason: null, resolvedBy: null, resolvedAt: null, resolution: null, evolvedBy: null, evolvedAt: null, mended: null };
+    if (step === 'evolved') {
+      if (samePerson(login, existing?.steward ?? steward)) throw new PloegError(403, 'crack_forbidden_actor', 'The card’s steward does not decide that their own card evolved.');
+      if (existing && existing.state !== 'proposed') throw refuse(409, 'invalid_state');
+      return { ...(existing ?? base), state: 'evolved', evolvedBy: login, evolvedAt: now };
+    }
+    const merged = card?.plays.filter(play => play.state === 'merged' && play.mergedAt && Date.parse(play.mergedAt) <= Date.parse(bug.createdAt)).at(-1);
+    if (!merged) throw refuse(409, 'not_merged');
+    if (existing) throw refuse(409, 'already_attributed');
+    if (ploegDemo.cracks.filter(entry => entry.bug.workItemId === bug.id && ['proposed', 'confirmed', 'disputed'].includes(entry.state)).length >= 3) throw refuse(409, 'crack_limit');
+    let discovery = typeof body.discovery === 'string' ? body.discovery : 'discovered';
+    if (samePerson(login, steward)) discovery = 'self';
+    if (discovery === 'concealed' && !ploegDemo.cards[bug.id]?.plays.some(play => play.state === 'merged' && samePerson(play.mergedBy, steward))) throw refuse(409, 'concealment_unproven');
+    return { ...base, play: merged.number, severity: body.severity as string, share: body.share as string, discovery };
+  }
+  private demoDecide(login: string, crack: PloegCrack, step: 'confirm' | 'dispute' | 'resolve', body: Record<string, unknown>): PloegCrack {
+    const forbidden = (message: string) => new PloegError(403, 'crack_forbidden_actor', message);
+    const state = (message: string) => new PloegError(409, 'crack_invalid_state', message);
+    const now = new Date();
+    if (step === 'confirm') {
+      if (crack.state !== 'proposed') throw state('Only a proposed crack can be confirmed.');
+      if (samePerson(login, crack.steward) || samePerson(login, crack.proposedBy)) throw forbidden('The second person is neither the card’s steward nor the proposer.');
+      let until = now.getTime(); for (let days = 5; days > 0;) { until += 86_400_000; const weekday = new Date(until).getUTCDay(); if (weekday !== 0 && weekday !== 6) days--; }
+      return { ...crack, state: 'confirmed', severity: (body.severity as string) || crack.severity, share: (body.share as string) || crack.share, confirmedBy: [crack.proposedBy, login], confirmedAt: now.toISOString(), disputeUntil: new Date(until).toISOString() };
+    }
+    if (step === 'dispute') {
+      if (crack.state !== 'confirmed' || crack.resolution) throw state('Only a confirmed crack that no referee decided can be disputed.');
+      if (!samePerson(login, crack.steward)) throw forbidden('Only the card’s steward disputes a crack.');
+      if (crack.disputeUntil && now.getTime() > Date.parse(crack.disputeUntil)) throw new PloegError(409, 'crack_dispute_closed', attributionRefusals.dispute_closed[1]);
+      return { ...crack, state: 'disputed', disputed: true, disputedBy: login, disputedAt: now.toISOString(), disputeReason: body.reason as string };
+    }
+    if (crack.state !== 'disputed') throw state('Only a disputed crack is resolved.');
+    if ([crack.steward, crack.proposedBy, crack.confirmedBy[1], crack.disputedBy].some(involved => samePerson(login, involved))) throw forbidden('A referee took no part in the crack.');
+    return { ...crack, state: body.resolution === 'unlinked' ? 'unlinked' : 'confirmed', disputed: false, resolvedBy: login, resolvedAt: now.toISOString(), resolution: body.resolution as 'upheld' | 'unlinked' };
   }
   private remember(id: string, title: string): void {
     if (!title) return;

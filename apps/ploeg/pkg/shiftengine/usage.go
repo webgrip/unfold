@@ -21,7 +21,7 @@ const usageReportMarker = "<!-- ploeg:usage-report -->"
 // reportLinkConfig is the two optional dashboard bases. The links section is
 // omitted entirely when both are empty, and the report still renders.
 type reportLinkConfig struct {
-	// GrafanaURL is the Grafana base. The Glide — Loop dashboard filtered by
+	// GrafanaURL is the Grafana base. The Unfold — Loop dashboard filtered by
 	// team, the Run Explorer filtered by alias and the Spend & Attribution
 	// dashboard all hang off it.
 	GrafanaURL string
@@ -48,7 +48,7 @@ type Evidence struct {
 	Commit string // short sha from the verification line; "" when absent
 }
 
-// money formats a US dollar amount the way the Glide — Loop dashboard does:
+// money formats a US dollar amount the way the Unfold — Loop dashboard does:
 // "US$ 0,06" — a space after US$, and a decimal comma with a dot as the
 // thousands separator (nl-NL). Hand-rolled rather than locale-dependent so
 // rendering is pure and identical on every host.
@@ -262,7 +262,7 @@ func linksSection(links reportLinkConfig, u store.ShiftUsage, alias string) stri
 		if team := strings.TrimSpace(u.Team); team != "" {
 			loop += "?var-team=" + url.QueryEscape(team)
 		}
-		fmt.Fprintf(&b, "- [Glide — Loop dashboard](%s)\n", loop)
+		fmt.Fprintf(&b, "- [Unfold — Loop dashboard](%s)\n", loop)
 		if alias != "" {
 			fmt.Fprintf(&b, "- [Run Explorer](%s/d/dark-factory-run-explorer?var-run=%s)\n", grafana, url.QueryEscape(alias))
 		}

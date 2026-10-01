@@ -7,6 +7,7 @@ import { workItemState, runOutcome, runState, verdict as verdictMeta, failureRea
 import { listReason, routingWarning, detailReason, requeueNote, needsYouBlocks, reasonGlyph } from './core/reasons.js';
 import { grafanaTeam, runExplorer } from './core/observability.js';
 import { checkoutTarget, checkoutCommand, checkoutLink } from './core/checkout.js';
+import { traceMarkup } from './core/attribution.js';
 
 /** The Work lanes in the order the lane control shows them: closest to shipping first. */
 export const ploegLanes = Object.freeze([
@@ -643,8 +644,8 @@ function needsYouBox(detail, model, reason, plan) {
   return ui.card({ id: 'work-decision', region: true, title: 'Why this needs you', icon: reason.glyph, tone: reason.tone, level: 3, body });
 }
 
-function check(tone, glyph, title, detailText) {
-  return { tone, html: `<li class="work-check" data-tone="${tone}"><span class="work-check-icon" aria-hidden="true">${icon(glyph)}</span><div class="work-check-main"><p class="work-check-title">${title}</p>${detailText ? `<p class="meta">${detailText}</p>` : ''}</div></li>` };
+function check(tone, glyph, title, detailText, short = '') {
+  return { tone, short: short || title, html: `<li class="work-check" data-tone="${tone}"><span class="work-check-icon" aria-hidden="true">${icon(glyph)}</span><div class="work-check-main"><p class="work-check-title">${title}</p>${detailText ? `<p class="meta">${detailText}</p>` : ''}</div></li>` };
 }
 
 const checkRank = { danger: 0, attention: 0, neutral: 1, success: 2 };
@@ -656,10 +657,23 @@ function reviewPlan(detail) {
   const primary = pr ? linkButton({ href: pr, label, glyph: 'pull-request', variant: 'primary', linkOut: 'pr' }) : '';
   const reader = review.findings.at(-1)?.runId || review.lastReader?.id;
   const findings = reader ? runJump({ id: reader }, review.findings.length ? 'Read the findings' : 'Show the review').replace('button ghost xs', 'button ghost') : '';
-  return { review, primary, actions: [primary, findings].filter(Boolean) };
+  return { review, primary, findings, actions: [primary, findings].filter(Boolean) };
 }
 
-function reviewBox(detail, model, plan) {
+/** One muted line for the neutral checks, e.g. "2 not reported: CI, tracker link", so warnings and successes stay visible. */
+function neutralChecksLine(entries) {
+  if (!entries.length) return '';
+  const names = [...new Set(entries.map(entry => entry.short))];
+  return `<p class="meta work-checklist-note">${escape(`${names.length} not reported: ${names.join(', ')}`)}</p>`;
+}
+
+/**
+ * The review box for a Ready-for-review item. On its own it carries the evidence receipt, the checklist and the
+ * actions. `hero` is true while the Run card sits above it, so the box keeps only what the card does not show: the
+ * checks (with the neutral ones folded into one muted line) and the forge outcomes. The "On the forge" outcomes are
+ * always a closed disclosure.
+ */
+function reviewBox(detail, model, plan, { hero = false } = {}) {
   const item = detail.item;
   const { review } = plan;
   const demo = detail.demo;
@@ -675,28 +689,33 @@ function reviewBox(detail, model, plan) {
   ]);
   const checks = [];
   const pr = safeUrl(review.pullRequestUrl);
-  checks.push(pr ? check('success', 'check-circle', `Pull request${review.pullRequestNumber ? ` #${escape(review.pullRequestNumber)}` : ''} reported by the writer`, item.target ? `${escape(repoName(item.target))}${review.branch ? ` · <span class="mono">${escape(review.branch)}</span>` : ''}` : '') : check('attention', 'alert', 'No pull request link reported', review.branch ? `Find it on the forge by its branch <span class="mono">${escape(review.branch)}</span>.` : 'Find it on the forge.'));
-  if (verdict?.key === 'approve') checks.push(check('success', 'check-circle', 'The agent reviewer approved', 'Agent review is evidence, not a human review.'));
-  else if (verdict?.key === 'request_changes') checks.push(check('attention', 'alert', 'The agent reviewer asked for changes', 'Read the findings before you merge.'));
-  else if (verdict) checks.push(check('neutral', 'circle-dashed', 'No agent verdict', review.lastReader?.outcome === 'no_change_needed' ? 'The reviewer reported no change needed but gave no verdict.' : review.findings.length ? 'The reviewer left findings but gave no verdict.' : 'The reviewer gave no verdict.'));
-  else checks.push(check('neutral', 'circle-dashed', 'No agent review', 'No reviewer ran in this Shift.'));
-  if (demo) checks.push(check('neutral', 'circle-dashed', 'Spend: demo', 'No model calls, so nothing was spent.'));
-  else if (!spent || !amount(spent.settledUsd)) checks.push(check('neutral', 'circle-dashed', 'Spend not reported', 'Ploeg has not settled the spend of this Shift.'));
+  checks.push(pr ? check('success', 'check-circle', `Pull request${review.pullRequestNumber ? ` #${escape(review.pullRequestNumber)}` : ''} reported by the writer`, item.target ? `${escape(repoName(item.target))}${review.branch ? ` · <span class="mono">${escape(review.branch)}</span>` : ''}` : '', 'pull request') : check('attention', 'alert', 'No pull request link reported', review.branch ? `Find it on the forge by its branch <span class="mono">${escape(review.branch)}</span>.` : 'Find it on the forge.', 'pull request link'));
+  if (!hero) {
+    if (verdict?.key === 'approve') checks.push(check('success', 'check-circle', 'The agent reviewer approved', 'Agent review is evidence, not a human review.'));
+    else if (verdict?.key === 'request_changes') checks.push(check('attention', 'alert', 'The agent reviewer asked for changes', 'Read the findings before you merge.'));
+    else if (verdict) checks.push(check('neutral', 'circle-dashed', 'No agent verdict', review.lastReader?.outcome === 'no_change_needed' ? 'The reviewer reported no change needed but gave no verdict.' : review.findings.length ? 'The reviewer left findings but gave no verdict.' : 'The reviewer gave no verdict.', 'agent verdict'));
+    else checks.push(check('neutral', 'circle-dashed', 'No agent review', 'No reviewer ran in this Shift.', 'agent review'));
+  }
+  if (demo) { if (!hero) checks.push(check('neutral', 'circle-dashed', 'Spend: demo', 'No model calls, so nothing was spent.', 'spend')); }
+  else if (!spent || !amount(spent.settledUsd)) { if (!hero) checks.push(check('neutral', 'circle-dashed', 'Spend not reported', 'Ploeg has not settled the spend of this Shift.', 'spend')); }
   else if (spent.settledUsd <= spent.authorizedUsd) checks.push(check('success', 'check-circle', `Within its ${moneyText(spent.authorizedUsd)} budget`, `${moneyText(spent.settledUsd)} settled.`));
   else checks.push(check('danger', 'x-circle', `Over its ${moneyText(spent.authorizedUsd)} budget`, `${moneyText(spent.settledUsd)} settled.`));
-  checks.push(check('neutral', 'circle-dashed', 'CI checks: not reported', 'Vloer does not read CI. Check them on the pull request.'));
+  checks.push(check('neutral', 'circle-dashed', 'CI checks: not reported', 'Vloer does not read CI. Check them on the pull request.', 'CI'));
   const files = review.instructionFiles;
   if (files.length) checks.push(check('attention', 'alert', files.length === 1 ? 'Findings name an instruction file' : 'Findings name instruction files', `${files.map(name => `<code>${escape(name)}</code>`).join(' ')} ${files.length === 1 ? 'is' : 'are'} named in the findings. Check ${files.length === 1 ? 'it' : 'them'} in the diff before you merge.`));
-  checks.push(safeUrl(item.url) ? check('success', 'check-circle', `Linked to its ${escape(trackerName(item.provider) || 'tracker')} task`, '') : check('neutral', 'circle-dashed', 'No tracker link reported', ''));
+  checks.push(safeUrl(item.url) ? check('success', 'check-circle', `Linked to its ${escape(trackerName(item.provider) || 'tracker')} task`, '') : check('neutral', 'circle-dashed', 'No tracker link reported', '', 'tracker link'));
   const ordered = checks.map((entry, index) => ({ ...entry, index })).sort((a, b) => checkRank[a.tone] - checkRank[b.tone] || a.index - b.index);
-  const forge = ui.dl([
+  const visible = hero ? [...checks.filter(entry => entry.tone === 'danger' || entry.tone === 'attention'), ...checks.filter(entry => entry.tone === 'success')] : ordered;
+  const fold = hero ? neutralChecksLine(checks.filter(entry => entry.tone === 'neutral')) : '';
+  const forge = ui.disclosure({ summary: 'On the forge', id: `work-forge-${item.id}`, body: ui.dl([
     ['Merge', 'Ploeg marks the Work Item Done.'],
     ['Request changes', 'Ploeg queues a fix Round for the same Team, on the same branch.'],
     ['Close without merging', 'The Work Item comes back to you as Needs you.'],
-  ], { rows: true });
+  ], { rows: true }) });
   const truncated = review.truncated ? '<p class="meta">Ploeg capped this history. Earlier records may be missing.</p>' : '';
-  const actions = plan.actions.length ? `<div class="work-decision-actions">${plan.actions.join('')}</div>` : '';
-  const body = `<div class="work-decision-part"><p class="work-decision-sentence">${escape(pr ? 'The agents are done. Read the pull request and decide on the forge; Vloer does not merge.' : 'The agents are done, but Ploeg reported no pull request link.')}</p><div class="work-receipt">${receipt}</div>${truncated}</div><div class="work-decision-part"><h4 class="overline">Before you merge</h4><ul class="work-checklist">${ordered.map(entry => entry.html).join('')}</ul>${actions}</div><div class="work-decision-part"><h4 class="overline">On the forge</h4>${forge}</div>`;
+  const actions = hero ? (plan.findings ? `<div class="work-decision-actions">${plan.findings}</div>` : '') : plan.actions.length ? `<div class="work-decision-actions">${plan.actions.join('')}</div>` : '';
+  const head = hero ? '' : `<div class="work-decision-part"><p class="work-decision-sentence">${escape(pr ? 'The agents are done. Read the pull request and decide on the forge; Vloer does not merge.' : 'The agents are done, but Ploeg reported no pull request link.')}</p><div class="work-receipt">${receipt}</div>${truncated}</div>`;
+  const body = `${head}<div class="work-decision-part"><h4 class="overline">Before you merge</h4><ul class="work-checklist">${visible.map(entry => entry.html).join('')}</ul>${fold}${hero ? truncated : ''}${actions}</div><div class="work-decision-part">${forge}</div>`;
   return ui.card({ id: 'work-decision', region: true, title: 'Ready for your review', icon: 'pull-request', tone: 'review', level: 3, body });
 }
 
@@ -980,40 +999,63 @@ function cancelResultMarkup(model) {
   return `<div class="work-cancel-result" id="work-cancel-result" tabindex="-1" role="status">${ui.callout({ tone: summary.tone, title: summary.title, body: `<ul class="work-cancel-lines">${summary.items.map(entry => `<li data-tone="${entry.tone}">${icon(entry.glyph)}<span>${escape(entry.text)}</span></li>`).join('')}</ul>` })}</div>`;
 }
 
-/**
- * The Run card's place above Rounds: a `<unfold-card>` that `views/work.js` gives the card object once Ploeg sent one
- * (`model.card`). Empty without a card, so an older Ploeg or a failed read leaves no trace.
- */
-export function cardSectionMarkup(detail, model) {
-  const card = model.card;
-  if (!card || String(card.workItemId) !== detail.item.id) return '';
-  return `<section class="work-card" id="work-card" aria-labelledby="work-card-title"><div class="work-card-heading"><h3 class="overline" id="work-card-title">Run card</h3><p class="meta">What Ploeg recorded for this Work Item. More info turns the card over.</p></div><unfold-card class="work-run-card" data-work-item="${escape(detail.item.id)}"></unfold-card></section>`;
+/** The state headline that leads the Run card: the item's state, with what the review shows about it. */
+function cardHeadline(detail, model, reason, plan) {
+  const item = detail.item;
+  const state = workItemState(displayState(item, detail.events));
+  if (reason) return `${state.heading || state.label} · ${reason.chip}`;
+  if (item.state === 'awaiting_review' && plan) {
+    const { review } = plan;
+    const verdict = review.verdict === null ? null : verdictMeta(review.verdict);
+    const where = review.pullRequestNumber ? `PR #${review.pullRequestNumber}` : review.branch ? `branch ${review.branch}` : 'the pull request';
+    const verdictText = verdict ? verdict.short.toLowerCase() : 'no agent verdict';
+    const rounds = review.rounds ? ` after ${plural(review.rounds, 'Round')}` : '';
+    return `${state.heading || state.label} · ${verdictText[0].toUpperCase() + verdictText.slice(1)} ${where}${rounds}`;
+  }
+  return state.heading || state.label;
 }
 
-/** The Work Item detail: header, the writer's problem and solution, the decision box for its state, the brief, the Run card, Rounds and Runs, activity, technical details and, on phones, the action bar. */
+/**
+ * The Run card that heads the Work Item detail: a `<unfold-card>` that `views/work.js` gives the card object once
+ * Ploeg sent one (`model.card`). It states what happened in one headline (state, verdict, pull request, Rounds) and
+ * carries the primary action, above everything else and across the full content width. Empty without a card, so an
+ * older Ploeg or a failed read leaves no trace and the page falls back to the review box's own primary action.
+ */
+export function cardSectionMarkup(detail, model, { reason = null, plan = null } = {}) {
+  const card = model.card;
+  if (!card || String(card.workItemId) !== detail.item.id) return '';
+  const primary = plan?.primary || '';
+  return `<section class="work-card" id="work-card" aria-labelledby="work-card-headline"><h3 class="work-card-headline" id="work-card-headline">${escape(cardHeadline(detail, model, reason, plan))}</h3><unfold-card class="work-run-card" data-work-item="${escape(detail.item.id)}"></unfold-card>${primary ? `<div class="work-card-actions">${primary}</div>` : ''}</section>`;
+}
+
+/** The Work Item detail: header, the writer's problem and solution, the Run card that states what happened, the decision box, the Trace this bug panel when Ploeg traced anything, the brief, Rounds and Runs, activity, technical details and, on phones, the action bar. */
 export function detailMarkup(detail, model) {
   const reason = detailReason(detail);
   const item = detail.item;
-  let decision = '';
   let primary = '';
+  let plan = null;
   if (reason) {
-    const plan = decisionPlan(detail, model, reason);
-    decision = needsYouBox(detail, model, reason, plan);
+    plan = decisionPlan(detail, model, reason);
     primary = plan.primary;
   } else if (item.state === 'awaiting_review') {
-    const plan = reviewPlan(detail);
-    decision = reviewBox(detail, model, plan);
+    plan = reviewPlan(detail);
     primary = plan.primary;
-  } else decision = statusBox(detail, model);
+  }
+  const card = cardSectionMarkup(detail, model, { reason, plan });
+  let decision;
+  if (reason) decision = needsYouBox(detail, model, reason, plan);
+  else if (item.state === 'awaiting_review') decision = reviewBox(detail, model, plan, { hero: Boolean(card) });
+  else decision = statusBox(detail, model);
   const parts = [
     headerMarkup(detail, model, reason),
     model.runNotice ? `<p class="work-run-notice" role="alert">${icon('alert')}<span>${escape(model.runNotice)}</span></p>` : '',
     cancelResultMarkup(model),
+    card,
     accountMarkup(detail),
     decision,
+    model.trace && model.trace.workItemId === item.id ? traceMarkup(model.trace, { now: model.now, busy: model.traceBusy, result: model.traceResult }) : '',
     sessionsMarkup(detail, model.sessions),
     briefMarkup(detail, model),
-    cardSectionMarkup(detail, model),
     storyMarkup(detail, model),
     eventsMarkup(detail, model),
     technicalMarkup(detail),
@@ -1044,7 +1086,7 @@ function demoMarkup(model) {
  * the list, and the Work Item detail beside it (wide) or instead of it (narrow).
  * `model` = { data, lane, lanePending (the lane waits for the open Work Item's state), team, teams, loading, refreshing,
  * loadingMore, detailId, detail, detailLoading, detailError, listHref, canCancel, cancelBusy, cancelResult, briefOpen,
- * sessions, userId, trackerUrl, reviewFacts, demoMode, now, card }.
+ * sessions, userId, trackerUrl, reviewFacts, demoMode, now, card, trace, traceBusy, traceResult }.
  */
 export function workMarkup(model) {
   const data = model.data;

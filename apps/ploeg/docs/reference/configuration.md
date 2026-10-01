@@ -81,7 +81,7 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_OPERATOR_CONSUMERS` | ploegd |  | JSON array of operator read consumers. Each entry names a `tokenEnv`, a further variable that holds that consumer's bearer token (chart `operator.consumers`). No consumers refuses every operator request. | [operator.go](../../cmd/ploegd/operator.go) |
 | `PLOEG_OPERATOR_DELIVERY_POLICIES` | ploegd |  | JSON array of trusted delivery policies with `repositoryId`, `policySha256`, `verifierId`, `minTests` and optional `publicationEnabled` (chart `operator.deliveryPolicies`). | [operator.go](../../cmd/ploegd/operator.go) |
 | `PLOEG_OUTCOME_FILE` | ploeg-worker |  | `exec` harness only: OutcomeReport JSON path override (chart `executor.harness.outcomeFile`). | [main.go](../../cmd/ploeg-worker/main.go) |
-| `PLOEG_REPORT_GRAFANA_URL` | ploegd |  | Grafana base URL the report links from — the Unfold — Loop dashboard (`/d/unfold-loop`) filtered by the Team, the Run Explorer (`/d/dark-factory-run-explorer`) for the Run's trace alias and Spend & Attribution (`/d/dark-factory-spend-attribution`) (chart `env.PLOEG_REPORT_GRAFANA_URL`). Empty omits the Grafana links. | [main.go](../../cmd/ploegd/main.go) |
+| `PLOEG_REPORT_GRAFANA_URL` | ploegd |  | Grafana base URL the report links from — the Unfold — Loop dashboard (`/d/glide-loop`) filtered by the Team, the Run Explorer (`/d/dark-factory-run-explorer`) for the Run's trace alias and Spend & Attribution (`/d/dark-factory-spend-attribution`) (chart `env.PLOEG_REPORT_GRAFANA_URL`). Empty omits the Grafana links. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_REPORT_VLOER_URL` | ploegd |  | Vloer base URL; the report links the Work Item page, `<base>/#work/<id>` (chart `env.PLOEG_REPORT_VLOER_URL`). Empty omits it; with both unset the links section is omitted and the report still renders. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_REVIEW_RECONCILE_INTERVAL` | ploegd | `10m` |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_ROLE` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go), [sandbox.go](../../cmd/ploeg-worker/sandbox.go) |
@@ -134,7 +134,7 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 
 | Key | Type | Default | Description | Source |
 | --- | --- | --- | --- | --- |
-| `config` | object | `{}` | ploegd's routing and roster as a file (mounted at /etc/ploeg/ploeg.yaml). Projects are NAMED and resolved to tracker ids at boot, so no magic numbers live in cluster config. `targets:` registers repositories a `repo/<key>` label may select, and a project's `default:`/`allow:` name them (ADR-0038). Empty = the legacy PLOEG_TARGET_MAP/PLOEG_TEAM_MAP/PLOEG_TEAM_PLANS env vars still apply. | values.yaml, values.schema.json |
+| `config` | object | `{}` | ploegd's routing and roster as a file (mounted at /etc/ploeg/ploeg.yaml). Projects are NAMED and resolved to tracker ids at boot, so no magic numbers live in cluster config. `targets:` registers repositories a `repo/<key>` label may select, and a project's `default:`/`allow:` name them (ADR-0038). A project's `gates:` maps its statuses or bucket titles to the delivery gates development, test, acceptance and done (ADR-0051). A team's `cards:` names the people who referee its disputed cracks and the labels that mark a hotfix (ADR-0052), and `prComment: true` keeps one card comment with the card image on its merged pull requests (ADR-0055). Empty = the legacy PLOEG_TARGET_MAP/PLOEG_TEAM_MAP/PLOEG_TEAM_PLANS env vars still apply. | values.yaml, values.schema.json |
 | `database.existingSecret` |  |  | CNPG auto-creates <cluster>-app with a `uri` key; ploegd consumes it whole. | values.yaml |
 | `database.existingSecret.key` |  | `uri` |  | values.yaml |
 | `database.existingSecret.name` |  | `ploeg-db-app` |  | values.yaml |
@@ -145,7 +145,7 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `env` |  |  | Plain PLOEG_* env rendered onto the deployment. | values.yaml |
 | `env.PLOEG_DEFAULT_TEAM` |  | `default` | Team that receives work from an assignee no Team lists. | values.yaml |
 | `env.PLOEG_LEASE_TTL` |  | `5m` |  | values.yaml |
-| `env.PLOEG_REPORT_GRAFANA_URL` |  | `""` | Grafana base URL the report links from — the Unfold — Loop dashboard (`/d/unfold-loop`) filtered by the Team, the Run Explorer (`/d/dark-factory-run-explorer`) for the Run's trace alias and Spend & Attribution (`/d/dark-factory-spend-attribution`) (chart `env.PLOEG_REPORT_GRAFANA_URL`). Empty omits the Grafana links. | values.yaml |
+| `env.PLOEG_REPORT_GRAFANA_URL` |  | `""` | Grafana base URL the report links from — the Unfold — Loop dashboard (`/d/glide-loop`) filtered by the Team, the Run Explorer (`/d/dark-factory-run-explorer`) for the Run's trace alias and Spend & Attribution (`/d/dark-factory-spend-attribution`) (chart `env.PLOEG_REPORT_GRAFANA_URL`). Empty omits the Grafana links. | values.yaml |
 | `env.PLOEG_REPORT_VLOER_URL` |  | `""` | Vloer's base URL; the report links the Work Item page. | values.yaml |
 | `env.PLOEG_SWEEP_INTERVAL` |  | `15s` |  | values.yaml |
 | `env.PLOEG_TEAM_MAP` |  | `""` | Legacy assignee roster, replaced by `teams.<name>.assignees` in the `PLOEG_CONFIG` file. | values.yaml |

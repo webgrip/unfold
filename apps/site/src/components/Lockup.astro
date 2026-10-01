@@ -1,0 +1,37 @@
+---
+import geometry from '../brand/geometry.json';
+import Mark from './Mark.astro';
+import Wordmark from './Wordmark.astro';
+
+interface Props {
+  height?: number;
+  label?: string;
+}
+
+const { height = 32, label } = Astro.props;
+const { viewBox, mark, wordmark } = geometry.lockup;
+const [, , boxWidth = 1, boxHeight = 1] = viewBox.split(' ').map(Number);
+const a11y = label
+  ? { role: 'img' as const, 'aria-label': label }
+  : { 'aria-hidden': 'true' as const };
+---
+
+<svg
+  class="lockup"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox={viewBox}
+  width={(height * boxWidth) / boxHeight}
+  height={height}
+  focusable="false"
+  {...a11y}
+>
+  <Mark crop x={mark.x} y={mark.y} width={mark.width} height={mark.height} />
+  <Wordmark x={wordmark.x} y={wordmark.y} width={wordmark.width} height={wordmark.height} />
+</svg>
+
+<style>
+  .lockup {
+    flex: none;
+    display: block;
+  }
+</style>

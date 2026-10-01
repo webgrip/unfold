@@ -1,3 +1,32 @@
+## [unfold-v0.4.0-rc.32](https://forgejo.webgrip.dev/webgrip/glide/compare/unfold-v0.4.0-rc.31...unfold-v0.4.0-rc.32) (2026-10-01)
+
+### Added
+
+* **ploeg:** grade run cards and record delivery gates ([227b2ee](https://forgejo.webgrip.dev/webgrip/glide/commit/227b2ee250eb615d8e3558510b4e5df5202002b1))
+* **vloer:** make the Run card the head of the Work Item page ([42cddff](https://forgejo.webgrip.dev/webgrip/glide/commit/42cddff35c886ff64f71c98a9d7670fc85686d70))
+
+### Docs
+
+* record the run cards research, concept and works council pack ([b60fbff](https://forgejo.webgrip.dev/webgrip/glide/commit/b60fbff0cb76297905bd5e848376ef129822aeb5))
+
+### Internal
+
+* **release:** unfold-site-v0.1.0-rc.7 [skip ci] ([2aea78e](https://forgejo.webgrip.dev/webgrip/glide/commit/2aea78e76f04e34021a3be6cfe7de980b5ddde34))
+
+## [unfold-v0.4.0-rc.31](https://forgejo.webgrip.dev/webgrip/glide/compare/unfold-v0.4.0-rc.30...unfold-v0.4.0-rc.31) (2026-10-01)
+
+### Added
+
+* **site:** apply the Unfold brand ([4a356fc](https://forgejo.webgrip.dev/webgrip/glide/commit/4a356fcbb57631db9b0a3f0f7775db7241c86778))
+
+### Fixed
+
+* **ploeg:** link the Loop dashboard by its real uid and new title ([4124d7e](https://forgejo.webgrip.dev/webgrip/glide/commit/4124d7e59d7585acd6dc65d55aa751df5b9d83c0))
+
+### Internal
+
+* **release:** unfold-site-v0.1.0-rc.6 [skip ci] ([5606c28](https://forgejo.webgrip.dev/webgrip/glide/commit/5606c28faaee5d81bb83fbd034994cf6147c115f))
+
 ## [unfold-v0.4.0-rc.30](https://forgejo.webgrip.dev/webgrip/glide/compare/unfold-v0.4.0-rc.29...unfold-v0.4.0-rc.30) (2026-10-01)
 
 ### Added

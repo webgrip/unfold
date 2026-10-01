@@ -221,9 +221,22 @@ test('a ready-for-review item gets an evidence receipt, a checklist that is neve
   const titles = [...html.matchAll(/<li class="work-check" data-tone="(\w+)">[^]*?<p class="work-check-title">([^<]*)/g)].map(match => [match[1], match[2]]);
   assert.deepEqual(titles.map(([tone]) => tone), ['attention', 'neutral', 'success', 'success', 'success', 'success'], 'what needs attention comes first, then unknowns, then passes');
   assert.equal(titles[0][1], 'Findings name instruction files');
+  assert.match(html, /<details class="disclosure" id="work-forge-50"><summary><span class="disclosure-summary">On the forge<\/span>/);
   assert.match(html, /<dt>Merge<\/dt><dd>Ploeg marks the Work Item Done\.<\/dd>[^]*<dt>Request changes<\/dt>[^]*<dt>Close without merging<\/dt><dd>The Work Item comes back to you as Needs you\.<\/dd>/);
   assert.match(html, new RegExp(`<strong class="meter-value">US\\$${space}1,23</strong>`), 'money in nl-NL with two decimals');
   assert.doesNotMatch(html, /<form|style=/);
+});
+
+test('a Ready-for-review item with a card leads with its state headline and primary action, and its review box folds the neutral checks', () => {
+  const html = detailMarkup(detail(), model({ detailId: '50', lane: 'awaiting_review', card: { workItemId: '50' } }));
+  assert.match(html, /<h3 class="work-card-headline" id="work-card-headline">Ready for your review · Agent approved PR #9 after 2 Rounds<\/h3>/, 'the headline states what happened');
+  assert.ok(html.indexOf('id="ploeg-item-title"') < html.indexOf('id="work-card"') && html.indexOf('id="work-card"') < html.indexOf('id="work-decision"'), 'the card heads the detail, above the review box');
+  assert.match(html, /<div class="work-card-actions"><a class="button primary" href="https:\/\/forge.test\/acme\/shop\/pulls\/9"[^>]*data-link-out="pr">[^]*Open pull request #9[^]*<\/a><\/div><\/section>/, 'the card carries the primary action and nothing else');
+  const box = html.slice(html.indexOf('id="work-decision"'), html.indexOf('id="work-brief"'));
+  assert.doesNotMatch(box, /<div class="work-receipt">/, 'the box leaves the receipt to the card');
+  assert.match(box, /<p class="meta work-checklist-note">1 not reported: CI<\/p>/, 'the one neutral check folds into a muted line');
+  assert.match(box, /<details class="disclosure" id="work-forge-50">/, 'the forge outcomes are closed');
+  assert.doesNotMatch(box, /Open pull request #9/, 'the box does not repeat the primary action');
 });
 
 test('a needs-you item explains why with Ploeg’s own words, the evidence Runs and what to do in the tracker', () => {

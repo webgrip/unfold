@@ -42,7 +42,7 @@ jobs:
   release-policy:
     runs-on: docker
     container:
-      image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.3@sha256:2f3f20de1f155cf1d4297cf2daecf33e2ec6b212bb7c58c91f42104ffdea61cb
+      image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.4@sha256:0d6227231c9258c230360c51f9733fe3d60cc0b33860bb7b8769b8683d637c17
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

@@ -1,4 +1,4 @@
-import { money, count, compactCount, duration, dateTime, plural } from '../core/format.js';
+import { money, count, compactCount, duration, dateTime, plural, score, decimal, percent } from '../core/format.js';
 import { cardState, playState, ciState, humanReview, runOutcome, actorName } from '../core/states.js';
 
 /** What a card shows for a value Ploeg does not collect at all yet. */
@@ -51,15 +51,64 @@ export function nextFinish(days) {
   return { finish: next, daysToGo: next.days - (known(days) && days > 0 ? days : 0) };
 }
 
+/**
+ * A stable unsigned 32-bit hash (FNV-1a over code points) of `value`. Skins pick a look from a card's identity with it,
+ * so the same Work Item gets the same look on every page and every reload.
+ * @param {unknown} value
+ */
+export function stableHash(value) {
+  let hash = 0x811c9dc5;
+  for (const char of String(value ?? '')) hash = Math.imul(hash ^ char.codePointAt(0), 0x01000193) >>> 0;
+  return hash >>> 0;
+}
+
+/** The grade qualifiers Ploeg may send (card contract P2b), with what each one means. */
+export const gradeQualifiers = Object.freeze({ RV: 'Reverted', HF: 'Hotfixed', OB: 'Over budget', RT: 'Retried Run', MN: 'Manual takeover' });
+/** The four subgrades in the order the formula weighs them, with their labels and short codes. */
+export const subgrades = Object.freeze([
+  Object.freeze({ key: 'reliability', label: 'Reliability', short: 'REL' }),
+  Object.freeze({ key: 'durability', label: 'Durability', short: 'DUR' }),
+  Object.freeze({ key: 'delivery', label: 'Delivery', short: 'DEL' }),
+  Object.freeze({ key: 'review', label: 'Review', short: 'REV' }),
+]);
+
 /** The back's tabs in order. */
 export const cardTabs = Object.freeze([
   { id: 'economics', label: 'Economics' },
   { id: 'agent', label: 'Agent' },
   { id: 'change', label: 'Change' },
   { id: 'review', label: 'Review & CI' },
+  { id: 'gates', label: 'Gates' },
+  { id: 'grade', label: 'Grade' },
+  { id: 'condition', label: 'Condition' },
   { id: 'life', label: 'Life' },
+  { id: 'set', label: 'Set' },
   { id: 'context', label: 'Context' },
 ]);
+
+/** The delivery gates on a board, in order (Ploeg ADR-0051), with the short names the gates strip prints. */
+export const gateSteps = Object.freeze([
+  Object.freeze({ key: 'development', label: 'Development', short: 'Dev' }),
+  Object.freeze({ key: 'test', label: 'Test', short: 'Test' }),
+  Object.freeze({ key: 'acceptance', label: 'Acceptance', short: 'Accept' }),
+  Object.freeze({ key: 'done', label: 'Done', short: 'Done' }),
+]);
+
+/** Why a Work Item moved back to an earlier gate, and whether that bounce counts against right first time. */
+export const bounceReasons = Object.freeze({
+  defect: Object.freeze({ label: 'Defect', counts: true }),
+  requirement: Object.freeze({ label: 'Requirement changed', counts: false }),
+  misunderstood: Object.freeze({ label: 'Misunderstood', counts: false }),
+  environment: Object.freeze({ label: 'Environment', counts: false }),
+  unknown: Object.freeze({ label: 'No reason given', counts: true }),
+});
+
+/** What each crack severity means, as triage sets it. */
+export const crackSeverities = Object.freeze({ S1: 'S1 · critical', S2: 'S2 · major', S3: 'S3 · minor', S4: 'S4 · cosmetic' });
+/** How a crack was found: self-reported weighs half, discovered counts once, concealed one and a half times. */
+export const crackDiscoveries = Object.freeze({ self: 'Self-reported by the steward', discovered: 'Found by someone else', concealed: 'Fixed by the steward without linking it' });
+/** How much of a crack's weight still counts by the card's age when the bug was raised. */
+export const crackWarranties = Object.freeze({ full: 'Full: raised within 180 days of release', half: 'Half: raised within a year of release', history: 'History: raised after a year, weighs nothing' });
 
 const known = value => typeof value === 'number' && Number.isFinite(value);
 const notReportedYet = 'Not reported yet';
@@ -73,13 +122,84 @@ const uncollected = label => row(label, notCollected, 'uncollected');
 const byTime = (a, b) => (Date.parse(a.at) || 0) - (Date.parse(b.at) || 0);
 const repository = target => target && text(target.owner) && text(target.repo) ? `${text(target.owner)}/${text(target.repo)}` : '';
 const stewardSources = { merged_by: 'Merged the pull request', approver: 'Approved the pull request' };
-const rosterRoles = { merger: 'merger', reviewer: 'reviewer' };
+const rosterRoles = { merger: 'merger', reviewer: 'reviewer', qa: 'QA (moved it out of test)', acceptor: 'acceptor (moved it out of acceptance)', cosigner: 'cosigner (mended a crack)' };
 const inReview = Object.freeze({ key: 'in_review', label: 'In review', tone: 'review', glyph: 'pull-request' });
 const playMeta = state => state ? playState(state) : inReview;
 const costStatuses = { observed: 'Observed', reserved: 'Reserved, not settled', not_reported: notReported };
 const environmentOrder = ['development', 'test', 'acceptance', 'staging', 'production'];
 const environmentRank = name => { const index = environmentOrder.indexOf(name); return index === -1 ? environmentOrder.length : index; };
 const shortSha = sha => text(sha).slice(0, 7);
+
+const halfStep = value => known(value) && value >= 1 && value <= 10 && Number.isInteger(value * 2);
+
+function gradeView(card) {
+  const grade = card.grade;
+  if (!grade || typeof grade !== 'object' || !halfStep(grade.overall)) return null;
+  const parts = subgrades.filter(entry => halfStep(grade.subgrades?.[entry.key])).map(entry => ({ ...entry, value: grade.subgrades[entry.key], text: score(grade.subgrades[entry.key]) }));
+  const label = grade.label === 'black' ? 'Black label' : grade.label === 'gold' ? 'Gold label' : '';
+  const qualifiers = list(grade.qualifiers).filter(code => Object.hasOwn(gradeQualifiers, code)).map(code => ({ code, text: gradeQualifiers[code] }));
+  const provisional = grade.provisional === true;
+  const formula = text(grade.formula);
+  const overall = score(grade.overall);
+  return {
+    overall: grade.overall, text: overall, provisional, label, labelKey: label ? grade.label : '', qualifiers, subgrades: parts, formula,
+    summary: [overall, provisional ? 'provisional' : '', label, ...qualifiers.map(entry => entry.code)].filter(Boolean).join(' · '),
+    description: `Grade ${overall} of 10${provisional ? ', provisional until 180 days live' : ''}${label ? `, ${label.toLowerCase()}` : ''}${qualifiers.length ? `, ${qualifiers.map(entry => entry.text.toLowerCase()).join(', ')}` : ''}${formula ? `, formula ${formula}` : ''}`,
+  };
+}
+
+function conditionView(card) {
+  const condition = card.condition;
+  if (!condition || typeof condition !== 'object' || !['cracked', 'mended'].includes(condition.state)) return null;
+  const cracks = list(condition.cracks).filter(crack => crack && typeof crack === 'object').map(crack => {
+    const mended = crack.mended && typeof crack.mended === 'object' ? { at: text(crack.mended.at), by: text(crack.mended.by), pr: known(crack.mended.pr) ? crack.mended.pr : null, bySteward: crack.mended.bySteward === true, confirmedAt: text(crack.mended.confirmedAt) } : null;
+    return {
+      id: text(crack.id), ref: text(crack.bug?.ref), title: text(crack.bug?.title), workItemId: text(String(crack.bug?.workItemId ?? '')), severity: /^S[1-4]$/.test(crack.severity) ? crack.severity : '', share: text(crack.share), discovery: text(crack.discovery),
+      proposedAt: text(crack.proposedAt), confirmedAt: text(crack.confirmedAt), confirmedBy: list(crack.confirmedBy).map(text).filter(Boolean), disputed: crack.disputed === true,
+      weight: known(crack.weight) ? crack.weight : null, warranty: Object.hasOwn(crackWarranties, crack.warranty) ? crack.warranty : '', mended,
+    };
+  });
+  const state = condition.state;
+  const first = cracks[0];
+  const what = first ? [first.ref, first.severity].filter(Boolean).join(', ') : '';
+  const fixed = state === 'mended' && first?.mended ? ` · ${first.mended.bySteward ? 'mended by its steward' : 'mended'}${first.mended.pr !== null ? ` in #${first.mended.pr}` : ''}` : '';
+  const open = cracks.filter(crack => !crack.mended?.confirmedAt).length;
+  const chip = state === 'mended' ? `Mended${cracks.length > 1 ? ` ×${cracks.length}` : ''}` : `Cracked${first?.severity ? ` · ${first.severity}` : ''}${open > 1 ? ` ×${open}` : ''}`;
+  const weights = cracks.filter(crack => crack.weight !== null);
+  return { state, label: state === 'mended' ? 'Mended' : 'Cracked', chip, cracks, weight: weights.length ? weights.reduce((total, crack) => total + crack.weight, 0) : null, disputed: cracks.some(crack => crack.disputed), text: `${state === 'mended' ? 'Mended' : 'Cracked'}${what ? ` · ${what}` : ''}${fixed}`, seed: stableHash(cracks.map(crack => crack.id).join('|') || String(card.workItemId ?? '')) };
+}
+
+const gateKeys = gateSteps.map(step => step.key);
+
+function gatesView(card) {
+  const gates = card.gates;
+  if (!gates || typeof gates !== 'object' || !gateKeys.includes(gates.current)) return null;
+  const current = gateKeys.indexOf(gates.current);
+  const bounces = list(gates.bounces).filter(entry => gateKeys.includes(entry?.from) && gateKeys.includes(entry?.to)).map(entry => {
+    const reason = Object.hasOwn(bounceReasons, entry.reason) ? entry.reason : 'unknown';
+    return { from: entry.from, to: entry.to, at: text(entry.at), reason, reasonText: bounceReasons[reason].label, counts: bounceReasons[reason].counts, actor: text(entry.actor) };
+  });
+  const history = list(gates.history).filter(entry => gateKeys.includes(entry?.gate)).map(entry => ({ gate: entry.gate, enteredAt: text(entry.enteredAt), leftAt: text(entry.leftAt) }));
+  const rft = gates.rightFirstTime && typeof gates.rightFirstTime === 'object' ? gates.rightFirstTime : {};
+  const measured = ['test', 'acceptance', 'done'].filter(key => known(rft[key]));
+  const defects = measured.reduce((total, key) => total + rft[key], 0);
+  const steps = gateSteps.map((step, index) => ({ ...step, state: index < current ? 'passed' : index === current ? 'current' : 'ahead', bounces: bounces.filter(entry => entry.from === step.key), rightFirstTime: known(rft[step.key]) ? rft[step.key] === 0 : null }));
+  const rightFirstTime = measured.length ? (defects === 0 ? { state: 'yes', text: 'Right first time', detail: `No defect bounce from ${measured.map(key => gateSteps.find(step => step.key === key).label.toLowerCase()).join(', ')}` } : { state: 'no', text: `${plural(defects, 'bounce')} back`, detail: measured.filter(key => rft[key] > 0).map(key => `${plural(rft[key], 'defect bounce')} from ${gateSteps.find(step => step.key === key).label.toLowerCase()}`).join(', ') }) : null;
+  const label = `Gates: now in ${gateSteps[current].label.toLowerCase()}${bounces.length ? `, ${plural(bounces.length, 'bounce')} back` : ''}${rightFirstTime?.state === 'yes' ? ', right first time' : ''}`;
+  return { current: gateSteps[current], steps, bounces, history, rightFirstTime, label };
+}
+
+function setView(card) {
+  const set = card.set;
+  if (!set || typeof set !== 'object' || !['epic', 'child'].includes(set.role) || !known(set.size) || set.size < 1) return null;
+  const epic = { workItemId: text(String(set.epic?.workItemId ?? '')), ref: text(set.epic?.ref), title: text(set.epic?.title) || 'Untitled epic' };
+  const children = list(set.children).filter(child => child && text(child.title)).map(child => ({ workItemId: text(String(child.workItemId ?? '')), title: text(child.title), state: cardState(text(child.state) || 'drafting'), settled: child.settled === true, cracked: child.cracked === true }));
+  const position = set.role === 'child' && known(set.position) ? set.position : null;
+  const settled = children.filter(child => child.settled).length;
+  const chip = set.role === 'epic' ? `Epic · ${plural(set.size, 'card')}` : position !== null ? `${position}/${set.size} · ${epic.title}` : `Set of ${set.size} · ${epic.title}`;
+  const summary = set.role === 'epic' ? `Epic of ${plural(set.size, 'Work Item')}${children.length ? `, ${settled} settled` : ''}` : position !== null ? `${position}/${set.size} of ${epic.title}` : `One of ${set.size} in ${epic.title}`;
+  return { role: set.role, epic, position, size: set.size, children, settled, complete: set.complete === true, chip, text: summary, symbol: set.role === 'epic' ? `EPIC ${settled}/${set.size}` : position !== null ? `${position}/${set.size}` : `SET ${set.size}` };
+}
 
 function plays(card) {
   return list(card.plays).filter(play => play && known(play.number)).slice().sort((a, b) => a.number - b.number);
@@ -261,7 +381,7 @@ function change(card, all, diff) {
   };
 }
 
-function review(card, all) {
+function review(card, all, grade) {
   const reviews = all.flatMap(play => list(play.reviews).map(entry => ({ ...entry, number: play.number })));
   const latest = all.at(-1);
   const ci = latest ? ciState(latest.ci?.state && latest.ci.state !== 'unknown' ? latest.ci.state : '') : null;
@@ -271,7 +391,7 @@ function review(card, all) {
   if (reviews.length) lists.push({ title: 'Reviews by people', items: reviews.map(entry => { const meta = humanReview(entry.state); return { title: `${text(entry.reviewer) || 'Someone'} · ${meta.label}`, meta: [`#${entry.number}`, dateTime(entry.receivedAt)].filter(Boolean).join(' · '), tone: meta.tone, glyph: meta.glyph }; }) });
   const checks = list(latest?.ci?.checks);
   if (checks.length) lists.push({ title: `Checks on #${latest.number}`, items: checks.map(check => { const meta = ciState(check.state) || { label: notReported, tone: 'neutral', glyph: 'circle' }; return { title: text(check.context) || 'Check', meta: meta.short || meta.label, tone: meta.tone, glyph: meta.glyph }; }) });
-  if (roster.length) lists.push({ title: 'Roster', items: roster.map(person => ({ title: person.name, meta: list(person.roles).map(role => rosterRoles[role] || role).join(', '), tone: 'neutral', glyph: 'user' })) });
+  if (roster.length) lists.push({ title: 'Roster', items: roster.map(person => ({ title: person.name, meta: list(person.roles).map(role => rosterRoles[role] || role).join(', '), tone: list(person.roles).includes('cosigner') ? 'success' : 'neutral', glyph: 'user' })) });
   return {
     rows: [
       all.length ? row('Reviews by people', count(reviews.length)) : row('Reviews by people', 'No pull request yet', 'unreported'),
@@ -280,6 +400,7 @@ function review(card, all) {
       ...(latest?.ci?.capturedAt ? [row('CI read', dateTime(latest.ci.capturedAt))] : []),
       uncollected('CI duration'),
       uncollected('Review rounds by people'),
+      ...(grade ? [row('Grade', grade.summary)] : []),
     ],
     lists,
   };
@@ -312,7 +433,7 @@ function releaseView(card, now) {
   };
 }
 
-function life(card, all, release) {
+function life(card, all, release, condition) {
   const merged = all.filter(play => play.mergedAt).at(-1);
   const deployed = deployments(card);
   const live = release.environment || 'production';
@@ -336,7 +457,7 @@ function life(card, all, release) {
     rows.push(row('Days live', notReported, 'unreported'), row('Finish', `${finishLadder[0].label} · this Ploeg reports no releases`, 'unreported'));
     note = 'This Ploeg does not report deploys or releases yet, so the card stays matte.';
   }
-  rows.push(uncollected('Lines still alive'), uncollected('Reverts and linked bugs'));
+  rows.push(uncollected('Lines still alive'), condition ? row('Condition', condition.text) : card.grade?.formula === '2026.2' ? row('Condition', 'No confirmed crack') : uncollected('Reverts and linked bugs'));
   const lists = deployed.length ? [{ title: `Deployments · ${plural(deployed.length, 'environment')}`, items: deployed.map(entry => ({
     title: entry.environment,
     meta: [entry.firstDeployedAt ? `first deployed ${dateTime(entry.firstDeployedAt)}` : 'first deploy time not reported', shortSha(entry.sha)].filter(Boolean).join(' · '),
@@ -347,7 +468,7 @@ function life(card, all, release) {
   return { rows, lists, note };
 }
 
-function context(card) {
+function context(card, set) {
   const events = list(card.events).filter(entry => entry && entry.at).slice().sort(byTime);
   const shown = events.slice(-40);
   return {
@@ -356,19 +477,135 @@ function context(card) {
       text(card.externalRef) ? row('Tracker', text(card.externalRef)) : row('Tracker', notReported, 'unreported'),
       text(card.team) ? row('Team', text(card.team)) : row('Team', notReported, 'unreported'),
       repository(card.target) ? row('Repository', repository(card.target)) : row('Repository', notReported, 'unreported'),
-      uncollected('Epic'),
+      set ? row('Epic', [set.epic.ref, set.epic.title].filter(Boolean).join(' · ')) : Object.hasOwn(card, 'set') ? row('Epic', 'None', 'unreported') : uncollected('Epic'),
     ],
     lists: [{ title: events.length ? `Timeline · ${plural(events.length, 'event')}` : 'Timeline', empty: 'Nothing happened yet.', more: events.length - shown.length, items: shown.map(entry => ({ ...eventLine(entry), meta: [dateTime(entry.at), text(entry.actor) ? actorName(entry.actor) : ''].filter(Boolean).join(' · ') })) }],
   };
+}
+
+const formulas = Object.freeze({
+  '2026.1': 'Overall = 0.40 × reliability + 0.25 × durability + 0.20 × delivery + 0.15 × review, each subgrade rounded to the nearest half. Provisional (at most 9) until 180 days live.',
+  '2026.2': 'Overall = 0.40 × reliability + 0.25 × durability + 0.20 × delivery + 0.15 × review, each subgrade rounded to the nearest half. Reliability is 10 minus the crack weight, at most 9.5 with a crack in warranty or a revert. Durability loses 2 per revert and 1 per hotfix. Provisional (at most 9) until 180 days live.',
+});
+const yesNo = value => value ? 'Yes' : 'No';
+const gradeInputRows = Object.freeze({
+  reliability: [['crackWeight', 'Crack weight', value => decimal(value)], ['reverted', 'Reverted', yesNo]],
+  durability: [['daysLive', 'Days live', value => plural(value, 'day')], ['liveSince', 'Live since', value => dateTime(value) || notReported], ['reverts', 'Reverts', count], ['hotfixes', 'Hotfixes', count], ['survival', 'Lines still alive', percent]],
+  delivery: [['budgetShare', 'Budget used', percent], ['defectBounces', 'Defect bounces', count], ['extraPlays', 'Extra plays', count], ['failedRuns', 'Failed Runs', count]],
+  review: [['ciFirstGreen', 'CI green first time', yesNo], ['findings', 'Review findings', count], ['changeRequests', 'Change requests', count], ['reviewRounds', 'Review rounds', count]],
+});
+
+function gradeTab(card, grade) {
+  if (!grade) return { rows: [row('Grade', 'Not graded yet', 'unreported')], lists: [], groups: [], note: 'Ploeg grades a card once a person approved or requested changes on a play, or a play merged.' };
+  const raw = card.grade || {};
+  const inputs = raw.inputs && typeof raw.inputs === 'object' ? raw.inputs : null;
+  const missing = new Set(list(inputs?.notCollected).filter(entry => typeof entry === 'string'));
+  const groups = subgrades.map(part => ({
+    title: `${part.label} inputs`,
+    rows: !inputs ? [row('Inputs', 'This Ploeg did not send them', 'unreported')] : gradeInputRows[part.key].map(([key, label, format]) => {
+      const value = inputs[part.key]?.[key];
+      if (missing.has(`${part.key}.${key}`)) return uncollected(label);
+      if (value === null || value === undefined) return row(label, notReported, 'unreported');
+      return row(label, format(value));
+    }),
+  }));
+  return {
+    rows: [
+      row('Grade', grade.summary),
+      row('Formula', grade.formula || notReported, grade.formula ? 'ok' : 'unreported'),
+      row('Provisional', grade.provisional ? 'Yes, until 180 days live' : 'No'),
+      row('Label', grade.label || 'None'),
+      ...subgrades.map(part => { const found = grade.subgrades.find(entry => entry.key === part.key); return found ? row(part.label, found.text) : row(part.label, notReported, 'unreported'); }),
+      row('Qualifiers', grade.qualifiers.length ? grade.qualifiers.map(entry => `${entry.code} · ${entry.text}`).join(', ') : 'None'),
+    ],
+    lists: [],
+    groups,
+    note: formulas[grade.formula] ?? `Ploeg computed this grade with formula ${grade.formula || 'unknown'}, which this Vloer cannot describe.`,
+  };
+}
+
+function gatesTab(card, gates) {
+  const evolved = card.evolved === true;
+  if (!gates) return { rows: [row('Gate now', 'No gate move recorded', 'unreported'), ...(evolved ? [row('Requirement changed', 'Yes, the card evolved')] : [])], lists: [], groups: [], note: 'Ploeg records gates once the board maps its columns to development, test, acceptance and done.' };
+  const rows = [
+    row('Gate now', gates.current.label),
+    gates.rightFirstTime ? row('Right first time', gates.rightFirstTime.state === 'yes' ? 'Yes' : `No · ${gates.rightFirstTime.detail}`) : row('Right first time', notReported, 'unreported'),
+    ...gates.steps.filter(step => step.rightFirstTime !== null).map(step => row(step.label, step.rightFirstTime ? 'Right first time' : plural(step.bounces.filter(entry => entry.counts).length, 'defect bounce'))),
+    row('Bounces back', gates.bounces.length ? count(gates.bounces.length) : 'None'),
+    row('Requirement changed', evolved ? 'Yes, the card evolved' : 'No'),
+  ];
+  const byName = key => gateSteps.find(step => step.key === key)?.label ?? key;
+  const lists = [];
+  if (gates.bounces.length) lists.push({ title: plural(gates.bounces.length, 'bounce'), items: gates.bounces.slice().sort(byTime).map(entry => ({ title: `${byName(entry.from)} → ${byName(entry.to)} · ${entry.reasonText}`, meta: [dateTime(entry.at), entry.actor ? `moved by ${entry.actor}` : '', entry.counts ? 'counts against right first time' : 'does not count against right first time'].filter(Boolean).join(' · '), tone: entry.counts ? 'danger' : 'attention', glyph: 'back' })) });
+  if (gates.history.length) lists.push({ title: 'Path through the gates', items: gates.history.map(entry => { const stay = entry.leftAt ? (Date.parse(entry.leftAt) - Date.parse(entry.enteredAt)) / 1000 : null; return { title: byName(entry.gate), meta: [`entered ${dateTime(entry.enteredAt)}`, entry.leftAt ? `left ${dateTime(entry.leftAt)}` : 'here now', known(stay) && stay >= 0 ? duration(stay) : ''].filter(Boolean).join(' · '), tone: entry.leftAt ? 'neutral' : 'live', glyph: entry.leftAt ? 'check' : 'circle-half' }; }) });
+  return { rows, lists, groups: [], note: 'A bounce is a move back to an earlier gate. Only defect bounces, and bounces without a reason, count against right first time.' };
+}
+
+function conditionTab(card, condition) {
+  if (!condition) return { rows: [row('Condition', card.grade?.formula === '2026.2' ? 'No confirmed crack' : notReported, card.grade?.formula === '2026.2' ? 'ok' : 'unreported'), ...(card.evolved === true ? [row('Requirement changed', 'Yes, the card evolved')] : [])], lists: [], groups: [], note: 'A crack is an inquiry, not a verdict. It appears here only after two people confirmed that a bug came from this card.' };
+  const groups = condition.cracks.map(crack => ({
+    title: [crack.ref || 'Bug', crack.title].filter(Boolean).join(' · '),
+    rows: [
+      row('Severity', crackSeverities[crack.severity] || notReported, crack.severity ? 'ok' : 'unreported'),
+      row('Share', crack.share === 'contributing' ? 'Contributing cause' : 'Primary cause'),
+      row('Discovery', crackDiscoveries[crack.discovery] || notReported, crackDiscoveries[crack.discovery] ? 'ok' : 'unreported'),
+      crack.warranty ? row('Warranty', crackWarranties[crack.warranty]) : row('Warranty', notReported, 'unreported'),
+      crack.weight !== null ? row('Weight', `${decimal(crack.weight)} off reliability`) : row('Weight', notReported, 'unreported'),
+      crack.confirmedBy.length >= 2 ? row('Confirmed by', `${crack.confirmedBy[0]} (proposed) and ${crack.confirmedBy[1]}`) : row('Confirmed by', crack.confirmedBy.join(', ') || notReported, crack.confirmedBy.length ? 'ok' : 'unreported'),
+      row('Confirmed', dateTime(crack.confirmedAt) || notReported, crack.confirmedAt ? 'ok' : 'unreported'),
+      row('Dispute', crack.disputed ? 'Disputed by the steward, waiting for a referee' : 'None'),
+      crack.mended ? row('Mend', `${crack.mended.pr !== null ? `#${crack.mended.pr}` : 'Fixed'}${crack.mended.bySteward ? ' by the steward' : crack.mended.by ? ` by ${crack.mended.by}` : ''}${crack.mended.at ? ` · ${dateTime(crack.mended.at)}` : ''}`) : row('Mend', 'Not mended yet', 'unreported'),
+      ...(crack.mended ? [row('Mend confirmed', crack.mended.confirmedAt ? dateTime(crack.mended.confirmedAt) : Object.hasOwn(card.condition.cracks.find(entry => entry?.id === crack.id)?.mended ?? {}, 'confirmedAt') ? 'Not yet: a mend stands 30 days first' : notReported, crack.mended.confirmedAt ? 'ok' : 'unreported')] : []),
+    ],
+  }));
+  return {
+    rows: [
+      row('Condition', condition.label),
+      row('Cracks', count(condition.cracks.length)),
+      condition.weight !== null ? row('Crack weight', `${decimal(condition.weight)} off reliability`) : row('Crack weight', notReported, 'unreported'),
+      row('Requirement changed', card.evolved === true ? 'Yes, the card evolved' : 'No'),
+    ],
+    lists: [],
+    groups,
+    note: 'A crack is an inquiry, not a verdict: the fixer proposed it, a second person who is neither the steward nor the proposer confirmed it, and the steward may dispute it within five working days.',
+  };
+}
+
+function setTab(set) {
+  if (!set) return { rows: [row('Set', 'Not part of an epic set', 'unreported')], lists: [], groups: [], note: 'Ploeg builds a set from the tracker’s parent relations: the Work Items an epic named as its children before their first Shift.' };
+  const epicName = [set.epic.ref, set.epic.title].filter(Boolean).join(' · ');
+  if (set.role === 'child') return {
+    rows: [row('Set', set.text), row('Epic', epicName), row('Position', set.position !== null ? `${set.position} of ${set.size}, in the order their first Shifts opened` : notReported, set.position !== null ? 'ok' : 'unreported'), row('Set complete', set.complete ? 'Yes' : 'Not yet')],
+    lists: [], groups: [], note: 'A set completes when every Work Item in it merged, has been live 30 days and has no crack without a confirmed mend.',
+  };
+  return {
+    rows: [row('Set', set.text), row('Settled', `${set.settled} of ${set.size}`), row('Cracked', count(set.children.filter(child => child.cracked).length)), row('Set complete', set.complete ? 'Yes' : 'Not yet')],
+    lists: [{ title: `Children · ${plural(set.children.length, 'card')}`, layout: 'grid', empty: 'Ploeg listed no children.', items: set.children.map((child, index) => ({ title: child.title, meta: [`${index + 1}/${set.size}`, child.state.label, child.settled ? 'settled' : 'not settled yet', child.cracked ? 'cracked' : ''].filter(Boolean).join(' · '), tone: child.cracked ? 'danger' : child.settled ? 'success' : child.state.tone, glyph: child.cracked ? 'x-circle' : child.settled ? 'check-circle' : child.state.glyph })) }],
+    groups: [], note: 'A set completes when every child merged, has been live 30 days and has no crack without a confirmed mend.',
+  };
+}
+
+/** The role that names a person's copy of a card, as the binder shows it. */
+export const copyRoleLabels = Object.freeze({ developer: 'Developer', reviewer: 'Reviewer', qa: 'QA', po: 'PO', acceptor: 'Acceptor', merger: 'Merger', steward: 'Steward' });
+
+function copyView(card) {
+  const copy = card.copy && typeof card.copy === 'object' ? card.copy : null;
+  if (!copy) return null;
+  const role = text(copy.role);
+  const altArt = Number.isInteger(copy.altArt) && copy.altArt >= 0 && copy.altArt < 64 ? copy.altArt : null;
+  return { role, roleLabel: copyRoleLabels[role] ?? (role ? role[0].toUpperCase() + role.slice(1) : ''), altArt, fullArt: copy.fullArt === true, goldSignature: copy.goldSignature === true, pulled: Boolean(text(copy.foilPattern)) };
 }
 
 /**
  * The view model of a Run card: every slot formatted (nl-NL money with two decimals, compact counts, durations),
  * and every value Ploeg left out marked "Not reported", never zero. While a Run is running, cost, tokens and run time
  * are Ploeg's `live` reading so far, and a figure missing from it reads "Not reported yet". Values Ploeg does not collect yet read
- * "Not collected yet". A demo card reads "Demo · no model calls" for cost and usage. Rarity, grade and condition
- * are not shown. The finish comes from the whole days since `release.at` on the finish ladder; Ploeg's own `finish`
- * is ignored, and a card without a release is matte.
+ * "Not collected yet". A demo card reads "Demo · no model calls" for cost and usage. Rarity is not shown. `grade` and
+ * `condition` are null until Ploeg sends a readable grade (P2b) or a confirmed crack (P3). The finish comes from the
+ * whole days since `release.at` on the finish ladder; Ploeg's own `finish` is ignored, and a card without a release is
+ * matte. A card in a binder carries `copy`, the person's copy: its role and its first pull from a pack (ADR 0029).
+ * `foilPattern` is the pattern that pull assigned, and null on a card without a pull, for which a skin derives a stable
+ * pattern from the card's identity; `copy` in the view holds the role and the pull's other cosmetics.
  * @param {object} card A card from `GET /api/ploeg/work-items/:id/card`.
  * @param {{ now?: number }} [options] `now` is the clock in milliseconds, for tests.
  */
@@ -380,7 +617,12 @@ export function cardView(card, { now = Date.now() } = {}) {
   const diff = diffView(all);
   const id = text(String(data.workItemId ?? ''));
   const repo = repository(data.target);
-  const tabs = { economics: economics(data, cost), agent: agent(data), change: change(data, all, diff), review: review(data, all), life: life(data, all, release), context: context({ ...data, workItemId: id }) };
+  const grade = gradeView(data);
+  const condition = conditionView(data);
+  const gates = gatesView(data);
+  const set = setView(data);
+  const tabs = { economics: economics(data, cost), agent: agent(data), change: change(data, all, diff), review: review(data, all, grade), gates: gatesTab(data, gates), grade: gradeTab(data, grade), condition: conditionTab(data, condition), life: life(data, all, release, condition), set: setTab(set), context: context({ ...data, workItemId: id }, set) };
+  const style = data.style && typeof data.style === 'object' ? data.style : {};
   return {
     id,
     title: text(data.title) || (id ? `Work Item #${id}` : 'Untitled Work Item'),
@@ -400,6 +642,15 @@ export function cardView(card, { now = Date.now() } = {}) {
     url: text(data.url),
     release,
     finish: release.finish,
-    tabs: cardTabs.map(tab => ({ ...tab, ...tabs[tab.id] })),
+    rounds: known(data.totals?.rounds) ? data.totals.rounds : null,
+    grade,
+    condition,
+    gates,
+    set,
+    evolved: data.evolved === true,
+    style: { skin: text(style.skin), theme: text(style.theme) },
+    foilPattern: text(data.copy?.foilPattern) || null,
+    copy: copyView(data),
+    tabs: cardTabs.map(tab => ({ groups: [], ...tab, ...tabs[tab.id] })),
   };
 }

@@ -10,7 +10,7 @@ change either side and the test tells you.
 | [outcomereport.v1.schema.json](outcomereport.v1.schema.json) | Harness output and the body of `POST /api/v1/runs/{token}/outcome`. Stuck requires a reason (R4). The optional `createdWorkItems` carries the Work Items a Run proposes ([ADR-0031](../adrs/0031-runs-create-work-items-held-for-approval-within-limits.md)). |
 | [checkpoint.v1.schema.json](checkpoint.v1.schema.json) | The durable progress record (shared by TaskSpec, OutcomeReport, and the checkpoint endpoint). |
 | [run-api.v1.schema.json](run-api.v1.schema.json) | All run-API message bodies (claim/renew/checkpoint/outcome). |
-| [operator-api.v1.schema.json](operator-api.v1.schema.json) | Authenticated, team-scoped read projections of teams, activity summaries, work items, shifts, runs, the Run list, checkpoints and snapshot audit pages, and the Run card of a Work Item ([ADR-0046](../adrs/0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md)). |
+| [operator-api.v1.schema.json](operator-api.v1.schema.json) | Authenticated, team-scoped read projections of teams, activity summaries, work items, shifts, runs, the Run list, checkpoints and snapshot audit pages, the Run Card of a Work Item ([ADR-0046](../adrs/0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md)) and the card list by roster login ([ADR-0054](../adrs/0054-a-card-list-finds-cards-by-roster-login-newest-activity-first.md)). |
 | [deploy-api.v1.schema.json](deploy-api.v1.schema.json) | `POST /api/v1/deploys`: a pipeline reports that a commit is live in an environment, with its own bearer token ([ADR-0047](../adrs/0047-ploeg-learns-where-a-merged-change-is-deployed-from-a-generic-deploy-endpoint.md), [how-to](../how-to/send-deploys-from-a-pipeline.md)). |
 | [tracker-execution.md](tracker-execution.md), [v1 schema](tracker-execution.v1.schema.json) | Scoped source lookup and exclusive operator binding of an existing pristine tracker Work Item. |
 | [acp-profiles.md](acp-profiles.md) | The `acp` harness profiles: launch command, gateway wiring, instruction files and approval mapping per agent, and what an image needs to run them. |
@@ -28,7 +28,7 @@ change either side and the test tells you.
   [ADR-0045](../adrs/0045-keep-run-usage-and-merge-facts.md) the optional
   cache, turn, duration, tool-call, context and per-model figures. A harness
   leaves out any figure it did not measure; it never sends a default zero.
-- The Run card (`GET /api/v1/operator/work-items/{id}/card`) is a new
+- The Run Card (`GET /api/v1/operator/work-items/{id}/card`) is a new
   response, not a change to an existing one. Its `schemaVersion` is the
   number `1`, as the Vloer card contract states, where the older operator
   responses send the string `"1.0"`. It follows the same rule: a fact nobody
@@ -39,6 +39,29 @@ change either side and the test tells you.
   own `deployments`. They are required because Ploeg always sends them, empty
   or null when no deploy was reported. `release.source` is `merge` while the
   repository has never reported a deploy of its release environment.
+- Since [ADR-0050](../adrs/0050-a-run-cards-grade-is-a-versioned-formula-over-stored-facts.md)
+  the card's `grade` is an object or null, computed under the formula version
+  it names, with the inputs it used. Since
+  [ADR-0051](../adrs/0051-delivery-gates-are-mapped-per-board-from-tracker-statuses.md)
+  the card may carry `gates` (an object or null) and `evolved`, and the roster
+  may name `qa` and `acceptor`. Both new fields are optional, so a consumer
+  of an older Ploeg sees them absent.
+- Since [ADR-0052](../adrs/0052-a-crack-needs-the-fixer-and-a-second-person-and-ploeg-only-proposes-candidates.md)
+  the card's `condition` is a `cardCondition` object or null, the grade's
+  `formula` may be `2026.2`, and the roster may name `cosigner`. A consumer
+  that only knew `condition: null` must accept the object. The attribution
+  endpoints are new responses: `crackCandidatesResponse`, `cracksResponse`
+  and `crackResponse`, all with `schemaVersion` `"1.0"`. Their requests
+  refuse unknown fields.
+- Since [ADR-0053](../adrs/0053-an-epic-is-a-set-of-the-work-items-declared-its-children-before-their-first-shift.md)
+  the card may carry `set`, a `cardSet` object. It is optional and absent
+  when the Work Item belongs to no epic that counts.
+- Since [ADR-0054](../adrs/0054-a-card-list-finds-cards-by-roster-login-newest-activity-first.md)
+  the card list (`GET /api/v1/operator/cards?member=<login>`) is a new
+  response, `cardsResponse`: `schemaVersion` the number `1`, as the single
+  card sends, `cards` in the card's own shape, and `nextBefore`, an opaque
+  cursor or null. A page can hold fewer cards than its `limit`, or none,
+  while `nextBefore` is set.
 - `deploy-api.v1` is the body of a pipeline's deploy report. It refuses
   unknown fields, unlike the response contracts, so a misspelled field fails
   the pipeline step instead of being dropped.
