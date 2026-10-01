@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { application, login, request } from './api-support.ts';
-import { diffEntries } from '../src/ahp/host.ts';
+import { chatChannel, diffEntries, parseChannel } from '../src/ahp/host.ts';
 import { scaledTimeout, settle, testTimeout } from './timeframes.ts';
 
 type Json = Record<string, any>;
@@ -64,16 +64,20 @@ test('the agent host speaks AHP 0.9: initialize, create a session from a chat, s
   assert.ok(resolved.schema.properties.repository.enum.includes('order-service'));
   assert.equal(resolved.values.crew, 'delivery');
 
-  const sessionUri = `ahp-session:/${randomUUID()}`;
-  const chatUri = `ahp-chat:/${randomUUID()}`;
+  const sessionId = randomUUID();
+  const sessionUri = `de-vloer:/${sessionId}`;
+  const chatUri = chatChannel(sessionId);
+  assert.equal(chatUri, `ahp-chat://default/${Buffer.from(sessionUri).toString('base64url')}`, 'the default chat has the URI VS Code derives from the session');
   assert.deepEqual(await alice.rpc('createSession', { channel: sessionUri, provider: 'de-vloer', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Agent host demo' } }), {});
   await alice.until(message => action(message, sessionUri, 'session/ready'));
   await alice.until(message => message.method === 'root/sessionAdded' && message.params.summary.resource === sessionUri);
   await assert.rejects(alice.rpc('createSession', { channel: sessionUri }), (error: any) => error.code === -32003);
-  assert.deepEqual(await alice.rpc('createChat', { channel: sessionUri, chat: chatUri, initialMessage: { text: 'Reproduce the rounding regression and fix it with the tests intact.', origin: { kind: 'user' } } }), {});
-  const added = await alice.until(message => message.method === 'root/sessionAdded' && message.params.summary.resource !== sessionUri);
-  const realSession: string = added.params.summary.resource;
-  const realChat = realSession.replace('ahp-session:/', 'ahp-chat:/');
+  const drafted = await alice.rpc('subscribe', { channel: sessionUri });
+  assert.equal(drafted.snapshot.state.defaultChat, chatUri, 'the default chat exists before the first message');
+  assert.equal((await alice.rpc('subscribe', { channel: chatUri })).snapshot.state.resource, chatUri);
+  alice.notify('dispatchAction', { channel: chatUri, clientSeq: 1, action: { type: 'chat/turnStarted', turnId: 'client-turn', startedAt: new Date().toISOString(), message: { text: 'Reproduce the rounding regression and fix it with the tests intact.', origin: { kind: 'user' } } } });
+  const realSession = sessionUri;
+  const realChat = chatUri;
   const started = await alice.until(message => action(message, realChat, 'chat/turnStarted'));
   assert.equal(started.params.action.message.text, 'Reproduce the rounding regression and fix it with the tests intact.');
   assert.equal(started.params.origin.clientId, 'alice');
@@ -91,14 +95,17 @@ test('the agent host speaks AHP 0.9: initialize, create a session from a chat, s
   assert.equal(bobInit.snapshots[0].state.activeSessions, 0);
   const listed = await bob.rpc('listSessions', { channel: 'ahp-root://' });
   assert.ok(listed.items.some((item: Json) => item.resource === realSession && item.title === 'Agent host demo'));
+  assert.ok(!alice.inbox.some(message => message.method === 'root/sessionRemoved'), 'the first turn keeps the session the client created');
+  assert.equal(initialized.snapshots[0].state.agents[0].capabilities, undefined, 'no multi-chat or multi-folder capability is advertised');
+  assert.ok(listed.items.every((item: Json) => item.workingDirectories === undefined), 'no host filesystem path is exposed');
   const subscribed = await bob.rpc('subscribe', { channel: realChat });
   assert.equal(subscribed.snapshot.state.turns.at(-1).state, 'complete');
   assert.ok(subscribed.snapshot.state.turns.at(-1).responseParts.length > 2);
   const sessionSnapshot = await bob.rpc('subscribe', { channel: realSession });
   assert.equal(sessionSnapshot.snapshot.state.lifecycle, 'ready');
   assert.equal(sessionSnapshot.snapshot.state.defaultChat, realChat);
-  assert.equal(sessionSnapshot.snapshot.state.changesets[0].uriTemplate, realSession.replace('ahp-session:/', 'ahp-changeset:/'));
-  const changeset = await bob.rpc('subscribe', { channel: realSession.replace('ahp-session:/', 'ahp-changeset:/') });
+  assert.equal(sessionSnapshot.snapshot.state.changesets[0].uriTemplate, `ahp-changeset:/${sessionId}`);
+  const changeset = await bob.rpc('subscribe', { channel: `ahp-changeset:/${sessionId}` });
   assert.equal(changeset.snapshot.state.status, 'ready');
   assert.ok(changeset.snapshot.state.files.length > 0);
   const contentUri = changeset.snapshot.state.files[0].edit.after.content.uri;
@@ -207,7 +214,7 @@ test('the agent host keeps each user to their own sessions, summaries and reject
   const alice = await attach('alice-ahp');
   const bob = await attach('bob-ahp');
 
-  const sessionUri = `ahp-session:/${randomUUID()}`;
+  const sessionUri = `de-vloer:/${randomUUID()}`;
   await alice.rpc('createSession', { channel: sessionUri, provider: 'de-vloer', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Alice private work' } });
   await alice.until(message => message.method === 'root/sessionAdded' && message.params.summary.resource === sessionUri);
   await assert.rejects(bob.rpc('subscribe', { channel: sessionUri }), (error: any) => error.code === -32001, 'another user cannot subscribe to a pending session');
@@ -224,4 +231,47 @@ test('the agent host keeps each user to their own sessions, summaries and reject
   assert.deepEqual(leaked, [], 'nothing about Alice reaches Bob');
   assert.equal((await bob.rpc('subscribe', { channel: 'ahp-root://' })).snapshot.state.activeSessions, 0);
   assert.deepEqual((await bob.rpc('listSessions', { channel: 'ahp-root://' })).items, []);
+});
+
+test('channels parse in the VS Code spelling and in the earlier ahp- spelling', () => {
+  const id = 'abc-123';
+  assert.deepEqual(parseChannel(`de-vloer:/${id}`), { kind: 'session', id });
+  assert.deepEqual(parseChannel(`ahp-session:/${id}`), { kind: 'session', id });
+  assert.deepEqual(parseChannel(chatChannel(id)), { kind: 'chat', id });
+  assert.deepEqual(parseChannel(`ahp-chat://default/${Buffer.from(`ahp-session:/${id}`).toString('base64url')}`), { kind: 'chat', id });
+  assert.deepEqual(parseChannel(`ahp-chat:/${id}`), { kind: 'chat', id });
+  assert.deepEqual(parseChannel(`ahp-changeset:/${id}`), { kind: 'changeset', id });
+  assert.equal(parseChannel(`ahp-chat://default/${Buffer.from('ahp-root://').toString('base64url')}`), undefined);
+  assert.equal(parseChannel(`copilot:/${id}`), undefined);
+  assert.equal(parseChannel('ahp-root://'), undefined);
+});
+
+test('a session created with the earlier ahp-session spelling is listed and streamed under the VS Code spelling', { timeout: testTimeout(60_000) }, async t => {
+  const server = await application();
+  t.after(() => server.close());
+  const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'legacy' } });
+  const client = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`);
+  t.after(() => client.close());
+  await client.open;
+  await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'legacy', initialSubscriptions: ['ahp-root://'] });
+  const id = randomUUID();
+  await client.rpc('createSession', { channel: `ahp-session:/${id}`, provider: 'de-vloer', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Legacy spelling' } });
+  await client.until(message => action(message, `ahp-session:/${id}`, 'session/ready'));
+  await client.until(message => message.method === 'root/sessionAdded' && message.params.summary.resource === `de-vloer:/${id}`);
+  await client.rpc('subscribe', { channel: `ahp-chat:/${id}` });
+  client.notify('dispatchAction', { channel: `ahp-chat:/${id}`, clientSeq: 1, action: { type: 'chat/turnStarted', turnId: 'legacy-turn', startedAt: new Date().toISOString(), message: { text: 'Reproduce the rounding regression and fix it with the tests intact.', origin: { kind: 'user' } } } });
+  await client.until(message => action(message, `ahp-chat:/${id}`, 'chat/turnComplete'));
+  const listed = await client.rpc('listSessions', { channel: 'ahp-root://' });
+  assert.ok(listed.items.some((item: Json) => item.resource === `de-vloer:/${id}`), 'the client-chosen id survives the first turn');
+
+  client.close();
+  await server.restart();
+  const reissued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'after restart' } });
+  const again = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${reissued.body.token}`);
+  t.after(() => again.close());
+  await again.open;
+  await again.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'again' });
+  assert.ok((await again.rpc('listSessions', { channel: 'ahp-root://' })).items.some((item: Json) => item.resource === `de-vloer:/${id}`), 'the client-chosen id survives a restart');
+  const chat = await again.rpc('subscribe', { channel: chatChannel(id) });
+  assert.equal(chat.snapshot.state.turns.at(-1).state, 'complete');
 });
