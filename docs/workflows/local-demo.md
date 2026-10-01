@@ -2,8 +2,8 @@
 type: tutorial
 audience: [owner, operator, integrator, contributor]
 owner: unfold
-last_verified: 2026-09-23
-verified_by: "Read apps/vloer/scripts/unified-demo.ts (prerequisite commands, ready/stopped/smoke-passed events, environment settings, cleanup), apps/vloer/package.json, root mise.toml and apps/ploeg/go.mod"
+last_verified: 2026-10-02
+verified_by: "Read apps/vloer/scripts/unified-demo.ts (prerequisite commands, ready/stopped/smoke-passed events, environment settings, cleanup), apps/vloer/package.json, root mise.toml and apps/ploeg/go.mod; on 2026-10-02 ran mise run demo-record, npm run replay:check and mise run demo-replay-conformance for the hosted replay section"
 ---
 
 # Local shared execution demonstration
@@ -57,3 +57,18 @@ mise exec -- node apps/vloer/scripts/unified-demo.ts --smoke
 ```
 
 Smoke mode launches the same stack, starts its prepared session, hands it to background supervision, waits for real fixture verification and independent review, and checks that the same Ploeg execution completed with exactly one operator Run. It prints `unified-demo.smoke-passed`, then performs the same cleanup and exits. The result records zero model calls and spend. A weekly CI job runs this page's two commands through `mise run docs-tutorial-smoke`, which skips when PostgreSQL is missing or the user is root. The longer [operator qualification](../../apps/vloer/scripts/qualify-ploeg.ts) additionally covers pause, cancellation, durable event replay and service-instance recovery.
+
+## The hosted replay
+
+The marketing site's `/demo/` page is a recorded replay of Vloer's own deterministic demo (`mise run demo`), not of this unified launcher ([ADR-0015](../adr/adr-0015-the-hosted-demo-is-a-recorded-replay-of-the-deterministic-demo.md)). It loads Vloer's unchanged interface; a small script answers its API from a recording, so nothing runs and nothing is sent anywhere. A banner names the Vloer commit and the recording date.
+
+- The views and the demo session come from a real demo run. The session plays one event every 1.2 seconds after **Run the demonstration**, and its review can be accepted or rejected. **Restart the replay** in the banner starts over.
+- Pausing, cancelling the session, instructions, a brief of your own, approving proposed work, crack attributions, opening packs and every settings change answer "This hosted replay is recorded. Run mise run demo to try this."
+
+After a change to Vloer's interface, demo runtime or demo data, `mise run verify` fails in its `demo-replay` group until the recording is regenerated:
+
+```sh
+mise run demo-record
+```
+
+Commit the changed `apps/site/replay/` files in a separate commit scoped `site`, because the site only releases for commits under `apps/site`. `mise run demo-replay-conformance` drives the replay in Chromium and fails on any request the recording cannot answer, a page error or a CSP violation; it needs a local Chromium (`VLOER_CHROMIUM_BIN` or Playwright's own).
