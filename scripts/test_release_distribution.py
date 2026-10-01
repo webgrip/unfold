@@ -191,8 +191,17 @@ class DistributionTests(unittest.TestCase):
         with patch.object(release_registry, 'verify_signature') as verify, patch.object(release_registry, 'command') as command:
             copy_image(source, target, 'webgrip/ploegd', '0.3.0-rc.8', 'selected-sha')
             self.assertEqual(verify.call_count, 2)
-            self.assertEqual(command.call_count, 1)
-            self.assertEqual(command.call_args.args[:3], ('cosign', 'copy', '--only=sig,att,sbom'))
+            index = digest(source.manifests['webgrip/ploegd', '0.3.0-rc.8'])
+            command.assert_called_once_with('regctl', 'image', 'copy', '--referrers', '--digest-tags', f'source/webgrip/ploegd@{index}', 'target/webgrip/ploegd:0.3.0-rc.8')
+
+    def test_an_existing_destination_version_with_other_content_is_never_copied_over(self):
+        source, target = fixture(), fixture()
+        target.host = 'target'
+        target.manifests['webgrip/ploegd', '0.3.0-rc.8'] = b'{"manifests":[]}'
+        with patch.object(release_registry, 'verify_signature'), patch.object(release_registry, 'command') as command:
+            with self.assertRaisesRegex(RuntimeError, 'immutable'):
+                copy_image(source, target, 'webgrip/ploegd', '0.3.0-rc.8', 'selected-sha')
+            command.assert_not_called()
 
     def test_every_chart_names_unfold_as_its_source_and_home(self):
         root = Path(__file__).resolve().parent.parent
