@@ -3,7 +3,7 @@
   --gc-surface: var(--bg-surface);
   --gc-radius: var(--radius-lg, 12px);
   --gc-width: 19.5rem;
-  inline-size: var(--gc-width);
+  inline-size: 100%;
 }
 
 .card {
@@ -212,26 +212,29 @@ a:hover {
   inset: 0;
   display: grid;
   place-content: center;
+  gap: 0.05rem;
   text-align: center;
   line-height: 1.15;
-  padding: 0 0.5rem;
+  padding: 0 0.4rem;
 }
 
 .ring .mid b {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-weight: var(--weight-bold);
   font-variant-numeric: tabular-nums;
   letter-spacing: var(--tracking-snug);
+  overflow-wrap: anywhere;
 }
 
 .ring[data-status="not_reported"] .mid b {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   font-weight: var(--weight-semibold);
   color: var(--text-muted);
 }
 
 .ring .mid span {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
+  line-height: 1.2;
   color: var(--text-subtle);
 }
 
@@ -266,14 +269,13 @@ a:hover {
 .t b {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.3rem;
   min-inline-size: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-weight: var(--weight-bold);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .add { color: var(--success-fg); }
@@ -282,9 +284,8 @@ a:hover {
 .sub {
   color: var(--text-subtle);
   font-weight: var(--weight-medium);
-  font-size: var(--text-xs);
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: var(--text-2xs);
+  overflow-wrap: anywhere;
 }
 
 .partial {

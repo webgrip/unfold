@@ -313,36 +313,30 @@
 
 .work-card {
   display: grid;
-  grid-template-areas: "heading" "card";
-  gap: var(--space-2);
-  justify-items: start;
+  gap: var(--space-3);
+  justify-items: stretch;
   min-width: 0;
 }
 
-.work-card-heading {
-  grid-area: heading;
-  display: grid;
-  gap: var(--space-1);
-  max-inline-size: 28rem;
-}
-
-.work-card-heading .meta {
+.work-card-headline {
   margin: 0;
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+  font-weight: var(--weight-title);
+  letter-spacing: var(--tracking-snug);
+  text-wrap: pretty;
 }
 
 .work-run-card {
-  grid-area: card;
-  inline-size: min(19.5rem, 100%);
-  min-block-size: 30rem;
+  inline-size: 100%;
+  min-block-size: 0;
 }
 
-@container work-detail (min-width: 40rem) {
-  .work-card {
-    grid-template-columns: auto minmax(0, 1fr);
-    grid-template-areas: "card heading";
-    column-gap: var(--space-5);
-    align-items: start;
-  }
+.work-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .work-detail-bar {
@@ -1401,6 +1395,14 @@
     min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
+  }
+
+  .work[data-detail] .work-layout:has(.work-list-pane .empty-state) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .work[data-detail] .work-layout:has(.work-list-pane .empty-state) .work-list-pane {
+    display: none;
   }
 
   .work[data-detail] .reason-band {

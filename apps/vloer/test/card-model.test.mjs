@@ -158,15 +158,43 @@ test('Vloer Native fills the required slots, escapes every value and draws witho
   assert.doesNotMatch(front, /class="day"|class="fx /, 'an unreleased card draws no day chip and no finish layer');
 });
 
-test('the Work Item page holds a card slot above Rounds only when Ploeg sent a card', () => {
+test('the Work Item page heads the detail with a card only when Ploeg sent one, and falls back when it did not', () => {
   const detail = { ...structuredClone(ploegDemo.details['105']), demo: true, fetchedAt: '2026-10-01T00:00:00Z' };
   const model = { lane: 'awaiting_review', team: '', detailId: '105', listHref: '#work', canCancel: false, sessions: [], now: Date.now() };
   assert.equal(cardSectionMarkup(detail, model), '');
   assert.equal(cardSectionMarkup(detail, { ...model, card: { ...ploegDemo.cards['114'] } }), '', 'a card for another Work Item is ignored');
   const html = detailMarkup(detail, { ...model, card: ploegDemo.cards['105'] });
+  assert.match(html, /<h3 class="work-card-headline" id="work-card-headline">Ready for your review · No verdict PR #5 after 2 Rounds<\/h3>/, 'the headline states what happened');
   assert.match(html, /<unfold-card class="work-run-card" data-work-item="105"><\/unfold-card>/);
+  assert.match(html, /<div class="work-card-actions"><a class="button primary" href="https:\/\/forge\.example\.invalid\/example\/order-service\/pulls\/5"[^>]*data-link-out="pr">[^]*Open pull request #5/, 'the card carries the primary action');
+  assert(html.indexOf('id="work-card"') > html.indexOf('id="ploeg-item-title"') && html.indexOf('id="work-card"') < html.indexOf('id="work-account"'), 'the card heads the detail, above the problem and solution');
+  assert(html.indexOf('id="work-card"') < html.indexOf('id="work-decision"'), 'the card sits above the review box');
   assert(html.indexOf('id="work-card"') < html.indexOf('id="work-rounds"'), 'the card sits above Rounds');
   assert(html.includes('id="work-rounds"'), 'the Runs stay');
+  assert.match(html, /<details class="disclosure" id="work-forge-105">/, 'the forge outcomes are a closed disclosure');
+  assert.doesNotMatch(html, /class="overline" id="work-card-title"/, 'the separate Run card caption is gone');
+  const without = detailMarkup(detail, model);
+  assert.doesNotMatch(without, /id="work-card"/);
+  assert.match(without, /<div class="work-receipt">/, 'without a card the review box keeps the full receipt');
+  assert.match(without, /The reviewer reported no change needed but gave no verdict\./, 'and the verdict check');
+  assert.equal((without.match(/Open pull request #5/g) || []).length, 2, 'and its own primary action (box and phone bar)');
+});
+
+test('with a card the review box keeps only the checks, folding the neutral ones and closing the forge outcomes', () => {
+  const detail = { ...structuredClone(ploegDemo.details['105']), demo: true, fetchedAt: '2026-10-01T00:00:00Z' };
+  const model = { lane: 'awaiting_review', team: '', detailId: '105', listHref: '#work', canCancel: false, sessions: [], now: Date.now() };
+  const html = detailMarkup(detail, { ...model, card: ploegDemo.cards['105'] });
+  const box = html.slice(html.indexOf('id="work-decision"'), html.indexOf('id="work-brief"'));
+  assert.doesNotMatch(box, /<div class="work-receipt">/, 'the card already shows the receipt the box would repeat');
+  assert.doesNotMatch(box, /The reviewer reported no change needed but gave no verdict\./, 'and the verdict the headline carries');
+  assert.match(box, /<p class="meta work-checklist-note">2 not reported: CI, tracker link<\/p>/, 'neutral checks fold into one muted line');
+  assert.doesNotMatch(box, /data-tone="neutral"/, 'no neutral check item is left in the list');
+  assert.match(box, /<li class="work-check" data-tone="attention">[^]*Findings name an instruction file/, 'warnings stay visible');
+  assert.match(box, /<li class="work-check" data-tone="success">[^]*Pull request #5 reported by the writer/, 'successes stay visible');
+  assert.match(box, /<details class="disclosure" id="work-forge-105"><summary><span class="disclosure-summary">On the forge<\/span>/, 'the forge outcomes are a closed disclosure');
+  assert.doesNotMatch(box, /class="work-check" data-tone="success"[^]*The agent reviewer approved/, 'the verdict check is the card headline now');
+  assert.match(box, /data-action="work-run" data-id="53">Read the findings/, 'the box keeps the findings action');
+  assert.doesNotMatch(box, /Open pull request #5/, 'the card carries the primary action, not the box');
 });
 
 const now = Date.parse('2026-10-01T12:00:00Z');
