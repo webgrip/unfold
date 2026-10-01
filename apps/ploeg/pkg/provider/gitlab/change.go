@@ -35,7 +35,8 @@ func (p *Provider) PullRequestChange(ctx context.Context, repo string, mr int) (
 	if err := p.getJSON(ctx, base, &head); err != nil {
 		return provider.PullRequestChange{}, fmt.Errorf("gitlab: read %s!%d: %w", repo, mr, err)
 	}
-	out := provider.PullRequestChange{Title: head.Title, Body: head.Description, Labels: []string{}, Files: []string{}, Commits: []string{}}
+	out := provider.PullRequestChange{Title: head.Title, Body: head.Description, Labels: []string{}, Files: []string{}, Commits: []string{},
+		Lines: map[string]provider.FileLines{}}
 	for _, l := range head.Labels {
 		if l != "" {
 			out.Labels = append(out.Labels, l)
@@ -58,8 +59,11 @@ func (p *Provider) PullRequestChange(ctx context.Context, repo string, mr int) (
 diffs:
 	for page := 1; ; page++ {
 		var diffs []struct {
-			NewPath string `json:"new_path"`
-			OldPath string `json:"old_path"`
+			NewPath   string `json:"new_path"`
+			OldPath   string `json:"old_path"`
+			Diff      string `json:"diff"`
+			TooLarge  bool   `json:"too_large"`
+			Collapsed bool   `json:"collapsed"`
 		}
 		if err := p.getJSON(ctx, fmt.Sprintf("%s/diffs?page=%d&per_page=%d", base, page, changePageSize), &diffs); err != nil {
 			return provider.PullRequestChange{}, fmt.Errorf("gitlab: diffs of %s!%d: %w", repo, mr, err)
@@ -67,6 +71,13 @@ diffs:
 		for _, d := range diffs {
 			if !add(d.NewPath) || !add(d.OldPath) {
 				break diffs
+			}
+			if d.TooLarge || d.Collapsed || d.NewPath == "" {
+				continue
+			}
+			out.Lines[d.NewPath] = diffLines(d.Diff)
+			if d.OldPath != "" && d.OldPath != d.NewPath {
+				out.Lines[d.OldPath] = provider.FileLines{}
 			}
 		}
 		if len(diffs) < changePageSize {
@@ -92,6 +103,19 @@ diffs:
 		}
 	}
 	return out, nil
+}
+
+func diffLines(diff string) provider.FileLines {
+	var lines provider.FileLines
+	for _, line := range strings.Split(diff, "\n") {
+		switch {
+		case strings.HasPrefix(line, "+"):
+			lines.Additions++
+		case strings.HasPrefix(line, "-"):
+			lines.Deletions++
+		}
+	}
+	return lines
 }
 
 func (p *Provider) getJSON(ctx context.Context, target string, out any) error {

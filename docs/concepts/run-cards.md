@@ -2,7 +2,7 @@
 type: explanation
 audience: [owner, operator, contributor, agent]
 owner: unfold
-last_verified: 2026-10-01
+last_verified: 2026-10-02
 verified_by: "built parts read against Ploeg ADR-0045, ADR-0046, ADR-0047 and ADR-0049, Vloer ADR 0026, apps/ploeg/pkg/store/card.go and apps/vloer/public/cards on development @ 810c97a; binders, packs and seasons read against Vloer ADR 0029 and apps/vloer/src/{collection,packs,season}.ts on feat/vloer-binder-packs; proposed parts checked against the owner's design page and card contracts of 2026-10-01; the Vloer collection was run in its demo browser flow"
 ---
 
@@ -10,7 +10,7 @@ verified_by: "built parts read against Ploeg ADR-0045, ADR-0046, ADR-0047 and AD
 
 A **Run Card** is the record of one Work Item's change and its life in production. It shows who carried the change, what its Runs cost, which pull requests it took, how review and CI went and where it is deployed. Over time it is meant to show how well the change held up. It makes caring about a change visible, and it is meant to be fun.
 
-**Most of this page is a proposal.** Ploeg already assembles a card for every Work Item and Vloer draws it, with days live and a finish. Rarity is an open decision. Everything else below is labelled **Proposed** and is not built. The [glossary](../reference/glossary.md) defines each **bold** term.
+**Most of this page is a proposal.** Ploeg already assembles a card for every Work Item and Vloer draws it, with days live and a finish. Ploeg computes rarity; Vloer does not show it yet. Everything else below is labelled **Proposed** and is not built. The [glossary](../reference/glossary.md) defines each **bold** term.
 
 ## A record of a change, not a score of a person
 
@@ -39,7 +39,7 @@ The first three build phases are merged on `development`: P0 keeps the facts a c
 | Usage so far while a Run is running | Built; ADR proposed | [Ploeg ADR-0049](../../apps/ploeg/docs/adrs/0049-a-run-card-reads-the-gateway-for-usage-so-far-while-a-run-is-running.md) |
 | The `<unfold-card>` runtime, the Vloer Native skin, the card on the Work Item page, days live, the finish ladder and a demo card | Built; ADR proposed | [Vloer ADR 0026](../../apps/vloer/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md) |
 | A card comment on the pull request: the card as a static image above a summary table, kept as one comment and updated at a merge, a release to production, a new finish or a mend. A team turns it on with `cards.prComment` | Built; ADR proposed; off by default | [Ploeg ADR-0055](../../apps/ploeg/docs/adrs/0055-ploeg-keeps-one-card-comment-with-a-static-card-image-on-the-pull-request.md) |
-| Rarity | **Open**; Ploeg sends `null` | |
+| Rarity: a challenge score, predicted at mint, revealed and frozen at release, tiered per project and quarter | Built in Ploeg; ADR proposed; Vloer still drops it | [Ploeg ADR-0056](../../apps/ploeg/docs/adrs/0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md) |
 | Binders, Packs with published odds and stored cosmetic pulls, the pack ceremony and team season pages | Vloer side built against the card contract and fixtures; ADR proposed; Ploeg's card list built in parallel | [Vloer ADR 0029](../../apps/vloer/docs/adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md) |
 | Grade, condition (Cracks and Mends), level, Gates and Bounces, Roster roles and copies, the Steward rule, Set Cards, themes, the effects director, retention | **Proposed** | This page |
 
@@ -61,18 +61,17 @@ Ploeg derives the card's state today: `drafting` before the first pull request, 
 
 Collectible games keep *what a card is* apart from *what it earned*; mixing them causes inflation and grind ([trading-card design](../research/2026-10-01-run-cards-trading-card-design.md)). A Run Card has five axes, each with its own visual channel.
 
-### Rarity: open
+### Rarity: decided, built in Ploeg
 
-**Rarity** says how exceptional the change is, apart from how well it was done (Grade) and how long it has held up (Finish). It is cosmetic only. **The owner has not decided it.** Ploeg sends `rarity: null`, and nothing may depend on it.
+**Rarity** says how exceptional the change was, apart from how well it was done (Grade) and how long it has held up (Finish). It is cosmetic only. The owner decided on 2026-10-02 that rarity means challenge. Ploeg computes it ([Ploeg ADR-0056](../../apps/ploeg/docs/adrs/0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md), proposed); Vloer does not draw it yet.
 
-The current proposal:
+* **Challenge, from facts nobody pads afterwards.** The score adds the change's reach (modules and repositories), its sensitive ground (migrations, schemas, API definitions, deploy and CI files, and paths a Work Target marks for attention), its novelty (files no other card touched in the 180 days before) and its size in lines, damped and without lockfiles or generated files. Cost, time, tokens, bounces and the grade are never inputs. The formula is versioned and printed on the card's back.
+* **Two moments.** From its first Run the card carries a tier predicted from what is known before the merge. At release it is revealed from the real change, and the two may differ.
+* **Tiers are percentiles per project and quarter:** Legendary (top 1 %), Epic (next 4 %), Rare (next 10 %), Uncommon (next 25 %) and Common. Fixed thresholds apply while a project has fewer than 30 revealed cards that quarter.
+* **Frozen at reveal.** Once revealed, a card keeps its tier even as its cohort grows.
+* **Sets.** An epic's own card is legendary while its set is complete.
 
-* **Rarity means challenge.** It is fed by facts the developer does not control afterwards: the complexity and risk of the code touched, its reach (modules, repositories, migrations, API), novelty and estimate versus actual. Lines, cost and time are excluded because they are easy to pad.
-* **Two moments.** At mint the card lies face down with a glow predicted from what is known up front. At release it turns over to its rarity from the real data. That is deterministic, never a gamble.
-* **Tiers are percentiles per project and season:** Token (chores), Common, Uncommon (top 40 %), Rare (top 15 %), Epic (top 5 %) and Legendary (top 1 %). Fixed thresholds apply while a project has fewer than about 30 cards. A Set Card's rarity comes from completing its set.
-* Special printings mark genuinely rare events rather than tiers: 1st Edition, Black Label, Keystone and Untouched.
-
-Still open: challenge alone, or a mix of challenge and quality; reveal at release or at acceptance; comparison per project or per Team.
+Proposed and not built: special printings for genuinely rare events (1st Edition, Black Label, Keystone and Untouched), and a Token tier for chores.
 
 ### Finish: built
 
@@ -206,7 +205,7 @@ A **Skin** changes how a card looks and moves, never its numbers or where they s
 | Deploy signal | Decided, built | A generic "commit is live in environment" endpoint; merge as the fallback |
 | Card style | Decided, built | On the Work Target; per-client themes on top of skins |
 | Visibility | Decided | Binders private; team pages for the team; clients see team aggregates only |
-| Rarity | Open | See [Rarity: open](#rarity-open) |
+| Rarity | Decided, built in Ploeg | Challenge, predicted at mint and frozen at release, percentile tiers per project and quarter; see [Rarity](#rarity-decided-built-in-ploeg) |
 | Steward and roles | Proposed | Role copies with shared fate; the Steward is the developer carrying the Work Item |
 | Gates and bounces | Proposed | Tracker-status mapping per project plus the deploy endpoint |
 | Packs | Proposed; Vloer side built | Earned, cosmetic-only pulls, published odds, one per person per period (an ISO week, or a Team's sprint) |

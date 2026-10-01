@@ -20,7 +20,8 @@ func TestPullRequestChange_ReadsTitleLabelsDiffsAndCommits(t *testing.T) {
 		case "/api/v4/projects/group%2Fsub%2Fapp/merge_requests/4":
 			fmt.Fprint(w, `{"title":"Fix login","description":"closes #3","labels":["hotfix","bug"]}`)
 		case "/api/v4/projects/group%2Fsub%2Fapp/merge_requests/4/diffs":
-			fmt.Fprint(w, `[{"new_path":"a.go","old_path":"a.go"},{"new_path":"b.go","old_path":"c.go"}]`)
+			fmt.Fprint(w, `[{"new_path":"a.go","old_path":"a.go","diff":"@@ -1,2 +1,3 @@\n-old\n+new\n+--- not a header\n keep\n\\ No newline at end of file\n"},`+
+				`{"new_path":"b.go","old_path":"c.go","diff":""},{"new_path":"big.sql","old_path":"big.sql","diff":"","too_large":true}]`)
 		case "/api/v4/projects/group%2Fsub%2Fapp/merge_requests/4/commits":
 			fmt.Fprint(w, `[{"message":"fix login"}]`)
 		default:
@@ -33,7 +34,8 @@ func TestPullRequestChange_ReadsTitleLabelsDiffsAndCommits(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := provider.PullRequestChange{Title: "Fix login", Body: "closes #3", Labels: []string{"hotfix", "bug"},
-		Files: []string{"a.go", "b.go", "c.go"}, Commits: []string{"fix login"}}
+		Files: []string{"a.go", "b.go", "c.go", "big.sql"}, Commits: []string{"fix login"},
+		Lines: map[string]provider.FileLines{"a.go": {Additions: 2, Deletions: 1}, "b.go": {}, "c.go": {}}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("change = %+v; want %+v", got, want)
 	}

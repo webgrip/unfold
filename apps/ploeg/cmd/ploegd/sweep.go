@@ -104,6 +104,7 @@ func sweepLoop(ctx context.Context, log *slog.Logger, st *store.Store, sweeper l
 			forgeOrphanSweep(ctx, log, st, forgeSweeper)
 			mendSweep(ctx, log, st)
 			server.SweepCardComments(ctx)
+			server.SweepCardRarity(ctx)
 		case <-t.C:
 			if err := server.ReconcileOperatorExecutions(ctx); err != nil {
 				log.Error("operator execution reconciliation failed")

@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webgrip/ploeg/pkg/rarity"
 	"github.com/webgrip/ploeg/pkg/store"
 )
 
@@ -58,6 +59,10 @@ type OperatorConfig struct {
 	// Work Target that names one, keyed by lowercased "owner/name"
 	// (ADR-0047). A Work Target absent here releases in production.
 	ReleaseEnvironments map[string]string
+	// RarityMatchers holds the rarity path rules of each configured Work
+	// Target that sets them, keyed by lowercased "owner/name" (ADR-0056).
+	// A Work Target absent here uses the defaults.
+	RarityMatchers map[string]rarity.Matcher
 }
 
 type operatorPrincipalKey struct{}
