@@ -158,7 +158,7 @@ executor:
     # lists directories inside the image to put on PATH (default /bin); `env`
     # is set in the harness environment (PLOEG_TOOLCHAINS).
     # - name: go
-    #   image: harbor.webgrip.dev/dockerhub/library/golang:1.26-alpine@sha256:...
+    #   image: harbor.webgrip.dev/dockerhub/library/golang:1.27-alpine@sha256:...
     #   path: [/usr/local/go/bin]
     #   env: {GOTOOLCHAIN: local}
     toolchains: []
