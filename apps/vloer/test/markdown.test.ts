@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { htmlToMarkdown, looksLikeHtml } from '../src/markdown.ts';
+import { scaledTimeout } from './timeframes.ts';
 
 test('TipTap task descriptions become readable Markdown', () => {
   const html = '<h2>Goal</h2><p>Make <strong>checkout</strong> round &amp; <em>stay</em> <s>wrong</s> correct.<br>Second line with <code>a`b</code></p><ul data-type="taskList"><li data-checked="true" data-type="taskItem"><label><input type="checkbox" checked="checked"><span></span></label><div><p>Done thing</p></div></li><li data-checked="false" data-type="taskItem"><label><input type="checkbox"><span></span></label><div><p>Open thing</p></div></li></ul><pre><code class="language-ts">if (a &lt; 2) {\n  return `x`;\n}</code></pre><ol start="3"><li><p>three</p><ul><li><p>nested</p></li></ul></li><li><p>four</p></li></ol><blockquote><p>quoted</p></blockquote><hr><table><tbody><tr><th><p>A</p></th><th><p>B|C</p></th></tr><tr><td><p>1</p></td></tr></tbody></table><p><a href="https://forge.example/pulls/1">the PR</a> and <img src="/api/v1/tasks/1/attachments/2" alt="screenshot"></p>';
@@ -46,7 +47,7 @@ test('malformed, deeply nested and oversized input terminates with bounded outpu
   assert(huge.length <= 65536);
   const started = Date.now();
   htmlToMarkdown('<'.repeat(100000) + '<a '.repeat(20000) + '&'.repeat(50000));
-  assert(Date.now() - started < 2000, 'tokenizing pathological input stays linear');
+  assert(Date.now() - started < scaledTimeout(2000), 'tokenizing pathological input stays linear');
 });
 
 test('HTML detection distinguishes tracker markup from plain text and Markdown', () => {

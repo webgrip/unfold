@@ -9,7 +9,7 @@ review-by: 2026-10-30
 
 ## Context and Problem Statement
 
-A person reading a Vikunja task in the editor wants to see whether Glide is already working on it, and to hand it to a Ploeg team in one step. Ploeg's only intake for tracker work is the Vikunja `task.assignee.created` webhook: assigning the tracker user that routes to a team queues the task for that team, and removing that assignee withdraws it while it is still queued. How should Vloer start Ploeg work on a tracker task without creating a second intake path or a second source of truth?
+A person reading a Vikunja task in the editor or on the browser's Tasks page wants to see whether Glide is already working on it, and to hand it to a Ploeg team in one step. Ploeg's only intake for tracker work is the Vikunja `task.assignee.created` webhook: assigning the tracker user that routes to a team queues the task for that team, and removing that assignee withdraws it while it is still queued. How should Vloer start Ploeg work on a tracker task without creating a second intake path or a second source of truth?
 
 ## Decision Drivers
 
@@ -34,6 +34,7 @@ Chosen option: "Vloer assigns the team's tracker user on the task, as the workbe
 * **Pinned boards.** Ploeg can pin a board to one team, which then receives every assignment on it. Ploeg reports these pins as `pinnedScopes`, and Vloer offers only the pinned team on such a board.
 * **Take back.** Vloer removes the assignee only while every Ploeg Work Item for that task, in any team, is queued, withdrawn, done or stale. Started work is cancelled from the Ploeg view instead.
 * **Status.** Vloer lists Ploeg's Work Items for the tracker identity through `work-items?provider&externalId`, with the latest Shift's branch and spend and a pull request link from checkpoints.
+* **Where it shows.** The editor's task view and the browser's Tasks page show the same status and actions. On a connection Ploeg runs, the Tasks page offers the session import only for a task that continues a queued Work Item of the execution team. Any other task shows its Ploeg status instead of a binding warning, because a task nobody has handed over is the normal case, not a fault.
 
 ### Consequences
 
@@ -45,7 +46,7 @@ Chosen option: "Vloer assigns the team's tracker user on the task, as the workbe
 
 ### Confirmation
 
-Proposed. The Vloer side is implemented and covered by `test/task-handoff.test.ts` against fake Vikunja and Ploeg servers. It is confirmed when a person hands a real Vikunja task to a team in a cluster pilot, Ploeg queues it from the webhook, and taking it back before dispatch withdraws it.
+Proposed. The Vloer side is implemented and covered by `test/task-handoff.test.ts` against fake Vikunja and Ploeg servers, and the Tasks page's status rules by `test/tasks-view.test.mjs`. It is confirmed when a person hands a real Vikunja task to a team in a cluster pilot, Ploeg queues it from the webhook, and taking it back before dispatch withdraws it.
 
 Re-evaluate if Ploeg gains a second tracker provider, or an operator route that creates tracker-backed Work Items directly.
 
@@ -66,3 +67,4 @@ Re-evaluate if Ploeg gains a second tracker provider, or an operator route that 
 * [Task connections](../operations/task-connections.md#hand-a-task-to-ploeg) describes setup and token permissions; the [API contract](../contracts/api.md#hand-a-task-to-ploeg) lists the routes and refusals.
 * [ADR 0018](0018-bind-tracker-imports-to-existing-ploeg-work.md) binds an interactive import to an existing Work Item; this decision creates that Work Item through the tracker.
 * 2026-09-30 — Proposed with the Vloer implementation and Ploeg's additive `assignees` and tracker-identity filter.
+* 2026-09-30 — Renumbered from 0024, which the redesign took. The browser's Tasks page gains the same status and hand-off, replacing the binding warning that every task on the Glide board showed.
