@@ -68,6 +68,20 @@ The extension-host behaviour has no automated check. Activation, tree rendering,
 
 Re-evaluate when Ploeg's run rows carry the tracker identity, when ADR 0024 changes the vocabulary modules' shape, or if a sidebar webview becomes necessary for something a tree row cannot show.
 
+### Follow-ups
+
+Proposed work, not implemented by this decision:
+
+* **Act from the editor.** Approve or reject proposed work, and cancel a Work Item, from Now and the Work Item panel, through `POST /api/ploeg/work-items/{id}/(approve|reject|cancel)`. Use the browser's confirmation, which lists what a cancel stops.
+* **Repository first.** List the Work Items of the open workspace's repository first in Now.
+* **Review in the editor.** Check out a pull request's branch, or open its diff in VS Code, instead of only linking to the forge.
+* **Running and queued state on Tasks rows.** This needs Ploeg's run rows to carry the tracker identity.
+* **Live updates instead of polling Now.** This needs a Ploeg event stream ([ADR 0015](0015-ploeg-operator-read-api.md)).
+* **Session panel.** Rebuild its layout on the same head-first structure; it already uses the tones.
+* **Walkthrough and listing.** Add a walkthrough step for Now, and new screenshots for the Open VSX listing.
+
+The panel picks up Ploeg's live Run usage (Ploeg ADR-0049), the writer's plain problem and solution summaries, and Run card facts frozen at Shift close when they ship.
+
 ## Pros and Cons of the Options
 
 ### Keep the Sessions-first layout and restyle it
