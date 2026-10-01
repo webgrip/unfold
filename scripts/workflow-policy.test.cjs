@@ -323,7 +323,7 @@ test('live verification follows publication and only runs for an authorized publ
 
 test('the tutorial smoke job runs weekly, only runs the deterministic demo and never gates a release', () => {
   const job = workflows['on_schedule.yml'].jobs['tutorial-smoke'];
-  assert.deepEqual(job.steps.map(step => step.uses), ['actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09', './.forgejo/actions/tutorial-smoke']);
+  assert.deepEqual(job.steps.map(step => step.uses), [source.jobs.checks.steps[0].uses, './.forgejo/actions/tutorial-smoke']);
   const action = read('.forgejo/actions/tutorial-smoke/action.yml');
   assert.deepEqual(action.runs.steps.filter(step => step.run).map(step => step.run), ['bash scripts/tutorial-smoke.sh --check', 'mise trust apps/vloer/mise.toml && mise trust apps/ploeg/mise.toml && bash scripts/tutorial-smoke.sh']);
   assert.equal(action.runs.steps.at(-1).if, "steps.prerequisites.outputs.ready == 'true'");
