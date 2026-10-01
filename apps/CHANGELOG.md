@@ -1,3 +1,17 @@
+## [unfold-v0.4.0-rc.31](https://forgejo.webgrip.dev/webgrip/glide/compare/unfold-v0.4.0-rc.30...unfold-v0.4.0-rc.31) (2026-10-01)
+
+### Added
+
+* **site:** apply the Unfold brand ([4a356fc](https://forgejo.webgrip.dev/webgrip/glide/commit/4a356fcbb57631db9b0a3f0f7775db7241c86778))
+
+### Fixed
+
+* **ploeg:** link the Loop dashboard by its real uid and new title ([4124d7e](https://forgejo.webgrip.dev/webgrip/glide/commit/4124d7e59d7585acd6dc65d55aa751df5b9d83c0))
+
+### Internal
+
+* **release:** unfold-site-v0.1.0-rc.6 [skip ci] ([5606c28](https://forgejo.webgrip.dev/webgrip/glide/commit/5606c28faaee5d81bb83fbd034994cf6147c115f))
+
 ## [unfold-v0.4.0-rc.30](https://forgejo.webgrip.dev/webgrip/glide/compare/unfold-v0.4.0-rc.29...unfold-v0.4.0-rc.30) (2026-10-01)
 
 ### Added
