@@ -1,4 +1,5 @@
 import { stableHash } from '../../card-model.js';
+import { themeWorld, worldFacts } from './world/rules.js';
 
 /** Every foil pattern the forge shaders draw, in catalogue order, with its display name. */
 export const foilPatterns = Object.freeze([
@@ -169,7 +170,8 @@ function gradeWord(grade) {
 
 /**
  * Everything the forge paints on the card, as plain text: the same facts as every other skin, from the view model, so
- * a demo card reads "Demo · no model calls" and an unknown value never reads as zero.
+ * a demo card reads "Demo · no model calls" and an unknown value never reads as zero. `worldKind` is the inner world
+ * the card shows before anyone decorates it and `worldFacts` the facts that unlock its time of day and its things.
  * @param {object} view The `cardView` model.
  */
 export function faceFacts(view) {
@@ -182,6 +184,8 @@ export function faceFacts(view) {
   const playLine = view.pr ? [view.plays?.text, `${view.pr.text} ${view.pr.state?.label ?? ''}`.trim(), view.pr.ciText].filter(Boolean).join(' · ') : 'No pull request yet';
   return {
     title: view.title,
+    worldKind: themeWorld(view),
+    worldFacts: worldFacts(view),
     sub,
     coin: coin(view),
     state: { label: view.state?.label ?? '', tone: view.state?.tone ?? 'neutral' },

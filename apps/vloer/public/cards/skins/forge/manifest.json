@@ -16,6 +16,7 @@
     "foilPatterns": ["galaxy", "crackedice", "rainbow", "gold", "refractor", "superfractor", "etched", "prism", "glitter", "liquid", "lenticular", "blacklabel", "holo", "reverse", "cosmos", "none"],
     "artPresets": ["nebula", "aurora", "liquid", "crystal", "flow", "synth", "rain", "plasma", "ocean", "fire", "warp", "topo", "gen_koi", "gen_gold", "gen_jelly"],
     "art": ["preset", "shader", "media"],
+    "worlds": ["islands", "deepsea", "city"],
     "setSymbol": true,
     "cardBack": true,
     "soundBanks": []

@@ -8,10 +8,11 @@ import { finishLadder } from '../cards/card-model.js';
 import { assetUrl, forgetThemes, frameLabels, tokenLabels, tokenTypes } from '../cards/themes.js';
 import { generateArt, maxRetries } from '../cards/art-generator.js';
 import { artPresets, foilPatterns } from '../cards/skins/forge/forge-model.js';
+import { worldKinds } from '../cards/skins/forge/world/rules.js';
 import { shell } from '../shell.js';
 import '../cards/unfold-card.js';
 
-const blankTheme = () => ({ schemaVersion: 1, id: '', name: '', extends: 'forge', tokens: {}, frame: 'classic', foilPattern: null, art: null, setSymbol: null, cardBack: null, soundBank: null });
+const blankTheme = () => ({ schemaVersion: 1, id: '', name: '', extends: 'forge', tokens: {}, frame: 'classic', foilPattern: null, art: null, world: null, setSymbol: null, cardBack: null, soundBank: null });
 const tokenDefaults = { '--gc-accent': '#5b8cff', '--gc-surface': '#141a1e', '--gc-radius': '12px', '--forge-frame': '#3b4a63', '--forge-accent': '#cfd8da', '--forge-back': '#2f6fd0' };
 const maxVideoSeconds = 15;
 const designer = {
@@ -57,6 +58,7 @@ export function themeDocument(draft, rules) {
     frame: theme.frames?.length ? draft.frame ?? null : null,
     foilPattern: theme.foilPatterns?.length ? draft.foilPattern ?? null : null,
     art: theme.art?.length ? draft.art ?? null : null,
+    world: theme.worlds?.length ? draft.world ?? null : null,
     setSymbol: theme.setSymbol ? draft.setSymbol ?? null : null,
     cardBack: theme.cardBack ? draft.cardBack ?? null : null,
     soundBank: null,
@@ -65,7 +67,7 @@ export function themeDocument(draft, rules) {
 
 function rulesOf(id) {
   const skin = skinRules(id);
-  return skin ? { themeTokens: skin.themeTokens, theme: { frames: skin.frames, foilPatterns: skin.foilPatterns, artPresets: skin.artPresets, art: skin.art, setSymbol: skin.setSymbol, cardBack: skin.cardBack } } : null;
+  return skin ? { themeTokens: skin.themeTokens, theme: { frames: skin.frames, foilPatterns: skin.foilPatterns, artPresets: skin.artPresets, art: skin.art, worlds: skin.worlds ?? [], setSymbol: skin.setSymbol, cardBack: skin.cardBack } } : null;
 }
 
 function previewTheme() {
@@ -201,7 +203,8 @@ function forgeControls(rules) {
   const preset = kind === 'preset' ? select('artPreset', 'Art preset', artPresets.filter(entry => rules.artPresets.includes(entry.key)).map(entry => [entry.key, entry.label]), draft.art.preset) : '';
   const media = kind === 'media' ? fileField('art', 'Image or video', 'image/png,image/jpeg,image/webp,video/mp4,video/webm', draft.art?.media, `PNG, JPEG or WebP up to 2 MiB and 4096 px, or an MP4 or WebM clip up to 8 MiB and ${maxVideoSeconds} seconds. It plays muted, on a loop.`) : '';
   const shader = kind === 'shader' ? `<p class="meta">${draft.art?.shader ? 'A compiled shader paints the art window.' : 'Generate or paste a shader in Shader art below.'}</p>` : '';
-  return `${frames}${patterns}${artKind}${preset}${media}${shader}`;
+  const world = rules.worlds?.length ? select('world', 'Inner world', [['', 'Off · the art above'], ...worldKinds.filter(entry => rules.worlds.includes(entry.key)).map(entry => [entry.key, entry.label])], draft.world, 'A small 3D place in the art window that the card’s tilt moves. Its light and what it holds follow the card’s days live and condition. When it is on, it shows instead of the art on the live card; people who hold a copy can decorate their own.') : '';
+  return `${frames}${patterns}${artKind}${preset}${media}${shader}${world}`;
 }
 
 function fileField(slot, label, accept, current, hint) {
@@ -302,7 +305,7 @@ function markup() {
     return skeleton({ rows: 4 });
   }
   const skin = skinRules(designer.draft.extends);
-  const rules = skin ? { frames: skin.frames, foilPatterns: skin.foilPatterns, artPresets: skin.artPresets, art: skin.art } : null;
+  const rules = skin ? { frames: skin.frames, foilPatterns: skin.foilPatterns, artPresets: skin.artPresets, art: skin.art, worlds: skin.worlds ?? [] } : null;
   const readOnly = designer.catalog.canEdit ? '' : callout({ tone: 'neutral', icon: 'info', title: 'Preview only', body: 'Only administrators can create or change card themes. You can preview every theme here.' });
   const problems = designer.catalog.directory?.problems?.length ? callout({ tone: 'attention', icon: 'alert', title: 'Some files in the themes folder were refused', body: `<ul>${designer.catalog.directory.problems.map(problem => `<li><code>${escape(problem.file)}</code>: ${escape(problem.message)}</li>`).join('')}</ul>` }) : '';
   const message = designer.message ? `<p class="designer-message" role="status">${escape(designer.message)}</p>` : '<p class="designer-message" role="status"></p>';
@@ -349,6 +352,7 @@ function field(element) {
   else if (name === 'foilPattern') draft.foilPattern = value || null;
   else if (name === 'artKind') { setArt(value); render(); }
   else if (name === 'artPreset') draft.art = { preset: value };
+  else if (name === 'world') draft.world = value || null;
   preview();
 }
 

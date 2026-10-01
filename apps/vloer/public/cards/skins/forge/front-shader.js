@@ -2,6 +2,21 @@ import { prelude } from './shader-prelude.js';
 import { foils } from './shader-foils.js';
 import { art } from './shader-art.js';
 
+const worldArt = `uniform float uFlat;
+vec3 worldArt(vec2 uv, vec3 view){
+  vec3 c = max(texture(uArtTex, uv).rgb, 0.0);
+  c = c / (1.0 + c * 0.18);
+  c = pow(c, vec3(1.0 / 2.2));
+  c += exp(-pow((uv.x + uv.y * 0.6 - 0.35 - view.x * 0.9) * 7.0, 2.0)) * 0.10 * (1.0 - uFlat);
+  vec3 poster = floor(c * 6.0 + 0.5) / 6.0;
+  return mix(c, mix(c, poster, 0.55), uFlat);
+}`;
+
+function artSample(look) {
+  if (look.key === 'world') return 'vec2 artUv = clamp(auv, 0.0, 1.0);\n  vec3 artC = worldArt(artUv, Vd);';
+  return `vec2 artUv = clamp((auv - 0.5) * 0.9 + 0.5 + par, 0.0, 1.0);\n  vec3 artC = ${artCall(look, 'artUv')};`;
+}
+
 function artCall(look, uv) {
   if (look.key === 'media') return `texture(uArtTex, ${uv}).rgb`;
   if (look.key === 'custom') return `art_custom(${uv}, uTime)`;
@@ -27,7 +42,7 @@ uniform vec3 uMetalLo, uMetalHi, uHint; uniform vec4 uRarity;
 in vec2 vUv; out vec4 outColor;
 ${prelude}
 ${foils}
-${art}${custom}
+${look.key === 'world' ? worldArt : art}${custom}
 vec3 toLin(vec3 c){ return pow(max(c, 0.0), vec3(2.2)); }
 float seg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h); }
 vec2 crackField(vec2 uv){
@@ -70,8 +85,7 @@ void main(){
   vec3 Vd = normalize(uV);
   vec2 auv = (vUv - uArtRect.xy) / (uArtRect.zw - uArtRect.xy);
   vec2 par = -Vd.xy / max(Vd.z, 0.35) * uArtDepth;
-  vec2 artUv = clamp((auv - 0.5) * 0.9 + 0.5 + par, 0.0, 1.0);
-  vec3 artC = ${artCall(look, 'artUv')};
+  ${artSample(look)}
   vec2 wall = auv + par * 2.2;
   float edgeDist = min(min(wall.x, 1.0 - wall.x), min(wall.y * 1.4, (1.0 - wall.y) * 1.4));
   artC *= mix(0.4, 1.0, smoothstep(-0.005, 0.07, edgeDist));
@@ -111,7 +125,7 @@ void main(){
     vec3 hue = spectrum(ang * 2.0 - uTime * 0.04);
     col = fl_screen(col, (hue * 0.6 + 0.3) * comet * band * 0.8);
   }
-  vec2 pos = (vUv - 0.5) * vec2(0.716, 1.0);
+${look.key === 'world' ? '  col = mix(col, mix(base, col, 0.22), m.r);\n' : ''}  vec2 pos = (vUv - 0.5) * vec2(0.716, 1.0);
   vec2 lp = uP * vec2(0.716, 1.0) * 0.62;
   vec3 L = normalize(vec3(lp - pos, 0.48));
   float lambert = dot(N, L) - L.z;

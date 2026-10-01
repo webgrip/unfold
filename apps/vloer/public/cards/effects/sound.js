@@ -131,6 +131,7 @@ registerSoundBank('default', {
     set: (s, { level = 3 } = {}) => { s.tone(130, 0, 0.6, 'sine', 0.2, 40); s.shimmer(14, 1200, 3600, 0.022); s.chord([261.63, 329.63, 392, 523.25, 659.25], 2 + level * 0.3, 0.04); },
     tick: s => s.tone(1800, 0, 0.05, 'square', 0.02),
     whoosh: s => s.filtered(0.6, 'bandpass', 300, 0.12, 0.35, 0.25, 3600),
+    chime: (s, { notes = [1046.5, 1318.51] } = {}) => notes.slice(0, 6).forEach((note, i) => s.tone(note, i * 0.06, 0.9, 'sine', 0.045)),
   },
 });
 

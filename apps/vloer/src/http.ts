@@ -23,7 +23,7 @@ import { CardArtError, CardArtGenerator, maxArtAttempts } from './card-art.ts';
 
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
 
-const browserModule = /^\/(?:(?:core|views|styles)\/[a-z0-9][a-z0-9-]*\.(?:js|css)|cards\/(?:(?:skins\/[a-z0-9][a-z0-9-]*|effects)\/)?[a-z0-9][a-z0-9-]*\.(?:js|css|json)|vendor\/three\/[a-z0-9][a-z0-9-]*\.js)$/;
+const browserModule = /^\/(?:(?:core|views|styles)\/[a-z0-9][a-z0-9-]*\.(?:js|css)|cards\/(?:(?:skins\/[a-z0-9][a-z0-9-]*(?:\/world)?|effects)\/)?[a-z0-9][a-z0-9-]*\.(?:js|css|json)|vendor\/three\/[a-z0-9][a-z0-9-]*\.js)$/;
 
 function fault(status: number, code: string, message: string): never { throw Object.assign(new Error(message), { status, code }); }
 
@@ -331,6 +331,10 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             const seen = /^\/api\/cards\/([^/]{1,40})\/seen$/.exec(path);
             if (seen && method === 'GET') return json(res, 200, await collection.cardSeen(user, seen[1]));
             if (seen && method === 'POST') { const data = await body(req); return json(res, 200, await collection.markCardSeen(user, seen[1], data.until, data.snapshot)); }
+            const world = /^\/api\/cards\/([^/]{1,40})\/world$/.exec(path);
+            if (world && method === 'GET') return json(res, 200, await collection.cardWorld(user, world[1]));
+            if (world && method === 'PUT') { const data = await body(req); return json(res, 200, await collection.saveCardWorld(user, world[1], data.world)); }
+            if (world && method === 'DELETE') return json(res, 200, await collection.resetCardWorld(user, world[1]));
             if (path === '/api/packs' && method === 'GET') return json(res, 200, sanitize(await collection.packs(user)));
             if (path === '/api/packs/odds' && method === 'GET') return json(res, 200, collection.odds());
             const pack = /^\/api\/packs\/([A-Za-z0-9_.:@~-]{1,120})(\/open)?$/.exec(path);

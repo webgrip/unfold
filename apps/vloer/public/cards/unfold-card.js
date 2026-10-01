@@ -37,7 +37,8 @@ function parse(markup) {
  * pattern. The turn is a 3D flip that becomes a crossfade when the reader prefers reduced motion. Whatever a skin
  * draws, the front always carries the title, state, cost, steward and ids. The element reflects the skin it draws as
  * `data-skin`; a WebGL2 skin is replaced by its fallback when the browser has no WebGL2. A skin's `attach(front, view)`
- * receives the drawn front and the view model; the forge skin also reads `motion` (`still` or `live`) on the element.
+ * receives the drawn front and the view model; the forge skin also reads `motion` (`still` or `live`) on the element,
+ * and `world="off"`, which keeps a forge card's art instead of its inner world.
  * A card whose `style.theme` names a theme loads it from Vloer; a theme picks the skin it `extends`, sets its tokens
  * on the element through the CSSOM and reaches the skin as `view.theme`. Setting the `theme` property to a theme
  * object (the designer's draft) or to null overrides that lookup; the element reflects the theme it drew as
