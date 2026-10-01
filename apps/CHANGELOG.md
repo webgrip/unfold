@@ -1,3 +1,17 @@
+## [glide-v0.4.0-rc.26](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.25...glide-v0.4.0-rc.26) (2026-10-01)
+
+### Added
+
+* **vloer:** show a run card on the work item page ([3cb06f2](https://forgejo.webgrip.dev/webgrip/glide/commit/3cb06f2f176c5e830d845dfffbd5cd784e4dc689))
+
+### Fixed
+
+* **deps:** update pnpm ( 11.28.1 ➔ 11.28.2 ) ([4485b49](https://forgejo.webgrip.dev/webgrip/glide/commit/4485b49837b3bba5c8c4791536fabe35bfa1804e))
+
+### Internal
+
+* **release:** glide-site-v0.1.0-rc.4 [skip ci] ([f07f26d](https://forgejo.webgrip.dev/webgrip/glide/commit/f07f26d561b2fbbd50064028c0be5d9062c32f82))
+
 ## [glide-v0.4.0-rc.25](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.24...glide-v0.4.0-rc.25) (2026-10-01)
 
 ### Added
