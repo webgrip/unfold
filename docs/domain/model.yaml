@@ -427,9 +427,10 @@ terms:
     context: Billing
     definition: >
       The published percentage Glide adds to token and compute cost when
-      billing an Agency. The Agency's Markup Tier sets it. The price an Agency
+      billing an Agency. It is the same for every Agency. The price an Agency
       charges its Client is the Agency's own and is not a Markup.
-    see_also: [Token Charge, Markup Tier, Agency]
+    avoid: [markup tier]
+    see_also: [Token Charge, Agency]
   - name: Delivery
     context: Billing
     definition: >
@@ -460,15 +461,6 @@ terms:
       is in the open-source code, so an Edition buys hosting, support or white
       labelling, never features.
     see_also: [Agency, Credit]
-  - name: Markup Tier
-    context: Billing
-    definition: >
-      An Agency's pricing level, which sets its Markup. It is recalculated each
-      quarter from the Agency's acceptance rate against published thresholds,
-      and an Agency drops at most one Markup Tier per quarter, with a month's
-      notice. "Tier" names nothing else: a Size maps to a Team, not to a tier.
-    avoid: [team tier]
-    see_also: [Markup, Acceptance]
   - name: Dispute
     context: Billing
     definition: >

@@ -1,6 +1,6 @@
 # Economics drill-down
 
-Status: research record, 2026-10-01. It checks the decided pricing model in [ADR-0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md) against what Glide runs today, and turns the gaps into spikes and tickets on the Glide board. It decides what to measure and in which order. It changes no accepted number: every change to ADR-0006 below is **proposed**.
+Status: research record, 2026-10-01. It checks the decided pricing model in [ADR-0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md) against what Glide runs today, and turns the gaps into spikes and tickets on the Glide board. It decides what to measure and in which order. The owner's decisions on its findings are listed under Decisions and recorded in ADR-0006.
 
 ## What exists
 
@@ -57,31 +57,36 @@ Three evidence notes compare the routes Glide could use: [Fireworks](evidence/20
 
 ## Decisions
 
-Made here, because they only order and scope work:
+Taken by the owner on 2026-10-01, after this record's findings:
 
-* Phase 1 measures, it does not bill. The first number to produce is US$ per merged Work Item and the merge rate from real Shifts (VIK-1617), then the same per model tier (VIK-1621).
-* Size is recorded from a tracker label now (VIK-1622), so phase-1 data can later be split the way ADR-0006 prices it. The Refinement Role (VIK-1477) writes the same field later.
-* No billing ticket is refined or built until the pricing re-derivation (VIK-1623) has run. Markup Tiers (VIK-1491) wait on it.
+* **Measurement:** Ploeg exports cost and outcome per Work Item on its operator API, so the baseline (VIK-1617) can be re-run without database access ([VIK-1686](https://vikunja.webgrip.dev/tasks/1686)).
+* **Client code:** only Mistral-hosted GLM 5.3 (France) may process employer or agency client code, once its DPA and EU terms are read in full (VIK-1651), through a LiteLLM alias ([VIK-1688](https://vikunja.webgrip.dev/tasks/1688)). Every other route is own-code only.
+* **Silver** moves from DeepSeek's own API to Fireworks DeepSeek V4.1 Flash.
+* **Bench:** bronze against Sonnet 5.5 and GPT-6.1 Sol, judged blind in Vloer (VIK-1621, [VIK-1687](https://vikunja.webgrip.dev/tasks/1687)).
+* **Size** comes from a tracker label on Vikunja and a custom field on ClickUp, both in VIK-1622.
+* **Markup:** a flat 25%; Markup Tiers are dropped (ADR-0006, dated entry). VIK-1491 is closed.
+* **Shift Budgets:** per model tier and Size from the measured p90 Shift cost; €4 / €10 / €20 until measured (ADR-0006).
+* **Currency:** the ECB reference rate of the settlement day, stored on each charge; the markup absorbs the exchange risk (ADR-0006, VIK-1625).
+* **Plan:** a phase-1 gate replaces the strategy note's 90-day dates: at least 20 settled S Shifts on the owner's and the employer's backlogs, a measured acceptance rate, US$ per accepted S Shift and review minutes per pull request. Outreach to agencies starts after it.
+* **Floor:** VIK-1623 builds the fixed-cost sheet and asks the owner only for a target pay.
 
-Proposed, for the owner to accept or reject:
-
-* Re-derive the €12 floor from fixed cost and volume, using the formula above (VIK-1623).
-* Set Shift Budgets per Size from measured p90 Shift cost per model tier, replacing €4 / €10 / €20 (VIK-1623).
-* Convert provider US$ to euro at the ECB reference rate of the settlement day, store the rate on each charge, and absorb the currency risk in the markup (VIK-1625).
-* Replace the strategy note's 90-day plan with a phase-1 gate measured on the owner's and the employer's backlogs: at least 20 settled S Shifts, a measured acceptance rate and US$ per accepted S, and review minutes per pull request.
+Made in this record, because they only order work: phase 1 measures and does not bill, and no billing ticket is refined before VIK-1623 has run.
 
 ## Spikes and tickets
 
 | Ticket | Phase | What it decides or delivers | Waits on |
 | --- | --- | --- | --- |
-| [VIK-1617](https://vikunja.webgrip.dev/tasks/1617) spike: measure cost and merge rate per Work Item since rc.16 | 1 | Whether the ADR-0006 planning numbers survive measured data | read access to Ploeg's database |
+| [VIK-1617](https://vikunja.webgrip.dev/tasks/1617) spike: measure cost and merge rate per Work Item since rc.16 | 1 | Whether the ADR-0006 planning numbers survive measured data | VIK-1686 |
 | [VIK-1621](https://vikunja.webgrip.dev/tasks/1621) spike: bench open-weight vs frontier Teams | 1 | Default model tier and Shift Budget per Size | VIK-1617 |
 | [VIK-1622](https://vikunja.webgrip.dev/tasks/1622) ploeg: K2 and K5 by Size from a size label | 1 | Size-split measurement | — |
 | [VIK-1272](https://vikunja.webgrip.dev/tasks/1272) vloer: report active review seconds (existing) | 1 | Review minutes, the largest agency cost | — |
-| [VIK-1623](https://vikunja.webgrip.dev/tasks/1623) spike: re-derive floor, Shift Budgets and markup | 2 | Proposed ADR-0006 amendment | VIK-1617, VIK-1621, VIK-1486 |
+| [VIK-1623](https://vikunja.webgrip.dev/tasks/1623) spike: re-derive floor and Shift Budgets | 2 | Floor formula and per-tier Budgets as a proposed ADR-0006 amendment | VIK-1617, VIK-1621, VIK-1486 |
 | [VIK-1624](https://vikunja.webgrip.dev/tasks/1624) spike: agency break-even under the two-part price | 2 | Client price band and an interactive calculator for pilots | VIK-1617, VIK-1621, VIK-1272 |
 | [VIK-1625](https://vikunja.webgrip.dev/tasks/1625) billing: convert US$ to euro at settlement | 2 | Currency rule on every charge | — |
 | [VIK-1651](https://vikunja.webgrip.dev/tasks/1651) spike: choose the EU-resident inference route for client code | 1 | Which Teams may take client code, on which provider | — |
+| [VIK-1686](https://vikunja.webgrip.dev/tasks/1686) ploeg: report cost and outcome per Work Item | 1 | The data VIK-1617 reads | — |
+| [VIK-1687](https://vikunja.webgrip.dev/tasks/1687) vloer: hide the Team on bench pull requests | 1 | Blind judging for VIK-1621 | — |
+| [VIK-1688](https://vikunja.webgrip.dev/tasks/1688) litellm: add Mistral-hosted GLM 5.3 | 1 | The client-code route | VIK-1651 |
 | [VIK-1652](https://vikunja.webgrip.dev/tasks/1652) litellm: raise the Gemini 3.8 Flash price on 2027-01-01 | — | Spend stays correct after the promotion | due 2026-12-31 |
 
 ## Method

@@ -42,10 +42,10 @@ Glide delivers a reviewed pull request and its preview. It never merges and neve
 
 A price has two parts ([ADR-0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md)):
 
-* The **Token Charge**: model tokens and compute for every attempt, at cost plus the Agency's **Markup**, up to the Shift Budget. The Markup falls as the Agency's acceptance rate rises (its **Markup Tier**). Rejected work still pays it, so rejecting is never free.
+* The **Token Charge**: model tokens and compute for every attempt, at cost plus Glide's published **Markup**, up to the Shift Budget. Rejected work still pays it, so rejecting is never free.
 * The **Delivery Fee**: Credits by Size, charged only on Acceptance, and refunded as a **Reversal** if the change is reverted within 14 days for a defect. A disagreement about a charge is a **Dispute**, opened with ten working days' notice.
 
-Agencies and Clients call a Work Item with a Quote a **Ticket**. That word belongs in the portal and in sales material; everywhere else, say Work Item. The numbers (Credits per Size, Shift Budgets, Markup Tiers) live in ADR-0006 and nowhere else, so they cannot drift.
+Agencies and Clients call a Work Item with a Quote a **Ticket**. That word belongs in the portal and in sales material; everywhere else, say Work Item. The numbers (Credits per Size, Shift Budgets, the Markup) live in ADR-0006 and nowhere else, so they cannot drift.
 
 ## Isolation between Agencies
 
