@@ -157,7 +157,7 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `executor.defaultTarget.baseBranch` | string | `""` |  | values.yaml, values.schema.json |
 | `executor.defaultTarget.name` | string | `""` |  | values.yaml, values.schema.json |
 | `executor.defaultTarget.owner` | string | `""` |  | values.yaml, values.schema.json |
-| `executor.dindImage` | string | `harbor.webgrip.dev/dockerhub/library/docker:29.6.2-dind` |  | values.yaml, values.schema.json |
+| `executor.dindImage` | string | `harbor.webgrip.dev/dockerhub/library/docker:29.8.2-dind@sha256:7dcdfc4a20246236f558175182ccace1eb15a41bd3eb119dd2284f393498b7c1` |  | values.yaml, values.schema.json |
 | `executor.dindResources.limits.cpu` |  | `1` |  | values.yaml |
 | `executor.dindResources.limits.memory` |  | `1536Mi` |  | values.yaml |
 | `executor.dindResources.requests.cpu` |  | `1` |  | values.yaml |
@@ -206,7 +206,7 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `executor.nodeSelector` | object or null |  | Node selector for WORKER pods, not ploegd (that is the top-level nodeSelector). Keeps agent Jobs off control-plane nodes (ADR-0002: no DinD beside etcd). The default label exists in the homelab and on no other cluster, so a different estate must override it with its own label or clear it with null — Helm deep-merges maps, so {} leaves the default in place and only null removes the block. | values.yaml, values.schema.json |
 | `executor.nodeSelector.node.webgrip.io/pool` |  | `worker` |  | values.yaml |
 | `executor.pollingInterval` |  | `30` |  | values.yaml |
-| `executor.runnerImage` | string | `harbor.webgrip.dev/webgrip/agent-runner:1.0.2@sha256:086b4bc0d3fda0e3c179f9501bb46a612f5f33e60d96405a5d94471a26279596` | DEPRECATED in favor of harness.image (kept as the fallback so existing value overrides keep working). agent-runner >=1.0.1 only: 1.0.0 mints LiteLLM keys without key_alias (400). | values.yaml, values.schema.json |
+| `executor.runnerImage` | string | `harbor.webgrip.dev/webgrip/agent-runner:1.3.0@sha256:ab0a56f12a33b2af542663e0f2079261f5b9aca5596a5d497583f211a284684f` | DEPRECATED in favor of harness.image (kept as the fallback so existing value overrides keep working). agent-runner >=1.0.1 only: 1.0.0 mints LiteLLM keys without key_alias (400). | values.yaml, values.schema.json |
 | `executor.sandbox` | object |  | type=sandbox only: runs each Run in a kubernetes-sigs/agent-sandbox v1beta1 Sandbox created by a launcher pod. | values.yaml, values.schema.json |
 | `executor.sandbox.launcherResources.limits.cpu` |  | `50m` |  | values.yaml |
 | `executor.sandbox.launcherResources.limits.memory` |  | `32Mi` |  | values.yaml |
