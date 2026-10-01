@@ -41,7 +41,7 @@
     "settlementDelayMs": 60000
   },
   "docker": {
-    "image": "de-vloer-agent:1.18.33",
+    "image": "de-vloer-agent:1.18.34",
     "cpus": 2,
     "memoryMb": 4096,
     "pidsLimit": 512
