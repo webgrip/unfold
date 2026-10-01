@@ -14,6 +14,7 @@ const read = relative => parse(fs.readFileSync(path.join(root, relative), 'utf8'
 const workflows = Object.fromEntries(fs.readdirSync(path.join(root, '.forgejo/workflows')).map(file => [file, read(`.forgejo/workflows/${file}`)]));
 const source = workflows['on_source_change.yml'];
 const publisher = workflows['on_release_published.yml'];
+const verifyStep = step => /^set -o pipefail; mise run verify 2>&1 \| tee /.test(step.run ?? '');
 const evaluate = (expression, context) => vm.runInNewContext(expression.replace(/^\$\{\{\s*|\s*\}\}$/g, '').replace(/needs\.([a-z-]+)/g, "needs['$1']"), { startsWith: (value, prefix) => value.startsWith(prefix), always: () => true, ...context });
 
 test('event entry points preserve validation and keep application publication out of pull requests and docs', () => {
@@ -21,22 +22,23 @@ test('event entry points preserve validation and keep application publication ou
   assert.deepEqual(Object.keys(source.on).sort(), ['push', 'workflow_dispatch']);
   const pr = workflows['on_pull_request.yml'];
   assert.deepEqual(Object.keys(pr.on).sort(), ['pull_request', 'workflow_dispatch']);
-  assert.deepEqual(Object.keys(pr.jobs).sort(), ['checks', 'release-policy']);
+  assert.deepEqual(Object.keys(pr.jobs).sort(), ['checks', 'release-policy', 'warnings']);
   assert.deepEqual(pr.jobs.checks, source.jobs.checks);
+  assert.deepEqual(pr.jobs.warnings, source.jobs.warnings);
   assert.deepEqual(pr.jobs['release-policy'].container, source.jobs.release.container);
   assert.deepEqual(pr.jobs['release-policy'].steps, source.jobs.release.steps.slice(0, 2));
   for (const name of ['on_pull_request.yml', 'on_docs_change.yml']) {
     assert.doesNotMatch(JSON.stringify(workflows[name]), /GLIDE_RELEASES_ENABLED|contents":"write|semantic-release-monorepo@/);
   }
   const verification = read('.forgejo/actions/verify/action.yml');
-  assert.ok(verification.runs.steps.some(step => step.run === 'mise run verify'));
+  assert.ok(verification.runs.steps.some(verifyStep));
   assert.doesNotMatch(JSON.stringify(pr), /secrets\./);
   assert.equal(workflows['on_docs_change.yml'].jobs['generate-documentation'].with['prepare-command'], 'python3 scripts/docs.py --check --stage-only');
 });
 
 test('only an enabled development push can version Glide, after the checks and the release policy', () => {
   assert.equal(source.concurrency['cancel-in-progress'], false);
-  assert.deepEqual(Object.keys(source.jobs).sort(), ['checks', 'release', 'site-release']);
+  assert.deepEqual(Object.keys(source.jobs).sort(), ['checks', 'release', 'site-release', 'warnings']);
   const job = source.jobs.release;
   assert.deepEqual(job.needs, ['checks']);
   const policy = job.steps.findIndex(step => step.uses === './.forgejo/actions/release-policy');
@@ -54,15 +56,45 @@ test('only an enabled development push can version Glide, after the checks and t
   }
 });
 
+test('warnings from setup and verification turn their own job red without gating a release', () => {
+  const verification = read('.forgejo/actions/verify/action.yml');
+  const captured = verification.runs.steps.filter(step => / 2>&1 \| tee (-a )?"\$\{RUNNER_TEMP:-\/tmp\}\/glide-output\//.test(step.run ?? ''));
+  assert.deepEqual(captured.map(step => step.run.match(/mise (.+?) 2>&1/)[1]), ['-C apps/vloer install', '-C apps/ploeg install', '-C apps/site install', 'run setup', 'run verify']);
+  for (const step of captured) assert.match(step.run, /^set -o pipefail; /, 'a captured step still fails when its command fails');
+  const collect = verification.runs.steps.at(-1);
+  assert.equal(collect.id, 'warnings');
+  assert.equal(collect.if, 'always()');
+  assert.equal(verification.outputs.warnings.value, '${{ steps.warnings.outputs.report }}');
+  assert.equal(source.jobs.checks.outputs.warnings, '${{ steps.verify.outputs.warnings }}');
+  assert.equal(source.jobs.checks.steps.find(step => step.id === 'verify').uses, './.forgejo/actions/verify');
+  const job = source.jobs.warnings;
+  assert.deepEqual(job.needs, ['checks']);
+  for (const result of ['success', 'failure', 'skipped', 'cancelled']) {
+    assert.equal(evaluate(job.if, { needs: { checks: { result } } }), result === 'success' || result === 'failure', result);
+  }
+  for (const [name, other] of Object.entries(source.jobs)) assert.ok(!(other.needs || []).includes('warnings'), `${name} must not wait for warnings`);
+});
+
+test('a release that Forgejo lost to the tag race is created by the job that cut it', () => {
+  for (const [name, prefix] of [['release', 'glide-v'], ['site-release', 'glide-site-v']]) {
+    const steps = source.jobs[name].steps;
+    const release = steps.findIndex(step => step.id === 'release');
+    const repair = steps[release + 1];
+    assert.equal(repair.if, "failure() && steps.release.outcome == 'failure'", name);
+    assert.equal(repair.run, `node scripts/release-repair.mjs ${prefix}`, name);
+    assert.equal(repair.env.GITEA_TOKEN, steps[release].with.token, name);
+  }
+});
+
 test('the CI verify gate requires the imported release notes', () => {
   const verification = read('.forgejo/actions/verify/action.yml');
-  const step = verification.runs.steps.find(step => step.run === 'mise run verify');
+  const step = verification.runs.steps.find(verifyStep);
   assert.equal(step.env.GLIDE_REQUIRE_IMPORT_NOTES, 'true');
 });
 
 test('only a pull request reuses verified gate results; a development push runs every gate', () => {
   const verification = read('.forgejo/actions/verify/action.yml');
-  const step = verification.runs.steps.find(step => step.run === 'mise run verify');
+  const step = verification.runs.steps.find(verifyStep);
   assert.equal(step.env.GOFLAGS, '-count=1');
   for (const event_name of ['push', 'pull_request', 'workflow_dispatch', 'release', 'schedule']) {
     assert.equal(evaluate(step.env.GLIDE_VERIFY_REUSE, { github: { event_name } }), event_name === 'pull_request');
