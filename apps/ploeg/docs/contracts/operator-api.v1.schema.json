@@ -1882,6 +1882,46 @@
         }
       }
     },
+    "cardLive": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The Work Item's usage so far while at least one Run is running (ADR-0049). Each figure adds the gateway's running total for every running Run to what the finished Runs recorded; runSeconds counts each running Run up to observedAt. costUsd, inputTokens and outputTokens are absent when the gateway could not be read for a running Run. usageComplete is false when a figure present here misses a Run. These figures are a reading, not a settlement: totals stays the record.",
+      "required": [
+        "runningRuns",
+        "observedAt",
+        "runSeconds",
+        "usageComplete"
+      ],
+      "properties": {
+        "runningRuns": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "runSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "costUsd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "inputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "usageComplete": {
+          "type": "boolean"
+        }
+      }
+    },
     "cardEvent": {
       "type": "object",
       "additionalProperties": false,
@@ -1919,7 +1959,7 @@
     "card": {
       "type": "object",
       "additionalProperties": false,
-      "description": "A Run card (ADR-0046): one per Work Item, assembled from stored facts when read. Ploeg sends facts only. state: withdrawn when the Work Item was withdrawn; drafting with no play; in_review while a play is open or its state is unknown; merged when the latest play merged, or a play merged and the Work Item is done; closed otherwise. rarity, grade and condition are always null and finish is always matte until those decisions are made. demo is always false from Ploeg. deployments and release come from the deploys pipelines report to POST /api/v1/deploys (ADR-0047).",
+      "description": "A Run card (ADR-0046): one per Work Item, assembled from stored facts when read. Ploeg sends facts only. state: withdrawn when the Work Item was withdrawn; drafting with no play; in_review while a play is open or its state is unknown; merged when the latest play merged, or a play merged and the Work Item is done; closed otherwise. rarity, grade and condition are always null and finish is always matte until those decisions are made. demo is always false from Ploeg. deployments and release come from the deploys pipelines report to POST /api/v1/deploys (ADR-0047). live is the usage so far while a Run is running, read from the gateway when the card is read, and null otherwise (ADR-0049).",
       "required": [
         "workItemId",
         "title",
@@ -1939,6 +1979,7 @@
         "events",
         "deployments",
         "release",
+        "live",
         "demo"
       ],
       "properties": {
@@ -2040,6 +2081,16 @@
           "oneOf": [
             {
               "$ref": "#/$defs/cardRelease"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/cardLive"
             },
             {
               "type": "null"

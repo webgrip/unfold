@@ -45,8 +45,11 @@ type OperatorCard struct {
 	Deployments []CardDeployment `json:"deployments"`
 	// Release is when the latest merged play went live, or nil when no play
 	// merged or the release environment has not received it yet.
-	Release   *CardRelease `json:"release"`
-	Demo      bool         `json:"demo"`
+	Release *CardRelease `json:"release"`
+	// Live is the usage so far while a Run is running, and nil otherwise
+	// (ADR-0049).
+	Live      *CardLive `json:"live"`
+	Demo      bool      `json:"demo"`
 	itemState string
 	runs      []cardRun
 	bots      map[string]bool
@@ -79,6 +82,36 @@ type CardOptions struct {
 	// whose first deploy releases a merged change. A repository absent here
 	// releases in work.DefaultReleaseEnvironment.
 	ReleaseEnvironments map[string]string
+	// Live reads what the gateway has recorded so far for one running Run.
+	// It is called once per running Run after the read transaction ends;
+	// when it is nil, a running Run's cost and tokens are not reported.
+	Live func(ctx context.Context, runToken string) (LiveUsage, error)
+	// Now is the clock that ends a running Run's run time; zero means
+	// time.Now.
+	Now time.Time
+}
+
+// LiveUsage is what the gateway has recorded so far for one running Run.
+type LiveUsage struct {
+	CostUSD      float64
+	InputTokens  int64
+	OutputTokens int64
+}
+
+// CardLive is the Work Item's usage so far while at least one Run is
+// running, assembled when the card is read (ADR-0049). Each figure adds the
+// gateway's running total of every running Run to what the finished Runs
+// recorded. RunSeconds counts each running Run up to ObservedAt. A cost or
+// token figure is absent when the gateway could not be read for a running
+// Run; UsageComplete is false when a figure present here misses a Run.
+type CardLive struct {
+	RunningRuns   int       `json:"runningRuns"`
+	ObservedAt    time.Time `json:"observedAt"`
+	RunSeconds    int64     `json:"runSeconds"`
+	CostUSD       *float64  `json:"costUsd,omitempty"`
+	InputTokens   *int64    `json:"inputTokens,omitempty"`
+	OutputTokens  *int64    `json:"outputTokens,omitempty"`
+	UsageComplete bool      `json:"usageComplete"`
 }
 
 // OperatorCardTarget is the repository a Work Item's pull requests go to.
@@ -203,6 +236,7 @@ type CardEvent struct {
 
 type cardRun struct {
 	id                              int64
+	runToken                        string
 	shiftID                         *int64
 	role                            string
 	round                           int
@@ -231,7 +265,8 @@ var cardRunQuery = `SELECT r.id, r.shift_id, r.role, r.round, r.writes, r.state,
 	(` + operatorUsageCount("r.usage", "cacheReadInputTokens") + `)::bigint,
 	(` + operatorUsageCount("r.usage", "cacheCreationInputTokens") + `)::bigint,
 	(` + operatorUsageCount("r.usage", "turns") + `)::bigint,
-	(` + operatorUsageCount("r.usage", "toolCalls") + `)::bigint
+	(` + operatorUsageCount("r.usage", "toolCalls") + `)::bigint,
+	r.run_token
 	FROM agent_runs r WHERE r.work_item_id = $1 ORDER BY r.id LIMIT $2`
 
 // OperatorCard assembles the Run card of Work Item id from stored facts,
@@ -299,6 +334,7 @@ func (s *Store) OperatorCard(ctx context.Context, id int64, teams []string, opts
 	card.Steward = card.steward()
 	card.State = card.state()
 	card.Events = card.events(withdrawals)
+	card.Live = card.live(ctx, opts)
 
 	var clean OperatorCard
 	raw, err := json.Marshal(card)
@@ -320,7 +356,7 @@ func (c *OperatorCard) loadRuns(ctx context.Context, tx pgx.Tx, id int64) error 
 	for rows.Next() {
 		var r cardRun
 		if err := rows.Scan(&r.id, &r.shiftID, &r.role, &r.round, &r.writes, &r.state, &r.startedAt, &r.finishedAt, &r.outcome,
-			&r.authorized, &r.cost, &r.held, &r.links, &r.input, &r.output, &r.cacheRead, &r.cacheCreation, &r.turns, &r.toolCalls); err != nil {
+			&r.authorized, &r.cost, &r.held, &r.links, &r.input, &r.output, &r.cacheRead, &r.cacheCreation, &r.turns, &r.toolCalls, &r.runToken); err != nil {
 			return err
 		}
 		c.runs = append(c.runs, r)
@@ -681,6 +717,67 @@ func (c *OperatorCard) totals(shifts int) CardTotals {
 		}
 	}
 	return t
+}
+
+func (c *OperatorCard) live(ctx context.Context, opts CardOptions) *CardLive {
+	now := opts.Now
+	if now.IsZero() {
+		now = time.Now()
+	}
+	live := CardLive{ObservedAt: now.UTC(), UsageComplete: true}
+	var cost float64
+	var in, out usageSum
+	costs, readable := 0, true
+	runs := c.started()
+	for _, r := range runs {
+		if r.state != "running" || r.finishedAt != nil {
+			if r.finishedAt != nil {
+				if d := r.finishedAt.Sub(*r.startedAt); d > 0 {
+					live.RunSeconds += int64(d / time.Second)
+				}
+			}
+			if r.cost != nil {
+				cost += *r.cost
+				costs++
+			}
+			in.add(r.input)
+			out.add(r.output)
+			continue
+		}
+		live.RunningRuns++
+		if d := now.Sub(*r.startedAt); d > 0 {
+			live.RunSeconds += int64(d / time.Second)
+		}
+		if !readable || opts.Live == nil || r.runToken == "" {
+			readable = false
+			continue
+		}
+		usage, err := opts.Live(ctx, r.runToken)
+		if err != nil || !validSpend(usage.CostUSD) || usage.InputTokens < 0 || usage.OutputTokens < 0 {
+			readable = false
+			continue
+		}
+		cost += usage.CostUSD
+		costs++
+		input, output := usage.InputTokens, usage.OutputTokens
+		in.add(&input)
+		out.add(&output)
+	}
+	if live.RunningRuns == 0 {
+		return nil
+	}
+	if !readable {
+		live.UsageComplete = false
+		return &live
+	}
+	if costs > 0 {
+		live.CostUSD = &cost
+	}
+	live.InputTokens, live.OutputTokens = in.value(), out.value()
+	if costs < len(runs) || in.reported < len(runs) || out.reported < len(runs) {
+		live.UsageComplete = false
+	}
+	return &live
 }
 
 func (c *OperatorCard) crew() []CardCrew {

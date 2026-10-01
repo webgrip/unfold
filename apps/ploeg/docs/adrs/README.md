@@ -122,6 +122,7 @@ fails otherwise.
 | [0045](0045-keep-run-usage-and-merge-facts.md) | Ploeg keeps every usage figure a harness reports and every merge and review fact a forge reports | proposed | 2026-10-01 |
 | [0046](0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md) | A Run card is assembled per Work Item from stored facts | proposed | 2026-10-01 |
 | [0047](0047-ploeg-learns-where-a-merged-change-is-deployed-from-a-generic-deploy-endpoint.md) | Ploeg learns where a merged change is deployed from a generic deploy endpoint | proposed | 2026-10-01 |
+| [0049](0049-a-run-card-reads-the-gateway-for-usage-so-far-while-a-run-is-running.md) | A Run card reads the gateway for usage so far while a Run is running | proposed | 2026-10-01 |
 
 ## Review calendar
 
@@ -147,4 +148,5 @@ triggers.
 | 2027-01-31 | [0045](0045-keep-run-usage-and-merge-facts.md) — or sooner, when a third forge provider is added, a harness changes its usage shape, or the first card or KPI query is built on these facts |
 | 2027-01-31 | [0046](0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md) — or sooner, when the owner decides rarity, grade or finish, tracker assignees are ingested, or a card read passes 200 ms at p95 |
 | 2027-01-31 | [0047](0047-ploeg-learns-where-a-merged-change-is-deployed-from-a-generic-deploy-endpoint.md) — or sooner, when a GitOps controller should report deploys directly, deploys keep filling the 50-pull-request batch, or a third forge provider is added |
+| 2027-01-31 | [0049](0049-a-run-card-reads-the-gateway-for-usage-so-far-while-a-run-is-running.md) — or sooner, when a card read during a Run passes 1 s at p95, LiteLLM offers a per-key token total, or the worker reports usage during a Run |
 | 2027-04-01 | [0005](0005-build-a-dedicated-dispatch-plane.md), [0032](0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md) — the project review gate (`design.md` §10) |

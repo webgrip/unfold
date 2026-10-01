@@ -1,8 +1,10 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/webgrip/ploeg/pkg/store"
 )
@@ -17,13 +19,27 @@ func (s *Server) handleOperatorCard(w http.ResponseWriter, r *http.Request) {
 	}
 	principal, _ := OperatorPrincipalFromContext(r.Context())
 	card, err := s.Store.OperatorCard(r.Context(), id, principal.Teams,
-		store.CardOptions{Bots: s.ForgeBots, ReleaseEnvironments: s.OperatorConfig.ReleaseEnvironments})
+		store.CardOptions{Bots: s.ForgeBots, ReleaseEnvironments: s.OperatorConfig.ReleaseEnvironments, Live: s.liveCardUsage(r.Context())})
 	if err != nil {
 		operatorReadError(w, err)
 		return
 	}
 	card.Style = s.cardStyle(card.Target)
 	operatorJSON(w, http.StatusOK, map[string]any{"schemaVersion": 1, "card": card})
+}
+
+const cardLiveTimeout = 3 * time.Second
+
+func (s *Server) liveCardUsage(ctx context.Context) func(context.Context, string) (store.LiveUsage, error) {
+	if s.LLMControl == nil {
+		return nil
+	}
+	deadline := time.Now().Add(cardLiveTimeout)
+	return func(_ context.Context, runToken string) (store.LiveUsage, error) {
+		readCtx, cancel := context.WithDeadline(ctx, deadline)
+		defer cancel()
+		return s.LLMControl.Live(readCtx, runToken)
+	}
 }
 
 func (s *Server) cardStyle(target *store.OperatorCardTarget) store.CardStyle {
