@@ -266,10 +266,13 @@ const sentence = text => { const value = String(text ?? '').trim(); return value
 const isAmount = value => typeof value === 'number' && Number.isFinite(value);
 const outcomeEvents = { pr_opened: 'Opened a pull request', pr_updated: 'Updated the pull request', no_change_needed: 'Reported no change needed', follow_up_created: 'Created follow-up work', issue_updated: 'Updated the tracker item', stuck: 'Reported that it is stuck', failed: 'Run failed' };
 
-/** Reads `budget exhausted: pool P, spent S, reserved R` into numbers; missing parts are null. */
+/**
+ * Reads `budget exhausted: pool P, spent S, reserved R` or `budget held by unsettled runs: pool P, spent S, held H`
+ * into numbers; `reserved` is R or H, and missing parts are null.
+ */
 export function parseBudgetReason(text) {
   const read = name => { const match = new RegExp(`${name}\\s+(-?\\d+(?:\\.\\d+)?)`, 'i').exec(String(text ?? '')); return match ? Number(match[1]) : null; };
-  return { pool: read('pool'), spent: read('spent'), reserved: read('reserved') };
+  return { pool: read('pool'), spent: read('spent'), reserved: read('reserved') ?? read('held') };
 }
 
 /** Reads `run stuck: <role> round <n>` into the Role and Round; missing parts are null. */
@@ -315,6 +318,7 @@ export function closeReasonMeta(closeReason) {
   if (!text) return { label: 'Still open', tone: 'neutral' };
   if (Object.hasOwn(closeLabels, text)) return { label: closeLabels[text][0], tone: closeLabels[text][1] };
   const lower = text.toLowerCase();
+  if (lower.startsWith('budget held by unsettled runs')) { const { pool } = parseBudgetReason(text); return { label: pool !== null ? `The ${money(pool)} budget is still held, not spent` : 'The budget is still held, not spent', tone: 'attention' }; }
   if (lower.startsWith('budget exhausted')) {
     const { pool, spent, reserved } = parseBudgetReason(text);
     if (isAmount(spent) && isAmount(reserved) && reserved > 0 && reserved >= spent) return { label: pool !== null ? `The ${money(pool)} budget was held, not spent` : 'The budget was held, not spent', tone: 'attention' };

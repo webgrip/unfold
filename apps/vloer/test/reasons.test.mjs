@@ -240,3 +240,12 @@ test('a budget stop whose shortfall was only held, not spent, says so and points
   const stillHeld = detailReason({ item: item(text, { latestShift: { ...released, reservedUsd: 8 } }), shifts: [{ ...released, reservedUsd: 8 }], runs, events: [] });
   assert.doesNotMatch(stillHeld.sentence, /released/, 'a hold that is still there is not reported as released');
 });
+
+test('Ploeg’s own held-budget close reason reads as held, never as a budget that ran out', () => {
+  const text = 'budget held by unsettled runs: pool 8.00, spent 0.00, held 8.00';
+  assert.deepEqual(parseBudgetReason(text), { pool: 8, spent: 0, reserved: 8 });
+  const reason = listReason(item(text));
+  assert.equal(reason.chip, 'Budget held, not spent');
+  assert.equal(reason.sentence, `Ploeg stopped because the Shift’s US$${space}8,00 budget is held, not spent: US$${space}8,00 is still held for finished Runs whose spend Ploeg could not settle within a day.`);
+  assert.equal(closeReasonLabel(text), `The US$${space}8,00 budget is still held, not spent`);
+});

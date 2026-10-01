@@ -131,6 +131,7 @@ function classify(closeReason) {
   const text = String(closeReason ?? '').trim();
   const lower = text.toLowerCase();
   if (exactCodes.has(text)) return { code: text, text };
+  if (lower.startsWith('budget held by unsettled runs')) return { code: 'budget_held', text };
   if (lower.startsWith('budget exhausted')) {
     const { spent, reserved } = parseBudgetReason(text);
     return { code: held(spent, reserved) ? 'budget_held' : 'budget_exhausted', text };
@@ -148,6 +149,7 @@ function sentenceFor(code, text, item, demo) {
   }
   if (code === 'budget_held') {
     const { pool, spent, reserved } = parseBudgetReason(text);
+    if (pool !== null && /^budget held/i.test(text)) return `Ploeg stopped because the Shift’s ${money(pool)} budget is held, not spent: ${spent > 0 ? `only ${money(spent)} was spent, and ` : ''}${money(reserved)} is still held for finished Runs whose spend Ploeg could not settle within a day.`;
     if (pool !== null) return `Ploeg stopped because the Shift’s ${money(pool)} budget could not pay for the next Round, but ${spent > 0 ? `only ${money(spent)} was spent` : 'nothing was spent'}. ${money(reserved)} was held for Runs whose spend Ploeg had not settled yet.`;
   }
   if (code === 'run_stuck') {
