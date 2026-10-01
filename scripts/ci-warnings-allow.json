@@ -2,5 +2,9 @@
   {
     "pattern": "^\\(node\\) ExperimentalWarning: stripTypeScriptTypes is an experimental feature",
     "reason": "Vloer calls module.stripTypeScriptTypes on purpose (scripts/check.mjs, src/runtime/kubernetes.ts). Node 24 still labels it experimental. Remove this entry when the Node line Vloer pins marks it stable."
+  },
+  {
+    "pattern": "^\\[WARN\\] Tarball download average speed \\d+ KiB/s \\(size \\d+ KiB\\) is below \\d+ KiB/s: ",
+    "reason": "pnpm's fetchMinSpeedKiBps notice measures the runner's network to the npm registry, not the repository. On small tarballs it is dominated by request latency. The install still succeeds, and a download that actually fails stops setup on its own."
   }
 ]
