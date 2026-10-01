@@ -4,11 +4,11 @@ node = "24.21.0"
 helm = "4.3.0"
 
 [tasks.probe-opencode]
-tools = { "npm:opencode-ai" = { version = "1.18.33", npm_args = "--ignore-scripts=false" } }
+tools = { "npm:opencode-ai" = { version = "1.18.34", npm_args = "--ignore-scripts=false" } }
 run = "node scripts/probe-opencode.mjs"
 description = "Probe the pinned OpenCode server without a model call"
 
 [tasks.live]
-tools = { "npm:opencode-ai" = { version = "1.18.33", npm_args = "--ignore-scripts=false" } }
+tools = { "npm:opencode-ai" = { version = "1.18.34", npm_args = "--ignore-scripts=false" } }
 run = "npm start --"
 description = "Run Vloer with the pinned OpenCode binary on PATH"
