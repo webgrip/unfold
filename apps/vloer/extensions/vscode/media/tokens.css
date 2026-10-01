@@ -10,7 +10,7 @@
   --radius-pill: 6px;
 }
 
-.tone { --tone: var(--tone-neutral); }
+.tone, .tone-neutral { --tone: var(--tone-neutral); }
 .tone-live { --tone: var(--tone-live); }
 .tone-attention { --tone: var(--tone-attention); }
 .tone-review { --tone: var(--tone-review); }
