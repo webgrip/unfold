@@ -166,10 +166,13 @@ func (s *Store) IngestAssigned(ctx context.Context, item work.WorkItem) (int64, 
 	var state string
 	err = tx.QueryRow(ctx, `
 		INSERT INTO work_items (provider, external_id, revision, team, state, origin, priority, title, description, url,
-			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule, route_hint)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule, route_hint,
+			tracker_created_at, estimate_seconds)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 		ON CONFLICT (provider, external_id) DO UPDATE SET
 			revision = EXCLUDED.revision,
+			tracker_created_at = COALESCE(EXCLUDED.tracker_created_at, work_items.tracker_created_at),
+			estimate_seconds = COALESCE(EXCLUDED.estimate_seconds, work_items.estimate_seconds),
 			team     = CASE WHEN work_items.operator_owned THEN work_items.team ELSE EXCLUDED.team END,
 			priority = EXCLUDED.priority,
 			title    = EXCLUDED.title,
@@ -193,7 +196,8 @@ func (s *Store) IngestAssigned(ctx context.Context, item work.WorkItem) (int64, 
 		RETURNING id, state`,
 		item.Provider, item.ExternalID, item.Revision, item.Team,
 		string(work.StateQueued), string(work.OriginAssignment), item.Priority, item.Title, item.Description, item.URL,
-		item.ExternalScope, t.Forge, t.Owner, t.Repo, t.BaseBranch, item.RouteRule, item.RouteHint).Scan(&id, &state)
+		item.ExternalScope, t.Forge, t.Owner, t.Repo, t.BaseBranch, item.RouteRule, item.RouteHint,
+		trackerCreated(item), trackerEstimate(item)).Scan(&id, &state)
 	if err != nil {
 		return 0, "", err
 	}
@@ -214,6 +218,21 @@ func (s *Store) IngestAssigned(ctx context.Context, item work.WorkItem) (int64, 
 		return 0, "", err
 	}
 	return id, work.State(state), tx.Commit(ctx)
+}
+
+func trackerCreated(item work.WorkItem) *time.Time {
+	if item.TrackerCreatedAt.IsZero() {
+		return nil
+	}
+	at := item.TrackerCreatedAt.UTC()
+	return &at
+}
+
+func trackerEstimate(item work.WorkItem) *int64 {
+	if item.EstimateSeconds == nil || *item.EstimateSeconds < 0 {
+		return nil
+	}
+	return item.EstimateSeconds
 }
 
 // RefuseRoute records a tracker item that routing refused (ADR-0038): an

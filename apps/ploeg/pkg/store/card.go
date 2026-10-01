@@ -13,6 +13,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/webgrip/ploeg/pkg/flow"
 	"github.com/webgrip/ploeg/pkg/gate"
 	"github.com/webgrip/ploeg/pkg/work"
 )
@@ -62,9 +63,16 @@ type OperatorCard struct {
 	Evolved bool `json:"evolved,omitempty"`
 	// Set places the card in its epic's set, and is nil when the Work Item
 	// belongs to no epic that counts (ADR-0053).
-	Set                  *CardSet `json:"set,omitempty"`
-	Demo                 bool     `json:"demo"`
+	Set *CardSet `json:"set,omitempty"`
+	// Flow holds the card's flow figures: time in every tracker status,
+	// lead and cycle time, flow efficiency, queue and agent time, and how
+	// long a merge took to reach each environment (ADR-0057). It is nil
+	// when the caller passed no CardOptions.Flow. Waiting and blocked time
+	// describe the team's process, never the steward.
+	Flow                 *flow.Flow `json:"flow,omitempty"`
+	Demo                 bool       `json:"demo"`
 	itemState            string
+	flowFacts            cardFlowFacts
 	runs                 []cardRun
 	bots                 map[string]bool
 	transitions          []gate.Transition
@@ -144,6 +152,9 @@ type CardOptions struct {
 	// Rarity computes the card's rarity and freezes it when the card is
 	// revealed (ADR-0056). When it is nil, Rarity is nil.
 	Rarity *RarityOptions
+	// Flow computes the card's flow figures (ADR-0057). When it is nil,
+	// Flow is nil and no status move is read.
+	Flow *FlowOptions
 }
 
 // LiveUsage is what the gateway has recorded so far for one running Run.
@@ -344,9 +355,10 @@ func (s *Store) OperatorCard(ctx context.Context, id int64, teams []string, opts
 	}
 	var provider, externalID, forge, owner, repo string
 	err = tx.QueryRow(ctx, `SELECT i.id::text, left(i.title, 4096), i.provider, i.external_id, left(i.url, 4096), i.team, i.state,
-		i.target_forge, i.target_owner, i.target_repo
+		i.target_forge, i.target_owner, i.target_repo, i.external_scope, i.created_at, i.tracker_created_at, i.estimate_seconds
 		FROM work_items i WHERE i.id = $1 AND ($2::text[] IS NULL OR i.team = ANY($2))`, id, teams).
-		Scan(&card.WorkItemID, &card.Title, &provider, &externalID, &card.URL, &card.Team, &card.itemState, &forge, &owner, &repo)
+		Scan(&card.WorkItemID, &card.Title, &provider, &externalID, &card.URL, &card.Team, &card.itemState, &forge, &owner, &repo,
+			&card.flowFacts.scope, &card.flowFacts.firstSeen, &card.flowFacts.trackerCreated, &card.flowFacts.estimate)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return OperatorCard{}, ErrOperatorNotFound
 	}
@@ -356,6 +368,8 @@ func (s *Store) OperatorCard(ctx context.Context, id int64, teams []string, opts
 	if provider != "manual" && externalID != "" {
 		card.ExternalRef = work.Reference(work.WorkItem{Provider: provider, ExternalID: externalID})
 	}
+	card.flowFacts.provider, card.flowFacts.firstSeen = provider, card.flowFacts.firstSeen.UTC()
+	card.flowFacts.trackerCreated = utcPtr(card.flowFacts.trackerCreated)
 	if owner != "" && repo != "" {
 		card.Target = &OperatorCardTarget{Forge: forge, Owner: owner, Repo: repo}
 	}
@@ -396,6 +410,11 @@ func (s *Store) OperatorCard(ctx context.Context, id int64, teams []string, opts
 			return OperatorCard{}, err
 		}
 	}
+	if opts.Flow != nil {
+		if err := card.loadFlow(ctx, tx, id); err != nil {
+			return OperatorCard{}, err
+		}
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return OperatorCard{}, err
 	}
@@ -412,6 +431,7 @@ func (s *Store) OperatorCard(ctx context.Context, id int64, teams []string, opts
 	condition, weight, cracked := card.condition()
 	card.Condition = condition
 	card.Grade = card.grade(journey, weight, cracked, cardNow(opts))
+	card.Flow = card.flow(opts)
 	if opts.Rarity != nil {
 		if card.Rarity, err = s.cardRarity(ctx, &card, id, opts); err != nil {
 			return OperatorCard{}, err
@@ -627,10 +647,7 @@ func (c *OperatorCard) release(ctx context.Context, tx pgx.Tx, environments map[
 	if play == nil {
 		return nil, nil
 	}
-	environment := work.DefaultReleaseEnvironment
-	if configured, ok := environments[strings.ToLower(play.repo)]; ok && configured != "" {
-		environment = configured
-	}
+	environment := releaseEnvironment(play, environments)
 	for _, d := range play.Deployments {
 		if d.Environment == environment {
 			return &CardRelease{At: d.FirstDeployedAt, Source: "deploy", Environment: environment}, nil
@@ -650,6 +667,13 @@ func (c *OperatorCard) release(ctx context.Context, tx pgx.Tx, environments map[
 		return nil, nil
 	}
 	return &CardRelease{At: play.MergedAt.UTC(), Source: "merge", Environment: environment}, nil
+}
+
+func releaseEnvironment(play *CardPlay, environments map[string]string) string {
+	if configured, ok := environments[strings.ToLower(play.repo)]; ok && configured != "" {
+		return configured
+	}
+	return work.DefaultReleaseEnvironment
 }
 
 var cardPullLink = regexp.MustCompile(`/(?:pulls?|merge_requests)/([0-9]+)/?$`)

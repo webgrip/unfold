@@ -36,6 +36,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	"github.com/webgrip/ploeg/pkg/flow"
 	"github.com/webgrip/ploeg/pkg/followup"
 	"github.com/webgrip/ploeg/pkg/gate"
 	"github.com/webgrip/ploeg/pkg/plan"
@@ -158,6 +159,12 @@ type Project struct {
 	// Gates maps this board's statuses or bucket titles to delivery gates
 	// (ADR-0051). Omitted = Ploeg records no gate for this board's work.
 	Gates *gate.Statuses `yaml:"gates"`
+	// StatusKinds says which of this board's statuses or bucket titles are
+	// active, waiting, blocked or done for the Run card's flow figures
+	// (ADR-0057). A status not listed takes flow.DefaultKind. A board with
+	// gates or statusKinds records every status move; an empty
+	// `statusKinds: {}` records them with the defaults only.
+	StatusKinds *flow.Kinds `yaml:"statusKinds"`
 }
 
 // Team is a roster entry: who works, at what cost, in what order.
@@ -180,6 +187,11 @@ type Team struct {
 	// anyone uninvolved referees a disputed crack, the label "hotfix" marks a
 	// hotfix, and no card comment is posted on pull requests.
 	Cards *TeamCards `yaml:"cards"`
+	// WorkingHours is the Team's working calendar, which the working
+	// seconds of its Run cards' flow figures count in (ADR-0057). Omitted
+	// fields take flow.DefaultHours: Monday to Friday, 09:00 to 17:00 in
+	// Europe/Amsterdam, without holidays.
+	WorkingHours *flow.Hours `yaml:"workingHours"`
 }
 
 // TeamCards are one Team's Run card rules.
@@ -354,7 +366,14 @@ func (f *File) Validate() error {
 	if err := f.validateCards(); err != nil {
 		return err
 	}
-	return f.validateGates()
+	if err := f.validateGates(); err != nil {
+		return err
+	}
+	if err := f.validateStatusKinds(); err != nil {
+		return err
+	}
+	_, err := f.WorkingCalendars()
+	return err
 }
 
 func (f *File) validateCards() error {

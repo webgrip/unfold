@@ -48,11 +48,43 @@ func TestBoardStatusReadsStatusListAndTags(t *testing.T) {
 	if gotPath != "/task/abc" || gotAuth != "pk_x" {
 		t.Fatalf("request %s auth %q", gotPath, gotAuth)
 	}
-	want := provider.BoardStatus{Scope: "901", Statuses: []string{"in test"}, Labels: []string{"bounce:requirement"}}
+	want := provider.BoardStatus{Scope: "901", Statuses: []string{"in test"}, Labels: []string{"bounce:requirement"}, Estimates: true}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("status = %+v", got)
 	}
 }
+
+func TestBoardStatusAndFetchReadTheCreationTimeAndEstimate(t *testing.T) {
+	estimate := `3600000`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `{"id":"abc","date_created":"1759310400000","time_estimate":%s,"status":{"status":"open","type":"open"},"list":{"id":"901"}}`, estimate)
+	}))
+	defer srv.Close()
+	p := &Provider{BaseURL: srv.URL, Token: "pk_x"}
+	created := time.UnixMilli(1759310400000).UTC()
+	for _, tc := range []struct {
+		raw  string
+		want *int64
+	}{{`3600000`, ptr(int64(3600))}, {`"5400000"`, ptr(int64(5400))}, {`null`, nil}, {`"soon"`, nil}, {`-5`, nil}} {
+		estimate = tc.raw
+		got, err := p.BoardStatus(context.Background(), "abc")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !got.Created.Equal(created) || !got.Estimates || !reflect.DeepEqual(got.EstimateSeconds, tc.want) {
+			t.Errorf("time_estimate %s: created %v, estimates %v, estimate %v; want %v", tc.raw, got.Created, got.Estimates, got.EstimateSeconds, tc.want)
+		}
+		item, err := p.FetchItem(context.Background(), "abc")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !item.TrackerCreatedAt.Equal(created) || !reflect.DeepEqual(item.EstimateSeconds, tc.want) {
+			t.Errorf("time_estimate %s: fetched created %v, estimate %v", tc.raw, item.TrackerCreatedAt, item.EstimateSeconds)
+		}
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
 
 func TestBoardCommentsReadsTextAuthorAndDate(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

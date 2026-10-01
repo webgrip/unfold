@@ -301,6 +301,17 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("gates: %w", err)
 	}
+	statusBoards, err := cfg.FlowBoards(ctx, vik, log)
+	if err != nil {
+		return fmt.Errorf("status kinds: %w", err)
+	}
+	calendars, err := cfg.WorkingCalendars()
+	if err != nil {
+		return fmt.Errorf("working hours: %w", err)
+	}
+	for team, c := range calendars {
+		log.Info("working calendar loaded", "team", team, "calendar", c.String())
+	}
 	srv := &httpapi.Server{
 		OperatorConfig: operator,
 		WorkerSecurity: workerSecurity,
@@ -318,12 +329,14 @@ func run(log *slog.Logger) error {
 		ForgeCreds:     forgeCreds,
 		CreatedWork:    createdWork,
 
-		MetricsCacheTTL: durationOr("PLOEG_METRICS_CACHE_TTL", httpapi.DefaultMetricsCacheTTL),
-		FollowUps:       cfg.ForgeFollowUps(),
-		ForgeBots:       forgeBots(),
-		Deploys:         deploys,
-		Gates:           gates,
-		CardRules:       cardRules(cfg.TeamCardRules()),
+		MetricsCacheTTL:  durationOr("PLOEG_METRICS_CACHE_TTL", httpapi.DefaultMetricsCacheTTL),
+		FollowUps:        cfg.ForgeFollowUps(),
+		ForgeBots:        forgeBots(),
+		Deploys:          deploys,
+		Gates:            gates,
+		StatusBoards:     statusBoards,
+		WorkingCalendars: calendars,
+		CardRules:        cardRules(cfg.TeamCardRules()),
 	}
 	log.Info("forge follow-ups loaded", "teams", len(srv.FollowUps))
 	if engine != nil {

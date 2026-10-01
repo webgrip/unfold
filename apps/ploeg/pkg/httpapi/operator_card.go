@@ -20,7 +20,7 @@ func (s *Server) handleOperatorCard(w http.ResponseWriter, r *http.Request) {
 	principal, _ := OperatorPrincipalFromContext(r.Context())
 	card, err := s.Store.OperatorCard(r.Context(), id, principal.Teams,
 		store.CardOptions{Bots: s.ForgeBots, ReleaseEnvironments: s.OperatorConfig.ReleaseEnvironments, Live: s.liveCardUsage(r.Context()),
-			HotfixLabels: s.cardHotfixLabels(), Rarity: s.cardRarity()})
+			HotfixLabels: s.cardHotfixLabels(), Rarity: s.cardRarity(), Flow: s.cardFlow()})
 	if err != nil {
 		operatorReadError(w, err)
 		return
@@ -30,6 +30,10 @@ func (s *Server) handleOperatorCard(w http.ResponseWriter, r *http.Request) {
 }
 
 const cardLiveTimeout = 3 * time.Second
+
+func (s *Server) cardFlow() *store.FlowOptions {
+	return &store.FlowOptions{Kinds: s.StatusBoards, Calendars: s.WorkingCalendars}
+}
 
 func (s *Server) liveCardUsage(ctx context.Context) func(context.Context, string) (store.LiveUsage, error) {
 	if s.LLMControl == nil {

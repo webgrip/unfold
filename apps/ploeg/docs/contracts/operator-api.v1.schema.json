@@ -1974,7 +1974,7 @@
     "card": {
       "type": "object",
       "additionalProperties": false,
-      "description": "A Run card (ADR-0046): one per Work Item, assembled from stored facts when read. Ploeg sends facts only. state: withdrawn when the Work Item was withdrawn; drafting with no play; in_review while a play is open or its state is unknown; merged when the latest play merged, or a play merged and the Work Item is done; closed otherwise. finish is always matte until that decision is made. rarity is how exceptional the change was (ADR-0056): a cardRarity object once the first Run started, the card was revealed or an epic's set is complete, and null otherwise; older Ploeg versions always sent null. condition holds the confirmed cracks (ADR-0052) and is null without one. grade is computed from stored facts under a versioned formula (ADR-0050) and null until a human approved or requested changes on a play, or a play merged. demo is always false from Ploeg. deployments and release come from the deploys pipelines report to POST /api/v1/deploys (ADR-0047). live is the usage so far while a Run is running, read from the gateway when the card is read, and null otherwise (ADR-0049). gates is the Work Item's path through its board's delivery gates, absent or null when no gate move was recorded; evolved is true when a requirement bounce left acceptance (ADR-0051) or a bug was attributed to the card as a changed requirement (ADR-0052). set places the card in its epic's set from tracker parent relations, and is absent when the Work Item belongs to no epic that counts (ADR-0053).",
+      "description": "A Run card (ADR-0046): one per Work Item, assembled from stored facts when read. Ploeg sends facts only. state: withdrawn when the Work Item was withdrawn; drafting with no play; in_review while a play is open or its state is unknown; merged when the latest play merged, or a play merged and the Work Item is done; closed otherwise. finish is always matte until that decision is made. rarity is how exceptional the change was (ADR-0056): a cardRarity object once the first Run started, the card was revealed or an epic's set is complete, and null otherwise; older Ploeg versions always sent null. condition holds the confirmed cracks (ADR-0052) and is null without one. grade is computed from stored facts under a versioned formula (ADR-0050) and null until a human approved or requested changes on a play, or a play merged. demo is always false from Ploeg. deployments and release come from the deploys pipelines report to POST /api/v1/deploys (ADR-0047). live is the usage so far while a Run is running, read from the gateway when the card is read, and null otherwise (ADR-0049). gates is the Work Item's path through its board's delivery gates, absent or null when no gate move was recorded; evolved is true when a requirement bounce left acceptance (ADR-0051) or a bug was attributed to the card as a changed requirement (ADR-0052). set places the card in its epic's set from tracker parent relations, and is absent when the Work Item belongs to no epic that counts (ADR-0053). flow holds the card's flow figures (ADR-0057): time in every tracker status, lead, cycle and start time, flow efficiency, blocked time, reopens, queue and agent time, how long the merge took to reach each environment and how long confirmed cracks took to mend, each in elapsed and in working seconds under the team's working calendar; absent from older Ploeg versions. These figures describe the card and the team's process: waiting and blocked time reflect how work flows through the team, never the steward, and they never feed the grade or the rarity.",
       "required": [
         "workItemId",
         "title",
@@ -2154,6 +2154,16 @@
           "oneOf": [
             {
               "$ref": "#/$defs/cardSet"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "flow": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/cardFlow"
             },
             {
               "type": "null"
@@ -3561,6 +3571,491 @@
         },
         "complete": {
           "type": "boolean"
+        }
+      }
+    },
+    "cardDuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A length of time in elapsed seconds and in working seconds under the team's working calendar (ADR-0057).",
+      "required": [
+        "seconds",
+        "workingSeconds"
+      ],
+      "properties": {
+        "seconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "workingSeconds": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "cardSpan": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A measured stretch of the ticket's life (ADR-0057). start names what from is: tracker_created (the tracker's creation time), first_seen (when Ploeg first stored the Work Item, because the tracker did not say), first_active (the first move into an active status) or first_run (the first Run, when it came before any active status). end names what to is: first_active, first_run, merge, release or now. running is true when to is now because the span has not ended; seconds and workingSeconds then grow on every read.",
+      "required": [
+        "from",
+        "to",
+        "seconds",
+        "workingSeconds",
+        "running",
+        "start",
+        "end"
+      ],
+      "properties": {
+        "from": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "to": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "seconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "workingSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "running": {
+          "type": "boolean"
+        },
+        "start": {
+          "enum": [
+            "tracker_created",
+            "first_seen",
+            "first_active",
+            "first_run"
+          ]
+        },
+        "end": {
+          "enum": [
+            "first_active",
+            "first_run",
+            "merge",
+            "release",
+            "now"
+          ]
+        }
+      }
+    },
+    "cardFlowStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The time the Work Item spent in one tracker status or bucket, summed over its visits, up to now for the current one (ADR-0057). gate is the delivery gate the status mapped to when Ploeg recorded the move, null when it maps to none. kind is the board's configured kind for the status, else the default rules of ADR-0057. observed is true when an entry into the status was timed when Ploeg received it rather than when the tracker said it happened.",
+      "required": [
+        "status",
+        "gate",
+        "kind",
+        "visits",
+        "seconds",
+        "workingSeconds",
+        "observed",
+        "current"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "gate": {
+          "oneOf": [
+            {
+              "enum": [
+                "development",
+                "test",
+                "acceptance",
+                "done"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "enum": [
+            "active",
+            "waiting",
+            "blocked",
+            "done"
+          ]
+        },
+        "visits": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "seconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "workingSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "observed": {
+          "type": "boolean"
+        },
+        "current": {
+          "type": "boolean"
+        }
+      }
+    },
+    "cardFlow": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A Run card's flow figures (ADR-0057), computed from stored facts when the card is read. Unknown figures are null, never 0. statuses lists at most 50 statuses in the order the Work Item first entered them; truncated is true when more statuses, or more than 500 recorded moves, existed, and the totals still count every status that was read. statusesSince is the first recorded move, null without one. gates and kinds sum the status time per delivery gate entered and per kind. leadTime runs from the tracker's creation (else Ploeg's first sight) to the release, else to now while delivery is still possible; it is null for a withdrawn card or one whose pull requests all closed. cycleTime runs from the first active status or the first Run, whichever came first, to the release, else the merge of the latest merged play, else now. timeToStart runs from the lead time's start to the cycle's start, or to now before work started. efficiency is active seconds divided by active, waiting and blocked seconds within the cycle, to three decimals, null without recorded statuses in the cycle. blockedSeconds and reopens (moves out of a done status into another kind) cover every recorded move. queueSeconds runs from the first time the Work Item was queued to its first Run; agentSeconds sums every started Run's duration, a running one up to now, and has no working time because agents do not keep office hours. firstRunToFirstPlaySeconds runs from the first Run to the first pr_opened event. mergeTo and mergeToWorking hold, per environment, the time from the latest merged play's merge to its first deploy there; environmentsReached lists those environments in deploy order; timeToProduction is the entry of the release environment, null until a deploy reached it (a release counted from the merge has none). restores holds every mended confirmed crack's time from confirmation to mend, 0 when the mend came first, and meanRestoreSeconds their mean to one decimal. estimateSeconds is the tracker's time estimate (ClickUp time_estimate), null when the tracker keeps none or none was set. calendar is the working calendar the working seconds were counted in. notCollected lists wanted figures without a source: statuses (the board records no status moves), estimate and holidays (the calendar lists none).",
+      "required": [
+        "statuses",
+        "statusesSince",
+        "truncated",
+        "gates",
+        "kinds",
+        "leadTime",
+        "cycleTime",
+        "timeToStart",
+        "efficiency",
+        "blockedSeconds",
+        "blockedWorkingSeconds",
+        "reopens",
+        "queueSeconds",
+        "queueWorkingSeconds",
+        "agentSeconds",
+        "runs",
+        "firstRunToFirstPlaySeconds",
+        "firstRunToFirstPlayWorkingSeconds",
+        "mergeTo",
+        "mergeToWorking",
+        "environmentsReached",
+        "timeToProduction",
+        "restores",
+        "meanRestoreSeconds",
+        "meanRestoreWorkingSeconds",
+        "estimateSeconds",
+        "calendar",
+        "notCollected"
+      ],
+      "properties": {
+        "statuses": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/cardFlowStatus"
+          }
+        },
+        "statusesSince": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "gates": {
+          "type": "object",
+          "propertyNames": {
+            "enum": [
+              "development",
+              "test",
+              "acceptance",
+              "done"
+            ]
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/cardDuration"
+          }
+        },
+        "kinds": {
+          "type": "object",
+          "propertyNames": {
+            "enum": [
+              "active",
+              "waiting",
+              "blocked",
+              "done"
+            ]
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/cardDuration"
+          }
+        },
+        "leadTime": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/cardSpan"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cycleTime": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/cardSpan"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timeToStart": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/cardSpan"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "efficiency": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "blockedSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "blockedWorkingSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "reopens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "queueSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "queueWorkingSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "agentSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "runs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "firstRunToFirstPlaySeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "firstRunToFirstPlayWorkingSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "mergeTo": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "mergeToWorking": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "environmentsReached": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63
+          }
+        },
+        "timeToProduction": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "environment",
+                "seconds",
+                "workingSeconds"
+              ],
+              "properties": {
+                "environment": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63
+                },
+                "seconds": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "workingSeconds": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "restores": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "crackId",
+              "confirmedAt",
+              "mendedAt",
+              "seconds",
+              "workingSeconds"
+            ],
+            "properties": {
+              "crackId": {
+                "type": "string"
+              },
+              "confirmedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "mendedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "seconds": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "workingSeconds": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "meanRestoreSeconds": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "meanRestoreWorkingSeconds": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "estimateSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "calendar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "timezone",
+            "days",
+            "start",
+            "end",
+            "holidays"
+          ],
+          "properties": {
+            "timezone": {
+              "type": "string",
+              "minLength": 1
+            },
+            "days": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 7,
+              "items": {
+                "enum": [
+                  "mon",
+                  "tue",
+                  "wed",
+                  "thu",
+                  "fri",
+                  "sat",
+                  "sun"
+                ]
+              }
+            },
+            "start": {
+              "type": "string",
+              "pattern": "^[0-2][0-9]:[0-5][0-9]$"
+            },
+            "end": {
+              "type": "string",
+              "pattern": "^[0-2][0-9]:[0-5][0-9]$"
+            },
+            "holidays": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "notCollected": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "statuses",
+              "estimate",
+              "holidays"
+            ]
+          }
         }
       }
     }

@@ -190,6 +190,12 @@ type WorkItem struct {
 	SourcePR  int       `json:"sourcePr,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
+	// TrackerCreatedAt is when the tracker says the item was created, read
+	// at ingest; zero when the tracker did not say (ADR-0057).
+	TrackerCreatedAt time.Time `json:"-"`
+	// EstimateSeconds is the tracker's time estimate, nil when the tracker
+	// keeps none or none was set (ADR-0057).
+	EstimateSeconds *int64 `json:"-"`
 }
 
 // Target is where a Work Item's changes land: the forge coordinates a Run

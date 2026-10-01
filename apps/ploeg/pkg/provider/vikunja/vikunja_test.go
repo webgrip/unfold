@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/webgrip/ploeg/pkg/provider"
 	"github.com/webgrip/ploeg/pkg/work"
@@ -232,7 +233,7 @@ func TestFetchItem_ReadsAuthoritativeState(t *testing.T) {
 		if r.Header.Get("Authorization") != "Bearer tok" {
 			t.Errorf("missing bearer auth: %q", r.Header.Get("Authorization"))
 		}
-		_, _ = w.Write([]byte(`{"id":585,"title":"fix the thing","description":"<p>d</p>","priority":3,"project_id":11,"updated":"2026-07-29T10:00:00Z"}`))
+		_, _ = w.Write([]byte(`{"id":585,"title":"fix the thing","description":"<p>d</p>","priority":3,"project_id":11,"updated":"2026-07-29T10:00:00Z","created":"2026-07-01T09:30:00Z"}`))
 	}))
 	defer srv.Close()
 
@@ -245,6 +246,9 @@ func TestFetchItem_ReadsAuthoritativeState(t *testing.T) {
 	}
 	if item.Revision == "" {
 		t.Error("revision not carried; the monotonic gate needs it (backlog #7)")
+	}
+	if !item.TrackerCreatedAt.Equal(time.Date(2026, 7, 1, 9, 30, 0, 0, time.UTC)) || item.EstimateSeconds != nil {
+		t.Errorf("tracker creation %v, estimate %v; Vikunja keeps no estimate", item.TrackerCreatedAt, item.EstimateSeconds)
 	}
 }
 

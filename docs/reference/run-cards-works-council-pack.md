@@ -2,8 +2,8 @@
 type: reference
 audience: [owner, operator]
 owner: unfold
-last_verified: 2026-10-01
-verified_by: "built data items read against Ploeg ADR-0045, ADR-0046 and ADR-0047 and apps/ploeg/pkg/store/card.go on development @ 810c97a; legal references taken from the 2026-10-01 gamification evidence record, not checked by a lawyer; nothing was run"
+last_verified: 2026-10-02
+verified_by: "built data items read against Ploeg ADR-0045, ADR-0046, ADR-0047 and ADR-0057 and apps/ploeg/pkg/store/{card,card_flow,statuses}.go on feat/ploeg-card-flow; legal references taken from the 2026-10-01 gamification evidence record, not checked by a lawyer; nothing was run"
 ---
 
 # Run Cards: works council and DPIA pack
@@ -35,6 +35,8 @@ A Run Card is the record of one Work Item's change: which pull requests it took,
 | Event timeline with actor | review received, merged, closed | forge facts, Work Item audit | yes | Built |
 | Merge and deploy times | merged 2026-10-01, in production 2026-10-03 | forge, deploy endpoint | via the change | Built |
 | Cost, tokens, diff size, CI result | US$ 0,58, +214/−38, CI passed | Ploeg, forge | via the change | Built |
+| Tracker status moves of the ticket, with the time of each and no actor | Doing 09:00, In test 14:00 | tracker | via the change | Built |
+| Flow timings: time per status, lead and cycle time, flow efficiency, blocked time, queue time, merge to production, time to mend | cycle 27 h, efficiency 0,71 | derived from the rows above | via the change | Built |
 | Tracker assignee as Steward | `j.devries` | tracker | yes | Proposed |
 | Further roles: developer, QA, PO, acceptor | `m.jansen`, QA | tracker transitions, commits | yes | Proposed |
 | Gate moves and Bounces, with actor and reason | test → development, defect | tracker | yes | Proposed |
@@ -44,7 +46,7 @@ A Run Card is the record of one Work Item's change: which pull requests it took,
 | Binder contents, shared cards, events seen | the cards a person holds | Unfold | yes | Proposed |
 | Pack openings and cosmetic pulls | sprint 41, gold signature on card 138 | Unfold | yes | Proposed |
 
-Change data such as cost or diff size is about the change, but on a card that names a Steward it relates to that person too. Treat it as personal data in the DPIA. Run Cards hold no special categories of personal data. Git history and the forge keep authorship on their own, outside Unfold and outside this inventory.
+Change data such as cost or diff size is about the change, but on a card that names a Steward it relates to that person too. Treat it as personal data in the DPIA. Flow timings count calendar time and the team's working hours, and Ploeg keeps no name with a status move. Waiting and blocked time say how work moves through the team's process, not how fast a person works. They are never added up per person and never feed a grade or a rarity. Run Cards hold no special categories of personal data. Git history and the forge keep authorship on their own, outside Unfold and outside this inventory.
 
 ## Purposes
 
@@ -243,6 +245,7 @@ A DPIA under GDPR article 35(7) needs at least the first four parts below; the f
 | Clients pressure named staff | Clients see team aggregates only |
 | Long person-linked histories become de facto files | Pseudonymisation after 12 months and on leaving |
 | Part-time staff or staff on leave look less productive | No per-person totals; no collection comparisons |
+| Waiting or blocked time is read as one person's slowness | No actor stored with status moves; flow is shown per card only; the card contract says that waiting time reflects the process |
 | Chilling effect on reporting faults | Credit for reporters and menders; a team page that explains that rising Cracks can mean a safer team |
 | Configuration changed to add person-level views | Change control on configuration; such a change needs a new DPIA and works council consent |
 

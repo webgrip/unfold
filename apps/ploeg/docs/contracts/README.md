@@ -69,6 +69,16 @@ change either side and the test tells you.
   the `predicted` and `revealed` tiers, the `tier` to show, the `score`,
   `percentile` and `cohort` it was ranked in, its `inputs` and
   `revealedAt`. A revealed tier never changes once sent.
+- Since [ADR-0057](../adrs/0057-a-run-cards-flow-figures-come-from-every-recorded-tracker-status-and-a-team-calendar.md)
+  the card read by the card endpoints may carry `flow`, a `cardFlow` object:
+  time in every tracker status, per gate and per kind, lead, cycle and start
+  time, flow efficiency, blocked time, reopens, queue and agent time, the
+  time from the merge to each environment and the time to mend each
+  confirmed crack, each in elapsed and in working seconds. It is optional,
+  so a consumer of an older Ploeg sees it absent. Inside it an unknown
+  figure is `null`, never `0`, and spans that have not ended say
+  `running: true` and grow on every read. These figures describe the card
+  and the team's process; they never name a person.
 - `deploy-api.v1` is the body of a pipeline's deploy report. It refuses
   unknown fields, unlike the response contracts, so a misspelled field fails
   the pipeline step instead of being dropped.

@@ -24,7 +24,7 @@ func (s *Server) handleOperatorCards(w http.ResponseWriter, r *http.Request) {
 	}
 	page, err := s.Store.OperatorCards(r.Context(), filter,
 		store.CardOptions{Bots: s.ForgeBots, ReleaseEnvironments: s.OperatorConfig.ReleaseEnvironments, Live: s.liveCardUsage(r.Context()),
-			HotfixLabels: s.cardHotfixLabels(), Rarity: s.cardRarity()})
+			HotfixLabels: s.cardHotfixLabels(), Rarity: s.cardRarity(), Flow: s.cardFlow()})
 	if err != nil {
 		operatorReadError(w, err)
 		return
