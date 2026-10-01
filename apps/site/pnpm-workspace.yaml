@@ -8,3 +8,5 @@ minimumReleaseAgeStrict: true
 
 minimumReleaseAgeExclude:
   - "@webgrip/*"
+  # Renovate security update: astro@7.2.8
+  - astro@7.2.8
