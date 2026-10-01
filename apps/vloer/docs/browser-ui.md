@@ -2,8 +2,8 @@
 type: reference
 audience: [contributor, agent]
 owner: vloer
-last_verified: 2026-09-30
-verified_by: "Source read of apps/vloer/public (index.html, app.js, shell.js, styles.css, core/, every module in views/, now.js, ploeg.js, ploeg-activity.js, styles/tokens.css, base.css, shell.css), scripts/browser-check.mjs, scripts/browser/, test/view-registry.test.mjs and src/http.ts at 68c90cf on feat/vloer-redesign, after the screen rebuild and the removal of legacy.css. Screen descriptions come from the markup builders; the pages were not opened in a browser for this pass"
+last_verified: 2026-10-01
+verified_by: "Source read of apps/vloer/public (index.html, app.js, shell.js, styles.css, core/, every module in views/, now.js, ploeg.js, ploeg-activity.js, styles/tokens.css, base.css, shell.css), scripts/browser-check.mjs, scripts/browser/, test/view-registry.test.mjs and src/http.ts at 68c90cf on feat/vloer-redesign, after the screen rebuild and the removal of legacy.css. Screen descriptions come from the markup builders; the pages were not opened in a browser for this pass. The Cards group, Card logins and the Binder, Packs and Season screens were added from views/binder.js, packs.js, season.js and card-identity.js on feat/vloer-binder-packs and opened in the demo browser flow on 2026-10-01"
 ---
 
 # Browser UI
@@ -26,7 +26,10 @@ The sidebar is the only navigation. [`shell.js`](../public/shell.js) draws it ar
 | Ploeg | Insights | `#insights` | Per-Team counts and spend in a window, as stats and tables | — |
 | Workbench | Tasks | `#tasks` | Tracker tasks to preview and import | — |
 | Workbench | Sessions | `#sessions`, `#session/<id>` | Interactive sessions | Sessions that need you |
-| (bottom) | Settings | `#settings/accounts` | Linked accounts, Environment and Preferences | — |
+| Cards | Binder | `#binder` | Your own copies of Run cards: private, newest moment first | — |
+| Cards | Packs | `#packs`, `#packs/odds`, `#packs/<id>` | Your packs in order, the rip ceremony, the published odds and opened packs | — |
+| Cards | Season | `#season` | A Team's totals per quarter, never per person | — |
+| (bottom) | Settings | `#settings/accounts` | Linked accounts, Environment, Preferences and Card logins | — |
 
 * Sessions shows only in demo mode, when shared execution is configured, when sessions exist, or while a session page is open ([`showsSessions`](../public/shell.js)).
 * A count is hidden when it is zero or unknown. Unknown is `null`, never `0`.
@@ -39,7 +42,7 @@ Every page also has:
 * a status strip: on a session page, whether its event stream is connected; Ploeg's connection state (demo, connected, partly unavailable, unreachable, not configured or no Teams); "Updated … ago" for the page on screen; a Live or Paused switch; and a Demo or Live badge;
 * an account menu with the System · Light · Dark theme switch, Preferences, Keyboard shortcuts and, outside the demo, Sign out;
 * one `<h1 id="page-title" tabindex="-1">`, and `document.title` set to `(<waiting>) <Page> · De Vloer`, without the count when nothing waits;
-* on the three Settings pages, a sub-navigation: Linked accounts, Environment, Preferences.
+* on the four Settings pages, a sub-navigation: Preferences, Environment, Linked accounts, Card logins.
 
 When something waits on you, the favicon also carries an amber dot ([attention signals](#attention-signals)).
 
@@ -57,7 +60,10 @@ A hash is `#<path>?<query>`. [`route.js`](../public/core/route.js) splits it wit
 | `insights` | [`insights`](../public/views/insights.js) | `window` (`24h`, `7d`, `30d`). `24h` is the default and is left out of the address |
 | `tasks` | [`tasks`](../public/views/tasks.js) | `source`, `task`: the open task, written with `history.replaceState` so choosing a task adds no history entry |
 | `sessions`, `session/<id>` | [`sessions`](../public/views/sessions.js), [`session`](../public/views/session.js) | On `sessions`: `filter` (`needs`, `active`, `done`) and `q`, the search text |
-| `settings/accounts`, `settings/environment`, `settings/preferences` | [`account`](../public/views/account.js), [`system`](../public/views/system.js), [`preferences`](../public/views/preferences.js) | — |
+| `settings/accounts`, `settings/environment`, `settings/preferences`, `settings/cards` | [`account`](../public/views/account.js), [`system`](../public/views/system.js), [`preferences`](../public/views/preferences.js), [`card-identity`](../public/views/card-identity.js) | — |
+| `binder` | [`binder`](../public/views/binder.js) | `card`: the focused card, written with `history.replaceState` |
+| `packs`, `packs/odds`, `packs/<id>` | [`packs`](../public/views/packs.js) | — |
+| `season` | [`season`](../public/views/season.js) | `team`, `quarter` (`2026-Q3`) |
 | `design` | [`design`](../public/views/design.js) | — |
 
 A Work Item id is 1 to 20 digits and does not start with 0. An unknown path opens Now.
@@ -146,6 +152,20 @@ These four read Ploeg's operator activity API ([`ploeg-activity.js`](../public/p
 * **Preferences** has Appearance (theme, density, and how numbers and dates are written) and Behaviour (single-key shortcuts, Refresh automatically and Desktop notifications), and links to the style guide. Its controls stay in step with the top bar's Live switch and the account menu's theme.
 * **Sign-in** is a split page with the brand lockup. When single sign-on is configured, **Continue with** and the provider's name is the primary button. A failed attempt keeps the account name. An expired session shows "Your session expired" and, after signing in again, returns to the page you were on (`sessionStorage` key `vloer.returnTo`).
 
+### Binder, Packs and Season
+
+The collection side of Run cards ([ADR 0029](adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md), proposed). Copies draw with the forge skin, because pulls are forge cosmetics; the Work Item page keeps the skin its Work Target chose.
+
+* **Card logins** (`#settings/cards`) shows the login an administrator mapped to the person (the demo login in the demo), which alone can name them a steward, and the other forge and tracker logins they add to collect cards, with their linked accounts' logins as suggestions. Notes say added logins never attribute anything, and that the binder and packs are private, administrators included.
+* **Binder.** The readouts are personal (cards, released, days live, days live this quarter, mends), with no comparison. A focused card is drawn large by `<unfold-card>` with its roles, its pull and its chance. A grid of still forge thumbnails sits beside it, drawn one after another by one shared renderer ([`cards/thumbs.js`](../public/cards/thumbs.js)), with Team and role filters. A copy whose pull waits in an unopened pack sits in a sleeve. On the first load after news, **While you were away** plays each moment since the last visit on the focused card (finish rising, crack, mend, merge), with **Skip**. It is marked seen at once, so it never replays, and under reduced motion it is a list.
+* **Packs.** The oldest sealed pack is the hero: a 3D foil pack ([`cards/pack-scene.js`](../public/cards/pack-scene.js)).
+  * **Tearing.** Drag across its top edge, or press **Tear open** or Enter.
+  * **Revealing.** Cards deal face down, and **Reveal card n of m**, a click on the stage or Space reveals each one. The anticipation grows with the pull's odds alone, then come the flip, the foil wipe, particles and bloom, and a title with the pattern, its chance in nl-NL and any extras, announced in the live region.
+  * **Ending.** **Skip to summary** appears after 300 ms, and the summary offers **Add to binder**. Reduced motion reveals instantly with no particles. Sound is off until the **Sound** switch turns it on (preference `packSound`).
+  * **Lists.** Below the hero: the other sealed packs (Waiting, opened in order), the current period's pack (Filling now, with the date it seals) and opened packs.
+* **Odds** (`#packs/odds`) lists every pattern's chance and "1 in N", the three extras, and the rules: earned contents, cosmetic pulls, one pull per card, a fixed HMAC draw, no purchase, re-roll, trade or expiry.
+* **Season** shows the Team and quarter as segmented links, with Team totals as stats and tables: finishes reached and bounce reasons. A figure Ploeg does not send reads "Not collected yet". A line says the page names and ranks nobody.
+
 ### Command palette
 
 The search button, `/`, and Ctrl K or ⌘ K open the palette ([`palette.js`](../public/views/palette.js)), an ARIA combobox over a grouped listbox. Ctrl K does nothing while another dialog is open, so a half-filled form is never hidden under it.
@@ -225,7 +245,7 @@ Rules for handlers:
 | [`format.js`](../public/core/format.js) | Money, counts, percentages, plurals, dates, day headings, times, relative times, durations and `<time>` markup | Format every amount and date here. Money is US dollars in nl-NL with two decimals (`US$ 1.234,50`), `< US$ 0,01` below a cent with the exact value in `title`, and "Not reported" for anything that is not a number. Absolute dates read `30-09-2026 21:30`; relative times are English ("5 min ago") and become a date after seven days. `configureFormat({ locale: 'browser' })` switches to the browser's locale |
 | [`states.js`](../public/core/states.js) | The label, tone, glyph and meaning of every Work Item state, Run state, outcome, verdict, failure reason, checkpoint and session status, plus `auditEvent(entry)` and `actorName(actor)` for audit events | Never write a state label in a view. `stateMeta('run:running')` disambiguates with a kind prefix. `done` is "Done", never "Merged". An agent verdict reads "Agent review: …"; its `short` form ("Agent approved") is for cells whose heading already says agent review. `failureNote(key, { live })` drops the retry promise once a Work Item has stopped |
 | [`reasons.js`](../public/core/reasons.js) | Why a `needs_human` or `stale` Work Item waits on you: chip, glyph, sentence, fix and how to start again | `listReason(item, { demo })` for lists, `detailReason(detail)` for the Work Item page, `routingWarning(item)` for the secondary "Not routed" chip, which is never the reason. A free-text close reason reads "Needs a decision"; a missing one, or an open Shift, "Stopped; open for details" |
-| [`prefs.js`](../public/core/prefs.js), [`theme.js`](../public/core/theme.js) | Per-browser preferences in `localStorage` key `vloer.prefs`: `theme`, `density`, `singleKeyShortcuts`, `live`, `notify`, `format`, `lastVisit`, `team` | Read and write through `prefs`; storage failures fall back to memory. `theme.js` is a classic script that applies theme and density before first paint |
+| [`prefs.js`](../public/core/prefs.js), [`theme.js`](../public/core/theme.js) | Per-browser preferences in `localStorage` key `vloer.prefs`: `theme`, `density`, `singleKeyShortcuts`, `live`, `notify`, `format`, `lastVisit`, `team`, `packSound` | Read and write through `prefs`; storage failures fall back to memory. `theme.js` is a classic script that applies theme and density before first paint |
 | [`live.js`](../public/core/live.js) | The one refresh scheduler, backoff, the Live or Paused state and "Updated … ago" | See [Extend the UI](#extend-the-ui) |
 | [`keys.js`](../public/core/keys.js) | The shortcut table, the `?` help dialog and the global keys | See [Extend the UI](#extend-the-ui) |
 | [`counts.js`](../public/core/counts.js) | The navigation counts and the Ploeg status, read from `GET /api/ploeg/now` | A view that loads Now data passes it to `applyNowCounts` rather than fetching twice. `onCountsChange(listener)` hands listeners the Now response, which the palette and the attention signals read |
@@ -317,4 +337,5 @@ Run them in `apps/vloer` with `mise exec -- npm test` and `mise exec -- npm run 
 | [`test/now-view.test.mjs`](../test/now-view.test.mjs), [`test/ploeg-view.test.mjs`](../test/ploeg-view.test.mjs), [`test/ploeg-activity.test.mjs`](../test/ploeg-activity.test.mjs), [`test/session-view.test.mjs`](../test/session-view.test.mjs) | The markup of Now, Work and the Work Item page, the four feed pages, and the session page |
 | [`test/palette.test.mjs`](../test/palette.test.mjs), [`test/attention.test.mjs`](../test/attention.test.mjs) | Palette matching, grouping and markup; the favicon dot and desktop notifications |
 | [`test/static-assets.test.ts`](../test/static-assets.test.ts) | Which paths are served, ETag, 304 and gzip |
-| [`scripts/browser/`](../scripts/browser/) | One flow per area, run in this order: `now`, `tasks`, `sessions`, `shell`, `palette`, `settings`, `feeds`, `work`, `login`. [`shell.mjs`](../scripts/browser/shell.mjs) covers redirects, title, focus, theme, live updates, shortcuts, the skip link and the phone layout; [`work.mjs`](../scripts/browser/work.mjs) covers the demo Cancel Work Item dialog and a mocked live cancel |
+| [`test/collection-model.test.mjs`](../test/collection-model.test.mjs) | The words and numbers of the binder and packs: nl-NL odds, anticipation by pull only, copies drawn with the forge, and cards as they stood at a moment |
+| [`scripts/browser/`](../scripts/browser/) | One flow per area, run in this order: `now`, `tasks`, `sessions`, `shell`, `palette`, `settings`, `feeds`, `work`, `forge`, `collection`, `login`. [`shell.mjs`](../scripts/browser/shell.mjs) covers redirects, title, focus, theme, live updates, shortcuts, the skip link and the phone layout; [`work.mjs`](../scripts/browser/work.mjs) covers the demo Cancel Work Item dialog and a mocked live cancel; [`collection.mjs`](../scripts/browser/collection.mjs) covers card logins, the binder, a demo pack ripped by keyboard, the odds, the reduced-motion ceremony and the season page |

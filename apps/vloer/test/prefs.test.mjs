@@ -12,7 +12,7 @@ function memoryStorage(initial = {}) {
 test('preferences start at their defaults and keep what is set', () => {
   const storage = memoryStorage();
   const prefs = createPrefs(() => storage);
-  assert.deepEqual(prefs.all(), { theme: 'system', density: 'comfortable', singleKeyShortcuts: true, live: true, notify: false, format: 'nl', lastVisit: null, team: null });
+  assert.deepEqual(prefs.all(), { theme: 'system', density: 'comfortable', singleKeyShortcuts: true, live: true, notify: false, format: 'nl', lastVisit: null, team: null, packSound: false });
   assert.deepEqual(prefs.all(), { ...prefDefaults });
   assert.equal(prefs.set('theme', 'dark'), true);
   assert.equal(prefs.set('singleKeyShortcuts', false), true);

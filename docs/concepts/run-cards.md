@@ -3,7 +3,7 @@ type: explanation
 audience: [owner, operator, contributor, agent]
 owner: unfold
 last_verified: 2026-10-01
-verified_by: "built parts read against Ploeg ADR-0045, ADR-0046, ADR-0047 and ADR-0049, Vloer ADR 0026, apps/ploeg/pkg/store/card.go and apps/vloer/public/cards on development @ 810c97a; proposed parts checked against the owner's design page and card contracts of 2026-10-01; nothing was run"
+verified_by: "built parts read against Ploeg ADR-0045, ADR-0046, ADR-0047 and ADR-0049, Vloer ADR 0026, apps/ploeg/pkg/store/card.go and apps/vloer/public/cards on development @ 810c97a; binders, packs and seasons read against Vloer ADR 0029 and apps/vloer/src/{collection,packs,season}.ts on feat/vloer-binder-packs; proposed parts checked against the owner's design page and card contracts of 2026-10-01; the Vloer collection was run in its demo browser flow"
 ---
 
 # Run Cards
@@ -28,7 +28,7 @@ So every number on a card describes the change. The person appears only as its *
 
 ## What is built and what is proposed
 
-The first three build phases are merged on `development`: P0 keeps the facts a card needs, P1 puts the card on the Work Item page, and P2 adds life in production. Their ADRs still have the status `proposed`. Later phases (cracks and mends, epics, Binders and seasons, all skins and full ceremony) are not started.
+The first three build phases are merged on `development`: P0 keeps the facts a card needs, P1 puts the card on the Work Item page, and P2 adds life in production. Their ADRs still have the status `proposed`. Later phases (cracks and mends, epics, all skins and full ceremony) are not started. The Vloer side of Binders, Packs and seasons is built against fixtures, waiting for Ploeg's card list.
 
 | Part | State | Where it is recorded |
 | --- | --- | --- |
@@ -39,7 +39,8 @@ The first three build phases are merged on `development`: P0 keeps the facts a c
 | Usage so far while a Run is running | Built; ADR proposed | [Ploeg ADR-0049](../../apps/ploeg/docs/adrs/0049-a-run-card-reads-the-gateway-for-usage-so-far-while-a-run-is-running.md) |
 | The `<unfold-card>` runtime, the Vloer Native skin, the card on the Work Item page, days live, the finish ladder and a demo card | Built; ADR proposed | [Vloer ADR 0026](../../apps/vloer/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md) |
 | Rarity | **Open**; Ploeg sends `null` | |
-| Grade, condition (Cracks and Mends), level, Gates and Bounces, Roster roles and copies, the Steward rule, Set Cards, Binders, team pages, Packs, seasons, themes, more skins, the effects director, retention | **Proposed** | This page |
+| Binders, Packs with published odds and stored cosmetic pulls, the pack ceremony and team season pages | Vloer side built against the card contract and fixtures; ADR proposed; Ploeg's card list built in parallel | [Vloer ADR 0029](../../apps/vloer/docs/adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md) |
+| Grade, condition (Cracks and Mends), level, Gates and Bounces, Roster roles and copies, the Steward rule, Set Cards, themes, more skins, the effects director, retention | **Proposed** | This page |
 
 To make a project count days live from real deploys, see [Send deploys from a pipeline to Ploeg](../../apps/ploeg/docs/how-to/send-deploys-from-a-pipeline.md). Until a project reports deploys, the release counts from the merge, and the card says so.
 
@@ -162,7 +163,15 @@ Proposed lifecycle: drafted (a Run is live) → opened (pull request) → signed
 * **One Pack per person per sprint.**
 * **Pulls never change a Grade, a Rarity or any metric**, and never anything Ploeg authorizes, budgets or merges.
 
-The loot-box rulings in Belgium and the Netherlands concerned packs bought with money ([trading-card design](../research/2026-10-01-run-cards-trading-card-design.md)). A Pack that nobody can buy, with cosmetic pulls and published odds, is built to stay clear of them. An agency should still have its counsel review it. Still open: what a Pack covers for a team that does not work in sprints.
+The loot-box rulings in Belgium and the Netherlands concerned packs bought with money ([trading-card design](../research/2026-10-01-run-cards-trading-card-design.md)). A Pack that nobody can buy, with cosmetic pulls and published odds, is built to stay clear of them. An agency should still have its counsel review it.
+
+Vloer implements this proposal against fixtures ([Vloer ADR 0029](../../apps/vloer/docs/adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md)):
+
+* **Period.** A Pack covers an ISO week by default, and a Team can set its sprint length and start date instead, which answers what a Pack covers for a team that does not work in sprints.
+* **Contents.** A Pack holds each card with a moment in its period: minted, merged, released, a finish step crossed, cracked or mended.
+* **Opening.** Packs seal when their period ends, open in order and never expire.
+* **The pull.** A card is pulled once, in its first Pack, with HMAC-SHA256 over the person, the Work Item and the Pack, and Vloer stores the result.
+* **What a pull gives.** The pull picks the foil pattern and may add alternate art, a full-art frame or a gold signature. The earned finish still decides how much of the card the pattern covers.
 
 ## Who sees what
 
@@ -199,7 +208,7 @@ A **Skin** changes how a card looks and moves, never its numbers or where they s
 | Rarity | Open | See [Rarity: open](#rarity-open) |
 | Steward and roles | Proposed | Role copies with shared fate; the Steward is the developer carrying the Work Item |
 | Gates and bounces | Proposed | Tracker-status mapping per project plus the deploy endpoint |
-| Packs | Proposed | Earned, cosmetic-only pulls, published odds, one per sprint |
+| Packs | Proposed; Vloer side built | Earned, cosmetic-only pulls, published odds, one per person per period (an ISO week, or a Team's sprint) |
 
 No product-level ADR records the guardrails yet; this page states them. The decided parts are recorded in the Ploeg and Vloer ADRs above.
 

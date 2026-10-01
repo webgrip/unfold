@@ -8,7 +8,7 @@ import { OutputPass } from '../../../vendor/three/output-pass.js';
 import { prelude } from './shader-prelude.js';
 import { foils } from './shader-foils.js';
 import { art } from './shader-art.js';
-import { artWindow, faceCanvases, faceSize, paintBack, paintFace, paintLabel, softenHeight } from './face.js';
+import { artWindowFor, faceCanvases, faceSize, paintBack, paintFace, paintLabel, softenHeight } from './face.js';
 import { factsSignature } from './forge-model.js';
 
 const card = Object.freeze({ width: 0.63, height: 0.88, radius: 0.032, depth: 0.014 });
@@ -57,7 +57,7 @@ function frontShader(artKey, patternKey) {
   return `precision highp float; precision highp int;
 uniform sampler2D uFace, uMask, uHeight;
 uniform vec4 uArtRect; uniform float uTime; uniform vec2 uP; uniform vec3 uV; uniform float uIntensity; uniform vec3 uCover; uniform float uBorder;
-uniform float uSeed; uniform float uCrack, uMend, uCrackSeed; uniform vec2 uImpact; uniform float uFlash, uDesat; uniform float uRelief; uniform vec2 uTexel; uniform float uArtDepth;
+uniform float uSeed; uniform float uCrack, uMend, uCrackSeed; uniform vec2 uImpact; uniform float uFlash, uDesat; uniform float uRelief; uniform vec2 uTexel; uniform float uArtDepth; uniform float uWipe;
 in vec2 vUv; out vec4 outColor;
 ${prelude}
 ${foils}
@@ -113,6 +113,8 @@ void main(){
   FoilIn fb = FoilIn(vUv, uP, Vd, uTime, base, luma, m.r, m.g, m.b, uSeed, uIntensity);
   vec3 matte = foil_none(fb);
   float cover = clamp(m.g * uCover.x + m.r * uCover.y + (1.0 - clamp(m.g + m.r, 0.0, 1.0)) * uCover.z, 0.0, 1.0);
+  float sweep = vUv.x * 0.75 + (1.0 - vUv.y) * 0.25;
+  cover *= smoothstep(uWipe, uWipe - 0.08, sweep);
   FoilIn ff = fb;
   ff.intensity = uIntensity * cover;
   vec3 foiled = foil_${patternKey}(ff);
@@ -150,6 +152,7 @@ void main(){
     col = mix(col, g * ridge, line * gold);
     col += vec3(1.0, 0.7, 0.3) * halo * gold * 0.14;
   }
+  if (uWipe < 1.1) col += vec3(1.0, 0.92, 0.75) * exp(-pow((sweep - uWipe) * 38.0, 2.0)) * 0.55;
   float l = dot(col, vec3(0.2126, 0.7152, 0.0722));
   col = mix(col, vec3(l), uDesat);
   col += uFlash * vec3(1.0, 0.95, 0.85);
@@ -274,10 +277,10 @@ export class ForgeScene {
 
     this.uniforms = {
       uFace: { value: this.textures.face }, uMask: { value: this.textures.mask }, uHeight: { value: null },
-      uArtRect: { value: new THREE.Vector4(artWindow.x0 / faceSize.width, 1 - artWindow.y1 / faceSize.height, artWindow.x1 / faceSize.width, 1 - artWindow.y0 / faceSize.height) },
+      uArtRect: { value: new THREE.Vector4() },
       uTime: { value: stillTime }, uP: { value: this.state.light }, uV: { value: new THREE.Vector3(0, 0, 1) }, uIntensity: { value: 1 }, uCover: { value: new THREE.Vector3() }, uBorder: { value: 0 },
       uSeed: { value: 0 }, uCrack: { value: 0 }, uMend: { value: 0 }, uCrackSeed: { value: 0 }, uImpact: { value: new THREE.Vector2(0.62, 0.58) }, uFlash: { value: 0 }, uDesat: { value: 0 },
-      uRelief: { value: 8 }, uTexel: { value: new THREE.Vector2(1.6 / faceSize.width, 1.6 / faceSize.height) }, uArtDepth: { value: 0.05 },
+      uRelief: { value: 8 }, uTexel: { value: new THREE.Vector2(1.6 / faceSize.width, 1.6 / faceSize.height) }, uArtDepth: { value: 0.05 }, uWipe: { value: 2 },
     };
     this.faceGeometry = faceGeometry(shape);
     this.disposables.push(this.faceGeometry);
@@ -352,8 +355,15 @@ export class ForgeScene {
       this.front.material.dispose();
       this.front.material = material;
     }
+    const area = artWindowFor(facts);
+    this.uniforms.uArtRect.value.set(area.x0 / faceSize.width, 1 - area.y1 / faceSize.height, area.x1 / faceSize.width, 1 - area.y0 / faceSize.height);
     const coverage = facts.coverage;
-    this.uniforms.uCover.value.set(coverage.frame, coverage.art, coverage.card);
+    const rising = ceremony && previous && coverage.level > previous.coverage.level;
+    if (rising) {
+      const from = this.uniforms.uCover.value.clone();
+      this.tween(1.4, k => { this.uniforms.uCover.value.set(from.x + (coverage.frame - from.x) * k, from.y + (coverage.art - from.y) * k, from.z + (coverage.card - from.z) * k); }, null, x => x * x * (3 - 2 * x));
+      this.tween(1.8, k => { this.bloomStrength = 0.32 + (0.3 + coverage.level * 0.08) * Math.sin(Math.PI * k); }, () => { this.bloomStrength = 0.32; }, x => x);
+    } else this.uniforms.uCover.value.set(coverage.frame, coverage.art, coverage.card);
     this.uniforms.uBorder.value = coverage.border ? 1 : 0;
     this.uniforms.uSeed.value = facts.seed;
     this.uniforms.uCrackSeed.value = facts.seed;

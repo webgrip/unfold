@@ -16,6 +16,7 @@ import { PloegClient, PloegError, type PloegDecision, type PloegState } from './
 import { DeliveryService } from './delivery.ts';
 import { TaskHandoff } from './task-handoff.ts';
 import { StaticFiles } from './static.ts';
+import { Collection, CollectionError } from './collection.ts';
 
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
 
@@ -75,6 +76,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const handoff = new TaskHandoff(config, ploeg);
   const streams = new Set<ServerResponse>();
   const staticFiles = new StaticFiles(config.publicDir);
+  const collection = new Collection(config, store, ploeg, config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true));
   const knownSecrets = [config.delivery?.verifierTokenEnv ? process.env[config.delivery.verifierTokenEnv] : undefined, config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword, config.ploeg?.tokenEnv ? process.env[config.ploeg.tokenEnv] : undefined, ...(config.taskSources ?? []).map(source => source.token)].filter((value): value is string => Boolean(value));
   function sanitize<T>(value: T): T {
     if (typeof value === 'string') {
@@ -280,6 +282,26 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           }
           const session = engine.create({ approval: data.approval as 'manual' | 'auto' | undefined, model: text(data.model, 'Model', 64, true) || undefined, title: text(data.title, 'Title', 160), objective: text(data.objective, 'Objective', 16000), repositoryId, crewId, runtime, placement: placementInput(data.placement), budgetUsd: data.budgetUsd as number, trackerUrl: trackerUrl || undefined }, user);
           return json(res, 201, sanitize(publicSession(session)));
+        }
+        if (path === '/api/me/card-identity' || path.startsWith('/api/binder') || path.startsWith('/api/packs') || path === '/api/season') {
+          try {
+            if (path === '/api/me/card-identity') {
+              if (method === 'GET') return json(res, 200, collection.identity(user));
+              if (method === 'PUT') { const data = await body(req); return json(res, 200, collection.setIdentity(user, data.logins)); }
+            }
+            if (path === '/api/binder' && method === 'GET') return json(res, 200, sanitize(await collection.binder(user)));
+            if (path === '/api/binder/seen' && method === 'POST') { const data = await body(req); return json(res, 200, collection.markSeen(user, data.until)); }
+            if (path === '/api/packs' && method === 'GET') return json(res, 200, sanitize(await collection.packs(user)));
+            if (path === '/api/packs/odds' && method === 'GET') return json(res, 200, collection.odds());
+            const pack = /^\/api\/packs\/([A-Za-z0-9_.:@~-]{1,120})(\/open)?$/.exec(path);
+            if (pack && !pack[2] && method === 'GET') return json(res, 200, sanitize(await collection.pack(user, pack[1])));
+            if (pack && pack[2] && method === 'POST') { await body(req); return json(res, 200, sanitize(await collection.openPack(user, pack[1]))); }
+            if (path === '/api/season' && method === 'GET') return json(res, 200, sanitize(await collection.season(user, url.searchParams.get('team') || undefined, url.searchParams.get('quarter') || undefined)));
+            fault(405, 'method', 'Unsupported method.');
+          } catch (error) {
+            if (error instanceof CollectionError || error instanceof PloegError) return json(res, error.status, { error: { code: error.code, message: error.message } });
+            throw error;
+          }
         }
         if (path === '/api/ploeg' || path.startsWith('/api/ploeg/')) {
           const decision = /^\/api\/ploeg\/work-items\/([^/]+)\/(approve|reject|cancel)$/.exec(path);

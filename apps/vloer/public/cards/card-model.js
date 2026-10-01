@@ -585,6 +585,17 @@ function setTab(set) {
   };
 }
 
+/** The role that names a person's copy of a card, as the binder shows it. */
+export const copyRoleLabels = Object.freeze({ developer: 'Developer', reviewer: 'Reviewer', qa: 'QA', po: 'PO', acceptor: 'Acceptor', merger: 'Merger', steward: 'Steward' });
+
+function copyView(card) {
+  const copy = card.copy && typeof card.copy === 'object' ? card.copy : null;
+  if (!copy) return null;
+  const role = text(copy.role);
+  const altArt = Number.isInteger(copy.altArt) && copy.altArt >= 0 && copy.altArt < 64 ? copy.altArt : null;
+  return { role, roleLabel: copyRoleLabels[role] ?? (role ? role[0].toUpperCase() + role.slice(1) : ''), altArt, fullArt: copy.fullArt === true, goldSignature: copy.goldSignature === true, pulled: Boolean(text(copy.foilPattern)) };
+}
+
 /**
  * The view model of a Run card: every slot formatted (nl-NL money with two decimals, compact counts, durations),
  * and every value Ploeg left out marked "Not reported", never zero. While a Run is running, cost, tokens and run time
@@ -592,8 +603,9 @@ function setTab(set) {
  * "Not collected yet". A demo card reads "Demo · no model calls" for cost and usage. Rarity is not shown. `grade` and
  * `condition` are null until Ploeg sends a readable grade (P2b) or a confirmed crack (P3). The finish comes from the
  * whole days since `release.at` on the finish ladder; Ploeg's own `finish` is ignored, and a card without a release is
- * matte. `foilPattern` is the pattern a pack pull assigned; packs are not built yet, so it is null and a skin derives
- * a stable pattern from the card's identity.
+ * matte. A card in a binder carries `copy`, the person's copy: its role and its first pull from a pack (ADR 0029).
+ * `foilPattern` is the pattern that pull assigned, and null on a card without a pull, for which a skin derives a stable
+ * pattern from the card's identity; `copy` in the view holds the role and the pull's other cosmetics.
  * @param {object} card A card from `GET /api/ploeg/work-items/:id/card`.
  * @param {{ now?: number }} [options] `now` is the clock in milliseconds, for tests.
  */
@@ -637,7 +649,8 @@ export function cardView(card, { now = Date.now() } = {}) {
     set,
     evolved: data.evolved === true,
     style: { skin: text(style.skin), theme: text(style.theme) },
-    foilPattern: null,
+    foilPattern: text(data.copy?.foilPattern) || null,
+    copy: copyView(data),
     tabs: cardTabs.map(tab => ({ groups: [], ...tab, ...tabs[tab.id] })),
   };
 }

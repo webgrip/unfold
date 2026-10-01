@@ -41,6 +41,7 @@ export type AppConfig = {
   ploeg?: { url: string; tokenEnv?: string; teams?: string[]; userTeams?: Record<string, string[]>; forgeLogins?: Record<string, string>; trackerUrl?: string; demo?: boolean };
   links?: { gitlab?: { baseUrl: string; clientId?: string; scopes: string[] }; clickup?: { clientId?: string; clientSecret?: string; apiUrl: string; appUrl: string } };
   gatewayPolicy?: { providers?: string[]; regions?: string[] };
+  cards?: { backfillPeriods: number; teams: Record<string, { lengthDays: number; anchor: string }> };
   observability?: { grafanaUrl?: string; dashboards?: Record<string, string>; tracesDatasource?: string; logsDatasource?: string; logsUrl?: string; traceQuery?: string; logsQuery?: string };
 };
 export type RuntimeEvent = { type: string; data: Record<string, unknown> };

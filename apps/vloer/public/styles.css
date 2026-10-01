@@ -18,6 +18,7 @@
 @import url('/styles/login.css') layer(views);
 @import url('/styles/palette.css') layer(views);
 @import url('/styles/design.css') layer(views);
+@import url('/styles/collection.css') layer(views);
 @font-face {
   font-family:Archivo;
   font-style:normal;
