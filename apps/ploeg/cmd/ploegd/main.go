@@ -297,6 +297,10 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("created work: %w", err)
 	}
+	gates, err := cfg.GateBoards(ctx, vik, log)
+	if err != nil {
+		return fmt.Errorf("gates: %w", err)
+	}
 	srv := &httpapi.Server{
 		OperatorConfig: operator,
 		WorkerSecurity: workerSecurity,
@@ -318,6 +322,7 @@ func run(log *slog.Logger) error {
 		FollowUps:       cfg.ForgeFollowUps(),
 		ForgeBots:       forgeBots(),
 		Deploys:         deploys,
+		Gates:           gates,
 	}
 	log.Info("forge follow-ups loaded", "teams", len(srv.FollowUps))
 	if engine != nil {

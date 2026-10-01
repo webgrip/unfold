@@ -42,6 +42,37 @@ type TrackerEvent struct {
 	// FetchItem cannot supply authoritative state (thin-payload rule: the
 	// webhook is a trigger, the provider read is the truth).
 	Item *work.WorkItem
+	// Actor is the tracker username that caused the event, when the
+	// payload names one.
+	Actor string
+	// At is when the tracker says the change happened; zero when the
+	// payload does not say.
+	At time.Time
+}
+
+// BoardStatus is where a tracker item sits on its board when read
+// (ADR-0051). Scope is the container id, as in TrackerEvent.Scope.
+// Statuses holds every status or bucket title the item is in; Labels holds
+// its label or tag titles.
+type BoardStatus struct {
+	Scope    string
+	Statuses []string
+	Labels   []string
+}
+
+// BoardComment is one comment on a tracker item.
+type BoardComment struct {
+	Text   string
+	Author string
+	At     time.Time
+}
+
+// BoardReader is implemented by a TrackerProvider that can read an item's
+// board status and comments, which Ploeg needs to record gate transitions
+// and bounce reasons (ADR-0051). A provider without it records no gates.
+type BoardReader interface {
+	BoardStatus(ctx context.Context, externalID string) (BoardStatus, error)
+	BoardComments(ctx context.Context, externalID string) ([]BoardComment, error)
 }
 
 // Scope is a provider-scoped container id: the vendor's own answer to "which

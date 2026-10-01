@@ -13,13 +13,15 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/webgrip/ploeg/pkg/gate"
 	"github.com/webgrip/ploeg/pkg/work"
 )
 
 // OperatorCard is the Run card of one Work Item (ADR-0046): stored facts
 // only, assembled when it is read. A figure nobody reported is left out,
-// never zero. Rarity, Grade and Condition are always null and Finish is
-// always "matte" until those decisions are made.
+// never zero. Rarity and Condition are always null and Finish is always
+// "matte" until those decisions are made. Grade is computed from the stored
+// facts (ADR-0050) and nil until a human gave a verdict or a play merged.
 type OperatorCard struct {
 	WorkItemID  string              `json:"workItemId"`
 	Title       string              `json:"title"`
@@ -32,7 +34,7 @@ type OperatorCard struct {
 	State     string       `json:"state"`
 	Rarity    *string      `json:"rarity"`
 	Finish    string       `json:"finish"`
-	Grade     *string      `json:"grade"`
+	Grade     *CardGrade   `json:"grade"`
 	Condition *string      `json:"condition"`
 	Steward   *CardSteward `json:"steward"`
 	Roster    []CardPerson `json:"roster"`
@@ -48,11 +50,45 @@ type OperatorCard struct {
 	Release *CardRelease `json:"release"`
 	// Live is the usage so far while a Run is running, and nil otherwise
 	// (ADR-0049).
-	Live      *CardLive `json:"live"`
-	Demo      bool      `json:"demo"`
-	itemState string
-	runs      []cardRun
-	bots      map[string]bool
+	Live *CardLive `json:"live"`
+	// Gates is the Work Item's path through its board's delivery gates, or
+	// nil when no gate move was recorded (ADR-0051).
+	Gates *CardGates `json:"gates"`
+	// Evolved is true when the requirement changed after acceptance.
+	Evolved     bool `json:"evolved,omitempty"`
+	Demo        bool `json:"demo"`
+	itemState   string
+	runs        []cardRun
+	bots        map[string]bool
+	transitions []gate.Transition
+}
+
+// CardGates is where the Work Item stands on its board and how it got there
+// (ADR-0051). RightFirstTime has one entry per gate after development that
+// the Work Item entered: the defect and unknown bounces that left it.
+type CardGates struct {
+	Current        string          `json:"current"`
+	History        []CardGateVisit `json:"history"`
+	Bounces        []CardBounce    `json:"bounces"`
+	RightFirstTime map[string]int  `json:"rightFirstTime"`
+}
+
+// CardGateVisit is one stay in a gate; LeftAt is absent for the current one.
+type CardGateVisit struct {
+	Gate      string     `json:"gate"`
+	EnteredAt time.Time  `json:"enteredAt"`
+	LeftAt    *time.Time `json:"leftAt,omitempty"`
+}
+
+// CardBounce is a move back to an earlier gate. Reason is defect,
+// requirement, misunderstood, environment or unknown; Actor is the tracker
+// user who moved the ticket, when the tracker said.
+type CardBounce struct {
+	From   string    `json:"from"`
+	To     string    `json:"to"`
+	At     time.Time `json:"at"`
+	Reason string    `json:"reason"`
+	Actor  string    `json:"actor,omitempty"`
 }
 
 // CardDeployment is the first deploy of one environment that carried a
@@ -138,8 +174,9 @@ type CardSteward struct {
 	Source string `json:"source"`
 }
 
-// CardPerson is a human who acted on the Work Item's pull requests. Roles
-// holds merger and reviewer, in that order.
+// CardPerson is a human who acted on the Work Item. Roles holds merger,
+// reviewer, qa and acceptor, in that order: qa moved the ticket out of the
+// test gate and acceptor out of the acceptance gate.
 type CardPerson struct {
 	Name  string   `json:"name"`
 	Roles []string `json:"roles"`
@@ -324,6 +361,9 @@ func (s *Store) OperatorCard(ctx context.Context, id int64, teams []string, opts
 	if err != nil {
 		return OperatorCard{}, err
 	}
+	if card.transitions, err = cardTransitions(ctx, tx, id); err != nil {
+		return OperatorCard{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return OperatorCard{}, err
 	}
@@ -335,6 +375,8 @@ func (s *Store) OperatorCard(ctx context.Context, id int64, teams []string, opts
 	card.State = card.state()
 	card.Events = card.events(withdrawals)
 	card.Live = card.live(ctx, opts)
+	journey := card.gates()
+	card.Grade = card.grade(journey, cardNow(opts))
 
 	var clean OperatorCard
 	raw, err := json.Marshal(card)
@@ -719,11 +761,38 @@ func (c *OperatorCard) totals(shifts int) CardTotals {
 	return t
 }
 
-func (c *OperatorCard) live(ctx context.Context, opts CardOptions) *CardLive {
-	now := opts.Now
-	if now.IsZero() {
-		now = time.Now()
+func cardNow(opts CardOptions) time.Time {
+	if opts.Now.IsZero() {
+		return time.Now()
 	}
+	return opts.Now
+}
+
+func (c *OperatorCard) gates() *gate.Journey {
+	journey, ok := gate.Walk(c.transitions)
+	if !ok {
+		return nil
+	}
+	g := &CardGates{Current: string(journey.Current), History: []CardGateVisit{}, Bounces: []CardBounce{}, RightFirstTime: map[string]int{}}
+	for _, v := range journey.History {
+		g.History = append(g.History, CardGateVisit{Gate: string(v.Gate), EnteredAt: v.Entered, LeftAt: v.Left})
+	}
+	for _, b := range journey.Bounces {
+		actor := b.Actor
+		if !c.human(actor) {
+			actor = ""
+		}
+		g.Bounces = append(g.Bounces, CardBounce{From: string(b.From), To: string(b.To), At: b.At, Reason: string(b.Reason), Actor: actor})
+	}
+	for k, n := range journey.RightFirstTime {
+		g.RightFirstTime[string(k)] = n
+	}
+	c.Gates, c.Evolved = g, journey.Evolved
+	return &journey
+}
+
+func (c *OperatorCard) live(ctx context.Context, opts CardOptions) *CardLive {
+	now := cardNow(opts)
 	live := CardLive{ObservedAt: now.UTC(), UsageComplete: true}
 	var cost float64
 	var in, out usageSum
@@ -843,6 +912,19 @@ func (c *OperatorCard) roster() []CardPerson {
 			mark(r.Reviewer, "reviewer")
 		}
 	}
+	var current gate.Gate
+	for _, t := range c.transitions {
+		if !t.Gate.Known() || t.Gate == current {
+			continue
+		}
+		switch current {
+		case gate.Test:
+			mark(t.Actor, "qa")
+		case gate.Acceptance:
+			mark(t.Actor, "acceptor")
+		}
+		current = t.Gate
+	}
 	names := make([]string, 0, len(roles))
 	for name := range roles {
 		names = append(names, name)
@@ -851,7 +933,7 @@ func (c *OperatorCard) roster() []CardPerson {
 	out := make([]CardPerson, 0, len(names))
 	for _, name := range names {
 		person := CardPerson{Name: name, Roles: []string{}}
-		for _, role := range []string{"merger", "reviewer"} {
+		for _, role := range []string{"merger", "reviewer", "qa", "acceptor"} {
 			if roles[name][role] {
 				person.Roles = append(person.Roles, role)
 			}
