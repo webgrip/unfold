@@ -19,6 +19,16 @@ Intended behavior — Unfold never merges a pull request or deploys to productio
 
 **Also applies to:** Preview Environment, Acceptance
 
+## Binder
+
+### R18
+
+Intended behavior — a Binder is visible only to its owner, team pages only to the team, and a Client sees team aggregates only, never a named person's history.
+
+**Why:** Person-level views invite appraisal use, profiling and client pressure on named staff.
+
+**Also applies to:** Run Card, Client
+
 ## Budget
 
 ### R6
@@ -46,6 +56,16 @@ Intended behavior — Unfold never contacts a Client directly; questions for a C
 **Why:** The Agency owns the Client relationship.
 
 **Also applies to:** Agency, Refinement
+
+## Crack
+
+### R19
+
+Intended behavior — a Crack needs human confirmation by the fixer and one person who is not the Steward, and the Steward may dispute it. Ploeg may propose candidates but never applies a Crack on its own.
+
+**Why:** Automatic bug-to-change tracing is wrong too often, and a wrong Crack on a signed card is a fairness incident.
+
+**Also applies to:** Steward
 
 ## Delivery Fee
 
@@ -77,6 +97,16 @@ A Model and Harness are implementation choices behind the working experience.
 
 **Also applies to:** Harness, Session
 
+## Pack
+
+### R20
+
+Intended behavior — a Pack is earned, never bought. Its random pulls are cosmetic, drawn from published odds, and cannot be re-rolled or traded; a pull never changes a Grade, a Rarity or any metric.
+
+**Why:** Randomness bought with money is the loot-box problem; cosmetic, earned and published pulls keep Packs clear of it.
+
+**Also applies to:** Grade, Rarity
+
 ## Result
 
 ### R10
@@ -104,6 +134,16 @@ Ploeg is the Authority for every Run (Unfold ADR-0002). Vloer requests Admission
 **Why:** One authority, one budget path and one revocable credential per Run; runner location does not decide who authorizes work.
 
 **Also applies to:** Work Item, Session
+
+## Run Card
+
+### R17
+
+A Run Card describes a change and never scores a person. Its state never changes what Ploeg authorizes, budgets or merges, and no shared view totals card data per person. Intended behavior — card data is never used in pay or performance reviews; Unfold states this in its terms and its works council pack.
+
+**Why:** A record of a change makes people care about it; a score of a person gets gamed, and in the Netherlands it needs works council consent.
+
+**Also applies to:** Steward, Grade
 
 ## Shift
 

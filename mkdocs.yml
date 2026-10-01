@@ -19,6 +19,7 @@ nav:
       - Inside a Run: concepts/inside-a-run.md
       - Journeys: concepts/journeys.md
       - Who Unfold is for: concepts/who-unfold-is-for.md
+      - Run Cards (mostly proposed): concepts/run-cards.md
   - How-to:
       - Assign work to an agent: how-to/assign-work-to-an-agent.md
       - Review an agent pull request: how-to/review-an-agent-pr.md
@@ -41,6 +42,7 @@ nav:
       - Decisions: reference/decisions.md
       - Ploeg configuration: ploeg/reference/configuration.md
       - KPIs (proposal): reference/kpis.md
+      - Run Cards works council pack: reference/run-cards-works-council-pack.md
       - Product language: domain/overview.md
       - Open questions: landscape/questions.md
   - Contribute:
