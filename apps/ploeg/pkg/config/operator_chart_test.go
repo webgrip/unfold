@@ -40,7 +40,8 @@ func TestOperatorChartKeepsConsumerCredentialsInController(t *testing.T) {
 		}
 		if doc["kind"] != "Deployment" {
 			encoded, _ := yaml.Marshal(doc)
-			if strings.Contains(string(encoded), "ploeg-vloer-operator") || strings.Contains(string(encoded), "PLOEG_OPERATOR_TOKEN_") || strings.Contains(string(encoded), "PLOEG_OPERATOR_CONSUMERS") {
+			if strings.Contains(string(encoded), "ploeg-vloer-operator") || strings.Contains(string(encoded), "PLOEG_OPERATOR_TOKEN_") || strings.Contains(string(encoded), "PLOEG_OPERATOR_CONSUMERS") ||
+				strings.Contains(string(encoded), "PLOEG_DEPLOY_TOKEN") || strings.Contains(string(encoded), "ploeg-deploy-token") {
 				t.Fatalf("operator authority escaped controller into %v", doc["kind"])
 			}
 			if doc["kind"] == "ScaledJob" || doc["kind"] == "CronJob" {
@@ -82,6 +83,11 @@ func TestOperatorChartKeepsConsumerCredentialsInController(t *testing.T) {
 		verifier := env[policies[1].TokenEnv]
 		if verifier["value"] != nil || verifier["valueFrom"].(map[string]any)["secretKeyRef"].(map[string]any)["name"] != "ploeg-vloer-verifier" {
 			t.Fatal("verifier credential must use a separate controller-only Secret reference")
+		}
+		deploy := env["PLOEG_DEPLOY_TOKEN"]
+		if deploy == nil || deploy["value"] != nil ||
+			deploy["valueFrom"].(map[string]any)["secretKeyRef"].(map[string]any)["name"] != "ploeg-deploy-token" {
+			t.Fatalf("deploy token must be a controller-only Secret reference: %+v", deploy)
 		}
 		var delivery []map[string]any
 		if err := json.Unmarshal([]byte(env["PLOEG_OPERATOR_DELIVERY_POLICIES"]["value"].(string)), &delivery); err != nil || len(delivery) != 1 || delivery[0]["repositoryId"] != "example" || delivery[0]["minTests"] != float64(2) || delivery[0]["publicationEnabled"] != false {

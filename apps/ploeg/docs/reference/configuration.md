@@ -52,6 +52,7 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_DATABASE_URL` | ploeg-worker |  | Controller-only. The worker refuses to start when it is set. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_DATABASE_URL` | ploegd | required | PostgreSQL connection URI. The chart reads the whole `uri` key of the CNPG app Secret named by `database.existingSecret`. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_DEFAULT_TEAM` | ploegd | `default` | Team that receives work from an assignee no Team lists. | [main.go](../../cmd/ploegd/main.go), [operator.go](../../cmd/ploegd/operator.go) |
+| `PLOEG_DEPLOY_TOKEN` | ploegd |  | Bearer token, 32 to 4096 bytes, that `POST /api/v1/deploys` accepts from pipelines reporting a deploy (ADR-0047, chart `deploys.tokenSecret`). Unset answers 404 on that endpoint. A shorter token stops ploegd at boot. | [operator.go](../../cmd/ploegd/operator.go) |
 | `PLOEG_FORGEJO_ADMIN_TOKEN` | ploeg-worker |  | Controller-only. The worker refuses to start when it is set. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_FORGEJO_ADMIN_TOKEN` | ploegd |  | Ignored with a warning. Forgejo creates access tokens only for a password sign-in, so set `PLOEG_FORGEJO_BOT_PASSWORD` instead. | [forgecreds.go](../../cmd/ploegd/forgecreds.go) |
 | `PLOEG_FORGEJO_BOT` | ploegd | `agent-builder` | Forge user whose push tokens ploegd mints, and the identity agents act as (chart `executor.forgejo.botUser`). A review by this user never sends work back under `teams.<name>.forgeFollowUps`. | [forgecreds.go](../../cmd/ploegd/forgecreds.go), [main.go](../../cmd/ploegd/main.go) |
@@ -137,6 +138,10 @@ Keys come from [values.yaml](../../ops/helm/ploeg/values.yaml) and [values.schem
 | `database.existingSecret` |  |  | CNPG auto-creates <cluster>-app with a `uri` key; ploegd consumes it whole. | values.yaml |
 | `database.existingSecret.key` |  | `uri` |  | values.yaml |
 | `database.existingSecret.name` |  | `ploeg-db-app` |  | values.yaml |
+| `deploys` | object | `{}` | ADR-0047: POST /api/v1/deploys, where a pipeline reports "commit X is live in environment Y". tokenSecret names an existing Secret key holding the bearer token (32+ bytes) and becomes PLOEG_DEPLOY_TOKEN on ploegd only. Unset = the endpoint answers 404. | values.yaml, values.schema.json |
+| `deploys.tokenSecret` | object |  | Secret name and key of the deploy bearer token, forwarded to ploegd only as `PLOEG_DEPLOY_TOKEN`. Unset disables `POST /api/v1/deploys`. | values.schema.json |
+| `deploys.tokenSecret.key` | string |  |  | values.schema.json |
+| `deploys.tokenSecret.name` | string |  |  | values.schema.json |
 | `env` |  |  | Plain PLOEG_* env rendered onto the deployment. | values.yaml |
 | `env.PLOEG_DEFAULT_TEAM` |  | `default` | Team that receives work from an assignee no Team lists. | values.yaml |
 | `env.PLOEG_LEASE_TTL` |  | `5m` |  | values.yaml |

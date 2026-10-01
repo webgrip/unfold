@@ -27,6 +27,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -254,11 +255,12 @@ func (p *Provider) PullRequestFacts(ctx context.Context, repo string, mr int) (p
 		MergedBy *struct {
 			Username string `json:"username"`
 		} `json:"merged_by"`
+		ChangesCount *string `json:"changes_count"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&body); err != nil {
 		return provider.PullRequestFacts{}, fmt.Errorf("gitlab: read %s!%d: %w", repo, mr, err)
 	}
-	facts := provider.PullRequestFacts{HeadSHA: body.SHA}
+	facts := provider.PullRequestFacts{HeadSHA: body.SHA, ChangedFiles: changesCount(body.ChangesCount)}
 	switch body.State {
 	case "merged":
 		facts.State = provider.PullRequestMerged
@@ -282,6 +284,87 @@ func (p *Provider) PullRequestFacts(ctx context.Context, repo string, mr int) (p
 		return provider.PullRequestFacts{}, fmt.Errorf("gitlab: read %s!%d: unknown state %q", repo, mr, body.State)
 	}
 	return facts, nil
+}
+
+func changesCount(raw *string) *int {
+	if raw == nil {
+		return nil
+	}
+	n, err := strconv.Atoi(*raw)
+	if err != nil || n < 0 {
+		return nil
+	}
+	return &n
+}
+
+// CommitStatus reads the latest commit statuses of sha, one per CI job or
+// external check, and combines them with provider.CombineCommitStates.
+// GitLab's own combined pipeline status is not used, because a commit may
+// carry external statuses outside any pipeline. Skipped and manual jobs are
+// left out.
+func (p *Provider) CommitStatus(ctx context.Context, repo, sha string) (provider.CommitStatus, bool, error) {
+	if err := validRepo(repo); err != nil {
+		return provider.CommitStatus{}, false, err
+	}
+	if sha == "" {
+		return provider.CommitStatus{}, false, errors.New("gitlab: commit status needs a sha")
+	}
+	endpoint := fmt.Sprintf("%s/api/v4/projects/%s/repository/commits/%s/statuses?per_page=%d",
+		strings.TrimRight(p.BaseURL, "/"), url.PathEscape(repo), url.PathEscape(sha), notesPerPage)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return provider.CommitStatus{}, false, err
+	}
+	req.Header.Set("Accept", "application/json")
+	if p.Token != "" {
+		req.Header.Set("PRIVATE-TOKEN", p.Token)
+	}
+	resp, err := p.client().Do(req)
+	if err != nil {
+		return provider.CommitStatus{}, false, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return provider.CommitStatus{}, false, fmt.Errorf("gitlab: commit status %s@%s: HTTP %d: %s", repo, sha, resp.StatusCode, bytes.TrimSpace(snippet))
+	}
+	var statuses []struct {
+		Name   string `json:"name"`
+		Status string `json:"status"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&statuses); err != nil {
+		return provider.CommitStatus{}, false, fmt.Errorf("gitlab: commit status %s@%s: %w", repo, sha, err)
+	}
+	out := provider.CommitStatus{SHA: sha, Checks: []provider.CommitCheck{}}
+	var states []provider.CommitState
+	for _, st := range statuses {
+		state, known := pipelineState(st.Status)
+		if !known {
+			continue
+		}
+		out.Checks = append(out.Checks, provider.CommitCheck{Context: st.Name, State: state})
+		states = append(states, state)
+	}
+	combined, known := provider.CombineCommitStates(states)
+	if !known {
+		return provider.CommitStatus{}, false, nil
+	}
+	out.State = combined
+	return out, true, nil
+}
+
+func pipelineState(s string) (provider.CommitState, bool) {
+	switch s {
+	case "success":
+		return provider.CommitSuccess, true
+	case "failed":
+		return provider.CommitFailure, true
+	case "canceled":
+		return provider.CommitError, true
+	case "pending", "running", "created", "preparing", "scheduled", "waiting_for_resource":
+		return provider.CommitPending, true
+	}
+	return "", false
 }
 
 // validRepo rejects paths GitLab cannot address, before a request is spent.
@@ -320,6 +403,7 @@ type hook struct {
 		MergedAt       string     `json:"merged_at"`
 		ClosedAt       string     `json:"closed_at"`
 		LastCommit     lastCommit `json:"last_commit"`
+		OldRev         string     `json:"oldrev"`
 	} `json:"object_attributes"`
 	// Note and pipeline events nest the merge request they belong to.
 	MergeRequest struct {
@@ -413,7 +497,14 @@ func (p *Provider) ParseWebhook(r *http.Request) ([]provider.ForgeEvent, error) 
 		case h.ObjectAttributes.MergeStatus == "cannot_be_merged":
 			return []provider.ForgeEvent{{
 				Kind: provider.ForgeMergeStateDirty, Repo: repo, PR: iid, Branch: branch,
+				Actor: h.User.Username, PullRequest: provider.PullRequestFacts{HeadSHA: head},
 			}}, nil
+		case h.ObjectAttributes.Action == "open" || h.ObjectAttributes.Action == "reopen":
+			return []provider.ForgeEvent{{Kind: provider.ForgePROpened, Repo: repo, PR: iid, Branch: branch,
+				Actor: h.User.Username, PullRequest: provider.PullRequestFacts{State: provider.PullRequestOpen, HeadSHA: head}}}, nil
+		case h.ObjectAttributes.Action == "update" && h.ObjectAttributes.OldRev != "":
+			return []provider.ForgeEvent{{Kind: provider.ForgePRSynchronized, Repo: repo, PR: iid, Branch: branch,
+				Actor: h.User.Username, PullRequest: provider.PullRequestFacts{State: provider.PullRequestOpen, HeadSHA: head}}}, nil
 		}
 		return nil, nil
 

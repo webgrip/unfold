@@ -2,37 +2,27 @@ package httpapi
 
 import (
 	"context"
+	"time"
 
+	"github.com/webgrip/ploeg/pkg/forgefacts"
 	"github.com/webgrip/ploeg/pkg/provider"
 	"github.com/webgrip/ploeg/pkg/store"
 )
 
 func (s *Server) recordPullRequestFacts(ctx context.Context, fp provider.ForgeProvider, ev provider.ForgeEvent) {
 	switch ev.Kind {
-	case provider.ForgeReviewSubmitted, provider.ForgePRMerged, provider.ForgePRClosed:
+	case provider.ForgeReviewSubmitted, provider.ForgePRMerged, provider.ForgePRClosed,
+		provider.ForgePROpened, provider.ForgePRSynchronized, provider.ForgeMergeStateDirty:
 	default:
 		return
 	}
 	if ev.PR <= 0 || ev.Repo == "" {
 		return
 	}
-	facts := ev.PullRequest
-	if lacksCloseFacts(facts) {
-		read, err := fp.PullRequestFacts(ctx, ev.Repo, ev.PR)
-		if err != nil {
-			s.Log.Warn("pull request facts read failed; keeping the webhook's", "provider", fp.Name(),
-				"repo", ev.Repo, "pr", ev.PR, "err", err)
-		} else {
-			facts = withMissingFacts(facts, read)
-		}
-	}
-	rec := store.PullRequestFacts{
-		Forge: fp.Name(), Repo: ev.Repo, Number: ev.PR, Branch: ev.Branch,
-		State: string(facts.State), HeadSHA: facts.HeadSHA, MergeCommitSHA: facts.MergeCommitSHA,
-		MergedAt: facts.MergedAt, MergedBy: facts.MergedBy, ClosedAt: facts.ClosedAt,
-	}
+	pr := forgefacts.PullRequest{Forge: fp.Name(), Repo: ev.Repo, Number: ev.PR, Branch: ev.Branch}
+	rec := forgefacts.Facts(pr, ev.PullRequest, nil, time.Time{})
 	if ev.Kind == provider.ForgeReviewSubmitted {
-		rec.Review = &store.PullRequestReview{Reviewer: ev.Actor, State: string(ev.Review), HeadSHA: facts.HeadSHA}
+		rec.Review = &store.PullRequestReview{Reviewer: ev.Actor, State: string(ev.Review), HeadSHA: ev.PullRequest.HeadSHA}
 	}
 	recorded, err := s.Store.RecordPullRequestFacts(ctx, rec)
 	if err != nil {
@@ -43,37 +33,30 @@ func (s *Server) recordPullRequestFacts(ctx context.Context, fp provider.ForgePr
 	if !recorded {
 		s.Log.Debug("pull request facts skipped: not a Ploeg pull request", "provider", fp.Name(),
 			"repo", ev.Repo, "pr", ev.PR, "branch", ev.Branch)
+		return
 	}
+	s.capturePullRequestFacts(ctx, fp, pr, ev.PullRequest)
 }
 
-func lacksCloseFacts(f provider.PullRequestFacts) bool {
-	switch f.State {
-	case provider.PullRequestMerged:
-		return f.MergedAt == nil || f.MergedBy == "" || f.MergeCommitSHA == ""
-	case provider.PullRequestClosed:
-		return f.ClosedAt == nil
+func (s *Server) capturePullRequestFacts(ctx context.Context, fp provider.ForgeProvider, pr forgefacts.PullRequest, facts provider.PullRequestFacts) {
+	read, err := fp.PullRequestFacts(ctx, pr.Repo, pr.Number)
+	readOK := err == nil
+	if err != nil {
+		s.Log.Warn("pull request facts read failed; keeping the webhook's", "provider", fp.Name(),
+			"repo", pr.Repo, "pr", pr.Number, "err", err)
+	} else {
+		facts = forgefacts.WithMissing(facts, read)
 	}
-	return false
-}
-
-func withMissingFacts(f, read provider.PullRequestFacts) provider.PullRequestFacts {
-	if f.State == "" {
-		f.State = read.State
+	ci, err := forgefacts.CI(ctx, fp, pr.Repo, facts.HeadSHA)
+	if err != nil {
+		s.Log.Warn("commit status read failed; CI stays as recorded", "provider", fp.Name(),
+			"repo", pr.Repo, "pr", pr.Number, "head", facts.HeadSHA, "err", err)
 	}
-	if f.HeadSHA == "" {
-		f.HeadSHA = read.HeadSHA
+	if !readOK && ci == nil {
+		return
 	}
-	if f.MergeCommitSHA == "" {
-		f.MergeCommitSHA = read.MergeCommitSHA
+	if _, err := s.Store.RecordPullRequestFacts(ctx, forgefacts.Facts(pr, facts, ci, time.Now())); err != nil {
+		s.Log.Error("pull request facts not recorded", "provider", fp.Name(),
+			"repo", pr.Repo, "pr", pr.Number, "err", err)
 	}
-	if f.MergedAt == nil {
-		f.MergedAt = read.MergedAt
-	}
-	if f.MergedBy == "" {
-		f.MergedBy = read.MergedBy
-	}
-	if f.ClosedAt == nil {
-		f.ClosedAt = read.ClosedAt
-	}
-	return f
 }

@@ -195,7 +195,7 @@ func TestParseWebhook_DropsIrrelevantEventsQuietly(t *testing.T) {
 	for _, body := range []map[string]any{
 		{"action": "push", "repository": map[string]any{"full_name": "webgrip/ploeg"}},
 		{"repository": map[string]any{"full_name": "webgrip/ploeg"}, "state": "success"},
-		{"action": "opened", "repository": map[string]any{"full_name": "webgrip/ploeg"},
+		{"action": "label_updated", "repository": map[string]any{"full_name": "webgrip/ploeg"},
 			"pull_request": map[string]any{"number": 1, "mergeable_state": "clean"}},
 	} {
 		events, err := post(t, p, "push", body)

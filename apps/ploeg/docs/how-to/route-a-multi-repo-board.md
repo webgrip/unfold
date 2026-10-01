@@ -36,8 +36,10 @@ config:
 | `repo` | `owner/name`, required |
 | `branch` | Base branch. Unset means the repository's default branch, which may be a stale stub, so set it |
 | `forge` | Forge instance id. Unset means `PLOEG_TARGET_FORGE`, default `forgejo` |
+| `cardStyle` | Optional `skin` and `theme` for this repository's Run cards ([ADR-0046](../adrs/0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md)). Unset means skin `vloer-native` and no theme. Each is lowercase letters, digits and dashes |
+| `release` | Optional `environment`: the deploy environment whose first deploy counts as this repository's release on its Run cards ([ADR-0047](../adrs/0047-ploeg-learns-where-a-merged-change-is-deployed-from-a-generic-deploy-endpoint.md)). Unset means `production`. Lowercase letters, digits, dots, underscores and dashes |
 
-Two keys may point at one repository, for example an old and a new label name for the same product.
+Two keys may point at one repository, for example an old and a new label name for the same product. A board with its own `repo:` may set `cardStyle` and `release` too. ploegd refuses to start when one repository has two different card styles or release environments.
 
 ## 2. Point the board at the targets
 

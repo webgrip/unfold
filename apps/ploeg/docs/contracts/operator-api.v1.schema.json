@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://webgrip.dev/ploeg/contracts/operator-api.v1.schema.json",
   "title": "Ploeg authenticated operator API v1",
-  "description": "GET /api/v1/operator/{teams,summary,work-items,work-items/{id},runs,runs/{id},events}, and POST /api/v1/operator/work-items/{id}/cancel, which requires execute permission and X-Ploeg-Actor, takes no body and withdraws tracker-originated work; repeating it on a withdrawn or settled item changes nothing and reports withdrawn false. POST /api/v1/operator/work-items/{id}/approve and /reject decide a proposed Work Item a Run created (ADR-0031); both require execute permission and X-Ploeg-Actor and take a JSON body {\"reason\": string}, required for reject. Approve queues the item; reject closes it as done and releases its allotted budget. Any other state answers 409 not_proposed. Bearer consumers have team scope. Collection after is a decimal bigint cursor; limit defaults 50, maximum 200. Work items filter on team, state, needsHuman=true and the tracker identity provider plus externalId, which must be given together and match across every team in scope unless team narrows it. Detail returns the most recent 200 records per collection, with explicit truncation flags. Audit pagination has snapshot consistency and is not a lossless changefeed: IDs are allocated before commit. Unbound events are omitted. Missing costs and unsupported team pause state remain unknown/null. Text is bounded (16384 characters for descriptions/findings, 4096 for summaries/reasons/URLs), recognizable credentials are redacted, URL queries/fragments are removed. Other credential-bearing structural fields are never selected. A recorded cost is an observation, not proof of final gateway settlement. Summary takes window=24h|7d|30d (default 7d): Work Item counts, pending and running Runs and reservedUsd are current; finished, failed and stuck count Runs finished inside the window by outcome, and settledUsd is spend settled inside the window; lastActivityAt is the Team's latest bound audit event. The Run list is newest first by id with limit 1..200 (default 50), filters team, state and outcome, and pages with before=<runId>, returning nextBefore; teams are scoped by the owning Work Item and externalRef is the tracker reference used in trailers, or empty for manual work. Events take order=asc|desc (default asc); order=desc returns newest first, pages with before=<eventId> and returns that cursor as nextCursor, and lastCursor is the newest event id in the page (0 when empty); after with order=desc, or before without it, is rejected. Timestamps in summary and Run list responses are UTC.",
+  "description": "GET /api/v1/operator/{teams,summary,work-items,work-items/{id},work-items/{id}/card,runs,runs/{id},events}, and POST /api/v1/operator/work-items/{id}/cancel, which requires execute permission and X-Ploeg-Actor, takes no body and withdraws tracker-originated work; repeating it on a withdrawn or settled item changes nothing and reports withdrawn false. POST /api/v1/operator/work-items/{id}/approve and /reject decide a proposed Work Item a Run created (ADR-0031); both require execute permission and X-Ploeg-Actor and take a JSON body {\"reason\": string}, required for reject. Approve queues the item; reject closes it as done and releases its allotted budget. Any other state answers 409 not_proposed. Bearer consumers have team scope. Collection after is a decimal bigint cursor; limit defaults 50, maximum 200. Work items filter on team, state, needsHuman=true and the tracker identity provider plus externalId, which must be given together and match across every team in scope unless team narrows it. Detail returns the most recent 200 records per collection, with explicit truncation flags. Audit pagination has snapshot consistency and is not a lossless changefeed: IDs are allocated before commit. Unbound events are omitted. Missing costs and unsupported team pause state remain unknown/null. Text is bounded (16384 characters for descriptions/findings, 4096 for summaries/reasons/URLs), recognizable credentials are redacted, URL queries/fragments are removed. Other credential-bearing structural fields are never selected. A recorded cost is an observation, not proof of final gateway settlement. Summary takes window=24h|7d|30d (default 7d): Work Item counts, pending and running Runs and reservedUsd are current; finished, failed and stuck count Runs finished inside the window by outcome, and settledUsd is spend settled inside the window; lastActivityAt is the Team's latest bound audit event. The Run list is newest first by id with limit 1..200 (default 50), filters team, state and outcome, and pages with before=<runId>, returning nextBefore; teams are scoped by the owning Work Item and externalRef is the tracker reference used in trailers, or empty for manual work. Events take order=asc|desc (default asc); order=desc returns newest first, pages with before=<eventId> and returns that cursor as nextCursor, and lastCursor is the newest event id in the page (0 when empty); after with order=desc, or before without it, is rejected. Timestamps in summary and Run list responses are UTC. The card of a Work Item (ADR-0046) answers schemaVersion 1, a number, and 404 when the Work Item is not in the consumer's scope; a Work Item without a Shift still has a card in state drafting.",
   "oneOf": [
     {
       "$ref": "#/$defs/teamsResponse"
@@ -30,6 +30,9 @@
     },
     {
       "$ref": "#/$defs/decisionResponse"
+    },
+    {
+      "$ref": "#/$defs/cardResponse"
     },
     {
       "$ref": "#/$defs/errorResponse"
@@ -1540,6 +1543,579 @@
               "type": "null"
             }
           ]
+        }
+      }
+    },
+    "cardTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "forge",
+        "owner",
+        "repo"
+      ],
+      "properties": {
+        "forge": {
+          "type": "string"
+        },
+        "owner": {
+          "type": "string"
+        },
+        "repo": {
+          "type": "string"
+        }
+      }
+    },
+    "cardStyle": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The Work Target's cardStyle configuration. A Work Target without one gets skin vloer-native and no theme.",
+      "required": [
+        "skin",
+        "theme"
+      ],
+      "properties": {
+        "skin": {
+          "type": "string",
+          "minLength": 1
+        },
+        "theme": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "cardSteward": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Who carries the Work Item: the human who merged the latest merged play, else the human who approved last.",
+      "required": [
+        "name",
+        "source"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "merged_by",
+            "approver"
+          ]
+        }
+      }
+    },
+    "cardPerson": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A human who merged or reviewed a play. Forge logins Ploeg acts as are left out.",
+      "required": [
+        "name",
+        "roles"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "merger",
+              "reviewer"
+            ]
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "cardCrew": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The started Runs of one Role. A figure sums the Runs that reported it and is absent when none did.",
+      "required": [
+        "role",
+        "writes",
+        "runs"
+      ],
+      "properties": {
+        "role": {
+          "type": "string"
+        },
+        "writes": {
+          "type": "boolean"
+        },
+        "runs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "costUsd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "inputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "cardCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "context",
+        "state"
+      ],
+      "properties": {
+        "context": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "success",
+            "failure",
+            "pending",
+            "error"
+          ]
+        }
+      }
+    },
+    "cardCI": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The combined commit status Ploeg last read at headSha, at capturedAt.",
+      "required": [
+        "state",
+        "checks",
+        "capturedAt"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "success",
+            "failure",
+            "pending",
+            "error"
+          ]
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/cardCheck"
+          }
+        },
+        "headSha": {
+          "type": "string"
+        },
+        "capturedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "cardPlay": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One pull request for the Work Item, as the forge reported it. Every fact the forge has not reported is absent, including state.",
+      "required": [
+        "number",
+        "reviews",
+        "deployments"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "url": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "open",
+            "merged",
+            "closed"
+          ]
+        },
+        "shiftId": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "headSha": {
+          "type": "string"
+        },
+        "mergeCommitSha": {
+          "type": "string"
+        },
+        "mergedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "mergedBy": {
+          "type": "string"
+        },
+        "closedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "additions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "deletions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "changedFiles": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ci": {
+          "$ref": "#/$defs/cardCI"
+        },
+        "reviews": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pullRequestReview"
+          }
+        },
+        "deployments": {
+          "type": "array",
+          "description": "The first deploy of each environment that carried mergeCommitSha, earliest first (ADR-0047). Empty until a deploy is reported.",
+          "items": {
+            "$ref": "#/$defs/cardDeployment"
+          }
+        }
+      }
+    },
+    "cardTotals": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Sums over every started Run. A usage figure sums the Runs that reported it and is absent when none did; usageComplete is false when cost, tokens or a figure present here misses a started Run. costStatus is reserved while budget is still held, observed when a cost was recorded, not_reported otherwise. failedRuns counts Runs that finished failed or stuck. rounds counts distinct Rounds that started a Run. runSeconds sums finished Runs.",
+      "required": [
+        "authorizedUsd",
+        "costStatus",
+        "usageComplete",
+        "runs",
+        "failedRuns",
+        "rounds",
+        "shifts"
+      ],
+      "properties": {
+        "costUsd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "authorizedUsd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "costStatus": {
+          "enum": [
+            "observed",
+            "reserved",
+            "not_reported"
+          ]
+        },
+        "inputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cacheReadInputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cacheCreationInputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "turns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "toolCalls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "usageComplete": {
+          "type": "boolean"
+        },
+        "runs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failedRuns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rounds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "shifts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "firstRunAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastRunAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "runSeconds": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "cardEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One step of the Work Item's history. actor is the human who acted, when one did.",
+      "required": [
+        "at",
+        "kind",
+        "detail"
+      ],
+      "properties": {
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "kind": {
+          "enum": [
+            "minted",
+            "run_started",
+            "run_finished",
+            "pr_opened",
+            "review",
+            "merged",
+            "closed",
+            "withdrawn"
+          ]
+        },
+        "actor": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "object"
+        }
+      }
+    },
+    "card": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A Run card (ADR-0046): one per Work Item, assembled from stored facts when read. Ploeg sends facts only. state: withdrawn when the Work Item was withdrawn; drafting with no play; in_review while a play is open or its state is unknown; merged when the latest play merged, or a play merged and the Work Item is done; closed otherwise. rarity, grade and condition are always null and finish is always matte until those decisions are made. demo is always false from Ploeg. deployments and release come from the deploys pipelines report to POST /api/v1/deploys (ADR-0047).",
+      "required": [
+        "workItemId",
+        "title",
+        "team",
+        "target",
+        "style",
+        "state",
+        "rarity",
+        "finish",
+        "grade",
+        "condition",
+        "steward",
+        "roster",
+        "crew",
+        "plays",
+        "totals",
+        "events",
+        "deployments",
+        "release",
+        "demo"
+      ],
+      "properties": {
+        "workItemId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "externalRef": {
+          "type": "string",
+          "description": "The tracker reference used in trailers, as in the Run list. Absent for manual work."
+        },
+        "url": {
+          "type": "string"
+        },
+        "team": {
+          "type": "string"
+        },
+        "target": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/cardTarget"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "style": {
+          "$ref": "#/$defs/cardStyle"
+        },
+        "state": {
+          "enum": [
+            "drafting",
+            "in_review",
+            "merged",
+            "closed",
+            "withdrawn"
+          ]
+        },
+        "rarity": {
+          "type": "null"
+        },
+        "finish": {
+          "const": "matte"
+        },
+        "grade": {
+          "type": "null"
+        },
+        "condition": {
+          "type": "null"
+        },
+        "steward": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/cardSteward"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "roster": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/cardPerson"
+          }
+        },
+        "crew": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/cardCrew"
+          }
+        },
+        "plays": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/cardPlay"
+          }
+        },
+        "totals": {
+          "$ref": "#/$defs/cardTotals"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/cardEvent"
+          }
+        },
+        "deployments": {
+          "type": "array",
+          "description": "The earliest deploy of each environment across the plays, earliest first (ADR-0047).",
+          "items": {
+            "$ref": "#/$defs/cardDeployment"
+          }
+        },
+        "release": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/cardRelease"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "demo": {
+          "const": false
+        }
+      }
+    },
+    "cardDeployment": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The first deploy of one environment that carried a play's merge commit (ADR-0047). sha is the deployed commit, url the pipeline run when the deploy named one.",
+      "required": [
+        "environment",
+        "firstDeployedAt",
+        "sha"
+      ],
+      "properties": {
+        "environment": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+        },
+        "firstDeployedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "sha": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      }
+    },
+    "cardRelease": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "When the latest merged play went live (ADR-0047). source deploy: at is that play's first deploy of the release environment. source merge: the repository has never reported a deploy of the release environment, so at is the play's mergedAt. environment is the Work Target's release.environment, default production.",
+      "required": [
+        "at",
+        "source",
+        "environment"
+      ],
+      "properties": {
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "source": {
+          "enum": [
+            "deploy",
+            "merge"
+          ]
+        },
+        "environment": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+        }
+      }
+    },
+    "cardResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "card"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "card": {
+          "$ref": "#/$defs/card"
         }
       }
     }

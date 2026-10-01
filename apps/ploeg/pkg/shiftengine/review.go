@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
+	"github.com/webgrip/ploeg/pkg/forgefacts"
 	"github.com/webgrip/ploeg/pkg/provider"
 	"github.com/webgrip/ploeg/pkg/store"
 	"github.com/webgrip/ploeg/pkg/work"
@@ -81,6 +83,7 @@ func (w *ReviewWatch) Reconcile(ctx context.Context) {
 				"work_item", t.item.WorkItemID, "repo", t.repo, "pr", t.pr, "err", err)
 			continue
 		}
+		w.recordFacts(ctx, t, facts)
 		var kind provider.ForgeEventKind
 		switch facts.State {
 		case provider.PullRequestMerged:
@@ -90,7 +93,6 @@ func (w *ReviewWatch) Reconcile(ctx context.Context) {
 		default:
 			continue
 		}
-		w.recordFacts(ctx, t, facts)
 		next, reason, _ := reviewTransition(kind)
 		if err := w.settle(ctx, t, next, reason); err != nil {
 			w.log().Error("review reconcile: settle failed", "work_item", t.item.WorkItemID, "err", err)
@@ -143,11 +145,13 @@ func (w *ReviewWatch) targets(ctx context.Context) ([]reviewTarget, error) {
 }
 
 func (w *ReviewWatch) recordFacts(ctx context.Context, t reviewTarget, facts provider.PullRequestFacts) {
-	if _, err := w.Store.RecordPullRequestFacts(ctx, store.PullRequestFacts{
-		Forge: t.forge.Name(), Repo: t.repo, Number: t.pr, WorkItemID: t.item.WorkItemID,
-		State: string(facts.State), HeadSHA: facts.HeadSHA, MergeCommitSHA: facts.MergeCommitSHA,
-		MergedAt: facts.MergedAt, MergedBy: facts.MergedBy, ClosedAt: facts.ClosedAt,
-	}); err != nil {
+	ci, err := forgefacts.CI(ctx, t.forge, t.repo, facts.HeadSHA)
+	if err != nil {
+		w.log().Warn("review reconcile: commit status unavailable",
+			"work_item", t.item.WorkItemID, "repo", t.repo, "pr", t.pr, "head", facts.HeadSHA, "err", err)
+	}
+	pr := forgefacts.PullRequest{Forge: t.forge.Name(), Repo: t.repo, Number: t.pr, WorkItemID: t.item.WorkItemID}
+	if _, err := w.Store.RecordPullRequestFacts(ctx, forgefacts.Facts(pr, facts, ci, time.Now())); err != nil {
 		w.log().Error("review reconcile: pull request facts not recorded",
 			"work_item", t.item.WorkItemID, "repo", t.repo, "pr", t.pr, "err", err)
 	}

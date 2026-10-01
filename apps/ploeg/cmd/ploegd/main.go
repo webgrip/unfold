@@ -288,6 +288,11 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("operator configuration: %w", err)
 	}
+	deploys, err := deployAuth()
+	if err != nil {
+		return err
+	}
+	log.Info("deploy endpoint", "enabled", deploys != nil)
 	createdWork, err := cfg.CreatedWorkPolicies()
 	if err != nil {
 		return fmt.Errorf("created work: %w", err)
@@ -312,6 +317,7 @@ func run(log *slog.Logger) error {
 		MetricsCacheTTL: durationOr("PLOEG_METRICS_CACHE_TTL", httpapi.DefaultMetricsCacheTTL),
 		FollowUps:       cfg.ForgeFollowUps(),
 		ForgeBots:       forgeBots(),
+		Deploys:         deploys,
 	}
 	log.Info("forge follow-ups loaded", "teams", len(srv.FollowUps))
 	if engine != nil {

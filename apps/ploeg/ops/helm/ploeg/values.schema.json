@@ -162,6 +162,34 @@
         }
       }
     },
+    "deploys": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tokenSecret": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "key"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 253,
+              "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+            },
+            "key": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 253,
+              "pattern": "^[A-Za-z0-9._-]+$"
+            }
+          }
+        }
+      }
+    },
     "operator": {
       "type": "object",
       "additionalProperties": false,

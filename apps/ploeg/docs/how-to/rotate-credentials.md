@@ -27,6 +27,7 @@ Every original lives in OpenBao, the estate vault. An ExternalSecret copies it i
 | Worker bootstrap registry | `executor.workerAuth.bootstrapSecret` (`ploeg-worker-bootstrap` / `registry.json`) | `ploegd` | Yes: several entries may share a team and Role |
 | Worker bootstrap token | Same Secret, key `<team>--<role>` or `<team>--default` | The worker pods of that team and Role | Yes, through the registry |
 | Worker signing key | `executor.workerAuth.signingKeySecret` (`ploeg-worker-signing` / `key`) | `ploegd` only | No: one key, no overlapping generations |
+| Deploy token | `deploys.tokenSecret` (unset by default) | `ploegd` only, to authenticate `POST /api/v1/deploys`; every pipeline that sends deploys holds a copy ([how-to](send-deploys-from-a-pipeline.md)) | No: one token. Deploys sent with the old one answer 401 until each pipeline has the new one; the next deploy marks what they missed |
 
 A worker reads its credentials once, at pod start. `ploegd` reads its credentials once, at process start. A new value therefore reaches a process only when it restarts. The worker refuses to start when it sees administrative material such as the master key, the signing key, the registry or the admin token ([main.go](../../cmd/ploeg-worker/main.go)).
 

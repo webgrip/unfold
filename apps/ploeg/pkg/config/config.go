@@ -28,6 +28,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -69,7 +70,32 @@ type Target struct {
 	// Forge names which forge instance holds the repo. Empty = the
 	// deployment's single forge.
 	Forge string `yaml:"forge"`
+	// CardStyle is how Vloer draws this repository's Run cards (ADR-0046).
+	// Omitted = the default skin and no theme.
+	CardStyle *CardStyle `yaml:"cardStyle"`
+	// Release names the environment whose first deploy releases a merged
+	// change of this repository (ADR-0047). Omitted = production.
+	Release *Release `yaml:"release"`
 }
+
+// Release configures when a Work Target's merged change counts as live.
+type Release struct {
+	// Environment is the deploy environment, lowercase, as a pipeline
+	// reports it to POST /api/v1/deploys.
+	Environment string `yaml:"environment"`
+}
+
+// CardStyle names the skin and the optional theme a Run card is drawn with.
+// Ploeg passes both through to Vloer, which owns what they look like.
+type CardStyle struct {
+	// Skin is the card skin; empty means DefaultCardSkin.
+	Skin string `yaml:"skin"`
+	// Theme is a per-client theme on top of the skin; empty means none.
+	Theme string `yaml:"theme"`
+}
+
+// DefaultCardSkin is the skin a Work Target without a cardStyle gets.
+const DefaultCardSkin = "vloer-native"
 
 // Project routes one tracker container to one repository, or to the
 // registered targets it names.
@@ -98,6 +124,12 @@ type Project struct {
 	// Allow lists the other registered targets a `repo/<key>` label may
 	// select on this project.
 	Allow []string `yaml:"allow"`
+	// CardStyle styles the Run cards of Repo, as on a registered target. It
+	// requires Repo.
+	CardStyle *CardStyle `yaml:"cardStyle"`
+	// Release names Repo's release environment, as on a registered target.
+	// It requires Repo.
+	Release *Release `yaml:"release"`
 }
 
 // Team is a roster entry: who works, at what cost, in what order.
@@ -264,6 +296,12 @@ func (f *File) Validate() error {
 			return fmt.Errorf("teams.%s.createdWork: %w", name, err)
 		}
 	}
+	if _, err := f.CardStyles(); err != nil {
+		return err
+	}
+	if _, err := f.ReleaseEnvironments(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -275,8 +313,126 @@ func (f *File) validateTargets() error {
 		if !ownerName(f.Targets[key].Repo) {
 			return fmt.Errorf("targets.%s: repo %q must be owner/name", key, f.Targets[key].Repo)
 		}
+		if err := f.Targets[key].CardStyle.validate(); err != nil {
+			return fmt.Errorf("targets.%s.cardStyle: %w", key, err)
+		}
+		if err := f.Targets[key].Release.validate(); err != nil {
+			return fmt.Errorf("targets.%s.release: %w", key, err)
+		}
 	}
 	return nil
+}
+
+func (r *Release) validate() error {
+	if r == nil {
+		return nil
+	}
+	normalized, ok := work.NormalizeEnvironment(r.Environment)
+	if !ok || normalized != r.Environment {
+		return fmt.Errorf("environment %q must be 1 to 63 lowercase letters, digits, dots, underscores and dashes", r.Environment)
+	}
+	return nil
+}
+
+// ReleaseEnvironments returns the release environment of every repository
+// that names one, keyed by lowercased "owner/name". A repository given two
+// different environments is an error. A repository absent from the result
+// releases in work.DefaultReleaseEnvironment.
+func (f *File) ReleaseEnvironments() (map[string]string, error) {
+	out := map[string]string{}
+	where := map[string]string{}
+	add := func(repo string, release *Release, at string) error {
+		if release == nil || repo == "" {
+			return nil
+		}
+		key := strings.ToLower(repo)
+		if prev, dup := out[key]; dup && prev != release.Environment {
+			return fmt.Errorf("%s: release environment for %s differs from the one at %s", at, repo, where[key])
+		}
+		out[key], where[key] = release.Environment, at
+		return nil
+	}
+	for _, key := range sortedTargetKeys(f.Targets) {
+		if err := add(f.Targets[key].Repo, f.Targets[key].Release, "targets."+key); err != nil {
+			return nil, err
+		}
+	}
+	for _, tr := range []struct {
+		provider string
+		projects []Project
+	}{
+		{"vikunja", f.Trackers.Vikunja.Projects},
+		{"clickup", f.Trackers.Clickup.Projects},
+	} {
+		for i, p := range tr.projects {
+			if err := add(p.Repo, p.Release, fmt.Sprintf("trackers.%s.projects[%d]", tr.provider, i)); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return out, nil
+}
+
+var cardStyleName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
+
+func (c *CardStyle) validate() error {
+	if c == nil {
+		return nil
+	}
+	if c.Skin != "" && !cardStyleName.MatchString(c.Skin) {
+		return fmt.Errorf("skin %q must be lowercase letters, digits and dashes, at most 64", c.Skin)
+	}
+	if c.Theme != "" && !cardStyleName.MatchString(c.Theme) {
+		return fmt.Errorf("theme %q must be lowercase letters, digits and dashes, at most 64", c.Theme)
+	}
+	return nil
+}
+
+func (c CardStyle) withDefaults() CardStyle {
+	if c.Skin == "" {
+		c.Skin = DefaultCardSkin
+	}
+	return c
+}
+
+// CardStyles returns the card style of every repository that sets one,
+// keyed by lowercased "owner/name". A repository styled differently in two
+// places is an error. A repository absent from the result uses
+// DefaultCardSkin and no theme.
+func (f *File) CardStyles() (map[string]CardStyle, error) {
+	out := map[string]CardStyle{}
+	where := map[string]string{}
+	add := func(repo string, style *CardStyle, at string) error {
+		if style == nil || repo == "" {
+			return nil
+		}
+		key := strings.ToLower(repo)
+		resolved := style.withDefaults()
+		if prev, dup := out[key]; dup && prev != resolved {
+			return fmt.Errorf("%s: cardStyle for %s differs from the one at %s", at, repo, where[key])
+		}
+		out[key], where[key] = resolved, at
+		return nil
+	}
+	for _, key := range sortedTargetKeys(f.Targets) {
+		if err := add(f.Targets[key].Repo, f.Targets[key].CardStyle, "targets."+key); err != nil {
+			return nil, err
+		}
+	}
+	for _, tr := range []struct {
+		provider string
+		projects []Project
+	}{
+		{"vikunja", f.Trackers.Vikunja.Projects},
+		{"clickup", f.Trackers.Clickup.Projects},
+	} {
+		for i, p := range tr.projects {
+			if err := add(p.Repo, p.CardStyle, fmt.Sprintf("trackers.%s.projects[%d]", tr.provider, i)); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return out, nil
 }
 
 func (f *File) validateRoute(p Project) error {
@@ -288,6 +444,18 @@ func (f *File) validateRoute(p Project) error {
 	}
 	if p.Repo != "" && !ownerName(p.Repo) {
 		return fmt.Errorf("repo %q must be owner/name", p.Repo)
+	}
+	if p.CardStyle != nil && p.Repo == "" {
+		return fmt.Errorf("cardStyle requires repo; style a registered target under targets instead")
+	}
+	if err := p.CardStyle.validate(); err != nil {
+		return fmt.Errorf("cardStyle: %w", err)
+	}
+	if p.Release != nil && p.Repo == "" {
+		return fmt.Errorf("release requires repo; set it on a registered target under targets instead")
+	}
+	if err := p.Release.validate(); err != nil {
+		return fmt.Errorf("release: %w", err)
 	}
 	for _, key := range append([]string{p.Default}, p.Allow...) {
 		if key == "" {

@@ -199,6 +199,15 @@ spec:
                   name: {{ .masterKeySecret.name }}
                   key: {{ .masterKeySecret.key }}
             {{- end }}
+            {{- with .Values.deploys }}
+            {{- with .tokenSecret }}
+            - name: PLOEG_DEPLOY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .key }}
+            {{- end }}
+            {{- end }}
             {{- include "ploeg.workerControlEnv" . | nindent 12 }}
             {{- if .Values.operator.consumers }}
             {{- include "ploeg.operatorControlEnv" . | nindent 12 }}

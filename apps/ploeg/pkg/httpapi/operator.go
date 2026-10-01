@@ -50,6 +50,14 @@ type OperatorConfig struct {
 	TeamAssignees    map[string][]string
 	TeamScopes       map[string][]string
 	DeliveryPolicies map[string]DeliveryPolicy
+	// CardStyles is the cardStyle of each configured Work Target, keyed by
+	// lowercased "owner/name". A Work Target absent here gets
+	// store.DefaultCardSkin and no theme.
+	CardStyles map[string]store.CardStyle
+	// ReleaseEnvironments is the release environment of each configured
+	// Work Target that names one, keyed by lowercased "owner/name"
+	// (ADR-0047). A Work Target absent here releases in production.
+	ReleaseEnvironments map[string]string
 }
 
 type operatorPrincipalKey struct{}
@@ -172,6 +180,7 @@ func (s *Server) operatorHandler() http.Handler {
 	mux.HandleFunc("GET /api/v1/operator/work-items", s.handleOperatorItems)
 	mux.HandleFunc("GET /api/v1/operator/work-items/lookup", s.handleOperatorSourceLookup)
 	mux.HandleFunc("GET /api/v1/operator/work-items/{id}", s.handleOperatorItem)
+	mux.HandleFunc("GET /api/v1/operator/work-items/{id}/card", s.handleOperatorCard)
 	mux.HandleFunc("POST /api/v1/operator/work-items/{id}/cancel", s.handleOperatorCancel)
 	mux.HandleFunc("GET /api/v1/operator/summary", s.handleOperatorSummary)
 	mux.HandleFunc("GET /api/v1/operator/runs", s.handleOperatorRuns)
