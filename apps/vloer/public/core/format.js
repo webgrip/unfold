@@ -89,6 +89,12 @@ export function count(value) {
   return formatter('number', { maximumFractionDigits: 0 }).format(value);
 }
 
+/** Formats a score on a half-step scale (`8,5`, `10` in nl-NL); a missing score reads `—`. */
+export function score(value) {
+  if (!isAmount(value)) return '—';
+  return formatter('number', { minimumFractionDigits: 0, maximumFractionDigits: 1 }).format(value);
+}
+
 /** Formats a large count compactly (`12,1 mln.`, `88K` in nl-NL); a missing count reads `—`. */
 export function compactCount(value) {
   if (!isAmount(value)) return '—';

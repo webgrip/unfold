@@ -51,6 +51,17 @@ if (shippedFonts.length) {
   if (!read('public/styles.css')?.includes('@font-face')) failures.push('public/styles.css names Archivo but declares no @font-face, so the interface would silently fall back');
 }
 
+const vendoredThree = read('public/vendor/three/VERSION')?.trim();
+if (vendoredThree) {
+  const mit = read('public/vendor/three/LICENSE');
+  if (!mit?.includes('The MIT License') || !mit.includes('three.js authors')) failures.push('public/vendor/three/ holds three.js but not its MIT licence text; the MIT License requires the notice to travel with the copy');
+  if (!read('NOTICE')?.includes(`three.js ${vendoredThree}`)) failures.push(`NOTICE does not name the bundled three.js ${vendoredThree}`);
+  if (!/path = "public\/vendor\/three\/\*\*"[\s\S]*?SPDX-License-Identifier = "MIT"/.test(read('REUSE.toml') ?? '')) failures.push('REUSE.toml does not declare public/vendor/three/** as MIT');
+  const pinned = JSON.parse(read('package.json') ?? '{}').devDependencies?.three;
+  if (pinned !== vendoredThree) failures.push(`public/vendor/three/ is three ${vendoredThree} but package.json pins ${pinned ?? 'nothing'}; run npm run vendor:three`);
+  if (!(read('src/http.ts') ?? '').includes('vendor\\/three\\/')) failures.push('src/http.ts does not serve /vendor/three/, so the forge skin would 404 in the running workbench');
+}
+
 for (const [doc, target] of [['README.md', '](LICENSE)'], ['README.md', 'docs/brand/TRADEMARK.md']]) {
   if (!read(doc)?.includes(target)) failures.push(`${doc} no longer links ${target}`);
 }
@@ -71,5 +82,5 @@ if (failures.length) {
   process.stderr.write('License consistency\n' + failures.map(line => `  ${line}`).join('\n') + '\nFAIL — see docs/adrs/0022-apache-2-0-is-the-estate-licence.md\n');
   process.exitCode = 1;
 } else {
-  process.stdout.write(`License consistency: ${expected}, copyright line present, 2 manifests, 2 image labels and the bundled extension copy agree; Archivo ships with its OFL text and a served route.\n`);
+  process.stdout.write(`License consistency: ${expected}, copyright line present, 2 manifests, 2 image labels and the bundled extension copy agree; Archivo ships with its OFL text and a served route${vendoredThree ? `; three.js ${vendoredThree} ships with its MIT text, a NOTICE line, a REUSE annotation and a served route` : ""}.\n`);
 }

@@ -1,4 +1,4 @@
-import { money, count, compactCount, duration, dateTime, plural } from '../core/format.js';
+import { money, count, compactCount, duration, dateTime, plural, score } from '../core/format.js';
 import { cardState, playState, ciState, humanReview, runOutcome, actorName } from '../core/states.js';
 
 /** What a card shows for a value Ploeg does not collect at all yet. */
@@ -51,6 +51,27 @@ export function nextFinish(days) {
   return { finish: next, daysToGo: next.days - (known(days) && days > 0 ? days : 0) };
 }
 
+/**
+ * A stable unsigned 32-bit hash (FNV-1a over code points) of `value`. Skins pick a look from a card's identity with it,
+ * so the same Work Item gets the same look on every page and every reload.
+ * @param {unknown} value
+ */
+export function stableHash(value) {
+  let hash = 0x811c9dc5;
+  for (const char of String(value ?? '')) hash = Math.imul(hash ^ char.codePointAt(0), 0x01000193) >>> 0;
+  return hash >>> 0;
+}
+
+/** The grade qualifiers Ploeg may send (card contract P2b), with what each one means. */
+export const gradeQualifiers = Object.freeze({ RV: 'Reverted', HF: 'Hotfixed', OB: 'Over budget', RT: 'Retried Run', MN: 'Manual takeover' });
+/** The four subgrades in the order the formula weighs them, with their labels and short codes. */
+export const subgrades = Object.freeze([
+  Object.freeze({ key: 'reliability', label: 'Reliability', short: 'REL' }),
+  Object.freeze({ key: 'durability', label: 'Durability', short: 'DUR' }),
+  Object.freeze({ key: 'delivery', label: 'Delivery', short: 'DEL' }),
+  Object.freeze({ key: 'review', label: 'Review', short: 'REV' }),
+]);
+
 /** The back's tabs in order. */
 export const cardTabs = Object.freeze([
   { id: 'economics', label: 'Economics' },
@@ -80,6 +101,38 @@ const costStatuses = { observed: 'Observed', reserved: 'Reserved, not settled', 
 const environmentOrder = ['development', 'test', 'acceptance', 'staging', 'production'];
 const environmentRank = name => { const index = environmentOrder.indexOf(name); return index === -1 ? environmentOrder.length : index; };
 const shortSha = sha => text(sha).slice(0, 7);
+
+const halfStep = value => known(value) && value >= 1 && value <= 10 && Number.isInteger(value * 2);
+
+function gradeView(card) {
+  const grade = card.grade;
+  if (!grade || typeof grade !== 'object' || !halfStep(grade.overall)) return null;
+  const parts = subgrades.filter(entry => halfStep(grade.subgrades?.[entry.key])).map(entry => ({ ...entry, value: grade.subgrades[entry.key], text: score(grade.subgrades[entry.key]) }));
+  const label = grade.label === 'black' ? 'Black label' : grade.label === 'gold' ? 'Gold label' : '';
+  const qualifiers = list(grade.qualifiers).filter(code => Object.hasOwn(gradeQualifiers, code)).map(code => ({ code, text: gradeQualifiers[code] }));
+  const provisional = grade.provisional === true;
+  const formula = text(grade.formula);
+  const overall = score(grade.overall);
+  return {
+    overall: grade.overall, text: overall, provisional, label, labelKey: label ? grade.label : '', qualifiers, subgrades: parts, formula,
+    summary: [overall, provisional ? 'provisional' : '', label, ...qualifiers.map(entry => entry.code)].filter(Boolean).join(' · '),
+    description: `Grade ${overall} of 10${provisional ? ', provisional until 180 days live' : ''}${label ? `, ${label.toLowerCase()}` : ''}${qualifiers.length ? `, ${qualifiers.map(entry => entry.text.toLowerCase()).join(', ')}` : ''}${formula ? `, formula ${formula}` : ''}`,
+  };
+}
+
+function conditionView(card) {
+  const condition = card.condition;
+  if (!condition || typeof condition !== 'object' || !['cracked', 'mended'].includes(condition.state)) return null;
+  const cracks = list(condition.cracks).filter(crack => crack && typeof crack === 'object').map(crack => {
+    const mended = crack.mended && typeof crack.mended === 'object' ? { at: text(crack.mended.at), by: text(crack.mended.by), pr: known(crack.mended.pr) ? crack.mended.pr : null, bySteward: crack.mended.bySteward === true } : null;
+    return { id: text(crack.id), ref: text(crack.bug?.ref), title: text(crack.bug?.title), severity: /^S[1-4]$/.test(crack.severity) ? crack.severity : '', discovery: text(crack.discovery), mended };
+  });
+  const state = condition.state;
+  const first = cracks[0];
+  const what = first ? [first.ref, first.severity].filter(Boolean).join(', ') : '';
+  const fixed = state === 'mended' && first?.mended ? ` · ${first.mended.bySteward ? 'mended by its steward' : 'mended'}${first.mended.pr !== null ? ` in #${first.mended.pr}` : ''}` : '';
+  return { state, label: state === 'mended' ? 'Mended' : 'Cracked', cracks, text: `${state === 'mended' ? 'Mended' : 'Cracked'}${what ? ` · ${what}` : ''}${fixed}`, seed: stableHash(cracks.map(crack => crack.id).join('|') || String(card.workItemId ?? '')) };
+}
 
 function plays(card) {
   return list(card.plays).filter(play => play && known(play.number)).slice().sort((a, b) => a.number - b.number);
@@ -261,7 +314,7 @@ function change(card, all, diff) {
   };
 }
 
-function review(card, all) {
+function review(card, all, grade) {
   const reviews = all.flatMap(play => list(play.reviews).map(entry => ({ ...entry, number: play.number })));
   const latest = all.at(-1);
   const ci = latest ? ciState(latest.ci?.state && latest.ci.state !== 'unknown' ? latest.ci.state : '') : null;
@@ -280,6 +333,7 @@ function review(card, all) {
       ...(latest?.ci?.capturedAt ? [row('CI read', dateTime(latest.ci.capturedAt))] : []),
       uncollected('CI duration'),
       uncollected('Review rounds by people'),
+      ...(grade ? [row('Grade', grade.summary), ...grade.subgrades.map(entry => row(entry.label, entry.text)), ...(grade.formula ? [row('Grade formula', grade.formula)] : [])] : []),
     ],
     lists,
   };
@@ -312,7 +366,7 @@ function releaseView(card, now) {
   };
 }
 
-function life(card, all, release) {
+function life(card, all, release, condition) {
   const merged = all.filter(play => play.mergedAt).at(-1);
   const deployed = deployments(card);
   const live = release.environment || 'production';
@@ -336,7 +390,7 @@ function life(card, all, release) {
     rows.push(row('Days live', notReported, 'unreported'), row('Finish', `${finishLadder[0].label} · this Ploeg reports no releases`, 'unreported'));
     note = 'This Ploeg does not report deploys or releases yet, so the card stays matte.';
   }
-  rows.push(uncollected('Lines still alive'), uncollected('Reverts and linked bugs'));
+  rows.push(uncollected('Lines still alive'), condition ? row('Condition', condition.text) : uncollected('Reverts and linked bugs'));
   const lists = deployed.length ? [{ title: `Deployments · ${plural(deployed.length, 'environment')}`, items: deployed.map(entry => ({
     title: entry.environment,
     meta: [entry.firstDeployedAt ? `first deployed ${dateTime(entry.firstDeployedAt)}` : 'first deploy time not reported', shortSha(entry.sha)].filter(Boolean).join(' · '),
@@ -344,6 +398,12 @@ function life(card, all, release) {
     glyph: entry.environment === live ? 'check-circle' : 'circle',
     url: entry.url,
   })) }] : [];
+  if (condition?.cracks.length) lists.push({ title: plural(condition.cracks.length, 'crack'), items: condition.cracks.map(crack => ({
+    title: [crack.ref || 'Linked bug', crack.severity].filter(Boolean).join(' · '),
+    meta: [crack.title, crack.mended ? `mended${crack.mended.pr !== null ? ` in #${crack.mended.pr}` : ''}${crack.mended.bySteward ? ' by its steward' : crack.mended.by ? ` by ${crack.mended.by}` : ''}` : 'not mended yet'].filter(Boolean).join(' · '),
+    tone: crack.mended ? 'success' : 'danger',
+    glyph: crack.mended ? 'check-circle' : 'x-circle',
+  })) });
   return { rows, lists, note };
 }
 
@@ -366,9 +426,11 @@ function context(card) {
  * The view model of a Run card: every slot formatted (nl-NL money with two decimals, compact counts, durations),
  * and every value Ploeg left out marked "Not reported", never zero. While a Run is running, cost, tokens and run time
  * are Ploeg's `live` reading so far, and a figure missing from it reads "Not reported yet". Values Ploeg does not collect yet read
- * "Not collected yet". A demo card reads "Demo · no model calls" for cost and usage. Rarity, grade and condition
- * are not shown. The finish comes from the whole days since `release.at` on the finish ladder; Ploeg's own `finish`
- * is ignored, and a card without a release is matte.
+ * "Not collected yet". A demo card reads "Demo · no model calls" for cost and usage. Rarity is not shown. `grade` and
+ * `condition` are null until Ploeg sends a readable grade (P2b) or a confirmed crack (P3). The finish comes from the
+ * whole days since `release.at` on the finish ladder; Ploeg's own `finish` is ignored, and a card without a release is
+ * matte. `foilPattern` is the pattern a pack pull assigned; packs are not built yet, so it is null and a skin derives
+ * a stable pattern from the card's identity.
  * @param {object} card A card from `GET /api/ploeg/work-items/:id/card`.
  * @param {{ now?: number }} [options] `now` is the clock in milliseconds, for tests.
  */
@@ -380,7 +442,10 @@ export function cardView(card, { now = Date.now() } = {}) {
   const diff = diffView(all);
   const id = text(String(data.workItemId ?? ''));
   const repo = repository(data.target);
-  const tabs = { economics: economics(data, cost), agent: agent(data), change: change(data, all, diff), review: review(data, all), life: life(data, all, release), context: context({ ...data, workItemId: id }) };
+  const grade = gradeView(data);
+  const condition = conditionView(data);
+  const tabs = { economics: economics(data, cost), agent: agent(data), change: change(data, all, diff), review: review(data, all, grade), life: life(data, all, release, condition), context: context({ ...data, workItemId: id }) };
+  const style = data.style && typeof data.style === 'object' ? data.style : {};
   return {
     id,
     title: text(data.title) || (id ? `Work Item #${id}` : 'Untitled Work Item'),
@@ -400,6 +465,11 @@ export function cardView(card, { now = Date.now() } = {}) {
     url: text(data.url),
     release,
     finish: release.finish,
+    rounds: known(data.totals?.rounds) ? data.totals.rounds : null,
+    grade,
+    condition,
+    style: { skin: text(style.skin), theme: text(style.theme) },
+    foilPattern: null,
     tabs: cardTabs.map(tab => ({ ...tab, ...tabs[tab.id] })),
   };
 }

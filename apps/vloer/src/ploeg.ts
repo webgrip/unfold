@@ -48,8 +48,14 @@ export type PloegCardDeployment = { environment: string; firstDeployedAt: string
 export type PloegCardRelease = { at: string; source: string; environment: string };
 /** The Work Item's usage so far while a Run is running (Ploeg ADR-0049): what finished Runs recorded plus the gateway's running total. A cost or token figure Ploeg could not read is absent. */
 export type PloegCardLive = { runningRuns: number; observedAt: string | null; runSeconds: number; usageComplete: boolean } & Partial<Record<'costUsd' | 'inputTokens' | 'outputTokens', number>>;
-/** A Run card: one per Work Item, its pull requests as plays. Facts only; an unknown value is absent or null, never zero. The proxy always carries `rarity`, `grade` and `condition` as null and `finish` as `matte`; Vloer derives the finish from `release`. An older Ploeg sends no `deployments`, `release` or `live`, and they stay absent. */
-export type PloegCard = { workItemId: string; title: string; externalRef: string; url: string; team: string; target: { forge: string; owner: string; repo: string } | null; style: PloegCardStyle; state: string; rarity: null; finish: 'matte'; grade: null; condition: null; steward: { name: string; source: string } | null; roster: { name: string; roles: string[] }[]; crew: PloegCardCrew[]; plays: PloegCardPlay[]; totals: PloegCardTotals; events: PloegCardEvent[]; deployments?: PloegCardDeployment[]; release?: PloegCardRelease | null; live?: PloegCardLive | null; demo: boolean };
+/** A card's grade (card contract P2b): Ploeg computes it with a versioned formula; Vloer only displays it. */
+export type PloegCardGrade = { formula: string; overall: number; provisional: boolean; subgrades: Partial<Record<'reliability' | 'durability' | 'delivery' | 'review', number>>; label: 'black' | 'gold' | null; qualifiers: string[] };
+/** One confirmed crack (card contract P3): a bug traced back to this card, and its mend when someone fixed it. */
+export type PloegCardCrack = { id: string; bug: { workItemId: string | null; ref: string; title: string } | null; severity: string; share: string; discovery: string; proposedAt: string | null; confirmedAt: string | null; confirmedBy: string[]; disputed: boolean; mended: { at: string | null; by: string; pr: number | null; bySteward: boolean } | null };
+/** A card's condition (card contract P3): cracked while a confirmed crack is open, mended once every crack was fixed. */
+export type PloegCardCondition = { state: 'cracked' | 'mended'; cracks: PloegCardCrack[] };
+/** A Run card: one per Work Item, its pull requests as plays. Facts only; an unknown value is absent or null, never zero. The proxy always carries `rarity` as null and `finish` as `matte`; Vloer derives the finish from `release`. `grade` and `condition` pass through validated when Ploeg sends them, and a shape Vloer cannot read becomes null. An older Ploeg sends no `deployments`, `release` or `live`, and they stay absent. */
+export type PloegCard = { workItemId: string; title: string; externalRef: string; url: string; team: string; target: { forge: string; owner: string; repo: string } | null; style: PloegCardStyle; state: string; rarity: null; finish: 'matte'; grade: PloegCardGrade | null; condition: PloegCardCondition | null; steward: { name: string; source: string } | null; roster: { name: string; roles: string[] }[]; crew: PloegCardCrew[]; plays: PloegCardPlay[]; totals: PloegCardTotals; events: PloegCardEvent[]; deployments?: PloegCardDeployment[]; release?: PloegCardRelease | null; live?: PloegCardLive | null; demo: boolean };
 export type PloegCardView = { card: PloegCard; demo: boolean; fetchedAt: string };
 export type PloegOverview ={ configured: boolean; available: boolean; demo: boolean; teams: PloegTeam[]; selectedTeam?: string; lanes?: Record<PloegLane, PloegPresentedPage>; fetchedAt?: string; trackerUrl?: string; message: string };
 
@@ -247,7 +253,49 @@ function cardLive(value: unknown): PloegCardLive | null {
   if (runningRuns === undefined || runSeconds === undefined) throw invalid();
   return { runningRuns, runSeconds, observedAt: cardTime(data.observedAt), usageComplete: boolean(data.usageComplete), ...usage };
 }
-/** Validates a Run card from Ploeg: known fields only, safe links, bounded lists, absent values kept absent. It drops any rarity, grade, condition or finish. */
+const gradeKeys = ['reliability', 'durability', 'delivery', 'review'] as const;
+const gradeQualifierCodes = ['RV', 'HF', 'OB', 'RT', 'MN'];
+function halfStep(value: unknown): number { if (typeof value !== 'number' || value < 1 || value > 10 || !Number.isInteger(value * 2)) throw invalid(); return value; }
+function readable<T>(parse: () => T): T | null { try { return parse(); } catch { return null; } }
+function cardGrade(value: unknown): PloegCardGrade | null {
+  if (absent(value)) return null;
+  return readable(() => {
+    const data = record(value);
+    const parts = absent(data.subgrades) ? {} : record(data.subgrades);
+    const formula = field(data.formula, 32);
+    if (!/^[0-9A-Za-z][0-9A-Za-z.-]{0,31}$/.test(formula)) throw invalid();
+    const label = absent(data.label) ? null : data.label;
+    if (label !== null && label !== 'black' && label !== 'gold') throw invalid();
+    return {
+      formula, overall: halfStep(data.overall), provisional: boolean(data.provisional),
+      subgrades: Object.fromEntries(gradeKeys.filter(key => !absent(parts[key])).map(key => [key, halfStep(parts[key])])),
+      label, qualifiers: cardList(data.qualifiers, entry => field(entry, 8), 10).filter(code => gradeQualifierCodes.includes(code)),
+    };
+  });
+}
+function cardCrack(value: unknown): PloegCardCrack {
+  const data = record(value);
+  const bug = absent(data.bug) ? null : record(data.bug);
+  const mended = absent(data.mended) ? null : record(data.mended);
+  const severity = field(data.severity, 4);
+  if (!/^S[1-4]$/.test(severity)) throw invalid();
+  return {
+    id: field(data.id, 128), bug: bug ? { workItemId: looseId(bug.workItemId), ref: cardText(bug.ref, 512), title: cardText(bug.title, 4096) } : null,
+    severity, share: cardToken(data.share, 'primary'), discovery: cardToken(data.discovery, 'discovered'),
+    proposedAt: cardTime(data.proposedAt), confirmedAt: cardTime(data.confirmedAt), confirmedBy: cardList(data.confirmedBy, entry => field(entry, 256), 10),
+    disputed: absent(data.disputed) ? false : boolean(data.disputed),
+    mended: mended ? { at: cardTime(mended.at), by: cardText(mended.by), pr: absent(mended.pr) ? null : numeric(mended.pr, true), bySteward: absent(mended.bySteward) ? false : boolean(mended.bySteward) } : null,
+  };
+}
+function cardCondition(value: unknown): PloegCardCondition | null {
+  if (absent(value)) return null;
+  return readable(() => {
+    const data = record(value);
+    if (data.state !== 'cracked' && data.state !== 'mended') throw invalid();
+    return { state: data.state, cracks: cardList(data.cracks, cardCrack, 20) };
+  });
+}
+/** Validates a Run card from Ploeg: known fields only, safe links, bounded lists, absent values kept absent. It drops any rarity or finish, and keeps a grade or condition only in the shape the card contract defines. */
 export function parseCard(value: unknown): PloegCard {
   const data = record(value);
   const style = absent(data.style) ? {} : record(data.style);
@@ -265,7 +313,7 @@ export function parseCard(value: unknown): PloegCard {
     target: targetData ? { forge: field(targetData.forge, 100), owner: field(targetData.owner), repo: field(targetData.repo) } : null,
     style: { skin: styleName(style.skin) ?? defaultSkin, theme: styleName(style.theme) },
     state: cardToken(data.state, 'drafting'),
-    rarity: null, finish: 'matte', grade: null, condition: null,
+    rarity: null, finish: 'matte', grade: cardGrade(data.grade), condition: cardCondition(data.condition),
     steward,
     roster: cardList(data.roster, entry => { const person = record(entry); return { name: field(person.name, 256), roles: cardList(person.roles, role => cardToken(role), 10) }; }, 50),
     crew: cardList(data.crew, cardCrew, 50),

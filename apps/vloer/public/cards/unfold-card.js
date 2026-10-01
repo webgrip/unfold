@@ -1,6 +1,6 @@
 import { icon } from '../core/icons.js';
 import { cardView, cardTabs, finishLadder } from './card-model.js';
-import { defaultSkin, loadSkin, requiredSlots, resolveSkin } from './registry.js';
+import { defaultSkin, loadSkin, requiredSlots, resolveSkin, webglSupport } from './registry.js';
 
 const runtimeStylesheet = '/cards/unfold-card.css';
 const tabIds = cardTabs.map(tab => tab.id);
@@ -33,7 +33,9 @@ function parse(markup) {
  * (`front` or `back`) and `tab` attributes hold the view and are reflected; every change fires `unfold-card-change`
  * with `{ face, tab }`. "More info" turns the card, Escape turns it back, and the back's tabs follow the ARIA tabs
  * pattern. The turn is a 3D flip that becomes a crossfade when the reader prefers reduced motion. Whatever a skin
- * draws, the front always carries the title, state, cost, steward and ids.
+ * draws, the front always carries the title, state, cost, steward and ids. The element reflects the skin it draws as
+ * `data-skin`; a WebGL2 skin is replaced by its fallback when the browser has no WebGL2. A skin's `attach(front, view)`
+ * receives the drawn front and the view model; the forge skin also reads `motion` (`still` or `live`) on the element.
  */
 export class UnfoldCard extends Base {
   static get observedAttributes() { return ['face', 'tab']; }
@@ -86,7 +88,7 @@ export class UnfoldCard extends Base {
     this.#stopSkin();
     const front = this.#stage?.querySelector('.gc-front');
     if (!front || typeof this.#skin?.attach !== 'function') return;
-    try { this.#detach = this.#skin.attach(front) ?? null; } catch { this.#detach = null; }
+    try { this.#detach = this.#skin.attach(front, this.#view) ?? null; } catch { this.#detach = null; }
   }
 
   #stopSkin() {
@@ -106,9 +108,15 @@ export class UnfoldCard extends Base {
     const card = this.#card;
     if (!card) { this.#stopSkin(); this.#view = null; this.#stage = null; this.#root.replaceChildren(); return; }
     let skin = null;
-    try { skin = await loadSkin(resolveSkin(card.style)); }
-    catch { try { skin = await loadSkin(defaultSkin); } catch { skin = null; } }
+    const wanted = resolveSkin(card.style);
+    if (this.dataset.skin !== wanted) this.dataset.skin = wanted;
+    try {
+      skin = await loadSkin(wanted);
+      if (skin.manifest.renderer === 'webgl2' && webglSupport() === 'none') skin = await loadSkin(skin.manifest.fallback);
+    } catch { try { skin = await loadSkin(defaultSkin); } catch { skin = null; } }
     if (ticket !== this.#ticket) return;
+    const drawn = skin?.manifest?.id ?? defaultSkin;
+    if (this.dataset.skin !== drawn) this.dataset.skin = drawn;
     const view = cardView(card);
     if (!(skin?.manifest?.finishes ?? []).includes(view.finish.key)) view.finish = finishLadder[0];
     this.#view = view;
@@ -117,9 +125,9 @@ export class UnfoldCard extends Base {
 
   async #paint(skin, ticket) {
     const view = this.#view;
-    const links = this.#links ?? { base: stylesheet(runtimeStylesheet), skin: null };
-    const skinHref = skin?.stylesheet ?? '';
-    if (links.skin?.getAttribute('href') !== skinHref) { links.skin?.remove(); links.skin = skinHref ? stylesheet(skinHref) : null; }
+    const links = this.#links ?? { base: stylesheet(runtimeStylesheet), skins: [] };
+    const hrefs = skin?.stylesheets ?? (skin?.stylesheet ? [skin.stylesheet] : []);
+    if (links.skins.map(link => link.getAttribute('href')).join(' ') !== hrefs.join(' ')) { for (const link of links.skins) link.remove(); links.skins = hrefs.map(stylesheet); }
     this.#links = links;
     const stage = document.createElement('div');
     stage.className = 'gc';
@@ -143,11 +151,11 @@ export class UnfoldCard extends Base {
     this.#requireTabs(faces.back);
     stage.append(inner);
     this.#stopSkin();
-    this.#root.replaceChildren(...[links.base, links.skin].filter(Boolean), stage);
+    this.#root.replaceChildren(links.base, ...links.skins, stage);
     this.#stage = stage;
     this.#applyFace({ focus: false });
     this.#applyTab();
-    await Promise.all([links.base.loaded, links.skin?.loaded]);
+    await Promise.all([links.base.loaded, ...links.skins.map(link => link.loaded)]);
     if (ticket !== this.#ticket) return;
     stage.hidden = false;
     this.#skin = skin;

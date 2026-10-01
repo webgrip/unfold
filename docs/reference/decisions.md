@@ -115,6 +115,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Vloer | [0025](../../apps/vloer/docs/adrs/0025-hand-tracker-tasks-to-ploeg-by-assignment.md) | Vloer hands a tracker task to Ploeg by assigning the team's tracker user | 2026-09-30 | unknown | — |
 | Vloer | [0026](../../apps/vloer/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md) | Run cards render in a card runtime with skin packs and themes | 2026-10-01 | unknown | — |
 | Vloer | [0027](../../apps/vloer/docs/adrs/0027-the-editor-opens-on-now-and-shares-the-browser-vocabulary.md) | The editor opens on Now and shares the browser's vocabulary | 2026-10-01 | unknown | — |
+| Vloer | [0028](../../apps/vloer/docs/adrs/0028-the-forge-skin-renders-run-cards-in-3d-with-vendored-three-js.md) | The forge skin renders Run cards in 3D with vendored three.js | 2026-10-01 | unknown | — |
 
 ## Other statuses
 
