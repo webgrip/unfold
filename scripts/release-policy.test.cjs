@@ -147,7 +147,7 @@ test('one release prepares and commits both applications at the same version', (
   const exec = pluginOptions(config, '@semantic-release/exec');
   assert.equal(exec.prepareCmd, 'node ../scripts/release-prepare.mjs ${nextRelease.version}');
   const assets = pluginOptions(config, '@semantic-release/git').assets;
-  for (const asset of ['CHANGELOG.md', 'vloer/ops/helm/de-vloer/Chart.yaml', 'ploeg/ops/helm/ploeg/Chart.yaml', 'vloer/package.json', 'vloer/extensions/vscode/package.json']) {
+  for (const asset of ['CHANGELOG.md', 'vloer/ops/helm/de-vloer/Chart.yaml', 'ploeg/ops/helm/ploeg/Chart.yaml', 'vloer/package.json', 'vloer/extensions/vscode/package.json', 'vloer/ops/cluster/agent-sandbox/warm-pool.yaml', 'vloer/ops/local/config.live.example.json']) {
     assert.ok(assets.includes(asset), asset);
     if (asset !== 'CHANGELOG.md') assert.ok(fs.existsSync(path.join(root, 'apps', asset)), asset);
   }
