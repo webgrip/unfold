@@ -361,9 +361,8 @@ async function enterWork({ id, query = {} } = {}) {
   work.team = team;
   if (!previous && id) work.listScroll = window.scrollY;
   work.detailId = id || null;
-  const sameDetail = id === previous && state.ploegDetail?.item.id === id && !state.ploegDetailError;
   work.pendingRun = id && runPath.test(String(query.run ?? '')) ? String(query.run) : null;
-  if (!work.pendingRun || !sameDetail) work.runNotice = '';
+  work.runNotice = '';
   if (chosen) keepFiltersInHash();
   if (!id) { state.ploegDetailLoading = false; state.ploegDetailError = ''; work.revealedId = null; }
   const listReady = within && !teamChanged && state.ploeg && work.loadedTeam === team;
