@@ -1,3 +1,37 @@
+## [glide-v0.4.0-rc.22](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.21...glide-v0.4.0-rc.22) (2026-10-01)
+
+### Added
+
+* **deps:** update all non-major dependencies ([97d5f6f](https://forgejo.webgrip.dev/webgrip/glide/commit/97d5f6f208e7168449a50afd64bf3cf55c31c480))
+* **site:** add the bilingual static marketing site scaffold ([b75d939](https://forgejo.webgrip.dev/webgrip/glide/commit/b75d93927d294e965d4bd95c154508c21d1bca96))
+* **site:** serve from workers.dev and stay unindexed there ([26ad16a](https://forgejo.webgrip.dev/webgrip/glide/commit/26ad16aa3903b7c1c1fd24be742aac758f58ddcd))
+* **site:** take the site URL from the build environment ([4c2b9ab](https://forgejo.webgrip.dev/webgrip/glide/commit/4c2b9ab3e892614563cea0ac1d19b0ac058b205b))
+* **vloer:** show a task's Ploeg status and hand it off from the Tasks page ([f83fc58](https://forgejo.webgrip.dev/webgrip/glide/commit/f83fc589e979b1ba3599d03feccd9967675ea9a0))
+
+### Fixed
+
+* **ploeg:** point the usage report links at dashboards that exist ([bbae1e8](https://forgejo.webgrip.dev/webgrip/glide/commit/bbae1e836ad2eb5a2d2e694faf056a23b5249d6c))
+* **vloer:** reap an orphaned bridge whose pid arrives after its supervisor exits ([11e37fd](https://forgejo.webgrip.dev/webgrip/glide/commit/11e37fd1783bcebffe286176f7abaa779c1a990e))
+
+### Docs
+
+* **site:** record the separate site release and deploy in ADR-0012 ([3e17a4c](https://forgejo.webgrip.dev/webgrip/glide/commit/3e17a4c4caa09a09c712200f5d2291bf6aa9348e))
+
+### Tests
+
+* **vloer:** scale the pathological-input time bounds with the runner load ([98f7400](https://forgejo.webgrip.dev/webgrip/glide/commit/98f74004a5fdc10facf4e0271e7f1f2ac59744e7))
+
+### Build
+
+* pin Go 1.26.8 for the updated golang.org/x modules ([127d3fd](https://forgejo.webgrip.dev/webgrip/glide/commit/127d3fdfad4463c738a977e05f572a2c5d898b2e))
+* **release:** keep site commits out of the Glide version ([3bed2da](https://forgejo.webgrip.dev/webgrip/glide/commit/3bed2da8fe77a6a4902b420e0cdaa206fe0e52f7))
+* **site:** give the site its own glide-site-v release train ([e8a1a0a](https://forgejo.webgrip.dev/webgrip/glide/commit/e8a1a0ac08797da1bd86e6b49cae7993815ec11f))
+* **site:** switch the site to pnpm and pin wrangler ([755a089](https://forgejo.webgrip.dev/webgrip/glide/commit/755a089165c512cd65318c85454476609ed5df47))
+
+### CI
+
+* **site:** release the site on its own train and deploy it to workers.dev ([7f7241c](https://forgejo.webgrip.dev/webgrip/glide/commit/7f7241cabc78bd0efee600f675316b10d6bcd7c7))
+
 ## [glide-v0.4.0-rc.21](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.20...glide-v0.4.0-rc.21) (2026-09-30)
 
 ### Dependencies
