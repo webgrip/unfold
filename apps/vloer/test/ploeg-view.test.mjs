@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { activePloegLane, appendPage, attemptLabel, cancelDialogMarkup, cancelSummary, checkoutDialogMarkup, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runAttempts, runGroups, runOrder, runResult, teamOverview, workItemRef, workMarkup, writerAccount } from '../public/ploeg.js';
 import { detailReason } from '../public/core/reasons.js';
+import { grafanaTeam, runExplorer } from '../public/core/observability.js';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 
 const space = '\u00a0';
@@ -525,3 +526,39 @@ test('the detail shows a skeleton while loading and says so when the Work Item i
   assert.match(loading, /class="demo-note"/, 'the demo note does not jump in after loading');
   assert.match(workMarkup(model({ data: null })), /<select id="ploeg-team-loading" disabled><option>All teams<\/option><\/select>/, 'before the Teams are known a placeholder holds their place');
 });
+
+test('the Grafana dashboard uids are constants, so no setting beyond grafanaUrl is needed', () => {
+  assert.equal(grafanaTeam('delivery', 'https://grafana.example.test/'), 'https://grafana.example.test/d/glide-loop?var-team=delivery');
+  assert.equal(grafanaTeam('a b', 'https://grafana.example.test'), 'https://grafana.example.test/d/glide-loop?var-team=a%20b');
+  assert.equal(runExplorer('ploeg-abc123def456', 'https://grafana.example.test/'), 'https://grafana.example.test/d/dark-factory-run-explorer?var-run=ploeg-abc123def456');
+  assert.equal(grafanaTeam('delivery', ''), null, 'no URL, no link');
+  assert.equal(runExplorer('', 'https://grafana.example.test'), null, 'no key alias, no link');
+  assert.equal(runExplorer('ploeg-x', 'javascript:alert(1)'), null, 'only an http(s) Grafana URL is accepted');
+});
+
+test('every Run card offers a link to itself, and Grafana links follow the configured URL and the Run key', () => {
+  const withKeys = detail();
+  withKeys.runs[0].keyAlias = 'ploeg-abc123def456';
+  const html = detailMarkup(withKeys, model({ detailId: '50', grafanaUrl: 'https://grafana.example.test/' }));
+  assert.equal((html.match(/data-action="work-copy-run"/g) || []).length, withKeys.runs.length, 'one copy-link button per Run card');
+  assert.match(html, /data-action="work-copy-run" data-id="14" data-work-item="50"/);
+  assert.match(html, /href="https:\/\/grafana\.example\.test\/d\/dark-factory-run-explorer\?var-run=ploeg-abc123def456"/);
+  assert.equal((html.match(/dark-factory-run-explorer/g) || []).length, 1, 'only the Run with a key alias links the run explorer');
+  assert.match(html, /href="https:\/\/grafana\.example\.test\/d\/glide-loop\?var-team=delivery"/, 'the Work Item header links the Team dashboard');
+  assert.equal((html.match(/glide-loop/g) || []).length, 1);
+});
+
+test('without a Grafana URL neither dashboard link is invented, but the copy-link button stays', () => {
+  const withKeys = detail();
+  withKeys.runs[0].keyAlias = 'ploeg-abc123def456';
+  const html = detailMarkup(withKeys, model({ detailId: '50' }));
+  assert.doesNotMatch(html, /grafana/i);
+  assert.match(html, /data-action="work-copy-run" data-id="14"/);
+});
+
+test('a Run asked for by URL that is not on the Work Item says so, and the notice is not shown otherwise', () => {
+  const html = detailMarkup(detail(), model({ detailId: '50', runNotice: 'Run 999 is not on this Work Item.' }));
+  assert.match(html, /<p class="work-run-notice" role="alert">[^]*Run 999 is not on this Work Item\./);
+  assert.doesNotMatch(detailMarkup(detail(), model({ detailId: '50' })), /work-run-notice/);
+});
+

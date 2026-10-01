@@ -106,6 +106,7 @@ function mutationGuard(req: IncomingMessage, config: AppConfig): void {
 export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost, links?: Links, oidc?: Oidc) {
   const auth = new Auth(store, config);
   const ploeg = new PloegClient(config);
+  ploeg.announce(config.baseUrl);
   const delivery = new DeliveryService(config, store);
   const handoff = new TaskHandoff(config, ploeg);
   const streams = new Set<ServerResponse>();

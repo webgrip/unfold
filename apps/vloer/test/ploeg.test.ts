@@ -750,3 +750,90 @@ test('the card route is scoped to the caller\'s Teams, read-only, and a demo car
   assert.equal((await request(demo.url, '/api/ploeg/work-items/999/card')).status, 404);
   assert.equal(demo.app.store.listSessions().length, 0);
 });
+
+const settle = async (rounds = 12) => { for (let index = 0; index < rounds; index++) await new Promise(resolve => setImmediate(resolve)); };
+
+async function announceFixture(t: TestContext, statuses: number[]) {
+  const env = `VLOER_PLOEG_ANNOUNCE_${randomBytes(8).toString('hex').toUpperCase()}`;
+  const token = randomBytes(24).toString('hex');
+  process.env[env] = token;
+  const calls: { method: string; path: string; body: unknown; authorized: boolean }[] = [];
+  const server = createServer((req, res) => {
+    let raw = '';
+    req.on('data', chunk => { raw += chunk; });
+    req.on('end', () => {
+      calls.push({ method: req.method!, path: req.url!, body: raw ? JSON.parse(raw) : undefined, authorized: req.headers.authorization === `Bearer ${token}` });
+      res.writeHead(statuses.length ? statuses.shift()! : 204, { connection: 'close' }).end();
+    });
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); delete process.env[env]; });
+  const address = server.address(); assert(address && typeof address !== 'string');
+  return { config: { url: `http://127.0.0.1:${address.port}`, tokenEnv: env } as NonNullable<ReturnType<typeof validatePloeg>>, calls };
+}
+
+function announceClient(config: NonNullable<ReturnType<typeof validatePloeg>>, mode: 'demo' | 'live' = 'live') {
+  return new PloegClient({ ...configuration('/unused', mode), ploeg: mode === 'demo' ? { ...config, demo: true } : config });
+}
+
+test('a live workbench announces its https URL once and stops after Ploeg answers 204', async t => {
+  const fixture = await announceFixture(t, [204]);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  announceClient(fixture.config).announce('https://vloer.example.test/');
+  await settle();
+  assert.equal(fixture.calls.length, 1);
+  assert.deepEqual([fixture.calls[0].method, fixture.calls[0].path, fixture.calls[0].authorized], ['PUT', '/api/v1/operator/consumer', true]);
+  assert.deepEqual(fixture.calls[0].body, { vloerUrl: 'https://vloer.example.test' }, 'the trailing slash is trimmed');
+  t.mock.timers.tick(3_600_000);
+  await settle();
+  assert.equal(fixture.calls.length, 1, 'a 204 ends the retries');
+});
+
+test('a failing announce backs off from one minute to an hour and stops on 204', async t => {
+  const fixture = await announceFixture(t, [500, 500, 500, 204]);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  announceClient(fixture.config).announce('https://vloer.example.test');
+  await settle();
+  assert.equal(fixture.calls.length, 1);
+  t.mock.timers.tick(60_000);
+  await settle();
+  assert.equal(fixture.calls.length, 2, 'retry after one minute');
+  t.mock.timers.tick(120_000);
+  await settle();
+  assert.equal(fixture.calls.length, 3, 'retry after two minutes');
+  t.mock.timers.tick(240_000);
+  await settle();
+  assert.equal(fixture.calls.length, 4, 'retry after four minutes, then 204');
+  t.mock.timers.tick(3_600_000);
+  await settle();
+  assert.equal(fixture.calls.length, 4, 'the 204 stopped the retries');
+});
+
+test('a 404 from an older Ploeg is logged once and the retries stop', async t => {
+  const fixture = await announceFixture(t, [404]);
+  const logged: string[] = [];
+  t.mock.method(console, 'error', (line: string) => { logged.push(String(line)); });
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  announceClient(fixture.config).announce('https://vloer.example.test');
+  await settle();
+  assert.equal(fixture.calls.length, 1);
+  assert.equal(logged.length, 1, 'logged exactly once');
+  assert.match(logged[0], /ploeg\.consumer_unsupported/);
+  t.mock.timers.tick(3_600_000);
+  await settle();
+  assert.equal(fixture.calls.length, 1, 'an older Ploeg is not retried');
+});
+
+test('the demo, an http baseUrl and no baseUrl all announce nothing', async t => {
+  const fixture = await announceFixture(t, []);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  announceClient(fixture.config, 'demo').announce('https://vloer.example.test');
+  announceClient(fixture.config).announce('http://vloer.example.test');
+  announceClient(fixture.config).announce(undefined);
+  announceClient(fixture.config).announce('not a url');
+  await settle();
+  t.mock.timers.tick(3_600_000);
+  await settle();
+  assert.equal(fixture.calls.length, 0);
+});
+

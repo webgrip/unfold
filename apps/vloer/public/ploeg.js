@@ -5,6 +5,7 @@ import { count as formatCount, money, plural, duration, dateTime } from './core/
 import * as ui from './core/ui.js';
 import { workItemState, runOutcome, runState, verdict as verdictMeta, failureReason, failureNote, auditEvent, actorName, displayState, unreportedOutcome, closeReasonLabel, withdrawnReason } from './core/states.js';
 import { listReason, routingWarning, detailReason, requeueNote, needsYouBlocks, reasonGlyph } from './core/reasons.js';
+import { grafanaTeam, runExplorer } from './core/observability.js';
 import { checkoutTarget, checkoutCommand, checkoutLink } from './core/checkout.js';
 import { traceMarkup } from './core/attribution.js';
 
@@ -518,6 +519,8 @@ function headerMarkup(detail, model, reason) {
   if (item.updatedAt) facts.push(`<span class="work-fact">Updated ${ui.timeAgo(item.updatedAt)}</span>`);
   const close = `<button type="button" class="button ghost icon-only sm work-close" data-action="ploeg-close" aria-label="Close work item details" title="Close">${icon('x')}</button>`;
   const tools = [`<button type="button" class="button ghost sm work-copy" data-action="work-copy-link" data-id="${escape(item.id)}">${icon('copy')}<span class="button-label">Copy link</span></button>`];
+  const grafana = grafanaTeam(item.team, model.grafanaUrl);
+  if (grafana) tools.push(ui.button({ label: 'Grafana', icon: 'activity', variant: 'ghost', size: 'sm', href: grafana, external: true, data: { linkOut: 'grafana' } }));
   const checkout = checkoutTarget(detail, model.card);
   if (checkout) tools.push(`<button type="button" class="button ghost sm work-checkout" data-action="work-checkout" title="${escape(`Check out ${checkout.branch}`)}">${icon('branch')}<span class="button-label">Check out branch</span></button>`);
   if (model.canCancel && cancellable.has(item.state)) tools.push(`<button type="button" class="button ghost sm work-cancel" data-action="work-cancel" data-id="${escape(item.id)}"${model.cancelBusy ? ' aria-disabled="true" aria-busy="true"' : ''}>${model.cancelBusy ? '<span class="spinner" aria-hidden="true"></span>' : icon('x-circle')}<span class="button-label">Cancel Work Item</span></button>`);
@@ -827,7 +830,7 @@ function runLinks(run) {
   return `<div class="cluster gap-sm">${links.map(link => `<a class="chip" href="${escape(link.url)}" target="_blank" rel="noopener noreferrer">${icon(/^Pull request/.test(link.label) ? 'pull-request' : 'link')}<span>${escape(link.label)}</span>${newTab}</a>`).join('')}</div>`;
 }
 
-function runBody(run, { demo, now, live, attempts }) {
+function runBody(run, { demo, now, live, attempts, grafanaUrl }) {
   const failure = failureReason(run.failureReason);
   const retriedAs = failure?.retries ? attempts?.get(String(run.id))?.next : null;
   const parts = [];
@@ -854,7 +857,11 @@ function runBody(run, { demo, now, live, attempts }) {
     ['Model cost', demo ? '<span class="subtle">Demo · no model calls</span>' : run.costStatus === 'observed' && amount(run.usage?.costUsd) ? `<span class="num">${moneyText(run.usage.costUsd)}</span>` : '<span class="subtle">Not reported</span>'],
     ['Tokens', tokens],
   ]));
-  parts.push(`<p class="meta work-run-ids">Run <span class="mono">${escape(run.id)}</span>${run.shiftId ? ` · Shift <span class="mono">${escape(run.shiftId)}</span>` : ''}${run.keyAlias ? ` · Key <span class="mono">${escape(run.keyAlias)}</span>` : ''}</p>`);
+  const grafana = runExplorer(run.keyAlias, grafanaUrl);
+  const copy = ui.button({ label: 'Copy link to this Run', icon: 'copy', variant: 'ghost', size: 'xs', action: 'work-copy-run', data: { id: run.id, workItem: run.workItemId } });
+  const grafanaLink = grafana ? ui.button({ label: 'Grafana', icon: 'activity', variant: 'ghost', size: 'xs', href: grafana, external: true, data: { linkOut: 'grafana' } }) : '';
+  const ids = `<div class="work-run-ids-row"><p class="meta work-run-ids">Run <span class="mono">${escape(run.id)}</span>${run.shiftId ? ` · Shift <span class="mono">${escape(run.shiftId)}</span>` : ''}${run.keyAlias ? ` · Key <span class="mono">${escape(run.keyAlias)}</span>` : ''}</p><div class="work-run-tools">${copy}${grafanaLink}</div></div>`;
+  parts.push(ids);
   return parts.join('');
 }
 
@@ -873,7 +880,7 @@ function runRow(run, context, { round }) {
 function runsMarkup(detail, model) {
   const shift = latestShift(detail);
   const groups = runGroups(detail.runs, shift?.id);
-  const context = { demo: detail.demo, now: model.now, live: !stopped.has(detail.item.state), attempts: runAttempts(detail.runs) };
+  const context = { demo: detail.demo, now: model.now, live: !stopped.has(detail.item.state), attempts: runAttempts(detail.runs), grafanaUrl: model.grafanaUrl };
   const render = (list, continued) => list.map(group => `${group.label && !continued.has(group.key) ? `<p class="work-run-group">${escape(group.label)}</p>` : ''}${group.runs.map(run => runRow(run, context, { round: group.label })).join('')}`).join('');
   const shown = [];
   const rest = [];
@@ -1041,6 +1048,7 @@ export function detailMarkup(detail, model) {
   else decision = statusBox(detail, model);
   const parts = [
     headerMarkup(detail, model, reason),
+    model.runNotice ? `<p class="work-run-notice" role="alert">${icon('alert')}<span>${escape(model.runNotice)}</span></p>` : '',
     cancelResultMarkup(model),
     card,
     accountMarkup(detail),

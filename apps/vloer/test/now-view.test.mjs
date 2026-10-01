@@ -87,7 +87,7 @@ test('row actions put the primary action first, name it fully and go where the d
   assert.match(html, /href="https:\/\/forge\.test\/acme\/shop\/pulls\/9"[^>]*aria-label="Open the pull request for “Round half-cent totals” \(opens in a new tab\)"/);
   assert.match(html, /<span class="now-action-primary"><a class="button secondary sm" href="https:\/\/forge\.test[\s\S]*?<\/a><\/span><span class="now-action-links"><a class="button ghost sm icon-only" href="https:\/\/tracker\.test\/tasks\/105" target="_blank" rel="noopener noreferrer" id="now-tracker-105"/, 'the pull request comes before the tracker link');
   assert.match(html, /href="https:\/\/tracker\.test\/tasks\/108" target="_blank" rel="noopener noreferrer"[^>]*aria-label="Open “Show VAT per line” in the tracker \(opens in a new tab\)"/);
-  assert.match(html, /href="https:\/\/grafana\.example\.test\/d\/unfold-loop\?var-team=delivery"/, 'infrastructure trouble links the Team dashboard');
+  assert.match(html, /href="https:\/\/grafana\.example\.test\/d\/glide-loop\?var-team=delivery"/, 'infrastructure trouble links the Team dashboard');
   assert.equal(html.match(/grafana\.example\.test/g).length, 1, 'Grafana only for infrastructure reasons');
   assert.match(html, /href="#proposed\?id=107"[^>]*aria-label="Approve or reject “Clarify the research markets” on Proposed"[^>]*>[\s\S]*?Approve or reject/);
   assert.doesNotMatch(html, />Decide</);
