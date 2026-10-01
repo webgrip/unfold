@@ -62,6 +62,8 @@ export const cardTabs = Object.freeze([
 ]);
 
 const known = value => typeof value === 'number' && Number.isFinite(value);
+const notReportedYet = 'Not reported yet';
+const liveUsage = card => !card.demo && card.live && typeof card.live === 'object' && known(card.live.runSeconds) ? card.live : null;
 const text = value => typeof value === 'string' ? value.trim() : '';
 const list = value => Array.isArray(value) ? value : [];
 const sum = (entries, key) => entries.reduce((total, entry) => total + entry[key], 0);
@@ -88,6 +90,13 @@ function costView(card) {
   const authorized = known(totals.authorizedUsd) && totals.authorizedUsd > 0 ? totals.authorizedUsd : null;
   const of = authorized === null ? '' : `of ${money(authorized)}`;
   if (card.demo) return { value: 'Demo', caption: 'no model calls', text: demoCost, share: null, over: false, status: 'demo', label: `Cost: ${demoCost}${authorized === null ? '' : `, ${money(authorized)} authorized`}` };
+  const live = liveUsage(card);
+  if (live && !known(live.costUsd)) return { value: notReportedYet, caption: of, text: notReportedYet, share: null, over: false, status: 'not_reported', label: `Cost: not reported yet${authorized === null ? '' : `, ${money(authorized)} authorized`}` };
+  if (live) {
+    const share = authorized === null ? null : Math.min(1, live.costUsd / authorized);
+    const percent = authorized === null ? '' : `, ${Math.round(live.costUsd / authorized * 100)}% of ${money(authorized)} authorized`;
+    return { value: money(live.costUsd), caption: ['so far', of].filter(Boolean).join(' · '), text: `${money(live.costUsd)} so far`, share, over: authorized !== null && live.costUsd > authorized, status: 'live', label: `Cost so far: ${money(live.costUsd)}${percent}` };
+  }
   if (!known(totals.costUsd) || totals.costStatus === 'not_reported') return { value: notReported, caption: of, text: notReported, share: null, over: false, status: 'not_reported', label: `Cost: not reported${authorized === null ? '' : `, ${money(authorized)} authorized`}` };
   const reserved = totals.costStatus === 'reserved';
   const share = authorized === null ? null : Math.min(1, totals.costUsd / authorized);
@@ -99,14 +108,18 @@ function costView(card) {
 function tokensView(card) {
   const totals = card.totals || {};
   if (card.demo) return { value: 'None', detail: 'Demo · no model calls', known: false, partial: false };
-  const parts = [known(totals.inputTokens) ? `${compactCount(totals.inputTokens)} in` : '', known(totals.outputTokens) ? `${compactCount(totals.outputTokens)} out` : ''].filter(Boolean);
-  if (!parts.length) return { value: notReported, detail: '', known: false, partial: false };
-  const partial = totals.usageComplete === false;
-  return { value: parts.join(' · '), detail: partial ? 'Some Runs did not report usage' : '', known: true, partial };
+  const live = liveUsage(card);
+  const source = live || totals;
+  const parts = [known(source.inputTokens) ? `${compactCount(source.inputTokens)} in` : '', known(source.outputTokens) ? `${compactCount(source.outputTokens)} out` : ''].filter(Boolean);
+  if (!parts.length) return { value: live ? notReportedYet : notReported, detail: '', known: false, partial: false, live: Boolean(live) };
+  const partial = source.usageComplete === false;
+  return { value: parts.join(' · '), detail: [live ? 'So far, while a Run is running' : '', partial ? 'Some Runs did not report usage' : ''].filter(Boolean).join(' · '), known: true, partial, live: Boolean(live) };
 }
 
 function runTimeView(card) {
   const totals = card.totals || {};
+  const live = liveUsage(card);
+  if (live) return { value: duration(live.runSeconds), known: true, live: true };
   if (known(totals.runSeconds)) return { value: duration(totals.runSeconds), known: true };
   if (totals.runs === 0) return { value: 'No Runs yet', known: false };
   return { value: notReported, known: false };
@@ -182,19 +195,25 @@ function usageRow(card, label, value) {
   return reported(label, value, count);
 }
 
+function liveRow(card, label, value) {
+  if (liveUsage(card) && !known(value)) return row(label, notReportedYet, 'unreported');
+  return usageRow(card, label, value);
+}
+
 function economics(card, cost) {
   const totals = card.totals || {};
+  const live = liveUsage(card);
   const crew = list(card.crew).filter(member => text(member?.role));
   return {
     rows: [
-      row('Cost', card.demo ? demoCost : cost.text, cost.status === 'not_reported' ? 'unreported' : 'ok'),
+      row(live ? 'Cost so far' : 'Cost', card.demo ? demoCost : cost.text, cost.status === 'not_reported' ? 'unreported' : 'ok'),
       card.demo ? row('Authorized', 'None · demo', 'demo') : reported('Authorized', totals.authorizedUsd, money),
-      row('Cost status', card.demo ? 'Demo' : costStatuses[totals.costStatus] || notReported, card.demo || totals.costStatus === 'not_reported' || !totals.costStatus ? 'unreported' : 'ok'),
-      usageRow(card, 'Input tokens', totals.inputTokens),
-      usageRow(card, 'Output tokens', totals.outputTokens),
+      live ? row('Cost status', 'Running, read from the gateway') : row('Cost status', card.demo ? 'Demo' : costStatuses[totals.costStatus] || notReported, card.demo || totals.costStatus === 'not_reported' || !totals.costStatus ? 'unreported' : 'ok'),
+      liveRow(card, 'Input tokens', live ? live.inputTokens : totals.inputTokens),
+      liveRow(card, 'Output tokens', live ? live.outputTokens : totals.outputTokens),
       usageRow(card, 'Cache read tokens', totals.cacheReadInputTokens),
       usageRow(card, 'Cache write tokens', totals.cacheCreationInputTokens),
-      card.demo ? row('Every Run reported usage', 'None · demo', 'demo') : totals.usageComplete === true ? row('Every Run reported usage', 'Yes') : totals.usageComplete === false ? row('Every Run reported usage', 'No, totals are partial', 'unreported') : row('Every Run reported usage', notReported, 'unreported'),
+      card.demo ? row('Every Run reported usage', 'None · demo', 'demo') : live ? row('Every Run reported usage', live.usageComplete ? 'Yes, so far' : 'No, figures so far are partial', live.usageComplete ? 'ok' : 'unreported') : totals.usageComplete === true ? row('Every Run reported usage', 'Yes') : totals.usageComplete === false ? row('Every Run reported usage', 'No, totals are partial', 'unreported') : row('Every Run reported usage', notReported, 'unreported'),
       uncollected('Model mix'),
     ],
     lists: crew.length ? [{ title: 'Cost by Role', items: crew.map(member => ({ title: member.role, meta: card.demo ? 'Demo · no spend' : [known(member.costUsd) ? money(member.costUsd) : notReported, known(member.inputTokens) ? `${compactCount(member.inputTokens)} tokens in` : ''].filter(Boolean).join(' · '), tone: 'neutral', glyph: member.writes ? 'code' : 'eye' })) }] : [],
@@ -203,6 +222,7 @@ function economics(card, cost) {
 
 function agent(card) {
   const totals = card.totals || {};
+  const live = liveUsage(card);
   const crew = list(card.crew).filter(member => text(member?.role));
   return {
     rows: [
@@ -212,7 +232,7 @@ function agent(card) {
       reported('Shifts', totals.shifts, count),
       usageRow(card, 'Turns', totals.turns),
       usageRow(card, 'Tool calls', totals.toolCalls),
-      reported('Run time', totals.runSeconds, duration),
+      live ? row('Run time so far', duration(live.runSeconds)) : reported('Run time', totals.runSeconds, duration),
       row('First Run', dateTime(totals.firstRunAt) || notReported, totals.firstRunAt ? 'ok' : 'unreported'),
       row('Last Run', dateTime(totals.lastRunAt) || notReported, totals.lastRunAt ? 'ok' : 'unreported'),
       uncollected('Peak context'),
@@ -344,7 +364,8 @@ function context(card) {
 
 /**
  * The view model of a Run card: every slot formatted (nl-NL money with two decimals, compact counts, durations),
- * and every value Ploeg left out marked "Not reported", never zero. Values Ploeg does not collect yet read
+ * and every value Ploeg left out marked "Not reported", never zero. While a Run is running, cost, tokens and run time
+ * are Ploeg's `live` reading so far, and a figure missing from it reads "Not reported yet". Values Ploeg does not collect yet read
  * "Not collected yet". A demo card reads "Demo · no model calls" for cost and usage. Rarity, grade and condition
  * are not shown. The finish comes from the whole days since `release.at` on the finish ladder; Ploeg's own `finish`
  * is ignored, and a card without a release is matte.

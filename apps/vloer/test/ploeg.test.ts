@@ -638,6 +638,15 @@ test('the card proxy reads Ploeg card facts, keeps unknowns absent and shows no 
   assert(upstreamApi.seen.some(call => call.path === '/api/v1/operator/work-items/101/card' && call.method === 'GET'));
   assert.equal('release' in view.card, false, 'an older Ploeg without releases keeps release absent');
   assert.equal('deployments' in view.card, false);
+  assert.equal('live' in view.card, false, 'an older Ploeg without live usage keeps live absent');
+  upstreamApi.cards['101'] = { ...liveCard('101'), live: { runningRuns: 1, observedAt: '2026-10-01T13:32:00Z', runSeconds: 2040, costUsd: 0.27, inputTokens: 10418740, outputTokens: 127480, usageComplete: true, extra: 'x' } };
+  assert.deepEqual((await ploeg.card(admin, '101', true)).card.live, { runningRuns: 1, observedAt: '2026-10-01T13:32:00Z', runSeconds: 2040, costUsd: 0.27, inputTokens: 10418740, outputTokens: 127480, usageComplete: true }, 'live usage passes through validated, unknown keys stripped');
+  upstreamApi.cards['101'] = { ...liveCard('101'), live: { runningRuns: 1, observedAt: '2026-10-01T13:32:00Z', runSeconds: 60, usageComplete: false } };
+  assert.equal('costUsd' in (await ploeg.card(admin, '101', true)).card.live!, false, 'an unread gateway keeps live cost absent, never zero');
+  upstreamApi.cards['101'] = { ...liveCard('101'), live: null };
+  assert.equal((await ploeg.card(admin, '101', true)).card.live, null);
+  upstreamApi.cards['101'] = { ...liveCard('101'), live: { runningRuns: 1, usageComplete: true } };
+  await assert.rejects(ploeg.card(admin, '101', true), /unsupported operator response/, 'live usage needs its run time');
   upstreamApi.cards['101'] = { ...liveCard('101'), finish: 'infinity', release: { at: '2026-09-01T10:00:00Z', source: 'deploy', environment: 'Production' }, deployments: [{ environment: 'Production', firstDeployedAt: '2026-09-01T10:00:00Z', sha: 'abc123', url: `https://ci.example.test/run/9?token=${upstreamApi.token}` }, { environment: 'test', firstDeployedAt: '2026-08-31T10:00:00Z', sha: 'abc123', url: 'https://ci.example.test/run/8', extra: 'x' }, { environment: '', sha: 'abc' }] };
   const deployed = await ploeg.card(admin, '101', true);
   assert.equal(deployed.card.finish, 'matte', 'Vloer computes the finish and ignores Ploeg\'s');
