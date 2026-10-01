@@ -8,7 +8,7 @@ let problem = '';
 let connected = true;
 
 const providerNames = { vikunja: 'Vikunja', forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp', demo: 'Demo' };
-const stateNames = { ingested: 'Received', queued: 'Queued', leased: 'In execution', awaiting_review: 'Awaiting review', needs_human: 'Needs a human', done: 'Done', stale: 'Stale', withdrawn: 'Taken back', proposed: 'Proposed' };
+const stateNames = { ingested: 'Received', queued: 'Queued', leased: 'Running', awaiting_review: 'Ready for review', needs_human: 'Needs you', done: 'Done', stale: 'Stopped retrying', withdrawn: 'Withdrawn', proposed: 'Proposed' };
 const settled = ['done', 'withdrawn', 'stale'];
 const priorities = ['', 'Low', 'Medium', 'High', 'Urgent', 'Do now'];
 

@@ -1,6 +1,10 @@
 package provider
 
-import "testing"
+import (
+	"context"
+	"net/http"
+	"testing"
+)
 
 func TestRepositoryLocatorPinsConfiguredForgeAndCoordinates(t *testing.T) {
 	actual, err := RepositoryURL("https://forge.example/", "nested/owner", "repository")
@@ -21,5 +25,30 @@ func TestRepositoryLocatorPinsConfiguredForgeAndCoordinates(t *testing.T) {
 		if _, err := RepositoryURL(tc.base, tc.owner, tc.repo); err == nil {
 			t.Fatalf("unsafe repository coordinate accepted: %+v", tc)
 		}
+	}
+}
+
+// providerFake implements the whole ForgeProvider SPI, so this file fails to
+// compile the day a method is added and left unimplemented somewhere.
+type providerFake struct{}
+
+func (providerFake) Name() string                                                  { return "fake" }
+func (providerFake) ParseWebhook(*http.Request) ([]ForgeEvent, error)              { return nil, nil }
+func (providerFake) Comment(context.Context, string, int, string) error            { return nil }
+func (providerFake) Comments(context.Context, string, int) ([]Comment, error)      { return nil, nil }
+func (providerFake) EditComment(context.Context, string, int, int64, string) error { return nil }
+func (providerFake) PullRequestState(context.Context, string, int) (PullRequestState, error) {
+	return PullRequestOpen, nil
+}
+
+var _ ForgeProvider = providerFake{}
+
+func TestForgeProvider_CommentMethodsInSPI(t *testing.T) {
+	var fp ForgeProvider = providerFake{}
+	if got, err := fp.Comments(context.Background(), "o/r", 1); err != nil || got != nil {
+		t.Fatalf("Comments = %v, %v", got, err)
+	}
+	if err := fp.EditComment(context.Background(), "o/r", 1, 2, "body"); err != nil {
+		t.Fatalf("EditComment: %v", err)
 	}
 }

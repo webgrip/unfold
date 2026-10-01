@@ -458,7 +458,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
 
   private async previewTask(task: TaskSnapshot, origin: string): Promise<void> {
     const facts = [`**${providerNames[task.provider] ?? task.provider} ${task.identifier ?? `#${task.id}`}** · ${task.status} · repository \`${task.repositoryId}\``, `Imported revision \`${task.revision.slice(0, 12)}\`${task.updatedAt ? ` · updated ${task.updatedAt}` : ''} · workbench ${origin}`, ...(task.ploeg ? [`Ploeg work item ${task.ploeg.workItemId} → ${task.ploeg.expectedTarget.owner}/${task.ploeg.expectedTarget.repo}@${task.ploeg.expectedTarget.baseBranch}`] : []), ...(safeHttpsUrl(task.url) ? [`[Open in tracker](${safeHttpsUrl(task.url)})`] : [])];
-    const body = task.descriptionMarkdown ?? (/<[a-z][\s\S]*>/i.test(task.description) ? plainText(task.description) : task.description);
+    const body = /<[a-z][\s\S]*>/i.test(task.description) ? plainText(task.description) : task.description;
     await this.documents.openText('task-preview', `${task.sourceId}-${task.id}.md`, `# ${task.title.replace(/\n/g, ' ')}\n\n${facts.join('  \n')}\n\n---\n\n${body || '_No description._'}\n`, 'markdown');
   }
 

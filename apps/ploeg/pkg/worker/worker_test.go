@@ -297,6 +297,20 @@ func TestResolveOutcome_Precedence(t *testing.T) {
 			t.Errorf("usage lost on the no-change branch: %+v", got.Usage)
 		}
 	})
+	t.Run("the writer's problem and solution survive every branch", func(t *testing.T) {
+		report := harness.OutcomeReport{Problem: "Refunds over €500 fail.", Solution: "Check the limit first."}
+		for name, got := range map[string]harness.OutcomeReport{
+			"pr_opened":      resolveOutcome("claude-code", report, nil, nil, "http://forge/pr/8", false, "t", "b", nil, true, true),
+			"pr_updated":     resolveOutcome("claude-code", report, nil, nil, "http://forge/pr/8", true, "t", "b", nil, true, true),
+			"no PR":          resolveOutcome("claude-code", report, nil, nil, "", false, "t", "b", nil, false, true),
+			"agent error":    resolveOutcome("claude-code", report, errors.New("exit 1"), nil, "http://forge/pr/8", true, "t", "b", nil, true, true),
+			"late PR opened": resolveOutcome("claude-code", report, errors.New("exit 1"), nil, "http://forge/pr/8", false, "t", "b", nil, true, true),
+		} {
+			if got.Problem != report.Problem || got.Solution != report.Solution {
+				t.Errorf("%s: problem %q solution %q, want the writer's account", name, got.Problem, got.Solution)
+			}
+		}
+	})
 }
 
 // --- runAgent: the four key-lifecycle regressions (mint → run → deferred

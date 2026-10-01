@@ -182,7 +182,7 @@ test('the demo Ploeg detail and the task preview answer with descriptionMarkdown
   const listed = await request(server.url, '/api/task-sources/board/tasks');
   assert.equal(listed.status, 200, listed.text);
   assert.equal(listed.body.tasks[0].revision, preview.body.revision, 'presenting Markdown does not change the revision');
-  assert.equal(typeof listed.body.tasks[0].descriptionMarkdown, 'string', 'a list row carries its HTML description as Markdown for the editor');
+  assert.equal('descriptionMarkdown' in listed.body.tasks[0], false, 'the task list stays as it was');
   description = 'Plain text brief';
   const plain = await request(server.url, '/api/task-sources/board/tasks/8');
   assert.equal(plain.body.descriptionMarkdown, 'Plain text brief');

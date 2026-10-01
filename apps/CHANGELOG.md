@@ -1,3 +1,71 @@
+## [glide-v0.4.0-rc.21](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.20...glide-v0.4.0-rc.21) (2026-09-30)
+
+### Dependencies
+
+* **deps:** lock file maintenance ([d393fba](https://forgejo.webgrip.dev/webgrip/glide/commit/d393fba42a4e2f266d74dfe6b3e251527a3f35c4))
+
+### Added
+
+* **deps:** update docker.io/golang docker tag ( 1.26 ➔ 1.27 ) ([21794a0](https://forgejo.webgrip.dev/webgrip/glide/commit/21794a0e7f5995b950bedfcc2be548e2de9d23fa))
+
+### Docs
+
+* **adr-0037:** accept per-team registry egress through a logged allowlist proxy ([f1b16b9](https://forgejo.webgrip.dev/webgrip/glide/commit/f1b16b97647ff9409fee410e10405a5543581e58))
+* **ploeg:** propose ADR-0037, per-team registry egress through a logged allowlist proxy ([1d024b8](https://forgejo.webgrip.dev/webgrip/glide/commit/1d024b8964616b78c6220b7d776a2c8baeb42a6b))
+* **ploeg:** record the owner's ADR-0037 decisions of 2026-09-28 ([25e9d7e](https://forgejo.webgrip.dev/webgrip/glide/commit/25e9d7e04bcfd28036913e4115b03e876e8ed65d))
+
+## [glide-v0.4.0-rc.20](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.19...glide-v0.4.0-rc.20) (2026-09-30)
+
+### Added
+
+* **ploeg:** have a writing Run report the problem and solution a reviewer reads ([eb459ca](https://forgejo.webgrip.dev/webgrip/glide/commit/eb459caabed50b832031afdcb361455112c3ffde))
+* **ploeg:** post a usage and evidence report on every agent pull request ([e9df8a4](https://forgejo.webgrip.dev/webgrip/glide/commit/e9df8a479bf503a8b80e6bdd7a48ccafc7e91f4b))
+* **ploeg:** report pull request and review state per work item ([27551a1](https://forgejo.webgrip.dev/webgrip/glide/commit/27551a16b35159d61df1a9d308df02ea4d568b49))
+* **ploeg:** report team tracker assignees and find work by tracker task ([2985ee8](https://forgejo.webgrip.dev/webgrip/glide/commit/2985ee8da0fa3f8c3528e246a3118e3ed7def695))
+* **ploeg:** report which tracker boards are pinned to each team ([135cb2d](https://forgejo.webgrip.dev/webgrip/glide/commit/135cb2d152a4300ae2cc240a2fe8b1e38de95004))
+* **ploeg:** route a tracker item by its repo label among registered targets ([67939c6](https://forgejo.webgrip.dev/webgrip/glide/commit/67939c6531b7ea8d7f0b119552439fce81704daa))
+* **vloer:** draw the problem and solution as a before-and-after panel ([c4cc0cf](https://forgejo.webgrip.dev/webgrip/glide/commit/c4cc0cf54e82d0312897b170b2cf2837e768886a))
+* **vloer:** hand a tracker task to a Ploeg team from the workbench ([877143b](https://forgejo.webgrip.dev/webgrip/glide/commit/877143b3fb0744bed94bb41756dee47e4b3e97d0))
+* **vloer:** open linked tasks in a task view and hand them to Ploeg ([12c7552](https://forgejo.webgrip.dev/webgrip/glide/commit/12c7552c962edc49ff71661b3414b7384cc681ba))
+* **vloer:** show idle stops and number retried Runs ([d6fb54e](https://forgejo.webgrip.dev/webgrip/glide/commit/d6fb54ed8858113d7dae8ab0eb0fe727f17a30c6))
+* **vloer:** show the writer's problem and solution under the Work Item title ([2682ff3](https://forgejo.webgrip.dev/webgrip/glide/commit/2682ff3440e613b0f18e7c99343f832fe59658dc))
+
+### Fixed
+
+* **ploeg:** count model traffic as harness activity and report idle stops as idle ([a7c86f1](https://forgejo.webgrip.dev/webgrip/glide/commit/a7c86f1dd06066859b9b725ad9c3d49fd1613c4d))
+* **vloer:** check every team before handing a task over or taking it back ([ad72b77](https://forgejo.webgrip.dev/webgrip/glide/commit/ad72b779621cd5913e13b32812a57928973baf05))
+* **vloer:** make the task view robust to races, long tasks and escapes ([4b5dea2](https://forgejo.webgrip.dev/webgrip/glide/commit/4b5dea29f14e072d41d5f3463a1a0801f4b7c1e7))
+* **vloer:** show work awaiting review in the VS Code Ploeg tree ([c23f0a4](https://forgejo.webgrip.dev/webgrip/glide/commit/c23f0a497a6176a1dfd7ff0ab5510b36fe4a8f5a))
+
+### Docs
+
+* **adr:** accept ADR-0011 with the remote phase in scope ([dd00f38](https://forgejo.webgrip.dev/webgrip/glide/commit/dd00f385fbd7e19b65eefc7f21475df40f7b913f))
+* **glide:** research MCP access and propose ADR-0011 ([7a2d57c](https://forgejo.webgrip.dev/webgrip/glide/commit/7a2d57c667422992fb54e45deee853720134c16a))
+* **ploeg:** ADR-0040 shows a conflict on an awaiting_review pull request ([7042fc5](https://forgejo.webgrip.dev/webgrip/glide/commit/7042fc5f121079dab9eb493f5b234d45ffb55a13)), references [#45](https://forgejo.webgrip.dev/webgrip/glide/issues/45)
+* **ploeg:** how to route a board that serves several repositories ([59bb910](https://forgejo.webgrip.dev/webgrip/glide/commit/59bb91046922f27deedbc169d3fd806244074acc))
+* **ploeg:** propose ADR-0040, a conflicted pull request becomes a priority ticket ([4cb6142](https://forgejo.webgrip.dev/webgrip/glide/commit/4cb6142cfd9a5215e321924762ce8430baedcec5))
+* **ploeg:** propose retrying a failed reviewer and restarting from a chosen Round ([033e948](https://forgejo.webgrip.dev/webgrip/glide/commit/033e948f0413fb5e7d599abcbff538776abf7f5c)), references [#45](https://forgejo.webgrip.dev/webgrip/glide/issues/45)
+* **ploeg:** record the OpenAI Agents API fit and propose ADR-0039 ([c1fb89d](https://forgejo.webgrip.dev/webgrip/glide/commit/c1fb89dc8eb8bb7aaa723e80de961996f23cd080))
+
+### Tests
+
+* **ploeg:** regenerate the Helm goldens for PLOEG_USAGE_REPORT ([93b88b8](https://forgejo.webgrip.dev/webgrip/glide/commit/93b88b818eafec7004c815bd273e3e9a468802f2))
+
+## [glide-v0.4.0-rc.19](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.18...glide-v0.4.0-rc.19) (2026-09-30)
+
+### Added
+
+* **ploeg:** report reserved models and observed spend for running Runs ([57b75d7](https://forgejo.webgrip.dev/webgrip/glide/commit/57b75d7e0f210ce147c70f2e857c7544b6d4acc5))
+
+### Docs
+
+* **ploeg:** plan credential isolation for the cluster ([560e495](https://forgejo.webgrip.dev/webgrip/glide/commit/560e49534e13595ea36a046f4af256b5fffa0967))
+
+### Tests
+
+* **vloer:** count a zombie as a reaped bridge on Linux ([375c504](https://forgejo.webgrip.dev/webgrip/glide/commit/375c5045822bf0d30ab0a2d65b60162449df5cff))
+* **vloer:** remove the conflict markers 375c504 committed ([ad3941e](https://forgejo.webgrip.dev/webgrip/glide/commit/ad3941ef091b764ca07780851f14b865ceeea4b9))
+
 ## [glide-v0.4.0-rc.18](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.17...glide-v0.4.0-rc.18) (2026-09-30)
 
 ### Added

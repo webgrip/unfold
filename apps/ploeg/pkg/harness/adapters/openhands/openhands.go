@@ -50,7 +50,7 @@ func (a *Adapter) Prepare(spec harness.TaskSpec, env harness.RunEnv) (harness.In
 	// OpenHands entrypoint reads it directly — nothing to translate.
 	return harness.Invocation{
 		Argv:        []string{entrypoint, "--headless", "-f", taskPath},
-		ExtraEnv:    []string{harness.DropBoxEnv + "=" + outcomePath},
+		ExtraEnv:    []string{harness.DropBoxEnv + "=" + outcomePath, "PYTHONUNBUFFERED=1"},
 		OutcomeFile: outcomePath,
 	}, nil
 }

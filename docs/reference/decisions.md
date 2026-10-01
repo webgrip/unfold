@@ -21,6 +21,13 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0002](../adr/adr-0002-ploeg-is-the-only-engine.md) | Ploeg is the only execution engine and Vloer is its front end | 2026-09-22 | — |
 | System | [0003](../adr/adr-0003-the-unit-of-work-is-the-work-item.md) | The unit of work is the Work Item, and work can create work | 2026-09-22 | — |
 | System | [0004](../adr/adr-0004-glide-releases-one-version.md) | Glide releases Vloer and Ploeg under one version | 2026-09-27 | — |
+| System | [0005](../adr/adr-0005-glide-is-offered-to-agencies.md) | Glide is offered to agencies, and delivery ends at a reviewed pull request with a preview | 2026-09-29 | — |
+| System | [0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md) | The ticket is the billing unit: a quoted, capped Shift budget charged on delivery | 2026-09-29 | — |
+| System | [0007](../adr/adr-0007-clients-approve-ready-work.md) | Clients approve Ready work, and each client sets its own definitions of Ready and Done | 2026-09-29 | — |
+| System | [0008](../adr/adr-0008-every-pull-request-gets-a-preview-environment.md) | Every pull request gets a preview environment; production stays with the agency | 2026-09-29 | — |
+| System | [0009](../adr/adr-0009-one-tenant-per-agency.md) | One tenant per agency, isolated by namespace, network, runtime and credentials | 2026-09-29 | — |
+| System | [0010](../adr/adr-0010-pull-requests-are-small-whole-and-explained.md) | Glide pull requests are small, whole and explained, and CI asks the reviewer questions | 2026-09-29 | — |
+| System | [0011](../adr/adr-0011-glide-is-reachable-over-mcp-through-a-read-first-server.md) | Glide is reachable over MCP through a separate, read-first server on Ploeg's operator API | 2026-09-30 | — |
 | Ploeg | [0001](../../apps/ploeg/docs/adrs/0001-adrs-are-the-decision-ledger.md) | ADRs in docs/adrs/ are the single decision ledger | 2026-07-29 | — |
 | Ploeg | [0002](../../apps/ploeg/docs/adrs/0002-go-as-the-implementation-language.md) | Go is the implementation language | 2026-07-29 | — |
 | Ploeg | [0003](../../apps/ploeg/docs/adrs/0003-apache-2-0-license.md) | Ploeg ships under Apache-2.0 | 2026-07-29 | — |
@@ -37,6 +44,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Ploeg | [0014](../../apps/ploeg/docs/adrs/0014-work-target-is-a-work-item-attribute.md) | Bind the Work Target to the Work Item, not to the Team | 2026-07-29 | — |
 | Ploeg | [0020](../../apps/ploeg/docs/adrs/0020-published-artifacts-name-the-mirror-as-source.md) | Published artifacts name the GitHub mirror as their source, and Forgejo as their URL | 2026-08-26 | — |
 | Ploeg | [0022](../../apps/ploeg/docs/adrs/0022-the-name-and-mark-are-trademarks-not-cc-licensed-artwork.md) | The name and mark are trademarks under a usage policy, not CC-licensed artwork | 2026-08-27 | — |
+| Ploeg | [0037](../../apps/ploeg/docs/adrs/0037-teams-opt-into-registry-egress-through-a-logged-allowlist-proxy.md) | Teams opt into registry egress through a logged allowlist proxy; airgapped stays the default | 2026-10-01 | — |
 | Ploeg | [0038](../../apps/ploeg/docs/adrs/0038-a-repo-label-selects-among-registered-targets-and-the-board-default-is-the-fallback.md) | A repo label selects among registered targets, and the board default is the fallback | 2026-09-28 | — |
 | Vloer | [0001](../../apps/vloer/docs/adrs/0001-the-human-workbench-beside-ploeg.md) | The human workbench beside Ploeg | 2026-09-09 | — |
 | Vloer | [0002](../../apps/vloer/docs/adrs/0002-native-node-and-single-writer-storage.md) | Native Node and one durable writer | 2026-09-09 | — |
@@ -75,12 +83,17 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Ploeg | [0029](../../apps/ploeg/docs/adrs/0029-qualify-glide-before-changing-distribution.md) | Qualify Glide before changing Ploeg distribution | 2026-09-12 | partial | Import and tag format done; distribution cutover deliberately pending ([source](../../scripts/release-policy.cjs)) |
 | Ploeg | [0030](../../apps/ploeg/docs/adrs/0030-target-repository-instructions-rank-below-the-delivery-contract.md) | Target repository instructions rank below the delivery contract | 2026-09-22 | unknown | — |
 | Ploeg | [0031](../../apps/ploeg/docs/adrs/0031-runs-create-work-items-held-for-approval-within-limits.md) | Runs create Work Items that wait for approval, within per-Team limits | 2026-09-23 | unknown | — |
-| Ploeg | [0032](../../apps/ploeg/docs/adrs/0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md) | Keep the dedicated dispatch plane, and compete on authorized spend over a self-hosted stack | 2026-09-26 | unknown | — |
+| Ploeg | [0032](../../apps/ploeg/docs/adrs/0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md) | Keep the dedicated dispatch plane, and compete on authorized spend over a self-hosted stack | 2026-09-30 | unknown | — |
 | Ploeg | [0033](../../apps/ploeg/docs/adrs/0033-board-control-planes-are-mined-for-design-never-depended-on.md) | Board control planes are mined for design and never depended on | 2026-09-26 | unknown | — |
 | Ploeg | [0034](../../apps/ploeg/docs/adrs/0034-the-harness-gets-placeholders-the-worker-keeps-credentials.md) | The harness gets placeholders; the worker keeps the credentials | 2026-09-26 | unknown | — |
 | Ploeg | [0035](../../apps/ploeg/docs/adrs/0035-runs-get-ploeg-owned-skills-mounted-toolchains-and-worker-verification.md) | Runs get Ploeg-owned skills, mounted toolchains and a verification the worker runs | 2026-09-27 | unknown | — |
 | Ploeg | [0036](../../apps/ploeg/docs/adrs/0036-stuck-work-reaches-the-owner-as-a-cited-proposal-not-an-agent-decision.md) | Stuck work reaches the owner as a cited proposal, and no agent applies a decision | 2026-09-28 | unknown | — |
 | Ploeg | [0039](../../apps/ploeg/docs/adrs/0039-a-run-calls-only-its-roles-model-and-the-advisor-waits-for-metering.md) | A Run calls only its Role's model, and the advisor waits for metering that prices it | 2026-09-30 | unknown | — |
+| Ploeg | [0040](../../apps/ploeg/docs/adrs/0040-a-conflicted-pull-request-becomes-a-priority-ticket-ploeg-resolves.md) | A conflicted pull request becomes a priority ticket that Ploeg resolves | 2026-09-30 | unknown | — |
+| Ploeg | [0041](../../apps/ploeg/docs/adrs/0041-the-openai-agents-api-stays-outside-the-run-until-it-takes-an-authorized-budget.md) | The OpenAI Agents API stays outside the Run until it can take an authorized budget; Glide meets it over MCP and runs Codex itself | 2026-09-30 | unknown | — |
+| Ploeg | [0042](../../apps/ploeg/docs/adrs/0042-a-writing-run-reports-the-problem-and-solution-a-reviewer-reads.md) | A writing Run reports the problem and solution a reviewer reads | 2026-09-30 | unknown | — |
+| Ploeg | [0043](../../apps/ploeg/docs/adrs/0043-a-failed-reading-run-is-retried-and-a-missing-review-closes-review-failed.md) | A failed reading Run is retried in its Round, and a review that never came closes `review_failed` | 2026-10-01 | unknown | — |
+| Ploeg | [0044](../../apps/ploeg/docs/adrs/0044-an-operator-restarts-stopped-work-from-a-round-they-choose.md) | An operator restarts stopped work by requeueing it from a Round they choose | 2026-10-01 | unknown | — |
 | Vloer | [0005](../../apps/vloer/docs/adrs/0005-one-work-authority.md) | One work authority across unattended and interactive delivery | 2026-09-09 | partial | Guarded commands to Ploeg exist; work orders and fenced takeover do not ([source](../../apps/vloer/src/execution-authority.ts)) |
 | Vloer | [0006](../../apps/vloer/docs/adrs/0006-trusted-verifier-and-publisher.md) | Verify and publish outside the agent workspace | 2026-09-09 | partial | Independent verifier exists; the trusted publisher does not ([source](../../apps/vloer/src/delivery-verifier.ts)) |
 | Vloer | [0008](../../apps/vloer/docs/adrs/0008-task-connections-and-candidate-handoff.md) | Shared task connections and portable candidate handoff | 2026-09-09 | yes | Implemented in the 0.2.0 prototype; team adoption is what remains proposed ([source](../../apps/vloer/src/candidates.ts)) |

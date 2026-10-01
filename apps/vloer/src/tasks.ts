@@ -1,13 +1,12 @@
 import { createHash } from 'node:crypto';
 import type { AppConfig, Repository } from './types.ts';
-import { htmlToMarkdown, looksLikeHtml } from './markdown.ts';
 import { descriptionMarkdown } from './rich-text.ts';
 
 export type TaskProvider = 'forgejo' | 'github' | 'gitlab' | 'clickup' | 'vikunja' | 'demo';
 export type TaskTarget = { forge: string; owner: string; repo: string; baseBranch: string };
 export type PloegTaskSource = { workItemId: string; provider: string; externalId: string; expectedBaseUrl: string; expectedScope: string; expectedRevision: string; expectedUpdatedAt: string; expectedTarget: TaskTarget };
 export type TaskSourceConfig = { id: string; name: string; provider: TaskProvider; baseUrl: string; project: string; repositoryId: string; token?: string; tokenType?: 'bearer'; executionOwner: 'interactive' | 'ploeg'; ploeg?: { target: TaskTarget } };
-export type TaskSnapshot = { key: string; sourceId: string; provider: TaskProvider; id: string; revision: string; title: string; description: string; url: string; status: 'open' | 'closed' | 'unknown'; updatedAt?: string; repositoryId: string; nativeRevision?: string; scope?: string; ploeg?: PloegTaskSource; bindingConfig?: string; bindingRevision?: string; ploegUnavailable?: { code: string; message: string }; labels?: TaskLabel[]; assignees?: TaskAssignee[]; priority?: number; dueAt?: string; identifier?: string; descriptionMarkdown?: string; descriptionTruncated?: true };
+export type TaskSnapshot = { key: string; sourceId: string; provider: TaskProvider; id: string; revision: string; title: string; description: string; url: string; status: 'open' | 'closed' | 'unknown'; updatedAt?: string; repositoryId: string; nativeRevision?: string; scope?: string; ploeg?: PloegTaskSource; bindingConfig?: string; bindingRevision?: string; ploegUnavailable?: { code: string; message: string }; labels?: TaskLabel[]; assignees?: TaskAssignee[]; priority?: number; dueAt?: string; identifier?: string; descriptionTruncated?: true };
 export type TaskLabel = { name: string; color?: string };
 export type TaskAssignee = { username: string; name?: string };
 export type TaskPage = { tasks: TaskSnapshot[]; nextPage?: number };
@@ -271,9 +270,7 @@ function snapshot(source: TaskSourceConfig, raw: unknown, truncate = false): Tas
   const revision = digest({ key, title, description, status, updatedAt, url });
   const truncated = description.length > maxDescription;
   if (truncated) description = description.slice(0, maxDescription).replace(/[\ud800-\udbff]$/, '');
-  let markdown = truncate && source.provider === 'vikunja' && looksLikeHtml(description) ? htmlToMarkdown(description, `${webRoot(source)}/`) : '';
-  if (source.token) markdown = markdown.replaceAll(source.token, '[redacted]');
-  const result = { key, sourceId: source.id, provider: source.provider, id, revision, title, description, url, status, ...(updatedAt ? { updatedAt } : {}), ...(nativeRevision ? { nativeRevision, scope: project } : {}), repositoryId: source.repositoryId, ...details(source, value), ...(markdown && markdown !== description ? { descriptionMarkdown: markdown } : {}), ...(truncated ? { descriptionTruncated: true as const } : {}) };
+  const result = { key, sourceId: source.id, provider: source.provider, id, revision, title, description, url, status, ...(updatedAt ? { updatedAt } : {}), ...(nativeRevision ? { nativeRevision, scope: project } : {}), repositoryId: source.repositoryId, ...details(source, value), ...(truncated ? { descriptionTruncated: true as const } : {}) };
   if (source.token && Object.values(result).some(value => typeof value === 'string' && value.includes(source.token!))) throw new TaskError(502, 'task_sensitive_response', 'The task service returned credential material in a task identity, revision or link. This snapshot cannot be imported.');
   return result;
 }

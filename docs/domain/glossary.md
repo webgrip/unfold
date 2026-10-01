@@ -11,12 +11,32 @@ generated_by: "mise run domain"
 
 The [combined Glide glossary](../reference/glossary.md) lists every term of every model once, with its owner and the words it must not be confused with.
 
+## Acceptance
+*Context: Work*
+
+The Agency's decision that a pull request delivers its Work Item. An explicit approval, a merge with or without review, or no decision ten working days after the pull request opened all count. Acceptance charges the Delivery Fee. A Client's feedback on the Preview Environment is input to it, not Acceptance itself.
+
+**Do not use:** client acceptance, silent approval  
+**Not to be confused with** [Review](#review): An assessment of a Result against its Acceptance Conditions; Acceptance is the Agency's decision that follows.  
+**Not to be confused with** [Verdict](../reference/glossary.md#verdict): A reviewing Run's answer; Evidence for the Agency, never Acceptance.  
+**See also:** [Delivery](#delivery), [Delivery Fee](#delivery-fee), [Review](#review), [Acceptance Conditions](#acceptance-conditions), [Agency](#agency)  
+
 ## Acceptance Conditions
 *Context: Work*
 
-The observable conditions a Result must satisfy to answer the requested work. They depend on the work; software tests alone cannot validate a business case.
+The observable conditions a Result must satisfy to answer the requested work. They depend on the work; software tests alone cannot validate a business case. For a Client's work, the Client's Definition of Done supplies conditions and the Agency's own definition wins where they conflict.
 
-**See also:** [Work Item](../reference/glossary.md#work-item), [Result](#result), [Review](#review)  
+**See also:** [Work Item](../reference/glossary.md#work-item), [Result](#result), [Review](#review), [Acceptance](#acceptance), [Client Profile](#client-profile)  
+
+## Agency
+*Context: Offering*
+
+A business that uses Glide to build software for its Clients and pays for it. A freelancer, or an in-house team that is its own only Client, is an Agency too. An Agency reviews and merges every pull request and owns production. It uses Glide hosted, in its own Tenant, or self-hosted.
+
+**Do not use:** customer, operator, reseller  
+**Not to be confused with** [Tenant](#tenant): The isolated space that holds one Agency's work in hosted Glide.  
+**Not to be confused with** [Client](#client): The Agency's own customer.  
+**See also:** [Tenant](#tenant), [Client](#client), [Acceptance](#acceptance)  
 
 ## Agent
 *Context: Execution*
@@ -33,12 +53,20 @@ Agent Host Protocol: Microsoft's JSON-RPC protocol that lets VS Code's Agent Hos
 **Also known as:** Agent Host Protocol  
 **See also:** [Vloer](#vloer), [Harness](../reference/glossary.md#harness)  
 
+## Attention Path
+*Context: Work*
+
+A repository path whose changes need careful review, listed as a glob in .glide/attention or covered by CODEOWNERS. Agents may change it; a pull request that does is labelled and lists those files first.
+
+**See also:** [Review](#review), [Diff Limit](#diff-limit)  
+
 ## Budget
 *Context: Execution*
 
-An authorized spending limit for work. It is separate from a provisional usage estimate and from the eventual reconciled charge. Ploeg holds the budget pool of each Shift.
+An authorized spending limit for work. It is separate from a provisional usage estimate and from the eventual reconciled charge. Ploeg holds the budget pool of each Shift. A Budget is named by what it limits: a Shift Budget (set by the Work Item's Size), a Client Budget (per Client per month, set by the Agency) or an Agency Budget (metered usage per month). Its cap is the limit amount, not a separate concept.
 
-**See also:** [Shift](../reference/glossary.md#shift), [Authority](../reference/glossary.md#authority)  
+**Do not use:** cap (as a noun for a limit)  
+**See also:** [Shift](../reference/glossary.md#shift), [Authority](../reference/glossary.md#authority), [Size](#size), [Client](#client), [Agency](#agency)  
 
 ## Candidate
 *Context: Participation · Owner: Vloer*
@@ -49,6 +77,37 @@ The reviewable change Vloer captures from a Session's Workspace when its Crew st
 **Not to be confused with** [Result](#result): What a Work Item delivers with its Evidence; a Candidate is one piece of that Evidence.  
 **See also:** [Session](#session), [Workspace](#workspace), [Evidence](#evidence), [Review](#review)  
 
+## Client
+*Context: Offering*
+
+An Agency's customer. A Client submits Requests, answers Refinement questions, approves Quotes and gives feedback on Preview Environments in the Client Portal. Glide never contacts a Client directly.
+
+**Do not use:** customer, end client, end customer  
+**See also:** [Agency](#agency), [Client Portal](#client-portal), [Client Profile](#client-profile), [Quote](#quote), [Request](#request)  
+
+## Client Portal
+*Context: Offering · Owner: Vloer*
+
+The part of Vloer where Clients submit Requests, talk to the refinement agent, approve Quotes and open Preview Environments through signed links. It shows the Agency's price; Glide's own charge is hidden unless the Agency shows it.
+
+**Also known as:** Portal  
+**See also:** [Client](#client), [Quote](#quote), [Vloer](#vloer)  
+
+## Client Profile
+*Context: Offering*
+
+A Client's Definition of Ready, Definition of Done and extra instructions for agents. It ranks below the delivery contract, like repository instructions. The Definition of Done becomes Acceptance Conditions.
+
+**See also:** [Client](#client), [Ready](#ready), [Acceptance Conditions](#acceptance-conditions), [Refinement](#refinement)  
+
+## Credit
+*Context: Billing*
+
+The unit of the Delivery Fee: one Credit pays for one accepted S Work Item. Agencies buy Credits in bundles, and a Credit is always shown with its euro value. Paid Credits never expire while the account is active; promotional Credits can expire and are used first. Tokens and hosting are charged in euros, never in Credits.
+
+**Not to be confused with** [Budget](#budget): An authorized spending limit, not something bought.  
+**See also:** [Delivery Fee](#delivery-fee), [Size](#size)  
+
 ## Crew
 *Context: Participation · Owner: Vloer*
 
@@ -58,11 +117,50 @@ Vloer's registered, reusable list of one to eight Roles that a Session runs in o
 **See also:** [Team](../reference/glossary.md#team), [Role](../reference/glossary.md#role), [Session](#session), [Step](#step)  
 
 ## Cutover
-*Context: Delivery*
+*Context: Release*
 
 The switch from the old per-application repositories to Glide for releases and published documentation, including a first live pilot. Documentation publishing has moved to Glide; release cutover waits for its own Qualification.
 
 **See also:** [Qualification](#qualification)  
+
+## Delivery
+*Context: Billing*
+
+A Work Item whose pull request received Acceptance. The Delivery Fee is charged per Delivery. The delivery rate is Deliveries divided by closed Work Items.
+
+**Not to be confused with** [Delivery Candidate](../reference/glossary.md#delivery-candidate): Ploeg's immutable record of one canonical commit prepared for verification.  
+**See also:** [Acceptance](#acceptance), [Delivery Fee](#delivery-fee), [Work Item](../reference/glossary.md#work-item)  
+
+## Delivery Fee
+*Context: Billing*
+
+The part of a Work Item's price paid in Credits, charged only on Acceptance. A Shift that ends without a Delivery returns its Credits.
+
+**See also:** [Credit](#credit), [Token Charge](#token-charge), [Acceptance](#acceptance), [Delivery](#delivery)  
+
+## Diff Limit
+*Context: Work*
+
+The most changed lines and files a Size allows in one pull request, counted without tests, lockfiles and generated files. A Shift that would exceed it stops and proposes a split into Follow-Ups.
+
+**Do not use:** diff budget  
+**Examples:** S: at most 150 lines in 5 files.  
+**See also:** [Size](#size), [Follow-Up](../reference/glossary.md#follow-up), [Attention Path](#attention-path)  
+
+## Dispute
+*Context: Billing*
+
+A disagreement between Glide and an Agency about a charge, such as a change resembling a closed pull request that landed on the base branch on a weak match. It opens with ten working days' notice before any charge. A Client objecting to a Preview Environment is feedback that the Agency decides against the Acceptance Conditions, not a Dispute.
+
+**Do not use:** preview dispute, client dispute  
+**See also:** [Reversal](#reversal), [Acceptance](#acceptance), [Delivery Fee](#delivery-fee)  
+
+## Edition
+*Context: Offering*
+
+The plan an Agency is on: Freelancer, Studio, White label or Enterprise. It sets the monthly platform fee and the Credits it includes. Every feature is in the open-source code, so an Edition buys hosting, support or white labelling, never features.
+
+**See also:** [Agency](#agency), [Credit](#credit)  
 
 ## Evidence
 *Context: Work*
@@ -77,6 +175,21 @@ Inspectable material supporting a claim about a Result or a Run, such as cited r
 The product and the monorepo that holds Vloer and Ploeg. A person creates a work item and assigns it to agents; the agents do the code work until a pull request is ready for a person to review and merge. Vloer and Ploeg remain separately deployable applications.
 
 **See also:** [Vloer](#vloer), [Ploeg](#ploeg)  
+
+## Markup
+*Context: Billing*
+
+The published percentage Glide adds to token and compute cost when billing an Agency. The Agency's Markup Tier sets it. The price an Agency charges its Client is the Agency's own and is not a Markup.
+
+**See also:** [Token Charge](#token-charge), [Markup Tier](#markup-tier), [Agency](#agency)  
+
+## Markup Tier
+*Context: Billing*
+
+An Agency's pricing level, which sets its Markup. It is recalculated each quarter from the Agency's acceptance rate against published thresholds, and an Agency drops at most one Markup Tier per quarter, with a month's notice. "Tier" names nothing else: a Size maps to a Team, not to a tier.
+
+**Do not use:** team tier  
+**See also:** [Markup](#markup), [Acceptance](#acceptance)  
 
 ## Model
 *Context: Execution*
@@ -113,19 +226,52 @@ Glide's execution engine and its only Authority. It takes work from trackers and
 
 **See also:** [Vloer](#vloer), [Admission](../reference/glossary.md#admission), [Authority](../reference/glossary.md#authority), [Run](../reference/glossary.md#run), [Shift](../reference/glossary.md#shift)  
 
+## Preview Environment
+*Context: Work*
+
+A running copy of one pull request's change, deployed with generated test data by a CI step in the Agency's own pipeline, to the Agency's infrastructure or to Glide's preview hosting in the Agency's Tenant. Its address is posted to the pull request and the Client Portal. It is deleted when the pull request merges or closes, or after an idle limit, and never receives production secrets.
+
+**Also known as:** Preview  
+**Do not use:** staging, review app  
+**See also:** [Acceptance](#acceptance), [Client Portal](#client-portal), [Tenant](#tenant)  
+
 ## Qualification
-*Context: Delivery*
+*Context: Release*
 
 Recorded, repeatable proof that a component or path works as required before anyone relies on it. For example, `mise run integration` qualifies the execution paths with a deterministic fixture, no model calls and no spend. A qualification record states what it did not cover.
 
 **See also:** [Cutover](#cutover)  
 
+## Quote
+*Context: Billing*
+
+A Work Item's Size and the Agency's price for it, drafted by Refinement and approved by the Client or by the Agency on its behalf. A Work Item with a Client waits as proposed until its Quote is approved.
+
+**See also:** [Size](#size), [Refinement](#refinement), [Client](#client), [Ticket](#ticket)  
+
 ## Ready
 *Context: Work*
 
-A Work Item is ready when it states something we have decided to do, or describes a problem in enough detail that a solution can be formulated or at least conceived. Ready work can be given to agents. Work that is not ready can itself be given to agents whose job is to make it ready.
+A Work Item is ready when it states something we have decided to do, or describes a problem in enough detail that a solution can be formulated or at least conceived. Ready work can be given to agents. Work that is not ready can itself be given to agents whose job is to make it ready. A Client's Definition of Ready adds conditions for that Client's work; it never removes this baseline.
 
-**See also:** [Work Item](../reference/glossary.md#work-item), [Acceptance Conditions](#acceptance-conditions), [Follow-Up](../reference/glossary.md#follow-up)  
+**See also:** [Work Item](../reference/glossary.md#work-item), [Acceptance Conditions](#acceptance-conditions), [Follow-Up](../reference/glossary.md#follow-up), [Client Profile](#client-profile), [Refinement](#refinement)  
+
+## Refinement
+*Context: Work*
+
+Turning a Request into one or more Ready Work Items, each with Acceptance Conditions and a proposed Size. A refinement Role does it, asks for missing information through the Agency, and cannot dispatch the Work Item. Its Ready Check tells the Agency, before any Shift spend, whether the Work Item is ready for agents. Sold on its own, it is request-to-quote.
+
+**Also known as:** request-to-quote  
+**See also:** [Request](#request), [Ready](#ready), [Quote](#quote), [Size](#size), [Client Profile](#client-profile)  
+
+## Request
+*Context: Offering*
+
+A Client's ask and the conversation about it, received through the Client Portal, a tracker or email. Refinement turns one Request into one or more Work Items, each with its own Quote. A Request is never dispatched; only its Work Items are.
+
+**Do not use:** client ticket  
+**Not to be confused with** [Work Item](../reference/glossary.md#work-item): The unit of work Ploeg runs Shifts against; a Request becomes one or more of them.  
+**See also:** [Client](#client), [Refinement](#refinement), [Quote](#quote), [Client Portal](#client-portal)  
 
 ## Result
 *Context: Work*
@@ -134,6 +280,14 @@ What a Work Item delivers, together with the evidence needed to judge it. It can
 
 **Not to be confused with** [Outcome](../reference/glossary.md#outcome): Ploeg's terminal code for one Run, such as pr_opened or stuck.  
 **See also:** [Work Item](../reference/glossary.md#work-item), [Evidence](#evidence), [Review](#review)  
+
+## Reversal
+*Context: Billing*
+
+The refund of a Delivery Fee when an accepted change is reverted within 14 days for a defect inside its Acceptance Conditions.
+
+**Do not use:** chargeback  
+**See also:** [Delivery Fee](#delivery-fee), [Acceptance](#acceptance), [Dispute](#dispute)  
 
 ## Review
 *Context: Work*
@@ -150,6 +304,14 @@ Vloer's continuing record of a person's interaction around work: instructions, q
 
 **Not to be confused with** [Shift](../reference/glossary.md#shift): Ploeg's whole attempt on a Work Item; Ploeg avoids "session" for it.  
 **See also:** [Work Item](../reference/glossary.md#work-item), [Shift](../reference/glossary.md#shift), [Crew](#crew)  
+
+## Size
+*Context: Billing*
+
+The class S, M or L that Refinement proposes for a Work Item and the Client approves in its Quote. A Size sets the Delivery Fee in Credits, the Shift Budget and the Diff Limit. There is no larger Size; Refinement splits work estimated above L.
+
+**Examples:** S: 1 Credit, a €4 Shift Budget, at most 150 changed lines in 5 files.  
+**See also:** [Quote](#quote), [Credit](#credit), [Budget](#budget), [Diff Limit](#diff-limit)  
 
 ## Step
 *Context: Participation · Owner: Vloer*
@@ -173,6 +335,27 @@ Whether a person is watching a Ploeg-authorized Session live (human) or has hand
 Backstage's documentation format: a static site built from Markdown by MkDocs with the techdocs-core plugin. `mise run docs-check` builds Glide's TechDocs output in strict mode.
 
 **See also:** [Zensical](#zensical)  
+
+## Tenant
+*Context: Offering*
+
+The isolated space in hosted Glide that holds one Agency's Work Items, Shifts, credentials, Preview Environments and Budgets: its own namespaces, default-deny network, sandboxed runtime and model budget. Ploeg records it on every Team, Work Item, Shift and credential. Clients are users inside a Tenant, never Tenants. Self-hosted Glide has no Tenants.
+
+**See also:** [Agency](#agency), [Client](#client), [Preview Environment](#preview-environment)  
+
+## Ticket
+*Context: Offering*
+
+The word Agencies and Clients use for a Work Item with a Quote. Use it only in the Client Portal, sales material and price lists. Everywhere else, including code and these docs, say Work Item: the unit of work is the Work Item, whatever its source.
+
+**See also:** [Work Item](../reference/glossary.md#work-item), [Quote](#quote), [Tracker Item](../reference/glossary.md#tracker-item)  
+
+## Token Charge
+*Context: Billing*
+
+The part of a Work Item's price charged for every attempt: model tokens and compute at cost plus the Agency's Markup, up to the Shift Budget. Rejected work still pays it; attempts that fail through Glide's own fault do not.
+
+**See also:** [Delivery Fee](#delivery-fee), [Markup](#markup), [Budget](#budget)  
 
 ## Vloer
 *Context: System · Owner: Vloer*
@@ -203,11 +386,6 @@ The static site generator that renders Glide's published human pages from the sa
 
 Do not use these names as terms.
 
-### Ticket
-*Use instead: [Work Item](../reference/glossary.md#work-item), [Tracker Item](../reference/glossary.md#tracker-item)*
-
-The unit of work is the Work Item, whatever its source. A tracker is one place a Work Item's text can live (a Tracker Item); Vloer and other Runs are others.
-
 ### Workload
 *Use instead: [Work Item](../reference/glossary.md#work-item)*
 
@@ -223,6 +401,11 @@ A repair is work created by work; Ploeg's Follow-Up already names it.
 
 The attempt it named is a Shift, and one Role's part of it is a Run. A second name for a Shift would make every execution statement ambiguous. The word remains a bounded-context name and part of Ploeg's Operator Execution record.
 
+### Agency Edition
+*Use instead: [Edition](#edition)*
+
+Agency names the business that uses Glide, so "the Agency edition" would mean two things in one sentence. The middle Edition is Studio.
+
 ## Terms owned by other models
 
 This model uses these terms with their owners' meaning: [Admission](../reference/glossary.md#admission), [Authority](../reference/glossary.md#authority), [Follow-Up](../reference/glossary.md#follow-up), [Harness](../reference/glossary.md#harness), [Lease](../reference/glossary.md#lease), [Outcome](../reference/glossary.md#outcome), [Role](../reference/glossary.md#role), [Run](../reference/glossary.md#run), [Shift](../reference/glossary.md#shift), [Team](../reference/glossary.md#team), [Tracker Item](../reference/glossary.md#tracker-item), [Verdict](../reference/glossary.md#verdict), [Work Item](../reference/glossary.md#work-item).
@@ -230,6 +413,8 @@ This model uses these terms with their owners' meaning: [Admission](../reference
 ## Decisions cited
 
 - [Glide ADR-0002](../adr/adr-0002-ploeg-is-the-only-engine.md): Ploeg is the only execution engine and Vloer is its front end.
+- [Glide ADR-0005](../adr/adr-0005-glide-is-offered-to-agencies.md): Glide is offered to agencies; delivery ends at a reviewed pull request with a preview.
+- [Glide ADR-0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md): A Work Item with a Quote is the billing unit; the Delivery Fee is charged on Acceptance.
 
 ---
 
@@ -258,6 +443,14 @@ Short exchanges showing the terms used precisely at concept boundaries.
 > **Platform engineer:** Today it is one delegated Run with three Steps inside Vloer. After the Glide ADR-0002 migration each Role executes as its own Ploeg Run.
 > **Developer:** And the whole attempt, with its branch and budget?
 > **Platform engineer:** That is the Shift. Only the writing Run holds the Lease on its branch.
+
+### Acceptance, Review and the Client
+*Context: Billing*
+
+> **Agency developer:** The Client liked the **Preview Environment**. Is the Work Item accepted now?
+> **Product owner:** No. The Client's feedback is input. **Acceptance** is our decision on the pull request, by approving it or merging it.
+> **Agency developer:** And the reviewer Role's approve Verdict?
+> **Product owner:** That is Evidence for our **Review**. Only our Acceptance makes it a **Delivery** and charges the **Delivery Fee**.
 
 ---
 
@@ -291,7 +484,9 @@ Visibility into decisions needs a defined record beyond raw model messages and t
 **Options:** Written decision with options and evidence, Transcript and actions alone  
 **Recommendation:** Capture the decision, responsible person or rule, evidence, and expected consequence.  
 
-## Resolved ambiguities
+### a Request that arrives through a tracker
 
-- **shared execution implementation** — Glide ADR-0002 (2026-09-22) makes Ploeg the only engine, so no shared runner is needed. Vloer is to delegate execution to ploeg-worker and keep only its deterministic demo; that migration is not yet implemented.
-- **local work without Ploeg** — Glide ADR-0002 chose Ploeg authority for every Run. Offline laptop use requires a running Ploeg; without it Vloer offers only the deterministic demo.
+Ploeg mirrors every assigned Tracker Item into a Work Item. A Client's ask that arrives as a ClickUp or Vikunja task is a Request, not yet a Work Item, so either the mirror must wait for Refinement or the Request must live in Glide beside the Tracker Item.
+
+**Options:** The tracker task is the Request; Refinement's Work Items become new Tracker Items or stay in Ploeg (Ploeg ADR-0031), Ploeg mirrors it as an unready Work Item that Refinement replaces with the real ones, Requests only come through the Client Portal; tracker tasks are always Work Items  
+**Recommendation:** The tracker task is the Request. Refinement's Work Items stay in Ploeg as proposed until their Quotes are approved, which reuses Ploeg ADR-0031 and keeps the Agency's tracker as the one place its Clients' asks live.  

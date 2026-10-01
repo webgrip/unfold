@@ -27,14 +27,15 @@ func hangingAdapter(t *testing.T, body string) harness.Adapter {
 
 func TestHungHarnessIsStoppedReportedFailedAndItsKeyBlocked(t *testing.T) {
 	for _, tc := range []struct {
-		name  string
-		body  string
-		limit time.Duration
-		idle  time.Duration
-		cause error
+		name   string
+		body   string
+		limit  time.Duration
+		idle   time.Duration
+		cause  error
+		reason work.FailureReason
 	}{
-		{"run timeout on a chatty hang", "while true; do echo working; sleep 0.05; done", 400 * time.Millisecond, 0, errHarnessTimeout},
-		{"idle watchdog on a silent hang", "echo started; sleep 60 & sleep 60", time.Minute, 300 * time.Millisecond, harness.ErrIdle},
+		{"run timeout on a chatty hang", "while true; do echo working; sleep 0.05; done", 400 * time.Millisecond, 0, errHarnessTimeout, work.FailureTimeout},
+		{"idle watchdog on a silent hang", "echo started; sleep 60 & sleep 60", time.Minute, 300 * time.Millisecond, harness.ErrIdle, work.FailureIdle},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			broker := &recordingBroker{key: "sk-test-fake-key"}
@@ -56,7 +57,7 @@ func TestHungHarnessIsStoppedReportedFailedAndItsKeyBlocked(t *testing.T) {
 				t.Fatalf("key not blocked after a hung harness was stopped: revoked=%d", broker.revoked)
 			}
 			report := resolveOutcome("openhands", harness.OutcomeReport{}, runErr, nil, "", false, "item", "agent/vik-1", nil, true, true)
-			if report.Outcome != work.OutcomeFailed || report.FailureReason != string(work.FailureTimeout) {
+			if report.Outcome != work.OutcomeFailed || report.FailureReason != string(tc.reason) {
 				t.Fatalf("hung harness reported %+v", report)
 			}
 		})
@@ -75,5 +76,13 @@ func TestLeaseLossIsNotReportedAsATimeout(t *testing.T) {
 	report := resolveOutcome("openhands", harness.OutcomeReport{}, context.Canceled, errLeaseLost, "", false, "item", "agent/vik-1", nil, true, true)
 	if report.FailureReason == string(work.FailureTimeout) {
 		t.Fatalf("lease loss classified as timeout: %+v", report)
+	}
+}
+
+func TestSilenceAfterAPullRequestIsRecordedAsIdleNotTimeout(t *testing.T) {
+	runErr := errors.Join(harness.ErrIdle, errors.New("signal: killed"))
+	report := resolveOutcome("openhands", harness.OutcomeReport{}, runErr, nil, "https://forge.example/pulls/1", false, "item", "agent/vik-1", nil, true, true)
+	if report.Outcome != work.OutcomePROpened || report.FailureReason != string(work.FailureIdle) {
+		t.Fatalf("silence after the PR opened recorded as %+v", report)
 	}
 }

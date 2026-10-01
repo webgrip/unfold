@@ -100,15 +100,18 @@ const (
 	// FailureLeaseLost is written by the worker when lease renewal failed and
 	// by the sweeper for every Run whose lease or deadline expired.
 	FailureLeaseLost FailureReason = "lease_lost"
-	// FailureTimeout is written when PLOEG_HARNESS_TIMEOUT or
-	// PLOEG_HARNESS_IDLE_TIMEOUT stopped the harness.
+	// FailureTimeout is written when PLOEG_HARNESS_TIMEOUT stopped the
+	// harness: it was still working when its wall-clock limit ran out.
 	FailureTimeout FailureReason = "timeout"
+	// FailureIdle is written when PLOEG_HARNESS_IDLE_TIMEOUT stopped the
+	// harness: it printed nothing and made no model call for that long.
+	FailureIdle FailureReason = "idle"
 )
 
 // Valid reports whether f is a known failure reason enum value.
 func (f FailureReason) Valid() bool {
 	switch f {
-	case FailureInfraNode, FailureInfraLLM, FailureAgentError, FailureBudget, FailureLeaseLost, FailureTimeout:
+	case FailureInfraNode, FailureInfraLLM, FailureAgentError, FailureBudget, FailureLeaseLost, FailureTimeout, FailureIdle:
 		return true
 	}
 	return false
@@ -134,7 +137,7 @@ func (f FailureReason) IsInfra() bool {
 // runs the same way. Derived from the enum so a new reason cannot be added to
 // one and forgotten in the other.
 func InfraFailureReasons() []string {
-	all := []FailureReason{FailureInfraNode, FailureInfraLLM, FailureAgentError, FailureBudget, FailureLeaseLost, FailureTimeout}
+	all := []FailureReason{FailureInfraNode, FailureInfraLLM, FailureAgentError, FailureBudget, FailureLeaseLost, FailureTimeout, FailureIdle}
 	out := make([]string, 0, len(all))
 	for _, f := range all {
 		if f.IsInfra() {
@@ -170,6 +173,12 @@ type WorkItem struct {
 	// RouteRule is the id of the routing rule that decided Team and Target,
 	// recorded so an audit can answer why this item went where it went.
 	RouteRule string `json:"routeRule,omitempty"`
+	// RouteHint is the tracker label that selected the Target among the
+	// registered targets (ADR-0038). Empty when a board's default decided.
+	RouteHint string `json:"routeHint,omitempty"`
+	// Labels are the tracker item's label titles, read from the authoritative
+	// item at ingest for routing and never stored.
+	Labels []string `json:"-"`
 	// SourceWorkItemID names the Work Item a Follow-Up was created from.
 	// Empty for work that did not come from other work.
 	SourceWorkItemID string `json:"sourceWorkItemId,omitempty"`

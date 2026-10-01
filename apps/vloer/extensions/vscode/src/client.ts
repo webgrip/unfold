@@ -1,5 +1,5 @@
 import type { PloegOverview } from './ploeg-types.js';
-import type { AccountLink, Approval, Bootstrap, Session, SessionEvent, SessionInput, Permission, Decision, TaskSource, TaskSnapshot, TaskPreview, TaskPage, TaskImportInput, TaskPloegStatus, CandidateFormat } from './types.js';
+import type { AccountLink, Approval, Bootstrap, Session, SessionEvent, SessionInput, Permission, Decision, TaskSource, TaskPreview, TaskPage, TaskImportInput, TaskPloegStatus, CandidateFormat } from './types.js';
 
 export type StreamHandlers = { onOpen?: () => void; onEvent: (event: SessionEvent) => void };
 

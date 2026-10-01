@@ -6,12 +6,15 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/webgrip/ploeg/pkg/harness"
 )
 
 // KeyIsolationProxy is the PLOEG_LLM_KEY_ISOLATION value that keeps the
@@ -25,17 +28,30 @@ type llmKeyProxy struct {
 	placeholder string
 }
 
-func startLLMKeyProxy(upstream, key string) (*llmKeyProxy, error) {
-	target, err := url.Parse(upstream)
-	if err != nil || target.Scheme == "" || target.Host == "" {
-		return nil, fmt.Errorf("model gateway URL %q is not absolute", upstream)
-	}
+func startLLMKeyProxy(upstream, key string, activity *harness.Activity) (*llmKeyProxy, error) {
 	if key == "" {
 		return nil, errors.New("no model key to isolate")
 	}
 	placeholder, err := randomPlaceholder()
 	if err != nil {
 		return nil, err
+	}
+	p, err := startLLMProxy(upstream, key, activity)
+	if err != nil {
+		return nil, err
+	}
+	p.placeholder = placeholder
+	return p, nil
+}
+
+func startLLMObserver(upstream string, activity *harness.Activity) (*llmKeyProxy, error) {
+	return startLLMProxy(upstream, "", activity)
+}
+
+func startLLMProxy(upstream, key string, activity *harness.Activity) (*llmKeyProxy, error) {
+	target, err := url.Parse(upstream)
+	if err != nil || target.Scheme == "" || target.Host == "" {
+		return nil, fmt.Errorf("model gateway URL %q is not absolute", upstream)
 	}
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -46,7 +62,15 @@ func startLLMKeyProxy(upstream, key string) (*llmKeyProxy, error) {
 			r.Out.URL.Scheme = target.Scheme
 			r.Out.URL.Host = target.Host
 			r.Out.Host = target.Host
-			swapModelKey(r.Out.Header, key)
+			if key != "" {
+				swapModelKey(r.Out.Header, key)
+			}
+			activity.Touch()
+		},
+		ModifyResponse: func(resp *http.Response) error {
+			activity.Touch()
+			resp.Body = activityBody{ReadCloser: resp.Body, activity: activity}
+			return nil
 		},
 		FlushInterval: -1,
 	}
@@ -55,8 +79,7 @@ func startLLMKeyProxy(upstream, key string) (*llmKeyProxy, error) {
 			Handler:           proxy,
 			ReadHeaderTimeout: 30 * time.Second,
 		},
-		baseURL:     "http://" + ln.Addr().String() + strings.TrimRight(target.Path, "/"),
-		placeholder: placeholder,
+		baseURL: "http://" + ln.Addr().String() + strings.TrimRight(target.Path, "/"),
 	}
 	go func() { _ = p.server.Serve(ln) }()
 	return p, nil
@@ -66,6 +89,19 @@ func (p *llmKeyProxy) close() {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	_ = p.server.Shutdown(ctx)
+}
+
+type activityBody struct {
+	io.ReadCloser
+	activity *harness.Activity
+}
+
+func (b activityBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if n > 0 {
+		b.activity.Touch()
+	}
+	return n, err
 }
 
 func swapModelKey(h http.Header, key string) {

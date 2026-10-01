@@ -111,3 +111,49 @@ func TestUnsettledAccountsOfferOnlyFinishedAndQuietHolds(t *testing.T) {
 		t.Fatal("unbounded settlement page accepted")
 	}
 }
+
+func TestStoreUnsettledLLMAccountsCarryShiftID(t *testing.T) {
+	resetTables(t)
+	ctx := context.Background()
+
+	withShift := settlementRunFixture(t, "950")
+	finishManagedRun(t, withShift)
+
+	// A historical Run that predates Shifts: finished, with an account, and
+	// shift_id NULL. It must be offered for settlement but carry no ShiftID.
+	// Reserve requires a running Run, so it is inserted running, reserved,
+	// then finished — the same order the real path uses.
+	itemID, _, err := testStore.IngestAssigned(ctx, work.WorkItem{Provider: "vikunja", ExternalID: "951", Team: "silver", Title: "legacy"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacyToken := "legacytoken000000000001"
+	if _, err := testStore.pool.Exec(ctx, `
+		INSERT INTO agent_runs (work_item_id, team, run_token, state, authorized)
+		VALUES ($1, 'silver', $2, 'running', 1)`, itemID, legacyToken); err != nil {
+		t.Fatal(err)
+	}
+	if err := testStore.ReserveLLMAccount(ctx, LLMAccount{RunToken: legacyToken, Alias: "ploeg-" + legacyToken[:12], Authorized: 1, Models: []string{"m"}, TTLSeconds: 60}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := testStore.pool.Exec(ctx, `
+		UPDATE agent_runs SET state='finished', finished_at=now(), outcome='failed' WHERE run_token=$1`, legacyToken); err != nil {
+		t.Fatal(err)
+	}
+
+	byToken := unsettledByToken(t, 0)
+	with, ok := byToken[withShift.RunToken]
+	if !ok {
+		t.Fatalf("run with a shift was not offered: %+v", byToken)
+	}
+	if with.ShiftID == nil {
+		t.Error("a Run in a Shift carried no ShiftID")
+	}
+	legacy, ok := byToken[legacyToken]
+	if !ok {
+		t.Fatalf("historical run was not offered: %+v", byToken)
+	}
+	if legacy.ShiftID != nil {
+		t.Errorf("historical run carried ShiftID %d, want nil", *legacy.ShiftID)
+	}
+}

@@ -390,6 +390,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 		},
 		Log:         w.Log,
 		IdleTimeout: w.Cfg.HarnessIdleTimeout,
+		Activity:    harness.NewActivity(),
 	}
 
 	env.BaseEnv = append(env.BaseEnv, gitEnv...)
@@ -467,8 +468,9 @@ func runAgent(ctx context.Context, log *slog.Logger, broker llmbroker.Broker, ad
 	}()
 
 	harnessKey := cred.APIKey
-	if isolation == KeyIsolationProxy && cred.APIKey != "" {
-		proxy, err := startLLMKeyProxy(env.LLM.BaseURL, cred.APIKey)
+	switch {
+	case isolation == KeyIsolationProxy && cred.APIKey != "":
+		proxy, err := startLLMKeyProxy(env.LLM.BaseURL, cred.APIKey, env.Activity)
 		if err != nil {
 			return harness.OutcomeReport{}, fmt.Errorf("isolate the per-run key: %w", err), nil
 		}
@@ -477,6 +479,15 @@ func runAgent(ctx context.Context, log *slog.Logger, broker llmbroker.Broker, ad
 		env.LLM.BaseURL = proxy.baseURL
 		env.BaseEnv = withEnv(env.BaseEnv, "LLM_BASE_URL", proxy.baseURL)
 		log.Info("per-run key isolated behind the worker's loopback proxy", "trace", cred.Alias)
+	case env.IdleTimeout > 0 && env.Activity != nil && env.LLM.BaseURL != "":
+		proxy, err := startLLMObserver(env.LLM.BaseURL, env.Activity)
+		if err != nil {
+			log.Warn("model traffic will not count as harness activity", "err", err, "trace", cred.Alias)
+			break
+		}
+		defer proxy.close()
+		env.LLM.BaseURL = proxy.baseURL
+		env.BaseEnv = withEnv(env.BaseEnv, "LLM_BASE_URL", proxy.baseURL)
 	}
 	env.LLM.APIKey = harnessKey
 	env.BaseEnv = append(env.BaseEnv, "LLM_TRACE_ID="+spec.TraceID)
@@ -584,6 +595,9 @@ func resolveOutcome(adapterName string, report harness.OutcomeReport, runErr, ct
 		if r.CreatedWorkItems == nil {
 			r.CreatedWorkItems = report.CreatedWorkItems
 		}
+		if r.Problem == "" && r.Solution == "" {
+			r.Problem, r.Solution = report.Problem, report.Solution
+		}
 		return r
 	}
 	switch {
@@ -602,6 +616,10 @@ func resolveOutcome(adapterName string, report harness.OutcomeReport, runErr, ct
 		}
 		return resolved(opened)
 	case errors.Is(runErr, errHarnessTimeout) || errors.Is(runErr, harness.ErrIdle):
+		reason := work.FailureTimeout
+		if errors.Is(runErr, harness.ErrIdle) {
+			reason = work.FailureIdle
+		}
 		var links []string
 		if prURL != "" {
 			links = []string{prURL}
@@ -610,7 +628,7 @@ func resolveOutcome(adapterName string, report harness.OutcomeReport, runErr, ct
 			Outcome:       work.OutcomeFailed,
 			Summary:       adapterName + " run was stopped: " + runErr.Error(),
 			Links:         links,
-			FailureReason: string(work.FailureTimeout),
+			FailureReason: string(reason),
 		})
 	case report.Outcome.Valid():
 		if report.Outcome == work.OutcomeStuck && report.StuckReason == "" {
@@ -737,7 +755,9 @@ func refuseReaderWithoutReadOnlyToken(cfg Config, claimed *ClaimResponse) (harne
 // pull request. The outcome stays pr_opened; only the failure is recorded.
 func lateFailure(runErr, ctxErr error) (reason work.FailureReason, note string) {
 	switch {
-	case errors.Is(runErr, errHarnessTimeout) || errors.Is(runErr, harness.ErrIdle):
+	case errors.Is(runErr, harness.ErrIdle):
+		return work.FailureIdle, ", then was stopped: " + runErr.Error()
+	case errors.Is(runErr, errHarnessTimeout):
 		return work.FailureTimeout, ", then was stopped: " + runErr.Error()
 	case errors.Is(ctxErr, errTerminated):
 		return work.FailureInfraNode, ", then was terminated mid-run (pod shutdown)"
