@@ -59,7 +59,7 @@ function tiles(v, h) {
   const e = h.escape;
   const quiet = value => `<span class="sub">${e(value)}</span>`;
   const tokens = v.tokens.known ? `${e(v.tokens.value)}${v.tokens.partial ? '<span class="partial" aria-hidden="true">*</span>' : ''}` : quiet(v.tokens.value);
-  const time = v.runTime.known ? e(v.runTime.value) : quiet(v.runTime.value);
+  const time = v.runTime.known ? `${e(v.runTime.value)}${v.runTime.live ? ` ${quiet('so far')}` : ''}` : quiet(v.runTime.value);
   const diff = v.diff.known ? `<span class="add">${e(v.diff.addText)}</span> <span class="rem">${e(v.diff.delText)}</span>${v.diff.filesText ? ` <span class="sub">${e(v.diff.filesText)}</span>` : ''}` : quiet(v.diff.value);
   let pr = quiet('No pull request yet');
   if (v.pr) {

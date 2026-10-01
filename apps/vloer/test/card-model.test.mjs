@@ -280,3 +280,27 @@ test('the demo shows the finish ladder on illustrative releases, with no spend',
   }
   for (const id of ['117', '118', '119', '120', '121']) assert.match(ploegDemo.items.find(item => item.id === id).description, /^Illustrative/);
 });
+
+test('a running Run shows the live usage so far, and a figure the gateway did not give reads Not reported yet', () => {
+  const running = { ...contractCard(), state: 'drafting', plays: [], totals: { authorizedUsd: 2, costStatus: 'reserved', usageComplete: false, runs: 1, failedRuns: 0, rounds: 1, shifts: 1 } };
+  const view = cardView({ ...running, live: { runningRuns: 1, observedAt: '2026-10-01T13:32:00Z', runSeconds: 2040, costUsd: 0.27, inputTokens: 10418740, outputTokens: 127480, usageComplete: true } });
+  assert.deepEqual([view.cost.value, view.cost.caption, view.cost.status], [usd('0,27'), `so far · of ${usd('2,00')}`, 'live']);
+  assert.equal(view.cost.share, 0.135);
+  assert.match(view.cost.label, /^Cost so far: US\$.0,27, 14% of US\$.2,00 authorized$/);
+  assert.equal(view.tokens.value, `10,4${space}mln. in · 127,5K out`);
+  assert.equal(view.tokens.detail, 'So far, while a Run is running');
+  assert.deepEqual([view.runTime.value, view.runTime.live], ['34 min', true]);
+  assert.equal(value(view, 'economics', 'Cost so far').value, `${usd('0,27')} so far`);
+  assert.equal(value(view, 'economics', 'Input tokens').value, '10.418.740');
+  assert.equal(value(view, 'agent', 'Run time so far').value, '34 min');
+
+  const unread = cardView({ ...running, live: { runningRuns: 1, observedAt: '2026-10-01T13:32:00Z', runSeconds: 60, usageComplete: false } });
+  assert.deepEqual([unread.cost.value, unread.cost.caption, unread.cost.share], ['Not reported yet', `of ${usd('2,00')}`, null]);
+  assert.equal(unread.tokens.value, 'Not reported yet');
+  assert.equal(unread.runTime.value, '1 min');
+  assert.equal(value(unread, 'economics', 'Input tokens').value, 'Not reported yet');
+
+  const settled = cardView({ ...contractCard(), live: null });
+  assert.deepEqual([settled.cost.value, settled.runTime.value, settled.runTime.live], [usd('0,58'), '35 min', undefined], 'without a running Run the stored totals stand');
+  assert.equal(cardView({ ...running, demo: true, live: { runningRuns: 1, runSeconds: 60, costUsd: 1, usageComplete: true } }).cost.value, 'Demo', 'a demo never shows live spend');
+});

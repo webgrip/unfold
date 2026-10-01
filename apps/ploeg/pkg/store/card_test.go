@@ -412,3 +412,69 @@ func eventKinds(events []CardEvent) []string {
 	}
 	return out
 }
+
+func TestOperatorCard_LiveAddsTheGatewayReadingOfRunningRuns(t *testing.T) {
+	f := newCardFixture(t, "1617")
+	f.openShift("agent/vik-1617")
+	f.run(fixtureRun{role: "builder", writes: true, startMin: 0, durationMin: 10, outcome: "pr_opened",
+		usage: `{"costUsd": 0.4, "inputTokens": 100, "outputTokens": 10}`})
+	f.run(fixtureRun{role: "reviewer", round: 1, startMin: 20, authorizedUSD: 1})
+	now := f.base.Add(50 * time.Minute)
+	var read []string
+	card, err := testStore.OperatorCard(context.Background(), f.item, []string{"silver"}, CardOptions{Now: now,
+		Live: func(_ context.Context, runToken string) (LiveUsage, error) {
+			read = append(read, runToken)
+			return LiveUsage{CostUSD: 0.25, InputTokens: 900, OutputTokens: 40}, nil
+		}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	live := card.Live
+	if live == nil || live.RunningRuns != 1 || live.RunSeconds != 600+1800 || !live.ObservedAt.Equal(now) ||
+		*live.CostUSD != 0.65 || *live.InputTokens != 1000 || *live.OutputTokens != 50 || !live.UsageComplete {
+		t.Fatalf("live = %+v; want the finished Run's figures plus the gateway's", live)
+	}
+	if len(read) != 1 || read[0] != fmt.Sprintf("card-run-%d-2", f.item) {
+		t.Errorf("gateway read for %v; want only the running Run", read)
+	}
+	if card.Totals.CostUSD == nil || *card.Totals.CostUSD != 0.4 || card.Totals.CostStatus != "reserved" || *card.Totals.RunSeconds != 600 {
+		t.Errorf("totals = %+v; live figures never change the stored totals", card.Totals)
+	}
+}
+
+func TestOperatorCard_LiveWithoutAGatewayReadingReportsOnlyRunTime(t *testing.T) {
+	f := newCardFixture(t, "1618")
+	f.openShift("agent/vik-1618")
+	f.run(fixtureRun{role: "builder", writes: true, startMin: 0, authorizedUSD: 2})
+	now := f.base.Add(31 * time.Minute)
+	for name, live := range map[string]func(context.Context, string) (LiveUsage, error){
+		"no reader":      nil,
+		"failed reading": func(context.Context, string) (LiveUsage, error) { return LiveUsage{}, errors.New("gateway down") },
+	} {
+		card, err := testStore.OperatorCard(context.Background(), f.item, []string{"silver"}, CardOptions{Now: now, Live: live})
+		if err != nil {
+			t.Fatal(err)
+		}
+		l := card.Live
+		if l == nil || l.RunningRuns != 1 || l.RunSeconds != 31*60 || l.CostUSD != nil || l.InputTokens != nil || l.UsageComplete {
+			t.Errorf("%s: live = %+v; an unread gateway leaves cost and tokens unknown, never zero", name, l)
+		}
+	}
+}
+
+func TestOperatorCard_NoRunningRunHasNoLiveUsage(t *testing.T) {
+	f := newCardFixture(t, "1619")
+	f.openShift("agent/vik-1619")
+	f.run(fixtureRun{role: "builder", writes: true, startMin: 0, durationMin: 10, outcome: "pr_opened", usage: `{"costUsd": 0.4}`})
+	card, err := testStore.OperatorCard(context.Background(), f.item, []string{"silver"}, CardOptions{
+		Live: func(context.Context, string) (LiveUsage, error) {
+			t.Error("read the gateway without a running Run")
+			return LiveUsage{}, nil
+		}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if card.Live != nil {
+		t.Errorf("live = %+v; want none once every Run finished", card.Live)
+	}
+}

@@ -284,3 +284,68 @@ func TestOperatorCard_EndpointIsScopedAndReadOnly(t *testing.T) {
 		t.Errorf("unauthenticated card read: %d", w.Code)
 	}
 }
+
+func TestOperatorCard_RunningRunCarriesTheGatewaysUsageSoFar(t *testing.T) {
+	ctx := context.Background()
+	g, broker := newFakeGateway(t)
+	reset(t)
+	shiftFixture(t, "1700", 5, []store.Role{{Name: "builder", Cap: 1}})
+	control, err := NewLLMControl(testStore, broker, `[{"team":"bronze","role":"builder","budgetUsd":2,"models":["trusted-model"],"ttl":"1h"}]`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := testStore.ClaimRole(ctx, "bronze", "builder", time.Minute, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := control.Reserve(ctx, run.RunToken); err != nil {
+		t.Fatal(err)
+	}
+	cred, err := control.Issue(ctx, run.RunToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.mu.Lock()
+	g.logs[hashedKey(cred.APIKey)] = []map[string]any{
+		{"spend": 0.2, "model": "deepseek-chat", "prompt_tokens": 9000, "completion_tokens": 100},
+		{"spend": 0.07, "model": "deepseek-chat", "prompt_tokens": 1400, "completion_tokens": 27},
+	}
+	g.mu.Unlock()
+	var item int64
+	if err := testPool.QueryRow(ctx, `SELECT work_item_id FROM agent_runs WHERE run_token = $1`, run.RunToken).Scan(&item); err != nil {
+		t.Fatal(err)
+	}
+	consumers, token := operatorTestConsumers(t, []string{"bronze"}, false)
+	s := &Server{Store: testStore, Log: slog.New(slog.DiscardHandler), LLMControl: control,
+		OperatorConfig: OperatorConfig{Consumers: consumers, Teams: map[string][]string{"bronze": {"builder"}}}}
+
+	raw := operatorSchemaGET(t, s, token, fmt.Sprintf("work-items/%d/card", item))
+	var body struct {
+		Card store.OperatorCard `json:"card"`
+	}
+	if err := json.Unmarshal(raw, &body); err != nil {
+		t.Fatal(err)
+	}
+	live := body.Card.Live
+	if live == nil || live.RunningRuns != 1 || live.CostUSD == nil || *live.CostUSD < 0.2699 || *live.CostUSD > 0.2701 ||
+		*live.InputTokens != 10400 || *live.OutputTokens != 127 || !live.UsageComplete {
+		t.Fatalf("live = %s; want the gateway's spend and tokens so far", raw)
+	}
+	if body.Card.Totals.CostUSD != nil || body.Card.Totals.CostStatus != "reserved" {
+		t.Errorf("totals = %+v; a live reading is not recorded", body.Card.Totals)
+	}
+	a, err := testStore.LLMAccount(ctx, run.RunToken)
+	if err != nil || a.ObservedSpend != nil || a.State != "issued" {
+		t.Errorf("account = %+v, %v; reading a card must not touch the account", a, err)
+	}
+
+	s.LLMControl = nil
+	raw = operatorSchemaGET(t, s, token, fmt.Sprintf("work-items/%d/card", item))
+	body.Card = store.OperatorCard{}
+	if err := json.Unmarshal(raw, &body); err != nil {
+		t.Fatal(err)
+	}
+	if l := body.Card.Live; l == nil || l.CostUSD != nil || l.InputTokens != nil || l.UsageComplete {
+		t.Errorf("live without managed inference = %s; cost and tokens stay unknown", raw)
+	}
+}
