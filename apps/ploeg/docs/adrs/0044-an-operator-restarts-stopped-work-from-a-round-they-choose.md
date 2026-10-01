@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-01
 decision-makers: Ryan Grippeling
 supersedes: none
@@ -236,6 +236,10 @@ each button sends. `go test ./internal/ledger/` gates this record.
 * Technical story: VIK-606 (`glide: re-queue a needs_human Work Item from
   Vloer`) is the first slice. Starting at a chosen Round and the Vloer buttons
   are tracked beside it.
+* 2026-10-01 — accepted by the owner, with the options as written: restart
+  `needs_human`, `stale` and `awaiting_review` only; a restart resets the
+  attempt counts and authorizes a pool the operator confirms. Build order:
+  after ADR-0043's VIK-1304, then VIK-606, VIK-1596, VIK-1597.
 * Evidence: `docs/research/2026-09-29-incident-work-item-138.md`; Shift 118 /
   glide PR #45 (reviewer Run 209, "acp agent stopped responding").
 * [ADR-0019](0019-a-failed-writing-run-reopens-its-round.md): why a Shift's
