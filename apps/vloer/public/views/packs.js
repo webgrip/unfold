@@ -11,14 +11,12 @@ import { webglSupport } from '../cards/registry.js';
 import { faceFacts } from '../cards/skins/forge/forge-model.js';
 import { cardAsOf, copyCard, momentText, oddsOneIn, oddsPercent, packSummaryText, patternBasisPoints, patternLabels, periodLabel, pullExtras, pullIntensity, pullText, roleLabel } from '../cards/collection-model.js';
 import { drawThumbnail, thumbnailsSupported } from '../cards/thumbs.js';
-import { packSounds } from '../cards/pack-sound.js';
+import { cardMotion, cardSounds, effects } from '../cards/effects/vloer.js';
 
-const skipAfterMs = 300;
-const view = { page: 'shelf', data: null, odds: null, opened: null, error: '', loading: false, request: 0, ceremony: null };
+const view = { page: 'shelf', data: null, odds: null, opened: null, error: '', loading: false, request: 0, ceremony: null, release: null };
 onForget(() => { endCeremony(); Object.assign(view, { page: 'shelf', data: null, odds: null, opened: null, error: '', loading: false, request: view.request + 1 }); });
 
-const reducedMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
-const sounds = packSounds(() => prefs.get('packSound') === true);
+const reducedMotion = () => cardMotion() !== 'full';
 
 function demoLine(data) {
   return data?.demo ? demoNote('Demo packs · illustrative cards · no model calls, no spend') : '';
@@ -40,7 +38,7 @@ function packRow(pack) {
 }
 
 function soundSwitch() {
-  return `<label class="pack-sound" for="pack-sound"><input type="checkbox" role="switch" id="pack-sound" data-pack-sound${prefs.get('packSound') ? ' checked' : ''}><span>Sound</span></label>`;
+  return `<label class="pack-sound" for="pack-sound"><input type="checkbox" role="switch" id="pack-sound" data-pack-sound${prefs.get('cardSound') ? ' checked' : ''}><span>Sound</span></label>`;
 }
 
 function hero(pack) {
@@ -149,7 +147,7 @@ async function buildStage(stage, pack) {
   try {
     const { createPackCeremony } = await import('../cards/pack-scene.js');
     if (!stage.isConnected) return;
-    const scene = await createPackCeremony(stage, { title: periodLabel(pack.period), subtitle: pack.demo ? 'Demo · no spend' : contentsLine(pack), count: pack.count, demo: pack.demo, seed: [...pack.id].reduce((sum, char) => sum * 31 + char.charCodeAt(0), 7), reduced: reducedMotion(), software: webglSupport() === 'software', sounds });
+    const scene = await createPackCeremony(stage, { title: periodLabel(pack.period), subtitle: pack.demo ? 'Demo · no spend' : contentsLine(pack), count: pack.count, demo: pack.demo, seed: [...pack.id].reduce((sum, char) => sum * 31 + char.charCodeAt(0), 7), reduced: reducedMotion(), software: webglSupport() === 'software', sounds: cardSounds });
     if (!stage.isConnected) { scene.dispose(); return; }
     stage.dataset.scene = 'ready';
     view.scene = scene;
@@ -212,6 +210,7 @@ function spoken(entry, index, total) {
 async function tearOpen(id) {
   if (view.ceremony) return;
   view.ceremony = { id, phase: 'opening', entries: [], index: -1, startedAt: performance.now(), scene: null };
+  view.release = effects.hold('pack');
   await Promise.race([view.stageReady ?? Promise.resolve(), new Promise(done => setTimeout(done, 4000))]);
   if (!view.ceremony) return;
   const scene = view.scene ?? null;
@@ -220,7 +219,7 @@ async function tearOpen(id) {
   setPrimary('Opening…', { disabled: true });
   const hint = $('#pack-hint');
   if (hint) hint.hidden = true;
-  setTimeout(() => { const skip = $('#pack-skip'); if (skip && view.ceremony) skip.dataset.shown = 'true'; }, skipAfterMs);
+  setTimeout(() => { const skip = $('#pack-skip'); if (skip && view.ceremony) skip.dataset.shown = 'true'; }, effects.rules.skipAfterMs);
   try {
     const [opened] = await Promise.all([api(`/api/packs/${encodeURIComponent(id)}/open`, { method: 'POST', body: '{}' }), scene ? scene.tear() : Promise.resolve()]);
     if (!view.ceremony) return;
@@ -313,6 +312,8 @@ function endCeremony() {
   view.scene = null;
   view.stageReady = null;
   view.ceremony = null;
+  view.release?.();
+  view.release = null;
 }
 
 async function primary(element) {
@@ -381,6 +382,6 @@ export default {
     'pack-to-binder': () => { location.hash = '#binder'; },
     'pack-back': (element, event) => { event?.preventDefault?.(); void load(); },
   },
-  changes: { '[data-pack-sound]': element => { prefs.set('packSound', element.checked); announce(element.checked ? 'Pack sound on' : 'Pack sound off'); } },
+  changes: { '[data-pack-sound]': element => { prefs.set('cardSound', element.checked); announce(element.checked ? 'Card sound on' : 'Card sound off'); } },
   keys: [packKeys],
 };

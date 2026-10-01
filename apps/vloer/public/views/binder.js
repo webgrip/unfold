@@ -9,12 +9,15 @@ import { cardView } from '../cards/card-model.js';
 import { cardAsOf, copyCard, momentText, oddsPercent, patternBasisPoints, periodLabel, pullText, roleLabel } from '../cards/collection-model.js';
 import { drawThumbnail, thumbnailsSupported } from '../cards/thumbs.js';
 import '../cards/unfold-card.js';
+import { cardMotion, clearEffects, effects } from '../cards/effects/vloer.js';
+import { cardBefore } from '../cards/effects/moments.js';
 
 const view = { data: null, odds: null, error: '', loading: false, focus: null, team: '', role: '', away: null, awayIndex: 0, awayTimer: 0, played: false, request: 0 };
 onForget(() => { stopAway(); Object.assign(view, { data: null, odds: null, error: '', loading: false, focus: null, team: '', role: '', away: null, awayIndex: 0, played: false, request: view.request + 1 }); });
 
 const sleeveMark = '<svg class="binder-sleeve-mark" viewBox="0 0 64 64" focusable="false"><path class="sheet" d="M52.625 9.758L11.079 27.437A1.8 1.8 0 0 0 10.949 30.688L28.354 39.805A1.5 1.5 0 0 0 30.199 39.44L53.782 11.321A1 1 0 0 0 52.625 9.758Z"/><path class="fold" d="M53.371 19.067L43.778 53.011A1.8 1.8 0 0 1 40.773 53.795L31.398 44.42A1.5 1.5 0 0 1 31.309 42.395L51.642 18.152A1 1 0 0 1 53.371 19.067Z"/></svg>';
-const reducedMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
+const reducedMotion = () => cardMotion() !== 'full';
+const readMs = 1200;
 const wait = ms => new Promise(done => { view.awayTimer = setTimeout(done, ms); });
 
 function visibleCopies() {
@@ -125,6 +128,8 @@ function mountFocus({ asOf = null, card = null } = {}) {
   const element = $('#binder-focus');
   const entry = focused();
   if (!element || !entry) return;
+  if (cardMotion() !== 'full') element.setAttribute('motion', 'still');
+  else element.removeAttribute('motion');
   element.asOf = asOf;
   element.card = card ?? copyCard(entry.card, entry.copy);
 }
@@ -151,6 +156,7 @@ function stopAway() {
 
 function finishAway() {
   stopAway();
+  if (view.away) clearEffects();
   view.away = null;
   const banner = $('#binder-away');
   if (banner) banner.innerHTML = '';
@@ -170,13 +176,15 @@ async function playAway() {
     const banner = $('#binder-away');
     if (banner) banner.innerHTML = awayBanner();
     const at = Date.parse(moment.at);
-    mountFocus({ asOf: at - 1000, card: copyCard(cardAsOf(entry.card, at - 1000), entry.copy) });
-    await wait(900);
-    if (view.away !== away || run !== view.request) return;
     const later = away.slice(index + 1).some(next => next.workItemId === moment.workItemId);
-    mountFocus(later ? { asOf: at + 1000, card: copyCard(cardAsOf(entry.card, at + 1000), entry.copy) } : {});
+    const shown = later ? cardAsOf(entry.card, at + 1000) : entry.card;
+    mountFocus(later ? { asOf: at + 1000, card: copyCard(shown, entry.copy) } : {});
     announce(`${entry.card.title}: ${momentText(moment)}`);
-    await wait(2400);
+    const host = $('#binder-focus');
+    const ticket = effects.request(moment, { key: `binder:${moment.workItemId}`, host, card: copyCard(shown, entry.copy), before: copyCard(cardBefore(shown, moment, cardAsOf), entry.copy) });
+    await ticket.done;
+    if (view.away !== away || run !== view.request) return;
+    await wait(readMs);
   }
   if (view.away === away) finishAway();
 }
@@ -194,7 +202,7 @@ async function load() {
     if (!data.copies.some(entry => entry.card.workItemId === view.focus)) view.focus = data.copies[0]?.card.workItemId ?? null;
     if (!view.played && data.away.length) { view.away = data.away; view.awayIndex = 0; }
     view.played = true;
-    api('/api/binder/seen', { method: 'POST', body: JSON.stringify({ until: data.seenUntil }) }).catch(() => {});
+    api('/api/binder/seen', { method: 'POST', body: JSON.stringify({ until: data.seenUntil, cards: [...new Set(data.away.map(moment => moment.workItemId))] }) }).catch(() => {});
   } catch (error) {
     if (request !== view.request) return;
     if (error.status !== 401) view.error = error.message;
@@ -208,6 +216,7 @@ async function load() {
 async function enterBinder({ query = {} } = {}) {
   disconnect(); state.session = null; state.view = 'binder';
   stopAway();
+  clearEffects();
   view.played = false;
   view.away = null;
   if (query.card) view.focus = query.card;

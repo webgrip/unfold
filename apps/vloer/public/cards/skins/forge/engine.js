@@ -57,7 +57,7 @@ function frontShader(artKey, patternKey) {
   return `precision highp float; precision highp int;
 uniform sampler2D uFace, uMask, uHeight;
 uniform vec4 uArtRect; uniform float uTime; uniform vec2 uP; uniform vec3 uV; uniform float uIntensity; uniform vec3 uCover; uniform float uBorder;
-uniform float uSeed; uniform float uCrack, uMend, uCrackSeed; uniform vec2 uImpact; uniform float uFlash, uDesat; uniform float uRelief; uniform vec2 uTexel; uniform float uArtDepth; uniform float uWipe;
+uniform float uSeed; uniform float uCrack, uMend, uCrackSeed; uniform vec2 uImpact; uniform float uFlash, uDesat; uniform float uRelief; uniform vec2 uTexel; uniform float uArtDepth; uniform float uWipe; uniform float uGlint;
 in vec2 vUv; out vec4 outColor;
 ${prelude}
 ${foils}
@@ -153,6 +153,7 @@ void main(){
     col += vec3(1.0, 0.7, 0.3) * halo * gold * 0.14;
   }
   if (uWipe < 1.1) col += vec3(1.0, 0.92, 0.75) * exp(-pow((sweep - uWipe) * 38.0, 2.0)) * 0.55;
+  if (uGlint < 1.3) col += vec3(1.0, 0.95, 0.82) * exp(-pow((sweep - uGlint) * 24.0, 2.0)) * 0.42;
   float l = dot(col, vec3(0.2126, 0.7152, 0.0722));
   col = mix(col, vec3(l), uDesat);
   col += uFlash * vec3(1.0, 0.95, 0.85);
@@ -280,7 +281,7 @@ export class ForgeScene {
       uArtRect: { value: new THREE.Vector4() },
       uTime: { value: stillTime }, uP: { value: this.state.light }, uV: { value: new THREE.Vector3(0, 0, 1) }, uIntensity: { value: 1 }, uCover: { value: new THREE.Vector3() }, uBorder: { value: 0 },
       uSeed: { value: 0 }, uCrack: { value: 0 }, uMend: { value: 0 }, uCrackSeed: { value: 0 }, uImpact: { value: new THREE.Vector2(0.62, 0.58) }, uFlash: { value: 0 }, uDesat: { value: 0 },
-      uRelief: { value: 8 }, uTexel: { value: new THREE.Vector2(1.6 / faceSize.width, 1.6 / faceSize.height) }, uArtDepth: { value: 0.05 }, uWipe: { value: 2 },
+      uRelief: { value: 8 }, uTexel: { value: new THREE.Vector2(1.6 / faceSize.width, 1.6 / faceSize.height) }, uArtDepth: { value: 0.05 }, uWipe: { value: 2 }, uGlint: { value: 2 },
     };
     this.faceGeometry = faceGeometry(shape);
     this.disposables.push(this.faceGeometry);
@@ -373,7 +374,8 @@ export class ForgeScene {
     this.edgeMaterial.metalness = edge.metalness;
     this.edgeMaterial.roughness = edge.roughness;
     this.slab.visible = Boolean(facts.grade);
-    this.group.scale.setScalar(facts.grade ? 0.84 : 1);
+    this.baseScale = facts.grade ? 0.84 : 1;
+    this.group.scale.setScalar(this.baseScale);
     this.baseY = facts.grade ? -0.075 : 0;
     const was = previous?.condition?.state ?? null;
     const now = facts.condition?.state ?? null;
@@ -384,6 +386,35 @@ export class ForgeScene {
   }
 
   tween(duration, step, done, ease = x => 1 - Math.pow(1 - x, 3)) { this.tweens.push({ t: 0, duration, step, done, ease }); }
+
+  /** Ends every running moment at once, at its last frame. */
+  finishTweens() {
+    for (const tween of this.tweens.splice(0)) { tween.step(tween.ease(1)); tween.done?.(); }
+    this.uniforms.uWipe.value = 2;
+    this.uniforms.uGlint.value = 2;
+    this.uniforms.uFlash.value = 0;
+    this.uniforms.uDesat.value = 0;
+    this.state.punch = 0;
+    this.state.punchV = 0;
+  }
+
+  /** A light glint sweeping across the face over `seconds`, as a seal catching the light. */
+  glint(seconds = 0.8) { this.tween(seconds, k => { this.uniforms.uGlint.value = -0.2 + k * 1.5; }, () => { this.uniforms.uGlint.value = 2; }, x => x * x * (3 - 2 * x)); }
+
+  /** The foil wiping in across the card over `seconds`, ahead of the coverage it earned. */
+  wipeIn(seconds = 1) { this.uniforms.uWipe.value = -0.2; this.tween(seconds, k => { this.uniforms.uWipe.value = -0.2 + k * 1.45; }, () => { this.uniforms.uWipe.value = 2; }, x => x * x * (3 - 2 * x)); }
+
+  /** A squash of `amount` (0.05 is a firm stamp) that springs back with a small overshoot. */
+  punch(amount = 0.05) { this.state.punch = -amount; this.state.punchV = 0; }
+
+  /** A bloom swell up to `peak` over `seconds`. */
+  pulse(peak = 0.3, seconds = 1.2) { this.tween(seconds, k => { this.bloomStrength = 0.32 + peak * Math.sin(Math.PI * k); }, () => { this.bloomStrength = 0.32; }, x => x); }
+
+  /** One soft flash on the face, fading from `strength` (at most 0.5) over `seconds`. The caller asks the director's flash ledger first. */
+  flash(strength = 0.3, seconds = 0.25) { const peak = Math.min(0.5, strength); this.tween(seconds, k => { this.uniforms.uFlash.value = peak * (1 - k); }, () => { this.uniforms.uFlash.value = 0; }, x => x); }
+
+  /** Drains the colour by up to `amount` and brings it back over `seconds`, so a crack reads dark rather than red. */
+  desaturate(amount = 0.5, seconds = 0.9) { this.tween(seconds, k => { this.uniforms.uDesat.value = amount * Math.sin(Math.PI * k); }, () => { this.uniforms.uDesat.value = 0; }, x => x); }
 
   /** The first appearance of a live card: it drops in face down and turns over, with a short bloom swell for earned foil. */
   reveal() {
@@ -451,6 +482,7 @@ export class ForgeScene {
     [s.ry, s.vy] = spring(s.ry, s.vy, targetY, 60, 9, dt);
     [s.spin, s.spinV] = spring(s.spin, s.spinV, s.spinT, 34, 7.5, dt);
     [s.dropY, s.dropV] = spring(s.dropY, s.dropV, 0, 26, 6.5, dt);
+    [s.punch, s.punchV] = spring(s.punch ?? 0, s.punchV ?? 0, 0, 260, 13, dt);
     const light = s.hover ? new THREE.Vector2(s.px, -s.py) : new THREE.Vector2(Math.sin(s.t * 0.43) * 0.6, Math.cos(s.t * 0.31) * 0.5);
     s.light.lerp(light, 0.12);
     s.bob = Math.sin(s.t * 1.1) * 0.01;
@@ -462,7 +494,7 @@ export class ForgeScene {
   }
 
   /** Whether a moment is still playing, so a still card keeps drawing until it settles. */
-  get busy() { return this.tweens.length > 0 || Math.abs(this.state.spin - this.state.spinT) > 0.002 || Math.abs(this.state.spinV) > 0.002; }
+  get busy() { return this.tweens.length > 0 || Math.abs(this.state.spin - this.state.spinT) > 0.002 || Math.abs(this.state.spinV) > 0.002 || Math.abs(this.state.punch ?? 0) > 0.0005; }
 
   /** Settles a still card: final spin, resting tilt and light, no tweens. */
   settle() {
@@ -474,6 +506,8 @@ export class ForgeScene {
     s.ry = this.showingBack ? -0.12 : 0.12;
     s.dropY = 0;
     s.bob = 0;
+    s.punch = 0;
+    s.punchV = 0;
     s.light.set(stillLight.x, stillLight.y);
     this.uniforms.uTime.value = stillTime + this.facts.seed * 20;
   }
@@ -490,6 +524,7 @@ export class ForgeScene {
     this.camera.updateProjectionMatrix();
     this.group.position.set(0, (this.baseY || 0) + s.dropY + (s.bob || 0), 0);
     this.group.rotation.set(s.rx, s.ry + s.spin, 0);
+    this.group.scale.setScalar((this.baseScale ?? 1) * (1 + (s.punch ?? 0)));
     this.group.updateMatrixWorld();
     const view = this.camera.position.clone().sub(this.group.position).normalize().applyQuaternion(this.group.quaternion.clone().invert());
     this.uniforms.uV.value.copy(view);

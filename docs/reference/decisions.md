@@ -122,6 +122,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Vloer | [0028](../../apps/vloer/docs/adrs/0028-the-forge-skin-renders-run-cards-in-3d-with-vendored-three-js.md) | The forge skin renders Run cards in 3D with vendored three.js | 2026-10-01 | unknown | — |
 | Vloer | [0029](../../apps/vloer/docs/adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md) | Binders, packs and pulls collect Run cards privately and fairly | 2026-10-01 | unknown | — |
 | Vloer | [0030](../../apps/vloer/docs/adrs/0030-vloer-traces-bugs-under-an-administrator-mapped-forge-login.md) | Vloer traces bugs to Run cards under an administrator-mapped forge login | 2026-10-01 | unknown | — |
+| Vloer | [0032](../../apps/vloer/docs/adrs/0032-an-effects-director-plays-run-card-moments-once-by-tier-within-accessibility-rules.md) | An effects director plays Run card moments once, by tier, within accessibility rules | 2026-10-01 | unknown | — |
 
 ## Other statuses
 

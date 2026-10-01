@@ -11,7 +11,7 @@ import { render } from '../core/navigation.js';
 import { shell } from '../shell.js';
 
 const sample = new Date(2026, 8, 30, 21, 30);
-const spoken = { theme: { system: 'System theme', light: 'Light theme', dark: 'Dark theme' }, density: { comfortable: 'Comfortable density', compact: 'Compact density' }, format: { nl: 'Dutch number and date format', browser: 'Browser number and date format' } };
+const spoken = { theme: { system: 'System theme', light: 'Light theme', dark: 'Dark theme' }, density: { comfortable: 'Comfortable density', compact: 'Compact density' }, format: { nl: 'Dutch number and date format', browser: 'Browser number and date format' }, cardMotion: { auto: 'Card motion follows your device', full: 'Full card motion', calm: 'Calm card motion', off: 'Card ceremonies off' } };
 
 let watching = false;
 
@@ -96,8 +96,16 @@ function renderPreferences() {
   const updates = switchRow('live', 'Refresh automatically', 'Open pages check for news every 15 to 60 seconds while this tab is visible and no dialog is open. The pause button in the top bar switches the same setting.');
   const notifications = notificationsRow();
   const behaviour = card('behaviour', 'Behaviour', `${shortcuts}${updates}${notifications}`);
+  const motion = group('cardMotion', 'Card motion', 'How a Run card celebrates news: a merge, a release, a finish step, a crack or its mend. Screen readers hear the news whatever you choose.', [
+    option('cardMotion', 'auto', 'Automatic', globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? 'Calm now: your device asks for reduced motion' : 'Full now; Calm when your device asks for reduced motion'),
+    option('cardMotion', 'full', 'Full', 'Light, particles and a short title around the card'),
+    option('cardMotion', 'calm', 'Calm', 'No movement: a brief glow and a fading title'),
+    option('cardMotion', 'off', 'Off', 'No ceremonies; the card still updates'),
+  ].join(''), 'settings-options');
+  const sound = switchRow('cardSound', 'Card sound', 'Off by default. Short synthesised sounds for card ceremonies and pack openings; nothing is downloaded.');
+  const cards = card('cards', 'Run cards', `${motion}${sound}`);
   const guide = `<p class="settings-footnote">${icon('spark')}<span>Building De Vloer? The <a href="#design">living style guide</a> shows every component and token in the current theme.</span></p>`;
-  renderHtml(shell(`<div class="settings-page">${appearance}${behaviour}${guide}</div>`, { title: 'Preferences', subtitle: 'How De Vloer looks and behaves in this browser. Stored here only.' }));
+  renderHtml(shell(`<div class="settings-page">${appearance}${behaviour}${cards}${guide}</div>`, { title: 'Preferences', subtitle: 'How De Vloer looks and behaves in this browser. Stored here only.' }));
 }
 
 async function changeNotifications(element) {
@@ -119,7 +127,7 @@ export function changePreference(element) {
   if (state.bootstrap && element.closest('#app')) render();
 }
 
-/** Preferences (`#settings/preferences`): theme, density, single-key shortcuts, live updates, desktop notifications and the number and date format, stored per browser, and a link to the style guide. */
+/** Preferences (`#settings/preferences`): theme, density, single-key shortcuts, live updates, desktop notifications, the number and date format, card motion and card sound, stored per browser, and a link to the style guide. */
 export default {
   id: 'preferences',
   match: hash => hash === 'settings/preferences' ? {} : null,

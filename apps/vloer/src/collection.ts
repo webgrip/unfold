@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { AppConfig, User } from './types.ts';
-import type { Store, StoredPack, StoredPackEntry, StoredPull } from './store.ts';
+import type { CardSeenSnapshot, Store, StoredPack, StoredPackEntry, StoredPull } from './store.ts';
 import type { PloegCard, PloegCardList } from './ploeg.ts';
 import { validateCards } from './config.ts';
 import { cardMoments, copyOf, drawPull, lastActivity, packFloor, periodById, planPacks, publishedOdds, type Moment, type PackPlan, type Period, type PeriodRules } from './packs.ts';
@@ -12,6 +12,7 @@ export interface CardSource {
   teamCards(user: User, team: string, since: string | undefined, fresh?: boolean): Promise<PloegCardList>;
   teams(user: User, fresh?: boolean): Promise<{ id: string }[]>;
   forgeLogin?(user: User): string | null;
+  card?(user: User, id: string, fresh?: boolean): Promise<unknown>;
 }
 
 export class CollectionError extends Error {
@@ -27,6 +28,8 @@ const demoLogins = ['demo-operator'];
 const pullKeyId = 'cards:pull-key';
 const demoPullKey = createHash('sha256').update('unfold-demo-pack-pulls').digest();
 const awayLimit = 12;
+const workItemPattern = /^[1-9][0-9]{0,19}$/;
+const halfStep = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 10 && Number.isInteger(value * 2);
 
 export type PackState = 'opened' | 'sealed' | 'filling';
 export type PackSummary = { id: string; period: Period; state: PackState; count: number; firsts: number; upgrades: number; openedAt: string | null; next: boolean; demo: boolean };
@@ -158,11 +161,44 @@ export class Collection {
     };
   }
 
-  /** Moves the person's seen moment forward to `until` (never past now), creating their binder mark on the first visit. */
-  markSeen(user: User, until: unknown) {
+  /**
+   * Moves the person's seen moment forward to `until` (never past now), creating their binder mark on the first visit.
+   * `cards` names the Work Items whose moments the binder just showed; their own seen marks move forward too, so the
+   * Work Item page does not play the same news again.
+   */
+  markSeen(user: User, until: unknown, cards?: unknown) {
     const now = this.clock();
     const at = typeof until === 'string' && Number.isFinite(Date.parse(until)) ? Math.min(Date.parse(until), now) : now;
+    if (Array.isArray(cards)) for (const id of cards.slice(0, awayLimit)) {
+      if (typeof id !== 'string' || !workItemPattern.test(id)) continue;
+      const mark = this.store.cardSeen(user.id, id);
+      if (mark) this.store.markCardSeen(user.id, id, iso(at), mark.snapshot);
+    }
     return this.store.markBinder(user.id, iso(now), iso(at));
+  }
+
+  /**
+   * The person's seen mark on one card: the moment up to which they have seen its news and the grade and set state they
+   * last saw, or nulls before their first look. The card must be in one of their Teams.
+   */
+  async cardSeen(user: User, workItemId: string) {
+    await this.readableCard(user, workItemId);
+    const mark = this.store.cardSeen(user.id, workItemId);
+    return { workItemId, seenAt: mark?.seenAt ?? null, snapshot: mark?.snapshot ?? null, now: iso(this.clock()) };
+  }
+
+  /** Moves the person's seen mark on one card forward to `until` (never past now) and stores the snapshot they saw. */
+  async markCardSeen(user: User, workItemId: string, until: unknown, snapshot: unknown) {
+    await this.readableCard(user, workItemId);
+    const now = this.clock();
+    const at = typeof until === 'string' && Number.isFinite(Date.parse(until)) ? Math.min(Date.parse(until), now) : now;
+    const mark = this.store.markCardSeen(user.id, workItemId, iso(at), seenSnapshot(snapshot));
+    return { workItemId, seenAt: mark.seenAt, snapshot: mark.snapshot, now: iso(now) };
+  }
+
+  private async readableCard(user: User, workItemId: string) {
+    if (!workItemPattern.test(workItemId)) throw new CollectionError(400, 'card_id', 'Use a valid Work Item identifier.');
+    if (this.source.card) await this.source.card(user, workItemId);
   }
 
   /** The person's packs, oldest first: opened, sealed (only the oldest sealed one can be opened next) and the current period's pack while it fills. */
@@ -240,4 +276,10 @@ export class Collection {
     return { demo: this.demo, team: selected, teams, quarters: recentQuarters(now), quarter, justStarted: early ? current.id : null, aggregates: seasonAggregates(list.cards, selected, quarter, now), source: list.source };
   }
 
+}
+
+/** A seen snapshot from the browser, kept to the two facts it may carry: a half-step grade from 0 to 10 or null, and whether the set was complete. */
+function seenSnapshot(value: unknown): CardSeenSnapshot {
+  const input = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  return { grade: halfStep(input.grade) ? input.grade : null, setComplete: input.setComplete === true };
 }

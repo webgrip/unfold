@@ -1,5 +1,5 @@
 import { copyRoleLabels, finishLadder } from './card-model.js';
-import { count, date, plural } from '../core/format.js';
+import { count, date, plural, score } from '../core/format.js';
 
 /** The pattern names the odds table and the reveal use, keyed like the forge's foil patterns. */
 export const patternLabels = Object.freeze({ none: 'Plain', holo: 'Holo', reverse: 'Reverse holo', rainbow: 'Rainbow', etched: 'Etched', glitter: 'Glitter', cosmos: 'Cosmos', crackedice: 'Cracked ice', liquid: 'Liquid metal', prism: 'Prism', galaxy: 'Galaxy', refractor: 'Refractor', lenticular: 'Lenticular', gold: 'Gold', blacklabel: 'Black chrome', superfractor: 'Superfractor' });
@@ -49,7 +49,7 @@ export function pullText(pull) {
 
 const finishLabel = key => finishLadder.find(step => step.key === key)?.label ?? key;
 
-/** A card moment in words: "Finish rose to Holo", "Cracked · S2 · VIK-1642", "Merged #57". */
+/** A card moment in words: "Finish rose to Holo", "Cracked · S2 · VIK-1642", "Merged #57", "Graded 8,5", "Set of 5 complete". */
 export function momentText(moment) {
   const detail = moment?.detail ?? {};
   switch (moment?.kind) {
@@ -59,6 +59,8 @@ export function momentText(moment) {
     case 'finish': return `Finish rose from ${finishLabel(detail.from)} to ${finishLabel(detail.to)}`;
     case 'cracked': return ['Cracked', detail.severity, detail.ref].filter(Boolean).join(' · ');
     case 'mended': return ['Mended', detail.ref, detail.pr ? `in #${detail.pr}` : ''].filter(Boolean).join(' · ');
+    case 'graded': return typeof detail.from === 'number' ? `Grade changed from ${score(detail.from)} to ${score(detail.to)}` : `Graded ${score(detail.to)}`;
+    case 'set': return detail.size ? `Set of ${detail.size} complete` : 'Set complete';
     default: return 'Changed';
   }
 }

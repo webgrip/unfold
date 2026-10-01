@@ -9,6 +9,7 @@ const safeLink = value => { try { const url = new URL(value); return ['https:', 
 const slotLabels = { title: 'Work Item', state: 'State', cost: 'Cost', steward: 'Steward', ids: 'Ids' };
 const slotValue = (view, slot) => ({ title: view.title, state: view.state.label, cost: view.cost.text, steward: view.steward.text, ids: view.ids.join(' · ') }[slot]);
 const Base = globalThis.HTMLElement ?? class {};
+const skinMomentNames = Object.freeze({ cracked: 'crack', mended: 'mend', graded: 'grade' });
 
 /** What a skin's `render(view, helpers)` receives besides the view model. Skins escape every value with `escape`. */
 export const skinHelpers = Object.freeze({ escape: escapeHtml, icon, link: safeLink });
@@ -36,7 +37,9 @@ function parse(markup) {
  * draws, the front always carries the title, state, cost, steward and ids. The element reflects the skin it draws as
  * `data-skin`; a WebGL2 skin is replaced by its fallback when the browser has no WebGL2. A skin's `attach(front, view)`
  * receives the drawn front and the view model; the forge skin also reads `motion` (`still` or `live`) on the element. Setting `asOf` shows the card as it was at
- * that moment, which the binder uses to replay what changed while its owner was away.
+ * that moment, which the binder uses to replay what changed while its owner was away. Every skin's `attach` fires
+ * `unfold-card-moment` on the element through `skin-kit.js`'s `emitMoments`, and `playMoment(moment, api)` hands the
+ * effects director's ceremony to the skin's `onMoment`.
  */
 export class UnfoldCard extends Base {
   static get observedAttributes() { return ['face', 'tab']; }
@@ -81,6 +84,28 @@ export class UnfoldCard extends Base {
     const target = this.#stage?.querySelector(`[data-card-key="${CSS.escape(key)}"]`);
     if (target) target.focus({ preventScroll: true });
     else this.#focus = key;
+  }
+
+  /**
+   * Plays one moment's reaction on the drawn front: the skin's `onMoment(moment, api)` with `front`, `view` and `host`
+   * added to the director's `api`, or, for a skin without one, the moment's name on the skin root's `data-moment` for
+   * the ceremony's length. Skins react on the card only and leave page-level light to the director. Returns what the
+   * skin returns (a promise it settles when its reaction ends), or null when nothing is drawn.
+   * @param {{ kind: string, at?: string, detail?: object }} moment
+   * @param {{ mode: 'full' | 'calm', durationMs: number, signal?: AbortSignal, [name: string]: unknown }} api
+   */
+  playMoment(moment, api) {
+    const front = this.#stage?.querySelector('.gc-front');
+    if (!front || !moment) return null;
+    if (typeof this.#skin?.onMoment === 'function') return this.#skin.onMoment(moment, { ...api, front, view: this.#view, host: this });
+    const root = front.querySelector('[data-skin-root]') ?? front.firstElementChild;
+    if (!root || api?.mode !== 'full') return null;
+    root.dataset.moment = skinMomentNames[moment.kind] ?? moment.kind;
+    return new Promise(resolve => {
+      const end = () => { delete root.dataset.moment; resolve(); };
+      const timer = setTimeout(end, Math.max(300, api.durationMs ?? 900));
+      api.signal?.addEventListener?.('abort', () => { clearTimeout(timer); end(); }, { once: true });
+    });
   }
 
   connectedCallback() {
