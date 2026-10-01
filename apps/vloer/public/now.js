@@ -167,7 +167,7 @@ export function byFinish(runs) {
 
 function grafanaTeam(grafanaUrl, team) {
   const base = safeUrl(grafanaUrl);
-  return base ? `${base.replace(/\/$/, '')}/d/glide-loop?var-team=${encodeURIComponent(team)}` : null;
+  return base ? `${base.replace(/\/$/, '')}/d/unfold-loop?var-team=${encodeURIComponent(team)}` : null;
 }
 
 function repository(target) {

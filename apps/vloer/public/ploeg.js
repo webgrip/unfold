@@ -971,13 +971,13 @@ function cancelResultMarkup(model) {
 }
 
 /**
- * The Run card's place above Rounds: a `<glide-card>` that `views/work.js` gives the card object once Ploeg sent one
+ * The Run card's place above Rounds: a `<unfold-card>` that `views/work.js` gives the card object once Ploeg sent one
  * (`model.card`). Empty without a card, so an older Ploeg or a failed read leaves no trace.
  */
 export function cardSectionMarkup(detail, model) {
   const card = model.card;
   if (!card || String(card.workItemId) !== detail.item.id) return '';
-  return `<section class="work-card" id="work-card" aria-labelledby="work-card-title"><div class="work-card-heading"><h3 class="overline" id="work-card-title">Run card</h3><p class="meta">What Ploeg recorded for this Work Item. More info turns the card over.</p></div><glide-card class="work-run-card" data-work-item="${escape(detail.item.id)}"></glide-card></section>`;
+  return `<section class="work-card" id="work-card" aria-labelledby="work-card-title"><div class="work-card-heading"><h3 class="overline" id="work-card-title">Run card</h3><p class="meta">What Ploeg recorded for this Work Item. More info turns the card over.</p></div><unfold-card class="work-run-card" data-work-item="${escape(detail.item.id)}"></unfold-card></section>`;
 }
 
 /** The Work Item detail: header, the writer's problem and solution, the decision box for its state, the brief, the Run card, Rounds and Runs, activity, technical details and, on phones, the action bar. */

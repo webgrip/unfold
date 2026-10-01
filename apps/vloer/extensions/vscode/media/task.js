@@ -129,7 +129,7 @@ function stateSituation(item, detail, { taskOpen = null } = {}) {
   }
 }
 
-/** The one-line answer to "is Glide working on this, and what happens next?" for the current view. */
+/** The one-line answer to "is Unfold working on this, and what happens next?" for the current view. */
 export function ploegSituation(current) {
   if (isWork(current)) {
     const { item, detail } = subject(current);

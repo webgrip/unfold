@@ -1,27 +1,3 @@
-## [glide-v0.4.0-rc.29](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.28...glide-v0.4.0-rc.29) (2026-10-01)
-
-### Added
-
-* **ploeg:** report a running Run's usage so far on its card ([7d6fc6c](https://forgejo.webgrip.dev/webgrip/glide/commit/7d6fc6c17cc84a0a373a7239a2ec60b7d64983e4))
-* **vloer:** give the editor the browser's vocabulary, formatter and status tones ([c7a5e83](https://forgejo.webgrip.dev/webgrip/glide/commit/c7a5e83ba939aac82fa7e984c188bf645c34f454)), references [#work](https://forgejo.webgrip.dev/webgrip/glide/issues/work) [#ploeg](https://forgejo.webgrip.dev/webgrip/glide/issues/ploeg)
-* **vloer:** lead the editor's Work Item panel with state, reason and next action ([fba59c1](https://forgejo.webgrip.dev/webgrip/glide/commit/fba59c13b0cf1d191c1aac7a7abc9ae510a84812))
-* **vloer:** name a tracker token without write access when a hand-off fails ([5c685bb](https://forgejo.webgrip.dev/webgrip/glide/commit/5c685bb69d54f4888068de1a9f63cc0ea12a3a78))
-* **vloer:** open the editor sidebar on Now ([4ff6278](https://forgejo.webgrip.dev/webgrip/glide/commit/4ff6278b2004a32104eec6835fe972bb94583484))
-* **vloer:** show cost, tokens and run time so far on a running Run's card ([ab3affd](https://forgejo.webgrip.dev/webgrip/glide/commit/ab3affd10a5da98c216b9d5730f1f1a1ef3b0d31))
-
-### Docs
-
-* **ploeg:** regenerate the configuration reference for the new runner and dind images ([e8837f7](https://forgejo.webgrip.dev/webgrip/glide/commit/e8837f7e597852c94332a3b6516bd66030599757))
-* **vloer:** list the editor redesign's follow-ups in ADR-0027 ([a03d51d](https://forgejo.webgrip.dev/webgrip/glide/commit/a03d51dbee0b9aea60cd6cddba4689da61c7d936))
-
-### Build
-
-* **site:** move the Worker compatibility date to 2026-09-26 ([8881e1c](https://forgejo.webgrip.dev/webgrip/glide/commit/8881e1cad4856d6fbdfb734b45ccd792200dc0fa))
-
-### Internal
-
-* **renovate:** extend the shared preset at v1.12.2 and regenerate Ploeg's configuration reference on chart bumps ([ac432c1](https://forgejo.webgrip.dev/webgrip/glide/commit/ac432c1f62b90ad6a3f85915d3e8fdfa1e30ff3d))
-
 ## [glide-v0.4.0-rc.28](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.27...glide-v0.4.0-rc.28) (2026-10-01)
 
 ### Added

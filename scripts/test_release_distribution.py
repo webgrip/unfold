@@ -53,17 +53,17 @@ def fixture():
 
 class DistributionTests(unittest.TestCase):
     def test_accepts_only_supported_application_prereleases(self):
-        self.assertEqual(publish_release.release_tag('ploeg', '0.3.0-rc.8'), 'glide-v0.3.0-rc.8')
-        self.assertEqual(publish_release.release_tag('vloer', '0.3.0-rc.8'), 'glide-v0.3.0-rc.8')
+        self.assertEqual(publish_release.release_tag('ploeg', '0.3.0-rc.8'), 'unfold-v0.3.0-rc.8')
+        self.assertEqual(publish_release.release_tag('vloer', '0.3.0-rc.8'), 'unfold-v0.3.0-rc.8')
         for application, version in [('other', '0.3.0-rc.8'), ('ploeg', '1.0.0-rc.1'), ('vloer', '0.3.0'), ('ploeg', '0.3.0-beta.1'), ('vloer', '0.3.0-rc.0'), ('vloer', '0.03.0-rc.8'), ('vloer', '0.3.0-rc.8;echo bad')]:
             with self.assertRaises(ValueError):
                 publish_release.release_tag(application, version)
 
-    def test_package_links_move_to_glide_and_retries_are_no_ops(self):
+    def test_package_links_move_to_unfold_and_retries_are_no_ops(self):
         for current, expected in [
             ('webgrip/glide', []),
-            ('webgrip/de-vloer', ['unlink', 'link/glide']),
-            (None, ['link/glide']),
+            ('webgrip/de-vloer', ['unlink', 'link/unfold']),
+            (None, ['link/unfold']),
         ]:
             calls = []
 
@@ -87,7 +87,7 @@ class DistributionTests(unittest.TestCase):
             publish_release.link_package('ploegd', 'token')
         self.assertIn('stays linked to webgrip/ploeg', ''.join(call.args[0] for call in stderr.write.call_args_list))
 
-    def test_every_image_platform_must_identify_the_glide_release(self):
+    def test_every_image_platform_must_identify_the_unfold_release(self):
         source = fixture()
         verify_image(source, 'webgrip/ploegd', '0.3.0-rc.8', 'selected-sha')
         with self.assertRaises(RuntimeError):
@@ -125,7 +125,7 @@ class DistributionTests(unittest.TestCase):
         self.assertEqual(manifest_media_type(index), 'application/vnd.oci.image.index.v1+json')
 
     def test_github_release_takes_its_assets_as_a_draft_then_publishes(self):
-        source = {'name': 'glide-v0.4.0-rc.8', 'body': 'notes', 'assets': [{'name': 'a.json', 'browser_download_url': 'https://forgejo.webgrip.dev/a.json'}]}
+        source = {'name': 'unfold-v0.4.0-rc.8', 'body': 'notes', 'assets': [{'name': 'a.json', 'browser_download_url': 'https://forgejo.webgrip.dev/a.json'}]}
         calls = []
 
         def api(url, token, method='GET', data=None, missing=False):
@@ -136,22 +136,22 @@ class DistributionTests(unittest.TestCase):
                 return []
             if method == 'POST':
                 return {**data, 'id': 7, 'assets': [], 'upload_url': 'https://uploads.github.com/repos/webgrip/glide/releases/7/assets{?name,label}'}
-            return {'html_url': 'https://github.com/webgrip/glide/releases/tag/glide-v0.4.0-rc.8', **data}
+            return {'html_url': 'https://github.com/webgrip/glide/releases/tag/unfold-v0.4.0-rc.8', **data}
 
         uploads = []
-        with patch.object(publish_release, 'api', api), patch.object(publish_release, 'git', lambda *a, **k: 'sha' if a[0] == 'rev-parse' else 'sha\trefs/tags/glide-v0.4.0-rc.8'), \
+        with patch.object(publish_release, 'api', api), patch.object(publish_release, 'git', lambda *a, **k: 'sha' if a[0] == 'rev-parse' else 'sha\trefs/tags/unfold-v0.4.0-rc.8'), \
                 patch.object(publish_release, 'fetch_asset', lambda asset, token: b'{}'), \
                 patch.object(publish_release, 'request', lambda url, **k: uploads.append(url) or (b'', {})):
-            url = publish_release.mirror_release('glide-v0.4.0-rc.8', source, 'forge', 'github')
-        self.assertEqual(url, 'https://github.com/webgrip/glide/releases/tag/glide-v0.4.0-rc.8')
+            url = publish_release.mirror_release('unfold-v0.4.0-rc.8', source, 'forge', 'github')
+        self.assertEqual(url, 'https://github.com/webgrip/glide/releases/tag/unfold-v0.4.0-rc.8')
         self.assertTrue(calls[2][2]['draft'])
         self.assertEqual(len(uploads), 1)
         self.assertEqual(calls[-1][:2], ('PATCH', '/releases/7'))
         self.assertFalse(calls[-1][2]['draft'])
 
     def test_only_the_last_publisher_takes_the_github_release_out_of_draft(self):
-        source = {'name': 'glide-v0.4.0-rc.9', 'body': 'notes', 'assets': []}
-        draft = {'tag_name': 'glide-v0.4.0-rc.9', 'name': 'glide-v0.4.0-rc.9', 'body': 'notes', 'prerelease': True, 'draft': True, 'id': 9, 'assets': [], 'html_url': 'draft-url'}
+        source = {'name': 'unfold-v0.4.0-rc.9', 'body': 'notes', 'assets': []}
+        draft = {'tag_name': 'unfold-v0.4.0-rc.9', 'name': 'unfold-v0.4.0-rc.9', 'body': 'notes', 'prerelease': True, 'draft': True, 'id': 9, 'assets': [], 'html_url': 'draft-url'}
         for publish, expected in [(False, []), (True, ['PATCH'])]:
             calls = []
 
@@ -163,8 +163,8 @@ class DistributionTests(unittest.TestCase):
                     return [draft]
                 return {**draft, **data, 'html_url': 'published-url'}
 
-            with self.subTest(publish=publish), patch.object(publish_release, 'api', api), patch.object(publish_release, 'git', lambda *a, **k: 'sha' if a[0] == 'rev-parse' else 'sha\trefs/tags/glide-v0.4.0-rc.9'):
-                publish_release.mirror_release('glide-v0.4.0-rc.9', source, 'forge', 'github', publish=publish)
+            with self.subTest(publish=publish), patch.object(publish_release, 'api', api), patch.object(publish_release, 'git', lambda *a, **k: 'sha' if a[0] == 'rev-parse' else 'sha\trefs/tags/unfold-v0.4.0-rc.9'):
+                publish_release.mirror_release('unfold-v0.4.0-rc.9', source, 'forge', 'github', publish=publish)
                 self.assertEqual([m for m in calls if m != 'GET'], expected)
         self.assertEqual(publish_release.PUBLISHES_LAST, 'ploeg')
         workflow = (Path(__file__).resolve().parent.parent / '.forgejo/workflows/on_release_published.yml').read_text()
@@ -172,12 +172,12 @@ class DistributionTests(unittest.TestCase):
         self.assertIn('vloer-release-distribute', needs)
 
     def test_a_published_github_release_missing_an_asset_fails_plainly(self):
-        source = {'name': 'glide-v0.4.0-rc.8', 'body': 'notes', 'assets': [{'name': 'a.json', 'browser_download_url': 'https://forgejo.webgrip.dev/a.json'}]}
-        published = {'tag_name': 'glide-v0.4.0-rc.8', 'name': 'glide-v0.4.0-rc.8', 'body': 'notes', 'prerelease': True, 'draft': False, 'assets': []}
-        with patch.object(publish_release, 'api', lambda *a, **k: published), patch.object(publish_release, 'git', lambda *a, **k: 'sha' if a[0] == 'rev-parse' else 'sha\trefs/tags/glide-v0.4.0-rc.8'), \
+        source = {'name': 'unfold-v0.4.0-rc.8', 'body': 'notes', 'assets': [{'name': 'a.json', 'browser_download_url': 'https://forgejo.webgrip.dev/a.json'}]}
+        published = {'tag_name': 'unfold-v0.4.0-rc.8', 'name': 'unfold-v0.4.0-rc.8', 'body': 'notes', 'prerelease': True, 'draft': False, 'assets': []}
+        with patch.object(publish_release, 'api', lambda *a, **k: published), patch.object(publish_release, 'git', lambda *a, **k: 'sha' if a[0] == 'rev-parse' else 'sha\trefs/tags/unfold-v0.4.0-rc.8'), \
                 patch.object(publish_release, 'fetch_asset', lambda asset, token: b'{}'):
             with self.assertRaisesRegex(RuntimeError, 'immutable'):
-                publish_release.mirror_release('glide-v0.4.0-rc.8', source, 'forge', 'github')
+                publish_release.mirror_release('unfold-v0.4.0-rc.8', source, 'forge', 'github')
 
     def test_unsigned_source_and_failed_accessory_copy_fail_publication(self):
         source, target = fixture(), fixture()
@@ -194,7 +194,7 @@ class DistributionTests(unittest.TestCase):
             self.assertEqual(command.call_count, 1)
             self.assertEqual(command.call_args.args[:3], ('cosign', 'copy', '--only=sig,att,sbom'))
 
-    def test_every_chart_names_glide_as_its_source_and_home(self):
+    def test_every_chart_names_unfold_as_its_source_and_home(self):
         root = Path(__file__).resolve().parent.parent
         for path in ['apps/ploeg/ops/helm/ploeg', 'apps/vloer/ops/helm/de-vloer']:
             with self.subTest(chart=path):

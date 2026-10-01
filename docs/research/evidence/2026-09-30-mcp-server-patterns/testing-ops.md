@@ -4,7 +4,7 @@
 
 # ploeg-mcp: testing, evals, observability, operations and lifecycle (crawled 2026-09-30)
 
-Scope is `ploeg-mcp`: go-sdk v1.8.0 (released 2026-09-14, https://github.com/modelcontextprotocol/go-sdk/releases/tag/v1.8.0), MCP 2026-07-28, stateless Streamable HTTP plus stdio. Its toolsets follow ADR-0011 (`docs/adr/adr-0011-glide-is-reachable-over-mcp-through-a-read-first-server.md`): read, propose and steer, and a tool that is not granted is not listed.
+Scope is `ploeg-mcp`: go-sdk v1.8.0 (released 2026-09-14, https://github.com/modelcontextprotocol/go-sdk/releases/tag/v1.8.0), MCP 2026-07-28, stateless Streamable HTTP plus stdio. Its toolsets follow ADR-0011 (`docs/adr/adr-0011-unfold-is-reachable-over-mcp-through-a-read-first-server.md`): read, propose and steer, and a tool that is not granted is not listed.
 
 ## 1. Conformance
 

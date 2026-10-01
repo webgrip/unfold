@@ -11,7 +11,7 @@ review-by: 2026-10-31
 
 The owner's screenshot of the VS Code extension on 2026-10-01 showed what a person meets in the editor sidebar:
 
-* **Sessions** filled the top half. Its "Needs you 3" group held three demo sessions that had failed 20 days earlier ("Very simple: just say hi"), and the activity-bar badge counted them. Sessions is the interactive path that [Glide ADR-0002](../../../../docs/adr/adr-0002-ploeg-is-the-only-engine.md) retires.
+* **Sessions** filled the top half. Its "Needs you 3" group held three demo sessions that had failed 20 days earlier ("Very simple: just say hi"), and the activity-bar badge counted them. Sessions is the interactive path that [Unfold ADR-0002](../../../../docs/adr/adr-0002-ploeg-is-the-only-engine.md) retires.
 * The Ploeg work that did need the owner sat two levels deep in the **Ploeg** view: team, then lane, then Work Item. No row said a pull request waited for review, and the view gave no reason why a Work Item needed a person.
 * **Linked Tasks** listed 50 open tracker tasks as identical empty circles. Nothing said which of them Ploeg already had.
 * The Work Item panel's toolbar and timestamp were clipped off the right edge, team roles read "→ builder → devops …" with a stray arrow, times were in 12-hour US format, and amounts read "$0.00".

@@ -55,7 +55,7 @@ Run it after the deploy succeeded, once per environment. Report the commit that 
   run: >-
     curl -fsS --retry 3 -X POST "${{ vars.PLOEG_URL }}/api/v1/deploys"
     -H "Authorization: Bearer ${{ secrets.PLOEG_DEPLOY_TOKEN }}" -H "Content-Type: application/json"
-    -d "{\"environment\":\"production\",\"repo\":{\"forge\":\"forgejo\",\"owner\":\"webgrip\",\"name\":\"glide\"},\"sha\":\"${GITHUB_SHA}\",\"url\":\"${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\",\"source\":\"ci\"}"
+    -d "{\"environment\":\"production\",\"repo\":{\"forge\":\"forgejo\",\"owner\":\"webgrip\",\"name\":\"unfold\"},\"sha\":\"${GITHUB_SHA}\",\"url\":\"${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\",\"source\":\"ci\"}"
     || echo "Ploeg did not record the deploy"
 ```
 

@@ -1,6 +1,6 @@
 # Agency offering: product proposal
 
-Status: proposal, 2026-09-28, from the owner's brief. Nothing here is implemented unless it links to code. Decisions: [ADR-0005](../adr/adr-0005-glide-is-offered-to-agencies.md) to [ADR-0009](../adr/adr-0009-one-tenant-per-agency.md). Pricing: [pricing units](2026-09-28-pricing-units.md).
+Status: proposal, 2026-09-28, from the owner's brief. Nothing here is implemented unless it links to code. Decisions: [ADR-0005](../adr/adr-0005-unfold-is-offered-to-agencies.md) to [ADR-0009](../adr/adr-0009-one-tenant-per-agency.md). Pricing: [pricing units](2026-09-28-pricing-units.md).
 
 ## Problem
 

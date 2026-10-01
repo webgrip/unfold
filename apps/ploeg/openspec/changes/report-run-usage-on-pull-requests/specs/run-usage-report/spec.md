@@ -20,7 +20,7 @@ that the verification was not recorded, and SHALL NOT render a blank or a
 result that could read as a pass.
 
 The report's links SHALL be rendered from configuration, never hard-coded hosts:
-the Glide — Loop dashboard filtered by the Team, the Run Explorer per Run
+the Unfold — Loop dashboard filtered by the Team, the Run Explorer per Run
 filtered by the trace alias, Spend & Attribution, and the Work Item's page in
 Vloer. When the
 base URL for a link is unset the link SHALL be omitted, and when every base URL

@@ -15,8 +15,8 @@ runs:
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.local/share/mise/installs
-        key: glide-mise-${{ runner.os }}-${{ hashFiles('mise.toml', 'mise.lock', 'apps/vloer/mise.toml', 'apps/vloer/mise.lock', 'apps/ploeg/mise.toml', 'apps/ploeg/mise.lock', 'apps/site/mise.toml') }}
-        restore-keys: glide-mise-${{ runner.os }}-
+        key: unfold-mise-${{ runner.os }}-${{ hashFiles('mise.toml', 'mise.lock', 'apps/vloer/mise.toml', 'apps/vloer/mise.lock', 'apps/ploeg/mise.toml', 'apps/ploeg/mise.lock', 'apps/site/mise.toml') }}
+        restore-keys: unfold-mise-${{ runner.os }}-
     - uses: https://github.com/jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
       with:
         version: 2026.9.18
@@ -26,12 +26,12 @@ runs:
       shell: bash
     - name: Prepare the output capture
       shell: bash
-      run: mkdir -p "${RUNNER_TEMP:-/tmp}/glide-output"
-    - run: set -o pipefail; mise -C apps/vloer install 2>&1 | tee -a "${RUNNER_TEMP:-/tmp}/glide-output/install.log"
+      run: mkdir -p "${RUNNER_TEMP:-/tmp}/unfold-output"
+    - run: set -o pipefail; mise -C apps/vloer install 2>&1 | tee -a "${RUNNER_TEMP:-/tmp}/unfold-output/install.log"
       shell: bash
-    - run: set -o pipefail; mise -C apps/ploeg install 2>&1 | tee -a "${RUNNER_TEMP:-/tmp}/glide-output/install.log"
+    - run: set -o pipefail; mise -C apps/ploeg install 2>&1 | tee -a "${RUNNER_TEMP:-/tmp}/unfold-output/install.log"
       shell: bash
-    - run: set -o pipefail; mise -C apps/site install 2>&1 | tee -a "${RUNNER_TEMP:-/tmp}/glide-output/install.log"
+    - run: set -o pipefail; mise -C apps/site install 2>&1 | tee -a "${RUNNER_TEMP:-/tmp}/unfold-output/install.log"
       shell: bash
     - name: Save mise tool installs
       if: steps.mise-cache.outputs.cache-hit != 'true'
@@ -57,40 +57,40 @@ runs:
         path: |
           ${{ steps.caches.outputs.gomod }}
           ${{ steps.caches.outputs.gobuild }}
-        key: glide-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-${{ hashFiles('apps/ploeg/go.sum') }}-${{ hashFiles('apps/ploeg/**/*.go') }}
+        key: unfold-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-${{ hashFiles('apps/ploeg/go.sum') }}-${{ hashFiles('apps/ploeg/**/*.go') }}
         restore-keys: |
-          glide-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-${{ hashFiles('apps/ploeg/go.sum') }}-
-          glide-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-
-          glide-go-${{ runner.os }}-
+          unfold-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-${{ hashFiles('apps/ploeg/go.sum') }}-
+          unfold-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-
+          unfold-go-${{ runner.os }}-
     - name: Restore npm download cache
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ steps.caches.outputs.npm }}
-        key: glide-npm-${{ runner.os }}-${{ hashFiles('apps/vloer/package-lock.json', 'apps/vloer/extensions/vscode/package-lock.json') }}
-        restore-keys: glide-npm-${{ runner.os }}-
+        key: unfold-npm-${{ runner.os }}-${{ hashFiles('apps/vloer/package-lock.json', 'apps/vloer/extensions/vscode/package-lock.json') }}
+        restore-keys: unfold-npm-${{ runner.os }}-
     - name: Restore pnpm store
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ steps.caches.outputs.pnpm }}
-        key: glide-pnpm-${{ runner.os }}-${{ hashFiles('apps/site/pnpm-lock.yaml') }}
-        restore-keys: glide-pnpm-${{ runner.os }}-
+        key: unfold-pnpm-${{ runner.os }}-${{ hashFiles('apps/site/pnpm-lock.yaml') }}
+        restore-keys: unfold-pnpm-${{ runner.os }}-
     - name: Restore verified gate results
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
-        path: ~/.cache/glide-verify
-        key: glide-verify-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
-        restore-keys: glide-verify-${{ runner.os }}-
-    - run: set -o pipefail; mise run setup 2>&1 | tee "${RUNNER_TEMP:-/tmp}/glide-output/setup.log"
+        path: ~/.cache/unfold-verify
+        key: unfold-verify-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: unfold-verify-${{ runner.os }}-
+    - run: set -o pipefail; mise run setup 2>&1 | tee "${RUNNER_TEMP:-/tmp}/unfold-output/setup.log"
       shell: bash
-    - run: set -o pipefail; mise run verify 2>&1 | tee "${RUNNER_TEMP:-/tmp}/glide-output/verify.log"
+    - run: set -o pipefail; mise run verify 2>&1 | tee "${RUNNER_TEMP:-/tmp}/unfold-output/verify.log"
       shell: bash
       env:
-        GLIDE_REQUIRE_IMPORT_NOTES: 'true'
+        UNFOLD_REQUIRE_IMPORT_NOTES: 'true'
         GOFLAGS: -count=1
         VLOER_TEST_TIMEOUT_SCALE: '2'
-        GLIDE_VERIFY_RESULTS: ~/.cache/glide-verify
-        GLIDE_VERIFY_REUSE: ${{ github.event_name == 'pull_request' }}
-        GLIDE_VERIFY_CPUS: '4'
+        UNFOLD_VERIFY_RESULTS: ~/.cache/unfold-verify
+        UNFOLD_VERIFY_REUSE: ${{ github.event_name == 'pull_request' }}
+        UNFOLD_VERIFY_CPUS: '4'
     - name: Container build contexts
       shell: bash
       run: |
@@ -102,4 +102,4 @@ runs:
       id: warnings
       if: always()
       shell: bash
-      run: node scripts/ci-warnings.mjs "${RUNNER_TEMP:-/tmp}/glide-output"
+      run: node scripts/ci-warnings.mjs "${RUNNER_TEMP:-/tmp}/unfold-output"

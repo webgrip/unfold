@@ -1,6 +1,6 @@
 # Reaching Glide from AI clients over MCP
 
-Date: 29 September 2026, against `origin/development` at `6de34d0`. This is a record. The decision it supports is [ADR-0011](../adr/adr-0011-glide-is-reachable-over-mcp-through-a-read-first-server.md), **accepted on 2026-09-30** with the remote phase in scope. How to build it is in the follow-up record, [Building ploeg-mcp: patterns and traps](2026-09-30-mcp-server-patterns.md). Nothing described here as a tool, route or phase is implemented.
+Date: 29 September 2026, against `origin/development` at `6de34d0`. This is a record. The decision it supports is [ADR-0011](../adr/adr-0011-unfold-is-reachable-over-mcp-through-a-read-first-server.md), **accepted on 2026-09-30** with the remote phase in scope. How to build it is in the follow-up record, [Building ploeg-mcp: patterns and traps](2026-09-30-mcp-server-patterns.md). Nothing described here as a tool, route or phase is implemented.
 
 > **Method.** Eight research agents: the MCP specification, its repositories and SDKs, the client ecosystem with absence checks for every component Glide runs, a second client matrix, prior art from agent platforms that already expose themselves over MCP, security, and a read-only seam map of this repository. Their raw reports are in [evidence/2026-09-29-mcp-access/](evidence/2026-09-29-mcp-access/). These claims were checked first-hand rather than taken from an agent: `/specification/latest` redirects to `2026-07-28`; the Go SDK's latest release is v1.8.0 (2026-09-14) and its Tasks issue [go-sdk#626](https://github.com/modelcontextprotocol/go-sdk/issues/626) is open; `StreamableHTTPOptions.Stateless` exists in the SDK source; Claude Code documents elicitation dialogs; Claude.ai lists static request headers as a limited beta and lists resource subscriptions and sampling as unsupported; every Ploeg operator route named below exists on `origin/development`, and `POST /api/v1/operator/work-items` answers `405`; no local or remote branch implements that route; the homelab runs LiteLLM `v1.102.1`.
 
@@ -201,7 +201,7 @@ Cheapest first. Epic: [VIK-1512](https://vikunja.webgrip.dev/tasks/1512).
 
 ## 9. Recommendations
 
-1. Record the placement and the rules above as [ADR-0011](../adr/adr-0011-glide-is-reachable-over-mcp-through-a-read-first-server.md) and let the owner accept or reject it before any server code is written.
+1. Record the placement and the rules above as [ADR-0011](../adr/adr-0011-unfold-is-reachable-over-mcp-through-a-read-first-server.md) and let the owner accept or reject it before any server code is written.
 2. Close the ACP repository-MCP gap now, regardless of the ADR's outcome.
 3. Write the phase-0 how-to now; it is true today and costs nothing.
 4. Build Ploeg's `POST /api/v1/operator/work-items` once, for Vloer ([VIK-1189](https://vikunja.webgrip.dev/tasks/1189)) and MCP together, with a proposed mode.

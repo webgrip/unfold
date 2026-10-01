@@ -22,7 +22,7 @@ async function listen(handler: (req: IncomingMessage, res: ServerResponse, body:
 }
 
 function workItem(state: string, team = 'silver') {
-  const shift = { id: '77', workItemId: '9001', team, branch: 'agent/glide-7', round: 1, budgetUsd: 5, spentUsd: 1.25, reservedUsd: 0, openedAt: at, closedAt: null, closeReason: '' };
+  const shift = { id: '77', workItemId: '9001', team, branch: 'agent/unfold-7', round: 1, budgetUsd: 5, spentUsd: 1.25, reservedUsd: 0, openedAt: at, closedAt: null, closeReason: '' };
   return { id: '9001', provider: 'vikunja', externalId: '1505', revision: at, team, state, title: 'Round the totals', description: '', url: '', priority: 0, attempts: 1, infraFailures: 0, nextEligibleAt: null, createdAt: at, updatedAt: at, target: null, latestShift: state === 'queued' ? null : shift, lease: null };
 }
 
@@ -33,7 +33,7 @@ async function fixture(t: TestContext) {
   process.env[env] = bearer;
   t.after(() => { delete process.env[env]; });
   const state = {
-    task: { id: 1505, project_id: 42, index: 7, identifier: 'GLIDE-7', title: 'Round the totals', description: '<p>Round <strong>half</strong> cents.</p>', done: false, updated: at, priority: 2, labels: [{ id: 1, title: 'backend', hex_color: 'e8e8e8' }], assignees: [] as { id: number; username: string; name?: string }[] },
+    task: { id: 1505, project_id: 42, index: 7, identifier: 'UNFOLD-7', title: 'Round the totals', description: '<p>Round <strong>half</strong> cents.</p>', done: false, updated: at, priority: 2, labels: [{ id: 1, title: 'backend', hex_color: 'e8e8e8' }], assignees: [] as { id: number; username: string; name?: string }[] },
     users: [{ id: 11, username: 'Silver', name: 'Silver team' }, { id: 12, username: 'bronze', name: 'Bronze team' }],
     writes: [] as { method: string; path: string; body: any; authorization?: string }[],
     reads: [] as string[],
@@ -78,7 +78,7 @@ async function fixture(t: TestContext) {
       return send({ items: state.items.filter(item => item.provider === url.searchParams.get('provider') && item.externalId === url.searchParams.get('externalId')), nextCursor: null });
     }
     const item = state.items.find(entry => url.pathname === `/api/v1/operator/work-items/${entry.id}`);
-    if (item) return send({ item, shifts: item.latestShift ? [item.latestShift] : [], runs: [], checkpoints: [{ id: '5', workItemId: item.id, phase: 'publish', branch: 'agent/glide-7', prUrl: 'https://forge.example/team/app/pulls/3', createdAt: at, nodeName: '', podUid: '' }], events: [], truncated: { shifts: false, runs: false, checkpoints: false, events: false } });
+    if (item) return send({ item, shifts: item.latestShift ? [item.latestShift] : [], runs: [], checkpoints: [{ id: '5', workItemId: item.id, phase: 'publish', branch: 'agent/unfold-7', prUrl: 'https://forge.example/team/app/pulls/3', createdAt: at, nodeName: '', podUid: '' }], events: [], truncated: { shifts: false, runs: false, checkpoints: false, events: false } });
     return send({}, 404);
   }, t);
   const server = await application('live', config => {
@@ -105,12 +105,12 @@ test('task list and preview carry Vikunja labels and identifier, the preview add
   const page = await request(f.server.url, '/api/task-sources/board/tasks', { cookie: f.operator.cookie });
   assert.equal(page.status, 200, page.text);
   assert.deepEqual(page.body.tasks[0].labels, [{ name: 'backend', color: '#e8e8e8' }]);
-  assert.equal(page.body.tasks[0].identifier, 'GLIDE-7');
+  assert.equal(page.body.tasks[0].identifier, 'UNFOLD-7');
   assert.equal(page.body.tasks[0].priority, 2);
   assert.equal('descriptionMarkdown' in page.body.tasks[0], false, 'the list carries no display copy');
   const preview = await request(f.server.url, '/api/task-sources/board/tasks/1505', { cookie: f.operator.cookie });
   assert.equal(preview.status, 200, preview.text);
-  assert.equal(preview.body.identifier, 'GLIDE-7');
+  assert.equal(preview.body.identifier, 'UNFOLD-7');
   assert.equal(preview.body.descriptionMarkdown, 'Round **half** cents.');
   const sources = await request(f.server.url, '/api/task-sources', { cookie: f.operator.cookie });
   assert.deepEqual(sources.body.map((source: { id: string; handoff: boolean }) => [source.id, source.handoff]), [['board', true], ['plain', false]]);
@@ -133,7 +133,7 @@ test('status lists the caller’s assignable teams, the current hand-off and Plo
   f.state.items.push(workItem('leased'));
   const busy = await f.status();
   assert.deepEqual(busy.assignedTeams, ['silver'], 'tracker usernames match Ploeg’s lowercase routing names');
-  assert.deepEqual(busy.workItems, [{ id: '9001', team: 'silver', state: 'leased', attempts: 1, updatedAt: at, prUrl: 'https://forge.example/team/app/pulls/3', branch: 'agent/glide-7', spentUsd: 1.25, budgetUsd: 5 }]);
+  assert.deepEqual(busy.workItems, [{ id: '9001', team: 'silver', state: 'leased', attempts: 1, updatedAt: at, prUrl: 'https://forge.example/team/app/pulls/3', branch: 'agent/unfold-7', spentUsd: 1.25, budgetUsd: 5 }]);
   assert.match(busy.message, /silver/);
   const watching = await f.status(f.viewer.cookie);
   assert.equal(watching.handoff.allowed, false);

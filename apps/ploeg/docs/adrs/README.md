@@ -103,7 +103,7 @@ fails otherwise.
 | [0027](0027-candidate-delivery-uses-trusted-evidence-and-a-publication-barrier.md) | Candidate delivery uses trusted evidence and a publication barrier | proposed | 2026-09-11 |
 | [0028](0028-automatic-releases-stay-zero-major-candidates.md) | Automatic releases stay zero-major candidates | proposed | 2026-09-11 |
 
-| [0029](0029-qualify-glide-before-changing-distribution.md) | Qualify Glide before changing Ploeg distribution | proposed | 2026-09-12 |
+| [0029](0029-qualify-unfold-before-changing-distribution.md) | Qualify Unfold before changing Ploeg distribution | proposed | 2026-09-12 |
 | [0030](0030-target-repository-instructions-rank-below-the-delivery-contract.md) | Target repository instructions rank below the delivery contract | proposed | 2026-09-22 |
 | [0031](0031-runs-create-work-items-held-for-approval-within-limits.md) | Runs create Work Items that wait for approval, within per-Team limits | proposed | 2026-09-23 |
 | [0032](0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md) | Keep the dedicated dispatch plane, and compete on authorized spend over a self-hosted stack | proposed | 2026-09-30 |
@@ -115,7 +115,7 @@ fails otherwise.
 | [0038](0038-a-repo-label-selects-among-registered-targets-and-the-board-default-is-the-fallback.md) | A repo label selects among registered targets, and the board default is the fallback | accepted | 2026-09-28 |
 | [0039](0039-a-run-calls-only-its-roles-model-and-the-advisor-waits-for-metering.md) | A Run calls only its Role's model, and the advisor waits for metering that prices it | proposed | 2026-09-30 |
 | [0040](0040-a-conflicted-pull-request-becomes-a-priority-ticket-ploeg-resolves.md) | A conflicted pull request becomes a priority ticket that Ploeg resolves | proposed | 2026-09-30 |
-| [0041](0041-the-openai-agents-api-stays-outside-the-run-until-it-takes-an-authorized-budget.md) | The OpenAI Agents API stays outside the Run until it can take an authorized budget; Glide meets it over MCP and runs Codex itself | proposed | 2026-09-30 |
+| [0041](0041-the-openai-agents-api-stays-outside-the-run-until-it-takes-an-authorized-budget.md) | The OpenAI Agents API stays outside the Run until it can take an authorized budget; Unfold meets it over MCP and runs Codex itself | proposed | 2026-09-30 |
 | [0042](0042-a-writing-run-reports-the-problem-and-solution-a-reviewer-reads.md) | A writing Run reports the problem and solution a reviewer reads | proposed | 2026-09-30 |
 | [0043](0043-a-failed-reading-run-is-retried-and-a-missing-review-closes-review-failed.md) | A failed reading Run is retried in its Round, and a review that never came closes `review_failed` | accepted | 2026-10-01 |
 | [0044](0044-an-operator-restarts-stopped-work-from-a-round-they-choose.md) | An operator restarts stopped work by requeueing it from a Round they choose | accepted | 2026-10-01 |

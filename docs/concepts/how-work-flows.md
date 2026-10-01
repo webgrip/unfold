@@ -1,7 +1,7 @@
 ---
 type: explanation
 audience: [owner, integrator, contributor, agent]
-owner: glide
+owner: unfold
 last_verified: 2026-09-23
 verified_by: "source read of apps/ploeg on development, 2026-09-23; go test ./... in apps/ploeg"
 ---

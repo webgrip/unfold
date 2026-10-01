@@ -1,5 +1,5 @@
 version = 1
-SPDX-PackageName = "Glide site"
+SPDX-PackageName = "Unfold site"
 SPDX-PackageSupplier = "Ryan Grippeling / WebGrip <ryan@webgrip.nl>"
 SPDX-PackageDownloadLocation = "https://forgejo.webgrip.dev/webgrip/glide"
 

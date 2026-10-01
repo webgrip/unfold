@@ -139,7 +139,7 @@ def orphans(pages, nav, links):
 SOURCE_ROOTS = (('docs', ''), ('apps/vloer/docs', 'vloer'), ('apps/ploeg/docs', 'ploeg'))
 PAGE_TYPES = {'landing', 'tutorial', 'how-to', 'explanation', 'reference'}
 AUDIENCES = {'owner', 'operator', 'integrator', 'contributor', 'agent'}
-OWNERS = {'glide', 'ploeg', 'vloer'}
+OWNERS = {'unfold', 'ploeg', 'vloer'}
 REQUIRED_FOLDERS = ('concepts/', 'how-to/', 'reference/')
 STALE_DAYS = 180
 

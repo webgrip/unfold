@@ -1,6 +1,6 @@
 ## Why
 
-Glide is developed with OpenSpec, and so are other repositories Ploeg works
+Unfold is developed with OpenSpec, and so are other repositories Ploeg works
 on. An OpenSpec change already says what to build (proposal, specs, design)
 and how far it has got (tasks), and its CLI has a JSON contract for both
 (`openspec instructions apply --json`, `openspec validate --json`). Today a Work
@@ -21,7 +21,7 @@ no store, claim, routing or executor change.
   in the Work Item description names it. The worker parses it after the clone;
   a malformed or conflicting directive parks the Run stuck with a reason (R4).
 - **The worker locates the change in the clone** (`openspec/changes/<id>` at
-  the repository root or in a nested application, as in Glide's
+  the repository root or in a nested application, as in Unfold's
   `apps/ploeg/openspec`) and refuses an absent or ambiguous one.
 - **The Role is briefed from the change.** With the `openspec` CLI on the
   image's PATH the brief is `openspec instructions apply --change <id> --json`;

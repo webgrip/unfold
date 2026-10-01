@@ -14,7 +14,7 @@ APP = '# App\n\nRead [the index](docs/index.md) and `docs/index.md` first. Run `
 
 class Fixture(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix='glide-agents-')
+        self.temporary = tempfile.TemporaryDirectory(prefix='unfold-agents-')
         self.root = Path(self.temporary.name)
         self.write('mise.toml', '[tasks.verify]\nrun = "true"\n\n[tasks."docs-check"]\nrun = "true"\n')
         self.write('AGENTS.md', ROOT)

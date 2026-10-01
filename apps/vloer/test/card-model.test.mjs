@@ -16,14 +16,14 @@ const value = (view, id, label) => tab(view, id).rows.find(entry => entry.label 
 
 function contractCard() {
   return {
-    workItemId: '138', title: 'Retry sandbox claims that never become ready', externalRef: 'VIK-1612', url: 'https://tracker.test/tasks/1612', team: 'glide-core',
+    workItemId: '138', title: 'Retry sandbox claims that never become ready', externalRef: 'VIK-1612', url: 'https://tracker.test/tasks/1612', team: 'unfold-core',
     target: { forge: 'forgejo', owner: 'webgrip', repo: 'glide' }, style: { skin: 'vloer-native', theme: null }, state: 'in_review',
     rarity: null, finish: 'matte', grade: null, condition: null,
     steward: { name: 'ryan', source: 'approver' }, roster: [{ name: 'ryan', roles: ['reviewer'] }],
     crew: [{ role: 'builder', writes: true, runs: 3, costUsd: 0.58, inputTokens: 12100000, outputTokens: 88000 }, { role: 'reviewer', writes: false, runs: 2 }],
     plays: [{ number: 57, url: 'https://forge.test/webgrip/glide/pulls/57', state: 'open', shiftId: '113', branch: 'ploeg/138-retry', headSha: 'abc', mergeCommitSha: '', mergedAt: null, mergedBy: '', closedAt: null, additions: 214, deletions: 38, changedFiles: 6, ci: { state: 'success', checks: [{ context: 'verify', state: 'success' }] }, reviews: [{ reviewer: 'ryan', state: 'approved', receivedAt: '2026-10-01T10:30:00Z', headSha: 'abc' }] }],
     totals: { costUsd: 0.58, authorizedUsd: 2, costStatus: 'observed', inputTokens: 12100000, outputTokens: 88000, cacheReadInputTokens: 9800000, cacheCreationInputTokens: 120000, turns: 61, toolCalls: 143, usageComplete: true, runs: 5, failedRuns: 1, rounds: 1, shifts: 1, firstRunAt: '2026-10-01T09:00:00Z', lastRunAt: '2026-10-01T09:35:00Z', runSeconds: 2100 },
-    events: [{ at: '2026-10-01T10:00:00Z', kind: 'pr_opened', actor: 'team:glide-core', detail: { number: 57 } }, { at: '2026-10-01T09:00:00Z', kind: 'minted', actor: 'team:glide-core', detail: {} }, { at: '2026-10-01T10:30:00Z', kind: 'review', actor: 'ryan', detail: { number: 57, state: 'approved' } }],
+    events: [{ at: '2026-10-01T10:00:00Z', kind: 'pr_opened', actor: 'team:unfold-core', detail: { number: 57 } }, { at: '2026-10-01T09:00:00Z', kind: 'minted', actor: 'team:unfold-core', detail: {} }, { at: '2026-10-01T10:30:00Z', kind: 'review', actor: 'ryan', detail: { number: 57, state: 'approved' } }],
     demo: false,
   };
 }
@@ -62,7 +62,7 @@ test('the back has six tabs and shows what the contract gives, oldest event firs
   assert.deepEqual([value(view, 'life', 'Days live').value, value(view, 'life', 'Days live').status], [notReported, 'unreported'], 'an older Ploeg without releases reads Not reported');
   assert.match(tab(view, 'life').note, /does not report deploys or releases yet, so the card stays matte/);
   assert.deepEqual(tab(view, 'context').lists[0].items.map(item => item.title), ['Card minted: the first Run started', 'Opened pull request #57', 'ryan: approved on #57']);
-  assert.equal(tab(view, 'context').lists[0].items[0].meta.endsWith('Agent · glide-core'), true);
+  assert.equal(tab(view, 'context').lists[0].items[0].meta.endsWith('Agent · unfold-core'), true);
 });
 
 test('missing and unknown fields read Not reported or Not collected yet, never an invented zero', () => {
@@ -164,7 +164,7 @@ test('the Work Item page holds a card slot above Rounds only when Ploeg sent a c
   assert.equal(cardSectionMarkup(detail, model), '');
   assert.equal(cardSectionMarkup(detail, { ...model, card: { ...ploegDemo.cards['114'] } }), '', 'a card for another Work Item is ignored');
   const html = detailMarkup(detail, { ...model, card: ploegDemo.cards['105'] });
-  assert.match(html, /<glide-card class="work-run-card" data-work-item="105"><\/glide-card>/);
+  assert.match(html, /<unfold-card class="work-run-card" data-work-item="105"><\/unfold-card>/);
   assert(html.indexOf('id="work-card"') < html.indexOf('id="work-rounds"'), 'the card sits above Rounds');
   assert(html.includes('id="work-rounds"'), 'the Runs stay');
 });

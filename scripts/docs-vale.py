@@ -41,7 +41,7 @@ def substitutions(model_list):
 def rule(swap):
     lines = [
         'extends: substitution',
-        'message: "Glide glossary: use \'%s\' instead of \'%s\'."',
+        'message: "Unfold glossary: use \'%s\' instead of \'%s\'."',
         'link: docs/reference/glossary.md',
         'level: warning',
         'ignorecase: true',
@@ -53,10 +53,10 @@ def rule(swap):
 
 if __name__ == '__main__':
     loaded = [yaml.safe_load((root / path).read_text()) for path in models]
-    accept = styles / 'config/vocabularies/Glide/accept.txt'
+    accept = styles / 'config/vocabularies/Unfold/accept.txt'
     accept.parent.mkdir(parents=True, exist_ok=True)
     accept.write_text('\n'.join(vocabulary([term for model in loaded for term in model.get('terms', []) or []])) + '\n')
-    terms = styles / 'Glide/Terms.yml'
+    terms = styles / 'Unfold/Terms.yml'
     terms.parent.mkdir(parents=True, exist_ok=True)
     terms.write_text(rule(substitutions(loaded)))
-    print(f'Glide Vale vocabulary: {accept.relative_to(root)} and {terms.relative_to(root)}')
+    print(f'Unfold Vale vocabulary: {accept.relative_to(root)} and {terms.relative_to(root)}')

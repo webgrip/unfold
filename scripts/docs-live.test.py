@@ -17,22 +17,22 @@ class LivePublication(unittest.TestCase):
         self.staging = Path(self.temp.name)
         manifest = json.dumps({'revision': 'a' * 40, 'sources': [{'path': 'index.md'}]}).encode()
         (self.staging / 'docs-sources.json').write_bytes(manifest)
-        (self.staging / 'index.md').write_bytes(b'# Glide')
+        (self.staging / 'index.md').write_bytes(b'# Unfold')
         self.responses = {
             'docs-sources.json': manifest,
-            'index.md': b'# Glide',
+            'index.md': b'# Unfold',
             '': b'<meta content="zensical-0.0.53">',
-            'llms.txt': b'[Home](https://example.test/glide/index.md)',
+            'llms.txt': b'[Home](https://example.test/unfold/index.md)',
             'llms-full.txt': b'a' * 40,
             'search.json': b'{"items":[{"location":""}]}',
             'pagefind/pagefind-entry.json': b'{"languages":{"en":{"page_count":1}}}',
         }
 
     def verify(self):
-        return live.verify('https://example.test/glide/', self.staging, lambda url: self.responses['' if url == 'https://example.test/glide' else url.removeprefix('https://example.test/glide/')])
+        return live.verify('https://example.test/unfold/', self.staging, lambda url: self.responses['' if url == 'https://example.test/unfold' else url.removeprefix('https://example.test/unfold/')])
 
     def test_directory_redirect_must_keep_the_public_prefix(self):
-        url = 'https://example.test/glide/vloer'
+        url = 'https://example.test/unfold/vloer'
         with patch.object(live, 'urlopen') as request:
             response = request.return_value.__enter__.return_value
             response.status = 200

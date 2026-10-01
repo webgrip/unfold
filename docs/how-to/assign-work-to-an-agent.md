@@ -1,7 +1,7 @@
 ---
 type: how-to
 audience: [owner, operator]
-owner: glide
+owner: unfold
 last_verified: 2026-09-23
 verified_by: "Read apps/ploeg pkg/config, pkg/httpapi/{server,withdraw,operator_activity}.go, pkg/store/withdraw.go, pkg/provider/{vikunja,clickup}, pkg/shiftengine, pkg/worker/worker.go, cmd/ploegd/main.go, ops/helm/ploeg/values.yaml and apps/vloer/src/ploeg.ts; go test ./pkg/httpapi -run Withdraw; apps/vloer npm test and npm run test:browser on feat/vloer-ploeg-activity. On 2026-09-30 the Vloer sections were re-read against apps/vloer at 68c90cf on feat/vloer-redesign, after the screen rebuild (public/shell.js, core/route.js, core/live.js, core/reasons.js, views/, now.js, ploeg.js, ploeg-activity.js; src/http.ts, src/ploeg.ts)"
 ---

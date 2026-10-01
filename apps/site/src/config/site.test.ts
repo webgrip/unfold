@@ -5,8 +5,8 @@ import { LOCAL_SITE_URL, SITE_INDEXABLE, SITE_URL, isIndexable, resolveSiteUrl }
 
 describe('site indexing', () => {
   test('a Cloudflare platform hostname is never indexed', () => {
-    assert.equal(isIndexable('https://glide-site.example.workers.dev'), false);
-    assert.equal(isIndexable('https://glide-site.pages.dev'), false);
+    assert.equal(isIndexable('https://unfold-site.example.workers.dev'), false);
+    assert.equal(isIndexable('https://unfold-site.pages.dev'), false);
   });
 
   test('a local build is never indexed', () => {
@@ -15,7 +15,7 @@ describe('site indexing', () => {
   });
 
   test('a real domain is indexed', () => {
-    assert.equal(isIndexable('https://glide.example'), true);
+    assert.equal(isIndexable('https://unfold.example'), true);
     assert.equal(isIndexable('https://www.workers.dev.example'), true);
   });
 
@@ -36,13 +36,13 @@ describe('site URL', () => {
 
   test('the deploy passes the workers.dev origin through unchanged', () => {
     assert.equal(
-      resolveSiteUrl('https://glide-site.example.workers.dev'),
-      'https://glide-site.example.workers.dev',
+      resolveSiteUrl('https://unfold-site.example.workers.dev'),
+      'https://unfold-site.example.workers.dev',
     );
   });
 
   test('a URL with a path or trailing slash is refused', () => {
-    assert.throws(() => resolveSiteUrl('https://glide-site.example.workers.dev/'));
-    assert.throws(() => resolveSiteUrl('https://glide.example/site'));
+    assert.throws(() => resolveSiteUrl('https://unfold-site.example.workers.dev/'));
+    assert.throws(() => resolveSiteUrl('https://unfold.example/site'));
   });
 });

@@ -1,7 +1,7 @@
 ---
 type: how-to
 audience: [owner, integrator, agent]
-owner: glide
+owner: unfold
 last_verified: 2026-09-23
 verified_by: "research 2026-09-22-agents-md; Read apps/ploeg pkg/worker/{worker,task,environment,target,instructions}.go, pkg/harness/adapter.go, pkg/harness/adapters/*, pkg/harness/harnesstest/{canary.go,live_test.go}, cmd/ploegd/main.go, ops/helm/ploeg/values.yaml, templates/_helpers.tpl and Ploeg ADR-0013 on 2026-09-23"
 ---

@@ -12,7 +12,7 @@ Purpose: show a consistent way to supervise work and judge its evidence. The dem
 
 ## Before the meeting
 
-Use Node 24 and Git. From the Glide root, run `mise run demo`; from `apps/vloer`, run:
+Use Node 24 and Git. From the Unfold root, run `mise run demo`; from `apps/vloer`, run:
 
 ```sh
 npm run demo

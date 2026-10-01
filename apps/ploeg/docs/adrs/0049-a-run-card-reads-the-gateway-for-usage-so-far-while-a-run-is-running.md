@@ -40,7 +40,7 @@ Chosen option: "**the card endpoint reads the gateway for each running Run, into
 ### Consequences
 
 * Good, because a running Run shows its real spend and progress. A stalled Run now looks different from a busy one.
-* Good, because `totals` and settlement are untouched. A reading can be wrong or late without changing what Glide charges.
+* Good, because `totals` and settlement are untouched. A reading can be wrong or late without changing what Unfold charges.
 * Bad, because each card read during a Run costs one key list and one spend-log read per running Run. Vloer refreshes a card while live updates are on. The deadline caps the delay to three seconds, but a long Run's spend log grows with every call.
 * Bad, because the reading is provisional. LiteLLM writes spend logs asynchronously, so the last few calls can be missing, and the settled figure can still differ slightly.
 

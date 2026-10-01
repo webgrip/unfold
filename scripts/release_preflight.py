@@ -36,7 +36,7 @@ for host, user, token in [('harbor.webgrip.dev', os.environ['HARBOR_ROBOT_USER']
         registry.headers('webgrip/' + name, 'pull,push')
     print(host + ': registry authentication passed')
 if not os.environ.get('OVSX_PAT'):
-    raise RuntimeError('Glide has no Open VSX publishing credential')
+    raise RuntimeError('Unfold has no Open VSX publishing credential')
 url = os.environ['ACTIONS_ID_TOKEN_REQUEST_URL']
 url += ('&' if '?' in url else '?') + urllib.parse.urlencode({'audience': 'openbao-cosign'})
 data, _ = request(url, headers={'Authorization': 'Bearer ' + os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']})
@@ -47,6 +47,6 @@ require_same(claims['repository'], 'webgrip/glide', 'signing identity')
 data, _ = request('http://openbao.security.svc.cluster.local:8200/v1/auth/forgejo/login', method='POST', data=json.dumps({'jwt': jwt, 'role': 'cosign-signer'}).encode(), headers={'Content-Type': 'application/json'})
 session = json.loads(data)['auth']
 if 'cosign-signer' not in session['policies']:
-    raise RuntimeError('Glide did not receive the signing policy')
+    raise RuntimeError('Unfold did not receive the signing policy')
 request('http://openbao.security.svc.cluster.local:8200/v1/auth/token/revoke-self', method='POST', data=b'', headers={'X-Vault-Token': session['client_token']})
-print('Glide OIDC signing authorization passed; temporary token revoked')
+print('Unfold OIDC signing authorization passed; temporary token revoked')

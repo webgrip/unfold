@@ -8,7 +8,7 @@ verified_by: "source read of apps/vloer/src and apps/ploeg/pkg at 352fa52; no co
 
 # Vloer as Ploeg's front end (proposal)
 
-**Status: proposed. Nothing on this page is implemented yet.** It explains how to finish [Glide ADR-0002](../../../docs/adr/adr-0002-ploeg-is-the-only-engine.md) in small, safe steps. Under that decision Ploeg executes every Run and Vloer only presents, steers and reviews. [Vloer ADR-0023](adrs/0023-vloer-submits-work-to-ploeg-and-never-executes-it.md) records the choices recommended here. The [current architecture](architecture.md) and the [shared execution contract](contracts/ploeg-execution.md) still describe what runs today.
+**Status: proposed. Nothing on this page is implemented yet.** It explains how to finish [Unfold ADR-0002](../../../docs/adr/adr-0002-ploeg-is-the-only-engine.md) in small, safe steps. Under that decision Ploeg executes every Run and Vloer only presents, steers and reviews. [Vloer ADR-0023](adrs/0023-vloer-submits-work-to-ploeg-and-never-executes-it.md) records the choices recommended here. The [current architecture](architecture.md) and the [shared execution contract](contracts/ploeg-execution.md) still describe what runs today.
 
 ## Where we start
 

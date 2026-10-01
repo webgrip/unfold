@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: glide-release-preview
+  group: unfold-release-preview
   cancel-in-progress: false
 
 jobs:
@@ -43,6 +43,6 @@ jobs:
         uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v2.7.5
         with:
           package-path: apps
-          package-name: glide
+          package-name: unfold
           token: ${{ secrets.WEBGRIP_CI_TOKEN }}
           dry-run: 'true'

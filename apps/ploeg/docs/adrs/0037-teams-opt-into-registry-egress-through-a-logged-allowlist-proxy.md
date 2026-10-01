@@ -66,7 +66,7 @@ fetched, and lets a registries worker run with no external DNS at all.
 
 ### Where the profile lives
 
-* **Chart (Glide).** `executor.network.profile` is the global default,
+* **Chart (Unfold).** `executor.network.profile` is the global default,
   `executor.teams[].network.profile` overrides it, and
   `plan[].roles[].network.profile` overrides the team, in the same role, team,
   global chain as `harness:`. The schema accepts `airgapped` and `registries`
@@ -169,7 +169,7 @@ profile does not allow.
 
 The **module-host allowlist** is a separate thing: a **path** filter on
 requests to those two hosts. It admits a module whose path starts with a host
-the target repositories' `go.sum` files already use (for Glide's
+the target repositories' `go.sum` files already use (for Unfold's
 `apps/ploeg/go.sum` today: `github.com`, `golang.org`, `gopkg.in` and
 `go.uber.org`), and it lives in the cluster's proxy configuration. A public
 vanity path such as `go.uber.org/...` still needs an entry here, because it is
@@ -331,7 +331,7 @@ decisions on 2026-10-01.
   cert-manager and trust-manager are installed.
 * 2026-10-01 — Accepted by the owner with the decisions under *Owner decisions*.
 * Implementation: VIK-1332 (chart profile) and VIK-1333 (Run attribution) in
-  Glide; VIK-1334 (proxy and policies), VIK-1336 (DNS lockdown), VIK-1335
+  Unfold; VIK-1334 (proxy and policies), VIK-1336 (DNS lockdown), VIK-1335
   (per-profile probes) and VIK-1337 (first team) in homelab-cluster; all under
   epic VIK-1276.
 * Related: [0034](0034-the-harness-gets-placeholders-the-worker-keeps-credentials.md),

@@ -33,7 +33,7 @@ description = "Qualify standalone and Ploeg-managed execution without paid model
 
 [tasks.evaluate]
 run = "node scripts/eval/eval.mjs"
-description = "Compare prompt, model and harness variants on fixture Work Items; deterministic unless GLIDE_EVAL_LIVE=1"
+description = "Compare prompt, model and harness variants on fixture Work Items; deterministic unless UNFOLD_EVAL_LIVE=1"
 
 [tasks.docs-check]
 run = "uv run --frozen python scripts/docs.py --check"
@@ -95,7 +95,7 @@ description = "Check external links in current docs with lychee; the weekly work
 [tasks.docs-vale]
 tools = { vale = "3.23.0" }
 run = ["uv run --frozen python scripts/docs-vale.py", "vale --no-exit --glob='!**/{research,evidence,openspec,design,adr,adrs,backlog}/**' README.md docs apps/vloer/docs apps/ploeg/docs"]
-description = "Lint current docs against the generated Glide vocabulary; warnings only"
+description = "Lint current docs against the generated Unfold vocabulary; warnings only"
 
 [tasks.docs-live-check]
 run = ["uv run --frozen python scripts/docs.py --stage-only", "uv run --frozen python scripts/docs-live.py"]

@@ -9,7 +9,7 @@ generated_by: "mise run domain"
 
 *Generated from `model.yaml` — do not edit by hand.*
 
-The [combined Glide glossary](../../../../docs/reference/glossary.md) lists every term of every model once, with its owner and the words it must not be confused with.
+The [combined Unfold glossary](../../../../docs/reference/glossary.md) lists every term of every model once, with its owner and the words it must not be confused with.
 
 ## Admission
 *Context: Dispatch*
@@ -35,7 +35,7 @@ The normalized tracker event that offers an ingested Work Item to agents, transi
 ## Authority
 *Context: Dispatch*
 
-The one party entitled to approve a Run, set its budget and grant or revoke its credentials. Ploeg is the Authority for every Run (Glide ADR-0002). A Run never switches to another authority because a connection fails.
+The one party entitled to approve a Run, set its budget and grant or revoke its credentials. Ploeg is the Authority for every Run (Unfold ADR-0002). A Run never switches to another authority because a connection fails.
 
 **See also:** [Admission](#admission), [Inference Account](#inference-account), [Push Credential](#push-credential), [Run](#run)  
 
@@ -56,7 +56,7 @@ An immutable proposed repository tree with a canonical commit on an approved bas
 ## Executor
 *Context: Execution*
 
-The component that performs admitted Runs and reports progress and outcomes. Current unattended execution uses Kubernetes workers; Vloer performs delegated operator execution until Glide ADR-0002 moves it to ploeg-worker. The controller recovers missing reports through expiry and reconciliation, without a Kubernetes Job watcher.
+The component that performs admitted Runs and reports progress and outcomes. Current unattended execution uses Kubernetes workers; Vloer performs delegated operator execution until Unfold ADR-0002 moves it to ploeg-worker. The controller recovers missing reports through expiry and reconciliation, without a Kubernetes Job watcher.
 
 **See also:** [Run](#run)  
 
@@ -191,7 +191,7 @@ The operator-declared mapping from (provider, Scope, actor, hint) to a Team and 
 ## Run
 *Context: Execution*
 
-One execution of one Role against a Work Item, realized by an Executor as a Kubernetes Job or a delegated workbench execution. A Lease may accumulate several Runs (roles, retries, resumes). The runner reports its outcome; controller expiry and reconciliation recover missing reports while preserving operator stop intent. "Job" is reserved for the Kubernetes object and is never a domain term. A delegated Run may contain several Vloer Steps until Vloer's engine is retired (Glide ADR-0002).
+One execution of one Role against a Work Item, realized by an Executor as a Kubernetes Job or a delegated workbench execution. A Lease may accumulate several Runs (roles, retries, resumes). The runner reports its outcome; controller expiry and reconciliation recover missing reports while preserving operator stop intent. "Job" is reserved for the Kubernetes object and is never a domain term. A delegated Run may contain several Vloer Steps until Vloer's engine is retired (Unfold ADR-0002).
 
 **Do not use:** job (as a domain term), role run  
 **Not to be confused with** [Shift](#shift): The whole attempt on a Work Item, which contains one or more Runs.  
@@ -301,7 +301,7 @@ This model uses these terms with their owners' meaning: [Crew](../../../../docs/
 
 ## Decisions cited
 
-- [Glide ADR-0002](../../../../docs/adr/adr-0002-ploeg-is-the-only-engine.md): Ploeg is the only execution engine and Vloer is its front end.
+- [Unfold ADR-0002](../../../../docs/adr/adr-0002-ploeg-is-the-only-engine.md): Ploeg is the only execution engine and Vloer is its front end.
 
 ---
 

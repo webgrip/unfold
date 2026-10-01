@@ -10,7 +10,7 @@ review-by: 2026-11-30
 
 ## Context and Problem Statement
 
-Glide ADR-0003 says work can create work: a Run may split a Work Item, make
+Unfold ADR-0003 says work can create work: a Run may split a Work Item, make
 one Ready, or record work it discovered (Product R12). Ploeg had the
 `follow_up_created` Outcome and the `follow_up` origin but no way for a Run to
 create anything. The same ADR warns that agents creating work can flood the
@@ -163,7 +163,7 @@ when the Work Item is already Ready.
 
 ## More Information
 
-* Glide [ADR-0003](../../../../docs/adr/adr-0003-the-unit-of-work-is-the-work-item.md)
+* Unfold [ADR-0003](../../../../docs/adr/adr-0003-the-unit-of-work-is-the-work-item.md)
   and [Product R12](../../../../docs/domain/rules.md#r12).
 * [ADR-0012](0012-two-level-budgets-authorized-and-settled.md) for the pool
   that caps a created Work Item's Shift, and

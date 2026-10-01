@@ -1,4 +1,4 @@
-site_name: Glide
+site_name: Unfold
 site_description: Units of work become review-ready pull requests written by AI agents
 site_url: https://docs.webgrip.dev/glide/
 repo_url: https://forgejo.webgrip.dev/webgrip/glide
@@ -18,7 +18,7 @@ nav:
       - Architecture: concepts/architecture.md
       - Inside a Run: concepts/inside-a-run.md
       - Journeys: concepts/journeys.md
-      - Who Glide is for: concepts/who-glide-is-for.md
+      - Who Unfold is for: concepts/who-unfold-is-for.md
   - How-to:
       - Assign work to an agent: how-to/assign-work-to-an-agent.md
       - Review an agent pull request: how-to/review-an-agent-pr.md

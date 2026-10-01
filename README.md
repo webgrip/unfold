@@ -1,8 +1,8 @@
-# Glide
+# Unfold
 
-Glide turns units of work into pull requests that AI agents write and you review. A unit of work, a *Work Item*, is something you have decided to do, or a problem described well enough that a solution can be formulated or at least conceived. You assign it to an agent team. Glide runs the agents with a budget and a credential that expires, until a pull request is ready for your review. Work can also create work: splitting a Work Item or making it ready is a job for agents too.
+Unfold turns units of work into pull requests that AI agents write and you review. A unit of work, a *Work Item*, is something you have decided to do, or a problem described well enough that a solution can be formulated or at least conceived. You assign it to an agent team. Unfold runs the agents with a budget and a credential that expires, until a pull request is ready for your review. Work can also create work: splitting a Work Item or making it ready is a job for agents too.
 
-[Ploeg](apps/ploeg/README.md) authorizes, budgets and runs every agent Run. [Vloer](apps/vloer/README.md) is its front end. Both live here and deploy separately. Glide is an internal, pre-1.0 tool that is self-hosted on Kubernetes.
+[Ploeg](apps/ploeg/README.md) authorizes, budgets and runs every agent Run. [Vloer](apps/vloer/README.md) is its front end. Both live here and deploy separately. Unfold is an internal, pre-1.0 tool that is self-hosted on Kubernetes.
 
 ```sh
 mise trust

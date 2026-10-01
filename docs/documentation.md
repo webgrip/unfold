@@ -1,14 +1,14 @@
 ---
 type: reference
 audience: [contributor, agent]
-owner: glide
+owner: unfold
 last_verified: 2026-09-23
 verified_by: "mise run docs-check"
 ---
 
 # Documentation policy
 
-A page earns its place by answering one reader's question, or by preserving evidence that a decision depends on. These rules keep Glide's documentation small, true and easy to navigate.
+A page earns its place by answering one reader's question, or by preserving evidence that a decision depends on. These rules keep Unfold's documentation small, true and easy to navigate.
 
 ## Every page has one type
 
@@ -28,7 +28,7 @@ A page that needs two types becomes two pages. Current pages (every type except 
 ---
 type: how-to
 audience: [owner, operator]
-owner: glide        # glide, ploeg or vloer
+owner: unfold        # unfold, ploeg or vloer
 last_verified: 2026-09-23
 verified_by: "the command, test or source read that confirmed it"
 ---

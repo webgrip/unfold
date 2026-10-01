@@ -26,7 +26,7 @@ def report(pages, today, days):
         lines.append(f'warning: {len(found)} current page(s) were last verified more than {days} days before {today}; re-verify them and update last_verified and verified_by:')
         lines += [f'  {page}: last_verified {verified} ({age} days)' for page, verified, age in found]
     else:
-        lines.append(f'Glide docs: no current page was last verified more than {days} days before {today}.')
+        lines.append(f'Unfold docs: no current page was last verified more than {days} days before {today}.')
     marked = rules.unverified(pages)
     if marked:
         lines.append(f'warning: {len(marked)} current page(s) are marked unverified; verify them, then replace unverified with last_verified and verified_by:')

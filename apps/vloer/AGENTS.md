@@ -4,7 +4,7 @@ Vloer is Ploeg's front end: durable operator sessions, intervention and reviewab
 
 ## Commands
 
-Run `mise exec -- npm test` and `mise exec -- npm run check` in this directory before delivery. `mise run demo` from the Glide root starts the deterministic demo.
+Run `mise exec -- npm test` and `mise exec -- npm run check` in this directory before delivery. `mise run demo` from the Unfold root starts the deterministic demo.
 
 ## Rules
 

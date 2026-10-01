@@ -1,14 +1,14 @@
 ---
 type: explanation
 audience: [owner, contributor, operator, agent]
-owner: glide
+owner: unfold
 last_verified: 2026-09-22
 verified_by: "source read of apps/ploeg and apps/vloer at 69d1af2; ops/helm charts"
 ---
 
 # Architecture
 
-Glide has two deployable applications:
+Unfold has two deployable applications:
 
 * **Ploeg** runs agent work. It is a Go controller with PostgreSQL, plus short-lived worker pods.
 * **Vloer** is the front end where a person follows and steers that work. It is a Node web server, with a VS Code extension.
@@ -30,7 +30,7 @@ Quality goals, in priority order:
 
 * Self-hosted: Kubernetes, PostgreSQL, a LiteLLM gateway, Forgejo (the leading forge) and Vikunja or ClickUp.
 * One owner operates and maintains it. Simplicity outranks generality.
-* Production desired state lives in the separate `homelab-cluster` repository. Glide builds images and Helm charts.
+* Production desired state lives in the separate `homelab-cluster` repository. Unfold builds images and Helm charts.
 
 ## Context
 
@@ -39,17 +39,17 @@ flowchart LR
     you["You<br/>owner and reviewer"]
     tracker["Tracker<br/>Vikunja or ClickUp"]
     forge["Forge<br/>Forgejo (GitLab adapter exists)"]
-    glide["Glide<br/>Ploeg + Vloer"]
+    unfold["Unfold<br/>Ploeg + Vloer"]
     llm["LiteLLM gateway<br/>model providers behind it"]
     k8s["Kubernetes cluster<br/>KEDA, runs worker pods"]
     you -->|create and assign Work Items| tracker
-    you -->|follow and steer work| glide
+    you -->|follow and steer work| unfold
     you -->|review and merge PRs| forge
-    tracker -->|assignment webhooks| glide
-    glide -->|comments and status| tracker
-    glide -->|branches, PRs, review comments| forge
-    glide -->|mint, block and meter per-run keys| llm
-    glide -->|run workers| k8s
+    tracker -->|assignment webhooks| unfold
+    unfold -->|comments and status| tracker
+    unfold -->|branches, PRs, review comments| forge
+    unfold -->|mint, block and meter per-run keys| llm
+    unfold -->|run workers| k8s
 ```
 
 ## Containers
@@ -96,7 +96,7 @@ flowchart TB
 | The pull request is where agents and people exchange results | [Ploeg ADR-0011](../../apps/ploeg/docs/adrs/0011-the-pull-request-is-the-blackboard.md) |
 | Budgets are authorized before a Run and settled after it | [Ploeg ADR-0012](../../apps/ploeg/docs/adrs/0012-two-level-budgets-authorized-and-settled.md) |
 | Push rights are minted per Run | [Ploeg ADR-0013](../../apps/ploeg/docs/adrs/0013-push-rights-are-minted-per-run.md) |
-| Ploeg is the only engine; Vloer is the front end | [Glide ADR-0002](../adr/adr-0002-ploeg-is-the-only-engine.md) |
+| Ploeg is the only engine; Vloer is the front end | [Unfold ADR-0002](../adr/adr-0002-ploeg-is-the-only-engine.md) |
 
 Every decision across the three ledgers is listed in the [decision register](../reference/decisions.md).
 
@@ -107,7 +107,7 @@ Every decision across the three ledgers is listed in the [decision register](../
 | Two execution engines until Vloer delegates to `ploeg-worker` | Accepted in ADR-0002; migration not started |
 | Candidate delivery stores approvals, but nothing publishes | Delivery ends at the pull request |
 | Failed checks and requested changes act only for Teams that set `forgeFollowUps` | Off by default; other forge events are recorded only |
-| Releases have not moved to Glide yet | See [first cutover](../operations/first-cutover.md) |
+| Releases have not moved to Unfold yet | See [first cutover](../operations/first-cutover.md) |
 | Agent quality is unmeasured beyond single fixtures | A comparison on real Work Items is an open option. [Proposed KPIs](../reference/kpis.md) define what to measure |
 
 Related: [Ploeg architecture](../../apps/ploeg/docs/architecture.md), [Vloer architecture](../../apps/vloer/docs/architecture.md), [historical C4 views](../landscape/c4.md).

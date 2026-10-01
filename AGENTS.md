@@ -1,6 +1,6 @@
-# Glide
+# Unfold
 
-Glide turns units of work (Work Items) into pull requests that are ready for human review. Ploeg (`apps/ploeg`, Go) authorizes, budgets and executes every agent Run. Vloer (`apps/vloer`, TypeScript) is its front end; without Ploeg it runs only the deterministic demo ([ADR-0002](docs/adr/adr-0002-ploeg-is-the-only-engine.md)). Use the [glossary](docs/reference/glossary.md) terms: a Run is one Role executing against a Work Item, and a Shift is the whole attempt.
+Unfold turns units of work (Work Items) into pull requests that are ready for human review. Ploeg (`apps/ploeg`, Go) authorizes, budgets and executes every agent Run. Vloer (`apps/vloer`, TypeScript) is its front end; without Ploeg it runs only the deterministic demo ([ADR-0002](docs/adr/adr-0002-ploeg-is-the-only-engine.md)). Use the [glossary](docs/reference/glossary.md) terms: a Run is one Role executing against a Work Item, and a Shift is the whole attempt.
 
 ## Commands
 
@@ -22,7 +22,7 @@ Glide turns units of work (Work Items) into pull requests that are ready for hum
 ## Where things live
 
 - Each application's `AGENTS.md` adds its own rules. Read it before changing that application.
-- Product direction: Glide is self-hosted first, then offered to agencies as a hosted service. [Who Glide is for](docs/concepts/who-glide-is-for.md) explains it; ADRs 0005–0010 record the decisions, and none of it is implemented yet. Read that page before product, pricing, portal or tenancy work.
+- Product direction: Unfold is self-hosted first, then offered to agencies as a hosted service. [Who Unfold is for](docs/concepts/who-unfold-is-for.md) explains it; ADRs 0005–0010 record the decisions, and none of it is implemented yet. Read that page before product, pricing, portal or tenancy work.
 - Shared guides are in `docs/`, starting at [docs/index.md](docs/index.md). Application contracts, ADRs and research stay inside the application.
 - Before changing behavior that crosses Ploeg and Vloer, read [managed execution](docs/workflows/managed-execution.md).
-- `.openhands/`, `.opencode/` and `.agents/` hold configuration for agents working on Glide itself. What Ploeg supports for other repositories is defined in `apps/ploeg/pkg/harness` and `apps/ploeg/docs/contracts/`.
+- `.openhands/`, `.opencode/` and `.agents/` hold configuration for agents working on Unfold itself. What Ploeg supports for other repositories is defined in `apps/ploeg/pkg/harness` and `apps/ploeg/docs/contracts/`.

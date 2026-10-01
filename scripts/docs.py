@@ -41,7 +41,7 @@ if args.domain:
         generate_domain(folder, root / folder)
     (root / glossary).parent.mkdir(parents=True, exist_ok=True)
     (root / glossary).write_text(combined_glossary())
-    print(f'Glide domain: {len(domain_models)} models and {glossary}')
+    print(f'Unfold domain: {len(domain_models)} models and {glossary}')
     sys.exit()
 staging = root / '.build/docs'
 site = root / '.build/site'
@@ -52,7 +52,7 @@ if args.check:
     for test in ['docs-output.test.py', 'docs-live.test.py', 'docs-rules.test.py', 'docs-decisions.test.py', 'docs-configuration.test.py', 'docs-adr.test.py', 'agents-files.test.py', 'stage-explicit-paths.test.py', 'docs-vale.test.py', 'tutorial-smoke.test.py']:
         subprocess.run([sys.executable, str(root / 'scripts' / test)], check=True)
     for folder in domain_models:
-        with tempfile.TemporaryDirectory(prefix='glide-domain-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='unfold-domain-') as temporary:
             generate_domain(folder, temporary)
             for generated in Path(temporary).glob('*.md'):
                 assert generated.read_bytes() == (root / folder / generated.name).read_bytes(), f'Stale generated domain view: {folder}/{generated.name}; run mise run domain'
@@ -177,7 +177,7 @@ if failures:
     'revision': revision,
     'sources': [{'source': source.relative_to(root).as_posix(), 'path': relative.as_posix(), 'sha256': hashlib.sha256(source.read_bytes()).hexdigest()} for source, relative in sorted(mapping.items())],
 }, indent=2) + '\n')
-print(f'Glide docs: {len(mapping)} sources, {checked} repository links')
+print(f'Unfold docs: {len(mapping)} sources, {checked} repository links')
 if not args.stage_only:
     subprocess.run([sys.executable, '-m', 'mkdocs', 'build', '--strict', '--config-file', str(root / 'mkdocs.yml')], cwd=root, check=True)
     subprocess.run([sys.executable, str(root / 'scripts/docs-output.py'), '--site', str(site)], cwd=root, check=True)

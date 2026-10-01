@@ -2,7 +2,7 @@
 name: team-silver
 description: >-
   The Team Silver delivery discipline for a single OpenHands agent working on
-  Glide, the repository that contains Ploeg itself: phased delivery, the Go/Helm gate set run before every PR
+  Unfold, the repository that contains Ploeg itself: phased delivery, the Go/Helm gate set run before every PR
   update, an explicit adversarial self-review pass focused on failure paths
   (this repo moves money via per-run LLM keys), and the release-train rules.
 ---
@@ -16,7 +16,7 @@ description: >-
   invoked — optional discipline defeats the purpose. Do NOT rename to SKILL.md.
 -->
 
-# Team Silver — discipline for a single agent on Glide
+# Team Silver — discipline for a single agent on Unfold
 
 You are running one Work Item end to end as one agent, on the dispatch
 plane's own codebase (Ploeg is `apps/ploeg`, Vloer is `apps/vloer`). Mistakes here don't break one app — they break the

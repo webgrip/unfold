@@ -6,7 +6,7 @@ supersedes: none
 review-by: 2026-10-31
 ---
 
-# The OpenAI Agents API stays outside the Run until it can take an authorized budget; Glide meets it over MCP and runs Codex itself
+# The OpenAI Agents API stays outside the Run until it can take an authorized budget; Unfold meets it over MCP and runs Codex itself
 
 ## Context and Problem Statement
 
@@ -35,7 +35,7 @@ way, or ignore it.
 
 * Add an `openai-agents` harness adapter that drives hosted sessions now
 * Reach OpenAI's harness through the open-source Codex under Ploeg's own
-  gateway, and let Agents API sessions reach Glide over MCP
+  gateway, and let Agents API sessions reach Unfold over MCP
 * Ignore it
 
 ## Decision Outcome
@@ -62,7 +62,7 @@ Concretely:
 * **MCP.** The north-facing MCP server being drafted on branch
   `docs/mcp-access` names the Agents API as a target client. The Agents API
   reaches HTTP MCP servers from OpenAI's side with Vault-held credentials, so
-  an OpenAI-built assistant can read Glide's state and propose work. Proposed
+  an OpenAI-built assistant can read Unfold's state and propose work. Proposed
   work is held for approval
   ([0031](0031-runs-create-work-items-held-for-approval-within-limits.md)), and
   admission and budget stay in Ploeg.
@@ -73,9 +73,9 @@ Concretely:
 
 * Good, because every Run keeps an authorized, gateway-enforced budget, and the
   review can point to a missing API field rather than to a judgement.
-* Good, because Glide gains an OpenAI-facing surface for the cost of an MCP
+* Good, because Unfold gains an OpenAI-facing surface for the cost of an MCP
   server it was already designing.
-* Bad, because Glide gives up the managed harness's compaction, in-session
+* Bad, because Unfold gives up the managed harness's compaction, in-session
   recovery, subagents, hosted browser and web search until Codex, run by
   Ploeg, provides whichever of them the open-source harness carries.
 * Bad, because once OpenAI documents a settable session budget, a GitHub-only
