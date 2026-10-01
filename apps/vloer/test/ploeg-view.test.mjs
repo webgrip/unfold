@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activePloegLane, appendPage, attemptLabel, cancelDialogMarkup, cancelSummary, checkoutDialogMarkup, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runAttempts, runGroups, runOrder, runResult, teamOverview, workItemRef, workMarkup, writerAccount } from '../public/ploeg.js';
+import { activePloegLane, appendPage, attemptLabel, cancelDialogMarkup, cancelSummary, canStop, cellSummary, checkoutDialogMarkup, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runAttempts, runGroups, runOrder, runResult, teamOverview, workItemRef, workMarkup, writerAccount } from '../public/ploeg.js';
 import { detailReason } from '../public/core/reasons.js';
 import { grafanaTeam, runExplorer } from '../public/core/observability.js';
 import { ploegDemo } from '../src/ploeg-demo.ts';
@@ -86,9 +86,10 @@ test('the Needs you lane shows flat rows with their reason chip when no reason r
   const html = workMarkup(model({ data: teamOverview(overview('delivery', items)), lane: 'needs_human' }));
   assert.match(html, /<ul class="work-groups"><li class="work-flat">/);
   assert.doesNotMatch(html, /class="reason-band"/, 'a reason no other Work Item shares gets no header');
-  for (const chip of ['Every Round ran', 'Reviewer still wants changes', 'Cluster kept stopping the writer', 'Needs a decision']) assert.match(html, new RegExp(`<span class="chip" data-tone="attention" title="[^"]*"><span>${chip}</span></span>`), chip);
+  for (const chip of ['Every Round ran, no result', 'Reviewer still wants changes', 'Cluster kept stopping the writer', 'Needs a decision']) assert.match(html, new RegExp(`<span class="chip" data-tone="attention" title="[^"]*"><span>${chip}</span></span>`), chip);
   assert.match(html, /<span>Not routed<\/span>/, 'the routing warning stays on its row');
-  assert.match(html, /<span class="work-row-attempts">4 attempts<\/span><span>Round 4<\/span>/);
+  assert.match(html, /Vikunja DEMO-9<\/span><span class="work-row-repo">[^]*?<\/span><span>Round 4<\/span>/);
+  assert.doesNotMatch(html, /work-row-attempts/, 'rows count Rounds, not a second word for Runs');
   assert.match(html, /class="work-row-facts dots"/, 'row facts join with dots that never start a line');
   assert.doesNotMatch(html, /work-row-spend/, 'demo rows show no budget meter: nothing was spent');
   assert.doesNotMatch(html, new RegExp(`US\\$${space}0,00`));
@@ -134,11 +135,11 @@ test('grouping bands only reasons two or more Work Items share, after the flat r
   const other = ploegDemo.items.find(item => item.id === '109');
   const items = [{ ...other, id: '2' }, ...['7', '3', '9'].map(id => ({ ...base, id }))];
   const groups = reasonGroups(items);
-  assert.deepEqual(groups.map(group => [group.grouped, group.reason.chip, group.items.map(item => item.id)]), [[false, 'Reviewer still wants changes', ['2']], [true, 'Every Round ran', ['7', '3', '9']]]);
+  assert.deepEqual(groups.map(group => [group.grouped, group.reason.chip, group.items.map(item => item.id)]), [[false, 'Reviewer still wants changes', ['2']], [true, 'Every Round ran, no result', ['7', '3', '9']]]);
   const html = workMarkup(model({ data: teamOverview(overview('delivery', items)), lane: 'needs_human' }));
-  assert.match(html, /<li class="work-group" role="group" aria-labelledby="work-group-1"><div class="reason-band" data-tone="attention"><span class="reason-band-icon" aria-hidden="true"><svg[^]*?<\/svg><\/span><h3 class="reason-band-title" id="work-group-1">Every Round ran<span class="reason-band-count num"><span class="sr-only">, <\/span>3<span class="sr-only"> Work Items<\/span><\/span><\/h3><p class="reason-band-fix" title="[^"]+">Open the Work Item to see whether the writer changed nothing or the reviewer still wants changes\.<\/p><\/div>/);
+  assert.match(html, /<li class="work-group" role="group" aria-labelledby="work-group-1"><div class="reason-band" data-tone="attention" title="[^"]+"><span class="reason-band-icon" aria-hidden="true"><svg[^]*?<\/svg><\/span><h3 class="reason-band-title" id="work-group-1">Every Round ran, no result<span class="reason-band-count num"><span class="sr-only">, <\/span>3<span class="sr-only"> Work Items<\/span><\/span><\/h3><p class="reason-band-fix" title="[^"]+">Open the Work Item to see whether the writer changed nothing or the reviewer still wants changes\.<\/p><\/div>/);
   const band = html.slice(html.indexOf('class="reason-band"'));
-  assert.doesNotMatch(band, /<span>Every Round ran<\/span>/, 'rows in a band leave the reason to it');
+  assert.doesNotMatch(band, /<span>Every Round ran, no result<\/span>/, 'rows in a band leave the reason to it');
   assert.match(band, /<span>Not routed<\/span>/, 'rows keep their own routing warning');
 });
 
@@ -264,7 +265,7 @@ test('a needs-you item explains why with Ploeg’s own words, the evidence Runs 
   assert.match(html, /data-action="work-run" data-id="44"/);
   assert.match(html, /Read the findings\. Finish the branch by hand, or sharpen the ticket\.<\/p><div class="work-step-actions"><a class="button primary" href="https:\/\/forge\.example\.invalid\/example\/order-service\/pulls\/7"[^>]*data-link-out="pr">[^]*Open pull request #7[^]*<button type="button" class="button ghost work-jump" data-action="work-run" data-id="44">Read the reviewer’s findings/, 'the step says which button to press: the pull request first, then the findings');
   assert.match(html, /Then assign the task to the Team again in Vikunja\./);
-  assert.match(html, /Starting again from Vloer is proposed Ploeg work\./);
+  assert.doesNotMatch(html, /proposed Ploeg work/, 'the page never advertises the roadmap');
   assert.match(html, /<div class="work-sticky-actions" role="group" aria-label="Next step"><a class="button primary"[^>]*>[^]*Open pull request #7/, 'phones carry the same primary action');
   assert.doesNotMatch(html, /Open the task in|>Open Vikunja</, 'no tracker link when Ploeg reported none');
   const linked = demoDetail('109');
@@ -282,7 +283,7 @@ test('a needs-you item explains why with Ploeg’s own words, the evidence Runs 
 test('plan_exhausted tells no pull request apart from unresolved changes and never quotes Ploeg’s plan-complete sentence', () => {
   const unrouted = demoDetail('108');
   const reason = detailReason(unrouted);
-  assert.deepEqual([reason.variant, reason.chip, reason.headline], ['no_pull_request', 'Every Round ran', null], 'the chip matches the list; the sentence tells the case apart');
+  assert.deepEqual([reason.variant, reason.chip, reason.headline], ['no_pull_request', 'Every Round ran, no result', null], 'the chip matches the list; the sentence tells the case apart');
   assert.equal(reason.sentence, 'Every planned Round ran, but the writer changed nothing, so there is no pull request to review.');
   const html = detailMarkup(unrouted, model({ detailId: '108' }));
   const box = html.slice(html.indexOf('id="work-decision"'), html.indexOf('id="work-brief"'));
@@ -291,7 +292,7 @@ test('plan_exhausted tells no pull request apart from unresolved changes and nev
   assert.match(box, /<div class="work-warning" data-tone="attention">[^]*<strong>Not routed\.<\/strong>/);
   assert.match(box, /Add a repository label or a routing rule to the task\.<\/p><div class="work-step-actions"><span class="work-find">Find <strong class="mono">DEMO-8<\/strong> in Vikunja<\/span><button type="button" class="button secondary" data-action="work-copy-ref" data-value="DEMO-8">[^]*Copy DEMO-8/, 'without a link the step names the task to find, with a Copy button');
   assert.doesNotMatch(html, /disabled/, 'no disabled primary action');
-  assert.match(box, /Ploeg reported no link to this task, so Vloer cannot open it for you\./);
+  assert.doesNotMatch(box, /Ploeg reported no link/, 'the Find and Copy controls say it without an apology');
   assert.doesNotMatch(html, /work-sticky-actions/, 'no phone action bar without an action to open');
   unrouted.item.url = 'https://tracker.test/tasks/8';
   const plan = decisionPlan(unrouted, model(), detailReason(unrouted));
@@ -301,7 +302,7 @@ test('plan_exhausted tells no pull request apart from unresolved changes and nev
   const changes = demoDetail('108');
   changes.runs[0].verdict = 'request_changes';
   const unresolved = detailReason(changes);
-  assert.deepEqual([unresolved.variant, unresolved.chip], ['changes_unresolved', 'Every Round ran']);
+  assert.deepEqual([unresolved.variant, unresolved.chip], ['changes_unresolved', 'Every Round ran, no result']);
   assert.match(unresolved.sentence, /the last reviewer still asked for changes/);
 });
 
@@ -335,7 +336,7 @@ test('the page says each thing once: checkpoints fold into Activity, an empty st
   assert.match(stuck, /<p class="work-run-reason">The brief asks for 2026 market sizes/, 'a stuck reason in prose keeps the body font');
 });
 
-test('repeated Runs of one job are numbered, so a silent Run after two machine failures reads as the third attempt', () => {
+test('repeated Runs of one job are numbered, so a silent Run after two infrastructure failures reads as Run 3 of 3', () => {
   const runs = [
     { id: '196', shiftId: '113', round: 1, role: 'builder', writes: true, state: 'finished', outcome: 'failed', failureReason: 'idle' },
     { id: '193', shiftId: '113', round: 1, role: 'builder', writes: true, state: 'finished', outcome: 'failed', failureReason: 'infra_node' },
@@ -346,11 +347,11 @@ test('repeated Runs of one job are numbered, so a silent Run after two machine f
   assert.deepEqual(attempts.get('189'), { attempt: 1, total: 3, machineFailures: 0, next: 2 });
   assert.deepEqual(attempts.get('196'), { attempt: 3, total: 3, machineFailures: 2, next: null });
   assert.equal(attempts.has('190'), false, 'a job that ran once carries no attempt label');
-  assert.equal(attemptLabel(attempts.get('196')), 'Attempt 3 of 3 · after 2 machine failures');
-  assert.equal(attemptLabel(attempts.get('189')), 'Attempt 1 of 3');
+  assert.equal(attemptLabel(attempts.get('196')), 'Run 3 of 3 · after 2 infrastructure failures');
+  assert.equal(attemptLabel(attempts.get('189')), 'Run 1 of 3');
   const html = detailMarkup(demoDetail('112'), model({ detailId: '112' }));
-  assert.match(html, /implementer<\/strong><span class="meta">[^<]*<span class="work-run-round">Round 1 · <\/span>writer · Attempt 10 of 10 · after 9 machine failures/);
-  assert.match(html, /Ploeg retried it as attempt 2\./, 'a retried machine failure names the attempt that followed it');
+  assert.match(html, /implementer<\/strong><span class="meta">[^<]*<span class="work-run-round">Round 1 · <\/span>writer · Run 10 of 10 · after 9 infrastructure failures/);
+  assert.match(html, /Ploeg ran it again as Run 2\./, 'a retried infrastructure failure names the Run that followed it');
 });
 
 test('Runs are grouped by Shift and Round, failures first, newest Round first', () => {
@@ -373,7 +374,7 @@ test('the Round ladder is Roles by Rounds with retries counted, and Runs list fa
   assert.equal(ladder.writes.implementer, true);
   assert.equal(roundLadder(ploegDemo.details['112'].runs).cells.implementer[1].length, 10);
   const html = detailMarkup(demoDetail('112'), model({ detailId: '112' }));
-  assert.match(html, /10 tries/);
+  assert.match(html, /<span class="round-cell-meta">10 Runs: 10 failed<\/span>/, 'a cell with retries counts its Runs by result');
   assert.match(html, /Show 2 more Runs/);
   const mixed = [{ id: '5', state: 'finished', outcome: 'pr_opened' }, { id: '6', state: 'running', outcome: '' }, { id: '3', state: 'finished', outcome: 'failed', failureReason: 'infra_node' }, { id: '4', state: 'finished', outcome: 'stuck' }];
   assert.deepEqual(runOrder(mixed).map(run => run.id), ['4', '3', '6', '5']);
@@ -596,3 +597,36 @@ test('a Run asked for by URL that is not on the Work Item says so, and the notic
   assert.doesNotMatch(detailMarkup(detail(), model({ detailId: '50' })), /work-run-notice/);
 });
 
+test('a Round cell explains itself by its failures, not by the Run that never started, and costs nothing for it', () => {
+  const failedRun = id => ({ id, shiftId: '7', role: 'builder', round: 1, writes: true, state: 'finished', startedAt: '2026-09-28T10:00:00Z', finishedAt: '2026-09-28T10:00:58Z', outcome: 'failed', failureReason: 'infra_llm', costStatus: 'observed', usage: { costUsd: 0 } });
+  const cancelled = { id: '5', shiftId: '7', role: 'builder', round: 1, writes: true, state: 'finished', startedAt: null, summary: 'cancelled: shift closed' };
+  const runs = [cancelled, failedRun('4'), failedRun('3'), failedRun('2'), failedRun('1')];
+  const summary = cellSummary(runs);
+  assert.equal(summary.run.id, '4');
+  assert.equal(summary.tally, '5 Runs: 4 failed, 1 not started');
+  assert.deepEqual(cellSummary([cancelled]), { run: cancelled, tally: '' });
+  const live = detail();
+  live.shifts[0].closedAt = '2026-09-28T10:10:00Z';
+  live.runs = runs;
+  const html = detailMarkup(live, model({ detailId: '50' }));
+  assert.match(html, /<span class="round-cell-meta">5 Runs: 4 failed, 1 not started<\/span>/);
+  assert.match(html, /<span class="work-fact">5 Runs<\/span>/, 'the header counts Runs, the same word the Runs list uses');
+  const row = html.slice(html.indexOf('id="work-run-5"'));
+  assert.doesNotMatch(row.slice(0, row.indexOf('</summary>')), /Not reported/, 'a Run that never started has no cost to report');
+  assert.match(row, /Nothing ran/);
+});
+
+test('Cancel shows only when Ploeg would stop something', () => {
+  const stoppedItem = detail();
+  stoppedItem.item.state = 'needs_human';
+  stoppedItem.shifts[0].closedAt = '2026-09-28T10:10:00Z';
+  stoppedItem.runs.forEach(run => { run.state = 'finished'; });
+  assert.equal(canStop(stoppedItem), false);
+  assert.doesNotMatch(detailMarkup(stoppedItem, model({ detailId: '50' })), /work-cancel/, 'a stopped item with a closed Shift offers no no-op Cancel');
+  const open = structuredClone(stoppedItem);
+  open.shifts[0].closedAt = null;
+  assert.equal(canStop(open), true, 'an open Shift can be closed');
+  const queued = structuredClone(stoppedItem);
+  queued.item.state = 'queued';
+  assert.equal(canStop(queued), true);
+});

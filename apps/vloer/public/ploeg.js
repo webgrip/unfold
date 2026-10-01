@@ -27,7 +27,7 @@ const laneEmpty = {
   all: ['inbox', 'No Work Items yet', 'Assign a task to a Team in your tracker. It appears here when Ploeg picks it up.', 'neutral'],
 };
 const trackers = { vikunja: 'Vikunja', forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp' };
-const cancellable = new Set(['ingested', 'queued', 'leased', 'awaiting_review', 'needs_human', 'stale']);
+const cancellable = new Set(['ingested', 'queued', 'leased']);
 const stopped = new Set(['needs_human', 'stale', 'done', 'withdrawn']);
 const instructionFiles = [['AGENTS.md', /\bAGENTS\.md\b/], ['CLAUDE.md', /\bCLAUDE\.md\b/], ['.claude/', /(^|[^\w.])\.claude\//], ['.agents/', /(^|[^\w.])\.agents\//], ['.openhands/', /(^|[^\w.])\.openhands\//], ['.mcp.json', /(^|[^\w.])\.mcp\.json\b/], ['.cursorrules', /(^|[^\w.])\.cursorrules\b/]];
 const pullRequestPath = /\/(?:pulls?|merge_requests)\/(\d+)\/?$/;
@@ -258,11 +258,16 @@ export function runAttempts(runs) {
   return attempts;
 }
 
-/** The attempt label for a Run's header, for example `Attempt 3 of 3 · after 2 machine failures`; '' for a job that ran once. */
+/** The attempt label for a Run's header, for example `Run 3 of 3 · after 2 infrastructure failures`; '' for a job that ran once. */
 export function attemptLabel(attempt) {
   if (!attempt) return '';
-  const after = attempt.machineFailures ? ` · after ${plural(attempt.machineFailures, 'machine failure')}` : '';
-  return `Attempt ${attempt.attempt} of ${attempt.total}${after}`;
+  const after = attempt.machineFailures ? ` · after ${plural(attempt.machineFailures, 'infrastructure failure')}` : '';
+  return `Run ${attempt.attempt} of ${attempt.total}${after}`;
+}
+
+/** Whether Ploeg closed a Run before a worker started it, so it ran nothing and cost nothing. */
+export function neverStarted(run) {
+  return run.state === 'finished' && !run.startedAt;
 }
 
 /** What a Run reported, as one state meta: the verdict of a reading Run, otherwise its outcome, otherwise its state. `label` is the short form and `title` the full one. */
@@ -275,7 +280,7 @@ export function runResult(run) {
 }
 
 function runCost(run, demo) {
-  if (demo) return '';
+  if (demo || neverStarted(run)) return '';
   if (run.costStatus === 'observed' && amount(run.usage?.costUsd)) return money(run.usage.costUsd);
   return 'Not reported';
 }
@@ -367,7 +372,6 @@ function rowMeta(item, context) {
   if (amount(item.infraFailures) && item.infraFailures > 0 && item.state !== 'needs_human') chips.push(ui.chip({ label: plural(item.infraFailures, 'infrastructure failure'), tone: 'severe', icon: 'zap' }));
   const facts = [`<span class="work-row-ref">${allTeams ? `${escape(item.team)} · ` : ''}${escape(workItemRef(item))}</span>`];
   if (item.target) facts.push(`<span class="work-row-repo">${icon('branch')}${escape(repoName(item.target))}</span>`);
-  if (amount(item.attempts) && item.attempts > 0) facts.push(`<span class="work-row-attempts">${escape(plural(item.attempts, 'attempt'))}</span>`);
   if (item.latestShift) facts.push(`<span>Round ${escape(item.latestShift.round)}</span>`);
   return `${chips.length ? `<span class="work-row-chips">${chips.join('')}</span>` : ''}<span class="work-row-facts dots">${facts.join('')}</span>`;
 }
@@ -407,7 +411,7 @@ export function reasonGroups(items, { demo = false } = {}) {
  * overline, a small count and the one fix that clears the group. `id` labels the group.
  */
 export function reasonBand(reason, total, id, { fix = true } = {}) {
-  return `<div class="reason-band" data-tone="${reason.tone}"><span class="reason-band-icon" aria-hidden="true">${icon(reasonGlyph(reason))}</span><h3 class="reason-band-title" id="${escape(id)}">${escape(reason.chip)}<span class="reason-band-count num"><span class="sr-only">, </span>${escape(total)}<span class="sr-only"> ${total === 1 ? 'Work Item' : 'Work Items'}</span></span></h3>${fix ? `<p class="reason-band-fix" title="${escape(reason.fix)}">${escape(reason.fix)}</p>` : ''}</div>`;
+  return `<div class="reason-band" data-tone="${reason.tone}" title="${escape(reason.fix)}"><span class="reason-band-icon" aria-hidden="true">${icon(reasonGlyph(reason))}</span><h3 class="reason-band-title" id="${escape(id)}">${escape(reason.chip)}<span class="reason-band-count num"><span class="sr-only">, </span>${escape(total)}<span class="sr-only"> ${total === 1 ? 'Work Item' : 'Work Items'}</span></span></h3>${fix ? `<p class="reason-band-fix" title="${escape(reason.fix)}">${escape(reason.fix)}</p>` : ''}</div>`;
 }
 
 function needsMarkup(items, context) {
@@ -509,6 +513,12 @@ function ref(item) {
   return task ? `<a class="work-inline-link" href="${escape(task)}" target="_blank" rel="noopener noreferrer" data-link-out="tracker" title="${escape(`Open the task in ${trackerName(item.provider) || 'its tracker'}`)}">${text}${icon('external')}${newTab}</a>` : `<span>${text}</span>`;
 }
 
+/** Whether a cancel would stop something: the Work Item waits for or holds a worker, its latest Shift is still open, or a Run has not finished. */
+export function canStop(detail) {
+  const shift = latestShift(detail);
+  return cancellable.has(detail.item.state) || Boolean(shift && !shift.closedAt) || (detail.runs || []).some(run => run.state !== 'finished');
+}
+
 function headerMarkup(detail, model, reason) {
   const item = detail.item;
   const meta = workItemState(displayState(item, detail.events));
@@ -518,8 +528,9 @@ function headerMarkup(detail, model, reason) {
   const facts = [];
   if (item.target) facts.push(`<span class="work-fact">${icon('branch')}<span>${escape(repoName(item.target))}${item.target.baseBranch ? ` <span class="subtle">→ ${escape(item.target.baseBranch)}</span>` : ''}</span></span>`);
   if (pr) facts.push(`<span class="work-fact"><a class="work-inline-link" href="${escape(pr)}" target="_blank" rel="noopener noreferrer" data-link-out="pr">${icon('pull-request')}${escape(linkLabel(pr))}${icon('external')}${newTab}</a></span>`);
-  if (amount(item.attempts) && item.attempts > 0) facts.push(`<span class="work-fact">${escape(plural(item.attempts, 'attempt'))}</span>`);
   if (shift) facts.push(`<span class="work-fact">Round ${escape(shift.round)}</span>`);
+  const shiftRuns = shift ? detail.runs.filter(run => run.shiftId === shift.id).length : 0;
+  if (shiftRuns) facts.push(`<span class="work-fact">${escape(plural(shiftRuns, 'Run'))}</span>`);
   if (item.updatedAt) facts.push(`<span class="work-fact">Updated ${ui.timeAgo(item.updatedAt)}</span>`);
   const close = `<button type="button" class="button ghost icon-only sm work-close" data-action="ploeg-close" aria-label="Close work item details" title="Close">${icon('x')}</button>`;
   const tools = [`<button type="button" class="button ghost sm work-copy" data-action="work-copy-link" data-id="${escape(item.id)}">${icon('copy')}<span class="button-label">Copy link</span></button>`];
@@ -527,8 +538,8 @@ function headerMarkup(detail, model, reason) {
   if (grafana) tools.push(ui.button({ label: 'Grafana', icon: 'activity', variant: 'ghost', size: 'sm', href: grafana, external: true, data: { linkOut: 'grafana' } }));
   const checkout = checkoutTarget(detail, model.card);
   if (checkout) tools.push(`<button type="button" class="button ghost sm work-checkout" data-action="work-checkout" title="${escape(`Check out ${checkout.branch}`)}">${icon('branch')}<span class="button-label">Check out branch</span></button>`);
-  if (model.canCancel && cancellable.has(item.state)) tools.push(`<button type="button" class="button ghost sm work-cancel" data-action="work-cancel" data-id="${escape(item.id)}"${model.cancelBusy ? ' aria-disabled="true" aria-busy="true"' : ''}>${model.cancelBusy ? '<span class="spinner" aria-hidden="true"></span>' : icon('x-circle')}<span class="button-label">Cancel Work Item</span></button>`);
-  return `<header class="work-detail-header"><div class="work-detail-bar"><p class="work-detail-ref overline"><span class="work-detail-kind">Work Item · </span>${escape(item.team)} · ${ref(item)}</p><div class="work-detail-tools">${tools.join('')}</div>${close}</div><h2 class="work-detail-title" id="ploeg-item-title" tabindex="-1">${escape(item.title || `Work Item ${item.id}`)}</h2><div class="work-detail-status">${ui.stateBadge(meta, reason ? { reason: reason.chip, reasonTone: reason.tone } : {})}${warning ? ui.chip({ label: warning.chip, tone: warning.tone, icon: warning.glyph, title: warning.sentence }) : ''}</div>${facts.length ? `<p class="work-detail-facts dots">${facts.join('')}</p>` : ''}</header>`;
+  if (model.canCancel && canStop(detail)) tools.push(`<button type="button" class="button ghost sm work-cancel" data-action="work-cancel" data-id="${escape(item.id)}"${model.cancelBusy ? ' aria-disabled="true" aria-busy="true"' : ''}>${model.cancelBusy ? '<span class="spinner" aria-hidden="true"></span>' : icon('x-circle')}<span class="button-label">Cancel Work Item</span></button>`);
+  return `<header class="work-detail-header"><div class="work-detail-bar"><p class="work-detail-ref overline"><span class="work-detail-kind">Work Item · </span>Team ${escape(item.team)} · ${ref(item)}</p><div class="work-detail-tools">${tools.join('')}</div>${close}</div><h2 class="work-detail-title" id="ploeg-item-title" tabindex="-1">${escape(item.title || `Work Item ${item.id}`)}</h2><div class="work-detail-status">${ui.stateBadge(meta, reason ? { reason: reason.chip, reasonTone: reason.tone } : {})}${warning ? ui.chip({ label: warning.chip, tone: warning.tone, icon: warning.glyph, title: warning.sentence }) : ''}</div>${facts.length ? `<p class="work-detail-facts dots">${facts.join('')}</p>` : ''}</header>`;
 }
 
 /** The label of the list a Work Item page goes back to: its lane, or "All Work Items". */
@@ -587,7 +598,7 @@ const reasonLinks = {
 /**
  * The actions of a Needs-you decision box, as numbered steps. Each link-out appears once, on the first step that
  * needs it, and exactly one control is primary: the pull request or tracker task that step points at. When Ploeg
- * reported no link, the primary control is shown disabled with the reason, so the page still says what to press.
+ * reported no link, the tracker step names the task to find and offers to copy its key.
  * `primary` is that control for the phone action bar, or '' when it is disabled.
  */
 export function decisionPlan(detail, model, reason) {
@@ -628,7 +639,6 @@ export function decisionPlan(detail, model, reason) {
     const where = trackerName(item.provider) || (item.provider === 'demo' ? 'the demo tracker' : 'its tracker');
     trackerEntry.actions.unshift(`<span class="work-find">Find <strong class="mono">${escape(key || `#${item.id}`)}</strong> in ${escape(where)}</span>`);
     if (key) trackerEntry.actions.splice(1, 0, ui.button({ label: `Copy ${key}`, icon: 'copy', variant: 'secondary', action: 'work-copy-ref', data: { value: key } }));
-    trackerEntry.note = escape('Ploeg reported no link to this task, so Vloer cannot open it for you.');
   }
   return { entries, primary: primary?.html || '' };
 }
@@ -638,13 +648,13 @@ function needsYouBox(detail, model, reason, plan) {
   const warning = routingWarning(item);
   const event = (detail.events || []).find(entry => entry.action === `work_item.${item.state}` && entry.detail?.reason);
   const evidence = evidenceRuns(detail, reason);
-  const shift = latestShift(detail);
   const why = [`<p class="work-decision-sentence">${escape(reason.sentence)}</p>`];
   if (reason.headline && !evidence.some(run => overlaps(evidenceText(run, reason), reason.headline.split(' — ').at(-1)))) why.push(quote(reason.headline, event?.at));
-  if (shift && ['budget_exhausted', 'budget_exhausted_before_fix_round'].includes(reason.code)) why.push(`<div class="work-decision-meter">${shiftMeter(shift, detail.demo)}</div>`);
+  const shift = latestShift(detail);
+  if (shift && ['budget_exhausted', 'budget_exhausted_before_fix_round', 'budget_held'].includes(reason.code)) why.push(`<div class="work-decision-meter">${shiftMeter(shift, detail.demo)}</div>`);
   if (evidence.length) why.push(`<ul class="work-evidence-list" aria-label="Evidence">${evidence.map(run => evidenceLine(run, reason)).join('')}</ul>`);
   if (warning) why.push(`<div class="work-warning" data-tone="${warning.tone}">${icon(warning.glyph)}<p><strong>${escape(warning.chip)}.</strong> ${escape(warning.sentence)}</p></div>`);
-  const body = `<div class="work-decision-part">${why.join('')}</div>${whatYouCanDo(`${steps(plan.entries)}<p class="meta">${escape(requeueNote)}</p>`)}`;
+  const body = `<div class="work-decision-part">${why.join('')}</div>${whatYouCanDo(steps(plan.entries))}`;
   return ui.card({ id: 'work-decision', region: true, title: 'Why this needs you', icon: reason.glyph, tone: reason.tone, level: 3, body });
 }
 
@@ -801,12 +811,26 @@ function briefMarkup(detail, model) {
   return ui.card({ id: 'work-brief', title: 'Brief', level: 3, actions: source, body: `<div class="prose work-brief-text" id="work-brief-text"${long && !open ? ' data-clamped' : ''}>${markdown(text, { baseLevel: 4 })}</div>${toggle}` });
 }
 
+/**
+ * What a Round ladder cell says about the Runs of one Role in one Round (newest first): the Run that explains the cell
+ * (the newest, unless it never started and an earlier one failed) and, for more than one Run, the count by result.
+ */
+export function cellSummary(runs) {
+  const failures = runs.filter(failed);
+  const skipped = runs.filter(neverStarted);
+  const run = neverStarted(runs[0]) && failures.length ? failures[0] : runs[0];
+  if (runs.length < 2) return { run, tally: '' };
+  const rest = runs.length - failures.length - skipped.length;
+  const parts = [failures.length ? `${failures.length} failed` : '', skipped.length ? `${skipped.length} not started` : '', rest ? `${rest} ${rest === 1 ? 'other' : 'others'}` : ''].filter(Boolean);
+  return { run, tally: `${plural(runs.length, 'Run')}: ${parts.join(', ')}` };
+}
+
 function ladderButton(runs, demo, now) {
-  const run = runs[0];
+  const { run, tally } = cellSummary(runs);
   const result = runResult(run);
   const time = runSeconds(run, now);
   const cost = runCost(run, demo);
-  const meta = [cost, time !== null ? duration(time) : '', runs.length > 1 ? `${runs.length} tries` : ''].filter(Boolean).join(' · ');
+  const meta = tally || [cost, time !== null ? duration(time) : ''].filter(Boolean).join(' · ');
   const lead = result.live ? '<span class="live-dot" aria-hidden="true"></span>' : icon(result.glyph || 'circle');
   return `<button type="button" class="round-cell work-round-cell" data-tone="${result.tone}" data-action="work-run" data-id="${escape(run.id)}"${result.title ? ` title="${escape(result.title)}"` : ''}><span class="round-cell-title">${lead}<span>${escape(result.label)}</span></span><span class="round-cell-meta">${escape(meta || ' ')}</span></button>`;
 }
@@ -846,7 +870,7 @@ function runBody(run, { demo, now, live, attempts, grafanaUrl }) {
     const { reason: stated, output, outputLabel } = runFailureText(run);
     const reasonText = stated ? `<p class="${logLike.test(stated) ? 'work-log' : 'work-run-reason'}">${escape(stated)}</p>` : '';
     const outputText = output ? `<h4 class="overline">${escape(outputLabel)}</h4><p class="work-log">${escape(output)}</p>` : '';
-    const note = failure ? [failureNote(failure, { live: live && !retriedAs }), retriedAs ? `Ploeg retried it as attempt ${retriedAs}.` : ''].filter(Boolean).join(' ') : '';
+    const note = failure ? [failureNote(failure, { live: live && !retriedAs }), retriedAs ? `Ploeg ran it again as Run ${retriedAs}.` : ''].filter(Boolean).join(' ') : '';
     const body = `${reasonText}${outputText}${note ? `<p>${escape(note)}</p>` : ''}`;
     parts.push(ui.callout({ tone, title, body }));
   }
@@ -860,7 +884,7 @@ function runBody(run, { demo, now, live, attempts, grafanaUrl }) {
     ['Finished', run.finishedAt ? ui.timeAt(run.finishedAt) : run.state === 'running' ? 'Still running' : null],
     ['Duration', time !== null ? `<span class="num">${escape(duration(time))}</span>` : null],
     ['Authorized', demo ? '<span class="subtle">Demo · no model calls</span>' : amount(run.authorizedUsd) && run.authorizedUsd > 0 ? `<span class="num">${moneyText(run.authorizedUsd)}</span>` : '<span class="subtle">Not reported</span>'],
-    ['Model cost', demo ? '<span class="subtle">Demo · no model calls</span>' : run.costStatus === 'observed' && amount(run.usage?.costUsd) ? `<span class="num">${moneyText(run.usage.costUsd)}</span>` : '<span class="subtle">Not reported</span>'],
+    ['Model cost', demo ? '<span class="subtle">Demo · no model calls</span>' : neverStarted(run) ? '<span class="subtle">Nothing ran</span>' : run.costStatus === 'observed' && amount(run.usage?.costUsd) ? `<span class="num">${moneyText(run.usage.costUsd)}</span>` : '<span class="subtle">Not reported</span>'],
     ['Tokens', tokens],
   ]));
   const grafana = runExplorer(run.keyAlias, grafanaUrl);

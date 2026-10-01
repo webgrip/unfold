@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { closeReasonLabel, detailReason, listReason, needsYouBlocks, parseBudgetReason, parseStuckReason, requeueNote, routingWarning, withdrawnReason } from '../public/core/reasons.js';
+import { closeReasonLabel, detailReason, listReason, needsYouBlocks, parseBudgetReason, parseStuckReason, routingWarning, withdrawnReason } from '../public/core/reasons.js';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 
 const space = ' ';
@@ -10,7 +10,7 @@ const chip = (closeReason, extra) => listReason(item(closeReason, extra))?.chip;
 
 test('every needs-human close reason code gets a chip, a sentence and an action that ends with re-assigning in the tracker', () => {
   const expected = {
-    plan_exhausted: 'Every Round ran',
+    plan_exhausted: 'Every Round ran, no result',
     fix_round_cap_reached: 'Reviewer still wants changes',
     budget_exhausted_before_fix_round: 'Budget ran out',
     writing_run_failed_repeatedly: 'Writer kept failing',
@@ -90,14 +90,13 @@ test('only needs_human and stale items have a reason; stale separates infrastruc
 
 test('an unresolved repository is a secondary Not routed warning, never the primary reason', () => {
   const unrouted = item('plan_exhausted', { target: null });
-  assert.equal(listReason(unrouted).chip, 'Every Round ran');
+  assert.equal(listReason(unrouted).chip, 'Every Round ran, no result');
   assert.deepEqual([routingWarning(unrouted).chip, routingWarning(unrouted).tone], ['Not routed', 'attention']);
   assert.equal(routingWarning(unrouted).fix, 'Add a repository label or a routing rule to the task.');
   assert.equal(routingWarning(item('plan_exhausted')), null);
   assert.equal(routingWarning(item('plan_exhausted', { target: null, provider: 'manual' })), null);
   assert.equal(routingWarning({ id: '1', state: 'needs_human' }), null, 'a Now item without the target field has no warning');
   assert.equal(routingWarning({ id: '2', state: 'queued', target: null, provider: 'demo' }).chip, 'Not routed');
-  assert.match(requeueNote, /proposed Ploeg work/);
 });
 
 test('the detail reason uses Ploeg’s own needs-human sentence as the headline and names the stuck Run', () => {
@@ -150,17 +149,17 @@ test('the detail tells plan_exhausted apart: no pull request when the writer cha
   const run = (id, writes, extra) => ({ id, shiftId: '9', role: writes ? 'implementer' : 'reviewer', round: writes ? 1 : 2, writes, state: 'finished', outcome: 'no_change_needed', verdict: '', links: [], stuckReason: '', summary: '', failureReason: null, ...extra });
   const detail = runs => ({ item: item('plan_exhausted'), shifts: [shift('plan_exhausted')], runs, checkpoints: [], events: [{ id: '1', action: 'work_item.needs_human', detail: { reason: 'plan complete; a person is asked to review and merge' } }] });
   const none = detailReason(detail([run('2', false), run('1', true)]));
-  assert.deepEqual([none.variant, none.chip, none.headline], ['no_pull_request', 'Every Round ran', null], 'Ploeg’s plan-complete sentence would suggest a merge, so it is not the headline');
+  assert.deepEqual([none.variant, none.chip, none.headline], ['no_pull_request', 'Every Round ran, no result', null], 'Ploeg’s plan-complete sentence would suggest a merge, so it is not the headline');
   assert.equal(none.sentence, 'Every planned Round ran, but the writer changed nothing, so there is no pull request to review.');
   assert.match(none.action, /^Check that the task says what must change and where\. If the change is already there, close the task\. Then assign/);
   assert.equal(detailReason(detail([run('2', false)])).sentence, 'Every planned Round ran, but no writer ran, so there is no pull request to review.');
   assert.equal(detailReason(detail([run('1', true, { outcome: 'failed' })])).sentence, 'Every planned Round ran, but no writer reported a pull request.');
   const unresolved = detailReason(detail([run('2', false, { verdict: 'request_changes' }), run('1', true, { outcome: 'pr_opened', links: ['https://forge.test/a/b/pulls/3'] })]));
-  assert.deepEqual([unresolved.variant, unresolved.chip], ['changes_unresolved', 'Every Round ran']);
+  assert.deepEqual([unresolved.variant, unresolved.chip], ['changes_unresolved', 'Every Round ran, no result']);
   assert.match(unresolved.sentence, /last reviewer still asked for changes/);
   assert.match(unresolved.fix, /reviewer’s findings/);
   const opened = detailReason(detail([run('2', false), run('1', true, { outcome: 'pr_opened' })]));
-  assert.deepEqual([opened.variant, opened.chip], [null, 'Every Round ran'], 'with a pull request and no request for changes Vloer does not guess');
+  assert.deepEqual([opened.variant, opened.chip], [null, 'Every Round ran, no result'], 'with a pull request and no request for changes Vloer does not guess');
 });
 
 test('the demo’s budget sentence names the budget but never spend it did not have', () => {
@@ -184,6 +183,7 @@ test('a Shift close reason reads in a few plain words, never as a raw code', () 
   assert.equal(closeReasonLabel('writing_run_killed_repeatedly'), 'The cluster kept stopping the writer');
   assert.equal(closeReasonLabel('budget exhausted: pool 0.04, spent 0.00, reserved 0.00'), `The US$${space}0,04 budget ran out`);
   assert.equal(closeReasonLabel('budget exhausted'), 'The budget ran out');
+  assert.equal(closeReasonLabel('budget exhausted: pool 8.00, spent 0.00, reserved 8.00'), `The US$${space}8,00 budget was held, not spent`);
   assert.equal(closeReasonLabel('run stuck: builder round 2'), 'The builder got stuck in Round 2');
   assert.equal(closeReasonLabel('plan removed from configuration'), 'The Team plan was removed');
   assert.equal(closeReasonLabel(''), 'Still open');
@@ -213,9 +213,30 @@ test('Needs you groups only reasons that two or more Work Items share, after the
     [false, 'Reviewer still wants changes', ['2']],
     [false, 'Agent is stuck', ['4']],
     [false, 'Agents kept failing', ['7']],
-    [true, 'Every Round ran', ['1', '6']],
+    [true, 'Every Round ran, no result', ['1', '6']],
     [true, 'Budget ran out', ['3', '5']],
   ]);
   assert.deepEqual(needsYouBlocks(rows.slice(1, 4)).map(block => block.grouped), [false, false, false], 'different reasons stay one flat list');
   assert.deepEqual(needsYouBlocks([]), []);
+});
+
+test('a budget stop whose shortfall was only held, not spent, says so and points away from the budget', () => {
+  const text = 'budget exhausted: pool 8.00, spent 0.00, reserved 8.00';
+  const reason = listReason(item(text));
+  assert.equal(reason.code, 'budget_held');
+  assert.equal(reason.chip, 'Budget held, not spent');
+  assert.equal(reason.sentence, `Ploeg stopped because the Shift’s US$${space}8,00 budget could not pay for the next Round, but nothing was spent. US$${space}8,00 was held for Runs whose spend Ploeg had not settled yet.`);
+  assert.match(reason.fix, /Raising the budget does not help/);
+  assert.equal(chip('budget exhausted: pool 3.00, spent 2.97, reserved 0.10'), 'Budget ran out', 'real spend stays a budget stop');
+  const failedRun = id => ({ id, shiftId: '9', role: 'builder', round: 1, writes: true, state: 'finished', startedAt: '2026-09-28T10:00:00Z', outcome: 'failed', failureReason: 'infra_llm', summary: '', stuckReason: '' });
+  const runs = [{ id: '5', shiftId: '9', role: 'builder', round: 1, writes: true, state: 'finished', startedAt: null, summary: 'cancelled: shift closed' }, failedRun('4'), failedRun('3'), failedRun('2'), failedRun('1')];
+  const released = { ...shift(text), budgetUsd: 8, spentUsd: 0, reservedUsd: 0 };
+  const detailed = detailReason({ item: item(text, { latestShift: released }), shifts: [released], runs, events: [{ id: '1', action: 'work_item.needs_human', detail: { reason: 'the budget could not fund the next round; a person is asked to take over' } }] });
+  assert.match(detailed.sentence, /4 Runs failed first: the model gateway failed, which is infrastructure, not the agent\./);
+  assert.match(detailed.sentence, new RegExp(`Ploeg has since released that hold, so US\\$${space}8,00 of the budget is free again\\.`));
+  assert.equal(detailed.fix, 'Check the gateway keys, quotas and provider status. The budget itself was not the problem.');
+  assert.equal(detailed.headline, null, 'Ploeg’s budget sentence only repeats Vloer’s');
+  assert.equal(detailed.run.id, '4', 'the evidence is the newest failed writer Run');
+  const stillHeld = detailReason({ item: item(text, { latestShift: { ...released, reservedUsd: 8 } }), shifts: [{ ...released, reservedUsd: 8 }], runs, events: [] });
+  assert.doesNotMatch(stillHeld.sentence, /released/, 'a hold that is still there is not reported as released');
 });

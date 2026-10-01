@@ -299,7 +299,8 @@ const closeLabels = {
 
 /**
  * A Shift close reason in a few plain words, for Shift rows and audit lines: `plan_exhausted` reads "Every planned
- * Round ran", the `budget exhausted: …` and `run stuck: <role> round <n>` prefixes read as sentences, an empty
+ * Round ran", the `budget exhausted: …` and `run stuck: <role> round <n>` prefixes read as sentences (a budget stop
+ * with more held than spent reads "held, not spent"), an empty
  * reason is an open Shift and anything else is quoted as Ploeg wrote it.
  * @param {string | null | undefined} closeReason
  * @returns {string}
@@ -314,7 +315,11 @@ export function closeReasonMeta(closeReason) {
   if (!text) return { label: 'Still open', tone: 'neutral' };
   if (Object.hasOwn(closeLabels, text)) return { label: closeLabels[text][0], tone: closeLabels[text][1] };
   const lower = text.toLowerCase();
-  if (lower.startsWith('budget exhausted')) { const { pool } = parseBudgetReason(text); return { label: pool !== null ? `The ${money(pool)} budget ran out` : 'The budget ran out', tone: 'attention' }; }
+  if (lower.startsWith('budget exhausted')) {
+    const { pool, spent, reserved } = parseBudgetReason(text);
+    if (isAmount(spent) && isAmount(reserved) && reserved > 0 && reserved >= spent) return { label: pool !== null ? `The ${money(pool)} budget was held, not spent` : 'The budget was held, not spent', tone: 'attention' };
+    return { label: pool !== null ? `The ${money(pool)} budget ran out` : 'The budget ran out', tone: 'attention' };
+  }
   if (lower.startsWith('run stuck:')) { const { role: who, round } = parseStuckReason(text); return { label: who ? `The ${who} got stuck${round ? ` in Round ${round}` : ''}` : 'An agent got stuck', tone: 'attention' }; }
   if (lower === 'plan removed from configuration') return { label: 'The Team plan was removed', tone: 'attention' };
   return { label: `Ploeg recorded: “${text}”`, tone: 'neutral' };

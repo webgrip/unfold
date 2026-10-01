@@ -232,7 +232,7 @@ function listBlock() {
   const ago = minutes => ui.timeAgo(new Date(Date.now() - minutes * 60000).toISOString());
   const rows = [
     ui.listRow({ href: '#design', selected: true, tone: 'attention', lead: icon('alert'), title: 'Add a Dispatched-by-Ploeg note to the README', meta: `${ui.chip({ label: 'Budget ran out', tone: 'attention' })}${ui.chip({ label: 'webgrip/erfbeeld', icon: 'branch' })}<span>Round 2</span>`, trail: ago(130) }),
-    ui.listRow({ href: '#design', tone: 'attention', lead: icon('alert'), title: 'README: document how a ticket reaches this repository', meta: `${ui.chip({ label: 'Every Round ran', tone: 'attention' })}${ui.chip({ label: 'Not routed', tone: 'attention', icon: 'alert' })}`, trail: ago(2900), data: { unread: true } }),
+    ui.listRow({ href: '#design', tone: 'attention', lead: icon('alert'), title: 'README: document how a ticket reaches this repository', meta: `${ui.chip({ label: 'Every Round ran, no result', tone: 'attention' })}${ui.chip({ label: 'Not routed', tone: 'attention', icon: 'alert' })}`, trail: ago(2900), data: { unread: true } }),
     ui.listRow({ href: '#design', tone: 'live', lead: '<span class="live-dot"></span>', title: 'Implement fair-share claiming in the lease broker', meta: `${ui.chip({ label: 'webgrip/ploeg', icon: 'branch' })}<span>writer · Round 2</span>`, trail: ago(4) }),
     ui.listRow({ href: '#design', tone: 'review', lead: icon('pull-request'), title: 'E2E: document the forge id on a routing rule', meta: `${ui.chip({ label: 'PR #42', icon: 'pull-request' })}<span>Agent review: approve</span>`, trail: ago(61) }),
     ui.listRow({ title: 'A plain row without a link or action', meta: '<span>listRow() renders a div when there is nothing to open</span>' }),

@@ -62,7 +62,7 @@ test('Not routed is a secondary outline chip and the repository is a plain fact'
   const html = nowMarkup(view(), options, nowAt);
   assert.match(html, /<span class="chip now-warning" data-tone="attention"[^>]*><svg[^>]*>[\s\S]*?<\/svg><span>Not routed<\/span>/);
   assert.equal(html.match(/>Not routed</g).length, 2, 'only the items without a target are Not routed');
-  assert(html.indexOf('>Every Round ran<', html.indexOf('id="now-row-w-108"')) < html.indexOf('>Not routed<', html.indexOf('id="now-row-w-108"')), 'the reason comes before the warning');
+  assert(html.indexOf('>Every Round ran, no result<', html.indexOf('id="now-row-w-108"')) < html.indexOf('>Not routed<', html.indexOf('id="now-row-w-108"')), 'the reason comes before the warning');
   assert(html.indexOf('>Needs refinement<', html.indexOf('id="now-row-w-107"')) < html.indexOf('>Not routed<', html.indexOf('id="now-row-w-107"')), 'on a proposal the warning is not the first chip');
   assert.match(html, /<span class="now-repo"><svg[^>]*>[\s\S]*?<\/svg><span title="acme\/shop, base branch main">acme\/shop<\/span><\/span>/, 'the repository reads owner\/repo, as on Work');
   assert.doesNotMatch(html, /class="chip"[^>]*title="acme\/shop/, 'the repository is not an inert chip');
