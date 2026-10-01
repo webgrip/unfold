@@ -8,7 +8,7 @@ const root = resolve(import.meta.dirname, '..');
 const output = resolve(root, '.build/qualification');
 mkdirSync(output, { recursive: true });
 
-function run(command, args, options) {
+function run(command, args, options, timeoutSeconds = 240) {
   return new Promise(done => {
     const child = spawn(command, args, { ...options, stdio: ['ignore', 'pipe', 'pipe'] });
     let log = '';
@@ -16,22 +16,27 @@ function run(command, args, options) {
     child.stdout.setEncoding('utf8').on('data', append);
     child.stderr.setEncoding('utf8').on('data', append);
     let timedOut = false;
-    const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, 240000);
+    const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, timeoutSeconds * 1000);
     child.on('error', error => { clearTimeout(timer); done({ status: null, error, log }); });
-    child.on('close', status => { clearTimeout(timer); done({ status, log, error: timedOut ? new Error('killed after 240 s') : undefined }); });
+    child.on('close', status => { clearTimeout(timer); done({ status, log, error: timedOut ? new Error(`killed after ${timeoutSeconds} s`) : undefined }); });
   });
 }
 
 const gateway = await startFakeLiteLLM();
 const checks = [
   { name: 'standalone', cwd: 'apps/vloer', command: process.execPath, args: ['--test', 'test/api-workflow.test.ts', 'test/api-process.test.ts'] },
-  { name: 'managed', cwd: 'apps/ploeg', command: 'go', args: ['test', './pkg/httpapi', '-run', '^TestOperatorWorkbench(Inference)?Qualification$', '-count=1', '-v'], env: { PLOEG_QUALIFICATION_LITELLM_URL: gateway.url, PLOEG_QUALIFICATION_LITELLM_MASTER_KEY: gateway.masterKey } },
+  { name: 'managed', cwd: 'apps/ploeg/pkg/httpapi', build: { command: 'go', args: ['test', '-c', '-o', resolve(output, 'httpapi.test'), '.'] }, command: resolve(output, 'httpapi.test'), args: ['-test.run', '^TestOperatorWorkbench(Inference)?Qualification$', '-test.count=1', '-test.v'], env: { PLOEG_QUALIFICATION_LITELLM_URL: gateway.url, PLOEG_QUALIFICATION_LITELLM_MASTER_KEY: gateway.masterKey } },
 ];
 const results = [];
 try {
   for (const check of checks) {
     console.log(`Qualifying ${check.name} execution`);
-    const result = await run(check.command, check.args, { cwd: resolve(root, check.cwd), env: { ...process.env, PLOEG_WORKBENCH_PATH: resolve(root, 'apps/vloer'), ...check.env } });
+    const options = { cwd: resolve(root, check.cwd), env: { ...process.env, PLOEG_WORKBENCH_PATH: resolve(root, 'apps/vloer'), ...check.env } };
+    if (check.build) {
+      const built = await run(check.build.command, check.build.args, options, 900);
+      if (built.error || built.status !== 0) throw new Error(`${check.name} build failed: ${built.error ? `${built.error.message}\n` : ''}${built.log}`);
+    }
+    const result = await run(check.command, check.args, options);
     const log = result.log.replaceAll(gateway.masterKey, '[redacted]');
     writeFileSync(resolve(output, `${check.name}.log`), log);
     if (result.error || result.status !== 0) throw new Error(`${check.name} failed: ${result.error ? `${result.error.message}\n` : ''}${log}`);
