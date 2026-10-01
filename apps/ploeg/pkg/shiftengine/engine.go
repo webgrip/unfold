@@ -59,7 +59,8 @@ type Engine struct {
 	// GrafanaURL is the Grafana base the report links from. Empty omits the
 	// Grafana links.
 	GrafanaURL string
-	// VloerURL is Vloer's base for the Ploeg overview link. Empty omits it.
+	// VloerURL is Vloer's base for the Work Item link, <VloerURL>/#work/<id>.
+	// Empty omits it.
 	// When both URLs are empty the links section is omitted and the rest of
 	// the report still renders.
 	VloerURL string

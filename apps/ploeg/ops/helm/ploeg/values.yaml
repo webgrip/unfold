@@ -62,11 +62,12 @@ env:
   PLOEG_SWEEP_INTERVAL: 15s
   # The usage and evidence report Ploeg posts on every agent pull request
   # (PLOEG_USAGE_REPORT). Default on; "false" is the kill switch. The two base
-  # URLs are where its links point — set them to the Glide — Loop Grafana and
+  # URLs are where its links point — set them to the Grafana base and
   # to Vloer. Either one unset omits its links, and both unset omits the links
   # section while the report still renders.
   PLOEG_USAGE_REPORT: "true"
   PLOEG_REPORT_GRAFANA_URL: ""
+  # Vloer's base URL; the report links the Work Item page.
   PLOEG_REPORT_VLOER_URL: ""
 
 database:
