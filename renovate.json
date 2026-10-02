@@ -146,6 +146,20 @@
       "enabled": false
     },
     {
+      "description": "The executor CI values name harness images that exist only to render every branch of the pod template. They are not published, so a lookup always fails and the dashboard reports it as a repository problem.",
+      "matchManagers": [
+        "helm-values"
+      ],
+      "matchFileNames": [
+        "apps/ploeg/ops/helm/ploeg/ci/executor-values.yaml"
+      ],
+      "matchPackageNames": [
+        "harbor.webgrip.dev/webgrip/custom-agent",
+        "harbor.webgrip.dev/webgrip/opencode-runner"
+      ],
+      "enabled": false
+    },
+    {
       "description": "An image bump in Ploeg's chart values or CI value files changes rendered manifests, and the golden check makes every rendered byte part of the review. The update regenerates the goldens and the configuration reference, which lists the chart's default images, in the same branch so the pull request carries its own render diff and passes the check.",
       "matchFileNames": [
         "apps/ploeg/ops/helm/ploeg/values.yaml",
