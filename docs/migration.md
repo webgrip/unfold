@@ -49,7 +49,7 @@ The [local qualification record](research/evidence/glide-2026-09-12/verification
 
 [Unfold is published on Forgejo](https://forgejo.webgrip.dev/webgrip/glide), with `development` as the default branch. The owner created the repository with public visibility. The complete source history, 70 namespaced tags and 67 release-channel notes were pushed together over SSH; all 138 remote refs match their local objects. A fresh clone from Forgejo passes the immutable import verifier.
 
-The [first CI run](https://forgejo.webgrip.dev/webgrip/glide/actions/runs/1) passed application verification, documentation checks, container builds and release-policy tests at commit `e1f40a9f0df4507196a04284f8d03935343927ce`. Both release jobs were explicitly skipped. The [publication record](research/evidence/glide-2026-09-12/publication.json) records the exact commit, run, job outcomes and ref verification separately from local qualification.
+The [first CI run](https://forgejo.webgrip.dev/webgrip/glide/actions/runs/1) passed application verification, documentation checks, container builds and release-policy tests at commit `2e03f18268794cface5acbc044f29592973461e2`. Both release jobs were explicitly skipped. The [publication record](research/evidence/glide-2026-09-12/publication.json) records the exact commit, run, job outcomes and ref verification separately from local qualification.
 
 The earlier repository-creation blocker is resolved by the owner's creation of the repository. No new token or permission was created by the agent. Artifact releases still require the distribution work below.
 

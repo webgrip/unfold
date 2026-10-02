@@ -10,7 +10,7 @@ Release-channel notes are the `refs/notes/semantic-release-*` refs that semantic
 
 | Candidate | Evidence | Verdict |
 | --- | --- | --- |
-| A workflow pushes notes to `origin` with `--prune` or a mirror refspec | The only notes push in the history since 12 September is [`sync_release_notes.py`](https://forgejo.webgrip.dev/webgrip/glide/src/commit/57e3ff747fa79c6978ed140630723ee729d1315a/scripts/sync_release_notes.py). It fetches from `origin` and pushes with `--prune` to `https://github.com/webgrip/glide.git`. Nothing pushes notes or prunes refs on `origin`. The shared `semantic-release-monorepo` composite pushes only a seed tag. | Not the cause |
+| A workflow pushes notes to `origin` with `--prune` or a mirror refspec | The only notes push in the history since 12 September is [`sync_release_notes.py`](https://forgejo.webgrip.dev/webgrip/glide/src/commit/700a3d97a614a66371ebbc78a1796ac87e0ae395/scripts/sync_release_notes.py). It fetches from `origin` and pushes with `--prune` to `https://github.com/webgrip/glide.git`. Nothing pushes notes or prunes refs on `origin`. The shared `semantic-release-monorepo` composite pushes only a seed tag. | Not the cause |
 | semantic-release rewrote notes | Every `release-vloer` and `release-ploeg` job from run 22 to run 33 was skipped because `GLIDE_RELEASES_ENABLED` is unset. semantic-release also adds notes one ref at a time and never deletes them. | Not the cause |
 | A force push rewrote history | Every commit that CI built from 12 to 22 September is an ancestor of `development`. Tags and branches still match GitHub exactly. | No evidence |
 | Forgejo pulls a mirror over the repository | The API reports `mirror: false`. The only configured mirror pushes from Forgejo to GitHub. | Not the cause |
@@ -19,9 +19,9 @@ The notes were most likely deleted by a push from outside CI, made from a clone 
 
 ## The hazard CI did have
 
-The GitHub side went wrong in a way that repository code can control. Before [`ae10513`](https://forgejo.webgrip.dev/webgrip/glide/commit/ae1051382e6a781b8415e130d721ff78e4d27036), `mirror-source-metadata` ran after every green push to `development`, whether or not releases were enabled, and in run 26 it ran even though `checks` had failed. With `origin` empty, fetching gets no notes, and `push --prune` then deletes every note on GitHub. GitHub has held no notes since, while its branches and tags match Forgejo. The next enabled mirror run republishes them.
+The GitHub side went wrong in a way that repository code can control. Before [`ae10513`](https://forgejo.webgrip.dev/webgrip/glide/commit/9a17b2256da67e042286b61ab85b7264dd66c9fa), `mirror-source-metadata` ran after every green push to `development`, whether or not releases were enabled, and in run 26 it ran even though `checks` had failed. With `origin` empty, fetching gets no notes, and `push --prune` then deletes every note on GitHub. GitHub has held no notes since, while its branches and tags match Forgejo. The next enabled mirror run republishes them.
 
 ## Changes
 
 * `sync_release_notes.py` refuses to push unless `origin` holds every imported note at the object recorded in the manifest. An empty or partial fetch can no longer prune GitHub.
-* [`test_release_notes_mirror.py`](https://forgejo.webgrip.dev/webgrip/glide/src/commit/57e3ff747fa79c6978ed140630723ee729d1315a/scripts/test_release_notes_mirror.py) runs under `mise run verify`. It fails if any tracked workflow, local action, script or mise task pushes with `--prune`, `--mirror` or `--delete`, uses a deleting refspec, or pushes `refs/notes`. The only exception is the guarded GitHub mirror.
+* [`test_release_notes_mirror.py`](https://forgejo.webgrip.dev/webgrip/glide/src/commit/700a3d97a614a66371ebbc78a1796ac87e0ae395/scripts/test_release_notes_mirror.py) runs under `mise run verify`. It fails if any tracked workflow, local action, script or mise task pushes with `--prune`, `--mirror` or `--delete`, uses a deleting refspec, or pushes `refs/notes`. The only exception is the guarded GitHub mirror.

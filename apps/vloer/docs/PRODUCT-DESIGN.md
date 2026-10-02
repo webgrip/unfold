@@ -30,6 +30,6 @@ The design chapters began on 9 September 2026. They mix product proposals, comme
 
 ## History and maintenance
 
-The [former compiled edition](https://forgejo.webgrip.dev/webgrip/de-vloer/src/commit/7c8657e15b1525e30641b12e5175bf268a49b03d/docs/PRODUCT-DESIGN.md) remains in Git. Its contents are also retained in the source chapters. The [documentation audit](research/2026-09-12-documentation-audit.md) explains the consolidation.
+The [former compiled edition](https://forgejo.webgrip.dev/webgrip/de-vloer/src/commit/c5718cde7e1c7520927c64613c38beee11e087f7/docs/PRODUCT-DESIGN.md) remains in Git. Its contents are also retained in the source chapters. The [documentation audit](research/2026-09-12-documentation-audit.md) explains the consolidation.
 
 `npm run design:check` checks this generated guide and local links in its source chapters. It does not validate proposed features or market claims.

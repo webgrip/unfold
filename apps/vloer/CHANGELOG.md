@@ -2,173 +2,173 @@
 
 ### Added
 
-* **brand:** add the De Vloer identity and hold Apache-2.0 in CI ([fabd72b](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/fabd72b5d10ff3fc10967e30d126e76e8b1aecc4))
-* **extension:** publish through Open VSX and mirror releases to GHCR ([e900ae8](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/e900ae8bcb5be5352a938965f7a27769faf19ab0))
-* **ui:** repaint the workbench on the brand palette and self-host Archivo ([f35f4e0](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/f35f4e06791e3f05ac5019425c22920b3311be87))
+* **brand:** add the De Vloer identity and hold Apache-2.0 in CI ([63615ee](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/63615ee96e3223992d5ef913a4aafaa5f60e0cb9))
+* **extension:** publish through Open VSX and mirror releases to GHCR ([32c1d79](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/32c1d79a82c17f3aeceb149307dfcb8168a99207))
+* **ui:** repaint the workbench on the brand palette and self-host Archivo ([fcb99c6](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/fcb99c6c3d772e167b842f98564accd87d988149))
 
 ### Fixed
 
-* **ci:** stop the licence gate depending on a network tool install ([0a1bd42](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/0a1bd428a5bd977591c4d23701a9347cbd63db37))
+* **ci:** stop the licence gate depending on a network tool install ([1d617dc](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/1d617dc14aa26fadebdbc03252bc007ddc38e3f2))
 
 ## [0.3.0-rc.15](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.14...v0.3.0-rc.15) (2026-09-11)
 
 ### Added
 
-* **release:** publish de-vloer to GHCR so Harbor stops being the only door ([35a7520](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/35a75202d352d4bf815178f0e8a07152263ce704))
+* **release:** publish de-vloer to GHCR so Harbor stops being the only door ([48d37f3](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/48d37f3518bc4b12aed3bf88f8ebec34b0f129d7))
 
 ### Docs
 
-* **landscape:** add ecosystem explanation, domain model and explorer ([c0eaeac](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/c0eaeac4bea099d3af69518a39aaaec84b459670))
+* **landscape:** add ecosystem explanation, domain model and explorer ([abe8294](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/abe8294f0201b18761ad50f9d257a20afa6a3063))
 
 ## [0.3.0-rc.14](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.13...v0.3.0-rc.14) (2026-09-11)
 
 ### Fixed
 
-* **kubernetes:** frame API request bodies and use writable state directory ([6bce630](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/6bce630eb56a1f993d92ce87b6ce6cd0d49b0560))
+* **kubernetes:** frame API request bodies and use writable state directory ([b02ef2a](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/b02ef2a079de67a1065cb2f7adc1c12b7801b5d1))
 
 ### Docs
 
-* **product:** clarify tickets and research outcomes ([aba2beb](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/aba2beb0828505b2ee0badd8a97fdd3f1d8dde22))
+* **product:** clarify tickets and research outcomes ([a874ac3](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/a874ac3578ab0bc9e66a8e27af10e016cfacdb59))
 
 ## [0.3.0-rc.13](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.12...v0.3.0-rc.13) (2026-09-11)
 
 ### Added
 
-* **delivery:** verify canonical candidates before human approval ([7732703](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/773270300d20fec8ffa25bcf0de66ec6479c7f8b))
-* **demo:** launch a local Ploeg and workbench test stack ([ea96755](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/ea96755abd53909b80c7686b467a84f12536e4cf))
-* **ploeg:** bind human sessions and tracker imports to shared execution ([fb11923](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/fb119235d5e430eb4e21964a673b01b3f3b635fd))
-* **vscode:** inspect scoped Ploeg work and execution bindings ([039c8a0](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/039c8a0172e53c7a864496d52b2cc322bec6c3c9))
+* **delivery:** verify canonical candidates before human approval ([4f3ec05](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/4f3ec055494c648605fd31b6cebfcf6092d94aec))
+* **demo:** launch a local Ploeg and workbench test stack ([977a21d](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/977a21d18a2fe020626dcf483495d4b26b957c32))
+* **ploeg:** bind human sessions and tracker imports to shared execution ([60f6cae](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/60f6cae447d0e716f83d328a711003178fffdfd4))
+* **vscode:** inspect scoped Ploeg work and execution bindings ([9d4e495](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/9d4e49511a44d4fe6d79e61fb793826ba8ac2847))
 
 ### Fixed
 
-* **demo:** finish Git metadata writes before confirming pause ([ccd42fa](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/ccd42fa89539d3bda649fbfed5bdeae523a7eae0))
-* **demo:** recover interrupted workspace initialization ([6674981](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/6674981001ae9c5a8994d947c08ea599c6192b50))
-* **vscode:** resolve workbench guide in packaged extension ([a3ac9f1](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/a3ac9f156ec272fd71b3378d714547cdf0177aa8))
+* **demo:** finish Git metadata writes before confirming pause ([efeac15](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/efeac15e64be8191b4aa855a15c332cd05dc4529))
+* **demo:** recover interrupted workspace initialization ([164e928](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/164e928a2b264286dcf858d2c4c20fbf4500ec25))
+* **vscode:** resolve workbench guide in packaged extension ([e1018e5](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/e1018e562f38ada44ecc14270c9b00713c1c666a))
 
 ### Docs
 
-* record unified architecture and qualification evidence ([06d7aed](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/06d7aed1f60f6575778b86495a48ee7e4ffcb32b))
+* record unified architecture and qualification evidence ([6423765](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/6423765ae861d25e4ef336760010af0c0e61db7f))
 
 ## [0.3.0-rc.12](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.11...v0.3.0-rc.12) (2026-09-10)
 
 ### Fixed
 
-* **ui:** show sub-cent spend, keep the editor panel still while it refreshes, and name the brief check ([60e8737](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/60e8737f0b16ba9bfeff2b8dfaa5de7dbbf92a55))
+* **ui:** show sub-cent spend, keep the editor panel still while it refreshes, and name the brief check ([d58632c](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/d58632cc38cedf37f982bfb3aae662c9a7e7b825))
 
 ## [0.3.0-rc.11](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.10...v0.3.0-rc.11) (2026-09-10)
 
 ### Fixed
 
-* **ui:** the status label helper called itself ([7bcd28f](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/7bcd28f1dc1282df1258fe8564b54d18567f7722))
+* **ui:** the status label helper called itself ([626ae1f](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/626ae1fd2bf15a05775868cb74a449467e980fbb))
 
 ## [0.3.0-rc.10](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.9...v0.3.0-rc.10) (2026-09-10)
 
 ### Added
 
-* **sessions:** a person accepts or rejects a completed session, and settlement says what it is doing ([41da098](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/41da098eb27d0625fa59955d78b4b8e062eb1533))
+* **sessions:** a person accepts or rejects a completed session, and settlement says what it is doing ([c904752](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/c9047526307f1326d23d44bfc4a4522801a747e5))
 
 ## [0.3.0-rc.9](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.8...v0.3.0-rc.9) (2026-09-10)
 
 ### Added
 
-* **vscode:** say where a session runs, choose the model, and review before creating ([3e8090c](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/3e8090c0acac304b2432f03fccf5e96edf94a9e2))
+* **vscode:** say where a session runs, choose the model, and review before creating ([fd52717](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/fd527178c58447f12399db7e991d7ebedd213389))
 
 ## [0.3.0-rc.8](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.7...v0.3.0-rc.8) (2026-09-10)
 
 ### Added
 
-* **sessions:** screen the brief before spending, cap runaway roles, and tidy what the session shows ([f214a3d](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/f214a3dfc4dbd06275abc8dc1350a3de1e5e8d74))
+* **sessions:** screen the brief before spending, cap runaway roles, and tidy what the session shows ([4c0fbd0](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/4c0fbd08f14d92ebda1e4e512aeef0327c2d7115))
 
 ## [0.3.0-rc.7](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.6...v0.3.0-rc.7) (2026-09-10)
 
 ### Added
 
-* **auth:** the editor signs in through the browser with the estate's identity provider ([65ab9ec](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/65ab9ec50d5cbf368e8f3bc37e725dda1e17b38b))
+* **auth:** the editor signs in through the browser with the estate's identity provider ([ef6b084](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/ef6b084666004dcc0c003403061c66fd3ff8be17))
 
 ## [0.3.0-rc.6](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.5...v0.3.0-rc.6) (2026-09-10)
 
 ### Added
 
-* **links:** link ClickUp or GitLab by pasting a personal token, with no application registered ([46d8a10](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/46d8a1056f849460014797c79e660d7cde91b313))
+* **links:** link ClickUp or GitLab by pasting a personal token, with no application registered ([d6618d6](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/d6618d65ea0c07dbcb54b1a7aeed568ca5893820))
 
 ## [0.3.0-rc.5](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.4...v0.3.0-rc.5) (2026-09-10)
 
 ### Added
 
-* **auth:** sign in with the estate's identity provider ([cc8073b](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/cc8073b3fdf4cf5c68a69bf850556a4858ed404f))
-* **links:** let a person link their GitLab account and clone private repositories with it ([3e03be9](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/3e03be94b5c5d638926775ce999a82880cbf2363))
-* **sessions:** a Gateway tab that shows who served each request and what the gateway did ([4ff8ce8](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/4ff8ce8fd46740c3e43a81b9594f1f8d9b136e34))
-* **sessions:** automatic tool approval in isolated placements, live observed spend, and a budget-exhausted failure ([03ef124](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/03ef124639d7775c2069e54c7ce114c47abd5329))
-* **sessions:** gateway policy that fails closed, the brief each role received, and a cost curve ([95a52a2](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/95a52a28e3cf1ce8d8caeb16ab886f64a9a2df2d))
-* **sessions:** link every session to the estate's dashboards, traces and logs, and list strict aliases ([7b8ce25](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/7b8ce2580bd124fecd73bc9c064549bba34bc367))
-* **sessions:** show what the crew did, which model answered, and let analysis roles answer without a verdict ([fe0b9b4](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/fe0b9b4a994c3f6e53ad10262557967d81a7b75d))
-* **sessions:** try a failed session again, duplicate it, and link ClickUp beside GitLab ([e0ffac5](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/e0ffac5eb3b7ca3cf99433aedd1aca1c7b788a09))
-* **vscode:** bring the editor to parity with the workbench ([4102bb4](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/4102bb451a99f269a79ae1b0b052440b1f7b9664))
+* **auth:** sign in with the estate's identity provider ([00f2654](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/00f26546f81205230e1494ebc3095fed79930f7a))
+* **links:** let a person link their GitLab account and clone private repositories with it ([4a8d390](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/4a8d3905d52ae046d610644a53510b8dd55fda5a))
+* **sessions:** a Gateway tab that shows who served each request and what the gateway did ([f855279](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/f855279b27b7fdb39ded9c1a6f5460703259d464))
+* **sessions:** automatic tool approval in isolated placements, live observed spend, and a budget-exhausted failure ([da48c58](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/da48c585cbf1c001c6379d44da7e241bf6a804b2))
+* **sessions:** gateway policy that fails closed, the brief each role received, and a cost curve ([aeaac5b](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/aeaac5beadc468ae8c261f73e0996cf1fb713df0))
+* **sessions:** link every session to the estate's dashboards, traces and logs, and list strict aliases ([6c2264d](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/6c2264dd2a7a0168c7034ac6648ab251ee8fda62))
+* **sessions:** show what the crew did, which model answered, and let analysis roles answer without a verdict ([38fc0ec](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/38fc0ecdc8a055fb596773d6c88550b136afed48))
+* **sessions:** try a failed session again, duplicate it, and link ClickUp beside GitLab ([24071ad](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/24071ad1bbf9df9280c3da8f9c00182b68c48c33))
+* **vscode:** bring the editor to parity with the workbench ([45835eb](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/45835eb75edb2568bc69388c1d260d07bf66f69f))
 
 ### Fixed
 
-* **links:** name the GitLab exchange failure and explain a confidential application ([b609714](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/b609714b08e0aff506d72e214934a267e24ec5e8))
-* **runtime:** tell a gateway outage from a refusal, and let the clone step report git's error ([86c18f0](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/86c18f054ba69a6fc8f19295889eebbbbcd4369e))
-* **ui:** declare the observed spend before the session template uses it ([3efb458](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/3efb4588fe3a1cd04c74b7f787fa431cff15c234))
-* **workspace:** keep the linked credential on the repository the manager validates ([87c9096](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/87c90960fb492105861b446cb4938ad86b64bba6))
+* **links:** name the GitLab exchange failure and explain a confidential application ([972e9cf](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/972e9cfa8d4dfa5e41d0e4ff5445b2a43e6ef429))
+* **runtime:** tell a gateway outage from a refusal, and let the clone step report git's error ([0383266](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/0383266e5a25d4c996020d32a139cbf12d50b0a4))
+* **ui:** declare the observed spend before the session template uses it ([6d2bb99](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/6d2bb99ef9f70d7995c31c4d0fb9658e851f900f))
+* **workspace:** keep the linked credential on the repository the manager validates ([66b16f9](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/66b16f97708a95f3b2a8320f0369acb2cb5510d8))
 
 ### Docs
 
-* propose that people sign in with the estate and link their own accounts ([4b605b8](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/4b605b843f1d45c1f2d7fbd5cd75a8c9b9a853eb))
-* record what Ploeg and De Vloer each do, propose the operator read API, list gateway capabilities ([4927342](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/4927342d429d0653be052bb3ed57902cc348dd75))
-* regenerate the consolidated design for tickets PV-079 through PV-085 ([0700edc](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/0700edcf3fc347242afd9e3ebb818ff6ce776898))
+* propose that people sign in with the estate and link their own accounts ([4ac1df0](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/4ac1df0ffca34c1854d7435843dee878d6fd2acf))
+* record what Ploeg and De Vloer each do, propose the operator read API, list gateway capabilities ([00bcb9c](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/00bcb9c8ed18d91194efcd3ce474c5efb01f2eef))
+* regenerate the consolidated design for tickets PV-079 through PV-085 ([8fe8487](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/8fe8487b656bcf6073abdbce4b8d136f028751c2))
 
 ## [0.3.0-rc.4](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.3...v0.3.0-rc.4) (2026-09-10)
 
 ### Fixed
 
-* **release:** take the distribute lanes that use the runner's own cosign ([7fdea66](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/7fdea66ad07bde155fffd3d8b714f89da97792dd))
+* **release:** take the distribute lanes that use the runner's own cosign ([49b98db](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/49b98db662202e5e9bee5aaf8410a71a07463936))
 
 ### Docs
 
-* record the outcome of the first three hosted releases ([8ad8e43](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/8ad8e431e3328ab7bc755794fe7c27ec68554ed7))
+* record the outcome of the first three hosted releases ([3c2585d](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/3c2585d5ef4af56d8c76d8fa098b2d1bc63dbffb))
 
 ## [0.3.0-rc.3](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.2...v0.3.0-rc.3) (2026-09-10)
 
 ### Added
 
-* **kubernetes:** offer user namespaces for workspace pods ([432eb7e](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/432eb7ea2eea54ccedf1ccb04d1b8f7beb916ebc))
+* **kubernetes:** offer user namespaces for workspace pods ([cd8913a](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/cd8913a321b3c0f4b05b20adb023f96b8fa31223))
 
 ### Fixed
 
-* **release:** hold the GitHub mirror until its repository exists ([c94ce15](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/c94ce1538f134fb81242b5d3ab674eac58389cdc))
+* **release:** hold the GitHub mirror until its repository exists ([de584c0](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/de584c0f3bdc4480a516f6174b3e5c363f5c5a3e))
 
 ## [0.3.0-rc.2](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.3.0-rc.1...v0.3.0-rc.2) (2026-09-10)
 
 ### Fixed
 
-* **release:** create the release directly so Forgejo emits the published event ([1898da7](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/1898da740851a34218d0ca6fad8599530a740bad))
+* **release:** create the release directly so Forgejo emits the published event ([6dec99c](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/6dec99c73161f04b29fd68b174264545512ea734))
 
 ## [0.3.0-rc.1](https://forgejo.webgrip.dev/webgrip/de-vloer/compare/v0.2.0...v0.3.0-rc.1) (2026-09-10)
 
 ### Added
 
-* let sandboxes dial out through a pull-based relay instead of exposing a port ([d11ad43](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/d11ad4399e2306aa938cd613f7731f9951e0ecc9))
-* release images, chart and extension on one hardened Forgejo train ([00d9eca](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/00d9ecac5a2091edc402de7d19adff2cea5f5a0b))
-* run agent workspaces in a sandboxed container and choose placement per session ([da04129](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/da041290a853e1220da5d01e0bd319c4204527ef))
-* serve every session as an Agent Host Protocol host over WebSocket ([70abc39](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/70abc3923283c12f0b3511b756f4971961505337))
-* show the recorded cause of workspace failures ([e16003e](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/e16003e8b131f31097045734b8cd73e8d40d0cda))
-* sign every captured candidate with in-toto provenance and an Agent Trace record ([f11cc14](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/f11cc146b2dc0d6d451fafb20cfce0a0110bc988))
-* **vscode:** attach the workbench as an agent host from the command palette ([83b34c6](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/83b34c6fa2e4d496af9a8f3e15ff7ef778d6b6ed))
-* **vscode:** rebuild the operator experience for review, decisions and live progress ([0f03acb](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/0f03acbf3653b7e583a9ff6c95c38be9fb4a66dd))
-* warm Kata sandboxes through the Sandbox CRDs, pool assignment and in-place capture ([2321943](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/2321943a54c6441a987556c939afc5fbe76d6588))
+* let sandboxes dial out through a pull-based relay instead of exposing a port ([7ebe8d6](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/7ebe8d6aa4cbd05882627f9357019f0926a7571e))
+* release images, chart and extension on one hardened Forgejo train ([3cf87fa](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/3cf87fa4f2cdcc72f6b62b5077eb1e65c45db307))
+* run agent workspaces in a sandboxed container and choose placement per session ([bd5aca3](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/bd5aca3e467ca52737c32fce84141bb1efebaabc))
+* serve every session as an Agent Host Protocol host over WebSocket ([f3c88c3](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/f3c88c3fa52339a3172ec2975e5048d8d849f990))
+* show the recorded cause of workspace failures ([5c226d4](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/5c226d441a590d5df72def8fc2aa89f7d90301c4))
+* sign every captured candidate with in-toto provenance and an Agent Trace record ([b56967e](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/b56967e725f80895d22aae175519f13e4b821059))
+* **vscode:** attach the workbench as an agent host from the command palette ([5e8863a](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/5e8863a18c6df2a0fe97b0446ab0217fa6a1f5f9))
+* **vscode:** rebuild the operator experience for review, decisions and live progress ([e985884](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/e9858843c12590c80f1bda40a0f282772103a9a7))
+* warm Kata sandboxes through the Sandbox CRDs, pool assignment and in-place capture ([2144acc](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/2144acc59010541653d4eb0b51500117fb6df30c))
 
 ### Docs
 
-* record which release prerequisites are done and which are deferred ([0251314](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/02513144103bc3976ba016199cb5679020343c65))
+* record which release prerequisites are done and which are deferred ([b4ad5e7](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/b4ad5e72537bac88b2e66c0e6a8f2f52d0076085))
 
 ### CI
 
-* build the docs site from the repository root like the generate step ([64d950c](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/64d950c8c4644f5b07aece0ac584d90d8d546ddf))
+* build the docs site from the repository root like the generate step ([90365cb](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/90365cbe749e36aa8c3c6e722475daaadf8c8eb7))
 
 ### Internal
 
-* pin opencode 1.18.30 through mise and ignore local launch scripts ([aa05979](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/aa05979f106cd692125fc25bdd549a15c3f156bc))
+* pin opencode 1.18.30 through mise and ignore local launch scripts ([d23e5c9](https://forgejo.webgrip.dev/webgrip/de-vloer/commit/d23e5c9859fa2f9dae76761e0466151cb8d566dc))
 
 # Changelog
 

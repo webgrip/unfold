@@ -2,22 +2,22 @@
 
 ### Fixed
 
-* **ci:** stop the licence gate depending on a network tool install ([f2333b9](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f2333b96c6b44f489c562f74d6a4654fed29cc01))
+* **ci:** stop the licence gate depending on a network tool install ([94c7c8e](https://forgejo.webgrip.dev/webgrip/ploeg/commit/94c7c8e2dc07037ee2fd38a69343426e40bd680d))
 
 ### Docs
 
-* **release:** drop the 1.x candidate from the record ([9e18b91](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9e18b913fe33c41b74739c9b24d99ced0ce39fb3))
-* **release:** point test deployments at the corrected publisher ([023c29f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/023c29fd8380ac1d0cfa375fe0098e99006fc2e8))
+* **release:** drop the 1.x candidate from the record ([6dfb43f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6dfb43f6f1367645a56de6eb1bc6bc8e7503f26f))
+* **release:** point test deployments at the corrected publisher ([166e85c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/166e85caa72de0a5941d13fc8f24e2b608f9f91a))
 
 ### Internal
 
-* **licence:** name the copyright holder and hold Apache-2.0 in CI ([bafb2a5](https://forgejo.webgrip.dev/webgrip/ploeg/commit/bafb2a52b6ea584f6c25f322b3b768edb7068cb3))
+* **licence:** name the copyright holder and hold Apache-2.0 in CI ([5681fb4](https://forgejo.webgrip.dev/webgrip/ploeg/commit/5681fb4577318a8dfb5bf094ce6ba3075cd50d07))
 
 ## [0.3.0-rc.6](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.3.0-rc.5...v0.3.0-rc.6) (2026-09-11)
 
 ### Fixed
 
-* **release:** use available outputs to enable Forgejo publishers ([6eecf01](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6eecf01afab7772be504a8033d53ea33950fd489))
+* **release:** use available outputs to enable Forgejo publishers ([fff3d3d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/fff3d3daec3ef06626751b48622db42437f180bc))
 
 ## [0.3.0-rc.5](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.3.0-rc.4...v0.3.0-rc.5) (2026-09-11)
 
@@ -31,389 +31,389 @@
 
 ### Added
 
-* **control-plane:** unify managed execution and verified delivery ([7714cd5](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7714cd5eb3268fd8291075a13fcb3736ddc88c76))
+* **control-plane:** unify managed execution and verified delivery ([9028cf0](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9028cf0718c65acbfc4f8bfd1be71f32417221ce))
 
 ### Fixed
 
-* **llm:** scope gateway keys and preserve accounting identities ([3536a7a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3536a7a1456d80151fa7e688fae35c33b620ec31))
-* **release:** keep experimental Ploeg releases on zero major ([6129281](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6129281217564a733827bb5ae32b5a3dd5f052a1))
-* **tracker:** retain authoritative scope and expose fresh execution state ([bbf5c82](https://forgejo.webgrip.dev/webgrip/ploeg/commit/bbf5c82a90a53e347ec7b97aa7b8dad532586781))
+* **llm:** scope gateway keys and preserve accounting identities ([762c27d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/762c27d5a170dbefdcacb1e3a7f50f60838acedb))
+* **release:** keep experimental Ploeg releases on zero major ([46056cf](https://forgejo.webgrip.dev/webgrip/ploeg/commit/46056cf7b91b2ea8c75e5bbf9b33ac56e3a24f0d))
+* **tracker:** retain authoritative scope and expose fresh execution state ([e00209e](https://forgejo.webgrip.dev/webgrip/ploeg/commit/e00209ed147d131af260bd99524f3f56d3dab499))
 
 ### Docs
 
-* **agents:** adopt the estate no-comments rule ([67c4bc9](https://forgejo.webgrip.dev/webgrip/ploeg/commit/67c4bc968455a99ef767bc8a24791ea1a87319cb))
-* **architecture:** define unified execution and delivery authority ([0992441](https://forgejo.webgrip.dev/webgrip/ploeg/commit/099244146077926ac3f2084d47cd31135e968a43))
-* **domain:** ground work in tickets and useful research ([188f0fe](https://forgejo.webgrip.dev/webgrip/ploeg/commit/188f0fe54542f6be30b51520a05a97fabafcc561))
+* **agents:** adopt the estate no-comments rule ([259a817](https://forgejo.webgrip.dev/webgrip/ploeg/commit/259a817a3f058346b3d96def361610dadc9f3bc5))
+* **architecture:** define unified execution and delivery authority ([1a8b00c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/1a8b00c2160930ca56638ccdb595e6c194efa532))
+* **domain:** ground work in tickets and useful research ([cf02ac7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/cf02ac7dbc2f2e8c562ab69cfae3114d1f994017))
 
 ## [0.3.0-rc.4](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.3.0-rc.3...v0.3.0-rc.4) (2026-09-02)
 
 ### Added
 
-* **ingest:** a container's pinned team decides, as the config always claimed ([9680081](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9680081c3d5856c2e49f7344475f810778191d65))
+* **ingest:** a container's pinned team decides, as the config always claimed ([cdb8d19](https://forgejo.webgrip.dev/webgrip/ploeg/commit/cdb8d195f9f3b00d836509209f8ce09e2d00382a))
 
 ## [0.3.0-rc.3](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.3.0-rc.2...v0.3.0-rc.3) (2026-09-02)
 
 ### Added
 
-* **config,chart:** route ClickUp Lists through the config file ([9778959](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9778959ee3fb4b0745e717a589d2d009c825a911))
+* **config,chart:** route ClickUp Lists through the config file ([e0a4823](https://forgejo.webgrip.dev/webgrip/ploeg/commit/e0a48230180283a7e8c2c66d46d1d8c33b237ebe))
 
 ## [0.3.0-rc.2](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.3.0-rc.1...v0.3.0-rc.2) (2026-09-02)
 
 ### Fixed
 
-* **chart:** the worker node selector is a value, not a constant ([7cd54a7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7cd54a768abbc3bf9d0f57135053b216a5b6afb6))
+* **chart:** the worker node selector is a value, not a constant ([53f8ad6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/53f8ad69692863d2af24ff4dfd60b2c263af541f))
 
 ## [0.3.0-rc.1](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.1-rc.1...v0.3.0-rc.1) (2026-09-02)
 
 ### Added
 
-* **worker:** open change requests on GitLab, not only Forgejo ([a1324ea](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a1324ea3957d5085458ccf1f1c9448d58bd6fea0))
+* **worker:** open change requests on GitLab, not only Forgejo ([a2a5547](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a2a5547ce49fdf531f5910a225c7c0ec2d9da684))
 
 ### Fixed
 
-* **harness:** taskspec.v1 carries the forge dialect ([bc485f3](https://forgejo.webgrip.dev/webgrip/ploeg/commit/bc485f3251cff9b083ad17505f945d53ecdfc028))
+* **harness:** taskspec.v1 carries the forge dialect ([08826e4](https://forgejo.webgrip.dev/webgrip/ploeg/commit/08826e4dcb8e01916bb13ebb5d7dbdd0dbbd4b40))
 
 ### Changed
 
-* **worker:** name things instead of explaining them ([a790777](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a7907770ff4bceca024a973ee6289fc7b574b132))
+* **worker:** name things instead of explaining them ([79407f1](https://forgejo.webgrip.dev/webgrip/ploeg/commit/79407f1ac1c475bf9102d7e482511c5d28889a42))
 
 ### Docs
 
-* **agents:** add CLAUDE.md as a symlink to AGENTS.md ([6bd94ce](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6bd94ceb551a04c3bb95487d10cba6fdd90e7ad8))
-* **changelog:** backfill v0.2.1-rc.1 — cut on the old toolchain after the first backfill ([8f7aa43](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8f7aa4352433a048f87138e1464bc80edfdbfbe4))
-* onboarding field report — five manual acts, all failing silently ([40dc219](https://forgejo.webgrip.dev/webgrip/ploeg/commit/40dc219cfa6d390c1697aa054724f7f10916e49b))
-* **openspec:** record the forge dialect decision as ADR-0023 ([215c9e5](https://forgejo.webgrip.dev/webgrip/ploeg/commit/215c9e5b12a66d52dbb01024e89badd938e82936))
-* **skills:** team-silver gates run in CI — the dispatched harness is daemonless ([bbde70c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/bbde70cc067baeb38553e545a78f0cf7366e2989))
-* stop prescribing a worktree per change ([010c0c6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/010c0c68dc6acba962aac332d4c0dbc69444dd5b))
+* **agents:** add CLAUDE.md as a symlink to AGENTS.md ([7996ce8](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7996ce86cd365147faa80e0af0ef95688943be27))
+* **changelog:** backfill v0.2.1-rc.1 — cut on the old toolchain after the first backfill ([fd8ecb8](https://forgejo.webgrip.dev/webgrip/ploeg/commit/fd8ecb8f316f2addc8d2e706ea8ce02d2cb62435))
+* onboarding field report — five manual acts, all failing silently ([4f2b008](https://forgejo.webgrip.dev/webgrip/ploeg/commit/4f2b0084ad994e435ad867feef0caf8e2fa4c7ae))
+* **openspec:** record the forge dialect decision as ADR-0023 ([8770c29](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8770c297766ffadeeb428c27131f9a26e969b401))
+* **skills:** team-silver gates run in CI — the dispatched harness is daemonless ([e15c9d1](https://forgejo.webgrip.dev/webgrip/ploeg/commit/e15c9d1842e5cbdfff7de9d122686f5cad2656e6))
+* stop prescribing a worktree per change ([70bd3fd](https://forgejo.webgrip.dev/webgrip/ploeg/commit/70bd3fdd4e73310d4ae0c7ff9a29f156ba55ec11))
 
 ### CI
 
-* **release:** back to toolchain image 0.1.2 — 0.3.1 fails the release job ([8203631](https://forgejo.webgrip.dev/webgrip/ploeg/commit/82036314ac7187a52eab1acbb5d965036ac4bd95))
-* **release:** cut releases in toolchain image 0.3.1 — notes render, dep bumps release ([f10b22b](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f10b22b06964745794f674c3d88c433773d4a7ee)), references [#131](https://forgejo.webgrip.dev/webgrip/ploeg/issues/131)
-* **release:** rerun the release job on toolchain image 0.3.1 ([4f3fa35](https://forgejo.webgrip.dev/webgrip/ploeg/commit/4f3fa35ed316d802be33651ceb3b4137d89c602b))
-* **release:** toolchain image 0.3.2 — the alpine base now ships bash ([d2352d7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/d2352d7bd0c7a9e631e643f6cb46ddea530ef761)), references [#132](https://forgejo.webgrip.dev/webgrip/ploeg/issues/132)
-* **release:** toolchain image 0.3.3 — the publish path now resolves got 11 ([a9d398c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a9d398c050bac8961015fba6e65a1a12e2eed2cd))
+* **release:** back to toolchain image 0.1.2 — 0.3.1 fails the release job ([3026c31](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3026c31b8282a95b0881129da5e4ef3a3974857a))
+* **release:** cut releases in toolchain image 0.3.1 — notes render, dep bumps release ([594593e](https://forgejo.webgrip.dev/webgrip/ploeg/commit/594593e1943eb4484ffcc15a8e190dd6bc0c8d31)), references [#131](https://forgejo.webgrip.dev/webgrip/ploeg/issues/131)
+* **release:** rerun the release job on toolchain image 0.3.1 ([76823cf](https://forgejo.webgrip.dev/webgrip/ploeg/commit/76823cffc1a869691889e44ff9b07f9d12053364))
+* **release:** toolchain image 0.3.2 — the alpine base now ships bash ([8b1d2cf](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8b1d2cfad04b7283d7ea8c5ab8b72018195c700c)), references [#132](https://forgejo.webgrip.dev/webgrip/ploeg/issues/132)
+* **release:** toolchain image 0.3.3 — the publish path now resolves got 11 ([d1f9c73](https://forgejo.webgrip.dev/webgrip/ploeg/commit/d1f9c730cf347475bfb87115fa20be26cff2cf28))
 
 ## [0.2.1-rc.1](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0...v0.2.1-rc.1) (2026-08-28)
 
 ### Fixed
 
-* **brand:** clip the Klei under the steel so it can't bleed through the edges ([0abd5e8](https://forgejo.webgrip.dev/webgrip/ploeg/commit/0abd5e8eab6ebe8eee2a6c12c0e729dae1174915))
+* **brand:** clip the Klei under the steel so it can't bleed through the edges ([c7414e5](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c7414e5096a8beafac67f06d2b37693eb3b31786))
 
 ### Docs
 
-* **agents:** stop telling agents to docker-pull the gate toolchain ([df312cb](https://forgejo.webgrip.dev/webgrip/ploeg/commit/df312cbf44b64e99a8756b98ed709532bdbbfa9e))
-* **changelog:** backfill 28 empty entries — the notes toolchain dropped every commit line ([debf0cb](https://forgejo.webgrip.dev/webgrip/ploeg/commit/debf0cb53355f010ef7337452ffe2dd50c3eda13)), references [#10](https://forgejo.webgrip.dev/webgrip/ploeg/issues/10) [#57](https://forgejo.webgrip.dev/webgrip/ploeg/issues/57) [#131](https://forgejo.webgrip.dev/webgrip/ploeg/issues/131)
+* **agents:** stop telling agents to docker-pull the gate toolchain ([a75e7d2](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a75e7d296db702bcc2ca0935847f2a4a9eb07fe0))
+* **changelog:** backfill 28 empty entries — the notes toolchain dropped every commit line ([29ea7cf](https://forgejo.webgrip.dev/webgrip/ploeg/commit/29ea7cf941deb6ebdbc1096f75a0af263c7fabb1)), references [#10](https://forgejo.webgrip.dev/webgrip/ploeg/issues/10) [#57](https://forgejo.webgrip.dev/webgrip/ploeg/issues/57) [#131](https://forgejo.webgrip.dev/webgrip/ploeg/issues/131)
 
 ## [0.2.0](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0...v0.2.0) (2026-08-27)
 
 ### Added
 
-* **api:** role-scoped claim, findings on the outcome, role-filtered depth ([41b497d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/41b497d52a2c6b83aeb205801acadef6a20f6a67))
-* bind the work target to the work item, not to the team ([79a7ac9](https://forgejo.webgrip.dev/webgrip/ploeg/commit/79a7ac9b8a9b62c7735f9aa23e3c305b1e002f03)), references [#97](https://forgejo.webgrip.dev/webgrip/ploeg/issues/97) [97/#103](https://forgejo.webgrip.dev/webgrip/ploeg/issues/103) [#104-108](https://forgejo.webgrip.dev/webgrip/ploeg/issues/104-108)
-* **chart:** one workload per (team, Role), and a waiver keyed to the hazard ([ac34700](https://forgejo.webgrip.dev/webgrip/ploeg/commit/ac34700a20e66c42acaff29b59d3d5e5be03ea6d))
-* **chart:** worker ServiceAccount and per-Role resources ([12896f5](https://forgejo.webgrip.dev/webgrip/ploeg/commit/12896f5c6c7e144efb86eb504cb6ba04940d4a6a))
-* **config:** routing and roster as a file, and push rights minted per Run ([3c455da](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3c455dac3b2b9f067dd8d58cc034bd57c8e0e80e)), references [#26](https://forgejo.webgrip.dev/webgrip/ploeg/issues/26)
-* **deps:** update docker.io/golang docker tag ( 1.24 ➔ 1.26 ) ([999eda8](https://forgejo.webgrip.dev/webgrip/ploeg/commit/999eda8942e83d47c31d8144171fbb4fc511417d))
-* **deps:** Update postgres Docker tag ( 17 ➔ 18 ) ([41cba65](https://forgejo.webgrip.dev/webgrip/ploeg/commit/41cba65819694ce00ed58ae7c0e764eada76d4c4))
-* **dispatch:** every queued item gets a Shift, behind a kill switch ([c9ccf55](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c9ccf55c16b0dc240402943cd066c72f0de716ec))
-* **harness:** ACP driver, client half, and the coder/acp-go-sdk dependency ([864249a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/864249aabf13cd071033228a96a19e9958b1e39a))
-* **harness:** ACP event and stop-reason semantics (no SDK, no process) ([eceee69](https://forgejo.webgrip.dev/webgrip/ploeg/commit/eceee69a3013563955f02d08e950d47e124780d2)), references [#64](https://forgejo.webgrip.dev/webgrip/ploeg/issues/64)
-* **harness:** ACP permission policy for unattended runs ([a6285f7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a6285f7d2930f0fbe7b9f7b4e633ca04c9ec9ad7))
-* **harness:** ACP subprocess layer — process groups, stdout demux, async stdin ([a0530d6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a0530d640f0c2afb6e7610e55dc60705360a2aaf))
-* **httpapi:** forge webhook ingest — verified, deduplicated, audited ([c70208d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c70208d7357118c459108788911515616e3314a7)), references [#2](https://forgejo.webgrip.dev/webgrip/ploeg/issues/2) [#3](https://forgejo.webgrip.dev/webgrip/ploeg/issues/3) [#107](https://forgejo.webgrip.dev/webgrip/ploeg/issues/107) [#9](https://forgejo.webgrip.dev/webgrip/ploeg/issues/9)
-* **plan:** team plan config, parsed at boot, rendered dark from the chart ([67206d7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/67206d75420b4cde28286eba8880c6d2464098db))
-* pluggable harness, agent image, LLM broker, and executor seams ([08c40ea](https://forgejo.webgrip.dev/webgrip/ploeg/commit/08c40ea3fde02ff146573a48b293cfc254b6073c)), references [66/#69](https://forgejo.webgrip.dev/webgrip/ploeg/issues/69)
-* **provider:** findings reach the pull request, and a person is asked to merge ([a8539db](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a8539db202d704737964a78bd8f49e9fbb23c3f5))
-* **provider:** GitLab forge and ClickUp tracker providers ([794eafc](https://forgejo.webgrip.dev/webgrip/ploeg/commit/794eafc056e5c5899e53179904e463eab42aa307))
-* run forensics survive pod/job cleanup — node+pod identity in logs+checkpoints, failure-reason taxonomy, VIK-586 fix ([ec2f000](https://forgejo.webgrip.dev/webgrip/ploeg/commit/ec2f000b634e3ce7d226192f01567ab3669021a8))
-* **shiftengine:** open, advance, close and park Shifts ([10e2972](https://forgejo.webgrip.dev/webgrip/ploeg/commit/10e29721c43b4fc83737233d9521f77645b66f33))
-* **shiftengine:** verdict-driven fix rounds, bounded by pool then cap ([2c5ba9d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2c5ba9d19477f9db60b04e20cf1649762679efb0))
-* **store:** settlement, per-Run liveness, and the round-completion signal ([6ee978c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6ee978ce2fdafefbf036f7b2fa044a53c18bd18f))
-* **store:** shift lifecycle completions and shift-run plumbing fixes ([3b5bf76](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3b5bf76d468c04f3aaefa52049e2ce5ba4b01da6))
-* **store:** Shifts — rounds, reader/writer runs, and pooled budgets ([dd0b8ca](https://forgejo.webgrip.dev/webgrip/ploeg/commit/dd0b8ca2e7f4c7ee1b703fc57f2ab188637a1ed4))
-* **worker:** role-aware runs — claim, prompt, budget, findings drop box ([c40f985](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c40f9858d0b9b20dde1113b13c9a08f206da7be0)), references [#9](https://forgejo.webgrip.dev/webgrip/ploeg/issues/9)
-* **worker:** select the ACP harness from the registry, env and chart ([57d225e](https://forgejo.webgrip.dev/webgrip/ploeg/commit/57d225edd3207318c325723193fc707a66257aee))
+* **api:** role-scoped claim, findings on the outcome, role-filtered depth ([3cbfd63](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3cbfd6341e4ebb1096cbea532a88113afce45dfa))
+* bind the work target to the work item, not to the team ([d2085b3](https://forgejo.webgrip.dev/webgrip/ploeg/commit/d2085b39fe68feeaa12f08725b231547d52fac4c)), references [#97](https://forgejo.webgrip.dev/webgrip/ploeg/issues/97) [97/#103](https://forgejo.webgrip.dev/webgrip/ploeg/issues/103) [#104-108](https://forgejo.webgrip.dev/webgrip/ploeg/issues/104-108)
+* **chart:** one workload per (team, Role), and a waiver keyed to the hazard ([e6b3f92](https://forgejo.webgrip.dev/webgrip/ploeg/commit/e6b3f92fbcbc1f1b9e233d959c70ae2eb3a2b291))
+* **chart:** worker ServiceAccount and per-Role resources ([2a9b184](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2a9b1848103e875127c13c237c9832feec33a4d8))
+* **config:** routing and roster as a file, and push rights minted per Run ([45b343f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/45b343f6eaecf624e479ad32329f8b599b8a4d15)), references [#26](https://forgejo.webgrip.dev/webgrip/ploeg/issues/26)
+* **deps:** update docker.io/golang docker tag ( 1.24 ➔ 1.26 ) ([739bd80](https://forgejo.webgrip.dev/webgrip/ploeg/commit/739bd806b1b0ef2f4d7e761a07a1c34d5f0358fd))
+* **deps:** Update postgres Docker tag ( 17 ➔ 18 ) ([6fe8454](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6fe84548e06d44ab22eb444a009247dcad621e85))
+* **dispatch:** every queued item gets a Shift, behind a kill switch ([988c496](https://forgejo.webgrip.dev/webgrip/ploeg/commit/988c4963551f01f30bfd8bd335230a0fbefbb093))
+* **harness:** ACP driver, client half, and the coder/acp-go-sdk dependency ([6a06793](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6a067933d0f3a1227b320d8a6c53a229b21aca24))
+* **harness:** ACP event and stop-reason semantics (no SDK, no process) ([2bcd9ce](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2bcd9ce6092712f703e06d4a25d0d44dd25a18eb)), references [#64](https://forgejo.webgrip.dev/webgrip/ploeg/issues/64)
+* **harness:** ACP permission policy for unattended runs ([a8e705a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a8e705ab332d032c1711c12b1dd2c86166f147f3))
+* **harness:** ACP subprocess layer — process groups, stdout demux, async stdin ([a238a66](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a238a668bb1703e2077cf1aec23f11c6fa80a2ef))
+* **httpapi:** forge webhook ingest — verified, deduplicated, audited ([7befbce](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7befbceecbf9a7ecda46faf4e60ab2a7f2752a36)), references [#2](https://forgejo.webgrip.dev/webgrip/ploeg/issues/2) [#3](https://forgejo.webgrip.dev/webgrip/ploeg/issues/3) [#107](https://forgejo.webgrip.dev/webgrip/ploeg/issues/107) [#9](https://forgejo.webgrip.dev/webgrip/ploeg/issues/9)
+* **plan:** team plan config, parsed at boot, rendered dark from the chart ([bff5540](https://forgejo.webgrip.dev/webgrip/ploeg/commit/bff5540227b4aa3310850cf3e6a285d0e1ab6360))
+* pluggable harness, agent image, LLM broker, and executor seams ([1789c7a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/1789c7a74ec7470c127178ec07cb572471243ce6)), references [66/#69](https://forgejo.webgrip.dev/webgrip/ploeg/issues/69)
+* **provider:** findings reach the pull request, and a person is asked to merge ([2e9f6ed](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2e9f6edfd503115c5d003c40852d0ec940376d94))
+* **provider:** GitLab forge and ClickUp tracker providers ([e96cce7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/e96cce76c8c68e3eff660434b52530186b23d9e0))
+* run forensics survive pod/job cleanup — node+pod identity in logs+checkpoints, failure-reason taxonomy, VIK-586 fix ([72db36b](https://forgejo.webgrip.dev/webgrip/ploeg/commit/72db36bcbc964e18461d21a9b2e4a2523eca8a0a))
+* **shiftengine:** open, advance, close and park Shifts ([9e538d0](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9e538d077b05aa070fd7936db9feb3c1e0ae52ee))
+* **shiftengine:** verdict-driven fix rounds, bounded by pool then cap ([6beaaa1](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6beaaa1739d26a89bbe1419c8634f43b5e10917d))
+* **store:** settlement, per-Run liveness, and the round-completion signal ([9d2d39b](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9d2d39be359e1129ce483d9e05773e3d0fa02f51))
+* **store:** shift lifecycle completions and shift-run plumbing fixes ([c3db764](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c3db7641b74829b73b8c8b990cf5e9745104bddb))
+* **store:** Shifts — rounds, reader/writer runs, and pooled budgets ([450a8ae](https://forgejo.webgrip.dev/webgrip/ploeg/commit/450a8ae25d0ce3f0a3961fba65510c35f9e96e98))
+* **worker:** role-aware runs — claim, prompt, budget, findings drop box ([8e170fa](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8e170fac79771df29880d28de7e7a3e7aab7494f)), references [#9](https://forgejo.webgrip.dev/webgrip/ploeg/issues/9)
+* **worker:** select the ACP harness from the registry, env and chart ([a33646d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a33646d4dbcb14d9722e67a6fb85f83f29b74d24))
 
 ### Fixed
 
-* **adrs:** revert the ADR-0017 index edit — upstream had already resolved it ([721630d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/721630de5623062a84e0c80e15bf7eac5083da30))
-* apply PR review round 2 — ExpectsLLM, VIK-586 heuristic, gofmt, FailureReason naming ([dbb10da](https://forgejo.webgrip.dev/webgrip/ploeg/commit/dbb10dac8b3f124a9fffb9f01ea71f3ac7c1ee3b))
-* assignment webhooks revive finished work items ([30558e5](https://forgejo.webgrip.dev/webgrip/ploeg/commit/30558e5f3ff032c161d41665ae5b121f32764284))
-* **chart:** three defects found by running rc.13 in production ([11d2284](https://forgejo.webgrip.dev/webgrip/ploeg/commit/11d2284ebe54411285fa0c0b7092145d6888f4a9))
-* **ci:** adopt the shared forgejo-distribute reusable for the Forgejo mirror ([5d524a9](https://forgejo.webgrip.dev/webgrip/ploeg/commit/5d524a9b5cd57cd28eadf1d2858e035187fc242d))
-* **ci:** assert image labels on parsed JSON, not on rendered text ([34fb522](https://forgejo.webgrip.dev/webgrip/ploeg/commit/34fb5224276e51e1f5f98e29c3565ca6333e6a4a))
-* **ci:** bypass the dead Docker Hub proxy so a release can distribute again ([9070844](https://forgejo.webgrip.dev/webgrip/ploeg/commit/90708449afb3758c3da119953768b77e1d4af7e4))
-* **ci:** correct the stale single-reusable-chain comment; cut v0.1.0-rc.11 ([4a7d78e](https://forgejo.webgrip.dev/webgrip/ploeg/commit/4a7d78eaba0fdc9f3413bce533a8d5ef6a223d56))
-* **ci:** finish the proxy bypass — syft scanner and buildkit come direct too ([2862920](https://forgejo.webgrip.dev/webgrip/ploeg/commit/286292050d28b9d634658d51fdf6a2534897551a))
-* **ci:** mirror image and chart to the Forgejo registry and link them to the repo ([0ad0ced](https://forgejo.webgrip.dev/webgrip/ploeg/commit/0ad0ced79b82c4092c5c7e0280af6f6fad131e33))
-* **ci:** pin semantic-release to v1.2.0 now that PR [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40) is released ([77a5f3c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/77a5f3c0ea6266ea657f6eb5b52fbcc183b56255))
-* **ci:** pin webgrip/workflows to v1.0.0 instead of [@main](https://forgejo.webgrip.dev/main) ([a3a1175](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a3a1175d9f5fca6a38ee6fbe44a081b3436cf95b)), references [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40) [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40)
-* **ci:** prove the container release path end to end, on a probed toolchain ([31d92ad](https://forgejo.webgrip.dev/webgrip/ploeg/commit/31d92add5a09edde249f82bb309a703a35e5f4b4))
-* **ci:** re-pin the semrel action to a commit the server can still resolve ([2943b03](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2943b032e57bf0cde91f2b9d6a7fba6dd1d7e09c))
-* **ci:** release and publish as the webgrip-ci bot, not the per-job token ([8a5a994](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8a5a994c05228017e363da8e446a5ac1231f72e1))
-* **ci:** reopen the GitHub track — mirror, Releases and GHCR via github-distribute ([2f64ae8](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2f64ae8630ea47fc68df90ee69076bfa9acb1113)), references [#48](https://forgejo.webgrip.dev/webgrip/ploeg/issues/48)
-* **ci:** skip the Harbor build when the version is already published ([5a7fa89](https://forgejo.webgrip.dev/webgrip/ploeg/commit/5a7fa89fe60eb8d9fe5ccee35d958e93c4d0fe10))
-* **ci:** substitute the chart version out of the helm goldens ([c827f9f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c827f9fe5cf54f7e69f86a26b092d61ec171cf3e))
-* **config:** per-team routing on one project is valid, not a duplicate ([ab8536b](https://forgejo.webgrip.dev/webgrip/ploeg/commit/ab8536b46adffc3911ad7507009790d9340f24e4))
-* **config:** reject an assignee shared by two teams ([60c836b](https://forgejo.webgrip.dev/webgrip/ploeg/commit/60c836bdc3adbc7eef61c6923601cfcac585fd79))
-* **deps:** clear the nine CVEs Harbor flags on the ploegd image ([427ea3a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/427ea3ad2ea657bdf597d507c46b49d66dae2574))
-* **deps:** update harbor.webgrip.dev/webgrip/agent-runner docker tag ( 1.0.1 ➔ 1.0.2 ) ([2cfdc01](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2cfdc01c767ff5cf9d8c87a54a210d00d3160839))
-* Guaranteed QoS for every factory pod — out of the OOMController's kill zone ([cbde89d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/cbde89d4625a0e55a95673646e3a16d9caff67c2))
-* **harness,worker:** a reading Run's review must survive every harness ([7e78a59](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7e78a59e15fd92cf289a3dc198608fac3a5d558c))
-* **harness:** flush the agent's stderr before building an ACP failure reason ([eafd621](https://forgejo.webgrip.dev/webgrip/ploeg/commit/eafd621247d2cebfec4e41f6474df9f492c424ad))
-* **helm:** default worker CPU to 1 core (single-threaded cold import ([cd0cb23](https://forgejo.webgrip.dev/webgrip/ploeg/commit/cd0cb237c999840e7ab7f1acdd9208be7abf0c6d))
-* **httpapi:** close the failure taxonomy at the API boundary ([c7c5ed6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c7c5ed64547d3c2a7ec8c3c900f5088be1fdff42))
-* infra failures don't burn attempt budget (backoff + infra_failures) ([71bbb1a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/71bbb1af903354a41e372f11d5859045b29558a6))
-* ploeg-worker owns the per-run LiteLLM key lifecycle (mint + always-revoke) ([450ec5f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/450ec5f67f821e24e7e8b20a0ea6c56d9bb7f7de))
-* **ploegd:** register a forge under the ID its Work Target carries ([38e3b27](https://forgejo.webgrip.dev/webgrip/ploeg/commit/38e3b27c138b23a098b1ca4186c683ac1f5fa058))
-* **ploegd:** safe Alias() helper, sweeper key revoke, boot orphan sweep ([4814851](https://forgejo.webgrip.dev/webgrip/ploeg/commit/4814851e8ab7fc8eff35c206fb07fddebd41d908))
-* **release:** annotate the index and mirror cosign's accessories to GHCR ([da548a1](https://forgejo.webgrip.dev/webgrip/ploeg/commit/da548a145e9d5ae7a7fe51002be1852c86150b51)), references [#53](https://forgejo.webgrip.dev/webgrip/ploeg/issues/53)
-* **release:** drop the yq appVersion prepareCmd — the shared config bumps both keys ([18f441b](https://forgejo.webgrip.dev/webgrip/ploeg/commit/18f441b2cdbdbdd88ba9aa8420020a1932cdc51a))
-* **release:** link the image and chart to the repo on GHCR ([1440917](https://forgejo.webgrip.dev/webgrip/ploeg/commit/1440917b6e5c1db241258ef048ae4c6485437575))
-* **release:** reject zero-time release timestamps, not just Go's spelling ([08dfd2f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/08dfd2ff15e34880ded07ba8bd0b9ab6a4f3ce8f))
-* **release:** sign the Forgejo mirror too ([90badd4](https://forgejo.webgrip.dev/webgrip/ploeg/commit/90badd4e83563042d1d041370387dc75eeab6b71))
-* **shiftengine,store:** a failed writing Run re-opens its Round ([107d5f7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/107d5f760fe3ce6316ed25340d3a78d8c503c05f)), references [#35](https://forgejo.webgrip.dev/webgrip/ploeg/issues/35)
-* **shiftengine,worker,litellm:** close the loop the reviews were falling out of ([a1bccea](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a1bccea573e143b7ee9a1ff19ad4e1ae16a21d99)), references [erfbeeld#9](https://forgejo.webgrip.dev/erfbeeld/issues/9)
-* **shiftengine:** a successful review must not read as a stoppage ([7deab6a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7deab6a64602e73870b6b82f6618e19ace8d74c1))
-* **shiftengine:** write back to the tracker on every terminal settle ([30d9ce3](https://forgejo.webgrip.dev/webgrip/ploeg/commit/30d9ce309003b5a3caba8495149591de5fc457de)), references [#30](https://forgejo.webgrip.dev/webgrip/ploeg/issues/30)
-* worker owns the per-run LiteLLM key lifecycle (mint + always-revoke) ([1edb4af](https://forgejo.webgrip.dev/webgrip/ploeg/commit/1edb4af494130c06450763dfd288d9cb283cd951))
-* worker targets a configurable base branch end to end ([18f80de](https://forgejo.webgrip.dev/webgrip/ploeg/commit/18f80de7314e11df8521f3eb5897f17924fa273c)), references [#6](https://forgejo.webgrip.dev/webgrip/ploeg/issues/6)
-* **worker,httpapi:** tell the truth about the forge credential, log routing ([f58c261](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f58c26119b31c811d63f052587ab1b142017228f))
-* **worker,shiftengine:** a killed run reports its own death, and does not spend the agent's budget ([df5dc9f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/df5dc9f3e348d278ef91580e74bbd03117eab408))
-* **worker:** a reading Round may run before any branch exists ([1c55e74](https://forgejo.webgrip.dev/webgrip/ploeg/commit/1c55e74785cc63b5e2fe84255ee010c442dc4fa0))
-* **worker:** give a reader the work, and take away the credential ([8045b6d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8045b6df9b17afaed2dfd3db1b4c02023cd85112))
-* **worker:** stop a failed run inheriting the previous run's PR ([6141f27](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6141f27e9307d5c1da89dded5727fe070789c56e))
+* **adrs:** revert the ADR-0017 index edit — upstream had already resolved it ([444c313](https://forgejo.webgrip.dev/webgrip/ploeg/commit/444c313f65aebc344bbc897c55f1eade83229b55))
+* apply PR review round 2 — ExpectsLLM, VIK-586 heuristic, gofmt, FailureReason naming ([84c8ced](https://forgejo.webgrip.dev/webgrip/ploeg/commit/84c8ceddd053e8eac5a72ab4754d274284d499e3))
+* assignment webhooks revive finished work items ([8b15d2e](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8b15d2e5fae575f6dbea93f59026521f53989ca9))
+* **chart:** three defects found by running rc.13 in production ([1cb5fdd](https://forgejo.webgrip.dev/webgrip/ploeg/commit/1cb5fddafc72a2b4127feb1970855f5fce9f26bf))
+* **ci:** adopt the shared forgejo-distribute reusable for the Forgejo mirror ([9047b3a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9047b3a520c94c4ac3df7e198776f07458e14d06))
+* **ci:** assert image labels on parsed JSON, not on rendered text ([dfdc714](https://forgejo.webgrip.dev/webgrip/ploeg/commit/dfdc714af816b2240c00badbec8b5e2373f20066))
+* **ci:** bypass the dead Docker Hub proxy so a release can distribute again ([615948d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/615948dabd66f180cfffd41b2e4bc8049f4ccfa0))
+* **ci:** correct the stale single-reusable-chain comment; cut v0.1.0-rc.11 ([09eeea0](https://forgejo.webgrip.dev/webgrip/ploeg/commit/09eeea0677794acb6ed8dcbace2fd72829538276))
+* **ci:** finish the proxy bypass — syft scanner and buildkit come direct too ([646a6e7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/646a6e741cae386c5a271a6d76f654d0fa02e68f))
+* **ci:** mirror image and chart to the Forgejo registry and link them to the repo ([621e77a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/621e77ae035ec64368dd3c2becbf7fee9bb63351))
+* **ci:** pin semantic-release to v1.2.0 now that PR [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40) is released ([1ca543a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/1ca543af2c9161c94a701b049538a89b585abb31))
+* **ci:** pin webgrip/workflows to v1.0.0 instead of [@main](https://forgejo.webgrip.dev/main) ([2c5fbec](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2c5fbecd65fca3b5e94c39bdd0b11666929066eb)), references [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40) [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40)
+* **ci:** prove the container release path end to end, on a probed toolchain ([673896a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/673896af6a85024f0bf71560a538b6939978f190))
+* **ci:** re-pin the semrel action to a commit the server can still resolve ([a5c8026](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a5c80261266e91152fdce9053088db51a99de84b))
+* **ci:** release and publish as the webgrip-ci bot, not the per-job token ([647a49c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/647a49cd2a75421d66defd83eb52482e3d53b000))
+* **ci:** reopen the GitHub track — mirror, Releases and GHCR via github-distribute ([0b59582](https://forgejo.webgrip.dev/webgrip/ploeg/commit/0b595828044f64e4ddff2999efacccdd593fcbf4)), references [#48](https://forgejo.webgrip.dev/webgrip/ploeg/issues/48)
+* **ci:** skip the Harbor build when the version is already published ([71e6436](https://forgejo.webgrip.dev/webgrip/ploeg/commit/71e64367b26083318a0185a5580f27fc000f407d))
+* **ci:** substitute the chart version out of the helm goldens ([bc24da2](https://forgejo.webgrip.dev/webgrip/ploeg/commit/bc24da27c5af757b960a92f2b6b8301fb6c75161))
+* **config:** per-team routing on one project is valid, not a duplicate ([0b5a05b](https://forgejo.webgrip.dev/webgrip/ploeg/commit/0b5a05b9660bbc6bfe5198d31bed8b1c01ec55d3))
+* **config:** reject an assignee shared by two teams ([3ec972f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3ec972f794207ae8e768b760f934b3fd5d20bb31))
+* **deps:** clear the nine CVEs Harbor flags on the ploegd image ([6670482](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6670482149c3b385a73048c82d1d339125d00147))
+* **deps:** update harbor.webgrip.dev/webgrip/agent-runner docker tag ( 1.0.1 ➔ 1.0.2 ) ([2fa0985](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2fa0985ce2ae60f66daefc7c23a6985cddab4e75))
+* Guaranteed QoS for every factory pod — out of the OOMController's kill zone ([9e708ee](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9e708ee7b4a6a55db0047c98d53ab6fc19aaae30))
+* **harness,worker:** a reading Run's review must survive every harness ([fc0293f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/fc0293f61662b270c8543c688b54a7a8dad9047f))
+* **harness:** flush the agent's stderr before building an ACP failure reason ([de03342](https://forgejo.webgrip.dev/webgrip/ploeg/commit/de03342713aa73549939c43864b8f66682837198))
+* **helm:** default worker CPU to 1 core (single-threaded cold import ([540c3c2](https://forgejo.webgrip.dev/webgrip/ploeg/commit/540c3c2aa2b248c2799dfb7259f1bca1db90aa5f))
+* **httpapi:** close the failure taxonomy at the API boundary ([f72f9ac](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f72f9ac741fb59413492c10caac1a78f81ae1641))
+* infra failures don't burn attempt budget (backoff + infra_failures) ([a9615a8](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a9615a87c4d834e8d2c5cbe52f0631a102c7cc07))
+* ploeg-worker owns the per-run LiteLLM key lifecycle (mint + always-revoke) ([aa5fc39](https://forgejo.webgrip.dev/webgrip/ploeg/commit/aa5fc397c463d95a6cf18944594ee22cdfd0e585))
+* **ploegd:** register a forge under the ID its Work Target carries ([9ccb035](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9ccb035124471f4fa841517c4272c38ca0888b8b))
+* **ploegd:** safe Alias() helper, sweeper key revoke, boot orphan sweep ([1c39d96](https://forgejo.webgrip.dev/webgrip/ploeg/commit/1c39d96824d3a51a31398ad470d6edb950e31e0b))
+* **release:** annotate the index and mirror cosign's accessories to GHCR ([b11e343](https://forgejo.webgrip.dev/webgrip/ploeg/commit/b11e3434b40f89d6cb30b6663a8f02799319926b)), references [#53](https://forgejo.webgrip.dev/webgrip/ploeg/issues/53)
+* **release:** drop the yq appVersion prepareCmd — the shared config bumps both keys ([565cb1f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/565cb1fcf926c522bfdaea33bb3ea01563238857))
+* **release:** link the image and chart to the repo on GHCR ([3c833c2](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3c833c2fa755724693b5430c5e97c95548c422bb))
+* **release:** reject zero-time release timestamps, not just Go's spelling ([9a1ba9f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9a1ba9f509178daf2abbc2e1760b23a347e44bc4))
+* **release:** sign the Forgejo mirror too ([f8099c9](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f8099c9fef8aaec3763545e7f054a4cf21827d41))
+* **shiftengine,store:** a failed writing Run re-opens its Round ([b0ad282](https://forgejo.webgrip.dev/webgrip/ploeg/commit/b0ad28266faa4ebdc501d547204170034c9252d6)), references [#35](https://forgejo.webgrip.dev/webgrip/ploeg/issues/35)
+* **shiftengine,worker,litellm:** close the loop the reviews were falling out of ([eb6c8dc](https://forgejo.webgrip.dev/webgrip/ploeg/commit/eb6c8dc91575a5414ceaa3808c260b9447eb3059)), references [erfbeeld#9](https://forgejo.webgrip.dev/erfbeeld/issues/9)
+* **shiftengine:** a successful review must not read as a stoppage ([848c911](https://forgejo.webgrip.dev/webgrip/ploeg/commit/848c911f07fbd8563f0e4eb379f86ba1edc26cd1))
+* **shiftengine:** write back to the tracker on every terminal settle ([93ade62](https://forgejo.webgrip.dev/webgrip/ploeg/commit/93ade6266a5204199b773ae05cc7855e9db140a0)), references [#30](https://forgejo.webgrip.dev/webgrip/ploeg/issues/30)
+* worker owns the per-run LiteLLM key lifecycle (mint + always-revoke) ([9bcc0f8](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9bcc0f84f1bdad3e68a4513eeba6ccf77be95fa1))
+* worker targets a configurable base branch end to end ([6ffdfe6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6ffdfe636cf19f2c4be7ea51eedbf2fb6dbe295a)), references [#6](https://forgejo.webgrip.dev/webgrip/ploeg/issues/6)
+* **worker,httpapi:** tell the truth about the forge credential, log routing ([51817e2](https://forgejo.webgrip.dev/webgrip/ploeg/commit/51817e2a6d9af32d5e836057f7b6ed4ec1410b78))
+* **worker,shiftengine:** a killed run reports its own death, and does not spend the agent's budget ([771a18b](https://forgejo.webgrip.dev/webgrip/ploeg/commit/771a18b6c2344e414985422c68f2610530c589e8))
+* **worker:** a reading Round may run before any branch exists ([f0cd7bd](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f0cd7bde77058aca2dccad37824e164a20212473))
+* **worker:** give a reader the work, and take away the credential ([e2d4f25](https://forgejo.webgrip.dev/webgrip/ploeg/commit/e2d4f2571670eb00c31331a472a82c3c29045f1b))
+* **worker:** stop a failed run inheriting the previous run's PR ([5195737](https://forgejo.webgrip.dev/webgrip/ploeg/commit/5195737f67bead50826cacad2465fa6cbcac4891))
 
 ### Changed
 
-* **ci:** bring the composite pins onto the plain-text diagnostics ([eb16361](https://forgejo.webgrip.dev/webgrip/ploeg/commit/eb163615a0c589dbd6ff98f88bc9f9d5d3ac1bad))
-* **ci:** drop the last GitHub-only annotation command ([b66a4db](https://forgejo.webgrip.dev/webgrip/ploeg/commit/b66a4dbaae1a8c7e51f886b47603dd6813817612))
-* **harnesstest:** make the conformance kernel adapter-shaped ([0b04b6e](https://forgejo.webgrip.dev/webgrip/ploeg/commit/0b04b6efcd2c53b57bd3d12c928d16b44b1248d2)), references [#64](https://forgejo.webgrip.dev/webgrip/ploeg/issues/64)
+* **ci:** bring the composite pins onto the plain-text diagnostics ([5ecd134](https://forgejo.webgrip.dev/webgrip/ploeg/commit/5ecd1345bed92f5f691edfc9f78adffe058f2cae))
+* **ci:** drop the last GitHub-only annotation command ([7d883b2](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7d883b2eac4e3b1644bcd7d02fdb26c7b9f3add5))
+* **harnesstest:** make the conformance kernel adapter-shaped ([dc0dcb2](https://forgejo.webgrip.dev/webgrip/ploeg/commit/dc0dcb261adb969f0976dfe61ea82ad33c22714e)), references [#64](https://forgejo.webgrip.dev/webgrip/ploeg/issues/64)
 
 ### Docs
 
-* **adr:** consolidate docs/adr into docs/adrs — one gated ledger ([245b90d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/245b90d626ee2a87cfe8e9a60621722f0ab59377)), references [#97](https://forgejo.webgrip.dev/webgrip/ploeg/issues/97)
-* **adr:** record why published artifacts name the mirror as their source ([e509e22](https://forgejo.webgrip.dev/webgrip/ploeg/commit/e509e22649b2cde85bc343950ab3e603e595f1d0))
-* **adrs:** ADR-0018 — the drop box is every harness's return path ([0ee2890](https://forgejo.webgrip.dev/webgrip/ploeg/commit/0ee2890f9f4e1a2dc12819342db238b5b71ec4e1))
-* **adr:** Shift owns the item, Lease owns the branch (0010-0012) ([e682a9b](https://forgejo.webgrip.dev/webgrip/ploeg/commit/e682a9bd8bfd1f7cec6a6b1c904a053b289f26c7))
-* **adrs:** migrate design.md §8/§9 into an enforced MADR 4.0 ledger ([d546a2c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/d546a2c737e5bee99c012c93d5705c047def5af8))
-* **adr:** the Lease becomes a capability, not a note (0013) ([70d054b](https://forgejo.webgrip.dev/webgrip/ploeg/commit/70d054b4a172e935742d348db47b329d4daf82a4)), references [forgejo#8837](https://forgejo.webgrip.dev/forgejo/issues/8837)
-* **agents:** correct migrations path to pkg/store/migrations ([b561521](https://forgejo.webgrip.dev/webgrip/ploeg/commit/b5615210485055cfd209bbe115e9d8425f02f615))
-* **agents:** record the multi-session staging discipline ([6c325bc](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6c325bc64a9dbb5f10b823062fa7d8470cc397ec))
-* archive run-multi-agent-shifts and correct the divergence list ([6b4b90c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6b4b90c19ebdaafd2952df1a06d6385323467d78))
-* **brand:** a visual identity for Ploeg, and terms for its mark ([b9c9b2c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/b9c9b2ce09930e109cb923b0f30260a30c23cfec)), references [#E4572E](https://forgejo.webgrip.dev/webgrip/ploeg/issues/E4572E)
-* **brand:** transparent PNG exports of every logo variant ([a48abdf](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a48abdf47e395a736a95e5bc2aa152a4a2416d45))
-* **ci:** name the helm-version trap in the golden check's own advice ([29bd394](https://forgejo.webgrip.dev/webgrip/ploeg/commit/29bd394618dde4d1b71c25e404480fa9dbe58551))
-* cite model.yaml entities by name, not by line number ([cca8e85](https://forgejo.webgrip.dev/webgrip/ploeg/commit/cca8e85568a3551fc58ab39fc4a92886ba40d95c))
-* close out the ACP work in the backlog, design §5 and the divergence list ([4793d1a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/4793d1a376aed175f3e14cdc967bc4a2aba68ed4)), references [#64](https://forgejo.webgrip.dev/webgrip/ploeg/issues/64) [#63](https://forgejo.webgrip.dev/webgrip/ploeg/issues/63) [#64](https://forgejo.webgrip.dev/webgrip/ploeg/issues/64) [#44](https://forgejo.webgrip.dev/webgrip/ploeg/issues/44) [#69](https://forgejo.webgrip.dev/webgrip/ploeg/issues/69)
-* current-state architecture of the dark factory (mermaid: context, run sequence, states, key layers) ([9a3c5ff](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9a3c5ff4f2fc481a050f11d6054c2225ef60b499))
-* **domain:** model the Work Target, Forge, Scope and Routing Rule axes ([9b2b259](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9b2b259c8d10dd9a03d1103011a993ec21754f1c))
-* **domain:** regenerate the domain views for Shift and Round ([0128ff3](https://forgejo.webgrip.dev/webgrip/ploeg/commit/0128ff3fbe3975eda44b03ad3f44f4a4636c630d))
-* make docs/adrs the only ledger, and gate it in go test ([34c4ff6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/34c4ff601d2a05047e96e5fe0f06223273cdc805))
-* **openspec:** adopt the spec-driven-with-adr workflow ([7091561](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7091561351748b4cf7c0e93665dcbc368de99e42))
-* **openspec:** design, adr manifest and tasks for run-multi-agent-shifts ([8d824b1](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8d824b1f0e4d369157f1abb0c7600d6d421d40c8))
-* **openspec:** propose close-the-review-loop, and ADR-0017 behind it ([26364d6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/26364d6a74e84f17ecf0a6b39b90f69004827144)), references [#107](https://forgejo.webgrip.dev/webgrip/ploeg/issues/107)
-* **openspec:** propose run-multi-agent-shifts ([0dbe737](https://forgejo.webgrip.dev/webgrip/ploeg/commit/0dbe7376c22ecadae2d778c2e918239c35768d9f))
-* reconcile ADR-0010/0012 with the implementation; architecture §10 with diagrams ([e8d4298](https://forgejo.webgrip.dev/webgrip/ploeg/commit/e8d429841580b2806181bcbc1f026f64bffbdb57))
-* record 2026-07-27 AHP sweep verdict — session-sync layer above ploeg, ACP stays the harness seam ([6ccacf7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6ccacf7db7ce7b3b8b61a80afa7460077024b3e7))
-* record 2026-07-28 A2A sweep — wrong layer for the factory, north-facade watchlisted ([457e931](https://forgejo.webgrip.dev/webgrip/ploeg/commit/457e9314c7cd67ffd92124c241450cd209128c64)), references [#102](https://forgejo.webgrip.dev/webgrip/ploeg/issues/102) [#31](https://forgejo.webgrip.dev/webgrip/ploeg/issues/31)
-* **research:** correct the rc.15 claim — it published; the release job is what broke ([816fd67](https://forgejo.webgrip.dev/webgrip/ploeg/commit/816fd67f068febe713de2ee5f5bce9984527f38b))
-* **research:** how many trials, computed rather than asserted ([d162878](https://forgejo.webgrip.dev/webgrip/ploeg/commit/d16287854967f6d29551ff0e285db98ceed93587))
-* **research:** probe results — the gateway keeps its aliases, and rc.14 keeps no cost ([4ce4ff1](https://forgejo.webgrip.dev/webgrip/ploeg/commit/4ce4ff14b9803b9989ca5d3f3c80943375fdc8f6))
-* **research:** survey and design for benchmarking the whole loop ([f0fa2b5](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f0fa2b5bc91ddd8c3ceaaf428ff8c8675cc372a8))
-* rewrite AGENTS.md as a router, land research and ops knowledge in-repo ([53f0c01](https://forgejo.webgrip.dev/webgrip/ploeg/commit/53f0c013cf4470fb1eae27471d75534815ad4c45)), references [#103](https://forgejo.webgrip.dev/webgrip/ploeg/issues/103)
-* update README status — executors ship in the chart ([451fdbb](https://forgejo.webgrip.dev/webgrip/ploeg/commit/451fdbb22c2dd3980ed6b2de1d97c0d00e754d29))
+* **adr:** consolidate docs/adr into docs/adrs — one gated ledger ([28b82b7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/28b82b767e00a0cfeda9fea925bdd733231abd32)), references [#97](https://forgejo.webgrip.dev/webgrip/ploeg/issues/97)
+* **adr:** record why published artifacts name the mirror as their source ([11dee3e](https://forgejo.webgrip.dev/webgrip/ploeg/commit/11dee3e713027fba03736511a796a3bd241327bb))
+* **adrs:** ADR-0018 — the drop box is every harness's return path ([f50edaa](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f50edaab66ba7a694adb9ef2b8bf09f2aaa366aa))
+* **adr:** Shift owns the item, Lease owns the branch (0010-0012) ([d601888](https://forgejo.webgrip.dev/webgrip/ploeg/commit/d601888a529f4d67151e1800b3fd93849aaf892a))
+* **adrs:** migrate design.md §8/§9 into an enforced MADR 4.0 ledger ([f5f9596](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f5f959686e2e55b09a309305ca56f8a23ec35963))
+* **adr:** the Lease becomes a capability, not a note (0013) ([14fcac6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/14fcac62a54dd71d2a645dca4e096ec9bb5d9781)), references [forgejo#8837](https://forgejo.webgrip.dev/forgejo/issues/8837)
+* **agents:** correct migrations path to pkg/store/migrations ([7fc9446](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7fc9446c806aea292df72df2c6327ebb4635582c))
+* **agents:** record the multi-session staging discipline ([6b7ccf7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6b7ccf7d4477d59490e2cd85dee50725a5894f56))
+* archive run-multi-agent-shifts and correct the divergence list ([8bf5210](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8bf5210be06dd2ac481d4fb6ec9a467053ee659a))
+* **brand:** a visual identity for Ploeg, and terms for its mark ([98d6a3a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/98d6a3a25ca7449d003c30d38f9f79cef7121327)), references [#E4572E](https://forgejo.webgrip.dev/webgrip/ploeg/issues/E4572E)
+* **brand:** transparent PNG exports of every logo variant ([511e0db](https://forgejo.webgrip.dev/webgrip/ploeg/commit/511e0db728c9d5177442de617a6c31a84d6a2bee))
+* **ci:** name the helm-version trap in the golden check's own advice ([3ec294c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3ec294cc99bfc74c92a1d35d49f3c5fdabe91d89))
+* cite model.yaml entities by name, not by line number ([db2b4e5](https://forgejo.webgrip.dev/webgrip/ploeg/commit/db2b4e58cf9701e5e281c47339d2749f7ebba344))
+* close out the ACP work in the backlog, design §5 and the divergence list ([4cfd890](https://forgejo.webgrip.dev/webgrip/ploeg/commit/4cfd8901f1e72cbe625329eb266f39992b9ca3ae)), references [#64](https://forgejo.webgrip.dev/webgrip/ploeg/issues/64) [#63](https://forgejo.webgrip.dev/webgrip/ploeg/issues/63) [#64](https://forgejo.webgrip.dev/webgrip/ploeg/issues/64) [#44](https://forgejo.webgrip.dev/webgrip/ploeg/issues/44) [#69](https://forgejo.webgrip.dev/webgrip/ploeg/issues/69)
+* current-state architecture of the dark factory (mermaid: context, run sequence, states, key layers) ([3e868ec](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3e868ecd3b7e9afca1efb23c58b412a3aff7f8a9))
+* **domain:** model the Work Target, Forge, Scope and Routing Rule axes ([8227da7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8227da76ee23b628bd9fc51b050dffca56011718))
+* **domain:** regenerate the domain views for Shift and Round ([0c8f417](https://forgejo.webgrip.dev/webgrip/ploeg/commit/0c8f4178b6829e12f39790612c35ef986b1b0706))
+* make docs/adrs the only ledger, and gate it in go test ([fcbd0b7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/fcbd0b7b6325e7751359ecc779fe7ae34ca9ecd5))
+* **openspec:** adopt the spec-driven-with-adr workflow ([18cb967](https://forgejo.webgrip.dev/webgrip/ploeg/commit/18cb9678be152f285e4cb26577a3297f327f8e4d))
+* **openspec:** design, adr manifest and tasks for run-multi-agent-shifts ([b9a197c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/b9a197c90054fb45e69fa99862a9ab2d80fadae9))
+* **openspec:** propose close-the-review-loop, and ADR-0017 behind it ([f9b157c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f9b157c2d200c82c74476f05e8dd8999e7dd8219)), references [#107](https://forgejo.webgrip.dev/webgrip/ploeg/issues/107)
+* **openspec:** propose run-multi-agent-shifts ([70abf24](https://forgejo.webgrip.dev/webgrip/ploeg/commit/70abf24df514c3df5aea1a7c4014a426aca4a677))
+* reconcile ADR-0010/0012 with the implementation; architecture §10 with diagrams ([e589ed6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/e589ed65dd8fbb813ba38e8dc2eb6f03b7e1de64))
+* record 2026-07-27 AHP sweep verdict — session-sync layer above ploeg, ACP stays the harness seam ([d595dff](https://forgejo.webgrip.dev/webgrip/ploeg/commit/d595dff2f7969511c5673ef13a7c4928c56d88e5))
+* record 2026-07-28 A2A sweep — wrong layer for the factory, north-facade watchlisted ([139d497](https://forgejo.webgrip.dev/webgrip/ploeg/commit/139d497560b6924a96545f9495465eb011c352b2)), references [#102](https://forgejo.webgrip.dev/webgrip/ploeg/issues/102) [#31](https://forgejo.webgrip.dev/webgrip/ploeg/issues/31)
+* **research:** correct the rc.15 claim — it published; the release job is what broke ([3a1d248](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3a1d248bc9fc64d19da7755f4c05345b28122fee))
+* **research:** how many trials, computed rather than asserted ([06d9964](https://forgejo.webgrip.dev/webgrip/ploeg/commit/06d996459ee75b904b563aae5a2b23768ba0bcdf))
+* **research:** probe results — the gateway keeps its aliases, and rc.14 keeps no cost ([11fcead](https://forgejo.webgrip.dev/webgrip/ploeg/commit/11fceadd96b767e99ec3532c7cc83ed75e51327c))
+* **research:** survey and design for benchmarking the whole loop ([d565449](https://forgejo.webgrip.dev/webgrip/ploeg/commit/d565449519cbccc83b026293597a57863891256d))
+* rewrite AGENTS.md as a router, land research and ops knowledge in-repo ([3fd1744](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3fd1744cca83d71cd0e6ac69d8cf46436468decb)), references [#103](https://forgejo.webgrip.dev/webgrip/ploeg/issues/103)
+* update README status — executors ship in the chart ([078efca](https://forgejo.webgrip.dev/webgrip/ploeg/commit/078efcad020aa30e0ffae145abff6b2e261276ef))
 
 ### Tests
 
-* **acp:** a zombie grandchild is not a surviving one ([914baf2](https://forgejo.webgrip.dev/webgrip/ploeg/commit/914baf246e4c173819661544e6dc37851a8d067a))
-* **litellm:** strict fake emits [] not null for empty lists; gofmt ([ead01f1](https://forgejo.webgrip.dev/webgrip/ploeg/commit/ead01f1990529e945c03e49a7bc6ca55925dddbb))
-* **store:** unused var + gofmt — reviewer gate pass ([539b95a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/539b95a7df3e6de90282dc8aca459495bcf08d4d))
-* **worker:** pin the spend-settling loop in both directions ([03eda86](https://forgejo.webgrip.dev/webgrip/ploeg/commit/03eda86e665fb47dc36562a97c46741b88ee8075))
+* **acp:** a zombie grandchild is not a surviving one ([7bd42ed](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7bd42ed0c5600bcd8dd076bd8b25aca13765f659))
+* **litellm:** strict fake emits [] not null for empty lists; gofmt ([f2ca405](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f2ca4051dd4ce0d9ab48b1ab15afe17b43e3d759))
+* **store:** unused var + gofmt — reviewer gate pass ([a544a41](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a544a41b2db88eea5abb52e38b6f63e3f89fd9f5))
+* **worker:** pin the spend-settling loop in both directions ([cdcb2b1](https://forgejo.webgrip.dev/webgrip/ploeg/commit/cdcb2b11d59a09765ccd64e9904f61ad9d95520a))
 
 ### CI
 
-* **actions:** Pin dependencies ([27ddc29](https://forgejo.webgrip.dev/webgrip/ploeg/commit/27ddc2964426da2ef01581c22fa9893ac59c6e28))
-* **actions:** Update dependency helm ( v3.18.4 ➔ v4.2.3 ) ([c72b289](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c72b289ef7a09a304151a037d0e2fa52bbbb17d0))
-* **actions:** Update https://github.com/actions/setup-go action ( v6.5.0 ➔ v7.0.0 ) ([6a97b93](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6a97b93da496e36927dc94b4fd11c1215935329d))
-* adopt @webgrip/semantic-release-config ([ab021b7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/ab021b7ec1cfd72fd36b1f50e0a2427a6b528b00))
-* drop the manual release dispatch — bot-cut releases fire the release event natively ([ffa5158](https://forgejo.webgrip.dev/webgrip/ploeg/commit/ffa515890c296161ca9eb782458688f4ec0bbae5))
-* **release:** build the image once — Forgejo distribute mirrors Harbor by digest ([b086784](https://forgejo.webgrip.dev/webgrip/ploeg/commit/b08678436c8dfe50a22bf43e37f9ac57bb89930e))
-* **release:** bump cosign-sign-attest to v1.11.2 ([845e062](https://forgejo.webgrip.dev/webgrip/ploeg/commit/845e06234ccbb3525b367d03a370566234fe7264))
-* **release:** bump github-distribute to v1.11.1 ([9b0cdc4](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9b0cdc4b26c119c50fc67464ad57a8c8e24d36ba))
-* **release:** bump github-distribute to v1.9.1 ([33fa76c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/33fa76c0e406028ef1873f205d7b673c58ffb9f8))
-* **release:** bump github-distribute to v1.9.2 ([d1c6e66](https://forgejo.webgrip.dev/webgrip/ploeg/commit/d1c6e66239c92ab5f460e64ba70e6dfdc9d6067a))
-* **release:** bump reusables to v1.10.0 and publish the chart to GHCR ([b90299d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/b90299d6fda87a376ab90c0ee3a6b61a956e210d))
-* **release:** drop the local semantic-release toolchain — the shared config pins it ([faad578](https://forgejo.webgrip.dev/webgrip/ploeg/commit/faad5783e5010f438c7785bc98ce078b34c4227b))
-* **release:** run the release in the toolchain image ([dbf4414](https://forgejo.webgrip.dev/webgrip/ploeg/commit/dbf4414b8c78d974051cb1afcd76eda584d04a54))
-* **release:** sign and attest ploegd on Harbor via the shared cosign composite ([d85f084](https://forgejo.webgrip.dev/webgrip/ploeg/commit/d85f0845a4b054c32a9bbec0387fe9eaf534684c))
-* retire the pin comment that outlived the pin ([c5b9f89](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c5b9f89c2f54e3a7e49cf8aa6ac9fa3cfecc8ac4)), references [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40) [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40) [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40)
-* retrigger release job (composite now falls back to setup-node on node<22.14 hosts) ([c39fd88](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c39fd88ed43f99009c6122f791b5df6240c0124e))
-* retrigger release train (rc release died on missing yq, now fixed) ([4dcbf12](https://forgejo.webgrip.dev/webgrip/ploeg/commit/4dcbf129442e945804d7a8588236f8cc7a17a83f))
+* **actions:** Pin dependencies ([e26493a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/e26493a946cfe21c60243b124005c8bdbaa08245))
+* **actions:** Update dependency helm ( v3.18.4 ➔ v4.2.3 ) ([5591eab](https://forgejo.webgrip.dev/webgrip/ploeg/commit/5591eab6521ec8623b8a27a974c6e18deb576efc))
+* **actions:** Update https://github.com/actions/setup-go action ( v6.5.0 ➔ v7.0.0 ) ([5ce8533](https://forgejo.webgrip.dev/webgrip/ploeg/commit/5ce85333de80d9a666742f471bd69bbe7089e768))
+* adopt @webgrip/semantic-release-config ([7b5f87c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7b5f87ce01d403d619e51c67108eca1b7941ec3c))
+* drop the manual release dispatch — bot-cut releases fire the release event natively ([2faef42](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2faef424d906a803d1ecb190a35d38dcf4ba7dff))
+* **release:** build the image once — Forgejo distribute mirrors Harbor by digest ([04ff380](https://forgejo.webgrip.dev/webgrip/ploeg/commit/04ff380edb5aca206b0fbc8a62d8c349fc254784))
+* **release:** bump cosign-sign-attest to v1.11.2 ([eb2a8db](https://forgejo.webgrip.dev/webgrip/ploeg/commit/eb2a8db2fdac0faa4e751e8282b9e80a8531e24b))
+* **release:** bump github-distribute to v1.11.1 ([3adcb19](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3adcb196274bb5f5e22774c90220b0ade9490099))
+* **release:** bump github-distribute to v1.9.1 ([1e157c8](https://forgejo.webgrip.dev/webgrip/ploeg/commit/1e157c836eeb29a08deb5b529482cb7b065d7656))
+* **release:** bump github-distribute to v1.9.2 ([97e3f9f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/97e3f9fc3608c6b7e10a3ec9a36ea599988e9369))
+* **release:** bump reusables to v1.10.0 and publish the chart to GHCR ([ad2df3c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/ad2df3cbbe8ba579167b3f4626927c6e9a32e7b9))
+* **release:** drop the local semantic-release toolchain — the shared config pins it ([592ebdd](https://forgejo.webgrip.dev/webgrip/ploeg/commit/592ebdd9e0697c61fa12604729220c10153587e4))
+* **release:** run the release in the toolchain image ([1a343b2](https://forgejo.webgrip.dev/webgrip/ploeg/commit/1a343b2da761e8727bd83eb9560dd0a47d37fa7e))
+* **release:** sign and attest ploegd on Harbor via the shared cosign composite ([d0c4398](https://forgejo.webgrip.dev/webgrip/ploeg/commit/d0c4398a324d81dea6824724fa9ffa136a6b63df))
+* retire the pin comment that outlived the pin ([c4d9b75](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c4d9b75034c9b076efe9af089b45b3ed192f6224)), references [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40) [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40) [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40)
+* retrigger release job (composite now falls back to setup-node on node<22.14 hosts) ([e50b844](https://forgejo.webgrip.dev/webgrip/ploeg/commit/e50b8443b8dca7f6f4d61b7acfd7aa1f9393b3a0))
+* retrigger release train (rc release died on missing yq, now fixed) ([8a6c8db](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8a6c8db24883e6e6e58dd18d195c0b7a5ca83090))
 
 ### Style
 
-* **worker:** gofmt the appended regression tests ([63e5101](https://forgejo.webgrip.dev/webgrip/ploeg/commit/63e5101d0506ae992b8da1e530ccf461afa69c63))
+* **worker:** gofmt the appended regression tests ([38603ff](https://forgejo.webgrip.dev/webgrip/ploeg/commit/38603ffd5816f5f6fc1c7807cfe6a3e775d60a7a))
 
 ### Internal
 
-* **helm:** refresh chart goldens for v0.2.0-rc.10 ([c55f446](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c55f446c8e5121508254b68f0d5cc236094fa870))
-* retrigger the release ([c505e69](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c505e6992dd3f8ac75775f75673141720e275eaf))
+* **helm:** refresh chart goldens for v0.2.0-rc.10 ([b3b5089](https://forgejo.webgrip.dev/webgrip/ploeg/commit/b3b50899c725ec5bed2ef8b2f2934fc3502071b7))
+* retrigger the release ([715fc59](https://forgejo.webgrip.dev/webgrip/ploeg/commit/715fc5922ff5ee74c171dd6153c8c7c5a6c5c3ed))
 
 ## [0.2.0-rc.31](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.30...v0.2.0-rc.31) (2026-08-26)
 
 ### Fixed
 
-* **release:** sign the Forgejo mirror too ([90badd4](https://forgejo.webgrip.dev/webgrip/ploeg/commit/90badd4e83563042d1d041370387dc75eeab6b71))
+* **release:** sign the Forgejo mirror too ([f8099c9](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f8099c9fef8aaec3763545e7f054a4cf21827d41))
 
 ### CI
 
-* **release:** bump cosign-sign-attest to v1.11.2 ([845e062](https://forgejo.webgrip.dev/webgrip/ploeg/commit/845e06234ccbb3525b367d03a370566234fe7264))
-* **release:** bump github-distribute to v1.11.1 ([9b0cdc4](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9b0cdc4b26c119c50fc67464ad57a8c8e24d36ba))
+* **release:** bump cosign-sign-attest to v1.11.2 ([eb2a8db](https://forgejo.webgrip.dev/webgrip/ploeg/commit/eb2a8db2fdac0faa4e751e8282b9e80a8531e24b))
+* **release:** bump github-distribute to v1.11.1 ([3adcb19](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3adcb196274bb5f5e22774c90220b0ade9490099))
 
 ## [0.2.0-rc.30](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.29...v0.2.0-rc.30) (2026-08-26)
 
 ### Fixed
 
-* **release:** reject zero-time release timestamps, not just Go's spelling ([08dfd2f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/08dfd2ff15e34880ded07ba8bd0b9ab6a4f3ce8f))
+* **release:** reject zero-time release timestamps, not just Go's spelling ([9a1ba9f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9a1ba9f509178daf2abbc2e1760b23a347e44bc4))
 
 ## [0.2.0-rc.29](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.28...v0.2.0-rc.29) (2026-08-26)
 
 ### Fixed
 
-* **release:** annotate the index and mirror cosign's accessories to GHCR ([da548a1](https://forgejo.webgrip.dev/webgrip/ploeg/commit/da548a145e9d5ae7a7fe51002be1852c86150b51)), references [#53](https://forgejo.webgrip.dev/webgrip/ploeg/issues/53)
+* **release:** annotate the index and mirror cosign's accessories to GHCR ([b11e343](https://forgejo.webgrip.dev/webgrip/ploeg/commit/b11e3434b40f89d6cb30b6663a8f02799319926b)), references [#53](https://forgejo.webgrip.dev/webgrip/ploeg/issues/53)
 
 ## [0.2.0-rc.28](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.27...v0.2.0-rc.28) (2026-08-26)
 
 ### Fixed
 
-* **adrs:** revert the ADR-0017 index edit — upstream had already resolved it ([721630d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/721630de5623062a84e0c80e15bf7eac5083da30))
-* **worker,shiftengine:** a killed run reports its own death, and does not spend the agent's budget ([df5dc9f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/df5dc9f3e348d278ef91580e74bbd03117eab408))
+* **adrs:** revert the ADR-0017 index edit — upstream had already resolved it ([444c313](https://forgejo.webgrip.dev/webgrip/ploeg/commit/444c313f65aebc344bbc897c55f1eade83229b55))
+* **worker,shiftengine:** a killed run reports its own death, and does not spend the agent's budget ([771a18b](https://forgejo.webgrip.dev/webgrip/ploeg/commit/771a18b6c2344e414985422c68f2610530c589e8))
 
 ### Style
 
-* **worker:** gofmt the appended regression tests ([63e5101](https://forgejo.webgrip.dev/webgrip/ploeg/commit/63e5101d0506ae992b8da1e530ccf461afa69c63))
+* **worker:** gofmt the appended regression tests ([38603ff](https://forgejo.webgrip.dev/webgrip/ploeg/commit/38603ffd5816f5f6fc1c7807cfe6a3e775d60a7a))
 
 ## [0.2.0-rc.27](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.26...v0.2.0-rc.27) (2026-08-25)
 
 ### Fixed
 
-* **release:** link the image and chart to the repo on GHCR ([1440917](https://forgejo.webgrip.dev/webgrip/ploeg/commit/1440917b6e5c1db241258ef048ae4c6485437575))
+* **release:** link the image and chart to the repo on GHCR ([3c833c2](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3c833c2fa755724693b5430c5e97c95548c422bb))
 
 ### Docs
 
-* **adr:** record why published artifacts name the mirror as their source ([e509e22](https://forgejo.webgrip.dev/webgrip/ploeg/commit/e509e22649b2cde85bc343950ab3e603e595f1d0))
+* **adr:** record why published artifacts name the mirror as their source ([11dee3e](https://forgejo.webgrip.dev/webgrip/ploeg/commit/11dee3e713027fba03736511a796a3bd241327bb))
 
 ## [0.2.0-rc.26](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.25...v0.2.0-rc.26) (2026-08-25)
 
 ### Added
 
-* **provider:** GitLab forge and ClickUp tracker providers ([794eafc](https://forgejo.webgrip.dev/webgrip/ploeg/commit/794eafc056e5c5899e53179904e463eab42aa307))
+* **provider:** GitLab forge and ClickUp tracker providers ([e96cce7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/e96cce76c8c68e3eff660434b52530186b23d9e0))
 
 ## [0.2.0-rc.25](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.24...v0.2.0-rc.25) (2026-08-25)
 
 ### Changed
 
-* **ci:** bring the composite pins onto the plain-text diagnostics ([eb16361](https://forgejo.webgrip.dev/webgrip/ploeg/commit/eb163615a0c589dbd6ff98f88bc9f9d5d3ac1bad))
+* **ci:** bring the composite pins onto the plain-text diagnostics ([5ecd134](https://forgejo.webgrip.dev/webgrip/ploeg/commit/5ecd1345bed92f5f691edfc9f78adffe058f2cae))
 
 ## [0.2.0-rc.24](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.23...v0.2.0-rc.24) (2026-08-25)
 
 ### Changed
 
-* **ci:** drop the last GitHub-only annotation command ([b66a4db](https://forgejo.webgrip.dev/webgrip/ploeg/commit/b66a4dbaae1a8c7e51f886b47603dd6813817612))
+* **ci:** drop the last GitHub-only annotation command ([7d883b2](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7d883b2eac4e3b1644bcd7d02fdb26c7b9f3add5))
 
 ### CI
 
-* **release:** bump github-distribute to v1.9.2 ([d1c6e66](https://forgejo.webgrip.dev/webgrip/ploeg/commit/d1c6e66239c92ab5f460e64ba70e6dfdc9d6067a))
-* **release:** bump reusables to v1.10.0 and publish the chart to GHCR ([b90299d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/b90299d6fda87a376ab90c0ee3a6b61a956e210d))
+* **release:** bump github-distribute to v1.9.2 ([97e3f9f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/97e3f9fc3608c6b7e10a3ec9a36ea599988e9369))
+* **release:** bump reusables to v1.10.0 and publish the chart to GHCR ([ad2df3c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/ad2df3cbbe8ba579167b3f4626927c6e9a32e7b9))
 
 ## [0.2.0-rc.23](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.22...v0.2.0-rc.23) (2026-08-25)
 
 ### Fixed
 
-* **ci:** assert image labels on parsed JSON, not on rendered text ([34fb522](https://forgejo.webgrip.dev/webgrip/ploeg/commit/34fb5224276e51e1f5f98e29c3565ca6333e6a4a))
+* **ci:** assert image labels on parsed JSON, not on rendered text ([dfdc714](https://forgejo.webgrip.dev/webgrip/ploeg/commit/dfdc714af816b2240c00badbec8b5e2373f20066))
 
 ## [0.2.0-rc.22](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.21...v0.2.0-rc.22) (2026-08-25)
 
 ### Fixed
 
-* **ci:** skip the Harbor build when the version is already published ([5a7fa89](https://forgejo.webgrip.dev/webgrip/ploeg/commit/5a7fa89fe60eb8d9fe5ccee35d958e93c4d0fe10))
+* **ci:** skip the Harbor build when the version is already published ([71e6436](https://forgejo.webgrip.dev/webgrip/ploeg/commit/71e64367b26083318a0185a5580f27fc000f407d))
 
 ## [0.2.0-rc.21](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.20...v0.2.0-rc.21) (2026-08-25)
 
 ### Fixed
 
-* **deps:** clear the nine CVEs Harbor flags on the ploegd image ([427ea3a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/427ea3ad2ea657bdf597d507c46b49d66dae2574))
+* **deps:** clear the nine CVEs Harbor flags on the ploegd image ([6670482](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6670482149c3b385a73048c82d1d339125d00147))
 
 ### CI
 
-* **release:** bump github-distribute to v1.9.1 ([33fa76c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/33fa76c0e406028ef1873f205d7b673c58ffb9f8))
+* **release:** bump github-distribute to v1.9.1 ([1e157c8](https://forgejo.webgrip.dev/webgrip/ploeg/commit/1e157c836eeb29a08deb5b529482cb7b065d7656))
 
 ## [0.2.0-rc.20](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.19...v0.2.0-rc.20) (2026-08-25)
 
 ### Fixed
 
-* **ci:** finish the proxy bypass — syft scanner and buildkit come direct too ([2862920](https://forgejo.webgrip.dev/webgrip/ploeg/commit/286292050d28b9d634658d51fdf6a2534897551a))
+* **ci:** finish the proxy bypass — syft scanner and buildkit come direct too ([646a6e7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/646a6e741cae386c5a271a6d76f654d0fa02e68f))
 
 ## [0.2.0-rc.19](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.18...v0.2.0-rc.19) (2026-08-25)
 
 ### Fixed
 
-* **ci:** bypass the dead Docker Hub proxy so a release can distribute again ([9070844](https://forgejo.webgrip.dev/webgrip/ploeg/commit/90708449afb3758c3da119953768b77e1d4af7e4))
+* **ci:** bypass the dead Docker Hub proxy so a release can distribute again ([615948d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/615948dabd66f180cfffd41b2e4bc8049f4ccfa0))
 
 ## [0.2.0-rc.18](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.17...v0.2.0-rc.18) (2026-08-24)
 
 ### Fixed
 
-* **ci:** reopen the GitHub track — mirror, Releases and GHCR via github-distribute ([2f64ae8](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2f64ae8630ea47fc68df90ee69076bfa9acb1113)), references [#48](https://forgejo.webgrip.dev/webgrip/ploeg/issues/48)
+* **ci:** reopen the GitHub track — mirror, Releases and GHCR via github-distribute ([0b59582](https://forgejo.webgrip.dev/webgrip/ploeg/commit/0b595828044f64e4ddff2999efacccdd593fcbf4)), references [#48](https://forgejo.webgrip.dev/webgrip/ploeg/issues/48)
 
 ### CI
 
-* retire the pin comment that outlived the pin ([c5b9f89](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c5b9f89c2f54e3a7e49cf8aa6ac9fa3cfecc8ac4)), references [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40) [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40) [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40)
+* retire the pin comment that outlived the pin ([c4d9b75](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c4d9b75034c9b076efe9af089b45b3ed192f6224)), references [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40) [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40) [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40)
 
 ## [0.2.0-rc.17](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.16...v0.2.0-rc.17) (2026-08-09)
 
 ### Fixed
 
-* **ci:** pin semantic-release to v1.2.0 now that PR [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40) is released ([77a5f3c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/77a5f3c0ea6266ea657f6eb5b52fbcc183b56255))
+* **ci:** pin semantic-release to v1.2.0 now that PR [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40) is released ([1ca543a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/1ca543af2c9161c94a701b049538a89b585abb31))
 
 ## [0.2.0-rc.16](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.15...v0.2.0-rc.16) (2026-08-09)
 
 ### Fixed
 
-* **ci:** pin webgrip/workflows to v1.0.0 instead of [@main](https://forgejo.webgrip.dev/main) ([a3a1175](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a3a1175d9f5fca6a38ee6fbe44a081b3436cf95b)), references [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40) [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40)
-* **ci:** re-pin the semrel action to a commit the server can still resolve ([2943b03](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2943b032e57bf0cde91f2b9d6a7fba6dd1d7e09c))
-* **harness,worker:** a reading Run's review must survive every harness ([7e78a59](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7e78a59e15fd92cf289a3dc198608fac3a5d558c))
-* **shiftengine,store:** a failed writing Run re-opens its Round ([107d5f7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/107d5f760fe3ce6316ed25340d3a78d8c503c05f)), references [#35](https://forgejo.webgrip.dev/webgrip/ploeg/issues/35)
-* **shiftengine,worker,litellm:** close the loop the reviews were falling out of ([a1bccea](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a1bccea573e143b7ee9a1ff19ad4e1ae16a21d99)), references [erfbeeld#9](https://forgejo.webgrip.dev/erfbeeld/issues/9)
+* **ci:** pin webgrip/workflows to v1.0.0 instead of [@main](https://forgejo.webgrip.dev/main) ([2c5fbec](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2c5fbecd65fca3b5e94c39bdd0b11666929066eb)), references [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40) [#40](https://forgejo.webgrip.dev/webgrip/ploeg/issues/40)
+* **ci:** re-pin the semrel action to a commit the server can still resolve ([a5c8026](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a5c80261266e91152fdce9053088db51a99de84b))
+* **harness,worker:** a reading Run's review must survive every harness ([fc0293f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/fc0293f61662b270c8543c688b54a7a8dad9047f))
+* **shiftengine,store:** a failed writing Run re-opens its Round ([b0ad282](https://forgejo.webgrip.dev/webgrip/ploeg/commit/b0ad28266faa4ebdc501d547204170034c9252d6)), references [#35](https://forgejo.webgrip.dev/webgrip/ploeg/issues/35)
+* **shiftengine,worker,litellm:** close the loop the reviews were falling out of ([eb6c8dc](https://forgejo.webgrip.dev/webgrip/ploeg/commit/eb6c8dc91575a5414ceaa3808c260b9447eb3059)), references [erfbeeld#9](https://forgejo.webgrip.dev/erfbeeld/issues/9)
 
 ### Docs
 
-* **adrs:** ADR-0018 — the drop box is every harness's return path ([0ee2890](https://forgejo.webgrip.dev/webgrip/ploeg/commit/0ee2890f9f4e1a2dc12819342db238b5b71ec4e1))
-* **ci:** name the helm-version trap in the golden check's own advice ([29bd394](https://forgejo.webgrip.dev/webgrip/ploeg/commit/29bd394618dde4d1b71c25e404480fa9dbe58551))
-* **research:** correct the rc.15 claim — it published; the release job is what broke ([816fd67](https://forgejo.webgrip.dev/webgrip/ploeg/commit/816fd67f068febe713de2ee5f5bce9984527f38b))
-* **research:** how many trials, computed rather than asserted ([d162878](https://forgejo.webgrip.dev/webgrip/ploeg/commit/d16287854967f6d29551ff0e285db98ceed93587))
-* **research:** probe results — the gateway keeps its aliases, and rc.14 keeps no cost ([4ce4ff1](https://forgejo.webgrip.dev/webgrip/ploeg/commit/4ce4ff14b9803b9989ca5d3f3c80943375fdc8f6))
-* **research:** survey and design for benchmarking the whole loop ([f0fa2b5](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f0fa2b5bc91ddd8c3ceaaf428ff8c8675cc372a8))
+* **adrs:** ADR-0018 — the drop box is every harness's return path ([f50edaa](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f50edaab66ba7a694adb9ef2b8bf09f2aaa366aa))
+* **ci:** name the helm-version trap in the golden check's own advice ([3ec294c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3ec294cc99bfc74c92a1d35d49f3c5fdabe91d89))
+* **research:** correct the rc.15 claim — it published; the release job is what broke ([3a1d248](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3a1d248bc9fc64d19da7755f4c05345b28122fee))
+* **research:** how many trials, computed rather than asserted ([06d9964](https://forgejo.webgrip.dev/webgrip/ploeg/commit/06d996459ee75b904b563aae5a2b23768ba0bcdf))
+* **research:** probe results — the gateway keeps its aliases, and rc.14 keeps no cost ([11fcead](https://forgejo.webgrip.dev/webgrip/ploeg/commit/11fceadd96b767e99ec3532c7cc83ed75e51327c))
+* **research:** survey and design for benchmarking the whole loop ([d565449](https://forgejo.webgrip.dev/webgrip/ploeg/commit/d565449519cbccc83b026293597a57863891256d))
 
 ### Tests
 
-* **worker:** pin the spend-settling loop in both directions ([03eda86](https://forgejo.webgrip.dev/webgrip/ploeg/commit/03eda86e665fb47dc36562a97c46741b88ee8075))
+* **worker:** pin the spend-settling loop in both directions ([cdcb2b1](https://forgejo.webgrip.dev/webgrip/ploeg/commit/cdcb2b11d59a09765ccd64e9904f61ad9d95520a))
 
 ### Internal
 
-* retrigger the release ([c505e69](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c505e6992dd3f8ac75775f75673141720e275eaf))
+* retrigger the release ([715fc59](https://forgejo.webgrip.dev/webgrip/ploeg/commit/715fc5922ff5ee74c171dd6153c8c7c5a6c5c3ed))
 
 ## [0.2.0-rc.15](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.14...v0.2.0-rc.15) (2026-07-31)
 
 ### Fixed
 
-* **ci:** prove the container release path end to end, on a probed toolchain ([31d92ad](https://forgejo.webgrip.dev/webgrip/ploeg/commit/31d92add5a09edde249f82bb309a703a35e5f4b4))
+* **ci:** prove the container release path end to end, on a probed toolchain ([673896a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/673896af6a85024f0bf71560a538b6939978f190))
 
 ### CI
 
-* **release:** run the release in the toolchain image ([dbf4414](https://forgejo.webgrip.dev/webgrip/ploeg/commit/dbf4414b8c78d974051cb1afcd76eda584d04a54))
+* **release:** run the release in the toolchain image ([1a343b2](https://forgejo.webgrip.dev/webgrip/ploeg/commit/1a343b2da761e8727bd83eb9560dd0a47d37fa7e))
 
 ## 0.2.0-rc.14 (2026-07-30)
 
@@ -450,251 +450,251 @@
 
 ### Added
 
-* **chart:** one workload per (team, Role), and a waiver keyed to the hazard ([ac34700](https://forgejo.webgrip.dev/webgrip/ploeg/commit/ac34700a20e66c42acaff29b59d3d5e5be03ea6d))
-* **dispatch:** every queued item gets a Shift, behind a kill switch ([c9ccf55](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c9ccf55c16b0dc240402943cd066c72f0de716ec))
-* **httpapi:** forge webhook ingest — verified, deduplicated, audited ([c70208d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c70208d7357118c459108788911515616e3314a7)), references [#2](https://forgejo.webgrip.dev/webgrip/ploeg/issues/2) [#3](https://forgejo.webgrip.dev/webgrip/ploeg/issues/3) [#107](https://forgejo.webgrip.dev/webgrip/ploeg/issues/107) [#9](https://forgejo.webgrip.dev/webgrip/ploeg/issues/9)
-* **provider:** findings reach the pull request, and a person is asked to merge ([a8539db](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a8539db202d704737964a78bd8f49e9fbb23c3f5))
-* **shiftengine:** verdict-driven fix rounds, bounded by pool then cap ([2c5ba9d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2c5ba9d19477f9db60b04e20cf1649762679efb0))
+* **chart:** one workload per (team, Role), and a waiver keyed to the hazard ([e6b3f92](https://forgejo.webgrip.dev/webgrip/ploeg/commit/e6b3f92fbcbc1f1b9e233d959c70ae2eb3a2b291))
+* **dispatch:** every queued item gets a Shift, behind a kill switch ([988c496](https://forgejo.webgrip.dev/webgrip/ploeg/commit/988c4963551f01f30bfd8bd335230a0fbefbb093))
+* **httpapi:** forge webhook ingest — verified, deduplicated, audited ([7befbce](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7befbceecbf9a7ecda46faf4e60ab2a7f2752a36)), references [#2](https://forgejo.webgrip.dev/webgrip/ploeg/issues/2) [#3](https://forgejo.webgrip.dev/webgrip/ploeg/issues/3) [#107](https://forgejo.webgrip.dev/webgrip/ploeg/issues/107) [#9](https://forgejo.webgrip.dev/webgrip/ploeg/issues/9)
+* **provider:** findings reach the pull request, and a person is asked to merge ([2e9f6ed](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2e9f6edfd503115c5d003c40852d0ec940376d94))
+* **shiftengine:** verdict-driven fix rounds, bounded by pool then cap ([6beaaa1](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6beaaa1739d26a89bbe1419c8634f43b5e10917d))
 
 ### Fixed
 
-* **ploegd:** register a forge under the ID its Work Target carries ([38e3b27](https://forgejo.webgrip.dev/webgrip/ploeg/commit/38e3b27c138b23a098b1ca4186c683ac1f5fa058))
+* **ploegd:** register a forge under the ID its Work Target carries ([9ccb035](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9ccb035124471f4fa841517c4272c38ca0888b8b))
 
 ### Docs
 
-* archive run-multi-agent-shifts and correct the divergence list ([6b4b90c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6b4b90c19ebdaafd2952df1a06d6385323467d78))
-* **openspec:** propose close-the-review-loop, and ADR-0017 behind it ([26364d6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/26364d6a74e84f17ecf0a6b39b90f69004827144)), references [#107](https://forgejo.webgrip.dev/webgrip/ploeg/issues/107)
+* archive run-multi-agent-shifts and correct the divergence list ([8bf5210](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8bf5210be06dd2ac481d4fb6ec9a467053ee659a))
+* **openspec:** propose close-the-review-loop, and ADR-0017 behind it ([f9b157c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f9b157c2d200c82c74476f05e8dd8999e7dd8219)), references [#107](https://forgejo.webgrip.dev/webgrip/ploeg/issues/107)
 
 ## [0.2.0-rc.8](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.7...v0.2.0-rc.8) (2026-07-29)
 
 ### Added
 
-* **api:** role-scoped claim, findings on the outcome, role-filtered depth ([41b497d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/41b497d52a2c6b83aeb205801acadef6a20f6a67))
-* **harness:** ACP driver, client half, and the coder/acp-go-sdk dependency ([864249a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/864249aabf13cd071033228a96a19e9958b1e39a))
-* **harness:** ACP event and stop-reason semantics (no SDK, no process) ([eceee69](https://forgejo.webgrip.dev/webgrip/ploeg/commit/eceee69a3013563955f02d08e950d47e124780d2)), references [#64](https://forgejo.webgrip.dev/webgrip/ploeg/issues/64)
-* **harness:** ACP permission policy for unattended runs ([a6285f7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a6285f7d2930f0fbe7b9f7b4e633ca04c9ec9ad7))
-* **harness:** ACP subprocess layer — process groups, stdout demux, async stdin ([a0530d6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a0530d640f0c2afb6e7610e55dc60705360a2aaf))
-* **plan:** team plan config, parsed at boot, rendered dark from the chart ([67206d7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/67206d75420b4cde28286eba8880c6d2464098db))
-* **shiftengine:** open, advance, close and park Shifts ([10e2972](https://forgejo.webgrip.dev/webgrip/ploeg/commit/10e29721c43b4fc83737233d9521f77645b66f33))
-* **store:** settlement, per-Run liveness, and the round-completion signal ([6ee978c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6ee978ce2fdafefbf036f7b2fa044a53c18bd18f))
-* **store:** shift lifecycle completions and shift-run plumbing fixes ([3b5bf76](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3b5bf76d468c04f3aaefa52049e2ce5ba4b01da6))
-* **store:** Shifts — rounds, reader/writer runs, and pooled budgets ([dd0b8ca](https://forgejo.webgrip.dev/webgrip/ploeg/commit/dd0b8ca2e7f4c7ee1b703fc57f2ab188637a1ed4))
-* **worker:** role-aware runs — claim, prompt, budget, findings drop box ([c40f985](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c40f9858d0b9b20dde1113b13c9a08f206da7be0)), references [#9](https://forgejo.webgrip.dev/webgrip/ploeg/issues/9)
-* **worker:** select the ACP harness from the registry, env and chart ([57d225e](https://forgejo.webgrip.dev/webgrip/ploeg/commit/57d225edd3207318c325723193fc707a66257aee))
+* **api:** role-scoped claim, findings on the outcome, role-filtered depth ([3cbfd63](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3cbfd6341e4ebb1096cbea532a88113afce45dfa))
+* **harness:** ACP driver, client half, and the coder/acp-go-sdk dependency ([6a06793](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6a067933d0f3a1227b320d8a6c53a229b21aca24))
+* **harness:** ACP event and stop-reason semantics (no SDK, no process) ([2bcd9ce](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2bcd9ce6092712f703e06d4a25d0d44dd25a18eb)), references [#64](https://forgejo.webgrip.dev/webgrip/ploeg/issues/64)
+* **harness:** ACP permission policy for unattended runs ([a8e705a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a8e705ab332d032c1711c12b1dd2c86166f147f3))
+* **harness:** ACP subprocess layer — process groups, stdout demux, async stdin ([a238a66](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a238a668bb1703e2077cf1aec23f11c6fa80a2ef))
+* **plan:** team plan config, parsed at boot, rendered dark from the chart ([bff5540](https://forgejo.webgrip.dev/webgrip/ploeg/commit/bff5540227b4aa3310850cf3e6a285d0e1ab6360))
+* **shiftengine:** open, advance, close and park Shifts ([9e538d0](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9e538d077b05aa070fd7936db9feb3c1e0ae52ee))
+* **store:** settlement, per-Run liveness, and the round-completion signal ([9d2d39b](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9d2d39be359e1129ce483d9e05773e3d0fa02f51))
+* **store:** shift lifecycle completions and shift-run plumbing fixes ([c3db764](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c3db7641b74829b73b8c8b990cf5e9745104bddb))
+* **store:** Shifts — rounds, reader/writer runs, and pooled budgets ([450a8ae](https://forgejo.webgrip.dev/webgrip/ploeg/commit/450a8ae25d0ce3f0a3961fba65510c35f9e96e98))
+* **worker:** role-aware runs — claim, prompt, budget, findings drop box ([8e170fa](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8e170fac79771df29880d28de7e7a3e7aab7494f)), references [#9](https://forgejo.webgrip.dev/webgrip/ploeg/issues/9)
+* **worker:** select the ACP harness from the registry, env and chart ([a33646d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a33646d4dbcb14d9722e67a6fb85f83f29b74d24))
 
 ### Fixed
 
-* **harness:** flush the agent's stderr before building an ACP failure reason ([eafd621](https://forgejo.webgrip.dev/webgrip/ploeg/commit/eafd621247d2cebfec4e41f6474df9f492c424ad))
-* **httpapi:** close the failure taxonomy at the API boundary ([c7c5ed6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c7c5ed64547d3c2a7ec8c3c900f5088be1fdff42))
-* **worker:** stop a failed run inheriting the previous run's PR ([6141f27](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6141f27e9307d5c1da89dded5727fe070789c56e))
+* **harness:** flush the agent's stderr before building an ACP failure reason ([de03342](https://forgejo.webgrip.dev/webgrip/ploeg/commit/de03342713aa73549939c43864b8f66682837198))
+* **httpapi:** close the failure taxonomy at the API boundary ([f72f9ac](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f72f9ac741fb59413492c10caac1a78f81ae1641))
+* **worker:** stop a failed run inheriting the previous run's PR ([5195737](https://forgejo.webgrip.dev/webgrip/ploeg/commit/5195737f67bead50826cacad2465fa6cbcac4891))
 
 ### Changed
 
-* **harnesstest:** make the conformance kernel adapter-shaped ([0b04b6e](https://forgejo.webgrip.dev/webgrip/ploeg/commit/0b04b6efcd2c53b57bd3d12c928d16b44b1248d2)), references [#64](https://forgejo.webgrip.dev/webgrip/ploeg/issues/64)
+* **harnesstest:** make the conformance kernel adapter-shaped ([dc0dcb2](https://forgejo.webgrip.dev/webgrip/ploeg/commit/dc0dcb261adb969f0976dfe61ea82ad33c22714e)), references [#64](https://forgejo.webgrip.dev/webgrip/ploeg/issues/64)
 
 ### Docs
 
-* **adr:** consolidate docs/adr into docs/adrs — one gated ledger ([245b90d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/245b90d626ee2a87cfe8e9a60621722f0ab59377)), references [#97](https://forgejo.webgrip.dev/webgrip/ploeg/issues/97)
-* **adr:** Shift owns the item, Lease owns the branch (0010-0012) ([e682a9b](https://forgejo.webgrip.dev/webgrip/ploeg/commit/e682a9bd8bfd1f7cec6a6b1c904a053b289f26c7))
-* **adrs:** migrate design.md §8/§9 into an enforced MADR 4.0 ledger ([d546a2c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/d546a2c737e5bee99c012c93d5705c047def5af8))
-* **adr:** the Lease becomes a capability, not a note (0013) ([70d054b](https://forgejo.webgrip.dev/webgrip/ploeg/commit/70d054b4a172e935742d348db47b329d4daf82a4)), references [forgejo#8837](https://forgejo.webgrip.dev/forgejo/issues/8837)
-* **agents:** record the multi-session staging discipline ([6c325bc](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6c325bc64a9dbb5f10b823062fa7d8470cc397ec))
-* close out the ACP work in the backlog, design §5 and the divergence list ([4793d1a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/4793d1a376aed175f3e14cdc967bc4a2aba68ed4)), references [#64](https://forgejo.webgrip.dev/webgrip/ploeg/issues/64) [#63](https://forgejo.webgrip.dev/webgrip/ploeg/issues/63) [#64](https://forgejo.webgrip.dev/webgrip/ploeg/issues/64) [#44](https://forgejo.webgrip.dev/webgrip/ploeg/issues/44) [#69](https://forgejo.webgrip.dev/webgrip/ploeg/issues/69)
-* **domain:** regenerate the domain views for Shift and Round ([0128ff3](https://forgejo.webgrip.dev/webgrip/ploeg/commit/0128ff3fbe3975eda44b03ad3f44f4a4636c630d))
-* make docs/adrs the only ledger, and gate it in go test ([34c4ff6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/34c4ff601d2a05047e96e5fe0f06223273cdc805))
-* **openspec:** adopt the spec-driven-with-adr workflow ([7091561](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7091561351748b4cf7c0e93665dcbc368de99e42))
-* **openspec:** design, adr manifest and tasks for run-multi-agent-shifts ([8d824b1](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8d824b1f0e4d369157f1abb0c7600d6d421d40c8))
-* **openspec:** propose run-multi-agent-shifts ([0dbe737](https://forgejo.webgrip.dev/webgrip/ploeg/commit/0dbe7376c22ecadae2d778c2e918239c35768d9f))
-* reconcile ADR-0010/0012 with the implementation; architecture §10 with diagrams ([e8d4298](https://forgejo.webgrip.dev/webgrip/ploeg/commit/e8d429841580b2806181bcbc1f026f64bffbdb57))
+* **adr:** consolidate docs/adr into docs/adrs — one gated ledger ([28b82b7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/28b82b767e00a0cfeda9fea925bdd733231abd32)), references [#97](https://forgejo.webgrip.dev/webgrip/ploeg/issues/97)
+* **adr:** Shift owns the item, Lease owns the branch (0010-0012) ([d601888](https://forgejo.webgrip.dev/webgrip/ploeg/commit/d601888a529f4d67151e1800b3fd93849aaf892a))
+* **adrs:** migrate design.md §8/§9 into an enforced MADR 4.0 ledger ([f5f9596](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f5f959686e2e55b09a309305ca56f8a23ec35963))
+* **adr:** the Lease becomes a capability, not a note (0013) ([14fcac6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/14fcac62a54dd71d2a645dca4e096ec9bb5d9781)), references [forgejo#8837](https://forgejo.webgrip.dev/forgejo/issues/8837)
+* **agents:** record the multi-session staging discipline ([6b7ccf7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6b7ccf7d4477d59490e2cd85dee50725a5894f56))
+* close out the ACP work in the backlog, design §5 and the divergence list ([4cfd890](https://forgejo.webgrip.dev/webgrip/ploeg/commit/4cfd8901f1e72cbe625329eb266f39992b9ca3ae)), references [#64](https://forgejo.webgrip.dev/webgrip/ploeg/issues/64) [#63](https://forgejo.webgrip.dev/webgrip/ploeg/issues/63) [#64](https://forgejo.webgrip.dev/webgrip/ploeg/issues/64) [#44](https://forgejo.webgrip.dev/webgrip/ploeg/issues/44) [#69](https://forgejo.webgrip.dev/webgrip/ploeg/issues/69)
+* **domain:** regenerate the domain views for Shift and Round ([0c8f417](https://forgejo.webgrip.dev/webgrip/ploeg/commit/0c8f4178b6829e12f39790612c35ef986b1b0706))
+* make docs/adrs the only ledger, and gate it in go test ([fcbd0b7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/fcbd0b7b6325e7751359ecc779fe7ae34ca9ecd5))
+* **openspec:** adopt the spec-driven-with-adr workflow ([18cb967](https://forgejo.webgrip.dev/webgrip/ploeg/commit/18cb9678be152f285e4cb26577a3297f327f8e4d))
+* **openspec:** design, adr manifest and tasks for run-multi-agent-shifts ([b9a197c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/b9a197c90054fb45e69fa99862a9ab2d80fadae9))
+* **openspec:** propose run-multi-agent-shifts ([70abf24](https://forgejo.webgrip.dev/webgrip/ploeg/commit/70abf24df514c3df5aea1a7c4014a426aca4a677))
+* reconcile ADR-0010/0012 with the implementation; architecture §10 with diagrams ([e589ed6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/e589ed65dd8fbb813ba38e8dc2eb6f03b7e1de64))
 
 ### Tests
 
-* **acp:** a zombie grandchild is not a surviving one ([914baf2](https://forgejo.webgrip.dev/webgrip/ploeg/commit/914baf246e4c173819661544e6dc37851a8d067a))
+* **acp:** a zombie grandchild is not a surviving one ([7bd42ed](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7bd42ed0c5600bcd8dd076bd8b25aca13765f659))
 
 ## [0.2.0-rc.7](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.6...v0.2.0-rc.7) (2026-07-29)
 
 ### Added
 
-* bind the work target to the work item, not to the team ([79a7ac9](https://forgejo.webgrip.dev/webgrip/ploeg/commit/79a7ac9b8a9b62c7735f9aa23e3c305b1e002f03)), references [#97](https://forgejo.webgrip.dev/webgrip/ploeg/issues/97) [97/#103](https://forgejo.webgrip.dev/webgrip/ploeg/issues/103) [#104-108](https://forgejo.webgrip.dev/webgrip/ploeg/issues/104-108)
+* bind the work target to the work item, not to the team ([d2085b3](https://forgejo.webgrip.dev/webgrip/ploeg/commit/d2085b39fe68feeaa12f08725b231547d52fac4c)), references [#97](https://forgejo.webgrip.dev/webgrip/ploeg/issues/97) [97/#103](https://forgejo.webgrip.dev/webgrip/ploeg/issues/103) [#104-108](https://forgejo.webgrip.dev/webgrip/ploeg/issues/104-108)
 
 ### Docs
 
-* cite model.yaml entities by name, not by line number ([cca8e85](https://forgejo.webgrip.dev/webgrip/ploeg/commit/cca8e85568a3551fc58ab39fc4a92886ba40d95c))
-* **domain:** model the Work Target, Forge, Scope and Routing Rule axes ([9b2b259](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9b2b259c8d10dd9a03d1103011a993ec21754f1c))
-* rewrite AGENTS.md as a router, land research and ops knowledge in-repo ([53f0c01](https://forgejo.webgrip.dev/webgrip/ploeg/commit/53f0c013cf4470fb1eae27471d75534815ad4c45)), references [#103](https://forgejo.webgrip.dev/webgrip/ploeg/issues/103)
-* update README status — executors ship in the chart ([451fdbb](https://forgejo.webgrip.dev/webgrip/ploeg/commit/451fdbb22c2dd3980ed6b2de1d97c0d00e754d29))
+* cite model.yaml entities by name, not by line number ([db2b4e5](https://forgejo.webgrip.dev/webgrip/ploeg/commit/db2b4e58cf9701e5e281c47339d2749f7ebba344))
+* **domain:** model the Work Target, Forge, Scope and Routing Rule axes ([8227da7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8227da76ee23b628bd9fc51b050dffca56011718))
+* rewrite AGENTS.md as a router, land research and ops knowledge in-repo ([3fd1744](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3fd1744cca83d71cd0e6ac69d8cf46436468decb)), references [#103](https://forgejo.webgrip.dev/webgrip/ploeg/issues/103)
+* update README status — executors ship in the chart ([078efca](https://forgejo.webgrip.dev/webgrip/ploeg/commit/078efcad020aa30e0ffae145abff6b2e261276ef))
 
 ## [0.2.0-rc.6](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.5...v0.2.0-rc.6) (2026-07-28)
 
 ### Added
 
-* run forensics survive pod/job cleanup — node+pod identity in logs+checkpoints, failure-reason taxonomy, VIK-586 fix ([ec2f000](https://forgejo.webgrip.dev/webgrip/ploeg/commit/ec2f000b634e3ce7d226192f01567ab3669021a8))
+* run forensics survive pod/job cleanup — node+pod identity in logs+checkpoints, failure-reason taxonomy, VIK-586 fix ([72db36b](https://forgejo.webgrip.dev/webgrip/ploeg/commit/72db36bcbc964e18461d21a9b2e4a2523eca8a0a))
 
 ### Fixed
 
-* apply PR review round 2 — ExpectsLLM, VIK-586 heuristic, gofmt, FailureReason naming ([dbb10da](https://forgejo.webgrip.dev/webgrip/ploeg/commit/dbb10dac8b3f124a9fffb9f01ea71f3ac7c1ee3b))
+* apply PR review round 2 — ExpectsLLM, VIK-586 heuristic, gofmt, FailureReason naming ([84c8ced](https://forgejo.webgrip.dev/webgrip/ploeg/commit/84c8ceddd053e8eac5a72ab4754d274284d499e3))
 
 ### Docs
 
-* record 2026-07-28 A2A sweep — wrong layer for the factory, north-facade watchlisted ([457e931](https://forgejo.webgrip.dev/webgrip/ploeg/commit/457e9314c7cd67ffd92124c241450cd209128c64)), references [#102](https://forgejo.webgrip.dev/webgrip/ploeg/issues/102) [#31](https://forgejo.webgrip.dev/webgrip/ploeg/issues/31)
+* record 2026-07-28 A2A sweep — wrong layer for the factory, north-facade watchlisted ([139d497](https://forgejo.webgrip.dev/webgrip/ploeg/commit/139d497560b6924a96545f9495465eb011c352b2)), references [#102](https://forgejo.webgrip.dev/webgrip/ploeg/issues/102) [#31](https://forgejo.webgrip.dev/webgrip/ploeg/issues/31)
 
 ## [0.2.0-rc.5](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.4...v0.2.0-rc.5) (2026-07-28)
 
 ### Added
 
-* pluggable harness, agent image, LLM broker, and executor seams ([08c40ea](https://forgejo.webgrip.dev/webgrip/ploeg/commit/08c40ea3fde02ff146573a48b293cfc254b6073c)), references [66/#69](https://forgejo.webgrip.dev/webgrip/ploeg/issues/69)
+* pluggable harness, agent image, LLM broker, and executor seams ([1789c7a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/1789c7a74ec7470c127178ec07cb572471243ce6)), references [66/#69](https://forgejo.webgrip.dev/webgrip/ploeg/issues/69)
 
 ### Docs
 
-* **agents:** correct migrations path to pkg/store/migrations ([b561521](https://forgejo.webgrip.dev/webgrip/ploeg/commit/b5615210485055cfd209bbe115e9d8425f02f615))
-* current-state architecture of the dark factory (mermaid: context, run sequence, states, key layers) ([9a3c5ff](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9a3c5ff4f2fc481a050f11d6054c2225ef60b499))
-* record 2026-07-27 AHP sweep verdict — session-sync layer above ploeg, ACP stays the harness seam ([6ccacf7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6ccacf7db7ce7b3b8b61a80afa7460077024b3e7))
+* **agents:** correct migrations path to pkg/store/migrations ([7fc9446](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7fc9446c806aea292df72df2c6327ebb4635582c))
+* current-state architecture of the dark factory (mermaid: context, run sequence, states, key layers) ([3e868ec](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3e868ecd3b7e9afca1efb23c58b412a3aff7f8a9))
+* record 2026-07-27 AHP sweep verdict — session-sync layer above ploeg, ACP stays the harness seam ([d595dff](https://forgejo.webgrip.dev/webgrip/ploeg/commit/d595dff2f7969511c5673ef13a7c4928c56d88e5))
 
 ## [0.2.0-rc.4](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.3...v0.2.0-rc.4) (2026-07-28)
 
 ### Fixed
 
-* infra failures don't burn attempt budget (backoff + infra_failures) ([71bbb1a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/71bbb1af903354a41e372f11d5859045b29558a6))
+* infra failures don't burn attempt budget (backoff + infra_failures) ([a9615a8](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a9615a87c4d834e8d2c5cbe52f0631a102c7cc07))
 
 ### Tests
 
-* **store:** unused var + gofmt — reviewer gate pass ([539b95a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/539b95a7df3e6de90282dc8aca459495bcf08d4d))
+* **store:** unused var + gofmt — reviewer gate pass ([a544a41](https://forgejo.webgrip.dev/webgrip/ploeg/commit/a544a41b2db88eea5abb52e38b6f63e3f89fd9f5))
 
 ## [0.2.0-rc.3](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.2...v0.2.0-rc.3) (2026-07-27)
 
 ### Fixed
 
-* **ploegd:** safe Alias() helper, sweeper key revoke, boot orphan sweep ([4814851](https://forgejo.webgrip.dev/webgrip/ploeg/commit/4814851e8ab7fc8eff35c206fb07fddebd41d908))
+* **ploegd:** safe Alias() helper, sweeper key revoke, boot orphan sweep ([1c39d96](https://forgejo.webgrip.dev/webgrip/ploeg/commit/1c39d96824d3a51a31398ad470d6edb950e31e0b))
 
 ### Tests
 
-* **litellm:** strict fake emits [] not null for empty lists; gofmt ([ead01f1](https://forgejo.webgrip.dev/webgrip/ploeg/commit/ead01f1990529e945c03e49a7bc6ca55925dddbb))
+* **litellm:** strict fake emits [] not null for empty lists; gofmt ([f2ca405](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f2ca4051dd4ce0d9ab48b1ab15afe17b43e3d759))
 
 ## [0.2.0-rc.2](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.2.0-rc.1...v0.2.0-rc.2) (2026-07-27)
 
 ### Fixed
 
-* **helm:** default worker CPU to 1 core (single-threaded cold import ([cd0cb23](https://forgejo.webgrip.dev/webgrip/ploeg/commit/cd0cb237c999840e7ab7f1acdd9208be7abf0c6d))
+* **helm:** default worker CPU to 1 core (single-threaded cold import ([540c3c2](https://forgejo.webgrip.dev/webgrip/ploeg/commit/540c3c2aa2b248c2799dfb7259f1bca1db90aa5f))
 
 ### CI
 
-* **release:** build the image once — Forgejo distribute mirrors Harbor by digest ([b086784](https://forgejo.webgrip.dev/webgrip/ploeg/commit/b08678436c8dfe50a22bf43e37f9ac57bb89930e))
-* **release:** sign and attest ploegd on Harbor via the shared cosign composite ([d85f084](https://forgejo.webgrip.dev/webgrip/ploeg/commit/d85f0845a4b054c32a9bbec0387fe9eaf534684c))
+* **release:** build the image once — Forgejo distribute mirrors Harbor by digest ([04ff380](https://forgejo.webgrip.dev/webgrip/ploeg/commit/04ff380edb5aca206b0fbc8a62d8c349fc254784))
+* **release:** sign and attest ploegd on Harbor via the shared cosign composite ([d0c4398](https://forgejo.webgrip.dev/webgrip/ploeg/commit/d0c4398a324d81dea6824724fa9ffa136a6b63df))
 
 ## [0.2.0-rc.1](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0...v0.2.0-rc.1) (2026-07-27)
 
 ### Added
 
-* **deps:** update docker.io/golang docker tag ( 1.24 ➔ 1.26 ) ([999eda8](https://forgejo.webgrip.dev/webgrip/ploeg/commit/999eda8942e83d47c31d8144171fbb4fc511417d))
-* **deps:** Update postgres Docker tag ( 17 ➔ 18 ) ([41cba65](https://forgejo.webgrip.dev/webgrip/ploeg/commit/41cba65819694ce00ed58ae7c0e764eada76d4c4))
+* **deps:** update docker.io/golang docker tag ( 1.24 ➔ 1.26 ) ([739bd80](https://forgejo.webgrip.dev/webgrip/ploeg/commit/739bd806b1b0ef2f4d7e761a07a1c34d5f0358fd))
+* **deps:** Update postgres Docker tag ( 17 ➔ 18 ) ([6fe8454](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6fe84548e06d44ab22eb444a009247dcad621e85))
 
 ### Fixed
 
-* assignment webhooks revive finished work items ([30558e5](https://forgejo.webgrip.dev/webgrip/ploeg/commit/30558e5f3ff032c161d41665ae5b121f32764284))
-* **ci:** adopt the shared forgejo-distribute reusable for the Forgejo mirror ([5d524a9](https://forgejo.webgrip.dev/webgrip/ploeg/commit/5d524a9b5cd57cd28eadf1d2858e035187fc242d))
-* **ci:** correct the stale single-reusable-chain comment; cut v0.1.0-rc.11 ([4a7d78e](https://forgejo.webgrip.dev/webgrip/ploeg/commit/4a7d78eaba0fdc9f3413bce533a8d5ef6a223d56))
-* **ci:** mirror image and chart to the Forgejo registry and link them to the repo ([0ad0ced](https://forgejo.webgrip.dev/webgrip/ploeg/commit/0ad0ced79b82c4092c5c7e0280af6f6fad131e33))
-* **ci:** release and publish as the webgrip-ci bot, not the per-job token ([8a5a994](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8a5a994c05228017e363da8e446a5ac1231f72e1))
-* **deps:** update harbor.webgrip.dev/webgrip/agent-runner docker tag ( 1.0.1 ➔ 1.0.2 ) ([2cfdc01](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2cfdc01c767ff5cf9d8c87a54a210d00d3160839))
-* Guaranteed QoS for every factory pod — out of the OOMController's kill zone ([cbde89d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/cbde89d4625a0e55a95673646e3a16d9caff67c2))
-* ploeg-worker owns the per-run LiteLLM key lifecycle (mint + always-revoke) ([450ec5f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/450ec5f67f821e24e7e8b20a0ea6c56d9bb7f7de))
-* **release:** drop the yq appVersion prepareCmd — the shared config bumps both keys ([18f441b](https://forgejo.webgrip.dev/webgrip/ploeg/commit/18f441b2cdbdbdd88ba9aa8420020a1932cdc51a))
-* worker owns the per-run LiteLLM key lifecycle (mint + always-revoke) ([1edb4af](https://forgejo.webgrip.dev/webgrip/ploeg/commit/1edb4af494130c06450763dfd288d9cb283cd951))
-* worker targets a configurable base branch end to end ([18f80de](https://forgejo.webgrip.dev/webgrip/ploeg/commit/18f80de7314e11df8521f3eb5897f17924fa273c)), references [#6](https://forgejo.webgrip.dev/webgrip/ploeg/issues/6)
+* assignment webhooks revive finished work items ([8b15d2e](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8b15d2e5fae575f6dbea93f59026521f53989ca9))
+* **ci:** adopt the shared forgejo-distribute reusable for the Forgejo mirror ([9047b3a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9047b3a520c94c4ac3df7e198776f07458e14d06))
+* **ci:** correct the stale single-reusable-chain comment; cut v0.1.0-rc.11 ([09eeea0](https://forgejo.webgrip.dev/webgrip/ploeg/commit/09eeea0677794acb6ed8dcbace2fd72829538276))
+* **ci:** mirror image and chart to the Forgejo registry and link them to the repo ([621e77a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/621e77ae035ec64368dd3c2becbf7fee9bb63351))
+* **ci:** release and publish as the webgrip-ci bot, not the per-job token ([647a49c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/647a49cd2a75421d66defd83eb52482e3d53b000))
+* **deps:** update harbor.webgrip.dev/webgrip/agent-runner docker tag ( 1.0.1 ➔ 1.0.2 ) ([2fa0985](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2fa0985ce2ae60f66daefc7c23a6985cddab4e75))
+* Guaranteed QoS for every factory pod — out of the OOMController's kill zone ([9e708ee](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9e708ee7b4a6a55db0047c98d53ab6fc19aaae30))
+* ploeg-worker owns the per-run LiteLLM key lifecycle (mint + always-revoke) ([aa5fc39](https://forgejo.webgrip.dev/webgrip/ploeg/commit/aa5fc397c463d95a6cf18944594ee22cdfd0e585))
+* **release:** drop the yq appVersion prepareCmd — the shared config bumps both keys ([565cb1f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/565cb1fcf926c522bfdaea33bb3ea01563238857))
+* worker owns the per-run LiteLLM key lifecycle (mint + always-revoke) ([9bcc0f8](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9bcc0f84f1bdad3e68a4513eeba6ccf77be95fa1))
+* worker targets a configurable base branch end to end ([6ffdfe6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6ffdfe636cf19f2c4be7ea51eedbf2fb6dbe295a)), references [#6](https://forgejo.webgrip.dev/webgrip/ploeg/issues/6)
 
 ### CI
 
-* **actions:** Pin dependencies ([27ddc29](https://forgejo.webgrip.dev/webgrip/ploeg/commit/27ddc2964426da2ef01581c22fa9893ac59c6e28))
-* **actions:** Update dependency helm ( v3.18.4 ➔ v4.2.3 ) ([c72b289](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c72b289ef7a09a304151a037d0e2fa52bbbb17d0))
-* **actions:** Update https://github.com/actions/setup-go action ( v6.5.0 ➔ v7.0.0 ) ([6a97b93](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6a97b93da496e36927dc94b4fd11c1215935329d))
-* adopt @webgrip/semantic-release-config ([ab021b7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/ab021b7ec1cfd72fd36b1f50e0a2427a6b528b00))
-* drop the manual release dispatch — bot-cut releases fire the release event natively ([ffa5158](https://forgejo.webgrip.dev/webgrip/ploeg/commit/ffa515890c296161ca9eb782458688f4ec0bbae5))
-* **release:** drop the local semantic-release toolchain — the shared config pins it ([faad578](https://forgejo.webgrip.dev/webgrip/ploeg/commit/faad5783e5010f438c7785bc98ce078b34c4227b))
-* retrigger release job (composite now falls back to setup-node on node<22.14 hosts) ([c39fd88](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c39fd88ed43f99009c6122f791b5df6240c0124e))
-* retrigger release train (rc release died on missing yq, now fixed) ([4dcbf12](https://forgejo.webgrip.dev/webgrip/ploeg/commit/4dcbf129442e945804d7a8588236f8cc7a17a83f))
+* **actions:** Pin dependencies ([e26493a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/e26493a946cfe21c60243b124005c8bdbaa08245))
+* **actions:** Update dependency helm ( v3.18.4 ➔ v4.2.3 ) ([5591eab](https://forgejo.webgrip.dev/webgrip/ploeg/commit/5591eab6521ec8623b8a27a974c6e18deb576efc))
+* **actions:** Update https://github.com/actions/setup-go action ( v6.5.0 ➔ v7.0.0 ) ([5ce8533](https://forgejo.webgrip.dev/webgrip/ploeg/commit/5ce85333de80d9a666742f471bd69bbe7089e768))
+* adopt @webgrip/semantic-release-config ([7b5f87c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7b5f87ce01d403d619e51c67108eca1b7941ec3c))
+* drop the manual release dispatch — bot-cut releases fire the release event natively ([2faef42](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2faef424d906a803d1ecb190a35d38dcf4ba7dff))
+* **release:** drop the local semantic-release toolchain — the shared config pins it ([592ebdd](https://forgejo.webgrip.dev/webgrip/ploeg/commit/592ebdd9e0697c61fa12604729220c10153587e4))
+* retrigger release job (composite now falls back to setup-node on node<22.14 hosts) ([e50b844](https://forgejo.webgrip.dev/webgrip/ploeg/commit/e50b8443b8dca7f6f4d61b7acfd7aa1f9393b3a0))
+* retrigger release train (rc release died on missing yq, now fixed) ([8a6c8db](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8a6c8db24883e6e6e58dd18d195c0b7a5ca83090))
 
 ## [0.1.0-rc.9](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0-rc.8...v0.1.0-rc.9) (2026-07-26)
 
 ### Fixed
 
-* **ci:** release and publish as the webgrip-ci bot, not the per-job token ([8a5a994](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8a5a994c05228017e363da8e446a5ac1231f72e1))
+* **ci:** release and publish as the webgrip-ci bot, not the per-job token ([647a49c](https://forgejo.webgrip.dev/webgrip/ploeg/commit/647a49cd2a75421d66defd83eb52482e3d53b000))
 
 ## [0.1.0-rc.8](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0-rc.7...v0.1.0-rc.8) (2026-07-25)
 
 ### Fixed
 
-* **ci:** mirror image and chart to the Forgejo registry and link them to the repo ([0ad0ced](https://forgejo.webgrip.dev/webgrip/ploeg/commit/0ad0ced79b82c4092c5c7e0280af6f6fad131e33))
+* **ci:** mirror image and chart to the Forgejo registry and link them to the repo ([621e77a](https://forgejo.webgrip.dev/webgrip/ploeg/commit/621e77ae035ec64368dd3c2becbf7fee9bb63351))
 
 ## [0.1.0-rc.7](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0-rc.6...v0.1.0-rc.7) (2026-07-25)
 
 ### Fixed
 
-* ploeg-worker owns the per-run LiteLLM key lifecycle (mint + always-revoke) ([450ec5f](https://forgejo.webgrip.dev/webgrip/ploeg/commit/450ec5f67f821e24e7e8b20a0ea6c56d9bb7f7de))
+* ploeg-worker owns the per-run LiteLLM key lifecycle (mint + always-revoke) ([aa5fc39](https://forgejo.webgrip.dev/webgrip/ploeg/commit/aa5fc397c463d95a6cf18944594ee22cdfd0e585))
 
 ## [0.1.0-rc.6](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0-rc.5...v0.1.0-rc.6) (2026-07-25)
 
 ### Fixed
 
-* Guaranteed QoS for every factory pod — out of the OOMController's kill zone ([cbde89d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/cbde89d4625a0e55a95673646e3a16d9caff67c2))
+* Guaranteed QoS for every factory pod — out of the OOMController's kill zone ([9e708ee](https://forgejo.webgrip.dev/webgrip/ploeg/commit/9e708ee7b4a6a55db0047c98d53ab6fc19aaae30))
 
 ## [0.1.0-rc.5](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0-rc.4...v0.1.0-rc.5) (2026-07-25)
 
 ### Fixed
 
-* assignment webhooks revive finished work items ([30558e5](https://forgejo.webgrip.dev/webgrip/ploeg/commit/30558e5f3ff032c161d41665ae5b121f32764284))
-* worker targets a configurable base branch end to end ([18f80de](https://forgejo.webgrip.dev/webgrip/ploeg/commit/18f80de7314e11df8521f3eb5897f17924fa273c)), closes [#6](https://forgejo.webgrip.dev/webgrip/ploeg/issues/6)
+* assignment webhooks revive finished work items ([8b15d2e](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8b15d2e5fae575f6dbea93f59026521f53989ca9))
+* worker targets a configurable base branch end to end ([6ffdfe6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6ffdfe636cf19f2c4be7ea51eedbf2fb6dbe295a)), closes [#6](https://forgejo.webgrip.dev/webgrip/ploeg/issues/6)
 
 ### Docs
 
-* AGENTS.md + team-silver repo skill — make the repo factory-workable ([c7fbfc9](https://forgejo.webgrip.dev/webgrip/ploeg/commit/c7fbfc97335076701dbf0a307808489f3dd4839f))
+* AGENTS.md + team-silver repo skill — make the repo factory-workable ([15b28b6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/15b28b6d0ee7ecacf1d054671067cf3ff8f72887))
 
 ## [0.1.0](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.0.0...v0.1.0) (2026-07-25)
 
 ### Added
 
-* **executor:** OpenHands worker, Helm chart, and chart publishing ([f0956b6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f0956b6e1accc2b43ba09e849a98532ff8b8c2bc))
-* **ploegd:** working dispatch-plane prototype — ingest, leases, run API ([7b69724](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7b69724cf0ccbbe8a2b35e224a53f8d3ff084c38)), closes [#31](https://forgejo.webgrip.dev/webgrip/ploeg/issues/31) [#49](https://forgejo.webgrip.dev/webgrip/ploeg/issues/49)
-* **work:** align WorkItem with domain model — needs_human state, origin, priority ([b71f2b7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/b71f2b76062ca72c83ed7cfa32c9d4ccd9169e1b)), closes [#12](https://forgejo.webgrip.dev/webgrip/ploeg/issues/12)
+* **executor:** OpenHands worker, Helm chart, and chart publishing ([2f48634](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2f48634794595ef5d774dc6979feebb86d477532))
+* **ploegd:** working dispatch-plane prototype — ingest, leases, run API ([6b16c77](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6b16c77d168e40ae1630290981462ee3b4cb950c)), closes [#31](https://forgejo.webgrip.dev/webgrip/ploeg/issues/31) [#49](https://forgejo.webgrip.dev/webgrip/ploeg/issues/49)
+* **work:** align WorkItem with domain model — needs_human state, origin, priority ([90f48e6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/90f48e6e29a7c39dd80374b339fcecf26d310af3)), closes [#12](https://forgejo.webgrip.dev/webgrip/ploeg/issues/12)
 
 ### Fixed
 
-* **chart:** default the KEDA scaler host to a namespace-qualified FQDN ([31f81e9](https://forgejo.webgrip.dev/webgrip/ploeg/commit/31f81e9af716906a87e5c98c63a13c814b97f72b))
-* never lose a run's outcome to the links constraint ([3b1f5c8](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3b1f5c89003bc9df5983c1c432e172b15340b940))
-* **ploegd:** retry database connectivity at startup instead of crash-looping ([02877cf](https://forgejo.webgrip.dev/webgrip/ploeg/commit/02877cf28d4387646e229b38bad399848fbd512d))
-* **release:** pin notes toolchain so release notes render sections ([7feecd6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7feecd6476fbe6984feeae0c56a7da873984c7e9))
+* **chart:** default the KEDA scaler host to a namespace-qualified FQDN ([ef51368](https://forgejo.webgrip.dev/webgrip/ploeg/commit/ef51368f9982c1150f3c57257d8fdbd0da53f7f9))
+* never lose a run's outcome to the links constraint ([5893e03](https://forgejo.webgrip.dev/webgrip/ploeg/commit/5893e03cd35d2e657b725512511a19be5201376c))
+* **ploegd:** retry database connectivity at startup instead of crash-looping ([fc5d879](https://forgejo.webgrip.dev/webgrip/ploeg/commit/fc5d8793e0a2b3a712600704a4089a23ea46b168))
+* **release:** pin notes toolchain so release notes render sections ([5c75197](https://forgejo.webgrip.dev/webgrip/ploeg/commit/5c75197ce5766da97ef72e009abf8bc948015462))
 
 ## [0.1.0-rc.4](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0-rc.3...v0.1.0-rc.4) (2026-07-24)
 
 ### Fixed
 
-* **chart:** default the KEDA scaler host to a namespace-qualified FQDN ([31f81e9](https://forgejo.webgrip.dev/webgrip/ploeg/commit/31f81e9af716906a87e5c98c63a13c814b97f72b))
-* never lose a run's outcome to the links constraint ([3b1f5c8](https://forgejo.webgrip.dev/webgrip/ploeg/commit/3b1f5c89003bc9df5983c1c432e172b15340b940))
-* **ploegd:** retry database connectivity at startup instead of crash-looping ([02877cf](https://forgejo.webgrip.dev/webgrip/ploeg/commit/02877cf28d4387646e229b38bad399848fbd512d))
+* **chart:** default the KEDA scaler host to a namespace-qualified FQDN ([ef51368](https://forgejo.webgrip.dev/webgrip/ploeg/commit/ef51368f9982c1150f3c57257d8fdbd0da53f7f9))
+* never lose a run's outcome to the links constraint ([5893e03](https://forgejo.webgrip.dev/webgrip/ploeg/commit/5893e03cd35d2e657b725512511a19be5201376c))
+* **ploegd:** retry database connectivity at startup instead of crash-looping ([fc5d879](https://forgejo.webgrip.dev/webgrip/ploeg/commit/fc5d8793e0a2b3a712600704a4089a23ea46b168))
 
 ## [0.1.0-rc.3](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0-rc.2...v0.1.0-rc.3) (2026-07-23)
 
 ### Added
 
-* **executor:** OpenHands worker, Helm chart, and chart publishing ([f0956b6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f0956b6e1accc2b43ba09e849a98532ff8b8c2bc))
+* **executor:** OpenHands worker, Helm chart, and chart publishing ([2f48634](https://forgejo.webgrip.dev/webgrip/ploeg/commit/2f48634794595ef5d774dc6979feebb86d477532))
 
 ## [0.1.0-rc.2](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.1.0-rc.1...v0.1.0-rc.2) (2026-07-23)
 
 ### Added
 
-* **ploegd:** working dispatch-plane prototype — ingest, leases, run API ([7b69724](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7b69724cf0ccbbe8a2b35e224a53f8d3ff084c38)), closes [#31](https://forgejo.webgrip.dev/webgrip/ploeg/issues/31) [#49](https://forgejo.webgrip.dev/webgrip/ploeg/issues/49)
+* **ploegd:** working dispatch-plane prototype — ingest, leases, run API ([6b16c77](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6b16c77d168e40ae1630290981462ee3b4cb950c)), closes [#31](https://forgejo.webgrip.dev/webgrip/ploeg/issues/31) [#49](https://forgejo.webgrip.dev/webgrip/ploeg/issues/49)
 
 ### Fixed
 
-* **release:** pin notes toolchain so release notes render sections ([7feecd6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/7feecd6476fbe6984feeae0c56a7da873984c7e9))
+* **release:** pin notes toolchain so release notes render sections ([5c75197](https://forgejo.webgrip.dev/webgrip/ploeg/commit/5c75197ce5766da97ef72e009abf8bc948015462))
 
 ## [0.1.0-rc.1](https://forgejo.webgrip.dev/webgrip/ploeg/compare/v0.0.0...v0.1.0-rc.1) (2026-07-23)
 
 ### Added
 
-* **work:** align WorkItem with domain model — needs_human state, origin, priority ([b71f2b7](https://forgejo.webgrip.dev/webgrip/ploeg/commit/b71f2b76062ca72c83ed7cfa32c9d4ccd9169e1b)), references [#12](https://forgejo.webgrip.dev/webgrip/ploeg/issues/12)
+* **work:** align WorkItem with domain model — needs_human state, origin, priority ([90f48e6](https://forgejo.webgrip.dev/webgrip/ploeg/commit/90f48e6e29a7c39dd80374b339fcecf26d310af3)), references [#12](https://forgejo.webgrip.dev/webgrip/ploeg/issues/12)
 
 ### CI
 
-* development branch cuts rc prereleases; :latest reserved for stable ([42918de](https://forgejo.webgrip.dev/webgrip/ploeg/commit/42918de366eec519f023b599020438e6810cc1fe))
-* park GHCR publish while GitHub is out of scope ([bdd0a57](https://forgejo.webgrip.dev/webgrip/ploeg/commit/bdd0a578084224d27e21b048980344c951ef0970))
-* set up release train (semantic-release, ploegd image, publish workflows) ([f6a6d7b](https://forgejo.webgrip.dev/webgrip/ploeg/commit/f6a6d7b0ebeb4a360ee9f3ba48ac973971766fb9))
+* development branch cuts rc prereleases; :latest reserved for stable ([db7e41d](https://forgejo.webgrip.dev/webgrip/ploeg/commit/db7e41d0e0377794d391873b4fe7ae8f9e5a783f))
+* park GHCR publish while GitHub is out of scope ([71e46dd](https://forgejo.webgrip.dev/webgrip/ploeg/commit/71e46dd70f97b1cf50b9e469ad852e0977bc977a))
+* set up release train (semantic-release, ploegd image, publish workflows) ([8a16bda](https://forgejo.webgrip.dev/webgrip/ploeg/commit/8a16bda56c0e4f483185ba263a2608b88d19bc56))

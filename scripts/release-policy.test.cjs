@@ -32,7 +32,7 @@ const context = (version = '0.4.0-rc.1') => ({
 const loadCore = (name) => import(pathToFileURL(path.join(semanticReleaseRoot, 'lib', name)).href);
 const analyze = async (options, message = historicalCommit) => {
   const { analyzeCommits } = await import(pathToFileURL(require.resolve('@semantic-release/commit-analyzer')).href);
-  return analyzeCommits(options, { commits: [{ hash: '7714cd5eb3268fd8291075a13fcb3736ddc88c76', message }], logger, cwd: root });
+  return analyzeCommits(options, { commits: [{ hash: '9028cf0718c65acbfc4f8bfd1be71f32417221ce', message }], logger, cwd: root });
 };
 const nextVersion = async (tags, type) => {
   const { default: getLastRelease } = await loadCore('get-last-release.js');
@@ -91,7 +91,7 @@ test('breaking headers and footers remain minor while ordinary commit behavior i
 test('the actual release notes retain a breaking-change compatibility warning', async () => {
   const { generateNotes } = await import(pathToFileURL(require.resolve('@semantic-release/release-notes-generator')).href);
   const notes = await generateNotes(pluginOptions(config, '@semantic-release/release-notes-generator'), {
-    commits: [{ hash: '7714cd5eb3268fd8291075a13fcb3736ddc88c76', message: historicalCommit }],
+    commits: [{ hash: '9028cf0718c65acbfc4f8bfd1be71f32417221ce', message: historicalCommit }],
     lastRelease: { version: '0.3.0', gitTag: 'unfold-v0.3.0' },
     nextRelease: { version: '0.4.0-rc.1', gitTag: 'unfold-v0.4.0-rc.1' },
     options: { repositoryUrl: 'https://forgejo.webgrip.dev/webgrip/glide.git' }, cwd: root, env: {}, logger,

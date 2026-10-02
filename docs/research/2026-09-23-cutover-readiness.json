@@ -8,12 +8,12 @@
   "verdict": "not_ready_for_release_cutover",
   "scope": "Local qualification and release checks; anonymous read-only HTTP reads of the Forgejo and GitHub APIs; git ls-remote of both Glide remotes; anonymous reads of homelab-cluster main. No credentials were used against a registry, OpenBao or Kubernetes. No preflight with secrets, no workflow dispatch, no push, tag, publication, variable change or paid model call.",
   "source": {
-    "glide_sha": "352fa52df121070d69072b64daa99bb8d1350ba0",
-    "remote_development_sha": "40e574f31fb76daac473083bd3c385be7c0e4ffb",
+    "glide_sha": "91d2ee59ffff5aeacddd5cda3ee47782d5167034",
+    "remote_development_sha": "edb76acc32dcaf9dcdfc6943fda1bdf2fc1b3352",
     "remote_matches_local": false,
     "remote_note": "The local development head is one test-only commit (352fa52) ahead of Forgejo. The preview must run on whatever Forgejo holds when it is dispatched.",
-    "remote_main_baseline": "479e193136dc2c580551b65839a853d4c8f89624",
-    "latest_checks": {"status": "success", "run": 33, "sha": "40e574f31fb76daac473083bd3c385be7c0e4ffb", "url": "https://forgejo.webgrip.dev/webgrip/glide/actions/runs/33", "release_jobs": "skipped", "mirror_source_metadata": "skipped"},
+    "remote_main_baseline": "381f30dc470aa730ab8c1bd358888a8e53b950a6",
+    "latest_checks": {"status": "success", "run": 33, "sha": "edb76acc32dcaf9dcdfc6943fda1bdf2fc1b3352", "url": "https://forgejo.webgrip.dev/webgrip/glide/actions/runs/33", "release_jobs": "skipped", "mirror_source_metadata": "skipped"},
     "earlier_checks_failures": [
       {"run": 30, "sha": "d070083a1", "job": "checks", "status": "failure"},
       {"run": 31, "sha": "69d1af231", "job": "checks", "status": "failure"}
@@ -107,7 +107,7 @@
     }
   ],
   "source_links": {
-    "glide_workflows": "https://forgejo.webgrip.dev/webgrip/glide/src/commit/40e574f31fb76daac473083bd3c385be7c0e4ffb/.forgejo/workflows",
+    "glide_workflows": "https://forgejo.webgrip.dev/webgrip/glide/src/commit/edb76acc32dcaf9dcdfc6943fda1bdf2fc1b3352/.forgejo/workflows",
     "gitops": "https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/commit/d9169897a2af446bb332cce54d867fe3fc59b270",
     "signing_role": "https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/commit/d9169897a2af446bb332cce54d867fe3fc59b270/kubernetes/apps/security/openbao/bootstrap/config.sh",
     "credential_bridge": "https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/commit/d9169897a2af446bb332cce54d867fe3fc59b270/kubernetes/apps/forgejo/forgejo-actions-secrets/app/forgejo-actions-secrets.cronjob.yaml",
