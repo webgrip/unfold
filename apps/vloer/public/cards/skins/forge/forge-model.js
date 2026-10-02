@@ -170,7 +170,9 @@ function gradeWord(grade) {
 
 /**
  * Everything the forge paints on the card, as plain text: the same facts as every other skin, from the view model, so
- * a demo card reads "Demo · no model calls" and an unknown value never reads as zero. `worldKind` is the inner world
+ * a demo card reads "Demo · no model calls" and an unknown value never reads as zero. `kpis` holds the headline KPI
+ * figures in calendar time (Vloer ADR 0035); with them the face paints a strip of four cells and leaves crew and run time
+ * to the text facts and the back. `worldKind` is the inner world
  * the card shows before anyone decorates it and `worldFacts` the facts that unlock its time of day and its things.
  * @param {object} view The `cardView` model.
  */
@@ -182,6 +184,7 @@ export function faceFacts(view) {
   const condition = view.condition ?? null;
   const sub = [view.repo || view.team || 'No repository', view.rounds ? `Round ${view.rounds}` : ''].filter(Boolean).join(' · ');
   const playLine = view.pr ? [view.plays?.text, `${view.pr.text} ${view.pr.state?.label ?? ''}`.trim(), view.pr.ciText].filter(Boolean).join(' · ') : 'No pull request yet';
+  const kpis = (view.kpis?.headline ?? []).slice(0, 4).map(entry => ({ label: entry.label, value: entry.value, detail: entry.detail, tone: entry.tone, live: entry.live === true }));
   return {
     title: view.title,
     worldKind: themeWorld(view),
@@ -192,13 +195,14 @@ export function faceFacts(view) {
     condition: condition ? { state: condition.state, label: condition.label, text: condition.text } : null,
     finishLine: view.release?.released ? `${view.release.dayText} · ${view.finish.label}` : view.finish?.label ?? 'Matte',
     rows: [
-      ['Crew', view.crew || 'No agent Runs yet'],
+      ...(kpis.length ? [] : [['Crew', view.crew || 'No agent Runs yet']]),
       ['Plays', playLine],
       ['Diff', view.diff?.value ?? 'Not reported'],
-      ['Run time', view.runTime?.value ?? 'Not reported'],
+      ...(kpis.length ? [] : [['Run time', view.runTime?.value ?? 'Not reported']]),
       ['Live', releaseLine(view)],
       ...(view.gates ? [['Gates', gatesLine(view.gates, view.evolved)]] : []),
     ],
+    kpis,
     set: view.set ? { symbol: view.set.symbol, text: view.set.text, complete: view.set.complete } : null,
     grade: grade ? { text: grade.text, word: gradeWord(grade), qualifiers: grade.qualifiers.map(entry => entry.code).join(' '), subgrades: grade.subgrades.map(entry => `${entry.short} ${entry.text}`).join(' · '), formula: grade.formula, label: grade.labelKey } : null,
     steward: { signed: Boolean(view.steward?.signed), name: view.steward?.name ?? '', detail: view.steward?.detail ?? '' },
@@ -221,5 +225,5 @@ export function faceFacts(view) {
 /** A string that changes whenever anything the forge paints changes, so a refresh with the same facts repaints nothing. */
 export function factsSignature(facts) {
   const art = facts.art.key === 'custom' ? `custom:${facts.art.code}` : facts.art.key === 'media' ? `media:${facts.art.url}` : facts.art.key;
-  return JSON.stringify([facts.title, facts.sub, facts.coin, facts.state, facts.condition, facts.finishLine, facts.rows, facts.set, facts.grade, facts.steward, facts.ids, facts.demoLine, facts.coverage.key, facts.pattern.key, art, facts.frame, facts.theme, Boolean(facts.images?.symbol), Boolean(facts.images?.back), facts.variant, facts.rarity ? `${facts.rarity.key}|${facts.rarity.state}` : '']);
+  return JSON.stringify([facts.title, facts.sub, facts.coin, facts.state, facts.condition, facts.finishLine, facts.rows, facts.kpis ?? [], facts.set, facts.grade, facts.steward, facts.ids, facts.demoLine, facts.coverage.key, facts.pattern.key, art, facts.frame, facts.theme, Boolean(facts.images?.symbol), Boolean(facts.images?.back), facts.variant, facts.rarity ? `${facts.rarity.key}|${facts.rarity.state}` : '']);
 }

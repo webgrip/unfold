@@ -834,6 +834,15 @@
   color: var(--text-muted);
 }
 
+.season-medians {
+  margin-block-end: var(--space-5);
+}
+
+.season-medians .season-tiles {
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-4);
+}
+
 @media (max-width: 900px) {
   .binder-layout,
   .pack-hero {

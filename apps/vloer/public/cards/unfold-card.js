@@ -1,5 +1,6 @@
 import { icon } from '../core/icons.js';
 import { cardView, cardTabs, finishLadder } from './card-model.js';
+import { clockChoices, clockStorageKey } from './card-kpis.js';
 import { defaultSkin, loadSkin, requiredSlots, resolveSkin, webglSupport } from './registry.js';
 import { applyTokens, loadTheme, themeView } from './themes.js';
 
@@ -11,6 +12,16 @@ const slotLabels = { title: 'Work Item', state: 'State', cost: 'Cost', steward: 
 const slotValue = (view, slot) => ({ title: view.title, state: view.state.label, cost: view.cost.text, steward: view.steward.text, ids: view.ids.join(' · ') }[slot]);
 const Base = globalThis.HTMLElement ?? class {};
 const skinMomentNames = Object.freeze({ cracked: 'crack', mended: 'mend', graded: 'grade' });
+const clockKeys = clockChoices.map(choice => choice.key);
+const liveCards = new Set();
+
+function storedClock() {
+  try { const value = globalThis.localStorage?.getItem(clockStorageKey); return clockKeys.includes(value) ? value : clockKeys[0]; } catch { return clockKeys[0]; }
+}
+
+function storeClock(value) {
+  try { globalThis.localStorage?.setItem(clockStorageKey, value); } catch { return; }
+}
 
 /** What a skin's `render(view, helpers)` receives besides the view model. Skins escape every value with `escape`. */
 export const skinHelpers = Object.freeze({ escape: escapeHtml, icon, link: safeLink });
@@ -47,7 +58,9 @@ function parse(markup) {
  * Setting `asOf` shows the card as it was at
  * that moment, which the binder uses to replay what changed while its owner was away. Every skin's `attach` fires
  * `unfold-card-moment` on the element through `skin-kit.js`'s `emitMoments`, and `playMoment(moment, api)` hands the
- * effects director's ceremony to the skin's `onMoment`.
+ * effects director's ceremony to the skin's `onMoment`. `clock` (`calendar` or `working`) picks how durations with a
+ * working-hours twin read (Vloer ADR 0035); a `[data-card-action="clock"]` control sets it for every card on the page
+ * and the browser remembers it per viewer, falling back to calendar time when storage is unavailable.
  */
 export class UnfoldCard extends Base {
   static get observedAttributes() { return ['face', 'tab']; }
@@ -63,6 +76,7 @@ export class UnfoldCard extends Base {
   #skin = null;
   #asOf = null;
   #theme = undefined;
+  #clock = storedClock();
 
   constructor() {
     super();
@@ -80,6 +94,10 @@ export class UnfoldCard extends Base {
   /** The theme this element draws with instead of the one `card.style.theme` names; undefined follows the card. */
   get theme() { return this.#theme; }
   set theme(value) { this.#theme = value === undefined ? undefined : value && typeof value === 'object' ? value : null; void this.#update(); }
+
+  /** How durations with a working-hours twin read: `calendar` (the default) or `working`. */
+  get clock() { return this.#clock; }
+  set clock(value) { this.#clock = clockKeys.includes(value) ? value : clockKeys[0]; this.#applyClock(); }
 
   get face() { return this.getAttribute('face') === 'back' ? 'back' : 'front'; }
   set face(value) { this.setAttribute('face', value === 'back' ? 'back' : 'front'); }
@@ -121,11 +139,12 @@ export class UnfoldCard extends Base {
   }
 
   connectedCallback() {
+    liveCards.add(this);
     if (this.#card && !this.#view) void this.#update();
     else if (this.#stage && !this.#stage.hidden) this.#startSkin();
   }
 
-  disconnectedCallback() { this.#stopSkin(); }
+  disconnectedCallback() { liveCards.delete(this); this.#stopSkin(); }
 
   #startSkin() {
     this.#stopSkin();
@@ -209,6 +228,7 @@ export class UnfoldCard extends Base {
     this.#stage = stage;
     this.#applyFace({ focus: false });
     this.#applyTab();
+    this.#applyClock();
     await Promise.all([links.base.loaded, ...links.skins.map(link => link.loaded)]);
     if (ticket !== this.#ticket) return;
     stage.hidden = false;
@@ -235,6 +255,7 @@ export class UnfoldCard extends Base {
 
   #requireTabs(back) {
     for (const tab of back.querySelectorAll('[data-card-tab]')) tab.dataset.cardKey = `tab-${tab.dataset.cardTab}`;
+    for (const button of back.querySelectorAll('[data-card-action="clock"]')) button.dataset.cardKey = `clock-${button.dataset.clockChoice}`;
   }
 
   #applyFace({ focus = true } = {}) {
@@ -266,12 +287,23 @@ export class UnfoldCard extends Base {
     for (const panel of stage.querySelectorAll('[data-card-panel]')) panel.hidden = panel.dataset.cardPanel !== tab;
   }
 
-  #changed() { this.dispatchEvent(new CustomEvent('unfold-card-change', { bubbles: true, detail: { face: this.face, tab: this.tab } })); }
+  #applyClock() {
+    const stage = this.#stage;
+    if (!stage) return;
+    stage.dataset.clock = this.#clock;
+    for (const button of stage.querySelectorAll('[data-card-action="clock"]')) button.setAttribute('aria-pressed', String(button.dataset.clockChoice === this.#clock));
+  }
+
+  #changed() { this.dispatchEvent(new CustomEvent('unfold-card-change', { bubbles: true, detail: { face: this.face, tab: this.tab, clock: this.#clock } })); }
 
   #click(event) {
-    const control = event.target instanceof Element ? event.target.closest('[data-card-action="flip"], [data-card-tab]') : null;
+    const control = event.target instanceof Element ? event.target.closest('[data-card-action="flip"], [data-card-action="clock"], [data-card-tab]') : null;
     if (!control) return;
-    if (control.dataset.cardAction === 'flip') this.face = this.face === 'back' ? 'front' : 'back';
+    if (control.dataset.cardAction === 'clock') {
+      const choice = clockKeys.includes(control.dataset.clockChoice) ? control.dataset.clockChoice : clockKeys[0];
+      storeClock(choice);
+      for (const card of new Set([this, ...liveCards])) card.clock = choice;
+    } else if (control.dataset.cardAction === 'flip') this.face = this.face === 'back' ? 'front' : 'back';
     else this.tab = control.dataset.cardTab;
     this.#changed();
   }

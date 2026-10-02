@@ -197,6 +197,39 @@ export function duration(seconds) {
   return `${Math.floor(hours / 24)} d ${String(hours % 24).padStart(2, '0')} h`;
 }
 
+/**
+ * Formats a calendar duration in seconds compactly, the largest two units that matter: "45 s", "42 min", "3 h 10 min",
+ * "3 h", "2 d 4 h", and whole days from ten days on ("12 d"). Empty for a missing value.
+ */
+export function compactDuration(seconds) {
+  if (!isAmount(seconds)) return '';
+  const total = Math.max(0, Math.round(seconds));
+  if (total < 60) return `${total} s`;
+  const minutes = Math.floor(total / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return minutes % 60 ? `${hours} h ${minutes % 60} min` : `${hours} h`;
+  const days = Math.floor(hours / 24);
+  if (days >= 10) return `${count(days)} d`;
+  return hours % 24 ? `${days} d ${hours % 24} h` : `${days} d`;
+}
+
+/**
+ * Formats working time in seconds in hours, never days, because a working day is shorter than a calendar day:
+ * "0 h", "45 s", "42 min", "3 h 10 min", and whole hours from ten hours on ("26 h", "1.240 h"). Empty for a missing value.
+ */
+export function workingDuration(seconds) {
+  if (!isAmount(seconds)) return '';
+  const total = Math.max(0, Math.round(seconds));
+  if (total === 0) return '0 h';
+  if (total < 60) return `${total} s`;
+  const minutes = Math.floor(total / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours >= 10) return `${count(hours)} h`;
+  return minutes % 60 ? `${hours} h ${minutes % 60} min` : `${hours} h`;
+}
+
 /** Formats a sub-minute latency in milliseconds as seconds with one decimal: `1250` is "1,3 s" in nl-NL. Empty for a missing value. */
 export function seconds(ms) {
   if (!isAmount(ms)) return '';

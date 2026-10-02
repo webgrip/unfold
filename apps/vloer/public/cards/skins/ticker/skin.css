@@ -1616,3 +1616,48 @@
   .tk[data-moment~="set"] .tk-setl { animation: tk-pop 420ms var(--sk-ease-back) both; }
   .tk[data-moment~="set"] .tk-stamp { animation: tk-stamp 700ms 500ms var(--sk-ease-out) both; }
 }
+
+/* KPI strip (Vloer ADR 0035) */
+.tk .uc-kpis {
+  --uc-kpi-columns: 2;
+  --uc-kpi-gap: 1px;
+  --uc-kpi-pad: 3px 8px;
+  --uc-kpi-radius: 0;
+  --uc-kpi-border: 0;
+  --uc-kpi-bg: #0d0a05;
+  --uc-kpi-ink: #ffcf7a;
+  --uc-kpi-label: #8a7550;
+  --uc-kpi-note: #9d8a66;
+  --uc-kpi-attention: #ff5c4d;
+  --uc-kpi-success: #3dff8a;
+  --uc-kpi-font: var(--font-mono);
+  --uc-kpi-label-size: 0.54rem;
+  --uc-kpi-value-size: 0.76rem;
+  --uc-kpi-note-size: 0.56rem;
+  padding: 1px;
+  background: transparent;
+}
+
+.tk .uc-kpi {
+  box-shadow: 0 0 0 1px #3b2a12;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 6px;
+}
+
+.tk .uc-kpi-label {
+  grid-column: 1 / -1;
+  letter-spacing: 0.08em;
+}
+
+.tk .uc-kpi-note {
+  text-align: end;
+}
+
+.tk .uc-kpi[data-tone="attention"] .uc-kpi-note::before {
+  content: "▼ ";
+}
+
+.tk .uc-kpi[data-tone="success"] .uc-kpi-note::before {
+  content: "▲ ";
+}

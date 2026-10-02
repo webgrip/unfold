@@ -74,7 +74,8 @@ export async function run({ page, app, assert, screenshot }) {
   await screenshot('pack-summary');
   await page.getByRole('button', { name: 'Add to binder' }).click();
   await page.getByRole('heading', { level: 1, name: 'Binder' }).waitFor();
-  assert(await page.locator('.binder-slot-meta').evaluateAll(metas => metas.some(meta => /foil|Plain/.test(meta.textContent))), 'pulled copies show their pull in the binder');
+  await page.locator('.binder-grid').waitFor({ timeout: 30000 });
+  assert(await page.waitForFunction(() => [...document.querySelectorAll('.binder-slot-meta')].some(meta => /foil|Plain/.test(meta.textContent)), null, { timeout: 15000 }).then(() => true, () => false), 'pulled copies show their pull in the binder');
 
   await page.goto(`${base}/#packs/odds`);
   await page.getByRole('heading', { level: 1, name: 'Pack odds' }).waitFor();

@@ -1,5 +1,5 @@
 import { render as nativeRender } from '../vloer-native/skin.js';
-import { attachSkin, coin, crackPaths, figures, gradeName, honours, initials, markSeed, rarityFrame, rarityMark, skinView } from '../../skin-kit.js';
+import { attachSkin, coin, crackPaths, figures, gradeName, honours, initials, kpiStrip, markSeed, rarityFrame, rarityMark, skinView } from '../../skin-kit.js';
 import { pixelText, sprite } from './pixel-font.js';
 
 /** The skin's name, matching its folder and manifest. */
@@ -201,7 +201,7 @@ function panel(view, h) {
 
 function rootAttributes(view, layout, h) {
   const e = h.escape;
-  return `class="sk ac" data-skin-root data-layout="${layout}" data-finish="${e(view.finish.key)}" data-level="${e(view.finish.level)}" data-tone="${e(view.state.tone)}"${view.condition ? ` data-condition="${e(view.condition.state)}"` : ''}${view.grade?.labelKey ? ` data-label="${e(view.grade.labelKey)}"` : ''}${view.set ? ` data-set="${view.set.setCard ? 'card' : 'child'}"` : ''}${view.set?.complete ? ' data-complete' : ''}`;
+  return `class="sk ac" data-skin-root data-layout="${layout}" data-finish="${e(view.finish.key)}" data-level="${e(view.finish.level)}" data-tone="${e(view.state.tone)}"${view.condition ? ` data-condition="${e(view.condition.state)}"` : ''}${view.grade?.labelKey ? ` data-label="${e(view.grade.labelKey)}"` : ''}${view.set ? ` data-set="${view.set.setCard ? 'card' : 'child'}"` : ''}${view.set?.complete ? ' data-complete' : ''}${view.kpis?.headline?.length ? ' data-kpis' : ''}`;
 }
 
 function cabinet(view, h, layout, label, marqueeMarkup, screen) {
@@ -231,7 +231,7 @@ function standard(view, h) {
   const blink = blinkTarget(view);
   const role = roleName(view);
   const sub = [view.rounds ? `ROUND ${view.rounds}` : '', view.plays.count ? view.plays.text : 'NO PLAYS YET'].filter(Boolean).join(' · ');
-  const screen = `${hud(view, h, blink)}${title(view, h)}${bannerBox(view, h, blink)}${gateRow(view, h)}${setLine(view, h)}${table(view, h)}${rank(view, h)}${bonus(view, h)}${hiScore(view, h, blink)}${foot(view, h)}`;
+  const screen = `${hud(view, h, blink)}${title(view, h)}${bannerBox(view, h, blink)}${gateRow(view, h)}${setLine(view, h)}${table(view, h)}${kpiStrip(view, h, { label: 'Key figures' })}${rank(view, h)}${bonus(view, h)}${hiScore(view, h, blink)}${foot(view, h)}`;
   return cabinet(view, h, 'standard', 'Run card', marquee(view, h, role || 'RUN CARD', `UNFOLD · ${sub}`), screen);
 }
 

@@ -1,5 +1,5 @@
 import { render as nativeRender } from '../vloer-native/skin.js';
-import { attachSkin, coin, crackPaths, figures, gradeName, honours, initials, markSeed, rarityFrame, rarityMark, seeded, skinView } from '../../skin-kit.js';
+import { attachSkin, coin, crackPaths, figures, gradeName, honours, initials, kpiStrip, markSeed, rarityFrame, rarityMark, seeded, skinView } from '../../skin-kit.js';
 import { stableHash } from '../../card-model.js';
 
 /** The skin's name, matching its folder and manifest. */
@@ -165,11 +165,11 @@ function campaignStrip(view, h) {
 function ribbons(view, h) {
   const e = h.escape;
   const list = honours(view).filter(entry => entry.key !== 'signed');
-  const shown = list.slice(0, 9);
+  const shown = list.slice(0, view.kpis?.headline?.length ? 3 : 9);
   const cells = shown.length
     ? shown.map(entry => `<li class="pt-rib" data-tone="${e(entry.tone)}" data-v="${stableHash(entry.key) % 3}" title="${e(entry.label)}"><i aria-hidden="true"></i><span>${e(entry.label)}</span></li>`).join('')
     : '<li class="pt-rib pt-empty"><i aria-hidden="true"></i><span>No ribbons yet</span></li><li class="pt-rib pt-empty" aria-hidden="true"><i></i></li><li class="pt-rib pt-empty" aria-hidden="true"><i></i></li>';
-  const more = list.length > shown.length ? `<p class="pt-ribmore">+${e(list.length - shown.length)} more on the back</p>` : '';
+  const more = list.length > shown.length && !view.kpis?.headline?.length ? `<p class="pt-ribmore">+${e(list.length - shown.length)} more on the back</p>` : '';
   return `<div class="pt-sec"><span>Ribbons</span><span>${e(list.length === 1 ? '1 ribbon' : `${list.length} ribbons`)}</span></div><ul class="pt-rack">${cells}</ul>${more}`;
 }
 
@@ -292,7 +292,7 @@ function standard(view, h) {
       <div class="pt-sec"><span>After-action</span><span>Work Item #${e(view.id)}</span></div>
       <h3 class="pt-title" data-slot="title"><span>${e(view.title)}</span></h3>
       ${stats(view, h)}
-      ${remarks(view, h)}
+      ${view.kpis?.headline?.length ? kpiStrip(view, h, { label: 'Key figures' }) : remarks(view, h)}
       ${signature(view, h)}
       ${tags(view, h)}
       ${meta(view, h)}

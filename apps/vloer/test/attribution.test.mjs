@@ -113,5 +113,6 @@ test('a card shows its gates strip, right first time, crack, evolved and set on 
   const facts = faceFacts(bounced);
   assert.deepEqual(facts.rows.at(-1), ['Gates', 'Done · 1 back']);
   assert.deepEqual(facts.set, { symbol: '2/5', text: '2/5 of Checkout and confirmation hardening', complete: false });
-  assert.deepEqual(faceFacts(cardView(ploegDemo.cards['117'])).rows.map(([label]) => label), ['Crew', 'Plays', 'Diff', 'Run time', 'Live', 'Gates']);
+  assert.deepEqual(faceFacts(cardView(ploegDemo.cards['117'])).rows.map(([label]) => label), ['Plays', 'Diff', 'Live', 'Gates'], 'a card with headline KPIs leaves crew and run time to the text facts and the back');
+  assert.deepEqual(faceFacts(cardView(ploegDemo.cards['117'])).kpis.map(entry => entry.label), ['Lead time', 'First feedback', 'CI', 'To production']);
 });

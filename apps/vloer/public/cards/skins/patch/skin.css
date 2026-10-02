@@ -1666,3 +1666,47 @@
   .pt[data-moment~="set"][data-complete] .pt-stamp .pt-sp i { animation: pt-speck 1200ms 1300ms ease-out both; }
   .pt[data-moment~="set"][data-complete] .pt-citation { animation: pt-type 700ms 1700ms steps(18) both; }
 }
+
+/* KPI strip (Vloer ADR 0035) */
+.pt .uc-kpis {
+  --uc-kpi-columns: 2;
+  --uc-kpi-gap: 0 12px;
+  --uc-kpi-pad: 1px 0;
+  --uc-kpi-radius: 0;
+  --uc-kpi-border: 0;
+  --uc-kpi-bg: transparent;
+  --uc-kpi-ink: #2b2a1f;
+  --uc-kpi-label: #5d5a44;
+  --uc-kpi-note: #6f6b52;
+  --uc-kpi-attention: #9c3b12;
+  --uc-kpi-success: #3f6b2a;
+  --uc-kpi-label-size: 0.48rem;
+  --uc-kpi-value-size: 0.64rem;
+  --uc-kpi-note-size: 0.54rem;
+  margin-block: -0.3rem 0.2rem;
+}
+
+.pt .uc-kpi {
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 6px;
+  border-block-end: 1px dotted rgb(43 42 31 / 0.35);
+}
+
+.pt .uc-kpi-label {
+  letter-spacing: 0.08em;
+}
+
+.pt .uc-kpi-value {
+  text-align: end;
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.pt .uc-kpi-note {
+  display: none;
+}
+
+.pt .uc-kpi[data-tone="attention"] .uc-kpi-value::after {
+  content: " ⚑";
+}
