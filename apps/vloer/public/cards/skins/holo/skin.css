@@ -1449,3 +1449,36 @@
   .hr[data-moment~="set"] .slot:not([data-state="open"]) { animation: hr-flip-in 620ms ease-out both; }
   .hr[data-moment~="set"] .hr-setline { animation: hr-pop 420ms var(--sk-ease-back) both; }
 }
+
+/* KPI strip (Vloer ADR 0035) */
+.hr .box .uc-kpis {
+  --uc-kpi-columns: 2;
+  --uc-kpi-gap: 3px;
+  --uc-kpi-pad: 2px 6px 3px;
+  --uc-kpi-radius: 4px;
+  --uc-kpi-border: 1px solid rgb(0 0 0 / 0.12);
+  --uc-kpi-bg: rgb(255 255 255 / 0.55);
+  --uc-kpi-ink: #1b1b1b;
+  --uc-kpi-label: #6b5320;
+  --uc-kpi-note: #5a6066;
+  --uc-kpi-attention: #9a5b00;
+  --uc-kpi-success: #1e6f43;
+  --uc-kpi-label-size: 0.52rem;
+  --uc-kpi-value-size: 0.74rem;
+  --uc-kpi-note-size: 0.56rem;
+  margin-block-start: 2px;
+}
+
+.hr .box .uc-kpi {
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 4px;
+}
+
+.hr .box .uc-kpi-label {
+  grid-column: 1 / -1;
+}
+
+.hr .box .uc-kpi-note {
+  text-align: end;
+}

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:webgrip:vloer:card-theme:1",
   "title": "Vloer Run card theme, format v1",
-  "description": "A declarative theme on top of a shipped skin pack. The schema states the shape; the skin's manifest further limits tokens, frames, foil patterns, art presets, art kinds and sound banks, and Vloer refuses any value its manifest does not list. See card-themes.md.",
+  "description": "A declarative theme on top of a shipped skin pack. The schema states the shape; the skin's manifest further limits tokens, frames, foil patterns, art presets, art kinds, inner worlds and sound banks, and Vloer refuses any value its manifest does not list. See card-themes.md.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "id", "name", "extends"],
@@ -46,6 +46,7 @@
         { "type": "object", "additionalProperties": false, "required": ["media"], "properties": { "media": { "$ref": "#/$defs/asset" } } }
       ]
     },
+    "world": { "description": "The inner world the art window shows instead of the art: one of the skin's theme.worlds (forge: islands, deepsea, city). Null, absent or \"off\" shows the art. A person who holds a copy may decorate their own copy's world; see card-themes.md.", "oneOf": [{ "$ref": "#/$defs/name" }, { "type": "null" }] },
     "setSymbol": { "description": "A sanitized SVG asset uploaded for the set symbol.", "oneOf": [{ "$ref": "#/$defs/asset" }, { "type": "null" }] },
     "cardBack": { "description": "A PNG, JPEG or WebP asset uploaded for the card back.", "oneOf": [{ "$ref": "#/$defs/asset" }, { "type": "null" }] },
     "soundBank": { "description": "One of the skin's theme.soundBanks. No shipped skin lists one yet, so it must be null or absent.", "oneOf": [{ "$ref": "#/$defs/name" }, { "type": "null" }] }

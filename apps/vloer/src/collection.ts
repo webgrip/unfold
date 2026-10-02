@@ -5,6 +5,7 @@ import type { PloegCard, PloegCardList } from './ploeg.ts';
 import { validateCards } from './config.ts';
 import { cardMoments, copyOf, drawPull, lastActivity, packFloor, periodById, planPacks, publishedOdds, type Moment, type PackPlan, type Period, type PeriodRules } from './packs.ts';
 import { quarterAt, quarterById, recentQuarters, seasonAggregates } from './season.ts';
+import { cardWorldLimit, shownWorld, validateWorld, WorldError, worldFactsOf } from './card-worlds.ts';
 
 /** Where the collection reads cards: Ploeg's operator API through `PloegClient`, or a stub in tests. */
 export interface CardSource {
@@ -199,6 +200,54 @@ export class Collection {
   private async readableCard(user: User, workItemId: string) {
     if (!workItemPattern.test(workItemId)) throw new CollectionError(400, 'card_id', 'Use a valid Work Item identifier.');
     if (this.source.card) await this.source.card(user, workItemId);
+  }
+
+  /**
+   * The person's decoration of one card's inner world: whether they hold a copy (and so may decorate it), the
+   * decoration they saved as the card can show it now, and the facts that unlock its time of day and things. Someone
+   * without a copy gets no decoration and sees the theme's world. The card must be in one of their Teams. Nobody, an
+   * administrator included, reads another person's decoration: every call is keyed by the signed-in person's own id.
+   */
+  async cardWorld(user: User, workItemId: string) {
+    const { card, copy } = await this.decoratable(user, workItemId);
+    const facts = worldFactsOf(card, this.clock());
+    const stored = copy ? this.store.cardWorld(user.id, workItemId) : undefined;
+    return { workItemId, demo: this.demo, holds: Boolean(copy), role: copy?.role ?? null, world: stored ? shownWorld(stored.world, facts) : null, updatedAt: stored?.updatedAt ?? null, facts, now: iso(this.clock()), ...(copy ? {} : { reason: 'Only someone who holds a copy of this card can decorate it.' }) };
+  }
+
+  /**
+   * Saves the person's decoration of their copy after `validateWorld` checked it against the card's facts now. Only a
+   * holder of a copy may; the decoration is cosmetic and private, and changes nothing Ploeg or a pack reads.
+   */
+  async saveCardWorld(user: User, workItemId: string, input: unknown) {
+    const { card, copy } = await this.decoratable(user, workItemId);
+    if (!copy) throw new CollectionError(403, 'card_copy', 'Only someone who holds a copy of this card can decorate it.');
+    let world;
+    try { world = validateWorld(input, worldFactsOf(card, this.clock())); }
+    catch (error) { if (error instanceof WorldError) throw new CollectionError(400, 'card_world', error.message); throw error; }
+    this.store.setCardWorld(user.id, workItemId, world, iso(this.clock()), cardWorldLimit);
+    return this.cardWorld(user, workItemId);
+  }
+
+  /** Forgets the person's decoration of their copy, so it shows the theme's world again. Only a holder of a copy may. */
+  async resetCardWorld(user: User, workItemId: string) {
+    const { copy } = await this.decoratable(user, workItemId);
+    if (!copy) throw new CollectionError(403, 'card_copy', 'Only someone who holds a copy of this card can decorate it.');
+    this.store.deleteCardWorld(user.id, workItemId);
+    return this.cardWorld(user, workItemId);
+  }
+
+  /** The card, read within the person's Teams, and the copy they hold of it, or null. */
+  private async decoratable(user: User, workItemId: string): Promise<{ card: PloegCard; copy: ReturnType<typeof copyOf> }> {
+    if (!workItemPattern.test(workItemId)) throw new CollectionError(400, 'card_id', 'Use a valid Work Item identifier.');
+    const identity = this.identity(user);
+    let card: PloegCard | undefined;
+    if (this.source.card) {
+      const read = await this.source.card(user, workItemId) as { card?: PloegCard } | PloegCard | null;
+      card = read && typeof read === 'object' && 'card' in read ? read.card : read as PloegCard | undefined;
+    } else card = (await this.source.memberCards(user, identity.logins)).cards.find(entry => entry.workItemId === workItemId);
+    if (!card || card.workItemId !== workItemId) throw new CollectionError(404, 'card_not_found', 'This card is not in your Teams.');
+    return { card, copy: copyOf(card, identity.logins, identity.verified) };
   }
 
   /** The person's packs, oldest first: opened, sealed (only the oldest sealed one can be opened next) and the current period's pack while it fills. */

@@ -39,6 +39,7 @@ export class Store {
       CREATE TABLE IF NOT EXISTS card_seen (user_id TEXT NOT NULL, work_item_id TEXT NOT NULL, seen_at TEXT NOT NULL, snapshot TEXT NOT NULL, PRIMARY KEY (user_id, work_item_id));
       CREATE TABLE IF NOT EXISTS card_packs (user_id TEXT NOT NULL, pack_id TEXT NOT NULL, opened_at TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (user_id, pack_id));
       CREATE TABLE IF NOT EXISTS card_pulls (user_id TEXT NOT NULL, work_item_id TEXT NOT NULL, pack_id TEXT NOT NULL, pattern TEXT NOT NULL, alt_art INTEGER, full_art INTEGER NOT NULL, gold_signature INTEGER NOT NULL, odds_version TEXT NOT NULL, message TEXT NOT NULL, digest TEXT NOT NULL, pulled_at TEXT NOT NULL, PRIMARY KEY (user_id, work_item_id));
+      CREATE TABLE IF NOT EXISTS card_worlds (user_id TEXT NOT NULL, work_item_id TEXT NOT NULL, updated_at TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (user_id, work_item_id));
       CREATE TABLE IF NOT EXISTS card_themes (id TEXT PRIMARY KEY, version INTEGER NOT NULL, updated_at TEXT NOT NULL, updated_by TEXT NOT NULL, body TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS card_theme_versions (theme_id TEXT NOT NULL, version INTEGER NOT NULL, saved_at TEXT NOT NULL, saved_by TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(theme_id, version));
       CREATE TABLE IF NOT EXISTS card_assets (id TEXT PRIMARY KEY, purpose TEXT NOT NULL, media_type TEXT NOT NULL, bytes INTEGER NOT NULL, created_at TEXT NOT NULL, created_by TEXT NOT NULL, content BLOB NOT NULL);
@@ -215,6 +216,25 @@ export class Store {
       for (const pull of pulls) add.run(userId, pull.workItemId, pull.packId, pull.pattern, pull.altArt, pull.fullArt ? 1 : 0, pull.goldSignature ? 1 : 0, pull.oddsVersion, pull.message, pull.digest, pull.pulledAt);
       return true;
     });
+  }
+
+  /** A person's decoration of their copy of a card, as they last saved it, or undefined. */
+  cardWorld(userId: string, workItemId: string): { world: unknown; updatedAt: string } | undefined {
+    const row = this.db.prepare('SELECT updated_at, body FROM card_worlds WHERE user_id=? AND work_item_id=?').get(userId, workItemId) as { updated_at: string; body: string } | undefined;
+    return row ? { world: JSON.parse(row.body), updatedAt: row.updated_at } : undefined;
+  }
+
+  /** Stores a person's decoration of a card, replacing the last one. A person keeps at most `limit` decorations; the least recently changed are dropped first. */
+  setCardWorld(userId: string, workItemId: string, world: unknown, at: string, limit: number): void {
+    this.transaction(() => {
+      this.db.prepare('INSERT INTO card_worlds(user_id,work_item_id,updated_at,body) VALUES(?,?,?,?) ON CONFLICT(user_id, work_item_id) DO UPDATE SET updated_at=excluded.updated_at, body=excluded.body').run(userId, workItemId, at, JSON.stringify(world));
+      this.db.prepare('DELETE FROM card_worlds WHERE user_id=? AND work_item_id NOT IN (SELECT work_item_id FROM card_worlds WHERE user_id=? ORDER BY updated_at DESC, work_item_id LIMIT ?)').run(userId, userId, limit);
+    });
+  }
+
+  /** Forgets a person's decoration of a card; answers whether there was one. */
+  deleteCardWorld(userId: string, workItemId: string): boolean {
+    return Number(this.db.prepare('DELETE FROM card_worlds WHERE user_id=? AND work_item_id=?').run(userId, workItemId).changes) > 0;
   }
 
   /** Every first pull a person holds, by Work Item. */

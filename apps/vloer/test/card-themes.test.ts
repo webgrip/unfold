@@ -52,15 +52,16 @@ test('the published JSON schema names the same fields and tokens the validator a
   const { readFile } = await import('node:fs/promises');
   const { tokenTypes } = await import('../src/card-themes.ts');
   const schema = JSON.parse(await readFile(join(repositoryRoot, 'docs/contracts/card-theme.v1.schema.json'), 'utf8'));
-  assert.deepEqual(Object.keys(schema.properties).sort(), ['art', 'cardBack', 'extends', 'foilPattern', 'frame', 'id', 'name', 'schemaVersion', 'setSymbol', 'soundBank', 'tokens']);
+  assert.deepEqual(Object.keys(schema.properties).sort(), ['art', 'cardBack', 'extends', 'foilPattern', 'frame', 'id', 'name', 'schemaVersion', 'setSymbol', 'soundBank', 'tokens', 'world']);
   assert.deepEqual(Object.keys(schema.properties.tokens.properties).sort(), Object.keys(tokenTypes).sort());
   assert.equal(schema.additionalProperties, false);
 });
 
 test('a theme passes only with allow-listed keys, tokens, frames, patterns and presets for its skin', () => {
   const full = validateTheme(theme({ tokens: { '--gc-accent': '#5b8cff', '--forge-frame': '#c0392b', '--gc-radius': '20px' }, frame: 'fullart', foilPattern: 'gold', art: { preset: 'warp' } }), skins, noAssets);
-  assert.deepEqual(full, { schemaVersion: 1, id: 'acme', name: 'Acme 2026', extends: 'forge', tokens: { '--gc-accent': '#5b8cff', '--forge-frame': '#c0392b', '--gc-radius': '20px' }, frame: 'fullart', foilPattern: 'gold', art: { preset: 'warp' }, setSymbol: null, cardBack: null, soundBank: null });
+  assert.deepEqual(full, { schemaVersion: 1, id: 'acme', name: 'Acme 2026', extends: 'forge', tokens: { '--gc-accent': '#5b8cff', '--forge-frame': '#c0392b', '--gc-radius': '20px' }, frame: 'fullart', foilPattern: 'gold', art: { preset: 'warp' }, world: null, setSymbol: null, cardBack: null, soundBank: null });
   assert.deepEqual(validateTheme(theme({ extends: 'vloer-native', tokens: { '--gc-surface': '#fff' } }), skins, noAssets).tokens, { '--gc-surface': '#fff' });
+  assert.deepEqual(['islands', 'deepsea', 'city', 'off', null].map(world => validateTheme(theme({ world }), skins, noAssets).world), ['islands', 'deepsea', 'city', null, null], 'a forge theme may name an inner world; off and null show the art');
   const refused: [Record<string, unknown>, RegExp][] = [
     [theme({ script: 'alert(1)' }), /no field script/],
     [theme({ version: 3 }), /no field version/],
@@ -89,6 +90,9 @@ test('a theme passes only with allow-listed keys, tokens, frames, patterns and p
     [theme({ setSymbol: '<svg onload="alert(1)"/>' }), /must name an uploaded asset/],
     [theme({ extends: 'vloer-native', setSymbol: 'a'.repeat(64) }), /does not draw a set symbol/],
     [theme({ soundBank: 'airhorn' }), /no sound banks yet/],
+    [theme({ world: 'moon' }), /world must be one of islands, deepsea, city/],
+    [theme({ world: { kind: 'islands' } }), /world must be one of/],
+    [theme({ extends: 'vloer-native', world: 'islands' }), /does not draw world/],
     [theme({ tokens: [] }), /tokens must be an object/],
   ];
   for (const [input, reason] of refused) assert.throws(() => validateTheme(input, skins, noAssets), reason, JSON.stringify(input));

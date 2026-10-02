@@ -1,6 +1,6 @@
 # Card themes
 
-A card theme gives a project's or client's Run cards their own look on top of a shipped skin pack: colours, the forge's frame, a default foil pattern, art, a set symbol and a card back. It is layer 4 of the card runtime ([ADR 0026](../adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md)). [ADR 0031](../adrs/0031-card-themes-a-card-designer-and-generated-art.md) records the decision; the whole feature is proposed. This page is the contract as implemented.
+A card theme gives a project's or client's Run cards their own look on top of a shipped skin pack: colours, the forge's frame, a default foil pattern, art, an inner world, a set symbol and a card back. It is layer 4 of the card runtime ([ADR 0026](../adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md)). [ADR 0031](../adrs/0031-card-themes-a-card-designer-and-generated-art.md) records the decision; the whole feature is proposed. This page is the contract as implemented.
 
 ## Format v1
 
@@ -16,6 +16,7 @@ A theme is a JSON object. [`card-theme.v1.schema.json`](card-theme.v1.schema.jso
   "frame": "fullart",
   "foilPattern": "gold",
   "art": { "shader": "3f0c…64 hex characters" },
+  "world": "islands",
   "setSymbol": "9a1b…",
   "cardBack": null,
   "soundBank": null
@@ -32,11 +33,20 @@ A theme is a JSON object. [`card-theme.v1.schema.json`](card-theme.v1.schema.jso
 | `frame` | One of the skin's `theme.frames`. The forge has `classic`, `fullart` (the art fills the face under translucent panels) and `slab` (the card sits in a grading slab, "Not graded yet" without a grade). `null` is classic |
 | `foilPattern` | One of the skin's `theme.foilPatterns`, or `null` for a pattern picked per card. A pack pull still overrides it, and the earned finish still decides how much of the card the foil covers |
 | `art` | Exactly one of `{ "preset": id }` (one of `theme.artPresets`), `{ "shader": asset }` or `{ "media": asset }` (an image or a video), or `null` for art picked per card |
+| `world` | One of the skin's `theme.worlds`: the forge has `islands`, `deepsea` and `city`. The art window then shows that inner world instead of the art on a live card, lit and filled by the card's facts ([ADR 0033](../adrs/0033-a-forge-card-s-art-window-is-an-inner-world-its-holder-may-decorate-privately.md)); every other card keeps the art. `null`, `"off"` or absent shows the art, so a theme saved before this field keeps its look. A forge card without any theme shows the islands. A person who holds a copy may decorate their own copy's world (see [Decorations](#decorations)) |
 | `setSymbol` | A set symbol asset (a sanitized SVG), or `null` |
 | `cardBack` | A card back asset (PNG, JPEG or WebP), or `null` |
 | `soundBank` | One of the skin's `theme.soundBanks`. No shipped skin lists a bank, so it must be `null` until the effects director exists (proposed) |
 
-A field the skin does not draw must be left out or `null`: Vloer Native takes tokens only. Each skin declares what a theme may choose in its `manifest.json`: `themeTokens` and a `theme` section with `frames`, `foilPatterns`, `artPresets`, `art` (the art kinds), `soundBanks`, `setSymbol` and `cardBack`. The runtime knows six tokens: `--gc-accent`, `--gc-surface`, `--gc-radius`, `--forge-frame` (the frame metal), `--forge-accent` (accent lines and finish text) and `--forge-back` (the back's glow).
+A field the skin does not draw must be left out or `null`: Vloer Native takes tokens only. Each skin declares what a theme may choose in its `manifest.json`: `themeTokens` and a `theme` section with `frames`, `foilPatterns`, `artPresets`, `art` (the art kinds), `worlds` (the inner worlds), `soundBanks`, `setSymbol` and `cardBack`. The runtime knows six tokens: `--gc-accent`, `--gc-surface`, `--gc-radius`, `--forge-frame` (the frame metal), `--forge-accent` (accent lines and finish text) and `--forge-back` (the back's glow).
+
+## Decorations
+
+A theme's `world` is what everyone sees. A person who holds a copy of a card (by the same roster match as their binder) can decorate their own copy: the world or off, the time of day, the weather and up to 24 placed things. [ADR 0033](../adrs/0033-a-forge-card-s-art-window-is-an-inner-world-its-holder-may-decorate-privately.md) records the decision; it is proposed.
+
+* **Earned, not bought.** The time of day `auto` follows whole days live: dawn under 7, morning from 7, noon from 30, sunset from 90, golden hour from 180 and night with an aurora from 365. A decoration may pick only a time the card has reached. Crystals, lanterns and trees are always open; the windmill needs the card merged, the lighthouse 180 days live and the gold koi pond a mended crack. A crack draws a dark fissure, a mend a gold seam.
+* **Checked on the server.** [`src/card-worlds.ts`](../../src/card-worlds.ts) `validateWorld` refuses unknown keys and values, more than 24 things, a thing outside the ground (`x` from −4 to 4, `z` from −3 to 3) or a seed outside 0 to 1, and anything the card has not earned now, with the reason. Things the card no longer has earned are hidden when read.
+* **Private and cosmetic.** A decoration is stored per person and Work Item in Vloer's store (`card_worlds`) and shown only to its owner; everyone else sees the theme's world. It never changes a grade, a finish, rarity, a pull or the odds. The routes are in the [API](api.md).
 
 ## Assets
 

@@ -1559,3 +1559,77 @@
   .ac[data-moment~="set"] .ac-pips i[data-self] { animation: ac-stage-pop 420ms steps(4, end) both; }
   .ac[data-moment~="set"] .ac-setline .ac-px { animation: ac-pop 380ms steps(3, end) both; }
 }
+
+/* KPI strip (Vloer ADR 0035) */
+.ac[data-kpis] .ac-screen {
+  gap: 3px;
+}
+
+.ac[data-kpis] .ac-banner {
+  padding: 3px 0 2px;
+}
+
+.ac[data-kpis] .ac-banner .ac-sub {
+  display: none;
+}
+
+.ac .uc-kpis {
+  --uc-kpi-columns: 2;
+  --uc-kpi-gap: 1px 10px;
+  --uc-kpi-pad: 0;
+  --uc-kpi-border: 0;
+  --uc-kpi-bg: transparent;
+  --uc-kpi-ink: var(--ac-amber);
+  --uc-kpi-label: var(--ac-magenta);
+  --uc-kpi-note: var(--ac-cyan);
+  --uc-kpi-attention: var(--ac-red);
+  --uc-kpi-success: var(--ac-green);
+  --uc-kpi-font: var(--font-mono);
+  --uc-kpi-label-size: 0.6rem;
+  --uc-kpi-value-size: 0.62rem;
+  --uc-kpi-note-size: 0.54rem;
+  padding: 3px 6px;
+  border: 1px dashed rgb(255 106 208 / 0.45);
+  text-transform: uppercase;
+}
+
+.ac .uc-kpis[data-count] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ac .uc-kpi {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 6px;
+  text-shadow: 0 0 6px currentColor;
+}
+
+.ac .uc-kpi-long {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.ac .uc-kpi-short {
+  display: inline;
+  letter-spacing: 0.04em;
+}
+
+.ac .uc-kpi-value {
+  text-align: end;
+  letter-spacing: 0.04em;
+}
+
+.ac .uc-kpi-note {
+  display: none;
+}
+
+.ac .uc-kpi[data-tone="attention"] .uc-kpi-note,
+.ac .uc-kpi[data-tone="success"] .uc-kpi-note {
+  display: block;
+  grid-column: 1 / -1;
+  text-align: end;
+}

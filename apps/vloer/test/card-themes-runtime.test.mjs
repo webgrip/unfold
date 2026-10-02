@@ -70,7 +70,10 @@ test('tokens reach the card element only when the drawn skin lists them and the 
 test('the theme view keeps only what the drawn skin lists and resolves assets to Vloer URLs', async () => {
   const theme = { id: 'acme', name: 'Acme', extends: 'forge', tokens: { '--forge-frame': '#c0392b', '--gc-accent': 'red' }, frame: 'fullart', foilPattern: 'gold', art: { shader: asset }, setSymbol: asset, cardBack: 'https://evil.test/back.png', assets: { [asset]: { mediaType: 'image/svg+xml' } } };
   const view = await themeView(theme, forge, { shader: async id => (id === asset ? 'vec3 art_custom(vec2 uv, float t) { return vec3(uv, 0.0); }' : null) });
-  assert.deepEqual({ ...view, art: { ...view.art } }, { id: 'acme', name: 'Acme', extends: 'forge', frame: 'fullart', foilPattern: 'gold', art: { kind: 'shader', asset, code: 'vec3 art_custom(vec2 uv, float t) { return vec3(uv, 0.0); }' }, setSymbol: `/api/card-assets/${asset}`, cardBack: null, tokens: { '--forge-frame': '#c0392b' } });
+  assert.deepEqual({ ...view, art: { ...view.art } }, { id: 'acme', name: 'Acme', extends: 'forge', frame: 'fullart', foilPattern: 'gold', art: { kind: 'shader', asset, code: 'vec3 art_custom(vec2 uv, float t) { return vec3(uv, 0.0); }' }, world: null, setSymbol: `/api/card-assets/${asset}`, cardBack: null, tokens: { '--forge-frame': '#c0392b' } });
+  assert.equal((await themeView({ ...theme, world: 'deepsea' }, forge)).world, 'deepsea', 'the forge lists its inner worlds');
+  assert.equal((await themeView({ ...theme, world: 'moon' }, forge)).world, null, 'a world the manifest does not list is dropped');
+  assert.equal((await themeView({ ...theme, world: 'islands' }, native)).world, null, 'Vloer Native draws no inner world');
   const plain = await themeView({ ...theme, frame: 'octagon', art: { media: asset }, assets: { [asset]: { mediaType: 'video/mp4' } } }, native);
   assert.deepEqual([plain.frame, plain.art, plain.setSymbol, plain.tokens], [null, null, null, {}], 'Vloer Native draws none of the forge’s fields');
   const media = await themeView({ ...theme, art: { media: asset }, assets: { [asset]: { mediaType: 'video/webm' } } }, forge);
@@ -110,7 +113,8 @@ test('the forge draws a theme’s frame, pattern and art, a pull still wins the 
 test('the designer saves format v1 only, drops fields the skin does not draw, and previews a demo sample with no spend', () => {
   const rules = { themeTokens: native.themeTokens, theme: native.theme };
   const draft = { schemaVersion: 1, id: 'acme', name: 'Acme', extends: 'vloer-native', tokens: { '--gc-accent': '#123456', '--forge-frame': '#c0392b' }, frame: 'fullart', foilPattern: 'gold', art: { preset: 'warp' }, setSymbol: asset, cardBack: asset, soundBank: 'x', code: 'evil' };
-  assert.deepEqual(themeDocument(draft, rules), { schemaVersion: 1, id: 'acme', name: 'Acme', extends: 'vloer-native', tokens: { '--gc-accent': '#123456' }, frame: null, foilPattern: null, art: null, setSymbol: null, cardBack: null, soundBank: null });
+  assert.deepEqual(themeDocument(draft, rules), { schemaVersion: 1, id: 'acme', name: 'Acme', extends: 'vloer-native', tokens: { '--gc-accent': '#123456' }, frame: null, foilPattern: null, art: null, world: null, setSymbol: null, cardBack: null, soundBank: null });
+  assert.equal(themeDocument({ ...draft, extends: 'forge', world: 'city' }, { themeTokens: forge.themeTokens, theme: forge.theme }).world, 'city', 'a forge theme saves its inner world');
   const view = cardView(sampleCard('prism'));
   assert.equal(view.demo, true);
   assert.equal(view.finish.key, 'prism');

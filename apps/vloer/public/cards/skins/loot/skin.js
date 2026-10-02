@@ -1,5 +1,5 @@
 import { render as nativeRender } from '../vloer-native/skin.js';
-import { attachSkin, coin, crackPaths, figures, gradeName, honours, markSeed, rarityFrame, rarityMark, skinView } from '../../skin-kit.js';
+import { attachSkin, coin, crackPaths, figures, gradeName, honours, kpiStrip, markSeed, rarityFrame, rarityMark, skinView } from '../../skin-kit.js';
 
 /** The skin's name, matching its folder and manifest. */
 export const id = 'loot';
@@ -107,7 +107,7 @@ function tabRow(view, tabId, label) {
 function budget(view) {
   const { shown, more } = effects(view);
   const effectRows = shown.length + (more ? 1 : 0);
-  const extras = (view.gates ? 1 : 0) + (view.set && !view.set.setCard ? 1 : 0);
+  const extras = (view.gates ? 1 : 0) + (view.set && !view.set.setCard ? 1 : 0) + Math.ceil(Math.min(4, view.kpis?.headline?.length ?? 0) / 2);
   return { stats: Math.max(0, Math.min(3, lineBudget - extras - effectRows)) };
 }
 
@@ -251,7 +251,8 @@ function standard(view, h) {
         ${gatesRow(view, h)}
         ${setStrip(view, h)}
         ${appraisal(view, h)}
-        <p class="lt-flavor">“${e(view.state.description || view.state.label)}”</p>
+        ${kpiStrip(view, h, { label: 'Key figures' })}
+        ${view.kpis?.headline?.length ? '' : `<p class="lt-flavor">“${e(view.state.description || view.state.label)}”</p>`}
         <div class="lt-grow"><i class="lt-orn" aria-hidden="true"></i></div>
         ${durability(view, h)}
         ${signature(view, h)}

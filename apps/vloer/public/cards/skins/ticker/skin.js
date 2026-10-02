@@ -1,6 +1,6 @@
 import { render as nativeRender } from '../vloer-native/skin.js';
 import { finishLadder } from '../../card-model.js';
-import { attachSkin, coin, crackPaths, figures, gradeName, honours, markSeed, rarityFrame, rarityMark, skinView } from '../../skin-kit.js';
+import { attachSkin, coin, crackPaths, figures, gradeName, honours, kpiStrip, markSeed, rarityFrame, rarityMark, skinView } from '../../skin-kit.js';
 
 /** The skin's name, matching its folder and manifest. */
 export const id = 'ticker';
@@ -295,6 +295,7 @@ function standard(view, h) {
         ${chart(view, h)}
         ${slab(view, h)}
         ${keyFigures(view, h)}
+        ${kpiStrip(view, h, { label: 'Key figures' })}
         ${book(view, h)}
         ${underwriter(view, h)}
         ${tape(view, h)}

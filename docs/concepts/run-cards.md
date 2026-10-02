@@ -40,6 +40,7 @@ The first three build phases are merged on `development`: P0 keeps the facts a c
 | The `<unfold-card>` runtime, the Vloer Native skin, the card on the Work Item page, days live, the finish ladder and a demo card | Built; ADR proposed | [Vloer ADR 0026](../../apps/vloer/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md) |
 | A card comment on the pull request: the card as a static image above a summary table, kept as one comment and updated at a merge, a release to production, a new finish or a mend. A team turns it on with `cards.prComment` | Built; ADR proposed; off by default | [Ploeg ADR-0055](../../apps/ploeg/docs/adrs/0055-ploeg-keeps-one-card-comment-with-a-static-card-image-on-the-pull-request.md) |
 | Rarity: a challenge score, predicted at mint, revealed and frozen at release, tiered per project and quarter | Built in Ploeg; ADR proposed; Vloer still drops it | [Ploeg ADR-0056](../../apps/ploeg/docs/adrs/0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md) |
+| Key figures: time in every tracker status, lead and cycle time, flow efficiency, time to first feedback, CI timings and reruns, indentation complexity, merge to production; three or four on the card's front for its state, the rest on its back, team medians on the season page | Vloer side built against Ploeg PR #130 and #133, which are not merged; ADRs proposed | [Vloer ADR 0035](../../apps/vloer/docs/adrs/0035-run-cards-lead-with-three-or-four-kpis-for-their-state-and-keep-the-rest-on-the-back.md) |
 | Binders, Packs with published odds and stored cosmetic pulls, the pack ceremony and team season pages | Vloer side built against the card contract and fixtures; ADR proposed; Ploeg's card list built in parallel | [Vloer ADR 0029](../../apps/vloer/docs/adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md) |
 | Grade, condition (Cracks and Mends), level, Gates and Bounces, Roster roles and copies, the Steward rule, Set Cards, themes, the effects director, retention | **Proposed** | This page |
 
@@ -173,6 +174,17 @@ Vloer implements this proposal against fixtures ([Vloer ADR 0029](../../apps/vlo
 * **The pull.** A card is pulled once, in its first Pack, with HMAC-SHA256 over the person, the Work Item and the Pack, and Vloer stores the result.
 * **What a pull gives.** The pull picks the foil pattern and may add alternate art, a full-art frame or a gold signature. The earned finish still decides how much of the card the pattern covers.
 
+## Key figures
+
+*Proposed.* Ploeg PR #130 and #133 (Ploeg ADR-0057 and ADR-0058, not merged) add the figures a team asks about: how long the ticket sat in every tracker status, its lead and cycle time, how long until the first human feedback and the merge, how long CI took and how often it reran, and how complex the change was. Vloer shows them ([Vloer ADR 0035](../../apps/vloer/docs/adrs/0035-run-cards-lead-with-three-or-four-kpis-for-their-state-and-keep-the-rest-on-the-back.md)).
+
+* **Three or four on the front, for the card's state.** In review: time to first feedback, or "waiting 3 h" while nobody has responded, CI's last green run with its reruns, complexity added and cycle time so far. Merged: lead time, first feedback, CI and time to production once a deploy reached it. Drafting: time to start or cycle time so far, lead time, blocked time and the estimate.
+* **Every figure says what it means.** Its meaning is the tooltip and is listed on the back. Durations read "42 min", "3 h 10 min", "2 d 4 h".
+* **Calendar or working hours.** Every human duration also exists in working hours, counted in the team's calendar (Monday to Friday, 09:00 to 17:00 Europe/Amsterdam by default). A reader switches between them on the back, and the choice holds for every card.
+* **The back has the rest.** A Flow tab draws time per status as one stacked bar coloured by kind (active, waiting, blocked, done) with a table of the same facts. Review & CI shows the pull request's steps from opened to merged and every CI figure. Change shows indentation complexity, test ratio and languages. Life shows merge to each environment and restore times.
+* **Colour only where the meaning is clear.** Reruns hint at flaky CI, blocked time and reopens are worth a look, and green first time is good. Waiting time measures how fast the team responded, not the author, and is never coloured.
+* **Team medians, never per person.** The season page shows the team's median lead time, first feedback, CI minutes and flow efficiency. No figure is totalled or ranked per person, and none feeds the grade or rarity.
+
 ## Who sees what
 
 The owner decided visibility on 2026-10-01:
@@ -194,7 +206,7 @@ The [works council and DPIA pack](../reference/run-cards-works-council-pack.md) 
 
 ## Looks and motion
 
-A **Skin** changes how a card looks and moves, never its numbers or where they sit, so any card reads the same anywhere. A Work Target picks its skin in Ploeg's `cardStyle`. Seven skins are built: Vloer Native, the 3D forge skin ([Vloer ADR 0028](../../apps/vloer/docs/adrs/0028-the-forge-skin-renders-run-cards-in-3d-with-vendored-three-js.md)), and Holo Rarity, Loot Drop, Arcade Cabinet, Ticker Terminal and Mission Patch ([Vloer ADR 0026](../../apps/vloer/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md)). None of them shows rarity. Each plays small moments inside the card when its facts change, such as a signature, a merge, a new finish, a crack or a mend, and holds still when the reader asks for reduced motion. Per-client themes on top are proposed. Proposed ceremony rules scale effects inversely to how often an event happens. They cap full-screen moments at one per 10 minutes and never interrupt typing. Every effect can be skipped, and flashes stay within WCAG limits, with no red flashes ([holo and game feel](../../apps/vloer/docs/research/2026-10-01-run-card-holo-and-game-feel.md)).
+A **Skin** changes how a card looks and moves, never its numbers or where they sit, so any card reads the same anywhere. A Work Target picks its skin in Ploeg's `cardStyle`. Seven skins are built: Vloer Native, the 3D forge skin ([Vloer ADR 0028](../../apps/vloer/docs/adrs/0028-the-forge-skin-renders-run-cards-in-3d-with-vendored-three-js.md)), and Holo Rarity, Loot Drop, Arcade Cabinet, Ticker Terminal and Mission Patch ([Vloer ADR 0026](../../apps/vloer/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md)). None of them shows rarity. The forge's art window can be an inner world the card's tilt looks into, lit and filled by its facts, which a person who holds a copy may decorate for themselves only (proposed, [Vloer ADR 0033](../../apps/vloer/docs/adrs/0033-a-forge-card-s-art-window-is-an-inner-world-its-holder-may-decorate-privately.md)). Each plays small moments inside the card when its facts change, such as a signature, a merge, a new finish, a crack or a mend, and holds still when the reader asks for reduced motion. Per-client themes on top are proposed. Proposed ceremony rules scale effects inversely to how often an event happens. They cap full-screen moments at one per 10 minutes and never interrupt typing. Every effect can be skipped, and flashes stay within WCAG limits, with no red flashes ([holo and game feel](../../apps/vloer/docs/research/2026-10-01-run-card-holo-and-game-feel.md)).
 
 ## Decisions
 
@@ -206,6 +218,7 @@ A **Skin** changes how a card looks and moves, never its numbers or where they s
 | Card style | Decided, built | On the Work Target; per-client themes on top of skins |
 | Visibility | Decided | Binders private; team pages for the team; clients see team aggregates only |
 | Rarity | Decided, built in Ploeg | Challenge, predicted at mint and frozen at release, percentile tiers per project and quarter; see [Rarity](#rarity-decided-built-in-ploeg) |
+| Key figures | Proposed; Vloer side built | Three or four per state on the front, the rest on the back, a calendar or working-hours choice, team medians only; see [Key figures](#key-figures) |
 | Steward and roles | Proposed | Role copies with shared fate; the Steward is the developer carrying the Work Item |
 | Gates and bounces | Proposed | Tracker-status mapping per project plus the deploy endpoint |
 | Packs | Proposed; Vloer side built | Earned, cosmetic-only pulls, published odds, one per person per period (an ISO week, or a Team's sprint) |

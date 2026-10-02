@@ -46,10 +46,10 @@ test('the front formats every slot in nl-NL from the contract card', () => {
   assert.deepEqual(view.ids, ['#138', 'VIK-1612', 'webgrip/glide']);
 });
 
-test('the back has eleven tabs and shows what the contract gives, oldest event first', () => {
+test('the back has twelve tabs and shows what the contract gives, oldest event first', () => {
   const view = cardView(contractCard());
   assert.deepEqual(view.tabs.map(entry => entry.label), cardTabs.map(entry => entry.label));
-  assert.deepEqual(view.tabs.map(entry => entry.label), ['Economics', 'Agent', 'Change', 'Review & CI', 'Gates', 'Grade', 'Rarity', 'Condition', 'Life', 'Set', 'Context']);
+  assert.deepEqual(view.tabs.map(entry => entry.label), ['Economics', 'Agent', 'Change', 'Review & CI', 'Flow', 'Gates', 'Grade', 'Rarity', 'Condition', 'Life', 'Set', 'Context']);
   assert.equal(value(view, 'economics', 'Cache read tokens').value, '9.800.000');
   assert.equal(value(view, 'agent', 'Turns').value, '61');
   assert.equal(value(view, 'agent', 'Tool calls').value, '143');
@@ -160,8 +160,8 @@ test('Vloer Native fills the required slots, escapes every value and draws witho
   for (const slot of requiredSlots) assert.match(front, new RegExp(`data-slot="${slot}"`), slot);
   assert.match(front, /data-card-action="flip"/);
   assert.match(back, /data-card-action="flip"/);
-  assert.equal((back.match(/role="tab"/g) || []).length, 11);
-  assert.equal((back.match(/role="tabpanel"/g) || []).length, 11);
+  assert.equal((back.match(/role="tab"/g) || []).length, 12);
+  assert.equal((back.match(/role="tabpanel"/g) || []).length, 12);
   for (const markup of [front, back]) {
     assert(!markup.includes('<img'), 'title is escaped');
     assert(!markup.includes('<script'), 'steward is escaped');

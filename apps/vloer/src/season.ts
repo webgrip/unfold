@@ -42,13 +42,38 @@ export type SeasonAggregates = {
   rightFirstTime: { share: number; cards: number } | null;
   bounceReasons: Record<string, number> | null;
   sets: { complete: number; total: number } | null;
+  medians: SeasonMedians;
 };
+
+/** A team median over the quarter's shipped cards that know the figure, and how many cards it covers; null when none does. */
+export type SeasonMedian = { value: number; cards: number } | null;
+/** Team medians of the quarter's shipped cards (Vloer ADR 0035, proposed): never per person. */
+export type SeasonMedians = { leadTimeSeconds: SeasonMedian; firstFeedbackSeconds: SeasonMedian; ciMinutes: SeasonMedian; flowEfficiency: SeasonMedian };
+
+function median(values: number[]): SeasonMedian {
+  const known = values.filter(value => Number.isFinite(value)).sort((a, b) => a - b);
+  if (!known.length) return null;
+  const middle = Math.floor(known.length / 2);
+  return { value: known.length % 2 ? known[middle] : (known[middle - 1] + known[middle]) / 2, cards: known.length };
+}
+
+/** Medians of the KPI figures over the given cards: lead time of delivered cards, time to first feedback, CI minutes and flow efficiency. */
+export function seasonMedians(cards: PloegCard[]): SeasonMedians {
+  const numbers = (pick: (card: PloegCard) => number | null | undefined) => cards.map(pick).filter((value): value is number => typeof value === 'number');
+  return {
+    leadTimeSeconds: median(numbers(card => card.flow?.leadTime && !card.flow.leadTime.running ? card.flow.leadTime.seconds : null)),
+    firstFeedbackSeconds: median(numbers(card => card.pipeline?.toFirstFeedbackSeconds)),
+    ciMinutes: median(numbers(card => card.pipeline?.ci?.minutes)),
+    flowEfficiency: median(numbers(card => card.flow?.efficiency)),
+  };
+}
 
 /**
  * One Team's aggregates for a quarter, computed from its cards only, and never per person: cards shipped (a play
  * merged in the quarter), whole days live added in the quarter across released cards, finish steps reached, confirmed
  * cracks and mends, the right-first-time share of shipped cards that carry gate facts (no defect or unknown bounce),
- * the bounce reasons recorded in the quarter, and complete set cards. A figure whose facts no card carries is null.
+ * the bounce reasons recorded in the quarter, complete set cards, and the team medians of lead time, time to first
+ * feedback, CI minutes and flow efficiency over the shipped cards. A figure whose facts no card carries is null.
  */
 export function seasonAggregates(cards: PloegCard[], team: string, quarter: Quarter, now = Date.now()): SeasonAggregates {
   const start = Date.parse(quarter.start);
@@ -83,5 +108,6 @@ export function seasonAggregates(cards: PloegCard[], team: string, quarter: Quar
     rightFirstTime: gated.length ? { share: clean.length / gated.length, cards: gated.length } : null,
     bounceReasons: reasons,
     sets: epics.length ? { complete: epics.filter(card => card.set!.complete).length, total: epics.length } : null,
+    medians: seasonMedians(shippedCards),
   };
 }

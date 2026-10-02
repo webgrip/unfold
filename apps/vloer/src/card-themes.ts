@@ -18,13 +18,13 @@ const slug = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const listName = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const assetId = /^[a-f0-9]{64}$/;
 const fileAsset = /^[a-z0-9][a-z0-9._-]{0,63}\.(?:svg|png|jpe?g|webp|mp4|webm|glsl)$/;
-const themeKeys = new Set(['schemaVersion', 'id', 'name', 'extends', 'tokens', 'frame', 'foilPattern', 'art', 'setSymbol', 'cardBack', 'soundBank']);
+const themeKeys = new Set(['schemaVersion', 'id', 'name', 'extends', 'tokens', 'frame', 'foilPattern', 'art', 'world', 'setSymbol', 'cardBack', 'soundBank']);
 
 export type ThemeArt = { preset: string } | { shader: string } | { media: string };
-export type CardTheme = { schemaVersion: 1; id: string; name: string; extends: string; tokens: Record<string, string>; frame: string | null; foilPattern: string | null; art: ThemeArt | null; setSymbol: string | null; cardBack: string | null; soundBank: string | null };
+export type CardTheme = { schemaVersion: 1; id: string; name: string; extends: string; tokens: Record<string, string>; frame: string | null; foilPattern: string | null; art: ThemeArt | null; world: string | null; setSymbol: string | null; cardBack: string | null; soundBank: string | null };
 export type ThemeRecord = CardTheme & { version: number; updatedAt: string; updatedBy: string; source: 'store' | 'directory' };
 export type ResolvedTheme = ThemeRecord & { assets: Record<string, { purpose: AssetPurpose; mediaType: MediaType; bytes: number }> };
-export type SkinRules = { id: string; name: string; themeTokens: string[]; frames: string[]; foilPatterns: string[]; artPresets: string[]; art: string[]; soundBanks: string[]; setSymbol: boolean; cardBack: boolean };
+export type SkinRules = { id: string; name: string; themeTokens: string[]; frames: string[]; foilPatterns: string[]; artPresets: string[]; art: string[]; worlds: string[]; soundBanks: string[]; setSymbol: boolean; cardBack: boolean };
 export type AssetInfo = { id: string; purpose: AssetPurpose; mediaType: MediaType; bytes: number };
 type Lookup = (reference: string, purpose: AssetPurpose) => AssetInfo | undefined;
 
@@ -59,7 +59,7 @@ function reference(value: unknown, name: string, purpose: AssetPurpose, lookup: 
 
 /**
  * Checks a theme document against format v1 and the rules of the skin it extends, and returns its normalized form.
- * Every key, token, frame, pattern, preset, art kind and sound bank must be on an allow-list: the format's keys, the
+ * Every key, token, frame, pattern, preset, art kind, inner world and sound bank must be on an allow-list: the format's keys, the
  * runtime's token types, and what the skin's manifest lists. Token values are hex colours or whole pixel lengths, never
  * free CSS. Assets are referenced by id (or, for a theme in the mounted folder, by file name) and must exist with the
  * right purpose. Anything else is refused with a reason.
@@ -101,6 +101,7 @@ export function validateTheme(input: unknown, skins: ReadonlyMap<string, SkinRul
     frame: listed(data.frame, skin.frames, 'frame', skin.id),
     foilPattern: listed(data.foilPattern, skin.foilPatterns, 'foilPattern', skin.id),
     art,
+    world: data.world === 'off' ? null : listed(data.world, skin.worlds, 'world', skin.id),
     setSymbol: reference(data.setSymbol, 'setSymbol', 'symbol', lookup),
     cardBack: reference(data.cardBack, 'cardBack', 'back', lookup, assetPurposes.back),
     soundBank: data.soundBank === undefined || data.soundBank === null ? null : skin.soundBanks.length ? listed(data.soundBank, skin.soundBanks, 'soundBank', skin.id) : invalid(`The ${skin.id} skin has no sound banks yet; leave soundBank out.`),
@@ -125,7 +126,7 @@ export function loadSkinRules(publicDir: string): Map<string, SkinRules> {
     const section = manifest.theme ?? {};
     const themeTokens: unknown = manifest.themeTokens ?? [];
     if (!Array.isArray(themeTokens) || themeTokens.some(token => typeof token !== 'string' || !Object.hasOwn(tokenTypes, token))) throw new Error(`Skin ${id} lists a theme token the runtime does not know`);
-    skins.set(id, { id, name: String(manifest.name), themeTokens: [...new Set(themeTokens as string[])], frames: strings(section.frames, `${id}.theme.frames`), foilPatterns: strings(section.foilPatterns, `${id}.theme.foilPatterns`), artPresets: strings(section.artPresets, `${id}.theme.artPresets`), art: strings(section.art, `${id}.theme.art`), soundBanks: strings(section.soundBanks, `${id}.theme.soundBanks`), setSymbol: section.setSymbol === true, cardBack: section.cardBack === true });
+    skins.set(id, { id, name: String(manifest.name), themeTokens: [...new Set(themeTokens as string[])], frames: strings(section.frames, `${id}.theme.frames`), foilPatterns: strings(section.foilPatterns, `${id}.theme.foilPatterns`), artPresets: strings(section.artPresets, `${id}.theme.artPresets`), art: strings(section.art, `${id}.theme.art`), worlds: strings(section.worlds, `${id}.theme.worlds`), soundBanks: strings(section.soundBanks, `${id}.theme.soundBanks`), setSymbol: section.setSymbol === true, cardBack: section.cardBack === true });
   }
   return skins;
 }

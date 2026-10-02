@@ -341,8 +341,30 @@ export function paintFace(target, facts) {
     h.fill();
   }
 
-  const boxY = typeY + 84;
-  const dense = facts.rows.length > 5;
+  const kpis = facts.kpis ?? [];
+  let boxY = typeY + 84;
+  if (kpis.length) {
+    const gap = 12;
+    const cellW = (W - 120 - gap * (kpis.length - 1)) / kpis.length;
+    kpis.forEach((entry, index) => {
+      const x = 60 + index * (cellW + gap);
+      panel(x, boxY, cellW, 72, 12);
+      g.font = `700 15px ${mono}`;
+      text(fit(g, entry.label.toUpperCase(), cellW - 32), x + 16, boxY + 26, g.font, '#9aa6a8', relief.text);
+      g.font = `800 ${kpis.length > 3 ? 27 : 30}px ${sans}`;
+      const value = fit(g, entry.value, cellW - 32);
+      const valueColor = entry.tone === 'attention' ? '#ffcf6b' : '#f3f5f4';
+      text(value, x + 16, boxY + 60, g.font, valueColor, relief.numeral);
+      const used = g.measureText(value).width;
+      if (entry.detail && entry.tone !== 'neutral') {
+        g.font = `700 14px ${mono}`;
+        const room = cellW - 32 - used - 10;
+        if (room > 40) text(fit(g, entry.detail.toUpperCase(), room), x + 16 + used + 10, boxY + 59, g.font, entry.tone === 'success' ? '#6fe3a5' : '#ffcf6b', null);
+      }
+    });
+    boxY += 84;
+  }
+  const dense = facts.rows.length > 5 || kpis.length > 0;
   const rowHeight = dense ? 42 : 50;
   panel(60, boxY, W - 120, facts.rows.length * rowHeight + 30, 16);
   facts.rows.forEach(([label, value], index) => {

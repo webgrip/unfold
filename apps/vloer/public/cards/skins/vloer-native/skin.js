@@ -1,5 +1,6 @@
 import { cardView } from '../../card-model.js';
-import { emitMoments, rarityFrame, rarityMark } from '../../skin-kit.js';
+import { clockText, emitMoments, kpiStrip, rarityFrame, rarityMark } from '../../skin-kit.js';
+import { clockChoices } from '../../card-kpis.js';
 
 /** The skin's name, matching its folder and manifest. */
 export const id = 'vloer-native';
@@ -142,6 +143,7 @@ function front(v, h) {
       <div class="row"><span class="chip" data-slot="state" data-tone="${e(v.state.tone)}" title="${e(v.state.description || '')}">${h.icon(v.state.glyph)}<span>${e(v.state.label)}</span></span>${dayChip(v, h)}${badges(v, h)}</div>
     </div>
     ${gatesStrip(v, h)}
+    ${kpiStrip(v, h)}
     <div class="main">${ring(v, h)}${tiles(v, h)}</div>
     <p class="crew"><small>Crew</small><span>${e(v.crew)}</span></p>
     <div class="sign${signed ? '' : ' off'}" data-slot="steward">
@@ -159,12 +161,72 @@ function front(v, h) {
 
 function rows(tab, h) {
   const e = h.escape;
-  return `<dl class="rows">${tab.rows.map(entry => `<div data-status="${e(entry.status)}"><dt>${e(entry.label)}</dt><dd${statusNote[entry.status] ? ` title="${e(statusNote[entry.status])}"` : ''}>${e(entry.value)}</dd></div>`).join('')}</dl>`;
+  if (!tab.rows?.length) return '';
+  return `<dl class="rows">${tab.rows.map(entry => `<div data-status="${e(entry.status)}"${entry.tone ? ` data-tone="${e(entry.tone)}"` : ''}><dt${entry.meaning ? ` title="${e(entry.meaning)}"` : ''}>${e(entry.label)}</dt><dd${statusNote[entry.status] ? ` title="${e(statusNote[entry.status])}"` : ''}>${clockText(entry.value, entry.working, h)}</dd></div>`).join('')}</dl>`;
 }
 
 function groups(tab, h) {
   const e = h.escape;
-  return (tab.groups || []).map(group => `<section class="group"><h4>${e(group.title)}</h4>${rows(group, h)}</section>`).join('');
+  return (tab.groups || []).map(group => `<section class="group"><h4>${e(group.title)}</h4>${blocks(group, h)}${rows(group, h)}</section>`).join('');
+}
+
+function clockBlock(block, h) {
+  const e = h.escape;
+  const buttons = clockChoices.map(choice => `<button type="button" class="kp-choice" data-card-action="clock" data-clock-choice="${e(choice.key)}" aria-pressed="${choice.key === 'calendar'}">${e(choice.label)}</button>`).join('');
+  return `<div class="kp-clock"><div class="kp-toggle" role="group" aria-label="Show durations as">${buttons}</div>${block.calendar ? `<p class="kp-calendar">${e(block.calendar)}</p>` : ''}</div>`;
+}
+
+function statsBlock(block, h) {
+  const e = h.escape;
+  return `<dl class="kp-stats" aria-label="${e(block.label)}">${block.items.map(item => `<div class="kp-stat" data-kpi="${e(item.key)}" data-tone="${e(item.tone)}"${item.live ? ' data-live' : ''}${item.meaning ? ` title="${e(item.meaning)}"` : ''}><dt>${e(item.label)}</dt><dd>${clockText(item.value, item.working, h)}${item.detail ? `<small>${e(item.detail)}</small>` : ''}</dd></div>`).join('')}</dl>`;
+}
+
+function barRects(segments, share, h) {
+  const e = h.escape;
+  let x = 0;
+  return segments.map(entry => {
+    const width = entry[share] * 1000;
+    const rect = width > 0 ? `<rect x="${x.toFixed(2)}" y="0" width="${Math.max(0, width - 2).toFixed(2)}" height="24" data-kind="${e(entry.kind)}"${entry.current ? ' data-current' : ''}><title>${e(`${entry.status} · ${entry.kindLabel.toLowerCase()} · ${share === 'share' ? entry.time?.text : entry.time?.workingText} (${Math.round(entry[share] * 100)}%)`)}</title></rect>` : '';
+    x += width;
+    return rect;
+  }).join('');
+}
+
+function barBlock(block, h) {
+  const e = h.escape;
+  const legend = block.kinds.map(kind => `<li data-kind="${e(kind.key)}" title="${e(kind.meaning)}"><i aria-hidden="true"></i>${e(kind.label)} <b>${clockText(kind.time?.text ?? '', kind.time?.workingText ?? '', h)}</b></li>`).join('');
+  const working = block.total?.working ? barRects(block.segments, 'workingShare', h) : '';
+  const summary = `${block.label}: ${block.segments.map(entry => `${entry.status} ${entry.time?.text ?? ''}`).join(', ')}. The table below lists the same.`;
+  return `<figure class="kp-bar">
+    <figcaption>${e(block.label)} <span>${clockText(block.total?.text ?? '', block.total?.workingText ?? '', h)}</span></figcaption>
+    <svg viewBox="0 0 1000 24" preserveAspectRatio="none" role="img" aria-label="${e(summary)}" focusable="false"><defs><pattern id="kp-hatch" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="10" class="kp-hatch"/></pattern></defs><g data-clock-value="calendar">${barRects(block.segments, 'share', h)}</g><g data-clock-value="working">${working || '<text x="500" y="16" text-anchor="middle" class="kp-none">No working hours in these statuses</text>'}</g></svg>
+    <ul class="kp-legend">${legend}</ul>
+    ${block.note ? `<p class="kp-bar-note">${e(block.note)}</p>` : ''}
+  </figure>`;
+}
+
+function tableBlock(block, h) {
+  const e = h.escape;
+  const head = block.columns.map(column => `<th scope="col"${column.numeric ? ' class="num"' : ''}>${e(column.label)}</th>`).join('');
+  const body = block.rows.map(entry => `<tr data-kind="${e(entry.kind)}"${entry.current ? ' data-current' : ''}>${block.columns.map((column, index) => index === 0 ? `<th scope="row"><i class="kp-swatch" aria-hidden="true"></i>${e(entry.cells[column.key])}${entry.current ? ' <span class="kp-now">now</span>' : ''}</th>` : `<td${column.numeric ? ' class="num"' : ''}>${e(entry.cells[column.key])}</td>`).join('')}</tr>`).join('');
+  return `<div class="kp-table-wrap"><table class="kp-table"><caption class="sr-only">${e(block.caption)}</caption><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+function stepsBlock(block, h) {
+  const e = h.escape;
+  if (!block.items.length) return '';
+  return `<ol class="kp-steps" aria-label="${e(block.label)}">${block.items.map(item => `<li data-state="${e(item.state)}" data-step="${e(item.key)}"><span class="kp-dot" aria-hidden="true"></span><span class="kp-step"><b>${e(item.label)}</b>${item.at ? `<small>${e(item.at)}</small>` : ''}${item.gap ? `<span class="kp-gap"${item.state === 'done' ? ' title="Since the step before"' : ''}>${e(item.gap)}</span>` : ''}</span></li>`).join('')}</ol>`;
+}
+
+function glossaryBlock(block, h) {
+  const e = h.escape;
+  return `<details class="kp-glossary"><summary>${e(block.label)}</summary><dl>${block.items.map(item => `<div><dt>${e(item.term)}</dt><dd>${e(item.meaning)}</dd></div>`).join('')}</dl></details>`;
+}
+
+const blockRenderers = { clock: clockBlock, stats: statsBlock, bar: barBlock, table: tableBlock, steps: stepsBlock, glossary: glossaryBlock };
+
+function blocks(tab, h) {
+  return (tab.blocks || []).map(block => blockRenderers[block.type]?.(block, h) ?? '').join('');
 }
 
 function lists(tab, h) {
@@ -176,8 +238,8 @@ function back(v, h) {
   const e = h.escape;
   const tabs = v.tabs.map(tab => `<button type="button" role="tab" class="tab" id="gc-tab-${e(tab.id)}" aria-controls="gc-panel-${e(tab.id)}" data-card-tab="${e(tab.id)}">${e(tab.label)}</button>`).join('');
   const panels = v.tabs.map(tab => {
-    const legend = [...tab.rows, ...(tab.groups || []).flatMap(group => group.rows)].some(entry => entry.status === 'uncollected') ? '<p class="legend"><i class="dot" aria-hidden="true"></i>Not collected yet: Ploeg does not record this yet.</p>' : '';
-    return `<section class="pane" role="tabpanel" id="gc-panel-${e(tab.id)}" aria-labelledby="gc-tab-${e(tab.id)}" data-card-panel="${e(tab.id)}" tabindex="0">${tab.lead ? `<p class="lead">${e(tab.lead)}</p>` : ''}${rows(tab, h)}${tab.note ? `<p class="note">${e(tab.note)}</p>` : ''}${groups(tab, h)}${lists(tab, h)}${legend}</section>`;
+    const legend = [...tab.rows, ...(tab.groups || []).flatMap(group => group.rows || [])].some(entry => entry.status === 'uncollected') ? '<p class="legend"><i class="dot" aria-hidden="true"></i>Not collected yet: Ploeg does not record this yet.</p>' : '';
+    return `<section class="pane" role="tabpanel" id="gc-panel-${e(tab.id)}" aria-labelledby="gc-tab-${e(tab.id)}" data-card-panel="${e(tab.id)}" tabindex="0">${tab.lead ? `<p class="lead">${e(tab.lead)}</p>` : ''}${blocks(tab, h)}${rows(tab, h)}${tab.note ? `<p class="note">${e(tab.note)}</p>` : ''}${groups(tab, h)}${lists(tab, h)}${legend}</section>`;
   }).join('');
   return `<article class="card back" aria-label="More info: ${e(v.title)}">
     <header class="bh">

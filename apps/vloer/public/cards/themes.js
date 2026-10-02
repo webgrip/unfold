@@ -93,7 +93,8 @@ export function applyTokens(host, theme, manifest) {
 /**
  * What a skin reads from a theme, after the runtime checked it against the drawn skin's manifest: the frame, the
  * default foil pattern, the art (a preset, a shader's GLSL or an uploaded image or video), the set symbol and card
- * back URLs and the tokens. A field the skin does not draw, or a value its manifest does not list, is null.
+ * back URLs, the tokens and the inner `world` (null when the theme shows its art). A field the skin does not draw, or a
+ * value its manifest does not list, is null.
  * @param {object | null} theme A theme as `GET /api/card-themes/:id` returns it, or a designer draft.
  * @param {{ id: string, themeTokens?: readonly string[], theme?: object } | null} manifest
  * @param {{ shader?: (id: string) => Promise<string | null> }} [options]
@@ -123,6 +124,7 @@ export async function themeView(theme, manifest, { shader = loadShader } = {}) {
     frame: listed(allowed.frames, theme.frame),
     foilPattern: listed(allowed.foilPatterns, theme.foilPattern),
     art,
+    world: listed(allowed.worlds, theme.world),
     setSymbol: allowed.setSymbol ? media(theme.setSymbol)?.url ?? null : null,
     cardBack: allowed.cardBack ? media(theme.cardBack)?.url ?? null : null,
     tokens: Object.freeze(tokens),

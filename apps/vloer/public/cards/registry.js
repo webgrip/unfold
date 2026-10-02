@@ -13,7 +13,7 @@ export const renderers = Object.freeze(['dom', 'webgl2']);
 export const requiredSlots = Object.freeze(['title', 'state', 'cost', 'steward', 'ids']);
 
 const skinName = /^[a-z0-9][a-z0-9-]{0,63}$/;
-const themeLists = Object.freeze(['frames', 'foilPatterns', 'artPresets', 'art', 'soundBanks']);
+const themeLists = Object.freeze(['frames', 'foilPatterns', 'artPresets', 'art', 'worlds', 'soundBanks']);
 const artKinds = Object.freeze(['preset', 'shader', 'media']);
 const listItem = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const fileName = /^[a-z0-9][a-z0-9-]*\.(?:css|js)$/;
@@ -31,7 +31,7 @@ export function resolveSkin(style, theme = null) {
 }
 
 function themeSection(value) {
-  if (value === undefined || value === null) return Object.freeze({ frames: Object.freeze([]), foilPatterns: Object.freeze([]), artPresets: Object.freeze([]), art: Object.freeze([]), soundBanks: Object.freeze([]), setSymbol: false, cardBack: false });
+  if (value === undefined || value === null) return Object.freeze({ frames: Object.freeze([]), foilPatterns: Object.freeze([]), artPresets: Object.freeze([]), art: Object.freeze([]), worlds: Object.freeze([]), soundBanks: Object.freeze([]), setSymbol: false, cardBack: false });
   if (typeof value !== 'object' || Array.isArray(value)) throw new Error('Skin theme section must be an object');
   const lists = {};
   for (const key of themeLists) {
@@ -55,7 +55,7 @@ export function skinBase(id) {
  * version it targets, its stylesheet, an optional script and the finishes it draws. Every pack draws `matte`; a card
  * whose finish the pack does not list is drawn matte. `themeTokens` lists the custom properties a theme may set, and
  * the optional `theme` section lists what else a theme may choose for this skin: frames, foil patterns, art presets,
- * art kinds, sound banks, and whether it draws a set symbol and a card back.
+ * art kinds, inner worlds, sound banks, and whether it draws a set symbol and a card back.
  * @param {unknown} manifest
  * @param {string} id The pack's folder name, which the manifest must repeat.
  */

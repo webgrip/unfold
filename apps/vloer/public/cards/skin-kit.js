@@ -178,6 +178,38 @@ export function rarityFrame(view) {
 }
 
 /**
+ * A duration as markup that follows the viewer's clock choice (Vloer ADR 0035): with a working-hours twin it prints
+ * both, as `data-clock-value="calendar"` and `"working"`, and the runtime's stylesheet shows the one the card's
+ * `data-clock` names; without one it prints the value alone. Every value is escaped.
+ * @param {string} value The calendar text.
+ * @param {string} working The working-hours text, or ''.
+ * @param {{ escape: Function }} h
+ */
+export function clockText(value, working, h) {
+  const e = h.escape;
+  if (!working) return e(value);
+  return `<span data-clock-value="calendar">${e(value)}</span><span data-clock-value="working">${e(working)}<span class="sr-only"> in working hours</span></span>`;
+}
+
+/**
+ * The headline KPI strip a skin prints on its front (Vloer ADR 0035): up to four figures from `view.kpis.headline`,
+ * each a label (with a short form a cramped skin may show instead), a value that follows the clock choice, an optional
+ * note and its plain-language meaning as the tooltip.
+ * A tone of `attention` or `success` marks the few figures whose meaning is unambiguous (reruns, green first time,
+ * blocked time); nothing names or ranks a person. Empty when the card has no KPI figures, so an older Ploeg's card is
+ * unchanged. The runtime's stylesheet draws it; a skin restyles it through `--uc-kpi-*` tokens or its own rules.
+ * @param {object} view The `cardView` model.
+ * @param {{ escape: Function }} h
+ * @param {{ max?: number, label?: string }} [options]
+ */
+export function kpiStrip(view, h, { max = 4, label = 'Key figures' } = {}) {
+  const items = (view?.kpis?.headline ?? []).slice(0, max);
+  if (!items.length) return '';
+  const e = h.escape;
+  return `<ul class="uc-kpis" aria-label="${e(label)}" data-count="${items.length}">${items.map(item => `<li class="uc-kpi" data-kpi="${e(item.key)}" data-tone="${e(item.tone)}"${item.live ? ' data-live' : ''} title="${e(item.meaning)}"><span class="uc-kpi-label"><span class="uc-kpi-long">${e(item.label)}</span><span class="uc-kpi-short" aria-hidden="true">${e(item.short ?? item.label)}</span></span><b class="uc-kpi-value">${clockText(item.value, item.working, h)}</b>${item.detail ? `<span class="uc-kpi-note">${e(item.detail)}</span>` : ''}</li>`).join('')}</ul>`;
+}
+
+/**
  * Honest honours for a card's front: short tags drawn only from facts the card carries, never from rarity, which has
  * its own mark (`rarityMark`). Each has a key, a label and a tone (`gold`, `success`, `attention`, `danger` or `neutral`).
  * @param {object} view The `cardView` model.

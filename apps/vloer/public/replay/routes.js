@@ -57,7 +57,7 @@ export const timelineRoutes = Object.freeze([
 export const refusedRoutes = Object.freeze([
   { method: 'POST', path: '/api/login' }, { method: 'POST', path: '/api/logout' }, { method: 'GET', path: '/api/auth/oidc' },
   { method: '*', path: '/api/links' }, { method: '*', path: `/api/links/${id}` },
-  { method: 'PUT', path: '/api/me/card-identity' }, { method: 'POST', path: '/api/binder/seen' }, { method: 'POST', path: `/api/packs/${id}/open` },
+  { method: 'PUT', path: '/api/me/card-identity' }, { method: '*', path: `/api/cards/${id}/world` }, { method: 'POST', path: '/api/binder/seen' }, { method: 'POST', path: `/api/packs/${id}/open` },
   { method: '*', path: `/api/card-themes/${id}` }, { method: 'POST', path: '/api/card-assets' }, { method: 'GET', path: `/api/card-assets/${id}` }, { method: 'POST', path: '/api/card-art/generate' },
   { method: 'POST', path: '/api/task-imports' }, { method: '*', path: `/api/task-sources/${id}/tasks/${id}/${id}` },
   { method: 'POST', path: `/api/ploeg/work-items/${id}/${id}` }, { method: 'POST', path: `/api/ploeg/work-items/${id}/cracks/${id}/${id}` },

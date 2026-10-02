@@ -1,5 +1,6 @@
 import { money, count, compactCount, duration, dateTime, plural, score, decimal, percent } from '../core/format.js';
 import { cardState, playState, ciState, humanReview, runOutcome, actorName } from '../core/states.js';
+import { kpiView } from './card-kpis.js';
 
 /** What a card shows for a value Ploeg does not collect at all yet. */
 export const notCollected = 'Not collected yet';
@@ -100,6 +101,7 @@ export const cardTabs = Object.freeze([
   { id: 'agent', label: 'Agent' },
   { id: 'change', label: 'Change' },
   { id: 'review', label: 'Review & CI' },
+  { id: 'flow', label: 'Flow' },
   { id: 'gates', label: 'Gates' },
   { id: 'grade', label: 'Grade' },
   { id: 'rarity', label: 'Rarity' },
@@ -385,26 +387,27 @@ function agent(card) {
   };
 }
 
-function change(card, all, diff) {
+function change(card, all, diff, kpis) {
   const measured = all.length && diff.known;
   return {
+    blocks: kpis?.blocks ?? [],
     rows: [
       measured ? row('Lines added', diff.addText) : row('Lines added', all.length ? notReported : 'No pull request yet', 'unreported'),
       measured ? row('Lines removed', diff.delText) : row('Lines removed', all.length ? notReported : 'No pull request yet', 'unreported'),
       measured && diff.files !== null ? row('Files changed', count(diff.files)) : row('Files changed', all.length ? notReported : 'No pull request yet', 'unreported'),
-      uncollected('Languages'),
-      uncollected('Test and code lines'),
+      ...(kpis ? kpis.rows : [uncollected('Languages'), uncollected('Test and code lines')]),
     ],
+    ...(kpis?.note ? { note: kpis.note } : {}),
     lists: all.length ? [{ title: plural(all.length, 'play'), items: all.slice().reverse().map(play => {
       const meta = playMeta(play.state);
       const lines = known(play.additions) && known(play.deletions) ? `+${count(play.additions)} −${count(play.deletions)}${known(play.changedFiles) ? ` · ${plural(play.changedFiles, 'file')}` : ''}` : 'Diff not reported';
       const merged = play.mergedAt ? `merged ${dateTime(play.mergedAt)}${text(play.mergedBy) ? ` by ${text(play.mergedBy)}` : ''}` : play.closedAt ? `closed ${dateTime(play.closedAt)}` : '';
       return { title: `#${play.number} · ${meta.label}`, meta: [text(play.branch), lines, merged].filter(Boolean).join(' · '), tone: meta.tone, glyph: meta.glyph, url: text(play.url) };
-    }) }] : [],
+    }) }, ...(kpis?.lists ?? [])] : kpis?.lists ?? [],
   };
 }
 
-function review(card, all, grade) {
+function review(card, all, grade, kpis) {
   const reviews = all.flatMap(play => list(play.reviews).map(entry => ({ ...entry, number: play.number })));
   const latest = all.at(-1);
   const ci = latest ? ciState(latest.ci?.state && latest.ci.state !== 'unknown' ? latest.ci.state : '') : null;
@@ -415,16 +418,18 @@ function review(card, all, grade) {
   const checks = list(latest?.ci?.checks);
   if (checks.length) lists.push({ title: `Checks on #${latest.number}`, items: checks.map(check => { const meta = ciState(check.state) || { label: notReported, tone: 'neutral', glyph: 'circle' }; return { title: text(check.context) || 'Check', meta: meta.short || meta.label, tone: meta.tone, glyph: meta.glyph }; }) });
   if (roster.length) lists.push({ title: 'Roster', items: roster.map(person => ({ title: person.name, meta: list(person.roles).map(role => rosterRoles[role] || role).join(', '), tone: list(person.roles).includes('cosigner') ? 'success' : 'neutral', glyph: 'user' })) });
+  if (kpis) lists.unshift(...kpis.lists);
   return {
+    blocks: kpis?.blocks ?? [],
     rows: [
       all.length ? row('Reviews by people', count(reviews.length)) : row('Reviews by people', 'No pull request yet', 'unreported'),
-      wait === null ? row('Time to first review', reviews.length ? notReported : 'No review yet', 'unreported') : row('Time to first review', duration(wait)),
+      ...(kpis ? [] : [wait === null ? row('Time to first review', reviews.length ? notReported : 'No review yet', 'unreported') : row('Time to first review', duration(wait))]),
       latest ? row(`CI on #${latest.number}`, ci ? ci.label : notReported, ci ? 'ok' : 'unreported') : row('CI', 'No pull request yet', 'unreported'),
       ...(latest?.ci?.capturedAt ? [row('CI read', dateTime(latest.ci.capturedAt))] : []),
-      uncollected('CI duration'),
-      uncollected('Review rounds by people'),
+      ...(kpis ? [] : [uncollected('CI duration'), uncollected('Review rounds by people')]),
       ...(grade ? [row('Grade', grade.summary)] : []),
     ],
+    groups: kpis?.groups ?? [],
     lists,
   };
 }
@@ -456,7 +461,7 @@ function releaseView(card, now) {
   };
 }
 
-function life(card, all, release, condition) {
+function life(card, all, release, condition, kpis) {
   const merged = all.filter(play => play.mergedAt).at(-1);
   const deployed = deployments(card);
   const live = release.environment || 'production';
@@ -480,6 +485,7 @@ function life(card, all, release, condition) {
     rows.push(row('Days live', notReported, 'unreported'), row('Finish', `${finishLadder[0].label} · this Ploeg reports no releases`, 'unreported'));
     note = 'This Ploeg does not report deploys or releases yet, so the card stays matte.';
   }
+  if (kpis && merged) rows.push(...kpis.rows);
   rows.push(uncollected('Lines still alive'), condition ? row('Condition', condition.text) : card.grade?.formula === '2026.2' ? row('Condition', 'No confirmed crack') : uncollected('Reverts and linked bugs'));
   const lists = deployed.length ? [{ title: `Deployments · ${plural(deployed.length, 'environment')}`, items: deployed.map(entry => ({
     title: entry.environment,
@@ -488,6 +494,7 @@ function life(card, all, release, condition) {
     glyph: entry.environment === live ? 'check-circle' : 'circle',
     url: entry.url,
   })) }] : [];
+  if (kpis) lists.push(...kpis.lists);
   return { rows, lists, note };
 }
 
@@ -777,7 +784,11 @@ function copyView(card) {
  * whole days since `release.at` on the finish ladder; Ploeg's own `finish` is ignored, and a card without a release is
  * matte. A card in a binder carries `copy`, the person's copy: its role and its first pull from a pack (ADR 0029).
  * `foilPattern` is the pattern that pull assigned, and null on a card without a pull, for which a skin derives a stable
- * pattern from the card's identity; `copy` in the view holds the role and the pull's other cosmetics.
+ * pattern from the card's identity; `copy` in the view holds the role and the pull's other cosmetics. `kpis.headline`
+ * holds the three or four KPI figures the front leads with for the card's state, and the Flow, Review & CI, Change and
+ * Life tabs carry the flow, pull request, CI and change-shape figures (Ploeg ADR-0057 and ADR-0058, proposed; Vloer ADR
+ * 0035): durations compact, with a working-hours twin where Ploeg counted one. A tab may carry `blocks` (stat tiles, a
+ * stacked bar, a table, steps, the clock toggle, a glossary) that the shared back draws before its rows.
  * @param {object} card A card from `GET /api/ploeg/work-items/:id/card`.
  * @param {{ now?: number }} [options] `now` is the clock in milliseconds, for tests.
  */
@@ -794,7 +805,8 @@ export function cardView(card, { now = Date.now() } = {}) {
   const gates = gatesView(data);
   const set = setView(data);
   const rarity = rarityView(data);
-  const tabs = { economics: economics(data, cost), agent: agent(data), change: change(data, all, diff), review: review(data, all, grade), gates: gatesTab(data, gates), grade: gradeTab(data, grade), rarity: rarityTab(data, rarity), condition: conditionTab(data, condition), life: life(data, all, release, condition), set: setTab(set), context: context({ ...data, workItemId: id }, set) };
+  const kpis = kpiView(data, { now });
+  const tabs = { economics: economics(data, cost), agent: agent(data), change: change(data, all, diff, kpis.change), review: review(data, all, grade, kpis.review), flow: kpis.flow, gates: gatesTab(data, gates), grade: gradeTab(data, grade), rarity: rarityTab(data, rarity), condition: conditionTab(data, condition), life: life(data, all, release, condition, kpis.life), set: setTab(set), context: context({ ...data, workItemId: id }, set) };
   const style = data.style && typeof data.style === 'object' ? data.style : {};
   return {
     id,
@@ -825,6 +837,7 @@ export function cardView(card, { now = Date.now() } = {}) {
     style: { skin: text(style.skin), theme: text(style.theme) },
     foilPattern: text(data.copy?.foilPattern) || null,
     copy: copyView(data),
-    tabs: cardTabs.map(tab => ({ groups: [], ...tab, ...tabs[tab.id] })),
+    kpis: { headline: kpis.headline, calendar: kpis.calendar, hasWorking: kpis.hasWorking },
+    tabs: cardTabs.map(tab => ({ groups: [], blocks: [], ...tab, ...tabs[tab.id] })),
   };
 }

@@ -17,6 +17,8 @@ const edges = Object.freeze({
   gold: { color: 0xf2c35b, metalness: 1, roughness: 0.13 },
 });
 const stillTime = 3.7;
+const worldSupersample = 1.5;
+const worldMinimumHeight = 288;
 const stillLight = Object.freeze({ x: 0.55, y: 0.42 });
 
 function roundedShape(width, height, radius) {
@@ -97,12 +99,13 @@ export class ForgeStage {
     this.composer.setSize(w, h);
   }
 
-  /** Draws `scene` once. */
+  /** Draws `scene` once, and first its inner world into the world's own render target when it has one. */
   render(scene) {
     scene.scene.environment = this.environment;
     this.pass.scene = scene.scene;
     this.pass.camera = scene.camera;
-    scene.frame(this.size.width / this.size.height);
+    scene.frame(this.size.width / this.size.height, this.size.height * this.renderer.getPixelRatio());
+    scene.world?.render(this.renderer);
     this.bloom.strength = scene.bloomStrength;
     this.composer.render();
   }
@@ -135,6 +138,10 @@ export class ForgeScene {
     this.blank.needsUpdate = true;
     this.disposables.push(this.blank);
     this.media = null;
+    this.world = null;
+    this.worldDt = 0;
+    this.lookKey = '';
+    this.raycaster = new THREE.Raycaster();
     this.tweens = [];
     this.state = { rx: -0.05, ry: 0.12, vx: 0, vy: 0, spin: 0, spinV: 0, spinT: 0, hover: false, px: 0, py: 0, dragging: false, lastX: 0, dropY: 0, dropV: 0, t: stillTime, light: new THREE.Vector2(stillLight.x, stillLight.y) };
     this.bloomStrength = 0.32;
@@ -240,6 +247,7 @@ export class ForgeScene {
     const previous = this.facts;
     this.facts = facts;
     this.signature = signature;
+    if (facts.worldFacts) this.world?.setFacts(facts.worldFacts, { ceremony });
     paintFace(this.canvases, facts);
     paintBack(this.canvases.back, facts);
     const slabbed = Boolean(facts.grade) || facts.frame === 'slab';
@@ -250,12 +258,7 @@ export class ForgeScene {
     this.uniforms.uHeight.value = this.textures.height;
     for (const key of ['face', 'mask', 'back', 'label']) this.textures[key].needsUpdate = true;
     this.setMedia(facts.art.key === 'media' ? facts.media ?? null : null);
-    const shaderKey = look => (look.key === 'custom' ? `custom:${look.code}` : look.key);
-    if (!previous || shaderKey(previous.art) !== shaderKey(facts.art) || previous.pattern.key !== facts.pattern.key) {
-      const material = new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: vertex, fragmentShader: frontShader(facts.art, facts.pattern.key), glslVersion: THREE.GLSL3 });
-      this.front.material.dispose();
-      this.front.material = material;
-    }
+    this.applyLook();
     const area = artWindowFor(facts);
     this.uniforms.uArtRect.value.set(area.x0 / faceSize.width, 1 - area.y1 / faceSize.height, area.x1 / faceSize.width, 1 - area.y0 / faceSize.height);
     const coverage = facts.coverage;
@@ -347,6 +350,7 @@ export class ForgeScene {
     s.dropV = 0;
     s.spin = Math.PI;
     s.spinT = 0;
+    this.world?.pop();
     const peak = 0.25 + this.facts.coverage.level * 0.12;
     this.tween(1.6, k => { this.bloomStrength = 0.32 + peak * Math.sin(Math.PI * Math.min(1, k * 1.3)); }, () => { this.bloomStrength = 0.32; }, x => x);
   }
@@ -392,6 +396,7 @@ export class ForgeScene {
   step(dt) {
     const s = this.state;
     s.t += dt;
+    this.worldDt += dt;
     this.uniforms.uTime.value = s.t;
     for (let i = this.tweens.length - 1; i >= 0; i--) {
       const tween = this.tweens[i];
@@ -436,8 +441,8 @@ export class ForgeScene {
     this.uniforms.uTime.value = stillTime + this.facts.seed * 20;
   }
 
-  /** Places the camera and the card for a frame at `aspect` (width / height). */
-  frame(aspect) {
+  /** Places the camera and the card for a frame at `aspect` (width / height), `pixels` high, and steps the inner world to match. */
+  frame(aspect, pixels = 0) {
     const s = this.state;
     const graded = Boolean(this.facts?.grade) || this.facts?.frame === 'slab';
     const fitHeight = graded ? 1.18 : 1.05;
@@ -454,6 +459,21 @@ export class ForgeScene {
     this.uniforms.uV.value.copy(view);
     this.keyLight.position.set(s.light.x * 2, s.light.y * 2 + 0.6, 2);
     if (this.motes) this.motes.material.uniforms.uScale.value = this.camera.position.z * 120;
+    if (this.world) this.frameWorld(pixels);
+  }
+
+  frameWorld(pixels) {
+    const s = this.state;
+    const a = this.uniforms.uArtRect.value;
+    const cardPixels = pixels * card.height * this.group.scale.y / (this.camera.position.z * 2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)));
+    const height = cardPixels * (a.w - a.y);
+    const width = height * ((a.z - a.x) * card.width) / ((a.w - a.y) * card.height);
+    const supersample = Math.max(worldSupersample, worldMinimumHeight / Math.max(1, height));
+    const snap = value => Math.max(64, Math.ceil(value * supersample / 16) * 16);
+    if (pixels > 0) this.world.setSize(snap(width), snap(height));
+    this.world.step(this.worldDt, { tiltX: s.rx, tiltY: s.ry, look: s.look ?? 0 });
+    this.worldDt = 0;
+    this.uniforms.uFlat.value = Math.min(1, Math.max(0, this.world.state.flat));
   }
 
   /** Uses an uploaded image or video element as the art window's texture, or none. */
@@ -461,18 +481,57 @@ export class ForgeScene {
     if (this.media?.element === element) return;
     this.media?.texture.dispose();
     this.media = null;
-    if (!element) { this.uniforms.uArtTex.value = this.blank; return; }
+    if (!element) { if (!this.world) this.uniforms.uArtTex.value = this.blank; return; }
     const map = element instanceof HTMLVideoElement ? new THREE.VideoTexture(element) : new THREE.Texture(element);
     map.colorSpace = THREE.NoColorSpace;
     map.minFilter = THREE.LinearFilter;
     map.generateMipmaps = false;
     map.needsUpdate = true;
     this.media = { element, texture: map };
-    this.uniforms.uArtTex.value = map;
+    if (!this.world) this.uniforms.uArtTex.value = map;
   }
 
   /** Marks a video's current frame for upload, so a still card shows it once it has loaded. */
   refreshMedia() { if (this.media) this.media.texture.needsUpdate = true; }
+
+  /** Compiles the front for what the art window shows: the inner world when the card has one, otherwise its art. */
+  applyLook() {
+    if (!this.facts) return;
+    this.uniforms.uFlat ??= { value: 0 };
+    const look = this.world ? { key: 'world' } : this.facts.art;
+    const key = `${look.key === 'custom' ? `custom:${look.code}` : look.key}|${this.facts.pattern.key}`;
+    if (key !== this.lookKey) {
+      const material = new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: vertex, fragmentShader: frontShader(look, this.facts.pattern.key), glslVersion: THREE.GLSL3 });
+      this.front.material.dispose();
+      this.front.material = material;
+      this.lookKey = key;
+    }
+    this.uniforms.uArtTex.value = this.world ? this.world.texture : this.media?.texture ?? this.blank;
+    if (!this.world) this.uniforms.uFlat.value = 0;
+  }
+
+  /**
+   * Draws `world` (an `InnerWorld`) in the art window instead of the card's art, or the art again for null. The scene
+   * steps and renders it but does not own it.
+   */
+  setWorld(world) {
+    this.world = world ?? null;
+    this.applyLook();
+  }
+
+  /**
+   * Where a point on the canvas (`x`, `y` in normalized device coordinates, y up) falls in the art window, as `u` and
+   * `v` from 0 to 1 with v up, or null when it misses the art window or the card's front.
+   */
+  artPoint(x, y) {
+    this.raycaster.setFromCamera(new THREE.Vector2(x, y), this.camera);
+    const hit = this.raycaster.intersectObject(this.front, false)[0];
+    if (!hit?.uv) return null;
+    const a = this.uniforms.uArtRect.value;
+    const u = (hit.uv.x - a.x) / (a.z - a.x);
+    const v = (hit.uv.y - a.y) / (a.w - a.y);
+    return u >= 0 && u <= 1 && v >= 0 && v <= 1 ? { u, v } : null;
+  }
 
   dispose() {
     for (const item of this.disposables) item.dispose();

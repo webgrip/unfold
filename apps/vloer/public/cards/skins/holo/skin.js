@@ -1,5 +1,5 @@
 import { render as nativeRender } from '../vloer-native/skin.js';
-import { attachSkin, coin, crackPaths, figures, gradeName, honours, markSeed, rarityFrame, rarityMark, seeded, skinView } from '../../skin-kit.js';
+import { attachSkin, coin, crackPaths, figures, gradeName, honours, kpiStrip, markSeed, rarityFrame, rarityMark, seeded, skinView } from '../../skin-kit.js';
 
 /** The skin's name, matching its folder and manifest. */
 export const id = 'holo';
@@ -62,7 +62,7 @@ function honourLine(view, h) {
   const e = h.escape;
   const list = honours(view).filter(entry => entry.key !== 'signed');
   const words = list.length ? `<p class="kw">${list.map(entry => `<b data-tone="${e(entry.tone)}">${e(entry.label)}</b>`).join(', ')}</p>` : '<p class="kw quiet">No honours yet.</p>';
-  const reminder = view.release?.released ? `${finishReminder[view.finish.key]}${view.release.next ? ` ${view.release.next.text}.` : ''}` : view.state.description || '';
+  const reminder = view.kpis?.headline?.length ? '' : view.release?.released ? `${finishReminder[view.finish.key]}${view.release.next ? ` ${view.release.next.text}.` : ''}` : view.state.description || '';
   const flavor = view.condition ? view.condition.text : view.gates ? `Delivery: ${view.gates.text}.` : '';
   return `${words}${reminder ? `<p class="hr-rem">(${e(reminder)})</p>` : ''}${flavor ? `<p class="flavor">${e(flavor)}</p>` : ''}`;
 }
@@ -136,7 +136,7 @@ function standard(view, h) {
         <div class="art">${windowLayers(view)}${art(view)}${stateChip(view, h)}${finishTag(view, h)}${signature(view, h)}${seal(view, h)}<i class="scan" aria-hidden="true"></i></div>
         <div class="typebar"><span>${e(roleLine(view))}</span><span class="hr-tb-end"><span class="hr-plays">${e(view.plays.text)}</span>${rarityMark(view, h)}</span></div>
         ${setStrip(view, h)}
-        <div class="box">${honourLine(view, h)}</div>
+        <div class="box">${honourLine(view, h)}${kpiStrip(view, h, { label: 'Key figures' })}</div>
         ${slab(view, h)}
         <div class="foot">
           <dl class="stats">
