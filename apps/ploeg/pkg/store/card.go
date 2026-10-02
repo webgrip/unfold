@@ -15,6 +15,7 @@ import (
 
 	"github.com/webgrip/ploeg/pkg/flow"
 	"github.com/webgrip/ploeg/pkg/gate"
+	"github.com/webgrip/ploeg/pkg/playkpi"
 	"github.com/webgrip/ploeg/pkg/work"
 )
 
@@ -69,8 +70,13 @@ type OperatorCard struct {
 	// long a merge took to reach each environment (ADR-0057). It is nil
 	// when the caller passed no CardOptions.Flow. Waiting and blocked time
 	// describe the team's process, never the steward.
-	Flow                 *flow.Flow `json:"flow,omitempty"`
-	Demo                 bool       `json:"demo"`
+	Flow *flow.Flow `json:"flow,omitempty"`
+	// Pipeline sums up review and CI across the plays, and Shape the change
+	// shape of the merged plays (ADR-0058). Each is absent when no play
+	// carries its figures.
+	Pipeline             *playkpi.Pipeline  `json:"pipeline,omitempty"`
+	Shape                *playkpi.CardShape `json:"shape,omitempty"`
+	Demo                 bool               `json:"demo"`
 	itemState            string
 	flowFacts            cardFlowFacts
 	runs                 []cardRun
@@ -246,10 +252,16 @@ type CardPlay struct {
 	// Deployments holds the first deploy of each environment that carried
 	// MergeCommitSHA, earliest first (ADR-0047).
 	Deployments []CardDeployment `json:"deployments"`
-	openedAt    time.Time
-	id          int64
-	repo        string
-	forge       string
+	// Timeline, CITiming and Shape are the play's review, CI and change
+	// figures (ADR-0058), each absent until its facts were captured.
+	Timeline  *playkpi.Timeline `json:"timeline,omitempty"`
+	CITiming  *playkpi.CI       `json:"ciTiming,omitempty"`
+	Shape     *playkpi.Shape    `json:"shape,omitempty"`
+	fullShape *playkpi.Shape
+	openedAt  time.Time
+	id        int64
+	repo      string
+	forge     string
 }
 
 // CardCI is the combined commit status Ploeg last read at HeadSHA.
@@ -420,6 +432,7 @@ func (s *Store) OperatorCard(ctx context.Context, id int64, teams []string, opts
 	}
 
 	card.Totals = card.totals(card.Totals.Shifts)
+	card.Pipeline, card.Shape = card.pipeline()
 	card.Crew = card.crew()
 	card.Roster = card.roster()
 	card.Steward = card.steward()
@@ -516,7 +529,7 @@ func (c *OperatorCard) loadPlays(ctx context.Context, tx pgx.Tx, id int64, check
 	rows, err := tx.Query(ctx, `SELECT p.id, p.forge, p.repo_owner, p.repo_name, p.number, p.shift_id::text, COALESCE(p.branch, sh.branch, ''),
 		COALESCE(p.state, ''), COALESCE(p.head_sha, ''), COALESCE(p.merge_commit_sha, ''), p.merged_at, COALESCE(p.merged_by, ''),
 		p.closed_at, p.additions, p.deletions, p.changed_files,
-		p.ci_state, p.ci_checks, COALESCE(p.ci_head_sha, ''), p.ci_captured_at, p.first_seen_at
+		p.ci_state, p.ci_checks, COALESCE(p.ci_head_sha, ''), p.ci_captured_at, p.first_seen_at, p.kpis, p.shape
 		FROM pull_requests p LEFT JOIN shifts sh ON sh.id = p.shift_id
 		WHERE p.work_item_id = $1 ORDER BY p.number, p.id LIMIT $2`, id, cardPlayLimit)
 	if err != nil {
@@ -534,11 +547,15 @@ func (c *OperatorCard) loadPlays(ctx context.Context, tx pgx.Tx, id int64, check
 			ciChecks    []byte
 			ciHead      string
 			ciAt        *time.Time
+			kpis, shape []byte
 			play        CardPlay
 		)
 		if err := rows.Scan(&pid, &play.forge, &owner, &name, &play.Number, &shiftID, &play.Branch, &play.State, &play.HeadSHA,
 			&play.MergeCommitSHA, &play.MergedAt, &play.MergedBy, &play.ClosedAt, &play.Additions, &play.Deletions,
-			&play.ChangedFiles, &ciState, &ciChecks, &ciHead, &ciAt, &play.openedAt); err != nil {
+			&play.ChangedFiles, &ciState, &ciChecks, &ciHead, &ciAt, &play.openedAt, &kpis, &shape); err != nil {
+			return err
+		}
+		if err := play.loadPipeline(kpis, shape); err != nil {
 			return err
 		}
 		if shiftID != nil {

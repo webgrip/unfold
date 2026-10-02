@@ -448,6 +448,9 @@ config: {}
 #         attentionPaths: ["apps/ploeg/pkg/store/**"]  # more sensitive ground, on top of the defaults
 #         # sensitivePaths: [...]       # replaces the default sensitive paths; [] = none
 #         # sizeExclude: [...]          # replaces the default lockfile/generated/vendor list
+#       cardShape:                    # ADR-0058: which files a Run card counts as tests and docs; unset = the defaults
+#         testPaths: ["**/*_test.go", "apps/vloer/test/**"]  # replaces the default test paths; [] = none
+#         # docPaths: [...]             # replaces the default documentation paths
 #     homelab-cluster:
 #       repo: webgrip/homelab-cluster
 #       branch: main

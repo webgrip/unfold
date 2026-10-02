@@ -3,7 +3,7 @@ type: explanation
 audience: [owner, operator, contributor, agent]
 owner: unfold
 last_verified: 2026-10-02
-verified_by: "built parts read against Ploeg ADR-0045, ADR-0046, ADR-0047, ADR-0049 and ADR-0057 (apps/ploeg/pkg/flow), Vloer ADR 0026, apps/ploeg/pkg/store/card.go and apps/vloer/public/cards on development @ 810c97a; binders, packs and seasons read against Vloer ADR 0029 and apps/vloer/src/{collection,packs,season}.ts on feat/vloer-binder-packs; proposed parts checked against the owner's design page and card contracts of 2026-10-01; the Vloer collection was run in its demo browser flow"
+verified_by: "built parts read against Ploeg ADR-0045, ADR-0046, ADR-0047, ADR-0049, ADR-0057 (apps/ploeg/pkg/flow) and ADR-0058 (apps/ploeg/pkg/playkpi), Vloer ADR 0026, apps/ploeg/pkg/store/card.go and apps/vloer/public/cards on development @ 810c97a; binders, packs and seasons read against Vloer ADR 0029 and apps/vloer/src/{collection,packs,season}.ts on feat/vloer-binder-packs; proposed parts checked against the owner's design page and card contracts of 2026-10-01; the Vloer collection was run in its demo browser flow"
 ---
 
 # Run Cards
@@ -41,7 +41,8 @@ The first three build phases are merged on `development`: P0 keeps the facts a c
 | A card comment on the pull request: the card as a static image above a summary table, kept as one comment and updated at a merge, a release to production, a new finish or a mend. A team turns it on with `cards.prComment` | Built; ADR proposed; off by default | [Ploeg ADR-0055](../../apps/ploeg/docs/adrs/0055-ploeg-keeps-one-card-comment-with-a-static-card-image-on-the-pull-request.md) |
 | Rarity: a challenge score, predicted at mint, revealed and frozen at release, tiered per project and quarter | Built in Ploeg; ADR proposed; Vloer still drops it | [Ploeg ADR-0056](../../apps/ploeg/docs/adrs/0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md) |
 | Flow figures: time in every tracker status, lead and cycle time, flow efficiency, blocked time, reopens, queue and agent time, merge to each environment and time to mend, in elapsed and working seconds | Built in Ploeg; ADR proposed; Vloer shows them (Vloer ADR 0035) | [Ploeg ADR-0057](../../apps/ploeg/docs/adrs/0057-a-run-cards-flow-figures-come-from-every-recorded-tracker-status-and-a-team-calendar.md) |
-| Key figures: time in every tracker status, lead and cycle time, flow efficiency, time to first feedback, CI timings and reruns, indentation complexity, merge to production; three or four on the card's front for its state, the rest on its back, team medians on the season page | Vloer side built against Ploeg PR #130 and #133, which are not merged; ADRs proposed | [Vloer ADR 0035](../../apps/vloer/docs/adrs/0035-run-cards-lead-with-three-or-four-kpis-for-their-state-and-keep-the-rest-on-the-back.md) |
+| Pull request, CI and change figures: time to first feedback, approval and merge, review rounds, comments, commits, CI runs, reruns, queue and minutes, indentation complexity, test ratio | Built in Ploeg; ADR proposed; Vloer shows them (Vloer ADR 0035) | [Ploeg ADR-0058](../../apps/ploeg/docs/adrs/0058-a-run-cards-pull-request-ci-and-change-shape-figures-are-read-from-the-forge-and-kept-per-play.md) |
+| Key figures: time in every tracker status, lead and cycle time, flow efficiency, time to first feedback, CI timings and reruns, indentation complexity, merge to production; three or four on the card's front for its state, the rest on its back, team medians on the season page | Built in Vloer on Ploeg ADR-0057 and ADR-0058; ADRs proposed | [Vloer ADR 0035](../../apps/vloer/docs/adrs/0035-run-cards-lead-with-three-or-four-kpis-for-their-state-and-keep-the-rest-on-the-back.md) |
 | Binders, Packs with published odds and stored cosmetic pulls, the pack ceremony and team season pages | Vloer side built against the card contract and fixtures; ADR proposed; Ploeg's card list built in parallel | [Vloer ADR 0029](../../apps/vloer/docs/adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md) |
 | Grade, condition (Cracks and Mends), level, Gates and Bounces, Roster roles and copies, the Steward rule, Set Cards, themes, the effects director, retention | **Proposed** | This page |
 
@@ -134,6 +135,25 @@ Besides the five axes, Ploeg sends the card's flow figures ([Ploeg ADR-0057](../
 
 To configure kinds and working hours, see [Configure status kinds and working hours](../../apps/ploeg/docs/how-to/configure-status-kinds-and-working-hours.md).
 
+## Pull request, CI and change figures: built in Ploeg
+
+Each Play also carries what its pull request, its CI and its change looked like, and the card sums them up ([Ploeg ADR-0058](../../apps/ploeg/docs/adrs/0058-a-run-cards-pull-request-ci-and-change-shape-figures-are-read-from-the-forge-and-kept-per-play.md), proposed). Vloer does not show them yet. Ploeg reads them from Forgejo or GitLab when the pull request changes and at the merge, keeps who did what and when, and never keeps comment text, code or CI logs. Like the flow figures, they are facts about the change: no grade, rarity or finish uses them, and nobody is ranked by them.
+
+| Figure | What it means | Where it misleads |
+| --- | --- | --- |
+| Time to first feedback | From ready for review to the first review, inline comment or comment by a person other than the author. Bots never count. | It measures how fast the team responded, not how good the change was or how fast its author worked. A draft counts from when it was marked ready. |
+| Time to first approval, approval to merge, open to merge | From ready to the first approval, from the last approval to the merge, from opening to the merge. | A change approved and then left waiting for a release window looks slow. |
+| Review rounds, comments, reviewers | Distinct commits humans reviewed (as the grade counts rounds), comments by people other than the author, people who submitted a review. | More comments can mean a careful review as easily as a muddled change. |
+| Response time | The median time from a request for changes to the author's next push. | On an agent-written change, the author is Ploeg; this then measures the agent's round, not a person. |
+| Commits, force pushes, coding time | Commits on the pull request, force pushes (Forgejo only; unknown on GitLab), and the time from the earliest commit's author date to ready. | Author dates can be rewritten by a rebase. |
+| CI runs, failures and reruns | Runs across every pushed commit, those that failed, and repeat runs on the same commit. | Reruns are a flakiness signal for the pipeline, not a mark against the change. |
+| Last green, time to green, queue, minutes, slowest jobs | Wall time of the final passing run, time from ready to the first all-green commit, time jobs waited for a runner, total job minutes and the three slowest jobs. | Queue time says how busy the runners were. On Forgejo, queue and start times come from the status texts Forgejo Actions writes; another CI has no queue time. |
+| First-pass green | Whether the first CI run of the commit that was ready for review passed without a rerun. | A cancelled first run says nothing, so it stays unknown. |
+| Complexity | Indentation complexity of the changed lines: each line counts how deeply it is indented, a language-independent stand-in for nesting (Hindle, Godfrey and Holt, 2008). Added, removed, net, the deepest line and the three files with the most added complexity. | It is a proxy. Deeply nested data files such as YAML score high, and it says nothing about whether nesting was needed. |
+| Size, test ratio, docs, languages | Counted lines without lockfiles, generated and vendored code (as rarity counts them), test lines over other lines, documentation files touched, and the top three languages. | Test paths are matched by pattern, so a test helper outside them counts as code. A Work Target can set its own patterns. |
+
+To set which files count as tests and documentation, see [Count tests and docs on Run cards](../../apps/ploeg/docs/how-to/count-tests-and-docs-on-run-cards.md).
+
 ## Life in production
 
 Proposed lifecycle: drafted (a Run is live) → opened (pull request) → signed (approved) → merged → deployed → Provisional (0 to 29 days) → Settled (30 to 179 days) → Proven (180 days and more). At any point a card can become Retired (code replaced on purpose), Withdrawn (pulled for product reasons, no Crack) or Emeritus (the Steward left; the card stays).
@@ -191,7 +211,7 @@ Vloer implements this proposal against fixtures ([Vloer ADR 0029](../../apps/vlo
 
 ## Key figures
 
-*Proposed.* Ploeg PR #130 and #133 (Ploeg ADR-0057 and ADR-0058, not merged) add the figures a team asks about: how long the ticket sat in every tracker status, its lead and cycle time, how long until the first human feedback and the merge, how long CI took and how often it reran, and how complex the change was. Vloer shows them ([Vloer ADR 0035](../../apps/vloer/docs/adrs/0035-run-cards-lead-with-three-or-four-kpis-for-their-state-and-keep-the-rest-on-the-back.md)).
+*Proposed.* Ploeg ADR-0057 and ADR-0058 add the figures a team asks about: how long the ticket sat in every tracker status, its lead and cycle time, how long until the first human feedback and the merge, how long CI took and how often it reran, and how complex the change was. Vloer shows them ([Vloer ADR 0035](../../apps/vloer/docs/adrs/0035-run-cards-lead-with-three-or-four-kpis-for-their-state-and-keep-the-rest-on-the-back.md)).
 
 * **Three or four on the front, for the card's state.** In review: time to first feedback, or "waiting 3 h" while nobody has responded, CI's last green run with its reruns, complexity added and cycle time so far. Merged: lead time, first feedback, CI and time to production once a deploy reached it. Drafting: time to start or cycle time so far, lead time, blocked time and the estimate.
 * **Every figure says what it means.** Its meaning is the tooltip and is listed on the back. Durations read "42 min", "3 h 10 min", "2 d 4 h".

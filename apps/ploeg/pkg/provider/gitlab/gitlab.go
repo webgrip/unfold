@@ -255,12 +255,25 @@ func (p *Provider) PullRequestFacts(ctx context.Context, repo string, mr int) (p
 		MergedBy *struct {
 			Username string `json:"username"`
 		} `json:"merged_by"`
-		ChangesCount *string `json:"changes_count"`
+		ChangesCount   *string `json:"changes_count"`
+		CreatedAt      string  `json:"created_at"`
+		Draft          *bool   `json:"draft"`
+		WorkInProgress *bool   `json:"work_in_progress"`
+		Author         *struct {
+			Username string `json:"username"`
+		} `json:"author"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&body); err != nil {
 		return provider.PullRequestFacts{}, fmt.Errorf("gitlab: read %s!%d: %w", repo, mr, err)
 	}
-	facts := provider.PullRequestFacts{HeadSHA: body.SHA, ChangedFiles: changesCount(body.ChangesCount)}
+	facts := provider.PullRequestFacts{HeadSHA: body.SHA, ChangedFiles: changesCount(body.ChangesCount),
+		OpenedAt: provider.ParseForgeTime(body.CreatedAt), Draft: body.Draft}
+	if facts.Draft == nil {
+		facts.Draft = body.WorkInProgress
+	}
+	if body.Author != nil {
+		facts.Author = body.Author.Username
+	}
 	switch body.State {
 	case "merged":
 		facts.State = provider.PullRequestMerged

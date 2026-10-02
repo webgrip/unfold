@@ -173,6 +173,12 @@ type PullRequestFacts struct {
 	Additions    *int
 	Deletions    *int
 	ChangedFiles *int
+	// OpenedAt is when the forge says the pull request was created, Author
+	// the login that opened it and Draft whether it is a draft (or WIP) now
+	// (ADR-0058). Nil and empty are facts the forge did not report.
+	OpenedAt *time.Time
+	Author   string
+	Draft    *bool
 }
 
 // CommitState is the combined result of the checks on one commit.

@@ -23,6 +23,7 @@ These runbooks cover the recurring operator tasks for a cluster deployment of Pl
 | [Map tracker statuses to delivery gates](map-tracker-statuses-to-gates.md) | Run cards should show test and acceptance, and bounces with a reason |
 | [Mark sensitive paths for card rarity](mark-sensitive-paths-for-card-rarity.md) | Run card rarity should count your riskiest code, or leave generated files out of size |
 | [Configure status kinds and working hours](configure-status-kinds-and-working-hours.md) | Run cards should show time in every column, lead and cycle time and flow efficiency in your team's working hours |
+| [Count tests and docs on Run cards](count-tests-and-docs-on-run-cards.md) | A Run card's test ratio or documentation count misses your test or docs layout, or a card shows no CI timing or complexity |
 
 For accounts whose final cost is uncertain, [Reconcile uncertainty](../ops/managed-workers.md#reconcile-uncertainty) sets the rules these runbooks follow.
 

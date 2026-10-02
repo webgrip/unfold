@@ -370,33 +370,11 @@ func countedLines(p CardPlay, rp *rarityPlay, m rarity.Matcher) *int64 {
 	if rp == nil || !rp.captured {
 		return nil
 	}
-	var counted, excluded int64
-	complete, anyExcluded := true, false
+	files := make([]rarity.FileLines, 0, len(rp.files))
 	for _, f := range rp.files {
-		skip := m.Excluded(f.path)
-		anyExcluded = anyExcluded || skip
-		if f.additions == nil || f.deletes == nil {
-			complete = false
-			continue
-		}
-		if skip {
-			excluded += int64(*f.additions + *f.deletes)
-		} else {
-			counted += int64(*f.additions + *f.deletes)
-		}
+		files = append(files, rarity.FileLines{Path: f.path, Additions: f.additions, Deletions: f.deletes})
 	}
-	total := playLines(p)
-	switch {
-	case rp.truncated && total != nil:
-		n := max(0, *total-excluded)
-		return &n
-	case complete && !rp.truncated:
-		return &counted
-	case !anyExcluded && !rp.truncated && total != nil:
-		return total
-	default:
-		return nil
-	}
+	return m.CountedLines(files, playLines(p), rp.truncated)
 }
 
 type rarityFacts struct {

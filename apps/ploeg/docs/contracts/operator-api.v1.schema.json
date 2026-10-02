@@ -1737,7 +1737,7 @@
     "cardPlay": {
       "type": "object",
       "additionalProperties": false,
-      "description": "One pull request for the Work Item, as the forge reported it. Every fact the forge has not reported is absent, including state.",
+      "description": "One pull request for the Work Item, as the forge reported it. Every fact the forge has not reported is absent, including state. timeline, ciTiming and shape are the play's review, CI and change figures (ADR-0058), each absent until its facts were captured; ci stays the combined commit status of ADR-0046.",
       "required": [
         "number",
         "reviews",
@@ -1808,6 +1808,15 @@
           "items": {
             "$ref": "#/$defs/cardDeployment"
           }
+        },
+        "timeline": {
+          "$ref": "#/$defs/cardPlayTimeline"
+        },
+        "ciTiming": {
+          "$ref": "#/$defs/cardPlayCITiming"
+        },
+        "shape": {
+          "$ref": "#/$defs/cardPlayShape"
         }
       }
     },
@@ -1974,7 +1983,7 @@
     "card": {
       "type": "object",
       "additionalProperties": false,
-      "description": "A Run card (ADR-0046): one per Work Item, assembled from stored facts when read. Ploeg sends facts only. state: withdrawn when the Work Item was withdrawn; drafting with no play; in_review while a play is open or its state is unknown; merged when the latest play merged, or a play merged and the Work Item is done; closed otherwise. finish is always matte until that decision is made. rarity is how exceptional the change was (ADR-0056): a cardRarity object once the first Run started, the card was revealed or an epic's set is complete, and null otherwise; older Ploeg versions always sent null. condition holds the confirmed cracks (ADR-0052) and is null without one. grade is computed from stored facts under a versioned formula (ADR-0050) and null until a human approved or requested changes on a play, or a play merged. demo is always false from Ploeg. deployments and release come from the deploys pipelines report to POST /api/v1/deploys (ADR-0047). live is the usage so far while a Run is running, read from the gateway when the card is read, and null otherwise (ADR-0049). gates is the Work Item's path through its board's delivery gates, absent or null when no gate move was recorded; evolved is true when a requirement bounce left acceptance (ADR-0051) or a bug was attributed to the card as a changed requirement (ADR-0052). set places the card in its epic's set from tracker parent relations, and is absent when the Work Item belongs to no epic that counts (ADR-0053). flow holds the card's flow figures (ADR-0057): time in every tracker status, lead, cycle and start time, flow efficiency, blocked time, reopens, queue and agent time, how long the merge took to reach each environment and how long confirmed cracks took to mend, each in elapsed and in working seconds under the team's working calendar; absent from older Ploeg versions. These figures describe the card and the team's process: waiting and blocked time reflect how work flows through the team, never the steward, and they never feed the grade or the rarity.",
+      "description": "A Run card (ADR-0046): one per Work Item, assembled from stored facts when read. Ploeg sends facts only. state: withdrawn when the Work Item was withdrawn; drafting with no play; in_review while a play is open or its state is unknown; merged when the latest play merged, or a play merged and the Work Item is done; closed otherwise. finish is always matte until that decision is made. rarity is how exceptional the change was (ADR-0056): a cardRarity object once the first Run started, the card was revealed or an epic's set is complete, and null otherwise; older Ploeg versions always sent null. condition holds the confirmed cracks (ADR-0052) and is null without one. grade is computed from stored facts under a versioned formula (ADR-0050) and null until a human approved or requested changes on a play, or a play merged. demo is always false from Ploeg. deployments and release come from the deploys pipelines report to POST /api/v1/deploys (ADR-0047). live is the usage so far while a Run is running, read from the gateway when the card is read, and null otherwise (ADR-0049). gates is the Work Item's path through its board's delivery gates, absent or null when no gate move was recorded; evolved is true when a requirement bounce left acceptance (ADR-0051) or a bug was attributed to the card as a changed requirement (ADR-0052). set places the card in its epic's set from tracker parent relations, and is absent when the Work Item belongs to no epic that counts (ADR-0053). flow holds the card's flow figures (ADR-0057): time in every tracker status, lead, cycle and start time, flow efficiency, blocked time, reopens, queue and agent time, how long the merge took to reach each environment and how long confirmed cracks took to mend, each in elapsed and in working seconds under the team's working calendar; absent from older Ploeg versions. These figures describe the card and the team's process: waiting and blocked time reflect how work flows through the team, never the steward, and they never feed the grade or the rarity. pipeline sums up review and CI across the plays, and shape the change shape of the merged plays (ADR-0058); each is absent when no play carries its figures.",
       "required": [
         "workItemId",
         "title",
@@ -2169,6 +2178,12 @@
               "type": "null"
             }
           ]
+        },
+        "pipeline": {
+          "$ref": "#/$defs/cardPipeline"
+        },
+        "shape": {
+          "$ref": "#/$defs/cardShape"
         }
       }
     },
@@ -4056,6 +4071,634 @@
               "holidays"
             ]
           }
+        }
+      }
+    },
+    "cardPlayTimeline": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "When the play moved from opened to merged and how its review went (ADR-0058). Facts only: none of it feeds the grade or rarity, and none of it ranks a person. Waiting for a first review or approval measures how fast the team responded, not the author's work. Durations are whole seconds; null is a fact Ploeg does not know. openedAt is the forge's creation time; readyAt is when the play left draft (or WIP), equal to openedAt when it was never a draft, and null when the forge's activity was never read or the play is still a draft. Feedback is the first review, inline review comment or comment by a human who is neither the author nor a forge login Ploeg acts as; toFirstFeedbackSeconds and toFirstApprovalSeconds run from readyAt and never go below zero. lastApprovalAt is the latest such approval at or before the merge, and approvalToMergeSeconds runs from it. reviewRounds counts the distinct head commits humans reviewed, as the grade does. comments counts the comments and inline review comments of those humans, reviewers the distinct humans who submitted a review. responseSeconds is the median time from a request for changes to the author's next push. commits counts the play's commits (a lower bound when truncated), firstCommitAt is the earliest author date, codingSeconds runs from it to readyAt, and forcePushes is null on a forge that does not report force pushes (GitLab). capturedAt is when the forge's activity was last read, null when only webhook reviews are known.",
+      "required": [
+        "openedAt",
+        "readyAt",
+        "firstFeedbackAt",
+        "firstApprovalAt",
+        "lastApprovalAt",
+        "mergedAt",
+        "toFirstFeedbackSeconds",
+        "toFirstApprovalSeconds",
+        "approvalToMergeSeconds",
+        "openToMergeSeconds",
+        "reviewRounds",
+        "comments",
+        "reviewers",
+        "responseSeconds",
+        "commits",
+        "firstCommitAt",
+        "forcePushes",
+        "codingSeconds",
+        "truncated",
+        "capturedAt"
+      ],
+      "properties": {
+        "openedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "readyAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "firstFeedbackAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "firstApprovalAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "lastApprovalAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "mergedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "toFirstFeedbackSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Seconds from readyAt to the first human feedback."
+        },
+        "toFirstApprovalSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Seconds from readyAt to the first human approval."
+        },
+        "approvalToMergeSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Seconds from the last approval before the merge to the merge."
+        },
+        "openToMergeSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Seconds from openedAt to the merge."
+        },
+        "reviewRounds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "comments": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "reviewers": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "responseSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Median seconds from a request for changes to the author's next push."
+        },
+        "commits": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "firstCommitAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "forcePushes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "codingSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Seconds from the earliest commit's author date to readyAt."
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "capturedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    },
+    "cardSlowJob": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "seconds"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "seconds": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "cardPlayCITiming": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "How the play's CI runs went (ADR-0058), read from the forge at its capture points; no log is read. A run is a Forgejo Actions run, a GitLab pipeline, or the checks one commit reported without either (source statuses). runs counts runs across every head commit; failedRuns those that ended in failure or error; reruns the repeat runs on an unchanged commit (a second run of the same workflow on the same commit, or a job's second attempt), a flakiness signal. lastGreenSeconds is the wall time, queue excluded, of the latest successful run on the play's head (its merged head once merged). queueSeconds adds the seconds each job attempt waited for a runner. timeToGreenSeconds runs from the play's readyAt to the first time every workflow of one head commit was green. minutes adds the duration of every job attempt. slowest lists up to three jobs by their longest attempt. firstPassGreen is whether the first run on the head that was ready for review succeeded without a rerun; null while it runs or when it was cancelled or skipped. truncated says the read reached its bound, so counts are a lower bound. Facts only; never part of the grade or rarity.",
+      "required": [
+        "runs",
+        "failedRuns",
+        "reruns",
+        "lastGreenSeconds",
+        "queueSeconds",
+        "timeToGreenSeconds",
+        "minutes",
+        "slowest",
+        "firstPassGreen",
+        "source",
+        "truncated",
+        "capturedAt"
+      ],
+      "properties": {
+        "runs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failedRuns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reruns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lastGreenSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "queueSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "timeToGreenSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "minutes": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "slowest": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/cardSlowJob"
+          }
+        },
+        "firstPassGreen": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "source": {
+          "enum": [
+            "actions",
+            "statuses",
+            "pipelines"
+          ]
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "capturedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "cardComplexity": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Indentation complexity of the change (Hindle, Godfrey and Holt, 'Reading Beside the Lines: Indentation as a Proxy for Complexity Metrics', ICPC 2008): each added or removed line counts its logical indentation level, one per tab or per indent unit of spaces, the unit detected per file from the diff. added and removed sum those levels, net is their difference, maxDepth is the deepest added line and hotspots the files with the most added complexity. A language-agnostic proxy, not McCabe complexity; method names the measure's version. Files the Work Target leaves out of size count nothing.",
+      "required": [
+        "method",
+        "added",
+        "removed",
+        "net",
+        "maxDepth",
+        "hotspots"
+      ],
+      "properties": {
+        "method": {
+          "type": "string"
+        },
+        "added": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "removed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "net": {
+          "type": "integer"
+        },
+        "maxDepth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "hotspots": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "added"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "added": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    "cardLanguage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "lines"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "lines": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "cardPlayShape": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "How large, tested and complex the merged play's change was (ADR-0058), measured once at the merge from its changed files and its diff, of which only these numbers are kept. Every figure leaves out the files the Work Target leaves out of size (lockfiles, generated and vendored code, ADR-0056). files counts the remaining changed files and countedLines their lines added and removed. testLines counts the lines of test files and testRatio divides them by the other counted lines (null when a file's lines are unknown or nothing else changed); test and documentation files match the Work Target's cardShape patterns or the defaults. docsTouched counts documentation files. languages names up to three languages by file extension, most lines first. complexity is null when the diff was not read. truncated says the file list or the diff reached its bound, so the figures are a lower bound. Facts only; never part of the grade or rarity.",
+      "required": [
+        "complexity",
+        "files",
+        "countedLines",
+        "testLines",
+        "testRatio",
+        "docsTouched",
+        "languages",
+        "truncated",
+        "capturedAt"
+      ],
+      "properties": {
+        "complexity": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/cardComplexity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "countedLines": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "testLines": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "testRatio": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "docsTouched": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "languages": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/cardLanguage"
+          }
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "capturedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "cardShape": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The change shape of the card's merged plays added up (ADR-0058). plays counts the merged plays that were measured and complete says every merged play was. Counts and lines add up; a figure a measured play does not know is null. files adds each play's files, so a file two plays touched counts twice. complexity adds up, keeps the deepest maxDepth and merges hotspots by path; it is null when a measured play has none. Facts about the change, not the people on it.",
+      "required": [
+        "plays",
+        "complete",
+        "complexity",
+        "files",
+        "countedLines",
+        "testLines",
+        "testRatio",
+        "docsTouched",
+        "languages",
+        "truncated"
+      ],
+      "properties": {
+        "plays": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "complexity": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/cardComplexity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "countedLines": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "testLines": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "testRatio": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "docsTouched": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "languages": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/cardLanguage"
+          }
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      }
+    },
+    "cardPipeline": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Review and CI summed up across the card's plays (ADR-0058), from each play's timeline and ciTiming. plays counts the plays that carry either. toFirstFeedbackSeconds is the first such play's, openToMergeSeconds the latest merged play's, and firstPassGreen the first play's. reviewRounds and comments add up the plays that know them. median holds the median of each figure over the plays that know it. ci adds up the plays whose CI was read, and is null when none was. Waiting for a review reflects the team's response, not the author's work. These figures describe the change: they never feed the grade or rarity and are never totalled per person. Team pages may aggregate them per team; a client sees team aggregates only.",
+      "required": [
+        "plays",
+        "toFirstFeedbackSeconds",
+        "openToMergeSeconds",
+        "reviewRounds",
+        "comments",
+        "firstPassGreen",
+        "median",
+        "ci"
+      ],
+      "properties": {
+        "plays": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "toFirstFeedbackSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "openToMergeSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "reviewRounds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "comments": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "firstPassGreen": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "median": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "toFirstFeedbackSeconds",
+            "openToMergeSeconds",
+            "responseSeconds",
+            "lastGreenSeconds"
+          ],
+          "properties": {
+            "toFirstFeedbackSeconds": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "openToMergeSeconds": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "responseSeconds": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "lastGreenSeconds": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            }
+          }
+        },
+        "ci": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "runs",
+                "failedRuns",
+                "reruns",
+                "minutes",
+                "queueSeconds"
+              ],
+              "properties": {
+                "runs": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "failedRuns": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "reruns": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "minutes": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "queueSeconds": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     }

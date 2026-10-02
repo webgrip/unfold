@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webgrip/ploeg/pkg/playkpi"
 	"github.com/webgrip/ploeg/pkg/rarity"
 	"github.com/webgrip/ploeg/pkg/store"
 )
@@ -63,6 +64,10 @@ type OperatorConfig struct {
 	// Target that sets them, keyed by lowercased "owner/name" (ADR-0056).
 	// A Work Target absent here uses the defaults.
 	RarityMatchers map[string]rarity.Matcher
+	// ShapeMatchers holds the test and documentation path rules of each
+	// configured Work Target that sets them, keyed by lowercased
+	// "owner/name" (ADR-0058). A Work Target absent here uses the defaults.
+	ShapeMatchers map[string]playkpi.Matcher
 }
 
 type operatorPrincipalKey struct{}
