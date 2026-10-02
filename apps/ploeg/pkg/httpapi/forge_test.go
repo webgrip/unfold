@@ -94,6 +94,47 @@ func TestForgeWebhook_RejectsBadSignature(t *testing.T) {
 	}
 }
 
+func TestForgeWebhook_RejectedDeliveryDoesNotSuppressVerifiedRetry(t *testing.T) {
+	for _, secret := range []string{"", "wrong-secret"} {
+		t.Run("rejected-secret-"+secret, func(t *testing.T) {
+			h := forgeServer(t, "shh")
+			delivery := t.Name()
+			t.Cleanup(func() {
+				if _, err := testPool.Exec(context.Background(),
+					`DELETE FROM forge_deliveries WHERE provider = 'forgejo' AND delivery_id = $1`, delivery); err != nil {
+					t.Error(err)
+				}
+			})
+			if code := forgePost(t, h, secret, delivery, reviewBody()); code != http.StatusBadRequest {
+				t.Fatalf("unverified delivery returned %d, want 400", code)
+			}
+			var deliveries int
+			if err := testPool.QueryRow(context.Background(),
+				`SELECT count(*) FROM forge_deliveries WHERE provider = 'forgejo' AND delivery_id = $1`, delivery).Scan(&deliveries); err != nil {
+				t.Fatal(err)
+			}
+			if deliveries != 0 {
+				t.Fatalf("unverified delivery persisted %d dedup rows, want 0", deliveries)
+			}
+			if code := forgePost(t, h, "shh", delivery, reviewBody()); code != http.StatusAccepted {
+				t.Fatalf("verified retry returned %d, want 202", code)
+			}
+			if n := forgeAuditCount(t); n != 1 {
+				t.Fatalf("verified retry recorded %d audit rows, want 1", n)
+			}
+			if code := forgePost(t, h, "shh", delivery, reviewBody()); code != http.StatusAccepted {
+				t.Fatalf("verified redelivery returned %d, want 202", code)
+			}
+			if n := forgeAuditCount(t); n != 1 {
+				t.Fatalf("verified redelivery recorded %d audit rows, want 1", n)
+			}
+			if code := forgePost(t, h, secret, delivery, reviewBody()); code != http.StatusBadRequest {
+				t.Fatalf("unverified duplicate returned %d, want 400", code)
+			}
+		})
+	}
+}
+
 // A retry that acts twice turns one review into two fix rounds.
 func TestForgeWebhook_RedeliveryActsOnce(t *testing.T) {
 	h := forgeServer(t, "shh")
