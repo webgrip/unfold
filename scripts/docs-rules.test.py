@@ -107,6 +107,12 @@ class FrontMatter(unittest.TestCase):
         self.assertEqual(rules.front_matter_problems('# Page\n', TODAY), ['no front matter'])
         self.assertEqual(rules.front_matter_problems('---\ntype: [\n---\n# Page\n', TODAY), ['front matter is not valid YAML'])
 
+    def test_last_verified_may_be_one_day_ahead_of_the_utc_date(self):
+        tomorrow = (TODAY + datetime.timedelta(days=1)).isoformat()
+        later = (TODAY + datetime.timedelta(days=2)).isoformat()
+        self.assertEqual(rules.front_matter_problems(VALID.replace('2026-09-22', tomorrow), TODAY), [])
+        self.assertEqual(rules.front_matter_problems(VALID.replace('2026-09-22', later), TODAY), ['last_verified is in the future'])
+
     def test_each_field_is_validated(self):
         cases = {
             'type: how-to': ('type: record', 'type must be'),

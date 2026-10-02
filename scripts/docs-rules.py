@@ -196,7 +196,7 @@ def front_matter_problems(markdown, today):
     elif not isinstance(verified, datetime.date) or isinstance(verified, datetime.datetime):
         problems.append('last_verified must be a YYYY-MM-DD date')
     else:
-        if verified > today:
+        if verified > today + datetime.timedelta(days=1):
             problems.append('last_verified is in the future')
         if not (isinstance(meta.get('verified_by'), str) and meta['verified_by'].strip()):
             problems.append('verified_by must name the command, test or source read behind last_verified')
