@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -116,7 +115,7 @@ func routingServer(t *testing.T, board *boardFixture, forge *fakeForge, engine *
 		WorkerSecurity: &WorkerSecurity{AllowLegacy: true},
 		Targets:        targets,
 		Readiness:      gate,
-		Trackers: map[string]provider.TrackerProvider{"vikunja": &vikunja.Provider{
+		Trackers: map[string]provider.TrackerProvider{"vikunja": &vikunja.Provider{Secret: testTrackerSecret,
 			DefaultTeam: "bronze", BaseURL: board.api.URL, Token: "fixture", Log: slog.New(slog.DiscardHandler),
 		}},
 	}
@@ -137,7 +136,7 @@ func assign(t *testing.T, h http.Handler, taskID string) {
 	t.Helper()
 	body := fmt.Sprintf(`{"event_name":"task.assignee.created","data":{"task":{"id":%s,"title":"routing fixture","project_id":10},"assignee":{"username":"builder"}}}`, taskID)
 	w := httptest.NewRecorder()
-	h.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/webhooks/tracker/vikunja", bytes.NewBufferString(body)))
+	h.ServeHTTP(w, signedTrackerHook("vikunja", body))
 	if w.Code != http.StatusAccepted {
 		t.Fatalf("assignment of %s: HTTP %d", taskID, w.Code)
 	}
@@ -274,7 +273,7 @@ func TestIngestRefusesLabelRoutingWhenTheTrackerCannotBeRead(t *testing.T) {
 	reset(t)
 	board := newBoard(t)
 	s := routingServer(t, board, readyForge(), nil)
-	s.Trackers["vikunja"] = &vikunja.Provider{DefaultTeam: "bronze", Log: slog.New(slog.DiscardHandler)}
+	s.Trackers["vikunja"] = &vikunja.Provider{Secret: testTrackerSecret, DefaultTeam: "bronze", Log: slog.New(slog.DiscardHandler)}
 	h := s.Handler()
 
 	assign(t, h, "5006")

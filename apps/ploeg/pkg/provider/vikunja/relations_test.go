@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/webgrip/ploeg/pkg/provider"
@@ -49,7 +48,7 @@ func TestParentsOfATaskWithoutRelationsIsEmpty(t *testing.T) {
 func TestParseWebhookTurnsARelationChangeIntoUpdatesOfBothTasks(t *testing.T) {
 	body := `{"event_name":"task.relation.created","data":{"task":{"id":7,"project_id":10},
 		"relation":{"task_id":7,"other_task_id":42,"relation_kind":"subtask"},"doer":{"username":"tess"}}}`
-	events, err := (&Provider{}).ParseWebhook(httptest.NewRequest("POST", WebhookPath, strings.NewReader(body)))
+	events, err := (&Provider{Secret: fixtureSecret}).ParseWebhook(signedHook(body))
 	if err != nil {
 		t.Fatal(err)
 	}

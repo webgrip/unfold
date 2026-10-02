@@ -25,7 +25,7 @@ func vikunjaWebhook(t *testing.T, h http.Handler, event, taskID, assignee string
 	t.Helper()
 	body := fmt.Sprintf(`{"event_name":%q,"data":{"task":{"id":%s,"title":"withdrawal fixture","project_id":7},"assignee":{"username":%q}}}`, event, taskID, assignee)
 	w := httptest.NewRecorder()
-	h.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/webhooks/tracker/vikunja", bytes.NewBufferString(body)))
+	h.ServeHTTP(w, signedTrackerHook("vikunja", body))
 	return w.Code
 }
 
@@ -35,7 +35,7 @@ func withdrawalServer(engine *shiftengine.Engine) *Server {
 		LeaseTTL:       time.Minute,
 		Log:            slog.New(slog.DiscardHandler),
 		WorkerSecurity: &WorkerSecurity{AllowLegacy: true},
-		Trackers: map[string]provider.TrackerProvider{"vikunja": &vikunja.Provider{
+		Trackers: map[string]provider.TrackerProvider{"vikunja": &vikunja.Provider{Secret: testTrackerSecret,
 			DefaultTeam: "bronze", TeamMap: map[string]string{"builder": "bronze", "reviewer-bot": "silver"},
 			Log: slog.New(slog.DiscardHandler),
 		}},
@@ -287,7 +287,7 @@ func closeWebhook(t *testing.T, h http.Handler, taskID string) int {
 	t.Helper()
 	body := fmt.Sprintf(`{"event_name":"task.updated","data":{"task":{"id":%s,"title":"withdrawal fixture","project_id":7,"done":true}}}`, taskID)
 	w := httptest.NewRecorder()
-	h.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/webhooks/tracker/vikunja", bytes.NewBufferString(body)))
+	h.ServeHTTP(w, signedTrackerHook("vikunja", body))
 	return w.Code
 }
 

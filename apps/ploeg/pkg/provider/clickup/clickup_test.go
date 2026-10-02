@@ -33,9 +33,10 @@ func post(t *testing.T, p *Provider, body any) ([]provider.TrackerEvent, error) 
 		t.Fatal(err)
 	}
 	r := httptest.NewRequest(http.MethodPost, "/webhooks/tracker/clickup", strings.NewReader(string(b)))
-	if p.Secret != "" {
-		r.Header.Set("X-Signature", sign(p.Secret, b))
+	if p.Secret == "" {
+		p.Secret = "s3cret"
 	}
+	r.Header.Set("X-Signature", sign(p.Secret, b))
 	return p.ParseWebhook(r)
 }
 
@@ -46,6 +47,28 @@ func TestParseWebhookRejectsBadSignature(t *testing.T) {
 	r.Header.Set("X-Signature", sign("wrong", b))
 	if _, err := p.ParseWebhook(r); err == nil {
 		t.Fatal("want an error for a signature over the wrong secret")
+	}
+}
+
+func TestParseWebhookRejectsEveryDeliveryWithoutAConfiguredSecret(t *testing.T) {
+	p := &Provider{Token: "api-token", DefaultTeam: "default"}
+	r := httptest.NewRequest(http.MethodPost, "/webhooks/tracker/clickup", strings.NewReader(`{"event":"taskAssigneeUpdated","task_id":"t1"}`))
+	if _, err := p.ParseWebhook(r); err == nil {
+		t.Fatal("an unsigned delivery was accepted by a provider configured with only an API token")
+	}
+}
+
+func TestParseWebhookRejectsAMissingOrMalformedSignature(t *testing.T) {
+	p := &Provider{Secret: "s3cret"}
+	body := `{"event":"taskAssigneeUpdated","task_id":"t1"}`
+	for _, sig := range []string{"", "not-hex", sign("s3cret", []byte(body))[:10]} {
+		r := httptest.NewRequest(http.MethodPost, "/webhooks/tracker/clickup", strings.NewReader(body))
+		if sig != "" {
+			r.Header.Set("X-Signature", sig)
+		}
+		if _, err := p.ParseWebhook(r); err == nil {
+			t.Errorf("signature %q was accepted", sig)
+		}
 	}
 }
 

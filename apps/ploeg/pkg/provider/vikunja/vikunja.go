@@ -83,11 +83,11 @@ func (p *Provider) ParseWebhook(r *http.Request) ([]provider.TrackerEvent, error
 	if err != nil {
 		return nil, err
 	}
-	if p.Secret != "" {
-		sig := r.Header.Get("X-Vikunja-Signature")
-		if !verify(p.Secret, body, sig) {
-			return nil, errors.New("invalid webhook signature")
-		}
+	if p.Secret == "" {
+		return nil, errors.New("no webhook secret configured; set PLOEG_VIKUNJA_SECRET")
+	}
+	if !verify(p.Secret, body, r.Header.Get("X-Vikunja-Signature")) {
+		return nil, errors.New("invalid webhook signature")
 	}
 
 	var pl payload

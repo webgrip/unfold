@@ -60,7 +60,7 @@ func flowServer(t *testing.T, board *flowBoard, gated bool, kinds flow.Kinds) (*
 	consumers, token := operatorTestConsumers(t, []string{"silver"}, false)
 	s := &Server{
 		Store: testStore, Log: slog.New(slog.DiscardHandler),
-		Trackers:       map[string]provider.TrackerProvider{"vikunja": &vikunja.Provider{BaseURL: api.URL, Token: "fixture", DefaultTeam: "silver"}},
+		Trackers:       map[string]provider.TrackerProvider{"vikunja": &vikunja.Provider{Secret: testTrackerSecret, BaseURL: api.URL, Token: "fixture", DefaultTeam: "silver"}},
 		ForgeBots:      []string{"ploeg-bot"},
 		OperatorConfig: OperatorConfig{Consumers: consumers, Teams: map[string][]string{"silver": {"builder"}}},
 	}
@@ -92,7 +92,7 @@ func taskUpdatedAt(t *testing.T, h http.Handler, project int, updated string) {
 	}
 	body := fmt.Sprintf(`{"event_name":"task.updated","data":{"task":%s,"doer":{"username":"dev"}}}`, task)
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/webhooks/tracker/vikunja", strings.NewReader(body)))
+	h.ServeHTTP(rec, signedTrackerHook("vikunja", body))
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("webhook returned %d: %s", rec.Code, rec.Body)
 	}
@@ -267,7 +267,7 @@ func TestClickUpWebhook_RecordsStatusesCreationAndEstimate(t *testing.T) {
 	}
 	s := &Server{
 		Store: testStore, Log: slog.New(slog.DiscardHandler),
-		Trackers:       map[string]provider.TrackerProvider{"clickup": &clickup.Provider{BaseURL: api.URL, Token: "fixture", DefaultTeam: "silver"}},
+		Trackers:       map[string]provider.TrackerProvider{"clickup": &clickup.Provider{Secret: testTrackerSecret, BaseURL: api.URL, Token: "fixture", DefaultTeam: "silver"}},
 		StatusBoards:   flow.Boards{"clickup": {"901": km}},
 		OperatorConfig: OperatorConfig{Consumers: consumers, Teams: map[string][]string{"silver": {"builder"}}},
 	}
@@ -275,7 +275,7 @@ func TestClickUpWebhook_RecordsStatusesCreationAndEstimate(t *testing.T) {
 		t.Helper()
 		body := fmt.Sprintf(`{"event":%q,"task_id":"abc","history_items":[%s]}`, event, history)
 		rec := httptest.NewRecorder()
-		s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/webhooks/tracker/clickup", strings.NewReader(body)))
+		s.Handler().ServeHTTP(rec, signedTrackerHook("clickup", body))
 		if rec.Code != http.StatusAccepted {
 			t.Fatalf("webhook returned %d: %s", rec.Code, rec.Body)
 		}

@@ -1,7 +1,6 @@
 package vikunja
 
 import (
-	"bytes"
 	"context"
 	"net/http"
 	"net/http/httptest"
@@ -46,8 +45,7 @@ func TestFetchItemWithoutLabelsReadsNone(t *testing.T) {
 
 func TestWebhookSnapshotCarriesNoLabels(t *testing.T) {
 	body := `{"event_name":"task.assignee.created","data":{"task":{"id":42,"project_id":10,"labels":[{"title":"repo/homelab-cluster"}]},"assignee":{"username":"x"}}}`
-	r := httptest.NewRequest(http.MethodPost, "/webhooks/tracker/vikunja", bytes.NewBufferString(body))
-	events, err := (&Provider{}).ParseWebhook(r)
+	events, err := (&Provider{Secret: fixtureSecret}).ParseWebhook(signedHook(body))
 	if err != nil {
 		t.Fatalf("ParseWebhook: %v", err)
 	}

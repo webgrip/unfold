@@ -48,7 +48,7 @@ func trackerOperatorHTTPFixture(t *testing.T) *operatorTrackerFixture {
 	t.Cleanup(f.api.Close)
 	consumers, token := operatorTestConsumers(t, []string{"silver"}, true)
 	f.token = token
-	f.server = &Server{Store: testStore, OperatorConfig: OperatorConfig{Consumers: consumers}, Trackers: map[string]provider.TrackerProvider{"vikunja": &vikunja.Provider{BaseURL: f.api.URL + "/api/v1", Token: "fixture"}}, Forges: map[string]provider.ForgeProvider{"forgejo": &forgejo.Provider{BaseURL: "https://forge.example"}}}
+	f.server = &Server{Store: testStore, OperatorConfig: OperatorConfig{Consumers: consumers}, Trackers: map[string]provider.TrackerProvider{"vikunja": &vikunja.Provider{Secret: testTrackerSecret, BaseURL: f.api.URL + "/api/v1", Token: "fixture"}}, Forges: map[string]provider.ForgeProvider{"forgejo": &forgejo.Provider{BaseURL: "https://forge.example"}}}
 	f.server.Targets, _ = target.NewMapResolver("11=webgrip/example@development", "forgejo")
 	id, _, err := testStore.IngestAssigned(context.Background(), work.WorkItem{Provider: "vikunja", ExternalID: "585", Revision: f.revision, ExternalScope: "11", Team: "silver", Title: "Canonical fixture", Target: &work.Target{Forge: "forgejo", Owner: "webgrip", Repo: "example", BaseBranch: "development"}})
 	if err != nil {

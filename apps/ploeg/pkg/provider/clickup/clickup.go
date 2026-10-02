@@ -123,10 +123,11 @@ func (p *Provider) ParseWebhook(r *http.Request) ([]provider.TrackerEvent, error
 	if err != nil {
 		return nil, err
 	}
-	if p.Secret != "" {
-		if !verify(p.Secret, body, r.Header.Get("X-Signature")) {
-			return nil, errors.New("invalid webhook signature")
-		}
+	if p.Secret == "" {
+		return nil, errors.New("no webhook secret configured; set PLOEG_CLICKUP_SECRET")
+	}
+	if !verify(p.Secret, body, r.Header.Get("X-Signature")) {
+		return nil, errors.New("invalid webhook signature")
 	}
 
 	var pl hookPayload
