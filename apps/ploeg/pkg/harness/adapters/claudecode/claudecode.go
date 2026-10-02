@@ -192,6 +192,9 @@ func (a *Adapter) ParseOutcome(_ harness.TaskSpec, res harness.ExecResult) (harn
 	}
 	var env resultEnvelope
 	if err := json.Unmarshal(res.Stdout, &env); err != nil {
+		if box.Outcome != "" || box.Verdict != "" {
+			return box, nil
+		}
 		return box, fmt.Errorf("decode claude result envelope: %w", err)
 	}
 	if env.Type != "result" {

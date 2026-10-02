@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/webgrip/ploeg/pkg/harness"
 	"github.com/webgrip/ploeg/pkg/harness/harnesstest"
+	"github.com/webgrip/ploeg/pkg/work"
 )
 
 func TestConformance(t *testing.T) {
@@ -300,5 +302,53 @@ func TestParseOutcome_EmptyStdoutNoSignal(t *testing.T) {
 	}
 	if report.Outcome != "" || report.Usage != nil {
 		t.Errorf("expected zero-value report, got %+v", report)
+	}
+}
+
+func TestRun_MalformedEnvelopePreservesIndependentDropBox(t *testing.T) {
+	const review = `{"outcome":"no_change_needed","summary":"review complete","findings":"missing boundary check","verdict":"request_changes"}`
+	for _, tc := range []struct {
+		name       string
+		dropBox    string
+		exit       string
+		wantReview bool
+	}{
+		{name: "valid review", dropBox: review, exit: "0", wantReview: true},
+		{name: "absent drop box", exit: "0"},
+		{name: "malformed drop box", dropBox: "not JSON", exit: "0"},
+		{name: "valid review and failed process", dropBox: review, exit: "7", wantReview: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			bin := filepath.Join(t.TempDir(), "claude")
+			script := "#!/bin/sh\n" +
+				`if [ -n "$PLOEG_FAKE_DROPBOX" ]; then printf '%s\n' "$PLOEG_FAKE_DROPBOX" > "$PLOEG_OUTCOME_FILE"; fi` + "\n" +
+				`printf '%s\n' 'not a JSON result envelope'` + "\n" +
+				`exit "$PLOEG_FAKE_EXIT"` + "\n"
+			if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			env := testEnv()
+			env.RepoDir, env.ScratchDir = t.TempDir(), t.TempDir()
+			env.BaseEnv = []string{"PLOEG_FAKE_DROPBOX=" + tc.dropBox, "PLOEG_FAKE_EXIT=" + tc.exit}
+			report, err := harness.RunCommand(New(bin, "")).Run(context.Background(), harness.TaskSpec{TraceID: "partial-envelope"}, env)
+			if tc.exit == "0" {
+				if err != nil {
+					t.Fatalf("parse failure replaced a clean process exit: %v", err)
+				}
+			} else if exitErr, ok := err.(*exec.ExitError); !ok || exitErr.ExitCode() != 7 {
+				t.Fatalf("process failure lost: got %v, want exit status 7", err)
+			}
+			if tc.wantReview {
+				if report.Outcome != work.OutcomeNoChangeNeeded || report.Summary != "review complete" ||
+					report.Findings != "missing boundary check" || report.Verdict != harness.VerdictRequestChanges {
+					t.Fatalf("valid drop box lost: %+v", report)
+				}
+			} else if report.Outcome != "" || report.Summary != "" || report.Findings != "" || report.Verdict != "" {
+				t.Fatalf("invalid or absent drop box became a report: %+v", report)
+			}
+			if report.Usage != nil {
+				t.Fatalf("malformed envelope invented usage: %+v", report.Usage)
+			}
+		})
 	}
 }
