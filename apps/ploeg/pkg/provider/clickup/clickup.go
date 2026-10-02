@@ -271,13 +271,15 @@ func (p *Provider) do(ctx context.Context, method, path string, body, out any) e
 
 // task is the subset of ClickUp's task representation Ploeg mirrors.
 type task struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	TextContent string `json:"text_content"`
-	DateUpdated string `json:"date_updated"`
-	Archived    bool   `json:"archived"`
-	Status      struct {
+	ID           string          `json:"id"`
+	Name         string          `json:"name"`
+	Description  string          `json:"description"`
+	TextContent  string          `json:"text_content"`
+	DateUpdated  string          `json:"date_updated"`
+	DateCreated  string          `json:"date_created"`
+	TimeEstimate json.RawMessage `json:"time_estimate"`
+	Archived     bool            `json:"archived"`
+	Status       struct {
 		Status string `json:"status"`
 		Type   string `json:"type"`
 	} `json:"status"`
@@ -332,8 +334,31 @@ func (p *Provider) FetchExecutionItem(ctx context.Context, externalID string) (p
 		// The List is ClickUp's own container for the task — the scope the
 		// core resolves a Work Target from. Team is the caller's routing
 		// decision, not the tracker's view; httpapi.mirror overwrites it.
-		ExternalScope: t.List.ID,
+		ExternalScope:    t.List.ID,
+		TrackerCreatedAt: unixMillis(t.DateCreated),
+		EstimateSeconds:  estimateSeconds(t.TimeEstimate),
 	}}, nil
+}
+
+func unixMillis(raw string) time.Time {
+	ms, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || ms <= 0 {
+		return time.Time{}
+	}
+	return time.UnixMilli(ms).UTC()
+}
+
+func estimateSeconds(raw json.RawMessage) *int64 {
+	text := strings.Trim(strings.TrimSpace(string(raw)), `"`)
+	if text == "" || text == "null" {
+		return nil
+	}
+	ms, err := strconv.ParseInt(text, 10, 64)
+	if err != nil || ms < 0 {
+		return nil
+	}
+	seconds := ms / 1000
+	return &seconds
 }
 
 // priority flips ClickUp's scale. ClickUp: 1 urgent, 2 high, 3 normal, 4 low,
@@ -466,7 +491,8 @@ func (p *Provider) BoardStatus(ctx context.Context, externalID string) (provider
 	if t.ID == "" {
 		return provider.BoardStatus{}, fmt.Errorf("clickup: task %s not found", externalID)
 	}
-	out := provider.BoardStatus{Scope: t.List.ID, Statuses: []string{}, Labels: []string{}}
+	out := provider.BoardStatus{Scope: t.List.ID, Statuses: []string{}, Labels: []string{}, Created: unixMillis(t.DateCreated),
+		Estimates: true, EstimateSeconds: estimateSeconds(t.TimeEstimate)}
 	if t.Status.Status != "" {
 		out.Statuses = append(out.Statuses, t.Status.Status)
 	}

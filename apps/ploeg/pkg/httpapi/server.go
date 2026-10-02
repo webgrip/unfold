@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/webgrip/ploeg/pkg/flow"
 	"github.com/webgrip/ploeg/pkg/followup"
 	"github.com/webgrip/ploeg/pkg/forgebroker"
 	"github.com/webgrip/ploeg/pkg/gate"
@@ -95,6 +96,13 @@ type Server struct {
 	// Gates maps each configured board's statuses to delivery gates
 	// (ADR-0051). A board absent here records no gate moves.
 	Gates gate.Boards
+	// StatusBoards holds the status kinds of every board whose status
+	// moves Ploeg records for the Run card's flow figures (ADR-0057). A
+	// board absent here records none.
+	StatusBoards flow.Boards
+	// WorkingCalendars are each team's working calendars (ADR-0057). A team
+	// absent here counts working time in flow.DefaultCalendar.
+	WorkingCalendars map[string]flow.Calendar
 	// CardRules are each team's crack attribution rules (ADR-0052). A team
 	// absent here lets anyone uninvolved referee and marks hotfixes with
 	// store.DefaultHotfixLabel.

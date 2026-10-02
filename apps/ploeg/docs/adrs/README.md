@@ -130,6 +130,7 @@ fails otherwise.
 | [0054](0054-a-card-list-finds-cards-by-roster-login-newest-activity-first.md) | A card list finds cards by roster login, newest activity first | proposed | 2026-10-01 |
 | [0055](0055-ploeg-keeps-one-card-comment-with-a-static-card-image-on-the-pull-request.md) | Ploeg keeps one card comment with a static card image on the pull request | proposed | 2026-10-01 |
 | [0056](0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md) | A Run card's rarity is its challenge, predicted at mint and frozen at release | proposed | 2026-10-02 |
+| [0057](0057-a-run-cards-flow-figures-come-from-every-recorded-tracker-status-and-a-team-calendar.md) | A Run card's flow figures come from every recorded tracker status and a team calendar | proposed | 2026-10-02 |
 
 ## Review calendar
 
@@ -163,4 +164,5 @@ triggers.
 | 2027-01-31 | [0054](0054-a-card-list-finds-cards-by-roster-login-newest-activity-first.md) — or sooner, when a card list request passes 1 s at p95, short pages with a cursor become common, or tracker users are linked to forge logins |
 | 2027-01-31 | [0055](0055-ploeg-keeps-one-card-comment-with-a-static-card-image-on-the-pull-request.md) — or sooner, when a forge refuses SVG attachments, the owner wants today's days live in the image, a skin with its own layout is built, or a sweep tick passes 1 s at p95 |
 | 2027-01-31 | [0056](0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md) — or sooner, when a Work Target reaches 30 revealed cards in a quarter, complexity or estimates get a source, unrecorded files pass 5 % of a quarter's merged plays, or the owner asks for Team cohorts or a reveal at acceptance |
+| 2027-01-31 | [0057](0057-a-run-cards-flow-figures-come-from-every-recorded-tracker-status-and-a-team-calendar.md) — or sooner, when a lost webhook explains a missing status stay, most boards override the default status kinds, a card list with flow passes 1 s at p95, or a tracker offers readable status history |
 | 2027-04-01 | [0005](0005-build-a-dedicated-dispatch-plane.md), [0032](0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md) — the project review gate (`design.md` §10) |

@@ -3,7 +3,7 @@ type: explanation
 audience: [owner, operator, contributor, agent]
 owner: unfold
 last_verified: 2026-10-02
-verified_by: "built parts read against Ploeg ADR-0045, ADR-0046, ADR-0047 and ADR-0049, Vloer ADR 0026, apps/ploeg/pkg/store/card.go and apps/vloer/public/cards on development @ 810c97a; binders, packs and seasons read against Vloer ADR 0029 and apps/vloer/src/{collection,packs,season}.ts on feat/vloer-binder-packs; proposed parts checked against the owner's design page and card contracts of 2026-10-01; the Vloer collection was run in its demo browser flow"
+verified_by: "built parts read against Ploeg ADR-0045, ADR-0046, ADR-0047, ADR-0049 and ADR-0057 (apps/ploeg/pkg/flow), Vloer ADR 0026, apps/ploeg/pkg/store/card.go and apps/vloer/public/cards on development @ 810c97a; binders, packs and seasons read against Vloer ADR 0029 and apps/vloer/src/{collection,packs,season}.ts on feat/vloer-binder-packs; proposed parts checked against the owner's design page and card contracts of 2026-10-01; the Vloer collection was run in its demo browser flow"
 ---
 
 # Run Cards
@@ -40,6 +40,7 @@ The first three build phases are merged on `development`: P0 keeps the facts a c
 | The `<unfold-card>` runtime, the Vloer Native skin, the card on the Work Item page, days live, the finish ladder and a demo card | Built; ADR proposed | [Vloer ADR 0026](../../apps/vloer/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md) |
 | A card comment on the pull request: the card as a static image above a summary table, kept as one comment and updated at a merge, a release to production, a new finish or a mend. A team turns it on with `cards.prComment` | Built; ADR proposed; off by default | [Ploeg ADR-0055](../../apps/ploeg/docs/adrs/0055-ploeg-keeps-one-card-comment-with-a-static-card-image-on-the-pull-request.md) |
 | Rarity: a challenge score, predicted at mint, revealed and frozen at release, tiered per project and quarter | Built in Ploeg; ADR proposed; Vloer still drops it | [Ploeg ADR-0056](../../apps/ploeg/docs/adrs/0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md) |
+| Flow figures: time in every tracker status, lead and cycle time, flow efficiency, blocked time, reopens, queue and agent time, merge to each environment and time to mend, in elapsed and working seconds | Built in Ploeg; ADR proposed; Vloer shows them (Vloer ADR 0035) | [Ploeg ADR-0057](../../apps/ploeg/docs/adrs/0057-a-run-cards-flow-figures-come-from-every-recorded-tracker-status-and-a-team-calendar.md) |
 | Key figures: time in every tracker status, lead and cycle time, flow efficiency, time to first feedback, CI timings and reruns, indentation complexity, merge to production; three or four on the card's front for its state, the rest on its back, team medians on the season page | Vloer side built against Ploeg PR #130 and #133, which are not merged; ADRs proposed | [Vloer ADR 0035](../../apps/vloer/docs/adrs/0035-run-cards-lead-with-three-or-four-kpis-for-their-state-and-keep-the-rest-on-the-back.md) |
 | Binders, Packs with published odds and stored cosmetic pulls, the pack ceremony and team season pages | Vloer side built against the card contract and fixtures; ADR proposed; Ploeg's card list built in parallel | [Vloer ADR 0029](../../apps/vloer/docs/adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md) |
 | Grade, condition (Cracks and Mends), level, Gates and Bounces, Roster roles and copies, the Steward rule, Set Cards, themes, the effects director, retention | **Proposed** | This page |
@@ -118,6 +119,20 @@ Reporters, menders and Stewards all get visible credit. A team that feels safe r
 ### Level: proposed
 
 XP follows a log curve over days in production, reaching full value at 180 days, scaled by Size × risk (risk 1 to 1.75). Small bonuses come from pull request, CI, review and merge events. Levels need 25·n² XP, so each level takes longer. Accrual pauses while a Crack is unmended. XP is never spent, and nothing is tradeable. A reviewer who leaves a substantive review gets 25 % of the card's XP as an assist and never takes Cracks. A Steward's weekly Size points have diminishing returns (100 %, then 50 %, then 25 %).
+
+## Flow figures: built in Ploeg
+
+Besides the five axes, Ploeg sends the card's flow figures ([Ploeg ADR-0057](../../apps/ploeg/docs/adrs/0057-a-run-cards-flow-figures-come-from-every-recorded-tracker-status-and-a-team-calendar.md), proposed). Vloer does not show them yet. They are timings, not scores: no grade, rarity or finish uses them.
+
+* **Time in every status.** Ploeg records every column a ticket enters on a board it watches, mapped to a gate or not, and the card lists the time spent in each, per gate and per kind. A kind is `active` (someone works on it), `waiting`, `blocked` or `done`. A board can set each column's kind; otherwise defaults based on the column name apply.
+* **Lead time** runs from the ticket's creation in the tracker to the release, **cycle time** from the first active column or first Run to the release (else the merge), and **time to start** from creation to the first work. **Flow efficiency** is active time divided by active, waiting and blocked time in the cycle. **Reopens** count moves out of done.
+* **Ploeg's own time:** how long the Work Item queued before its first Run, how long the Runs took, and the time from the first Run to the first pull request.
+* **Delivery:** the time from the merge to the first deploy in each environment, and to production.
+* **Restore:** the time from a confirmed Crack to its Mend, and the mean.
+* **Working time.** Every duration except agent time also counts working seconds under the team's calendar: Monday to Friday, 09:00 to 17:00 in Europe/Amsterdam unless the team configures another, without holidays unless it lists them.
+* **What it is not.** Waiting and blocked time say how work moves through the team's process, not how the Steward worked. No view adds flow figures up per person. Estimate against actual is not collected while the tracker has no estimate (Vikunja); ClickUp's estimate is read.
+
+To configure kinds and working hours, see [Configure status kinds and working hours](../../apps/ploeg/docs/how-to/configure-status-kinds-and-working-hours.md).
 
 ## Life in production
 

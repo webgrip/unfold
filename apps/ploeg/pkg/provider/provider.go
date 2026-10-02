@@ -53,11 +53,17 @@ type TrackerEvent struct {
 // BoardStatus is where a tracker item sits on its board when read
 // (ADR-0051). Scope is the container id, as in TrackerEvent.Scope.
 // Statuses holds every status or bucket title the item is in; Labels holds
-// its label or tag titles.
+// its label or tag titles. Created is when the tracker says the item was
+// created, zero when it did not say. Estimates is true when the tracker
+// keeps a time estimate, and EstimateSeconds is then the item's estimate
+// or nil when none is set (ADR-0057).
 type BoardStatus struct {
-	Scope    string
-	Statuses []string
-	Labels   []string
+	Scope           string
+	Statuses        []string
+	Labels          []string
+	Created         time.Time
+	Estimates       bool
+	EstimateSeconds *int64
 }
 
 // BoardComment is one comment on a tracker item.

@@ -228,6 +228,7 @@ func (p *Provider) FetchExecutionItem(ctx context.Context, externalID string) (p
 		Priority    int    `json:"priority"`
 		ProjectID   int64  `json:"project_id"`
 		Updated     string `json:"updated"`
+		Created     string `json:"created"`
 		Done        *bool  `json:"done"`
 		Labels      []struct {
 			Title string `json:"title"`
@@ -248,15 +249,16 @@ func (p *Provider) FetchExecutionItem(ctx context.Context, externalID string) (p
 		labels = append(labels, l.Title)
 	}
 	return provider.ExecutionItem{Open: task.Done != nil && !*task.Done, Item: work.WorkItem{
-		Provider:      p.Name(),
-		ExternalID:    fmt.Sprint(task.ID),
-		Revision:      task.Updated,
-		Origin:        work.OriginAssignment,
-		Priority:      task.Priority,
-		Title:         task.Title,
-		Description:   task.Description,
-		ExternalScope: scope,
-		Labels:        labels,
+		Provider:         p.Name(),
+		ExternalID:       fmt.Sprint(task.ID),
+		Revision:         task.Updated,
+		Origin:           work.OriginAssignment,
+		Priority:         task.Priority,
+		Title:            task.Title,
+		Description:      task.Description,
+		ExternalScope:    scope,
+		Labels:           labels,
+		TrackerCreatedAt: createdAt(task.Created),
 	}}, nil
 }
 

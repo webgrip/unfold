@@ -22,8 +22,9 @@ func (p *Provider) BoardStatus(ctx context.Context, externalID string) (provider
 		return provider.BoardStatus{}, errors.New("vikunja: no API credentials configured; cannot read the board")
 	}
 	var task struct {
-		ID        int64 `json:"id"`
-		ProjectID int64 `json:"project_id"`
+		ID        int64  `json:"id"`
+		ProjectID int64  `json:"project_id"`
+		Created   string `json:"created"`
 		Buckets   []struct {
 			Title string `json:"title"`
 		} `json:"buckets"`
@@ -37,7 +38,7 @@ func (p *Provider) BoardStatus(ctx context.Context, externalID string) (provider
 	if task.ID == 0 {
 		return provider.BoardStatus{}, fmt.Errorf("vikunja: task %s not found", externalID)
 	}
-	out := provider.BoardStatus{Statuses: []string{}, Labels: []string{}}
+	out := provider.BoardStatus{Statuses: []string{}, Labels: []string{}, Created: createdAt(task.Created)}
 	if task.ProjectID > 0 {
 		out.Scope = fmt.Sprint(task.ProjectID)
 	}
@@ -50,6 +51,14 @@ func (p *Provider) BoardStatus(ctx context.Context, externalID string) (provider
 		out.Labels = append(out.Labels, l.Title)
 	}
 	return out, nil
+}
+
+func createdAt(raw string) time.Time {
+	at, err := time.Parse(time.RFC3339, raw)
+	if err != nil || at.Year() <= 1 {
+		return time.Time{}
+	}
+	return at.UTC()
 }
 
 // BoardComments reads the task's comments through
