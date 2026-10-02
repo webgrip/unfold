@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 ARG REGISTRY_DHI=harbor.webgrip.dev/dhi
 # renovate: datasource=docker depName=dhi.io/node versioning=docker
-ARG NODE_DEV_IMAGE=${REGISTRY_DHI}/node:24.21.0-alpine3.24-dev@sha256:baf0afb91dc5ac22e7bfdf5198fcada9f8585c755071256da43c2a0e965a3d08
+ARG NODE_DEV_IMAGE=${REGISTRY_DHI}/node:24.21.0-alpine3.24-dev@sha256:0b0cc56ea256e9733ae8813e29a67816f4ce15379f5de6de72d088945f981332
 # renovate: datasource=npm depName=opencode-ai
 ARG OPENCODE_VERSION=1.18.34
 # renovate: datasource=npm depName=brace-expansion
