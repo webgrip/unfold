@@ -1,10 +1,11 @@
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import { SandboxWorkspaces, sandboxClaimManifest, sandboxManifests } from '../src/runtime/sandbox.ts';
 import { WorkspaceManager, managedConfig } from '../src/runtime/workspace.ts';
 import { WorkerRelay } from '../src/runtime/relay.ts';
 import { workspaceName } from '../src/runtime/kubernetes.ts';
+import { RuntimeFailure } from '../src/failures.ts';
 import type { AppConfig, Repository, Session } from '../src/types.ts';
 import { settle, testTimeout } from './timeframes.ts';
 
@@ -23,17 +24,21 @@ function configuration(relayUrl: string, warmPool?: string): AppConfig {
 
 async function listen(server: Server): Promise<number> { await new Promise<void>(resolve => server.listen(0, '127.0.0.1', () => resolve())); return (server.address() as { port: number }).port; }
 
-function fakeWorker(relayBase: string, options: { pool?: { token: string; pod: string } ; token?: string; sessionId?: string }) {
-  const state = { requests: [] as string[], env: {} as Record<string, string>, running: [] as string[][], stopped: 0 };
+function fakeWorker(relayBase: string, options: { pool?: { token: string; pod: string } ; token?: string; sessionId?: string; healthStatus?: number; baseSha?: string; onHealth?: () => void }) {
+  const state = { requests: [] as string[], env: {} as Record<string, string>, running: [] as string[][], executed: [] as string[][], stopped: 0 };
   let sessionId = options.sessionId; let token = options.token;
   const basicOk = (headers: Record<string, string>) => headers.authorization === 'Basic ' + Buffer.from(`opencode:${state.env.OPENCODE_SERVER_PASSWORD}`).toString('base64');
   const handle = async (request: any) => {
     state.requests.push(`${request.method} ${request.path}`);
     let status = 200; let body = '{}';
-    if (request.path.startsWith('/__vloer/exec')) body = JSON.stringify({ exitCode: 0, stdout: JSON.stringify({ baseSha: 'b'.repeat(40) }) + '\n', stderr: '' });
+    if (request.path.startsWith('/__vloer/exec')) {
+      const spec = JSON.parse(Buffer.from(request.body, 'base64').toString());
+      state.executed.push(spec.argv);
+      body = JSON.stringify({ exitCode: 0, stdout: spec.argv[0] === 'git' ? `${options.baseSha ?? 'b'.repeat(40)}\n` : JSON.stringify({ baseSha: 'b'.repeat(40) }) + '\n', stderr: '' });
+    }
     else if (request.path.startsWith('/__vloer/run')) { state.running.push(JSON.parse(Buffer.from(request.body, 'base64').toString()).argv); status = 202; body = '{"started":true}'; }
     else if (request.path.startsWith('/__vloer/stop-child')) { state.stopped++; body = '{"stopped":true}'; }
-    else if (request.path.startsWith('/global/health')) { status = basicOk(request.headers) ? 200 : 401; body = '{"healthy":true}'; }
+    else if (request.path.startsWith('/global/health')) { options.onHealth?.(); status = basicOk(request.headers) ? options.healthStatus ?? 200 : 401; body = '{"healthy":true}'; }
     else status = 404;
     await fetch(`${relayBase}/${sessionId}/responses/${request.id}`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'x-relay-status': String(status), 'x-relay-headers': JSON.stringify({ 'content-type': 'application/json' }) }, body });
   };
@@ -76,13 +81,14 @@ test('cold sandbox manifests put the agent pod behind Kata with a volume claim t
   assert.deepEqual(claim.spec.warmPoolRef, { name: 'vloer-warm' });
 });
 
-test('a cold sandbox becomes a workspace once the CRD is Ready and its worker has dialled in, and disposal removes the sandbox', { timeout: testTimeout(20_000) }, async t => {
+async function coldSandbox(t: TestContext, options: { healthStatus?: number; baseSha?: string; timeoutMs?: number; onHealth?: () => void } = {}) {
   const relay = new WorkerRelay();
   const relayServer = createServer(async (req, res) => { if (!(await relay.handle(req, res, new URL(req.url ?? '/', 'http://localhost')))) { res.writeHead(404); res.end(); } });
   const port = await listen(relayServer);
   t.after(() => relayServer.close());
   const relayBase = `http://127.0.0.1:${port}/api/relay`;
   const config = configuration(`http://127.0.0.1:${port}`);
+  if (options.timeoutMs !== undefined) config.kubernetes!.provisionTimeoutMs = options.timeoutMs;
   const objects = new Map<string, any>();
   let worker: ReturnType<typeof fakeWorker> | undefined;
   const fake = { async request(path: string, method = 'GET', body?: any, missing?: boolean) {
@@ -94,22 +100,61 @@ test('a cold sandbox becomes a workspace once the CRD is Ready and its worker ha
       object.status = { conditions: [{ type: 'Ready', status: 'True' }], podIPs: ['10.1.2.3'] };
       const env = Object.fromEntries(object.spec.podTemplate.spec.containers[0].env.filter((item: any) => item.value !== undefined).map((item: any) => [item.name, item.value]));
       const secret = [...objects.values()].find(item => item.kind === 'Secret');
-      worker = fakeWorker(relayBase, { token: secret.stringData.VLOER_RELAY_TOKEN, sessionId: session.id });
+      worker = fakeWorker(relayBase, { token: secret.stringData.VLOER_RELAY_TOKEN, sessionId: session.id, ...options });
       worker.state.env = { ...env, OPENCODE_SERVER_PASSWORD: secret.stringData.OPENCODE_SERVER_PASSWORD };
     }
     objects.set(key, object); return object;
   } };
   t.after(() => worker?.stop());
   const manager = new WorkspaceManager(config, { relay, kubernetes: new SandboxWorkspaces(config, fake as any, relay) });
+  return { manager, relay, objects, worker: () => worker! };
+}
+
+test('a cold sandbox pins its candidate base after health succeeds, and disposal removes the sandbox', { timeout: testTimeout(20_000) }, async t => {
+  const { manager, relay, objects, worker } = await coldSandbox(t);
   const workspace = await manager.prepare(session, repository, credential, new AbortController().signal);
   assert.equal(workspace.backend, 'kubernetes');
   assert.equal(workspace.endpoint, `relay://${session.id}`);
   assert.equal(workspace.metadata?.provisioner, 'sandbox');
   assert.equal(workspace.metadata?.runtimeClassName, 'kata');
+  assert.equal(workspace.metadata?.baseSha, 'b'.repeat(40));
   assert.ok([...objects.keys()].some(key => key.includes('/sandboxes/')));
-  assert.ok(worker!.state.requests.some(line => line.startsWith('GET /global/health')));
+  assert.ok(worker().state.requests.some(line => line.startsWith('GET /global/health')));
+  assert.deepEqual(worker().state.executed, [['git', '--no-pager', '-c', 'core.fsmonitor=false', '-C', '/workspace/repository', 'rev-parse', '--verify', 'HEAD']]);
   await manager.dispose(workspace);
   assert.equal([...objects.keys()].some(key => key.includes('/sandboxes/')), false);
+  assert.equal(relay.connected(session.id), false);
+});
+
+test('a resumed cold sandbox retains its original base instead of pinning the agent branch head', { timeout: testTimeout(20_000) }, async t => {
+  const { manager, worker } = await coldSandbox(t, { baseSha: 'c'.repeat(40) });
+  const resumed = { ...session, workspace: { id: session.id, backend: 'kubernetes' as const, directory: '/workspace/repository', metadata: { baseSha: 'a'.repeat(40) } } };
+  const workspace = await manager.prepare(resumed, repository, credential, new AbortController().signal);
+  assert.equal(workspace.metadata?.baseSha, 'a'.repeat(40));
+  assert.deepEqual(worker().state.executed, []);
+  await manager.dispose(workspace);
+});
+
+test('a cold sandbox with no valid candidate base fails provisioning and cleans up', { timeout: testTimeout(20_000) }, async t => {
+  const { manager, relay, objects } = await coldSandbox(t, { baseSha: 'not-a-git-sha' });
+  await assert.rejects(manager.prepare(session, repository, credential, new AbortController().signal), error => error instanceof RuntimeFailure && error.category === 'workspace_setup' && Boolean(error.detail?.includes('no valid candidate base')));
+  assert.equal(objects.size, 0);
+  assert.equal(relay.connected(session.id), false);
+});
+
+test('CRD readiness and a connected relay do not make an unhealthy sandbox ready', { timeout: testTimeout(20_000) }, async t => {
+  const { manager, relay, objects, worker } = await coldSandbox(t, { healthStatus: 503, timeoutMs: 1500 });
+  await assert.rejects(manager.prepare(session, repository, credential, new AbortController().signal), error => error instanceof RuntimeFailure && error.category === 'timeout' && Boolean(error.detail?.includes('did not answer /global/health')));
+  assert.ok(worker().state.requests.some(line => line.startsWith('GET /global/health')));
+  assert.equal(objects.size, 0);
+  assert.equal(relay.connected(session.id), false);
+});
+
+test('cancelling while a sandbox answers its health probe never returns a workspace', { timeout: testTimeout(20_000) }, async t => {
+  const controller = new AbortController();
+  const { manager, relay, objects } = await coldSandbox(t, { onHealth: () => controller.abort(new Error('operator stopped provisioning')) });
+  await assert.rejects(manager.prepare(session, repository, credential, controller.signal), /operator stopped provisioning/);
+  assert.equal(objects.size, 0);
   assert.equal(relay.connected(session.id), false);
 });
 
