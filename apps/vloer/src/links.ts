@@ -6,7 +6,7 @@ import { RuntimeFailure } from './failures.ts';
 export type LinkProvider = 'gitlab' | 'clickup';
 export type PublicLink = { provider: LinkProvider; host: string; configured: boolean; oauth: boolean; linked: boolean; method?: 'oauth' | 'token'; login?: string; webUrl?: string; scopes?: string[]; linkedAt?: string; expiresAt?: string };
 type LinkRecord = { accessToken: string; refreshToken?: string; expiresAt?: string; verifier?: string; scopes: string[]; login: string; webUrl: string; linkedAt: string; method?: 'oauth' | 'token' };
-type Pending = { provider: LinkProvider; userId: string; verifier: string; createdAt: number };
+type Pending = { provider: LinkProvider; userId: string; verifier: string; createdAt: number; browserBinding: string };
 
 export const linkProviders: LinkProvider[] = ['gitlab', 'clickup'];
 const pendingTtlMs = 10 * 60_000;
@@ -55,14 +55,15 @@ export class Links {
     return this.describe(userId, 'gitlab');
   }
 
-  begin(provider: LinkProvider, userId: string): string {
+  begin(provider: LinkProvider, userId: string, browserBinding: string): string {
     if (!this.hasOauth(provider)) throw new LinkError(409, 'link_unconfigured', `${provider === 'gitlab' ? 'GitLab' : 'ClickUp'} has no OAuth application on this workbench; paste a personal token instead.`);
+    if (!browserBinding) throw new LinkError(400, 'link_state', 'Start linking from this browser.');
     const now = Date.now();
     for (const [state, item] of this.pending) if (now - item.createdAt > pendingTtlMs) this.pending.delete(state);
     if (this.pending.size >= maxPending) throw new LinkError(429, 'link_busy', 'Too many link attempts are waiting. Try again in a few minutes.');
     const verifier = base64url(randomBytes(48));
     const state = base64url(randomBytes(24));
-    this.pending.set(state, { provider, userId, verifier, createdAt: now });
+    this.pending.set(state, { provider, userId, verifier, createdAt: now, browserBinding });
     if (provider === 'gitlab') {
       const { baseUrl, clientId, scopes } = this.gitlab()!;
       const url = new URL(`${baseUrl}/oauth/authorize`);
@@ -83,9 +84,10 @@ export class Links {
     return url.toString();
   }
 
-  async complete(provider: LinkProvider, code: string, state: string): Promise<{ userId: string; link: PublicLink }> {
+  async complete(provider: LinkProvider, code: string, state: string, browserBinding: string): Promise<{ userId: string; link: PublicLink }> {
     if (!this.hasOauth(provider)) throw new LinkError(409, 'link_unconfigured', 'This link has no OAuth application on this workbench.');
     const pending = this.pending.get(state);
+    if (!browserBinding || pending?.browserBinding !== browserBinding) throw new LinkError(400, 'link_state', 'The link attempt was not started in this browser. Start again.');
     if (pending) this.pending.delete(state);
     if (!pending || pending.provider !== provider || Date.now() - pending.createdAt > pendingTtlMs) throw new LinkError(400, 'link_state', 'The link attempt expired or was not started here. Start again.');
     if (!/^[A-Za-z0-9._~-]{1,512}$/.test(code)) throw new LinkError(400, 'link_code', 'The provider returned an invalid authorization code.');

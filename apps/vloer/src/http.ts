@@ -166,7 +166,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       if (method === 'GET' && path === '/api/auth/oidc' && oidc?.configured()) {
         const editor = url.searchParams.get('editor') ?? undefined;
         if (editor !== undefined && !auth.editorPending(editor)) return fault(404, 'editor_login_unknown', 'This editor sign-in is unknown or has expired. Start it again from your editor.');
-        res.writeHead(303, { Location: await oidc.begin(editor) });
+        const browser = auth.beginBrowserFlow(req);
+        res.writeHead(303, { Location: await oidc.begin(browser.binding, editor), 'Set-Cookie': browser.cookie });
         res.end();
         return;
       }
@@ -174,7 +175,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         const denied = url.searchParams.get('error');
         try {
           if (denied) throw Object.assign(new Error(denied), { code: denied.replace(/[^a-z_]/gi, '').slice(0, 40) || 'denied' });
-          const identity = await oidc.complete(url.searchParams.get('code') ?? '', url.searchParams.get('state') ?? '');
+          const identity = await oidc.complete(url.searchParams.get('code') ?? '', url.searchParams.get('state') ?? '', auth.browserBinding(req));
           store.upsertUser({ id: identity.id, name: identity.email ?? identity.name, role: identity.role, passwordHash: '' });
           const issued = auth.issue({ id: identity.id, name: identity.email ?? identity.name, role: identity.role });
           if (identity.editor) { auth.bindEditor(identity.editor, auth.issue(issued.user)); }
@@ -199,7 +200,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         let location = `/?linked=${provider}`;
         if (denied) location = `/?link_error=${encodeURIComponent(denied.replace(/[^a-z_]/gi, '').slice(0, 40) || 'denied')}`;
         else {
-          try { await links.complete(provider, url.searchParams.get('code') ?? '', url.searchParams.get('state') ?? ''); }
+          try { await links.complete(provider, url.searchParams.get('code') ?? '', url.searchParams.get('state') ?? '', auth.browserBinding(req)); }
           catch (error: any) {
             const code = typeof error?.httpStatus === 'number' ? `exchange_${error.httpStatus}` : String(error?.code || 'link_failed');
             console.error(JSON.stringify({ level: 'warn', event: 'link.failed', provider, code, detail: String(error?.detail || error?.message || '').slice(0, 300) }));
@@ -248,7 +249,12 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         const linkRoute = path.match(/^\/api\/links\/(gitlab|clickup)$/);
         if (linkRoute && links) {
           const provider = linkRoute[1] as 'gitlab' | 'clickup';
-          if (method === 'POST') return json(res, 200, { url: links.begin(provider, user.id) });
+          if (method === 'POST') {
+            const browser = auth.beginBrowserFlow(req);
+            const url = links.begin(provider, user.id, browser.binding);
+            res.setHeader('Set-Cookie', browser.cookie);
+            return json(res, 200, { url });
+          }
           if (method === 'PUT') { const data = await body(req); return json(res, 200, { link: await links.paste(provider, user.id, typeof data.token === 'string' ? data.token : '') }); }
           if (method === 'DELETE') { await links.revoke(provider, user.id); return json(res, 200, { ok: true }); }
         }

@@ -4,7 +4,7 @@ import type { AppConfig, UserRole } from './types.ts';
 export type OidcSettings = { issuer: string; clientId: string; clientSecret?: string; scopes: string[]; displayName: string; roleClaim: string; groupsClaim: string; roles: Record<UserRole, string[]> };
 export type OidcIdentity = { id: string; name: string; role: UserRole; subject: string; email?: string };
 type Discovery = { issuer: string; authorization_endpoint: string; token_endpoint: string; jwks_uri: string };
-type Pending = { verifier: string; nonce: string; createdAt: number; editor?: string };
+type Pending = { verifier: string; nonce: string; createdAt: number; browserBinding: string; editor?: string };
 
 const pendingTtlMs = 10 * 60_000;
 const maxPending = 1000;
@@ -73,8 +73,9 @@ export class Oidc {
     return keys;
   }
 
-  async begin(editor?: string): Promise<string> {
+  async begin(browserBinding: string, editor?: string): Promise<string> {
     const settings = this.required();
+    if (!browserBinding) throw new OidcError(400, 'oidc_state', 'Start sign-in from this browser.');
     const discovery = await this.discover();
     const now = Date.now();
     for (const [state, item] of this.pending) if (now - item.createdAt > pendingTtlMs) this.pending.delete(state);
@@ -82,7 +83,7 @@ export class Oidc {
     const verifier = base64url(randomBytes(48));
     const state = base64url(randomBytes(24));
     const nonce = base64url(randomBytes(24));
-    this.pending.set(state, { verifier, nonce, createdAt: now, ...(editor ? { editor } : {}) });
+    this.pending.set(state, { verifier, nonce, createdAt: now, browserBinding, ...(editor ? { editor } : {}) });
     const url = new URL(discovery.authorization_endpoint);
     url.searchParams.set('client_id', settings.clientId);
     url.searchParams.set('redirect_uri', this.redirectUri());
@@ -95,9 +96,10 @@ export class Oidc {
     return url.toString();
   }
 
-  async complete(code: string, state: string): Promise<OidcIdentity & { editor?: string }> {
+  async complete(code: string, state: string, browserBinding: string): Promise<OidcIdentity & { editor?: string }> {
     const settings = this.required();
     const pending = this.pending.get(state);
+    if (!browserBinding || pending?.browserBinding !== browserBinding) throw new OidcError(400, 'oidc_state', 'The sign-in attempt was not started in this browser. Start again.');
     if (pending) this.pending.delete(state);
     if (!pending || Date.now() - pending.createdAt > pendingTtlMs) throw new OidcError(400, 'oidc_state', 'The sign-in attempt expired or was not started here. Start again.');
     if (!/^[A-Za-z0-9._~-]{1,2048}$/.test(code)) throw new OidcError(400, 'oidc_code', 'The identity provider returned an invalid authorization code.');

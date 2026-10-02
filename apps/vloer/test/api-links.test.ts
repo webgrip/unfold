@@ -6,20 +6,21 @@ import { application, login, request } from './api-support.ts';
 
 async function gitlab() {
   const revoked: string[] = [];
+  const exchanges: string[] = [];
   let base = '';
   const server = createServer(async (req, res) => {
     let body = '';
     for await (const chunk of req) body += chunk;
     const data = body ? JSON.parse(body) : {};
     res.setHeader('content-type', 'application/json');
-    if (req.method === 'POST' && req.url === '/oauth/token') { res.end(JSON.stringify({ access_token: 'access-secret-1', refresh_token: 'refresh-secret-1', expires_in: 7200, scope: 'read_api read_repository' })); return; }
+    if (req.method === 'POST' && req.url === '/oauth/token') { exchanges.push(String(data.code)); res.end(JSON.stringify({ access_token: 'access-secret-1', refresh_token: 'refresh-secret-1', expires_in: 7200, scope: 'read_api read_repository' })); return; }
     if (req.method === 'GET' && req.url === '/api/v4/user') { res.end(JSON.stringify({ username: 'ryan', web_url: `${base}/ryan` })); return; }
     if (req.method === 'POST' && req.url === '/oauth/revoke') { revoked.push(String(data.token)); res.end('{}'); return; }
     res.writeHead(404); res.end('{}');
   });
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-  return { base, revoked, close: () => new Promise<void>(done => server.close(() => done())) };
+  return { base, revoked, exchanges, close: () => new Promise<void>(done => server.close(() => done())) };
 }
 
 test('links are absent until configured and a start is refused without an application id', async t => {
@@ -46,7 +47,8 @@ test('a person links GitLab through the browser, sees the account without its to
   const authorize = new URL(started.body.url);
   assert.equal(authorize.origin, fake.base);
   const state = authorize.searchParams.get('state')!;
-  const callback = await fetch(`${app.url}/api/links/gitlab/callback?code=good-code&state=${encodeURIComponent(state)}`, { redirect: 'manual' });
+  const browserCookie = started.response.headers.get('set-cookie')!.split(';')[0];
+  const callback = await fetch(`${app.url}/api/links/gitlab/callback?code=good-code&state=${encodeURIComponent(state)}`, { redirect: 'manual', headers: { cookie: browserCookie } });
   assert.equal(callback.status, 303);
   assert.equal(callback.headers.get('location'), '/?linked=gitlab');
   const replay = await fetch(`${app.url}/api/links/gitlab/callback?code=good-code&state=${encodeURIComponent(state)}`, { redirect: 'manual' });
@@ -81,4 +83,28 @@ test('a task connection without its own token uses the person\'s link and says s
   const pasted = await request(app.url, '/api/links/clickup', { method: 'PUT', body: { token: '' }, cookie, csrf: true });
   assert.equal(pasted.status, 400);
   assert.equal(pasted.body.error.code, 'link_token');
+});
+
+test('a link callback requires the initiating browser before exchanging a provider token', async t => {
+  const fake = await gitlab();
+  const app = await application('live', config => { config.links = { gitlab: { baseUrl: fake.base, clientId: 'application-id-1234', scopes: ['read_api'] } }; });
+  t.after(async () => { await app.close(); await fake.close(); });
+  const attacker = await login(app.url);
+  const victim = await login(app.url);
+  const start = async (cookie: string) => request(app.url, '/api/links/gitlab', { method: 'POST', cookie });
+  const attackerStart = await start(attacker.cookie);
+  const victimStart = await start(victim.cookie);
+  const state = new URL(attackerStart.body.url).searchParams.get('state')!;
+  const callbackUrl = `${app.url}/api/links/gitlab/callback?code=good-code&state=${encodeURIComponent(state)}`;
+  const attackerBrowser = attackerStart.response.headers.get('set-cookie')!;
+  const victimBrowser = victimStart.response.headers.get('set-cookie')!.split(';')[0];
+  assert.match(attackerBrowser, /^vloer-oauth=[A-Za-z0-9_-]{43}; Path=\/; HttpOnly; SameSite=Lax; Max-Age=600$/);
+  for (const cookie of ['', victim.cookie, victimBrowser]) {
+    const denied = await fetch(callbackUrl, { redirect: 'manual', headers: { cookie } });
+    assert.equal(denied.headers.get('location'), '/?link_error=link_state');
+    assert.equal(fake.exchanges.length, 0);
+  }
+  const completed = await fetch(callbackUrl, { redirect: 'manual', headers: { cookie: attackerBrowser.split(';')[0] } });
+  assert.equal(completed.headers.get('location'), '/?linked=gitlab');
+  assert.equal(fake.exchanges.length, 1);
 });
