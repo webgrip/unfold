@@ -118,7 +118,7 @@ test('every published image passes its application CVE budget before signing', (
   assert.equal(ploegGate.with['image-name'], 'ploegd');
   assert.ok(publisher.jobs['ploeg-release-sign-harbor'].needs.includes('ploeg-release-distribute-harbor'));
   assert.ok(publisher.jobs['ploeg-release-distribute'].needs.includes('vloer-release-distribute'), 'one Unfold release mirrors to GitHub one application at a time');
-  assert.match(publisher.jobs['ploeg-release-distribute'].if, /^always\(\) && /, 'a failed Vloer publication must not block Ploeg');
+  assert.match(publisher.jobs['ploeg-release-distribute'].if, /^always\(\) && /, 'completion outputs remain usable when Forgejo omits job result fields');
   for (const app of ['vloer', 'ploeg']) {
     const image = app === 'vloer' ? 'de-vloer' : 'ploegd';
     const budgets = parse(fs.readFileSync(path.join(root, `apps/${app}/ops/security/cve-budgets.yaml`), 'utf8'));
@@ -158,6 +158,7 @@ test('release routing publishes both applications for an Unfold tag and nothing 
         assert.equal(parsed, selected === 'unfold' && gate === 'true');
         context.needs['parse-release-tag'] = { outputs: { version: parsed ? '0.4.0-rc.5' : '' } };
         context.needs['ploeg-release-sign-harbor'] = { outputs: { signed: 'true' } };
+        context.needs['vloer-release-distribute'] = { outputs: { distributed: 'true' } };
         for (const [name, job] of jobs) {
           assert.ok(job.needs.includes('parse-release-tag'), name);
           assert.equal(evaluate(job.if, context), parsed, name);
@@ -243,7 +244,31 @@ test('Ploeg mirrors require completed signing even when Forgejo omits job result
       assert.equal(evaluate(job.if, { needs: {
         'parse-release-tag': { outputs: { version: '0.4.0-rc.5' } },
         'ploeg-release-sign-harbor': { outputs: { signed } },
+        'vloer-release-distribute': { outputs: { distributed: 'true' } },
       } }), signed === 'true', `${name}: ${signed}`);
+    }
+  }
+});
+
+test('the final publisher keeps the joint release in draft until Vloer distribution completes', () => {
+  const vloer = publisher.jobs['vloer-release-distribute'];
+  assert.equal(vloer.outputs.distributed, '${{ steps.distributed.outputs.ready }}');
+  const complete = vloer.steps.findIndex(step => step.id === 'distributed');
+  const publish = vloer.steps.findIndex(step => step.run?.includes('python3 scripts/publish_release.py vloer'));
+  assert.ok(publish >= 0 && complete > publish);
+  assert.equal(vloer.steps[publish]['continue-on-error'], undefined);
+  assert.equal(vloer.steps[complete].if, undefined, 'the completion marker runs only after successful preceding steps');
+  assert.equal(vloer.steps[complete].run, 'echo "ready=true" >> "$GITHUB_OUTPUT"');
+  const final = publisher.jobs['ploeg-release-distribute'];
+  assert.ok(final.needs.includes('vloer-release-distribute'));
+  for (const result of ['success', 'failure', 'skipped', 'cancelled', undefined]) {
+    for (const distributed of [undefined, '', 'false', 'true']) {
+      const needs = {
+        'parse-release-tag': { outputs: { version: '0.4.0-rc.5' } },
+        'ploeg-release-sign-harbor': { outputs: { signed: 'true' } },
+        'vloer-release-distribute': { result, outputs: { distributed } },
+      };
+      assert.equal(evaluate(final.if, { needs }), distributed === 'true', `${result}: ${distributed}`);
     }
   }
 });

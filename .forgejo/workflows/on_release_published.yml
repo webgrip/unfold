@@ -458,6 +458,8 @@ jobs:
     name: Vloer - Verify and publish all destinations
     needs: [parse-release-tag, vloer-release-distribute-harbor, vloer-release-publish-chart, vloer-release-publish-extension]
     if: needs.parse-release-tag.outputs.version != ''
+    outputs:
+      distributed: ${{ steps.distributed.outputs.ready }}
     runs-on: docker
     timeout-minutes: 30
     steps:
@@ -486,11 +488,15 @@ jobs:
           trap 'rm -rf "$DOCKER_CONFIG"' EXIT
           printf '%s' '{"credHelpers":{"harbor.webgrip.dev":"unfold","forgejo.webgrip.dev":"unfold","ghcr.io":"unfold"}}' > "$DOCKER_CONFIG/config.json"
           python3 scripts/publish_release.py vloer "$VERSION"
+      - name: Confirm Vloer distribution completed
+        id: distributed
+        shell: bash
+        run: echo "ready=true" >> "$GITHUB_OUTPUT"
 
   ploeg-release-distribute:
     name: Ploeg - Verify and publish all destinations
     needs: [parse-release-tag, ploeg-release-distribute-harbor, ploeg-release-publish-chart, ploeg-release-sign-harbor, vloer-release-distribute]
-    if: always() && needs.parse-release-tag.outputs.version != '' && needs.ploeg-release-sign-harbor.outputs.signed == 'true'
+    if: always() && needs.parse-release-tag.outputs.version != '' && needs.ploeg-release-sign-harbor.outputs.signed == 'true' && needs.vloer-release-distribute.outputs.distributed == 'true'
     runs-on: docker
     timeout-minutes: 30
     steps:
