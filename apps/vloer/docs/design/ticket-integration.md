@@ -10,7 +10,7 @@ Vikunja is a first-class task provider, independent of the repository forge. A V
 
 This increment supplies deliberate human intake and portable candidate exports. The canonical WorkOrder, unattended webhook/poll reconciliation, shared Ploeg claims, source write-back and automated PR/MR publication described below remain proposed. The [0.2.0 release walkthrough](../operations/iteration-0.2.0.md) distinguishes exercised behavior from deployment qualification. The design below remains the broader target system rather than a claim that all its services exist.
 
-Status: proposed implementation design. Research checked 2026-09-09. This document does not claim the proposed APIs or integrations are already implemented. Local evidence: Ploeg `67c4bc968455a99ef767bc8a24791ea1a87319cb`, De Vloer `491c3a62e09dff8ec801495a309f6090120a07da` before this design change.
+Status: proposed implementation design. Research checked 2026-09-09. This document does not claim the proposed APIs or integrations are already implemented. Local evidence: Ploeg `259a817a3f058346b3d96def361610dadc9f3bc5`, De Vloer `491c3a62e09dff8ec801495a309f6090120a07da` before this design change.
 
 The intended operator experience is straightforward: give a ticket an explicit mandate, see why it is or is not eligible, let Ploeg allocate execution, and open the same delivery attempt in Vloer or VS Code whenever a person needs to inspect, redirect or approve it. The resulting change request remains a normal Forgejo PR or GitLab MR. Closing the editor never closes a remote execution. A ticket becoming visible never grants permission to spend money.
 
@@ -153,7 +153,7 @@ Do not make every operator create a personal integration. Use a dedicated, least
 
 ClickUp SaaS cannot call a LAN-only Vloer/Ploeg endpoint. Support two explicit installation profiles:
 
-- **Outbound polling:** Ploeg polls allowed containers over HTTPS. This works without inbound exposure and should be the first Acme pilot option. It trades immediacy for a predictable polling interval and API use.
+- **Outbound polling:** Ploeg polls allowed containers over HTTPS. This works without inbound exposure and should be the first pilot option. It trades immediacy for a predictable polling interval and API use.
 - **Dedicated webhook ingress:** expose only `/integrations/webhooks/{connectionId}` through a reverse proxy to the verified durable receiver. Keep operator UI, worker API, databases and metrics internal. Require TLS, bounded bodies and signature verification; no model execution occurs on the request path.
 
 A relay may forward authenticated delivery envelopes over an outbound connection, but it is an optional deployment component with its own retention, trust and recovery contract. A tunnel to a developer's laptop is a temporary development convenience, not the production work queue. ClickUp supplies no fixed dedicated webhook IPs, so a static IP allowlist cannot replace signature verification. Forgejo normally restricts webhook destinations; explicitly allow the internal receiver host/CIDR rather than setting its host allowlist to `*`. [ClickUp webhooks](https://developer.clickup.com/docs/webhooks), [Forgejo webhook configuration](https://forgejo.org/docs/latest/admin/config-cheat-sheet/#webhook-webhook).
@@ -232,7 +232,7 @@ Use issue-specific read/write scopes for tracker operations, with repository rea
 
 Neither broad nor specific-repository tokens alone prove a **branch-generation** fence. A forge generally does not know Ploeg's lease generation. The strong publication model therefore keeps forge write credentials in a publication service: workers upload patches/artifacts, and the publisher validates generation, approved target, expected base/head and branch protection, then reserves the durable publication barrier described below before each write. If the first pilot retains direct pushes, it must deny force-pushes, revoke old tokens and wait for confirmed revocation before successor writers; label this a weaker isolation profile and do not advertise strict lease fencing.
 
-### GitLab for Acme
+### GitLab
 
 Retain the existing GitLab ForgeProvider and existing harness forge dialect. An MR is identified by the immutable project ID and project-local `iid`; `group/subgroup/project` is a navigable path that must be encoded as a single API path segment when used. A future GitLab TrackerProvider uses Issue APIs separately; do not confuse MR comments with issue intake. [GitLab Issues API](https://docs.gitlab.com/api/issues/).
 

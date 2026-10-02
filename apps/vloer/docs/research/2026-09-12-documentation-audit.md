@@ -10,7 +10,7 @@ The baseline inventory covers 237 tracked text sources: 107 in De Vloer and 130 
 
 The [machine-readable ledger](2026-09-12-documentation-audit.json) records each baseline path, hash, size, classification, disposition and review depth. Inventory and structural classification cover the full set; source checks concentrate on current entry points, architecture, execution contracts, domain definitions and operating guidance. Historical research, accepted ADR bodies and archived change specifications were retained, not re-certified as current truth. A file marked classified has not had every claim independently verified.
 
-Baselines: [De Vloer 7c8657e](https://forgejo.webgrip.dev/webgrip/de-vloer/src/commit/7c8657e15b1525e30641b12e5175bf268a49b03d) and [Ploeg f2333b9](https://forgejo.webgrip.dev/webgrip/ploeg/src/commit/f2333b96c6b44f489c562f74d6a4654fed29cc01). These links retain replaced prose and original evidence.
+Baselines: [De Vloer 7c8657e](https://forgejo.webgrip.dev/webgrip/de-vloer/src/commit/c5718cde7e1c7520927c64613c38beee11e087f7) and [Ploeg f2333b9](https://forgejo.webgrip.dev/webgrip/ploeg/src/commit/94c7c8e2dc07037ee2fd38a69343426e40bd680d). These links retain replaced prose and original evidence.
 
 ## Findings and corrections
 

@@ -45,7 +45,7 @@ def export_commit(tag, parent):
 
 
 def export_module(tag, version, token):
-    baseline = '6f19c25fcc48f2335ad39237d06642adef1a5fcc'
+    baseline = '05b93bb4b7c063cb0ca733e4bbf3d699c5044af4'
     commit, tree = export_commit(tag, baseline)
     destination = 'https://github.com/webgrip/ploeg.git'
     ref = f'refs/tags/v{version}'

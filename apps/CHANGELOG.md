@@ -2,719 +2,719 @@
 
 ### Added
 
-* **ploeg:** grade run cards and record delivery gates ([227b2ee](https://forgejo.webgrip.dev/webgrip/glide/commit/227b2ee250eb615d8e3558510b4e5df5202002b1))
-* **vloer:** make the Run card the head of the Work Item page ([42cddff](https://forgejo.webgrip.dev/webgrip/glide/commit/42cddff35c886ff64f71c98a9d7670fc85686d70))
+* **ploeg:** grade run cards and record delivery gates ([f24a4cd](https://forgejo.webgrip.dev/webgrip/glide/commit/f24a4cdab1c2b8690299961daa26f60d7d76aae9))
+* **vloer:** make the Run card the head of the Work Item page ([bd35bb3](https://forgejo.webgrip.dev/webgrip/glide/commit/bd35bb3113119e24a200bddaf8d3ab377fc560f4))
 
 ### Docs
 
-* record the run cards research, concept and works council pack ([b60fbff](https://forgejo.webgrip.dev/webgrip/glide/commit/b60fbff0cb76297905bd5e848376ef129822aeb5))
+* record the run cards research, concept and works council pack ([df6a47a](https://forgejo.webgrip.dev/webgrip/glide/commit/df6a47a9f59bc4c7a43699a9122365403e6a5cd8))
 
 ### Internal
 
-* **release:** unfold-site-v0.1.0-rc.7 [skip ci] ([2aea78e](https://forgejo.webgrip.dev/webgrip/glide/commit/2aea78e76f04e34021a3be6cfe7de980b5ddde34))
+* **release:** unfold-site-v0.1.0-rc.7 [skip ci] ([665dc63](https://forgejo.webgrip.dev/webgrip/glide/commit/665dc6382e6eb25d92102ae7ffe28a113be5df8c))
 
 ## [unfold-v0.4.0-rc.31](https://forgejo.webgrip.dev/webgrip/glide/compare/unfold-v0.4.0-rc.30...unfold-v0.4.0-rc.31) (2026-10-01)
 
 ### Added
 
-* **site:** apply the Unfold brand ([4a356fc](https://forgejo.webgrip.dev/webgrip/glide/commit/4a356fcbb57631db9b0a3f0f7775db7241c86778))
+* **site:** apply the Unfold brand ([b3dc446](https://forgejo.webgrip.dev/webgrip/glide/commit/b3dc44634b437ae1e70d08a617e4292cfa325c3d))
 
 ### Fixed
 
-* **ploeg:** link the Loop dashboard by its real uid and new title ([4124d7e](https://forgejo.webgrip.dev/webgrip/glide/commit/4124d7e59d7585acd6dc65d55aa751df5b9d83c0))
+* **ploeg:** link the Loop dashboard by its real uid and new title ([f03a536](https://forgejo.webgrip.dev/webgrip/glide/commit/f03a5368f3b36f065f4f6e786c013534944b52ef))
 
 ### Internal
 
-* **release:** unfold-site-v0.1.0-rc.6 [skip ci] ([5606c28](https://forgejo.webgrip.dev/webgrip/glide/commit/5606c28faaee5d81bb83fbd034994cf6147c115f))
+* **release:** unfold-site-v0.1.0-rc.6 [skip ci] ([bf72bf1](https://forgejo.webgrip.dev/webgrip/glide/commit/bf72bf1a2d0463043f0549ea45ee2fc3a1de7dc4))
 
 ## [unfold-v0.4.0-rc.30](https://forgejo.webgrip.dev/webgrip/glide/compare/unfold-v0.4.0-rc.29...unfold-v0.4.0-rc.30) (2026-10-01)
 
 ### Added
 
-* **vloer:** check out a Work Item's branch from the browser or VS Code ([1575f8a](https://forgejo.webgrip.dev/webgrip/glide/commit/1575f8a9c9e67f2cb6efe408d8072a23ccc7b250))
+* **vloer:** check out a Work Item's branch from the browser or VS Code ([b7be09a](https://forgejo.webgrip.dev/webgrip/glide/commit/b7be09a4ba881cff88c8dd3b823a3c90ab7aa88a))
 
 ### Fixed
 
-* **vloer:** show queued and running Ploeg work in Linked Tasks ([b0515f0](https://forgejo.webgrip.dev/webgrip/glide/commit/b0515f0afc886d4c3e4159f91338f38b9d0c5882))
+* **vloer:** show queued and running Ploeg work in Linked Tasks ([e85a4f8](https://forgejo.webgrip.dev/webgrip/glide/commit/e85a4f82d99df7ba3d0a9d7eac2936c20e4ba787))
 
 ### Changed
 
-* rename the product from Glide to Unfold ([dc45dac](https://forgejo.webgrip.dev/webgrip/glide/commit/dc45dacb00b52de6d16b4379776d0bb077a9563e))
+* rename the product from Glide to Unfold ([b627d5f](https://forgejo.webgrip.dev/webgrip/glide/commit/b627d5f5316213a08bca393481b979cfd9d89168))
 
 ### Tests
 
-* **vloer:** match the checkout title to the renamed fixture branch ([23c4b4f](https://forgejo.webgrip.dev/webgrip/glide/commit/23c4b4fba54488cacb5a797303bee512ba472bc3)), references [#100](https://forgejo.webgrip.dev/webgrip/glide/issues/100)
+* **vloer:** match the checkout title to the renamed fixture branch ([bf2e225](https://forgejo.webgrip.dev/webgrip/glide/commit/bf2e225cc39a0206049c8c32f49d1453e5676627)), references [#100](https://forgejo.webgrip.dev/webgrip/glide/issues/100)
 
 ### Internal
 
-* **release:** restore the rc.29 release metadata that the rename reverted ([ab001d0](https://forgejo.webgrip.dev/webgrip/glide/commit/ab001d0d2e17de07a4ec93089650068cedc1ad30))
+* **release:** restore the rc.29 release metadata that the rename reverted ([6a522a8](https://forgejo.webgrip.dev/webgrip/glide/commit/6a522a8520e812a2ef6afad8e37990e01d3fb5a1))
 
 ## [glide-v0.4.0-rc.29](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.28...glide-v0.4.0-rc.29) (2026-10-01)
 
 ### Added
 
-* **ploeg:** report a running Run's usage so far on its card ([7d6fc6c](https://forgejo.webgrip.dev/webgrip/glide/commit/7d6fc6c17cc84a0a373a7239a2ec60b7d64983e4))
-* **vloer:** give the editor the browser's vocabulary, formatter and status tones ([c7a5e83](https://forgejo.webgrip.dev/webgrip/glide/commit/c7a5e83ba939aac82fa7e984c188bf645c34f454)), references [#work](https://forgejo.webgrip.dev/webgrip/glide/issues/work) [#ploeg](https://forgejo.webgrip.dev/webgrip/glide/issues/ploeg)
-* **vloer:** lead the editor's Work Item panel with state, reason and next action ([fba59c1](https://forgejo.webgrip.dev/webgrip/glide/commit/fba59c13b0cf1d191c1aac7a7abc9ae510a84812))
-* **vloer:** name a tracker token without write access when a hand-off fails ([5c685bb](https://forgejo.webgrip.dev/webgrip/glide/commit/5c685bb69d54f4888068de1a9f63cc0ea12a3a78))
-* **vloer:** open the editor sidebar on Now ([4ff6278](https://forgejo.webgrip.dev/webgrip/glide/commit/4ff6278b2004a32104eec6835fe972bb94583484))
-* **vloer:** show cost, tokens and run time so far on a running Run's card ([ab3affd](https://forgejo.webgrip.dev/webgrip/glide/commit/ab3affd10a5da98c216b9d5730f1f1a1ef3b0d31))
+* **ploeg:** report a running Run's usage so far on its card ([ba7027e](https://forgejo.webgrip.dev/webgrip/glide/commit/ba7027e5bcc9f7a6ecc57948dc69271729a39ccb))
+* **vloer:** give the editor the browser's vocabulary, formatter and status tones ([6477888](https://forgejo.webgrip.dev/webgrip/glide/commit/647788840535f58bd533b944faa643ff153b2486)), references [#work](https://forgejo.webgrip.dev/webgrip/glide/issues/work) [#ploeg](https://forgejo.webgrip.dev/webgrip/glide/issues/ploeg)
+* **vloer:** lead the editor's Work Item panel with state, reason and next action ([1a4d6b8](https://forgejo.webgrip.dev/webgrip/glide/commit/1a4d6b8aa34c1604ee40ca84bde886ca38cea910))
+* **vloer:** name a tracker token without write access when a hand-off fails ([ada2ecd](https://forgejo.webgrip.dev/webgrip/glide/commit/ada2ecd05ea76babd33af46605f2b679980a6fe4))
+* **vloer:** open the editor sidebar on Now ([9dc87ff](https://forgejo.webgrip.dev/webgrip/glide/commit/9dc87ff2fab9333ed754f1eeefae65a41871fc4e))
+* **vloer:** show cost, tokens and run time so far on a running Run's card ([d33fc71](https://forgejo.webgrip.dev/webgrip/glide/commit/d33fc715f8215d185686566ed6edce6f965a7feb))
 
 ### Docs
 
-* **ploeg:** regenerate the configuration reference for the new runner and dind images ([e8837f7](https://forgejo.webgrip.dev/webgrip/glide/commit/e8837f7e597852c94332a3b6516bd66030599757))
-* **vloer:** list the editor redesign's follow-ups in ADR-0027 ([a03d51d](https://forgejo.webgrip.dev/webgrip/glide/commit/a03d51dbee0b9aea60cd6cddba4689da61c7d936))
+* **ploeg:** regenerate the configuration reference for the new runner and dind images ([5718bbe](https://forgejo.webgrip.dev/webgrip/glide/commit/5718bbe50ec33f47af10083f1bfe7eaa1d4c4e8c))
+* **vloer:** list the editor redesign's follow-ups in ADR-0027 ([799a08c](https://forgejo.webgrip.dev/webgrip/glide/commit/799a08ccb1ca7fcab4ac053cee6080adbcae4894))
 
 ### Build
 
-* **site:** move the Worker compatibility date to 2026-09-26 ([8881e1c](https://forgejo.webgrip.dev/webgrip/glide/commit/8881e1cad4856d6fbdfb734b45ccd792200dc0fa))
+* **site:** move the Worker compatibility date to 2026-09-26 ([a90527e](https://forgejo.webgrip.dev/webgrip/glide/commit/a90527e1a8d34c2b61e5447d5ca420f1c343cb65))
 
 ### Internal
 
-* **renovate:** extend the shared preset at v1.12.2 and regenerate Ploeg's configuration reference on chart bumps ([ac432c1](https://forgejo.webgrip.dev/webgrip/glide/commit/ac432c1f62b90ad6a3f85915d3e8fdfa1e30ff3d))
+* **renovate:** extend the shared preset at v1.12.2 and regenerate Ploeg's configuration reference on chart bumps ([fb1c713](https://forgejo.webgrip.dev/webgrip/glide/commit/fb1c713714c69f0bbc4bc9fb96b12730faa9970e))
 
 ## [glide-v0.4.0-rc.28](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.27...glide-v0.4.0-rc.28) (2026-10-01)
 
 ### Added
 
-* **deps:** update all non-major dependencies ([cda2a96](https://forgejo.webgrip.dev/webgrip/glide/commit/cda2a9687efe688120c4ef246ee82614d8f5edad))
+* **deps:** update all non-major dependencies ([df62371](https://forgejo.webgrip.dev/webgrip/glide/commit/df623712e2cd1f9d124e071894bf843207c711bd))
 
 ### Fixed
 
-* **build:** lock openspec once so mise stops reinstalling it ([8887e6a](https://forgejo.webgrip.dev/webgrip/glide/commit/8887e6af82811a8d6c17eaf9e49e142c9de0d338))
-* **vloer:** run the extension tests without Node's module-type notice ([7e55761](https://forgejo.webgrip.dev/webgrip/glide/commit/7e55761dd0cc4c211a4db8704a1dd65b3ea5625b))
+* **build:** lock openspec once so mise stops reinstalling it ([a4aeb47](https://forgejo.webgrip.dev/webgrip/glide/commit/a4aeb4721b70e98e7b98ac9623d541d062744ef7))
+* **vloer:** run the extension tests without Node's module-type notice ([770ae9e](https://forgejo.webgrip.dev/webgrip/glide/commit/770ae9e5fbebc07ba2f8dbf3776a1bf279729401))
 
 ### Build
 
-* **ploeg:** name the Go toolchain and move images to Debian 13 ([2f0f7be](https://forgejo.webgrip.dev/webgrip/glide/commit/2f0f7be48114a3b5b8a3dc79d1fac628ea90e50f))
-* **release:** keep the released agent image references on the release version ([917c2b3](https://forgejo.webgrip.dev/webgrip/glide/commit/917c2b378eb77be1c557b7238e2068fbfd0d2251))
-* **site:** clear the wrangler advisories and move to TypeScript 6 and pnpm 12 ([504e2f4](https://forgejo.webgrip.dev/webgrip/glide/commit/504e2f4ca40e0efd69ef9774a3ee5564ec05c767))
-* **vloer:** build both images on Node 24.21.0 ([40076c1](https://forgejo.webgrip.dev/webgrip/glide/commit/40076c13de20fe0d5624dc27d76016fb4d922932))
-* **vloer:** package the extension with vsce 4 ([3c611b6](https://forgejo.webgrip.dev/webgrip/glide/commit/3c611b62e8b57a789ec4c9feb584ff869734d16c))
+* **ploeg:** name the Go toolchain and move images to Debian 13 ([fe9660f](https://forgejo.webgrip.dev/webgrip/glide/commit/fe9660f9c287a9b92450c4513320f2c96829ce44))
+* **release:** keep the released agent image references on the release version ([eb1b8e2](https://forgejo.webgrip.dev/webgrip/glide/commit/eb1b8e28d6d33093cc3f35bf3cfce25271c2232b))
+* **site:** clear the wrangler advisories and move to TypeScript 6 and pnpm 12 ([d3ab4a1](https://forgejo.webgrip.dev/webgrip/glide/commit/d3ab4a104eaa3c297e7713c64fcdd5c36a852f21))
+* **vloer:** build both images on Node 24.21.0 ([e5b40b8](https://forgejo.webgrip.dev/webgrip/glide/commit/e5b40b83fed977abd7ff581762476d3a8a4abf76))
+* **vloer:** package the extension with vsce 4 ([b9323a3](https://forgejo.webgrip.dev/webgrip/glide/commit/b9323a359365a019d2a10393ff9596577dab3743))
 
 ### Internal
 
-* load marked 18 in the landscape build and point the domain generator at uv ([074227c](https://forgejo.webgrip.dev/webgrip/glide/commit/074227c1535af652f0f35dd66a1b26d2ee8a07fe))
-* **release:** glide-site-v0.1.0-rc.5 [skip ci] ([214690e](https://forgejo.webgrip.dev/webgrip/glide/commit/214690e28fb79285ac6b5f099fb79046b763385f))
+* load marked 18 in the landscape build and point the domain generator at uv ([03f11ce](https://forgejo.webgrip.dev/webgrip/glide/commit/03f11ce983e82b39647cda4e412361b268f3539c))
+* **release:** glide-site-v0.1.0-rc.5 [skip ci] ([2dffb21](https://forgejo.webgrip.dev/webgrip/glide/commit/2dffb215d162ce166da275e75cbb2d6255530eb5))
 
 ## [glide-v0.4.0-rc.27](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.26...glide-v0.4.0-rc.27) (2026-10-01)
 
 ### Added
 
-* **ploeg:** assemble a run card per work item from stored facts ([795c966](https://forgejo.webgrip.dev/webgrip/glide/commit/795c96659905ddcfc77cfcca306963b163478a85))
-* **ploeg:** learn where a merged change is deployed ([4fabedb](https://forgejo.webgrip.dev/webgrip/glide/commit/4fabedb7f3df70ac4282b820eb8906db0b2c1350))
-* **vloer:** show days live and the finish ladder on run cards ([0f22015](https://forgejo.webgrip.dev/webgrip/glide/commit/0f22015c1e35d41adf3a10f6109aef3d415b5a83))
+* **ploeg:** assemble a run card per work item from stored facts ([9ddaf41](https://forgejo.webgrip.dev/webgrip/glide/commit/9ddaf41e3e2523db7d2103dbe719129cf77b68ac))
+* **ploeg:** learn where a merged change is deployed ([94927a2](https://forgejo.webgrip.dev/webgrip/glide/commit/94927a2f23063648b84f6a6b59fe8ae76caf8c60))
+* **vloer:** show days live and the finish ladder on run cards ([40967f6](https://forgejo.webgrip.dev/webgrip/glide/commit/40967f652437ea6cdfc24bf58ec1fc2faa18e953))
 
 ## [glide-v0.4.0-rc.26](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.25...glide-v0.4.0-rc.26) (2026-10-01)
 
 ### Added
 
-* **vloer:** show a run card on the work item page ([3cb06f2](https://forgejo.webgrip.dev/webgrip/glide/commit/3cb06f2f176c5e830d845dfffbd5cd784e4dc689))
+* **vloer:** show a run card on the work item page ([ae05d26](https://forgejo.webgrip.dev/webgrip/glide/commit/ae05d26173673f5de8199cd90bc30f0be62a920b))
 
 ### Fixed
 
-* **deps:** update pnpm ( 11.28.1 ➔ 11.28.2 ) ([4485b49](https://forgejo.webgrip.dev/webgrip/glide/commit/4485b49837b3bba5c8c4791536fabe35bfa1804e))
+* **deps:** update pnpm ( 11.28.1 ➔ 11.28.2 ) ([badcd13](https://forgejo.webgrip.dev/webgrip/glide/commit/badcd13e58e807c8b3e92b4a6f1ee8701ee6706a))
 
 ### Internal
 
-* **release:** glide-site-v0.1.0-rc.4 [skip ci] ([f07f26d](https://forgejo.webgrip.dev/webgrip/glide/commit/f07f26d561b2fbbd50064028c0be5d9062c32f82))
+* **release:** glide-site-v0.1.0-rc.4 [skip ci] ([bfe04df](https://forgejo.webgrip.dev/webgrip/glide/commit/bfe04df4d33e2d940ebd3a23bc8507b29730d462))
 
 ## [glide-v0.4.0-rc.25](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.24...glide-v0.4.0-rc.25) (2026-10-01)
 
 ### Added
 
-* **deps:** update all non-major dependencies ([fd90985](https://forgejo.webgrip.dev/webgrip/glide/commit/fd909857de6d0162d32a147841d10773ca9907a4))
-* **ploeg:** keep every run usage figure and merge and review fact ([1db5084](https://forgejo.webgrip.dev/webgrip/glide/commit/1db50844d60cc2fca93cda19cb976cdea4d697bd))
+* **deps:** update all non-major dependencies ([904208d](https://forgejo.webgrip.dev/webgrip/glide/commit/904208d3bf6e3c7f93fe3b983ee350cf8092f24a))
+* **ploeg:** keep every run usage figure and merge and review fact ([35d62fd](https://forgejo.webgrip.dev/webgrip/glide/commit/35d62fd1960ee3b23f9b24f7029e9a947ac82a5e))
 
 ### Fixed
 
-* **release:** drop the duplicate rc.24 release commit ([d7c3c66](https://forgejo.webgrip.dev/webgrip/glide/commit/d7c3c664ca1bcf2e19a823c69c1adebdb9140d4e)), references [#73](https://forgejo.webgrip.dev/webgrip/glide/issues/73) [73-#75](https://forgejo.webgrip.dev/73-/issues/75)
-* **release:** drop the second duplicate rc.24 release commit ([f194524](https://forgejo.webgrip.dev/webgrip/glide/commit/f194524f2d94d8304abefc3e3af01be2db46abb9))
-* **vloer:** keep each AHP client to its own user's sessions ([d5b708b](https://forgejo.webgrip.dev/webgrip/glide/commit/d5b708b368671ead3a6e2bfc9936358e99d173fd))
-* **vloer:** let VS Code 1.140 create and follow an AHP session ([4228306](https://forgejo.webgrip.dev/webgrip/glide/commit/4228306f3fff241c11ba834d5d4ec46bde73409a))
+* **release:** drop the duplicate rc.24 release commit ([479893c](https://forgejo.webgrip.dev/webgrip/glide/commit/479893c9196f66c4d7e516c69f746aa95ebf7090)), references [#73](https://forgejo.webgrip.dev/webgrip/glide/issues/73) [73-#75](https://forgejo.webgrip.dev/73-/issues/75)
+* **release:** drop the second duplicate rc.24 release commit ([72cf34d](https://forgejo.webgrip.dev/webgrip/glide/commit/72cf34d129887caddb0fa0a419d0f52d58fcfdaf))
+* **vloer:** keep each AHP client to its own user's sessions ([5ecd610](https://forgejo.webgrip.dev/webgrip/glide/commit/5ecd610e2548802f65c08ac2e26d18564c5b381c))
+* **vloer:** let VS Code 1.140 create and follow an AHP session ([78d4d6f](https://forgejo.webgrip.dev/webgrip/glide/commit/78d4d6fd29c9e5a19a8677a0ca0104a71a615231))
 
 ### Docs
 
-* record the VS Code 1.140 fit and the shared-surface plan ([b561fbf](https://forgejo.webgrip.dev/webgrip/glide/commit/b561fbf2cb99bfb50514b8d9e9d99609e9a09dde))
+* record the VS Code 1.140 fit and the shared-surface plan ([a77b19a](https://forgejo.webgrip.dev/webgrip/glide/commit/a77b19a6e572222946eb47ee3ff60f9c4f2ea22f))
 
 ### Internal
 
-* **release:** glide-site-v0.1.0-rc.3 [skip ci] ([df0cee3](https://forgejo.webgrip.dev/webgrip/glide/commit/df0cee327dc96ca19118cc84a946f0fc9ae350d0))
-* **release:** glide-v0.4.0-rc.24 [skip ci] ([c689ad0](https://forgejo.webgrip.dev/webgrip/glide/commit/c689ad0c9b1141973fdc94d213dd4daef0ada5d4))
-* **release:** glide-v0.4.0-rc.24 [skip ci] ([52ef670](https://forgejo.webgrip.dev/webgrip/glide/commit/52ef670ad82af519bb177903b8ea9b5eee166411))
+* **release:** glide-site-v0.1.0-rc.3 [skip ci] ([fff1611](https://forgejo.webgrip.dev/webgrip/glide/commit/fff16112f97f67530d414badacffdefe2538d51b))
+* **release:** glide-v0.4.0-rc.24 [skip ci] ([878869a](https://forgejo.webgrip.dev/webgrip/glide/commit/878869a78985c79ab137daee98208391deb1ee6e))
+* **release:** glide-v0.4.0-rc.24 [skip ci] ([95bdf58](https://forgejo.webgrip.dev/webgrip/glide/commit/95bdf584a09b9b14539a7b6c3290a60d93bf8e8e))
 
 ## [glide-v0.4.0-rc.24](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.23...glide-v0.4.0-rc.24) (2026-10-01)
 
 ### Added
 
-* **deps:** update pnpm ( 11.8.0 ➔ 11.11.0 ) [security] ([071f0ac](https://forgejo.webgrip.dev/webgrip/glide/commit/071f0ac2cdffc79ba3686bdab45d4d4e9e1302e5))
+* **deps:** update pnpm ( 11.8.0 ➔ 11.11.0 ) [security] ([cfd3112](https://forgejo.webgrip.dev/webgrip/glide/commit/cfd31122d8a0dd3b03e41ca07451808eaa152cfe))
 
 ### Fixed
 
-* **agent:** update opencode ( 1.18.30 ➔ 1.18.33 ) ([158c672](https://forgejo.webgrip.dev/webgrip/glide/commit/158c6722bc3ef683678abb848e70eb98cb151c53))
-* **vloer:** read the probed OpenCode version from the agent image pin ([d0a70c2](https://forgejo.webgrip.dev/webgrip/glide/commit/d0a70c286770a95af37a8c894d9b4ebb4fd43e10))
+* **agent:** update opencode ( 1.18.30 ➔ 1.18.33 ) ([a2bbf4c](https://forgejo.webgrip.dev/webgrip/glide/commit/a2bbf4cd8c6417be7558ae2d575786ea17c0a5c9))
+* **vloer:** read the probed OpenCode version from the agent image pin ([9eadab5](https://forgejo.webgrip.dev/webgrip/glide/commit/9eadab506ea929f21ced805fc1d98edf50833fbb))
 
 ### Internal
 
-* **release:** glide-site-v0.1.0-rc.2 [skip ci] ([165bb9a](https://forgejo.webgrip.dev/webgrip/glide/commit/165bb9afbc06f5252a25d1a44d2c5cf7282a6882))
+* **release:** glide-site-v0.1.0-rc.2 [skip ci] ([41a95d5](https://forgejo.webgrip.dev/webgrip/glide/commit/41a95d58a8885bfdf550c55faf9a60af05b5252e))
 
 ## [glide-v0.4.0-rc.23](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.22...glide-v0.4.0-rc.23) (2026-10-01)
 
 ### Added
 
-* **deps:** update all non-major dependencies ([2631513](https://forgejo.webgrip.dev/webgrip/glide/commit/263151325d068621fd671658880d0267f01c6ba4))
-* **deps:** update dependency astro ( 7.1.6 ➔ 7.2.8 ) [security] ([943f0a6](https://forgejo.webgrip.dev/webgrip/glide/commit/943f0a6a6caa1155a4b10b8bf665faddbf3f395c))
+* **deps:** update all non-major dependencies ([bdf17f1](https://forgejo.webgrip.dev/webgrip/glide/commit/bdf17f13970bb01f11c31ff3e711049961c7eaaf))
+* **deps:** update dependency astro ( 7.1.6 ➔ 7.2.8 ) [security] ([7054760](https://forgejo.webgrip.dev/webgrip/glide/commit/70547607e03db9344fec38c92b02bcfc7b6d90f0))
 
 ### Fixed
 
-* **ci:** bound the Markdown fence match and keep the mise cache warm ([f68ecae](https://forgejo.webgrip.dev/webgrip/glide/commit/f68ecae236bd3ac6d886beafa67e3ee7879aecad))
-* **ci:** never skip the site gate job so Glide releases publish ([4059721](https://forgejo.webgrip.dev/webgrip/glide/commit/405972179bd3e8b3cb852e0943aff5986008bd11))
+* **ci:** bound the Markdown fence match and keep the mise cache warm ([5fa31c5](https://forgejo.webgrip.dev/webgrip/glide/commit/5fa31c5b5d4a22eed788c6191710a46b1edf8777))
+* **ci:** never skip the site gate job so Glide releases publish ([f7d0a81](https://forgejo.webgrip.dev/webgrip/glide/commit/f7d0a8190a7c087b1a80236e7c7ace2d95771dbb))
 
 ### Docs
 
-* **ploeg:** accept ADR-0043 and ADR-0044 ([2f5c556](https://forgejo.webgrip.dev/webgrip/glide/commit/2f5c556875c03d1946fcde46daf53e7642260d95))
+* **ploeg:** accept ADR-0043 and ADR-0044 ([2621b2e](https://forgejo.webgrip.dev/webgrip/glide/commit/2621b2efb008f98c69bf58dd22bdb06ba6d1acfc))
 
 ### Internal
 
-* **release:** glide-site-v0.1.0-rc.1 [skip ci] ([4ce533f](https://forgejo.webgrip.dev/webgrip/glide/commit/4ce533f6c647ebadf8f0c4ead6087965b1049e21))
+* **release:** glide-site-v0.1.0-rc.1 [skip ci] ([f0ada8c](https://forgejo.webgrip.dev/webgrip/glide/commit/f0ada8cb5c3e7df86315a2a4ff2e898f487b4613))
 
 ## [glide-v0.4.0-rc.22](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.21...glide-v0.4.0-rc.22) (2026-10-01)
 
 ### Added
 
-* **deps:** update all non-major dependencies ([97d5f6f](https://forgejo.webgrip.dev/webgrip/glide/commit/97d5f6f208e7168449a50afd64bf3cf55c31c480))
-* **site:** add the bilingual static marketing site scaffold ([b75d939](https://forgejo.webgrip.dev/webgrip/glide/commit/b75d93927d294e965d4bd95c154508c21d1bca96))
-* **site:** serve from workers.dev and stay unindexed there ([26ad16a](https://forgejo.webgrip.dev/webgrip/glide/commit/26ad16aa3903b7c1c1fd24be742aac758f58ddcd))
-* **site:** take the site URL from the build environment ([4c2b9ab](https://forgejo.webgrip.dev/webgrip/glide/commit/4c2b9ab3e892614563cea0ac1d19b0ac058b205b))
-* **vloer:** show a task's Ploeg status and hand it off from the Tasks page ([f83fc58](https://forgejo.webgrip.dev/webgrip/glide/commit/f83fc589e979b1ba3599d03feccd9967675ea9a0))
+* **deps:** update all non-major dependencies ([99f5867](https://forgejo.webgrip.dev/webgrip/glide/commit/99f58670ec9a1ed8dfe0657c79e5b625329f6833))
+* **site:** add the bilingual static marketing site scaffold ([2309159](https://forgejo.webgrip.dev/webgrip/glide/commit/2309159b446d8bf1fce2a16f6de628f7d0807d7c))
+* **site:** serve from workers.dev and stay unindexed there ([75316ae](https://forgejo.webgrip.dev/webgrip/glide/commit/75316ae8876feee06c2fd2b6687abf1b2ff30870))
+* **site:** take the site URL from the build environment ([c4a33e1](https://forgejo.webgrip.dev/webgrip/glide/commit/c4a33e199abf8f17966184d5189a04cb8f9d5bbf))
+* **vloer:** show a task's Ploeg status and hand it off from the Tasks page ([7ee10ba](https://forgejo.webgrip.dev/webgrip/glide/commit/7ee10baa1130c7948f77bea9fd7656481d6756c0))
 
 ### Fixed
 
-* **ploeg:** point the usage report links at dashboards that exist ([bbae1e8](https://forgejo.webgrip.dev/webgrip/glide/commit/bbae1e836ad2eb5a2d2e694faf056a23b5249d6c))
-* **vloer:** reap an orphaned bridge whose pid arrives after its supervisor exits ([11e37fd](https://forgejo.webgrip.dev/webgrip/glide/commit/11e37fd1783bcebffe286176f7abaa779c1a990e))
+* **ploeg:** point the usage report links at dashboards that exist ([3885307](https://forgejo.webgrip.dev/webgrip/glide/commit/3885307c12803bd87679634cebcfe27617a91417))
+* **vloer:** reap an orphaned bridge whose pid arrives after its supervisor exits ([9a39191](https://forgejo.webgrip.dev/webgrip/glide/commit/9a391916a94a45b0f96fb813218e886c58be3431))
 
 ### Docs
 
-* **site:** record the separate site release and deploy in ADR-0012 ([3e17a4c](https://forgejo.webgrip.dev/webgrip/glide/commit/3e17a4c4caa09a09c712200f5d2291bf6aa9348e))
+* **site:** record the separate site release and deploy in ADR-0012 ([7df82f9](https://forgejo.webgrip.dev/webgrip/glide/commit/7df82f935487ba86e92d8df734dfa5c61f6280a6))
 
 ### Tests
 
-* **vloer:** scale the pathological-input time bounds with the runner load ([98f7400](https://forgejo.webgrip.dev/webgrip/glide/commit/98f74004a5fdc10facf4e0271e7f1f2ac59744e7))
+* **vloer:** scale the pathological-input time bounds with the runner load ([fa422d5](https://forgejo.webgrip.dev/webgrip/glide/commit/fa422d5d521454156732fa5f6f30f27ecedb6468))
 
 ### Build
 
-* pin Go 1.26.8 for the updated golang.org/x modules ([127d3fd](https://forgejo.webgrip.dev/webgrip/glide/commit/127d3fdfad4463c738a977e05f572a2c5d898b2e))
-* **release:** keep site commits out of the Glide version ([3bed2da](https://forgejo.webgrip.dev/webgrip/glide/commit/3bed2da8fe77a6a4902b420e0cdaa206fe0e52f7))
-* **site:** give the site its own glide-site-v release train ([e8a1a0a](https://forgejo.webgrip.dev/webgrip/glide/commit/e8a1a0ac08797da1bd86e6b49cae7993815ec11f))
-* **site:** switch the site to pnpm and pin wrangler ([755a089](https://forgejo.webgrip.dev/webgrip/glide/commit/755a089165c512cd65318c85454476609ed5df47))
+* pin Go 1.26.8 for the updated golang.org/x modules ([cc2d9f8](https://forgejo.webgrip.dev/webgrip/glide/commit/cc2d9f8b5919f33d0a5f18d30ec261e5d887b677))
+* **release:** keep site commits out of the Glide version ([f12bb75](https://forgejo.webgrip.dev/webgrip/glide/commit/f12bb75c34cb1e7fb8d163c3e364a8f5715b9ebb))
+* **site:** give the site its own glide-site-v release train ([d8b59ca](https://forgejo.webgrip.dev/webgrip/glide/commit/d8b59ca3b4e5478623e50dd7661747e681720a12))
+* **site:** switch the site to pnpm and pin wrangler ([4ab487b](https://forgejo.webgrip.dev/webgrip/glide/commit/4ab487b012940cc38a06c45420b87e0b8e452352))
 
 ### CI
 
-* **site:** release the site on its own train and deploy it to workers.dev ([7f7241c](https://forgejo.webgrip.dev/webgrip/glide/commit/7f7241cabc78bd0efee600f675316b10d6bcd7c7))
+* **site:** release the site on its own train and deploy it to workers.dev ([b6adee9](https://forgejo.webgrip.dev/webgrip/glide/commit/b6adee95b144c7bb1da852a7780313676eb1f2a2))
 
 ## [glide-v0.4.0-rc.21](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.20...glide-v0.4.0-rc.21) (2026-09-30)
 
 ### Dependencies
 
-* **deps:** lock file maintenance ([d393fba](https://forgejo.webgrip.dev/webgrip/glide/commit/d393fba42a4e2f266d74dfe6b3e251527a3f35c4))
+* **deps:** lock file maintenance ([d13c232](https://forgejo.webgrip.dev/webgrip/glide/commit/d13c232979201eff13e5f16f2de8bf35f4eb252b))
 
 ### Added
 
-* **deps:** update docker.io/golang docker tag ( 1.26 ➔ 1.27 ) ([21794a0](https://forgejo.webgrip.dev/webgrip/glide/commit/21794a0e7f5995b950bedfcc2be548e2de9d23fa))
+* **deps:** update docker.io/golang docker tag ( 1.26 ➔ 1.27 ) ([36fae64](https://forgejo.webgrip.dev/webgrip/glide/commit/36fae64362ab14937cdb66bf5c0c6014961ce8f8))
 
 ### Docs
 
-* **adr-0037:** accept per-team registry egress through a logged allowlist proxy ([f1b16b9](https://forgejo.webgrip.dev/webgrip/glide/commit/f1b16b97647ff9409fee410e10405a5543581e58))
-* **ploeg:** propose ADR-0037, per-team registry egress through a logged allowlist proxy ([1d024b8](https://forgejo.webgrip.dev/webgrip/glide/commit/1d024b8964616b78c6220b7d776a2c8baeb42a6b))
-* **ploeg:** record the owner's ADR-0037 decisions of 2026-09-28 ([25e9d7e](https://forgejo.webgrip.dev/webgrip/glide/commit/25e9d7e04bcfd28036913e4115b03e876e8ed65d))
+* **adr-0037:** accept per-team registry egress through a logged allowlist proxy ([996ffa9](https://forgejo.webgrip.dev/webgrip/glide/commit/996ffa9cc2a0d40f9c51420232d84c2aa9df2923))
+* **ploeg:** propose ADR-0037, per-team registry egress through a logged allowlist proxy ([49c60c3](https://forgejo.webgrip.dev/webgrip/glide/commit/49c60c34e7d8b04948d514bded38253dc28f4a38))
+* **ploeg:** record the owner's ADR-0037 decisions of 2026-09-28 ([2b8107b](https://forgejo.webgrip.dev/webgrip/glide/commit/2b8107b8532f2d90a9d4eb62731fb03ae8cb8d67))
 
 ## [glide-v0.4.0-rc.20](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.19...glide-v0.4.0-rc.20) (2026-09-30)
 
 ### Added
 
-* **ploeg:** have a writing Run report the problem and solution a reviewer reads ([eb459ca](https://forgejo.webgrip.dev/webgrip/glide/commit/eb459caabed50b832031afdcb361455112c3ffde))
-* **ploeg:** post a usage and evidence report on every agent pull request ([e9df8a4](https://forgejo.webgrip.dev/webgrip/glide/commit/e9df8a479bf503a8b80e6bdd7a48ccafc7e91f4b))
-* **ploeg:** report pull request and review state per work item ([27551a1](https://forgejo.webgrip.dev/webgrip/glide/commit/27551a16b35159d61df1a9d308df02ea4d568b49))
-* **ploeg:** report team tracker assignees and find work by tracker task ([2985ee8](https://forgejo.webgrip.dev/webgrip/glide/commit/2985ee8da0fa3f8c3528e246a3118e3ed7def695))
-* **ploeg:** report which tracker boards are pinned to each team ([135cb2d](https://forgejo.webgrip.dev/webgrip/glide/commit/135cb2d152a4300ae2cc240a2fe8b1e38de95004))
-* **ploeg:** route a tracker item by its repo label among registered targets ([67939c6](https://forgejo.webgrip.dev/webgrip/glide/commit/67939c6531b7ea8d7f0b119552439fce81704daa))
-* **vloer:** draw the problem and solution as a before-and-after panel ([c4cc0cf](https://forgejo.webgrip.dev/webgrip/glide/commit/c4cc0cf54e82d0312897b170b2cf2837e768886a))
-* **vloer:** hand a tracker task to a Ploeg team from the workbench ([877143b](https://forgejo.webgrip.dev/webgrip/glide/commit/877143b3fb0744bed94bb41756dee47e4b3e97d0))
-* **vloer:** open linked tasks in a task view and hand them to Ploeg ([12c7552](https://forgejo.webgrip.dev/webgrip/glide/commit/12c7552c962edc49ff71661b3414b7384cc681ba))
-* **vloer:** show idle stops and number retried Runs ([d6fb54e](https://forgejo.webgrip.dev/webgrip/glide/commit/d6fb54ed8858113d7dae8ab0eb0fe727f17a30c6))
-* **vloer:** show the writer's problem and solution under the Work Item title ([2682ff3](https://forgejo.webgrip.dev/webgrip/glide/commit/2682ff3440e613b0f18e7c99343f832fe59658dc))
+* **ploeg:** have a writing Run report the problem and solution a reviewer reads ([2083ba6](https://forgejo.webgrip.dev/webgrip/glide/commit/2083ba6085ac4030576a06acf90a555b79b58253))
+* **ploeg:** post a usage and evidence report on every agent pull request ([b1e9f24](https://forgejo.webgrip.dev/webgrip/glide/commit/b1e9f2433223fa6dbc6cc4958d3048a360c90c27))
+* **ploeg:** report pull request and review state per work item ([846dee2](https://forgejo.webgrip.dev/webgrip/glide/commit/846dee2267593ca2f5f0f9ccbf3c8fc3e3584bbc))
+* **ploeg:** report team tracker assignees and find work by tracker task ([f9957f3](https://forgejo.webgrip.dev/webgrip/glide/commit/f9957f3c5b0d63e06612222d879ab61b7c5cb23a))
+* **ploeg:** report which tracker boards are pinned to each team ([eab1e16](https://forgejo.webgrip.dev/webgrip/glide/commit/eab1e163e6f067a022e7e26e2b7b926ceb24bedd))
+* **ploeg:** route a tracker item by its repo label among registered targets ([c106f79](https://forgejo.webgrip.dev/webgrip/glide/commit/c106f79e136052f65d7ca11400f4fca2e83fdccb))
+* **vloer:** draw the problem and solution as a before-and-after panel ([4803af9](https://forgejo.webgrip.dev/webgrip/glide/commit/4803af97ad1e8aa68727675cb97474a077eee6f3))
+* **vloer:** hand a tracker task to a Ploeg team from the workbench ([627f6b0](https://forgejo.webgrip.dev/webgrip/glide/commit/627f6b098fe870561b445e7029b57968cc1e04f2))
+* **vloer:** open linked tasks in a task view and hand them to Ploeg ([46a5040](https://forgejo.webgrip.dev/webgrip/glide/commit/46a5040680b36e8f87d24300b379fd7d7e3b09cd))
+* **vloer:** show idle stops and number retried Runs ([6b66a68](https://forgejo.webgrip.dev/webgrip/glide/commit/6b66a68d4b162a2a95f88cd5a76e45ed36a63a70))
+* **vloer:** show the writer's problem and solution under the Work Item title ([579dad5](https://forgejo.webgrip.dev/webgrip/glide/commit/579dad5898b625f51b30547bb76ef27eee08bd89))
 
 ### Fixed
 
-* **ploeg:** count model traffic as harness activity and report idle stops as idle ([a7c86f1](https://forgejo.webgrip.dev/webgrip/glide/commit/a7c86f1dd06066859b9b725ad9c3d49fd1613c4d))
-* **vloer:** check every team before handing a task over or taking it back ([ad72b77](https://forgejo.webgrip.dev/webgrip/glide/commit/ad72b779621cd5913e13b32812a57928973baf05))
-* **vloer:** make the task view robust to races, long tasks and escapes ([4b5dea2](https://forgejo.webgrip.dev/webgrip/glide/commit/4b5dea29f14e072d41d5f3463a1a0801f4b7c1e7))
-* **vloer:** show work awaiting review in the VS Code Ploeg tree ([c23f0a4](https://forgejo.webgrip.dev/webgrip/glide/commit/c23f0a497a6176a1dfd7ff0ab5510b36fe4a8f5a))
+* **ploeg:** count model traffic as harness activity and report idle stops as idle ([6ff1359](https://forgejo.webgrip.dev/webgrip/glide/commit/6ff135978cb7a86e2165ca5c658df4b6eb069d08))
+* **vloer:** check every team before handing a task over or taking it back ([d095b45](https://forgejo.webgrip.dev/webgrip/glide/commit/d095b451a7e26f57d65c81230415353ebd996a60))
+* **vloer:** make the task view robust to races, long tasks and escapes ([63e4de5](https://forgejo.webgrip.dev/webgrip/glide/commit/63e4de54997983e2a363911de52eb0e6cc06422b))
+* **vloer:** show work awaiting review in the VS Code Ploeg tree ([47c62cb](https://forgejo.webgrip.dev/webgrip/glide/commit/47c62cb97d12b83055fb950a35f46a9a99a8bd86))
 
 ### Docs
 
-* **adr:** accept ADR-0011 with the remote phase in scope ([dd00f38](https://forgejo.webgrip.dev/webgrip/glide/commit/dd00f385fbd7e19b65eefc7f21475df40f7b913f))
-* **glide:** research MCP access and propose ADR-0011 ([7a2d57c](https://forgejo.webgrip.dev/webgrip/glide/commit/7a2d57c667422992fb54e45deee853720134c16a))
-* **ploeg:** ADR-0040 shows a conflict on an awaiting_review pull request ([7042fc5](https://forgejo.webgrip.dev/webgrip/glide/commit/7042fc5f121079dab9eb493f5b234d45ffb55a13)), references [#45](https://forgejo.webgrip.dev/webgrip/glide/issues/45)
-* **ploeg:** how to route a board that serves several repositories ([59bb910](https://forgejo.webgrip.dev/webgrip/glide/commit/59bb91046922f27deedbc169d3fd806244074acc))
-* **ploeg:** propose ADR-0040, a conflicted pull request becomes a priority ticket ([4cb6142](https://forgejo.webgrip.dev/webgrip/glide/commit/4cb6142cfd9a5215e321924762ce8430baedcec5))
-* **ploeg:** propose retrying a failed reviewer and restarting from a chosen Round ([033e948](https://forgejo.webgrip.dev/webgrip/glide/commit/033e948f0413fb5e7d599abcbff538776abf7f5c)), references [#45](https://forgejo.webgrip.dev/webgrip/glide/issues/45)
-* **ploeg:** record the OpenAI Agents API fit and propose ADR-0039 ([c1fb89d](https://forgejo.webgrip.dev/webgrip/glide/commit/c1fb89dc8eb8bb7aaa723e80de961996f23cd080))
+* **adr:** accept ADR-0011 with the remote phase in scope ([a2292af](https://forgejo.webgrip.dev/webgrip/glide/commit/a2292af77a928cfda75de85efbd645574205f081))
+* **glide:** research MCP access and propose ADR-0011 ([71f601a](https://forgejo.webgrip.dev/webgrip/glide/commit/71f601a0e43856f8a54368bc43b1d1549a8cddfd))
+* **ploeg:** ADR-0040 shows a conflict on an awaiting_review pull request ([cc87fc1](https://forgejo.webgrip.dev/webgrip/glide/commit/cc87fc13787f6859249d3f8d352322081bc1058b)), references [#45](https://forgejo.webgrip.dev/webgrip/glide/issues/45)
+* **ploeg:** how to route a board that serves several repositories ([a52f799](https://forgejo.webgrip.dev/webgrip/glide/commit/a52f7996d6f83917632cbc682d14a2214d3d8086))
+* **ploeg:** propose ADR-0040, a conflicted pull request becomes a priority ticket ([9988750](https://forgejo.webgrip.dev/webgrip/glide/commit/99887504719b95fd43a4943d53d0104e45f0e18d))
+* **ploeg:** propose retrying a failed reviewer and restarting from a chosen Round ([2f608d2](https://forgejo.webgrip.dev/webgrip/glide/commit/2f608d2f98901e6a9af0efd1fc57dfd6ab7db2b8)), references [#45](https://forgejo.webgrip.dev/webgrip/glide/issues/45)
+* **ploeg:** record the OpenAI Agents API fit and propose ADR-0039 ([693be37](https://forgejo.webgrip.dev/webgrip/glide/commit/693be377defddd852af3baeb5632d07501bac78b))
 
 ### Tests
 
-* **ploeg:** regenerate the Helm goldens for PLOEG_USAGE_REPORT ([93b88b8](https://forgejo.webgrip.dev/webgrip/glide/commit/93b88b818eafec7004c815bd273e3e9a468802f2))
+* **ploeg:** regenerate the Helm goldens for PLOEG_USAGE_REPORT ([c52a37c](https://forgejo.webgrip.dev/webgrip/glide/commit/c52a37ce10742c563391c972bfa75729a85bf368))
 
 ## [glide-v0.4.0-rc.19](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.18...glide-v0.4.0-rc.19) (2026-09-30)
 
 ### Added
 
-* **ploeg:** report reserved models and observed spend for running Runs ([57b75d7](https://forgejo.webgrip.dev/webgrip/glide/commit/57b75d7e0f210ce147c70f2e857c7544b6d4acc5))
+* **ploeg:** report reserved models and observed spend for running Runs ([36ddc03](https://forgejo.webgrip.dev/webgrip/glide/commit/36ddc0388ec635f6bd96a23b41224df29fdca501))
 
 ### Docs
 
-* **ploeg:** plan credential isolation for the cluster ([560e495](https://forgejo.webgrip.dev/webgrip/glide/commit/560e49534e13595ea36a046f4af256b5fffa0967))
+* **ploeg:** plan credential isolation for the cluster ([c4207fc](https://forgejo.webgrip.dev/webgrip/glide/commit/c4207fcdb525619b7c298b6d2117c834034b9edb))
 
 ### Tests
 
-* **vloer:** count a zombie as a reaped bridge on Linux ([375c504](https://forgejo.webgrip.dev/webgrip/glide/commit/375c5045822bf0d30ab0a2d65b60162449df5cff))
-* **vloer:** remove the conflict markers 375c504 committed ([ad3941e](https://forgejo.webgrip.dev/webgrip/glide/commit/ad3941ef091b764ca07780851f14b865ceeea4b9))
+* **vloer:** count a zombie as a reaped bridge on Linux ([db49e45](https://forgejo.webgrip.dev/webgrip/glide/commit/db49e45150175d3a460432c6f3fb961ac4242871))
+* **vloer:** remove the conflict markers 375c504 committed ([45db471](https://forgejo.webgrip.dev/webgrip/glide/commit/45db4712eb5b85a31001b71bb10adcf93afca069))
 
 ## [glide-v0.4.0-rc.18](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.17...glide-v0.4.0-rc.18) (2026-09-30)
 
 ### Added
 
-* **vloer:** add design tokens with light and dark themes ([12cdb8d](https://forgejo.webgrip.dev/webgrip/glide/commit/12cdb8d9d09f7ef3c83e5dfb07ea22b47ba31419))
-* **vloer:** add formatting, state vocabulary and needs-you reasons ([126f5c4](https://forgejo.webgrip.dev/webgrip/glide/commit/126f5c454247dd1917548d21f8cfd3879e152291))
-* **vloer:** add preferences, live updates and keyboard shortcuts ([59bcd04](https://forgejo.webgrip.dev/webgrip/glide/commit/59bcd04c363811484e3cd08900304ec6f8c9ad0c)), references [#shortcuts](https://forgejo.webgrip.dev/webgrip/glide/issues/shortcuts) [#palette](https://forgejo.webgrip.dev/webgrip/glide/issues/palette)
-* **vloer:** add reason fields to Now items ([f63b3e3](https://forgejo.webgrip.dev/webgrip/glide/commit/f63b3e3d9638ee7b989113bebb56aaecfbb185f5))
-* **vloer:** add the component library and its string builders ([2f23cc4](https://forgejo.webgrip.dev/webgrip/glide/commit/2f23cc473777b559642e909d47ac085162d90548))
-* **vloer:** add the living style guide at [#design](https://forgejo.webgrip.dev/webgrip/glide/issues/design) ([8367e09](https://forgejo.webgrip.dev/webgrip/glide/commit/8367e0973109243e41e8f2467a16ba63b3cc3522))
-* **vloer:** convert tracker HTML descriptions to Markdown for display ([6aab101](https://forgejo.webgrip.dev/webgrip/glide/commit/6aab101dff66ea2720a09724f0652cad0b48260e))
-* **vloer:** fit Runs to laptops and tighten Proposed, Activity and Insights ([d4a3826](https://forgejo.webgrip.dev/webgrip/glide/commit/d4a38265916e34cdbd645282bf0e3cea7a4d8c61))
-* **vloer:** format days and shares for the feeds ([1d965b9](https://forgejo.webgrip.dev/webgrip/glide/commit/1d965b991cac9670c864a65e438cd0a3f79cef3a))
-* **vloer:** group Needs you by reason and put the next step in the decision box ([5de40d9](https://forgejo.webgrip.dev/webgrip/glide/commit/5de40d93e9694c90fe2a25fa47ea18f0e45d4f8c))
-* **vloer:** list sessions by what they need, with honest review labels ([8deb69d](https://forgejo.webgrip.dev/webgrip/glide/commit/8deb69d675ed0ccefb230e1d4e581af4d927f4ac))
-* **vloer:** make the Ploeg demo exercise every needs-you reason ([403776f](https://forgejo.webgrip.dev/webgrip/glide/commit/403776f38b209a00f5d6fecc003095c3b5999632))
-* **vloer:** name checkpoints, audit events, actors and close reasons in plain words ([002393a](https://forgejo.webgrip.dev/webgrip/glide/commit/002393ac5dee3aa7af8280d5d64326dc639ce466))
-* **vloer:** one vocabulary, one grouping rule and one chrome across every screen ([6775d21](https://forgejo.webgrip.dev/webgrip/glide/commit/6775d21dfc3f582d9ce3be5c58b955ef605fbc91)), references [#settings](https://forgejo.webgrip.dev/webgrip/glide/issues/settings)
-* **vloer:** open on a cross-team Now page ([f6e9aab](https://forgejo.webgrip.dev/webgrip/glide/commit/f6e9aab56cdc40b1048bcff0e1d74d604abe6075)), references [#now](https://forgejo.webgrip.dev/webgrip/glide/issues/now)
-* **vloer:** pass Ploeg cancel results through ([c7b71e1](https://forgejo.webgrip.dev/webgrip/glide/commit/c7b71e1280be5a4973a155d726c93e05040ac5b3))
-* **vloer:** rebuild Now as the morning triage page ([0db5868](https://forgejo.webgrip.dev/webgrip/glide/commit/0db586880615eb82a201640d5fa7c5dd3075346a))
-* **vloer:** rebuild the session dialogs on the dialog components ([17c1577](https://forgejo.webgrip.dev/webgrip/glide/commit/17c157778ad886e0142901c64f2a3e0b1063a725))
-* **vloer:** rebuild the session workspace around the decision it waits on ([559efc4](https://forgejo.webgrip.dev/webgrip/glide/commit/559efc407cff3ba3dddfe9aa689026b5b0a2bf5e))
-* **vloer:** rebuild the shell with grouped navigation, status strip and theme switch ([ebfacee](https://forgejo.webgrip.dev/webgrip/glide/commit/ebfacee6dcf24237c8b9c2b4b4cd9ea2b14365f2))
-* **vloer:** rebuild Work as a lane list beside a Work Item decision page ([e815f24](https://forgejo.webgrip.dev/webgrip/glide/commit/e815f2423d5ca5bbb5dee3bb45d3777ac715761e))
-* **vloer:** redesign Proposed, Runs, Activity and Insights ([643b1ba](https://forgejo.webgrip.dev/webgrip/glide/commit/643b1ba6f4cb4c9a714c450d369b3dbcec3adc0b))
-* **vloer:** redesign Tasks as a list beside the selected task ([ef6313d](https://forgejo.webgrip.dev/webgrip/glide/commit/ef6313d899c1fa11600b77d78e81c3a7f9dbbe14))
-* **vloer:** remember the last Work team per browser ([bb42066](https://forgejo.webgrip.dev/webgrip/glide/commit/bb42066d07553bb48e18d48b00dfb6605b7e3395))
-* **vloer:** render tracker Markdown with line breaks, lists, quotes and emphasis ([5c060ef](https://forgejo.webgrip.dev/webgrip/glide/commit/5c060efd9862444774a4e65aee13184289a76b4d))
-* **vloer:** replace the palette placeholder with a fuzzy command palette ([94c32cb](https://forgejo.webgrip.dev/webgrip/glide/commit/94c32cb800e31cbd53a296f16dcc57fe84ec86f9))
-* **vloer:** route the new information architecture with redirects from old links ([650b491](https://forgejo.webgrip.dev/webgrip/glide/commit/650b4918ac0f662ddf865c6973994f1972080f74)), references [#work](https://forgejo.webgrip.dev/webgrip/glide/issues/work) [#proposed](https://forgejo.webgrip.dev/webgrip/glide/issues/proposed) [#runs](https://forgejo.webgrip.dev/webgrip/glide/issues/runs) [#activity](https://forgejo.webgrip.dev/webgrip/glide/issues/activity) [#insights](https://forgejo.webgrip.dev/webgrip/glide/issues/insights) [#ploeg](https://forgejo.webgrip.dev/webgrip/glide/issues/ploeg) [#insights](https://forgejo.webgrip.dev/webgrip/glide/issues/insights) [#account](https://forgejo.webgrip.dev/webgrip/glide/issues/account) [#system](https://forgejo.webgrip.dev/webgrip/glide/issues/system) [#sessions](https://forgejo.webgrip.dev/webgrip/glide/issues/sessions) [#now](https://forgejo.webgrip.dev/webgrip/glide/issues/now) [#page-title](https://forgejo.webgrip.dev/webgrip/glide/issues/page-title) [#announcement](https://forgejo.webgrip.dev/webgrip/glide/issues/announcement)
-* **vloer:** say why each Work Item waits on Now and group Needs you by reason ([13f861c](https://forgejo.webgrip.dev/webgrip/glide/commit/13f861cc00c5fe65139c42c1200295ab58fcc17d))
-* **vloer:** Settings with an Environment checklist, Linked accounts and Preferences ([dd75ac3](https://forgejo.webgrip.dev/webgrip/glide/commit/dd75ac32308afd25b0d3b60f1978971a6a87154b))
-* **vloer:** signal what waits on you with a favicon dot and opt-in desktop notifications ([532a111](https://forgejo.webgrip.dev/webgrip/glide/commit/532a111d4458a2913423618a7d93a17fd7788c96))
-* **vloer:** split sign-in page with the outlined lockup ([91ccbbe](https://forgejo.webgrip.dev/webgrip/glide/commit/91ccbbeeaaeeb8ef62126dfa4c0157f49d39b187))
+* **vloer:** add design tokens with light and dark themes ([826aba4](https://forgejo.webgrip.dev/webgrip/glide/commit/826aba4067b28dc37c55755b2a3f05e7275f5389))
+* **vloer:** add formatting, state vocabulary and needs-you reasons ([0e24cd7](https://forgejo.webgrip.dev/webgrip/glide/commit/0e24cd7f7293bfb761bb4f30e29dd1a7b89d27cf))
+* **vloer:** add preferences, live updates and keyboard shortcuts ([9515062](https://forgejo.webgrip.dev/webgrip/glide/commit/951506217a3719512ee93aa6455bf3bfe1ad72c8)), references [#shortcuts](https://forgejo.webgrip.dev/webgrip/glide/issues/shortcuts) [#palette](https://forgejo.webgrip.dev/webgrip/glide/issues/palette)
+* **vloer:** add reason fields to Now items ([8cbf09f](https://forgejo.webgrip.dev/webgrip/glide/commit/8cbf09f786a3cac50ea04c1f77f066027bbbe346))
+* **vloer:** add the component library and its string builders ([8a93236](https://forgejo.webgrip.dev/webgrip/glide/commit/8a93236e1a43af6729b8c1b9a6493e9c61ad93a3))
+* **vloer:** add the living style guide at [#design](https://forgejo.webgrip.dev/webgrip/glide/issues/design) ([a185d57](https://forgejo.webgrip.dev/webgrip/glide/commit/a185d5708089bb955b8d4a0be7678107c4f9aede))
+* **vloer:** convert tracker HTML descriptions to Markdown for display ([8918b8e](https://forgejo.webgrip.dev/webgrip/glide/commit/8918b8e354adaa78b5b8353a78e4b56df76258a4))
+* **vloer:** fit Runs to laptops and tighten Proposed, Activity and Insights ([1fb777a](https://forgejo.webgrip.dev/webgrip/glide/commit/1fb777a004619b71ba4d3f73ea9b2d7bcd5718a5))
+* **vloer:** format days and shares for the feeds ([aca9331](https://forgejo.webgrip.dev/webgrip/glide/commit/aca93313144bc0c960b6aa01f217af1e227563d1))
+* **vloer:** group Needs you by reason and put the next step in the decision box ([0d70d15](https://forgejo.webgrip.dev/webgrip/glide/commit/0d70d15fb04b68bc78e25ee16dc59f534bd4b138))
+* **vloer:** list sessions by what they need, with honest review labels ([1f319c6](https://forgejo.webgrip.dev/webgrip/glide/commit/1f319c66bf080dacdb4f80e0c043de21c344db83))
+* **vloer:** make the Ploeg demo exercise every needs-you reason ([de59d66](https://forgejo.webgrip.dev/webgrip/glide/commit/de59d66a3cc63dba15f8fcd35d0d46bca1040c28))
+* **vloer:** name checkpoints, audit events, actors and close reasons in plain words ([66ed55f](https://forgejo.webgrip.dev/webgrip/glide/commit/66ed55f4e007bbe38fd8080a9d3f4292b45a8b89))
+* **vloer:** one vocabulary, one grouping rule and one chrome across every screen ([c039058](https://forgejo.webgrip.dev/webgrip/glide/commit/c039058c92d688037c66684f174a5ecb6290237d)), references [#settings](https://forgejo.webgrip.dev/webgrip/glide/issues/settings)
+* **vloer:** open on a cross-team Now page ([d50c838](https://forgejo.webgrip.dev/webgrip/glide/commit/d50c83884871dd7d6d42c124b0beef018e383bc9)), references [#now](https://forgejo.webgrip.dev/webgrip/glide/issues/now)
+* **vloer:** pass Ploeg cancel results through ([e2cc151](https://forgejo.webgrip.dev/webgrip/glide/commit/e2cc151231e4846fc130e7468f611752864e6302))
+* **vloer:** rebuild Now as the morning triage page ([8a1a3f0](https://forgejo.webgrip.dev/webgrip/glide/commit/8a1a3f0509468a1a476226a99bc69931240099d5))
+* **vloer:** rebuild the session dialogs on the dialog components ([86a3a0b](https://forgejo.webgrip.dev/webgrip/glide/commit/86a3a0b8c5f25b9536f93cf7a067505fbfe3893f))
+* **vloer:** rebuild the session workspace around the decision it waits on ([651d630](https://forgejo.webgrip.dev/webgrip/glide/commit/651d63075d324f8a5cc0de42f6c1da1b2027a3ba))
+* **vloer:** rebuild the shell with grouped navigation, status strip and theme switch ([ba6b23a](https://forgejo.webgrip.dev/webgrip/glide/commit/ba6b23a85c91ae90de7492c2b889fa70ba96f7af))
+* **vloer:** rebuild Work as a lane list beside a Work Item decision page ([4b6ccdb](https://forgejo.webgrip.dev/webgrip/glide/commit/4b6ccdb9e3e494a3f10c250ec1c10adcf040b33b))
+* **vloer:** redesign Proposed, Runs, Activity and Insights ([eab149a](https://forgejo.webgrip.dev/webgrip/glide/commit/eab149afca0ebd0103208776814db7d8cc7ef029))
+* **vloer:** redesign Tasks as a list beside the selected task ([1d06412](https://forgejo.webgrip.dev/webgrip/glide/commit/1d06412b130270b28e5ee8a87167aa92d8c43f39))
+* **vloer:** remember the last Work team per browser ([9d06e77](https://forgejo.webgrip.dev/webgrip/glide/commit/9d06e7726dd809110da695af4cf8527e2ef14881))
+* **vloer:** render tracker Markdown with line breaks, lists, quotes and emphasis ([480035c](https://forgejo.webgrip.dev/webgrip/glide/commit/480035ce388b406ebd67a4a1bfec4dbafc11d3f9))
+* **vloer:** replace the palette placeholder with a fuzzy command palette ([e178c49](https://forgejo.webgrip.dev/webgrip/glide/commit/e178c49f0ade64cb2b39b81afe2ea7f90aeb90b0))
+* **vloer:** route the new information architecture with redirects from old links ([88ed148](https://forgejo.webgrip.dev/webgrip/glide/commit/88ed148167449217acc17c7b5ea515dd82bf58d8)), references [#work](https://forgejo.webgrip.dev/webgrip/glide/issues/work) [#proposed](https://forgejo.webgrip.dev/webgrip/glide/issues/proposed) [#runs](https://forgejo.webgrip.dev/webgrip/glide/issues/runs) [#activity](https://forgejo.webgrip.dev/webgrip/glide/issues/activity) [#insights](https://forgejo.webgrip.dev/webgrip/glide/issues/insights) [#ploeg](https://forgejo.webgrip.dev/webgrip/glide/issues/ploeg) [#insights](https://forgejo.webgrip.dev/webgrip/glide/issues/insights) [#account](https://forgejo.webgrip.dev/webgrip/glide/issues/account) [#system](https://forgejo.webgrip.dev/webgrip/glide/issues/system) [#sessions](https://forgejo.webgrip.dev/webgrip/glide/issues/sessions) [#now](https://forgejo.webgrip.dev/webgrip/glide/issues/now) [#page-title](https://forgejo.webgrip.dev/webgrip/glide/issues/page-title) [#announcement](https://forgejo.webgrip.dev/webgrip/glide/issues/announcement)
+* **vloer:** say why each Work Item waits on Now and group Needs you by reason ([8ba7188](https://forgejo.webgrip.dev/webgrip/glide/commit/8ba7188be5d383ce4b47a9fae3be08cb18989f72))
+* **vloer:** Settings with an Environment checklist, Linked accounts and Preferences ([f432e1c](https://forgejo.webgrip.dev/webgrip/glide/commit/f432e1cd714f2d0e9f0f6e2e06ad735d1736fbae))
+* **vloer:** signal what waits on you with a favicon dot and opt-in desktop notifications ([89348d0](https://forgejo.webgrip.dev/webgrip/glide/commit/89348d0b27db2541fa6245c8cbc094949b4c400b))
+* **vloer:** split sign-in page with the outlined lockup ([0d4d83f](https://forgejo.webgrip.dev/webgrip/glide/commit/0d4d83fc5813526dfa9356696707202980933ffa))
 
 ### Fixed
 
-* **vloer:** align Work ghost actions to the text edge and name the All lane ([5a595a0](https://forgejo.webgrip.dev/webgrip/glide/commit/5a595a0d4ba3462f708939d03e0998a8ae4d4a4d))
-* **vloer:** calm the palette rows, rank short queries sensibly and stop stale failures ([00ba2bb](https://forgejo.webgrip.dev/webgrip/glide/commit/00ba2bb6685f46e088bb64227a35ea550a739bec)), references [#id](https://forgejo.webgrip.dev/webgrip/glide/issues/id)
-* **vloer:** drop another account's recent list from the browser when the palette reads it ([8ed1c04](https://forgejo.webgrip.dev/webgrip/glide/commit/8ed1c040aa8ed6bb86fca9646a18acdd88d7a44c))
-* **vloer:** explain "Not routed" in the approve dialog ([b6788cd](https://forgejo.webgrip.dev/webgrip/glide/commit/b6788cdec085cae18ec4c9834ea9ad199df2c7a2))
-* **vloer:** fit the Round ladder at 1280 and keep Ploeg capitalised in Activity ([6e0981f](https://forgejo.webgrip.dev/webgrip/glide/commit/6e0981f1c0b0cb1681695250edcae05cbc1bce01))
-* **vloer:** forget the signed-out person everywhere and keep decision prompts literal ([317ae06](https://forgejo.webgrip.dev/webgrip/glide/commit/317ae065cc1cc712b1e78de80bef0382b6122d87))
-* **vloer:** give the page title room in the top bar at laptop widths ([f6224a3](https://forgejo.webgrip.dev/webgrip/glide/commit/f6224a3a1698b027d4814621a7822ea8e888a8db))
-* **vloer:** give the sign-in split a real contrast and a steady reveal toggle ([fa51d68](https://forgejo.webgrip.dev/webgrip/glide/commit/fa51d6809dd498f91f6e924ee0dbd777a8ad66e2))
-* **vloer:** give the theme previews a visible edge in dark mode ([6102732](https://forgejo.webgrip.dev/webgrip/glide/commit/6102732527c6900ee7bbfe22146f6f7f854704c8))
-* **vloer:** give the waiting list the full width on Now ([1029612](https://forgejo.webgrip.dev/webgrip/glide/commit/1029612513247e4b85cb6b99629045487d8d1943))
-* **vloer:** group Runs as table row groups and drop a needless tab stop ([d0716bc](https://forgejo.webgrip.dev/webgrip/glide/commit/d0716bc0768f6907a465deffc8c89c79bde69937))
-* **vloer:** keep Create session in reach and tighten the Tasks list ([03748aa](https://forgejo.webgrip.dev/webgrip/glide/commit/03748aaaa3d4e61ab951dc5a18c230935af48b91)), references [#id](https://forgejo.webgrip.dev/webgrip/glide/issues/id)
-* **vloer:** keep demo spend at zero and DEMO-1's free-text escalation ([ac6006c](https://forgejo.webgrip.dev/webgrip/glide/commit/ac6006c86623b3f021e503d3b4403066f60230c8))
-* **vloer:** keep every waiting item on Now and align its grid ([44b4044](https://forgejo.webgrip.dev/webgrip/glide/commit/44b404462d36c8c40d4e5652c5871782c285371d))
-* **vloer:** keep focus visible under fixed chrome and name pages, regions and filters for assistive tech ([efa4281](https://forgejo.webgrip.dev/webgrip/glide/commit/efa42817f5d267940f9d78161e6f8ccbaa3ad515))
-* **vloer:** keep keyboard focus on Now and paint it before the summary ([3cdae50](https://forgejo.webgrip.dev/webgrip/glide/commit/3cdae50a756f3cefd4664cb45e9efa1c7814d290))
-* **vloer:** keep links and code out of a Markdown link's address ([826ebd9](https://forgejo.webgrip.dev/webgrip/glide/commit/826ebd93dd5cc29a47a87c5e9ab5ce751b4b4bc7))
-* **vloer:** keep meter tracks and skeletons visible on dialogs ([5a55df7](https://forgejo.webgrip.dev/webgrip/glide/commit/5a55df77d4b0732801615f5ff7b6a23d79974b97))
-* **vloer:** keep the palette's recent items and Work Item search to the signed-in user ([dd17b47](https://forgejo.webgrip.dev/webgrip/glide/commit/dd17b47c697214443fce4e8563d3187a4f0632ff))
-* **vloer:** keep the Sessions list steady while it refreshes and name the delivery gate honestly ([9c08a76](https://forgejo.webgrip.dev/webgrip/glide/commit/9c08a76fcba7059592884e4d3477c0f36d82e9fa))
-* **vloer:** keep the task row focus ring inside the list card ([c199ea7](https://forgejo.webgrip.dev/webgrip/glide/commit/c199ea7e45206df903fd28818778d3500e1ad3a9))
-* **vloer:** keep Work calm while it refreshes itself ([22ba30c](https://forgejo.webgrip.dev/webgrip/glide/commit/22ba30c0e3e4f90e6f1498abf7764a336c2cf24a))
-* **vloer:** keep Work focus rings inside their lists and drop the last legacy spacing ([40c3f52](https://forgejo.webgrip.dev/webgrip/glide/commit/40c3f524b7e70e7ccf2105bfd5f21570cfc3a8f1))
-* **vloer:** let the error toast keep the component's danger style ([68c90cf](https://forgejo.webgrip.dev/webgrip/glide/commit/68c90cf3bc60eeb2541f7168f60b6d088a28f03a))
-* **vloer:** make every session state answer what to do, and keep focus and answers through live updates ([e350630](https://forgejo.webgrip.dev/webgrip/glide/commit/e3506306bdaef2eb64c28dca1a4e43d38228c635))
-* **vloer:** make palette results quieter and keep focus after redraws ([63932f6](https://forgejo.webgrip.dev/webgrip/glide/commit/63932f694add6ec040b9f7b712fa501c7fc51661))
-* **vloer:** make the favicon dot big and bright enough to notice in a tab strip ([7e4ba44](https://forgejo.webgrip.dev/webgrip/glide/commit/7e4ba441c5ffeb3c282e2740e08b017cf5c83d0c))
-* **vloer:** one Settings width, an honest Environment and calmer Preferences ([62999c0](https://forgejo.webgrip.dev/webgrip/glide/commit/62999c009a5692d36eea5a5378d0b210628a8723))
-* **vloer:** print the page without the shell chrome ([8dde758](https://forgejo.webgrip.dev/webgrip/glide/commit/8dde758d8bbc921ccbd869aab6f44f545dfd6ff3))
-* **vloer:** read state badges from states.js and keep formats and links on the shared helpers ([5216e8f](https://forgejo.webgrip.dev/webgrip/glide/commit/5216e8fd74acdfd7428e44c19d85b4877d39a4de)), references [#design](https://forgejo.webgrip.dev/webgrip/glide/issues/design)
-* **vloer:** refresh the Ploeg feeds only with data Vloer read ([3e755ed](https://forgejo.webgrip.dev/webgrip/glide/commit/3e755ed23ffd146fc28eae8de062feaf9a5a41b8))
-* **vloer:** refuse in-app links that resolve to another host ([12d94de](https://forgejo.webgrip.dev/webgrip/glide/commit/12d94de4c96c14e2ddf6380fdedadb8041c1d434))
-* **vloer:** retire the broken session Compare view ([309c2fb](https://forgejo.webgrip.dev/webgrip/glide/commit/309c2fb4bea35e82c858c485ecdee143dc4d60e1)), references [#sessions](https://forgejo.webgrip.dev/webgrip/glide/issues/sessions)
-* **vloer:** say what search covers above the no-match next step ([5025600](https://forgejo.webgrip.dev/webgrip/glide/commit/50256008c613fc3d7e79c4738013ebe94447a59e))
-* **vloer:** say who decides once and let the stale notice wrap on phones ([1635874](https://forgejo.webgrip.dev/webgrip/glide/commit/16358747a15f08c7b066407a87b4cf16bd7a3f2f))
-* **vloer:** scope the session dialogs' styles and open each on its first field ([a147d67](https://forgejo.webgrip.dev/webgrip/glide/commit/a147d67b346596550a862bb1d1d50b5bef39aac5))
-* **vloer:** show "Updated" only for the page on screen ([4e90514](https://forgejo.webgrip.dev/webgrip/glide/commit/4e905145086693b7bb2d1c987edd151667130d64))
-* **vloer:** state-aware Shift notes and left-aligned phone tools on Work ([518c921](https://forgejo.webgrip.dev/webgrip/glide/commit/518c921008cb1661fefdd1ec5db429606900eb53))
-* **vloer:** title the sign-in page ([b8ba60b](https://forgejo.webgrip.dev/webgrip/glide/commit/b8ba60b4d6aae45fb4e9207b2d080c9ed9b06980))
-* **vloer:** use the browser's state vocabulary in the VS Code extension ([4563ca7](https://forgejo.webgrip.dev/webgrip/glide/commit/4563ca7bd889f61352f08eec99b3b40573dd3a3a))
-* **vloer:** write tracker Markdown in the subset the browser renderer reads ([b5c53f7](https://forgejo.webgrip.dev/webgrip/glide/commit/b5c53f7d751c93ceb53d430b70c260340470d396))
+* **vloer:** align Work ghost actions to the text edge and name the All lane ([bcb6bee](https://forgejo.webgrip.dev/webgrip/glide/commit/bcb6beec377c3aca12eba448a651b7769e7ae39a))
+* **vloer:** calm the palette rows, rank short queries sensibly and stop stale failures ([9c6a3a9](https://forgejo.webgrip.dev/webgrip/glide/commit/9c6a3a97ef125971007596089b31956814a73357)), references [#id](https://forgejo.webgrip.dev/webgrip/glide/issues/id)
+* **vloer:** drop another account's recent list from the browser when the palette reads it ([3d49298](https://forgejo.webgrip.dev/webgrip/glide/commit/3d49298af1279d0c2de26a11674c9ae373173281))
+* **vloer:** explain "Not routed" in the approve dialog ([82878ae](https://forgejo.webgrip.dev/webgrip/glide/commit/82878ae342224c9081a79e4c528b30fe74e0bc15))
+* **vloer:** fit the Round ladder at 1280 and keep Ploeg capitalised in Activity ([a5c59eb](https://forgejo.webgrip.dev/webgrip/glide/commit/a5c59eb5425861d762c73749fa6d3b9ca3f0f6e3))
+* **vloer:** forget the signed-out person everywhere and keep decision prompts literal ([39e1c39](https://forgejo.webgrip.dev/webgrip/glide/commit/39e1c399987d44acc063275b74bdafe33b487e72))
+* **vloer:** give the page title room in the top bar at laptop widths ([e1fc2e3](https://forgejo.webgrip.dev/webgrip/glide/commit/e1fc2e3d818dc87215b05b5ad076800624366dc3))
+* **vloer:** give the sign-in split a real contrast and a steady reveal toggle ([e8d6684](https://forgejo.webgrip.dev/webgrip/glide/commit/e8d6684dae67b951ba75f6012bbd97993f4fcbb3))
+* **vloer:** give the theme previews a visible edge in dark mode ([8bf7e49](https://forgejo.webgrip.dev/webgrip/glide/commit/8bf7e49175bb16abb6f2a53e80b455eb7da684d1))
+* **vloer:** give the waiting list the full width on Now ([4c99ea9](https://forgejo.webgrip.dev/webgrip/glide/commit/4c99ea96750f0e488229994bf8b17b6689686509))
+* **vloer:** group Runs as table row groups and drop a needless tab stop ([39feaa0](https://forgejo.webgrip.dev/webgrip/glide/commit/39feaa0694ed4a591b7ecf80345c3360d0f7fbf1))
+* **vloer:** keep Create session in reach and tighten the Tasks list ([a70365d](https://forgejo.webgrip.dev/webgrip/glide/commit/a70365d58174145bc8307c64510ac28088557fbd)), references [#id](https://forgejo.webgrip.dev/webgrip/glide/issues/id)
+* **vloer:** keep demo spend at zero and DEMO-1's free-text escalation ([0510900](https://forgejo.webgrip.dev/webgrip/glide/commit/0510900383187a4ce7dc4c372921e2333ed734ce))
+* **vloer:** keep every waiting item on Now and align its grid ([68e6dd7](https://forgejo.webgrip.dev/webgrip/glide/commit/68e6dd7acbe6f7e5abed506f0316d71df65ca2fb))
+* **vloer:** keep focus visible under fixed chrome and name pages, regions and filters for assistive tech ([1c8e638](https://forgejo.webgrip.dev/webgrip/glide/commit/1c8e638ce0eb6fb30ece40c336af400a3885a680))
+* **vloer:** keep keyboard focus on Now and paint it before the summary ([0d57057](https://forgejo.webgrip.dev/webgrip/glide/commit/0d5705757804894c87aef26e54f4add9a4655332))
+* **vloer:** keep links and code out of a Markdown link's address ([25b2a5b](https://forgejo.webgrip.dev/webgrip/glide/commit/25b2a5b632cc7a279a7ce3479dc05ad53d6c3497))
+* **vloer:** keep meter tracks and skeletons visible on dialogs ([e92b7c2](https://forgejo.webgrip.dev/webgrip/glide/commit/e92b7c2700aa672b40960c8ddc3faefc0c99d19b))
+* **vloer:** keep the palette's recent items and Work Item search to the signed-in user ([ee61b77](https://forgejo.webgrip.dev/webgrip/glide/commit/ee61b77756b60f9c8d06f0070f4b3af80840750a))
+* **vloer:** keep the Sessions list steady while it refreshes and name the delivery gate honestly ([d17ee58](https://forgejo.webgrip.dev/webgrip/glide/commit/d17ee58c8d4a034978f0ccd901a402dd9d0bbbd8))
+* **vloer:** keep the task row focus ring inside the list card ([21e3111](https://forgejo.webgrip.dev/webgrip/glide/commit/21e3111a7743320c5ef58892b5cd96a14931bed2))
+* **vloer:** keep Work calm while it refreshes itself ([67cf224](https://forgejo.webgrip.dev/webgrip/glide/commit/67cf224228c64f7188e8e920330ccbc2b0373c4c))
+* **vloer:** keep Work focus rings inside their lists and drop the last legacy spacing ([58c78f4](https://forgejo.webgrip.dev/webgrip/glide/commit/58c78f4c126a39942009339b041fed7e98bba53e))
+* **vloer:** let the error toast keep the component's danger style ([fc4740f](https://forgejo.webgrip.dev/webgrip/glide/commit/fc4740f8b12ae55cc8bf11b105bb1645ce9c58f9))
+* **vloer:** make every session state answer what to do, and keep focus and answers through live updates ([63f74a8](https://forgejo.webgrip.dev/webgrip/glide/commit/63f74a81fc09eb6f98d3da6befc2b95ef4933f8e))
+* **vloer:** make palette results quieter and keep focus after redraws ([d8e624c](https://forgejo.webgrip.dev/webgrip/glide/commit/d8e624c9b84d70642d65be3c788b095ebed5e433))
+* **vloer:** make the favicon dot big and bright enough to notice in a tab strip ([23edaa1](https://forgejo.webgrip.dev/webgrip/glide/commit/23edaa1f4bfdd8bd24007ffea5ac6e98b179ac3c))
+* **vloer:** one Settings width, an honest Environment and calmer Preferences ([8f26354](https://forgejo.webgrip.dev/webgrip/glide/commit/8f2635467061a7b0312daaf3070c10b7397a22ae))
+* **vloer:** print the page without the shell chrome ([97975bf](https://forgejo.webgrip.dev/webgrip/glide/commit/97975bfed123d447146ecd99ca061a189efdaa43))
+* **vloer:** read state badges from states.js and keep formats and links on the shared helpers ([2278603](https://forgejo.webgrip.dev/webgrip/glide/commit/2278603a6d69e78c9cb0585e721d1334b2aecb90)), references [#design](https://forgejo.webgrip.dev/webgrip/glide/issues/design)
+* **vloer:** refresh the Ploeg feeds only with data Vloer read ([5795cc4](https://forgejo.webgrip.dev/webgrip/glide/commit/5795cc408188fb97b03e34a4194ff7b6dc25209c))
+* **vloer:** refuse in-app links that resolve to another host ([b1447da](https://forgejo.webgrip.dev/webgrip/glide/commit/b1447dab13ad974d71790da8033bd61c11673dde))
+* **vloer:** retire the broken session Compare view ([f39fbc8](https://forgejo.webgrip.dev/webgrip/glide/commit/f39fbc8c3bebba8224840ba5183849334dcb4dc9)), references [#sessions](https://forgejo.webgrip.dev/webgrip/glide/issues/sessions)
+* **vloer:** say what search covers above the no-match next step ([b0a6be8](https://forgejo.webgrip.dev/webgrip/glide/commit/b0a6be8bd6761b9a22be407e420d3925a85accaf))
+* **vloer:** say who decides once and let the stale notice wrap on phones ([60a810b](https://forgejo.webgrip.dev/webgrip/glide/commit/60a810bd5a2b18b6851e82a8b2a78c8ce95c6cc5))
+* **vloer:** scope the session dialogs' styles and open each on its first field ([2180b46](https://forgejo.webgrip.dev/webgrip/glide/commit/2180b46f409e69b0d8384ab19763537347ffd1bb))
+* **vloer:** show "Updated" only for the page on screen ([18013c6](https://forgejo.webgrip.dev/webgrip/glide/commit/18013c62362c03702914501401ec1734af4391c8))
+* **vloer:** state-aware Shift notes and left-aligned phone tools on Work ([786a9b2](https://forgejo.webgrip.dev/webgrip/glide/commit/786a9b26c210ecdcdf907d082215baae3c5eae87))
+* **vloer:** title the sign-in page ([aed3ff5](https://forgejo.webgrip.dev/webgrip/glide/commit/aed3ff599a5ec763bec7327555390bc0ef2e78a4))
+* **vloer:** use the browser's state vocabulary in the VS Code extension ([6139d40](https://forgejo.webgrip.dev/webgrip/glide/commit/6139d4040ab6805b0126c39ba8b739e350d530ce))
+* **vloer:** write tracker Markdown in the subset the browser renderer reads ([80d8b87](https://forgejo.webgrip.dev/webgrip/glide/commit/80d8b87486202972cc7feb7355cd0dbc21ba1985))
 
 ### Performance
 
-* **vloer:** serve static assets with ETag and gzip ([67676c5](https://forgejo.webgrip.dev/webgrip/glide/commit/67676c5cdd0c690bd960d58240d98d549b9cb629))
+* **vloer:** serve static assets with ETag and gzip ([2ff9ade](https://forgejo.webgrip.dev/webgrip/glide/commit/2ff9ade8a8c333a847f85b7c4a472c4cfc4f13dc))
 
 ### Changed
 
-* **vloer:** apply the screens' shared requests to the shell, core and components ([c15e079](https://forgejo.webgrip.dev/webgrip/glide/commit/c15e0793c863353a3abbabff20facdcfa58a61af))
-* **vloer:** draw the shell from the design tokens without hex fallbacks ([51855fa](https://forgejo.webgrip.dev/webgrip/glide/commit/51855fac7d5567454eef484e7e349a726ba51ae4))
-* **vloer:** move the stylesheet into cascade layers ([d146354](https://forgejo.webgrip.dev/webgrip/glide/commit/d1463549efb84e729b02ce8e2a3cfe1c6722cfa7))
-* **vloer:** retire legacy.css ([91754db](https://forgejo.webgrip.dev/webgrip/glide/commit/91754db7f5f4fe57f420d81553e343df3e9f290a))
-* **vloer:** split the browser app into core, shell and view modules ([16e2bbb](https://forgejo.webgrip.dev/webgrip/glide/commit/16e2bbb9d60ea009a476d1fa533396a2ba8b9551)), references [#app](https://forgejo.webgrip.dev/webgrip/glide/issues/app) [#now](https://forgejo.webgrip.dev/webgrip/glide/issues/now)
+* **vloer:** apply the screens' shared requests to the shell, core and components ([c0df122](https://forgejo.webgrip.dev/webgrip/glide/commit/c0df122ec0e44fbb0cc4ef1f0ddd8f0420e52482))
+* **vloer:** draw the shell from the design tokens without hex fallbacks ([7cbd225](https://forgejo.webgrip.dev/webgrip/glide/commit/7cbd2250a85e5779100891d93e689c57f3be66a1))
+* **vloer:** move the stylesheet into cascade layers ([a805777](https://forgejo.webgrip.dev/webgrip/glide/commit/a805777395f3412f3062b7641e7bf4579bcb4c48))
+* **vloer:** retire legacy.css ([db00d9a](https://forgejo.webgrip.dev/webgrip/glide/commit/db00d9a7b2a63abd66891f9fcf00978d7e4524fa))
+* **vloer:** split the browser app into core, shell and view modules ([404f69a](https://forgejo.webgrip.dev/webgrip/glide/commit/404f69a6240f4048175781a7eb73489d71432598)), references [#app](https://forgejo.webgrip.dev/webgrip/glide/issues/app) [#now](https://forgejo.webgrip.dev/webgrip/glide/issues/now)
 
 ### Docs
 
-* point the guides at Now, the Ploeg pages and Cancel Work Item ([e8e87d4](https://forgejo.webgrip.dev/webgrip/glide/commit/e8e87d4e6a900c3db00ae73e562b25036c530f20))
-* point the guides at the built Now, Work Item page and Cancel Work Item ([43e8a7c](https://forgejo.webgrip.dev/webgrip/glide/commit/43e8a7c9204a24f086c1c4ddace98ffd2fa657ee))
-* **vloer:** describe the application palette as token roles and status tones ([6f336c2](https://forgejo.webgrip.dev/webgrip/glide/commit/6f336c2e3389d293c6f93a1606c7af563b9d4d09))
-* **vloer:** describe the rebuilt screens in the browser UI reference ([fee0fb5](https://forgejo.webgrip.dev/webgrip/glide/commit/fee0fb59d5f8c1ddda48a362b80a3599842c5f10))
-* **vloer:** document the Ploeg proxy routes, Now fields, cancel result and static caching ([16043ef](https://forgejo.webgrip.dev/webgrip/glide/commit/16043efa6cd2e128d32e4e512ed7564ac3a0f609))
-* **vloer:** list the browser UI reference in llms.txt ([13a23df](https://forgejo.webgrip.dev/webgrip/glide/commit/13a23df6a5b47dfeb873b3cde254ab3120b39cc1))
-* **vloer:** propose ADR 0024 and add the browser UI reference ([48c7a61](https://forgejo.webgrip.dev/webgrip/glide/commit/48c7a61d26bb05d67b7370cc4e3673a42149cd0a)), references [#design](https://forgejo.webgrip.dev/webgrip/glide/issues/design)
-* **vloer:** record ADR 0024 as implemented and still proposed ([9b1949e](https://forgejo.webgrip.dev/webgrip/glide/commit/9b1949e3462a166b2462313affd8838b5c5717b2))
-* **vloer:** state what the legacy screens, tokens and API do today ([6e910b0](https://forgejo.webgrip.dev/webgrip/glide/commit/6e910b03c0cbc327b4188bab73c03f440ef59924))
+* point the guides at Now, the Ploeg pages and Cancel Work Item ([6528462](https://forgejo.webgrip.dev/webgrip/glide/commit/6528462227a283a8e2af09e18176aa63d1559d98))
+* point the guides at the built Now, Work Item page and Cancel Work Item ([f5eaf4d](https://forgejo.webgrip.dev/webgrip/glide/commit/f5eaf4dd98a72c48b6c5363f9b52b8096a955c55))
+* **vloer:** describe the application palette as token roles and status tones ([730874f](https://forgejo.webgrip.dev/webgrip/glide/commit/730874fa0dd9782a31e3a342f35a9c8e4dc1ae88))
+* **vloer:** describe the rebuilt screens in the browser UI reference ([7dd7523](https://forgejo.webgrip.dev/webgrip/glide/commit/7dd75232302a47aa8d04705cdacdb089f738750b))
+* **vloer:** document the Ploeg proxy routes, Now fields, cancel result and static caching ([3072b9f](https://forgejo.webgrip.dev/webgrip/glide/commit/3072b9f6dc13430127549ce19cf8b7b65e6b1d05))
+* **vloer:** list the browser UI reference in llms.txt ([de8ec80](https://forgejo.webgrip.dev/webgrip/glide/commit/de8ec8037e544ed1d1c95ee46db34ddd8fdf3315))
+* **vloer:** propose ADR 0024 and add the browser UI reference ([045a087](https://forgejo.webgrip.dev/webgrip/glide/commit/045a0870e01135909ab10f11c38a445c284eb695)), references [#design](https://forgejo.webgrip.dev/webgrip/glide/issues/design)
+* **vloer:** record ADR 0024 as implemented and still proposed ([4f41104](https://forgejo.webgrip.dev/webgrip/glide/commit/4f4110440af9a6055e648b990d8cd7006a82ca7e))
+* **vloer:** state what the legacy screens, tokens and API do today ([b5e890e](https://forgejo.webgrip.dev/webgrip/glide/commit/b5e890e51dc49ea1f9b15a645f70f23fb7425037))
 
 ### Tests
 
-* **vloer:** count a killed bridge left as a zombie as gone ([0adc544](https://forgejo.webgrip.dev/webgrip/glide/commit/0adc5447efb2dcbe8f15de567bfff3416a89b49b))
-* **vloer:** count the richer Ploeg demo in the feed and summary checks ([3506e94](https://forgejo.webgrip.dev/webgrip/glide/commit/3506e94e356989d721838a7c9afe683c10592920))
-* **vloer:** count ui.js builder actions as markup in the registry check ([f11ae92](https://forgejo.webgrip.dev/webgrip/glide/commit/f11ae92b3fb446f90cd830d80ac8c9c8fe066955))
-* **vloer:** split the browser check into per-area flows ([3fc0413](https://forgejo.webgrip.dev/webgrip/glide/commit/3fc04138e08b64e631479a1b54c6d1379bcb1009)), references [#16](https://forgejo.webgrip.dev/webgrip/glide/issues/16)
+* **vloer:** count a killed bridge left as a zombie as gone ([71ad105](https://forgejo.webgrip.dev/webgrip/glide/commit/71ad1059e8779f8569ed40da8e500f219ff15f71))
+* **vloer:** count the richer Ploeg demo in the feed and summary checks ([f75d76b](https://forgejo.webgrip.dev/webgrip/glide/commit/f75d76b52ef8bf27e801fdc588033e2348f3fd2a))
+* **vloer:** count ui.js builder actions as markup in the registry check ([68a2954](https://forgejo.webgrip.dev/webgrip/glide/commit/68a2954171995fe4d9273f3fa64087432cefc2e7))
+* **vloer:** split the browser check into per-area flows ([3e9ab23](https://forgejo.webgrip.dev/webgrip/glide/commit/3e9ab23580db3ad56e3c8b1eae87804d2da66eb5)), references [#16](https://forgejo.webgrip.dev/webgrip/glide/issues/16)
 
 ### Style
 
-* **vloer:** drop the duplicate Esc hint from the palette footer ([ce536a2](https://forgejo.webgrip.dev/webgrip/glide/commit/ce536a256eaf82c39ebc194a003aa69111323ed6))
-* **vloer:** lay the budget dialog's figures out in two columns ([67cef3c](https://forgejo.webgrip.dev/webgrip/glide/commit/67cef3cd84a78ce0b969cdc676a83f18836a350d))
-* **vloer:** line up the shortcut help with labels left and keys right ([cce4a77](https://forgejo.webgrip.dev/webgrip/glide/commit/cce4a779bb8a2ec487865504fb3b44206f02216b))
-* **vloer:** polish the session callouts and cards at phone width ([9a6e3fc](https://forgejo.webgrip.dev/webgrip/glide/commit/9a6e3fcfacf679b09677686894eada642b2a650e))
+* **vloer:** drop the duplicate Esc hint from the palette footer ([efbe1aa](https://forgejo.webgrip.dev/webgrip/glide/commit/efbe1aa794c893c6cbc81cab0acdd289c23b1183))
+* **vloer:** lay the budget dialog's figures out in two columns ([7630133](https://forgejo.webgrip.dev/webgrip/glide/commit/7630133ba381fd6a07c0aae102765a61b5d8adda))
+* **vloer:** line up the shortcut help with labels left and keys right ([0709d25](https://forgejo.webgrip.dev/webgrip/glide/commit/0709d25eaebf0718fc3da202554e2e09d499027a))
+* **vloer:** polish the session callouts and cards at phone width ([fded080](https://forgejo.webgrip.dev/webgrip/glide/commit/fded0804b0dc5f88d40451a3e5368eb783074805))
 
 ## [glide-v0.4.0-rc.17](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.16...glide-v0.4.0-rc.17) (2026-09-30)
 
 ### Fixed
 
-* **vloer:** settle a command turn when its supervisor dies before the bridge ([ac050ff](https://forgejo.webgrip.dev/webgrip/glide/commit/ac050ffb715c42be290b65d0bdd4f20363bec323))
+* **vloer:** settle a command turn when its supervisor dies before the bridge ([96ea78d](https://forgejo.webgrip.dev/webgrip/glide/commit/96ea78ddee4f9d2d8467b239defb4585f3a98b00))
 
 ## [glide-v0.4.0-rc.16](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.15...glide-v0.4.0-rc.16) (2026-09-30)
 
 ### Fixed
 
-* **vloer:** patch npm's bundled brace-expansion and undici in the workspace image ([e8c8d45](https://forgejo.webgrip.dev/webgrip/glide/commit/e8c8d45a6c3adbc4ccf7ba11bf747b8725d03690))
+* **vloer:** patch npm's bundled brace-expansion and undici in the workspace image ([24e3d85](https://forgejo.webgrip.dev/webgrip/glide/commit/24e3d85f3b729f93f82a2f946e71bee9c9385084))
 
 ## [glide-v0.4.0-rc.15](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.14...glide-v0.4.0-rc.15) (2026-09-30)
 
 ### Added
 
-* **ploeg:** split a Run's settled spend and tokens per model ([0587669](https://forgejo.webgrip.dev/webgrip/glide/commit/05876692abc5aca65e22f44376fe44cc1aeb21f4))
+* **ploeg:** split a Run's settled spend and tokens per model ([853eda3](https://forgejo.webgrip.dev/webgrip/glide/commit/853eda3e738a3095637602050db4264dbcf8a9c1))
 
 ### Fixed
 
-* **ploeg:** keep claude-code subagents and the advisor on the Run's model ([2c8f8a0](https://forgejo.webgrip.dev/webgrip/glide/commit/2c8f8a0662315dbbab91d91c7a2f21fbca174508))
+* **ploeg:** keep claude-code subagents and the advisor on the Run's model ([d9af860](https://forgejo.webgrip.dev/webgrip/glide/commit/d9af86070aa610763d5750e0589ead4ffa1c90c7))
 
 ### Docs
 
-* **ploeg:** propose ADR-0039 on multi-model Runs and the advisor tool ([2b73770](https://forgejo.webgrip.dev/webgrip/glide/commit/2b73770274860bb9cbf5ecded33a467d1f8b5262))
+* **ploeg:** propose ADR-0039 on multi-model Runs and the advisor tool ([5802d1a](https://forgejo.webgrip.dev/webgrip/glide/commit/5802d1a855f58f3742578a7174f88388f239db82))
 
 ### Tests
 
-* **ploeg:** give the idle-watchdog test room for a slow exec ([47ff826](https://forgejo.webgrip.dev/webgrip/glide/commit/47ff8262e508379022eee9c517946ac8fb53c791))
-* **ploeg:** run the talking harness inline so a file scan cannot stall it ([6c9b358](https://forgejo.webgrip.dev/webgrip/glide/commit/6c9b358f88b97712cd0724d8c705ef9f1ba0292f))
-* **vloer:** fail a test that never settles and accept a concurrency cap ([cece343](https://forgejo.webgrip.dev/webgrip/glide/commit/cece3433de8e4062c4faf8443190302fefeea3fb))
-* **vloer:** run the API demo at 100 ms per step instead of 1 s ([b34a598](https://forgejo.webgrip.dev/webgrip/glide/commit/b34a598c7c8ea66d0a505afc5a65c51a7f5c4044))
-* **vloer:** write the stop-signal child's pid file atomically ([3f73be4](https://forgejo.webgrip.dev/webgrip/glide/commit/3f73be4a2ba18503d5a0badcd11b0af9ed9510b2))
+* **ploeg:** give the idle-watchdog test room for a slow exec ([ad7bbcc](https://forgejo.webgrip.dev/webgrip/glide/commit/ad7bbcc409c54516a5fb4dcec8a18430b02ac2a6))
+* **ploeg:** run the talking harness inline so a file scan cannot stall it ([dee6fd3](https://forgejo.webgrip.dev/webgrip/glide/commit/dee6fd366cc4db98e4d7cd9b756a0626e9887180))
+* **vloer:** fail a test that never settles and accept a concurrency cap ([f7f9ff7](https://forgejo.webgrip.dev/webgrip/glide/commit/f7f9ff70965d524e3fe63f5b0f60f4359de95a06))
+* **vloer:** run the API demo at 100 ms per step instead of 1 s ([553600b](https://forgejo.webgrip.dev/webgrip/glide/commit/553600b710d0e3c083019b23cb2f75b771b59959))
+* **vloer:** write the stop-signal child's pid file atomically ([21125f2](https://forgejo.webgrip.dev/webgrip/glide/commit/21125f28f52acc917a825f63ff139625e796ff90))
 
 ## [glide-v0.4.0-rc.14](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.13...glide-v0.4.0-rc.14) (2026-09-29)
 
 ### Fixed
 
-* **ploeg:** write OpenHands agent settings so its ACP session starts ([964d61e](https://forgejo.webgrip.dev/webgrip/glide/commit/964d61e785eee6f66f95c520f9130012f77953cb))
+* **ploeg:** write OpenHands agent settings so its ACP session starts ([24e3a05](https://forgejo.webgrip.dev/webgrip/glide/commit/24e3a054f9c2258d9daf7a109f30397deca606fa))
 
 ### Internal
 
-* **ploeg:** commit the mise.lock that lockfile = true expects ([6150dd0](https://forgejo.webgrip.dev/webgrip/glide/commit/6150dd067158bcf10d8a45547e8e585868ce3062))
+* **ploeg:** commit the mise.lock that lockfile = true expects ([caa2a3a](https://forgejo.webgrip.dev/webgrip/glide/commit/caa2a3a737bbf071870ae79be4c2884c24f8a2a6))
 
 ## [glide-v0.4.0-rc.13](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.12...glide-v0.4.0-rc.13) (2026-09-29)
 
 ### Fixed
 
-* **ploeg:** parse YAML with the maintained go.yaml.in/yaml/v3 ([56ff6fb](https://forgejo.webgrip.dev/webgrip/glide/commit/56ff6fb48b84960104e9baf2e9ead5ecb42109e7))
+* **ploeg:** parse YAML with the maintained go.yaml.in/yaml/v3 ([bdea64d](https://forgejo.webgrip.dev/webgrip/glide/commit/bdea64dd640d6c90dd11423da4d31d9d39d2409e))
 
 ### Docs
 
-* **ploeg:** record the Work Item 138 incident and its non-golden paths ([94a1e51](https://forgejo.webgrip.dev/webgrip/glide/commit/94a1e514b636e3563254c3f87de7517908663a49))
-* **ploeg:** state what each archived OpenSpec capability is for ([a389dfa](https://forgejo.webgrip.dev/webgrip/glide/commit/a389dfade9e9ea229f002f238d865cbf4b6acb6e))
+* **ploeg:** record the Work Item 138 incident and its non-golden paths ([ce7d726](https://forgejo.webgrip.dev/webgrip/glide/commit/ce7d72628c1d2a0ea9a9e74f77939521238fd8f8))
+* **ploeg:** state what each archived OpenSpec capability is for ([d5975f9](https://forgejo.webgrip.dev/webgrip/glide/commit/d5975f939a3226d9e84a5c472623854290592e98))
 
 ### Tests
 
-* **ploeg:** ignore helm's blank line before document separators in chart goldens ([2dddb70](https://forgejo.webgrip.dev/webgrip/glide/commit/2dddb707b2fd548a8f9e4bcecc16b9a372eee159))
-* **vloer:** scale the VS Code extension test timeouts on a loaded runner ([1dc24df](https://forgejo.webgrip.dev/webgrip/glide/commit/1dc24df149c7e947979ec9876127a5e5003f8cb8))
+* **ploeg:** ignore helm's blank line before document separators in chart goldens ([6855e14](https://forgejo.webgrip.dev/webgrip/glide/commit/6855e14060144e57c0e11b4dc952ccaf6855182f))
+* **vloer:** scale the VS Code extension test timeouts on a loaded runner ([c817ca5](https://forgejo.webgrip.dev/webgrip/glide/commit/c817ca5f88a5f62168bf6b7f78ea957b5424b879))
 
 ## [glide-v0.4.0-rc.12](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.11...glide-v0.4.0-rc.12) (2026-09-29)
 
 ### Added
 
-* **ploeg:** add an openhands ACP profile ([050fa3b](https://forgejo.webgrip.dev/webgrip/glide/commit/050fa3bee5913c0aa45ad174ab0307f0e79f1c2d))
+* **ploeg:** add an openhands ACP profile ([fc6eef9](https://forgejo.webgrip.dev/webgrip/glide/commit/fc6eef9574bcd44d689332ad34b1650798c1e3c0))
 
 ### Fixed
 
-* **vloer:** stop counting reviewed sessions as ready for review ([b88f389](https://forgejo.webgrip.dev/webgrip/glide/commit/b88f3892945866dc9584ed852e1e42ea13bcb3d6))
+* **vloer:** stop counting reviewed sessions as ready for review ([6478cb3](https://forgejo.webgrip.dev/webgrip/glide/commit/6478cb366f57def0a26ceea03a152036ecab114c))
 
 ## [glide-v0.4.0-rc.11](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.10...glide-v0.4.0-rc.11) (2026-09-28)
 
 ### Added
 
-* **ploeg:** withdraw a Work Item whose ticket closes before work starts ([9b79d3c](https://forgejo.webgrip.dev/webgrip/glide/commit/9b79d3c4282408e38d947cea39cce120f13325c1))
+* **ploeg:** withdraw a Work Item whose ticket closes before work starts ([5ab862e](https://forgejo.webgrip.dev/webgrip/glide/commit/5ab862ec259f752ca37de617dc9f59801f1dcd76))
 
 ## [glide-v0.4.0-rc.10](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.9...glide-v0.4.0-rc.10) (2026-09-28)
 
 ### Fixed
 
-* **ploeg:** fail a Run as infra_node when its sandbox never starts ([d380f52](https://forgejo.webgrip.dev/webgrip/glide/commit/d380f528aac8788f0667cb312e9a7d5e37de858d))
+* **ploeg:** fail a Run as infra_node when its sandbox never starts ([afadc5f](https://forgejo.webgrip.dev/webgrip/glide/commit/afadc5f92825435d765c147e0bf87410732e9c0d))
 
 ### Docs
 
-* **adr-0038:** accept with the owner's 2026-09-28 routing decisions ([ca7d440](https://forgejo.webgrip.dev/webgrip/glide/commit/ca7d440da4111250eba98e69bb2b615c52a1d07a))
-* **adr-0038:** propose repo-label hints over a derived target registry ([138311e](https://forgejo.webgrip.dev/webgrip/glide/commit/138311e3fe5b7f223c66f7261df2de19df57fd9c)), references [#11](https://forgejo.webgrip.dev/webgrip/glide/issues/11)
-* **ploeg:** address review of the run-usage report plan ([d85151a](https://forgejo.webgrip.dev/webgrip/glide/commit/d85151a9062005c4e60e7415640592d65a9083ae))
-* **ploeg:** plan the PR run-usage report as an OpenSpec change ([ad90a5c](https://forgejo.webgrip.dev/webgrip/glide/commit/ad90a5c6d16e76abc390970d465b9a8f8c01658e)), references [#1305](https://forgejo.webgrip.dev/webgrip/glide/issues/1305)
+* **adr-0038:** accept with the owner's 2026-09-28 routing decisions ([499da03](https://forgejo.webgrip.dev/webgrip/glide/commit/499da031d3015af57502166c4599e5e1b810d647))
+* **adr-0038:** propose repo-label hints over a derived target registry ([8dc711b](https://forgejo.webgrip.dev/webgrip/glide/commit/8dc711bccc3057b848d02d750ebd5a3bf9ebed87)), references [#11](https://forgejo.webgrip.dev/webgrip/glide/issues/11)
+* **ploeg:** address review of the run-usage report plan ([86bf6c1](https://forgejo.webgrip.dev/webgrip/glide/commit/86bf6c164c9759809d0dfe2713406465786ea765))
+* **ploeg:** plan the PR run-usage report as an OpenSpec change ([af4251e](https://forgejo.webgrip.dev/webgrip/glide/commit/af4251ec803200a0e0684cde8d29bc398dd0fe45)), references [#1305](https://forgejo.webgrip.dev/webgrip/glide/issues/1305)
 
 ### Tests
 
-* **vloer:** make time-bound API tests readiness-based and load-tolerant ([7a11286](https://forgejo.webgrip.dev/webgrip/glide/commit/7a112862e8798533fac53c00eeee836ec8e8ee0e))
+* **vloer:** make time-bound API tests readiness-based and load-tolerant ([aff26b7](https://forgejo.webgrip.dev/webgrip/glide/commit/aff26b7a5331b0097560a0a688ced01552fead02))
 
 ## [glide-v0.4.0-rc.9](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.8...glide-v0.4.0-rc.9) (2026-09-28)
 
 ### Added
 
-* **ploeg:** give ploegd its own forge URL with executor.forgejo.publicUrl ([8b81996](https://forgejo.webgrip.dev/webgrip/glide/commit/8b81996dad2549053140115d957fbddd1b5dc2f6))
+* **ploeg:** give ploegd its own forge URL with executor.forgejo.publicUrl ([3a211aa](https://forgejo.webgrip.dev/webgrip/glide/commit/3a211aa930e5c814e42e3bd3cce4064a39b54702))
 
 ## [glide-v0.4.0-rc.8](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.7...glide-v0.4.0-rc.8) (2026-09-28)
 
 ### Fixed
 
-* **ploeg:** delete a sandbox claim that never becomes ready ([cde904a](https://forgejo.webgrip.dev/webgrip/glide/commit/cde904a606896df4c5b7ffec8695f7749a31b6ed))
+* **ploeg:** delete a sandbox claim that never becomes ready ([4d45655](https://forgejo.webgrip.dev/webgrip/glide/commit/4d45655a5d7862bbc384189a4c8bd244024bff42))
 
 ### Docs
 
-* **ploeg:** correct sandbox executor qualification and split its remaining work ([e7c596f](https://forgejo.webgrip.dev/webgrip/glide/commit/e7c596f3a81c1819febea84375d6f91f2a516faf)), references [#58](https://forgejo.webgrip.dev/webgrip/glide/issues/58) [#126](https://forgejo.webgrip.dev/webgrip/glide/issues/126) [#127](https://forgejo.webgrip.dev/webgrip/glide/issues/127) [#89](https://forgejo.webgrip.dev/webgrip/glide/issues/89)
-* **ploeg:** drop an anchor link that strict mkdocs rejects ([d85c0d0](https://forgejo.webgrip.dev/webgrip/glide/commit/d85c0d084e1f42550ec9b5dbb4f82f0aec598836)), references [#127](https://forgejo.webgrip.dev/webgrip/glide/issues/127) [#58](https://forgejo.webgrip.dev/webgrip/glide/issues/58) [#58](https://forgejo.webgrip.dev/webgrip/glide/issues/58)
-* **ploeg:** propose ADR-0036, the escalation ladder for stuck Work Items ([e6857c9](https://forgejo.webgrip.dev/webgrip/glide/commit/e6857c9384c533fd068ff96d87deb301d702741b)), references [#3](https://forgejo.webgrip.dev/webgrip/glide/issues/3)
-* **ploeg:** record the kind runner blocker for the sandbox e2e ([8fa3440](https://forgejo.webgrip.dev/webgrip/glide/commit/8fa34402dbb82565351359a65cbd5b41f41928a2)), references [#127](https://forgejo.webgrip.dev/webgrip/glide/issues/127)
-* **ploeg:** record the owner's 2026-09-28 decisions in ADR-0036 ([d039b3c](https://forgejo.webgrip.dev/webgrip/glide/commit/d039b3cf5cb3e37d17d842de72b8d140bde8fce8))
+* **ploeg:** correct sandbox executor qualification and split its remaining work ([e69bef1](https://forgejo.webgrip.dev/webgrip/glide/commit/e69bef167cd3919d27be7092ca35dfc27e54c0ff)), references [#58](https://forgejo.webgrip.dev/webgrip/glide/issues/58) [#126](https://forgejo.webgrip.dev/webgrip/glide/issues/126) [#127](https://forgejo.webgrip.dev/webgrip/glide/issues/127) [#89](https://forgejo.webgrip.dev/webgrip/glide/issues/89)
+* **ploeg:** drop an anchor link that strict mkdocs rejects ([e92557a](https://forgejo.webgrip.dev/webgrip/glide/commit/e92557a76328944ad34234aaa264ab8cefda7327)), references [#127](https://forgejo.webgrip.dev/webgrip/glide/issues/127) [#58](https://forgejo.webgrip.dev/webgrip/glide/issues/58) [#58](https://forgejo.webgrip.dev/webgrip/glide/issues/58)
+* **ploeg:** propose ADR-0036, the escalation ladder for stuck Work Items ([fbfe04b](https://forgejo.webgrip.dev/webgrip/glide/commit/fbfe04b70a6b4f523fa472df728d402b03574d96)), references [#3](https://forgejo.webgrip.dev/webgrip/glide/issues/3)
+* **ploeg:** record the kind runner blocker for the sandbox e2e ([e628d02](https://forgejo.webgrip.dev/webgrip/glide/commit/e628d02c9453464de4527e87835e5e05b24e65bf)), references [#127](https://forgejo.webgrip.dev/webgrip/glide/issues/127)
+* **ploeg:** record the owner's 2026-09-28 decisions in ADR-0036 ([1ca31e1](https://forgejo.webgrip.dev/webgrip/glide/commit/1ca31e1e1ed6e18c7be12b8b6985af63ef3491ca))
 
 ### Tests
 
-* **ploeg:** pin the LLM undercut guard at the column rounding boundary ([9ab3ae1](https://forgejo.webgrip.dev/webgrip/glide/commit/9ab3ae1cc7fbab72bfa88cfcd7c7a6db88806635))
-* **ploeg:** start embedded Postgres on an OS-assigned port ([4623bd1](https://forgejo.webgrip.dev/webgrip/glide/commit/4623bd14fb247881ba25e75d45ff491c28262ea2))
+* **ploeg:** pin the LLM undercut guard at the column rounding boundary ([71b946a](https://forgejo.webgrip.dev/webgrip/glide/commit/71b946ae65828e7ec4b7430edea985871de8041f))
+* **ploeg:** start embedded Postgres on an OS-assigned port ([143a7d7](https://forgejo.webgrip.dev/webgrip/glide/commit/143a7d70cf45a7b2993f46251ff4c051a11b3b30))
 
 ## [glide-v0.4.0-rc.7](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.6...glide-v0.4.0-rc.7) (2026-09-28)
 
 ### Fixed
 
-* **ploeg:** name the sandbox claim apart from the launcher pod ([c360b7f](https://forgejo.webgrip.dev/webgrip/glide/commit/c360b7f0913fded682244ea2f1278a473d64e097))
+* **ploeg:** name the sandbox claim apart from the launcher pod ([a386f97](https://forgejo.webgrip.dev/webgrip/glide/commit/a386f9707250b4f082e5b7f2f281ae8938d7a731))
 
 ### Docs
 
-* **adr-0035:** state exactly what a Run's worker pod can reach on the network ([7705d2b](https://forgejo.webgrip.dev/webgrip/glide/commit/7705d2be7e5c6c394968f51e71faba65534c97cb))
+* **adr-0035:** state exactly what a Run's worker pod can reach on the network ([6ba68ca](https://forgejo.webgrip.dev/webgrip/glide/commit/6ba68caee286b22dd81bf953f290a7ba47343946))
 
 ## [glide-v0.4.0-rc.6](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.5...glide-v0.4.0-rc.6) (2026-09-28)
 
 ### Added
 
-* **ploeg:** per-team and per-role sandbox RuntimeClass ([23f7e44](https://forgejo.webgrip.dev/webgrip/glide/commit/23f7e44f655bc6e194879be777cf4c835a5055e4))
+* **ploeg:** per-team and per-role sandbox RuntimeClass ([2393847](https://forgejo.webgrip.dev/webgrip/glide/commit/23938479f962f22361105f28aa226f68c27e9de7))
 
 ### Fixed
 
-* **ploeg:** settle blocked LLM accounts at run_llm_accounts' column precision ([13ef6d2](https://forgejo.webgrip.dev/webgrip/glide/commit/13ef6d2aa586e85f2fe8cdd3572aea62d59541d4))
+* **ploeg:** settle blocked LLM accounts at run_llm_accounts' column precision ([a6e5854](https://forgejo.webgrip.dev/webgrip/glide/commit/a6e58545eeaa479b02fb1ee41cd36a2f6778e123))
 
 ### Docs
 
-* **vloer:** note current GAP-17 status in the gap register ([7acee0c](https://forgejo.webgrip.dev/webgrip/glide/commit/7acee0c976b0479846edbe7f4417e92910ba5692))
+* **vloer:** note current GAP-17 status in the gap register ([3e55d61](https://forgejo.webgrip.dev/webgrip/glide/commit/3e55d6159bd9d99ce5cf9c894a81547e27037852))
 
 ### Tests
 
-* **ploeg:** refuse a non-string sandbox RuntimeClass ([327f548](https://forgejo.webgrip.dev/webgrip/glide/commit/327f5482b3b7f1e5cb0829c1ba8eb5a15b53d4ea))
+* **ploeg:** refuse a non-string sandbox RuntimeClass ([f2d73c8](https://forgejo.webgrip.dev/webgrip/glide/commit/f2d73c8f29d148df2b9f051889d75f313690b85f))
 
 ## [glide-v0.4.0-rc.5](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.4...glide-v0.4.0-rc.5) (2026-09-27)
 
 ### Fixed
 
-* **ploeg:** give the harness the configured model name, prefix intact ([7dd8506](https://forgejo.webgrip.dev/webgrip/glide/commit/7dd850632e1be8ba4e94f63884a0ddb56a9f05ab))
+* **ploeg:** give the harness the configured model name, prefix intact ([901a466](https://forgejo.webgrip.dev/webgrip/glide/commit/901a466121b79ba5e182b0a6663d0ef09c8d8e87))
 
 ### Tests
 
-* **vloer:** give the HTTP demo session room on a contended runner ([1673e2b](https://forgejo.webgrip.dev/webgrip/glide/commit/1673e2b2e12470c4f0d1351829e5c3b74e7865af))
+* **vloer:** give the HTTP demo session room on a contended runner ([27f6f7d](https://forgejo.webgrip.dev/webgrip/glide/commit/27f6f7dd5153dbd869911111821ad8b075aabcd2))
 
 ## [glide-v0.4.0-rc.4](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.3...glide-v0.4.0-rc.4) (2026-09-27)
 
 ### Added
 
-* **ploeg:** add qwen-code and goose ACP profiles ([fca571a](https://forgejo.webgrip.dev/webgrip/glide/commit/fca571ad03eabd1fcd7c56a8851f3e90032411d9))
-* **ploeg:** execute a Work Item from the OpenSpec change it names ([5032aed](https://forgejo.webgrip.dev/webgrip/glide/commit/5032aedd5f5fd7eb76bc604cbb992e73cb97a502))
-* **ploeg:** give Runs mounted toolchains, Ploeg skills and a worker-run verification ([e92913e](https://forgejo.webgrip.dev/webgrip/glide/commit/e92913eeda3351a774039291b2feec089b4ef0b0))
+* **ploeg:** add qwen-code and goose ACP profiles ([5467350](https://forgejo.webgrip.dev/webgrip/glide/commit/54673502202b6a31959b42c59516812dcd946dc3))
+* **ploeg:** execute a Work Item from the OpenSpec change it names ([df7cd0d](https://forgejo.webgrip.dev/webgrip/glide/commit/df7cd0d18e4c966d38dc81178d705123f1edc4e6))
+* **ploeg:** give Runs mounted toolchains, Ploeg skills and a worker-run verification ([853d797](https://forgejo.webgrip.dev/webgrip/glide/commit/853d797edac2ecf569c8b5422655897084483256))
 
 ### Fixed
 
-* **ploeg:** close an approved review loop as approved ([34ba8ad](https://forgejo.webgrip.dev/webgrip/glide/commit/34ba8ad90b357d1caffc26314a83a5953e0193d2)), references [#115](https://forgejo.webgrip.dev/webgrip/glide/issues/115)
-* **ploeg:** mint per-run Forgejo tokens that reach only the Run's repository ([bc7603a](https://forgejo.webgrip.dev/webgrip/glide/commit/bc7603aed26da5925b4aedbcf85c09bf4b8e6be7))
-* **ploeg:** reject forge webhooks when no secret is configured ([6c4a4a5](https://forgejo.webgrip.dev/webgrip/glide/commit/6c4a4a5ab60c81618bb565ebc750683f61fdd30b))
+* **ploeg:** close an approved review loop as approved ([02f0467](https://forgejo.webgrip.dev/webgrip/glide/commit/02f0467850e4c798e28bacfd216fe598988232ad)), references [#115](https://forgejo.webgrip.dev/webgrip/glide/issues/115)
+* **ploeg:** mint per-run Forgejo tokens that reach only the Run's repository ([8c37e41](https://forgejo.webgrip.dev/webgrip/glide/commit/8c37e4127b1a2f55786764eda3541fbb549c9c16))
+* **ploeg:** reject forge webhooks when no secret is configured ([8edfc53](https://forgejo.webgrip.dev/webgrip/glide/commit/8edfc5341f18a203ae3b20507b0e11fa1ed8e2ca))
 
 ### Docs
 
-* **ploeg:** cite the pushed commit in close-the-review-loop task 5.1 ([eb5cd11](https://forgejo.webgrip.dev/webgrip/glide/commit/eb5cd113358ecd42d37ab1614253f2449581cdeb))
-* **ploeg:** propose executing a Work Item from the OpenSpec change it names ([407eaab](https://forgejo.webgrip.dev/webgrip/glide/commit/407eaab725e3dcae351bc498eabe9dc3c07897b4))
-* **ploeg:** record ADR-0035 and the toolchain-and-checks runbook ([c44419a](https://forgejo.webgrip.dev/webgrip/glide/commit/c44419ad3c80725a4daccd493fd2779433b71bf3))
-* **ploeg:** record close-the-review-loop progress ([2191afb](https://forgejo.webgrip.dev/webgrip/glide/commit/2191afb7e1e52de6c6525c3525a76aab1c3ef133))
+* **ploeg:** cite the pushed commit in close-the-review-loop task 5.1 ([3e4d23b](https://forgejo.webgrip.dev/webgrip/glide/commit/3e4d23baa784bb7d3449b9512bd1ab9c1f07c7bb))
+* **ploeg:** propose executing a Work Item from the OpenSpec change it names ([a4dafac](https://forgejo.webgrip.dev/webgrip/glide/commit/a4dafacfe58cbb1249b4688b04c952af5b347382))
+* **ploeg:** record ADR-0035 and the toolchain-and-checks runbook ([d1a6ca3](https://forgejo.webgrip.dev/webgrip/glide/commit/d1a6ca35ad2d9f984b162452f99d43559aa32736))
+* **ploeg:** record close-the-review-loop progress ([730e5a7](https://forgejo.webgrip.dev/webgrip/glide/commit/730e5a7f6e2c356bccd5450592e133c9b41c4134))
 
 ### Tests
 
-* **ploeg:** pin infra_node on a failed push-credential mint and document each failure reason's writers ([62d9729](https://forgejo.webgrip.dev/webgrip/glide/commit/62d9729f8a6da6186a198e94768d9381c6d75f4e))
+* **ploeg:** pin infra_node on a failed push-credential mint and document each failure reason's writers ([c07192c](https://forgejo.webgrip.dev/webgrip/glide/commit/c07192c0d1c85faa46bbb39fb7704d7d2ba58b9b))
 
 ## [glide-v0.4.0-rc.3](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.2...glide-v0.4.0-rc.3) (2026-09-27)
 
 ### Added
 
-* **ploeg:** let one team run under the sandbox executor ([b40cfd5](https://forgejo.webgrip.dev/webgrip/glide/commit/b40cfd58673ff3a46e75aa491fc93a6b9456f454))
+* **ploeg:** let one team run under the sandbox executor ([58a5ee5](https://forgejo.webgrip.dev/webgrip/glide/commit/58a5ee58a4c9dadd93d6121693045de364924a7a))
 
 ### Docs
 
-* **ploeg:** archive the add-agent-sandbox-executor change ([2edcbde](https://forgejo.webgrip.dev/webgrip/glide/commit/2edcbdee86d1cb36a60da4c721a8e4107b9a090a))
+* **ploeg:** archive the add-agent-sandbox-executor change ([cb9872b](https://forgejo.webgrip.dev/webgrip/glide/commit/cb9872b287a506dc180b603bc2331ad4d9bc4b63))
 
 ## [glide-v0.4.0-rc.2](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.4.0-rc.1...glide-v0.4.0-rc.2) (2026-09-27)
 
 ### Fixed
 
-* **vloer:** record the zlib CVE-2026-85091 exposure of the workspace image and enforce it ([657c522](https://forgejo.webgrip.dev/webgrip/glide/commit/657c5228244501e79ce6c4af91520fa039a1be95))
+* **vloer:** record the zlib CVE-2026-85091 exposure of the workspace image and enforce it ([4036286](https://forgejo.webgrip.dev/webgrip/glide/commit/4036286b348681d160946c7180afd6190c527614))
 
 ## [glide-v0.4.0-rc.1](https://forgejo.webgrip.dev/webgrip/glide/compare/glide-v0.3.0...glide-v0.4.0-rc.1) (2026-09-27)
 
 ### Added
 
-* **docs:** enforce page front matter and report stale pages ([dd481b2](https://forgejo.webgrip.dev/webgrip/glide/commit/dd481b2ec4ee0a2bc4945a937a9e189d78fe1600))
-* **docs:** publish Glide through Zensical with source exports ([b5c38f0](https://forgejo.webgrip.dev/webgrip/glide/commit/b5c38f047097797546364388ddd8bee250dbd0a6))
-* **ploeg:** act on failed checks and requested changes behind a team switch ([5083412](https://forgejo.webgrip.dev/webgrip/glide/commit/508341292dab0f48dedd60485beed80fa2a6940c))
-* **ploeg:** add an experimental agent-sandbox executor ([29b13e3](https://forgejo.webgrip.dev/webgrip/glide/commit/29b13e349e4e1de2bc8c8e1413a46fe79d62d83c))
-* **ploeg:** add operator activity summary, Run list and newest-first events ([5a83779](https://forgejo.webgrip.dev/webgrip/glide/commit/5a8377963174646fc988324b6a708fc0b3007ff6))
-* **ploeg:** add optional ServiceMonitor and PrometheusRule to the chart ([b2c6283](https://forgejo.webgrip.dev/webgrip/glide/commit/b2c62832ad548bac6b8d4e075ca2b15e87ca728b)), references [#39](https://forgejo.webgrip.dev/webgrip/glide/issues/39)
-* **ploeg:** cap running Runs per team and drop the unused queue depth route ([1161be9](https://forgejo.webgrip.dev/webgrip/glide/commit/1161be95dac1957d58bf50c3f994c347415db76f))
-* **ploeg:** expose operational gauges at GET /metrics ([6ee3a09](https://forgejo.webgrip.dev/webgrip/glide/commit/6ee3a095bb915929aa9e880d32728e01c0ea4b5e)), references [#39](https://forgejo.webgrip.dev/webgrip/glide/issues/39)
-* **ploeg:** keep a writer's forge token out of the harness ([042cf08](https://forgejo.webgrip.dev/webgrip/glide/commit/042cf08c9198b24ad3ea7593857ca165bb66df05))
-* **ploeg:** keep the per-Run model key out of the harness ([10d98b1](https://forgejo.webgrip.dev/webgrip/glide/commit/10d98b1aee80ef2d5abdc8de9e7c358a5a85223d))
-* **ploeg:** let a Run create Work Items that wait for approval ([a8e986e](https://forgejo.webgrip.dev/webgrip/glide/commit/a8e986ee8ce0148a24a7415055c14b5f6e19ac89))
-* **ploeg:** let sandbox Runs carry an egress allowlist ([af06bbc](https://forgejo.webgrip.dev/webgrip/glide/commit/af06bbc701c8cadde0afa96cf4f088583671a68f))
-* **ploeg:** never hand a reading Role the read-write forge token ([3f836e0](https://forgejo.webgrip.dev/webgrip/glide/commit/3f836e054f1010c320c8dfe0098ca7f656d1534a))
-* **ploeg:** rank repository instructions below the delivery contract in the worker prompt ([1b0f21f](https://forgejo.webgrip.dev/webgrip/glide/commit/1b0f21f2c9183a5e98f8ce941251c9e86768c284))
-* **ploeg:** record gateway tokens and models on settled Runs ([8148c1d](https://forgejo.webgrip.dev/webgrip/glide/commit/8148c1d495027fc6257bb7a5b82acad10134e7ba))
-* **ploeg:** report Vikunja projects that have no Ploeg webhook ([3913543](https://forgejo.webgrip.dev/webgrip/glide/commit/3913543d3d23a4bd20727558787e27e6e723d503))
-* **ploeg:** say so when a Shift runs out of budget ([b7e5157](https://forgejo.webgrip.dev/webgrip/glide/commit/b7e515786895600af311ef13578f79e88acb34d9))
-* **ploeg:** scan agent instruction files before the harness runs ([1a4cedd](https://forgejo.webgrip.dev/webgrip/glide/commit/1a4cedd61e74d4b86fd5ddc4ae6f2b7538e2b618))
-* **ploeg:** settle awaiting_review items when their pull request merges or closes ([cfd6ec4](https://forgejo.webgrip.dev/webgrip/glide/commit/cfd6ec41ffbcc2bb74403e1769b6b03885119a49))
-* **ploeg:** settle successful Shifts as awaiting_review ([8af4b75](https://forgejo.webgrip.dev/webgrip/glide/commit/8af4b755ec491b86efcf2b8ede72ea296d1e39cc))
-* **ploeg:** stop target repository hooks and MCP servers under claude-code ([74c925f](https://forgejo.webgrip.dev/webgrip/glide/commit/74c925f00cae9c26040d77335bdccc5c5fd4985d))
-* **ploeg:** withdraw tracker work on unassignment or operator cancel ([bcec68c](https://forgejo.webgrip.dev/webgrip/glide/commit/bcec68c94169af293e702f0a7dadbfaa461716a2))
-* **vloer:** accept Ploeg's awaiting_review work item state ([9a6d8e4](https://forgejo.webgrip.dev/webgrip/glide/commit/9a6d8e4650248ceeba1388d91eb7e1a303cf0614))
-* **vloer:** accept the proposed Ploeg work-item state ([5cd6741](https://forgejo.webgrip.dev/webgrip/glide/commit/5cd67417100c8a586f1148f42163ad21a9963029))
-* **vloer:** accept the withdrawn Ploeg work-item state ([9b2a0eb](https://forgejo.webgrip.dev/webgrip/glide/commit/9b2a0ebedf7a3c82c00c2acc40ee297c3d63dd0b))
-* **vloer:** add an Awaiting review lane and a read-only review screen ([695cc21](https://forgejo.webgrip.dev/webgrip/glide/commit/695cc214f62e907167b35e9017f8b0e5c912500c))
-* **vloer:** show what Ploeg has been doing ([e7080a2](https://forgejo.webgrip.dev/webgrip/glide/commit/e7080a26f488a507820c764650219145c1653ec2))
+* **docs:** enforce page front matter and report stale pages ([04ac8ec](https://forgejo.webgrip.dev/webgrip/glide/commit/04ac8ec3245f75255110c0678aaa2569bdca5654))
+* **docs:** publish Glide through Zensical with source exports ([7fc4da7](https://forgejo.webgrip.dev/webgrip/glide/commit/7fc4da7a7c8e192777206b4b6f81c5fbdec408fe))
+* **ploeg:** act on failed checks and requested changes behind a team switch ([ecd6034](https://forgejo.webgrip.dev/webgrip/glide/commit/ecd6034a4ab3f3b9259004c4e0debf9451ba3c66))
+* **ploeg:** add an experimental agent-sandbox executor ([d136491](https://forgejo.webgrip.dev/webgrip/glide/commit/d1364911d51df248a4cc322741cd3406557731da))
+* **ploeg:** add operator activity summary, Run list and newest-first events ([bba3657](https://forgejo.webgrip.dev/webgrip/glide/commit/bba36577056dca17263eecb6b10e658b27fb85d6))
+* **ploeg:** add optional ServiceMonitor and PrometheusRule to the chart ([f700f2b](https://forgejo.webgrip.dev/webgrip/glide/commit/f700f2b88c3426d3d61d0f1ae85654c55cbe9254)), references [#39](https://forgejo.webgrip.dev/webgrip/glide/issues/39)
+* **ploeg:** cap running Runs per team and drop the unused queue depth route ([d0bd049](https://forgejo.webgrip.dev/webgrip/glide/commit/d0bd0492d21c7173343b84c321160d0bd54119ce))
+* **ploeg:** expose operational gauges at GET /metrics ([d4e54d0](https://forgejo.webgrip.dev/webgrip/glide/commit/d4e54d02b1a6af79434f59a977b509ae1de2da05)), references [#39](https://forgejo.webgrip.dev/webgrip/glide/issues/39)
+* **ploeg:** keep a writer's forge token out of the harness ([6066cb6](https://forgejo.webgrip.dev/webgrip/glide/commit/6066cb6409a652d6e2025656c633d68a5b0770c9))
+* **ploeg:** keep the per-Run model key out of the harness ([7f77fa4](https://forgejo.webgrip.dev/webgrip/glide/commit/7f77fa426c202b5841cd7b82461b10d05d3d4fc9))
+* **ploeg:** let a Run create Work Items that wait for approval ([8971081](https://forgejo.webgrip.dev/webgrip/glide/commit/89710817f46d880854cfdb7787911f0ed2a837e8))
+* **ploeg:** let sandbox Runs carry an egress allowlist ([eee198e](https://forgejo.webgrip.dev/webgrip/glide/commit/eee198e246558f330ec009391a4eaa1c942b11ac))
+* **ploeg:** never hand a reading Role the read-write forge token ([bd1848e](https://forgejo.webgrip.dev/webgrip/glide/commit/bd1848e9f914c0e4e066e74d0431da1caccbb525))
+* **ploeg:** rank repository instructions below the delivery contract in the worker prompt ([7dbaae6](https://forgejo.webgrip.dev/webgrip/glide/commit/7dbaae6ffd178142253c99c9064c9882f37092b6))
+* **ploeg:** record gateway tokens and models on settled Runs ([92c1cb7](https://forgejo.webgrip.dev/webgrip/glide/commit/92c1cb79aa2fe2d4a34f11ff01442adfea5d5f86))
+* **ploeg:** report Vikunja projects that have no Ploeg webhook ([cf782df](https://forgejo.webgrip.dev/webgrip/glide/commit/cf782df5f94f63354866556076537d57983a045c))
+* **ploeg:** say so when a Shift runs out of budget ([0e9faa9](https://forgejo.webgrip.dev/webgrip/glide/commit/0e9faa95ecd6c6b9ba7f9a9c9c8e3c5e4fb30634))
+* **ploeg:** scan agent instruction files before the harness runs ([cb62c69](https://forgejo.webgrip.dev/webgrip/glide/commit/cb62c69a4ead3d024bdebb589976103ad622f051))
+* **ploeg:** settle awaiting_review items when their pull request merges or closes ([d63e7cb](https://forgejo.webgrip.dev/webgrip/glide/commit/d63e7cb5a2f81751fbfa5f584af2ab92c9b2e46c))
+* **ploeg:** settle successful Shifts as awaiting_review ([7a6afed](https://forgejo.webgrip.dev/webgrip/glide/commit/7a6afedfe5b723fc87f47b63b5355d00f719bac6))
+* **ploeg:** stop target repository hooks and MCP servers under claude-code ([f340805](https://forgejo.webgrip.dev/webgrip/glide/commit/f340805c65b27cb6d8de4a0ed9d1f44c1f993e2b))
+* **ploeg:** withdraw tracker work on unassignment or operator cancel ([d28f906](https://forgejo.webgrip.dev/webgrip/glide/commit/d28f9064f0ca1ec9dd0681404ebf1b8c14d6e6f0))
+* **vloer:** accept Ploeg's awaiting_review work item state ([c7b4a1c](https://forgejo.webgrip.dev/webgrip/glide/commit/c7b4a1c241da8dcffd005424f0d92e7e5a10a9f8))
+* **vloer:** accept the proposed Ploeg work-item state ([fa2f00d](https://forgejo.webgrip.dev/webgrip/glide/commit/fa2f00dea3461e3759c9336020f333c62e824f3e))
+* **vloer:** accept the withdrawn Ploeg work-item state ([91253ea](https://forgejo.webgrip.dev/webgrip/glide/commit/91253ea7861505277584dd7cfce7abd7c20f739d))
+* **vloer:** add an Awaiting review lane and a read-only review screen ([4f22e0d](https://forgejo.webgrip.dev/webgrip/glide/commit/4f22e0d3edc1f8686f0e2c2a84db86fe9024ac3e))
+* **vloer:** show what Ploeg has been doing ([d0d3309](https://forgejo.webgrip.dev/webgrip/glide/commit/d0d3309efc09f3f685781154dcc8d91890029d76))
 
 ### Fixed
 
-* **adr:** make the Vloer ledger pass the consistency validator ([1a5089a](https://forgejo.webgrip.dev/webgrip/glide/commit/1a5089a17710b5536d99a988dcf78241644decd1))
-* **ploeg:** bound hung harness runs with a timeout and an idle watchdog ([76494d1](https://forgejo.webgrip.dev/webgrip/glide/commit/76494d17a22b93c56884239b8c867ca76e49044a))
-* **ploeg:** call the unit of work a Work Item in the agent prompt ([d8dbe1c](https://forgejo.webgrip.dev/webgrip/glide/commit/d8dbe1c13e3115bbfb51854dd9a8a7fcdc6f9a29))
-* **ploeg:** cancel operator admissions that expire unstarted ([4e081cf](https://forgejo.webgrip.dev/webgrip/glide/commit/4e081cff42d5a0f496c34a9384eba2902768aef1))
-* **ploeg:** check the harness program exists before claiming ([1a10e6a](https://forgejo.webgrip.dev/webgrip/glide/commit/1a10e6a5af0f957985c55a49f33a3d8fef8edde0))
-* **ploeg:** default the chart's lease TTL to 5m ([7695f95](https://forgejo.webgrip.dev/webgrip/glide/commit/7695f9554436bafc3c1cb618957d04fd5f09e245))
-* **ploeg:** derive the work branch from the item's tracker ([2b8f094](https://forgejo.webgrip.dev/webgrip/glide/commit/2b8f094b22db4dce9f053679deabb0679db366a1))
-* **ploeg:** fund managed Runs on Shifts without a budget pool ([2a733ce](https://forgejo.webgrip.dev/webgrip/glide/commit/2a733cefb16bed37d27f4af437b53c052f22f777))
-* **ploeg:** hide the worker's environment from the harness it starts ([8f0f641](https://forgejo.webgrip.dev/webgrip/glide/commit/8f0f64148ffc0f7c8ed290ee17cadc7931ce350c))
-* **ploeg:** name Glide as the Helm chart's source ([aea663f](https://forgejo.webgrip.dev/webgrip/glide/commit/aea663ff7981673fea4aee623145df63bba5131b))
-* **ploeg:** park an exhausted plan whose last review asked for changes ([121b345](https://forgejo.webgrip.dev/webgrip/glide/commit/121b345b7024443a25db5d64a2e4ad3ea34a2785)), references [webgrip/ploeg#43](https://forgejo.webgrip.dev/webgrip/ploeg/issues/43)
-* **ploeg:** put only a minted forge token in a claim response ([0dc8c1a](https://forgejo.webgrip.dev/webgrip/glide/commit/0dc8c1ab61806f57d65b388917e8fec505509ea5)), references [webgrip/ploeg#45](https://forgejo.webgrip.dev/webgrip/ploeg/issues/45)
-* **ploeg:** record why a Run that opened a PR then failed ([9ee3ce4](https://forgejo.webgrip.dev/webgrip/glide/commit/9ee3ce468de97e53b18948779641d22c7089434c)), references [webgrip/ploeg#45](https://forgejo.webgrip.dev/webgrip/ploeg/issues/45)
-* **ploeg:** repair only pull requests that are still awaiting review ([5afc6d2](https://forgejo.webgrip.dev/webgrip/glide/commit/5afc6d2d2ae14d6d2bc35abbe649ec9731c1eeba))
-* **ploeg:** report only webhook coverage counts on the unauthenticated readiness probe ([1da5d8e](https://forgejo.webgrip.dev/webgrip/glide/commit/1da5d8ea8d4446cefac8c7184a4ea89acc57d73d))
-* **ploeg:** settle finished managed inference accounts from the controller ([7b5054c](https://forgejo.webgrip.dev/webgrip/glide/commit/7b5054c9168ade6d6185546f2ba84bf730ba426c))
-* **ploeg:** settle managed accounts from LiteLLM spend logs ([dc0fbfe](https://forgejo.webgrip.dev/webgrip/glide/commit/dc0fbfeccae1da0247665097961cad06dfe98eae))
-* **release:** publish verified Glide artifacts to internal and public registries ([d0de432](https://forgejo.webgrip.dev/webgrip/glide/commit/d0de4329e2fef32864ac8bf1c1eaa6533f5b457f))
-* **vloer:** bound agent host connection tokens and revoke them on sign-out ([d21c384](https://forgejo.webgrip.dev/webgrip/glide/commit/d21c384813607d160fcc0d87cf6fe456b62ce6bf))
-* **vloer:** give the demo core test room on a contended runner ([083cec6](https://forgejo.webgrip.dev/webgrip/glide/commit/083cec608606e8fc115b750c6bdfe1496441f32c))
-* **vloer:** keep sessions with a persisted Ploeg admission intent managed ([a5161dc](https://forgejo.webgrip.dev/webgrip/glide/commit/a5161dc121bc3eb815c8b0f7533b7823b76ead42))
-* **vloer:** let the stop-signal test observe the child's exit on a busy runner ([2b2e02d](https://forgejo.webgrip.dev/webgrip/glide/commit/2b2e02de231057986520fa9c4cff45efeca4ec4f))
-* **vloer:** name Glide as the Helm chart's source ([45525b1](https://forgejo.webgrip.dev/webgrip/glide/commit/45525b1734dc156ae8352f3159d36c8940488fe8))
-* **vloer:** refuse standalone budget increases while a model key is live ([2826085](https://forgejo.webgrip.dev/webgrip/glide/commit/2826085427d06257403dc40db7eecd42a91e9172))
-* **vloer:** reject an external OpenCode endpoint in live configuration ([bcd17c8](https://forgejo.webgrip.dev/webgrip/glide/commit/bcd17c8aeabcab5aed82a4cee2862c2dd17b958d))
+* **adr:** make the Vloer ledger pass the consistency validator ([d15c343](https://forgejo.webgrip.dev/webgrip/glide/commit/d15c3436167d8ce726f99bd7e60d9ff634c78b61))
+* **ploeg:** bound hung harness runs with a timeout and an idle watchdog ([dd064ce](https://forgejo.webgrip.dev/webgrip/glide/commit/dd064ceac24b9c6ac5af99ecaf9624b5c8553945))
+* **ploeg:** call the unit of work a Work Item in the agent prompt ([1885d5c](https://forgejo.webgrip.dev/webgrip/glide/commit/1885d5c58c4d73661237014f26a88e5f3fc31b34))
+* **ploeg:** cancel operator admissions that expire unstarted ([767078c](https://forgejo.webgrip.dev/webgrip/glide/commit/767078cd426b9e6c8bdad091a997312ad46f7cce))
+* **ploeg:** check the harness program exists before claiming ([8b4e2b8](https://forgejo.webgrip.dev/webgrip/glide/commit/8b4e2b8ae96886569806ae218f2de059897c24cf))
+* **ploeg:** default the chart's lease TTL to 5m ([660f689](https://forgejo.webgrip.dev/webgrip/glide/commit/660f6895bb81b3d8b33cb70eff1c723cdaa2d8ec))
+* **ploeg:** derive the work branch from the item's tracker ([fb9cb4d](https://forgejo.webgrip.dev/webgrip/glide/commit/fb9cb4d5fcb541745e43ff5cd103eddc70c8ab39))
+* **ploeg:** fund managed Runs on Shifts without a budget pool ([1700ddd](https://forgejo.webgrip.dev/webgrip/glide/commit/1700ddd0a6aaf851531d4e7482677ea2d5643d3d))
+* **ploeg:** hide the worker's environment from the harness it starts ([19f085c](https://forgejo.webgrip.dev/webgrip/glide/commit/19f085c35f566e97ded9a3de3bbef9e7c431740a))
+* **ploeg:** name Glide as the Helm chart's source ([c60db9e](https://forgejo.webgrip.dev/webgrip/glide/commit/c60db9e00dd7e7c69d4a1e68929c2c5fd5576c93))
+* **ploeg:** park an exhausted plan whose last review asked for changes ([4dc7091](https://forgejo.webgrip.dev/webgrip/glide/commit/4dc709136f5ebff1a4fe2920acf47d7e0c48f122)), references [webgrip/ploeg#43](https://forgejo.webgrip.dev/webgrip/ploeg/issues/43)
+* **ploeg:** put only a minted forge token in a claim response ([fbe1f19](https://forgejo.webgrip.dev/webgrip/glide/commit/fbe1f19a6d82b8d427cdc28033dc2a23e99db21d)), references [webgrip/ploeg#45](https://forgejo.webgrip.dev/webgrip/ploeg/issues/45)
+* **ploeg:** record why a Run that opened a PR then failed ([58b1a01](https://forgejo.webgrip.dev/webgrip/glide/commit/58b1a0170132670ba9c378430c948917f46b13ca)), references [webgrip/ploeg#45](https://forgejo.webgrip.dev/webgrip/ploeg/issues/45)
+* **ploeg:** repair only pull requests that are still awaiting review ([0dd34d4](https://forgejo.webgrip.dev/webgrip/glide/commit/0dd34d48fc20953d3b1c3ab127509a7f63adeffd))
+* **ploeg:** report only webhook coverage counts on the unauthenticated readiness probe ([e25cda0](https://forgejo.webgrip.dev/webgrip/glide/commit/e25cda0efd7f71a5c46167ebfdd77d630aa5f954))
+* **ploeg:** settle finished managed inference accounts from the controller ([9d825d5](https://forgejo.webgrip.dev/webgrip/glide/commit/9d825d5a253aa89de71b16b162bf68c82546c636))
+* **ploeg:** settle managed accounts from LiteLLM spend logs ([e95ba87](https://forgejo.webgrip.dev/webgrip/glide/commit/e95ba87f99baa02c84075f6c5cd1e8b012000332))
+* **release:** publish verified Glide artifacts to internal and public registries ([957565d](https://forgejo.webgrip.dev/webgrip/glide/commit/957565d566d4255b79411bc0f50e103abba1b457))
+* **vloer:** bound agent host connection tokens and revoke them on sign-out ([6d79090](https://forgejo.webgrip.dev/webgrip/glide/commit/6d79090ee4f549a92b1c04c45f54e5af2e5454e5))
+* **vloer:** give the demo core test room on a contended runner ([9cac30a](https://forgejo.webgrip.dev/webgrip/glide/commit/9cac30a089f06db8a5c0ed8e4c617e6446d25638))
+* **vloer:** keep sessions with a persisted Ploeg admission intent managed ([d393b62](https://forgejo.webgrip.dev/webgrip/glide/commit/d393b626846a6278280f8aa983da8ef51df53593))
+* **vloer:** let the stop-signal test observe the child's exit on a busy runner ([05291bc](https://forgejo.webgrip.dev/webgrip/glide/commit/05291bcce75e702ef4818326c0ef40d3af07d3af))
+* **vloer:** name Glide as the Helm chart's source ([7cb584a](https://forgejo.webgrip.dev/webgrip/glide/commit/7cb584a4cdd64c59ed55a05b9ce0b4aa749e3054))
+* **vloer:** refuse standalone budget increases while a model key is live ([5cf4bba](https://forgejo.webgrip.dev/webgrip/glide/commit/5cf4bbac100e3403cac3fe2e35a027277459164b))
+* **vloer:** reject an external OpenCode endpoint in live configuration ([414baa8](https://forgejo.webgrip.dev/webgrip/glide/commit/414baa86e708f4619bc2ad98e2ba051ad973a7c0))
 
 ### Changed
 
-* **ploeg:** remove the unused CanTransition lifecycle table ([3177c18](https://forgejo.webgrip.dev/webgrip/glide/commit/3177c189fa054ed85c3e2c0716450dcca3c9435d)), references [#11](https://forgejo.webgrip.dev/webgrip/glide/issues/11)
+* **ploeg:** remove the unused CanTransition lifecycle table ([13c4b15](https://forgejo.webgrip.dev/webgrip/glide/commit/13c4b158e60fa655db62e064ae3425b36f9483d6)), references [#11](https://forgejo.webgrip.dev/webgrip/glide/issues/11)
 
 ### Docs
 
-* **adr:** record the 2026-09-17 agent host roadmap sweep ([d070083](https://forgejo.webgrip.dev/webgrip/glide/commit/d070083a1a3d40b0963887ec5365941160339490)), references [AHP#266](https://forgejo.webgrip.dev/AHP/issues/266)
-* **agents:** trim instruction files to non-inferable rules and bridge CLAUDE.md ([fff967a](https://forgejo.webgrip.dev/webgrip/glide/commit/fff967af93ee4672da3e26c2df2114eba4ef8fc4))
-* align Vloer pages with ADR-0002 and the combined glossary ([ad05791](https://forgejo.webgrip.dev/webgrip/glide/commit/ad057917a423d1aa04569c8d47f25a4aaed89508))
-* describe forge events that create and return work ([5aa118c](https://forgejo.webgrip.dev/webgrip/glide/commit/5aa118cd65681a72283d48ddf0285eb6a3a5f51e))
-* **domain:** unify the glossaries under Ploeg's execution vocabulary ([35d5f83](https://forgejo.webgrip.dev/webgrip/glide/commit/35d5f83b4bd2d61428e3d8dc84e9ca0a02c9112c))
-* link real pages instead of redirect stubs and archived repositories ([5c3cab4](https://forgejo.webgrip.dev/webgrip/glide/commit/5c3cab48f5f79ca1053179b48dfcaf3fd0caee69))
-* make the Work Item the unit of work and let work create work ([efa9999](https://forgejo.webgrip.dev/webgrip/glide/commit/efa99993eaa7ffb83e3f8eae7a67bb17856d8383))
-* mark the Ploeg and Vloer backlogs as frozen planning records ([4f63bb5](https://forgejo.webgrip.dev/webgrip/glide/commit/4f63bb5e862f76a97a2c9b7395948bfb04f58a1c))
-* **ploeg:** add operator runbooks as how-to pages ([373e3b4](https://forgejo.webgrip.dev/webgrip/glide/commit/373e3b4f201fdb11369db6a56f1e76b2b68020ce))
-* **ploeg:** describe the metrics and what to check for each alert ([74fdb49](https://forgejo.webgrip.dev/webgrip/glide/commit/74fdb49e197c7b391636db575dd5563f9ffbe526)), references [#39](https://forgejo.webgrip.dev/webgrip/glide/issues/39)
-* **ploeg:** generate the configuration reference from source and chart ([0cd0d40](https://forgejo.webgrip.dev/webgrip/glide/commit/0cd0d403982df1c3e68063a744f6c2aa96bbfbda))
-* **ploeg:** propose ADRs 0032 and 0033 from the landscape survey ([901672c](https://forgejo.webgrip.dev/webgrip/glide/commit/901672caef5bb2d53f8b8cb610103208f8751677))
-* **ploeg:** propose ranking target repository instructions below the delivery contract ([90bf7e9](https://forgejo.webgrip.dev/webgrip/glide/commit/90bf7e9b39d369f5e99fc4b1b137d9f93a30a860))
-* **ploeg:** record the 20k-star agent-orchestration landscape fit survey ([8c14229](https://forgejo.webgrip.dev/webgrip/glide/commit/8c14229acb5cfc07df00a767ec8b2ab7ce968d47))
-* **ploeg:** regenerate the configuration reference after merges ([89a419e](https://forgejo.webgrip.dev/webgrip/glide/commit/89a419e0ff8f7e71a0357d50d04680f8427d44dc))
-* **ploeg:** regenerate the configuration reference for concurrency caps ([c3c22f2](https://forgejo.webgrip.dev/webgrip/glide/commit/c3c22f226234af7ad2b34f1b48b2ba494d74d008))
-* **ploeg:** regenerate the configuration reference for metrics settings ([960b3b5](https://forgejo.webgrip.dev/webgrip/glide/commit/960b3b5673a632eb4b7da02b4c41a63e2f974465))
-* record how Runs create Work Items and the open owner questions ([276b4f6](https://forgejo.webgrip.dev/webgrip/glide/commit/276b4f6e18b701eddcabd5034742c79087a5e010))
-* **research:** add gateway budget enforcement and AG2 Network to the BAND survey ([a5284ab](https://forgejo.webgrip.dev/webgrip/glide/commit/a5284abfd957937ebc548e59fd8076a15e453adb))
-* **research:** correct two overstated claims in the BAND survey ([6c79455](https://forgejo.webgrip.dev/webgrip/glide/commit/6c794553b3cc54d5136ca3946efbe761e49d9ea1))
-* **research:** refresh the coding-agent workbench category and correct Kandev ([a1af030](https://forgejo.webgrip.dev/webgrip/glide/commit/a1af030fcd64fec84171ff1ec699016693c43847))
-* **research:** survey BAND and the agent interaction layer ([4a0f922](https://forgejo.webgrip.dev/webgrip/glide/commit/4a0f92231da4f78dc862c9c6c98577277c20441a))
-* **research:** verify the MCP absences against the normative schema ([7e11295](https://forgejo.webgrip.dev/webgrip/glide/commit/7e11295d323cc99e9f43d3b99da6b73e5d9d83c2))
-* **vloer:** align the HTTP contract and architecture map with the code ([0554ba7](https://forgejo.webgrip.dev/webgrip/glide/commit/0554ba77284fcbeb18a744cecc67e05291336408))
-* **vloer:** propose Vloer as Ploeg's front end ([c0c74f6](https://forgejo.webgrip.dev/webgrip/glide/commit/c0c74f6ce656644d48b27a929aea1c1c43e63595))
-* **vloer:** remove the duplicate product model and its moved-page stubs ([a9db6c3](https://forgejo.webgrip.dev/webgrip/glide/commit/a9db6c3e46ab50b0488b582a2afae8bd824149a9))
+* **adr:** record the 2026-09-17 agent host roadmap sweep ([52999da](https://forgejo.webgrip.dev/webgrip/glide/commit/52999dad9ef0e1961e62ee3c185ca48da1b114b7)), references [AHP#266](https://forgejo.webgrip.dev/AHP/issues/266)
+* **agents:** trim instruction files to non-inferable rules and bridge CLAUDE.md ([714b036](https://forgejo.webgrip.dev/webgrip/glide/commit/714b0360c8256cd9b3448c87fc85b9557d36ef9a))
+* align Vloer pages with ADR-0002 and the combined glossary ([af7ac46](https://forgejo.webgrip.dev/webgrip/glide/commit/af7ac463c62bcfa2ebd970bb2e84549242e2b8e9))
+* describe forge events that create and return work ([1c68194](https://forgejo.webgrip.dev/webgrip/glide/commit/1c68194a702eeb950fab6f35c60ff9a23b518919))
+* **domain:** unify the glossaries under Ploeg's execution vocabulary ([d29acfa](https://forgejo.webgrip.dev/webgrip/glide/commit/d29acfa8e0f475e58c7287993881e654553c8502))
+* link real pages instead of redirect stubs and archived repositories ([57475eb](https://forgejo.webgrip.dev/webgrip/glide/commit/57475eb92a7c45e87e9c640557de066cd913d49f))
+* make the Work Item the unit of work and let work create work ([c27d0c6](https://forgejo.webgrip.dev/webgrip/glide/commit/c27d0c6438663e27f639ba0ea74f33b60280e492))
+* mark the Ploeg and Vloer backlogs as frozen planning records ([7123444](https://forgejo.webgrip.dev/webgrip/glide/commit/712344400552f2e0946df033a0032acca6996ef0))
+* **ploeg:** add operator runbooks as how-to pages ([cde4881](https://forgejo.webgrip.dev/webgrip/glide/commit/cde48813a423e47f73e920a20fc6db8dc8874fb6))
+* **ploeg:** describe the metrics and what to check for each alert ([e277518](https://forgejo.webgrip.dev/webgrip/glide/commit/e2775184ef378cda49de32a68372f558bfa39380)), references [#39](https://forgejo.webgrip.dev/webgrip/glide/issues/39)
+* **ploeg:** generate the configuration reference from source and chart ([8ddafe0](https://forgejo.webgrip.dev/webgrip/glide/commit/8ddafe0b5b6a73885e819be89beeb65739db9b14))
+* **ploeg:** propose ADRs 0032 and 0033 from the landscape survey ([3d2dac4](https://forgejo.webgrip.dev/webgrip/glide/commit/3d2dac4a20091a3349428c939a670e942552faa6))
+* **ploeg:** propose ranking target repository instructions below the delivery contract ([f8039b8](https://forgejo.webgrip.dev/webgrip/glide/commit/f8039b809677a96cd46d231bfc795c00ef9476a1))
+* **ploeg:** record the 20k-star agent-orchestration landscape fit survey ([b2ac80c](https://forgejo.webgrip.dev/webgrip/glide/commit/b2ac80c191974286f04f7a2fb9b878387894b1e8))
+* **ploeg:** regenerate the configuration reference after merges ([508d523](https://forgejo.webgrip.dev/webgrip/glide/commit/508d5239c1809b85171e28a9a53f7816f4d3562e))
+* **ploeg:** regenerate the configuration reference for concurrency caps ([ff122d6](https://forgejo.webgrip.dev/webgrip/glide/commit/ff122d62fcb0a09e0d6dde42796137432b275a51))
+* **ploeg:** regenerate the configuration reference for metrics settings ([44ac075](https://forgejo.webgrip.dev/webgrip/glide/commit/44ac0755c905f38e46cfb16a5a0b92b2392a145f))
+* record how Runs create Work Items and the open owner questions ([596c283](https://forgejo.webgrip.dev/webgrip/glide/commit/596c283ca679fbf95655a053eae765c4bb91d5c0))
+* **research:** add gateway budget enforcement and AG2 Network to the BAND survey ([a09a679](https://forgejo.webgrip.dev/webgrip/glide/commit/a09a6790a6bb516d847b3ecc9da8d838f122bef0))
+* **research:** correct two overstated claims in the BAND survey ([ef52b06](https://forgejo.webgrip.dev/webgrip/glide/commit/ef52b06e5602bd2e1a943330b32bedd86623addf))
+* **research:** refresh the coding-agent workbench category and correct Kandev ([8e99317](https://forgejo.webgrip.dev/webgrip/glide/commit/8e99317f0061c560598a9c919be42400de4f9471))
+* **research:** survey BAND and the agent interaction layer ([7355fbd](https://forgejo.webgrip.dev/webgrip/glide/commit/7355fbdcd429d4d1762b4f2afdaa7992ec8eb0ae))
+* **research:** verify the MCP absences against the normative schema ([b91abd5](https://forgejo.webgrip.dev/webgrip/glide/commit/b91abd59a0801a3a2e5b46d6564dfa9f72e2fd07))
+* **vloer:** align the HTTP contract and architecture map with the code ([1661d33](https://forgejo.webgrip.dev/webgrip/glide/commit/1661d33e918927eff3e49bf6816fb595230158a0))
+* **vloer:** propose Vloer as Ploeg's front end ([3a9ad7d](https://forgejo.webgrip.dev/webgrip/glide/commit/3a9ad7d5eefeb3e5b4af24d03980d5ccade47d80))
+* **vloer:** remove the duplicate product model and its moved-page stubs ([34b44ae](https://forgejo.webgrip.dev/webgrip/glide/commit/34b44ae7366e7941337dbc2793be4201af446cb0))
 
 ### Tests
 
-* **integration:** mint and block managed keys against a fake LiteLLM ([b647359](https://forgejo.webgrip.dev/webgrip/glide/commit/b64735985715d019a3a93583d530fa58d7724629))
-* **ploeg:** add opt-in canary conformance for harness instruction loading ([88eff28](https://forgejo.webgrip.dev/webgrip/glide/commit/88eff280b889f39c66370e3ec8651e237fa5bafe))
-* **ploeg:** drain launcher output before noise assertions ([ac0d4a3](https://forgejo.webgrip.dev/webgrip/glide/commit/ac0d4a37012c10ed107f8860f076782590160ee6))
-* **ploeg:** let parallel runs offset the embedded Postgres ports ([352fa52](https://forgejo.webgrip.dev/webgrip/glide/commit/352fa52df121070d69072b64daa99bb8d1350ba0))
-* **ploeg:** run a fake claude to prove target hooks and MCP servers stay off ([29d3c7e](https://forgejo.webgrip.dev/webgrip/glide/commit/29d3c7ed805d2ae72cb75ee90d8176d27fd22dac))
+* **integration:** mint and block managed keys against a fake LiteLLM ([e394fca](https://forgejo.webgrip.dev/webgrip/glide/commit/e394fca1031e8865674ba1cfca8f3ab93d2c2777))
+* **ploeg:** add opt-in canary conformance for harness instruction loading ([bb90cf6](https://forgejo.webgrip.dev/webgrip/glide/commit/bb90cf6d7ef5c8ba2a548a4c8de77116c12cdce3))
+* **ploeg:** drain launcher output before noise assertions ([a350052](https://forgejo.webgrip.dev/webgrip/glide/commit/a3500528fef85eb20a2b5646bc292b7be231ed2d))
+* **ploeg:** let parallel runs offset the embedded Postgres ports ([91d2ee5](https://forgejo.webgrip.dev/webgrip/glide/commit/91d2ee59ffff5aeacddd5cda3ee47782d5167034))
+* **ploeg:** run a fake claude to prove target hooks and MCP servers stay off ([41d2927](https://forgejo.webgrip.dev/webgrip/glide/commit/41d292712a964cc4aa37b5561a903349da647a82))
 
 ### Build
 
-* **vloer:** install OpenCode only for the tasks that run it ([09ef2f7](https://forgejo.webgrip.dev/webgrip/glide/commit/09ef2f7c864584e3c2a6c559a8c1529e85f5e094))
+* **vloer:** install OpenCode only for the tasks that run it ([e489be9](https://forgejo.webgrip.dev/webgrip/glide/commit/e489be9a08af9649f5bb1ca8fe7dafbe6e5663f4))
 
 ### CI
 
-* align Glide with Webgrip workflow entry points ([f1de145](https://forgejo.webgrip.dev/webgrip/glide/commit/f1de145a22a747e3e6379380b8d7cff1d9d265da))
-* hold the Ploeg image to a CVE budget before signing ([97bd509](https://forgejo.webgrip.dev/webgrip/glide/commit/97bd5099022b96ca714749177fb5a8fc614f8ec7))
-* **release:** hold Vloer at zero-major and watch the imported release notes ([17d1770](https://forgejo.webgrip.dev/webgrip/glide/commit/17d17708ca60f691fdd555207bd9eebfe596278e))
-* **release:** release Vloer and Ploeg under one Glide version ([01abe06](https://forgejo.webgrip.dev/webgrip/glide/commit/01abe0623c38441cad3c79552512b6314f8cf678))
+* align Glide with Webgrip workflow entry points ([2bface8](https://forgejo.webgrip.dev/webgrip/glide/commit/2bface847d63c5ceb2590b22132389df9db3f93d))
+* hold the Ploeg image to a CVE budget before signing ([17e05df](https://forgejo.webgrip.dev/webgrip/glide/commit/17e05df1dd891e6c3d309b0659892b40eed67311))
+* **release:** hold Vloer at zero-major and watch the imported release notes ([ed6d631](https://forgejo.webgrip.dev/webgrip/glide/commit/ed6d6312819db0dfba61947e55f7383cc2577251))
+* **release:** release Vloer and Ploeg under one Glide version ([3316717](https://forgejo.webgrip.dev/webgrip/glide/commit/33167174070c50c5d3f09f16d6f58b4db1134e5d))
 
 ### Internal
 
-* **ci:** remove the application workflow symlinks ([8b54056](https://forgejo.webgrip.dev/webgrip/glide/commit/8b54056639f84c7ac55d954993ceee3eafeffc1d))
-* drop application mise tasks that duplicate root tasks ([475aafd](https://forgejo.webgrip.dev/webgrip/glide/commit/475aafd79d7ac6b7ce004abf316e989fe807e18d))
-* **ploeg:** archive the six completed OpenSpec changes ([84885af](https://forgejo.webgrip.dev/webgrip/glide/commit/84885afc0052caba53ffa7c298012ea36cdb601b))
-* **ploeg:** remove the uncalled Worker.Run shim ([ba82736](https://forgejo.webgrip.dev/webgrip/glide/commit/ba82736c9f6c6cb77d4a871dd8ad2df104611813))
-* remove duplicated and orphaned files left by the import ([b0947f6](https://forgejo.webgrip.dev/webgrip/glide/commit/b0947f6ef8b2f8b5cd15d20b7d442175debbf932))
-* **vloer:** remove AgentHost.revokeToken, which no route reaches ([abeacfb](https://forgejo.webgrip.dev/webgrip/glide/commit/abeacfbf662f7bb2b963d382325490d12d65e560))
-* **vloer:** remove the unapplied Ploeg patch ([b23fa65](https://forgejo.webgrip.dev/webgrip/glide/commit/b23fa650401b02dee3159891254ade2ac94ea683))
-* **vloer:** remove the uncalled LiteLLMBroker.revokeSession ([2733157](https://forgejo.webgrip.dev/webgrip/glide/commit/27331572aa0a1a333ca5ea51a16f8bb373b0729e))
-* **vloer:** remove the unused broker extend operation ([87cd2a2](https://forgejo.webgrip.dev/webgrip/glide/commit/87cd2a266c88c20f5b91a55b097b2aa85acda761))
+* **ci:** remove the application workflow symlinks ([ef15e68](https://forgejo.webgrip.dev/webgrip/glide/commit/ef15e68805ea64e5bd635f7fab9e7aade4365e9c))
+* drop application mise tasks that duplicate root tasks ([f8fdf9e](https://forgejo.webgrip.dev/webgrip/glide/commit/f8fdf9e5de311157a46a41d5404efa7b3d7d1cc3))
+* **ploeg:** archive the six completed OpenSpec changes ([f09fdbc](https://forgejo.webgrip.dev/webgrip/glide/commit/f09fdbc4d9f7aae2be223c639d11b2822896a3a0))
+* **ploeg:** remove the uncalled Worker.Run shim ([fa1e9a7](https://forgejo.webgrip.dev/webgrip/glide/commit/fa1e9a7bdbd8557cf4167507878e25ed87c91e38))
+* remove duplicated and orphaned files left by the import ([5c055c2](https://forgejo.webgrip.dev/webgrip/glide/commit/5c055c2ee82521c233e9f336c06146a0ffe86732))
+* **vloer:** remove AgentHost.revokeToken, which no route reaches ([49b4cc0](https://forgejo.webgrip.dev/webgrip/glide/commit/49b4cc006a4559fe5e022ef272d1eaf5efa60f2c))
+* **vloer:** remove the unapplied Ploeg patch ([5d1f59d](https://forgejo.webgrip.dev/webgrip/glide/commit/5d1f59dfca0722772a128b2547e8aad629b1f5c4))
+* **vloer:** remove the uncalled LiteLLMBroker.revokeSession ([bd13d7a](https://forgejo.webgrip.dev/webgrip/glide/commit/bd13d7a4ae490e111d1cff5a0c371851e9276ae8))
+* **vloer:** remove the unused broker extend operation ([dcaa678](https://forgejo.webgrip.dev/webgrip/glide/commit/dcaa678d276ca8f9c5e22487f922ce40ee85d05b))

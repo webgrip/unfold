@@ -310,7 +310,7 @@
       "to": "/glide/vloer/research/evidence/unified-2026-09-10/"
     }
   ],
-  "first_published_revision": "0ac98d8ccd99dbc8ca302e43fb2f3a1e9ce6c554",
+  "first_published_revision": "a2c3a603d53691250412a94f884a32a53f51731e",
   "publication_run": "https://forgejo.webgrip.dev/webgrip/glide/actions/runs/15",
   "application_checks_run": "https://forgejo.webgrip.dev/webgrip/glide/actions/runs/16",
   "legacy_publisher_retired_at": "52afa4a",

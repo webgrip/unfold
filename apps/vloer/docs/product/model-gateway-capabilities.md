@@ -4,7 +4,7 @@ De Vloer never talks to a model provider. Every session gets one LiteLLM virtual
 
 This page is an inventory of what the gateway can do as of LiteLLM v1.100.0 and what De Vloer would have to change to hand each capability to a user. It is not a claim that any of it is exercised; [validation](../validation.md) is the record of what was.
 
-Sources: [v1.99.0 release notes](https://docs.litellm.ai/release_notes/v1.99.0/v1-99-0) ([GitHub release](https://github.com/BerriAI/litellm/releases/tag/v1.99.0)), [v1.100.0 release notes](https://docs.litellm.ai/release_notes/v1.100.0/v1-100-0) ([GitHub release](https://github.com/BerriAI/litellm/releases/tag/v1.100.0)). Both estates run or are moving to v1.100.0 ([acme staging-cluster](https://gitlab.com/acme/internal/platform/-/blob/main/kubernetes/apps/ai/litellm/app/helmrelease.yaml)).
+Sources: [v1.99.0 release notes](https://docs.litellm.ai/release_notes/v1.99.0/v1-99-0) ([GitHub release](https://github.com/BerriAI/litellm/releases/tag/v1.99.0)), [v1.100.0 release notes](https://docs.litellm.ai/release_notes/v1.100.0/v1-100-0) ([GitHub release](https://github.com/BerriAI/litellm/releases/tag/v1.100.0)). Both estates run or are moving to v1.100.0.
 
 ## Where a capability can live
 
@@ -23,7 +23,7 @@ Sources: [v1.99.0 release notes](https://docs.litellm.ai/release_notes/v1.99.0/v
 | Model allow-list per key | A session only sees the models its profile lists | Key |
 | Spend read-back with a settlement delay | The session view shows real cost after the gateway has settled it | Ledger |
 | Block on stop, extend on request | Stopping a session revokes its credit; a human can top it up | Key |
-| Fallbacks down the family, never up | An outage on Opus degrades to Sonnet, never the reverse ([acme router settings](https://gitlab.com/acme/internal/platform/-/blob/main/kubernetes/apps/ai/litellm/app/configmap.yaml)) | Proxy |
+| Fallbacks down the family, never up | An outage on Opus degrades to Sonnet, never the reverse | Proxy |
 | Pre-call context checks and bounded retries | Over-window requests fail before tokens are spent; auth errors are never retried | Proxy |
 | OTel spans without prompt content | Every turn is a trace in the estate's trace store; prompts never leave the sandbox | Proxy |
 
@@ -62,7 +62,7 @@ These need something in the estate's proxy config or cluster that neither estate
 
 | Capability | What the user gets | Since | Estate prerequisite |
 |---|---|---|---|
-| MCP tools through the gateway, granted per key | The sandbox gets ClickUp, GitLab or Forgejo tools with no tool credential inside it; De Vloer's key grant is the only permission | 1.99 client-held credentials and per-server auth, 1.100 toolset enforcement at team and key level, RFC 7662 introspection, RS256 session tokens | Register MCP servers in the proxy. acme already defaults to deny with `supported_db_objects: ["mcp"]` and `require_key_mcp_access_defined: true`, so the first grant is explicit |
+| MCP tools through the gateway, granted per key | The sandbox gets ClickUp, GitLab or Forgejo tools with no tool credential inside it; De Vloer's key grant is the only permission | 1.99 client-held credentials and per-server auth, 1.100 toolset enforcement at team and key level, RFC 7662 introspection, RS256 session tokens | Register MCP servers in the proxy. The second estate already defaults to deny with `supported_db_objects: ["mcp"]` and `require_key_mcp_access_defined: true`, so the first grant is explicit |
 | Guardrails on every turn | Estate-wide policy, including on streaming and on MCP tool calls, without the harness knowing | 1.99 MCP tool guardrails, policy pipelines on caller metadata; 1.100 guardrails on streaming | Configure guardrail providers in the proxy; the key carries the policy |
 | PII masking in the ledger | Spend and debug logs never hold personal data even when the prompt did | 1.99 | Guardrail provider configured |
 | Team and project rate limits | Per-team tokens-per-minute in both directions so one crew cannot starve another | 1.99 project ITPM/OTPM | Teams defined in the proxy; De Vloer mints under a team |

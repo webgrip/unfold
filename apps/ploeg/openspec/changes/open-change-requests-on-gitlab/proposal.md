@@ -27,8 +27,8 @@ Three things are already forge-agnostic and are untouched here:
 
 The gap is exactly two places that name a forge: the poll, and the briefing.
 
-The driving consumer is the second estate's staging cluster (RFC-0013 there), which routes
-`widgets` on GitLab. It cannot reach phase 4 until this lands.
+The driving consumer is a downstream deployment that routes a GitLab project.
+It cannot reach phase 4 until this lands.
 
 ## What Changes
 

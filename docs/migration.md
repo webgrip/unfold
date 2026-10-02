@@ -25,7 +25,7 @@ Service API schemas, application architecture, operating details and existing AD
 
 The import preserves 396 Vloer files and 392 Ploeg files, including the audited working trees. Original commit objects are retained. Separate snapshot and directory-move commits make file history traceable with `git log --follow`. Tags become `vloer-v…` and `ploeg-v…`; non-version tags keep the same application prefix. Release-channel notes use the same namespace. The [import manifest](research/2026-09-12-glide-import.json) records source revisions, tag objects, file modes and SHA-256 digests. Run `mise exec -- python3 scripts/verify-import.py` to verify the immutable import against that manifest.
 
-A final comparison with the original remotes found Ploeg's existing [rc.7 release commit](https://forgejo.webgrip.dev/webgrip/ploeg/commit/6f19c25fcc48f2335ad39237d06642adef1a5fcc) beyond the audited local checkout. Its changelog and chart metadata are merged into Unfold, with the original commit retained as a parent. The immutable import manifest continues to describe the audited snapshots.
+A final comparison with the original remotes found Ploeg's existing [rc.7 release commit](https://forgejo.webgrip.dev/webgrip/unfold/commit/05b93bb4b7c063cb0ca733e4bbf3d699c5044af4) beyond the audited local checkout. Its changelog and chart metadata are merged into Unfold, with the original commit retained as a parent. The immutable import manifest continues to describe the audited snapshots.
 
 The earlier [proposal](migration-proposal.md) remains as history. The [system decision](adr/adr-0001-unfold-contains-independent-applications.md) records the owner-approved scope.
 
@@ -49,7 +49,7 @@ The [local qualification record](research/evidence/glide-2026-09-12/verification
 
 [Unfold is published on Forgejo](https://forgejo.webgrip.dev/webgrip/glide), with `development` as the default branch. The owner created the repository with public visibility. The complete source history, 70 namespaced tags and 67 release-channel notes were pushed together over SSH; all 138 remote refs match their local objects. A fresh clone from Forgejo passes the immutable import verifier.
 
-The [first CI run](https://forgejo.webgrip.dev/webgrip/glide/actions/runs/1) passed application verification, documentation checks, container builds and release-policy tests at commit `e1f40a9f0df4507196a04284f8d03935343927ce`. Both release jobs were explicitly skipped. The [publication record](research/evidence/glide-2026-09-12/publication.json) records the exact commit, run, job outcomes and ref verification separately from local qualification.
+The [first CI run](https://forgejo.webgrip.dev/webgrip/glide/actions/runs/1) passed application verification, documentation checks, container builds and release-policy tests at commit `2e03f18268794cface5acbc044f29592973461e2`. Both release jobs were explicitly skipped. The [publication record](research/evidence/glide-2026-09-12/publication.json) records the exact commit, run, job outcomes and ref verification separately from local qualification.
 
 The earlier repository-creation blocker is resolved by the owner's creation of the repository. No new token or permission was created by the agent. Artifact releases still require the distribution work below.
 

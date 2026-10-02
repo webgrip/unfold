@@ -80,7 +80,7 @@ The current boundaries that matter to this audit are:
 - The intended Work Target model forbids team-to-repository coupling; legacy executor target defaults remain compatibility behavior. Static forge credentials do not provide per-Run push revocation.
 - Historical gap lists and backlog status require a fresh source check before implementing a ticket.
 
-The [pre-audit architecture](https://forgejo.webgrip.dev/webgrip/ploeg/src/commit/f2333b96c6b44f489c562f74d6a4654fed29cc01/docs/architecture.md) retains the detailed July observations and later additions. It is evidence of earlier understanding, not a second current specification. The [backlog](backlog.md) retains planning history; the tracker owns priority.
+The [pre-audit architecture](https://forgejo.webgrip.dev/webgrip/ploeg/src/commit/94c7c8e2dc07037ee2fd38a69343426e40bd680d/docs/architecture.md) retains the detailed July observations and later additions. It is evidence of earlier understanding, not a second current specification. The [backlog](backlog.md) retains planning history; the tracker owns priority.
 
 ## Decisions and evidence
 

@@ -1,6 +1,6 @@
 # Connected execution qualification
 
-Recorded 2026-09-10 against the local implementation changes in both checkouts. De Vloer base revision: `60e8737f0b16ba9bfeff2b8dfaa5de7dbbf92a55`. Ploeg base revision: `67c4bc968455a99ef767bc8a24791ea1a87319cb`. The tested changes are additional working-tree source, not a published release.
+Recorded 2026-09-10 against the local implementation changes in both checkouts. De Vloer base revision: `d58632cc38cedf37f982bfb3aae662c9a7e7b825`. Ploeg base revision: `259a817a3f058346b3d96def361610dadc9f3bc5`. The tested changes are additional working-tree source, not a published release.
 
 The [opt-in Go integration test](https://forgejo.webgrip.dev/webgrip/ploeg) starts real PostgreSQL and Ploeg HTTP handlers and invokes [the De Vloer qualification script](../../../../scripts/qualify-ploeg.ts). The script runs the real workbench HTTP API and its deterministic runtime. This evidence proves the service boundary and execution lifecycle; it does not claim live inference or a deployed Kubernetes cluster.
 

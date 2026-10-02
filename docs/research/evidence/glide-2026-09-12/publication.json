@@ -2,14 +2,14 @@
   "schemaVersion": 1,
   "date": "2026-09-12",
   "localRepository": "/Users/ryangrippeling/projects/webgrip/glide",
-  "localQualifiedCommit": "009261888079c4ec5735e40d2ca4729e800267f3",
+  "localQualifiedCommit": "cec9f13802daabff4f2b8f465cc90a6585f1bc98",
   "intendedRemote": "ssh://git@forgejo-ssh.webgrip.dev/webgrip/glide.git",
   "remoteRepositoryCreated": true,
   "remoteChecks": {
     "run": {
       "id": 12201,
       "index_in_repo": 1,
-      "commit_sha": "e1f40a9f0df4507196a04284f8d03935343927ce",
+      "commit_sha": "2e03f18268794cface5acbc044f29592973461e2",
       "workflow_id": "checks.yml",
       "status": "success",
       "html_url": "https://forgejo.webgrip.dev/webgrip/glide/actions/runs/1",
@@ -19,7 +19,7 @@
     },
     "checks": {
       "state": "success",
-      "sha": "e1f40a9f0df4507196a04284f8d03935343927ce",
+      "sha": "2e03f18268794cface5acbc044f29592973461e2",
       "statuses": [
         {
           "context": "Glide checks and independent releases / release-policy (push)",
@@ -51,7 +51,7 @@
   "blocker": null,
   "remoteSourceCatchup": {
     "repository": "ploeg",
-    "revision": "6f19c25fcc48f2335ad39237d06642adef1a5fcc",
+    "revision": "05b93bb4b7c063cb0ca733e4bbf3d699c5044af4",
     "changes": [
       "CHANGELOG.md",
       "ops/helm/ploeg/Chart.yaml"
@@ -66,7 +66,7 @@
   "repositoryUrl": "https://forgejo.webgrip.dev/webgrip/glide",
   "remoteVisibility": "public; as created by the owner",
   "defaultBranch": "development",
-  "publishedCommit": "e1f40a9f0df4507196a04284f8d03935343927ce",
+  "publishedCommit": "2e03f18268794cface5acbc044f29592973461e2",
   "refsVerified": {
     "branches": 1,
     "tags": 70,
@@ -77,7 +77,7 @@
   "publicationMethod": "Owner created the repository; agent pushed development, namespaced tags and release-channel notes atomically over SSH",
   "followupFailure": {
     "runUrl": "https://forgejo.webgrip.dev/webgrip/glide/actions/runs/2",
-    "commit": "1a806cac668e4a23c31df7e7516428a7f7be79b2",
+    "commit": "d4eaa13ef56e2ea1dd071f01c6776a99081fa479",
     "test": "TestLauncher_BannerNeverReachesTheProtocolChannel",
     "failure": "noise channel missing \"thanks for using opencode\"",
     "cause": "The test read one protocol line, then called process Wait and asserted noise before the stdout filter had necessarily drained the remaining child output.",

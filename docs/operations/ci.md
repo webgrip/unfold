@@ -55,7 +55,7 @@ Forgejo 15 can lose a release to a race. semantic-release pushes the tag and imm
 
 Application publication uses normal, explicitly gated jobs and the existing pinned build/sign composites. This avoids the [Forgejo reusable-workflow flattening trap](https://forgejo.webgrip.dev/webgrip/workflows/src/branch/main/AGENTS.md). Ploeg distribution also requires the signing job's completion output. The [artifact guide](artifacts.md) defines source mirroring, package paths, cryptographic verification and retry behavior.
 
-The naming and separation follow the original [Vloer entry points](https://forgejo.webgrip.dev/webgrip/de-vloer/src/commit/7c8657e15b1525e30641b12e5175bf268a49b03d/.forgejo/workflows/) and the [infrastructure monorepo](https://forgejo.webgrip.dev/webgrip/infrastructure/src/branch/main/.forgejo/workflows/). Forgejo's [workflow reference](https://forgejo.org/docs/latest/user/actions/reference/) describes the event, dependency and composite-action syntax. Shared actions and reusable workflows retain their existing pinned versions; Renovate owns updates.
+The naming and separation follow the original [Vloer entry points](https://forgejo.webgrip.dev/webgrip/de-vloer/src/commit/c5718cde7e1c7520927c64613c38beee11e087f7/.forgejo/workflows/) and the [infrastructure monorepo](https://forgejo.webgrip.dev/webgrip/infrastructure/src/branch/main/.forgejo/workflows/). Forgejo's [workflow reference](https://forgejo.org/docs/latest/user/actions/reference/) describes the event, dependency and composite-action syntax. Shared actions and reusable workflows retain their existing pinned versions; Renovate owns updates.
 
 ## Validation and remaining qualification
 

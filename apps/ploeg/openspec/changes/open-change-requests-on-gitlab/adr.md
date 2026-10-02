@@ -45,7 +45,7 @@ this change.
 
 **The code was written before this record, and the record is `proposed`.** The
 implementation came out of a survey of what rc.31 could and could not do for
-the second estate's staging cluster; the durable commitment was extracted afterwards. That
+a downstream GitLab deployment; the durable commitment was extracted afterwards. That
 is the opposite of the intended order, and it is why nothing here marks 0023
 accepted: the schema's rule against retro-justification is exactly the risk, so
 the record states the alternatives that were genuinely weighed (per-Team,

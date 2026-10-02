@@ -21,7 +21,7 @@ async function provider(options: { groups?: string[]; role?: string; wrongNonce?
       exchanges.push(params);
       if (params.code !== 'good-code') { res.writeHead(400); res.end('{"error":"invalid_grant"}'); return; }
       const now = Math.floor(Date.now() / 1000);
-      const claims: Record<string, unknown> = { iss: issuer, aud: options.wrongAudience ? 'someone-else' : 'vloer', sub: 'person@example.com', email: 'person@example.com', name: 'Ryan Grippeling', preferred_username: 'r.grippeling', groups: options.groups ?? ['vloer-operators', 'team-platform'], exp: now + 300, iat: now, nonce: options.wrongNonce ? 'other' : params.nonce ?? '' };
+      const claims: Record<string, unknown> = { iss: issuer, aud: options.wrongAudience ? 'someone-else' : 'vloer', sub: 'person@example.com', email: 'Person@example.com', name: 'Ryan Grippeling', preferred_username: 'r.grippeling', groups: options.groups ?? ['vloer-operators', 'team-platform'], exp: now + 300, iat: now, nonce: options.wrongNonce ? 'other' : params.nonce ?? '' };
       if (options.role) claims.vloer_role = options.role;
       res.end(JSON.stringify({ access_token: 'at', id_token: `${await sealed(claims, params)}`, token_type: 'Bearer' }));
       return;

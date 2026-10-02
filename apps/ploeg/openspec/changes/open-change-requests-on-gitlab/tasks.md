@@ -34,19 +34,10 @@
 - [x] 4.7 A fourth fixture and golden, `executor-gitlab`, rendering with `forgejo: null` on purpose; wired into `scripts/helm-golden.sh` and the PR workflow
 - [x] 4.8 The golden pins ADR-0013 tier 1 on GitLab: readers draw `agent-reader-token`, the writer draws `agent-builder-token`
 
-## 5. The downstream consumer — acme staging cluster
+## 5. The downstream consumer
 
-Not in this repository. Listed because this change exists for it, and because
-the wiring is what proves the loop closes; RFC-0013 there tracks it.
-
-- [ ] 5.1 Wait for the rc this change cuts, then bump `OCIRepository` tag + digest in `kubernetes/apps/ploeg/ploeg/app/ocirepository.yaml`. **Values must not land before the bump**: the chart has no `additionalProperties: false`, so `executor.forge` against rc.31 is silently ignored
-- [ ] 5.2 HelmRelease: `executor.forge: gitlab`, `executor.forgejo: null`, `executor.gitlab.url: https://gitlab.com`, tokenSecret + readTokenSecret + webhookSecret, `executor.type: keda`, `harness.name: claude-code` with `dind: false` — no privileged sidecar, so no PolicyException
-- [ ] 5.3 Fix `executor.scaler.dbName`: the chart default is `app`, that cluster's CNPG bootstrap creates `ploeg`. Silent failure — the trigger never fires and Work Items sit queued
-- [ ] 5.4 `executor.teams[]` mirroring the roster in `config.teams`; per-role model and harness live there, not in the config file
-- [ ] 5.5 GitLab project access tokens (write + read) and the webhook secret into OpenBao; ExternalSecrets for `agent-builder-token`, `agent-reader-token`, `ploeg-gitlab-webhook`
-- [ ] 5.6 GitLab webhook on `widgets` → `/webhooks/forge/gitlab` with that secret, and the Vikunja webhook → `/webhooks/tracker/vikunja`
-- [ ] 5.7 Leave `executor.enabled: false` until 5.1–5.6 are all in place; enabling it is then one line
-- [ ] 5.8 Acceptance, on the Ploeg dashboard there: an item assigned to `ploeg-app` runs readers → builder opens an MR on `widgets` → reviewer comments on it → the comment returns through `/webhooks/forge/gitlab` and `fix round opening` appears in `audit_log` → the Shift closes asking a human to merge, under pool
+Not in this repository. The deployment this change exists for tracks its own
+wiring, which is what proves the loop closes.
 
 ## 6. Gates and closure
 
