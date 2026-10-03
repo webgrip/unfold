@@ -9,6 +9,7 @@ import tempfile
 import urllib.parse
 from pathlib import Path
 
+from release_floors import refuse_occupied
 from release_registry import Registry, command, copy_chart, copy_image, digest, request, require_same
 
 
@@ -33,6 +34,12 @@ def release_tag(application, version):
     if application not in {'vloer', 'ploeg'} or not re.fullmatch(r'0\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-rc\.([1-9][0-9]*)', version):
         raise ValueError('The cutover publishes only 0.x.y-rc.N Unfold releases for a named application')
     return f'unfold-v{version}'
+
+
+def publishable_tag(application, version):
+    tag = release_tag(application, version)
+    refuse_occupied(application, version)
+    return tag
 
 
 def export_commit(tag, parent):
@@ -152,7 +159,7 @@ def mirror_release(tag, source, forge_token, github_token, publish=True):
 
 
 def publish(application, version):
-    tag = release_tag(application, version)
+    tag = publishable_tag(application, version)
     revision = git('rev-parse', f'{tag}^{{commit}}')
     require_same(git('rev-parse', 'HEAD'), revision, 'publisher checkout')
     forge_token = os.environ['WEBGRIP_CI_TOKEN']

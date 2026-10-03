@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "recorded": "2026-10-03",
+  "evidence": "docs/research/2026-10-03-release-floors-and-identity.md",
+  "components": {
+    "ploeg": {
+      "floor": "0.4.0-rc.34",
+      "tag_prefixes": ["ploeg-v", "glide-v", "unfold-v"],
+      "occupied_above_floor": {
+        "1.0.0-rc.1": "Withdrawn mistaken release of 2026-09-11. github.com/webgrip/ploeg@v1.0.0-rc.1 stays in the Go module proxy and checksum database, and ploegd and charts/ploeg 1.0.0-rc.1 stay on GHCR and Forgejo."
+      }
+    },
+    "vloer": {
+      "floor": "0.4.0-rc.34",
+      "tag_prefixes": ["vloer-v", "glide-v", "unfold-v"],
+      "occupied_above_floor": {}
+    }
+  },
+  "trains": {
+    "unfold": {
+      "tag_prefix": "unfold-v",
+      "components": ["ploeg", "vloer"],
+      "note": "An unfold-v release versions both components together (ADR-0004). A bundle that versions neither component needs its own train entry."
+    }
+  }
+}

@@ -6,12 +6,12 @@ import tarfile
 import tempfile
 from pathlib import Path
 
-from publish_release import release_tag
+from publish_release import publishable_tag
 from release_registry import Registry, command, digest, require_same
 
 
 def publish(application, version):
-    release_tag(application, version)
+    publishable_tag(application, version)
     chart = 'de-vloer' if application == 'vloer' else 'ploeg'
     path = f'apps/{application}/ops/helm/{chart}'
     metadata = command('helm', 'show', 'chart', path)
