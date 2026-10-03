@@ -166,6 +166,20 @@ func reviewLoop(ctx context.Context, reviews *shiftengine.ReviewWatch, every tim
 	}
 }
 
+func deployCheckLoop(ctx context.Context, server *httpapi.Server, every time.Duration) {
+	server.SweepDeployChecks(ctx)
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			server.SweepDeployChecks(ctx)
+		}
+	}
+}
+
 func blockExpiredRun(ctx context.Context, log *slog.Logger, sweeper llmbroker.Sweeper, server *httpapi.Server, runToken string) {
 	if server.LLMControl != nil {
 		if _, err := server.Store.LLMAccount(ctx, runToken); err == nil {
@@ -306,6 +320,8 @@ const deliveryRetention = 48 * time.Hour
 // caught by this rather than by expiry, and far enough apart that the scan is
 // not a load source.
 const orphanSweepEvery = 15 * time.Minute
+
+const deployCheckEvery = time.Minute
 
 func revokeForgeToken(ctx context.Context, log *slog.Logger, sweeper forgebroker.Sweeper, id string) {
 	if sweeper == nil || id == "" {
