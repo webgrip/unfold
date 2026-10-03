@@ -2,8 +2,8 @@
 type: reference
 audience: [owner, operator, contributor]
 owner: unfold
-last_verified: 2026-09-27
-verified_by: "source read of docs/reference/kpis.md and apps/ploeg/docs/backlog.md on development; KPI tickets VIK-1214/VIK-1215 and the landed cfd6ec4 merge per VIK-1289"
+last_verified: 2026-10-03
+verified_by: "K5 and D1 (VIK-1750): source read of Ploeg migrations 0023 and 0033, pkg/store/pull_requests.go, pkg/httpapi/pull_request_facts.go and the Forgejo and GitLab activity readers; the K5 query run against the migrated schema. The other KPIs were last checked 2026-09-27 against apps/ploeg/docs/backlog.md and VIK-1214/VIK-1215/VIK-1289"
 ---
 
 # Unfold KPIs
@@ -20,7 +20,7 @@ Unfold's goal is one loop: Work Items go to agents, the agents do all the code w
 | K2 | Cost per ready pull request | cost | K1, K5 | Ploeg `agent_runs`, `run_llm_accounts`; LiteLLM spend logs as a cross-check |
 | K3 | Lead time to ready | speed | K4 | Ploeg `shifts`, `agent_runs`, `audit_log` |
 | K4 | Rework: fix-Round share and re-assignment rate | quality | K3 | Ploeg `agent_runs.verdict`, `audit_log` |
-| K5 | Clean-merge rate | quality | K1, K2 | Uses the merge settlement in `cfd6ec4`, which has landed; review type is a data gap |
+| K5 | Clean-merge rate | quality | K1, K2 | Ploeg `audit_log` merge settlement, `pull_requests`, `pull_request_reviews`, `pull_request_events` |
 | K6 | Owner review minutes per pull request | your time | K5 | No source yet; a proxy and a proposed source below |
 
 **Goodhart pairs.** Each speed or volume number has a quality number next to it. Ask of each: how could this number improve while the work gets worse?
@@ -81,9 +81,9 @@ Two numbers, both about work that had to be done twice.
 
 ### K5 Clean-merge rate
 
-* **Formula:** Work Items whose `awaiting_review` pull request merged with no submitted review on its branch in between ÷ all `awaiting_review` pull requests that merged or closed in the window.
-* **Source:** the merge settlement rows from commit `cfd6ec4`, now merged to development: `audit_log` rows from `ploegd:review` with action `work_item.done` and `detail->>'reason' = 'pull request merged'`, or `work_item.needs_human` with reason `pull request closed without merging`. Reviews come from `forge.review_submitted` rows, matched on `detail->>'branch' = shifts.branch`.
-* **Data gap:** Ploeg records that a review was submitted, not whether it approved or asked for changes. Commits you push to the branch yourself are not recorded either. Until data ticket D1 below lands, an approval submitted as a review counts as a change. To keep the proxy honest, merge without a formal approval.
+* **Formula:** `awaiting_review` pull requests that merged with no change between the `awaiting_review` settle and the merge ÷ all `awaiting_review` pull requests that merged or closed in the window. A change is a review that requested changes, or a push to the branch by someone other than the pull request's author. Ploeg opens its pull requests and pushes its Runs' commits as its own forge login, so a push by anyone else is a human corrective commit. An approval or a comment-only review is never a change.
+* **Source:** the merge settlement rows from commit `cfd6ec4`: `audit_log` rows from `ploegd:review` with action `work_item.done` and `detail->>'reason' = 'pull request merged'`, or `work_item.needs_human` with reason `pull request closed without merging`. The pull request is the `pull_requests` row with the Shift's branch in the Work Item's repository. Review verdicts come from `pull_request_reviews.state`, written from each review webhook, and from `pull_request_events` rows of kind `review`, written from each forge activity read. Pushes are `pull_request_events` rows of kind `push` or `force_push`, with the pusher in `actor`.
+* **Data gap:** Human corrective commits are counted only on Forgejo. GitLab's activity reader takes pushes from merge request versions, which name no pusher, so on GitLab only requests for changes count. Pushes are known only from an activity read, which holds at most 500 events per pull request. A pull request whose `author` the forge has not reported counts reviews only. Ploeg's other forge logins (the `ForgeBots` setting) are configuration, not data; the query relies on the pull request author being Ploeg's login.
 * **Direction:** higher is better. **Frequency:** monthly, because the counts are small.
 * **Baseline:** the first 20 merged or closed pull requests.
 * **Provisional target:** 60 %. **Signal:** below 40 %.
@@ -104,7 +104,7 @@ Two numbers, both about work that had to be done twice.
 
 | Id | Gap | Proposed change | Unblocks | Status |
 | --- | --- | --- | --- | --- |
-| D1 | Review type and your own commits are not recorded | Store the Forgejo review type (`approved`, `rejected`, `comment`) and reviewer in the `forge.review_submitted` audit detail. Record the pull request head SHA at `awaiting_review` and at merge | K5 without the proxy | open |
+| D1 | Review verdict, reviewer, head SHA and Forgejo pushers are recorded (ADR-0045, ADR-0058); GitLab pushes name no pusher | Read who pushed each GitLab merge request version, for example from the push events of the source branch, and store it in `pull_request_events.actor` | K5 human commits on GitLab | partly done |
 | D2 | Review effort is not recorded | Vloer's review screen reports active seconds per Work Item to Ploeg | K6 | open |
 | D3 | `audit_log` has no index for these queries | An index on `(work_item_id, at)`, added when the dashboard becomes slow | Dashboard speed | open |
 | D4 | The merge settlement was on another branch | Merge `cfd6ec4` to development | K5, the K6 proxy | **done** |
@@ -267,7 +267,7 @@ FROM ready;
 
 ### K5
 
-The query uses the merge settlement from `cfd6ec4`.
+The query uses the merge settlement from `cfd6ec4` and the pull request facts from ADR-0045 and ADR-0058. An approval never makes a pull request unclean.
 
 ```sql
 -- shift_settle CTE here
@@ -286,16 +286,37 @@ The query uses the merge settlement from `cfd6ec4`.
   ) rv
   WHERE ss.settled_state = 'awaiting_review'
 )
-SELECT count(*) FILTER (
-         WHERE reason = 'pull request merged'
-           AND NOT EXISTS (SELECT 1 FROM audit_log f
-                           WHERE f.action = 'forge.review_submitted'
-                             AND f.detail->>'branch' = reviewed.branch
-                             AND f.at BETWEEN reviewed.settled_at AND reviewed.reviewed_at)
-       )::numeric / NULLIF(count(*), 0)                              AS clean_merge_rate,
-       count(*) FILTER (WHERE reason = 'pull request merged')              AS merged,
+, changed AS (
+  SELECT rd.*,
+         EXISTS (
+           SELECT 1
+           FROM work_items w
+           JOIN pull_requests p ON p.repo_owner = w.target_owner
+                               AND p.repo_name = w.target_repo
+                               AND p.branch = rd.branch
+           WHERE w.id = rd.work_item_id
+             AND (EXISTS (SELECT 1 FROM pull_request_reviews v
+                          WHERE v.pull_request_id = p.id
+                            AND v.state = 'changes_requested'
+                            AND v.received_at > rd.settled_at
+                            AND v.received_at <= rd.reviewed_at)
+                  OR EXISTS (SELECT 1 FROM pull_request_events e
+                             WHERE e.pull_request_id = p.id
+                               AND e.at > rd.settled_at
+                               AND e.at <= rd.reviewed_at
+                               AND ((e.kind = 'review' AND e.state = 'changes_requested')
+                                    OR (e.kind IN ('push', 'force_push')
+                                        AND e.actor <> ''
+                                        AND lower(e.actor) <> lower(p.author)))))
+         ) AS has_change
+  FROM reviewed rd
+)
+SELECT count(*) FILTER (WHERE reason = 'pull request merged' AND NOT has_change)::numeric
+       / NULLIF(count(*), 0)                                                 AS clean_merge_rate,
+       count(*) FILTER (WHERE reason = 'pull request merged')                AS merged,
+       count(*) FILTER (WHERE reason = 'pull request merged' AND has_change) AS merged_after_change,
        count(*) FILTER (WHERE reason = 'pull request closed without merging') AS closed_unmerged
-FROM reviewed
+FROM changed
 WHERE $__timeFilter(reviewed_at);
 ```
 
