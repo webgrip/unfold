@@ -50,6 +50,17 @@
   }
 }
 
+.now-unsettled-runs {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-4);
+}
+
+.now-unsettled-run {
+  overflow-wrap: anywhere;
+}
+
 .now-digest {
   display: flex;
   align-items: center;

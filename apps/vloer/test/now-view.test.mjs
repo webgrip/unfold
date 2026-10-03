@@ -389,3 +389,41 @@ test('the keyboard hints follow the single-key preference', () => {
   assert.match(nowMarkup(view(), options, nowAt), /class="now-keys"[\s\S]*?<kbd class="kbd">j<\/kbd><kbd class="kbd">k<\/kbd>[\s\S]*?open PR or tracker/);
   assert.doesNotMatch(nowMarkup(view(), { singleKeys: false }, nowAt), /now-keys/);
 });
+
+const unsettledRow = (runId, workItemId, heldUsd, since) => ({ runId, workItemId, team: 'delivery', accountState: 'unknown', heldUsd, since });
+const unsettled = rows => ({ count: rows.length, heldUsd: rows.reduce((sum, row) => sum + row.heldUsd, 0), accounts: rows });
+
+test('Now warns in a severe callout when Runs hold budget Ploeg cannot release, and offers no action that changes spend', () => {
+  const rows = [unsettledRow('41', '101', 1.5, '2026-09-20T06:00:00Z'), unsettledRow('43', '105', 1.5, '2026-09-20T07:00:00Z'), unsettledRow('44', '108', 1.5, '2026-09-20T08:00:00Z')];
+  const html = nowMarkup(view({ summary: summary({ unsettled: unsettled(rows), unsettledError: null }) }), options, nowAt);
+  const start = html.indexOf('now-unsettled');
+  assert(start > 0, 'the callout is on the page');
+  const block = html.slice(start, html.indexOf('</details>', start));
+  assert.match(block, /<div class="callout" data-tone="severe">/);
+  assert.match(block, /<p class="callout-title">3 Runs hold budget Ploeg cannot release<\/p>/);
+  assert.match(block, /US\$\s4,50 in total/);
+  assert.match(block, /<span class="disclosure-summary">Show the 3 Runs<\/span>/);
+  assert.deepEqual([...block.matchAll(/href="#work\/(\d+)"/g)].map(match => match[1]), ['101', '105', '108']);
+  assert.match(block, /<code>apps\/ploeg\/docs\/ops\/managed-workers\.md<\/code>, “Reconcile uncertainty”/);
+  assert.doesNotMatch(block, /<button|data-action=|<form|callout-actions/, 'Vloer only makes the hold visible: no settle, release or retry action');
+  assert(html.indexOf('now-unsettled') < html.indexOf('now-stats'), 'the callout sits above the stat row');
+
+  const one = nowMarkup(view({ summary: summary({ unsettled: unsettled(rows.slice(0, 1)), unsettledError: null }) }), options, nowAt);
+  assert.match(one, /1 Run holds budget Ploeg cannot release/);
+  assert.match(one, /Show the Run</);
+});
+
+test('Now shows no unsettled callout with none, without the list, or in the demo', () => {
+  const quiet = [
+    view({ summary: summary({ unsettled: unsettled([]), unsettledError: null }) }),
+    view({ summary: summary({ unsettled: null, unsettledError: { code: 'ploeg_unavailable', message: 'no' } }) }),
+    view({ summary: summary({ unsettled: null, unsettledError: { code: 'ploeg_unsupported', message: 'no' } }) }),
+    view({ summary: summary({ demo: true, unsettled: unsettled([unsettledRow('41', '101', 1, at)]), unsettledError: null }) }),
+    view(),
+  ];
+  for (const input of quiet) {
+    const html = nowMarkup(input, options, nowAt);
+    assert.doesNotMatch(html, /now-unsettled|cannot release/);
+    assert.match(html, /now-stats/, 'Now still renders');
+  }
+});

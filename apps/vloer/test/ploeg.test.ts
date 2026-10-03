@@ -389,6 +389,64 @@ test('a cancellation from an older Ploeg without result counts reports them as u
   await assert.rejects(ploeg.decide(admin, '102', 'cancel'), /unsupported operator response/);
 });
 
+const unsettledAccount = (runId: string, workItemId: string, team: string, heldUsd: number, since: string) => ({ runId, workItemId, team, accountState: 'unknown', heldUsd, since });
+
+test('the summary carries the Runs whose hold Ploeg cannot release, scoped and summed from the caller’s rows', async t => {
+  const upstreamApi = await upstream(t);
+  let unsettled: (res: ServerResponse) => boolean = res => reply(res, 200, { generatedAt: '2026-09-10T09:00:00Z', accounts: [unsettledAccount('41', '101', 'delivery', 1.5, '2026-09-10T06:00:00Z'), unsettledAccount('42', '102', 'research', 9, '2026-09-10T06:30:00Z'), unsettledAccount('43', '105', 'delivery', 1.5, '2026-09-10T07:00:00Z'), unsettledAccount('44', '109', 'delivery', 1.5, '2026-09-10T08:00:00Z')], totals: { count: 4, heldUsd: 13.5 } });
+  upstreamApi.intercept((req, res) => {
+    const url = new URL(req.url!, 'http://fixture.invalid');
+    if (url.pathname.endsWith('/summary')) return reply(res, 200, { generatedAt: '2026-09-10T09:00:00Z', window: url.searchParams.get('window'), teams: [summaryTeam('delivery', 2), summaryTeam('research', 3)], totals: {} });
+    if (url.pathname.endsWith('/unsettled-accounts')) return unsettled(res);
+    return false;
+  });
+  const server = await application('live', config => { config.ploeg = { ...upstreamApi.config, userTeams: { reader: ['delivery'] } }; });
+  t.after(() => server.close());
+  const password = randomBytes(24).toString('hex');
+  server.app.store.addUser({ id: 'reader', name: 'reader', role: 'viewer', passwordHash: await hashPassword(password) });
+  const reader = await login(server.url, 'reader', password);
+  const administrator = await login(server.url);
+
+  const scoped = await request(server.url, '/api/ploeg/summary?window=24h', reader);
+  assert.equal(scoped.status, 200, scoped.text);
+  assert.equal(scoped.body.unsettledError, null);
+  assert.deepEqual(scoped.body.unsettled.accounts.map((entry: { runId: string }) => entry.runId), ['41', '43', '44']);
+  assert.equal(scoped.body.unsettled.count, 3);
+  assert.equal(scoped.body.unsettled.heldUsd, 4.5, 'the total is summed from the rows the caller may see, not taken from Ploeg');
+  assert.deepEqual(scoped.body.unsettled.accounts[0], { runId: '41', workItemId: '101', team: 'delivery', accountState: 'unknown', heldUsd: 1.5, since: '2026-09-10T06:00:00Z' });
+  assert(upstreamApi.seen.some(call => call.path === '/api/v1/operator/unsettled-accounts'), 'Vloer asks without query parameters');
+  const all = await request(server.url, '/api/ploeg/summary?window=24h&refresh=1', administrator);
+  assert.equal(all.body.unsettled.count, 4);
+  assert.equal(all.body.unsettled.heldUsd, 13.5);
+
+  unsettled = res => { res.writeHead(503).end(); return true; };
+  const failed = await request(server.url, '/api/ploeg/summary?window=7d&refresh=1', reader);
+  assert.equal(failed.status, 200, 'a failed unsettled read never fails the summary');
+  assert.equal(failed.body.unsettled, null);
+  assert.equal(failed.body.unsettledError.code, 'ploeg_unavailable');
+  assert.equal(failed.body.teams.length, 1);
+
+  unsettled = res => { res.writeHead(404).end(); return true; };
+  const older = await request(server.url, '/api/ploeg/summary?window=30d&refresh=1', reader);
+  assert.equal(older.status, 200);
+  assert.equal(older.body.unsettled, null);
+  assert.equal(older.body.unsettledError.code, 'ploeg_unsupported');
+
+  unsettled = res => reply(res, 200, { generatedAt: '2026-09-10T09:00:00Z', accounts: [{ ...unsettledAccount('45', '101', 'delivery', -1, '2026-09-10T06:00:00Z') }], totals: { count: 1, heldUsd: -1 } });
+  const malformed = await request(server.url, '/api/ploeg/summary?window=24h&refresh=1', reader);
+  assert.equal(malformed.status, 200);
+  assert.equal(malformed.body.unsettled, null, 'a malformed list is not shown as zero');
+  assert.equal(malformed.body.unsettledError.code, 'ploeg_unavailable');
+});
+
+test('the demo reports no unsettled Runs and never asks Ploeg', async t => {
+  const demo = await application(); t.after(() => demo.close());
+  const summary = await request(demo.url, '/api/ploeg/summary?window=24h');
+  assert.equal(summary.status, 200);
+  assert.deepEqual(summary.body.unsettled, { count: 0, heldUsd: 0, accounts: [] });
+  assert.equal(summary.body.unsettledError, null);
+});
+
 test('the demo serves illustrative activity with zero spend, pages events and keeps decisions local', async t => {
   const demo = await application(); t.after(() => demo.close());
   const summary = await request(demo.url, '/api/ploeg/summary?window=7d');

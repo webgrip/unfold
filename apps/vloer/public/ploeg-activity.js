@@ -209,6 +209,15 @@ function tile({ label, value, detail, href, tone, glyph, text = false }, { icon 
   return ui.stat({ label, value, detail, href, tone, icon: glyph, text }, { icon });
 }
 
+function unsettledTile(data, { icon }) {
+  const unsettled = data.unsettled;
+  const base = { label: 'Cannot release', icon: 'coins' };
+  if (data.demo) return ui.stat({ ...base, value: '0', detail: 'Demo · no model calls' }, { icon });
+  if (!unsettled) return ui.stat({ ...base, value: '—', quiet: true, detail: data.unsettledError?.code === 'ploeg_unsupported' ? 'Not reported by this Ploeg' : data.unsettledError ? 'Could not be loaded' : 'Loading…' }, { icon });
+  if (!(unsettled.count > 0)) return ui.stat({ ...base, value: '0', detail: 'No budget is stuck' }, { icon });
+  return ui.stat({ ...base, value: count(unsettled.count), tone: 'danger', detail: `${money(unsettled.heldUsd)} held by finished Runs` }, { icon });
+}
+
 function teamTable({ caption, columns, rows }, { escape }) {
   const keyed = columns.map(([label, numeric], index) => ({ key: String(index), label, numeric }));
   const cells = rows.map(([name, values]) => Object.fromEntries([escape(name), ...values].map((value, index) => [String(index), value])));
@@ -255,6 +264,7 @@ export function overviewMarkup(view, helpers, now = Date.now()) {
     tile({ label: 'Running', value: count(items.leased), detail: tileDetail.running(runs), href: '#work?lane=leased', tone: 'live', glyph: 'activity' }, helpers),
     tile({ label: 'Queued', value: count(items.queued), detail: tileDetail.queued(items.queued), href: '#work?lane=queued', glyph: 'circle-dashed' }, helpers),
     tile({ label: 'Proposed', value: count(items.proposed), detail: tileDetail.proposed(), href: '#proposed', glyph: 'proposed' }, helpers),
+    unsettledTile(data, helpers),
   ].join('');
   const when = value => value ? timeHtml(value, { now }) : '<span class="subtle">None</span>';
   const settled = entry => data.demo ? '<span class="subtle">No model calls</span>' : escape(money(entry.spend.settledUsd));
