@@ -44,7 +44,7 @@ const groups = [
     gates: [
       gate('.', 'python3', ['scripts/verify-import.py']),
       gate('.', 'uv', ['run', '--frozen', 'python', '-m', 'unittest', 'discover', '-s', 'scripts', '-p', 'test_release*.py']),
-      gate('.', process.execPath, ['--test', 'scripts/fake-litellm.test.mjs', 'scripts/eval/eval.test.mjs', 'scripts/verify-cache.test.mjs', 'scripts/verify-gate.test.mjs', 'scripts/ci-warnings.test.mjs', 'scripts/release-repair.test.mjs']),
+      gate('.', process.execPath, ['--test', 'scripts/fake-litellm.test.mjs', 'scripts/eval/eval.test.mjs', 'scripts/verify-cache.test.mjs', 'scripts/verify-gate.test.mjs', 'scripts/ci-warnings.test.mjs', 'scripts/release-repair.test.mjs', 'scripts/release-floors.test.cjs']),
     ],
   },
   { name: 'integration', gates: [gate('.', process.execPath, ['scripts/integration.mjs'])] },

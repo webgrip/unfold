@@ -1,0 +1,62 @@
+{
+  "floors": {
+    "schema_version": 1,
+    "recorded": "2026-10-03",
+    "evidence": "fixture evidence",
+    "components": {
+      "ploeg": {
+        "floor": "0.4.0-rc.34",
+        "tag_prefixes": ["ploeg-v", "glide-v", "unfold-v"],
+        "occupied_above_floor": {"1.0.0-rc.1": "withdrawn fixture release"}
+      },
+      "vloer": {
+        "floor": "0.4.0-rc.30",
+        "tag_prefixes": ["vloer-v", "glide-v", "unfold-v"],
+        "occupied_above_floor": {}
+      }
+    },
+    "trains": {
+      "unfold": {"tag_prefix": "unfold-v", "components": ["ploeg", "vloer"]}
+    }
+  },
+  "order": [
+    ["0.4.0-rc.9", "0.4.0-rc.10", -1],
+    ["0.4.0-rc.34", "0.4.0-rc.34", 0],
+    ["0.4.0", "0.4.0-rc.34", 1],
+    ["0.5.0-rc.1", "0.4.0", 1],
+    ["1.0.0-rc.1", "0.99.0", 1],
+    ["0.2.0", "0.2.0-rc.31", 1],
+    ["1.0.0-alpha", "1.0.0-alpha.1", -1],
+    ["1.0.0-alpha.1", "1.0.0-alpha.beta", -1],
+    ["1.0.0-alpha.beta", "1.0.0-beta", -1],
+    ["1.0.0-beta.2", "1.0.0-beta.11", -1],
+    ["1.0.0-rc.1", "1.0.0", -1],
+    ["10.0.0", "9.99.99", 1]
+  ],
+  "malformed": ["", "v0.4.0", "0.4", "0.04.0", "0.4.0-rc.01", "0.4.0+build", "0.4.0-", "latest"],
+  "decisions": [
+    {"component": "ploeg", "version": "0.4.0-rc.35", "tags": [], "refused": null},
+    {"component": "ploeg", "version": "0.5.0-rc.1", "tags": ["unfold-v0.4.0-rc.34", "ploeg-v0.3.0-rc.7"], "refused": null},
+    {"component": "ploeg", "version": "0.4.0-rc.34", "tags": [], "refused": "release floor 0.4.0-rc.34"},
+    {"component": "ploeg", "version": "0.4.0-rc.1", "tags": [], "refused": "release floor 0.4.0-rc.34"},
+    {"component": "ploeg", "version": "0.3.0-rc.8", "tags": [], "refused": "release floor 0.4.0-rc.34"},
+    {"component": "ploeg", "version": "1.0.0-rc.1", "tags": [], "refused": "withdrawn fixture release"},
+    {"component": "ploeg", "version": "1.0.0-rc.2", "tags": [], "refused": null},
+    {"component": "ploeg", "version": "0.4.0-rc.36", "tags": ["unfold-v0.4.0-rc.36"], "refused": "existing tag unfold-v0.4.0-rc.36"},
+    {"component": "ploeg", "version": "0.4.0-rc.35", "tags": ["unfold-v0.4.0-rc.36"], "refused": "existing tag unfold-v0.4.0-rc.36"},
+    {"component": "ploeg", "version": "0.5.0-rc.1", "tags": ["ploeg-v0.5.0-rc.1"], "refused": "existing tag ploeg-v0.5.0-rc.1"},
+    {"component": "ploeg", "version": "0.5.0-rc.2", "tags": ["vloer-v0.9.0-rc.1", "unfold-site-v9.0.0", "withdrawn-v1.0.0-rc.1", "unfold-vnext"], "refused": null},
+    {"component": "vloer", "version": "0.4.0-rc.31", "tags": [], "refused": null},
+    {"component": "vloer", "version": "0.4.0-rc.30", "tags": [], "refused": "release floor 0.4.0-rc.30"},
+    {"component": "vloer", "version": "0.4.0-rc.32", "tags": ["glide-v0.4.0-rc.32"], "refused": "existing tag glide-v0.4.0-rc.32"},
+    {"component": "vloer", "version": "1.0.0-rc.1", "tags": [], "refused": null},
+    {"component": "ploeg", "version": "0.04.0-rc.1", "tags": [], "refused": "not a semantic version"},
+    {"component": "site", "version": "0.5.0-rc.1", "tags": [], "refused": "No release floor is recorded for site"}
+  ],
+  "trains": [
+    {"train": "unfold", "version": "0.4.0-rc.35", "tags": [], "refused": null},
+    {"train": "unfold", "version": "0.4.0-rc.31", "tags": [], "refused": "Ploeg 0.4.0-rc.31 is at or below its release floor"},
+    {"train": "unfold", "version": "0.5.0-rc.1", "tags": ["vloer-v0.5.0-rc.1"], "refused": "Vloer 0.5.0-rc.1 is at or below the existing tag vloer-v0.5.0-rc.1"},
+    {"train": "bundle", "version": "0.5.0-rc.1", "tags": [], "refused": "No release train bundle"}
+  ]
+}

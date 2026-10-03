@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
-const { spawnSync } = require('node:child_process');
+const { execFileSync, spawnSync } = require('node:child_process');
 const os = require('node:os');
 const vm = require('node:vm');
 const { parse } = require('yaml');
@@ -42,6 +42,18 @@ const nextVersion = async (tags, type) => {
   return getNextVersion({ branch: candidate, lastRelease, nextRelease: { type, channel: branch.channel }, logger });
 };
 const publisher = () => parse(fs.readFileSync(path.join(root, '.forgejo/workflows/on_release_published.yml'), 'utf8'));
+const floors = require('./release-floors.cjs');
+const gitIdentity = (home) => ({ ...process.env, HOME: home, GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Release test', GIT_AUTHOR_EMAIL: 'release-test@example.invalid', GIT_COMMITTER_NAME: 'Release test', GIT_COMMITTER_EMAIL: 'release-test@example.invalid' });
+const repositoryWithOrphanedTags = (tags) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'unfold-release-tags-'));
+  const run = (...args) => execFileSync('git', args, { cwd: directory, env: gitIdentity(directory), encoding: 'utf8' });
+  run('-c', 'init.defaultBranch=development', 'init', '--quiet');
+  run('commit', '--quiet', '--allow-empty', '-m', 'trunk');
+  run('commit', '--quiet', '--allow-empty', '-m', 'release commit dropped by a stale merge');
+  for (const tag of tags) run('tag', tag);
+  run('reset', '--quiet', '--hard', 'HEAD~1');
+  return { directory, env: gitIdentity(directory), cleanup: () => fs.rmSync(directory, { recursive: true, force: true }) };
+};
 
 test('the installed release toolchain is the one exercised by this suite', () => {
   for (const name of ['semantic-release', '@semantic-release/commit-analyzer', '@webgrip/semantic-release-config']) {
@@ -55,21 +67,46 @@ test('the actual historical breaking commit reproduces major before the policy a
   assert.equal(await analyze(pluginOptions(config, '@semantic-release/commit-analyzer')), 'minor');
 });
 
-test('the baseline starts Unfold at 0.4.0-rc.1, above every imported application candidate', async () => {
+test('the baseline started Unfold at 0.4.0-rc.1, a version now below the release floor', async () => {
   const type = await analyze(pluginOptions(config, '@semantic-release/commit-analyzer'));
   const version = await nextVersion([baseline], type);
   assert.equal(version, '0.4.0-rc.1');
-  policy.verifyRelease({}, context(version));
+  assert.throws(() => policy.verifyRelease({}, context(version), { tags: [] }), /at or below its release floor 0\.4\.0-rc\.34/);
   assert.equal(await nextVersion([baseline], 'patch'), '0.3.1-rc.1');
-  policy.verifyRelease({}, context('0.3.1-rc.1'));
+  assert.throws(() => policy.verifyRelease({}, context('0.3.1-rc.1'), { tags: [] }), /at or below its release floor/);
 });
 
-test('later candidates advance the release candidate number, even for a breaking change', async () => {
-  const tags = [baseline, { version: '0.4.0-rc.1', gitTag: 'unfold-v0.4.0-rc.1', channels: ['development'] }];
+test('later candidates advance the release candidate number above the floor, even for a breaking change', async () => {
+  const floor = { version: '0.4.0-rc.34', gitTag: 'unfold-v0.4.0-rc.34', channels: ['development'] };
   const type = await analyze(pluginOptions(config, '@semantic-release/commit-analyzer'), 'feat!: change API');
-  const version = await nextVersion(tags, type);
-  assert.equal(version, '0.4.0-rc.2');
-  policy.verifyRelease({}, context(version));
+  const version = await nextVersion([baseline, floor], type);
+  assert.equal(version, '0.4.0-rc.35');
+  policy.verifyRelease({}, context(version), { tags: [floor.gitTag] });
+});
+
+test('a computed version at or below the floor or any existing tag stops before preparation', () => {
+  const recorded = floors.load();
+  for (const component of recorded.trains.unfold.components) {
+    assert.throws(() => policy.verifyRelease({}, context(recorded.components[component].floor), { tags: [] }), /at or below its release floor/);
+  }
+  assert.throws(() => policy.verifyRelease({}, context('0.4.0-rc.36'), { tags: ['unfold-v0.4.0-rc.36'] }), /existing tag unfold-v0\.4\.0-rc\.36/);
+  assert.throws(() => policy.verifyRelease({}, context('0.4.0-rc.35'), { tags: ['unfold-v0.4.0-rc.36'] }), /existing tag unfold-v0\.4\.0-rc\.36/);
+  assert.throws(() => policy.verifyRelease({}, context('0.5.0-rc.1'), { tags: ['ploeg-v0.5.0-rc.1'] }), /Ploeg 0\.5\.0-rc\.1 is at or below the existing tag ploeg-v0\.5\.0-rc\.1/);
+  assert.throws(() => policy.verifyRelease({}, context('0.5.0-rc.1'), { tags: ['vloer-v0.5.0-rc.2'] }), /Vloer 0\.5\.0-rc\.1/);
+  policy.verifyRelease({}, context('0.4.0-rc.35'), { tags: ['unfold-v0.4.0-rc.34', 'unfold-site-v0.9.0-rc.1', 'ploeg-v0.3.0-rc.7'] });
+});
+
+test('the tag check reads tags a stale merge left unreachable from the release branch', () => {
+  const repository = repositoryWithOrphanedTags(['unfold-v0.4.0-rc.40']);
+  try {
+    assert.equal(execFileSync('git', ['tag', '--merged', 'HEAD'], { cwd: repository.directory, env: repository.env, encoding: 'utf8' }), '');
+    assert.deepEqual(policy.repositoryTags({ cwd: repository.directory, env: repository.env }), ['unfold-v0.4.0-rc.40']);
+    const inRepository = (version) => ({ ...context(version), cwd: repository.directory, env: repository.env });
+    assert.throws(() => policy.verifyRelease({}, inRepository('0.4.0-rc.40')), /existing tag unfold-v0\.4\.0-rc\.40/);
+    policy.verifyRelease({}, inRepository('0.4.0-rc.41'));
+  } finally {
+    repository.cleanup();
+  }
 });
 
 test('a mistaken 1.x tag is rejected instead of producing another 1.x release', async () => {
@@ -127,10 +164,18 @@ test('the installed plugin pipeline loads and enforces both local release gates'
   const options = { ...config, plugins: [config.plugins[0], ['@semantic-release/commit-analyzer', pluginOptions(config, '@semantic-release/commit-analyzer')]] };
   const input = { cwd: root, env: {}, options, logger, stdout: process.stdout, stderr: process.stderr };
   const pipeline = await loadPlugins(input, {});
-  await pipeline.verifyConditions({ ...input, branch });
-  await pipeline.verifyRelease({ ...input, ...context(), options });
-  await assert.rejects(pipeline.verifyConditions({ ...input, branch: { ...branch, name: 'main' } }), /only development/);
-  await assert.rejects(pipeline.verifyRelease({ ...input, ...context('1.0.0-rc.1'), options }), /only 0.x.y-rc.N/);
+  const repository = repositoryWithOrphanedTags(['unfold-v0.4.0-rc.40']);
+  try {
+    const inRepository = { ...input, cwd: repository.directory, env: repository.env };
+    await pipeline.verifyConditions({ ...input, branch });
+    await pipeline.verifyRelease({ ...inRepository, ...context('0.4.0-rc.41'), options });
+    await assert.rejects(pipeline.verifyConditions({ ...input, branch: { ...branch, name: 'main' } }), /only development/);
+    await assert.rejects(pipeline.verifyRelease({ ...inRepository, ...context('1.0.0-rc.1'), options }), /only 0.x.y-rc.N/);
+    await assert.rejects(pipeline.verifyRelease({ ...inRepository, ...context('0.4.0-rc.1'), options }), /at or below its release floor/);
+    await assert.rejects(pipeline.verifyRelease({ ...inRepository, ...context('0.4.0-rc.40'), options }), /existing tag unfold-v0\.4\.0-rc\.40/);
+  } finally {
+    repository.cleanup();
+  }
 });
 
 test('the installed release engine checks conditions before promotion and verifies versions before preparation', () => {
@@ -222,7 +267,7 @@ test('artifact jobs accept validated parse output without unavailable job result
   }
 });
 
-test('the actual Git history calculates the first Unfold candidate without publishing', { skip: process.env.UNFOLD_RELEASE_HISTORY !== 'true' }, async () => {
+test('the actual Git history calculates the next Unfold candidate above every floor and tag without publishing', { skip: process.env.UNFOLD_RELEASE_HISTORY !== 'true' }, async () => {
   const { default: getTags } = await loadCore('branches/get-tags.js');
   const { default: getLastRelease } = await loadCore('get-last-release.js');
   const { default: getCommits } = await loadCore('get-commits.js');
@@ -234,9 +279,12 @@ test('the actual Git history calculates the first Unfold candidate without publi
   const commits = await getCommits({ ...input, lastRelease });
   const { analyzeCommits } = await import(pathToFileURL(require.resolve('@semantic-release/commit-analyzer')).href);
   const type = await analyzeCommits(pluginOptions(config, '@semantic-release/commit-analyzer'), { ...input, commits });
+  assert.match(lastRelease.gitTag, /^unfold-v/);
+  if (!type) {
+    console.log(JSON.stringify({ lastRelease: lastRelease.gitTag, analyzedCommits: commits.length, type, nextRelease: null, publication: false }));
+    return;
+  }
   const version = getNextVersion({ branch: actualBranch, lastRelease, nextRelease: { type, channel: actualBranch.channel }, logger });
-  assert.equal(lastRelease.gitTag, 'unfold-v0.3.0');
-  assert.equal(version, '0.4.0-rc.1');
-  policy.verifyRelease({}, context(version));
+  policy.verifyRelease({}, { ...context(version), cwd: root, env });
   console.log(JSON.stringify({ lastRelease: lastRelease.gitTag, analyzedCommits: commits.length, type, nextRelease: `unfold-v${version}`, publication: false }));
 });

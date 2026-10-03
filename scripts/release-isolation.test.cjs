@@ -58,7 +58,7 @@ test('one Unfold release selects commits in either application and ignores the s
     for (const app of ['vloer', 'ploeg', 'site']) fs.mkdirSync(path.join(directory, 'apps', app), { recursive: true });
     fs.mkdirSync(path.join(directory, 'scripts'));
     fs.mkdirSync(path.join(directory, 'docs'));
-    const files = ['apps/.releaserc.cjs', 'scripts/release-policy.cjs'];
+    const files = ['apps/.releaserc.cjs', 'scripts/release-policy.cjs', 'scripts/release-floors.cjs', 'scripts/release-floors.json'];
     for (const file of files) fs.copyFileSync(path.join(root, file), path.join(directory, file));
     fs.writeFileSync(path.join(directory, 'apps/package.json'), JSON.stringify({ name: 'unfold', version: '0.0.0', private: true }));
     files.push('apps/package.json');

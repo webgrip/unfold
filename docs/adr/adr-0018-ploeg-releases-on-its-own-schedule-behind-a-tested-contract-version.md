@@ -138,6 +138,7 @@ When this ADR is implemented:
 
 * Technical story: VIK-1756, "Ploeg releases on its own schedule with a tested compatibility contract".
 * 2026-10-03 — The owner allowed Ploeg to release independently and asked how incompatibility is handled. This ADR was proposed in answer.
+* 2026-10-03 — The [release floor audit](../research/2026-10-03-release-floors-and-identity.md) (VIK-1794) found that the highest Go module version from the joint train is `v0.4.0-rc.32`, not `v0.4.0-rc.34`, and that Ploeg's withdrawn `1.0.0-rc.1` is still published in the Go module proxy, GHCR and Forgejo. `0.5.0-rc.1` is above every recorded floor for both applications. [scripts/release-floors.json](../../scripts/release-floors.json) and the release policy now refuse a version at or below a floor or an existing tag.
 * Supersedes [ADR-0004](adr-0004-unfold-releases-one-version.md) once accepted. Until then, ADR-0004 stays in force.
 * Builds on [ADR-0001](adr-0001-unfold-contains-independent-applications.md) (independently deployable applications), [ADR-0002](adr-0002-ploeg-is-the-only-engine.md) (Vloer is Ploeg's front end, with no standalone fallback for managed work) and [ADR-0012](adr-0012-the-marketing-site-releases-and-deploys-on-its-own.md) (a precedent for a second train in this repository).
 * Applies to the consumer of [ADR-0011](adr-0011-unfold-is-reachable-over-mcp-through-a-read-first-server.md): the MCP server declares a contract range like Vloer.

@@ -1,0 +1,2587 @@
+{
+  "schema_version": 1,
+  "recorded": "2026-10-03",
+  "method": "Unauthenticated reads only: git ls-remote, Forgejo and GitHub REST GETs, anonymous OCI registry reads, the Open VSX API, the Go module proxy and checksum database, and go mod download into empty module caches with GOPROXY=https://proxy.golang.org and with GOPROXY=direct, both with GOSUMDB=sum.golang.org. Harbor needs credentials and was not read.",
+  "identities": {
+    "forgejo:webgrip/de-vloer": {
+      "location": null,
+      "status": 404
+    },
+    "forgejo:webgrip/glide": {
+      "location": null,
+      "status": 301
+    },
+    "forgejo:webgrip/ploeg": {
+      "location": null,
+      "status": 404
+    },
+    "forgejo:webgrip/unfold": {
+      "archived": false,
+      "clone_url": "https://forgejo.webgrip.dev/webgrip/unfold.git",
+      "created_at": "2026-09-12T14:36:14Z",
+      "default_branch": "development",
+      "full_name": "webgrip/unfold",
+      "has_actions": true,
+      "has_packages": true,
+      "has_releases": true,
+      "html_url": "https://forgejo.webgrip.dev/webgrip/unfold",
+      "id": 111,
+      "location": null,
+      "mirror": false,
+      "private": false,
+      "status": 200
+    },
+    "github:webgrip/de-vloer": {
+      "location": null,
+      "status": 404
+    },
+    "github:webgrip/glide": {
+      "location": null,
+      "status": 404
+    },
+    "github:webgrip/ploeg": {
+      "archived": false,
+      "created_at": "2026-10-02T22:49:15Z",
+      "default_branch": "main",
+      "full_name": "webgrip/ploeg",
+      "html_url": "https://github.com/webgrip/ploeg",
+      "id": 1402430449,
+      "location": null,
+      "private": false,
+      "pushed_at": "2026-10-03T10:36:53Z",
+      "status": 200
+    },
+    "github:webgrip/unfold": {
+      "archived": false,
+      "created_at": "2026-10-02T23:00:14Z",
+      "default_branch": "development",
+      "full_name": "webgrip/unfold",
+      "html_url": "https://github.com/webgrip/unfold",
+      "id": 1402436978,
+      "location": null,
+      "private": false,
+      "pushed_at": "2026-10-03T12:12:34Z",
+      "status": 200
+    }
+  },
+  "source_and_mirror": {
+    "forgejo_tags": 116,
+    "mirror_tags_and_branches_equal_forgejo": true,
+    "forgejo_release_channel_notes": 111,
+    "tag_prefixes": {
+      "glide-site-v": {
+        "count": 6,
+        "lowest": "0.0.0",
+        "highest": "0.1.0-rc.5"
+      },
+      "glide-v": {
+        "count": 30,
+        "lowest": "0.3.0",
+        "highest": "0.4.0-rc.29"
+      },
+      "ploeg-v": {
+        "count": 52,
+        "lowest": "0.0.0",
+        "highest": "0.3.0-rc.7"
+      },
+      "unfold-site-v": {
+        "count": 4,
+        "lowest": "0.1.0-rc.5",
+        "highest": "0.1.0-rc.8"
+      },
+      "unfold-v": {
+        "count": 6,
+        "lowest": "0.4.0-rc.29",
+        "highest": "0.4.0-rc.34"
+      },
+      "vloer-v": {
+        "count": 18,
+        "lowest": "0.0.0",
+        "highest": "0.3.0-rc.16"
+      }
+    },
+    "notes_without_tag": [
+      "ploeg-v1.0.0-rc.1"
+    ]
+  },
+  "joint_train": [
+    {
+      "version": "0.4.0-rc.1",
+      "source_tags": {
+        "glide-v0.4.0-rc.1": "4b8ccab82b87eb8303d2730855d3f05b6ad520e5"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.1",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.1.vsix",
+          "de-vloer-0.4.0-rc.1.vsix.sha256"
+        ]
+      },
+      "registries": {},
+      "open_vsx": true,
+      "go_module": false,
+      "ploeg_evidence": null,
+      "vloer_evidence": null,
+      "completion": "partial"
+    },
+    {
+      "version": "0.4.0-rc.2",
+      "source_tags": {
+        "glide-v0.4.0-rc.2": "8f08c5d3cd8565eed16676e6705bb3e530869b5a"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.2",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.2.vsix",
+          "de-vloer-0.4.0-rc.2.vsix.sha256"
+        ]
+      },
+      "registries": {
+        "forgejo.webgrip.dev/webgrip/ploegd": "sha256:2e4243cfdcd367551508f41608bad228cbdaafff5f7a1821d7fd5a20852064ea",
+        "forgejo.webgrip.dev/webgrip/de-vloer": "sha256:baaac952daa6375a2c67f2b1400cf08822b3bc6e020478c657f32cd0d5a1faa9"
+      },
+      "open_vsx": true,
+      "go_module": false,
+      "ploeg_evidence": null,
+      "vloer_evidence": null,
+      "completion": "partial"
+    },
+    {
+      "version": "0.4.0-rc.3",
+      "source_tags": {
+        "glide-v0.4.0-rc.3": "735796806c3695444472fceb781c093f2d410a93"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.3",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.3.vsix",
+          "de-vloer-0.4.0-rc.3.vsix.sha256"
+        ]
+      },
+      "registries": {
+        "forgejo.webgrip.dev/webgrip/ploegd": "sha256:8ac3d96aa9512ce347928aff1c376f7a0f9eeb035b08520318cd39aecc57217b",
+        "forgejo.webgrip.dev/webgrip/de-vloer": "sha256:6f59d4db980213560a250a0452b2b701013c51caeb938a842494f1c9c4f53d9e"
+      },
+      "open_vsx": true,
+      "go_module": false,
+      "ploeg_evidence": null,
+      "vloer_evidence": null,
+      "completion": "partial"
+    },
+    {
+      "version": "0.4.0-rc.4",
+      "source_tags": {
+        "glide-v0.4.0-rc.4": "0be8d9919280d0243fa47d9650b45018b07f3219"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.4",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.4.vsix",
+          "de-vloer-0.4.0-rc.4.vsix.sha256"
+        ]
+      },
+      "registries": {
+        "forgejo.webgrip.dev/webgrip/ploegd": "sha256:202253770a26d1c6d1bc4202973e23ef6732409704dd20f21889f2021f6c7d6e",
+        "forgejo.webgrip.dev/webgrip/de-vloer": "sha256:900d4affc42ac83fd49add5a42631caf8a84ed33172db06e371ecee9e6e3c9e3"
+      },
+      "open_vsx": true,
+      "go_module": false,
+      "ploeg_evidence": null,
+      "vloer_evidence": null,
+      "completion": "partial"
+    },
+    {
+      "version": "0.4.0-rc.5",
+      "source_tags": {
+        "glide-v0.4.0-rc.5": "04246c43b901cc508c99906a005a326026ec69cf"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.5",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.5.vsix",
+          "de-vloer-0.4.0-rc.5.vsix.sha256"
+        ]
+      },
+      "registries": {
+        "forgejo.webgrip.dev/webgrip/ploegd": "sha256:0ebf42d79f010da5228d800f5e384420bbe6c53bf7c778b5bcb8b6f4f0a3d50e",
+        "forgejo.webgrip.dev/webgrip/de-vloer": "sha256:3e5c36aeb1380cf91f55c399e3ca3c6609097db504af7d1ccd91735360d662e5",
+        "forgejo.webgrip.dev/webgrip/de-vloer-agent": "sha256:d134cc945c250a5f11e3cdabb8ca301bd7ef314e28fb235fabd2b2e732fabef7"
+      },
+      "open_vsx": true,
+      "go_module": false,
+      "ploeg_evidence": null,
+      "vloer_evidence": null,
+      "completion": "partial"
+    },
+    {
+      "version": "0.4.0-rc.6",
+      "source_tags": {
+        "glide-v0.4.0-rc.6": "29f965e7302d03e3f7fe40e0c840567f7ac05c6d"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.6",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.6.vsix",
+          "de-vloer-0.4.0-rc.6.vsix.sha256"
+        ]
+      },
+      "registries": {
+        "forgejo.webgrip.dev/webgrip/ploegd": "sha256:2ab5c38a594d805e57ff521c401aa8ae748eb8c12354c4950bc88dcfc29b659a",
+        "forgejo.webgrip.dev/webgrip/de-vloer": "sha256:f4c0b531f6b871d5a9193577b23e15b8d80162dcac97c14b9c0526e8c09ce446",
+        "forgejo.webgrip.dev/webgrip/de-vloer-agent": "sha256:6ebacb10175eec9605702e1472527741958fef1ae9138049b6389d2f2008150f"
+      },
+      "open_vsx": true,
+      "go_module": false,
+      "ploeg_evidence": null,
+      "vloer_evidence": null,
+      "completion": "partial"
+    },
+    {
+      "version": "0.4.0-rc.7",
+      "source_tags": {
+        "glide-v0.4.0-rc.7": "26faee6dad4898a7890ac97601b47022e21a1880"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.7",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.7.vsix",
+          "de-vloer-0.4.0-rc.7.vsix.sha256"
+        ]
+      },
+      "registries": {
+        "forgejo.webgrip.dev/webgrip/ploegd": "sha256:268288efc7b62d33fbf905b1de6c7c8f89e07b4c39118ab29d0bf0b3b67a50bf",
+        "forgejo.webgrip.dev/webgrip/de-vloer": "sha256:65f0e2f0446b86d41c9288b8f0c5347384bfbace604ecde958a8ee66a5a0235a",
+        "forgejo.webgrip.dev/webgrip/de-vloer-agent": "sha256:d440a863a0a85861fdc147d26297d6bf36814c70484fb3d9e7900047e53ee799"
+      },
+      "open_vsx": true,
+      "go_module": false,
+      "ploeg_evidence": null,
+      "vloer_evidence": null,
+      "completion": "partial"
+    },
+    {
+      "version": "0.4.0-rc.8",
+      "source_tags": {
+        "glide-v0.4.0-rc.8": "4a6267ee0d6c38cedd733a227f04b1dca448884e"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.8",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.8.vsix",
+          "de-vloer-0.4.0-rc.8.vsix.sha256",
+          "release-artifacts-ploeg.json",
+          "release-artifacts-vloer.json"
+        ]
+      },
+      "registries": {
+        "ghcr.io/webgrip/ploegd": "sha256:d482465d438cd2b45e902940f01df11d02cf2d378a9d0a815e4a64995d7a199b",
+        "forgejo.webgrip.dev/webgrip/ploegd": "sha256:d482465d438cd2b45e902940f01df11d02cf2d378a9d0a815e4a64995d7a199b",
+        "ghcr.io/webgrip/charts/ploeg": "sha256:538516c9fe4c37a3cf1abe19d0ef642848ad07e91bdbfddfe66f6ae6f6475d67",
+        "forgejo.webgrip.dev/webgrip/charts/ploeg": "sha256:538516c9fe4c37a3cf1abe19d0ef642848ad07e91bdbfddfe66f6ae6f6475d67",
+        "ghcr.io/webgrip/de-vloer": "sha256:59f0e034302f731bbe843ed03c013814263f690977cf0db4e87333a76578e9ee",
+        "forgejo.webgrip.dev/webgrip/de-vloer": "sha256:59f0e034302f731bbe843ed03c013814263f690977cf0db4e87333a76578e9ee",
+        "ghcr.io/webgrip/de-vloer-agent": "sha256:ad3a08d7e2acaabe1f9d0c2ce6e8538b716b47bb7566a3a7fbd903a3c0fe5443",
+        "forgejo.webgrip.dev/webgrip/de-vloer-agent": "sha256:ad3a08d7e2acaabe1f9d0c2ce6e8538b716b47bb7566a3a7fbd903a3c0fe5443",
+        "ghcr.io/webgrip/charts/de-vloer": "sha256:20bf66c320695266b467bfdf8f208657967e4507841d6ba3750ddf5bf6765fd7",
+        "forgejo.webgrip.dev/webgrip/charts/de-vloer": "sha256:20bf66c320695266b467bfdf8f208657967e4507841d6ba3750ddf5bf6765fd7"
+      },
+      "open_vsx": true,
+      "go_module": true,
+      "ploeg_evidence": {
+        "pre_rewrite_source_revision": "b8b2f00751145eb60e6b7b1a2e6d5adb087ad606",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "vloer_evidence": {
+        "pre_rewrite_source_revision": "b8b2f00751145eb60e6b7b1a2e6d5adb087ad606",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "completion": "complete"
+    },
+    {
+      "version": "0.4.0-rc.9",
+      "source_tags": {
+        "glide-v0.4.0-rc.9": "a81f0150df54afb900d949fb05973d1e654d4fbe"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.9",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.9.vsix",
+          "de-vloer-0.4.0-rc.9.vsix.sha256",
+          "release-artifacts-ploeg.json",
+          "release-artifacts-vloer.json"
+        ]
+      },
+      "registries": {
+        "ghcr.io/webgrip/ploegd": "sha256:9769f196df138d2660ff15cc98141e48265d9393354488e44d6fb240335c445a",
+        "forgejo.webgrip.dev/webgrip/ploegd": "sha256:9769f196df138d2660ff15cc98141e48265d9393354488e44d6fb240335c445a",
+        "ghcr.io/webgrip/charts/ploeg": "sha256:be0b6d0a8c11dba777a9ce2a13a0ee093fd804276c6f835294d132eac971bd64",
+        "forgejo.webgrip.dev/webgrip/charts/ploeg": "sha256:be0b6d0a8c11dba777a9ce2a13a0ee093fd804276c6f835294d132eac971bd64",
+        "ghcr.io/webgrip/de-vloer": "sha256:81e860c099bdd8362aeae58fdfbbb9064a88b3c233f73774af42c73db20700f4",
+        "forgejo.webgrip.dev/webgrip/de-vloer": "sha256:81e860c099bdd8362aeae58fdfbbb9064a88b3c233f73774af42c73db20700f4",
+        "ghcr.io/webgrip/de-vloer-agent": "sha256:2a02881856da4ba2002a0118e7ad6762a1dbff71afc18ec81fb812d6dfb9955d",
+        "forgejo.webgrip.dev/webgrip/de-vloer-agent": "sha256:2a02881856da4ba2002a0118e7ad6762a1dbff71afc18ec81fb812d6dfb9955d",
+        "ghcr.io/webgrip/charts/de-vloer": "sha256:2f221b17eb4f8069a49d96a415f2b943fe9ff59690ed65b1427c367e64107099",
+        "forgejo.webgrip.dev/webgrip/charts/de-vloer": "sha256:2f221b17eb4f8069a49d96a415f2b943fe9ff59690ed65b1427c367e64107099"
+      },
+      "open_vsx": true,
+      "go_module": true,
+      "ploeg_evidence": {
+        "pre_rewrite_source_revision": "8d6620d7098b3e5312b1c45685ab415a66393956",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "vloer_evidence": {
+        "pre_rewrite_source_revision": "8d6620d7098b3e5312b1c45685ab415a66393956",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "completion": "complete"
+    },
+    {
+      "version": "0.4.0-rc.10",
+      "source_tags": {
+        "glide-v0.4.0-rc.10": "3a1779ec79774992a8230e07762c299974c9ff37"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.10",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.10.vsix",
+          "de-vloer-0.4.0-rc.10.vsix.sha256",
+          "release-artifacts-ploeg.json",
+          "release-artifacts-vloer.json"
+        ]
+      },
+      "registries": {
+        "ghcr.io/webgrip/ploegd": "sha256:cd4025e9c7e122523495109034d5cd05f5a4fbecb26582f11c90e43a905a690d",
+        "forgejo.webgrip.dev/webgrip/ploegd": "sha256:cd4025e9c7e122523495109034d5cd05f5a4fbecb26582f11c90e43a905a690d",
+        "ghcr.io/webgrip/charts/ploeg": "sha256:4feff6f9de65977cb0f27ae0cc997a6eedd3d38ae9dbbf26fdf13cab8ea3157c",
+        "forgejo.webgrip.dev/webgrip/charts/ploeg": "sha256:4feff6f9de65977cb0f27ae0cc997a6eedd3d38ae9dbbf26fdf13cab8ea3157c",
+        "ghcr.io/webgrip/de-vloer": "sha256:4cced0001f9647263086c067c4f8ece593b76fe8776f0fd036c7b7412187328e",
+        "forgejo.webgrip.dev/webgrip/de-vloer": "sha256:4cced0001f9647263086c067c4f8ece593b76fe8776f0fd036c7b7412187328e",
+        "ghcr.io/webgrip/de-vloer-agent": "sha256:0a400aec8a9611cc61a97fe48deb2cf27dfb351067a94d9d40e44988b082ebb0",
+        "forgejo.webgrip.dev/webgrip/de-vloer-agent": "sha256:0a400aec8a9611cc61a97fe48deb2cf27dfb351067a94d9d40e44988b082ebb0",
+        "ghcr.io/webgrip/charts/de-vloer": "sha256:a66495b56559b1822e1aac971e29fd7196cc972565c75a930ad73a77e8d96427",
+        "forgejo.webgrip.dev/webgrip/charts/de-vloer": "sha256:a66495b56559b1822e1aac971e29fd7196cc972565c75a930ad73a77e8d96427"
+      },
+      "open_vsx": true,
+      "go_module": true,
+      "ploeg_evidence": {
+        "pre_rewrite_source_revision": "e12667910481be805d81e19b4c1560792ad2227a",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "vloer_evidence": {
+        "pre_rewrite_source_revision": "e12667910481be805d81e19b4c1560792ad2227a",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "completion": "complete"
+    },
+    {
+      "version": "0.4.0-rc.11",
+      "source_tags": {
+        "glide-v0.4.0-rc.11": "de0f37790c27187d35d55f945cd594fe0d39a8f9"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.11",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.11.vsix",
+          "de-vloer-0.4.0-rc.11.vsix.sha256",
+          "release-artifacts-ploeg.json",
+          "release-artifacts-vloer.json"
+        ]
+      },
+      "registries": {
+        "ghcr.io/webgrip/ploegd": "sha256:bb5aa9fd2def83b496f0362d4fc3757677a789260e2c4955bffbf27e5483fde7",
+        "forgejo.webgrip.dev/webgrip/ploegd": "sha256:bb5aa9fd2def83b496f0362d4fc3757677a789260e2c4955bffbf27e5483fde7",
+        "ghcr.io/webgrip/charts/ploeg": "sha256:6008e87760af3185fe4f9ea786fbefbba3b203640378a3dcd46781ecb3e59363",
+        "forgejo.webgrip.dev/webgrip/charts/ploeg": "sha256:6008e87760af3185fe4f9ea786fbefbba3b203640378a3dcd46781ecb3e59363",
+        "ghcr.io/webgrip/de-vloer": "sha256:985472fe8f91a9d92b3b36c51ba58bd2062a26e79e6c64fc0d1aee0eaea62ff5",
+        "forgejo.webgrip.dev/webgrip/de-vloer": "sha256:985472fe8f91a9d92b3b36c51ba58bd2062a26e79e6c64fc0d1aee0eaea62ff5",
+        "ghcr.io/webgrip/de-vloer-agent": "sha256:b237af192e6e6c5fb1db9b44f84a7d4aa28c3eaf4f67ceedd831c655a931c298",
+        "forgejo.webgrip.dev/webgrip/de-vloer-agent": "sha256:b237af192e6e6c5fb1db9b44f84a7d4aa28c3eaf4f67ceedd831c655a931c298",
+        "ghcr.io/webgrip/charts/de-vloer": "sha256:7ceef83de1ca48a042225437611865fcedb523434db2814c0f751f614f235d42",
+        "forgejo.webgrip.dev/webgrip/charts/de-vloer": "sha256:7ceef83de1ca48a042225437611865fcedb523434db2814c0f751f614f235d42"
+      },
+      "open_vsx": true,
+      "go_module": true,
+      "ploeg_evidence": {
+        "pre_rewrite_source_revision": "eab07c176ce125d217b50c3536841b69a498f51d",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "vloer_evidence": {
+        "pre_rewrite_source_revision": "eab07c176ce125d217b50c3536841b69a498f51d",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "completion": "complete"
+    },
+    {
+      "version": "0.4.0-rc.12",
+      "source_tags": {
+        "glide-v0.4.0-rc.12": "91e334f35a791240ccd3467079f240fe9ba80fe4"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.12",
+        "draft": false,
+        "prerelease": true,
+        "assets": []
+      },
+      "registries": {},
+      "open_vsx": false,
+      "go_module": false,
+      "ploeg_evidence": null,
+      "vloer_evidence": null,
+      "completion": "partial"
+    },
+    {
+      "version": "0.4.0-rc.13",
+      "source_tags": {
+        "glide-v0.4.0-rc.13": "48c756e339faa12737ce7f3fbd4d49db11e34b87"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.13",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.13.vsix",
+          "de-vloer-0.4.0-rc.13.vsix.sha256",
+          "release-artifacts-vloer.json"
+        ]
+      },
+      "registries": {
+        "ghcr.io/webgrip/de-vloer": "sha256:c66ed7b8f207b9a6e9e496c83a6c8ba5abac4bbbc7b44294380871faeb78ac36",
+        "forgejo.webgrip.dev/webgrip/de-vloer": "sha256:c66ed7b8f207b9a6e9e496c83a6c8ba5abac4bbbc7b44294380871faeb78ac36",
+        "ghcr.io/webgrip/de-vloer-agent": "sha256:0e30f288edf709ed36bb999913c70fa762415e7607e74555fc0140d2279bea6b",
+        "forgejo.webgrip.dev/webgrip/de-vloer-agent": "sha256:0e30f288edf709ed36bb999913c70fa762415e7607e74555fc0140d2279bea6b",
+        "ghcr.io/webgrip/charts/de-vloer": "sha256:931b60e03cb8a7807812028f083343d4811ddbf9c21af880945dacc3827abc2e",
+        "forgejo.webgrip.dev/webgrip/charts/de-vloer": "sha256:931b60e03cb8a7807812028f083343d4811ddbf9c21af880945dacc3827abc2e"
+      },
+      "open_vsx": true,
+      "go_module": false,
+      "ploeg_evidence": null,
+      "vloer_evidence": {
+        "pre_rewrite_source_revision": "d2f405cf99b236c404d64cfc721bff2c139b8689",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "completion": "partial"
+    },
+    {
+      "version": "0.4.0-rc.14",
+      "source_tags": {
+        "glide-v0.4.0-rc.14": "3d4606100a08bcd7ae289b7e9e8412f92774a3b7"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.14",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.14.vsix",
+          "de-vloer-0.4.0-rc.14.vsix.sha256",
+          "release-artifacts-ploeg.json",
+          "release-artifacts-vloer.json"
+        ]
+      },
+      "registries": {
+        "ghcr.io/webgrip/ploegd": "sha256:8829adc12f22aad77b75b1033f99799e536ff6a58f312c8653ff7f61ea5db092",
+        "forgejo.webgrip.dev/webgrip/ploegd": "sha256:8829adc12f22aad77b75b1033f99799e536ff6a58f312c8653ff7f61ea5db092",
+        "ghcr.io/webgrip/charts/ploeg": "sha256:239b76b519eaa8ed84861499f5651cccd36f6291bee7dc8766d48e51201d58d5",
+        "forgejo.webgrip.dev/webgrip/charts/ploeg": "sha256:239b76b519eaa8ed84861499f5651cccd36f6291bee7dc8766d48e51201d58d5",
+        "ghcr.io/webgrip/de-vloer": "sha256:6390d6835f67f53624dcbc35175968a7f4ab750603158b8ed127df8fbcc27bec",
+        "forgejo.webgrip.dev/webgrip/de-vloer": "sha256:6390d6835f67f53624dcbc35175968a7f4ab750603158b8ed127df8fbcc27bec",
+        "ghcr.io/webgrip/de-vloer-agent": "sha256:53b9bbb35c80f4f45c1ba5ca9b897c6c641ef18ab6546d704d5b42370ba79336",
+        "forgejo.webgrip.dev/webgrip/de-vloer-agent": "sha256:53b9bbb35c80f4f45c1ba5ca9b897c6c641ef18ab6546d704d5b42370ba79336",
+        "ghcr.io/webgrip/charts/de-vloer": "sha256:627388f1a669c7d26bdeab931ec00590b4bfb733d68bd31259d7d86647d40450",
+        "forgejo.webgrip.dev/webgrip/charts/de-vloer": "sha256:627388f1a669c7d26bdeab931ec00590b4bfb733d68bd31259d7d86647d40450"
+      },
+      "open_vsx": true,
+      "go_module": true,
+      "ploeg_evidence": {
+        "pre_rewrite_source_revision": "6de34d0ea40a3749afb6b238fd1adc6bd75dfd25",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "vloer_evidence": {
+        "pre_rewrite_source_revision": "6de34d0ea40a3749afb6b238fd1adc6bd75dfd25",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "completion": "complete"
+    },
+    {
+      "version": "0.4.0-rc.15",
+      "source_tags": {
+        "glide-v0.4.0-rc.15": "f048bd7fcd57d8a485d196261c31c773dc5fb27e"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.15",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.15.vsix",
+          "de-vloer-0.4.0-rc.15.vsix.sha256"
+        ]
+      },
+      "registries": {
+        "forgejo.webgrip.dev/webgrip/ploegd": "sha256:26652a663ccad0f2e29119d6b7ee429554a5a220f3da74125fea46cb1be0f1a8"
+      },
+      "open_vsx": true,
+      "go_module": false,
+      "ploeg_evidence": null,
+      "vloer_evidence": null,
+      "completion": "partial"
+    },
+    {
+      "version": "0.4.0-rc.16",
+      "source_tags": {
+        "glide-v0.4.0-rc.16": "4377aa7e88b4a168e76f33b5fdae47c930647983"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.16",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.16.vsix",
+          "de-vloer-0.4.0-rc.16.vsix.sha256"
+        ]
+      },
+      "registries": {
+        "forgejo.webgrip.dev/webgrip/ploegd": "sha256:08bb4dc29b6a3b4df15f5e6e66298f981bff8a900a8dc735264e16012381bce2"
+      },
+      "open_vsx": false,
+      "go_module": false,
+      "ploeg_evidence": null,
+      "vloer_evidence": null,
+      "completion": "partial"
+    },
+    {
+      "version": "0.4.0-rc.17",
+      "source_tags": {
+        "glide-v0.4.0-rc.17": "38607b298d2bab99e3ca2eacd33fdcbe99aeae64"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.17",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.17.vsix",
+          "de-vloer-0.4.0-rc.17.vsix.sha256"
+        ]
+      },
+      "registries": {},
+      "open_vsx": false,
+      "go_module": false,
+      "ploeg_evidence": null,
+      "vloer_evidence": null,
+      "completion": "partial"
+    },
+    {
+      "version": "0.4.0-rc.18",
+      "source_tags": {
+        "glide-v0.4.0-rc.18": "541fb85e72b543ca4109ebd5c45e07ec5e7d8c85"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.18",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.18.vsix",
+          "de-vloer-0.4.0-rc.18.vsix.sha256",
+          "release-artifacts-ploeg.json",
+          "release-artifacts-vloer.json"
+        ]
+      },
+      "registries": {
+        "ghcr.io/webgrip/ploegd": "sha256:fd1af38914c3f961220c92b96f2f5f3db98ba52e674f6677c1a2723ff07b016b",
+        "forgejo.webgrip.dev/webgrip/ploegd": "sha256:fd1af38914c3f961220c92b96f2f5f3db98ba52e674f6677c1a2723ff07b016b",
+        "ghcr.io/webgrip/charts/ploeg": "sha256:0b86b174aab524a47ab54774b1c7c8784e693ba2b14f5d515dcb646df296484e",
+        "forgejo.webgrip.dev/webgrip/charts/ploeg": "sha256:0b86b174aab524a47ab54774b1c7c8784e693ba2b14f5d515dcb646df296484e",
+        "ghcr.io/webgrip/de-vloer": "sha256:e065b67068de8e14c53e7c24a01570912a3211dd290860cced6553935c93e6bb",
+        "forgejo.webgrip.dev/webgrip/de-vloer": "sha256:e065b67068de8e14c53e7c24a01570912a3211dd290860cced6553935c93e6bb",
+        "ghcr.io/webgrip/de-vloer-agent": "sha256:2b7f1c131f6c43728861867a7dec409d6cb4dd863c0be95423b3ce21ec835431",
+        "forgejo.webgrip.dev/webgrip/de-vloer-agent": "sha256:2b7f1c131f6c43728861867a7dec409d6cb4dd863c0be95423b3ce21ec835431",
+        "ghcr.io/webgrip/charts/de-vloer": "sha256:8a7a9d1fb2b9f9c6b26a6fcea52d9615341483288e87d9472f4b044ab1ff5aa5",
+        "forgejo.webgrip.dev/webgrip/charts/de-vloer": "sha256:8a7a9d1fb2b9f9c6b26a6fcea52d9615341483288e87d9472f4b044ab1ff5aa5"
+      },
+      "open_vsx": true,
+      "go_module": true,
+      "ploeg_evidence": {
+        "pre_rewrite_source_revision": "fa668e3cbe60934ff078e889537aba5dac21fe9e",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "vloer_evidence": {
+        "pre_rewrite_source_revision": "fa668e3cbe60934ff078e889537aba5dac21fe9e",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "completion": "complete"
+    },
+    {
+      "version": "0.4.0-rc.19",
+      "source_tags": {
+        "glide-v0.4.0-rc.19": "e89a28f08933aa077e93af0efc2aa6991b10d1a0"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.19",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.19.vsix",
+          "de-vloer-0.4.0-rc.19.vsix.sha256",
+          "release-artifacts-ploeg.json",
+          "release-artifacts-vloer.json"
+        ]
+      },
+      "registries": {
+        "ghcr.io/webgrip/ploegd": "sha256:fefe07336862a53896bf8cb836d3571d5932fa277c8cdb1b8a24012951078a61",
+        "forgejo.webgrip.dev/webgrip/ploegd": "sha256:fefe07336862a53896bf8cb836d3571d5932fa277c8cdb1b8a24012951078a61",
+        "ghcr.io/webgrip/charts/ploeg": "sha256:23ff1e228244e90ffb5e1382536d728bf30068a5a064dd6c579a7aa148ff551f",
+        "forgejo.webgrip.dev/webgrip/charts/ploeg": "sha256:23ff1e228244e90ffb5e1382536d728bf30068a5a064dd6c579a7aa148ff551f",
+        "ghcr.io/webgrip/de-vloer": "sha256:487cfe0b8efd25f17dc6bc20289364246a56b0d7c1bde857ddf4030438cf9056",
+        "forgejo.webgrip.dev/webgrip/de-vloer": "sha256:487cfe0b8efd25f17dc6bc20289364246a56b0d7c1bde857ddf4030438cf9056",
+        "ghcr.io/webgrip/de-vloer-agent": "sha256:4b952382bfd4b9d54188b7fe6650840310f9977ad9e2ffc939ff9805bb23e8fe",
+        "forgejo.webgrip.dev/webgrip/de-vloer-agent": "sha256:4b952382bfd4b9d54188b7fe6650840310f9977ad9e2ffc939ff9805bb23e8fe",
+        "ghcr.io/webgrip/charts/de-vloer": "sha256:c7fbbe000abb27d62709f906fbe85eaad26d27564d2bfc4c435f99b61c06364b",
+        "forgejo.webgrip.dev/webgrip/charts/de-vloer": "sha256:c7fbbe000abb27d62709f906fbe85eaad26d27564d2bfc4c435f99b61c06364b"
+      },
+      "open_vsx": true,
+      "go_module": true,
+      "ploeg_evidence": {
+        "pre_rewrite_source_revision": "bf5d700e641440468db94ff2c976c583713e45d2",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "vloer_evidence": {
+        "pre_rewrite_source_revision": "bf5d700e641440468db94ff2c976c583713e45d2",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "completion": "complete"
+    },
+    {
+      "version": "0.4.0-rc.20",
+      "source_tags": {
+        "glide-v0.4.0-rc.20": "a0ead24f53dfcf4891957278e27ad6a71ea465f6"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.20",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.20.vsix",
+          "de-vloer-0.4.0-rc.20.vsix.sha256",
+          "release-artifacts-ploeg.json",
+          "release-artifacts-vloer.json"
+        ]
+      },
+      "registries": {
+        "ghcr.io/webgrip/ploegd": "sha256:885156caf99a2d60c995b6de44cca5084fd5c94e98a757ffb4256c05f8b14291",
+        "forgejo.webgrip.dev/webgrip/ploegd": "sha256:885156caf99a2d60c995b6de44cca5084fd5c94e98a757ffb4256c05f8b14291",
+        "ghcr.io/webgrip/charts/ploeg": "sha256:6c662302e7ecb95faeb584d1e3a25036add0df1dfeb5137d1a48244da2d3d31d",
+        "forgejo.webgrip.dev/webgrip/charts/ploeg": "sha256:6c662302e7ecb95faeb584d1e3a25036add0df1dfeb5137d1a48244da2d3d31d",
+        "ghcr.io/webgrip/de-vloer": "sha256:2dd426b8e02198e2fa98f40f6a91562e1b5b579564053a4ae4377a73b00bdfc4",
+        "forgejo.webgrip.dev/webgrip/de-vloer": "sha256:2dd426b8e02198e2fa98f40f6a91562e1b5b579564053a4ae4377a73b00bdfc4",
+        "ghcr.io/webgrip/de-vloer-agent": "sha256:41911f8d471485a2734ed35b99fdb883db0c37ddd26aadc5e984188da2e08272",
+        "forgejo.webgrip.dev/webgrip/de-vloer-agent": "sha256:41911f8d471485a2734ed35b99fdb883db0c37ddd26aadc5e984188da2e08272",
+        "ghcr.io/webgrip/charts/de-vloer": "sha256:8677d6bfa9b91df943147ea2ffa44be202bfeb048b6e451293cd23aa442630e1",
+        "forgejo.webgrip.dev/webgrip/charts/de-vloer": "sha256:8677d6bfa9b91df943147ea2ffa44be202bfeb048b6e451293cd23aa442630e1"
+      },
+      "open_vsx": true,
+      "go_module": true,
+      "ploeg_evidence": {
+        "pre_rewrite_source_revision": "12553d605a26fe42cf1dac9b344962320495d2ef",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "vloer_evidence": {
+        "pre_rewrite_source_revision": "12553d605a26fe42cf1dac9b344962320495d2ef",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "completion": "complete"
+    },
+    {
+      "version": "0.4.0-rc.21",
+      "source_tags": {
+        "glide-v0.4.0-rc.21": "ef06492e35167fa13a1427631567c2ca35efba0b"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.21",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.21.vsix",
+          "de-vloer-0.4.0-rc.21.vsix.sha256",
+          "release-artifacts-ploeg.json",
+          "release-artifacts-vloer.json"
+        ]
+      },
+      "registries": {
+        "ghcr.io/webgrip/ploegd": "sha256:33d3e850714b4d26378d5ea7e9602c2d30856cedd0cf473cec399015bbb4d8d6",
+        "forgejo.webgrip.dev/webgrip/ploegd": "sha256:33d3e850714b4d26378d5ea7e9602c2d30856cedd0cf473cec399015bbb4d8d6",
+        "ghcr.io/webgrip/charts/ploeg": "sha256:7d53ebada1efc8c702d9ca8be8a6210c80717ccb57950f5d4c19e9d795c6427b",
+        "forgejo.webgrip.dev/webgrip/charts/ploeg": "sha256:7d53ebada1efc8c702d9ca8be8a6210c80717ccb57950f5d4c19e9d795c6427b",
+        "ghcr.io/webgrip/de-vloer": "sha256:8a00190ae6211a53959e3d215d4cc9852b5e2800e297fb4f448cb06e7e753f82",
+        "forgejo.webgrip.dev/webgrip/de-vloer": "sha256:8a00190ae6211a53959e3d215d4cc9852b5e2800e297fb4f448cb06e7e753f82",
+        "ghcr.io/webgrip/de-vloer-agent": "sha256:0d563fffae51003dd982ef9cbd82110dd0f88773523df624da740095b1b89f14",
+        "forgejo.webgrip.dev/webgrip/de-vloer-agent": "sha256:0d563fffae51003dd982ef9cbd82110dd0f88773523df624da740095b1b89f14",
+        "ghcr.io/webgrip/charts/de-vloer": "sha256:4e2ab1ec6b494748dc11c148ee7a33e4c47b7c0e51b19bb3bec8cb42052f53a4",
+        "forgejo.webgrip.dev/webgrip/charts/de-vloer": "sha256:4e2ab1ec6b494748dc11c148ee7a33e4c47b7c0e51b19bb3bec8cb42052f53a4"
+      },
+      "open_vsx": true,
+      "go_module": true,
+      "ploeg_evidence": {
+        "pre_rewrite_source_revision": "74bb5a018151342c826dcfd2dd792423aa253990",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "vloer_evidence": {
+        "pre_rewrite_source_revision": "74bb5a018151342c826dcfd2dd792423aa253990",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "completion": "complete"
+    },
+    {
+      "version": "0.4.0-rc.22",
+      "source_tags": {
+        "glide-v0.4.0-rc.22": "252215baec564d076e8f5ea3df925712614461eb"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.22",
+        "draft": false,
+        "prerelease": true,
+        "assets": []
+      },
+      "registries": {},
+      "open_vsx": false,
+      "go_module": false,
+      "ploeg_evidence": null,
+      "vloer_evidence": null,
+      "completion": "partial"
+    },
+    {
+      "version": "0.4.0-rc.23",
+      "source_tags": {
+        "glide-v0.4.0-rc.23": "3c3e3a678b9c2fc92a81f9cba5db85b5b8e3055e"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.23",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.23.vsix",
+          "de-vloer-0.4.0-rc.23.vsix.sha256"
+        ]
+      },
+      "registries": {},
+      "open_vsx": false,
+      "go_module": false,
+      "ploeg_evidence": null,
+      "vloer_evidence": null,
+      "completion": "partial"
+    },
+    {
+      "version": "0.4.0-rc.24",
+      "source_tags": {
+        "glide-v0.4.0-rc.24": "5554efdd135634dc929b080e398b457355bd7eb5"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.24",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.24.vsix",
+          "de-vloer-0.4.0-rc.24.vsix.sha256"
+        ]
+      },
+      "registries": {},
+      "open_vsx": false,
+      "go_module": false,
+      "ploeg_evidence": null,
+      "vloer_evidence": null,
+      "completion": "partial"
+    },
+    {
+      "version": "0.4.0-rc.25",
+      "source_tags": {
+        "glide-v0.4.0-rc.25": "fbd9927647f0cac5225e5374043851c960cfdd90"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.25",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.25.vsix",
+          "de-vloer-0.4.0-rc.25.vsix.sha256"
+        ]
+      },
+      "registries": {},
+      "open_vsx": false,
+      "go_module": false,
+      "ploeg_evidence": null,
+      "vloer_evidence": null,
+      "completion": "partial"
+    },
+    {
+      "version": "0.4.0-rc.26",
+      "source_tags": {
+        "glide-v0.4.0-rc.26": "6bd04676a8b9831a0115827ebd8d13aa5665ce90"
+      },
+      "forgejo_release": null,
+      "registries": {},
+      "open_vsx": false,
+      "go_module": false,
+      "ploeg_evidence": null,
+      "vloer_evidence": null,
+      "completion": "tag only"
+    },
+    {
+      "version": "0.4.0-rc.27",
+      "source_tags": {
+        "glide-v0.4.0-rc.27": "b26376b39b29c6278500ab28e7c496c2ef4bc6f1"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.27",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.27.vsix",
+          "de-vloer-0.4.0-rc.27.vsix.sha256"
+        ]
+      },
+      "registries": {},
+      "open_vsx": false,
+      "go_module": false,
+      "ploeg_evidence": null,
+      "vloer_evidence": null,
+      "completion": "partial"
+    },
+    {
+      "version": "0.4.0-rc.28",
+      "source_tags": {
+        "glide-v0.4.0-rc.28": "73313d42f4a37d333a6504330318b1822d3dfc29"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.28",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.28.vsix",
+          "de-vloer-0.4.0-rc.28.vsix.sha256",
+          "release-artifacts-vloer.json"
+        ]
+      },
+      "registries": {
+        "forgejo.webgrip.dev/webgrip/ploegd": "sha256:0a69720490f00a69a6cc7de938ba51bfb495b4cdbdb06e320aba7ba28bab9808",
+        "ghcr.io/webgrip/de-vloer": "sha256:3d90360394dcca825c646ee2ce1ae6f284877f71643e057a4f4b8ece04787d21",
+        "forgejo.webgrip.dev/webgrip/de-vloer": "sha256:3d90360394dcca825c646ee2ce1ae6f284877f71643e057a4f4b8ece04787d21",
+        "ghcr.io/webgrip/de-vloer-agent": "sha256:be8b90621e83b89cf04762e70ea5bafecc860440c61ddbe659fa078a58cc3039",
+        "forgejo.webgrip.dev/webgrip/de-vloer-agent": "sha256:be8b90621e83b89cf04762e70ea5bafecc860440c61ddbe659fa078a58cc3039",
+        "ghcr.io/webgrip/charts/de-vloer": "sha256:86e028544eabe3cbba4756fcb5b1325dae3510282d4f57ad9f15c60db8f49c1a",
+        "forgejo.webgrip.dev/webgrip/charts/de-vloer": "sha256:86e028544eabe3cbba4756fcb5b1325dae3510282d4f57ad9f15c60db8f49c1a"
+      },
+      "open_vsx": true,
+      "go_module": false,
+      "ploeg_evidence": null,
+      "vloer_evidence": {
+        "pre_rewrite_source_revision": "a10bc603188d3e94ee24259f03b942720613b4bd",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "completion": "partial"
+    },
+    {
+      "version": "0.4.0-rc.29",
+      "source_tags": {
+        "glide-v0.4.0-rc.29": "ca6f2895cf2bc5d9e7b5d3083a94517b007d6b7e",
+        "unfold-v0.4.0-rc.29": "ca6f2895cf2bc5d9e7b5d3083a94517b007d6b7e"
+      },
+      "forgejo_release": {
+        "tag": "glide-v0.4.0-rc.29",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.29.vsix",
+          "de-vloer-0.4.0-rc.29.vsix.sha256",
+          "release-artifacts-ploeg.json",
+          "release-artifacts-vloer.json"
+        ]
+      },
+      "registries": {
+        "ghcr.io/webgrip/ploegd": "sha256:c30643a6ba7227ca10e9865bd9bbabb152369eee83a12463af830baefe7d0763",
+        "forgejo.webgrip.dev/webgrip/ploegd": "sha256:c30643a6ba7227ca10e9865bd9bbabb152369eee83a12463af830baefe7d0763",
+        "ghcr.io/webgrip/charts/ploeg": "sha256:bfb8d32da1519eef4b5d96791f445f6fd562d27257cd79e9ca9c582cd02dd9c9",
+        "forgejo.webgrip.dev/webgrip/charts/ploeg": "sha256:bfb8d32da1519eef4b5d96791f445f6fd562d27257cd79e9ca9c582cd02dd9c9",
+        "ghcr.io/webgrip/de-vloer": "sha256:a30d5fa84352c422c69e0eb201ad9d0040b2242e455a7b1930325e1ebe80e10d",
+        "forgejo.webgrip.dev/webgrip/de-vloer": "sha256:a30d5fa84352c422c69e0eb201ad9d0040b2242e455a7b1930325e1ebe80e10d",
+        "ghcr.io/webgrip/de-vloer-agent": "sha256:fd09538440a8a6ad703b67a4a7a4cccf66f6acaef3cae004431c53c6e221e94a",
+        "forgejo.webgrip.dev/webgrip/de-vloer-agent": "sha256:fd09538440a8a6ad703b67a4a7a4cccf66f6acaef3cae004431c53c6e221e94a",
+        "ghcr.io/webgrip/charts/de-vloer": "sha256:801a8fe6930a2b456c17ab12148639faa62633dc26dd861ec7c5f43fd97bbf5c",
+        "forgejo.webgrip.dev/webgrip/charts/de-vloer": "sha256:801a8fe6930a2b456c17ab12148639faa62633dc26dd861ec7c5f43fd97bbf5c"
+      },
+      "open_vsx": true,
+      "go_module": true,
+      "ploeg_evidence": {
+        "pre_rewrite_source_revision": "043b9c21de6ef4616d24bc7c7e9a2c47ef6cb404",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "vloer_evidence": {
+        "pre_rewrite_source_revision": "043b9c21de6ef4616d24bc7c7e9a2c47ef6cb404",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "completion": "complete"
+    },
+    {
+      "version": "0.4.0-rc.30",
+      "source_tags": {
+        "unfold-v0.4.0-rc.30": "c456e08dec69257c5c92da452381500cab8a09eb"
+      },
+      "forgejo_release": {
+        "tag": "unfold-v0.4.0-rc.30",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.30.vsix",
+          "de-vloer-0.4.0-rc.30.vsix.sha256",
+          "release-artifacts-ploeg.json",
+          "release-artifacts-vloer.json"
+        ]
+      },
+      "registries": {
+        "ghcr.io/webgrip/ploegd": "sha256:08fefb2b1d933ca2801b0b34a13625d9fc083eb7f538e57862f1c018d09e4e1f",
+        "forgejo.webgrip.dev/webgrip/ploegd": "sha256:08fefb2b1d933ca2801b0b34a13625d9fc083eb7f538e57862f1c018d09e4e1f",
+        "ghcr.io/webgrip/charts/ploeg": "sha256:ca67a87181a1a056240dcd8ffb47f986636aca9d9300f5899b1b633095a50a08",
+        "forgejo.webgrip.dev/webgrip/charts/ploeg": "sha256:ca67a87181a1a056240dcd8ffb47f986636aca9d9300f5899b1b633095a50a08",
+        "ghcr.io/webgrip/de-vloer": "sha256:bdd4e41f893a937cf11348a92c62c5017575baaf635c39a750a700cbeb812224",
+        "forgejo.webgrip.dev/webgrip/de-vloer": "sha256:bdd4e41f893a937cf11348a92c62c5017575baaf635c39a750a700cbeb812224",
+        "ghcr.io/webgrip/de-vloer-agent": "sha256:329335f3919f90c548eb3818040333914d80c353669aa948178f1fcc17df56fe",
+        "forgejo.webgrip.dev/webgrip/de-vloer-agent": "sha256:329335f3919f90c548eb3818040333914d80c353669aa948178f1fcc17df56fe",
+        "ghcr.io/webgrip/charts/de-vloer": "sha256:ddb9be60b8420301ecdc068a70244f6a14fc2e5f289af2809faf2f5fcbc2be38",
+        "forgejo.webgrip.dev/webgrip/charts/de-vloer": "sha256:ddb9be60b8420301ecdc068a70244f6a14fc2e5f289af2809faf2f5fcbc2be38"
+      },
+      "open_vsx": true,
+      "go_module": true,
+      "ploeg_evidence": {
+        "pre_rewrite_source_revision": "9512fc8d7d6c8a8ebd4a71a882676d4ab631011a",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "vloer_evidence": {
+        "pre_rewrite_source_revision": "9512fc8d7d6c8a8ebd4a71a882676d4ab631011a",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "completion": "complete"
+    },
+    {
+      "version": "0.4.0-rc.31",
+      "source_tags": {
+        "unfold-v0.4.0-rc.31": "81da39aab301ca6a9eb39738b9c8f64fb6530d8b"
+      },
+      "forgejo_release": {
+        "tag": "unfold-v0.4.0-rc.31",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.31.vsix",
+          "de-vloer-0.4.0-rc.31.vsix.sha256",
+          "release-artifacts-ploeg.json",
+          "release-artifacts-vloer.json"
+        ]
+      },
+      "registries": {
+        "ghcr.io/webgrip/ploegd": "sha256:8f65fd6640dceb842d82b64daaae13ea03f69308fb5f8e9f991550e02daca2fc",
+        "forgejo.webgrip.dev/webgrip/ploegd": "sha256:8f65fd6640dceb842d82b64daaae13ea03f69308fb5f8e9f991550e02daca2fc",
+        "ghcr.io/webgrip/charts/ploeg": "sha256:3ef5b385eb548764ce68a026fe2edb3745d30b281f1e7b0d193ff2514d8521ae",
+        "forgejo.webgrip.dev/webgrip/charts/ploeg": "sha256:3ef5b385eb548764ce68a026fe2edb3745d30b281f1e7b0d193ff2514d8521ae",
+        "ghcr.io/webgrip/de-vloer": "sha256:a38cfe53ca8cbb6452a9fbbab9304051a1bff3605768d41b7716e13738a1b3cd",
+        "forgejo.webgrip.dev/webgrip/de-vloer": "sha256:a38cfe53ca8cbb6452a9fbbab9304051a1bff3605768d41b7716e13738a1b3cd",
+        "ghcr.io/webgrip/de-vloer-agent": "sha256:74d7e9e588399be0ea745856170ff5996ac0a55b52e38f64005088342ad89a14",
+        "forgejo.webgrip.dev/webgrip/de-vloer-agent": "sha256:74d7e9e588399be0ea745856170ff5996ac0a55b52e38f64005088342ad89a14",
+        "ghcr.io/webgrip/charts/de-vloer": "sha256:352c95eed6b051e77dd2da003adf9939d04766663efcca0d4c7b7d95388937c6",
+        "forgejo.webgrip.dev/webgrip/charts/de-vloer": "sha256:352c95eed6b051e77dd2da003adf9939d04766663efcca0d4c7b7d95388937c6"
+      },
+      "open_vsx": true,
+      "go_module": true,
+      "ploeg_evidence": {
+        "pre_rewrite_source_revision": "c00ad7ad462548738942fd424250f1603c29a080",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "vloer_evidence": {
+        "pre_rewrite_source_revision": "c00ad7ad462548738942fd424250f1603c29a080",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "completion": "complete"
+    },
+    {
+      "version": "0.4.0-rc.32",
+      "source_tags": {
+        "unfold-v0.4.0-rc.32": "888011d3b8c6ce13fd4c0eb62339d5a6ae84c023"
+      },
+      "forgejo_release": {
+        "tag": "unfold-v0.4.0-rc.32",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.32.vsix",
+          "de-vloer-0.4.0-rc.32.vsix.sha256",
+          "release-artifacts-ploeg.json",
+          "release-artifacts-vloer.json"
+        ]
+      },
+      "registries": {
+        "ghcr.io/webgrip/ploegd": "sha256:0cffaf939bff3d1c15caeab8756eabe7c33b84f9e58a7a2c0f4e221d42cf3e15",
+        "forgejo.webgrip.dev/webgrip/ploegd": "sha256:0cffaf939bff3d1c15caeab8756eabe7c33b84f9e58a7a2c0f4e221d42cf3e15",
+        "ghcr.io/webgrip/charts/ploeg": "sha256:8c633046a2041c8e6226d9578eec355dc544c9ae7d8f6829ff79dcc639bfa496",
+        "forgejo.webgrip.dev/webgrip/charts/ploeg": "sha256:8c633046a2041c8e6226d9578eec355dc544c9ae7d8f6829ff79dcc639bfa496",
+        "ghcr.io/webgrip/de-vloer": "sha256:40fce782c11a54f3f350aec62444cc554d9b1856e68d894fe88897634d65dc5a",
+        "forgejo.webgrip.dev/webgrip/de-vloer": "sha256:40fce782c11a54f3f350aec62444cc554d9b1856e68d894fe88897634d65dc5a",
+        "ghcr.io/webgrip/de-vloer-agent": "sha256:9c32097cc094d1801aefd3ab93c7314a5749dc1743fce27dab0c307f4250b7d9",
+        "forgejo.webgrip.dev/webgrip/de-vloer-agent": "sha256:9c32097cc094d1801aefd3ab93c7314a5749dc1743fce27dab0c307f4250b7d9",
+        "ghcr.io/webgrip/charts/de-vloer": "sha256:4e9afa94b706f77de5df767fbfd1e28abd98abb64bd2f88812cd054c51005fd7",
+        "forgejo.webgrip.dev/webgrip/charts/de-vloer": "sha256:4e9afa94b706f77de5df767fbfd1e28abd98abb64bd2f88812cd054c51005fd7"
+      },
+      "open_vsx": true,
+      "go_module": true,
+      "ploeg_evidence": {
+        "pre_rewrite_source_revision": "9a7bda365e475d206eec42d016d966d02b002864",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "vloer_evidence": {
+        "pre_rewrite_source_revision": "9a7bda365e475d206eec42d016d966d02b002864",
+        "source_label": "https://github.com/webgrip/glide"
+      },
+      "completion": "complete"
+    },
+    {
+      "version": "0.4.0-rc.33",
+      "source_tags": {
+        "unfold-v0.4.0-rc.33": "7258f089260fac426921b4810027fde2c0223da7"
+      },
+      "forgejo_release": {
+        "tag": "unfold-v0.4.0-rc.33",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.33.vsix",
+          "de-vloer-0.4.0-rc.33.vsix.sha256"
+        ]
+      },
+      "registries": {},
+      "open_vsx": true,
+      "go_module": false,
+      "ploeg_evidence": null,
+      "vloer_evidence": null,
+      "completion": "partial"
+    },
+    {
+      "version": "0.4.0-rc.34",
+      "source_tags": {
+        "unfold-v0.4.0-rc.34": "9c8b7407ba8cb11675db8e094bbaf9bd66c6b985"
+      },
+      "forgejo_release": {
+        "tag": "unfold-v0.4.0-rc.34",
+        "draft": false,
+        "prerelease": true,
+        "assets": [
+          "de-vloer-0.4.0-rc.34.vsix",
+          "de-vloer-0.4.0-rc.34.vsix.sha256"
+        ]
+      },
+      "registries": {
+        "ghcr.io/webgrip/de-vloer": "sha256:fbe104efddff67c10a665961f1f28dcfc8f164a04675f4f348728a63874a854f",
+        "forgejo.webgrip.dev/webgrip/de-vloer": "sha256:fbe104efddff67c10a665961f1f28dcfc8f164a04675f4f348728a63874a854f",
+        "ghcr.io/webgrip/de-vloer-agent": "sha256:fefc49f8af1c7a94953ed996f5a58a32650c23652304232eabbaa2a9c6a9944b",
+        "forgejo.webgrip.dev/webgrip/de-vloer-agent": "sha256:fefc49f8af1c7a94953ed996f5a58a32650c23652304232eabbaa2a9c6a9944b",
+        "ghcr.io/webgrip/charts/de-vloer": "sha256:8a7c71818264d670caa30ad50fd9b352245efaefe88ffb92938e0ddd3c064a51",
+        "forgejo.webgrip.dev/webgrip/charts/de-vloer": "sha256:8a7c71818264d670caa30ad50fd9b352245efaefe88ffb92938e0ddd3c064a51"
+      },
+      "open_vsx": true,
+      "go_module": false,
+      "ploeg_evidence": null,
+      "vloer_evidence": null,
+      "completion": "partial"
+    }
+  ],
+  "registries": {
+    "forgejo.webgrip.dev/webgrip/charts/de-vloer": {
+      "versions": [
+        "0.4.0-rc.8",
+        "0.4.0-rc.9",
+        "0.4.0-rc.10",
+        "0.4.0-rc.11",
+        "0.4.0-rc.13",
+        "0.4.0-rc.14",
+        "0.4.0-rc.18",
+        "0.4.0-rc.19",
+        "0.4.0-rc.20",
+        "0.4.0-rc.21",
+        "0.4.0-rc.28",
+        "0.4.0-rc.29",
+        "0.4.0-rc.30",
+        "0.4.0-rc.31",
+        "0.4.0-rc.32",
+        "0.4.0-rc.34"
+      ],
+      "non_version_tags": 0
+    },
+    "forgejo.webgrip.dev/webgrip/charts/ploeg": {
+      "versions": [
+        "0.4.0-rc.8",
+        "0.4.0-rc.9",
+        "0.4.0-rc.10",
+        "0.4.0-rc.11",
+        "0.4.0-rc.14",
+        "0.4.0-rc.18",
+        "0.4.0-rc.19",
+        "0.4.0-rc.20",
+        "0.4.0-rc.21",
+        "0.4.0-rc.29",
+        "0.4.0-rc.30",
+        "0.4.0-rc.31",
+        "0.4.0-rc.32"
+      ],
+      "non_version_tags": 0
+    },
+    "forgejo.webgrip.dev/webgrip/de-vloer": {
+      "versions": [
+        "0.3.0-rc.2",
+        "0.3.0-rc.3",
+        "0.3.0-rc.4",
+        "0.3.0-rc.5",
+        "0.3.0-rc.6",
+        "0.3.0-rc.7",
+        "0.3.0-rc.8",
+        "0.3.0-rc.9",
+        "0.3.0-rc.10",
+        "0.3.0-rc.11",
+        "0.3.0-rc.12",
+        "0.3.0-rc.13",
+        "0.3.0-rc.14",
+        "0.3.0-rc.15",
+        "0.4.0-rc.2",
+        "0.4.0-rc.3",
+        "0.4.0-rc.4",
+        "0.4.0-rc.5",
+        "0.4.0-rc.6",
+        "0.4.0-rc.7",
+        "0.4.0-rc.8",
+        "0.4.0-rc.9",
+        "0.4.0-rc.10",
+        "0.4.0-rc.11",
+        "0.4.0-rc.13",
+        "0.4.0-rc.14",
+        "0.4.0-rc.18",
+        "0.4.0-rc.19",
+        "0.4.0-rc.20",
+        "0.4.0-rc.21",
+        "0.4.0-rc.28",
+        "0.4.0-rc.29",
+        "0.4.0-rc.30",
+        "0.4.0-rc.31",
+        "0.4.0-rc.32",
+        "0.4.0-rc.34"
+      ],
+      "non_version_tags": 233
+    },
+    "forgejo.webgrip.dev/webgrip/de-vloer-agent": {
+      "versions": [
+        "0.4.0-rc.5",
+        "0.4.0-rc.6",
+        "0.4.0-rc.7",
+        "0.4.0-rc.8",
+        "0.4.0-rc.9",
+        "0.4.0-rc.10",
+        "0.4.0-rc.11",
+        "0.4.0-rc.13",
+        "0.4.0-rc.14",
+        "0.4.0-rc.18",
+        "0.4.0-rc.19",
+        "0.4.0-rc.20",
+        "0.4.0-rc.21",
+        "0.4.0-rc.28",
+        "0.4.0-rc.29",
+        "0.4.0-rc.30",
+        "0.4.0-rc.31",
+        "0.4.0-rc.32",
+        "0.4.0-rc.34"
+      ],
+      "non_version_tags": 121
+    },
+    "forgejo.webgrip.dev/webgrip/ploegd": {
+      "versions": [
+        "0.2.0",
+        "0.3.0-rc.6",
+        "0.3.0-rc.7",
+        "0.4.0-rc.2",
+        "0.4.0-rc.3",
+        "0.4.0-rc.4",
+        "0.4.0-rc.5",
+        "0.4.0-rc.6",
+        "0.4.0-rc.7",
+        "0.4.0-rc.8",
+        "0.4.0-rc.9",
+        "0.4.0-rc.10",
+        "0.4.0-rc.11",
+        "0.4.0-rc.14",
+        "0.4.0-rc.15",
+        "0.4.0-rc.16",
+        "0.4.0-rc.18",
+        "0.4.0-rc.19",
+        "0.4.0-rc.20",
+        "0.4.0-rc.21",
+        "0.4.0-rc.28",
+        "0.4.0-rc.29",
+        "0.4.0-rc.30",
+        "0.4.0-rc.31",
+        "0.4.0-rc.32",
+        "1.0.0-rc.1"
+      ],
+      "non_version_tags": 167
+    },
+    "ghcr.io/webgrip/charts/de-vloer": {
+      "versions": [
+        "0.3.0-rc.2",
+        "0.3.0-rc.15",
+        "0.4.0-rc.8",
+        "0.4.0-rc.9",
+        "0.4.0-rc.10",
+        "0.4.0-rc.11",
+        "0.4.0-rc.13",
+        "0.4.0-rc.14",
+        "0.4.0-rc.18",
+        "0.4.0-rc.19",
+        "0.4.0-rc.20",
+        "0.4.0-rc.21",
+        "0.4.0-rc.28",
+        "0.4.0-rc.29",
+        "0.4.0-rc.30",
+        "0.4.0-rc.31",
+        "0.4.0-rc.32",
+        "0.4.0-rc.34"
+      ],
+      "non_version_tags": 0
+    },
+    "ghcr.io/webgrip/charts/ploeg": {
+      "versions": [
+        "0.2.0-rc.23",
+        "0.2.0-rc.25",
+        "0.2.0-rc.26",
+        "0.2.0-rc.27",
+        "0.2.0-rc.28",
+        "0.2.0-rc.29",
+        "0.2.0-rc.30",
+        "0.2.0-rc.31",
+        "0.2.0",
+        "0.2.1-rc.1",
+        "0.3.0-rc.1",
+        "0.3.0-rc.2",
+        "0.3.0-rc.3",
+        "0.3.0-rc.4",
+        "0.3.0-rc.6",
+        "0.3.0-rc.7",
+        "0.4.0-rc.8",
+        "0.4.0-rc.9",
+        "0.4.0-rc.10",
+        "0.4.0-rc.11",
+        "0.4.0-rc.14",
+        "0.4.0-rc.18",
+        "0.4.0-rc.19",
+        "0.4.0-rc.20",
+        "0.4.0-rc.21",
+        "0.4.0-rc.29",
+        "0.4.0-rc.30",
+        "0.4.0-rc.31",
+        "0.4.0-rc.32",
+        "1.0.0-rc.1"
+      ],
+      "non_version_tags": 0
+    },
+    "ghcr.io/webgrip/de-vloer": {
+      "versions": [
+        "0.3.0-rc.2",
+        "0.3.0-rc.15",
+        "0.4.0-rc.8",
+        "0.4.0-rc.9",
+        "0.4.0-rc.10",
+        "0.4.0-rc.11",
+        "0.4.0-rc.13",
+        "0.4.0-rc.14",
+        "0.4.0-rc.18",
+        "0.4.0-rc.19",
+        "0.4.0-rc.20",
+        "0.4.0-rc.21",
+        "0.4.0-rc.28",
+        "0.4.0-rc.29",
+        "0.4.0-rc.30",
+        "0.4.0-rc.31",
+        "0.4.0-rc.32",
+        "0.4.0-rc.34"
+      ],
+      "non_version_tags": 114
+    },
+    "ghcr.io/webgrip/de-vloer-agent": {
+      "versions": [
+        "0.3.0-rc.15",
+        "0.4.0-rc.8",
+        "0.4.0-rc.9",
+        "0.4.0-rc.10",
+        "0.4.0-rc.11",
+        "0.4.0-rc.13",
+        "0.4.0-rc.14",
+        "0.4.0-rc.18",
+        "0.4.0-rc.19",
+        "0.4.0-rc.20",
+        "0.4.0-rc.21",
+        "0.4.0-rc.28",
+        "0.4.0-rc.29",
+        "0.4.0-rc.30",
+        "0.4.0-rc.31",
+        "0.4.0-rc.32",
+        "0.4.0-rc.34"
+      ],
+      "non_version_tags": 100
+    },
+    "ghcr.io/webgrip/ploegd": {
+      "versions": [
+        "0.2.0-rc.23",
+        "0.2.0-rc.25",
+        "0.2.0-rc.26",
+        "0.2.0-rc.27",
+        "0.2.0-rc.28",
+        "0.2.0-rc.30",
+        "0.2.0-rc.31",
+        "0.2.0",
+        "0.2.1-rc.1",
+        "0.3.0-rc.1",
+        "0.3.0-rc.2",
+        "0.3.0-rc.3",
+        "0.3.0-rc.4",
+        "0.3.0-rc.6",
+        "0.3.0-rc.7",
+        "0.4.0-rc.8",
+        "0.4.0-rc.9",
+        "0.4.0-rc.10",
+        "0.4.0-rc.11",
+        "0.4.0-rc.14",
+        "0.4.0-rc.18",
+        "0.4.0-rc.19",
+        "0.4.0-rc.20",
+        "0.4.0-rc.21",
+        "0.4.0-rc.29",
+        "0.4.0-rc.30",
+        "0.4.0-rc.31",
+        "0.4.0-rc.32",
+        "1.0.0-rc.1"
+      ],
+      "non_version_tags": 160
+    },
+    "harbor.webgrip.dev/webgrip/charts/de-vloer": {
+      "status": 401
+    },
+    "harbor.webgrip.dev/webgrip/charts/ploeg": {
+      "status": 401
+    },
+    "harbor.webgrip.dev/webgrip/de-vloer": {
+      "status": 401
+    },
+    "harbor.webgrip.dev/webgrip/de-vloer-agent": {
+      "status": 401
+    },
+    "harbor.webgrip.dev/webgrip/ploegd": {
+      "status": 401
+    }
+  },
+  "open_vsx": {
+    "latest": "0.4.0-rc.34",
+    "name": "de-vloer",
+    "namespace": "webgrip",
+    "versions": [
+      "0.4.0-rc.1",
+      "0.4.0-rc.10",
+      "0.4.0-rc.11",
+      "0.4.0-rc.13",
+      "0.4.0-rc.14",
+      "0.4.0-rc.15",
+      "0.4.0-rc.18",
+      "0.4.0-rc.19",
+      "0.4.0-rc.2",
+      "0.4.0-rc.20",
+      "0.4.0-rc.21",
+      "0.4.0-rc.28",
+      "0.4.0-rc.29",
+      "0.4.0-rc.3",
+      "0.4.0-rc.30",
+      "0.4.0-rc.31",
+      "0.4.0-rc.32",
+      "0.4.0-rc.33",
+      "0.4.0-rc.34",
+      "0.4.0-rc.4",
+      "0.4.0-rc.5",
+      "0.4.0-rc.6",
+      "0.4.0-rc.7",
+      "0.4.0-rc.8",
+      "0.4.0-rc.9",
+      "latest"
+    ]
+  },
+  "go_module": {
+    "module": "github.com/webgrip/ploeg",
+    "latest_query": "v0.2.0",
+    "retracted": [],
+    "versions": [
+      {
+        "version": "v0.0.0",
+        "sum": "h1:ph/cQ8UqBl/qKP7EAsrC75ytb0I7oQDWMhXrazHK6Ps=",
+        "go_mod_sum": "h1:H5p6ElF86aESjFKSaCbKNCITwfRkqSVKs0gHJ9MzqKQ=",
+        "proxy_origin_commit": "fa69ff55c471eeb5d02a648aaf3e39d928962309",
+        "current_origin_tag_commit": "db339ef3b2252767b8ea97fb4c7101b0511ebfdb",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:ph/cQ8UqBl/qKP7EAsrC75ytb0I7oQDWMhXrazHK6Ps=",
+        "first_seen_by_proxy": "2026-07-22T05:18:50Z"
+      },
+      {
+        "version": "v0.1.0-rc.1",
+        "sum": "h1:cIk4BuJQbmCzcpGZOoqpHvmjOOnFrFflGb9wRCLXN4g=",
+        "go_mod_sum": "h1:H5p6ElF86aESjFKSaCbKNCITwfRkqSVKs0gHJ9MzqKQ=",
+        "proxy_origin_commit": "598bba982a2dbf23abbd4a33bf77be5c06502a91",
+        "current_origin_tag_commit": "c02cdf42cd758ef89b5e9ffd39fe5d631ae783c6",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:cIk4BuJQbmCzcpGZOoqpHvmjOOnFrFflGb9wRCLXN4g=",
+        "first_seen_by_proxy": "2026-07-23T05:25:19Z"
+      },
+      {
+        "version": "v0.1.0-rc.2",
+        "sum": "h1:41fT0q0UQ2z0weDsY8CG4ARQN+b3WRGGDL5qP3E+S5A=",
+        "go_mod_sum": "h1:zn+N/Y2+EKuR5Bv1rmwnS6CJQ6hHlrYNSQuNUt9HYBg=",
+        "proxy_origin_commit": "6ddfbaf929ecb80a60c71b91d769d589feffaadb",
+        "current_origin_tag_commit": "6b73be1491924ac27cb8ba38b40cccd06a8baa16",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:41fT0q0UQ2z0weDsY8CG4ARQN+b3WRGGDL5qP3E+S5A=",
+        "first_seen_by_proxy": "2026-07-23T17:41:48Z"
+      },
+      {
+        "version": "v0.1.0-rc.3",
+        "sum": "h1:AHomuQCbCKAr4IfdgSL6lpx5zZRLr9fZHIMwgM32lks=",
+        "go_mod_sum": "h1:zn+N/Y2+EKuR5Bv1rmwnS6CJQ6hHlrYNSQuNUt9HYBg=",
+        "proxy_origin_commit": "77e7e6aa8384c21f0acea5dbd1e702a657e1e500",
+        "current_origin_tag_commit": "beb31b9113e74404f264c1e5ab2d413ce69e59a6",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:AHomuQCbCKAr4IfdgSL6lpx5zZRLr9fZHIMwgM32lks=",
+        "first_seen_by_proxy": "2026-07-23T18:58:35Z"
+      },
+      {
+        "version": "v0.1.0-rc.4",
+        "sum": "h1:w2w23KSPq0Rx7mfJLhx1LrG1WLi6rYeSVABGgJQzQmQ=",
+        "go_mod_sum": "h1:zn+N/Y2+EKuR5Bv1rmwnS6CJQ6hHlrYNSQuNUt9HYBg=",
+        "proxy_origin_commit": "d8df681d98a0c4a55e84e5a837a75c4146e7464d",
+        "current_origin_tag_commit": "0447f9ee3ccdcc0798b6a758963b64e6dfb95d65",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:w2w23KSPq0Rx7mfJLhx1LrG1WLi6rYeSVABGgJQzQmQ=",
+        "first_seen_by_proxy": "2026-07-24T09:11:10Z"
+      },
+      {
+        "version": "v0.1.0-rc.5",
+        "sum": "h1:5e0GEeL2jy/UDqpPw1cTkzVDmmF1xtJll0quUDEhkdo=",
+        "go_mod_sum": "h1:31CSqQDRqraDsukLKgFCRzD1zy2ayIpGE6hgpCxhTz4=",
+        "proxy_origin_commit": "ec87f950ecd8e9df2708457fc7ab8aebdac3912e",
+        "current_origin_tag_commit": "b2b620bbb1836e66f9968e7411420608ab64439e",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:5e0GEeL2jy/UDqpPw1cTkzVDmmF1xtJll0quUDEhkdo=",
+        "first_seen_by_proxy": "2026-07-25T06:06:03Z"
+      },
+      {
+        "version": "v0.1.0-rc.6",
+        "sum": "h1:dM7ZcRyYF5RlmbbI1h43UdOULtZ1BKuWVvFIWmpzMUQ=",
+        "go_mod_sum": "h1:31CSqQDRqraDsukLKgFCRzD1zy2ayIpGE6hgpCxhTz4=",
+        "proxy_origin_commit": "e54e015a37125af130e6e0d59156d3242664de32",
+        "current_origin_tag_commit": "66876898c163cd7b0845bede14d29306f7c3480e",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:dM7ZcRyYF5RlmbbI1h43UdOULtZ1BKuWVvFIWmpzMUQ=",
+        "first_seen_by_proxy": "2026-07-25T07:56:32Z"
+      },
+      {
+        "version": "v0.1.0-rc.7",
+        "sum": "h1:58G9+m2Yaik9WjKFQTWOEHjqS7kBzGIjIUxGX0NvorA=",
+        "go_mod_sum": "h1:31CSqQDRqraDsukLKgFCRzD1zy2ayIpGE6hgpCxhTz4=",
+        "proxy_origin_commit": "51912865704ce97db6c044e946976650b5893026",
+        "current_origin_tag_commit": "31b08874d03b2d86b466cc092627c23843fd2820",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:58G9+m2Yaik9WjKFQTWOEHjqS7kBzGIjIUxGX0NvorA=",
+        "first_seen_by_proxy": "2026-07-25T17:23:22Z"
+      },
+      {
+        "version": "v0.1.0-rc.8",
+        "sum": "h1:hINkmg5tpjwmSnI5VzTNMmCCtNLnlxVg+9mM9JnhfnI=",
+        "go_mod_sum": "h1:31CSqQDRqraDsukLKgFCRzD1zy2ayIpGE6hgpCxhTz4=",
+        "proxy_origin_commit": "de8c4988e0a887ccc9c9cf5cdfe7ae949a94c281",
+        "current_origin_tag_commit": "b6c1238a1347a95fe10599db36ea843d9434ae09",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:hINkmg5tpjwmSnI5VzTNMmCCtNLnlxVg+9mM9JnhfnI=",
+        "first_seen_by_proxy": "2026-07-25T19:18:54Z"
+      },
+      {
+        "version": "v0.1.0-rc.9",
+        "sum": "h1:1r8Kf/qN7WvYhq1V/wmciAyUUC3PX0JgHlA3nUSfzGc=",
+        "go_mod_sum": "h1:31CSqQDRqraDsukLKgFCRzD1zy2ayIpGE6hgpCxhTz4=",
+        "proxy_origin_commit": "4e84645a92538895650f912037e67da23cf54252",
+        "current_origin_tag_commit": "5e2675b8912306e3300ba3b9f173187d9d47dd89",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:1r8Kf/qN7WvYhq1V/wmciAyUUC3PX0JgHlA3nUSfzGc=",
+        "first_seen_by_proxy": "2026-07-26T07:23:33Z"
+      },
+      {
+        "version": "v0.1.0-rc.10",
+        "sum": "h1:K4tpKW2skbayUsqmz4Q7X1A6CpFZa/s9jmbNc/MtPgA=",
+        "go_mod_sum": "h1:31CSqQDRqraDsukLKgFCRzD1zy2ayIpGE6hgpCxhTz4=",
+        "proxy_origin_commit": "c39fd88ed43f99009c6122f791b5df6240c0124e",
+        "current_origin_tag_commit": "e50b8443b8dca7f6f4d61b7acfd7aa1f9393b3a0",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:K4tpKW2skbayUsqmz4Q7X1A6CpFZa/s9jmbNc/MtPgA=",
+        "first_seen_by_proxy": "2026-07-26T21:25:19Z"
+      },
+      {
+        "version": "v0.1.0",
+        "sum": "h1:Oax55jqUScQZcNsNECrtX1rT0U/soP2OplyI+zuisLc=",
+        "go_mod_sum": "h1:zn+N/Y2+EKuR5Bv1rmwnS6CJQ6hHlrYNSQuNUt9HYBg=",
+        "proxy_origin_commit": "5b8b69d93d6f4a55a41078030cc23b7d8e6cb354",
+        "current_origin_tag_commit": "9d0ea413710f8f28ecc6f5fe2aa7e0cf85184922",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:Oax55jqUScQZcNsNECrtX1rT0U/soP2OplyI+zuisLc=",
+        "first_seen_by_proxy": "2026-07-25T05:33:48Z"
+      },
+      {
+        "version": "v0.2.0-rc.1",
+        "sum": "h1:3z2d0ij5QylZkhMtrHrUMnQ6oC0h9DLlkyFYnd3b+TM=",
+        "go_mod_sum": "h1:31CSqQDRqraDsukLKgFCRzD1zy2ayIpGE6hgpCxhTz4=",
+        "proxy_origin_commit": "fa8618b3ab740316fb5ff4dd662c25c3163c7c68",
+        "current_origin_tag_commit": "2c384aa0c7c223673ec171ff8a4ce93e4dbfb996",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:3z2d0ij5QylZkhMtrHrUMnQ6oC0h9DLlkyFYnd3b+TM=",
+        "first_seen_by_proxy": "2026-07-27T03:54:26Z"
+      },
+      {
+        "version": "v0.2.0-rc.2",
+        "sum": "h1:vPCfbTQsQC+CB9AOp7dP5l3MlhieHSUUcTcn6UaglkI=",
+        "go_mod_sum": "h1:31CSqQDRqraDsukLKgFCRzD1zy2ayIpGE6hgpCxhTz4=",
+        "proxy_origin_commit": "755be00a231257de74aaba1976d7fb3d3ddea7fe",
+        "current_origin_tag_commit": "48c9e25430795366f44b13b621d9a0f9afcccce6",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:vPCfbTQsQC+CB9AOp7dP5l3MlhieHSUUcTcn6UaglkI=",
+        "first_seen_by_proxy": "2026-07-27T08:27:32Z"
+      },
+      {
+        "version": "v0.2.0-rc.3",
+        "sum": "h1:yME8XnLh9AtZwL8AWY0AAgZVQbaEVtDq5XhZ7i17Kuo=",
+        "go_mod_sum": "h1:31CSqQDRqraDsukLKgFCRzD1zy2ayIpGE6hgpCxhTz4=",
+        "proxy_origin_commit": "f9d6ff060a21d553125ee0ebaeb3494a20869ebc",
+        "current_origin_tag_commit": "1e37eb1aa4dc342a5be4284d0715142b16c35865",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:yME8XnLh9AtZwL8AWY0AAgZVQbaEVtDq5XhZ7i17Kuo=",
+        "first_seen_by_proxy": "2026-07-27T09:55:56Z"
+      },
+      {
+        "version": "v0.2.0-rc.4",
+        "sum": "h1:OTSzPmAx6xY+Ha8WHmA/vKlOHeGgO+0jv6PAnNTgPFY=",
+        "go_mod_sum": "h1:31CSqQDRqraDsukLKgFCRzD1zy2ayIpGE6hgpCxhTz4=",
+        "proxy_origin_commit": "3d06e6e3546de8c7c7dd4746c38a80e24555724f",
+        "current_origin_tag_commit": "a5553ead7f61519e972a95eedd096e883f38da40",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:OTSzPmAx6xY+Ha8WHmA/vKlOHeGgO+0jv6PAnNTgPFY=",
+        "first_seen_by_proxy": "2026-07-28T03:51:39Z"
+      },
+      {
+        "version": "v0.2.0-rc.5",
+        "sum": "h1:yyQRJ7DjFVIKaxqGFBeqTLN/TCm6bFpkx/gkofdg9Us=",
+        "go_mod_sum": "h1:H+1FKWeNK3mQbHeWlDN4evrUrN09+exX3loqddewN6A=",
+        "proxy_origin_commit": "14ecf260e5a23911b3ff2c858201714edafe7b5d",
+        "current_origin_tag_commit": "885d743b0d4e4c78b13bccbce5671217e84a69d2",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:yyQRJ7DjFVIKaxqGFBeqTLN/TCm6bFpkx/gkofdg9Us=",
+        "first_seen_by_proxy": "2026-07-28T11:22:21Z"
+      },
+      {
+        "version": "v0.2.0-rc.6",
+        "sum": "h1:m9jposmgQjTzcrxib9c3ZFVVzDdLZs7zlh29sD/JjgU=",
+        "go_mod_sum": "h1:H+1FKWeNK3mQbHeWlDN4evrUrN09+exX3loqddewN6A=",
+        "proxy_origin_commit": "1eafa87b47587a02aad0927f9810d0b27e423fa6",
+        "current_origin_tag_commit": "9faa934525a9a559e081ba970a4a44abe005168d",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:m9jposmgQjTzcrxib9c3ZFVVzDdLZs7zlh29sD/JjgU=",
+        "first_seen_by_proxy": "2026-07-28T20:29:06Z"
+      },
+      {
+        "version": "v0.2.0-rc.7",
+        "sum": "h1:yr2Gc3ZmmUbePjzQEbuNz9qHwIasd5zDhQ0xiS5j9lI=",
+        "go_mod_sum": "h1:H+1FKWeNK3mQbHeWlDN4evrUrN09+exX3loqddewN6A=",
+        "proxy_origin_commit": "4f3c1d68c204e6dbf80ccb54739234cc732b48f5",
+        "current_origin_tag_commit": "2473d21409979f4e83631a482efc45513c4636b9",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:yr2Gc3ZmmUbePjzQEbuNz9qHwIasd5zDhQ0xiS5j9lI=",
+        "first_seen_by_proxy": "2026-07-29T05:36:33Z"
+      },
+      {
+        "version": "v0.2.0-rc.8",
+        "sum": "h1:GJ3Xh4/XT3RGfe3cwKi0ZUVGplIQcVo4dnaRwrFWsFI=",
+        "go_mod_sum": "h1:xtRlguUpHL09l2piQEQ0j6Ybo4UbpN1K/OQ76GbG/eo=",
+        "proxy_origin_commit": "6ad0f6677091d102b23113e1f2eafc72383d981b",
+        "current_origin_tag_commit": "508942d53e89ad7d3bc9b8bddbbe145738dc646e",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:GJ3Xh4/XT3RGfe3cwKi0ZUVGplIQcVo4dnaRwrFWsFI=",
+        "first_seen_by_proxy": "2026-07-29T15:23:48Z"
+      },
+      {
+        "version": "v0.2.0-rc.9",
+        "sum": "h1:8KQK/85Rt8+T0JOj1yjmZKFHzig88u6uq7wqntJOzhI=",
+        "go_mod_sum": "h1:xtRlguUpHL09l2piQEQ0j6Ybo4UbpN1K/OQ76GbG/eo=",
+        "proxy_origin_commit": "01d63964f48dc7d2c88c8d5fa781a751114393bd",
+        "current_origin_tag_commit": "f6d530308e6829b43067aa9ca27f7111701730f4",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:8KQK/85Rt8+T0JOj1yjmZKFHzig88u6uq7wqntJOzhI=",
+        "first_seen_by_proxy": "2026-07-29T18:21:28Z"
+      },
+      {
+        "version": "v0.2.0-rc.10",
+        "sum": "h1:5ge7Et9wX06rkyw8cDXWwaojW7iJanlEibDlqcMgKGw=",
+        "go_mod_sum": "h1:qOtibfEwbXKcWvwbcxR+TpM+TLQLePRKAUHoe0DWICU=",
+        "proxy_origin_commit": "c961ff2b03b4c5b0cf0d5f7d07458c255000a3a6",
+        "current_origin_tag_commit": "b93852bf17124e2deaa8948a4d3ebbe6396afcb8",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:5ge7Et9wX06rkyw8cDXWwaojW7iJanlEibDlqcMgKGw=",
+        "first_seen_by_proxy": "2026-07-29T19:27:53Z"
+      },
+      {
+        "version": "v0.2.0-rc.11",
+        "sum": "h1:sWNxvAuBrwuFnIN5YEpu1TuOkTlBbe7GMNQjd5Dn1rU=",
+        "go_mod_sum": "h1:qOtibfEwbXKcWvwbcxR+TpM+TLQLePRKAUHoe0DWICU=",
+        "proxy_origin_commit": "83693386e6b802ffcdd42c1cdc4b6660be0bfe82",
+        "current_origin_tag_commit": "064b9615b1850b4c9d99e0fa9d1044a97e9c1ad4",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:sWNxvAuBrwuFnIN5YEpu1TuOkTlBbe7GMNQjd5Dn1rU=",
+        "first_seen_by_proxy": "2026-07-30T04:49:13Z"
+      },
+      {
+        "version": "v0.2.0-rc.12",
+        "sum": "h1:QfMsqUwBEFlwX7rTnmaV9+8TXKUC12LA8BZN5PDNgqs=",
+        "go_mod_sum": "h1:qOtibfEwbXKcWvwbcxR+TpM+TLQLePRKAUHoe0DWICU=",
+        "proxy_origin_commit": "7963cea6b258dd677bcdee3a3a4e58d9ac741286",
+        "current_origin_tag_commit": "f1a4bb715b49ece21fb6c5a8c7f60d0f5cae7b68",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:QfMsqUwBEFlwX7rTnmaV9+8TXKUC12LA8BZN5PDNgqs=",
+        "first_seen_by_proxy": "2026-07-30T05:07:21Z"
+      },
+      {
+        "version": "v0.2.0-rc.13",
+        "sum": "h1:qlmCKrm4oquyxm4qQP+YPBRsSUejh8BkXgWkYh0LwZ0=",
+        "go_mod_sum": "h1:qOtibfEwbXKcWvwbcxR+TpM+TLQLePRKAUHoe0DWICU=",
+        "proxy_origin_commit": "b2761f6e15ef5040fa25fe6efc86f751b01913d4",
+        "current_origin_tag_commit": "96c343a48f9156f8829b5729f5277811c8b18e30",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:qlmCKrm4oquyxm4qQP+YPBRsSUejh8BkXgWkYh0LwZ0=",
+        "first_seen_by_proxy": "2026-07-30T14:10:18Z"
+      },
+      {
+        "version": "v0.2.0-rc.14",
+        "sum": "h1:FOI/rXW8wuuo/LhbibrMAEVM99U519Uw66nHzzKJN7s=",
+        "go_mod_sum": "h1:qOtibfEwbXKcWvwbcxR+TpM+TLQLePRKAUHoe0DWICU=",
+        "proxy_origin_commit": "7e387ad744c32b0518a31d890f538479489c7839",
+        "current_origin_tag_commit": "6478b4797162c40d7ee5d493dcee3bd7cb9a75fb",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:FOI/rXW8wuuo/LhbibrMAEVM99U519Uw66nHzzKJN7s=",
+        "first_seen_by_proxy": "2026-07-30T20:22:37Z"
+      },
+      {
+        "version": "v0.2.0-rc.15",
+        "sum": "h1:NCUKaP7++XX06vPJ6zBFenlKgxQFOIZgi4V9JIzpJmU=",
+        "go_mod_sum": "h1:qOtibfEwbXKcWvwbcxR+TpM+TLQLePRKAUHoe0DWICU=",
+        "proxy_origin_commit": "2c100d2afcabccb24bb0f6fe1fb547223cb01c0d",
+        "current_origin_tag_commit": "98badc8feb307d4bf9e62dd48da3b51ea60135bb",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:NCUKaP7++XX06vPJ6zBFenlKgxQFOIZgi4V9JIzpJmU=",
+        "first_seen_by_proxy": "2026-07-31T04:48:22Z"
+      },
+      {
+        "version": "v0.2.0-rc.16",
+        "sum": "h1:hf6+mr4w8An9em/mBdQrX2/4qutpnfbaoGXff00moD4=",
+        "go_mod_sum": "h1:qOtibfEwbXKcWvwbcxR+TpM+TLQLePRKAUHoe0DWICU=",
+        "proxy_origin_commit": "a0dedda6c82afe8f1f6061855a07ba9800687e1e",
+        "current_origin_tag_commit": "c73d08fc68d254690d9b0becbffb67f236b2bc6b",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:hf6+mr4w8An9em/mBdQrX2/4qutpnfbaoGXff00moD4=",
+        "first_seen_by_proxy": "2026-08-09T06:42:56Z"
+      },
+      {
+        "version": "v0.2.0-rc.17",
+        "sum": "h1:o9U71lauevX1pJK+hOvkT/lEGaKjRKksqZXSVRU3WnM=",
+        "go_mod_sum": "h1:qOtibfEwbXKcWvwbcxR+TpM+TLQLePRKAUHoe0DWICU=",
+        "proxy_origin_commit": "d4d8a264a77cfe9767d5ad5c6db3366ed59075ad",
+        "current_origin_tag_commit": "36bd6624f4820ef24a84e21839ba2a0b1430de2d",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:o9U71lauevX1pJK+hOvkT/lEGaKjRKksqZXSVRU3WnM=",
+        "first_seen_by_proxy": "2026-08-09T07:18:25Z"
+      },
+      {
+        "version": "v0.2.0-rc.18",
+        "sum": "h1:q/81GlzuEAxuuIQPBLvARfS53G43Rv46wR6sSIRthnw=",
+        "go_mod_sum": "h1:qOtibfEwbXKcWvwbcxR+TpM+TLQLePRKAUHoe0DWICU=",
+        "proxy_origin_commit": "29011a1b0861a83c492c44e40aa381805261cc30",
+        "current_origin_tag_commit": "a73dd55b29c196286312030df1ad0c653061e820",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:q/81GlzuEAxuuIQPBLvARfS53G43Rv46wR6sSIRthnw=",
+        "first_seen_by_proxy": "2026-08-24T19:47:47Z"
+      },
+      {
+        "version": "v0.2.0-rc.19",
+        "sum": "h1:fajozzPAp1WInRKxyNRxrCKsAkCnwzziAcya1scNWfY=",
+        "go_mod_sum": "h1:qOtibfEwbXKcWvwbcxR+TpM+TLQLePRKAUHoe0DWICU=",
+        "proxy_origin_commit": "d7230ec0b841f79b31b0eb55586cb10cb26a54a2",
+        "current_origin_tag_commit": "6026416ba1c72dac56a0546ef4087a02a8553d13",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:fajozzPAp1WInRKxyNRxrCKsAkCnwzziAcya1scNWfY=",
+        "first_seen_by_proxy": "2026-08-25T04:39:08Z"
+      },
+      {
+        "version": "v0.2.0-rc.20",
+        "sum": "h1:GhZD66AZq0sffRi8oKpn4QZlTfbaOr9GJzq+fPNkIis=",
+        "go_mod_sum": "h1:qOtibfEwbXKcWvwbcxR+TpM+TLQLePRKAUHoe0DWICU=",
+        "proxy_origin_commit": "682217d5c3ff95836ed44e4515f4111496238378",
+        "current_origin_tag_commit": "4c5096de0631fbeddb614d3d194b0504cb574dae",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:GhZD66AZq0sffRi8oKpn4QZlTfbaOr9GJzq+fPNkIis=",
+        "first_seen_by_proxy": "2026-08-25T04:42:24Z"
+      },
+      {
+        "version": "v0.2.0-rc.21",
+        "sum": "h1:w6uZaEaD4ni7QYUt2GW849BxircnDPh62K7Dvta3lak=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "bce2221e4fc5993d81ff0a3b05a7a99964de1da3",
+        "current_origin_tag_commit": "853241479d4c8e763fd6717fc35d07fc020df7e1",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:w6uZaEaD4ni7QYUt2GW849BxircnDPh62K7Dvta3lak=",
+        "first_seen_by_proxy": "2026-08-25T05:20:16Z"
+      },
+      {
+        "version": "v0.2.0-rc.22",
+        "sum": "h1:1l98H2/CF6b3Jt78mUCP78ztKI3zWwiObSaVv9PxZT8=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "0225131656379273cbe3f95f7cede02ae7623a4c",
+        "current_origin_tag_commit": "3115a802c58d8834831c346ba4eb5b4caf03837e",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:1l98H2/CF6b3Jt78mUCP78ztKI3zWwiObSaVv9PxZT8=",
+        "first_seen_by_proxy": "2026-08-25T08:07:28Z"
+      },
+      {
+        "version": "v0.2.0-rc.23",
+        "sum": "h1:CyxTmpcAXAwLmvcqvoWw61imhqFexFMrLOB/H3ufx8o=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "f484775de9906c47a212ca508a8384fc4b806fb6",
+        "current_origin_tag_commit": null,
+        "direct_origin": "proxy only: tag absent at origin",
+        "direct_origin_sum": null,
+        "first_seen_by_proxy": "2026-08-25T08:14:36Z"
+      },
+      {
+        "version": "v0.2.0-rc.24",
+        "sum": "h1:843fA+dibuSpYEVBSm1mpV2mR321nwhUMuRvofB8zcE=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "f25cadbec05eb76cd63769c3e472560ea59b9685",
+        "current_origin_tag_commit": "b5bbdfc4270ef1332421a6a3df51f9b5a554ceb6",
+        "direct_origin": "origin matches checksum database",
+        "direct_origin_sum": "h1:843fA+dibuSpYEVBSm1mpV2mR321nwhUMuRvofB8zcE=",
+        "first_seen_by_proxy": "2026-08-25T12:52:24Z"
+      },
+      {
+        "version": "v0.2.0-rc.25",
+        "sum": "h1:QDhjja5I+mv/gR9OPs73OBgF8iWkaduMpS4Nxqhfi9g=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "93d88a4699ac1efc2fa2b5c8504e3a7197b17443",
+        "current_origin_tag_commit": null,
+        "direct_origin": "proxy only: tag absent at origin",
+        "direct_origin_sum": null,
+        "first_seen_by_proxy": "2026-08-25T13:57:34Z"
+      },
+      {
+        "version": "v0.2.0-rc.26",
+        "sum": "h1:UhtXewEG7kgLdNGQWuKYSxiedaua5/Zp2tkV9PFA7ac=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "6fb8b55d1bc1e67c9fa609f60286708cf2431320",
+        "current_origin_tag_commit": null,
+        "direct_origin": "proxy only: tag absent at origin",
+        "direct_origin_sum": null,
+        "first_seen_by_proxy": "2026-08-25T14:35:21Z"
+      },
+      {
+        "version": "v0.2.0-rc.27",
+        "sum": "h1:2Qrfj9jv53w4CZj+oOfgdWjX8K81Q5EBIEu2r/Lu9cA=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "399118d10664ce82ae3d698ae2d3ceabdc56cd8a",
+        "current_origin_tag_commit": null,
+        "direct_origin": "proxy only: tag absent at origin",
+        "direct_origin_sum": null,
+        "first_seen_by_proxy": "2026-08-25T15:06:22Z"
+      },
+      {
+        "version": "v0.2.0-rc.28",
+        "sum": "h1:YqX57DTDlE+f2PBMdp+Ys/zQ4awtg7DKBzIcKM/cZYc=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "78384bfd4639c3a45b651cd868d0bb61639e2fe3",
+        "current_origin_tag_commit": null,
+        "direct_origin": "proxy only: tag absent at origin",
+        "direct_origin_sum": null,
+        "first_seen_by_proxy": "2026-08-26T05:10:35Z"
+      },
+      {
+        "version": "v0.2.0-rc.29",
+        "sum": "h1:hxJgF8pzbnFBw7TmUVOpEyu96dpEztwcuMp8BUu4beA=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "afe0de86a006c45a28817b2400a59c94834a9b8a",
+        "current_origin_tag_commit": null,
+        "direct_origin": "proxy only: tag absent at origin",
+        "direct_origin_sum": null,
+        "first_seen_by_proxy": "2026-08-26T09:07:21Z"
+      },
+      {
+        "version": "v0.2.0-rc.30",
+        "sum": "h1:n5GZCjFgnCOO3EggAKD35ruCLvO5uPI/jPFBsSte5rA=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "0b8b66b69eb5699a4d79370c6201130921eaf0bc",
+        "current_origin_tag_commit": null,
+        "direct_origin": "proxy only: tag absent at origin",
+        "direct_origin_sum": null,
+        "first_seen_by_proxy": "2026-08-26T09:34:08Z"
+      },
+      {
+        "version": "v0.2.0-rc.31",
+        "sum": "h1:RBmBASocXTTa+BxcF4UrPdRLB/mqUE/t/dhBnjJeKiw=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "2dee6da01ea8fe43d079acb99a017d709f56d880",
+        "current_origin_tag_commit": null,
+        "direct_origin": "proxy only: tag absent at origin",
+        "direct_origin_sum": null,
+        "first_seen_by_proxy": "2026-08-26T10:21:17Z"
+      },
+      {
+        "version": "v0.2.0",
+        "sum": "h1:GOH/h19Urrs5z+LA5TzYkWvLqzwzSOmKjtxDpNxCrlI=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "c14b2a5be724909b5d3c02fb1dfc8ea41caef30f",
+        "current_origin_tag_commit": null,
+        "direct_origin": "proxy only: tag absent at origin",
+        "direct_origin_sum": null,
+        "first_seen_by_proxy": "2026-08-27T13:18:02Z"
+      },
+      {
+        "version": "v0.2.1-rc.1",
+        "sum": "h1:uCSmROKPxstcHn7uu2NdtW9k0WDifXvpP7AVEqWM+b0=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "f1bf3361d3655fb7e9547bd68f632276a1bf8f2d",
+        "current_origin_tag_commit": null,
+        "direct_origin": "proxy only: tag absent at origin",
+        "direct_origin_sum": null,
+        "first_seen_by_proxy": "2026-08-28T03:56:43Z"
+      },
+      {
+        "version": "v0.3.0-rc.1",
+        "sum": "h1:mKrpFWsT+9GpjtUFRmicd01c81+UtiHbW5X/JpWVd7c=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "7d585e064acb4419cc761b5b63869123723c06d0",
+        "current_origin_tag_commit": null,
+        "direct_origin": "proxy only: tag absent at origin",
+        "direct_origin_sum": null,
+        "first_seen_by_proxy": "2026-09-02T06:14:27Z"
+      },
+      {
+        "version": "v0.3.0-rc.2",
+        "sum": "h1:A5W2rsEH4Fk3bI7rAbo/Fvvx3fUx2Ler7f7eCaLKa3A=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "b508cc15258f6d7a55634db77d5acacae7a26d8d",
+        "current_origin_tag_commit": null,
+        "direct_origin": "proxy only: tag absent at origin",
+        "direct_origin_sum": null,
+        "first_seen_by_proxy": "2026-09-02T08:14:28Z"
+      },
+      {
+        "version": "v0.3.0-rc.3",
+        "sum": "h1:ST1pZO0I3XjYmbiNTz5CTnXzXfFbSOI2lh6OAg35nJI=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "67d2d370942d132cb77d8c13ad00f64b42e5f36d",
+        "current_origin_tag_commit": null,
+        "direct_origin": "proxy only: tag absent at origin",
+        "direct_origin_sum": null,
+        "first_seen_by_proxy": "2026-09-02T08:37:10Z"
+      },
+      {
+        "version": "v0.3.0-rc.4",
+        "sum": "h1:EIfKSF8O1UYZmlLZN8mAFVYQDAxQ/c4MT5i0z4gyTqs=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "2cc4e7d6f869eff4a4b0587493a307fb185a1b56",
+        "current_origin_tag_commit": null,
+        "direct_origin": "proxy only: tag absent at origin",
+        "direct_origin_sum": null,
+        "first_seen_by_proxy": "2026-09-02T08:44:23Z"
+      },
+      {
+        "version": "v0.3.0-rc.5",
+        "sum": "h1:9KHF+hSYEA7Ks/F26GWw71ORt/5sKicxEgbIqhExbQ4=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "e335a9e1000638fa8c2bf47ab1dedc2ec2f8941e",
+        "current_origin_tag_commit": "aec8a8717660d008bf1d68c6652f3c5e32866e2b",
+        "direct_origin": "STOP: origin content differs from checksum database",
+        "direct_origin_sum": "h1:0aIY0aVjRLByroFwg8iAiroQgrAKWWczBxENRt4I94A=",
+        "first_seen_by_proxy": "2026-09-11T05:08:33Z"
+      },
+      {
+        "version": "v0.3.0-rc.6",
+        "sum": "h1:fkH28cOoduxq+3NQ8IRiQEQsH9w2vU8yxpRLJce7Zs4=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "c04bcc11c6db8de9dd0e595fc0a1830f8ab00820",
+        "current_origin_tag_commit": null,
+        "direct_origin": "proxy only: tag absent at origin",
+        "direct_origin_sum": null,
+        "first_seen_by_proxy": "2026-09-11T05:20:11Z"
+      },
+      {
+        "version": "v0.3.0-rc.7",
+        "sum": "h1:V0oUmsFiUNq92q3Be4hAzzGvwAobExeLYSFSL8yYWiU=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "6f19c25fcc48f2335ad39237d06642adef1a5fcc",
+        "current_origin_tag_commit": null,
+        "direct_origin": "proxy only: tag absent at origin",
+        "direct_origin_sum": null,
+        "first_seen_by_proxy": "2026-09-11T14:34:55Z"
+      },
+      {
+        "version": "v0.4.0-rc.8",
+        "sum": "h1:Xs2bdc3NMZPudNgfSoFCAhtQXnzCqRmNFgzSHTTcyLg=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "76423158c2aaa6d8e2e625345e457b63b53694d8",
+        "current_origin_tag_commit": "8894c9abf3de84bdf082c3da6b3c237ba102a962",
+        "direct_origin": "STOP: origin content differs from checksum database",
+        "direct_origin_sum": "h1:SWdweg5QqU9R+bVgxMgbBEX9Nm5F2QnXlBJxN6HOpK0=",
+        "first_seen_by_proxy": "2026-09-28T17:44:56Z"
+      },
+      {
+        "version": "v0.4.0-rc.9",
+        "sum": "h1:5OKiewPomL5Jlu4avfKEXsHt1GRrOPTqJD9mIVFum2M=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "3aa1de4c58531b7d2f3f8e1eb36c7aa3474e9e64",
+        "current_origin_tag_commit": "68967c931ca53c14e52f14f182eb16354c2ae819",
+        "direct_origin": "STOP: origin content differs from checksum database",
+        "direct_origin_sum": "h1:OLw/KBQ6lew1D6RZA8ecrY+G8SEqHb2iz3uA8L+JQ1k=",
+        "first_seen_by_proxy": "2026-09-28T20:22:54Z"
+      },
+      {
+        "version": "v0.4.0-rc.10",
+        "sum": "h1:ghBwudiv+t2BUu0XeWlcE6h9wp/FbHrpblWjjdT3T80=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "060112abd0301567880ccf25a8249eadfef8c3dd",
+        "current_origin_tag_commit": "b2af944aa16ff8918aee3d596407193a88806b37",
+        "direct_origin": "STOP: origin content differs from checksum database",
+        "direct_origin_sum": "h1:xEJdWNo28J29YhNtdjDohVuQVPxv2617QrJeBxJQ2kQ=",
+        "first_seen_by_proxy": "2026-09-28T21:18:09Z"
+      },
+      {
+        "version": "v0.4.0-rc.11",
+        "sum": "h1:GFaPZ+zC3ad9ZYLb6R+iQZG7d7BPZ6/FYozcxRtlM20=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "ed306b87d3abf5cbfc3c485caec7672021bc4c01",
+        "current_origin_tag_commit": "9002aa0becb8ae1afba0b7687a4a30daa2f105bd",
+        "direct_origin": "STOP: origin content differs from checksum database",
+        "direct_origin_sum": "h1:fVH0VVK8XNLY1a/To+wvlvrFyKMm6AFrXZgPUUk2p54=",
+        "first_seen_by_proxy": "2026-09-28T21:30:25Z"
+      },
+      {
+        "version": "v0.4.0-rc.14",
+        "sum": "h1:Tjiki2KDBzQ89clwSuS9s2JCvEBRRL1kMoE1V+ga9sw=",
+        "go_mod_sum": "h1:jIJBdwF0LM3c8Om4Yz8YQYONQaGrCGniWv1cGlr11Rc=",
+        "proxy_origin_commit": "193ba48f409a2c12a7c6b359fe6345258dbb0431",
+        "current_origin_tag_commit": "69d227ccd07ef5a87b86d711075045df3b6b0131",
+        "direct_origin": "STOP: origin content differs from checksum database",
+        "direct_origin_sum": "h1:Mw1ulcMh1RgZFZjgOQFWW+N61vj12lUGv7yiTPuc/3Q=",
+        "first_seen_by_proxy": "2026-09-29T20:53:03Z"
+      },
+      {
+        "version": "v0.4.0-rc.18",
+        "sum": "h1:gNT5vlPJXj1dQetoBSct1+jILGn0Q8VgOw3e2GRbpsg=",
+        "go_mod_sum": "h1:jIJBdwF0LM3c8Om4Yz8YQYONQaGrCGniWv1cGlr11Rc=",
+        "proxy_origin_commit": "655c14f77abd03fb773043c8deface400a595465",
+        "current_origin_tag_commit": "4d2a99b7dc79a54f0fea6cc4eb20e6c39897c79c",
+        "direct_origin": "STOP: origin content differs from checksum database",
+        "direct_origin_sum": "h1:ykcFJI2yceQyuWZLPTwDw17xE2+Eoz0g8IQyQ8kTG/o=",
+        "first_seen_by_proxy": "2026-09-30T20:12:26Z"
+      },
+      {
+        "version": "v0.4.0-rc.19",
+        "sum": "h1:AOvcIXYr662EdX2e0RnVMbstFfZgtJHKRm1UsRU12ec=",
+        "go_mod_sum": "h1:jIJBdwF0LM3c8Om4Yz8YQYONQaGrCGniWv1cGlr11Rc=",
+        "proxy_origin_commit": "e9c59099276563d8ffca255c779db42d3366eb68",
+        "current_origin_tag_commit": "2b54415fbc34c6f6552e3d96d1b2695d1e2f863f",
+        "direct_origin": "STOP: origin content differs from checksum database",
+        "direct_origin_sum": "h1:hIx0vWlF9oKXiS4mnYjSg6WcMLyxYY2hORC0RjlpD1c=",
+        "first_seen_by_proxy": "2026-09-30T21:53:33Z"
+      },
+      {
+        "version": "v0.4.0-rc.20",
+        "sum": "h1:E33ZnRttuLQzJtqCwj2yz8N0siMUtiwvx9/vDFkvBbU=",
+        "go_mod_sum": "h1:jIJBdwF0LM3c8Om4Yz8YQYONQaGrCGniWv1cGlr11Rc=",
+        "proxy_origin_commit": "83a018a6757323fed8d3845f2698f1176769aed6",
+        "current_origin_tag_commit": "f8fdbdba6f8654586fd0d42e791091d90b63dfe4",
+        "direct_origin": "STOP: origin content differs from checksum database",
+        "direct_origin_sum": "h1:VtyabCEK3ngUI1zM4uINWi98Bc7cWfgLmcuygEiNZIo=",
+        "first_seen_by_proxy": "2026-09-30T22:53:37Z"
+      },
+      {
+        "version": "v0.4.0-rc.21",
+        "sum": "h1:ZGpKWMp54Gp6HR6uT6Tpg4WG4PPO5P752sM2yKVNIDg=",
+        "go_mod_sum": "h1:jIJBdwF0LM3c8Om4Yz8YQYONQaGrCGniWv1cGlr11Rc=",
+        "proxy_origin_commit": "005ecf18bc563ba8f6f276b5788052859c292ca3",
+        "current_origin_tag_commit": "aa4d69bcb8189644369662705e3249d91a512ed1",
+        "direct_origin": "STOP: origin content differs from checksum database",
+        "direct_origin_sum": "h1:L8aGddEnwyh/hSA0mrFl8uN4gJLnP5qklAGTGDuaczs=",
+        "first_seen_by_proxy": "2026-09-30T23:26:10Z"
+      },
+      {
+        "version": "v0.4.0-rc.29",
+        "sum": "h1:OrQaVa+xmwPDvRuBinnBCA8dudo1o86EYPS1dHTtKEI=",
+        "go_mod_sum": "h1:SiMDn1G1N7FfFkmL7B99TmfQ+ylwBCenEInxs1WWq1s=",
+        "proxy_origin_commit": "08c30e652a604b39a9342447b45a247b208f4406",
+        "current_origin_tag_commit": "09705d5810f7c127d1af65d0be94e273a74dc630",
+        "direct_origin": "STOP: origin content differs from checksum database",
+        "direct_origin_sum": "h1:Rd1pGRQl6ggWv3BjJnnztwRQV639AS5lx8wpm8K79Jk=",
+        "first_seen_by_proxy": "2026-10-01T16:20:27Z"
+      },
+      {
+        "version": "v0.4.0-rc.30",
+        "sum": "h1:ALYivEh4+tuBBvpBqeE22HZOJU7Pc/F4LiqF7ZRqwUw=",
+        "go_mod_sum": "h1:SiMDn1G1N7FfFkmL7B99TmfQ+ylwBCenEInxs1WWq1s=",
+        "proxy_origin_commit": "33e810eeb6d76ee83de0ff851efdf0e54d5665fd",
+        "current_origin_tag_commit": "37244b40841d2e54f6302a573b6c53b1f2c4d7b7",
+        "direct_origin": "STOP: origin content differs from checksum database",
+        "direct_origin_sum": "h1:6T+jPBVxDDWMeGwuV0Rw6UJtXG0Pp/YhFFa5Funkmko=",
+        "first_seen_by_proxy": "2026-10-01T16:53:06Z"
+      },
+      {
+        "version": "v0.4.0-rc.31",
+        "sum": "h1:zmJBsQAJGYC6h2UGUT/PMd5FUOItG7u2hbeQNWty8ys=",
+        "go_mod_sum": "h1:SiMDn1G1N7FfFkmL7B99TmfQ+ylwBCenEInxs1WWq1s=",
+        "proxy_origin_commit": "25b56cffe4f9c0f15b3f3239cb37bdacce7c5a5b",
+        "current_origin_tag_commit": "d86f224d4d827281d09d344bf0359b7e9234ce84",
+        "direct_origin": "STOP: origin content differs from checksum database",
+        "direct_origin_sum": "h1:6zQlDTyxiSGONaoNnO1vJGiZkVl0LKOyc13Am1UP1vk=",
+        "first_seen_by_proxy": "2026-10-01T17:21:59Z"
+      },
+      {
+        "version": "v0.4.0-rc.32",
+        "sum": "h1:g7VbZFYTSwX5NdZqhKEpGQNGja3nUsIh/BApPg5eLl4=",
+        "go_mod_sum": "h1:SiMDn1G1N7FfFkmL7B99TmfQ+ylwBCenEInxs1WWq1s=",
+        "proxy_origin_commit": "ee056fae3dd6428263ab594188d6c961dfb50d15",
+        "current_origin_tag_commit": "d1f6b34d5c50e609b4b34bd26b45f0d0c662bf4e",
+        "direct_origin": "STOP: origin content differs from checksum database",
+        "direct_origin_sum": "h1:dlSozq7OV4jTy2rs6vtehifvVUsw6L7p2xi9xC7A2Wk=",
+        "first_seen_by_proxy": "2026-10-01T17:56:44Z"
+      },
+      {
+        "version": "v1.0.0-rc.1",
+        "sum": "h1:q2osNmgi2293h7VX2xs9YCsyKpf2B28os7XvwMSypQg=",
+        "go_mod_sum": "h1:SquRCBJgHjMeqT/aLCPraanbDrewN6nQzMCBMf6clPU=",
+        "proxy_origin_commit": "47c078da2f41548ac6903482160ca29c9a87f872",
+        "current_origin_tag_commit": null,
+        "direct_origin": "proxy only: tag absent at origin",
+        "direct_origin_sum": null,
+        "first_seen_by_proxy": "2026-09-11T04:29:43Z"
+      }
+    ]
+  },
+  "go_exports": [
+    {
+      "version": "v0.3.0-rc.5",
+      "source_tag": null,
+      "source_revision": null,
+      "source_subtree": null,
+      "export_commit": "aec8a8717660d008bf1d68c6652f3c5e32866e2b",
+      "export_tree": "45634197265333562cc5dd4c31175ae81fb36d23",
+      "export_parent": "b8f5dc83d49a2465b26b7508d0f6e9e0e9f54c7b",
+      "export_author": "webgrip-ci",
+      "trailers_match_source": false,
+      "current_exporter_reproduces_commit": false,
+      "sum_of_current_export": "h1:0aIY0aVjRLByroFwg8iAiroQgrAKWWczBxENRt4I94A=",
+      "checksum_database_sum": "h1:9KHF+hSYEA7Ks/F26GWw71ORt/5sKicxEgbIqhExbQ4=",
+      "files_changed_since_checksum": [
+        "openspec/changes/open-change-requests-on-gitlab/adr.md",
+        "openspec/changes/open-change-requests-on-gitlab/design.md",
+        "openspec/changes/open-change-requests-on-gitlab/proposal.md",
+        "openspec/changes/open-change-requests-on-gitlab/tasks.md",
+        "pkg/config/clickup_routing_test.go",
+        "pkg/config/scopeteams_test.go",
+        "pkg/httpapi/pinteam_test.go",
+        "pkg/worker/forge_test.go",
+        "pkg/worker/prompt_forge_test.go"
+      ]
+    },
+    {
+      "version": "v0.4.0-rc.8",
+      "source_tag": "glide-v0.4.0-rc.8",
+      "source_revision": "4a6267ee0d6c38cedd733a227f04b1dca448884e",
+      "source_subtree": "e5d934eedc44c5733f5c65193fbd5ede5031c38f",
+      "export_commit": "8894c9abf3de84bdf082c3da6b3c237ba102a962",
+      "export_tree": "e5d934eedc44c5733f5c65193fbd5ede5031c38f",
+      "export_parent": "05b93bb4b7c063cb0ca733e4bbf3d699c5044af4",
+      "export_author": "Glide release",
+      "trailers_match_source": true,
+      "current_exporter_reproduces_commit": false,
+      "sum_of_current_export": "h1:SWdweg5QqU9R+bVgxMgbBEX9Nm5F2QnXlBJxN6HOpK0=",
+      "checksum_database_sum": "h1:Xs2bdc3NMZPudNgfSoFCAhtQXnzCqRmNFgzSHTTcyLg=",
+      "files_changed_since_checksum": [
+        ".mailmap",
+        "openspec/changes/open-change-requests-on-gitlab/adr.md",
+        "openspec/changes/open-change-requests-on-gitlab/design.md",
+        "openspec/changes/open-change-requests-on-gitlab/proposal.md",
+        "openspec/changes/open-change-requests-on-gitlab/tasks.md",
+        "pkg/config/clickup_routing_test.go",
+        "pkg/config/scopeteams_test.go",
+        "pkg/httpapi/pinteam_test.go",
+        "pkg/worker/forge_test.go",
+        "pkg/worker/prompt_forge_test.go"
+      ],
+      "pre_rewrite_source_revision": "b8b2f00751145eb60e6b7b1a2e6d5adb087ad606",
+      "pre_rewrite_export_commit": "76423158c2aaa6d8e2e625345e457b63b53694d8",
+      "recorded_sum": "h1:Xs2bdc3NMZPudNgfSoFCAhtQXnzCqRmNFgzSHTTcyLg="
+    },
+    {
+      "version": "v0.4.0-rc.9",
+      "source_tag": "glide-v0.4.0-rc.9",
+      "source_revision": "a81f0150df54afb900d949fb05973d1e654d4fbe",
+      "source_subtree": "e441688de16ca5be26c81f493bce59a0b85aa895",
+      "export_commit": "68967c931ca53c14e52f14f182eb16354c2ae819",
+      "export_tree": "e441688de16ca5be26c81f493bce59a0b85aa895",
+      "export_parent": "05b93bb4b7c063cb0ca733e4bbf3d699c5044af4",
+      "export_author": "Glide release",
+      "trailers_match_source": true,
+      "current_exporter_reproduces_commit": false,
+      "sum_of_current_export": "h1:OLw/KBQ6lew1D6RZA8ecrY+G8SEqHb2iz3uA8L+JQ1k=",
+      "checksum_database_sum": "h1:5OKiewPomL5Jlu4avfKEXsHt1GRrOPTqJD9mIVFum2M=",
+      "files_changed_since_checksum": [
+        ".mailmap",
+        "openspec/changes/open-change-requests-on-gitlab/adr.md",
+        "openspec/changes/open-change-requests-on-gitlab/design.md",
+        "openspec/changes/open-change-requests-on-gitlab/proposal.md",
+        "openspec/changes/open-change-requests-on-gitlab/tasks.md",
+        "pkg/config/clickup_routing_test.go",
+        "pkg/config/scopeteams_test.go",
+        "pkg/httpapi/pinteam_test.go",
+        "pkg/worker/forge_test.go",
+        "pkg/worker/prompt_forge_test.go"
+      ],
+      "pre_rewrite_source_revision": "8d6620d7098b3e5312b1c45685ab415a66393956",
+      "pre_rewrite_export_commit": "3aa1de4c58531b7d2f3f8e1eb36c7aa3474e9e64",
+      "recorded_sum": "h1:5OKiewPomL5Jlu4avfKEXsHt1GRrOPTqJD9mIVFum2M="
+    },
+    {
+      "version": "v0.4.0-rc.10",
+      "source_tag": "glide-v0.4.0-rc.10",
+      "source_revision": "3a1779ec79774992a8230e07762c299974c9ff37",
+      "source_subtree": "76b9e08f4759fddd18e59c112c21e4fa6183d3d6",
+      "export_commit": "b2af944aa16ff8918aee3d596407193a88806b37",
+      "export_tree": "76b9e08f4759fddd18e59c112c21e4fa6183d3d6",
+      "export_parent": "05b93bb4b7c063cb0ca733e4bbf3d699c5044af4",
+      "export_author": "Glide release",
+      "trailers_match_source": true,
+      "current_exporter_reproduces_commit": false,
+      "sum_of_current_export": "h1:xEJdWNo28J29YhNtdjDohVuQVPxv2617QrJeBxJQ2kQ=",
+      "checksum_database_sum": "h1:ghBwudiv+t2BUu0XeWlcE6h9wp/FbHrpblWjjdT3T80=",
+      "files_changed_since_checksum": [
+        ".mailmap",
+        "docs/research/2026-09-28-board-routing-options.md",
+        "openspec/changes/open-change-requests-on-gitlab/adr.md",
+        "openspec/changes/open-change-requests-on-gitlab/design.md",
+        "openspec/changes/open-change-requests-on-gitlab/proposal.md",
+        "openspec/changes/open-change-requests-on-gitlab/tasks.md",
+        "pkg/config/clickup_routing_test.go",
+        "pkg/config/scopeteams_test.go",
+        "pkg/httpapi/pinteam_test.go",
+        "pkg/worker/forge_test.go",
+        "pkg/worker/prompt_forge_test.go"
+      ],
+      "pre_rewrite_source_revision": "e12667910481be805d81e19b4c1560792ad2227a",
+      "pre_rewrite_export_commit": "060112abd0301567880ccf25a8249eadfef8c3dd",
+      "recorded_sum": "h1:ghBwudiv+t2BUu0XeWlcE6h9wp/FbHrpblWjjdT3T80="
+    },
+    {
+      "version": "v0.4.0-rc.11",
+      "source_tag": "glide-v0.4.0-rc.11",
+      "source_revision": "de0f37790c27187d35d55f945cd594fe0d39a8f9",
+      "source_subtree": "6f436c470c04630ee9413e51b9c2db2fda79c9da",
+      "export_commit": "9002aa0becb8ae1afba0b7687a4a30daa2f105bd",
+      "export_tree": "6f436c470c04630ee9413e51b9c2db2fda79c9da",
+      "export_parent": "05b93bb4b7c063cb0ca733e4bbf3d699c5044af4",
+      "export_author": "Glide release",
+      "trailers_match_source": true,
+      "current_exporter_reproduces_commit": false,
+      "sum_of_current_export": "h1:fVH0VVK8XNLY1a/To+wvlvrFyKMm6AFrXZgPUUk2p54=",
+      "checksum_database_sum": "h1:GFaPZ+zC3ad9ZYLb6R+iQZG7d7BPZ6/FYozcxRtlM20=",
+      "files_changed_since_checksum": [
+        ".mailmap",
+        "docs/research/2026-09-28-board-routing-options.md",
+        "openspec/changes/open-change-requests-on-gitlab/adr.md",
+        "openspec/changes/open-change-requests-on-gitlab/design.md",
+        "openspec/changes/open-change-requests-on-gitlab/proposal.md",
+        "openspec/changes/open-change-requests-on-gitlab/tasks.md",
+        "pkg/config/clickup_routing_test.go",
+        "pkg/config/scopeteams_test.go",
+        "pkg/httpapi/pinteam_test.go",
+        "pkg/worker/forge_test.go",
+        "pkg/worker/prompt_forge_test.go"
+      ],
+      "pre_rewrite_source_revision": "eab07c176ce125d217b50c3536841b69a498f51d",
+      "pre_rewrite_export_commit": "ed306b87d3abf5cbfc3c485caec7672021bc4c01",
+      "recorded_sum": "h1:GFaPZ+zC3ad9ZYLb6R+iQZG7d7BPZ6/FYozcxRtlM20="
+    },
+    {
+      "version": "v0.4.0-rc.14",
+      "source_tag": "glide-v0.4.0-rc.14",
+      "source_revision": "3d4606100a08bcd7ae289b7e9e8412f92774a3b7",
+      "source_subtree": "2b4b2f75d274303e7ab64195df44341dc5b82c51",
+      "export_commit": "69d227ccd07ef5a87b86d711075045df3b6b0131",
+      "export_tree": "2b4b2f75d274303e7ab64195df44341dc5b82c51",
+      "export_parent": "05b93bb4b7c063cb0ca733e4bbf3d699c5044af4",
+      "export_author": "Glide release",
+      "trailers_match_source": true,
+      "current_exporter_reproduces_commit": false,
+      "sum_of_current_export": "h1:Mw1ulcMh1RgZFZjgOQFWW+N61vj12lUGv7yiTPuc/3Q=",
+      "checksum_database_sum": "h1:Tjiki2KDBzQ89clwSuS9s2JCvEBRRL1kMoE1V+ga9sw=",
+      "files_changed_since_checksum": [
+        ".mailmap",
+        "docs/research/2026-09-28-board-routing-options.md",
+        "openspec/changes/open-change-requests-on-gitlab/adr.md",
+        "openspec/changes/open-change-requests-on-gitlab/design.md",
+        "openspec/changes/open-change-requests-on-gitlab/proposal.md",
+        "openspec/changes/open-change-requests-on-gitlab/tasks.md",
+        "pkg/config/clickup_routing_test.go",
+        "pkg/config/scopeteams_test.go",
+        "pkg/httpapi/pinteam_test.go",
+        "pkg/worker/forge_test.go",
+        "pkg/worker/prompt_forge_test.go"
+      ],
+      "pre_rewrite_source_revision": "6de34d0ea40a3749afb6b238fd1adc6bd75dfd25",
+      "pre_rewrite_export_commit": "193ba48f409a2c12a7c6b359fe6345258dbb0431",
+      "recorded_sum": "h1:Tjiki2KDBzQ89clwSuS9s2JCvEBRRL1kMoE1V+ga9sw="
+    },
+    {
+      "version": "v0.4.0-rc.18",
+      "source_tag": "glide-v0.4.0-rc.18",
+      "source_revision": "541fb85e72b543ca4109ebd5c45e07ec5e7d8c85",
+      "source_subtree": "4529da026dfbd29bbbdb44549bedc8acd1ff96ea",
+      "export_commit": "4d2a99b7dc79a54f0fea6cc4eb20e6c39897c79c",
+      "export_tree": "4529da026dfbd29bbbdb44549bedc8acd1ff96ea",
+      "export_parent": "05b93bb4b7c063cb0ca733e4bbf3d699c5044af4",
+      "export_author": "Glide release",
+      "trailers_match_source": true,
+      "current_exporter_reproduces_commit": false,
+      "sum_of_current_export": "h1:ykcFJI2yceQyuWZLPTwDw17xE2+Eoz0g8IQyQ8kTG/o=",
+      "checksum_database_sum": "h1:gNT5vlPJXj1dQetoBSct1+jILGn0Q8VgOw3e2GRbpsg=",
+      "files_changed_since_checksum": [
+        ".mailmap",
+        "docs/research/2026-09-28-board-routing-options.md",
+        "openspec/changes/open-change-requests-on-gitlab/adr.md",
+        "openspec/changes/open-change-requests-on-gitlab/design.md",
+        "openspec/changes/open-change-requests-on-gitlab/proposal.md",
+        "openspec/changes/open-change-requests-on-gitlab/tasks.md",
+        "pkg/config/clickup_routing_test.go",
+        "pkg/config/scopeteams_test.go",
+        "pkg/httpapi/pinteam_test.go",
+        "pkg/worker/forge_test.go",
+        "pkg/worker/prompt_forge_test.go"
+      ],
+      "pre_rewrite_source_revision": "fa668e3cbe60934ff078e889537aba5dac21fe9e",
+      "pre_rewrite_export_commit": "655c14f77abd03fb773043c8deface400a595465",
+      "recorded_sum": "h1:gNT5vlPJXj1dQetoBSct1+jILGn0Q8VgOw3e2GRbpsg="
+    },
+    {
+      "version": "v0.4.0-rc.19",
+      "source_tag": "glide-v0.4.0-rc.19",
+      "source_revision": "e89a28f08933aa077e93af0efc2aa6991b10d1a0",
+      "source_subtree": "99572d3325772615fbb6627e23ed36c8b465f11d",
+      "export_commit": "2b54415fbc34c6f6552e3d96d1b2695d1e2f863f",
+      "export_tree": "99572d3325772615fbb6627e23ed36c8b465f11d",
+      "export_parent": "05b93bb4b7c063cb0ca733e4bbf3d699c5044af4",
+      "export_author": "Glide release",
+      "trailers_match_source": true,
+      "current_exporter_reproduces_commit": false,
+      "sum_of_current_export": "h1:hIx0vWlF9oKXiS4mnYjSg6WcMLyxYY2hORC0RjlpD1c=",
+      "checksum_database_sum": "h1:AOvcIXYr662EdX2e0RnVMbstFfZgtJHKRm1UsRU12ec=",
+      "files_changed_since_checksum": [
+        ".mailmap",
+        "docs/research/2026-09-28-board-routing-options.md",
+        "openspec/changes/open-change-requests-on-gitlab/adr.md",
+        "openspec/changes/open-change-requests-on-gitlab/design.md",
+        "openspec/changes/open-change-requests-on-gitlab/proposal.md",
+        "openspec/changes/open-change-requests-on-gitlab/tasks.md",
+        "pkg/config/clickup_routing_test.go",
+        "pkg/config/scopeteams_test.go",
+        "pkg/httpapi/pinteam_test.go",
+        "pkg/worker/forge_test.go",
+        "pkg/worker/prompt_forge_test.go"
+      ],
+      "pre_rewrite_source_revision": "bf5d700e641440468db94ff2c976c583713e45d2",
+      "pre_rewrite_export_commit": "e9c59099276563d8ffca255c779db42d3366eb68",
+      "recorded_sum": "h1:AOvcIXYr662EdX2e0RnVMbstFfZgtJHKRm1UsRU12ec="
+    },
+    {
+      "version": "v0.4.0-rc.20",
+      "source_tag": "glide-v0.4.0-rc.20",
+      "source_revision": "a0ead24f53dfcf4891957278e27ad6a71ea465f6",
+      "source_subtree": "5b56f16a86a6645cde41e3fd5e7c55f3b2378646",
+      "export_commit": "f8fdbdba6f8654586fd0d42e791091d90b63dfe4",
+      "export_tree": "5b56f16a86a6645cde41e3fd5e7c55f3b2378646",
+      "export_parent": "05b93bb4b7c063cb0ca733e4bbf3d699c5044af4",
+      "export_author": "Glide release",
+      "trailers_match_source": true,
+      "current_exporter_reproduces_commit": false,
+      "sum_of_current_export": "h1:VtyabCEK3ngUI1zM4uINWi98Bc7cWfgLmcuygEiNZIo=",
+      "checksum_database_sum": "h1:E33ZnRttuLQzJtqCwj2yz8N0siMUtiwvx9/vDFkvBbU=",
+      "files_changed_since_checksum": [
+        ".mailmap",
+        "docs/research/2026-09-28-board-routing-options.md",
+        "openspec/changes/open-change-requests-on-gitlab/adr.md",
+        "openspec/changes/open-change-requests-on-gitlab/design.md",
+        "openspec/changes/open-change-requests-on-gitlab/proposal.md",
+        "openspec/changes/open-change-requests-on-gitlab/tasks.md",
+        "pkg/config/clickup_routing_test.go",
+        "pkg/config/scopeteams_test.go",
+        "pkg/httpapi/pinteam_test.go",
+        "pkg/worker/forge_test.go",
+        "pkg/worker/prompt_forge_test.go"
+      ],
+      "pre_rewrite_source_revision": "12553d605a26fe42cf1dac9b344962320495d2ef",
+      "pre_rewrite_export_commit": "83a018a6757323fed8d3845f2698f1176769aed6",
+      "recorded_sum": "h1:E33ZnRttuLQzJtqCwj2yz8N0siMUtiwvx9/vDFkvBbU="
+    },
+    {
+      "version": "v0.4.0-rc.21",
+      "source_tag": "glide-v0.4.0-rc.21",
+      "source_revision": "ef06492e35167fa13a1427631567c2ca35efba0b",
+      "source_subtree": "d7f1e8ec5dd6ae24044d9aa5b9986f15649e0e73",
+      "export_commit": "aa4d69bcb8189644369662705e3249d91a512ed1",
+      "export_tree": "d7f1e8ec5dd6ae24044d9aa5b9986f15649e0e73",
+      "export_parent": "05b93bb4b7c063cb0ca733e4bbf3d699c5044af4",
+      "export_author": "Glide release",
+      "trailers_match_source": true,
+      "current_exporter_reproduces_commit": false,
+      "sum_of_current_export": "h1:L8aGddEnwyh/hSA0mrFl8uN4gJLnP5qklAGTGDuaczs=",
+      "checksum_database_sum": "h1:ZGpKWMp54Gp6HR6uT6Tpg4WG4PPO5P752sM2yKVNIDg=",
+      "files_changed_since_checksum": [
+        ".mailmap",
+        "docs/research/2026-09-28-board-routing-options.md",
+        "openspec/changes/open-change-requests-on-gitlab/adr.md",
+        "openspec/changes/open-change-requests-on-gitlab/design.md",
+        "openspec/changes/open-change-requests-on-gitlab/proposal.md",
+        "openspec/changes/open-change-requests-on-gitlab/tasks.md",
+        "pkg/config/clickup_routing_test.go",
+        "pkg/config/scopeteams_test.go",
+        "pkg/httpapi/pinteam_test.go",
+        "pkg/worker/forge_test.go",
+        "pkg/worker/prompt_forge_test.go"
+      ],
+      "pre_rewrite_source_revision": "74bb5a018151342c826dcfd2dd792423aa253990",
+      "pre_rewrite_export_commit": "005ecf18bc563ba8f6f276b5788052859c292ca3",
+      "recorded_sum": "h1:ZGpKWMp54Gp6HR6uT6Tpg4WG4PPO5P752sM2yKVNIDg="
+    },
+    {
+      "version": "v0.4.0-rc.29",
+      "source_tag": "glide-v0.4.0-rc.29",
+      "source_revision": "ca6f2895cf2bc5d9e7b5d3083a94517b007d6b7e",
+      "source_subtree": "dc4c5d881cef4ba7cd7f40f215a18f98e85b6e72",
+      "export_commit": "09705d5810f7c127d1af65d0be94e273a74dc630",
+      "export_tree": "dc4c5d881cef4ba7cd7f40f215a18f98e85b6e72",
+      "export_parent": "05b93bb4b7c063cb0ca733e4bbf3d699c5044af4",
+      "export_author": "Glide release",
+      "trailers_match_source": true,
+      "current_exporter_reproduces_commit": false,
+      "sum_of_current_export": "h1:Rd1pGRQl6ggWv3BjJnnztwRQV639AS5lx8wpm8K79Jk=",
+      "checksum_database_sum": "h1:OrQaVa+xmwPDvRuBinnBCA8dudo1o86EYPS1dHTtKEI=",
+      "files_changed_since_checksum": [
+        ".mailmap",
+        "docs/research/2026-09-28-board-routing-options.md",
+        "openspec/changes/open-change-requests-on-gitlab/adr.md",
+        "openspec/changes/open-change-requests-on-gitlab/design.md",
+        "openspec/changes/open-change-requests-on-gitlab/proposal.md",
+        "openspec/changes/open-change-requests-on-gitlab/tasks.md",
+        "pkg/config/clickup_routing_test.go",
+        "pkg/config/scopeteams_test.go",
+        "pkg/httpapi/pinteam_test.go",
+        "pkg/worker/forge_test.go",
+        "pkg/worker/prompt_forge_test.go"
+      ],
+      "pre_rewrite_source_revision": "043b9c21de6ef4616d24bc7c7e9a2c47ef6cb404",
+      "pre_rewrite_export_commit": "08c30e652a604b39a9342447b45a247b208f4406",
+      "recorded_sum": "h1:OrQaVa+xmwPDvRuBinnBCA8dudo1o86EYPS1dHTtKEI="
+    },
+    {
+      "version": "v0.4.0-rc.30",
+      "source_tag": "unfold-v0.4.0-rc.30",
+      "source_revision": "c456e08dec69257c5c92da452381500cab8a09eb",
+      "source_subtree": "9727d22c2ca9cdcab179df884bfb96aeaf8cf24e",
+      "export_commit": "37244b40841d2e54f6302a573b6c53b1f2c4d7b7",
+      "export_tree": "9727d22c2ca9cdcab179df884bfb96aeaf8cf24e",
+      "export_parent": "05b93bb4b7c063cb0ca733e4bbf3d699c5044af4",
+      "export_author": "Unfold release",
+      "trailers_match_source": true,
+      "current_exporter_reproduces_commit": true,
+      "sum_of_current_export": "h1:6T+jPBVxDDWMeGwuV0Rw6UJtXG0Pp/YhFFa5Funkmko=",
+      "checksum_database_sum": "h1:ALYivEh4+tuBBvpBqeE22HZOJU7Pc/F4LiqF7ZRqwUw=",
+      "files_changed_since_checksum": [
+        ".mailmap",
+        "docs/research/2026-09-28-board-routing-options.md",
+        "openspec/changes/open-change-requests-on-gitlab/adr.md",
+        "openspec/changes/open-change-requests-on-gitlab/design.md",
+        "openspec/changes/open-change-requests-on-gitlab/proposal.md",
+        "openspec/changes/open-change-requests-on-gitlab/tasks.md",
+        "pkg/config/clickup_routing_test.go",
+        "pkg/config/scopeteams_test.go",
+        "pkg/httpapi/pinteam_test.go",
+        "pkg/worker/forge_test.go",
+        "pkg/worker/prompt_forge_test.go"
+      ],
+      "pre_rewrite_source_revision": "9512fc8d7d6c8a8ebd4a71a882676d4ab631011a",
+      "pre_rewrite_export_commit": "33e810eeb6d76ee83de0ff851efdf0e54d5665fd",
+      "recorded_sum": "h1:ALYivEh4+tuBBvpBqeE22HZOJU7Pc/F4LiqF7ZRqwUw="
+    },
+    {
+      "version": "v0.4.0-rc.31",
+      "source_tag": "unfold-v0.4.0-rc.31",
+      "source_revision": "81da39aab301ca6a9eb39738b9c8f64fb6530d8b",
+      "source_subtree": "7165b45dcce7998214f9d462a6c1ca77c70bf71b",
+      "export_commit": "d86f224d4d827281d09d344bf0359b7e9234ce84",
+      "export_tree": "7165b45dcce7998214f9d462a6c1ca77c70bf71b",
+      "export_parent": "05b93bb4b7c063cb0ca733e4bbf3d699c5044af4",
+      "export_author": "Unfold release",
+      "trailers_match_source": true,
+      "current_exporter_reproduces_commit": true,
+      "sum_of_current_export": "h1:6zQlDTyxiSGONaoNnO1vJGiZkVl0LKOyc13Am1UP1vk=",
+      "checksum_database_sum": "h1:zmJBsQAJGYC6h2UGUT/PMd5FUOItG7u2hbeQNWty8ys=",
+      "files_changed_since_checksum": [
+        ".mailmap",
+        "docs/research/2026-09-28-board-routing-options.md",
+        "openspec/changes/open-change-requests-on-gitlab/adr.md",
+        "openspec/changes/open-change-requests-on-gitlab/design.md",
+        "openspec/changes/open-change-requests-on-gitlab/proposal.md",
+        "openspec/changes/open-change-requests-on-gitlab/tasks.md",
+        "pkg/config/clickup_routing_test.go",
+        "pkg/config/scopeteams_test.go",
+        "pkg/httpapi/pinteam_test.go",
+        "pkg/worker/forge_test.go",
+        "pkg/worker/prompt_forge_test.go"
+      ],
+      "pre_rewrite_source_revision": "c00ad7ad462548738942fd424250f1603c29a080",
+      "pre_rewrite_export_commit": "25b56cffe4f9c0f15b3f3239cb37bdacce7c5a5b",
+      "recorded_sum": "h1:zmJBsQAJGYC6h2UGUT/PMd5FUOItG7u2hbeQNWty8ys="
+    },
+    {
+      "version": "v0.4.0-rc.32",
+      "source_tag": "unfold-v0.4.0-rc.32",
+      "source_revision": "888011d3b8c6ce13fd4c0eb62339d5a6ae84c023",
+      "source_subtree": "3bb69f7475b9f9855a161d7521ac01e24a4d9cd2",
+      "export_commit": "d1f6b34d5c50e609b4b34bd26b45f0d0c662bf4e",
+      "export_tree": "3bb69f7475b9f9855a161d7521ac01e24a4d9cd2",
+      "export_parent": "05b93bb4b7c063cb0ca733e4bbf3d699c5044af4",
+      "export_author": "Unfold release",
+      "trailers_match_source": true,
+      "current_exporter_reproduces_commit": true,
+      "sum_of_current_export": "h1:dlSozq7OV4jTy2rs6vtehifvVUsw6L7p2xi9xC7A2Wk=",
+      "checksum_database_sum": "h1:g7VbZFYTSwX5NdZqhKEpGQNGja3nUsIh/BApPg5eLl4=",
+      "files_changed_since_checksum": [
+        ".mailmap",
+        "docs/research/2026-09-28-board-routing-options.md",
+        "openspec/changes/open-change-requests-on-gitlab/adr.md",
+        "openspec/changes/open-change-requests-on-gitlab/design.md",
+        "openspec/changes/open-change-requests-on-gitlab/proposal.md",
+        "openspec/changes/open-change-requests-on-gitlab/tasks.md",
+        "pkg/config/clickup_routing_test.go",
+        "pkg/config/scopeteams_test.go",
+        "pkg/httpapi/pinteam_test.go",
+        "pkg/worker/forge_test.go",
+        "pkg/worker/prompt_forge_test.go"
+      ],
+      "pre_rewrite_source_revision": "9a7bda365e475d206eec42d016d966d02b002864",
+      "pre_rewrite_export_commit": "ee056fae3dd6428263ab594188d6c961dfb50d15",
+      "recorded_sum": "h1:g7VbZFYTSwX5NdZqhKEpGQNGja3nUsIh/BApPg5eLl4="
+    }
+  ],
+  "public_module_repository": {
+    "tags": [
+      "v0.0.0",
+      "v0.1.0",
+      "v0.1.0-rc.1",
+      "v0.1.0-rc.10",
+      "v0.1.0-rc.2",
+      "v0.1.0-rc.3",
+      "v0.1.0-rc.4",
+      "v0.1.0-rc.5",
+      "v0.1.0-rc.6",
+      "v0.1.0-rc.7",
+      "v0.1.0-rc.8",
+      "v0.1.0-rc.9",
+      "v0.2.0-rc.1",
+      "v0.2.0-rc.10",
+      "v0.2.0-rc.11",
+      "v0.2.0-rc.12",
+      "v0.2.0-rc.13",
+      "v0.2.0-rc.14",
+      "v0.2.0-rc.15",
+      "v0.2.0-rc.16",
+      "v0.2.0-rc.17",
+      "v0.2.0-rc.18",
+      "v0.2.0-rc.19",
+      "v0.2.0-rc.2",
+      "v0.2.0-rc.20",
+      "v0.2.0-rc.21",
+      "v0.2.0-rc.22",
+      "v0.2.0-rc.24",
+      "v0.2.0-rc.3",
+      "v0.2.0-rc.4",
+      "v0.2.0-rc.5",
+      "v0.2.0-rc.6",
+      "v0.2.0-rc.7",
+      "v0.2.0-rc.8",
+      "v0.2.0-rc.9",
+      "v0.3.0-rc.5",
+      "v0.4.0-rc.10",
+      "v0.4.0-rc.11",
+      "v0.4.0-rc.14",
+      "v0.4.0-rc.18",
+      "v0.4.0-rc.19",
+      "v0.4.0-rc.20",
+      "v0.4.0-rc.21",
+      "v0.4.0-rc.29",
+      "v0.4.0-rc.30",
+      "v0.4.0-rc.31",
+      "v0.4.0-rc.32",
+      "v0.4.0-rc.8",
+      "v0.4.0-rc.9",
+      "withdrawn-v1.0.0-rc.1"
+    ],
+    "branches": {
+      "refs/heads/codex/ploeg-migration-review": "92753517a125b50e24c7cf20bd268007ddd4d76c",
+      "refs/heads/development": "05b93bb4b7c063cb0ca733e4bbf3d699c5044af4",
+      "refs/heads/main": "aa5a29589a32fcc446c7910b8c2833ea5e5e28c0"
+    }
+  },
+  "candidate": {
+    "status": "proposed, not published; values are computed from the audit revision and change with every Ploeg commit",
+    "version": "v0.5.0-rc.1",
+    "source_revision": "25f025253b719a8b4200e33ec372531b5dbca14f",
+    "source_subtree": "bf15fda0cac49306630a585bedac30bd3b1ad181",
+    "export_tree": "bf15fda0cac49306630a585bedac30bd3b1ad181",
+    "export_parent": "05b93bb4b7c063cb0ca733e4bbf3d699c5044af4",
+    "exporter": "scripts/publish_release.py export_commit: git commit-tree <tag>:apps/ploeg -p 05b93bb4 with author and committer \"Unfold release <ci@webgrip.dev>\" at the source commit date and the message \"Export <tag>\" plus Unfold-Source and Unfold-Tree trailers",
+    "sum": "h1:qq8HtN99W8a9eK3g5fXvNuKLZdilPKQZeyEd2ebNWpU=",
+    "go_mod_sum": "h1:iMLLEaBEXVLMDzDZVevMMpW+uKPPN+VoK0Z+QczKyHQ=",
+    "sum_method": "golang.org/x/mod/sumdb/dirhash Hash1 over the export tree, reimplemented in the audit and checked against go mod download for all 14 current exports"
+  }
+}

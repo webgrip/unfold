@@ -2,8 +2,8 @@
 type: reference
 audience: [operator, contributor, agent]
 owner: unfold
-last_verified: 2026-10-01
-verified_by: "Entry points, triggers, jobs, gates, caches, the warnings job and release repair checked against the workflow files, the local actions, renovate.json, apps/.releaserc.cjs, scripts/verify.mjs, scripts/ci-warnings.mjs, scripts/release-repair.mjs and scripts/workflow-policy.test.cjs"
+last_verified: 2026-10-03
+verified_by: "Entry points, triggers, jobs, gates, caches, the warnings job and release repair checked against the workflow files, the local actions, renovate.json, apps/.releaserc.cjs, scripts/verify.mjs, scripts/ci-warnings.mjs, scripts/release-repair.mjs, scripts/release-policy.cjs, scripts/release-floors.json and scripts/workflow-policy.test.cjs"
 ---
 
 # CI and release workflows
@@ -58,8 +58,14 @@ Application publication uses normal, explicitly gated jobs and the existing pinn
 
 The naming and separation follow the original [Vloer entry points](https://forgejo.webgrip.dev/webgrip/de-vloer/src/commit/c5718cde7e1c7520927c64613c38beee11e087f7/.forgejo/workflows/) and the [infrastructure monorepo](https://forgejo.webgrip.dev/webgrip/infrastructure/src/branch/main/.forgejo/workflows/). Forgejo's [workflow reference](https://forgejo.org/docs/latest/user/actions/reference/) describes the event, dependency and composite-action syntax. Shared actions and reusable workflows retain their existing pinned versions; Renovate owns updates.
 
+## Release floors
+
+[scripts/release-floors.json](../../scripts/release-floors.json) records, per application, the highest version any destination already holds (the floor), the versions above it that can never be used again, and the tag prefixes that have carried the application. Ploeg and Vloer both have the floor `0.4.0-rc.34`; Ploeg's withdrawn `1.0.0-rc.1` is still published and listed as never reusable. The [audit record](../research/2026-10-03-release-floors-and-identity.md) shows where each version lives.
+
+The release policy's `verifyRelease` refuses a computed version that is at or below either application's floor, or at or below any existing `unfold-v`, `glide-v`, `ploeg-v` or `vloer-v` tag. It lists every tag in the checkout, including tags a stale merge left unreachable from `development`, so a recomputed version stops before semantic-release commits or tags anything. The two publishers refuse a version at or below their application's floor before they read a registry or the forge. A retry of an existing release checks out its own tag and therefore keeps the floors it was cut with. [release_floors.py](../../scripts/release_floors.py) and [release-floors.cjs](../../scripts/release-floors.cjs) implement the same comparison and run the same [cases](../../scripts/fixtures/release-floor-cases.json). Raise a floor only with new audit evidence, and never lower one.
+
 ## Validation and remaining qualification
 
-Run `mise run verify` and `mise run release-check`. The latter executes the [release-policy tests](../../scripts/release-policy.test.cjs), [release-isolation tests](../../scripts/release-isolation.test.cjs) and [workflow routing tests](../../scripts/workflow-policy.test.cjs) in the pinned release container. They cover application-tag rejection, manual ref matching, disabled publication, signing prerequisites and dependency integrity. Set `UNFOLD_RELEASE_HISTORY=true` to also compute the next version from the actual history.
+Run `mise run verify` and `mise run release-check`. The latter executes the [release-policy tests](../../scripts/release-policy.test.cjs), [release-isolation tests](../../scripts/release-isolation.test.cjs) and [workflow routing tests](../../scripts/workflow-policy.test.cjs) in the pinned release container. They cover application-tag rejection, manual ref matching, disabled publication, signing prerequisites, dependency integrity, release floors and orphaned tags. Set `UNFOLD_RELEASE_HISTORY=true` to also compute the next version from the actual history and check it against the floors and the repository's tags; this needs a full clone, not a worktree, because the container mounts only the checkout.
 
 The [documentation publisher](docs-publishing.md) has its own `UNFOLD_DOCS_PUBLISH_ENABLED` gate and dedicated Garage bucket. It uses the shared TechDocs generation and Zensical deployment workflows at `v2.7.1`. Its scoped credentials cannot publish application packages. Source exports, application destination permissions and complete artifact delivery still require the evidence listed in the [cutover preparation gates](first-cutover.md#2-close-the-release-blockers). Passing workflow tests or a release preview does not close those gates.
