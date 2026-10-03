@@ -967,3 +967,57 @@ test('the demo, an http baseUrl and no baseUrl all announce nothing', async t =>
   assert.equal(fixture.calls.length, 0);
 });
 
+const routeRefusal = (externalId: string, extra: Record<string, unknown> = {}) => ({ provider: 'vikunja', externalId, externalScope: '10', team: 'delivery', title: `Refused task ${externalId}`, labels: ['do-next'], code: 'label_missing', reason: 'board rule "10" requires a repository label and the item has none; add one of: repo/homelab-cluster, repo/unfold', allowedLabels: ['repo/homelab-cluster', 'repo/unfold'], refusedAt: '2026-10-02T09:00:00Z', ...extra });
+const unfoldBoard = { id: 'unfold', name: 'Unfold', provider: 'vikunja' as const, baseUrl: 'https://vikunja.example.test/api/v1', project: '10', repositoryId: 'unfold', executionOwner: 'ploeg' as const };
+
+function refusalsUpstream(upstreamApi: Awaited<ReturnType<typeof upstream>>, answer: (res: ServerResponse) => boolean) {
+  upstreamApi.intercept((req, res) => new URL(req.url!, 'http://fixture.invalid').pathname.endsWith('/route-refusals') ? answer(res) : false);
+}
+
+test('Now lists the tasks Ploeg could not start, with the board name and the task’s own link from the matching task source', async (t) => {
+  const upstreamApi = await upstream(t);
+  refusalsUpstream(upstreamApi, res => reply(res, 200, { generatedAt: '2026-10-02T10:00:00Z', windowDays: 14, refusals: [
+    routeRefusal('1612'),
+    routeRefusal('1620', { externalScope: '99', code: 'label_not_allowed', labels: ['repo/infrastructure'] }),
+    routeRefusal('1630', { team: 'research' }),
+  ] }));
+  const ploeg = new PloegClient({ ...configuration('/unused', 'live'), ploeg: { ...upstreamApi.config, trackerUrl: 'https://vikunja.example.test', userTeams: { reader: ['delivery'] } }, taskSources: [unfoldBoard] });
+  const now = await ploeg.now({ id: 'reader', name: 'reader', role: 'operator' as const });
+  assert.equal(now.errors.refused, undefined);
+  assert.deepEqual(now.refused.map(entry => entry.externalId), ['1612', '1620'], 'a refusal of a team the caller cannot see is left out');
+  assert.deepEqual({ board: now.refused[0].board, url: now.refused[0].url, link: now.refused[0].link }, { board: 'Unfold', url: 'https://vikunja.example.test/tasks/1612', link: 'task' });
+  assert.deepEqual(now.refused[0].allowedLabels, ['repo/homelab-cluster', 'repo/unfold']);
+  assert.equal(now.refused[0].code, 'label_missing');
+  assert.deepEqual({ board: now.refused[1].board, url: now.refused[1].url, link: now.refused[1].link }, { board: '', url: 'https://vikunja.example.test', link: 'tracker' }, 'without a matching source the tracker root is the link');
+  assert(upstreamApi.seen.some(entry => entry.path === '/api/v1/operator/route-refusals'), 'the list is read without query parameters');
+});
+
+test('Now treats an older Ploeg without the refusal list as having none, and a failed read as an error of that group only', async (t) => {
+  const upstreamApi = await upstream(t);
+  const older = await client(upstreamApi.config).now(admin);
+  assert.deepEqual(older.refused, []);
+  assert.equal(older.errors.refused, undefined, 'a 404 is an older Ploeg, not a failure');
+  refusalsUpstream(upstreamApi, res => reply(res, 503, { error: { code: 'unavailable', message: 'Planned outage.' } }));
+  const failed = await client(upstreamApi.config).now(admin);
+  assert.deepEqual(failed.refused, []);
+  assert.match(failed.errors.refused ?? '', /Ploeg could not provide/);
+  assert.equal(failed.errors.waiting, undefined);
+  assert(failed.waiting.length > 0, 'the other groups still return their work');
+  refusalsUpstream(upstreamApi, res => reply(res, 200, { generatedAt: '2026-10-02T10:00:00Z', windowDays: 14, refusals: [{ ...routeRefusal('1'), allowedLabels: 'repo/unfold' }] }));
+  const malformed = await client(upstreamApi.config).now(admin);
+  assert.deepEqual(malformed.refused, []);
+  assert.match(malformed.errors.refused ?? '', /unsupported/);
+  refusalsUpstream(upstreamApi, res => reply(res, 200, { generatedAt: '2026-10-02T10:00:00Z', windowDays: 14, refusals: [routeRefusal('2', { code: 'a_code_from_the_future' })] }));
+  assert.equal((await client(upstreamApi.config).now(admin)).refused[0].code, 'unclassified', 'an unknown code is shown with Ploeg’s reason');
+});
+
+test('the demo shows exactly one refusal, marked as illustrative, without calling Ploeg or a tracker', async () => {
+  const demo = new PloegClient(configuration('/unused', 'demo'));
+  const now = await demo.now(admin);
+  assert.equal(now.demo, true);
+  assert.equal(now.refused.length, 1);
+  assert.match(now.refused[0].title, /^Illustrative/);
+  assert.equal(now.refused[0].url, '', 'the demo links to no tracker');
+  assert.equal(now.errors.refused, undefined);
+});
+

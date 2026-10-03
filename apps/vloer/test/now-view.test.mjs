@@ -427,3 +427,62 @@ test('Now shows no unsettled callout with none, without the list, or in the demo
     assert.match(html, /now-stats/, 'Now still renders');
   }
 });
+
+function refusal(code, extra = {}) {
+  return { provider: 'vikunja', externalId: '1612', externalScope: '10', team: 'delivery', title: 'ploeg: cap reviewer retries per Round', labels: [], code, reason: `Ploeg reason for ${code}`, allowedLabels: ['repo/homelab-cluster', 'repo/unfold'], refusedAt: '2026-09-20T09:20:00Z', board: 'Unfold', url: 'https://vikunja.example.test/tasks/1612', link: 'task', ...extra };
+}
+
+test('Needs you lists a task Ploeg could not start first, says why in plain words and opens it in its tracker', () => {
+  const data = { ...nowData(), refused: [refusal('label_missing')] };
+  const html = nowMarkup(view({ data }), options, nowAt);
+  assert.match(html, /id="now-group-needs"[\s\S]*Could not start[\s\S]*Review the rounding criteria/, 'the group leads Needs you');
+  assert.match(html, /Vikunja #1612/, 'the row names the task reference');
+  assert.match(html, /ploeg: cap reviewer retries per Round/);
+  assert.match(html, /The Unfold board needs a repo\/ label on this task\. Allowed: repo\/homelab-cluster, repo\/unfold\./);
+  assert.match(html, /<a class="button[^"]*"[^>]*href="https:\/\/vikunja\.example\.test\/tasks\/1612"[^>]*>[\s\S]*?Open in Vikunja/, 'a primary button opens the task itself');
+  const group = html.slice(html.indexOf('Could not start'), html.indexOf('Review the rounding criteria'));
+  assert.doesNotMatch(group, /Work Item/, 'a refused task is not called a Work Item');
+});
+
+test('each refusal code has its own sentence and an unclassified one shows Ploeg’s reason', () => {
+  const codes = ['label_missing', 'label_not_allowed', 'label_unregistered', 'multiple_labels', 'labels_unread', 'no_board_rule', 'target_not_ready'];
+  const sentences = codes.map(code => {
+    const html = nowMarkup(view({ data: { ...nowData(), refused: [refusal(code, { labels: ['repo/infrastructure'] })] } }), options, nowAt);
+    const match = /<span class="now-why now-why-fix"[^>]*>([^<]+)<\/span>/.exec(html.slice(html.indexOf('Could not start')));
+    assert(match, `${code} has a sentence`);
+    return match[1];
+  });
+  assert.equal(new Set(sentences).size, codes.length, 'no two codes share a sentence');
+  assert.match(sentences[1], /repo\/infrastructure is not allowed on the Unfold board\. Use one of repo\/homelab-cluster, repo\/unfold\./);
+  const unclassified = nowMarkup(view({ data: { ...nowData(), refused: [refusal('unclassified', { reason: 'label "repo/x" names no registered target', allowedLabels: [] })] } }), options, nowAt);
+  assert.match(unclassified, /label &quot;repo\/x&quot; names no registered target/);
+});
+
+test('a refused task shows even when nothing else waits, and a tracker root or no link changes the button', () => {
+  const data = { ...nowData(), waiting: [], refused: [refusal('label_missing', { url: 'https://vikunja.example.test', link: 'tracker', board: '' })] };
+  const html = nowMarkup(view({ data }), options, nowAt);
+  assert.doesNotMatch(html, /Nothing waits on you/);
+  assert.match(html, /Could not start/);
+  assert.match(html, /This board needs a repo\/ label on this task\./);
+  assert.match(html, /href="https:\/\/vikunja\.example\.test\/?"[^>]*>[\s\S]*?Open Vikunja/);
+  const bare = nowMarkup(view({ data: { ...nowData(), refused: [refusal('label_missing', { url: '', link: 'none' })] } }), options, nowAt);
+  assert.doesNotMatch(bare, /Open in Vikunja|Open Vikunja/);
+});
+
+test('a failed refusal read shows an inline notice with Try again and leaves every other section in place', () => {
+  const data = { ...nowData(), refused: [], errors: { refused: 'Ploeg could not provide its operator data.' } };
+  const input = view({ data });
+  const html = nowMarkup(input, options, nowAt);
+  assert.match(html, /Could not load tasks Ploeg could not start/);
+  assert.match(html, /id="now-retry-refused"[^>]*data-action="now-retry"/);
+  for (const text of ['Ready for your review', 'Review the rounding criteria', 'Running now', 'Recently finished']) assert.match(html, new RegExp(text));
+  assert.equal(offersRetry(input), true);
+  const older = nowMarkup(view(), options, nowAt);
+  assert.doesNotMatch(older, /Could not start|Could not load tasks Ploeg could not start/, 'an older Ploeg without the list shows no group and no notice');
+});
+
+test('a refused task’s text and link are escaped', () => {
+  const data = { ...nowData(), refused: [refusal('unclassified', { title: '<img src=x onerror=alert(1)>', reason: '<script>x</script>', url: 'javascript:alert(1)' })] };
+  const html = nowMarkup(view({ data }), options, nowAt);
+  assert.doesNotMatch(html, /<img src=x|<script>x|javascript:/);
+});

@@ -169,6 +169,12 @@ function taskUrl(source: TaskSourceConfig, id: string, value: Record<string, unk
   return `${base}/${project}/${source.provider === 'gitlab' ? '-/issues' : 'issues'}/${id}`;
 }
 
+/** The web link of task `id` in `source`, built without reading the task, or an empty string when that is not possible (a GitLab project named by number) or `id` is not a plain identifier. */
+export function sourceTaskUrl(source: TaskSourceConfig, id: string): string {
+  if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(id)) return '';
+  try { return taskUrl(source, id, {}); } catch { return ''; }
+}
+
 /** Adds `descriptionMarkdown` for display: a Vikunja HTML description becomes Markdown, any other description is copied unchanged. The snapshot's own fields, and so its revision and import, are untouched. */
 export function presentTask(source: TaskSourceConfig, task: TaskSnapshot): PresentedTask {
   let markdown = descriptionMarkdown(task.provider, task.description, `${webRoot(source)}/`);
