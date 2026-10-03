@@ -3,6 +3,7 @@ package store
 import (
 	"math"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/webgrip/ploeg/pkg/gate"
@@ -10,19 +11,22 @@ import (
 
 // GradeFormula is the version of the grade formula Ploeg computes: 2026.1
 // (ADR-0050) with reliability and durability inputs from cracks, mends,
-// reverts and hotfixes (ADR-0052). Any change to how a grade is computed
-// changes it.
-const GradeFormula = "2026.2"
+// reverts and hotfixes (ADR-0052), review lowered only by rework rounds and
+// missing inputs capping their subgrade (ADR-0061). Any change to how a
+// grade is computed changes it. Every read computes the grade under this
+// version, including the grades of cards read before it shipped.
+const GradeFormula = "2026.3"
 
 // ProvisionalDays is how long a card is live before its grade stops being
 // provisional.
 const ProvisionalDays = 180
 
 // CardGrade is the card's grade under formula GradeFormula, computed from
-// stored facts when the card is read (ADR-0050). Overall and every subgrade
-// run from 1 to 10 in half steps. Label is nil while Provisional; after
-// that it is black when all four subgrades are 10, gold when Overall is 10,
-// and nil otherwise. Qualifiers holds RV when a play was reverted, HF when a
+// stored facts when the card is read (ADR-0050, ADR-0061). Overall and every
+// subgrade run from 1 to 10 in half steps. A subgrade with an input listed in
+// Inputs.Missing is at most 9. Label is nil while Provisional or while any
+// input is missing; after that it is black when all four subgrades are 10,
+// gold when Overall is 10, and nil otherwise. Qualifiers holds RV when a play was reverted, HF when a
 // hotfix mended one of its cracks, OB when the recorded cost passed the
 // authorized budget and RT when a Run failed, in that order.
 type CardGrade struct {
@@ -44,14 +48,17 @@ type CardSubgrades struct {
 }
 
 // CardGradeInputs are the facts each subgrade used. A nil input is one Ploeg
-// does not know; NotCollected names, as "subgrade.input", every input Ploeg
-// has no source for yet, which therefore never moves a grade.
+// does not know. NotCollected names, as "subgrade.input", every input Ploeg
+// has no source for on any card, which therefore never moves a grade.
+// Missing names, the same way, every input Ploeg has a source for but no
+// fact on this card; the evidence is complete when Missing is empty.
 type CardGradeInputs struct {
 	Reliability  CardReliabilityInputs `json:"reliability"`
 	Durability   CardDurabilityInputs  `json:"durability"`
 	Delivery     CardDeliveryInputs    `json:"delivery"`
 	Review       CardReviewInputs      `json:"review"`
 	NotCollected []string              `json:"notCollected"`
+	Missing      []string              `json:"missing"`
 }
 
 // CardReliabilityInputs: CrackWeight sums the weight of every confirmed
@@ -84,14 +91,18 @@ type CardDeliveryInputs struct {
 	FailedRuns    int      `json:"failedRuns"`
 }
 
-// CardReviewInputs: ChangeRequests counts human reviews that requested
-// changes. ReviewRounds counts the distinct (play, head commit) pairs humans
-// reviewed. CIFirstGreen and Findings are not collected.
+// CardReviewInputs: ReworkRounds counts the distinct (play, head commit)
+// pairs on which a human requested changes, and is the only input that
+// lowers review. ChangeRequests counts the human reviews that requested
+// changes and ReviewRounds the distinct (play, head commit) pairs humans
+// reviewed; both are context and move nothing. CIFirstGreen and Findings
+// are not collected.
 type CardReviewInputs struct {
 	CIFirstGreen   *bool `json:"ciFirstGreen"`
 	Findings       *int  `json:"findings"`
 	ChangeRequests int   `json:"changeRequests"`
 	ReviewRounds   int   `json:"reviewRounds"`
+	ReworkRounds   int   `json:"reworkRounds"`
 }
 
 var gradeNotCollected = []string{
@@ -105,12 +116,12 @@ const (
 	gradeWeightDelivery    = 0.20
 	gradeWeightReview      = 0.15
 
-	penaltyDefectBounce  = 1.5
-	penaltyExtraPlay     = 1.0
-	penaltyFailedRun     = 0.5
-	penaltyChangeRequest = 1.0
-	penaltyExtraRound    = 0.5
-	provisionalCap       = 9.0
+	penaltyDefectBounce = 1.5
+	penaltyExtraPlay    = 1.0
+	penaltyFailedRun    = 0.5
+	penaltyReworkRound  = 1.0
+	provisionalCap      = 9.0
+	missingCap          = 9.0
 )
 
 type gradeFacts struct {
@@ -123,6 +134,7 @@ type gradeFacts struct {
 	failedRuns     int
 	changeRequests int
 	reviewRounds   int
+	reworkRounds   int
 	crackWeight    float64
 	cracked        bool
 	reverts        int
@@ -146,7 +158,7 @@ func budgetPenalty(share *float64) float64 {
 }
 
 func computeGrade(f gradeFacts) CardGrade {
-	in := CardGradeInputs{NotCollected: append([]string{}, gradeNotCollected...)}
+	in := CardGradeInputs{NotCollected: append([]string{}, gradeNotCollected...), Missing: []string{}}
 	weight, reverted, reverts, hotfixes := f.crackWeight, f.reverts > 0, f.reverts, f.hotfixes
 	in.Reliability.CrackWeight, in.Reliability.Reverted = &weight, &reverted
 	in.Durability.Reverts, in.Durability.Hotfixes = &reverts, &hotfixes
@@ -165,19 +177,30 @@ func computeGrade(f gradeFacts) CardGrade {
 	in.Delivery.FailedRuns = f.failedRuns
 	in.Review.ChangeRequests = f.changeRequests
 	in.Review.ReviewRounds = f.reviewRounds
+	in.Review.ReworkRounds = f.reworkRounds
+	if in.Delivery.BudgetShare == nil {
+		in.Missing = append(in.Missing, "delivery.budgetShare")
+	}
+	if f.defectBounces == nil {
+		in.Missing = append(in.Missing, "delivery.defectBounces")
+	}
 
 	defects := 0
 	if f.defectBounces != nil {
 		defects = *f.defectBounces
 	}
-	extraRounds := max(0, f.reviewRounds-1)
 	sub := CardSubgrades{
 		Reliability: reliability(weight, f.cracked, reverted),
 		Durability: halfStep(6 + 4*math.Sqrt(math.Min(1, float64(in.Durability.DaysLive)/ProvisionalDays)) -
 			penaltyRevert*float64(reverts) - penaltyHotfix*float64(hotfixes)),
 		Delivery: halfStep(10 - budgetPenalty(in.Delivery.BudgetShare) - penaltyDefectBounce*float64(defects) -
 			penaltyExtraPlay*float64(in.Delivery.ExtraPlays) - penaltyFailedRun*float64(f.failedRuns)),
-		Review: halfStep(10 - penaltyChangeRequest*float64(f.changeRequests) - penaltyExtraRound*float64(extraRounds)),
+		Review: halfStep(10 - penaltyReworkRound*float64(f.reworkRounds)),
+	}
+	for _, input := range in.Missing {
+		if part := sub.part(strings.SplitN(input, ".", 2)[0]); part != nil {
+			*part = math.Min(*part, missingCap)
+		}
 	}
 	g := CardGrade{Formula: GradeFormula, Subgrades: sub, Inputs: in, Qualifiers: []string{},
 		Provisional: in.Durability.DaysLive < ProvisionalDays}
@@ -187,7 +210,7 @@ func computeGrade(f gradeFacts) CardGrade {
 		g.Overall = math.Min(g.Overall, provisionalCap)
 	}
 	switch {
-	case g.Provisional:
+	case g.Provisional, len(in.Missing) > 0:
 	case sub.Reliability == 10 && sub.Durability == 10 && sub.Delivery == 10 && sub.Review == 10:
 		label := "black"
 		g.Label = &label
@@ -210,6 +233,20 @@ func computeGrade(f gradeFacts) CardGrade {
 	return g
 }
 
+func (s *CardSubgrades) part(name string) *float64 {
+	switch name {
+	case "reliability":
+		return &s.Reliability
+	case "durability":
+		return &s.Durability
+	case "delivery":
+		return &s.Delivery
+	case "review":
+		return &s.Review
+	}
+	return nil
+}
+
 func reliability(weight float64, cracked, reverted bool) float64 {
 	if reverted {
 		weight = math.Max(weight, revertFloorWeight)
@@ -224,7 +261,7 @@ func reliability(weight float64, cracked, reverted bool) float64 {
 func (c *OperatorCard) grade(journey *gate.Journey, crackWeight float64, cracked bool, now time.Time) *CardGrade {
 	verdict, merged := false, false
 	changeRequests := 0
-	rounds := map[string]bool{}
+	rounds, rework := map[string]bool{}, map[string]bool{}
 	for _, p := range c.Plays {
 		if p.State == "merged" {
 			merged = true
@@ -233,21 +270,23 @@ func (c *OperatorCard) grade(journey *gate.Journey, crackWeight float64, cracked
 			if !c.human(r.Reviewer) {
 				continue
 			}
+			round := strconv.Itoa(p.Number) + "@" + r.HeadSHA
 			switch r.State {
 			case "approved":
 				verdict = true
 			case "changes_requested":
 				verdict = true
 				changeRequests++
+				rework[round] = true
 			}
-			rounds[strconv.Itoa(p.Number)+"@"+r.HeadSHA] = true
+			rounds[round] = true
 		}
 	}
 	if !verdict && !merged {
 		return nil
 	}
 	f := gradeFacts{now: now, costUSD: c.Totals.CostUSD, authorizedUSD: c.Totals.AuthorizedUSD, plays: len(c.Plays),
-		failedRuns: c.Totals.FailedRuns, changeRequests: changeRequests, reviewRounds: len(rounds),
+		failedRuns: c.Totals.FailedRuns, changeRequests: changeRequests, reviewRounds: len(rounds), reworkRounds: len(rework),
 		crackWeight: crackWeight, cracked: cracked, reverts: c.reverts, hotfixes: c.hotfixes}
 	if c.Release != nil {
 		at := c.Release.At

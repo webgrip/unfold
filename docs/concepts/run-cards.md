@@ -2,8 +2,8 @@
 type: explanation
 audience: [owner, operator, contributor, agent]
 owner: unfold
-last_verified: 2026-10-02
-verified_by: "built parts read against Ploeg ADR-0045, ADR-0046, ADR-0047, ADR-0049, ADR-0057 (apps/ploeg/pkg/flow) and ADR-0058 (apps/ploeg/pkg/playkpi), Vloer ADR 0026, apps/ploeg/pkg/store/card.go and apps/vloer/public/cards on development @ 810c97a; binders, packs and seasons read against Vloer ADR 0029 and apps/vloer/src/{collection,packs,season}.ts on feat/vloer-binder-packs; proposed parts checked against the owner's design page and card contracts of 2026-10-01; the Vloer collection was run in its demo browser flow"
+last_verified: 2026-10-03
+verified_by: "grade read against Ploeg ADR-0050, ADR-0052 and ADR-0061 and apps/ploeg/pkg/store/card_grade.go (formula 2026.3); built parts read against Ploeg ADR-0045, ADR-0046, ADR-0047, ADR-0049, ADR-0057 (apps/ploeg/pkg/flow) and ADR-0058 (apps/ploeg/pkg/playkpi), Vloer ADR 0026, apps/ploeg/pkg/store/card.go and apps/vloer/public/cards on development @ 810c97a; binders, packs and seasons read against Vloer ADR 0029 and apps/vloer/src/{collection,packs,season}.ts on feat/vloer-binder-packs; proposed parts checked against the owner's design page and card contracts of 2026-10-01; the Vloer collection was run in its demo browser flow"
 ---
 
 # Run Cards
@@ -44,7 +44,8 @@ The first three build phases are merged on `development`: P0 keeps the facts a c
 | Pull request, CI and change figures: time to first feedback, approval and merge, review rounds, comments, commits, CI runs, reruns, queue and minutes, indentation complexity, test ratio | Built in Ploeg; ADR proposed; Vloer shows them (Vloer ADR 0035) | [Ploeg ADR-0058](../../apps/ploeg/docs/adrs/0058-a-run-cards-pull-request-ci-and-change-shape-figures-are-read-from-the-forge-and-kept-per-play.md) |
 | Key figures: time in every tracker status, lead and cycle time, flow efficiency, time to first feedback, CI timings and reruns, indentation complexity, merge to production; three or four on the card's front for its state, the rest on its back, team medians on the season page | Built in Vloer on Ploeg ADR-0057 and ADR-0058; ADRs proposed | [Vloer ADR 0035](../../apps/vloer/docs/adrs/0035-run-cards-lead-with-three-or-four-kpis-for-their-state-and-keep-the-rest-on-the-back.md) |
 | Binders, Packs with published odds and stored cosmetic pulls, the pack ceremony and team season pages | Vloer side built against the card contract and fixtures; ADR proposed; Ploeg's card list built in parallel | [Vloer ADR 0029](../../apps/vloer/docs/adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md) |
-| Grade, condition (Cracks and Mends), level, Gates and Bounces, Roster roles and copies, the Steward rule, Set Cards, themes, the effects director, retention | **Proposed** | This page |
+| Grade: formula 2026.3, computed on read, with the inputs it used and the ones it missed | Built in Ploeg; ADRs proposed; Vloer draws it | [Ploeg ADR-0050](../../apps/ploeg/docs/adrs/0050-a-run-cards-grade-is-a-versioned-formula-over-stored-facts.md), [ADR-0052](../../apps/ploeg/docs/adrs/0052-a-crack-needs-the-fixer-and-a-second-person-and-ploeg-only-proposes-candidates.md), [ADR-0061](../../apps/ploeg/docs/adrs/0061-a-run-cards-grade-penalizes-rework-not-review-and-says-which-inputs-it-missed.md) |
+| Condition (Cracks and Mends), level, Gates and Bounces, Roster roles and copies, the Steward rule, Set Cards, themes, the effects director, retention | **Proposed** | This page |
 
 To make a project count days live from real deploys, see [Send deploys from a pipeline to Ploeg](../../apps/ploeg/docs/how-to/send-deploys-from-a-pipeline.md). Until a project reports deploys, the release counts from the merge, and the card says so.
 
@@ -91,14 +92,16 @@ A **Finish** is earned by staying live in production. Vloer computes it from Plo
 
 Days live are whole days since the first production deploy of the latest merged Play. When the repository has never reported a production deploy, they count from the merge, and the card reads "counted from merge · no deploy signal" ([Ploeg ADR-0047](../../apps/ploeg/docs/adrs/0047-ploeg-learns-where-a-merged-change-is-deployed-from-a-generic-deploy-endpoint.md)). Each step adds one visual layer and never replaces the project's art, and the finish advances on its own, so nobody grinds for it.
 
-### Grade: proposed
+### Grade
 
-A **Grade** works like a graded slab: 1 to 10 in half steps, computed as 0.40 reliability + 0.25 durability + 0.20 delivery + 0.15 review.
+A **Grade** works like a graded slab: 1 to 10 in half steps, computed as 0.40 reliability + 0.25 durability + 0.20 delivery + 0.15 review. Ploeg computes it under formula 2026.3 ([Ploeg ADR-0061](../../apps/ploeg/docs/adrs/0061-a-run-cards-grade-penalizes-rework-not-review-and-says-which-inputs-it-missed.md), proposed, on top of ADR-0050 and ADR-0052), and Vloer draws it.
 
 * **Provisional cap.** While a card is under 180 days live, its grade is capped at 9. A 10 is possible only once it is Proven.
-* **Labels.** Black Label is 10 on all four subgrades. Gold Label is an overall 10.
-* **Qualifiers** name one honest defect instead of hiding it: `RV` reverted, `HF` hotfixed, `OB` over budget, `RT` retried Run, `MN` manual takeover.
-* **Versioned formula.** The formula carries a version, and its inputs are printed on the back, so a grade is an attested fact rather than an opinion. A formula change never silently re-grades old cards.
+* **Labels.** Black Label is 10 on all four subgrades. Gold Label is an overall 10. A card with a missing input earns no label.
+* **Qualifiers** name one honest defect instead of hiding it: `RV` reverted, `HF` hotfixed, `OB` over budget, `RT` retried Run. `MN`, manual takeover, is proposed.
+* **Review counts rework, not care.** Review loses a point for each round in which a person asked for changes, once per commit however many reviewers asked. Approvals, comments and extra rounds of review cost nothing, so a careful review never lowers a card.
+* **Missing evidence is shown, never scored as perfect.** When Ploeg can collect an input but has no fact for this card, such as a cost the harness did not report or bounces on a board without gates, the grade lists it as missing. That subgrade is then at most 9, and the card earns no label. Inputs Ploeg cannot collect on any card yet are listed as not collected and move no grade.
+* **Versioned formula, computed on read.** The formula carries a version, and its inputs are printed on the back, so anyone can recompute a grade by hand. Ploeg computes the grade each time the card is read, always under the current formula. When the formula changes, every card shows the new version and the grade it gives; Ploeg does not keep the old grade.
 * **Bounces.** Only defect and unknown bounces count against delivery (see [Gates and bounces](#gates-and-bounces)).
 
 ### Condition: Cracks and Mends (proposed)
@@ -143,7 +146,7 @@ Each Play also carries what its pull request, its CI and its change looked like,
 | --- | --- | --- |
 | Time to first feedback | From ready for review to the first review, inline comment or comment by a person other than the author. Bots never count. | It measures how fast the team responded, not how good the change was or how fast its author worked. A draft counts from when it was marked ready. |
 | Time to first approval, approval to merge, open to merge | From ready to the first approval, from the last approval to the merge, from opening to the merge. | A change approved and then left waiting for a release window looks slow. |
-| Review rounds, comments, reviewers | Distinct commits humans reviewed (as the grade counts rounds), comments by people other than the author, people who submitted a review. | More comments can mean a careful review as easily as a muddled change. |
+| Review rounds, comments, reviewers | Distinct commits humans reviewed, comments by people other than the author, people who submitted a review. | More comments can mean a careful review as easily as a muddled change. |
 | Response time | The median time from a request for changes to the author's next push. | On an agent-written change, the author is Ploeg; this then measures the agent's round, not a person. |
 | Commits, force pushes, coding time | Commits on the pull request, force pushes (Forgejo only; unknown on GitLab), and the time from the earliest commit's author date to ready. | Author dates can be rewritten by a rebase. |
 | CI runs, failures and reruns | Runs across every pushed commit, those that failed, and repeat runs on the same commit. | Reruns are a flakiness signal for the pipeline, not a mark against the change. |

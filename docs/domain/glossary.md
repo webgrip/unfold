@@ -208,7 +208,7 @@ A stage a Work Item passes after review, such as development, test, acceptance a
 ## Grade
 *Context: Cards*
 
-A Run Card's assessment of its change from 1 to 10 in half steps, from four subgrades: 40 % reliability, 25 % durability, 20 % delivery and 15 % review. The formula is versioned and printed on the card, and a card under 180 days live is capped at 9. It grades the change, never a person. Not implemented yet; Ploeg sends null.
+A Run Card's assessment of its change from 1 to 10 in half steps, from four subgrades: 40 % reliability, 25 % durability, 20 % delivery and 15 % review. The formula is versioned and printed on the card, and a card under 180 days live is capped at 9. It grades the change, never a person. Ploeg computes it on read under its current formula, lists the inputs it missed, and sends null until a person reviewed a Play or one merged.
 
 **Not to be confused with** [Verdict](../reference/glossary.md#verdict): A reviewing Run's approve or request_changes answer in one Round. It is one input a Grade could use, not a Grade.  
 **See also:** [Run Card](#run-card), [Crack](#crack), [Bounce](#bounce), [Finish](#finish)  

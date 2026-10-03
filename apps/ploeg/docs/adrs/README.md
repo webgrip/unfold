@@ -134,6 +134,7 @@ fails otherwise.
 | [0058](0058-a-run-cards-pull-request-ci-and-change-shape-figures-are-read-from-the-forge-and-kept-per-play.md) | A Run card's pull request, CI and change-shape figures are read from the forge and kept per play | proposed | 2026-10-02 |
 | [0059](0059-delivery-facts-come-from-the-forge-never-from-the-agents-outcome.md) | Delivery facts come from the forge, never from the agent's outcome | proposed | 2026-10-03 |
 | [0060](0060-authenticated-webhooks-go-through-a-durable-inbox-and-required-publications-through-an-outbox.md) | Authenticated webhooks go through a durable inbox, and required publications through an outbox | proposed | 2026-10-03 |
+| [0061](0061-a-run-cards-grade-penalizes-rework-not-review-and-says-which-inputs-it-missed.md) | A Run card's grade penalizes rework, not review, and says which inputs it missed | proposed | 2026-10-03 |
 
 ## Review calendar
 
@@ -171,4 +172,5 @@ triggers.
 | 2027-01-31 | [0058](0058-a-run-cards-pull-request-ci-and-change-shape-figures-are-read-from-the-forge-and-kept-per-play.md) — or sooner, when Forgejo exposes jobs per run, capture reads show in forge rate limits, the owner wants complexity in rarity, a card list passes 1 s at p95, or measured cards mislead |
 | 2027-01-31 | [0059](0059-delivery-facts-come-from-the-forge-never-from-the-agents-outcome.md) — or sooner, when a worker shares a process with its agent, `infra_forge` sends five Work Items a week to a human, a third forge provider is added, or no older worker reports for two weeks |
 | 2027-01-31 | [0060](0060-authenticated-webhooks-go-through-a-durable-inbox-and-required-publications-through-an-outbox.md) — or sooner, when inbox or outbox throughput passes 50 rows a second, a provider signs its delivery id, a tracker strips both markers, a second deployment shares a forge or tracker, or five required publications go dead in a month |
+| 2027-01-31 | [0061](0061-a-run-cards-grade-penalizes-rework-not-review-and-says-which-inputs-it-missed.md) — or sooner, when the owner asks for a grade that never changes, reviewer findings or first-check CI get a source, a quarter of a month's graded cards miss an input, or twenty cards are graded under 2026.3 |
 | 2027-04-01 | [0005](0005-build-a-dedicated-dispatch-plane.md), [0032](0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md) — the project review gate (`design.md` §10) |

@@ -92,6 +92,11 @@ change either side and the test tells you.
   are integer seconds named `…Seconds`; inside the objects an unknown figure
   is `null`, never `0`. None of them is an input to the grade or the rarity,
   and waiting for a review describes the team, not a person.
+- Since [ADR-0061](../adrs/0061-a-run-cards-grade-penalizes-rework-not-review-and-says-which-inputs-it-missed.md)
+  the grade's `formula` may be `2026.3`, and `cardGradeInputs` always
+  carries `missing` and `review.reworkRounds`. A consumer of an older Ploeg
+  sees them absent. The grade is computed on read under the current formula,
+  so a card read after a formula change shows the new version.
 - `deploy-api.v1` is the body of a pipeline's deploy report. It refuses
   unknown fields, unlike the response contracts, so a misspelled field fails
   the pipeline step instead of being dropped.
