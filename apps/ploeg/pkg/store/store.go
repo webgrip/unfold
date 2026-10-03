@@ -295,6 +295,15 @@ func (s *Store) Claim(ctx context.Context, team string, ttl time.Duration) (*Cla
 	return s.ClaimWithin(ctx, team, ttl, 0)
 }
 
+const nextClaimableQuery = `
+			SELECT id FROM work_items
+			WHERE team = $1 AND state = 'queued' AND NOT operator_owned AND (next_eligible_at IS NULL OR next_eligible_at <= now())
+			  AND NOT EXISTS (SELECT 1 FROM shifts sh WHERE sh.work_item_id = work_items.id AND sh.closed_at IS NULL)
+			ORDER BY priority DESC, created_at
+			FOR UPDATE SKIP LOCKED
+			LIMIT 1
+		`
+
 // ClaimWithin is Claim bounded by the team's concurrency cap. With
 // maxRunning > 0 it returns ErrNoWork while the team already has maxRunning
 // running Runs, exactly as if the queue were empty; 0 means unlimited.
@@ -323,14 +332,7 @@ func (s *Store) ClaimWithin(ctx context.Context, team string, ttl time.Duration,
 	var t work.Target
 	err = tx.QueryRow(ctx, `
 		UPDATE work_items SET state = 'leased', attempts = attempts + 1, updated_at = now()
-		WHERE id = (
-			SELECT id FROM work_items
-			WHERE team = $1 AND state = 'queued' AND NOT operator_owned AND (next_eligible_at IS NULL OR next_eligible_at <= now())
-			  AND NOT EXISTS (SELECT 1 FROM shifts sh WHERE sh.work_item_id = work_items.id AND sh.closed_at IS NULL)
-			ORDER BY priority DESC, created_at
-			FOR UPDATE SKIP LOCKED
-			LIMIT 1
-		)
+		WHERE id = (`+nextClaimableQuery+`)
 		RETURNING id, provider, external_id, revision, team, origin, priority, title, description, url,
 			external_scope, target_forge, target_owner, target_repo, target_base_branch, route_rule, route_hint,
 			COALESCE(source_work_item_id::text, ''), source_branch, source_pr`,

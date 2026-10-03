@@ -528,12 +528,17 @@ func TestClaim_StillUsesClaimableIndex(t *testing.T) {
 	resetTables(t)
 	ingestTargeted(t, "11", "webgrip", "ploeg", "11/silver")
 
-	rows, err := testStore.pool.Query(context.Background(), `
-		EXPLAIN SELECT id FROM work_items
-		WHERE team = 'silver' AND state = 'queued' AND (next_eligible_at IS NULL OR next_eligible_at <= now())
-		  AND NOT EXISTS (SELECT 1 FROM shifts sh WHERE sh.work_item_id = work_items.id AND sh.closed_at IS NULL)
-		ORDER BY priority DESC, created_at
-		FOR UPDATE SKIP LOCKED LIMIT 1`)
+	ctx := context.Background()
+	tx, err := testStore.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	if _, err := tx.Exec(ctx, "SET LOCAL enable_seqscan = off"); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := tx.Query(ctx, "EXPLAIN "+nextClaimableQuery, "silver")
 	if err != nil {
 		t.Fatalf("EXPLAIN: %v", err)
 	}
@@ -546,7 +551,10 @@ func TestClaim_StillUsesClaimableIndex(t *testing.T) {
 		}
 		plan += line + "\n"
 	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
 	if !strings.Contains(plan, "work_items_claimable") {
-		t.Fatalf("claim no longer uses work_items_claimable:\n%s", plan)
+		t.Fatalf("claim can no longer use work_items_claimable:\n%s", plan)
 	}
 }
