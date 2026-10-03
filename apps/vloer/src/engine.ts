@@ -9,7 +9,7 @@ import { PloegError } from './ploeg.ts';
 import { unavailableCandidate } from './candidates.ts';
 import { SigningKey, attestCandidate, candidatePredicateType, tracePredicateType } from './attestations.ts';
 import { readFileSync } from 'node:fs';
-import type { AgentRuntime, AppConfig, Credential, RuntimeKind, Session, User, PermissionRequest, ExecutionResult, RuntimeEvent, WorkspaceBackend, ModelUsage, GatewayRequest } from './types.ts';
+import type { AgentRuntime, AppConfig, Credential, RuntimeKind, Session, User, PermissionRequest, ExecutionResult, RuntimeEvent, WorkspaceBackend, ModelUsage, GatewayRequest, Crew, SessionOutcome } from './types.ts';
 
 type Broker = {
   mint(session: Session): Promise<Credential>;
@@ -24,6 +24,26 @@ type Broker = {
 type Reservation = { reference: string; authorizedUsd: number; revoked: boolean };
 type Active = { controller: AbortController; task: Promise<void> };
 export type CreateSessionInput = { title: string; objective: string; repositoryId: string; crewId: string; runtime: RuntimeKind; placement?: WorkspaceBackend; approval?: 'manual' | 'auto'; model?: string; budgetUsd: number; trackerUrl?: string; sourceTask?: TaskSnapshot };
+
+const reviewOutcomes = { approve: 'approved', request_changes: 'changes_requested', inconclusive: 'inconclusive' } as const;
+
+function completionOutcome(session: Session, crew: Crew | undefined): SessionOutcome {
+  const last = session.runs.at(-1);
+  const reviewer = last?.mode === 'read' ? last : undefined;
+  return {
+    work: crew?.roles.some(role => role.mode === 'write') ? 'change' : 'investigation',
+    candidate: session.candidate?.status === 'ready' ? 'captured' : 'unavailable',
+    verification: 'not_performed',
+    review: reviewer ? reviewOutcomes[reviewer.verdict ?? 'inconclusive'] : 'not_required',
+  };
+}
+
+function completionMessage(outcome: SessionOutcome): string {
+  const review = { approved: 'The reviewer explicitly approved.', changes_requested: 'The reviewer requested changes.', inconclusive: 'The reviewer was inconclusive.', not_required: 'No reviewer was required.' }[outcome.review];
+  if (outcome.work === 'investigation') return `The investigation finished. ${review} Vloer did not verify the findings independently. A person decides what to do with them.`;
+  if (outcome.candidate === 'unavailable') return `The writer finished, but its candidate could not be captured. ${review} Vloer did not verify the change independently. A person must recover it from the retained workspace.`;
+  return `The writer finished and its candidate was captured. ${review} Vloer did not verify the change independently. A human decides whether to merge.`;
+}
 
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
 
@@ -358,7 +378,7 @@ export class Engine {
     }
     const attempt = (this.store.events(id).filter(event => event.type === 'session.retried').length) + 2;
     for (const run of session.runs) { run.status = 'queued'; run.costUsd = 0; delete run.startedAt; delete run.finishedAt; delete run.summary; delete run.verdict; delete run.nativeId; delete run.promptSha; }
-    session.artifacts = []; delete session.candidate; delete session.observedUsd; delete session.usage; delete session.requests;
+    session.artifacts = []; delete session.candidate; delete session.outcome; delete session.observedUsd; delete session.usage; delete session.requests;
     this.resolvePermissions(id);
     this.save(session, 'session.retried', user.id, { attempt, previousFailure: session.failure?.category ?? null });
     return this.launch(session, user);
@@ -814,7 +834,8 @@ export class Engine {
       finished = this.store.getSession(id)!;
       if (finished.status === 'exporting') {
         finished.status = 'completed';
-        this.save(finished, 'session.completed', 'system', { message: 'The crew finished and all required reviewers explicitly approved. A human decides whether to merge.', merged: false, candidateStatus: finished.candidate?.status ?? 'unavailable' });
+        finished.outcome = completionOutcome(finished, this.config.crews.find(item => item.id === finished.crewId));
+        this.save(finished, 'session.completed', 'system', { message: completionMessage(finished.outcome), merged: false, candidateStatus: finished.candidate?.status ?? 'unavailable', outcome: finished.outcome });
       }
       if (this.authority?.current(id) && !['paused', 'cancelled'].includes(finished.status)) await this.finishAuthority(id);
       if (credential) this.keys.delete(credential.key);

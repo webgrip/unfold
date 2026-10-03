@@ -20,7 +20,7 @@ The product has a credible working core. Its next bottleneck is trustworthy deli
 | Absent at baseline | No implementation at the audited revision |
 | Proposed | A future requirement or design decision; not a delivered feature |
 
-`Completed` currently means that the configured Vloer runs returned successfully and required readers explicitly approved. It does not establish that independent CI passed, the patch is exportable, the forge received a proposal, a person approved a merge, or the change reached production.
+`Completed` currently means that the configured Vloer runs returned successfully. A crew with a writer completes only after its final reviewer explicitly approves; a read-only crew completes whatever its reviewer concluded. The session's `outcome` records what is known: whether the candidate was captured, the reviewer's conclusion, and that Vloer performed no independent verification. It does not establish that independent CI passed, the patch is exportable, the forge received a proposal, a person approved a merge, or the change reached production.
 
 ## What is already real
 
