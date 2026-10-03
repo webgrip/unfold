@@ -371,7 +371,7 @@ func run(log *slog.Logger) error {
 		go webhookCheck.loop(ctx)
 	}
 
-	httpSrv := &http.Server{Addr: listen, Handler: srv.Handler(), ReadHeaderTimeout: 5 * time.Second}
+	httpSrv := newHTTPServer(listen, srv.Handler(), defaultHTTPTimeouts)
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
