@@ -343,6 +343,15 @@
           ],
           "scope": "application",
           "description": "Which session transitions raise a notification. Streamed tokens and tool completions never notify."
+        },
+        "vloer.remoteHostAliases": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "scope": "application",
+          "markdownDescription": "Git remote host to forge web host, for **Check Out Branch** when a forge's SSH host differs from the host in its pull request links, for example `{\"ssh.git.example.com\": \"git.example.com\"}`. Hosts that differ only in their first label under a shared parent domain, such as `forgejo-ssh.example.dev` and `forgejo.example.dev`, already match without an entry."
         }
       }
     },
