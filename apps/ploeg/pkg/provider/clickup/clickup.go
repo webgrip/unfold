@@ -184,12 +184,28 @@ func (p *Provider) ParseWebhook(r *http.Request) ([]provider.TrackerEvent, error
 		return []provider.TrackerEvent{{Kind: kind, ExternalID: pl.TaskID, Team: team, Item: item, Actor: changer, At: at}}, nil
 	case "taskUpdated", "taskStatusUpdated", "taskPriorityUpdated":
 		changer, at := pl.changedBy()
-		return []provider.TrackerEvent{{Kind: provider.TrackerUpdated, ExternalID: pl.TaskID, Team: team, Item: item, Actor: changer, At: at}}, nil
+		kind := provider.TrackerUpdated
+		if pl.Event == "taskStatusUpdated" && p.confirmedClosed(r.Context(), pl.TaskID) {
+			kind = provider.TrackerClosed
+		}
+		return []provider.TrackerEvent{{Kind: kind, ExternalID: pl.TaskID, Team: team, Item: item, Actor: changer, At: at}}, nil
 	default:
 		// Unhandled events are dropped, not errors: providers subscribe wider
 		// than the core consumes.
 		return nil, nil
 	}
+}
+
+func (p *Provider) confirmedClosed(ctx context.Context, externalID string) bool {
+	if !p.configured() {
+		return false
+	}
+	t, err := p.readTask(ctx, externalID)
+	if err != nil {
+		p.log().Warn("clickup status change left as an update: the task status could not be read", "external_id", externalID, "err", err)
+		return false
+	}
+	return t.closed()
 }
 
 func firstNonEmpty(vals ...string) string {
@@ -294,6 +310,32 @@ type task struct {
 		ID   string `json:"id"`
 		Name string `json:"name"`
 	} `json:"list"`
+	Tags []struct {
+		Name string `json:"name"`
+	} `json:"tags"`
+}
+
+func (t task) closed() bool {
+	return t.Status.Type == "closed" || t.Status.Type == "done"
+}
+
+func (t task) tagNames() []string {
+	names := make([]string, 0, len(t.Tags))
+	for _, tag := range t.Tags {
+		names = append(names, tag.Name)
+	}
+	return names
+}
+
+func (p *Provider) readTask(ctx context.Context, externalID string) (task, error) {
+	var t task
+	if err := p.do(ctx, http.MethodGet, "/task/"+url.PathEscape(externalID), nil, &t); err != nil {
+		return task{}, err
+	}
+	if t.ID == "" {
+		return task{}, fmt.Errorf("clickup: task %s not found", externalID)
+	}
+	return t, nil
 }
 
 // FetchItem reads authoritative task state — the thin-payload rule's "truth"
@@ -312,12 +354,9 @@ func (p *Provider) FetchExecutionItem(ctx context.Context, externalID string) (p
 	if !p.configured() {
 		return provider.ExecutionItem{}, errors.New("clickup: no API credentials configured (falling back to the webhook snapshot)")
 	}
-	var t task
-	if err := p.do(ctx, http.MethodGet, "/task/"+externalID, nil, &t); err != nil {
+	t, err := p.readTask(ctx, externalID)
+	if err != nil {
 		return provider.ExecutionItem{}, err
-	}
-	if t.ID == "" {
-		return provider.ExecutionItem{}, fmt.Errorf("clickup: task %s not found", externalID)
 	}
 	// description is markdown and may be empty where text_content is not.
 	desc := t.Description
@@ -336,6 +375,7 @@ func (p *Provider) FetchExecutionItem(ctx context.Context, externalID string) (p
 		// core resolves a Work Target from. Team is the caller's routing
 		// decision, not the tracker's view; httpapi.mirror overwrites it.
 		ExternalScope:    t.List.ID,
+		Labels:           t.tagNames(),
 		TrackerCreatedAt: unixMillis(t.DateCreated),
 		EstimateSeconds:  estimateSeconds(t.TimeEstimate),
 	}}, nil
@@ -480,25 +520,14 @@ func (p *Provider) BoardStatus(ctx context.Context, externalID string) (provider
 	if !p.configured() {
 		return provider.BoardStatus{}, errors.New("clickup: no API credentials configured; cannot read the board")
 	}
-	var t struct {
-		task
-		Tags []struct {
-			Name string `json:"name"`
-		} `json:"tags"`
-	}
-	if err := p.do(ctx, http.MethodGet, "/task/"+url.PathEscape(externalID), nil, &t); err != nil {
+	t, err := p.readTask(ctx, externalID)
+	if err != nil {
 		return provider.BoardStatus{}, err
 	}
-	if t.ID == "" {
-		return provider.BoardStatus{}, fmt.Errorf("clickup: task %s not found", externalID)
-	}
-	out := provider.BoardStatus{Scope: t.List.ID, Statuses: []string{}, Labels: []string{}, Created: unixMillis(t.DateCreated),
+	out := provider.BoardStatus{Scope: t.List.ID, Statuses: []string{}, Labels: t.tagNames(), Created: unixMillis(t.DateCreated),
 		Estimates: true, EstimateSeconds: estimateSeconds(t.TimeEstimate)}
 	if t.Status.Status != "" {
 		out.Statuses = append(out.Statuses, t.Status.Status)
-	}
-	for _, tag := range t.Tags {
-		out.Labels = append(out.Labels, tag.Name)
 	}
 	return out, nil
 }

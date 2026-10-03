@@ -10,7 +10,7 @@ verified_by: "Read apps/ploeg pkg/target/{resolver,readiness}.go, pkg/config/{co
 
 **Goal:** one tracker board holds tickets for more than one repository. A ticket labelled `repo/<target>` goes to that repository, and a ticket without such a label goes to the board's default, as it does today.
 
-**How it works:** you register repositories under `targets:` in ploegd's configuration file, and each board names the targets it may use. A label is only a choice among those registered targets; it can never name a repository of its own ([ADR-0038](../adrs/0038-a-repo-label-selects-among-registered-targets-and-the-board-default-is-the-fallback.md)). Ploeg reads the labels once, when the ticket is assigned, and pins the result on the Work Item.
+**How it works:** you register repositories under `targets:` in ploegd's configuration file, and each board names the targets it may use. A label is only a choice among those registered targets; it can never name a repository of its own ([ADR-0038](../adrs/0038-a-repo-label-selects-among-registered-targets-and-the-board-default-is-the-fallback.md)). Ploeg reads the labels once, when the ticket is assigned, and pins the result on the Work Item. In ClickUp the labels are the task's tags, and the same rules apply.
 
 Read [Before you start](index.md#before-you-start) for names and the database session.
 
@@ -76,7 +76,7 @@ Ploeg refuses the ticket, queues nothing and comments on it with the reason when
 - a `repo/*` label names no registered key,
 - the label names a registered key the board does not allow,
 - the board has no default and the ticket has no `repo/*` label,
-- the board selects by label and Ploeg could not read the ticket from Vikunja, so the labels are unknown,
+- the board selects by label and Ploeg could not read the ticket from Vikunja or ClickUp, so the labels are unknown,
 - the selected target is not ready (step 4).
 
 None of these falls back to the default or to a worker's own repository. To retry, fix the label and assign the ticket again. Changing a label on a ticket that is already queued changes nothing: the target was pinned when it was assigned.
