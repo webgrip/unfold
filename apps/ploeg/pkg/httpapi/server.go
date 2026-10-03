@@ -461,6 +461,10 @@ type claimResponse struct {
 	// Planner marks a Role the team's plan configures as a planner
 	// (ADR-0031).
 	Planner bool `json:"planner,omitempty"`
+	// PreAuthor marks a reading Run with no writing Run before its Round in
+	// the Shift: only such a Run may review the base branch when the Shift's
+	// branch does not exist.
+	PreAuthor bool `json:"preAuthor,omitempty"`
 }
 
 // handleClaim leases the next unit of work for a team. 204 = empty-handed
@@ -555,6 +559,7 @@ func (s *Server) respondClaimedRun(w http.ResponseWriter, r *http.Request, req c
 		RunToken: run.RunToken, Deadline: run.Deadline, WorkItem: run.Item,
 		Shift: run.ShiftID, Role: run.Role, Round: run.Round,
 		Writes: run.Writes, Branch: run.Branch, Authorized: run.Authorized,
+		PreAuthor: run.PreAuthor,
 	}
 	if planners, ok := s.RoleCaps.(PlannerRoles); ok && !run.Writes {
 		resp.Planner = planners.IsPlanner(req.Team, run.Role)

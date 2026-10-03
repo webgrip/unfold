@@ -442,6 +442,9 @@ func (s *Store) Checkpoint(ctx context.Context, runToken string, cp work.Checkpo
 		return err
 	}
 	detail := map[string]any{"phase": cp.Phase, "branch": cp.Branch, "pr_url": cp.PRURL, "node_name": cp.NodeName, "pod_uid": cp.PodUID}
+	if cp.Commit != "" {
+		detail["commit"] = cp.Commit
+	}
 	if len(cp.InstructionFiles) > 0 {
 		detail["instruction_files"] = cp.InstructionFiles
 	}

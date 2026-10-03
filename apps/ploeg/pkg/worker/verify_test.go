@@ -325,7 +325,7 @@ func TestARunThatOpensNoPullRequestIsNotVerified(t *testing.T) {
 func TestAReadingRunGetsBothSkillsAndIsNotVerifiedByTheWorker(t *testing.T) {
 	adapter := &verifyingAdapter{t: t, outcome: work.OutcomePROpened}
 	report := runWithSandbox(t,
-		&ClaimResponse{RunToken: "rt", Role: "reviewer", WorkItem: work.WorkItem{ID: "1", ExternalID: "7", Title: "t"}},
+		&ClaimResponse{RunToken: "rt", Role: "reviewer", PreAuthor: true, WorkItem: work.WorkItem{ID: "1", ExternalID: "7", Title: "t"}},
 		adapter, Config{ForgeTokenAccess: ForgeTokenReadOnly, VerifyCommands: []string{"true"}})
 	home, _ := lookupEnv(adapter.env.BaseEnv, "HOME")
 	for _, name := range []string{skills.ReviewAgainstWorkItem, skills.VerifyBeforeHandoff} {

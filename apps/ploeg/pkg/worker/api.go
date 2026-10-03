@@ -50,6 +50,10 @@ type ClaimResponse struct {
 	// Planner selects the planner prompt (ADR-0031): the Run splits or
 	// clarifies its Work Item and returns created Work Items, not code.
 	Planner bool `json:"planner,omitempty"`
+	// PreAuthor is true for a reading Run that no writing Run precedes in its
+	// Shift. Only such a Run reviews the base branch when the Shift's branch
+	// is absent; any other reader fails instead.
+	PreAuthor bool `json:"preAuthor,omitempty"`
 }
 
 // Claim returns nil when the queue is empty (HTTP 204) — the empty-handed

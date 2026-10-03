@@ -316,6 +316,9 @@ type ClaimedRun struct {
 	Writes     bool
 	Branch     string
 	Authorized float64 // what the minted LLM credential must be capped at
+	// PreAuthor is true for a reading Run when no writing Run precedes its
+	// Round in the Shift, so the branch under review may not exist yet.
+	PreAuthor bool
 }
 
 // ClaimRole takes the oldest pending Run for a team and role.
@@ -364,6 +367,15 @@ func (s *Store) ClaimRoleWithin(ctx context.Context, team, role string, ttl time
 	}
 	if err != nil {
 		return nil, err
+	}
+
+	var preAuthor bool
+	if !writes {
+		if err := tx.QueryRow(ctx,
+			`SELECT NOT EXISTS(SELECT 1 FROM agent_runs WHERE shift_id = $1 AND round < $2 AND writes)`,
+			shiftID, round).Scan(&preAuthor); err != nil {
+			return nil, err
+		}
 	}
 
 	// Lock the Shift so the pool arithmetic below cannot race a sibling claim.
@@ -449,6 +461,7 @@ func (s *Store) ClaimRoleWithin(ctx context.Context, team, role string, ttl time
 	return &ClaimedRun{
 		Item: it, RunToken: token, Deadline: deadline, ShiftID: shiftID,
 		Role: role, Round: round, Writes: writes, Branch: branch, Authorized: authorized,
+		PreAuthor: preAuthor,
 	}, nil
 }
 

@@ -12,6 +12,11 @@
     },
     "branch": { "type": "string" },
     "prUrl": { "type": "string" },
+    "commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$",
+      "description": "The commit a reading Run had checked out from the branch under review. Absent when the Run reviewed the base branch."
+    },
     "at": { "type": "string", "format": "date-time" },
     "instructionFiles": {
       "type": "array",
