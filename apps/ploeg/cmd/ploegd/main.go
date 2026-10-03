@@ -384,7 +384,7 @@ func run(log *slog.Logger) error {
 	if err := srv.ReconcileOperatorExecutions(ctx); err != nil {
 		log.Error("operator execution reconciliation failed at startup")
 	}
-	managedBlockSweep(ctx, log, srv, 0)
+	managedBlockSweep(ctx, log, srv, 0, newAccountRetries(sweepEvery))
 
 	go sweepLoop(ctx, log, st, sweeper, forgeSweeper, engine, srv, sweepEvery, settleAfter)
 	if reviews != nil {
