@@ -9,8 +9,8 @@ import (
 
 // The report API is the one place a non-conformant client can reach the
 // database directly. pkg/harness/harnesstest already holds adapters to these
-// rules, but an adapter is not the only caller — ops/local/demo.sh posts with
-// curl, and so will anything implementing docs/contracts/executor.md.
+// rules, but an adapter is not the only caller: anything implementing
+// docs/contracts/executor.md can post here directly.
 //
 // Found by probing the running stack: `failureReason: "vibes"` returned 204 and
 // was stored verbatim.
