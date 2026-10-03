@@ -137,8 +137,8 @@ jobs:
           docker-target: ${{ matrix.target }}
           platforms: "linux/amd64,linux/arm64"
           annotations: |
-            index:org.opencontainers.image.source=https://github.com/webgrip/glide
-            index:org.opencontainers.image.url=https://forgejo.webgrip.dev/webgrip/glide
+            index:org.opencontainers.image.source=https://github.com/webgrip/unfold
+            index:org.opencontainers.image.url=https://forgejo.webgrip.dev/webgrip/unfold
           docker-build-args: |
             IMAGE_CREATED=${{ needs.parse-release-tag.outputs.created }}
             IMAGE_VERSION=${{ needs.parse-release-tag.outputs.version }}
@@ -350,8 +350,8 @@ jobs:
           sbom-generator: "docker.io/docker/buildkit-syft-scanner:stable-1@sha256:ae4f3b554449e7e25548e7d8ccc029d17357348e30c6e3df01b92bc93654d6a9"
           buildkit-image: "docker.io/moby/buildkit:buildx-stable-1@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea"
           annotations: |
-            index:org.opencontainers.image.source=https://github.com/webgrip/glide
-            index:org.opencontainers.image.url=https://forgejo.webgrip.dev/webgrip/glide
+            index:org.opencontainers.image.source=https://github.com/webgrip/unfold
+            index:org.opencontainers.image.url=https://forgejo.webgrip.dev/webgrip/unfold
           docker-build-args: |
             IMAGE_CREATED=${{ needs.parse-release-tag.outputs.created }}
             IMAGE_VERSION=${{ needs.parse-release-tag.outputs.version }}
@@ -368,7 +368,7 @@ jobs:
           EXPECTED_CREATED: ${{ needs.parse-release-tag.outputs.created }}
           EXPECTED_VERSION: ${{ needs.parse-release-tag.outputs.version }}
           EXPECTED_REVISION: ${{ github.sha }}
-          EXPECTED_SOURCE: https://github.com/webgrip/glide
+          EXPECTED_SOURCE: https://github.com/webgrip/unfold
         run: |
           set -euo pipefail
           echo "$REGISTRY_TOKEN" | docker login harbor.webgrip.dev \

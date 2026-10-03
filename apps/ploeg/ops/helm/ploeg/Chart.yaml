@@ -2,8 +2,8 @@ apiVersion: v2
 name: ploeg
 description: Ploeg dispatch plane — webhook ingest, leases, run API, and pluggable executors (KEDA ScaledJob or CronJob) running swappable agent harnesses.
 type: application
-home: https://forgejo.webgrip.dev/webgrip/glide
+home: https://forgejo.webgrip.dev/webgrip/unfold
 sources:
-  - https://github.com/webgrip/glide
+  - https://github.com/webgrip/unfold
 version: 0.4.0-rc.34
 appVersion: 0.4.0-rc.34

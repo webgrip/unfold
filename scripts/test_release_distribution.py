@@ -40,9 +40,9 @@ class MemoryRegistry:
 
 def fixture():
     registry = MemoryRegistry()
-    index = {'annotations': {'org.opencontainers.image.source': 'https://github.com/webgrip/glide'}, 'manifests': []}
+    index = {'annotations': {'org.opencontainers.image.source': 'https://github.com/webgrip/unfold'}, 'manifests': []}
     for arch in ['amd64', 'arm64']:
-        config = json.dumps({'config': {'Labels': {'org.opencontainers.image.source': 'https://github.com/webgrip/glide', 'org.opencontainers.image.version': '0.3.0-rc.8', 'org.opencontainers.image.revision': 'selected-sha'}}}).encode()
+        config = json.dumps({'config': {'Labels': {'org.opencontainers.image.source': 'https://github.com/webgrip/unfold', 'org.opencontainers.image.version': '0.3.0-rc.8', 'org.opencontainers.image.revision': 'selected-sha'}}}).encode()
         manifest = json.dumps({'config': {'digest': digest(config)}}).encode()
         registry.blobs[digest(config)] = config
         registry.manifests['webgrip/ploegd', digest(manifest)] = manifest
@@ -61,7 +61,7 @@ class DistributionTests(unittest.TestCase):
 
     def test_package_links_move_to_unfold_and_retries_are_no_ops(self):
         for current, expected in [
-            ('webgrip/glide', []),
+            ('webgrip/unfold', []),
             ('webgrip/de-vloer', ['unlink', 'link/unfold']),
             (None, ['link/unfold']),
         ]:
@@ -129,21 +129,21 @@ class DistributionTests(unittest.TestCase):
         calls = []
 
         def api(url, token, method='GET', data=None, missing=False):
-            calls.append((method, url.rsplit('/glide', 1)[1], data))
+            calls.append((method, url.rsplit('/unfold', 1)[1], data))
             if method == 'GET' and '/releases/tags/' in url:
                 return None
             if method == 'GET':
                 return []
             if method == 'POST':
-                return {**data, 'id': 7, 'assets': [], 'upload_url': 'https://uploads.github.com/repos/webgrip/glide/releases/7/assets{?name,label}'}
-            return {'html_url': 'https://github.com/webgrip/glide/releases/tag/unfold-v0.4.0-rc.8', **data}
+                return {**data, 'id': 7, 'assets': [], 'upload_url': 'https://uploads.github.com/repos/webgrip/unfold/releases/7/assets{?name,label}'}
+            return {'html_url': 'https://github.com/webgrip/unfold/releases/tag/unfold-v0.4.0-rc.8', **data}
 
         uploads = []
         with patch.object(publish_release, 'api', api), patch.object(publish_release, 'git', lambda *a, **k: 'sha' if a[0] == 'rev-parse' else 'sha\trefs/tags/unfold-v0.4.0-rc.8'), \
                 patch.object(publish_release, 'fetch_asset', lambda asset, token: b'{}'), \
                 patch.object(publish_release, 'request', lambda url, **k: uploads.append(url) or (b'', {})):
             url = publish_release.mirror_release('unfold-v0.4.0-rc.8', source, 'forge', 'github')
-        self.assertEqual(url, 'https://github.com/webgrip/glide/releases/tag/unfold-v0.4.0-rc.8')
+        self.assertEqual(url, 'https://github.com/webgrip/unfold/releases/tag/unfold-v0.4.0-rc.8')
         self.assertTrue(calls[2][2]['draft'])
         self.assertEqual(len(uploads), 1)
         self.assertEqual(calls[-1][:2], ('PATCH', '/releases/7'))
@@ -208,8 +208,8 @@ class DistributionTests(unittest.TestCase):
         for path in ['apps/ploeg/ops/helm/ploeg', 'apps/vloer/ops/helm/de-vloer']:
             with self.subTest(chart=path):
                 metadata = release_registry.command('helm', 'show', 'chart', str(root / path)).splitlines()
-                self.assertIn('home: https://forgejo.webgrip.dev/webgrip/glide', metadata)
-                self.assertEqual(metadata[metadata.index('sources:') + 1], '- https://github.com/webgrip/glide')
+                self.assertIn('home: https://forgejo.webgrip.dev/webgrip/unfold', metadata)
+                self.assertEqual(metadata[metadata.index('sources:') + 1], '- https://github.com/webgrip/unfold')
 
     def test_redirects_never_forward_credentials_to_another_host(self):
         request = urllib.request.Request('https://forgejo.webgrip.dev/asset', headers={'Authorization': 'fixture'})
@@ -217,6 +217,12 @@ class DistributionTests(unittest.TestCase):
         self.assertFalse(redirected.has_header('Authorization'))
         redirected = SafeRedirect().redirect_request(request, None, 302, '', {}, 'https://forgejo.webgrip.dev/other')
         self.assertEqual(redirected.get_header('Authorization'), 'fixture')
+
+    def test_a_redirected_write_fails_instead_of_becoming_a_read(self):
+        request = urllib.request.Request('https://forgejo.webgrip.dev/api/v1/repos/webgrip/old/releases/7/assets', data=b'evidence', method='POST')
+        with self.assertRaises(urllib.error.HTTPError) as raised:
+            SafeRedirect().redirect_request(request, None, 301, '', {}, 'https://forgejo.webgrip.dev/api/v1/repos/webgrip/unfold/releases/7/assets')
+        self.assertEqual(raised.exception.code, 301)
 
     def test_go_export_is_repeatable_and_contains_the_exact_application_tree(self):
         previous = os.getcwd()
