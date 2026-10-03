@@ -5,15 +5,16 @@
   "version": "0.4.0-rc.34",
   "publisher": "webgrip",
   "license": "Apache-2.0",
-  "homepage": "https://forgejo.webgrip.dev/webgrip/de-vloer",
+  "homepage": "https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/vloer/extensions/vscode",
   "repository": {
     "type": "git",
-    "url": "https://forgejo.webgrip.dev/webgrip/de-vloer.git"
+    "url": "https://forgejo.webgrip.dev/webgrip/unfold.git",
+    "directory": "apps/vloer/extensions/vscode"
   },
   "bugs": {
-    "url": "https://forgejo.webgrip.dev/webgrip/de-vloer/issues"
+    "url": "https://forgejo.webgrip.dev/webgrip/unfold/issues"
   },
-  "qna": "https://forgejo.webgrip.dev/webgrip/de-vloer/issues",
+  "qna": "https://forgejo.webgrip.dev/webgrip/unfold/issues",
   "pricing": "Free",
   "icon": "media/icon.png",
   "galleryBanner": {
