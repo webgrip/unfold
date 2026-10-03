@@ -1,3 +1,88 @@
+## [unfold-v0.4.0-rc.33](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.32...unfold-v0.4.0-rc.33) (2026-10-03)
+
+### Dependencies
+
+* **deps:** update node.js ( 98fb607 ➔ baf0afb ) ([1131b48](https://forgejo.webgrip.dev/webgrip/unfold/commit/1131b48c21210ad92ef4f946690f6d7cde41b4a9))
+
+### Added
+
+* **deps:** update dependency three ( 0.165.0 ➔ 0.186.1 ) ([df8a166](https://forgejo.webgrip.dev/webgrip/unfold/commit/df8a16685e9250fa5022847b58a94cb42842a096))
+* **ploeg:** crack and mend run cards through human-confirmed attribution ([cce1dd2](https://forgejo.webgrip.dev/webgrip/unfold/commit/cce1dd2d3d6dd5003127abb4f4863e270edbbbfd))
+* **ploeg:** give Run cards a rarity measured by their challenge ([d98d4d7](https://forgejo.webgrip.dev/webgrip/unfold/commit/d98d4d7986df26271d00785eff88ddbc21b659c8))
+* **ploeg:** keep one run card comment with a card image on the pull request ([897a087](https://forgejo.webgrip.dev/webgrip/unfold/commit/897a087aac71923baa7c23b9deb522a15b6f3e4c))
+* **ploeg:** let registered GitLab targets pass the readiness gate ([58ae4d3](https://forgejo.webgrip.dev/webgrip/unfold/commit/58ae4d38d3ee6aba3bfe2d1d052830269cbb6e2e))
+* **ploeg:** list run cards by roster login for binders and packs ([4cf6713](https://forgejo.webgrip.dev/webgrip/unfold/commit/4cf6713bb5163f56893828acde747a352f4d2ceb))
+* **ploeg:** put pull request, CI and change-shape figures on the Run card ([764feda](https://forgejo.webgrip.dev/webgrip/unfold/commit/764feda1cdd93faf4dfbf6ec2467d48cfa3973c3))
+* **ploeg:** put tracker flow, queue and delivery timings on the Run card ([65afed7](https://forgejo.webgrip.dev/webgrip/unfold/commit/65afed7fdb90cc94e34aa120f6f838a88f0fc71b))
+* **ploeg:** read epics from tracker relations and give run cards a set ([fec31b4](https://forgejo.webgrip.dev/webgrip/unfold/commit/fec31b4b8a01077b8aa2297684833c393e3c611c))
+* **site:** serve the recorded Vloer replay at /demo ([66ffe3f](https://forgejo.webgrip.dev/webgrip/unfold/commit/66ffe3faa75e609ab5814870effdf8f1c54855b8)), references [#app](https://forgejo.webgrip.dev/webgrip/unfold/issues/app)
+* **site:** turn the site into a landing page with sign-ups, pricing and the demo ([3c19c4d](https://forgejo.webgrip.dev/webgrip/unfold/commit/3c19c4d349a16d6e54cde3e3f397f22bddc6a340))
+* **vloer:** add card themes and a card designer with generated art ([f5977db](https://forgejo.webgrip.dev/webgrip/unfold/commit/f5977dbd7265562e55135541916685ee2f513ec2))
+* **vloer:** add holo, loot, arcade, ticker and patch card skins ([b9725a3](https://forgejo.webgrip.dev/webgrip/unfold/commit/b9725a347625c36b2eddf7c818949af6113a2cac))
+* **vloer:** add recording seams to the deterministic demo ([611972d](https://forgejo.webgrip.dev/webgrip/unfold/commit/611972dcccfe112ec3d6ee97ab063d3b2d7d98e5))
+* **vloer:** collect run cards in a private binder and rip sprint packs ([d86acab](https://forgejo.webgrip.dev/webgrip/unfold/commit/d86acab5c7877506dba2bc554ca8a72d8044ad8c)), references [#binder](https://forgejo.webgrip.dev/webgrip/unfold/issues/binder) [#packs](https://forgejo.webgrip.dev/webgrip/unfold/issues/packs) [#season](https://forgejo.webgrip.dev/webgrip/unfold/issues/season)
+* **vloer:** give Run cards an inner world you can tilt, flatten and decorate ([c38e543](https://forgejo.webgrip.dev/webgrip/unfold/commit/c38e5433743d2b5c2a49fc59d5481000c8000650))
+* **vloer:** link a Run by URL, show Grafana links, announce the URL to Ploeg ([65b1e71](https://forgejo.webgrip.dev/webgrip/unfold/commit/65b1e71702aa760501edc8eceac0dd7076145a63))
+* **vloer:** play run card moments through an effects director ([84f850b](https://forgejo.webgrip.dev/webgrip/unfold/commit/84f850b01db0a4f09edf66518f2dbf514e4982d0))
+* **vloer:** record the deterministic demo and replay it in the browser ([ffe10ed](https://forgejo.webgrip.dev/webgrip/unfold/commit/ffe10ed4549383106017f30cab2cd9cd2d87233f))
+* **vloer:** render run cards in 3D with the forge skin ([2a50752](https://forgejo.webgrip.dev/webgrip/unfold/commit/2a507527d2f12a394f0789b392f26c816cba2b53))
+* **vloer:** show flow, review, CI and change KPIs on Run cards ([4a70b87](https://forgejo.webgrip.dev/webgrip/unfold/commit/4a70b8786f6b1cf8e78e7a5dcadc92751f82b179))
+* **vloer:** show gates, cracks and sets on run cards and trace bugs ([7004c6f](https://forgejo.webgrip.dev/webgrip/unfold/commit/7004c6ff827cc1a6a0b0888a0e44b98697f9d86b))
+* **vloer:** show Run card rarity with frame metal and a reveal ceremony ([9c912ae](https://forgejo.webgrip.dev/webgrip/unfold/commit/9c912aee7d0d1ccd78b57a5a4a3b3aec160535cd)), references [#121](https://forgejo.webgrip.dev/webgrip/unfold/issues/121)
+
+### Fixed
+
+* **agent:** update opencode ( 1.18.33 ➔ 1.18.34 ) ([86006b3](https://forgejo.webgrip.dev/webgrip/unfold/commit/86006b306abd674962d74f943ecf46ae551eb992))
+* **deps:** update dependency @types/node ( 24.19.0 ➔ 24.19.1 ) ([4c72d18](https://forgejo.webgrip.dev/webgrip/unfold/commit/4c72d18c79f9bd2398c9afc46c5a82744705786a))
+* **ploeg:** bound request body reads and idle connections in ploegd ([fdb59cb](https://forgejo.webgrip.dev/webgrip/unfold/commit/fdb59cbe62f4577700a2a58af76d74d1053aeb2b))
+* **ploeg:** close a Shift and settle its Work Item in one transaction ([98f58d4](https://forgejo.webgrip.dev/webgrip/unfold/commit/98f58d4bb10bdabb0ff0c06c8a1679167057bf85))
+* **ploeg:** fail a reviewer that cannot fetch the branch under review ([1b0b544](https://forgejo.webgrip.dev/webgrip/unfold/commit/1b0b544e1c2b841aa28a8436716e5eee70547281))
+* **ploeg:** keep a valid Claude review when its stdout is malformed ([4497c86](https://forgejo.webgrip.dev/webgrip/unfold/commit/4497c8616445dfe045dd85323aad26cfe098ac95))
+* **ploeg:** keep the legacy claim off Work Items a live Shift owns ([c31b804](https://forgejo.webgrip.dev/webgrip/unfold/commit/c31b804c2ba777fb7f6bc589b9d364fb62e23977))
+* **ploeg:** read every page of Forgejo pull requests and GitLab checks ([1d6e004](https://forgejo.webgrip.dev/webgrip/unfold/commit/1d6e0045e4194b6e705d786c541c92df825e8c32))
+* **ploeg:** reject tracker webhooks when no signing secret is set ([347bc77](https://forgejo.webgrip.dev/webgrip/unfold/commit/347bc775c4c2e6e0c79b83036df50b94fd9d80ab))
+* **ploeg:** serialize schema migrations with an advisory lock ([68891e4](https://forgejo.webgrip.dev/webgrip/unfold/commit/68891e44ee7e34c699be7211e8001f5a57396abe))
+* **ploeg:** show verification from the worker's record, not agent prose ([7bfd8a3](https://forgejo.webgrip.dev/webgrip/unfold/commit/7bfd8a34fb05feda20be8f0154b7906129117f0e))
+* **ploeg:** verify forge webhook signatures before recording the delivery ([86477f7](https://forgejo.webgrip.dev/webgrip/unfold/commit/86477f7ded3ed2a54060e47287a3e6881f754f4b))
+* **site:** cap the sign-up body by bytes read, not Content-Length ([4769b7a](https://forgejo.webgrip.dev/webgrip/unfold/commit/4769b7a35caeda1121fdcf15c3df11c94bcbdf4f))
+* **site:** link the replay at /demo/ once its recording exists, and renumber the sign-up ADR ([dfd0f28](https://forgejo.webgrip.dev/webgrip/unfold/commit/dfd0f2832d21832ee8268083525cd49497ccbed6)), references [#122](https://forgejo.webgrip.dev/webgrip/unfold/issues/122)
+* **site:** set the sign-up database id ([00b36b6](https://forgejo.webgrip.dev/webgrip/unfold/commit/00b36b66f84676317a4451c4cf10820ab4f46dc5))
+* **vloer:** accept the editor's synced core imports in the source check ([de477de](https://forgejo.webgrip.dev/webgrip/unfold/commit/de477de995ea060b0e811604ba3641836e9948bf))
+* **vloer:** bind OIDC sign-in and account links to the starting browser ([9998836](https://forgejo.webgrip.dev/webgrip/unfold/commit/999883628f2bd8ba69018ed123d8357727b6a10b))
+* **vloer:** clear a stale Run notice on every Work navigation ([fac09aa](https://forgejo.webgrip.dev/webgrip/unfold/commit/fac09aa2ca639555d455c442f2377a9bf2f8af68))
+* **vloer:** keep health probes constant-cost and page event replay ([850c3fb](https://forgejo.webgrip.dev/webgrip/unfold/commit/850c3fbba75fe19e6cc069cdba3ddbef5164ebda))
+* **vloer:** let the forge stage fill the Run card page head ([b20d049](https://forgejo.webgrip.dev/webgrip/unfold/commit/b20d0493dc1778dd8f9c76386654d592a59aa9ad))
+* **vloer:** match checkouts by forge host and full repo path ([255dbf4](https://forgejo.webgrip.dev/webgrip/unfold/commit/255dbf4a3777ab2294116a245bcac28d6bc4b402))
+* **vloer:** pin a cold sandbox's base and require a healthy workspace ([84f4dd9](https://forgejo.webgrip.dev/webgrip/unfold/commit/84f4dd980a89308d1c4ace78988ff4755ca62163))
+* **vloer:** pin three back to the vendored 0.165.0 and keep Renovate off it ([7baa63a](https://forgejo.webgrip.dev/webgrip/unfold/commit/7baa63afe9ed9c83dd922214da99b5358ce65d49)), references [#119](https://forgejo.webgrip.dev/webgrip/unfold/issues/119)
+* **vloer:** pin three to the vendored 0.186.1 ([10bb764](https://forgejo.webgrip.dev/webgrip/unfold/commit/10bb76477da7aee9929d8815f7194091261cabf6)), closes [#119](https://forgejo.webgrip.dev/webgrip/unfold/issues/119) [#126](https://forgejo.webgrip.dev/webgrip/unfold/issues/126), references [#122](https://forgejo.webgrip.dev/webgrip/unfold/issues/122)
+* **vloer:** refuse the inner world's route in the hosted demo replay ([7897f61](https://forgejo.webgrip.dev/webgrip/unfold/commit/7897f61e2148f863f3f149e4df21308dd142c6ec)), references [#122](https://forgejo.webgrip.dev/webgrip/unfold/issues/122)
+* **vloer:** send the ClickUp token exchange in the request body ([0f827b3](https://forgejo.webgrip.dev/webgrip/unfold/commit/0f827b3e0d549cb406cf2055bbb2b15c13268474))
+* **vloer:** vendor three.js 0.186.1 to match the pinned devDependency ([23e63c2](https://forgejo.webgrip.dev/webgrip/unfold/commit/23e63c24e7e7f1c7bf2acc36cdad555ffc7b7a4f)), references [#119](https://forgejo.webgrip.dev/webgrip/unfold/issues/119)
+
+### Changed
+
+* **vloer:** resolve static assets relative to the page ([3465022](https://forgejo.webgrip.dev/webgrip/unfold/commit/34650223b194ae5f58765a8e57d1d1d2d928b041))
+
+### Docs
+
+* date the hosted replay pages in UTC ([60340b1](https://forgejo.webgrip.dev/webgrip/unfold/commit/60340b1603cbd1fd2662d736968bd5835adaa948))
+* point commit references at the rewritten history ([2bb2e6b](https://forgejo.webgrip.dev/webgrip/unfold/commit/2bb2e6b3595bae1be8ca9fe30e4117330a0c47c2))
+* **vloer:** describe the hosted replay of the demo ([b642cd5](https://forgejo.webgrip.dev/webgrip/unfold/commit/b642cd528a24928c7c6843976615580e840394d6))
+
+### Tests
+
+* **vloer:** match the work page browser checks to the Run card page head ([a58e682](https://forgejo.webgrip.dev/webgrip/unfold/commit/a58e68293bab414735053c5be1c0f03bf73a3cc9))
+
+### CI
+
+* **deps:** update all non-major dependencies ([6ca1a9a](https://forgejo.webgrip.dev/webgrip/unfold/commit/6ca1a9a1434ff79b87a1342c7898b7dbdb0a9def))
+
+### Internal
+
+* neutralise employer-specific fixtures and docs ([09a54f7](https://forgejo.webgrip.dev/webgrip/unfold/commit/09a54f7ca0db1d41924f6fb114b0d5eac164e4e1))
+* **site:** re-record the demo replay with Run card KPIs ([39e500c](https://forgejo.webgrip.dev/webgrip/unfold/commit/39e500c64c842f09123c94ade919797918410f9a))
+
 ## [unfold-v0.4.0-rc.32](https://forgejo.webgrip.dev/webgrip/glide/compare/unfold-v0.4.0-rc.31...unfold-v0.4.0-rc.32) (2026-10-01)
 
 ### Added
