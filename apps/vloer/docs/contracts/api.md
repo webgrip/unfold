@@ -14,7 +14,7 @@ Operators can read and change sessions they own. Administrators can access all s
 | `POST /api/logout` | `{}` → `{ok:true}` and expired cookie |
 | `GET /api/bootstrap` | Current user, mode, registered repositories/crews/models/runtimes, enabled workspace `placements` and limits |
 | `GET /api/health` | Authenticated configuration/readiness summary; does not prove upstream provider reachability |
-| `GET /healthz`, `GET /readyz` | Process/store health for probes; no provider credentials or endpoints returned |
+| `GET /healthz`, `GET /readyz` | `{status, version}` for probes. `/healthz` answers from the process without touching storage; `/readyz` runs one trivial database query and reads no session. No provider credentials or endpoints returned |
 
 ### Single sign-on
 
@@ -76,7 +76,7 @@ Stages are `credentials`, `workspace`, `runtime`, `prompt` and `execution`. Prom
 | Method and path | Behavior |
 | --- | --- |
 | `GET /api/sessions/:id/history?after=N` | Durable event array after cursor `N` |
-| `GET /api/sessions/:id/events?after=N` | Server-sent events; numeric `id`, JSON Event in `data` |
+| `GET /api/sessions/:id/events?after=N` | Server-sent events; numeric `id`, JSON Event in `data`. Catch-up from an old cursor is read from storage in batches of 200 events until the client is current |
 | `GET /api/sessions/:id/permissions` | Human permission/question requests without native credential state |
 | `POST /api/sessions/:id/permissions/:requestId` | Permission `{decision:"once"|"always"|"reject"}` or question `{answers:string[][]}` |
 

@@ -23,6 +23,9 @@ import { CardArtError, CardArtGenerator, maxArtAttempts } from './card-art.ts';
 
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
 
+/** The most events one storage read loads while streaming a session's history to a live event client. */
+export const eventReplayBatch = 200;
+const eventReplayBuffered = 262144;
 const browserModule = /^\/(?:(?:core|views|styles)\/[a-z0-9][a-z0-9-]*\.(?:js|css)|cards\/(?:(?:skins\/[a-z0-9][a-z0-9-]*(?:\/world)?|effects)\/)?[a-z0-9][a-z0-9-]*\.(?:js|css|json)|vendor\/three\/[a-z0-9][a-z0-9-]*\.js)$/;
 
 function fault(status: number, code: string, message: string): never { throw Object.assign(new Error(message), { status, code }); }
@@ -141,7 +144,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       const method = req.method || 'GET';
       if (path === '/healthz' || path === '/readyz') {
         if (method !== 'GET') return json(res, 405, { error: { code: 'method', message: 'GET required.' } });
-        store.listSessions();
+        if (path === '/readyz') store.ping();
         return json(res, 200, { status: 'ok', version: applicationVersion });
       }
       if (relay && await relay.handle(req, res, url)) return;
@@ -474,10 +477,14 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             const tick = () => {
               try {
                 if (!auth.user(req)) { res.end(); return; }
-                for (const event of store.events(id, cursor)) {
-                  if (res.writableLength > 1048576) { res.destroy(); return; }
-                  res.write(`id: ${event.id}\ndata: ${JSON.stringify(sanitize(event))}\n\n`);
-                  cursor = event.id;
+                for (;;) {
+                  const page = store.eventPage(id, cursor, eventReplayBatch);
+                  for (const event of page) {
+                    if (res.writableLength > 1048576) { res.destroy(); return; }
+                    res.write(`id: ${event.id}\ndata: ${JSON.stringify(sanitize(event))}\n\n`);
+                    cursor = event.id;
+                  }
+                  if (page.length < eventReplayBatch || res.writableLength > eventReplayBuffered) break;
                 }
                 if (++heartbeat % 30 === 0) res.write(': heartbeat\n\n');
               } catch { res.end(); }
