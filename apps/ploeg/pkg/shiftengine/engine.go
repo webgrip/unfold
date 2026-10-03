@@ -244,7 +244,7 @@ func storeRoles(r plan.Round) []store.Role {
 
 // close ends a Shift and moves its Work Item — the engine owns that
 // transition for Shift runs (design.md D3), and it happens exactly once
-// thanks to CloseShift's idempotency.
+// thanks to CloseShiftAndSettle's idempotency.
 //
 // Where the item lands depends on whose plan it was. A CONFIGURED plan that
 // completes or is approved with a pull request lands at awaiting_review; any
@@ -255,11 +255,6 @@ func storeRoles(r plan.Round) []store.Role {
 // ReportOutcome writes for the same outcome.
 func (e *Engine) close(ctx context.Context, si store.ShiftInfo, closeReason, humanReason string,
 	synthesized bool, reports []store.RunReport) error {
-	closed, err := e.Store.CloseShift(ctx, si.ID, closeReason)
-	if err != nil {
-		return err
-	}
-
 	next := work.StateNeedsHuman
 	if synthesized {
 		if outcome, ok := terminalOutcome(reports); ok {
@@ -268,9 +263,14 @@ func (e *Engine) close(ctx context.Context, si store.ShiftInfo, closeReason, hum
 	} else if readyForReview(closeReason, reports) {
 		next = work.StateAwaitingReview
 	}
-	settled, err := e.Store.SettleItem(ctx, si.WorkItemID, next, humanReason)
+	closed, settled, err := e.Store.CloseShiftAndSettle(ctx, si.ID, closeReason, next, humanReason)
 	if err != nil {
 		return err
+	}
+	if !closed {
+		e.Log.Debug("shift close skipped: already closed", "shift", si.ID, "work_item", si.WorkItemID,
+			"item_state", string(settled))
+		return nil
 	}
 	e.Log.Info("shift closed", "shift", si.ID, "work_item", si.WorkItemID,
 		"team", si.Team, "reason", closeReason, "item_state", string(settled))
@@ -284,15 +284,15 @@ func (e *Engine) close(ctx context.Context, si store.ShiftInfo, closeReason, hum
 	// pr_opened settles done) told the board nothing at all: the pull request
 	// existed and nobody was informed.
 	//
-	// `closed` keeps it to one comment when the outcome fast-path and the
-	// sweeper both conclude the same Shift is over. The notify decision lives
-	// HERE, not inside CloseShift or SettleItem, so that cancellation
+	// Returning early on a lost close keeps it to one comment when the outcome
+	// fast-path and the sweeper both conclude the same Shift is over. The
+	// notify decision lives HERE, not inside CloseShiftAndSettle, so that cancellation
 	// (backlog #8) can close a Shift WITHOUT notifying — a human who
 	// unassigned a ticket does not need to be told Ploeg finished it.
 	if settled == work.StateAwaitingReview && e.remandForReview(ctx, si.WorkItemID) {
 		return nil
 	}
-	if closed && work.Terminal(settled) {
+	if work.Terminal(settled) {
 		var budget *store.ShiftLedger
 		if budgetExhausted(closeReason) {
 			if l, err := e.Store.Ledger(ctx, si.ID); err != nil {
