@@ -270,6 +270,9 @@ func (s *Store) Claim(ctx context.Context, team string, ttl time.Duration) (*Cla
 // ClaimWithin is Claim bounded by the team's concurrency cap. With
 // maxRunning > 0 it returns ErrNoWork while the team already has maxRunning
 // running Runs, exactly as if the queue were empty; 0 means unlimited.
+//
+// A Work Item with a live Shift is never leased here: its Runs are claimed
+// through ClaimRoleWithin, against the Shift's pool.
 func (s *Store) ClaimWithin(ctx context.Context, team string, ttl time.Duration, maxRunning int) (*Claimed, error) {
 	token, err := newToken()
 	if err != nil {
@@ -295,6 +298,7 @@ func (s *Store) ClaimWithin(ctx context.Context, team string, ttl time.Duration,
 		WHERE id = (
 			SELECT id FROM work_items
 			WHERE team = $1 AND state = 'queued' AND NOT operator_owned AND (next_eligible_at IS NULL OR next_eligible_at <= now())
+			  AND NOT EXISTS (SELECT 1 FROM shifts sh WHERE sh.work_item_id = work_items.id AND sh.closed_at IS NULL)
 			ORDER BY priority DESC, created_at
 			FOR UPDATE SKIP LOCKED
 			LIMIT 1

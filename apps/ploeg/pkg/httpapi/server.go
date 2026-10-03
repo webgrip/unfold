@@ -483,10 +483,16 @@ func (s *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 	// synthesized one — its Run carries the empty role. Try that first and
 	// fall through to the pre-Shift claim when there is none, so the same
 	// pod serves both worlds and the kill switch needs no chart change.
-	if run, err := s.Store.ClaimRoleWithin(r.Context(), req.Team, "", s.LeaseTTL, 0, s.maxRunning(req.Team)); err == nil {
+	run, err := s.Store.ClaimRoleWithin(r.Context(), req.Team, "", s.LeaseTTL, 0, s.maxRunning(req.Team))
+	switch {
+	case err == nil:
 		s.respondClaimedRun(w, r, req, run)
 		return
-	} else if !errors.Is(err, store.ErrNoWork) && !errors.Is(err, store.ErrBudgetExhausted) {
+	case errors.Is(err, store.ErrBudgetExhausted):
+		s.Log.Warn("claim refused: shift budget exhausted", "team", req.Team, "role", "")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	case !errors.Is(err, store.ErrNoWork):
 		s.Log.Error("role-less shift claim failed", "team", req.Team, "err", err)
 		http.Error(w, "claim failed", http.StatusInternalServerError)
 		return

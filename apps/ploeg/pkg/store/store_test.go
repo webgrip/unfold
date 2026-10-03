@@ -531,6 +531,7 @@ func TestClaim_StillUsesClaimableIndex(t *testing.T) {
 	rows, err := testStore.pool.Query(context.Background(), `
 		EXPLAIN SELECT id FROM work_items
 		WHERE team = 'silver' AND state = 'queued' AND (next_eligible_at IS NULL OR next_eligible_at <= now())
+		  AND NOT EXISTS (SELECT 1 FROM shifts sh WHERE sh.work_item_id = work_items.id AND sh.closed_at IS NULL)
 		ORDER BY priority DESC, created_at
 		FOR UPDATE SKIP LOCKED LIMIT 1`)
 	if err != nil {
