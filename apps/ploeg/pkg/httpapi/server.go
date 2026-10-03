@@ -729,12 +729,6 @@ func (s *Server) handleOutcome(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if req.Checkpoint != nil && req.Checkpoint.Phase != "" {
-		if err := s.Store.Checkpoint(r.Context(), r.PathValue("token"), *req.Checkpoint); err != nil {
-			runError(w, err)
-			return
-		}
-	}
 	var usage json.RawMessage
 	if req.Usage != nil {
 		usage, _ = json.Marshal(req.Usage)
@@ -744,11 +738,24 @@ func (s *Server) handleOutcome(w http.ResponseWriter, r *http.Request) {
 		fr := req.FailureReason
 		failureReason = &fr
 	}
-	res, err := s.Store.ReportOutcome(r.Context(), r.PathValue("token"),
-		store.Report(req.Outcome, req.Summary, req.StuckReason, req.Links, usage, failureReason).
-			WithFindings(req.Findings).WithVerdict(req.Verdict).WithProblemAndSolution(req.Problem, req.Solution).
-			WithVerification(req.Verification).
-			WithCreatedWork(req.CreatedWorkItems, s.createdWorkPolicy, s.knownTeam))
+	report := store.Report(req.Outcome, req.Summary, req.StuckReason, req.Links, usage, failureReason).
+		WithFindings(req.Findings).WithVerdict(req.Verdict).WithProblemAndSolution(req.Problem, req.Solution).
+		WithVerification(req.Verification).
+		WithCreatedWork(req.CreatedWorkItems, s.createdWorkPolicy, s.knownTeam)
+	if req.Checkpoint != nil && req.Checkpoint.Phase != "" {
+		replay, err := s.Store.IsOutcomeReplay(r.Context(), r.PathValue("token"), report)
+		if err != nil {
+			runError(w, err)
+			return
+		}
+		if !replay {
+			if err := s.Store.Checkpoint(r.Context(), r.PathValue("token"), *req.Checkpoint); err != nil {
+				runError(w, err)
+				return
+			}
+		}
+	}
+	res, err := s.Store.ReportOutcome(r.Context(), r.PathValue("token"), report)
 	if err != nil {
 		if errors.Is(err, store.ErrUnknownRun) {
 			runError(w, err)
