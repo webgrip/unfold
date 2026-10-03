@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/webgrip/ploeg/pkg/harness"
@@ -26,39 +27,65 @@ func isRunChangeRequest(cr changeRequest, runBranch, requiredBase string) bool {
 	return requiredBase == "" || cr.BaseBranch == requiredBase
 }
 
+const (
+	forgejoPullsPageSize = 50
+	forgejoPullsMaxPages = 20
+)
+
+var errTooManyOpenPullRequests = errors.New("too many open pull requests to search")
+
 func findOpenChangeRequest(ref harness.RepoRef, token, runBranch string) (string, error) {
-	var (
-		open []changeRequest
-		err  error
-	)
+	match := func(cr changeRequest) bool { return isRunChangeRequest(cr, runBranch, ref.BaseBranch) }
 	switch ref.Dialect() {
 	case harness.ForgeForgejo:
-		open, err = listForgejoPullRequests(ref, token)
+		return findForgejoPullRequest(ref, token, match)
 	case harness.ForgeGitLab:
-		open, err = listGitLabMergeRequests(ref, token, runBranch)
+		open, err := listGitLabMergeRequests(ref, token, runBranch)
+		if err != nil {
+			return "", err
+		}
+		for _, cr := range open {
+			if match(cr) {
+				return cr.URL, nil
+			}
+		}
+		return "", nil
 	default:
 		return "", fmt.Errorf("%w: %q", errUnsupportedForge, ref.Forge)
 	}
-	if err != nil {
-		return "", err
-	}
-	for _, cr := range open {
-		if isRunChangeRequest(cr, runBranch, ref.BaseBranch) {
-			return cr.URL, nil
-		}
-	}
-	return "", nil
 }
 
-func listForgejoPullRequests(ref harness.RepoRef, token string) ([]changeRequest, error) {
+func findForgejoPullRequest(ref harness.RepoRef, token string, match func(changeRequest) bool) (string, error) {
+	seen := 0
+	for page := 1; page <= forgejoPullsMaxPages; page++ {
+		pulls, total, err := listForgejoPullRequestsPage(ref, token, page)
+		if err != nil {
+			return "", err
+		}
+		for _, cr := range pulls {
+			if match(cr) {
+				return cr.URL, nil
+			}
+		}
+		seen += len(pulls)
+		if len(pulls) == 0 || (total >= 0 && seen >= total) || (total < 0 && len(pulls) < forgejoPullsPageSize) {
+			return "", nil
+		}
+	}
+	return "", fmt.Errorf("%w: %s/%s has more than %d", errTooManyOpenPullRequests,
+		ref.Owner, ref.Name, forgejoPullsPageSize*forgejoPullsMaxPages)
+}
+
+func listForgejoPullRequestsPage(ref harness.RepoRef, token string, page int) (pulls []changeRequest, total int, err error) {
 	req, err := http.NewRequest(http.MethodGet,
-		fmt.Sprintf("%s/api/v1/repos/%s/%s/pulls?state=open&limit=50", ref.ForgeURL, ref.Owner, ref.Name), nil)
+		fmt.Sprintf("%s/api/v1/repos/%s/%s/pulls?state=open&limit=%d&page=%d",
+			ref.ForgeURL, ref.Owner, ref.Name, forgejoPullsPageSize, page), nil)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	req.Header.Set("Authorization", "token "+token)
 
-	var pulls []struct {
+	var raw []struct {
 		HTMLURL string `json:"html_url"`
 		Head    struct {
 			Ref string `json:"ref"`
@@ -67,14 +94,19 @@ func listForgejoPullRequests(ref harness.RepoRef, token string) ([]changeRequest
 			Ref string `json:"ref"`
 		} `json:"base"`
 	}
-	if err := getJSON(req, &pulls); err != nil {
-		return nil, err
+	header, err := getJSONWithHeader(req, &raw)
+	if err != nil {
+		return nil, 0, err
 	}
-	open := make([]changeRequest, 0, len(pulls))
-	for _, p := range pulls {
-		open = append(open, changeRequest{URL: p.HTMLURL, HeadBranch: p.Head.Ref, BaseBranch: p.Base.Ref})
+	total = -1
+	if n, convErr := strconv.Atoi(header.Get("X-Total-Count")); convErr == nil && n >= 0 {
+		total = n
 	}
-	return open, nil
+	pulls = make([]changeRequest, 0, len(raw))
+	for _, p := range raw {
+		pulls = append(pulls, changeRequest{URL: p.HTMLURL, HeadBranch: p.Head.Ref, BaseBranch: p.Base.Ref})
+	}
+	return pulls, total, nil
 }
 
 func listGitLabMergeRequests(ref harness.RepoRef, token, sourceBranch string) ([]changeRequest, error) {
@@ -102,13 +134,21 @@ func listGitLabMergeRequests(ref harness.RepoRef, token, sourceBranch string) ([
 }
 
 func getJSON(req *http.Request, into any) error {
+	_, err := getJSONWithHeader(req, into)
+	return err
+}
+
+func getJSONWithHeader(req *http.Request, into any) (http.Header, error) {
 	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("%s %s: HTTP %d", req.Method, req.URL.Path, resp.StatusCode)
+		return nil, fmt.Errorf("%s %s: HTTP %d", req.Method, req.URL.Path, resp.StatusCode)
 	}
-	return json.NewDecoder(resp.Body).Decode(into)
+	if err := json.NewDecoder(resp.Body).Decode(into); err != nil {
+		return nil, err
+	}
+	return resp.Header, nil
 }

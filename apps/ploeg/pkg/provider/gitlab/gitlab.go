@@ -313,8 +313,9 @@ func changesCount(raw *string) *int {
 // CommitStatus reads the latest commit statuses of sha, one per CI job or
 // external check, and combines them with provider.CombineCommitStates.
 // GitLab's own combined pipeline status is not used, because a commit may
-// carry external statuses outside any pipeline. Skipped and manual jobs are
-// left out.
+// carry external statuses outside any pipeline. Every page is read, and when
+// a check name repeats its newest status counts. Skipped and manual jobs are
+// left out. A page that cannot be read fails the whole read.
 func (p *Provider) CommitStatus(ctx context.Context, repo, sha string) (provider.CommitStatus, bool, error) {
 	if err := validRepo(repo); err != nil {
 		return provider.CommitStatus{}, false, err
@@ -322,35 +323,13 @@ func (p *Provider) CommitStatus(ctx context.Context, repo, sha string) (provider
 	if sha == "" {
 		return provider.CommitStatus{}, false, errors.New("gitlab: commit status needs a sha")
 	}
-	endpoint := fmt.Sprintf("%s/api/v4/projects/%s/repository/commits/%s/statuses?per_page=%d",
-		strings.TrimRight(p.BaseURL, "/"), url.PathEscape(repo), url.PathEscape(sha), notesPerPage)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	statuses, err := p.commitStatuses(ctx, repo, sha)
 	if err != nil {
 		return provider.CommitStatus{}, false, err
-	}
-	req.Header.Set("Accept", "application/json")
-	if p.Token != "" {
-		req.Header.Set("PRIVATE-TOKEN", p.Token)
-	}
-	resp, err := p.client().Do(req)
-	if err != nil {
-		return provider.CommitStatus{}, false, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return provider.CommitStatus{}, false, fmt.Errorf("gitlab: commit status %s@%s: HTTP %d: %s", repo, sha, resp.StatusCode, bytes.TrimSpace(snippet))
-	}
-	var statuses []struct {
-		Name   string `json:"name"`
-		Status string `json:"status"`
-	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&statuses); err != nil {
-		return provider.CommitStatus{}, false, fmt.Errorf("gitlab: commit status %s@%s: %w", repo, sha, err)
 	}
 	out := provider.CommitStatus{SHA: sha, Checks: []provider.CommitCheck{}}
 	var states []provider.CommitState
-	for _, st := range statuses {
+	for _, st := range latestPerCheck(statuses) {
 		state, known := pipelineState(st.Status)
 		if !known {
 			continue
@@ -364,6 +343,83 @@ func (p *Provider) CommitStatus(ctx context.Context, repo, sha string) (provider
 	}
 	out.State = combined
 	return out, true, nil
+}
+
+const commitStatusMaxPages = 50
+
+type commitStatus struct {
+	ID     int64  `json:"id"`
+	Name   string `json:"name"`
+	Status string `json:"status"`
+}
+
+func (p *Provider) commitStatuses(ctx context.Context, repo, sha string) ([]commitStatus, error) {
+	base := fmt.Sprintf("%s/api/v4/projects/%s/repository/commits/%s/statuses",
+		strings.TrimRight(p.BaseURL, "/"), url.PathEscape(repo), url.PathEscape(sha))
+	var all []commitStatus
+	for page := 1; page <= commitStatusMaxPages; page++ {
+		batch, next, err := p.commitStatusPage(ctx, fmt.Sprintf("%s?per_page=%d&page=%d", base, notesPerPage, page))
+		if err != nil {
+			return nil, fmt.Errorf("gitlab: commit status %s@%s page %d: %w", repo, sha, page, err)
+		}
+		all = append(all, batch...)
+		if !next.known && len(batch) < notesPerPage || next.known && !next.more {
+			return all, nil
+		}
+	}
+	return nil, fmt.Errorf("gitlab: commit status %s@%s: more than %d pages of statuses", repo, sha, commitStatusMaxPages)
+}
+
+type nextPage struct {
+	known bool
+	more  bool
+}
+
+func (p *Provider) commitStatusPage(ctx context.Context, endpoint string) ([]commitStatus, nextPage, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, nextPage{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	if p.Token != "" {
+		req.Header.Set("PRIVATE-TOKEN", p.Token)
+	}
+	resp, err := p.client().Do(req)
+	if err != nil {
+		return nil, nextPage{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return nil, nextPage{}, fmt.Errorf("HTTP %d: %s", resp.StatusCode, bytes.TrimSpace(snippet))
+	}
+	var batch []commitStatus
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&batch); err != nil {
+		return nil, nextPage{}, err
+	}
+	var next nextPage
+	if values, present := resp.Header["X-Next-Page"]; present {
+		next.known = true
+		next.more = len(values) > 0 && strings.TrimSpace(values[0]) != ""
+	}
+	return batch, next, nil
+}
+
+func latestPerCheck(statuses []commitStatus) []commitStatus {
+	index := make(map[string]int, len(statuses))
+	var latest []commitStatus
+	for _, st := range statuses {
+		i, seen := index[st.Name]
+		if !seen {
+			index[st.Name] = len(latest)
+			latest = append(latest, st)
+			continue
+		}
+		if st.ID > latest[i].ID {
+			latest[i] = st
+		}
+	}
+	return latest
 }
 
 func pipelineState(s string) (provider.CommitState, bool) {
