@@ -210,7 +210,7 @@ test('artifact jobs accept validated parse output without unavailable job result
             needs: {
               'parse-release-tag': { outputs: { version }, result: unavailableResult },
               'ploeg-release-sign-harbor': { outputs: { signed: 'true' }, result: unavailableResult },
-              'vloer-release-distribute': { outputs: {}, result: 'failure' },
+              'vloer-release-distribute': { outputs: { distributed: 'true' }, result: unavailableResult },
             },
           });
           assert.equal(enabled, result.status === 0, `${name} input gate for ${tag}`);
