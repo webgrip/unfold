@@ -291,8 +291,13 @@ func (s *Server) handleForgeWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Dedup BEFORE parsing: a redelivery must cost nothing, and the delivery
-	// id is readable without touching the body.
+	events, err := fp.ParseWebhook(r)
+	if err != nil {
+		s.Log.Warn("forge webhook rejected", "provider", name, "err", err)
+		http.Error(w, "webhook rejected", http.StatusBadRequest)
+		return
+	}
+
 	delivery := r.Header.Get("X-Forgejo-Delivery")
 	if delivery == "" {
 		delivery = r.Header.Get("X-Gitea-Delivery")
@@ -309,14 +314,6 @@ func (s *Server) handleForgeWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ParseWebhook verifies the signature against the raw body before it
-	// parses anything (backlog #2).
-	events, err := fp.ParseWebhook(r)
-	if err != nil {
-		s.Log.Warn("forge webhook rejected", "provider", name, "err", err)
-		http.Error(w, "webhook rejected", http.StatusBadRequest)
-		return
-	}
 	for _, ev := range events {
 		if err := s.Store.AuditForgeEvent(r.Context(), name, store.ForgeEventAudit{
 			Kind: string(ev.Kind), Repo: ev.Repo, Branch: ev.Branch, PR: ev.PR,
